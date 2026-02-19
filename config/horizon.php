@@ -136,23 +136,23 @@ return [
     'environments' => [
         'production' => [
             'supervisor-indexing' => [
-                'maxProcesses' => 6,
-                'minProcesses' => 2,
-                'balanceMaxShift' => 2,
+                'maxProcesses' => 4,
+                'minProcesses' => 1,
+                'balanceMaxShift' => 1,
                 'balanceCooldown' => 3,
             ],
             'supervisor-cache' => [
-                'maxProcesses' => 3,
+                'maxProcesses' => 2,
                 'minProcesses' => 1,
             ],
             'supervisor-warmup' => [
-                'maxProcesses' => 3,
+                'maxProcesses' => 2,
                 'minProcesses' => 1,
             ],
             'supervisor-default' => [
-                'maxProcesses' => 6,
-                'minProcesses' => 2,
-                'balanceMaxShift' => 2,
+                'maxProcesses' => 4,
+                'minProcesses' => 1,
+                'balanceMaxShift' => 1,
                 'balanceCooldown' => 3,
             ],
         ],
