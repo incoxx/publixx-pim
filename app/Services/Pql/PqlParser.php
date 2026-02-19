@@ -311,6 +311,28 @@ final class PqlParser
     }
 
     /**
+     * Parse ORDER BY SCORE [ASC|DESC].
+     */
+    private function parseOrderByScore(): OrderByScoreNode
+    {
+        $this->expect(self::T_ORDER);
+        $this->expect(self::T_BY);
+        $this->expect(self::T_SCORE);
+
+        $direction = 'DESC';
+
+        if ($this->check(self::T_ASC)) {
+            $direction = 'ASC';
+            $this->advance();
+        } elseif ($this->check(self::T_DESC)) {
+            $direction = 'DESC';
+            $this->advance();
+        }
+
+        return new OrderByScoreNode($direction);
+    }
+
+    /**
      * @return array<string>
      */
     private function parseFieldList(): array

@@ -10,6 +10,7 @@ use App\Models\ProductAttributeValue;
 use App\Models\PublixxExportMapping;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 
 /**
  * Resolves export mapping rules against a product.
@@ -96,7 +97,7 @@ class MappingResolver
 
         // Selection → display value
         if ($attrValue instanceof ProductAttributeValue && $attrValue->value_selection_id !== null) {
-            $entry = $attrValue->selectionEntry;
+            $entry = $attrValue->valueListEntry;
             if ($entry) {
                 $field = "display_value_{$language}";
                 return $entry->{$field} ?? $entry->display_value_de ?? $entry->technical_name;
@@ -371,7 +372,7 @@ class MappingResolver
         $name = $attribute->{$nameField} ?? $attribute->name_de ?? $attribute->technical_name;
 
         // Convert to camelCase-ish key
-        return \Str::camel(\Str::slug($name, '_'));
+        return Str::camel(Str::slug($name, '_'));
     }
 
     /**

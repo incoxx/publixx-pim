@@ -24,7 +24,7 @@ class ProductResource extends JsonResource
             'product_type' => new ProductTypeResource($this->whenLoaded('productType')),
             'attribute_values' => ProductAttributeValueResource::collection($this->whenLoaded('attributeValues')),
             'variants' => ProductResource::collection($this->whenLoaded('variants')),
-            'media' => ProductMediaResource::collection($this->whenLoaded('media')),
+            'media' => MediaResource::collection($this->whenLoaded('media')),
             'prices' => ProductPriceResource::collection($this->whenLoaded('prices')),
             'relations' => ProductRelationResource::collection($this->whenLoaded('relations')),
             'parent_product' => new ProductResource($this->whenLoaded('parentProduct')),

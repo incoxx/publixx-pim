@@ -51,7 +51,7 @@ class RoleController extends Controller
         $role = Role::create([
             'id' => Str::uuid()->toString(),
             'name' => $validated['name'],
-            'guard_name' => $validated['guard_name'] ?? 'web',
+            'guard_name' => $validated['guard_name'] ?? 'sanctum',
         ]);
 
         if (! empty($validated['permissions'])) {

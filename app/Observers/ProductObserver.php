@@ -26,8 +26,7 @@ class ProductObserver
      */
     public function created(Product $product): void
     {
-        dispatch(new UpdateSearchIndex($product->id))->afterCommit();
-
+        // UpdateSearchIndex is dispatched via ProductCreated event → UpdateSearchIndexListener
         Log::debug('ProductObserver::created', ['product_id' => $product->id]);
     }
 
@@ -41,8 +40,7 @@ class ProductObserver
         // Eigenen Cache invalidieren
         $this->invalidateProductCache($product->id);
 
-        // Search-Index async aktualisieren
-        dispatch(new UpdateSearchIndex($product->id))->afterCommit();
+        // UpdateSearchIndex is dispatched via ProductUpdated event → UpdateSearchIndexListener
 
         // Varianten-Kaskade: Alle Kinder ebenfalls invalidieren
         $this->invalidateVariants($product);

@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\V1\MediaController;
 use App\Http\Controllers\Api\V1\NodeAttributeAssignmentController;
 use App\Http\Controllers\Api\V1\PqlController;
 use App\Http\Controllers\Api\V1\PriceTypeController;
+use App\Http\Controllers\Api\V1\ProductTypeController;
 use App\Http\Controllers\Api\V1\ProductAttributeValueController;
 use App\Http\Controllers\Api\V1\ProductController;
 use App\Http\Controllers\Api\V1\ProductMediaController;
@@ -21,6 +22,7 @@ use App\Http\Controllers\Api\V1\ProductPriceController;
 use App\Http\Controllers\Api\V1\ProductRelationController;
 use App\Http\Controllers\Api\V1\ProductVariantController;
 use App\Http\Controllers\Api\V1\PublixxDatasetController;
+use App\Http\Controllers\Api\V1\PxfTemplateController;
 use App\Http\Controllers\Api\V1\RelationTypeController;
 use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\UnitController;
@@ -118,9 +120,9 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // =====================================================================
     Route::get('hierarchy-nodes/{hierarchy_node}/attributes', [NodeAttributeAssignmentController::class, 'index']);
     Route::post('hierarchy-nodes/{hierarchy_node}/attributes', [NodeAttributeAssignmentController::class, 'store']);
+    Route::put('node-attribute-assignments/bulk-sort', [NodeAttributeAssignmentController::class, 'bulkSort']);
     Route::put('node-attribute-assignments/{node_attribute_assignment}', [NodeAttributeAssignmentController::class, 'update']);
     Route::delete('node-attribute-assignments/{node_attribute_assignment}', [NodeAttributeAssignmentController::class, 'destroy']);
-    Route::put('node-attribute-assignments/bulk-sort', [NodeAttributeAssignmentController::class, 'bulkSort']);
 
     // =====================================================================
     // Agent 3: Products
@@ -166,6 +168,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // =====================================================================
     // Agent 3 + 6: Import
     // =====================================================================
+    Route::get('imports/templates/{type}', [ImportController::class, 'template']);
     Route::post('imports', [ImportController::class, 'store']);
     Route::get('imports/{import}', [ImportController::class, 'show']);
     Route::get('imports/{import}/preview', [ImportController::class, 'preview']);
@@ -203,4 +206,11 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
         Route::post('datasets/{mapping_id}/pql', [PublixxDatasetController::class, 'pql']);
         Route::post('webhook', [PublixxDatasetController::class, 'webhook']);
     });
+
+    // =====================================================================
+    // PXF Templates
+    // =====================================================================
+    Route::apiResource('pxf-templates', PxfTemplateController::class);
+    Route::get('pxf-templates/{pxf_template}/preview/{product}', [PxfTemplateController::class, 'preview']);
+    Route::post('pxf-templates/import', [PxfTemplateController::class, 'import']);
 });

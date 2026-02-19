@@ -233,7 +233,7 @@ class DatasetBuilderTest extends TestCase
             'language' => null,
         ]);
 
-        $product->load('attributeValues.attribute', 'attributeValues.unit', 'attributeValues.selectionEntry');
+        $product->load('attributeValues.attribute', 'attributeValues.unit', 'attributeValues.valueListEntry');
 
         return $product;
     }

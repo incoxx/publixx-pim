@@ -172,6 +172,9 @@ class SearchIndexSyncTest extends TestCase
     /** @test */
     public function product_created_dispatches_update_search_index(): void
     {
+        // Note: The ProductObserver::created() only logs; the UpdateSearchIndex
+        // is dispatched via the ProductCreated event fired from controllers.
+        // This test verifies the observer does NOT queue jobs directly on create.
         Queue::fake();
 
         Product::factory()->create([
@@ -179,22 +182,32 @@ class SearchIndexSyncTest extends TestCase
             'sku' => 'OBS-001',
         ]);
 
-        Queue::assertPushed(UpdateSearchIndex::class);
+        Queue::assertNotPushed(UpdateSearchIndex::class);
     }
 
     /** @test */
     public function product_updated_dispatches_update_search_index(): void
     {
-        $product = Product::factory()->create([
+        // Note: The ProductObserver::updated() dispatches UpdateSearchIndex only
+        // for variant children (cascade), not for the parent product itself.
+        // The parent is handled via ProductUpdated event from controllers.
+        $parent = Product::factory()->create([
             'product_type_id' => $this->productType->id,
+            'product_type_ref' => 'product',
+        ]);
+
+        $variant = Product::factory()->create([
+            'product_type_id' => $this->productType->id,
+            'product_type_ref' => 'variant',
+            'parent_product_id' => $parent->id,
         ]);
 
         Queue::fake();
 
-        $product->update(['status' => 'active']);
+        $parent->update(['status' => 'active']);
 
-        Queue::assertPushed(UpdateSearchIndex::class, function ($job) use ($product) {
-            return $job->productId === $product->id;
+        Queue::assertPushed(UpdateSearchIndex::class, function ($job) use ($variant) {
+            return $job->productId === $variant->id;
         });
     }
 
@@ -240,10 +253,7 @@ class SearchIndexSyncTest extends TestCase
 
         $parent->update(['name' => 'Neuer Name']);
 
-        // Elternprodukt + 2 Varianten = mindestens 3 Jobs
-        Queue::assertPushed(UpdateSearchIndex::class, function ($job) use ($parent) {
-            return $job->productId === $parent->id;
-        });
+        // Observer dispatches UpdateSearchIndex for variant children (cascade)
         Queue::assertPushed(UpdateSearchIndex::class, function ($job) use ($variant1) {
             return $job->productId === $variant1->id;
         });

@@ -7,18 +7,17 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Requests\Api\V1\StoreImportRequest;
 use App\Http\Resources\Api\V1\ImportJobResource;
 use App\Models\ImportJob;
+use App\Services\Import\ImportService;
+use App\Services\Import\TemplateGenerator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
-/**
- * ImportController — defines the API endpoints for import.
- *
- * The actual import logic (validation, preview, execution) is implemented by
- * Agent 6 (Import-Agent) in App\Services\Import\ImportService.
- * This controller delegates to that service.
- */
 class ImportController extends Controller
 {
+    public function __construct(
+        private readonly ImportService $importService,
+    ) {}
+
     /**
      * POST /imports — upload Excel file, start validation.
      */
@@ -26,18 +25,10 @@ class ImportController extends Controller
     {
         $this->authorize('create', ImportJob::class);
 
-        $file = $request->file('file');
-        $path = $file->store('imports', 'local');
-
-        $importJob = ImportJob::create([
-            'user_id' => $request->user()->id,
-            'file_name' => $file->getClientOriginalName(),
-            'file_path' => $path,
-            'status' => 'uploaded',
-        ]);
-
-        // Agent 6 provides: App\Services\Import\ImportService
-        // dispatch(new \App\Jobs\ImportValidate($importJob));
+        $importJob = $this->importService->upload(
+            $request->file('file'),
+            $request->user()->id,
+        );
 
         return (new ImportJobResource($importJob))
             ->response()
@@ -61,24 +52,19 @@ class ImportController extends Controller
     {
         $this->authorize('view', $import);
 
-        return response()->json([
-            'data' => [
-                'id' => $import->id,
-                'status' => $import->status,
-                'summary' => $import->summary,
-                'sheets_found' => $import->sheets_found,
-            ],
-        ]);
+        $preview = $this->importService->preview($import);
+
+        return response()->json(['data' => $preview]);
     }
 
     /**
      * POST /imports/{import}/execute — run the import.
      */
-    public function execute(ImportJob $import): JsonResponse
+    public function execute(Request $request, ImportJob $import): JsonResponse
     {
         $this->authorize('update', $import);
 
-        if (!in_array($import->status, ['validated'])) {
+        if ($import->status !== 'validated') {
             return $this->errorResponse(
                 'urn:publixx:pim:import:invalid-state',
                 'Import cannot be executed',
@@ -87,13 +73,13 @@ class ImportController extends Controller
             );
         }
 
-        // Agent 6 provides: dispatch(new \App\Jobs\ImportExecute($import));
-        $import->update(['status' => 'executing', 'started_at' => now()]);
+        $force = (bool) $request->input('force', false);
+        $this->importService->execute($import, $force);
 
         return response()->json([
             'data' => [
                 'id' => $import->id,
-                'status' => 'executing',
+                'status' => $import->fresh()->status,
             ],
         ]);
     }
@@ -126,5 +112,17 @@ class ImportController extends Controller
         $import->delete();
 
         return response()->json(null, 204);
+    }
+
+    /**
+     * GET /imports/templates/{type} — download blank import template.
+     */
+    public function template(string $type, TemplateGenerator $generator): \Symfony\Component\HttpFoundation\BinaryFileResponse
+    {
+        $filePath = $generator->generate($type);
+
+        return response()->download($filePath, "pim-import-template-{$type}.xlsx", [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ])->deleteFileAfterSend();
     }
 }

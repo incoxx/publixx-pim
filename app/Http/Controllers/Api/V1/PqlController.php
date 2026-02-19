@@ -7,18 +7,8 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Requests\Api\V1\PqlQueryRequest;
 use App\Services\Pql\PqlExecutor;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Routing\Controller;
 use Symfony\Component\HttpFoundation\Response;
 
-/**
- * PQL API Controller.
- *
- * Endpoints:
- *   POST /api/v1/pql/query           → Execute PQL, return JSON results
- *   POST /api/v1/pql/query/count     → Return hit count only
- *   POST /api/v1/pql/query/validate  → Validate PQL without executing
- *   POST /api/v1/pql/query/explain   → Show query plan + estimated cost
- */
 final class PqlController extends Controller
 {
     public function __construct(

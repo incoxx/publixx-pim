@@ -28,14 +28,14 @@ class HierarchyInheritanceTest extends TestCase
         parent::setUp();
         $this->service = app(HierarchyInheritanceService::class);
 
-        $this->hierarchy = Hierarchy::create([
+        $this->hierarchy = Hierarchy::forceCreate([
             'id' => (string) \Illuminate\Support\Str::uuid(),
             'technical_name' => 'master',
             'name_de' => 'Master-Hierarchie',
             'hierarchy_type' => 'master',
         ]);
 
-        $this->productType = ProductType::create([
+        $this->productType = ProductType::forceCreate([
             'id' => (string) \Illuminate\Support\Str::uuid(),
             'technical_name' => 'physical_product',
             'name_de' => 'Physisches Produkt',
@@ -62,7 +62,7 @@ class HierarchyInheritanceTest extends TestCase
     ): HierarchyNode {
         $id = (string) \Illuminate\Support\Str::uuid();
 
-        return HierarchyNode::create([
+        return HierarchyNode::forceCreate([
             'id' => $id,
             'hierarchy_id' => $this->hierarchy->id,
             'parent_node_id' => $parentId,
@@ -76,7 +76,7 @@ class HierarchyInheritanceTest extends TestCase
 
     private function createAttribute(string $technicalName, string $nameDe): Attribute
     {
-        return Attribute::create([
+        return Attribute::forceCreate([
             'id' => (string) \Illuminate\Support\Str::uuid(),
             'technical_name' => $technicalName,
             'name_de' => $nameDe,
@@ -100,7 +100,7 @@ class HierarchyInheritanceTest extends TestCase
         int $attributeSort = 10,
         bool $dontInherit = false,
     ): HierarchyNodeAttributeAssignment {
-        return HierarchyNodeAttributeAssignment::create([
+        return HierarchyNodeAttributeAssignment::forceCreate([
             'id' => (string) \Illuminate\Support\Str::uuid(),
             'hierarchy_node_id' => $node->id,
             'attribute_id' => $attribute->id,
@@ -113,7 +113,7 @@ class HierarchyInheritanceTest extends TestCase
 
     private function createProduct(string $sku, ?string $nodeId = null): Product
     {
-        return Product::create([
+        return Product::forceCreate([
             'id' => (string) \Illuminate\Support\Str::uuid(),
             'product_type_id' => $this->productType->id,
             'sku' => $sku,

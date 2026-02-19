@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\DB;
 
 class HierarchyNode extends Model
 {
@@ -90,6 +91,11 @@ class HierarchyNode extends Model
      */
     public function scopeAncestorsOf($query, string $path)
     {
+        if (DB::getDriverName() === 'sqlite') {
+            return $query->whereRaw('? LIKE (path || \'%\')', [$path])
+                ->where('path', '!=', $path);
+        }
+
         return $query->whereRaw('? LIKE CONCAT(path, \'%\')', [$path])
             ->where('path', '!=', $path);
     }

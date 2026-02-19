@@ -213,7 +213,7 @@ class ExportService
      */
     protected function loadProductRelations(Product $product, PublixxExportMapping $mapping): Product
     {
-        $relations = ['attributeValues.attribute', 'attributeValues.unit', 'attributeValues.selectionEntry'];
+        $relations = ['attributeValues.attribute', 'attributeValues.unit', 'attributeValues.valueListEntry'];
 
         if ($mapping->include_media) {
             $relations[] = 'mediaAssignments.media';

@@ -107,6 +107,11 @@ class Attribute extends Model
             ->using(AttributeViewAssignment::class);
     }
 
+    public function viewAssignments(): HasMany
+    {
+        return $this->hasMany(AttributeViewAssignment::class);
+    }
+
     public function productAttributeValues(): HasMany
     {
         return $this->hasMany(ProductAttributeValue::class);
