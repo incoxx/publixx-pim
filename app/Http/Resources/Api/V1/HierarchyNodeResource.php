@@ -25,6 +25,7 @@ class HierarchyNodeResource extends JsonResource
             'children' => HierarchyNodeResource::collection($this->whenLoaded('children')),
             'parent' => new HierarchyNodeResource($this->whenLoaded('parent')),
             'attribute_assignments' => NodeAttributeAssignmentResource::collection($this->whenLoaded('attributeAssignments')),
+            'attribute_values' => HierarchyNodeAttributeValueResource::collection($this->whenLoaded('attributeValues')),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

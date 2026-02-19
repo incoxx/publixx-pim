@@ -22,7 +22,7 @@ class ProductRelationController extends Controller
         $this->authorize('view', $product);
 
         $query = $product->relations()
-            ->with(['relationType', 'targetProduct'])
+            ->with(['relationType', 'targetProduct', 'attributeValues.attribute'])
             ->orderBy('sort_order', 'asc');
 
         return ProductRelationResource::collection(
@@ -42,7 +42,7 @@ class ProductRelationController extends Controller
 
         $relation = ProductRelation::create($data);
 
-        return (new ProductRelationResource($relation->load(['relationType', 'targetProduct'])))
+        return (new ProductRelationResource($relation->load(['relationType', 'targetProduct', 'attributeValues.attribute'])))
             ->response()
             ->setStatusCode(201);
     }

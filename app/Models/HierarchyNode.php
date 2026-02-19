@@ -72,6 +72,11 @@ class HierarchyNode extends Model
         return $this->hasMany(Product::class, 'master_hierarchy_node_id');
     }
 
+    public function attributeValues(): HasMany
+    {
+        return $this->hasMany(HierarchyNodeAttributeValue::class);
+    }
+
     public function outputProductAssignments(): HasMany
     {
         return $this->hasMany(OutputHierarchyProductAssignment::class);

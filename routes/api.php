@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\V1\AttributeViewController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\ExportController;
 use App\Http\Controllers\Api\V1\HierarchyController;
+use App\Http\Controllers\Api\V1\HierarchyNodeAttributeValueController;
 use App\Http\Controllers\Api\V1\HierarchyNodeController;
 use App\Http\Controllers\Api\V1\ImportController;
 use App\Http\Controllers\Api\V1\MediaController;
@@ -19,6 +20,7 @@ use App\Http\Controllers\Api\V1\ProductAttributeValueController;
 use App\Http\Controllers\Api\V1\ProductController;
 use App\Http\Controllers\Api\V1\ProductMediaController;
 use App\Http\Controllers\Api\V1\ProductPriceController;
+use App\Http\Controllers\Api\V1\ProductRelationAttributeValueController;
 use App\Http\Controllers\Api\V1\ProductRelationController;
 use App\Http\Controllers\Api\V1\ProductVariantController;
 use App\Http\Controllers\Api\V1\PublixxDatasetController;
@@ -125,6 +127,13 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::delete('node-attribute-assignments/{node_attribute_assignment}', [NodeAttributeAssignmentController::class, 'destroy']);
 
     // =====================================================================
+    // Hierarchy Node — Attribute Values (EAV on nodes)
+    // =====================================================================
+    Route::get('hierarchy-nodes/{hierarchy_node}/attribute-values', [HierarchyNodeAttributeValueController::class, 'index']);
+    Route::put('hierarchy-nodes/{hierarchy_node}/attribute-values', [HierarchyNodeAttributeValueController::class, 'bulkUpdate']);
+    Route::delete('hierarchy-node-attribute-values/{hierarchy_node_attribute_value}', [HierarchyNodeAttributeValueController::class, 'destroy']);
+
+    // =====================================================================
     // Agent 3: Products
     // =====================================================================
     Route::apiResource('products', ProductController::class);
@@ -164,6 +173,11 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::get('products/{product}/relations', [ProductRelationController::class, 'index']);
     Route::post('products/{product}/relations', [ProductRelationController::class, 'store']);
     Route::delete('product-relations/{product_relation}', [ProductRelationController::class, 'destroy']);
+
+    // Product Relation — Attribute Values (EAV on relation edges)
+    Route::get('product-relations/{product_relation}/attribute-values', [ProductRelationAttributeValueController::class, 'index']);
+    Route::put('product-relations/{product_relation}/attribute-values', [ProductRelationAttributeValueController::class, 'bulkUpdate']);
+    Route::delete('product-relation-attribute-values/{product_relation_attribute_value}', [ProductRelationAttributeValueController::class, 'destroy']);
 
     // =====================================================================
     // Agent 3 + 6: Import
