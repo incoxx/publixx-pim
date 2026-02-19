@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -42,9 +43,13 @@ return new class extends Migration
                 'pav_product_attr_lang_idx_unique'
             );
             $table->index(['product_id', 'attribute_id']);
-            $table->rawIndex('attribute_id, value_string(191)', 'idx_attr_value_prefix');
             $table->index(['product_id', 'language']);
         });
+
+        // Prefix index on TEXT column — MySQL only (SQLite doesn't support prefix indexes)
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement('CREATE INDEX idx_attr_value_prefix ON product_attribute_values (attribute_id, value_string(191))');
+        }
     }
 
     public function down(): void
