@@ -1,0 +1,37 @@
+{
+  "name": "publixx-pim-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs"
+  },
+  "dependencies": {
+    "vue": "^3.5.13",
+    "vue-router": "^4.5.0",
+    "pinia": "^2.3.0",
+    "axios": "^1.7.9",
+    "@headlessui/vue": "^1.7.23",
+    "@heroicons/vue": "^2.2.0",
+    "@vueuse/core": "^11.3.0",
+    "vue-i18n": "^9.14.0",
+    "vue-draggable-plus": "^0.5.6",
+    "lucide-vue-next": "^0.468.0",
+    "chart.js": "^4.4.7",
+    "vue-chartjs": "^5.3.2",
+    "qrcode": "^1.5.4",
+    "jsbarcode": "^3.11.6",
+    "leaflet": "^1.9.4",
+    "@monaco-editor/loader": "^1.4.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.2.1",
+    "vite": "^6.0.7",
+    "@tailwindcss/vite": "^4.0.6",
+    "tailwindcss": "^4.0.6",
+    "autoprefixer": "^10.4.20"
+  }
+}
