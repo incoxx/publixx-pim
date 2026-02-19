@@ -4,10 +4,9 @@ declare(strict_types=1);
 
 namespace Database\Seeders;
 
+use App\Models\Permission;
+use App\Models\Role;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Str;
-use Spatie\Permission\Models\Permission;
-use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 
 class RoleAndPermissionSeeder extends Seeder
@@ -50,23 +49,19 @@ class RoleAndPermissionSeeder extends Seeder
         foreach ($permissions as $permissionName) {
             Permission::firstOrCreate([
                 'name' => $permissionName,
-                'guard_name' => 'web',
-            ], [
-                'id' => Str::uuid()->toString(),
+                'guard_name' => 'sanctum',
             ]);
         }
 
         // ─── 1. Admin (alle Permissions) ─────────────────────────────
         $admin = Role::firstOrCreate(
-            ['name' => 'Admin', 'guard_name' => 'web'],
-            ['id' => Str::uuid()->toString()],
+            ['name' => 'Admin', 'guard_name' => 'sanctum'],
         );
         $admin->syncPermissions(Permission::all());
 
         // ─── 2. Data Steward (Strukturverwaltung) ────────────────────
         $dataSteward = Role::firstOrCreate(
-            ['name' => 'Data Steward', 'guard_name' => 'web'],
-            ['id' => Str::uuid()->toString()],
+            ['name' => 'Data Steward', 'guard_name' => 'sanctum'],
         );
         $dataSteward->syncPermissions([
             'attributes.view', 'attributes.create', 'attributes.edit', 'attributes.delete',
@@ -81,8 +76,7 @@ class RoleAndPermissionSeeder extends Seeder
 
         // ─── 3. Product Manager (Datenpflege) ────────────────────────
         $productManager = Role::firstOrCreate(
-            ['name' => 'Product Manager', 'guard_name' => 'web'],
-            ['id' => Str::uuid()->toString()],
+            ['name' => 'Product Manager', 'guard_name' => 'sanctum'],
         );
         $productManager->syncPermissions([
             'products.view', 'products.create', 'products.edit',
@@ -97,8 +91,7 @@ class RoleAndPermissionSeeder extends Seeder
 
         // ─── 4. Viewer (Nur Lesen) ──────────────────────────────────
         $viewer = Role::firstOrCreate(
-            ['name' => 'Viewer', 'guard_name' => 'web'],
-            ['id' => Str::uuid()->toString()],
+            ['name' => 'Viewer', 'guard_name' => 'sanctum'],
         );
         $viewer->syncPermissions(
             Permission::where('name', 'LIKE', '%.view')->get()
@@ -106,8 +99,7 @@ class RoleAndPermissionSeeder extends Seeder
 
         // ─── 5. Export Manager (Export + Publixx) ────────────────────
         $exportManager = Role::firstOrCreate(
-            ['name' => 'Export Manager', 'guard_name' => 'web'],
-            ['id' => Str::uuid()->toString()],
+            ['name' => 'Export Manager', 'guard_name' => 'sanctum'],
         );
         $exportManager->syncPermissions([
             'export.view', 'export.execute', 'export.mappings.edit',
