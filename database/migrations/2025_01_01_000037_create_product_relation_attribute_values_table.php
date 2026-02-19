@@ -48,7 +48,7 @@ return new class extends Migration
                 ['product_relation_id', 'attribute_id', 'language', 'multiplied_index'],
                 'prav_relation_attr_lang_idx_unique'
             );
-            $table->index(['product_relation_id', 'attribute_id']);
+            $table->index(['product_relation_id', 'attribute_id'], 'prav_relation_attr_index');
         });
     }
 

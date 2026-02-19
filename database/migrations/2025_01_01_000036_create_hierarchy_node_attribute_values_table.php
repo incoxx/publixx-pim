@@ -48,7 +48,7 @@ return new class extends Migration
                 ['hierarchy_node_id', 'attribute_id', 'language', 'multiplied_index'],
                 'hnav_node_attr_lang_idx_unique'
             );
-            $table->index(['hierarchy_node_id', 'attribute_id']);
+            $table->index(['hierarchy_node_id', 'attribute_id'], 'hnav_node_attr_index');
         });
     }
 
