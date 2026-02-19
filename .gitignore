@@ -18,3 +18,6 @@ yarn-error.log
 /.vscode
 /pim-frontend/node_modules
 /pim-frontend/dist
+/bootstrap/cache
+/storage/logs
+publixx_pim
