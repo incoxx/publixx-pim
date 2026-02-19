@@ -42,7 +42,7 @@ return new class extends Migration
                 'pav_product_attr_lang_idx_unique'
             );
             $table->index(['product_id', 'attribute_id']);
-            $table->index(['attribute_id', 'value_string'], 'idx_attr_value_prefix');
+            $table->rawIndex('attribute_id, value_string(191)', 'idx_attr_value_prefix');
             $table->index(['product_id', 'language']);
         });
     }
