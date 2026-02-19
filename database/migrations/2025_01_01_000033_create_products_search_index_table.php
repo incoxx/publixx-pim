@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -26,8 +27,10 @@ return new class extends Migration
             $table->string('phonetic_name_de', 100)->nullable();
             $table->timestamp('updated_at')->nullable();
 
-            $table->fullText(['name_de', 'name_en'], 'idx_ft_name');
-            $table->fullText('description_de', 'idx_ft_desc');
+            if (DB::getDriverName() !== 'sqlite') {
+                $table->fullText(['name_de', 'name_en'], 'idx_ft_name');
+                $table->fullText('description_de', 'idx_ft_desc');
+            }
             $table->index('status', 'idx_status');
             $table->index('product_type', 'idx_type');
             $table->index('sku', 'idx_sku');

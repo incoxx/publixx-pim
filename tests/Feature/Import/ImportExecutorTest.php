@@ -21,6 +21,7 @@ class ImportExecutorTest extends TestCase
     use RefreshDatabase;
 
     private ImportExecutor $executor;
+    private string $productTypeId;
 
     protected function setUp(): void
     {
@@ -28,7 +29,7 @@ class ImportExecutorTest extends TestCase
         $this->executor = new ImportExecutor(new ReferenceResolver());
 
         // Stammdaten anlegen
-        ProductType::create([
+        $pt = ProductType::forceCreate([
             'id' => 'pt-physical',
             'technical_name' => 'physical_product',
             'name_de' => 'Physisches Produkt',
@@ -39,6 +40,7 @@ class ImportExecutorTest extends TestCase
             'sort_order' => 1,
             'is_active' => true,
         ]);
+        $this->productTypeId = $pt->id;
     }
 
     public function test_creates_new_products(): void
@@ -70,11 +72,11 @@ class ImportExecutorTest extends TestCase
     public function test_updates_existing_products(): void
     {
         // Vorhandenes Produkt
-        Product::create([
+        Product::forceCreate([
             'id' => 'existing-prod-1',
             'sku' => 'EXIST-001',
             'name' => 'Altes Produkt',
-            'product_type_id' => 'pt-physical',
+            'product_type_id' => $this->productTypeId,
             'status' => 'draft',
             'product_type_ref' => 'product',
         ]);
@@ -110,16 +112,16 @@ class ImportExecutorTest extends TestCase
     public function test_imports_product_attribute_values(): void
     {
         // Produkt und Attribut anlegen
-        Product::create([
+        Product::forceCreate([
             'id' => 'prod-1',
             'sku' => 'SKU-001',
             'name' => 'Test',
-            'product_type_id' => 'pt-physical',
+            'product_type_id' => $this->productTypeId,
             'status' => 'draft',
             'product_type_ref' => 'product',
         ]);
 
-        Attribute::create([
+        Attribute::forceCreate([
             'id' => 'attr-weight',
             'technical_name' => 'product-weight',
             'name_de' => 'Gewicht',
@@ -161,11 +163,11 @@ class ImportExecutorTest extends TestCase
 
     public function test_affected_product_ids_collected(): void
     {
-        Product::create([
+        Product::forceCreate([
             'id' => 'prod-aff-1',
             'sku' => 'AFF-001',
             'name' => 'Test',
-            'product_type_id' => 'pt-physical',
+            'product_type_id' => $this->productTypeId,
             'status' => 'draft',
             'product_type_ref' => 'product',
         ]);
@@ -287,17 +289,17 @@ class ImportExecutorTest extends TestCase
 
     public function test_value_mapping_for_different_data_types(): void
     {
-        Product::create([
+        Product::forceCreate([
             'id' => 'prod-vt',
             'sku' => 'VT-001',
             'name' => 'Value Type Test',
-            'product_type_id' => 'pt-physical',
+            'product_type_id' => $this->productTypeId,
             'status' => 'draft',
             'product_type_ref' => 'product',
         ]);
 
         // String-Attribut
-        Attribute::create([
+        Attribute::forceCreate([
             'id' => 'attr-desc',
             'technical_name' => 'description',
             'name_de' => 'Beschreibung',
@@ -311,7 +313,7 @@ class ImportExecutorTest extends TestCase
         ]);
 
         // Flag-Attribut
-        Attribute::create([
+        Attribute::forceCreate([
             'id' => 'attr-flag',
             'technical_name' => 'is-hazardous',
             'name_de' => 'Gefahrgut',

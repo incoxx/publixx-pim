@@ -65,6 +65,11 @@ final class PqlSqlGenerator
     private string $language = 'de';
 
     /**
+     * @var bool Whether the database driver is SQLite
+     */
+    private bool $isSqlite = false;
+
+    /**
      * @var bool Whether the query contains FUZZY and needs PHP post-filtering
      */
     private bool $hasFuzzy = false;
@@ -91,6 +96,7 @@ final class PqlSqlGenerator
         $this->language = $language;
         $this->hasFuzzy = false;
         $this->fuzzyNodes = [];
+        $this->isSqlite = DB::getDriverName() === 'sqlite';
 
         $query = DB::table('products as p')
             ->join('products_search_index as psi', 'p.id', '=', 'psi.product_id');
@@ -245,10 +251,18 @@ final class PqlSqlGenerator
             if ($isWrapped && $this->isFulltextField($field)) {
                 $searchTerm = trim($pattern, '%');
                 $ftColumn = $this->resolveFulltextColumn($field);
-                if ($node->negated) {
-                    $query->whereRaw("NOT MATCH({$ftColumn}) AGAINST(? IN BOOLEAN MODE)", [$searchTerm]);
+                if ($this->isSqlite) {
+                    if ($node->negated) {
+                        $query->where($ftColumn, 'NOT LIKE', '%' . $searchTerm . '%');
+                    } else {
+                        $query->where($ftColumn, 'LIKE', '%' . $searchTerm . '%');
+                    }
                 } else {
-                    $query->whereRaw("MATCH({$ftColumn}) AGAINST(? IN BOOLEAN MODE)", [$searchTerm]);
+                    if ($node->negated) {
+                        $query->whereRaw("NOT MATCH({$ftColumn}) AGAINST(? IN BOOLEAN MODE)", [$searchTerm]);
+                    } else {
+                        $query->whereRaw("MATCH({$ftColumn}) AGAINST(? IN BOOLEAN MODE)", [$searchTerm]);
+                    }
                 }
             } else {
                 if ($node->negated) {
@@ -283,10 +297,14 @@ final class PqlSqlGenerator
         // SQL: FULLTEXT pre-filter (wider net, then PHP post-filter)
         if ($this->isFulltextField($node->field)) {
             $ftColumn = $this->resolveFulltextColumn($node->field);
-            $query->whereRaw(
-                "MATCH({$ftColumn}) AGAINST(? IN BOOLEAN MODE)",
-                [$node->term . '*']
-            );
+            if ($this->isSqlite) {
+                $query->where($ftColumn, 'LIKE', '%' . $node->term . '%');
+            } else {
+                $query->whereRaw(
+                    "MATCH({$ftColumn}) AGAINST(? IN BOOLEAN MODE)",
+                    [$node->term . '*']
+                );
+            }
         } else {
             // For EAV fields, use LIKE as pre-filter
             $column = $this->resolveColumnForWhere($query, $node->field);
@@ -306,22 +324,35 @@ final class PqlSqlGenerator
                     $q->whereRaw('psi.phonetic_name_de != ?', [
                         app(PhoneticMatcher::class)->koelnerPhonetik($node->term),
                     ]);
-                    $q->whereRaw('SOUNDEX(psi.name_de) != SOUNDEX(?)', [$node->term]);
+                    if (!$this->isSqlite) {
+                        $q->whereRaw('SOUNDEX(psi.name_de) != SOUNDEX(?)', [$node->term]);
+                    }
                 });
             } else {
                 $query->where(function (Builder $q) use ($node): void {
                     $q->whereRaw('psi.phonetic_name_de = ?', [
                         app(PhoneticMatcher::class)->koelnerPhonetik($node->term),
                     ]);
-                    $q->orWhereRaw('SOUNDEX(psi.name_de) = SOUNDEX(?)', [$node->term]);
+                    if (!$this->isSqlite) {
+                        $q->orWhereRaw('SOUNDEX(psi.name_de) = SOUNDEX(?)', [$node->term]);
+                    }
                 });
             }
         } else {
             // Generic SOUNDEX for other fields
-            if ($node->negated) {
-                $query->whereRaw("SOUNDEX({$column}) != SOUNDEX(?)", [$node->term]);
+            if ($this->isSqlite) {
+                // SQLite does not have SOUNDEX by default; fall back to LIKE
+                if ($node->negated) {
+                    $query->where($column, 'NOT LIKE', '%' . $node->term . '%');
+                } else {
+                    $query->where($column, 'LIKE', '%' . $node->term . '%');
+                }
             } else {
-                $query->whereRaw("SOUNDEX({$column}) = SOUNDEX(?)", [$node->term]);
+                if ($node->negated) {
+                    $query->whereRaw("SOUNDEX({$column}) != SOUNDEX(?)", [$node->term]);
+                } else {
+                    $query->whereRaw("SOUNDEX({$column}) = SOUNDEX(?)", [$node->term]);
+                }
             }
         }
     }
@@ -351,32 +382,52 @@ final class PqlSqlGenerator
 
                     if ($this->isFulltextField($field)) {
                         $ftColumn = $this->resolveFulltextColumn($field);
-                        $q->{$method}(function (Builder $inner) use ($ftColumn, $condition): void {
-                            $inner->whereRaw(
-                                "MATCH({$ftColumn}) AGAINST(? IN BOOLEAN MODE)",
-                                [$condition->term . '*']
-                            );
-                        });
+                        if ($this->isSqlite) {
+                            $q->{$method}(function (Builder $inner) use ($ftColumn, $condition): void {
+                                $inner->where($ftColumn, 'LIKE', '%' . $condition->term . '%');
+                            });
 
-                        // Score expression
-                        $alias = "_score_{$scoreIndex}";
-                        $this->scoreExpressions[$alias] = "MATCH({$ftColumn}) AGAINST('{$condition->term}' IN BOOLEAN MODE) * {$boost}";
-                        $scoreIndex++;
+                            $alias = "_score_{$scoreIndex}";
+                            $this->scoreExpressions[$alias] = "1 * {$boost}";
+                            $scoreIndex++;
+                        } else {
+                            $q->{$method}(function (Builder $inner) use ($ftColumn, $condition): void {
+                                $inner->whereRaw(
+                                    "MATCH({$ftColumn}) AGAINST(? IN BOOLEAN MODE)",
+                                    [$condition->term . '*']
+                                );
+                            });
+
+                            // Score expression
+                            $alias = "_score_{$scoreIndex}";
+                            $this->scoreExpressions[$alias] = "MATCH({$ftColumn}) AGAINST('{$condition->term}' IN BOOLEAN MODE) * {$boost}";
+                            $scoreIndex++;
+                        }
                     }
                 } elseif ($condition instanceof ComparisonNode && $condition->isLike()) {
                     if ($this->isFulltextField($field)) {
                         $ftColumn = $this->resolveFulltextColumn($field);
                         $searchTerm = trim((string) $condition->value, '%');
-                        $q->{$method}(function (Builder $inner) use ($ftColumn, $searchTerm): void {
-                            $inner->whereRaw(
-                                "MATCH({$ftColumn}) AGAINST(? IN BOOLEAN MODE)",
-                                [$searchTerm]
-                            );
-                        });
+                        if ($this->isSqlite) {
+                            $q->{$method}(function (Builder $inner) use ($ftColumn, $searchTerm): void {
+                                $inner->where($ftColumn, 'LIKE', '%' . $searchTerm . '%');
+                            });
 
-                        $alias = "_score_{$scoreIndex}";
-                        $this->scoreExpressions[$alias] = "MATCH({$ftColumn}) AGAINST('{$searchTerm}' IN BOOLEAN MODE) * {$boost}";
-                        $scoreIndex++;
+                            $alias = "_score_{$scoreIndex}";
+                            $this->scoreExpressions[$alias] = "1 * {$boost}";
+                            $scoreIndex++;
+                        } else {
+                            $q->{$method}(function (Builder $inner) use ($ftColumn, $searchTerm): void {
+                                $inner->whereRaw(
+                                    "MATCH({$ftColumn}) AGAINST(? IN BOOLEAN MODE)",
+                                    [$searchTerm]
+                                );
+                            });
+
+                            $alias = "_score_{$scoreIndex}";
+                            $this->scoreExpressions[$alias] = "MATCH({$ftColumn}) AGAINST('{$searchTerm}' IN BOOLEAN MODE) * {$boost}";
+                            $scoreIndex++;
+                        }
                     }
                 } elseif ($condition instanceof SoundsLikeNode) {
                     $this->applySoundsLikeForField($q, $field, $condition, $method);
@@ -389,9 +440,15 @@ final class PqlSqlGenerator
     {
         if ($this->isFulltextField($field)) {
             $ftColumn = $this->resolveFulltextColumn($field);
-            $query->{$method}(function (Builder $inner) use ($ftColumn, $condition): void {
-                $inner->whereRaw("SOUNDEX({$ftColumn}) = SOUNDEX(?)", [$condition->term]);
-            });
+            if ($this->isSqlite) {
+                $query->{$method}(function (Builder $inner) use ($ftColumn, $condition): void {
+                    $inner->where($ftColumn, 'LIKE', '%' . $condition->term . '%');
+                });
+            } else {
+                $query->{$method}(function (Builder $inner) use ($ftColumn, $condition): void {
+                    $inner->whereRaw("SOUNDEX({$ftColumn}) = SOUNDEX(?)", [$condition->term]);
+                });
+            }
         }
     }
 

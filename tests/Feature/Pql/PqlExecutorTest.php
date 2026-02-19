@@ -10,8 +10,8 @@ use App\Services\Pql\PqlExecutor;
 use App\Services\Pql\PqlParser;
 use App\Services\Pql\PqlSqlGenerator;
 use App\Services\Pql\PqlValidator;
-use InvalidArgumentException;
-use PHPUnit\Framework\TestCase;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
 
 /**
  * Unit tests for PqlExecutor — focused on validate() and explain()
@@ -21,6 +21,8 @@ use PHPUnit\Framework\TestCase;
  */
 final class PqlExecutorTest extends TestCase
 {
+    use RefreshDatabase;
+
     private PqlExecutor $executor;
 
     protected function setUp(): void
@@ -189,10 +191,15 @@ final class PqlExecutorTest extends TestCase
 
     // ─── Edge Cases ─────────────────────────────────────────────
 
-    public function test_empty_pql_throws(): void
+    public function test_empty_pql_is_treated_as_select_all(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->executor->validate('');
+        // An empty PQL string is parsed as "SELECT *" (no WHERE clause),
+        // which is valid. The parser treats it as "select everything".
+        $result = $this->executor->validate('');
+
+        $this->assertTrue($result['valid']);
+        $this->assertNotNull($result['ast']);
+        $this->assertEquals(['*'], $result['ast']['fields']);
     }
 
     public function test_fuzzy_matcher_empty_strings(): void

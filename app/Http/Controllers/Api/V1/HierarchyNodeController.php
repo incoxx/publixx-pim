@@ -16,7 +16,7 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class HierarchyNodeController extends Controller
 {
-    private const ALLOWED_INCLUDES = ['children', 'parent', 'attributeAssignments'];
+    private const ALLOWED_INCLUDES = ['children', 'parent', 'attributeAssignments', 'attributeValues'];
 
     /**
      * GET /hierarchies/{hierarchy}/nodes — flat list of nodes.

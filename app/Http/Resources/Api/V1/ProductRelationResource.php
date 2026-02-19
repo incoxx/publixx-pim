@@ -19,6 +19,7 @@ class ProductRelationResource extends JsonResource
             'relation_type' => new RelationTypeResource($this->whenLoaded('relationType')),
             'target_product' => new ProductResource($this->whenLoaded('targetProduct')),
             'sort_order' => $this->sort_order,
+            'attribute_values' => ProductRelationAttributeValueResource::collection($this->whenLoaded('attributeValues')),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

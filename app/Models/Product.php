@@ -93,6 +93,11 @@ class Product extends Model
         return $this->hasMany(ProductPrice::class);
     }
 
+    public function relations(): HasMany
+    {
+        return $this->outgoingRelations();
+    }
+
     public function outgoingRelations(): HasMany
     {
         return $this->hasMany(ProductRelation::class, 'source_product_id');

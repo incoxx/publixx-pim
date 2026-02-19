@@ -8,6 +8,9 @@ use App\Services\Export\DatasetBuilder;
 use App\Services\Export\ExportService;
 use App\Services\Export\MappingResolver;
 use App\Services\Export\PublixxDatasetService;
+use App\Events\ProductUpdated;
+use App\Events\ProductDeleted;
+use App\Events\AttributeValuesChanged;
 use Illuminate\Support\ServiceProvider;
 
 class ExportServiceProvider extends ServiceProvider
@@ -57,17 +60,17 @@ class ExportServiceProvider extends ServiceProvider
         $events = $this->app['events'];
 
         // Product events → invalidate product cache
-        $events->listen('App\Events\ProductUpdated', function ($event) {
+        $events->listen(ProductUpdated::class, function ($event) {
             $this->app->make(ExportService::class)
                 ->invalidateProductCache($event->product->id);
         });
 
-        $events->listen('App\Events\ProductDeleted', function ($event) {
+        $events->listen(ProductDeleted::class, function ($event) {
             $this->app->make(ExportService::class)
                 ->invalidateProductCache($event->productId);
         });
 
-        $events->listen('App\Events\AttributeValuesChanged', function ($event) {
+        $events->listen(AttributeValuesChanged::class, function ($event) {
             $this->app->make(ExportService::class)
                 ->invalidateProductCache($event->productId);
         });

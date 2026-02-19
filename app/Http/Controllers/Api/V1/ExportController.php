@@ -14,6 +14,7 @@ use App\Models\PublixxExportMapping;
 use App\Services\Export\ExportService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 
 class ExportController extends Controller
 {
@@ -28,6 +29,8 @@ class ExportController extends Controller
      */
     public function index(ExportProductsRequest $request): JsonResponse
     {
+        Gate::authorize('export.view');
+
         $filters = $request->validated()['filter'] ?? [];
         $mappingId = $request->input('mapping_id');
         $mapping = $mappingId ? PublixxExportMapping::find($mappingId) : null;
@@ -48,6 +51,8 @@ class ExportController extends Controller
      */
     public function show(Request $request, string $id): JsonResponse
     {
+        Gate::authorize('export.view');
+
         $product = Product::findOrFail($id);
         $mappingId = $request->input('mapping_id');
         $mapping = $mappingId ? PublixxExportMapping::find($mappingId) : null;
@@ -79,6 +84,8 @@ class ExportController extends Controller
      */
     public function bulk(ExportBulkRequest $request): JsonResponse
     {
+        Gate::authorize('export.execute');
+
         $filters = $request->validated()['filter'] ?? [];
         $mappingId = $request->input('mapping_id');
         $mapping = $mappingId ? PublixxExportMapping::find($mappingId) : null;

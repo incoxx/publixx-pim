@@ -8,19 +8,23 @@ use App\Http\Controllers\Api\V1\AttributeViewController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\ExportController;
 use App\Http\Controllers\Api\V1\HierarchyController;
+use App\Http\Controllers\Api\V1\HierarchyNodeAttributeValueController;
 use App\Http\Controllers\Api\V1\HierarchyNodeController;
 use App\Http\Controllers\Api\V1\ImportController;
 use App\Http\Controllers\Api\V1\MediaController;
 use App\Http\Controllers\Api\V1\NodeAttributeAssignmentController;
 use App\Http\Controllers\Api\V1\PqlController;
 use App\Http\Controllers\Api\V1\PriceTypeController;
+use App\Http\Controllers\Api\V1\ProductTypeController;
 use App\Http\Controllers\Api\V1\ProductAttributeValueController;
 use App\Http\Controllers\Api\V1\ProductController;
 use App\Http\Controllers\Api\V1\ProductMediaController;
 use App\Http\Controllers\Api\V1\ProductPriceController;
+use App\Http\Controllers\Api\V1\ProductRelationAttributeValueController;
 use App\Http\Controllers\Api\V1\ProductRelationController;
 use App\Http\Controllers\Api\V1\ProductVariantController;
 use App\Http\Controllers\Api\V1\PublixxDatasetController;
+use App\Http\Controllers\Api\V1\PxfTemplateController;
 use App\Http\Controllers\Api\V1\RelationTypeController;
 use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\UnitController;
@@ -118,9 +122,16 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // =====================================================================
     Route::get('hierarchy-nodes/{hierarchy_node}/attributes', [NodeAttributeAssignmentController::class, 'index']);
     Route::post('hierarchy-nodes/{hierarchy_node}/attributes', [NodeAttributeAssignmentController::class, 'store']);
+    Route::put('node-attribute-assignments/bulk-sort', [NodeAttributeAssignmentController::class, 'bulkSort']);
     Route::put('node-attribute-assignments/{node_attribute_assignment}', [NodeAttributeAssignmentController::class, 'update']);
     Route::delete('node-attribute-assignments/{node_attribute_assignment}', [NodeAttributeAssignmentController::class, 'destroy']);
-    Route::put('node-attribute-assignments/bulk-sort', [NodeAttributeAssignmentController::class, 'bulkSort']);
+
+    // =====================================================================
+    // Hierarchy Node — Attribute Values (EAV on nodes)
+    // =====================================================================
+    Route::get('hierarchy-nodes/{hierarchy_node}/attribute-values', [HierarchyNodeAttributeValueController::class, 'index']);
+    Route::put('hierarchy-nodes/{hierarchy_node}/attribute-values', [HierarchyNodeAttributeValueController::class, 'bulkUpdate']);
+    Route::delete('hierarchy-node-attribute-values/{hierarchy_node_attribute_value}', [HierarchyNodeAttributeValueController::class, 'destroy']);
 
     // =====================================================================
     // Agent 3: Products
@@ -163,9 +174,15 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::post('products/{product}/relations', [ProductRelationController::class, 'store']);
     Route::delete('product-relations/{product_relation}', [ProductRelationController::class, 'destroy']);
 
+    // Product Relation — Attribute Values (EAV on relation edges)
+    Route::get('product-relations/{product_relation}/attribute-values', [ProductRelationAttributeValueController::class, 'index']);
+    Route::put('product-relations/{product_relation}/attribute-values', [ProductRelationAttributeValueController::class, 'bulkUpdate']);
+    Route::delete('product-relation-attribute-values/{product_relation_attribute_value}', [ProductRelationAttributeValueController::class, 'destroy']);
+
     // =====================================================================
     // Agent 3 + 6: Import
     // =====================================================================
+    Route::get('imports/templates/{type}', [ImportController::class, 'template']);
     Route::post('imports', [ImportController::class, 'store']);
     Route::get('imports/{import}', [ImportController::class, 'show']);
     Route::get('imports/{import}/preview', [ImportController::class, 'preview']);
@@ -203,4 +220,11 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
         Route::post('datasets/{mapping_id}/pql', [PublixxDatasetController::class, 'pql']);
         Route::post('webhook', [PublixxDatasetController::class, 'webhook']);
     });
+
+    // =====================================================================
+    // PXF Templates
+    // =====================================================================
+    Route::apiResource('pxf-templates', PxfTemplateController::class);
+    Route::get('pxf-templates/{pxf_template}/preview/{product}', [PxfTemplateController::class, 'preview']);
+    Route::post('pxf-templates/import', [PxfTemplateController::class, 'import']);
 });

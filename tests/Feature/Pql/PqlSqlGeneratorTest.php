@@ -14,6 +14,7 @@ use App\Services\Pql\Ast\SoundsLikeNode;
 use App\Services\Pql\Ast\WhereNode;
 use App\Services\Pql\PqlSqlGenerator;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 final class PqlSqlGeneratorTest extends TestCase
@@ -96,9 +97,14 @@ final class PqlSqlGeneratorTest extends TestCase
         $result = $this->generator->generate($ast, [], 'de');
         $sqlInfo = $this->generator->toSql($result['query']);
 
-        $this->assertStringContainsString('MATCH', $sqlInfo['sql']);
-        $this->assertStringContainsString('AGAINST', $sqlInfo['sql']);
-        $this->assertStringContainsString('BOOLEAN MODE', $sqlInfo['sql']);
+        if (DB::getDriverName() === 'sqlite') {
+            // SQLite falls back to LIKE
+            $this->assertStringContainsString('LIKE', $sqlInfo['sql']);
+        } else {
+            $this->assertStringContainsString('MATCH', $sqlInfo['sql']);
+            $this->assertStringContainsString('AGAINST', $sqlInfo['sql']);
+            $this->assertStringContainsString('BOOLEAN MODE', $sqlInfo['sql']);
+        }
     }
 
     public function test_fuzzy_sets_has_fuzzy_flag(): void
@@ -129,7 +135,12 @@ final class PqlSqlGeneratorTest extends TestCase
         $result = $this->generator->generate($ast, [], 'de');
         $sqlInfo = $this->generator->toSql($result['query']);
 
-        $this->assertStringContainsString('SOUNDEX', $sqlInfo['sql']);
+        if (DB::getDriverName() === 'sqlite') {
+            // SQLite falls back to LIKE for SOUNDEX
+            $this->assertStringContainsString('LIKE', $sqlInfo['sql']);
+        } else {
+            $this->assertStringContainsString('SOUNDEX', $sqlInfo['sql']);
+        }
     }
 
     public function test_logical_and_generates_both_conditions(): void

@@ -247,7 +247,7 @@ class PublixxDatasetService
             try {
                 $executor = app(\App\Services\Pql\PqlExecutor::class);
                 $result = $executor->execute($pqlQuery, $params);
-                return $result->pluck('id')->toArray();
+                return collect($result['data'] ?? [])->pluck('product_id')->toArray();
             } catch (\Throwable $e) {
                 Log::warning('PQL execution failed in export', [
                     'query' => $pqlQuery,
