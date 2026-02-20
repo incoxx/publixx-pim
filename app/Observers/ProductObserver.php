@@ -59,7 +59,14 @@ class ProductObserver
     {
         $this->invalidateProductCache($product->id);
 
-        dispatch(new RemoveFromSearchIndex($product->id))->afterCommit();
+        try {
+            dispatch(new RemoveFromSearchIndex($product->id))->afterCommit();
+        } catch (\Throwable $e) {
+            Log::warning('ProductObserver: Failed to dispatch RemoveFromSearchIndex', [
+                'product_id' => $product->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
 
         // Varianten-Cache ebenfalls invalidieren
         $this->invalidateVariants($product);
@@ -94,7 +101,14 @@ class ProductObserver
 
         foreach ($variantIds as $variantId) {
             $this->invalidateProductCache($variantId);
-            dispatch(new UpdateSearchIndex($variantId))->afterCommit();
+            try {
+                dispatch(new UpdateSearchIndex($variantId))->afterCommit();
+            } catch (\Throwable $e) {
+                Log::warning('ProductObserver: Failed to dispatch UpdateSearchIndex for variant', [
+                    'variant_id' => $variantId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
         }
     }
 }

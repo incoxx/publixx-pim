@@ -30,6 +30,10 @@ export default {
     return client.put(`/products/${id}/attribute-values`, { values })
   },
 
+  getResolvedAttributes(id) {
+    return client.get(`/products/${id}/resolved-attributes`)
+  },
+
   // Variants
   getVariants(id) {
     return client.get(`/products/${id}/variants`)

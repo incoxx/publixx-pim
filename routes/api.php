@@ -154,6 +154,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
 
     // Product Attribute Values
     Route::get('products/{product}/attribute-values', [ProductAttributeValueController::class, 'index']);
+    Route::get('products/{product}/resolved-attributes', [ProductAttributeValueController::class, 'resolved']);
     Route::put('products/{product}/attribute-values', [ProductAttributeValueController::class, 'bulkUpdate']);
 
     // Product Variants

@@ -83,6 +83,14 @@ export const valueLists = {
     return client.post('/value-lists', data)
   },
 
+  update(id, data) {
+    return client.put(`/value-lists/${id}`, data)
+  },
+
+  delete(id) {
+    return client.delete(`/value-lists/${id}`)
+  },
+
   addEntry(listId, data) {
     return client.post(`/value-lists/${listId}/entries`, data)
   },

@@ -4,14 +4,17 @@ import { useHierarchyStore } from '@/stores/hierarchies'
 import { useAttributeStore } from '@/stores/attributes'
 import { useAuthStore } from '@/stores/auth'
 import { useI18n } from 'vue-i18n'
-import { Plus, Edit3, Trash2, FolderPlus } from 'lucide-vue-next'
+import { useRouter } from 'vue-router'
+import { Plus, Edit3, Trash2, FolderPlus, Package } from 'lucide-vue-next'
 import hierarchiesApi from '@/api/hierarchies'
+import productsApi from '@/api/products'
 import PimTree from '@/components/shared/PimTree.vue'
 import PimConfirmDialog from '@/components/shared/PimConfirmDialog.vue'
 import HierarchyFormPanel from '@/components/panels/HierarchyFormPanel.vue'
 import HierarchyNodeFormPanel from '@/components/panels/HierarchyNodeFormPanel.vue'
 
 const { t } = useI18n()
+const router = useRouter()
 const store = useHierarchyStore()
 const attrStore = useAttributeStore()
 const authStore = useAuthStore()
@@ -21,6 +24,10 @@ const selectedHierarchyId = ref(null)
 const nodeAttributes = ref([])
 const nodeAttrsLoading = ref(false)
 const showAttrPicker = ref(false)
+
+// Node products
+const nodeProducts = ref([])
+const nodeProductsLoading = ref(false)
 
 // Delete state
 const deleteNodeTarget = ref(null)
@@ -87,10 +94,10 @@ async function confirmDeleteNode() {
   nodeDeleting.value = true
   try {
     await store.deleteNode(deleteNodeTarget.value.id)
-    deleteNodeTarget.value = null
     if (store.selectedNode?.id === deleteNodeTarget.value?.id) {
       store.selectNode(null)
     }
+    deleteNodeTarget.value = null
     await store.fetchTree(selectedHierarchyId.value)
   } finally { nodeDeleting.value = false }
 }
@@ -127,10 +134,26 @@ async function removeNodeAttribute(assignment) {
   } catch { /* silently fail */ }
 }
 
-// Watch node selection to load attributes
+// ─── Node Products ──────────────────────────────────
+async function loadNodeProducts(nodeId) {
+  if (!nodeId) return
+  nodeProductsLoading.value = true
+  try {
+    const { data } = await productsApi.list({ filters: { master_hierarchy_node_id: nodeId }, perPage: 20 })
+    nodeProducts.value = data.data || data
+  } catch { nodeProducts.value = [] }
+  finally { nodeProductsLoading.value = false }
+}
+
+// Watch node selection to load attributes and products
 watch(() => store.selectedNode, (node) => {
-  if (node) loadNodeAttributes(node.id)
-  else nodeAttributes.value = []
+  if (node) {
+    loadNodeAttributes(node.id)
+    loadNodeProducts(node.id)
+  } else {
+    nodeAttributes.value = []
+    nodeProducts.value = []
+  }
 })
 
 onMounted(async () => {
@@ -213,8 +236,38 @@ onMounted(async () => {
           </div>
           <div>
             <span class="text-[12px] text-[var(--color-text-tertiary)]">Produkte</span>
-            <p>{{ store.selectedNode.product_count ?? 0 }}</p>
+            <p>{{ nodeProducts.length || store.selectedNode.product_count || 0 }}</p>
           </div>
+        </div>
+
+        <!-- Assigned Products -->
+        <div class="border-t border-[var(--color-border)] pt-4">
+          <div class="flex items-center justify-between mb-3">
+            <h4 class="text-sm font-medium text-[var(--color-text-secondary)]">
+              <Package class="w-3.5 h-3.5 inline-block mr-1 -mt-0.5" :stroke-width="1.75" />
+              Zugeordnete Produkte
+            </h4>
+          </div>
+          <div v-if="nodeProductsLoading" class="space-y-2">
+            <div v-for="i in 3" :key="i" class="pim-skeleton h-8 rounded" />
+          </div>
+          <div v-else-if="nodeProducts.length > 0" class="space-y-1">
+            <div
+              v-for="prod in nodeProducts"
+              :key="prod.id"
+              class="flex items-center justify-between px-3 py-2 rounded-lg bg-[var(--color-bg)] cursor-pointer hover:bg-[var(--color-surface)] transition-colors"
+              @click="router.push(`/products/${prod.id}`)"
+            >
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-mono text-[var(--color-text-secondary)]">{{ prod.sku }}</span>
+                <span class="text-xs font-medium">{{ prod.name || prod.name_de || '—' }}</span>
+              </div>
+              <span :class="['pim-badge text-[10px]', prod.status === 'active' ? 'bg-[var(--color-success-light)] text-[var(--color-success)]' : 'bg-[var(--color-bg)] text-[var(--color-text-tertiary)]']">
+                {{ prod.status }}
+              </span>
+            </div>
+          </div>
+          <p v-else class="text-xs text-[var(--color-text-tertiary)]">Keine Produkte zugeordnet. Weisen Sie Produkte über die Produktdetailseite zu.</p>
         </div>
 
         <!-- Assigned Attributes -->

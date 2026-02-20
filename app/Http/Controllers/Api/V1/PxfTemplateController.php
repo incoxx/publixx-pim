@@ -21,7 +21,7 @@ class PxfTemplateController extends Controller
         $query = PxfTemplate::query()
             ->with($this->parseIncludes($request, self::ALLOWED_INCLUDES));
 
-        $this->applyFilters($query, $request);
+        $this->applyFilters($query, $request->query('filter', []));
         $this->applySorting($query, $request, 'name', 'asc');
 
         $templates = $query->paginate($this->getPerPage($request));

@@ -122,7 +122,14 @@ class HierarchyNodeObserver
             } catch (\Throwable $e) {
                 // Log but continue
             }
-            dispatch(new UpdateSearchIndex($productId))->afterCommit();
+            try {
+                dispatch(new UpdateSearchIndex($productId))->afterCommit();
+            } catch (\Throwable $e) {
+                Log::warning('HierarchyNodeObserver: Failed to dispatch UpdateSearchIndex', [
+                    'product_id' => $productId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
         }
 
         Log::info('HierarchyNodeObserver: Reindexing subtree products', [
