@@ -260,7 +260,7 @@ onMounted(async () => {
             >
               <div class="flex items-center gap-2">
                 <span class="text-xs font-mono text-[var(--color-text-secondary)]">{{ prod.sku }}</span>
-                <span class="text-xs font-medium">{{ prod.name || prod.name_de || '—' }}</span>
+                <span class="text-xs font-medium">{{ prod.name || '—' }}</span>
               </div>
               <span :class="['pim-badge text-[10px]', prod.status === 'active' ? 'bg-[var(--color-success-light)] text-[var(--color-success)]' : 'bg-[var(--color-bg)] text-[var(--color-text-tertiary)]']">
                 {{ prod.status }}

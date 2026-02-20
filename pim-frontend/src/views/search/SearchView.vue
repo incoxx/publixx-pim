@@ -11,7 +11,7 @@ const searchInput = ref('')
 const hasSearched = ref(false)
 const columns = [
   { key: 'sku', label: 'SKU', mono: true },
-  { key: 'name_de', label: 'Name' },
+  { key: 'name', label: 'Name' },
   { key: 'status', label: 'Status' },
 ]
 

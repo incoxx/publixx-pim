@@ -33,11 +33,16 @@ class HierarchyInheritanceService
     {
         $cacheKey = "hierarchy_node_attributes:{$node->id}";
 
-        return Cache::tags(["hierarchy_node:{$node->id}"])->remember(
-            $cacheKey,
-            self::CACHE_TTL,
-            fn () => $this->computeEffectiveAttributes($node)
-        );
+        try {
+            return Cache::tags(["hierarchy_node:{$node->id}"])->remember(
+                $cacheKey,
+                self::CACHE_TTL,
+                fn () => $this->computeEffectiveAttributes($node)
+            );
+        } catch (\Throwable $e) {
+            // Cache driver may not support tags (e.g. file/array) — compute without cache
+            return $this->computeEffectiveAttributes($node);
+        }
     }
 
     /**
@@ -116,19 +121,23 @@ class HierarchyInheritanceService
      */
     public function invalidateNodeCache(HierarchyNode $node): void
     {
-        // Invalidate this node
-        Cache::tags(["hierarchy_node:{$node->id}"])->flush();
+        try {
+            // Invalidate this node
+            Cache::tags(["hierarchy_node:{$node->id}"])->flush();
 
-        // Invalidate all descendant nodes
-        $descendantIds = $this->getDescendantNodeIds($node);
-        foreach ($descendantIds as $descendantId) {
-            Cache::tags(["hierarchy_node:{$descendantId}"])->flush();
-        }
+            // Invalidate all descendant nodes
+            $descendantIds = $this->getDescendantNodeIds($node);
+            foreach ($descendantIds as $descendantId) {
+                Cache::tags(["hierarchy_node:{$descendantId}"])->flush();
+            }
 
-        // Invalidate affected products
-        $productIds = $this->getAffectedProductIds($node);
-        foreach ($productIds as $productId) {
-            Cache::tags(["product:{$productId}"])->flush();
+            // Invalidate affected products
+            $productIds = $this->getAffectedProductIds($node);
+            foreach ($productIds as $productId) {
+                Cache::tags(["product:{$productId}"])->flush();
+            }
+        } catch (\Throwable $e) {
+            // Cache driver may not support tags — skip invalidation
         }
     }
 

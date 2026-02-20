@@ -347,7 +347,7 @@ const productSearching = ref(false)
 const relationColumns = [
   { key: 'relation_type.name_de', label: 'Beziehungstyp' },
   { key: 'target_product.sku', label: 'Ziel-SKU', mono: true },
-  { key: 'target_product.name_de', label: 'Zielprodukt' },
+  { key: 'target_product.name', label: 'Zielprodukt' },
   { key: 'sort_order', label: 'Reihenfolge' },
 ]
 
@@ -382,7 +382,7 @@ function searchProducts() {
 
 function selectTargetProduct(p) {
   relationForm.value.target_product_id = p.id
-  productSearch.value = `${p.sku} — ${p.name_de || p.name || ''}`
+  productSearch.value = `${p.sku} — ${p.name || ''}`
   productSearchResults.value = []
 }
 
@@ -445,8 +445,7 @@ async function save() {
   try {
     // Save base product fields
     await store.update(product.value.id, {
-      name: product.value.name || product.value.name_de,
-      name_de: product.value.name_de,
+      name: product.value.name,
       status: product.value.status,
       ean: product.value.ean,
       master_hierarchy_node_id: product.value.master_hierarchy_node_id || null,
@@ -539,7 +538,7 @@ onMounted(async () => {
         <template v-else-if="product">
           <div class="flex items-center gap-2">
             <h2 class="text-lg font-semibold text-[var(--color-text-primary)]">
-              {{ product.name_de || product.name || product.sku }}
+              {{ product.name || product.sku }}
             </h2>
             <span v-if="product.product_type_ref === 'variant'" class="pim-badge bg-purple-100 text-purple-700 text-[10px] px-1.5 py-0.5 rounded">
               Variante
@@ -600,8 +599,8 @@ onMounted(async () => {
             <input class="pim-input font-mono" :value="product.sku" readonly />
           </div>
           <div>
-            <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Name (DE)</label>
-            <input class="pim-input" v-model="product.name_de" />
+            <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Name</label>
+            <input class="pim-input" v-model="product.name" />
           </div>
           <div>
             <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">EAN</label>
@@ -909,7 +908,7 @@ onMounted(async () => {
                 @click="selectTargetProduct(p)"
               >
                 <span class="text-xs font-mono text-[var(--color-text-secondary)]">{{ p.sku }}</span>
-                <span class="text-xs">{{ p.name_de || p.name }}</span>
+                <span class="text-xs">{{ p.name }}</span>
               </div>
             </div>
           </div>

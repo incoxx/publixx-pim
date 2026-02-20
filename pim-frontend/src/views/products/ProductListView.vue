@@ -25,7 +25,7 @@ const { search, activeFilters, setSearch, removeFilter, clearFilters } = useFilt
 
 const columns = [
   { key: 'sku', label: 'SKU', sortable: true, mono: true },
-  { key: 'name_de', label: 'Name', sortable: true },
+  { key: 'name', label: 'Name', sortable: true },
   { key: 'product_type.name_de', label: 'Typ' },
   { key: 'status', label: 'Status', sortable: true },
   { key: 'updated_at', label: 'Geändert', sortable: true },
@@ -151,7 +151,7 @@ onMounted(() => {
     <PimConfirmDialog
       :open="!!deleteTarget"
       title="Produkt löschen?"
-      :message="`Das Produkt '${deleteTarget?.name_de || deleteTarget?.sku || ''}' wird unwiderruflich gelöscht.`"
+      :message="`Das Produkt '${deleteTarget?.name || deleteTarget?.sku || ''}' wird unwiderruflich gelöscht.`"
       :loading="deleting"
       @confirm="confirmDelete"
       @cancel="deleteTarget = null"
