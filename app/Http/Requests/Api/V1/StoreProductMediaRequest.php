@@ -17,7 +17,7 @@ class StoreProductMediaRequest extends FormRequest
     {
         return [
             'media_id' => 'required|uuid|exists:media,id',
-            'usage_type' => 'required|in:teaser,gallery,document,technical_drawing',
+            'usage_type' => 'required|in:default,teaser,gallery,document,technical_drawing',
             'sort_order' => 'integer',
             'is_primary' => 'boolean',
         ];
