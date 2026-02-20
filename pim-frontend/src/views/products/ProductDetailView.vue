@@ -432,28 +432,50 @@ async function loadPreview() {
   finally { previewLoading.value = false }
 }
 
+const excelLoading = ref(false)
+const pdfLoading = ref(false)
+const downloadError = ref(null)
+
+function triggerBlobDownload(blob, filename) {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.style.display = 'none'
+  document.body.appendChild(a)
+  a.click()
+  setTimeout(() => {
+    URL.revokeObjectURL(url)
+    document.body.removeChild(a)
+  }, 100)
+}
+
 async function downloadExcel() {
+  excelLoading.value = true
+  downloadError.value = null
   try {
     const resp = await productsApi.downloadPreviewExcel(product.value.id)
-    const url = URL.createObjectURL(resp.data)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `product-preview-${product.value.sku}.xlsx`
-    a.click()
-    URL.revokeObjectURL(url)
-  } catch { /* silently fail */ }
+    triggerBlobDownload(resp.data, `product-preview-${product.value.sku || product.value.id}.xlsx`)
+  } catch (err) {
+    console.error('Excel download failed:', err)
+    downloadError.value = 'Excel-Download fehlgeschlagen'
+  } finally {
+    excelLoading.value = false
+  }
 }
 
 async function downloadPdf() {
+  pdfLoading.value = true
+  downloadError.value = null
   try {
     const resp = await productsApi.downloadPreviewPdf(product.value.id)
-    const url = URL.createObjectURL(resp.data)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `product-preview-${product.value.sku}.pdf`
-    a.click()
-    URL.revokeObjectURL(url)
-  } catch { /* silently fail */ }
+    triggerBlobDownload(resp.data, `product-preview-${product.value.sku || product.value.id}.pdf`)
+  } catch (err) {
+    console.error('PDF download failed:', err)
+    downloadError.value = 'PDF-Download fehlgeschlagen'
+  } finally {
+    pdfLoading.value = false
+  }
 }
 
 // ─── Save ─────────────────────────────────────────────
@@ -963,13 +985,20 @@ onMounted(async () => {
       <div class="flex items-center justify-between">
         <h3 class="text-sm font-medium text-[var(--color-text-primary)]">Produktvorschau</h3>
         <div class="flex gap-2">
-          <button class="pim-btn pim-btn-secondary text-xs" @click="downloadExcel">
-            <Download class="w-3.5 h-3.5" :stroke-width="1.75" /> Excel
+          <button class="pim-btn pim-btn-secondary text-xs" :disabled="excelLoading" @click="downloadExcel">
+            <Download v-if="!excelLoading" class="w-3.5 h-3.5" :stroke-width="1.75" />
+            <span v-else class="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin inline-block" />
+            Excel
           </button>
-          <button class="pim-btn pim-btn-secondary text-xs" @click="downloadPdf">
-            <Download class="w-3.5 h-3.5" :stroke-width="1.75" /> PDF
+          <button class="pim-btn pim-btn-secondary text-xs" :disabled="pdfLoading" @click="downloadPdf">
+            <Download v-if="!pdfLoading" class="w-3.5 h-3.5" :stroke-width="1.75" />
+            <span v-else class="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin inline-block" />
+            PDF
           </button>
         </div>
+      </div>
+      <div v-if="downloadError" class="text-xs text-[var(--color-error)] bg-[var(--color-error-light)] px-3 py-2 rounded">
+        {{ downloadError }}
       </div>
 
       <!-- Loading state -->
