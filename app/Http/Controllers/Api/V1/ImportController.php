@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Requests\Api\V1\StoreImportRequest;
 use App\Http\Resources\Api\V1\ImportJobResource;
 use App\Models\ImportJob;
+use App\Services\Export\ImportFormatExporter;
 use App\Services\Import\ImportService;
 use App\Services\Import\TemplateGenerator;
 use Illuminate\Http\JsonResponse;
@@ -122,6 +123,21 @@ class ImportController extends Controller
         $filePath = $generator->generate($type);
 
         return response()->download($filePath, "pim-import-template-{$type}.xlsx", [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ])->deleteFileAfterSend();
+    }
+
+    /**
+     * GET /imports/export-format — export all data as re-importable Excel.
+     */
+    public function exportImportFormat(ImportFormatExporter $exporter): \Symfony\Component\HttpFoundation\BinaryFileResponse
+    {
+        $filePath = tempnam(sys_get_temp_dir(), 'pim-export-') . '.xlsx';
+        $exporter->generate($filePath);
+
+        $timestamp = now()->format('Y-m-d_His');
+
+        return response()->download($filePath, "pim-export-{$timestamp}.xlsx", [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         ])->deleteFileAfterSend();
     }

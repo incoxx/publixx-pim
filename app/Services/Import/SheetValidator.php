@@ -35,6 +35,12 @@ class SheetValidator
         'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T',
     ];
 
+    /**
+     * Entitäten, die im gleichen Import angelegt werden (Cross-Sheet-Referenzen).
+     * @var array<string, array<string>>  type → [lowercase_name, ...]
+     */
+    private array $pendingEntities = [];
+
     public function __construct(
         private readonly ReferenceResolver $resolver,
         private readonly FuzzyMatcher $fuzzyMatcher,
@@ -45,6 +51,8 @@ class SheetValidator
      */
     public function validate(ParseResult $parseResult): ValidationResult
     {
+        $this->pendingEntities = $this->buildPendingEntities($parseResult);
+
         $errors = [];
         $summary = [];
 
@@ -162,7 +170,7 @@ class SheetValidator
         // Attributgruppe referenz-prüfen
         if (!empty($row['attribute_group'])) {
             $result = $this->resolver->resolveAttributeType($row['attribute_group']);
-            if (!$result->resolved()) {
+            if (!$result->resolved() && !$this->isPending('attribute_type', $row['attribute_group'])) {
                 $errors[] = [
                     'row' => $rowNum,
                     'column' => $this->fieldToColumn('attribute_group', $columns),
@@ -177,7 +185,7 @@ class SheetValidator
         // Werteliste referenz-prüfen
         if (!empty($row['value_list'])) {
             $result = $this->resolver->resolveValueList($row['value_list']);
-            if (!$result->resolved()) {
+            if (!$result->resolved() && !$this->isPending('value_list', $row['value_list'])) {
                 $errors[] = [
                     'row' => $rowNum,
                     'column' => $this->fieldToColumn('value_list', $columns),
@@ -192,7 +200,7 @@ class SheetValidator
         // Einheitengruppe referenz-prüfen
         if (!empty($row['unit_group'])) {
             $result = $this->resolver->resolveUnitGroup($row['unit_group']);
-            if (!$result->resolved()) {
+            if (!$result->resolved() && !$this->isPending('unit_group', $row['unit_group'])) {
                 $errors[] = [
                     'row' => $rowNum,
                     'column' => $this->fieldToColumn('unit_group', $columns),
@@ -207,7 +215,7 @@ class SheetValidator
         // Übergeordnetes Attribut prüfen
         if (!empty($row['parent_attribute'])) {
             $result = $this->resolver->resolveAttribute($row['parent_attribute']);
-            if (!$result->resolved()) {
+            if (!$result->resolved() && !$this->isPending('attribute', $row['parent_attribute'])) {
                 $errors[] = [
                     'row' => $rowNum,
                     'column' => $this->fieldToColumn('parent_attribute', $columns),
@@ -243,7 +251,7 @@ class SheetValidator
         // Produkttyp referenz-prüfen
         if (!empty($row['product_type'])) {
             $result = $this->resolver->resolveProductType($row['product_type']);
-            if (!$result->resolved()) {
+            if (!$result->resolved() && !$this->isPending('product_type', $row['product_type'])) {
                 $errors[] = [
                     'row' => $rowNum,
                     'column' => $this->fieldToColumn('product_type', $columns),
@@ -277,7 +285,7 @@ class SheetValidator
         // Attribut referenz-prüfen (technischer Name oder Anzeigename)
         if (!empty($row['attribute'])) {
             $result = $this->resolver->resolveAttribute($row['attribute']);
-            if (!$result->resolved()) {
+            if (!$result->resolved() && !$this->isPending('attribute', $row['attribute'])) {
                 $errors[] = [
                     'row' => $rowNum,
                     'column' => $this->fieldToColumn('attribute', $columns),
@@ -295,7 +303,7 @@ class SheetValidator
         // Einheit prüfen
         if (!empty($row['unit'])) {
             $result = $this->resolver->resolveUnit($row['unit']);
-            if (!$result->resolved()) {
+            if (!$result->resolved() && !$this->isPending('unit', $row['unit'])) {
                 $errors[] = [
                     'row' => $rowNum,
                     'column' => $this->fieldToColumn('unit', $columns),
@@ -392,18 +400,11 @@ class SheetValidator
             ];
         }
 
-        // Preisart prüfen
+        // Preisart prüfen (wird ggf. automatisch beim Import angelegt)
         if (!empty($row['price_type'])) {
             $result = $this->resolver->resolvePriceType($row['price_type']);
-            if (!$result->resolved()) {
-                $errors[] = [
-                    'row' => $rowNum,
-                    'column' => $this->fieldToColumn('price_type', $columns),
-                    'field' => 'Preisart',
-                    'value' => $row['price_type'],
-                    'error' => 'Preisart nicht gefunden.',
-                    'suggestion' => $result->suggestion,
-                ];
+            if (!$result->resolved() && !$this->isPending('price_type', $row['price_type'])) {
+                // Preisarten werden beim Import automatisch angelegt – kein Fehler
             }
         }
 
@@ -432,17 +433,11 @@ class SheetValidator
     {
         $errors = [];
 
+        // Beziehungstypen werden beim Import automatisch angelegt
         if (!empty($row['relation_type'])) {
             $result = $this->resolver->resolveRelationType($row['relation_type']);
-            if (!$result->resolved()) {
-                $errors[] = [
-                    'row' => $rowNum,
-                    'column' => $this->fieldToColumn('relation_type', $columns),
-                    'field' => 'Beziehungstyp',
-                    'value' => $row['relation_type'],
-                    'error' => 'Beziehungstyp nicht gefunden.',
-                    'suggestion' => $result->suggestion,
-                ];
+            if (!$result->resolved() && !$this->isPending('relation_type', $row['relation_type'])) {
+                // Beziehungstypen werden beim Import automatisch angelegt – kein Fehler
             }
         }
 
@@ -476,6 +471,78 @@ class SheetValidator
         }
 
         return ['creates' => $creates, 'updates' => $updates];
+    }
+
+    // ──────────────────────────────────────────────
+    //  Pending-Registry (Cross-Sheet-Referenzen)
+    // ──────────────────────────────────────────────
+
+    /**
+     * Baut eine Registry aller Entitäten auf, die im gleichen Import angelegt werden.
+     * Damit können Cross-Sheet-Referenzen bei der Validierung akzeptiert werden.
+     *
+     * @return array<string, array<string>>  type → [lowercase_name, ...]
+     */
+    private function buildPendingEntities(ParseResult $parseResult): array
+    {
+        $pending = [];
+
+        $mappings = [
+            '01_Produkttypen'   => ['product_type', 'technical_name'],
+            '02_Attributgruppen' => ['attribute_type', 'technical_name'],
+            '04_Wertelisten'    => ['value_list', 'list_technical_name'],
+            '05_Attribute'      => ['attribute', 'technical_name'],
+            '08_Produkte'       => ['product', 'sku'],
+        ];
+
+        foreach ($mappings as $sheetKey => [$type, $field]) {
+            if (!$parseResult->hasSheet($sheetKey)) {
+                continue;
+            }
+            $pending[$type] = [];
+            foreach ($parseResult->getSheetData($sheetKey) as $row) {
+                if (!empty($row[$field])) {
+                    $pending[$type][] = mb_strtolower(trim((string) $row[$field]));
+                }
+            }
+        }
+
+        // Einheiten: Gruppe und Einheit separat sammeln
+        if ($parseResult->hasSheet('03_Einheiten')) {
+            $pending['unit_group'] = [];
+            $pending['unit'] = [];
+            foreach ($parseResult->getSheetData('03_Einheiten') as $row) {
+                if (!empty($row['group_technical_name'])) {
+                    $pending['unit_group'][] = mb_strtolower(trim((string) $row['group_technical_name']));
+                }
+                if (!empty($row['technical_name'])) {
+                    $pending['unit'][] = mb_strtolower(trim((string) $row['technical_name']));
+                }
+                // Auch Kürzel als Unit-Referenz akzeptieren
+                if (!empty($row['abbreviation'])) {
+                    $pending['unit'][] = mb_strtolower(trim((string) $row['abbreviation']));
+                }
+            }
+        }
+
+        // PriceTypes und RelationTypes werden automatisch angelegt – immer als pending markieren
+        $pending['price_type'] = [];
+        $pending['relation_type'] = [];
+
+        return $pending;
+    }
+
+    /**
+     * Prüft ob eine Entität im gleichen Import angelegt wird (Cross-Sheet-Referenz).
+     */
+    private function isPending(string $type, string $name): bool
+    {
+        if (!isset($this->pendingEntities[$type])) {
+            // Für price_type und relation_type: immer akzeptieren (werden auto-erstellt)
+            return in_array($type, ['price_type', 'relation_type'], true);
+        }
+
+        return in_array(mb_strtolower(trim($name)), $this->pendingEntities[$type], true);
     }
 
     // ──────────────────────────────────────────────

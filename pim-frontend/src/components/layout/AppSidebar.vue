@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import {
-  Search, Package, GitBranch, Sliders, Database,
+  Search, Package, GitBranch, Sliders, Database, Layers, FolderTree,
   Upload, Download, Image, DollarSign, Users, Settings,
   PanelLeftClose, PanelLeft,
 } from 'lucide-vue-next'
@@ -19,6 +19,8 @@ const navItems = computed(() => [
   { icon: Package, label: t('nav.products'), to: '/products' },
   { icon: GitBranch, label: t('nav.hierarchies'), to: '/hierarchies' },
   { icon: Sliders, label: t('nav.attributes'), to: '/attributes' },
+  { icon: Layers, label: t('nav.productTypes'), to: '/product-types' },
+  { icon: FolderTree, label: t('nav.attributeTypes'), to: '/attribute-types' },
   { icon: Database, label: t('nav.valueLists'), to: '/value-lists' },
   { divider: true },
   { icon: Upload, label: t('nav.imports'), to: '/imports' },

@@ -13,6 +13,8 @@ const messages = {
       products: 'Produkte',
       hierarchies: 'Hierarchien',
       attributes: 'Attribute',
+      productTypes: 'Produkttypen',
+      attributeTypes: 'Attributgruppen',
       valueLists: 'Wertelisten',
       imports: 'Import',
       exports: 'Export',
@@ -65,6 +67,14 @@ const messages = {
       newNode: 'Neuer Knoten',
       moveNode: 'Knoten verschieben',
       deleteConfirm: 'Knoten und alle Unterknoten löschen?',
+    },
+    productType: {
+      title: 'Produkttypen',
+      newProductType: 'Neuer Produkttyp',
+    },
+    attributeType: {
+      title: 'Attributgruppen',
+      newType: 'Neue Attributgruppe',
     },
     attribute: {
       title: 'Attribute',
@@ -159,6 +169,8 @@ const messages = {
       products: 'Products',
       hierarchies: 'Hierarchies',
       attributes: 'Attributes',
+      productTypes: 'Product Types',
+      attributeTypes: 'Attribute Groups',
       valueLists: 'Value Lists',
       imports: 'Import',
       exports: 'Export',
@@ -211,6 +223,14 @@ const messages = {
       newNode: 'New Node',
       moveNode: 'Move Node',
       deleteConfirm: 'Delete node and all children?',
+    },
+    productType: {
+      title: 'Product Types',
+      newProductType: 'New Product Type',
+    },
+    attributeType: {
+      title: 'Attribute Groups',
+      newType: 'New Attribute Group',
     },
     attribute: {
       title: 'Attributes',
