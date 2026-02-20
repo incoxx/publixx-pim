@@ -36,6 +36,31 @@ export const useCatalogStore = defineStore('catalog', () => {
   const isEmpty = computed(() => products.value.length === 0 && !loading.value)
   const wishlistCount = computed(() => wishlistIds.value.length)
 
+  // JSON URLs
+  const productsJsonUrl = computed(() => {
+    const params = new URLSearchParams()
+    params.set('lang', locale.value)
+    params.set('per_page', String(meta.value.per_page))
+    params.set('page', String(meta.value.current_page))
+    params.set('sort', sort.value.field)
+    params.set('order', sort.value.order)
+    if (search.value) params.set('search', search.value)
+    if (selectedCategoryId.value) params.set('category', selectedCategoryId.value)
+    return '/api/v1/catalog/products?' + params.toString()
+  })
+
+  const exportJsonUrl = computed(() => {
+    const params = new URLSearchParams()
+    params.set('lang', locale.value)
+    params.set('start', '0')
+    params.set('limit', '100')
+    return '/api/v1/catalog/products/export.json?' + params.toString()
+  })
+
+  function productJsonUrl(productId) {
+    return '/api/v1/catalog/products/' + productId + '/json?lang=' + locale.value
+  }
+
   function isInWishlist(productId) {
     return wishlistIds.value.includes(productId)
   }
@@ -196,5 +221,8 @@ export const useCatalogStore = defineStore('catalog', () => {
     setSort,
     setViewMode,
     setLocale,
+    productsJsonUrl,
+    exportJsonUrl,
+    productJsonUrl,
   }
 })

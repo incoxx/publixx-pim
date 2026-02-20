@@ -143,6 +143,9 @@ class CatalogController extends BaseController
                 },
                 'searchIndex',
                 'masterHierarchyNode',
+                'attributeValues.attribute',
+                'attributeValues.valueListEntry',
+                'attributeValues.unit',
             ])
             ->findOrFail($productId);
 
@@ -174,6 +177,165 @@ class CatalogController extends BaseController
                 ->additional(['lang' => $lang, 'breadcrumb' => $breadcrumb])
                 ->resolve(),
         ]);
+    }
+
+    /**
+     * GET /api/v1/catalog/products/{product}/json
+     *
+     * Raw JSON view of a single product with all attributes.
+     */
+    public function productJson(Request $request, string $productId): JsonResponse
+    {
+        $lang = $request->query('lang', 'de');
+
+        $product = Product::where('status', 'active')
+            ->with([
+                'media',
+                'prices' => function ($q) {
+                    $q->where(function ($q2) {
+                        $q2->whereNull('valid_to')
+                           ->orWhere('valid_to', '>=', now());
+                    })->orderBy('amount');
+                },
+                'searchIndex',
+                'masterHierarchyNode',
+                'attributeValues.attribute',
+                'attributeValues.valueListEntry',
+                'attributeValues.unit',
+            ])
+            ->findOrFail($productId);
+
+        // Build breadcrumb
+        $breadcrumb = [];
+        if ($product->masterHierarchyNode) {
+            $ancestors = HierarchyNode::ancestorsOf($product->masterHierarchyNode->path)
+                ->orderBy('depth')
+                ->get();
+            foreach ($ancestors as $ancestor) {
+                $breadcrumb[] = [
+                    'id' => $ancestor->id,
+                    'name' => $lang === 'en' && $ancestor->name_en ? $ancestor->name_en : $ancestor->name_de,
+                ];
+            }
+            $breadcrumb[] = [
+                'id' => $product->masterHierarchyNode->id,
+                'name' => $lang === 'en' && $product->masterHierarchyNode->name_en
+                    ? $product->masterHierarchyNode->name_en
+                    : $product->masterHierarchyNode->name_de,
+            ];
+        }
+
+        return response()->json(
+            (new CatalogProductDetailResource($product))
+                ->additional(['lang' => $lang, 'breadcrumb' => $breadcrumb])
+                ->resolve(),
+            200,
+            ['Content-Type' => 'application/json'],
+            JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE
+        );
+    }
+
+    /**
+     * GET /api/v1/catalog/products/export.json
+     *
+     * Flat aggregated JSON array of all active products with attributes.
+     * Query params: start (offset, default 0), limit (default 100, max 1000), lang
+     */
+    public function productsExportJson(Request $request): JsonResponse
+    {
+        $lang = $request->query('lang', 'de');
+        $start = max(0, (int) $request->query('start', '0'));
+        $limit = min(max(1, (int) $request->query('limit', '100')), 1000);
+
+        $totalCount = Product::where('status', 'active')
+            ->where('product_type_ref', 'product')
+            ->count();
+
+        $products = Product::where('status', 'active')
+            ->where('product_type_ref', 'product')
+            ->with([
+                'searchIndex',
+                'attributeValues.attribute',
+                'attributeValues.valueListEntry',
+                'attributeValues.unit',
+                'prices' => function ($q) {
+                    $q->where(function ($q2) {
+                        $q2->whereNull('valid_to')
+                           ->orWhere('valid_to', '>=', now());
+                    })->orderBy('amount');
+                },
+            ])
+            ->orderBy('sku')
+            ->skip($start)
+            ->take($limit)
+            ->get();
+
+        $flatProducts = $products->map(function (Product $product) use ($lang) {
+            $row = [
+                'artikelnummer' => $product->sku,
+                'ean' => $product->ean,
+                'name' => $lang === 'en'
+                    ? ($product->searchIndex?->name_en ?: $product->searchIndex?->name_de)
+                    : $product->searchIndex?->name_de,
+                'beschreibung' => $product->searchIndex?->description_de,
+                'kategorie' => $product->searchIndex?->hierarchy_path,
+                'preis' => $product->prices->first()?->amount,
+                'waehrung' => $product->prices->first()?->currency ?? 'EUR',
+            ];
+
+            // Flatten all attribute values into the row
+            foreach ($product->attributeValues as $attrValue) {
+                $attr = $attrValue->attribute;
+                if (!$attr) {
+                    continue;
+                }
+
+                $key = $attr->technical_name;
+                $value = $this->resolveExportAttributeValue($attrValue, $attr, $lang);
+                if ($value !== null && $value !== '') {
+                    $unit = $attrValue->unit?->abbreviation;
+                    $row[$key] = $unit ? $value . ' ' . $unit : $value;
+                }
+            }
+
+            return $row;
+        })->values();
+
+        return response()->json([
+            'meta' => [
+                'start' => $start,
+                'limit' => $limit,
+                'count' => $flatProducts->count(),
+                'total' => $totalCount,
+            ],
+            'data' => $flatProducts,
+        ], 200, ['Content-Type' => 'application/json'], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+    }
+
+    /**
+     * Resolve attribute value for flat export.
+     */
+    private function resolveExportAttributeValue($attrValue, $attr, string $lang): ?string
+    {
+        return match ($attr->data_type) {
+            'String' => $attrValue->value_string,
+            'Number', 'Float' => $attrValue->value_number !== null ? rtrim(rtrim((string) $attrValue->value_number, '0'), '.') : null,
+            'Date' => $attrValue->value_date?->format('Y-m-d'),
+            'Flag' => $attrValue->value_flag !== null ? ($attrValue->value_flag ? 'true' : 'false') : null,
+            'Selection', 'Dictionary' => $this->resolveExportSelectionValue($attrValue, $lang),
+            default => $attrValue->value_string,
+        };
+    }
+
+    private function resolveExportSelectionValue($attrValue, string $lang): ?string
+    {
+        $entry = $attrValue->valueListEntry;
+        if (!$entry) {
+            return null;
+        }
+        return $lang === 'en' && $entry->display_value_en
+            ? $entry->display_value_en
+            : $entry->display_value_de;
     }
 
     /**

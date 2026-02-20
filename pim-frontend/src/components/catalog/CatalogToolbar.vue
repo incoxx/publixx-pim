@@ -1,7 +1,7 @@
 <script setup>
 import { useI18n } from 'vue-i18n'
 import { useCatalogStore } from '@/stores/catalog'
-import { LayoutGrid, List, X } from 'lucide-vue-next'
+import { LayoutGrid, List, X, Braces } from 'lucide-vue-next'
 
 const { t } = useI18n()
 const store = useCatalogStore()
@@ -54,6 +54,26 @@ function clearCategory() {
         <option value="sku:asc">{{ t('catalog.sortSku') }} A-Z</option>
         <option value="updated_at:desc">{{ t('catalog.sortNewest') }}</option>
       </select>
+
+      <!-- JSON dropdown -->
+      <div class="dropdown dropdown-end">
+        <div tabindex="0" role="button" class="btn btn-xs btn-ghost gap-1">
+          <Braces class="w-3.5 h-3.5" />
+          JSON
+        </div>
+        <ul tabindex="0" class="dropdown-content z-10 menu p-2 shadow-lg bg-base-100 rounded-box w-52 border border-base-300">
+          <li>
+            <a :href="store.productsJsonUrl" target="_blank">
+              JSON Listing
+            </a>
+          </li>
+          <li>
+            <a :href="store.exportJsonUrl" target="_blank">
+              JSON Export (flach)
+            </a>
+          </li>
+        </ul>
+      </div>
 
       <div class="join">
         <button

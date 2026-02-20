@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Resources\Api\V1;
 
+use App\Models\Attribute;
+use App\Models\ProductAttributeValue;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -34,6 +36,34 @@ class CatalogProductDetailResource extends JsonResource
             ];
         })->values();
 
+        // Build attributes array from EAV values
+        $attributes = $this->resource->attributeValues
+            ->sortBy(fn ($v) => $v->attribute?->position ?? 999)
+            ->map(function (ProductAttributeValue $attrValue) use ($lang) {
+                $attr = $attrValue->attribute;
+                if (!$attr) {
+                    return null;
+                }
+
+                $label = $lang === 'en' && $attr->name_en ? $attr->name_en : $attr->name_de;
+                $displayValue = $this->resolveAttributeDisplayValue($attrValue, $attr, $lang);
+
+                if ($displayValue === null || $displayValue === '') {
+                    return null;
+                }
+
+                $unit = $attrValue->unit?->abbreviation;
+
+                return [
+                    'label' => $label,
+                    'value' => $displayValue,
+                    'unit' => $unit,
+                    'data_type' => $attr->data_type,
+                ];
+            })
+            ->filter()
+            ->values();
+
         return [
             'id' => $this->resource->id,
             'sku' => $this->resource->sku,
@@ -44,6 +74,31 @@ class CatalogProductDetailResource extends JsonResource
             'category_breadcrumb' => $breadcrumb,
             'media' => $media,
             'prices' => $prices,
+            'attributes' => $attributes,
         ];
+    }
+
+    private function resolveAttributeDisplayValue(ProductAttributeValue $attrValue, Attribute $attr, string $lang): ?string
+    {
+        return match ($attr->data_type) {
+            'String' => $attrValue->value_string,
+            'Number', 'Float' => $attrValue->value_number !== null ? rtrim(rtrim((string) $attrValue->value_number, '0'), '.') : null,
+            'Date' => $attrValue->value_date?->format('Y-m-d'),
+            'Flag' => $attrValue->value_flag !== null ? ($attrValue->value_flag ? ($lang === 'en' ? 'Yes' : 'Ja') : ($lang === 'en' ? 'No' : 'Nein')) : null,
+            'Selection', 'Dictionary' => $this->resolveSelectionValue($attrValue, $lang),
+            default => $attrValue->value_string,
+        };
+    }
+
+    private function resolveSelectionValue(ProductAttributeValue $attrValue, string $lang): ?string
+    {
+        $entry = $attrValue->valueListEntry;
+        if (!$entry) {
+            return null;
+        }
+
+        return $lang === 'en' && $entry->display_value_en
+            ? $entry->display_value_en
+            : $entry->display_value_de;
     }
 }

@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { useCatalogStore } from '@/stores/catalog'
 import { ChevronRight, ChevronDown } from 'lucide-vue-next'
 
@@ -10,6 +10,22 @@ const props = defineProps({
 
 const store = useCatalogStore()
 const expandedIds = ref(new Set())
+
+// Auto-expand root nodes that have children
+if (props.level === 0) {
+  watch(
+    () => props.nodes,
+    (nodes) => {
+      if (nodes.length > 0 && expandedIds.value.size === 0) {
+        const rootIds = nodes
+          .filter((n) => n.children && n.children.length > 0)
+          .map((n) => n.id)
+        expandedIds.value = new Set(rootIds)
+      }
+    },
+    { immediate: true },
+  )
+}
 
 function toggle(nodeId) {
   const next = new Set(expandedIds.value)
