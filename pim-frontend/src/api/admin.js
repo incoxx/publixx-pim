@@ -1,6 +1,14 @@
 import client from './client'
 
 export default {
+  resetData(confirmation) {
+    return client.post('/admin/reset-data', { confirmation })
+  },
+
+  loadDemoData() {
+    return client.post('/admin/load-demo-data', {}, { timeout: 300000 })
+  },
+
   getDeployStatus() {
     return client.get('/admin/deploy/status')
   },
