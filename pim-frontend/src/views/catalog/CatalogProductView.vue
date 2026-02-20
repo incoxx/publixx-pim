@@ -3,7 +3,7 @@ import { onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useCatalogStore } from '@/stores/catalog'
-import { ArrowLeft, Heart, Package } from 'lucide-vue-next'
+import { ArrowLeft, Heart, Package, Braces } from 'lucide-vue-next'
 import CatalogImageGallery from '@/components/catalog/CatalogImageGallery.vue'
 
 const route = useRoute()
@@ -87,8 +87,23 @@ onMounted(() => {
             <p>{{ product.description }}</p>
           </div>
 
+          <!-- Attributes -->
+          <div v-if="product.attributes?.length" class="text-sm">
+            <h3 class="font-semibold text-base-content mb-2">{{ t('catalog.attributes') }}</h3>
+            <table class="table table-xs table-zebra w-full">
+              <tbody>
+                <tr v-for="(attr, idx) in product.attributes" :key="idx">
+                  <td class="text-base-content/60 font-medium w-2/5 align-top whitespace-nowrap">{{ attr.label }}</td>
+                  <td class="text-base-content">
+                    {{ attr.value }}<span v-if="attr.unit" class="text-base-content/50 ml-1">{{ attr.unit }}</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
           <!-- Actions -->
-          <div class="pt-4 border-t border-base-300">
+          <div class="pt-4 border-t border-base-300 flex gap-2">
             <button
               class="btn gap-2"
               :class="inWishlist ? 'btn-outline btn-primary' : 'btn-primary'"
@@ -97,6 +112,15 @@ onMounted(() => {
               <Heart class="w-4 h-4" :class="{ 'fill-current': inWishlist }" />
               {{ inWishlist ? t('catalog.removeFromWishlist') : t('catalog.addToWishlist') }}
             </button>
+            <a
+              :href="store.productJsonUrl(product.id)"
+              target="_blank"
+              class="btn btn-ghost btn-outline gap-1"
+              title="JSON"
+            >
+              <Braces class="w-4 h-4" />
+              JSON
+            </a>
           </div>
         </div>
       </div>
