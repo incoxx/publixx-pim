@@ -9,6 +9,8 @@ use App\Http\Resources\Api\V1\ProductAttributeValueResource;
 use App\Models\Attribute;
 use App\Models\Product;
 use App\Models\ProductAttributeValue;
+use App\Services\Inheritance\AttributeValueResolver;
+use App\Services\Inheritance\HierarchyInheritanceService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -49,6 +51,62 @@ class ProductAttributeValueController extends Controller
         return ProductAttributeValueResource::collection(
             $query->paginate($this->getPerPage($request))
         );
+    }
+
+    /**
+     * GET /products/{product}/resolved-attributes
+     *
+     * Returns the effective attribute list for a product based on hierarchy inheritance.
+     * Includes attribute metadata, resolved values, and inheritance info.
+     */
+    public function resolved(Request $request, Product $product, HierarchyInheritanceService $hierarchyService): JsonResponse
+    {
+        $this->authorize('view', $product);
+
+        $language = $this->getPrimaryLanguage($request);
+
+        // Get effective attributes from hierarchy
+        $effectiveAttributes = $hierarchyService->getProductAttributes($product);
+
+        // Load existing attribute values for this product
+        $existingValues = $product->attributeValues()
+            ->with('attribute')
+            ->where(function ($q) use ($language) {
+                $q->whereNull('language')->orWhere('language', $language);
+            })
+            ->get()
+            ->keyBy('attribute_id');
+
+        $result = $effectiveAttributes->map(function ($assignment) use ($existingValues) {
+            $pav = $existingValues->get($assignment->attribute_id);
+            $value = null;
+            $source = 'none';
+
+            if ($pav) {
+                $value = $pav->value_string ?? $pav->value_number ?? $pav->value_date ?? $pav->value_flag ?? $pav->value_selection_id;
+                $source = $pav->is_inherited ? 'hierarchy_inheritance' : 'own';
+            }
+
+            return [
+                'attribute_id' => $assignment->attribute_id,
+                'attribute_technical_name' => $assignment->attribute_technical_name,
+                'attribute_name_de' => $assignment->attribute_name_de,
+                'attribute_name_en' => $assignment->attribute_name_en,
+                'data_type' => $assignment->data_type,
+                'is_translatable' => (bool) $assignment->is_translatable,
+                'is_mandatory' => (bool) $assignment->is_mandatory,
+                'collection_name' => $assignment->collection_name,
+                'collection_sort' => $assignment->collection_sort,
+                'attribute_sort' => $assignment->attribute_sort,
+                'access_product' => $assignment->access_product ?? 'editable',
+                'access_variant' => $assignment->access_variant ?? 'editable',
+                'value' => $value,
+                'source' => $source,
+                'is_inherited' => $source !== 'own' && $source !== 'none',
+            ];
+        });
+
+        return response()->json(['data' => $result->values()]);
     }
 
     /**

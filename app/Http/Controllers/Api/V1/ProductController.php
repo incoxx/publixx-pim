@@ -38,10 +38,17 @@ class ProductController extends Controller
             $this->constrainAttributeValuesForLanguages($query, $languages);
         }
 
-        $this->applyFilters($query, array_intersect_key(
+        $filters = array_intersect_key(
             $request->query('filter', []),
             array_flip(self::ALLOWED_FILTERS)
-        ));
+        );
+
+        // By default, exclude variants from the main product listing
+        if (!isset($filters['product_type_ref'])) {
+            $query->where('product_type_ref', 'product');
+        }
+
+        $this->applyFilters($query, $filters);
         $this->applySearch($query, $request, ['name', 'sku', 'ean']);
         $this->applySorting($query, $request, 'created_at', 'desc');
 
@@ -59,8 +66,11 @@ class ProductController extends Controller
 
         $product = Product::create($data);
 
-        // Dispatch event
-        event(new \App\Events\ProductCreated($product));
+        try {
+            event(new \App\Events\ProductCreated($product));
+        } catch (\Throwable $e) {
+            // Event listeners may fail (e.g. queue unavailable) — don't break the response
+        }
 
         return (new ProductResource($product->load('productType')))
             ->response()
@@ -103,7 +113,11 @@ class ProductController extends Controller
 
         $product->update($data);
 
-        event(new \App\Events\ProductUpdated($product));
+        try {
+            event(new \App\Events\ProductUpdated($product));
+        } catch (\Throwable $e) {
+            // Don't break the response
+        }
 
         return new ProductResource($product->fresh());
     }
@@ -115,7 +129,11 @@ class ProductController extends Controller
         $productId = $product->id;
         $product->delete();
 
-        event(new \App\Events\ProductDeleted($productId));
+        try {
+            event(new \App\Events\ProductDeleted($productId));
+        } catch (\Throwable $e) {
+            // Don't break the response
+        }
 
         return response()->json(null, 204);
     }

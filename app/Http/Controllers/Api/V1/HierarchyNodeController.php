@@ -135,7 +135,11 @@ class HierarchyNodeController extends Controller
             });
 
         // Dispatch event for Inheritance Agent
-        event(new \App\Events\HierarchyNodeMoved($hierarchyNode));
+        try {
+            event(new \App\Events\HierarchyNodeMoved($hierarchyNode, $oldPath !== $newPath ? $hierarchyNode->parent_node_id : null, $oldPath));
+        } catch (\Throwable $e) {
+            // Don't break the response
+        }
 
         return new HierarchyNodeResource($hierarchyNode->fresh());
     }

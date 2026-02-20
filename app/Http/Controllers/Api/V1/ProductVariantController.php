@@ -51,7 +51,11 @@ class ProductVariantController extends Controller
 
         $variant = Product::create($data);
 
-        event(new \App\Events\ProductCreated($variant));
+        try {
+            event(new \App\Events\ProductCreated($variant));
+        } catch (\Throwable $e) {
+            // Event listeners may fail (e.g. queue unavailable) — don't break the response
+        }
 
         return (new ProductResource($variant))
             ->response()

@@ -9,6 +9,7 @@ import mediaApi from '@/api/media'
 import { priceTypes, relationTypes } from '@/api/prices'
 import { productTypes } from '@/api/attributes'
 import pxfTemplatesApi from '@/api/pxfTemplates'
+import hierarchiesApi from '@/api/hierarchies'
 import PimCollectionGroup from '@/components/shared/PimCollectionGroup.vue'
 import PimAttributeInput from '@/components/shared/PimAttributeInput.vue'
 import PimTable from '@/components/shared/PimTable.vue'
@@ -23,6 +24,11 @@ const { t } = useI18n()
 const activeTab = ref('attributes')
 const saving = ref(false)
 const pxfData = ref(null)
+
+// Hierarchy assignment
+const hierarchies = ref([])
+const hierarchyNodes = ref([])
+const selectedHierarchyId = ref(null)
 
 const tabs = [
   { key: 'attributes', label: t('product.attributes') },
@@ -52,22 +58,53 @@ function mapDataTypeToInput(backendType) {
 async function loadAttributeData() {
   if (attrLoaded.value || !product.value) return
   try {
-    // Load attribute values
-    const { data: valData } = await productsApi.getAttributeValues(product.value.id)
-    const vals = valData.data || valData
-    if (Array.isArray(vals)) {
-      for (const val of vals) {
-        const attrId = val.attribute_id || val.attribute?.id
-        if (!attrId) continue
-        attributeValues.value[attrId] = val.value_string ?? val.value_number ?? val.value_date ?? val.value_flag ?? val.value_selection_id ?? ''
-      }
-    }
-    // Load schema if product has a type
-    if (product.value.product_type_id) {
+    // Try resolved attributes from hierarchy first (includes inheritance info)
+    let resolvedAttrs = null
+    if (product.value.master_hierarchy_node_id) {
       try {
-        const { data: schemaData } = await productTypes.getSchema(product.value.product_type_id)
-        schema.value = schemaData.data || schemaData
-      } catch { /* schema might not exist */ }
+        const { data: resolvedData } = await productsApi.getResolvedAttributes(product.value.id)
+        resolvedAttrs = resolvedData.data || resolvedData
+      } catch { /* fallback to product type schema */ }
+    }
+
+    if (resolvedAttrs && resolvedAttrs.length > 0) {
+      // Use hierarchy-resolved attributes as schema
+      schema.value = resolvedAttrs.map(ra => ({
+        id: ra.attribute_id,
+        technical_name: ra.attribute_technical_name,
+        name_de: ra.attribute_name_de || ra.attribute_technical_name,
+        name_en: ra.attribute_name_en,
+        data_type: ra.data_type,
+        is_mandatory: ra.is_mandatory,
+        is_translatable: ra.is_translatable,
+        group: ra.collection_name || 'Vererbte Attribute',
+        _source: ra.source,
+        _is_inherited: ra.is_inherited,
+        _access: ra.access_product,
+      }))
+      // Populate values from resolved data
+      for (const ra of resolvedAttrs) {
+        if (ra.value !== null && ra.value !== undefined) {
+          attributeValues.value[ra.attribute_id] = ra.value
+        }
+      }
+    } else {
+      // Fallback: load attribute values + product type schema
+      const { data: valData } = await productsApi.getAttributeValues(product.value.id)
+      const vals = valData.data || valData
+      if (Array.isArray(vals)) {
+        for (const val of vals) {
+          const attrId = val.attribute_id || val.attribute?.id
+          if (!attrId) continue
+          attributeValues.value[attrId] = val.value_string ?? val.value_number ?? val.value_date ?? val.value_flag ?? val.value_selection_id ?? ''
+        }
+      }
+      if (product.value.product_type_id) {
+        try {
+          const { data: schemaData } = await productTypes.getSchema(product.value.product_type_id)
+          schema.value = schemaData.data || schemaData
+        } catch { /* schema might not exist */ }
+      }
     }
     attrLoaded.value = true
   } catch { /* silently fail */ }
@@ -105,8 +142,9 @@ const variantSaving = ref(false)
 
 const variantColumns = [
   { key: 'sku', label: 'SKU', mono: true },
-  { key: 'name_de', label: 'Name' },
+  { key: 'name', label: 'Name' },
   { key: 'status', label: 'Status' },
+  { key: 'product_type_ref', label: 'Typ' },
 ]
 
 async function loadVariants() {
@@ -411,6 +449,7 @@ async function save() {
       name_de: product.value.name_de,
       status: product.value.status,
       ean: product.value.ean,
+      master_hierarchy_node_id: product.value.master_hierarchy_node_id || null,
     })
     // Save attribute values if any changed
     if (Object.keys(attributeValues.value).length > 0) {
@@ -423,6 +462,49 @@ async function save() {
   } finally {
     saving.value = false
   }
+}
+
+// ─── Hierarchy node loading ──────────────────────────
+async function loadHierarchies() {
+  try {
+    const { data } = await hierarchiesApi.list()
+    hierarchies.value = data.data || data
+    // Load tree for the hierarchy that the product belongs to
+    if (product.value?.master_hierarchy_node_id) {
+      for (const h of hierarchies.value) {
+        await loadHierarchyTree(h.id)
+      }
+    } else if (hierarchies.value.length > 0) {
+      await loadHierarchyTree(hierarchies.value[0].id)
+    }
+  } catch { /* silently fail */ }
+}
+
+async function loadHierarchyTree(hierarchyId) {
+  try {
+    const { data } = await hierarchiesApi.getTree(hierarchyId)
+    const tree = data.data || data
+    const flatNodes = flattenTree(tree, hierarchyId)
+    hierarchyNodes.value = [...hierarchyNodes.value.filter(n => n._hierarchyId !== hierarchyId), ...flatNodes]
+    if (!selectedHierarchyId.value) selectedHierarchyId.value = hierarchyId
+  } catch { /* silently fail */ }
+}
+
+function flattenTree(nodes, hierarchyId, prefix = '') {
+  const result = []
+  for (const node of (Array.isArray(nodes) ? nodes : [])) {
+    const label = prefix + (node.name_de || node.name_en || node.id)
+    result.push({ id: node.id, label, _hierarchyId: hierarchyId })
+    if (node.children?.length) {
+      result.push(...flattenTree(node.children, hierarchyId, label + ' › '))
+    }
+  }
+  return result
+}
+
+async function onHierarchyChange(hierarchyId) {
+  selectedHierarchyId.value = hierarchyId
+  await loadHierarchyTree(hierarchyId)
 }
 
 // ─── Tab lazy loading ─────────────────────────────────
@@ -438,6 +520,7 @@ watch(activeTab, (tab) => {
 onMounted(async () => {
   await store.fetchOne(route.params.id)
   loadAttributeData()
+  loadHierarchies()
 })
 </script>
 
@@ -454,10 +537,20 @@ onMounted(async () => {
           <div class="pim-skeleton h-3 w-32 rounded" />
         </div>
         <template v-else-if="product">
-          <h2 class="text-lg font-semibold text-[var(--color-text-primary)]">
-            {{ product.name_de || product.name || product.sku }}
-          </h2>
-          <p class="text-xs text-[var(--color-text-tertiary)] font-mono">{{ product.sku }}</p>
+          <div class="flex items-center gap-2">
+            <h2 class="text-lg font-semibold text-[var(--color-text-primary)]">
+              {{ product.name_de || product.name || product.sku }}
+            </h2>
+            <span v-if="product.product_type_ref === 'variant'" class="pim-badge bg-purple-100 text-purple-700 text-[10px] px-1.5 py-0.5 rounded">
+              Variante
+            </span>
+          </div>
+          <p class="text-xs text-[var(--color-text-tertiary)] font-mono">
+            {{ product.sku }}
+            <span v-if="product.parent_product_id" class="ml-2 text-[var(--color-text-tertiary)]">
+              (Parent: {{ product.parent_product_id.substring(0, 8) }}…)
+            </span>
+          </p>
         </template>
       </div>
       <button class="pim-btn pim-btn-primary" :disabled="saving" @click="save">
@@ -522,6 +615,18 @@ onMounted(async () => {
               :options="[{ value: 'active', label: 'Aktiv' }, { value: 'draft', label: 'Entwurf' }, { value: 'inactive', label: 'Inaktiv' }, { value: 'discontinued', label: 'Auslaufend' }]"
             />
           </div>
+          <div v-if="product.product_type_ref !== 'variant'">
+            <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Master-Hierarchie-Knoten</label>
+            <div class="flex gap-2">
+              <select v-if="hierarchies.length > 1" class="pim-input text-xs w-36 shrink-0" :value="selectedHierarchyId" @change="onHierarchyChange($event.target.value)">
+                <option v-for="h in hierarchies" :key="h.id" :value="h.id">{{ h.name_de || h.technical_name }}</option>
+              </select>
+              <select class="pim-input text-xs flex-1" v-model="product.master_hierarchy_node_id">
+                <option value="">— Kein Knoten —</option>
+                <option v-for="node in hierarchyNodes" :key="node.id" :value="node.id">{{ node.label }}</option>
+              </select>
+            </div>
+          </div>
         </div>
       </PimCollectionGroup>
 
@@ -548,11 +653,13 @@ onMounted(async () => {
             <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">
               {{ attr.name_de || attr.technical_name }}
               <span v-if="attr.is_mandatory" class="text-[var(--color-error)]">*</span>
+              <span v-if="attr._is_inherited" class="ml-1 text-[10px] text-blue-500 font-normal">(vererbt)</span>
             </label>
             <PimAttributeInput
               :type="mapDataTypeToInput(attr.data_type)"
               :modelValue="attributeValues[attr.id]"
               :options="attr.value_list?.entries?.map(e => ({ value: e.id, label: e.value_de || e.label_de || e.code })) || []"
+              :disabled="attr._access === 'read_only'"
               @update:modelValue="attributeValues[attr.id] = $event"
             />
           </div>
@@ -610,6 +717,9 @@ onMounted(async () => {
           <span :class="['pim-badge', value === 'active' ? 'bg-[var(--color-success-light)] text-[var(--color-success)]' : 'bg-[var(--color-bg)] text-[var(--color-text-tertiary)]']">
             {{ value === 'active' ? 'Aktiv' : 'Entwurf' }}
           </span>
+        </template>
+        <template #cell-product_type_ref="{ value }">
+          <span class="pim-badge bg-purple-100 text-purple-700 text-[10px]">Variante</span>
         </template>
       </PimTable>
     </div>

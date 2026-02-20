@@ -48,7 +48,8 @@ class Product extends Model
 
     public function variants(): HasMany
     {
-        return $this->hasMany(Product::class, 'parent_product_id');
+        return $this->hasMany(Product::class, 'parent_product_id')
+            ->where('product_type_ref', 'variant');
     }
 
     public function masterHierarchyNode(): BelongsTo

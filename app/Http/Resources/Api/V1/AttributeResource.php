@@ -20,6 +20,8 @@ class AttributeResource extends JsonResource
             'description_de' => $this->description_de,
             'description_en' => $this->description_en,
             'data_type' => $this->data_type,
+            'attribute_type_id' => $this->attribute_type_id,
+            'value_list_id' => $this->value_list_id,
             'attribute_type' => new AttributeTypeResource($this->whenLoaded('attributeType')),
             'value_list' => new ValueListResource($this->whenLoaded('valueList')),
             'unit_group' => new UnitGroupResource($this->whenLoaded('unitGroup')),
