@@ -34,7 +34,11 @@ client.interceptors.response.use(
 
     if (status === 401) {
       const authStore = useAuthStore()
-      authStore.logout()
+      // Clear local state directly — don't call authStore.logout() which
+      // would POST to /auth/logout, triggering another 401 → infinite loop
+      authStore.token = null
+      authStore.user = null
+      localStorage.removeItem('pim_token')
       router.push({ name: 'login' })
     }
 

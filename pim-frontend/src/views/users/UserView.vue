@@ -9,12 +9,12 @@ const loading = ref(false)
 const columns = [
   { key: 'name', label: 'Name', sortable: true },
   { key: 'email', label: 'E-Mail', sortable: true, mono: true },
-  { key: 'role.name', label: 'Rolle' },
+  { key: 'roles', label: 'Rolle' },
   { key: 'created_at', label: 'Erstellt', sortable: true },
 ]
 async function fetchUsers() {
   loading.value = true
-  try { const { data } = await usersApi.list({ include: 'role' }); items.value = data.data || data }
+  try { const { data } = await usersApi.list(); items.value = data.data || data }
   finally { loading.value = false }
 }
 onMounted(() => fetchUsers())
@@ -27,8 +27,8 @@ onMounted(() => fetchUsers())
       <button class="pim-btn pim-btn-primary"><Plus class="w-4 h-4" :stroke-width="2" /> Neuer Benutzer</button>
     </div>
     <PimTable :columns="columns" :rows="items" :loading="loading" emptyText="Keine Benutzer">
-      <template #cell-role.name="{ value }">
-        <span class="pim-badge bg-[var(--color-info-light)] text-[var(--color-info)]"><Shield class="w-3 h-3" :stroke-width="2" /> {{ value || 'Keine' }}</span>
+      <template #cell-roles="{ row }">
+        <span class="pim-badge bg-[var(--color-info-light)] text-[var(--color-info)]"><Shield class="w-3 h-3" :stroke-width="2" /> {{ row.roles?.[0]?.name || 'Keine' }}</span>
       </template>
       <template #cell-created_at="{ value }">
         <span class="text-xs text-[var(--color-text-tertiary)]">{{ value ? new Date(value).toLocaleDateString('de-DE') : '' }}</span>
