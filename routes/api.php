@@ -56,6 +56,10 @@ Route::prefix('v1/auth')->middleware('throttle.pim:auth')->group(function () {
 });
 
 // =========================================================================
+// Public media file serving (no auth — used by <img src> tags)
+// =========================================================================
+Route::prefix('v1')->middleware('throttle.pim')->group(function () {
+    Route::get('media/file/{filename}', [MediaController::class, 'serve'])->name('media.serve');
 // Public Catalog API (no auth required)
 // =========================================================================
 Route::prefix('v1/catalog')->middleware('throttle.pim')->group(function () {
@@ -169,7 +173,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // Agent 3: Media
     // =====================================================================
     Route::apiResource('media', MediaController::class);
-    Route::get('media/file/{filename}', [MediaController::class, 'serve'])->name('media.serve');
+    // media/file/{filename} is registered outside auth group (public access for <img> tags)
     Route::get('products/{product}/media', [ProductMediaController::class, 'index']);
     Route::post('products/{product}/media', [ProductMediaController::class, 'store']);
     Route::delete('product-media/{product_medium}', [ProductMediaController::class, 'destroy']);
