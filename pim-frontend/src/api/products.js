@@ -93,4 +93,21 @@ export default {
   deleteRelation(relationId) {
     return client.delete(`/product-relations/${relationId}`)
   },
+
+  // Preview
+  getPreview(id) {
+    return client.get(`/products/${id}/preview`)
+  },
+
+  getCompleteness(id) {
+    return client.get(`/products/${id}/completeness`)
+  },
+
+  downloadPreviewExcel(id) {
+    return client.get(`/products/${id}/preview/export.xlsx`, { responseType: 'blob' })
+  },
+
+  downloadPreviewPdf(id) {
+    return client.get(`/products/${id}/preview/export.pdf`, { responseType: 'blob' })
+  },
 }
