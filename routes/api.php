@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\V1\AttributeController;
 use App\Http\Controllers\Api\V1\AttributeTypeController;
 use App\Http\Controllers\Api\V1\AttributeViewController;
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\DeploymentController;
 use App\Http\Controllers\Api\V1\ExportController;
 use App\Http\Controllers\Api\V1\HierarchyController;
 use App\Http\Controllers\Api\V1\HierarchyNodeAttributeValueController;
@@ -227,4 +228,13 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::apiResource('pxf-templates', PxfTemplateController::class);
     Route::get('pxf-templates/{pxf_template}/preview/{product}', [PxfTemplateController::class, 'preview']);
     Route::post('pxf-templates/import', [PxfTemplateController::class, 'import']);
+
+    // =====================================================================
+    // Admin: Deployment (nur Admin-Rolle)
+    // =====================================================================
+    Route::prefix('admin')->group(function () {
+        Route::get('deploy/status', [DeploymentController::class, 'status']);
+        Route::post('deploy', [DeploymentController::class, 'deploy']);
+        Route::post('deploy/rollback', [DeploymentController::class, 'rollback']);
+    });
 });
