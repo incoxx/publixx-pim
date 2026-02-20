@@ -24,9 +24,10 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function login(credentials) {
     const { data } = await authApi.login(credentials)
-    token.value = data.token
-    user.value = data.user
-    localStorage.setItem('pim_token', data.token)
+    const payload = data.data || data
+    token.value = payload.token
+    user.value = payload.user
+    localStorage.setItem('pim_token', payload.token)
   }
 
   async function logout() {
