@@ -26,6 +26,7 @@ use App\Http\Controllers\Api\V1\ProductVariantController;
 use App\Http\Controllers\Api\V1\PublixxDatasetController;
 use App\Http\Controllers\Api\V1\PxfTemplateController;
 use App\Http\Controllers\Api\V1\RelationTypeController;
+use App\Http\Controllers\Api\V1\ResetDataController;
 use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\UnitController;
 use App\Http\Controllers\Api\V1\UnitGroupController;
@@ -220,6 +221,11 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
         Route::post('datasets/{mapping_id}/pql', [PublixxDatasetController::class, 'pql']);
         Route::post('webhook', [PublixxDatasetController::class, 'webhook']);
     });
+
+    // =====================================================================
+    // Admin: Reset Data Model
+    // =====================================================================
+    Route::post('admin/reset-data', ResetDataController::class);
 
     // =====================================================================
     // PXF Templates
