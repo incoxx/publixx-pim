@@ -25,11 +25,7 @@ export default {
     return client.get(`/pxf-templates/${templateId}/preview/${productId}`)
   },
 
-  importPxf(file) {
-    const formData = new FormData()
-    formData.append('file', file)
-    return client.post('/pxf-templates/import', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    })
+  importPxf(name, pxfData) {
+    return client.post('/pxf-templates/import', { name, pxf_data: pxfData })
   },
 }

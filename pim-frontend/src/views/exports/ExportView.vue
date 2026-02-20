@@ -11,7 +11,7 @@ const error = ref('')
 async function runExport() {
   exporting.value = true; error.value = ''
   try {
-    const { data } = await exportsApi.exportWithPql({ query: pqlInput.value || '*' })
+    const { data } = await exportsApi.exportWithPql({ pql: pqlInput.value || '*' })
     exportResult.value = data
   } catch (err) { error.value = err.response?.data?.title || 'Export fehlgeschlagen' }
   finally { exporting.value = false }

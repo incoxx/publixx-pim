@@ -24,8 +24,6 @@ class ProductVariantController extends Controller
     {
         $this->authorize('view', $product);
 
-        $languages = $this->getRequestedLanguages($request);
-
         $query = $product->variants()
             ->with($this->parseIncludes($request, ['productType', 'attributeValues', 'media', 'prices']));
 

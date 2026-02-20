@@ -234,9 +234,9 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // =====================================================================
     // PXF Templates
     // =====================================================================
+    Route::post('pxf-templates/import', [PxfTemplateController::class, 'import']);
     Route::apiResource('pxf-templates', PxfTemplateController::class);
     Route::get('pxf-templates/{pxf_template}/preview/{product}', [PxfTemplateController::class, 'preview']);
-    Route::post('pxf-templates/import', [PxfTemplateController::class, 'import']);
 
     // =====================================================================
     // Admin: Deployment (nur Admin-Rolle)

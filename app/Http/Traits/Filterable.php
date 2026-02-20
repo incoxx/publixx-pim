@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Traits;
 
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\Request;
 
 trait Filterable
@@ -12,7 +13,7 @@ trait Filterable
     /**
      * Apply ?filter[field]=value query params to the query builder.
      */
-    protected function applyFilters(Builder $query, ?array $filters): Builder
+    protected function applyFilters(Builder|Relation $query, ?array $filters): Builder|Relation
     {
         if (empty($filters)) {
             return $query;
@@ -34,7 +35,7 @@ trait Filterable
     /**
      * Apply ?sort=field&order=asc|desc sorting.
      */
-    protected function applySorting(Builder $query, Request $request, string $defaultSort = 'created_at', string $defaultOrder = 'desc'): Builder
+    protected function applySorting(Builder|Relation $query, Request $request, string $defaultSort = 'created_at', string $defaultOrder = 'desc'): Builder|Relation
     {
         $sort = $request->query('sort', $defaultSort);
         $order = $request->query('order', $defaultOrder);
@@ -48,7 +49,7 @@ trait Filterable
     /**
      * Apply ?search=term full-text or LIKE search on given columns.
      */
-    protected function applySearch(Builder $query, Request $request, array $searchColumns = ['name']): Builder
+    protected function applySearch(Builder|Relation $query, Request $request, array $searchColumns = ['name']): Builder|Relation
     {
         $search = $request->query('search');
 
