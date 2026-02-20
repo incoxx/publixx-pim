@@ -1,11 +1,12 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, inject } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useCatalogStore } from '@/stores/catalog'
 import { Heart, Trash2, X, Package } from 'lucide-vue-next'
 
 const { t } = useI18n()
 const store = useCatalogStore()
+const wishlistOpen = inject('wishlistOpen')
 
 // Find product data from loaded products
 const wishlistProducts = computed(() => {
@@ -19,7 +20,7 @@ const unloadedIds = computed(() => {
 })
 
 function closeDrawer() {
-  document.getElementById('catalog-wishlist-drawer').checked = false
+  wishlistOpen.value = false
 }
 
 function formatPrice(price) {

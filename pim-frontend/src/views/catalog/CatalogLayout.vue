@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted } from 'vue'
+import { onMounted, ref, provide } from 'vue'
 import { useCatalogStore } from '@/stores/catalog'
 import CatalogHeader from '@/components/catalog/CatalogHeader.vue'
 import CatalogSidebar from '@/components/catalog/CatalogSidebar.vue'
@@ -7,6 +7,12 @@ import CatalogWishlistDrawer from '@/components/catalog/CatalogWishlistDrawer.vu
 import CatalogFooter from '@/components/catalog/CatalogFooter.vue'
 
 const store = useCatalogStore()
+const sidebarOpen = ref(false)
+const wishlistOpen = ref(false)
+
+// Provide wishlist state to child components (Header, WishlistDrawer)
+provide('wishlistOpen', wishlistOpen)
+provide('sidebarOpen', sidebarOpen)
 
 onMounted(() => {
   store.fetchCategories()
@@ -15,44 +21,58 @@ onMounted(() => {
 
 <template>
   <div data-theme="pim-catalog" class="min-h-screen bg-base-200 flex flex-col">
-    <!-- Outer drawer for wishlist (right side) -->
-    <div class="drawer drawer-end flex-1 flex flex-col">
-      <input id="catalog-wishlist-drawer" type="checkbox" class="drawer-toggle" />
-      <div class="drawer-content flex flex-col flex-1">
-        <!-- Inner drawer for sidebar (left side, responsive) -->
-        <div class="drawer lg:drawer-open flex-1 flex flex-col">
-          <input id="catalog-sidebar-drawer" type="checkbox" class="drawer-toggle" />
-          <div class="drawer-content flex flex-col min-h-screen">
-            <!-- Header -->
-            <CatalogHeader />
+    <!-- Header -->
+    <CatalogHeader />
 
-            <!-- Main content -->
-            <main class="flex-1 p-4 lg:p-6">
-              <router-view v-slot="{ Component }">
-                <transition name="catalog-fade" mode="out-in">
-                  <component :is="Component" />
-                </transition>
-              </router-view>
-            </main>
+    <!-- Body: Sidebar + Main -->
+    <div class="flex flex-1">
+      <!-- Desktop sidebar (always visible on lg+) -->
+      <aside class="hidden lg:flex flex-col w-72 flex-none bg-base-100 border-r border-base-300">
+        <CatalogSidebar />
+      </aside>
 
-            <!-- Footer -->
-            <CatalogFooter />
-          </div>
+      <!-- Main content -->
+      <main class="flex-1 min-w-0 p-4 lg:p-6">
+        <router-view v-slot="{ Component }">
+          <transition name="catalog-fade" mode="out-in">
+            <component :is="Component" />
+          </transition>
+        </router-view>
+      </main>
+    </div>
 
-          <!-- Left sidebar (categories) -->
-          <div class="drawer-side z-40">
-            <label for="catalog-sidebar-drawer" aria-label="close sidebar" class="drawer-overlay"></label>
+    <!-- Footer -->
+    <CatalogFooter />
+
+    <!-- Mobile sidebar overlay -->
+    <Transition name="sidebar-fade">
+      <div
+        v-if="sidebarOpen"
+        class="fixed inset-0 z-50 lg:hidden"
+      >
+        <div class="absolute inset-0 bg-black/40" @click="sidebarOpen = false"></div>
+        <Transition name="sidebar-slide" appear>
+          <div class="absolute inset-y-0 left-0 w-72 shadow-2xl">
             <CatalogSidebar />
           </div>
-        </div>
+        </Transition>
       </div>
+    </Transition>
 
-      <!-- Right drawer (wishlist) -->
-      <div class="drawer-side z-50">
-        <label for="catalog-wishlist-drawer" aria-label="close wishlist" class="drawer-overlay"></label>
-        <CatalogWishlistDrawer />
+    <!-- Wishlist overlay -->
+    <Transition name="wishlist-fade">
+      <div
+        v-if="wishlistOpen"
+        class="fixed inset-0 z-50"
+      >
+        <div class="absolute inset-0 bg-black/40" @click="wishlistOpen = false"></div>
+        <Transition name="wishlist-slide" appear>
+          <div class="absolute inset-y-0 right-0 shadow-2xl">
+            <CatalogWishlistDrawer />
+          </div>
+        </Transition>
       </div>
-    </div>
+    </Transition>
   </div>
 </template>
 
@@ -64,5 +84,39 @@ onMounted(() => {
 .catalog-fade-enter-from,
 .catalog-fade-leave-to {
   opacity: 0;
+}
+
+.sidebar-fade-enter-active,
+.sidebar-fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+.sidebar-fade-enter-from,
+.sidebar-fade-leave-to {
+  opacity: 0;
+}
+.sidebar-slide-enter-active,
+.sidebar-slide-leave-active {
+  transition: transform 0.3s ease;
+}
+.sidebar-slide-enter-from,
+.sidebar-slide-leave-to {
+  transform: translateX(-100%);
+}
+
+.wishlist-fade-enter-active,
+.wishlist-fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+.wishlist-fade-enter-from,
+.wishlist-fade-leave-to {
+  opacity: 0;
+}
+.wishlist-slide-enter-active,
+.wishlist-slide-leave-active {
+  transition: transform 0.3s ease;
+}
+.wishlist-slide-enter-from,
+.wishlist-slide-leave-to {
+  transform: translateX(100%);
 }
 </style>

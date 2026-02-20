@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, inject } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useCatalogStore } from '@/stores/catalog'
 import { Search, Heart, Menu, X } from 'lucide-vue-next'
@@ -9,6 +9,9 @@ const { t } = useI18n()
 const store = useCatalogStore()
 const searchInput = ref(store.search)
 let debounceTimer = null
+
+const wishlistOpen = inject('wishlistOpen')
+const sidebarOpen = inject('sidebarOpen')
 
 function onSearchInput(value) {
   searchInput.value = value
@@ -24,19 +27,15 @@ function onSearchClear() {
   store.setSearch('')
   store.fetchProducts()
 }
-
-function openWishlist() {
-  document.getElementById('catalog-wishlist-drawer').checked = true
-}
 </script>
 
 <template>
   <div class="navbar bg-base-100 shadow-sm border-b border-base-300 sticky top-0 z-30 px-4 gap-2">
     <!-- Mobile hamburger -->
     <div class="flex-none lg:hidden">
-      <label for="catalog-sidebar-drawer" class="btn btn-square btn-ghost btn-sm">
+      <button class="btn btn-square btn-ghost btn-sm" @click="sidebarOpen = true">
         <Menu class="w-5 h-5" />
-      </label>
+      </button>
     </div>
 
     <!-- Logo -->
@@ -78,7 +77,7 @@ function openWishlist() {
       <button
         class="btn btn-ghost btn-sm btn-circle indicator"
         :title="t('catalog.wishlist')"
-        @click="openWishlist"
+        @click="wishlistOpen = true"
       >
         <Heart class="w-5 h-5" />
         <span
