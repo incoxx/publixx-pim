@@ -3,18 +3,16 @@ import { ref, onMounted, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useProductStore } from '@/stores/products'
 import { useI18n } from 'vue-i18n'
-import { ArrowLeft, Save, Plus, Trash2, Image, Star, X, Search } from 'lucide-vue-next'
+import { ArrowLeft, Save, Plus, Trash2, Image, Star, X, Search, Download } from 'lucide-vue-next'
 import productsApi from '@/api/products'
 import mediaApi from '@/api/media'
 import { priceTypes, relationTypes } from '@/api/prices'
 import { productTypes } from '@/api/attributes'
-import pxfTemplatesApi from '@/api/pxfTemplates'
 import hierarchiesApi from '@/api/hierarchies'
 import PimCollectionGroup from '@/components/shared/PimCollectionGroup.vue'
 import PimAttributeInput from '@/components/shared/PimAttributeInput.vue'
 import PimTable from '@/components/shared/PimTable.vue'
 import PimConfirmDialog from '@/components/shared/PimConfirmDialog.vue'
-import PxfRenderer from '@/components/pxf/PxfRenderer.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -23,7 +21,6 @@ const { t } = useI18n()
 
 const activeTab = ref('attributes')
 const saving = ref(false)
-const pxfData = ref(null)
 
 // Hierarchy assignment
 const hierarchies = ref([])
@@ -416,26 +413,47 @@ async function confirmDeleteRelation() {
   } finally { relationDeleting.value = false }
 }
 
-// ─── Preview (PXF) ───────────────────────────────────
-const pxfTemplates = ref([])
-const selectedTemplateId = ref('')
-const pxfLoading = ref(false)
+// ─── Preview (Generic) ───────────────────────────────
+const previewData = ref(null)
+const previewLoading = ref(false)
+const completenessData = ref(null)
 
-async function loadPxfTemplates() {
+async function loadPreview() {
+  if (!product.value) return
+  previewLoading.value = true
   try {
-    const { data } = await pxfTemplatesApi.list()
-    pxfTemplates.value = data.data || data
+    const [prevResp, compResp] = await Promise.all([
+      productsApi.getPreview(product.value.id),
+      productsApi.getCompleteness(product.value.id),
+    ])
+    previewData.value = prevResp.data.data || prevResp.data
+    completenessData.value = compResp.data.data || compResp.data
+  } catch { /* silently fail */ }
+  finally { previewLoading.value = false }
+}
+
+async function downloadExcel() {
+  try {
+    const resp = await productsApi.downloadPreviewExcel(product.value.id)
+    const url = URL.createObjectURL(resp.data)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `product-preview-${product.value.sku}.xlsx`
+    a.click()
+    URL.revokeObjectURL(url)
   } catch { /* silently fail */ }
 }
 
-async function loadPxfPreview() {
-  if (!selectedTemplateId.value || !product.value) return
-  pxfLoading.value = true
+async function downloadPdf() {
   try {
-    const { data } = await pxfTemplatesApi.preview(selectedTemplateId.value, product.value.id)
-    pxfData.value = data.data || data
-  } catch { pxfData.value = null }
-  finally { pxfLoading.value = false }
+    const resp = await productsApi.downloadPreviewPdf(product.value.id)
+    const url = URL.createObjectURL(resp.data)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `product-preview-${product.value.sku}.pdf`
+    a.click()
+    URL.revokeObjectURL(url)
+  } catch { /* silently fail */ }
 }
 
 // ─── Save ─────────────────────────────────────────────
@@ -513,7 +531,7 @@ watch(activeTab, (tab) => {
   if (tab === 'media') loadMedia()
   if (tab === 'prices') loadPrices()
   if (tab === 'relations') loadRelations()
-  if (tab === 'preview' && pxfTemplates.value.length === 0) loadPxfTemplates()
+  if (tab === 'preview') loadPreview()
 })
 
 onMounted(async () => {
@@ -939,23 +957,253 @@ onMounted(async () => {
       />
     </div>
 
-    <!-- ═══ Preview Tab (PXF) ═══ -->
-    <div v-else-if="activeTab === 'preview'" class="pim-card p-6">
-      <div class="flex items-center gap-3 mb-4">
-        <label class="text-[12px] font-medium text-[var(--color-text-secondary)]">PXF-Template:</label>
-        <select class="pim-input text-xs max-w-xs" v-model="selectedTemplateId" @change="loadPxfPreview">
-          <option value="">— Template auswählen —</option>
-          <option v-for="tmpl in pxfTemplates" :key="tmpl.id" :value="tmpl.id">
-            {{ tmpl.name_de || tmpl.name || tmpl.technical_name }}
-          </option>
-        </select>
+    <!-- ═══ Preview Tab (Generic) ═══ -->
+    <div v-else-if="activeTab === 'preview' && product" class="space-y-3">
+      <!-- Header with export buttons -->
+      <div class="flex items-center justify-between">
+        <h3 class="text-sm font-medium text-[var(--color-text-primary)]">Produktvorschau</h3>
+        <div class="flex gap-2">
+          <button class="pim-btn pim-btn-secondary text-xs" @click="downloadExcel">
+            <Download class="w-3.5 h-3.5" :stroke-width="1.75" /> Excel
+          </button>
+          <button class="pim-btn pim-btn-secondary text-xs" @click="downloadPdf">
+            <Download class="w-3.5 h-3.5" :stroke-width="1.75" /> PDF
+          </button>
+        </div>
       </div>
-      <div v-if="pxfLoading" class="flex items-center justify-center py-12">
-        <div class="pim-skeleton h-64 w-full rounded" />
+
+      <!-- Loading state -->
+      <div v-if="previewLoading" class="space-y-3">
+        <div class="pim-card p-6"><div class="pim-skeleton h-20 w-full rounded" /></div>
+        <div class="pim-card p-6"><div class="pim-skeleton h-32 w-full rounded" /></div>
+        <div class="pim-card p-6"><div class="pim-skeleton h-24 w-full rounded" /></div>
       </div>
-      <PxfRenderer v-else-if="pxfData" :pxf="pxfData" :zoom="0.6" />
-      <div v-else class="text-center py-12">
-        <p class="text-sm text-[var(--color-text-tertiary)]">{{ pxfTemplates.length > 0 ? 'Template auswählen um Vorschau zu laden' : 'Keine PXF-Templates vorhanden' }}</p>
+
+      <template v-else-if="previewData">
+        <!-- Completeness Gauge -->
+        <div v-if="completenessData" class="pim-card p-4">
+          <div class="flex items-center gap-5">
+            <div v-html="completenessData.chart_svg" class="shrink-0 w-[80px] h-[80px] [&>svg]:w-full [&>svg]:h-full" />
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-semibold text-[var(--color-text-primary)]">
+                Vollständigkeit: {{ completenessData.overall_percentage }}%
+              </p>
+              <p class="text-[11px] text-[var(--color-text-tertiary)] mt-0.5">
+                {{ completenessData.filled_fields }} von {{ completenessData.total_fields }} Feldern befüllt
+              </p>
+              <div class="flex flex-wrap gap-1.5 mt-2">
+                <span
+                  v-for="s in completenessData.sections"
+                  :key="s.name"
+                  :class="[
+                    'inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-medium',
+                    s.percentage >= 100 ? 'bg-green-100 text-green-700' :
+                    s.percentage >= 50 ? 'bg-amber-100 text-amber-700' :
+                    'bg-red-100 text-red-700'
+                  ]"
+                >
+                  {{ s.name }}: {{ s.percentage }}%
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Stammdaten -->
+        <PimCollectionGroup
+          title="Stammdaten"
+          :filledCount="Object.values(previewData.stammdaten).filter(v => v !== null && v !== '').length"
+          :totalCount="Object.keys(previewData.stammdaten).length"
+        >
+          <div class="grid grid-cols-2 gap-x-6 gap-y-2 pt-3">
+            <div>
+              <span class="block text-[11px] text-[var(--color-text-tertiary)]">SKU</span>
+              <p class="text-[13px] font-mono text-[var(--color-text-primary)]">{{ previewData.stammdaten.sku || '—' }}</p>
+            </div>
+            <div>
+              <span class="block text-[11px] text-[var(--color-text-tertiary)]">EAN</span>
+              <p class="text-[13px] font-mono text-[var(--color-text-primary)]">{{ previewData.stammdaten.ean || '—' }}</p>
+            </div>
+            <div>
+              <span class="block text-[11px] text-[var(--color-text-tertiary)]">Name</span>
+              <p class="text-[13px] text-[var(--color-text-primary)]">{{ previewData.stammdaten.name || '—' }}</p>
+            </div>
+            <div>
+              <span class="block text-[11px] text-[var(--color-text-tertiary)]">Status</span>
+              <span :class="[
+                'pim-badge text-[11px]',
+                previewData.stammdaten.status === 'active' ? 'bg-[var(--color-success-light)] text-[var(--color-success)]' : 'bg-[var(--color-bg)] text-[var(--color-text-tertiary)]'
+              ]">
+                {{ previewData.stammdaten.status || '—' }}
+              </span>
+            </div>
+            <div>
+              <span class="block text-[11px] text-[var(--color-text-tertiary)]">Produkttyp</span>
+              <p class="text-[13px] text-[var(--color-text-primary)]">{{ previewData.stammdaten.product_type?.name || '—' }}</p>
+            </div>
+            <div>
+              <span class="block text-[11px] text-[var(--color-text-tertiary)]">Hierarchie</span>
+              <p class="text-[13px] text-[var(--color-text-primary)]">
+                {{ previewData.stammdaten.category_breadcrumb?.map(b => b.name).join(' › ') || '—' }}
+              </p>
+            </div>
+            <div>
+              <span class="block text-[11px] text-[var(--color-text-tertiary)]">Erstellt</span>
+              <p class="text-[13px] text-[var(--color-text-primary)]">
+                {{ previewData.stammdaten.created_at ? new Date(previewData.stammdaten.created_at).toLocaleDateString('de-DE') : '—' }}
+                <span v-if="previewData.stammdaten.created_by" class="text-[var(--color-text-tertiary)]">von {{ previewData.stammdaten.created_by }}</span>
+              </p>
+            </div>
+            <div>
+              <span class="block text-[11px] text-[var(--color-text-tertiary)]">Aktualisiert</span>
+              <p class="text-[13px] text-[var(--color-text-primary)]">
+                {{ previewData.stammdaten.updated_at ? new Date(previewData.stammdaten.updated_at).toLocaleDateString('de-DE') : '—' }}
+                <span v-if="previewData.stammdaten.updated_by" class="text-[var(--color-text-tertiary)]">von {{ previewData.stammdaten.updated_by }}</span>
+              </p>
+            </div>
+          </div>
+        </PimCollectionGroup>
+
+        <!-- Attribute Sections -->
+        <PimCollectionGroup
+          v-for="section in previewData.attribute_sections"
+          :key="section.section_name"
+          :title="section.section_name"
+          :filledCount="section.attributes.filter(a => a.display_value !== null).length"
+          :totalCount="section.attributes.length"
+          :defaultOpen="false"
+        >
+          <div class="space-y-0 pt-3">
+            <div
+              v-for="attr in section.attributes"
+              :key="attr.attribute_id + (attr.language || '')"
+              class="flex items-center justify-between py-1.5 border-b border-[var(--color-border)] last:border-0"
+            >
+              <span class="text-[12px] font-medium text-[var(--color-text-secondary)]">
+                {{ attr.label }}
+                <span v-if="attr.is_mandatory" class="text-[var(--color-error)]">*</span>
+                <span v-if="attr.language" class="text-[10px] text-[var(--color-text-tertiary)] ml-1">[{{ attr.language }}]</span>
+              </span>
+              <span class="text-[12px] text-[var(--color-text-primary)]">
+                {{ attr.display_value || '—' }}
+                <span v-if="attr.unit" class="text-[var(--color-text-tertiary)]">{{ attr.unit }}</span>
+              </span>
+            </div>
+          </div>
+        </PimCollectionGroup>
+
+        <!-- Relations -->
+        <PimCollectionGroup
+          v-if="previewData.relations.length > 0"
+          title="Beziehungen"
+          :filledCount="previewData.relations.length"
+          :totalCount="previewData.relations.length"
+          :defaultOpen="false"
+        >
+          <div class="pt-3">
+            <PimTable
+              :columns="[
+                { key: 'relation_type', label: 'Typ' },
+                { key: 'target_product.sku', label: 'Ziel-SKU', mono: true },
+                { key: 'target_product.name', label: 'Zielprodukt' },
+                { key: 'sort_order', label: 'Reihenfolge' },
+              ]"
+              :rows="previewData.relations"
+              emptyText="Keine Beziehungen"
+            />
+          </div>
+        </PimCollectionGroup>
+
+        <!-- Prices -->
+        <PimCollectionGroup
+          v-if="previewData.prices.length > 0"
+          title="Preise"
+          :filledCount="previewData.prices.length"
+          :totalCount="previewData.prices.length"
+          :defaultOpen="false"
+        >
+          <div class="pt-3">
+            <PimTable
+              :columns="[
+                { key: 'price_type', label: 'Preistyp' },
+                { key: 'amount', label: 'Betrag', align: 'right' },
+                { key: 'currency', label: 'Währung' },
+                { key: 'valid_from', label: 'Gültig ab' },
+                { key: 'valid_to', label: 'Gültig bis' },
+                { key: 'country', label: 'Land' },
+              ]"
+              :rows="previewData.prices"
+              emptyText="Keine Preise"
+            >
+              <template #cell-amount="{ value }">
+                <span class="font-mono">{{ value ? Number(value).toFixed(2) : '—' }}</span>
+              </template>
+              <template #cell-valid_from="{ value }">
+                <span class="text-xs">{{ value ? new Date(value).toLocaleDateString('de-DE') : '—' }}</span>
+              </template>
+              <template #cell-valid_to="{ value }">
+                <span class="text-xs">{{ value ? new Date(value).toLocaleDateString('de-DE') : '—' }}</span>
+              </template>
+            </PimTable>
+          </div>
+        </PimCollectionGroup>
+
+        <!-- Media -->
+        <PimCollectionGroup
+          v-if="previewData.media.length > 0"
+          title="Media"
+          :filledCount="previewData.media.length"
+          :totalCount="previewData.media.length"
+          :defaultOpen="false"
+        >
+          <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 pt-3">
+            <div v-for="m in previewData.media" :key="m.id" class="pim-card overflow-hidden">
+              <div class="aspect-square bg-[var(--color-bg)] flex items-center justify-center overflow-hidden">
+                <img :src="m.url" class="w-full h-full object-cover" loading="lazy" :alt="m.alt || ''" />
+              </div>
+              <div class="p-2">
+                <span class="text-[11px] text-[var(--color-text-primary)] truncate block">{{ m.file_name || '—' }}</span>
+                <div class="flex items-center gap-1 mt-0.5">
+                  <span v-if="m.is_primary" class="text-[10px] text-[var(--color-accent)] font-medium">Primär</span>
+                  <span v-if="m.usage_type" class="text-[10px] text-[var(--color-text-tertiary)]">{{ m.usage_type }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </PimCollectionGroup>
+
+        <!-- Variants -->
+        <PimCollectionGroup
+          v-if="previewData.variants.length > 0"
+          title="Varianten"
+          :filledCount="previewData.variants.length"
+          :totalCount="previewData.variants.length"
+          :defaultOpen="false"
+        >
+          <div class="pt-3">
+            <PimTable
+              :columns="[
+                { key: 'sku', label: 'SKU', mono: true },
+                { key: 'name', label: 'Name' },
+                { key: 'ean', label: 'EAN', mono: true },
+                { key: 'status', label: 'Status' },
+              ]"
+              :rows="previewData.variants"
+              emptyText="Keine Varianten"
+            >
+              <template #cell-status="{ value }">
+                <span :class="['pim-badge', value === 'active' ? 'bg-[var(--color-success-light)] text-[var(--color-success)]' : 'bg-[var(--color-bg)] text-[var(--color-text-tertiary)]']">
+                  {{ value === 'active' ? 'Aktiv' : value || '—' }}
+                </span>
+              </template>
+            </PimTable>
+          </div>
+        </PimCollectionGroup>
+      </template>
+
+      <!-- Empty state -->
+      <div v-else class="pim-card p-12 text-center">
+        <p class="text-sm text-[var(--color-text-tertiary)]">Vorschau konnte nicht geladen werden</p>
       </div>
     </div>
   </div>
