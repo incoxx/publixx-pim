@@ -55,7 +55,19 @@ class DeploymentController extends Controller
             timeout: 300,
         );
 
-        // Schritt 4: Migrationen
+        // Schritt 4: Frontend bauen (npm)
+        $frontendPath = $basePath . '/pim-frontend';
+        $log[] = $this->runStep('npm_install', 'npm install', $frontendPath, timeout: 180);
+        $log[] = $this->runStep('npm_build', 'npm run build', $frontendPath, timeout: 120);
+
+        // Schritt 4b: Build nach public/ kopieren
+        $log[] = $this->runStep(
+            'copy_frontend',
+            'rm -rf public/assets && cp -r pim-frontend/dist/assets public/assets && cp pim-frontend/dist/index.html public/spa.html',
+            $basePath,
+        );
+
+        // Schritt 5: Migrationen
         $log[] = $this->runStep(
             'migrate',
             'php artisan migrate --force',
@@ -63,12 +75,12 @@ class DeploymentController extends Controller
             timeout: 120,
         );
 
-        // Schritt 5: Caches neu bauen
+        // Schritt 6: Caches neu bauen
         $log[] = $this->runStep('config_cache', 'php artisan config:cache', $basePath);
         $log[] = $this->runStep('route_cache', 'php artisan route:cache', $basePath);
         $log[] = $this->runStep('view_cache', 'php artisan view:cache', $basePath);
 
-        // Schritt 6: Horizon restarten
+        // Schritt 7: Horizon restarten
         $log[] = $this->runStep('horizon_terminate', 'php artisan horizon:terminate', $basePath);
 
         $duration = round(microtime(true) - $startTime, 2);
