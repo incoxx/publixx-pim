@@ -2,8 +2,8 @@
 
 return [
     'models' => [
-        'permission' => Spatie\Permission\Models\Permission::class,
-        'role' => Spatie\Permission\Models\Role::class,
+        'permission' => App\Models\Permission::class,
+        'role' => App\Models\Role::class,
     ],
 
     'table_names' => [
