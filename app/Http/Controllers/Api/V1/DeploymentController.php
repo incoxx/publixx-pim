@@ -194,7 +194,11 @@ class DeploymentController extends Controller
      */
     private function runStep(string $name, string $command, string $cwd, int $timeout = 60): array
     {
-        $process = Process::fromShellCommandline($command, $cwd);
+        $process = Process::fromShellCommandline($command, $cwd, [
+            'COMPOSER_ALLOW_SUPERUSER' => '1',
+            'HOME' => env('HOME', '/root'),
+            'PATH' => env('PATH', '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'),
+        ]);
         $process->setTimeout($timeout);
 
         try {
@@ -221,7 +225,11 @@ class DeploymentController extends Controller
      */
     private function runCommand(string $command, string $cwd): string
     {
-        $process = Process::fromShellCommandline($command, $cwd);
+        $process = Process::fromShellCommandline($command, $cwd, [
+            'COMPOSER_ALLOW_SUPERUSER' => '1',
+            'HOME' => env('HOME', '/root'),
+            'PATH' => env('PATH', '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'),
+        ]);
         $process->setTimeout(15);
         $process->run();
 
