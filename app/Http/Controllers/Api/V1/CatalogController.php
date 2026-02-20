@@ -46,10 +46,16 @@ class CatalogController extends BaseController
         if ($categoryId) {
             $node = HierarchyNode::find($categoryId);
             if ($node) {
-                // Get all descendant node IDs (including the node itself)
-                $descendantIds = HierarchyNode::where('path', 'like', $node->path . '%')
+                // Build descendant path prefix that includes this node's own ID
+                $descendantPrefix = $node->path === '/'
+                    ? "/{$node->id}/"
+                    : "{$node->path}{$node->id}/";
+
+                // Get descendant node IDs + the node itself
+                $descendantIds = HierarchyNode::where('path', 'like', $descendantPrefix . '%')
                     ->pluck('id')
                     ->toArray();
+                $descendantIds[] = $node->id;
 
                 if ($hierarchyType === 'output') {
                     $productIds = OutputHierarchyProductAssignment::whereIn('hierarchy_node_id', $descendantIds)
@@ -255,6 +261,7 @@ class CatalogController extends BaseController
             ->where('product_type_ref', 'product')
             ->with([
                 'searchIndex',
+                'masterHierarchyNode',
                 'attributeValues.attribute',
                 'attributeValues.valueListEntry',
                 'attributeValues.unit',
@@ -270,7 +277,42 @@ class CatalogController extends BaseController
             ->take($limit)
             ->get();
 
-        $flatProducts = $products->map(function (Product $product) use ($lang) {
+        // Pre-load all hierarchy nodes needed for category paths
+        $allNodeIds = $products->pluck('master_hierarchy_node_id')->filter()->unique();
+        $allPaths = $products->map(fn ($p) => $p->masterHierarchyNode?->path)->filter()->unique();
+        // Collect ancestor node IDs from materialized paths
+        $ancestorNodeIds = collect();
+        foreach ($allPaths as $path) {
+            // Path format: /uuid1/uuid2/ — extract UUIDs
+            $ids = array_filter(explode('/', $path));
+            $ancestorNodeIds = $ancestorNodeIds->merge($ids);
+        }
+        $ancestorNodeIds = $ancestorNodeIds->merge($allNodeIds)->unique();
+        $nodeMap = HierarchyNode::whereIn('id', $ancestorNodeIds)->get()->keyBy('id');
+
+        $flatProducts = $products->map(function (Product $product) use ($lang, $nodeMap) {
+            // Build category info from hierarchy node
+            $categoryName = null;
+            $categoryId = $product->master_hierarchy_node_id;
+            $categoryPath = null;
+
+            $node = $product->masterHierarchyNode;
+            if ($node) {
+                $categoryName = $lang === 'en' && $node->name_en ? $node->name_en : $node->name_de;
+
+                // Build path from ancestor IDs in materialized path
+                $ancestorIds = array_filter(explode('/', $node->path));
+                $pathParts = [];
+                foreach ($ancestorIds as $ancestorId) {
+                    $ancestor = $nodeMap->get($ancestorId);
+                    if ($ancestor) {
+                        $pathParts[] = $lang === 'en' && $ancestor->name_en ? $ancestor->name_en : $ancestor->name_de;
+                    }
+                }
+                $pathParts[] = $categoryName;
+                $categoryPath = implode('|', $pathParts);
+            }
+
             $row = [
                 'artikelnummer' => $product->sku,
                 'ean' => $product->ean,
@@ -278,7 +320,9 @@ class CatalogController extends BaseController
                     ? ($product->searchIndex?->name_en ?: $product->searchIndex?->name_de)
                     : $product->searchIndex?->name_de,
                 'beschreibung' => $product->searchIndex?->description_de,
-                'kategorie' => $product->searchIndex?->hierarchy_path,
+                'kategorie' => $categoryName,
+                'kategorie_id' => $categoryId,
+                'kategorie_pfad' => $categoryPath,
                 'preis' => $product->prices->first()?->amount,
                 'waehrung' => $product->prices->first()?->currency ?? 'EUR',
             ];
