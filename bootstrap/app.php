@@ -1,9 +1,11 @@
 <?php
 
 use App\Http\Middleware\RateLimitMiddleware;
+use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Request;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -22,9 +24,19 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->api(prepend: [
             \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
         ]);
+
+        // Return 401 JSON for unauthenticated API requests instead of redirecting to login
+        $middleware->redirectGuestsTo(fn (Request $request) => $request->expectsJson() ? null : null);
     })
     ->withExceptions(function (Exceptions $exceptions) {
-        // Agent 3: RFC 7807 Problem Details — handled in app/Exceptions/Handler.php
-        // Laravel 11 auto-discovers the Handler class
+        // Return 401 JSON for unauthenticated requests (pure API app, no login route)
+        $exceptions->render(function (AuthenticationException $e, Request $request) {
+            return response()->json([
+                'type' => 'https://tools.ietf.org/html/rfc7235#section-3.1',
+                'title' => 'Unauthenticated',
+                'status' => 401,
+                'detail' => 'Authentication is required to access this resource.',
+            ], 401);
+        });
     })
     ->create();
