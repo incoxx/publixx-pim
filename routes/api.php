@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Api\V1\CatalogController;
 use App\Http\Controllers\Api\V1\AttributeController;
 use App\Http\Controllers\Api\V1\AttributeTypeController;
 use App\Http\Controllers\Api\V1\AttributeViewController;
@@ -52,6 +53,16 @@ use Illuminate\Support\Facades\Route;
 // =========================================================================
 Route::prefix('v1/auth')->middleware('throttle.pim:auth')->group(function () {
     Route::post('login', [AuthController::class, 'login']);
+});
+
+// =========================================================================
+// Public Catalog API (no auth required)
+// =========================================================================
+Route::prefix('v1/catalog')->middleware('throttle.pim')->group(function () {
+    Route::get('products', [CatalogController::class, 'products']);
+    Route::get('products/{product}', [CatalogController::class, 'product']);
+    Route::get('categories', [CatalogController::class, 'categories']);
+    Route::get('media/{filename}', [CatalogController::class, 'media'])->name('catalog.media');
 });
 
 // =========================================================================
