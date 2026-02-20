@@ -161,6 +161,12 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // =====================================================================
     Route::apiResource('products', ProductController::class);
 
+    // Product Preview (generic, no PXF)
+    Route::get('products/{product}/preview', [ProductController::class, 'preview']);
+    Route::get('products/{product}/preview/export.xlsx', [ProductController::class, 'previewExportExcel']);
+    Route::get('products/{product}/preview/export.pdf', [ProductController::class, 'previewExportPdf']);
+    Route::get('products/{product}/completeness', [ProductController::class, 'completeness']);
+
     // Product Attribute Values
     Route::get('products/{product}/attribute-values', [ProductAttributeValueController::class, 'index']);
     Route::get('products/{product}/resolved-attributes', [ProductAttributeValueController::class, 'resolved']);
