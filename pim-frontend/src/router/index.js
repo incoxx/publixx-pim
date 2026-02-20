@@ -90,6 +90,25 @@ const routes = [
     component: () => import('@/views/settings/SettingsView.vue'),
     meta: { title: 'Einstellungen' },
   },
+  // --- Public Catalog Preview ---
+  {
+    path: '/preview',
+    component: () => import('@/views/catalog/CatalogLayout.vue'),
+    meta: { public: true, title: 'Produktkatalog' },
+    children: [
+      {
+        path: '',
+        name: 'catalog',
+        component: () => import('@/views/catalog/CatalogView.vue'),
+      },
+      {
+        path: 'product/:id',
+        name: 'catalog-product',
+        component: () => import('@/views/catalog/CatalogProductView.vue'),
+        meta: { public: true, title: 'Produktdetail' },
+      },
+    ],
+  },
   {
     path: '/:pathMatch(.*)*',
     name: 'not-found',
@@ -106,7 +125,7 @@ const router = createRouter({
 router.beforeEach((to, from, next) => {
   const authStore = useAuthStore()
 
-  if (to.meta.guest) {
+  if (to.meta.guest || to.meta.public) {
     return next()
   }
 

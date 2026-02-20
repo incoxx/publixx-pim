@@ -1,15 +1,20 @@
 <script setup>
-import { onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { onMounted, onUnmounted, computed } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import PimCommandPalette from '@/components/shared/PimCommandPalette.vue'
 
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
 
-// Global keyboard shortcuts
+const isCatalogRoute = computed(() => route.matched.some((r) => r.meta.public))
+
+// Global keyboard shortcuts (PIM only)
 function handleKeydown(e) {
+  if (isCatalogRoute.value) return
+
   const isMeta = e.metaKey || e.ctrlKey
 
   // Cmd+K — Command Palette
@@ -48,6 +53,12 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <AppLayout />
-  <PimCommandPalette />
+  <!-- Public catalog routes get their own layout -->
+  <router-view v-if="isCatalogRoute" />
+
+  <!-- PIM application (existing) -->
+  <template v-else>
+    <AppLayout />
+    <PimCommandPalette />
+  </template>
 </template>
