@@ -14,8 +14,8 @@ export const useAuthStore = defineStore('auth', () => {
 
   const isAuthenticated = computed(() => !!token.value)
   const userName = computed(() => user.value?.name || '')
-  const userRole = computed(() => user.value?.role?.name || '')
-  const permissions = computed(() => user.value?.permissions || [])
+  const userRole = computed(() => user.value?.roles?.[0]?.name || '')
+  const permissions = computed(() => user.value?.all_permissions || [])
 
   function hasPermission(permission) {
     if (userRole.value === 'Admin') return true
