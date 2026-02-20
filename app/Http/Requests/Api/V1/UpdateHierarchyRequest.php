@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Requests\Api\V1;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class UpdateHierarchyRequest extends FormRequest
 {
@@ -16,7 +17,10 @@ class UpdateHierarchyRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'technical_name' => 'sometimes|string|max:100|unique:hierarchies,technical_name,' . $this->route('hierarchy'),
+            'technical_name' => [
+                'sometimes', 'string', 'max:100',
+                Rule::unique('hierarchies', 'technical_name')->ignore($this->route('hierarchy')),
+            ],
             'name_de' => 'sometimes|string|max:255',
             'name_en' => 'nullable|string|max:255',
             'name_json' => 'nullable|array',

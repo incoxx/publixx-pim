@@ -11,6 +11,7 @@ use App\Services\Export\PublixxDatasetService;
 use App\Events\ProductUpdated;
 use App\Events\ProductDeleted;
 use App\Events\AttributeValuesChanged;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\ServiceProvider;
 
 class ExportServiceProvider extends ServiceProvider
@@ -61,18 +62,39 @@ class ExportServiceProvider extends ServiceProvider
 
         // Product events → invalidate product cache
         $events->listen(ProductUpdated::class, function ($event) {
-            $this->app->make(ExportService::class)
-                ->invalidateProductCache($event->product->id);
+            try {
+                $this->app->make(ExportService::class)
+                    ->invalidateProductCache($event->product->id);
+            } catch (\Throwable $e) {
+                Log::warning('ExportServiceProvider: Cache invalidation failed on ProductUpdated', [
+                    'product_id' => $event->product->id ?? null,
+                    'error' => $e->getMessage(),
+                ]);
+            }
         });
 
         $events->listen(ProductDeleted::class, function ($event) {
-            $this->app->make(ExportService::class)
-                ->invalidateProductCache($event->productId);
+            try {
+                $this->app->make(ExportService::class)
+                    ->invalidateProductCache($event->productId);
+            } catch (\Throwable $e) {
+                Log::warning('ExportServiceProvider: Cache invalidation failed on ProductDeleted', [
+                    'product_id' => $event->productId ?? null,
+                    'error' => $e->getMessage(),
+                ]);
+            }
         });
 
         $events->listen(AttributeValuesChanged::class, function ($event) {
-            $this->app->make(ExportService::class)
-                ->invalidateProductCache($event->productId);
+            try {
+                $this->app->make(ExportService::class)
+                    ->invalidateProductCache($event->productId);
+            } catch (\Throwable $e) {
+                Log::warning('ExportServiceProvider: Cache invalidation failed on AttributeValuesChanged', [
+                    'product_id' => $event->productId ?? null,
+                    'error' => $e->getMessage(),
+                ]);
+            }
         });
     }
 }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Requests\Api\V1;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class UpdateProductTypeRequest extends FormRequest
 {
@@ -16,7 +17,10 @@ class UpdateProductTypeRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'technical_name' => 'sometimes|string|max:100|unique:product_types,technical_name,' . $this->route('product_type'),
+            'technical_name' => [
+                'sometimes', 'string', 'max:100',
+                Rule::unique('product_types', 'technical_name')->ignore($this->route('product_type')),
+            ],
             'name_de' => 'sometimes|string|max:255',
             'name_en' => 'nullable|string|max:255',
             'name_json' => 'nullable|array',
