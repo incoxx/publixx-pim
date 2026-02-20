@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
-use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Export\PublixxPqlRequest;
 use App\Http\Requests\Api\V1\Export\PublixxWebhookRequest;
 use App\Http\Resources\Api\V1\DatasetResource;
