@@ -60,6 +60,9 @@ Route::prefix('v1/auth')->middleware('throttle.pim:auth')->group(function () {
 // =========================================================================
 Route::prefix('v1')->middleware('throttle.pim')->group(function () {
     Route::get('media/file/{filename}', [MediaController::class, 'serve'])->name('media.serve');
+});
+
+// =========================================================================
 // Public Catalog API (no auth required)
 // =========================================================================
 Route::prefix('v1/catalog')->middleware('throttle.pim')->group(function () {
