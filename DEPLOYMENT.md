@@ -236,6 +236,24 @@ sudo ufw enable
 
 ## Updates deployen
 
+### Per Script (empfohlen)
+
+```bash
+# Vollstaendiges Deployment (Git pull, Composer, Migrate, Frontend-Build, Cache, Restart)
+sudo bash /var/www/publixx-pim/deploy.sh
+
+# Schnelles Update (nur Git pull, Cache neu bauen, Services restarten)
+sudo bash /var/www/publixx-pim/deploy.sh --quick
+
+# Nur Backend (ohne Frontend-Build)
+sudo bash /var/www/publixx-pim/deploy.sh --backend
+
+# Nur Frontend neu bauen
+sudo bash /var/www/publixx-pim/deploy.sh --frontend
+```
+
+### Manuell
+
 ```bash
 cd /var/www/publixx-pim
 sudo -u www-data git pull origin main
