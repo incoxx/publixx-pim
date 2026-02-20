@@ -34,9 +34,10 @@ class DeploymentController extends Controller
         $basePath = base_path();
         $log = [];
         $startTime = microtime(true);
+        $deployUser = $this->resolveDeployUser($basePath);
 
         // Schritt 1: Backup — aktuellen Commit-Hash merken
-        $log[] = $this->runStep('backup', 'git rev-parse HEAD', $basePath);
+        $log[] = $this->runStep('backup', 'git rev-parse HEAD', $basePath, deployUser: $deployUser);
 
         if ($log[0]['success']) {
             $backupHash = trim($log[0]['output']);
@@ -44,8 +45,8 @@ class DeploymentController extends Controller
         }
 
         // Schritt 2: Git fetch + pull main
-        $log[] = $this->runStep('git_fetch', 'git fetch origin main', $basePath);
-        $log[] = $this->runStep('git_pull', 'git pull origin main', $basePath, timeout: 120);
+        $log[] = $this->runStep('git_fetch', 'git fetch origin main', $basePath, deployUser: $deployUser);
+        $log[] = $this->runStep('git_pull', 'git pull origin main', $basePath, timeout: 120, deployUser: $deployUser);
 
         // Schritt 3: Composer install (ohne Dev)
         $log[] = $this->runStep(
@@ -53,18 +54,20 @@ class DeploymentController extends Controller
             'composer install --no-dev --optimize-autoloader --no-interaction',
             $basePath,
             timeout: 300,
+            deployUser: $deployUser,
         );
 
         // Schritt 4: Frontend bauen (npm)
         $frontendPath = $basePath . '/pim-frontend';
-        $log[] = $this->runStep('npm_install', 'npm install', $frontendPath, timeout: 180);
-        $log[] = $this->runStep('npm_build', 'npm run build', $frontendPath, timeout: 120);
+        $log[] = $this->runStep('npm_install', 'npm install', $frontendPath, timeout: 180, deployUser: $deployUser);
+        $log[] = $this->runStep('npm_build', 'npm run build', $frontendPath, timeout: 120, deployUser: $deployUser);
 
         // Schritt 4b: Build nach public/ kopieren
         $log[] = $this->runStep(
             'copy_frontend',
             'rm -rf public/assets && cp -r pim-frontend/dist/assets public/assets && cp pim-frontend/dist/index.html public/spa.html',
             $basePath,
+            deployUser: $deployUser,
         );
 
         // Schritt 5: Migrationen
@@ -73,21 +76,22 @@ class DeploymentController extends Controller
             'php artisan migrate --force',
             $basePath,
             timeout: 120,
+            deployUser: $deployUser,
         );
 
         // Schritt 6: Caches neu bauen
-        $log[] = $this->runStep('config_cache', 'php artisan config:cache', $basePath);
-        $log[] = $this->runStep('route_cache', 'php artisan route:cache', $basePath);
-        $log[] = $this->runStep('view_cache', 'php artisan view:cache', $basePath);
+        $log[] = $this->runStep('config_cache', 'php artisan config:cache', $basePath, deployUser: $deployUser);
+        $log[] = $this->runStep('route_cache', 'php artisan route:cache', $basePath, deployUser: $deployUser);
+        $log[] = $this->runStep('view_cache', 'php artisan view:cache', $basePath, deployUser: $deployUser);
 
         // Schritt 7: Horizon restarten
-        $log[] = $this->runStep('horizon_terminate', 'php artisan horizon:terminate', $basePath);
+        $log[] = $this->runStep('horizon_terminate', 'php artisan horizon:terminate', $basePath, deployUser: $deployUser);
 
         $duration = round(microtime(true) - $startTime, 2);
         $allSuccessful = collect($log)->every(fn (array $step) => $step['success']);
 
         // Neuen Commit-Hash lesen
-        $newHashResult = $this->runStep('new_hash', 'git rev-parse --short HEAD', $basePath);
+        $newHashResult = $this->runStep('new_hash', 'git rev-parse --short HEAD', $basePath, deployUser: $deployUser);
         $newHash = trim($newHashResult['output']);
 
         $result = [
@@ -96,6 +100,7 @@ class DeploymentController extends Controller
             'deployed_by' => $user->name,
             'commit' => $newHash,
             'backup_hash' => $backupHash ?? null,
+            'deploy_user' => $deployUser,
             'steps' => $log,
         ];
 
@@ -104,6 +109,7 @@ class DeploymentController extends Controller
             'success' => $allSuccessful,
             'commit' => $newHash,
             'duration' => $duration,
+            'deploy_user' => $deployUser,
         ]);
 
         return $this->successResponse($result, $allSuccessful ? 200 : 207);
@@ -174,17 +180,19 @@ class DeploymentController extends Controller
 
         $basePath = base_path();
         $log = [];
+        $deployUser = $this->resolveDeployUser($basePath);
 
-        $log[] = $this->runStep('checkout', "git checkout {$hash}", $basePath);
+        $log[] = $this->runStep('checkout', "git checkout {$hash}", $basePath, deployUser: $deployUser);
         $log[] = $this->runStep(
             'composer_install',
             'composer install --no-dev --optimize-autoloader --no-interaction',
             $basePath,
             timeout: 300,
+            deployUser: $deployUser,
         );
-        $log[] = $this->runStep('config_cache', 'php artisan config:cache', $basePath);
-        $log[] = $this->runStep('route_cache', 'php artisan route:cache', $basePath);
-        $log[] = $this->runStep('horizon_terminate', 'php artisan horizon:terminate', $basePath);
+        $log[] = $this->runStep('config_cache', 'php artisan config:cache', $basePath, deployUser: $deployUser);
+        $log[] = $this->runStep('route_cache', 'php artisan route:cache', $basePath, deployUser: $deployUser);
+        $log[] = $this->runStep('horizon_terminate', 'php artisan horizon:terminate', $basePath, deployUser: $deployUser);
 
         $allSuccessful = collect($log)->every(fn (array $step) => $step['success']);
 
@@ -202,15 +210,67 @@ class DeploymentController extends Controller
     }
 
     /**
+     * Ermittelt den System-User, unter dem Deployment-Befehle laufen sollen.
+     *
+     * Reihenfolge:
+     * 1. DEPLOY_USER aus .env
+     * 2. Besitzer des Projektverzeichnisses (stat)
+     * 3. null → kein sudo, Befehle laufen als aktueller User
+     */
+    private function resolveDeployUser(string $basePath): ?string
+    {
+        // Explizit konfiguriert?
+        $envUser = env('DEPLOY_USER');
+        if (! empty($envUser)) {
+            return $envUser;
+        }
+
+        // Automatisch: Besitzer des Projektverzeichnisses ermitteln
+        $ownerInfo = posix_getpwuid((int) fileowner($basePath));
+        $currentInfo = posix_getpwuid(posix_geteuid());
+
+        if ($ownerInfo && $currentInfo && $ownerInfo['name'] !== $currentInfo['name']) {
+            return $ownerInfo['name'];
+        }
+
+        return null; // Gleicher User, kein sudo nötig
+    }
+
+    /**
+     * Verpackt einen Befehl mit sudo -u, falls ein deploy user gesetzt ist.
+     */
+    private function wrapWithSudo(string $command, ?string $deployUser): string
+    {
+        if ($deployUser === null) {
+            return $command;
+        }
+
+        $escapedCommand = str_replace("'", "'\\''", $command);
+
+        return "sudo -u {$deployUser} bash -c '{$escapedCommand}'";
+    }
+
+    /**
      * Führt einen einzelnen Deployment-Schritt aus.
      */
-    private function runStep(string $name, string $command, string $cwd, int $timeout = 60): array
+    private function runStep(string $name, string $command, string $cwd, int $timeout = 60, ?string $deployUser = null): array
     {
-        $process = Process::fromShellCommandline($command, $cwd, [
+        $actualCommand = $this->wrapWithSudo($command, $deployUser);
+
+        $env = [
             'COMPOSER_ALLOW_SUPERUSER' => '1',
-            'HOME' => env('HOME', '/root'),
             'PATH' => env('PATH', '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'),
-        ]);
+        ];
+
+        // HOME passend zum deploy user setzen
+        if ($deployUser) {
+            $ownerInfo = posix_getpwuid(posix_getpwnam($deployUser)['uid'] ?? 0);
+            $env['HOME'] = $ownerInfo['dir'] ?? "/home/{$deployUser}";
+        } else {
+            $env['HOME'] = env('HOME', '/root');
+        }
+
+        $process = Process::fromShellCommandline($actualCommand, $cwd, $env);
         $process->setTimeout($timeout);
 
         try {
