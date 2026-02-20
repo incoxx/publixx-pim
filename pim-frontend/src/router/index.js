@@ -49,6 +49,18 @@ const routes = [
     meta: { title: 'Attribute' },
   },
   {
+    path: '/product-types',
+    name: 'product-types',
+    component: () => import('@/views/productTypes/ProductTypeView.vue'),
+    meta: { title: 'Produkttypen' },
+  },
+  {
+    path: '/attribute-types',
+    name: 'attribute-types',
+    component: () => import('@/views/attributeTypes/AttributeTypeView.vue'),
+    meta: { title: 'Attributgruppen' },
+  },
+  {
     path: '/value-lists',
     name: 'value-lists',
     component: () => import('@/views/valueLists/ValueListView.vue'),

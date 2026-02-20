@@ -20,6 +20,10 @@ export default {
   exportWithPql(data) {
     return client.post('/export/query', data)
   },
+
+  exportAsImportFormat() {
+    return client.get('/imports/export-format', { responseType: 'blob' })
+  },
 }
 
 export const publixx = {

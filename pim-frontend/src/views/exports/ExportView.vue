@@ -6,6 +6,7 @@ import exportsApi from '@/api/exports'
 const pqlInput = ref('')
 const exportResult = ref(null)
 const exporting = ref(false)
+const exportingFormat = ref(false)
 const error = ref('')
 
 async function runExport() {
@@ -15,6 +16,22 @@ async function runExport() {
     exportResult.value = data
   } catch (err) { error.value = err.response?.data?.title || 'Export fehlgeschlagen' }
   finally { exporting.value = false }
+}
+
+async function exportImportFormat() {
+  exportingFormat.value = true; error.value = ''
+  try {
+    const response = await exportsApi.exportAsImportFormat()
+    const url = window.URL.createObjectURL(new Blob([response.data]))
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `pim-export-${new Date().toISOString().slice(0,10)}.xlsx`)
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(url)
+  } catch (err) { error.value = err.response?.data?.title || 'Export fehlgeschlagen' }
+  finally { exportingFormat.value = false }
 }
 </script>
 
@@ -26,10 +43,16 @@ async function runExport() {
         <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">PQL-Query (optional)</label>
         <textarea v-model="pqlInput" class="pim-input font-mono text-xs min-h-[80px]" placeholder='WHERE status = "active"' />
       </div>
-      <button class="pim-btn pim-btn-primary" :disabled="exporting" @click="runExport">
-        <Download class="w-4 h-4" :stroke-width="2" />
-        {{ exporting ? 'Exportieren...' : 'Export starten' }}
-      </button>
+      <div class="flex gap-3">
+        <button class="pim-btn pim-btn-primary" :disabled="exporting" @click="runExport">
+          <Download class="w-4 h-4" :stroke-width="2" />
+          {{ exporting ? 'Exportieren...' : 'Export starten' }}
+        </button>
+        <button class="pim-btn pim-btn-secondary" :disabled="exportingFormat" @click="exportImportFormat">
+          <Download class="w-4 h-4" :stroke-width="2" />
+          {{ exportingFormat ? 'Exportieren...' : 'Als Import-Vorlage exportieren' }}
+        </button>
+      </div>
     </div>
     <div v-if="error" class="p-3 rounded-lg bg-[var(--color-error-light)] text-[var(--color-error)] text-sm">{{ error }}</div>
     <div v-if="exportResult" class="pim-card p-6">

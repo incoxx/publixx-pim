@@ -46,6 +46,12 @@ class MediaController extends Controller
         $file = $request->file('file');
         $path = $file->store('media', 'public');
 
+        if ($path === false) {
+            return response()->json([
+                'message' => 'Datei konnte nicht gespeichert werden. Bitte prüfen Sie die Storage-Konfiguration.',
+            ], 500);
+        }
+
         $media = Media::create([
             'file_name' => $file->getClientOriginalName(),
             'file_path' => $path,

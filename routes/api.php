@@ -207,6 +207,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // Agent 3 + 6: Import
     // =====================================================================
     Route::get('imports/templates/{type}', [ImportController::class, 'template']);
+    Route::get('imports/export-format', [ImportController::class, 'exportImportFormat']);
     Route::post('imports', [ImportController::class, 'store']);
     Route::get('imports/{import}', [ImportController::class, 'show']);
     Route::get('imports/{import}/preview', [ImportController::class, 'preview']);

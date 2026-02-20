@@ -606,16 +606,28 @@ class ImportExecutor
         foreach ($rows as $row) {
             $sourceResult = $this->resolver->resolveProduct($row['source_sku']);
             $targetResult = $this->resolver->resolveProduct($row['target_sku']);
-            $typeResult = $this->resolver->resolveRelationType($row['relation_type']);
 
-            if (!$sourceResult->resolved() || !$targetResult->resolved() || !$typeResult->resolved()) {
+            if (!$sourceResult->resolved() || !$targetResult->resolved()) {
                 $this->stats[$sheetKey]['skipped']++;
                 continue;
             }
 
+            // Beziehungstyp auflösen oder automatisch anlegen
+            $typeResult = $this->resolver->resolveRelationType($row['relation_type']);
+            if (!$typeResult->resolved()) {
+                $relationType = ProductRelationType::firstOrCreate(
+                    ['technical_name' => $row['relation_type']],
+                    ['id' => Str::uuid()->toString(), 'name_de' => $row['relation_type']]
+                );
+                $this->resolver->clearCache('relation_type');
+                $relationTypeId = $relationType->id;
+            } else {
+                $relationTypeId = $typeResult->id;
+            }
+
             $existing = ProductRelation::where('source_product_id', $sourceResult->id)
                 ->where('target_product_id', $targetResult->id)
-                ->where('relation_type_id', $typeResult->id)
+                ->where('relation_type_id', $relationTypeId)
                 ->first();
 
             if (!$existing) {
@@ -623,7 +635,7 @@ class ImportExecutor
                     'id' => Str::uuid()->toString(),
                     'source_product_id' => $sourceResult->id,
                     'target_product_id' => $targetResult->id,
-                    'relation_type_id' => $typeResult->id,
+                    'relation_type_id' => $relationTypeId,
                     'sort_order' => (int) ($row['sort_order'] ?? 0),
                 ]);
                 $this->stats[$sheetKey]['created']++;
@@ -643,17 +655,24 @@ class ImportExecutor
                 continue;
             }
 
+            // Preisart auflösen oder automatisch anlegen
             $priceTypeResult = $this->resolver->resolvePriceType($row['price_type']);
             if (!$priceTypeResult->resolved()) {
-                $this->stats[$sheetKey]['skipped']++;
-                continue;
+                $priceType = PriceType::firstOrCreate(
+                    ['technical_name' => $row['price_type']],
+                    ['id' => Str::uuid()->toString(), 'name_de' => $row['price_type']]
+                );
+                $this->resolver->clearCache('price_type');
+                $priceTypeId = $priceType->id;
+            } else {
+                $priceTypeId = $priceTypeResult->id;
             }
 
             $currency = strtoupper((string) ($row['currency'] ?? 'EUR'));
             $validFrom = $row['valid_from'] ?? null;
 
             $query = ProductPrice::where('product_id', $productResult->id)
-                ->where('price_type_id', $priceTypeResult->id)
+                ->where('price_type_id', $priceTypeId)
                 ->where('currency', $currency);
 
             if ($validFrom) {
@@ -664,7 +683,7 @@ class ImportExecutor
 
             $data = [
                 'product_id' => $productResult->id,
-                'price_type_id' => $priceTypeResult->id,
+                'price_type_id' => $priceTypeId,
                 'amount' => (float) $row['amount'],
                 'currency' => $currency,
                 'valid_from' => $validFrom,
@@ -810,7 +829,7 @@ class ImportExecutor
                 break;
             }
 
-            $pathSegments[] = Str::slug($name);
+            $pathSegments[] = $name;
             $path = '/' . implode('/', $pathSegments) . '/';
 
             $existing = HierarchyNode::where('hierarchy_id', $hierarchy->id)
