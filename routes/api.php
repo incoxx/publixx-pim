@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Api\V1\CatalogController;
 use App\Http\Controllers\Api\V1\AttributeController;
 use App\Http\Controllers\Api\V1\AttributeTypeController;
 use App\Http\Controllers\Api\V1\AttributeViewController;
@@ -59,6 +60,15 @@ Route::prefix('v1/auth')->middleware('throttle.pim:auth')->group(function () {
 // =========================================================================
 Route::prefix('v1')->middleware('throttle.pim')->group(function () {
     Route::get('media/file/{filename}', [MediaController::class, 'serve'])->name('media.serve');
+// Public Catalog API (no auth required)
+// =========================================================================
+Route::prefix('v1/catalog')->middleware('throttle.pim')->group(function () {
+    Route::get('products', [CatalogController::class, 'products']);
+    Route::get('products/export.json', [CatalogController::class, 'productsExportJson']);
+    Route::get('products/{product}', [CatalogController::class, 'product']);
+    Route::get('products/{product}/json', [CatalogController::class, 'productJson']);
+    Route::get('categories', [CatalogController::class, 'categories']);
+    Route::get('media/{filename}', [CatalogController::class, 'media'])->name('catalog.media');
 });
 
 // =========================================================================
