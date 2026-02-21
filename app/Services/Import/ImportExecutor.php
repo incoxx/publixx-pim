@@ -24,6 +24,7 @@ use App\Models\UnitGroup;
 use App\Models\ValueList;
 use App\Models\ValueListEntry;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 /**
@@ -39,6 +40,9 @@ class ImportExecutor
 
     /** Gesammelte Produkt-IDs (für ImportCompleted-Event). */
     private array $affectedProductIds = [];
+
+    /** Übersprungene Zeilen mit Grund (für Ergebnis-Report). */
+    private array $skippedDetails = [];
 
     public function __construct(?ReferenceResolver $resolver = null)
     {
@@ -56,6 +60,7 @@ class ImportExecutor
     {
         $this->stats = [];
         $this->affectedProductIds = [];
+        $this->skippedDetails = [];
 
         // Reihenfolge gemäß Abhängigkeiten (Spezifikation)
         $sheetOrder = [
@@ -89,6 +94,8 @@ class ImportExecutor
                 }
 
                 $this->stats[$sheetKey] = ['created' => 0, 'updated' => 0, 'skipped' => 0, 'errors' => 0];
+
+                Log::channel('import')->info("Importiere Sheet: {$sheetKey}", ['rows' => count($rows)]);
 
                 // Nach Import bestimmter Sheets den Resolver-Cache leeren,
                 // damit nachfolgende Sheets die neuen Einträge finden.
@@ -132,6 +139,7 @@ class ImportExecutor
         return new ImportExecutionResult(
             stats: $this->stats,
             affectedProductIds: array_unique($this->affectedProductIds),
+            skippedDetails: $this->skippedDetails,
         );
     }
 
@@ -143,6 +151,46 @@ class ImportExecutor
         return array_unique($this->affectedProductIds);
     }
 
+    /**
+     * Protokolliert und speichert eine übersprungene Zeile.
+     */
+    private function logSkipped(string $sheetKey, array $row, string $reason): void
+    {
+        $this->stats[$sheetKey]['skipped']++;
+
+        $rowNum = $row['_row'] ?? '?';
+        $detail = [
+            'sheet' => $sheetKey,
+            'row' => $rowNum,
+            'reason' => $reason,
+        ];
+        $this->skippedDetails[] = $detail;
+
+        Log::channel('import')->warning("Zeile {$rowNum} übersprungen in {$sheetKey}: {$reason}", [
+            'data' => array_filter($row, fn ($k) => $k !== '_row', ARRAY_FILTER_USE_KEY),
+        ]);
+    }
+
+    /**
+     * Protokolliert einen Fehler bei der Verarbeitung einer Zeile.
+     */
+    private function logRowError(string $sheetKey, array $row, \Throwable $e): void
+    {
+        $this->stats[$sheetKey]['errors']++;
+
+        $rowNum = $row['_row'] ?? '?';
+        $this->skippedDetails[] = [
+            'sheet' => $sheetKey,
+            'row' => $rowNum,
+            'reason' => 'Fehler: ' . $e->getMessage(),
+        ];
+
+        Log::channel('import')->error("Fehler in {$sheetKey} Zeile {$rowNum}: {$e->getMessage()}", [
+            'data' => array_filter($row, fn ($k) => $k !== '_row', ARRAY_FILTER_USE_KEY),
+            'trace' => $e->getTraceAsString(),
+        ]);
+    }
+
     // ──────────────────────────────────────────────
     //  Sheet-spezifische Import-Methoden
     // ──────────────────────────────────────────────
@@ -150,26 +198,30 @@ class ImportExecutor
     private function importProductTypes(array $rows, string $sheetKey): void
     {
         foreach ($rows as $row) {
-            $existing = ProductType::where('technical_name', $row['technical_name'])->first();
+            try {
+                $existing = ProductType::where('technical_name', $row['technical_name'])->first();
 
-            $data = [
-                'technical_name' => $row['technical_name'],
-                'name_de' => $row['name_de'],
-                'name_en' => $row['name_en'] ?? null,
-                'description' => $row['description'] ?? null,
-                'has_variants' => $this->toBool($row['has_variants'] ?? null),
-                'has_ean' => $this->toBool($row['has_ean'] ?? null),
-                'has_prices' => $this->toBool($row['has_prices'] ?? null),
-                'has_media' => $this->toBool($row['has_media'] ?? null),
-            ];
+                $data = [
+                    'technical_name' => $row['technical_name'],
+                    'name_de' => $row['name_de'],
+                    'name_en' => $row['name_en'] ?? null,
+                    'description' => $row['description'] ?? null,
+                    'has_variants' => $this->toBool($row['has_variants'] ?? null),
+                    'has_ean' => $this->toBool($row['has_ean'] ?? null),
+                    'has_prices' => $this->toBool($row['has_prices'] ?? null),
+                    'has_media' => $this->toBool($row['has_media'] ?? null),
+                ];
 
-            if ($existing) {
-                $existing->update($data);
-                $this->stats[$sheetKey]['updated']++;
-            } else {
-                $data['id'] = Str::uuid()->toString();
-                ProductType::create($data);
-                $this->stats[$sheetKey]['created']++;
+                if ($existing) {
+                    $existing->update($data);
+                    $this->stats[$sheetKey]['updated']++;
+                } else {
+                    $data['id'] = Str::uuid()->toString();
+                    ProductType::create($data);
+                    $this->stats[$sheetKey]['created']++;
+                }
+            } catch (\Throwable $e) {
+                $this->logRowError($sheetKey, $row, $e);
             }
         }
     }
@@ -177,23 +229,27 @@ class ImportExecutor
     private function importAttributeTypes(array $rows, string $sheetKey): void
     {
         foreach ($rows as $row) {
-            $existing = AttributeType::where('technical_name', $row['technical_name'])->first();
+            try {
+                $existing = AttributeType::where('technical_name', $row['technical_name'])->first();
 
-            $data = [
-                'technical_name' => $row['technical_name'],
-                'name_de' => $row['name_de'],
-                'name_en' => $row['name_en'] ?? null,
-                'description' => $row['description'] ?? null,
-                'sort_order' => (int) ($row['sort_order'] ?? 0),
-            ];
+                $data = [
+                    'technical_name' => $row['technical_name'],
+                    'name_de' => $row['name_de'],
+                    'name_en' => $row['name_en'] ?? null,
+                    'description' => $row['description'] ?? null,
+                    'sort_order' => (int) ($row['sort_order'] ?? 0),
+                ];
 
-            if ($existing) {
-                $existing->update($data);
-                $this->stats[$sheetKey]['updated']++;
-            } else {
-                $data['id'] = Str::uuid()->toString();
-                AttributeType::create($data);
-                $this->stats[$sheetKey]['created']++;
+                if ($existing) {
+                    $existing->update($data);
+                    $this->stats[$sheetKey]['updated']++;
+                } else {
+                    $data['id'] = Str::uuid()->toString();
+                    AttributeType::create($data);
+                    $this->stats[$sheetKey]['created']++;
+                }
+            } catch (\Throwable $e) {
+                $this->logRowError($sheetKey, $row, $e);
             }
         }
     }
@@ -201,36 +257,40 @@ class ImportExecutor
     private function importUnits(array $rows, string $sheetKey): void
     {
         foreach ($rows as $row) {
-            // Erst die Gruppe anlegen/finden
-            $group = UnitGroup::firstOrCreate(
-                ['technical_name' => $row['group_technical_name']],
-                [
-                    'id' => Str::uuid()->toString(),
-                    'technical_name' => $row['group_technical_name'],
-                    'name_de' => $row['group_name_de'],
-                ]
-            );
+            try {
+                // Erst die Gruppe anlegen/finden
+                $group = UnitGroup::firstOrCreate(
+                    ['technical_name' => $row['group_technical_name']],
+                    [
+                        'id' => Str::uuid()->toString(),
+                        'technical_name' => $row['group_technical_name'],
+                        'name_de' => $row['group_name_de'],
+                    ]
+                );
 
-            // Dann die Einheit
-            $existing = Unit::where('technical_name', $row['technical_name'])
-                ->where('unit_group_id', $group->id)
-                ->first();
+                // Dann die Einheit
+                $existing = Unit::where('technical_name', $row['technical_name'])
+                    ->where('unit_group_id', $group->id)
+                    ->first();
 
-            $data = [
-                'unit_group_id' => $group->id,
-                'technical_name' => $row['technical_name'],
-                'abbreviation' => $row['abbreviation'],
-                'conversion_factor' => $row['conversion_factor'] ?? 1,
-                'is_base_unit' => $this->toBool($row['is_base_unit'] ?? false),
-            ];
+                $data = [
+                    'unit_group_id' => $group->id,
+                    'technical_name' => $row['technical_name'],
+                    'abbreviation' => $row['abbreviation'],
+                    'conversion_factor' => $row['conversion_factor'] ?? 1,
+                    'is_base_unit' => $this->toBool($row['is_base_unit'] ?? false),
+                ];
 
-            if ($existing) {
-                $existing->update($data);
-                $this->stats[$sheetKey]['updated']++;
-            } else {
-                $data['id'] = Str::uuid()->toString();
-                Unit::create($data);
-                $this->stats[$sheetKey]['created']++;
+                if ($existing) {
+                    $existing->update($data);
+                    $this->stats[$sheetKey]['updated']++;
+                } else {
+                    $data['id'] = Str::uuid()->toString();
+                    Unit::create($data);
+                    $this->stats[$sheetKey]['created']++;
+                }
+            } catch (\Throwable $e) {
+                $this->logRowError($sheetKey, $row, $e);
             }
         }
     }
@@ -238,40 +298,44 @@ class ImportExecutor
     private function importValueLists(array $rows, string $sheetKey): void
     {
         foreach ($rows as $row) {
-            // Liste anlegen/finden
-            $list = ValueList::firstOrCreate(
-                ['technical_name' => $row['list_technical_name']],
-                [
-                    'id' => Str::uuid()->toString(),
-                    'technical_name' => $row['list_technical_name'],
-                    'name_de' => $row['list_name_de'],
-                ]
-            );
+            try {
+                // Liste anlegen/finden
+                $list = ValueList::firstOrCreate(
+                    ['technical_name' => $row['list_technical_name']],
+                    [
+                        'id' => Str::uuid()->toString(),
+                        'technical_name' => $row['list_technical_name'],
+                        'name_de' => $row['list_name_de'],
+                    ]
+                );
 
-            // Entry (falls vorhanden)
-            if (!empty($row['entry_technical_name'])) {
-                $existingEntry = ValueListEntry::where('value_list_id', $list->id)
-                    ->where('technical_name', $row['entry_technical_name'])
-                    ->first();
+                // Entry (falls vorhanden)
+                if (!empty($row['entry_technical_name'])) {
+                    $existingEntry = ValueListEntry::where('value_list_id', $list->id)
+                        ->where('technical_name', $row['entry_technical_name'])
+                        ->first();
 
-                $entryData = [
-                    'value_list_id' => $list->id,
-                    'technical_name' => $row['entry_technical_name'],
-                    'display_value_de' => $row['display_value_de'] ?? $row['entry_technical_name'],
-                    'display_value_en' => $row['display_value_en'] ?? null,
-                    'sort_order' => (int) ($row['sort_order'] ?? 0),
-                ];
+                    $entryData = [
+                        'value_list_id' => $list->id,
+                        'technical_name' => $row['entry_technical_name'],
+                        'display_value_de' => $row['display_value_de'] ?? $row['entry_technical_name'],
+                        'display_value_en' => $row['display_value_en'] ?? null,
+                        'sort_order' => (int) ($row['sort_order'] ?? 0),
+                    ];
 
-                if ($existingEntry) {
-                    $existingEntry->update($entryData);
-                    $this->stats[$sheetKey]['updated']++;
+                    if ($existingEntry) {
+                        $existingEntry->update($entryData);
+                        $this->stats[$sheetKey]['updated']++;
+                    } else {
+                        $entryData['id'] = Str::uuid()->toString();
+                        ValueListEntry::create($entryData);
+                        $this->stats[$sheetKey]['created']++;
+                    }
                 } else {
-                    $entryData['id'] = Str::uuid()->toString();
-                    ValueListEntry::create($entryData);
                     $this->stats[$sheetKey]['created']++;
                 }
-            } else {
-                $this->stats[$sheetKey]['created']++;
+            } catch (\Throwable $e) {
+                $this->logRowError($sheetKey, $row, $e);
             }
         }
     }
@@ -279,75 +343,89 @@ class ImportExecutor
     private function importAttributes(array $rows, string $sheetKey): void
     {
         foreach ($rows as $row) {
-            $existing = Attribute::where('technical_name', $row['technical_name'])->first();
+            try {
+                $existing = Attribute::where('technical_name', $row['technical_name'])->first();
 
-            $data = [
-                'technical_name' => $row['technical_name'],
-                'name_de' => $row['name_de'],
-                'name_en' => $row['name_en'] ?? null,
-                'description_de' => $row['description'] ?? null,
-                'data_type' => $row['data_type'],
-                'is_multipliable' => $this->toBool($row['is_multipliable'] ?? false),
-                'max_multiplied' => !empty($row['max_multiplied']) ? (int) $row['max_multiplied'] : null,
-                'is_translatable' => $this->toBool($row['is_translatable'] ?? false),
-                'is_mandatory' => $this->toBoolMandatory($row['is_mandatory'] ?? null),
-                'is_unique' => $this->toBool($row['is_unique'] ?? false),
-                'is_searchable' => $this->toBool($row['is_searchable'] ?? true),
-                'is_inheritable' => $this->toBool($row['is_inheritable'] ?? true),
-                'source_system' => $row['source_system'] ?? null,
-            ];
+                $data = [
+                    'technical_name' => $row['technical_name'],
+                    'name_de' => $row['name_de'],
+                    'name_en' => $row['name_en'] ?? null,
+                    'description_de' => $row['description'] ?? null,
+                    'data_type' => $row['data_type'],
+                    'is_multipliable' => $this->toBool($row['is_multipliable'] ?? false),
+                    'max_multiplied' => !empty($row['max_multiplied']) ? (int) $row['max_multiplied'] : null,
+                    'is_translatable' => $this->toBool($row['is_translatable'] ?? false),
+                    'is_mandatory' => $this->toBoolMandatory($row['is_mandatory'] ?? null),
+                    'is_unique' => $this->toBool($row['is_unique'] ?? false),
+                    'is_searchable' => $this->toBool($row['is_searchable'] ?? true),
+                    'is_inheritable' => $this->toBool($row['is_inheritable'] ?? true),
+                    'source_system' => $row['source_system'] ?? null,
+                ];
 
-            // Referenzen auflösen
-            if (!empty($row['attribute_group'])) {
-                $result = $this->resolver->resolveAttributeType($row['attribute_group']);
-                if ($result->resolved()) {
-                    $data['attribute_type_id'] = $result->id;
+                // Referenzen auflösen
+                if (!empty($row['attribute_group'])) {
+                    $result = $this->resolver->resolveAttributeType($row['attribute_group']);
+                    if ($result->resolved()) {
+                        $data['attribute_type_id'] = $result->id;
+                    } else {
+                        Log::channel('import')->warning("Attributgruppe nicht aufgelöst: '{$row['attribute_group']}' für Attribut '{$row['technical_name']}'");
+                    }
                 }
-            }
 
-            if (!empty($row['value_list'])) {
-                $result = $this->resolver->resolveValueList($row['value_list']);
-                if ($result->resolved()) {
-                    $data['value_list_id'] = $result->id;
+                if (!empty($row['value_list'])) {
+                    $result = $this->resolver->resolveValueList($row['value_list']);
+                    if ($result->resolved()) {
+                        $data['value_list_id'] = $result->id;
+                    } else {
+                        Log::channel('import')->warning("Werteliste nicht aufgelöst: '{$row['value_list']}' für Attribut '{$row['technical_name']}'");
+                    }
                 }
-            }
 
-            if (!empty($row['unit_group'])) {
-                $result = $this->resolver->resolveUnitGroup($row['unit_group']);
-                if ($result->resolved()) {
-                    $data['unit_group_id'] = $result->id;
+                if (!empty($row['unit_group'])) {
+                    $result = $this->resolver->resolveUnitGroup($row['unit_group']);
+                    if ($result->resolved()) {
+                        $data['unit_group_id'] = $result->id;
+                    } else {
+                        Log::channel('import')->warning("Einheitengruppe nicht aufgelöst: '{$row['unit_group']}' für Attribut '{$row['technical_name']}'");
+                    }
                 }
-            }
 
-            if (!empty($row['default_unit'])) {
-                $result = $this->resolver->resolveUnit($row['default_unit']);
-                if ($result->resolved()) {
-                    $data['default_unit_id'] = $result->id;
+                if (!empty($row['default_unit'])) {
+                    $result = $this->resolver->resolveUnit($row['default_unit']);
+                    if ($result->resolved()) {
+                        $data['default_unit_id'] = $result->id;
+                    } else {
+                        Log::channel('import')->warning("Standard-Einheit nicht aufgelöst: '{$row['default_unit']}' für Attribut '{$row['technical_name']}'");
+                    }
                 }
-            }
 
-            if (!empty($row['parent_attribute'])) {
-                $result = $this->resolver->resolveAttribute($row['parent_attribute']);
-                if ($result->resolved()) {
-                    $data['parent_attribute_id'] = $result->id;
+                if (!empty($row['parent_attribute'])) {
+                    $result = $this->resolver->resolveAttribute($row['parent_attribute']);
+                    if ($result->resolved()) {
+                        $data['parent_attribute_id'] = $result->id;
+                    } else {
+                        Log::channel('import')->warning("Übergeordnetes Attribut nicht aufgelöst: '{$row['parent_attribute']}' für Attribut '{$row['technical_name']}'");
+                    }
                 }
-            }
 
-            if ($existing) {
-                $existing->update($data);
-                $this->stats[$sheetKey]['updated']++;
-            } else {
-                $data['id'] = Str::uuid()->toString();
-                Attribute::create($data);
-                $this->stats[$sheetKey]['created']++;
-            }
+                if ($existing) {
+                    $existing->update($data);
+                    $this->stats[$sheetKey]['updated']++;
+                } else {
+                    $data['id'] = Str::uuid()->toString();
+                    Attribute::create($data);
+                    $this->stats[$sheetKey]['created']++;
+                }
 
-            // Sichten zuordnen
-            if (!empty($row['views'])) {
-                $this->assignAttributeViews(
-                    $existing?->id ?? $data['id'],
-                    $row['views']
-                );
+                // Sichten zuordnen
+                if (!empty($row['views'])) {
+                    $this->assignAttributeViews(
+                        $existing?->id ?? $data['id'],
+                        $row['views']
+                    );
+                }
+            } catch (\Throwable $e) {
+                $this->logRowError($sheetKey, $row, $e);
             }
         }
     }
@@ -361,22 +439,26 @@ class ImportExecutor
         }
 
         foreach ($grouped as $hierarchyName => $hierarchyRows) {
-            $firstRow = $hierarchyRows[0];
+            try {
+                $firstRow = $hierarchyRows[0];
 
-            // Hierarchie anlegen/finden
-            $hierarchy = Hierarchy::firstOrCreate(
-                ['technical_name' => $hierarchyName],
-                [
-                    'id' => Str::uuid()->toString(),
-                    'technical_name' => $hierarchyName,
-                    'name_de' => $hierarchyName,
-                    'hierarchy_type' => mb_strtolower($firstRow['type'] ?? 'master'),
-                ]
-            );
+                // Hierarchie anlegen/finden
+                $hierarchy = Hierarchy::firstOrCreate(
+                    ['technical_name' => $hierarchyName],
+                    [
+                        'id' => Str::uuid()->toString(),
+                        'technical_name' => $hierarchyName,
+                        'name_de' => $hierarchyName,
+                        'hierarchy_type' => mb_strtolower($firstRow['type'] ?? 'master'),
+                    ]
+                );
 
-            // Knoten anlegen (Hierarchie-Ebenen)
-            foreach ($hierarchyRows as $row) {
-                $this->ensureHierarchyPath($hierarchy, $row);
+                // Knoten anlegen (Hierarchie-Ebenen)
+                foreach ($hierarchyRows as $row) {
+                    $this->ensureHierarchyPath($hierarchy, $row);
+                }
+            } catch (\Throwable $e) {
+                $this->logRowError($sheetKey, $hierarchyRows[0] ?? [], $e);
             }
         }
 
@@ -386,21 +468,22 @@ class ImportExecutor
     private function importHierarchyAttributes(array $rows, string $sheetKey): void
     {
         foreach ($rows as $row) {
+            try {
             $hierarchyResult = $this->resolver->resolveHierarchy($row['hierarchy']);
             if (!$hierarchyResult->resolved()) {
-                $this->stats[$sheetKey]['skipped']++;
+                $this->logSkipped($sheetKey, $row, "Hierarchie nicht gefunden: '{$row['hierarchy']}'");
                 continue;
             }
 
             $nodeResult = $this->resolver->resolveHierarchyNode($row['hierarchy'], $row['node_path']);
             if (!$nodeResult->resolved()) {
-                $this->stats[$sheetKey]['skipped']++;
+                $this->logSkipped($sheetKey, $row, "Hierarchieknoten nicht gefunden: '{$row['hierarchy']}' Pfad '{$row['node_path']}'");
                 continue;
             }
 
             $attrResult = $this->resolver->resolveAttribute($row['attribute']);
             if (!$attrResult->resolved()) {
-                $this->stats[$sheetKey]['skipped']++;
+                $this->logSkipped($sheetKey, $row, "Attribut nicht gefunden: '{$row['attribute']}'");
                 continue;
             }
 
@@ -425,6 +508,9 @@ class ImportExecutor
                 HierarchyNodeAttributeAssignment::create($data);
                 $this->stats[$sheetKey]['created']++;
             }
+            } catch (\Throwable $e) {
+                $this->logRowError($sheetKey, $row, $e);
+            }
         }
     }
 
@@ -434,11 +520,12 @@ class ImportExecutor
         $nameAttribute = Attribute::where('technical_name', 'name')->first();
 
         foreach ($rows as $row) {
+            try {
             $existing = Product::where('sku', $row['sku'])->first();
 
             $typeResult = $this->resolver->resolveProductType($row['product_type']);
             if (!$typeResult->resolved()) {
-                $this->stats[$sheetKey]['skipped']++;
+                $this->logSkipped($sheetKey, $row, "Produkttyp nicht gefunden: '{$row['product_type']}'");
                 continue;
             }
 
@@ -479,21 +566,25 @@ class ImportExecutor
                     ]
                 );
             }
+            } catch (\Throwable $e) {
+                $this->logRowError($sheetKey, $row, $e);
+            }
         }
     }
 
     private function importProductValues(array $rows, string $sheetKey): void
     {
         foreach ($rows as $row) {
+            try {
             $productResult = $this->resolver->resolveProduct($row['sku']);
             if (!$productResult->resolved()) {
-                $this->stats[$sheetKey]['skipped']++;
+                $this->logSkipped($sheetKey, $row, "Produkt nicht gefunden: SKU '{$row['sku']}'");
                 continue;
             }
 
             $attrResult = $this->resolver->resolveAttribute($row['attribute']);
             if (!$attrResult->resolved()) {
-                $this->stats[$sheetKey]['skipped']++;
+                $this->logSkipped($sheetKey, $row, "Attribut nicht gefunden: '{$row['attribute']}'");
                 continue;
             }
 
@@ -517,6 +608,26 @@ class ImportExecutor
                 'multiplied_index' => $index,
             ], $valueData);
 
+            // Selection-Werte: ValueListEntry auflösen und value_selection_id setzen
+            if ($attribute && $attribute->data_type === 'Selection' && $attribute->value_list_id) {
+                $entry = ValueListEntry::where('value_list_id', $attribute->value_list_id)
+                    ->where('technical_name', (string) $row['value'])
+                    ->first();
+                if ($entry) {
+                    $data['value_selection_id'] = $entry->id;
+                    $data['value_string'] = $entry->technical_name;
+                } else {
+                    // Fallback: auch über display_value_de suchen
+                    $entry = ValueListEntry::where('value_list_id', $attribute->value_list_id)
+                        ->where('display_value_de', (string) $row['value'])
+                        ->first();
+                    if ($entry) {
+                        $data['value_selection_id'] = $entry->id;
+                        $data['value_string'] = $entry->technical_name;
+                    }
+                }
+            }
+
             // Einheit auflösen
             if (!empty($row['unit'])) {
                 $unitResult = $this->resolver->resolveUnit($row['unit']);
@@ -535,15 +646,19 @@ class ImportExecutor
             }
 
             $this->affectedProductIds[] = $productResult->id;
+            } catch (\Throwable $e) {
+                $this->logRowError($sheetKey, $row, $e);
+            }
         }
     }
 
     private function importVariants(array $rows, string $sheetKey): void
     {
         foreach ($rows as $row) {
+            try {
             $parentResult = $this->resolver->resolveProduct($row['parent_sku']);
             if (!$parentResult->resolved()) {
-                $this->stats[$sheetKey]['skipped']++;
+                $this->logSkipped($sheetKey, $row, "Eltern-Produkt nicht gefunden: SKU '{$row['parent_sku']}'");
                 continue;
             }
 
@@ -572,21 +687,25 @@ class ImportExecutor
                 $this->stats[$sheetKey]['created']++;
                 $this->affectedProductIds[] = $data['id'];
             }
+            } catch (\Throwable $e) {
+                $this->logRowError($sheetKey, $row, $e);
+            }
         }
     }
 
     private function importProductHierarchies(array $rows, string $sheetKey): void
     {
         foreach ($rows as $row) {
+            try {
             $productResult = $this->resolver->resolveProduct($row['sku']);
             if (!$productResult->resolved()) {
-                $this->stats[$sheetKey]['skipped']++;
+                $this->logSkipped($sheetKey, $row, "Produkt nicht gefunden: SKU '{$row['sku']}'");
                 continue;
             }
 
             $nodeResult = $this->resolver->resolveHierarchyNode($row['hierarchy'], $row['node_path']);
             if (!$nodeResult->resolved()) {
-                $this->stats[$sheetKey]['skipped']++;
+                $this->logSkipped($sheetKey, $row, "Hierarchieknoten nicht gefunden: '{$row['hierarchy']}' Pfad '{$row['node_path']}'");
                 continue;
             }
 
@@ -619,17 +738,24 @@ class ImportExecutor
             }
 
             $this->affectedProductIds[] = $productResult->id;
+            } catch (\Throwable $e) {
+                $this->logRowError($sheetKey, $row, $e);
+            }
         }
     }
 
     private function importProductRelations(array $rows, string $sheetKey): void
     {
         foreach ($rows as $row) {
+            try {
             $sourceResult = $this->resolver->resolveProduct($row['source_sku']);
             $targetResult = $this->resolver->resolveProduct($row['target_sku']);
 
             if (!$sourceResult->resolved() || !$targetResult->resolved()) {
-                $this->stats[$sheetKey]['skipped']++;
+                $missing = [];
+                if (!$sourceResult->resolved()) $missing[] = "Quell-SKU '{$row['source_sku']}'";
+                if (!$targetResult->resolved()) $missing[] = "Ziel-SKU '{$row['target_sku']}'";
+                $this->logSkipped($sheetKey, $row, "Produkt(e) nicht gefunden: " . implode(', ', $missing));
                 continue;
             }
 
@@ -664,15 +790,19 @@ class ImportExecutor
                 $existing->update(['sort_order' => (int) ($row['sort_order'] ?? 0)]);
                 $this->stats[$sheetKey]['updated']++;
             }
+            } catch (\Throwable $e) {
+                $this->logRowError($sheetKey, $row, $e);
+            }
         }
     }
 
     private function importPrices(array $rows, string $sheetKey): void
     {
         foreach ($rows as $row) {
+            try {
             $productResult = $this->resolver->resolveProduct($row['sku']);
             if (!$productResult->resolved()) {
-                $this->stats[$sheetKey]['skipped']++;
+                $this->logSkipped($sheetKey, $row, "Produkt nicht gefunden: SKU '{$row['sku']}'");
                 continue;
             }
 
@@ -724,15 +854,19 @@ class ImportExecutor
             }
 
             $this->affectedProductIds[] = $productResult->id;
+            } catch (\Throwable $e) {
+                $this->logRowError($sheetKey, $row, $e);
+            }
         }
     }
 
     private function importMedia(array $rows, string $sheetKey): void
     {
         foreach ($rows as $row) {
+            try {
             $productResult = $this->resolver->resolveProduct($row['sku']);
             if (!$productResult->resolved()) {
-                $this->stats[$sheetKey]['skipped']++;
+                $this->logSkipped($sheetKey, $row, "Produkt nicht gefunden: SKU '{$row['sku']}'");
                 continue;
             }
 
@@ -772,6 +906,9 @@ class ImportExecutor
             }
 
             $this->affectedProductIds[] = $productResult->id;
+            } catch (\Throwable $e) {
+                $this->logRowError($sheetKey, $row, $e);
+            }
         }
     }
 

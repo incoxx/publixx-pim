@@ -14,6 +14,8 @@ readonly class ImportExecutionResult
         public array $stats,
         /** @var string[] Betroffene Produkt-IDs. */
         public array $affectedProductIds,
+        /** @var array<array{sheet:string,row:int|string,reason:string}> Details zu übersprungenen/fehlerhaften Zeilen. */
+        public array $skippedDetails = [],
     ) {}
 
     public function toArray(): array
@@ -21,6 +23,7 @@ readonly class ImportExecutionResult
         return [
             'stats' => $this->stats,
             'affected_product_count' => count($this->affectedProductIds),
+            'skipped_details' => $this->skippedDetails,
         ];
     }
 }
