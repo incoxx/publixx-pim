@@ -10,12 +10,14 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('hierarchy_node_attribute_assignments', function (Blueprint $table) {
-            $table->char('parent_assignment_id', 36)->nullable()->after('access_variant');
-            $table->foreign('parent_assignment_id')
-                ->references('id')->on('hierarchy_node_attribute_assignments')
-                ->onDelete('cascade');
-        });
+        if (!Schema::hasColumn('hierarchy_node_attribute_assignments', 'parent_assignment_id')) {
+            Schema::table('hierarchy_node_attribute_assignments', function (Blueprint $table) {
+                $table->char('parent_assignment_id', 36)->nullable()->after('access_variant');
+                $table->foreign('parent_assignment_id')
+                    ->references('id')->on('hierarchy_node_attribute_assignments')
+                    ->onDelete('cascade');
+            });
+        }
     }
 
     public function down(): void
