@@ -20,7 +20,7 @@ class StoreHierarchyRequest extends FormRequest
             'name_de' => 'required|string|max:255',
             'name_en' => 'nullable|string|max:255',
             'name_json' => 'nullable|array',
-            'hierarchy_type' => 'required|in:master,output',
+            'hierarchy_type' => 'required|in:master,output,asset',
             'description' => 'nullable|string',
         ];
     }

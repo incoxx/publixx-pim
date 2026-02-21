@@ -22,6 +22,8 @@ class UpdateMediaRequest extends FormRequest
             'description_en' => 'nullable|string',
             'alt_text_de' => 'nullable|string|max:255',
             'alt_text_en' => 'nullable|string|max:255',
+            'asset_folder_id' => 'nullable|uuid|exists:hierarchy_nodes,id',
+            'usage_purpose' => 'nullable|in:print,web,both',
         ];
     }
 }

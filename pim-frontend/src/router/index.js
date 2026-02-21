@@ -121,6 +121,19 @@ const routes = [
       },
     ],
   },
+  // --- Public Asset Preview ---
+  {
+    path: '/assetpreview',
+    component: () => import('@/views/assetCatalog/AssetCatalogLayout.vue'),
+    meta: { public: true, title: 'Asset-Katalog' },
+    children: [
+      {
+        path: '',
+        name: 'asset-catalog',
+        component: () => import('@/views/assetCatalog/AssetCatalogView.vue'),
+      },
+    ],
+  },
   {
     path: '/:pathMatch(.*)*',
     name: 'not-found',

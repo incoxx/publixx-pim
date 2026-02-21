@@ -450,10 +450,23 @@ class CatalogController extends BaseController
      * GET /api/v1/catalog/media/{filename}
      *
      * Serve media files publicly (no auth).
+     * For images, serves a thumbnail (600x600) for performance.
+     * Use ?original=1 to get the full-size file.
      */
-    public function media(string $filename): BinaryFileResponse
+    public function media(Request $request, string $filename): BinaryFileResponse
     {
         $media = Media::where('file_name', $filename)->firstOrFail();
+
+        // For images, serve thumbnail by default (much faster for catalog grids)
+        if (str_starts_with($media->mime_type, 'image/') && !$request->query('original')) {
+            $thumbPath = app(\App\Services\ThumbnailService::class)->generate($media, 600, 600);
+            if ($thumbPath && file_exists($thumbPath)) {
+                return response()->file($thumbPath, [
+                    'Content-Type' => $media->mime_type,
+                    'Cache-Control' => 'public, max-age=86400',
+                ]);
+            }
+        }
 
         $path = Storage::disk('public')->path($media->file_path);
 
