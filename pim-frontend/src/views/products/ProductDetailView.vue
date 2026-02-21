@@ -13,6 +13,7 @@ import PimCollectionGroup from '@/components/shared/PimCollectionGroup.vue'
 import PimAttributeInput from '@/components/shared/PimAttributeInput.vue'
 import PimTable from '@/components/shared/PimTable.vue'
 import PimConfirmDialog from '@/components/shared/PimConfirmDialog.vue'
+import PimCompositeModal from '@/components/shared/PimCompositeModal.vue'
 import ProductVersionsTab from '@/components/products/ProductVersionsTab.vue'
 
 const route = useRoute()
@@ -46,11 +47,35 @@ const schema = ref(null)
 const attributeValues = ref({})
 const attrLoaded = ref(false)
 
+// ─── Composite Modal State ────────────────────────────
+const compositeModalOpen = ref(false)
+const activeComposite = ref(null)
+
+function openCompositeModal(compositeAttr) {
+  activeComposite.value = compositeAttr
+  compositeModalOpen.value = true
+}
+
+function onCompositeValuesUpdate(newValues) {
+  for (const [childId, value] of Object.entries(newValues)) {
+    attributeValues.value[childId] = value
+  }
+}
+
+function getCompositeSummary(compositeAttr) {
+  const children = compositeAttr._children || []
+  const parts = children
+    .map(c => attributeValues.value[c.id])
+    .filter(v => v !== undefined && v !== null && v !== '')
+  if (parts.length === 0) return null
+  return parts.join(' × ')
+}
+
 function mapDataTypeToInput(backendType) {
   const map = {
     'String': 'text', 'Number': 'number', 'Float': 'decimal',
     'Date': 'date', 'Flag': 'boolean', 'Selection': 'select',
-    'Dictionary': 'json', 'Collection': 'json',
+    'Dictionary': 'json', 'Collection': 'json', 'Composite': 'composite',
   }
   return map[backendType] || 'text'
 }
@@ -78,6 +103,7 @@ async function loadAttributeData() {
         is_mandatory: ra.is_mandatory,
         is_translatable: ra.is_translatable,
         is_variant_attribute: ra.is_variant_attribute || false,
+        parent_attribute_id: ra.parent_attribute_id || null,
         group: ra.collection_name || 'Vererbte Attribute',
         _source: ra.source,
         _is_inherited: ra.is_inherited,
@@ -120,8 +146,26 @@ const schemaAttributes = computed(() => {
 })
 
 const attributeGroups = computed(() => {
-  const attrs = schemaAttributes.value.filter(a => !a.is_variant_attribute)
-  if (attrs.length === 0) return []
+  const allAttrs = schemaAttributes.value.filter(a => !a.is_variant_attribute)
+  if (allAttrs.length === 0) return []
+
+  // Collect IDs of all composite attributes in the schema
+  const compositeIds = new Set(allAttrs.filter(a => a.data_type === 'Composite').map(a => a.id))
+
+  // Filter out child attributes whose parent composite is also in the schema
+  // (they will only appear inside the composite modal)
+  const attrs = allAttrs.filter(a => {
+    if (a.parent_attribute_id && compositeIds.has(a.parent_attribute_id)) return false
+    return true
+  })
+
+  // Enrich composite attributes with their children for the modal
+  for (const attr of attrs) {
+    if (attr.data_type === 'Composite') {
+      attr._children = allAttrs.filter(c => c.parent_attribute_id === attr.id)
+    }
+  }
+
   const groups = {}
   for (const attr of attrs) {
     const groupName = attr.attribute_type?.name_de || attr.group || 'Weitere Attribute'
@@ -782,7 +826,21 @@ onMounted(async () => {
               <span v-if="attr.is_mandatory" class="text-[var(--color-error)]">*</span>
               <span v-if="attr._is_inherited" class="ml-1 text-[10px] text-blue-500 font-normal">(vererbt)</span>
             </label>
+            <!-- Composite: Button with summary -->
+            <button
+              v-if="attr.data_type === 'Composite'"
+              class="w-full flex items-center justify-between pim-input text-left cursor-pointer hover:border-[var(--color-accent)] transition-colors"
+              :disabled="attr._access === 'read_only'"
+              @click="openCompositeModal(attr)"
+            >
+              <span class="text-[13px]" :class="getCompositeSummary(attr) ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-tertiary)]'">
+                {{ getCompositeSummary(attr) || 'Bearbeiten…' }}
+              </span>
+              <span class="text-[10px] text-[var(--color-text-tertiary)] shrink-0 ml-2">{{ (attr._children || []).length }} Felder</span>
+            </button>
+            <!-- Normal attribute -->
             <PimAttributeInput
+              v-else
               :type="mapDataTypeToInput(attr.data_type)"
               :modelValue="attributeValues[attr.id]"
               :options="attr.value_list?.entries?.map(e => ({ value: e.id, label: e.value_de || e.label_de || e.code })) || []"
@@ -792,6 +850,16 @@ onMounted(async () => {
           </div>
         </div>
       </PimCollectionGroup>
+
+      <!-- Composite Modal -->
+      <PimCompositeModal
+        :open="compositeModalOpen"
+        :compositeAttribute="activeComposite ? { ...activeComposite, children: activeComposite._children || [] } : null"
+        :modelValue="attributeValues"
+        :mapType="mapDataTypeToInput"
+        @update:open="compositeModalOpen = $event"
+        @update:modelValue="onCompositeValuesUpdate"
+      />
     </div>
 
     <!-- ═══ Variant Attributes Tab ═══ -->

@@ -191,6 +191,8 @@ class HierarchyInheritanceService
                 'a.is_inheritable',
                 'a.is_variant_attribute',
                 'a.is_internal',
+                'a.parent_attribute_id',
+                'hnaa.parent_assignment_id',
                 'hn.depth as node_depth',
             ])
             ->orderBy('hn.depth', 'asc')

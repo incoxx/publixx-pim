@@ -100,9 +100,30 @@ class Attribute extends Model
         return $this->belongsTo(Attribute::class, 'parent_attribute_id');
     }
 
+    /**
+     * Alias for parentAttribute() — enables ?include=parent.
+     */
+    public function parent(): BelongsTo
+    {
+        return $this->parentAttribute();
+    }
+
     public function childAttributes(): HasMany
     {
         return $this->hasMany(Attribute::class, 'parent_attribute_id');
+    }
+
+    /**
+     * Alias for childAttributes() — enables ?include=children.
+     */
+    public function children(): HasMany
+    {
+        return $this->childAttributes();
+    }
+
+    public function scopeComposite($query)
+    {
+        return $query->where('data_type', 'Composite');
     }
 
     public function attributeViews(): BelongsToMany

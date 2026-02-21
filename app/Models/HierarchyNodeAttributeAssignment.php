@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class HierarchyNodeAttributeAssignment extends Model
 {
@@ -25,6 +26,7 @@ class HierarchyNodeAttributeAssignment extends Model
         'access_hierarchy',
         'access_product',
         'access_variant',
+        'parent_assignment_id',
     ];
 
     protected function casts(): array
@@ -44,5 +46,15 @@ class HierarchyNodeAttributeAssignment extends Model
     public function attribute(): BelongsTo
     {
         return $this->belongsTo(Attribute::class);
+    }
+
+    public function parentAssignment(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'parent_assignment_id');
+    }
+
+    public function childAssignments(): HasMany
+    {
+        return $this->hasMany(self::class, 'parent_assignment_id');
     }
 }
