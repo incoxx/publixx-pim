@@ -693,6 +693,44 @@ onMounted(async () => {
   loadAttributeData()
   loadHierarchies()
 })
+
+// Re-load when navigating between products/variants (same component, different ID)
+watch(() => route.params.id, async (newId, oldId) => {
+  if (newId === oldId) return
+
+  // Reset all loaded flags
+  attrLoaded.value = false
+  variantsLoaded.value = false
+  mediaLoaded.value = false
+  pricesLoaded.value = false
+  relationsLoaded.value = false
+
+  // Clear stale data
+  schema.value = null
+  attributeValues.value = {}
+  variants.value = []
+  variantAttributeDefs.value = []
+  variantAttrValuesMap.value = {}
+  mediaItems.value = []
+  prices.value = []
+  relations.value = []
+  previewData.value = null
+  completenessData.value = null
+
+  // Close open forms
+  showVariantForm.value = false
+  showPriceForm.value = false
+  showRelationForm.value = false
+  showMediaPicker.value = false
+
+  // Reset tab to attributes
+  activeTab.value = 'attributes'
+
+  // Reload product/variant data
+  await store.fetchOne(newId)
+  loadAttributeData()
+  loadHierarchies()
+})
 </script>
 
 <template>
