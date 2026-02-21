@@ -24,7 +24,7 @@ class UpdateHierarchyRequest extends FormRequest
             'name_de' => 'sometimes|string|max:255',
             'name_en' => 'nullable|string|max:255',
             'name_json' => 'nullable|array',
-            'hierarchy_type' => 'sometimes|in:master,output',
+            'hierarchy_type' => 'sometimes|in:master,output,asset',
             'description' => 'nullable|string',
         ];
     }

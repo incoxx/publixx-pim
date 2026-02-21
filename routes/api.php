@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Api\V1\AssetCatalogController;
 use App\Http\Controllers\Api\V1\CatalogController;
 use App\Http\Controllers\Api\V1\AttributeController;
 use App\Http\Controllers\Api\V1\AttributeTypeController;
@@ -14,6 +15,7 @@ use App\Http\Controllers\Api\V1\HierarchyController;
 use App\Http\Controllers\Api\V1\HierarchyNodeAttributeValueController;
 use App\Http\Controllers\Api\V1\HierarchyNodeController;
 use App\Http\Controllers\Api\V1\ImportController;
+use App\Http\Controllers\Api\V1\MediaAttributeValueController;
 use App\Http\Controllers\Api\V1\MediaController;
 use App\Http\Controllers\Api\V1\NodeAttributeAssignmentController;
 use App\Http\Controllers\Api\V1\PqlController;
@@ -61,6 +63,17 @@ Route::prefix('v1/auth')->middleware('throttle.pim:auth')->group(function () {
 // =========================================================================
 Route::prefix('v1')->middleware('throttle.pim')->group(function () {
     Route::get('media/file/{filename}', [MediaController::class, 'serve'])->name('media.serve');
+    Route::get('media/thumb/{medium}', [MediaController::class, 'thumb'])->name('media.thumb');
+});
+
+// =========================================================================
+// Public Asset Catalog API (no auth required)
+// =========================================================================
+Route::prefix('v1/asset-catalog')->middleware('throttle.pim')->group(function () {
+    Route::get('assets', [AssetCatalogController::class, 'assets']);
+    Route::get('assets/{medium}', [AssetCatalogController::class, 'asset']);
+    Route::get('folders', [AssetCatalogController::class, 'folders']);
+    Route::post('download', [AssetCatalogController::class, 'download']);
 });
 
 // =========================================================================
@@ -193,7 +206,10 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // Agent 3: Media
     // =====================================================================
     Route::apiResource('media', MediaController::class);
-    // media/file/{filename} is registered outside auth group (public access for <img> tags)
+    // media/file/{filename} and media/thumb/{medium} are registered outside auth group (public access)
+    Route::get('media/{medium}/attribute-values', [MediaAttributeValueController::class, 'index']);
+    Route::put('media/{medium}/attribute-values', [MediaAttributeValueController::class, 'bulkUpdate']);
+
     Route::get('products/{product}/media', [ProductMediaController::class, 'index']);
     Route::post('products/{product}/media', [ProductMediaController::class, 'store']);
     Route::delete('product-media/{product_medium}', [ProductMediaController::class, 'destroy']);

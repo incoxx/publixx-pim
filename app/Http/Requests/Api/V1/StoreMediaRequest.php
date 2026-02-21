@@ -25,6 +25,8 @@ class StoreMediaRequest extends FormRequest
             'alt_text_en' => 'nullable|string|max:255',
             'width' => 'nullable|integer',
             'height' => 'nullable|integer',
+            'asset_folder_id' => 'nullable|uuid|exists:hierarchy_nodes,id',
+            'usage_purpose' => 'nullable|in:print,web,both',
         ];
     }
 }

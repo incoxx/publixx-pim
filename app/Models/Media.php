@@ -7,6 +7,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -30,6 +31,8 @@ class Media extends Model
         'alt_text_en',
         'width',
         'height',
+        'asset_folder_id',
+        'usage_purpose',
     ];
 
     protected function casts(): array
@@ -39,6 +42,16 @@ class Media extends Model
             'width' => 'integer',
             'height' => 'integer',
         ];
+    }
+
+    public function assetFolder(): BelongsTo
+    {
+        return $this->belongsTo(HierarchyNode::class, 'asset_folder_id');
+    }
+
+    public function attributeValues(): HasMany
+    {
+        return $this->hasMany(MediaAttributeValue::class);
     }
 
     public function products(): BelongsToMany

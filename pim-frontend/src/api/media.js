@@ -1,5 +1,7 @@
 import client, { buildParams } from './client'
 
+const base = import.meta.env.VITE_API_BASE_URL || '/api/v1'
+
 export default {
   list(options = {}) {
     return client.get('/media', { params: buildParams(options) })
@@ -13,7 +15,7 @@ export default {
     const formData = new FormData()
     formData.append('file', file)
     for (const [key, val] of Object.entries(metadata)) {
-      formData.append(key, val)
+      if (val != null) formData.append(key, val)
     }
     return client.post('/media', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
@@ -28,8 +30,19 @@ export default {
     return client.delete(`/media/${id}`)
   },
 
+  getAttributeValues(mediaId, params = {}) {
+    return client.get(`/media/${mediaId}/attribute-values`, { params: buildParams(params) })
+  },
+
+  updateAttributeValues(mediaId, values) {
+    return client.put(`/media/${mediaId}/attribute-values`, { values })
+  },
+
   fileUrl(filename) {
-    const base = import.meta.env.VITE_API_BASE_URL || '/api/v1'
     return `${base}/media/file/${filename}`
+  },
+
+  thumbUrl(mediaId, w = 300, h = 300) {
+    return `${base}/media/thumb/${mediaId}?w=${w}&h=${h}`
   },
 }

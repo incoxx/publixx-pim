@@ -142,6 +142,11 @@ class Attribute extends Model
         return $this->hasMany(ProductAttributeValue::class);
     }
 
+    public function mediaAttributeValues(): HasMany
+    {
+        return $this->hasMany(MediaAttributeValue::class);
+    }
+
     public function hierarchyNodeAssignments(): HasMany
     {
         return $this->hasMany(HierarchyNodeAttributeAssignment::class);

@@ -188,7 +188,7 @@ class UpdateSearchIndex implements ShouldQueue, ShouldBeUnique
             ->join('media', 'media.id', '=', 'product_media_assignments.media_id')
             ->where('product_media_assignments.product_id', $productId)
             ->where('product_media_assignments.is_primary', true)
-            ->value('media.file_path');
+            ->value('media.file_name');
     }
 
     /**

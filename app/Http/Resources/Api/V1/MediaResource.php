@@ -26,7 +26,10 @@ class MediaResource extends JsonResource
             'alt_text_en' => $this->alt_text_en,
             'width' => $this->width,
             'height' => $this->height,
+            'asset_folder_id' => $this->asset_folder_id,
+            'usage_purpose' => $this->usage_purpose,
             'url' => url("api/v1/media/file/{$this->file_name}"),
+            'thumb_url' => url("api/v1/media/thumb/{$this->id}?w=300&h=300"),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

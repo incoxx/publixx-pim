@@ -8,6 +8,7 @@ use App\Http\Requests\Api\V1\StoreMediaRequest;
 use App\Http\Requests\Api\V1\UpdateMediaRequest;
 use App\Http\Resources\Api\V1\MediaResource;
 use App\Models\Media;
+use App\Services\ThumbnailService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -16,7 +17,7 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class MediaController extends Controller
 {
-    private const ALLOWED_FILTERS = ['media_type', 'mime_type'];
+    private const ALLOWED_FILTERS = ['media_type', 'mime_type', 'asset_folder_id', 'usage_purpose'];
 
     public function index(Request $request): AnonymousResourceCollection
     {
@@ -52,6 +53,17 @@ class MediaController extends Controller
             ], 500);
         }
 
+        // Auto-detect image dimensions
+        $width = $request->input('width');
+        $height = $request->input('height');
+        if (($width === null || $height === null) && str_starts_with($file->getMimeType(), 'image/')) {
+            $dimensions = @getimagesize($file->getRealPath());
+            if ($dimensions) {
+                $width = $width ?? $dimensions[0];
+                $height = $height ?? $dimensions[1];
+            }
+        }
+
         $media = Media::create([
             'file_name' => $file->getClientOriginalName(),
             'file_path' => $path,
@@ -64,8 +76,10 @@ class MediaController extends Controller
             'description_en' => $request->input('description_en'),
             'alt_text_de' => $request->input('alt_text_de'),
             'alt_text_en' => $request->input('alt_text_en'),
-            'width' => $request->input('width'),
-            'height' => $request->input('height'),
+            'width' => $width,
+            'height' => $height,
+            'asset_folder_id' => $request->input('asset_folder_id'),
+            'usage_purpose' => $request->input('usage_purpose', 'both'),
         ]);
 
         return (new MediaResource($media))
@@ -93,6 +107,9 @@ class MediaController extends Controller
     {
         $this->authorize('delete', $medium);
 
+        // Delete thumbnails
+        app(ThumbnailService::class)->clearCache($medium);
+
         // Delete the physical file
         if (Storage::disk('public')->exists($medium->file_path)) {
             Storage::disk('public')->delete($medium->file_path);
@@ -118,6 +135,37 @@ class MediaController extends Controller
 
         return response()->file($path, [
             'Content-Type' => $media->mime_type,
+        ]);
+    }
+
+    /**
+     * GET /media/thumb/{media}?w=300&h=300&fit=contain — serve a thumbnail.
+     */
+    public function thumb(Request $request, Media $medium): BinaryFileResponse
+    {
+        $width = min(max(1, (int) $request->query('w', '300')), 1200);
+        $height = min(max(1, (int) $request->query('h', '300')), 1200);
+        $fit = in_array($request->query('fit'), ['contain', 'cover']) ? $request->query('fit') : 'contain';
+
+        $thumbPath = app(ThumbnailService::class)->generate($medium, $width, $height, $fit);
+
+        if (!$thumbPath) {
+            // Fallback: serve original for images, 404 for non-images
+            if (str_starts_with($medium->mime_type, 'image/')) {
+                $originalPath = Storage::disk('public')->path($medium->file_path);
+                if (file_exists($originalPath)) {
+                    return response()->file($originalPath, [
+                        'Content-Type' => $medium->mime_type,
+                        'Cache-Control' => 'public, max-age=86400',
+                    ]);
+                }
+            }
+            abort(404, 'Thumbnail not available.');
+        }
+
+        return response()->file($thumbPath, [
+            'Content-Type' => $medium->mime_type,
+            'Cache-Control' => 'public, max-age=86400',
         ]);
     }
 
