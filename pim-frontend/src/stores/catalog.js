@@ -80,7 +80,7 @@ export const useCatalogStore = defineStore('catalog', () => {
     loading.value = true
     error.value = null
     try {
-      const { data } = await catalogApi.getProducts({
+      const resp = await catalogApi.getProducts({
         page: meta.value.current_page,
         perPage: meta.value.per_page,
         sort: sort.value.field,
@@ -90,9 +90,16 @@ export const useCatalogStore = defineStore('catalog', () => {
         hierarchyType: hierarchyType.value,
         lang: locale.value,
       })
-      products.value = data.data
-      if (data.meta) {
-        meta.value = { ...meta.value, ...data.meta }
+      // Response is now a bare array; pagination info in headers
+      products.value = Array.isArray(resp.data) ? resp.data : (resp.data.data || resp.data)
+      const headers = resp.headers
+      if (headers) {
+        meta.value = {
+          current_page: parseInt(headers['x-current-page'] || meta.value.current_page, 10),
+          last_page: parseInt(headers['x-last-page'] || meta.value.last_page, 10),
+          per_page: parseInt(headers['x-per-page'] || meta.value.per_page, 10),
+          total: parseInt(headers['x-total-count'] || meta.value.total, 10),
+        }
       }
     } catch (e) {
       error.value = e.response?.data?.message || 'Fehler beim Laden'

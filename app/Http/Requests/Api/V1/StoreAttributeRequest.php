@@ -39,6 +39,8 @@ class StoreAttributeRequest extends FormRequest
             'is_unique' => 'boolean',
             'is_country_specific' => 'boolean',
             'is_inheritable' => 'boolean',
+            'is_variant_attribute' => 'boolean',
+            'is_internal' => 'boolean',
             'parent_attribute_id' => 'nullable|uuid|exists:attributes,id',
             'position' => 'nullable|integer',
             'source_system' => 'nullable|string|max:50',

@@ -7,7 +7,7 @@ import { ArrowLeft, Save, Plus, Trash2, Image, Star, X, Search, Download } from 
 import productsApi from '@/api/products'
 import mediaApi from '@/api/media'
 import { priceTypes, relationTypes } from '@/api/prices'
-import { productTypes } from '@/api/attributes'
+import attributesApiDefault, { productTypes } from '@/api/attributes'
 import hierarchiesApi from '@/api/hierarchies'
 import PimCollectionGroup from '@/components/shared/PimCollectionGroup.vue'
 import PimAttributeInput from '@/components/shared/PimAttributeInput.vue'
@@ -30,6 +30,7 @@ const selectedHierarchyId = ref(null)
 
 const tabs = [
   { key: 'attributes', label: t('product.attributes') },
+  { key: 'variant-attributes', label: 'Varianten-Attribute' },
   { key: 'variants', label: t('product.variants') },
   { key: 'media', label: t('product.media') },
   { key: 'prices', label: t('product.prices') },
@@ -76,6 +77,7 @@ async function loadAttributeData() {
         data_type: ra.data_type,
         is_mandatory: ra.is_mandatory,
         is_translatable: ra.is_translatable,
+        is_variant_attribute: ra.is_variant_attribute || false,
         group: ra.collection_name || 'Vererbte Attribute',
         _source: ra.source,
         _is_inherited: ra.is_inherited,
@@ -118,12 +120,23 @@ const schemaAttributes = computed(() => {
 })
 
 const attributeGroups = computed(() => {
-  const attrs = schemaAttributes.value
+  const attrs = schemaAttributes.value.filter(a => !a.is_variant_attribute)
   if (attrs.length === 0) return []
-  // Group by attribute_type
   const groups = {}
   for (const attr of attrs) {
     const groupName = attr.attribute_type?.name_de || attr.group || 'Weitere Attribute'
+    if (!groups[groupName]) groups[groupName] = []
+    groups[groupName].push(attr)
+  }
+  return Object.entries(groups).map(([name, attributes]) => ({ name, attributes }))
+})
+
+const variantAttributeGroups = computed(() => {
+  const attrs = schemaAttributes.value.filter(a => a.is_variant_attribute)
+  if (attrs.length === 0) return []
+  const groups = {}
+  for (const attr of attrs) {
+    const groupName = attr.attribute_type?.name_de || attr.group || 'Varianten-Attribute'
     if (!groups[groupName]) groups[groupName] = []
     groups[groupName].push(attr)
   }
@@ -139,12 +152,34 @@ const variantForm = ref({ sku: '', name: '', ean: '', status: 'draft' })
 const variantErrors = ref({})
 const variantSaving = ref(false)
 
-const variantColumns = [
-  { key: 'sku', label: 'SKU', mono: true },
-  { key: 'name', label: 'Name' },
-  { key: 'status', label: 'Status' },
-  { key: 'product_type_ref', label: 'Typ' },
-]
+const variantAttributeDefs = ref([])
+const variantAttrValuesMap = ref({})
+
+const variantColumns = computed(() => {
+  const base = [
+    { key: 'sku', label: 'SKU', mono: true },
+    { key: 'name', label: 'Name' },
+    { key: 'status', label: 'Status' },
+  ]
+  for (const attr of variantAttributeDefs.value) {
+    base.push({ key: `_va_${attr.id}`, label: attr.name_de || attr.technical_name })
+  }
+  return base
+})
+
+const variantRows = computed(() => {
+  return variants.value.map(v => {
+    const row = { ...v }
+    for (const attr of variantAttributeDefs.value) {
+      const vals = variantAttrValuesMap.value[v.id] || []
+      const attrVal = vals.find(av => (av.attribute_id || av.attribute?.id) === attr.id)
+      row[`_va_${attr.id}`] = attrVal
+        ? (attrVal.value_string ?? attrVal.value_number ?? attrVal.value_date ?? (attrVal.value_flag !== null ? (attrVal.value_flag ? 'Ja' : 'Nein') : '') ?? '')
+        : ''
+    }
+    return row
+  })
+})
 
 async function loadVariants() {
   if (variantsLoaded.value || !product.value) return
@@ -153,6 +188,28 @@ async function loadVariants() {
     const { data } = await productsApi.getVariants(product.value.id)
     variants.value = data.data || data
     variantsLoaded.value = true
+
+    // Load variant attribute definitions
+    try {
+      const { data: attrData } = await attributesApiDefault.listVariantAttributes()
+      variantAttributeDefs.value = attrData.data || attrData
+    } catch { /* no variant attributes */ }
+
+    // Load attribute values for each variant
+    if (variantAttributeDefs.value.length > 0 && variants.value.length > 0) {
+      const promises = variants.value.map(async (v) => {
+        try {
+          const { data: valData } = await productsApi.getAttributeValues(v.id)
+          return { id: v.id, values: valData.data || valData }
+        } catch { return { id: v.id, values: [] } }
+      })
+      const results = await Promise.all(promises)
+      const map = {}
+      for (const r of results) {
+        map[r.id] = Array.isArray(r.values) ? r.values : []
+      }
+      variantAttrValuesMap.value = map
+    }
   } catch { /* silently fail */ }
   finally { variantsLoading.value = false }
 }
@@ -434,6 +491,34 @@ async function loadPreview() {
   finally { previewLoading.value = false }
 }
 
+const previewVariantColumns = computed(() => {
+  const base = [
+    { key: 'sku', label: 'SKU', mono: true },
+    { key: 'name', label: 'Name' },
+    { key: 'ean', label: 'EAN', mono: true },
+    { key: 'status', label: 'Status' },
+  ]
+  if (previewData.value?.variants?.[0]?.variant_attributes?.length) {
+    for (const va of previewData.value.variants[0].variant_attributes) {
+      base.push({ key: `_pva_${va.label}`, label: va.label })
+    }
+  }
+  return base
+})
+
+const previewVariantRows = computed(() => {
+  if (!previewData.value?.variants) return []
+  return previewData.value.variants.map(v => {
+    const row = { ...v }
+    if (v.variant_attributes) {
+      for (const va of v.variant_attributes) {
+        row[`_pva_${va.label}`] = va.value ? `${va.value}${va.unit ? ' ' + va.unit : ''}` : '—'
+      }
+    }
+    return row
+  })
+})
+
 const excelLoading = ref(false)
 const pdfLoading = ref(false)
 const downloadError = ref(null)
@@ -551,6 +636,7 @@ async function onHierarchyChange(hierarchyId) {
 // ─── Tab lazy loading ─────────────────────────────────
 watch(activeTab, (tab) => {
   if (tab === 'attributes') loadAttributeData()
+  if (tab === 'variant-attributes') loadAttributeData()
   if (tab === 'variants') loadVariants()
   if (tab === 'media') loadMedia()
   if (tab === 'prices') loadPrices()
@@ -708,6 +794,40 @@ onMounted(async () => {
       </PimCollectionGroup>
     </div>
 
+    <!-- ═══ Variant Attributes Tab ═══ -->
+    <div v-else-if="activeTab === 'variant-attributes' && product" class="space-y-3">
+      <template v-if="variantAttributeGroups.length > 0">
+        <PimCollectionGroup
+          v-for="group in variantAttributeGroups"
+          :key="group.name"
+          :title="group.name"
+          :filledCount="group.attributes.filter(a => attributeValues[a.id]).length"
+          :totalCount="group.attributes.length"
+          :defaultOpen="true"
+        >
+          <div class="space-y-3 pt-3">
+            <div v-for="attr in group.attributes" :key="attr.id">
+              <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">
+                {{ attr.name_de || attr.technical_name }}
+                <span v-if="attr.is_mandatory" class="text-[var(--color-error)]">*</span>
+                <span v-if="attr._is_inherited" class="ml-1 text-[10px] text-blue-500 font-normal">(vererbt)</span>
+              </label>
+              <PimAttributeInput
+                :type="mapDataTypeToInput(attr.data_type)"
+                :modelValue="attributeValues[attr.id]"
+                :options="attr.value_list?.entries?.map(e => ({ value: e.id, label: e.value_de || e.label_de || e.code })) || []"
+                :disabled="attr._access === 'read_only'"
+                @update:modelValue="attributeValues[attr.id] = $event"
+              />
+            </div>
+          </div>
+        </PimCollectionGroup>
+      </template>
+      <div v-else class="pim-card p-12 text-center">
+        <p class="text-sm text-[var(--color-text-tertiary)]">Keine Varianten-Attribute zugewiesen</p>
+      </div>
+    </div>
+
     <!-- ═══ Variants Tab ═══ -->
     <div v-else-if="activeTab === 'variants' && product" class="space-y-3">
       <div class="flex items-center justify-between">
@@ -749,7 +869,7 @@ onMounted(async () => {
 
       <PimTable
         :columns="variantColumns"
-        :rows="variants"
+        :rows="variantRows"
         :loading="variantsLoading"
         emptyText="Keine Varianten vorhanden"
         @row-click="(row) => router.push(`/products/${row.id}`)"
@@ -758,9 +878,6 @@ onMounted(async () => {
           <span :class="['pim-badge', value === 'active' ? 'bg-[var(--color-success-light)] text-[var(--color-success)]' : 'bg-[var(--color-bg)] text-[var(--color-text-tertiary)]']">
             {{ value === 'active' ? 'Aktiv' : 'Entwurf' }}
           </span>
-        </template>
-        <template #cell-product_type_ref="{ value }">
-          <span class="pim-badge bg-purple-100 text-purple-700 text-[10px]">Variante</span>
         </template>
       </PimTable>
     </div>
@@ -1213,13 +1330,8 @@ onMounted(async () => {
         >
           <div class="pt-3">
             <PimTable
-              :columns="[
-                { key: 'sku', label: 'SKU', mono: true },
-                { key: 'name', label: 'Name' },
-                { key: 'ean', label: 'EAN', mono: true },
-                { key: 'status', label: 'Status' },
-              ]"
-              :rows="previewData.variants"
+              :columns="previewVariantColumns"
+              :rows="previewVariantRows"
               emptyText="Keine Varianten"
             >
               <template #cell-status="{ value }">

@@ -189,6 +189,8 @@ class HierarchyInheritanceService
                 'a.is_translatable',
                 'a.is_mandatory',
                 'a.is_inheritable',
+                'a.is_variant_attribute',
+                'a.is_internal',
                 'hn.depth as node_depth',
             ])
             ->orderBy('hn.depth', 'asc')

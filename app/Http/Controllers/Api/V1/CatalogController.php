@@ -116,16 +116,15 @@ class CatalogController extends BaseController
 
         $paginated = $query->paginate($perPage);
 
-        return response()->json([
-            'data' => CatalogProductResource::collection($paginated->items())
-                ->additional(['lang' => $lang])
-                ->resolve(),
-            'meta' => [
-                'current_page' => $paginated->currentPage(),
-                'last_page' => $paginated->lastPage(),
-                'per_page' => $paginated->perPage(),
-                'total' => $paginated->total(),
-            ],
+        $data = CatalogProductResource::collection($paginated->items())
+            ->additional(['lang' => $lang])
+            ->resolve();
+
+        return response()->json($data, 200, [
+            'X-Total-Count' => (string) $paginated->total(),
+            'X-Current-Page' => (string) $paginated->currentPage(),
+            'X-Last-Page' => (string) $paginated->lastPage(),
+            'X-Per-Page' => (string) $paginated->perPage(),
         ]);
     }
 
@@ -152,6 +151,7 @@ class CatalogController extends BaseController
                 'attributeValues.attribute',
                 'attributeValues.valueListEntry',
                 'attributeValues.unit',
+                'variants',
             ])
             ->findOrFail($productId);
 
@@ -208,6 +208,7 @@ class CatalogController extends BaseController
                 'attributeValues.attribute',
                 'attributeValues.valueListEntry',
                 'attributeValues.unit',
+                'variants',
             ])
             ->findOrFail($productId);
 
@@ -327,10 +328,10 @@ class CatalogController extends BaseController
                 'waehrung' => $product->prices->first()?->currency ?? 'EUR',
             ];
 
-            // Flatten all attribute values into the row
+            // Flatten all attribute values into the row (exclude internal attributes)
             foreach ($product->attributeValues as $attrValue) {
                 $attr = $attrValue->attribute;
-                if (!$attr) {
+                if (!$attr || $attr->is_internal) {
                     continue;
                 }
 
@@ -345,15 +346,13 @@ class CatalogController extends BaseController
             return $row;
         })->values();
 
-        return response()->json([
-            'meta' => [
-                'start' => $start,
-                'limit' => $limit,
-                'count' => $flatProducts->count(),
-                'total' => $totalCount,
-            ],
-            'data' => $flatProducts,
-        ], 200, ['Content-Type' => 'application/json'], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+        return response()->json($flatProducts->values(), 200, [
+            'Content-Type' => 'application/json',
+            'X-Total-Count' => (string) $totalCount,
+            'X-Start' => (string) $start,
+            'X-Limit' => (string) $limit,
+            'X-Count' => (string) $flatProducts->count(),
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
     }
 
     /**

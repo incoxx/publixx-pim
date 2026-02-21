@@ -21,7 +21,8 @@ class AttributeController extends Controller
 
     private const ALLOWED_FILTERS = [
         'status', 'data_type', 'attribute_type_id', 'is_translatable',
-        'is_searchable', 'is_mandatory', 'is_inheritable', 'source_system',
+        'is_searchable', 'is_mandatory', 'is_inheritable', 'is_variant_attribute',
+        'is_internal', 'source_system',
     ];
 
     public function index(Request $request): AnonymousResourceCollection

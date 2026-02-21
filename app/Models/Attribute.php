@@ -39,6 +39,8 @@ class Attribute extends Model
         'is_unique',
         'is_country_specific',
         'is_inheritable',
+        'is_variant_attribute',
+        'is_internal',
         'parent_attribute_id',
         'position',
         'source_system',
@@ -62,6 +64,8 @@ class Attribute extends Model
             'is_unique' => 'boolean',
             'is_country_specific' => 'boolean',
             'is_inheritable' => 'boolean',
+            'is_variant_attribute' => 'boolean',
+            'is_internal' => 'boolean',
             'position' => 'integer',
         ];
     }
