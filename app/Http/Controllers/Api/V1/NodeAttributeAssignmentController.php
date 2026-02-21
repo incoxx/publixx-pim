@@ -8,6 +8,7 @@ use App\Http\Requests\Api\V1\StoreNodeAttributeAssignmentRequest;
 use App\Http\Requests\Api\V1\UpdateNodeAttributeAssignmentRequest;
 use App\Http\Requests\Api\V1\BulkSortNodeAttributeAssignmentRequest;
 use App\Http\Resources\Api\V1\NodeAttributeAssignmentResource;
+use App\Models\Attribute;
 use App\Models\HierarchyNode;
 use App\Models\HierarchyNodeAttributeAssignment;
 use Illuminate\Http\JsonResponse;
@@ -63,6 +64,12 @@ class NodeAttributeAssignmentController extends Controller
         // Notify Inheritance Agent
         event(new \App\Events\HierarchyAttributeChanged($hierarchyNode->id, $data['attribute_id']));
 
+        // Auto-assign child attributes for Composite attributes
+        $attribute = Attribute::find($data['attribute_id']);
+        if ($attribute && $attribute->data_type === 'Composite') {
+            $this->autoAssignCompositeChildren($assignment, $attribute, $hierarchyNode);
+        }
+
         return (new NodeAttributeAssignmentResource($assignment))
             ->response()
             ->setStatusCode(201);
@@ -90,9 +97,17 @@ class NodeAttributeAssignmentController extends Controller
         $nodeId = $nodeAttributeAssignment->hierarchy_node_id;
         $attrId = $nodeAttributeAssignment->attribute_id;
 
+        // Collect child assignment attribute IDs for events (before cascade delete)
+        $childAttrIds = $nodeAttributeAssignment->childAssignments()->pluck('attribute_id')->all();
+
         $nodeAttributeAssignment->delete();
 
         event(new \App\Events\HierarchyAttributeChanged($nodeId, $attrId));
+
+        // Fire events for cascade-deleted child assignments
+        foreach ($childAttrIds as $childAttrId) {
+            event(new \App\Events\HierarchyAttributeChanged($nodeId, $childAttrId));
+        }
 
         return response()->json(null, 204);
     }
@@ -117,6 +132,37 @@ class NodeAttributeAssignmentController extends Controller
         });
 
         return response()->json(['message' => 'Sort order updated.']);
+    }
+
+    /**
+     * Auto-assign all child attributes of a Composite to the same hierarchy node.
+     */
+    private function autoAssignCompositeChildren(
+        HierarchyNodeAttributeAssignment $parentAssignment,
+        Attribute $compositeAttribute,
+        HierarchyNode $node,
+    ): void {
+        $children = $compositeAttribute->childAttributes()->orderBy('position')->get();
+        $sortIndex = 1;
+
+        foreach ($children as $child) {
+            HierarchyNodeAttributeAssignment::create([
+                'hierarchy_node_id' => $node->id,
+                'attribute_id' => $child->id,
+                'collection_name' => $parentAssignment->collection_name,
+                'collection_sort' => $parentAssignment->collection_sort,
+                'attribute_sort' => ($parentAssignment->attribute_sort ?? 0) + $sortIndex,
+                'dont_inherit' => $parentAssignment->dont_inherit ?? false,
+                'access_hierarchy' => $parentAssignment->access_hierarchy,
+                'access_product' => $parentAssignment->access_product,
+                'access_variant' => $parentAssignment->access_variant,
+                'parent_assignment_id' => $parentAssignment->id,
+            ]);
+
+            event(new \App\Events\HierarchyAttributeChanged($node->id, $child->id));
+
+            $sortIndex++;
+        }
     }
 
     private function getAncestorNodeIds(HierarchyNode $node): array

@@ -23,6 +23,7 @@ class NodeAttributeAssignmentResource extends JsonResource
             'access_hierarchy' => $this->access_hierarchy,
             'access_product' => $this->access_product,
             'access_variant' => $this->access_variant,
+            'parent_assignment_id' => $this->parent_assignment_id,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

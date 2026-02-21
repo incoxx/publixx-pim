@@ -26,7 +26,7 @@ class UpdateAttributeRequest extends FormRequest
             'name_json' => 'nullable|array',
             'description_de' => 'nullable|string',
             'description_en' => 'nullable|string',
-            'data_type' => 'sometimes|in:String,Number,Float,Date,Flag,Selection,Dictionary,Collection',
+            'data_type' => 'sometimes|in:String,Number,Float,Date,Flag,Selection,Dictionary,Collection,Composite',
             'attribute_type_id' => 'nullable|uuid|exists:attribute_types,id',
             'value_list_id' => 'nullable|uuid|exists:value_lists,id',
             'unit_group_id' => 'nullable|uuid|exists:unit_groups,id',

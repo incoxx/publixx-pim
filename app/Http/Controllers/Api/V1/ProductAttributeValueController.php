@@ -95,6 +95,8 @@ class ProductAttributeValueController extends Controller
                 'data_type' => $assignment->data_type,
                 'is_translatable' => (bool) $assignment->is_translatable,
                 'is_mandatory' => (bool) $assignment->is_mandatory,
+                'is_variant_attribute' => (bool) ($assignment->is_variant_attribute ?? false),
+                'parent_attribute_id' => $assignment->parent_attribute_id ?? null,
                 'collection_name' => $assignment->collection_name,
                 'collection_sort' => $assignment->collection_sort,
                 'attribute_sort' => $assignment->attribute_sort,
@@ -124,6 +126,12 @@ class ProductAttributeValueController extends Controller
         DB::transaction(function () use ($product, $values, &$changedAttributeIds) {
             foreach ($values as $entry) {
                 $attribute = Attribute::findOrFail($entry['attribute_id']);
+
+                // Skip Composite attributes — they are containers with no own value
+                if ($attribute->data_type === 'Composite') {
+                    continue;
+                }
+
                 $language = $entry['language'] ?? null;
                 $multipliedIndex = $entry['multiplied_index'] ?? 0;
 
@@ -189,6 +197,7 @@ class ProductAttributeValueController extends Controller
                 'value_selection_id' => $entry['value_selection_id'] ?? null,
             ]),
             'Collection' => array_merge($columns, ['value_string' => is_array($value) ? json_encode($value) : (string) $value]),
+            'Composite' => $columns,
             default => array_merge($columns, ['value_string' => (string) $value]),
         };
     }
