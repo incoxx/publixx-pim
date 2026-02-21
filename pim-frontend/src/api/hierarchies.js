@@ -41,6 +41,10 @@ export default {
     return client.put(`/hierarchy-nodes/${nodeId}/move`, data)
   },
 
+  duplicateNode(nodeId) {
+    return client.post(`/hierarchy-nodes/${nodeId}/duplicate`)
+  },
+
   // Node attributes
   getNodeAttributes(nodeId, options = {}) {
     return client.get(`/hierarchy-nodes/${nodeId}/attributes`, { params: buildParams(options) })

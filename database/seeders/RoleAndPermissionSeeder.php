@@ -27,7 +27,7 @@ class RoleAndPermissionSeeder extends Seeder
             // Attributtypen
             'attribute-types.view', 'attribute-types.create', 'attribute-types.edit', 'attribute-types.delete',
             // Hierarchien
-            'hierarchies.view', 'hierarchies.edit',
+            'hierarchies.view', 'hierarchies.create', 'hierarchies.edit', 'hierarchies.delete',
             'hierarchy-nodes.view', 'hierarchy-nodes.create', 'hierarchy-nodes.edit', 'hierarchy-nodes.delete', 'hierarchy-nodes.move',
             // Einheitengruppen & Einheiten
             'unit-groups.view', 'unit-groups.create', 'unit-groups.edit', 'unit-groups.delete',
@@ -77,7 +77,7 @@ class RoleAndPermissionSeeder extends Seeder
             'attributes.view', 'attributes.create', 'attributes.edit', 'attributes.delete',
             'attribute-types.view', 'attribute-types.create', 'attribute-types.edit', 'attribute-types.delete',
             'product-types.view', 'product-types.create', 'product-types.edit', 'product-types.delete',
-            'hierarchies.view', 'hierarchies.edit',
+            'hierarchies.view', 'hierarchies.create', 'hierarchies.edit', 'hierarchies.delete',
             'hierarchy-nodes.view', 'hierarchy-nodes.create', 'hierarchy-nodes.edit', 'hierarchy-nodes.delete', 'hierarchy-nodes.move',
             'unit-groups.view', 'unit-groups.create', 'unit-groups.edit', 'unit-groups.delete',
             'units.view', 'units.create', 'units.edit', 'units.delete',

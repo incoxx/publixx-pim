@@ -153,6 +153,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
         ->shallow()
         ->parameters(['nodes' => 'hierarchy_node']);
     Route::put('hierarchy-nodes/{hierarchy_node}/move', [HierarchyNodeController::class, 'move']);
+    Route::post('hierarchy-nodes/{hierarchy_node}/duplicate', [HierarchyNodeController::class, 'duplicate']);
 
     // =====================================================================
     // Agent 3: Hierarchy Node — Attribute Assignments

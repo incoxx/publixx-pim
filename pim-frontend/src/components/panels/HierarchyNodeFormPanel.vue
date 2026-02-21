@@ -63,6 +63,13 @@ async function handleSubmit(data) {
       for (const [key, val] of Object.entries(serverErrors)) {
         errors.value[key] = Array.isArray(val) ? val[0] : val
       }
+      if (e.response.data.message && !Object.keys(serverErrors).length) {
+        errors.value._general = e.response.data.message
+      }
+    } else if (e.response?.status === 403) {
+      errors.value._general = 'Keine Berechtigung für diese Aktion.'
+    } else {
+      errors.value._general = e.response?.data?.message || 'Ein Fehler ist aufgetreten.'
     }
   } finally {
     loading.value = false
@@ -75,6 +82,9 @@ async function handleSubmit(data) {
     <h3 class="text-sm font-semibold text-[var(--color-text-primary)] mb-4">
       {{ isEdit ? 'Knoten bearbeiten' : 'Neuer Knoten' }}
     </h3>
+    <p v-if="errors._general" class="mb-3 text-[12px] text-[var(--color-error)] bg-[var(--color-error-light)] px-3 py-2 rounded-lg">
+      {{ errors._general }}
+    </p>
     <PimForm
       :fields="fields"
       :modelValue="formData"
