@@ -21,6 +21,7 @@ class ValueListResource extends JsonResource
             'value_data_type' => $this->value_data_type,
             'max_depth' => $this->max_depth,
             'entries' => ValueListEntryResource::collection($this->whenLoaded('entries')),
+            'attributes' => AttributeResource::collection($this->whenLoaded('attributes')),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

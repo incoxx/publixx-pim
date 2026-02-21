@@ -14,7 +14,7 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class ValueListController extends Controller
 {
-    private const ALLOWED_INCLUDES = ['entries'];
+    private const ALLOWED_INCLUDES = ['entries', 'attributes'];
 
     public function index(Request $request): AnonymousResourceCollection
     {
