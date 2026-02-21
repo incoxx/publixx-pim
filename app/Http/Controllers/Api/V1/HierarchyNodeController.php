@@ -144,6 +144,75 @@ class HierarchyNodeController extends Controller
         return new HierarchyNodeResource($hierarchyNode->fresh());
     }
 
+    /**
+     * POST /hierarchy-nodes/{node}/duplicate — deep-copy a node and all descendants.
+     */
+    public function duplicate(HierarchyNode $hierarchyNode): JsonResponse
+    {
+        $this->authorize('create', HierarchyNode::class);
+
+        $clone = $this->deepCopyNode($hierarchyNode, $hierarchyNode->parent_node_id, $hierarchyNode->hierarchy_id);
+
+        return (new HierarchyNodeResource($clone->load('children')))
+            ->response()
+            ->setStatusCode(201);
+    }
+
+    private function deepCopyNode(HierarchyNode $source, ?string $parentNodeId, string $hierarchyId): HierarchyNode
+    {
+        $clone = HierarchyNode::create([
+            'hierarchy_id'   => $hierarchyId,
+            'parent_node_id' => $parentNodeId,
+            'name_de'        => $source->name_de . ' (Kopie)',
+            'name_en'        => $source->name_en ? $source->name_en . ' (Copy)' : null,
+            'name_json'      => $source->name_json,
+            'sort_order'     => $source->sort_order + 1,
+            'is_active'      => $source->is_active,
+            'depth'          => $parentNodeId
+                ? (HierarchyNode::find($parentNodeId)?->depth ?? 0) + 1
+                : 0,
+        ]);
+
+        $clone->path = $this->buildPath($clone);
+        $clone->save();
+
+        // Copy attribute assignments
+        foreach ($source->attributeAssignments()->whereNull('parent_assignment_id')->get() as $assignment) {
+            $newAssignment = $clone->attributeAssignments()->create([
+                'attribute_id'      => $assignment->attribute_id,
+                'collection_name'   => $assignment->collection_name,
+                'collection_sort'   => $assignment->collection_sort,
+                'attribute_sort'    => $assignment->attribute_sort,
+                'dont_inherit'      => $assignment->dont_inherit,
+                'access_hierarchy'  => $assignment->access_hierarchy,
+                'access_product'    => $assignment->access_product,
+                'access_variant'    => $assignment->access_variant,
+            ]);
+
+            // Copy child assignments (for composite attributes)
+            foreach ($assignment->childAssignments as $childAssignment) {
+                $clone->attributeAssignments()->create([
+                    'attribute_id'         => $childAssignment->attribute_id,
+                    'collection_name'      => $childAssignment->collection_name,
+                    'collection_sort'      => $childAssignment->collection_sort,
+                    'attribute_sort'       => $childAssignment->attribute_sort,
+                    'dont_inherit'         => $childAssignment->dont_inherit,
+                    'access_hierarchy'     => $childAssignment->access_hierarchy,
+                    'access_product'       => $childAssignment->access_product,
+                    'access_variant'       => $childAssignment->access_variant,
+                    'parent_assignment_id' => $newAssignment->id,
+                ]);
+            }
+        }
+
+        // Recursively copy children
+        foreach ($source->children()->orderBy('sort_order')->get() as $child) {
+            $this->deepCopyNode($child, $clone->id, $hierarchyId);
+        }
+
+        return $clone;
+    }
+
     private function buildPath(HierarchyNode $node): string
     {
         if ($node->parent_node_id === null) {

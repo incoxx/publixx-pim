@@ -33,9 +33,11 @@ const fields = computed(() => [
   { key: 'name_en', label: 'Name (EN)', type: 'text' },
   {
     key: 'hierarchy_type', label: 'Typ', type: 'select', required: true,
+    disabled: isEdit.value,
     options: [
       { value: 'master', label: 'Master' },
       { value: 'output', label: 'Output' },
+      { value: 'asset', label: 'Asset' },
     ],
   },
   { key: 'description', label: 'Beschreibung', type: 'textarea' },
@@ -61,6 +63,13 @@ async function handleSubmit(data) {
       for (const [key, val] of Object.entries(serverErrors)) {
         errors.value[key] = Array.isArray(val) ? val[0] : val
       }
+      if (e.response.data.message && !Object.keys(serverErrors).length) {
+        errors.value._general = e.response.data.message
+      }
+    } else if (e.response?.status === 403) {
+      errors.value._general = 'Keine Berechtigung für diese Aktion.'
+    } else {
+      errors.value._general = e.response?.data?.message || 'Ein Fehler ist aufgetreten.'
     }
   } finally {
     loading.value = false
@@ -73,6 +82,9 @@ async function handleSubmit(data) {
     <h3 class="text-sm font-semibold text-[var(--color-text-primary)] mb-4">
       {{ isEdit ? 'Hierarchie bearbeiten' : 'Neue Hierarchie' }}
     </h3>
+    <p v-if="errors._general" class="mb-3 text-[12px] text-[var(--color-error)] bg-[var(--color-error-light)] px-3 py-2 rounded-lg">
+      {{ errors._general }}
+    </p>
     <PimForm
       :fields="fields"
       :modelValue="formData"

@@ -31,9 +31,19 @@ class HierarchyPolicy
         return $user->hasPermissionTo('hierarchies.view');
     }
 
+    public function create(User $user): bool
+    {
+        return $user->hasPermissionTo('hierarchies.create');
+    }
+
     public function update(User $user, Hierarchy $hierarchy): bool
     {
         return $user->hasPermissionTo('hierarchies.edit');
+    }
+
+    public function delete(User $user, Hierarchy $hierarchy): bool
+    {
+        return $user->hasPermissionTo('hierarchies.delete');
     }
 
     public function createNode(User $user): bool

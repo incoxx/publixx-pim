@@ -11,6 +11,8 @@ export const useHierarchyStore = defineStore('hierarchies', () => {
   const loading = ref(false)
   const error = ref(null)
 
+  const isMasterHierarchy = computed(() => currentHierarchy.value?.hierarchy_type === 'master')
+
   async function fetchHierarchies(options = {}) {
     loading.value = true
     try {
@@ -36,6 +38,20 @@ export const useHierarchyStore = defineStore('hierarchies', () => {
     }
   }
 
+  async function createHierarchy(data) {
+    const { data: resp } = await hierarchiesApi.create(data)
+    return resp.data || resp
+  }
+
+  async function updateHierarchy(id, data) {
+    const { data: resp } = await hierarchiesApi.update(id, data)
+    return resp.data || resp
+  }
+
+  async function deleteHierarchy(id) {
+    await hierarchiesApi.delete(id)
+  }
+
   async function createNode(hierarchyId, nodeData) {
     const { data } = await hierarchiesApi.createNode(hierarchyId, nodeData)
     return data.data || data
@@ -57,6 +73,11 @@ export const useHierarchyStore = defineStore('hierarchies', () => {
     })
   }
 
+  async function duplicateNode(nodeId) {
+    const { data } = await hierarchiesApi.duplicateNode(nodeId)
+    return data.data || data
+  }
+
   function selectNode(node) {
     selectedNode.value = node
   }
@@ -75,7 +96,10 @@ export const useHierarchyStore = defineStore('hierarchies', () => {
 
   return {
     hierarchies, currentHierarchy, tree, selectedNode, expandedNodes, loading, error,
-    fetchHierarchies, fetchTree, createNode, updateNode, deleteNode, moveNode,
+    isMasterHierarchy,
+    fetchHierarchies, fetchTree,
+    createHierarchy, updateHierarchy, deleteHierarchy,
+    createNode, updateNode, deleteNode, moveNode, duplicateNode,
     selectNode, toggleExpanded, isExpanded,
   }
 })
