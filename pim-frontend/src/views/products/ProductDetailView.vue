@@ -7,7 +7,7 @@ import { ArrowLeft, Save, Plus, Trash2, Image, Star, X, Search, Download } from 
 import productsApi from '@/api/products'
 import mediaApi from '@/api/media'
 import { priceTypes, relationTypes } from '@/api/prices'
-import attributesApiDefault, { productTypes } from '@/api/attributes'
+import attributesApiDefault, { productTypes, valueLists } from '@/api/attributes'
 import hierarchiesApi from '@/api/hierarchies'
 import PimCollectionGroup from '@/components/shared/PimCollectionGroup.vue'
 import PimAttributeInput from '@/components/shared/PimAttributeInput.vue'
@@ -46,6 +46,7 @@ const product = computed(() => store.current)
 const schema = ref(null)
 const attributeValues = ref({})
 const attrLoaded = ref(false)
+const valueListMap = ref({})
 
 // ─── Composite Modal State ────────────────────────────
 const compositeModalOpen = ref(false)
@@ -80,6 +81,19 @@ function mapDataTypeToInput(backendType) {
   return map[backendType] || 'text'
 }
 
+function getSelectionOptions(attr) {
+  // Try embedded value_list entries first (from attribute API with include)
+  if (attr.value_list?.entries?.length) {
+    return attr.value_list.entries.map(e => ({ value: e.id, label: e.display_value_de || e.value_de || e.label_de || e.code || e.technical_name }))
+  }
+  // Fallback to valueListMap (loaded separately for resolved attributes)
+  const vlId = attr.value_list_id
+  if (vlId && valueListMap.value[vlId]?.entries?.length) {
+    return valueListMap.value[vlId].entries.map(e => ({ value: e.id, label: e.display_value_de || e.value_de || e.label_de || e.code || e.technical_name }))
+  }
+  return []
+}
+
 async function loadAttributeData() {
   if (attrLoaded.value || !product.value) return
   try {
@@ -100,6 +114,7 @@ async function loadAttributeData() {
         name_de: ra.attribute_name_de || ra.attribute_technical_name,
         name_en: ra.attribute_name_en,
         data_type: ra.data_type,
+        value_list_id: ra.value_list_id || null,
         is_mandatory: ra.is_mandatory,
         is_translatable: ra.is_translatable,
         is_variant_attribute: ra.is_variant_attribute || false,
@@ -134,6 +149,21 @@ async function loadAttributeData() {
       }
     }
     attrLoaded.value = true
+
+    // Load value lists for Selection-type attributes
+    const selectionAttrs = (Array.isArray(schema.value) ? schema.value : schema.value?.attributes || [])
+      .filter(a => a.data_type === 'Selection' && a.value_list_id)
+    if (selectionAttrs.length > 0) {
+      try {
+        const { data: vlData } = await valueLists.list({ include: 'entries', perPage: 200 })
+        const allLists = vlData.data || vlData
+        const map = {}
+        for (const vl of allLists) {
+          map[vl.id] = vl
+        }
+        valueListMap.value = map
+      } catch { /* silently fail */ }
+    }
   } catch { /* silently fail */ }
 }
 
@@ -881,7 +911,7 @@ watch(() => route.params.id, async (newId, oldId) => {
               v-else
               :type="mapDataTypeToInput(attr.data_type)"
               :modelValue="attributeValues[attr.id]"
-              :options="attr.value_list?.entries?.map(e => ({ value: e.id, label: e.value_de || e.label_de || e.code })) || []"
+              :options="getSelectionOptions(attr)"
               :disabled="attr._access === 'read_only'"
               @update:modelValue="attributeValues[attr.id] = $event"
             />
@@ -921,7 +951,7 @@ watch(() => route.params.id, async (newId, oldId) => {
               <PimAttributeInput
                 :type="mapDataTypeToInput(attr.data_type)"
                 :modelValue="attributeValues[attr.id]"
-                :options="attr.value_list?.entries?.map(e => ({ value: e.id, label: e.value_de || e.label_de || e.code })) || []"
+                :options="getSelectionOptions(attr)"
                 :disabled="attr._access === 'read_only'"
                 @update:modelValue="attributeValues[attr.id] = $event"
               />

@@ -22,6 +22,7 @@ const columns = [
   { key: 'code', label: 'Code', sortable: true, mono: true },
   { key: 'name_de', label: 'Name (DE)', sortable: true },
   { key: 'data_type', label: 'Datentyp', sortable: true },
+  { key: 'value_list.name_de', label: 'Werteliste' },
   { key: 'is_required', label: 'Pflicht' },
   { key: 'is_searchable', label: 'Suchbar' },
   { key: 'attribute_type.name_de', label: 'Gruppe' },

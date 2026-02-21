@@ -2,7 +2,7 @@
 import { ref, onMounted, markRaw, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { valueLists } from '@/api/attributes'
-import { Plus, ChevronLeft, Trash2, ArrowUp, ArrowDown, Check, X } from 'lucide-vue-next'
+import { Plus, ChevronLeft, Trash2, ArrowUp, ArrowDown, Check, X, Link } from 'lucide-vue-next'
 import PimTable from '@/components/shared/PimTable.vue'
 import PimFilterBar from '@/components/shared/PimFilterBar.vue'
 import PimConfirmDialog from '@/components/shared/PimConfirmDialog.vue'
@@ -22,6 +22,9 @@ const entriesLoading = ref(false)
 const deleteEntryTarget = ref(null)
 const deletingEntry = ref(false)
 
+// Linked attributes
+const linkedAttributes = ref([])
+
 // Inline add
 const showAddRow = ref(false)
 const newEntry = ref({ technical_name: '', display_value_de: '', display_value_en: '', sort_order: 0 })
@@ -40,7 +43,7 @@ const columns = [
 async function fetchLists() {
   loading.value = true
   try {
-    const { data } = await valueLists.list({ include: 'entries', search: search.value || undefined })
+    const { data } = await valueLists.list({ include: 'entries,attributes', search: search.value || undefined })
     items.value = (data.data || data).map(item => ({
       ...item,
       entries_count: item.entries?.length ?? item.entries_count ?? 0,
@@ -90,8 +93,13 @@ async function fetchEntries() {
 }
 
 watch(selectedList, (v) => {
-  if (v) fetchEntries()
-  else entries.value = []
+  if (v) {
+    fetchEntries()
+    linkedAttributes.value = v.attributes || []
+  } else {
+    entries.value = []
+    linkedAttributes.value = []
+  }
   editingEntryId.value = null
   showAddRow.value = false
 })
@@ -336,6 +344,37 @@ onMounted(() => fetchLists())
             </tr>
           </tbody>
         </table>
+      </div>
+
+      <!-- Linked attributes -->
+      <div class="mt-6">
+        <div class="flex items-center gap-2 mb-2">
+          <Link class="w-3.5 h-3.5 text-[var(--color-text-tertiary)]" :stroke-width="2" />
+          <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wider">Verknüpfte Attribute</h4>
+        </div>
+        <div class="pim-card overflow-hidden">
+          <table v-if="linkedAttributes.length > 0" class="w-full text-xs">
+            <thead>
+              <tr class="bg-[var(--color-bg)] text-[var(--color-text-secondary)] text-[10px] uppercase tracking-wider">
+                <th class="px-3 py-2 text-left">Code</th>
+                <th class="px-3 py-2 text-left">Name</th>
+                <th class="px-3 py-2 text-left">Datentyp</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="attr in linkedAttributes" :key="attr.id" class="border-t border-[var(--color-border)] hover:bg-[var(--color-bg)] transition-colors">
+                <td class="px-3 py-1.5 font-mono text-[var(--color-text-primary)]">{{ attr.technical_name }}</td>
+                <td class="px-3 py-1.5 text-[var(--color-text-primary)]">{{ attr.name_de || '—' }}</td>
+                <td class="px-3 py-1.5">
+                  <span class="pim-badge bg-[var(--color-bg)] text-[var(--color-text-secondary)]">{{ attr.data_type }}</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <div v-else class="px-3 py-4 text-center text-[var(--color-text-tertiary)] text-xs">
+            Keine Attribute verknüpft.
+          </div>
+        </div>
       </div>
     </div>
 
