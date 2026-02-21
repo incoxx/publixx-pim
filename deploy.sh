@@ -16,6 +16,7 @@ APP_DIR="/var/www/publixx-pim"
 APP_USER="www-data"
 BRANCH="main"
 FRONTEND_DIR="${APP_DIR}/pim-frontend"
+DOCS_DIR="${APP_DIR}/docs"
 PHP_FPM_SERVICE="php8.4-fpm"
 
 # ─── Colors ───────────────────────────────────────────────────────────────────
@@ -39,10 +40,10 @@ for arg in "$@"; do
         --help|-h)
             echo "Usage: sudo bash deploy.sh [--quick|--backend|--frontend]"
             echo ""
-            echo "  (default)    Full deploy: git pull, composer, migrate, frontend build, cache, restart"
+            echo "  (default)    Full deploy: git pull, composer, migrate, frontend + docs build, cache, restart"
             echo "  --quick      Quick: git pull, cache clear/rebuild, restart services"
-            echo "  --backend    Backend only: git pull, composer, migrate, cache, restart (no frontend)"
-            echo "  --frontend   Frontend only: git pull, npm install, build frontend"
+            echo "  --backend    Backend only: git pull, composer, migrate, cache, restart (no frontend/docs)"
+            echo "  --frontend   Frontend only: git pull, npm install, build frontend + docs"
             echo "  --help       Show this help"
             exit 0
             ;;
@@ -98,6 +99,16 @@ if [ "$MODE" = "full" ] || [ "$MODE" = "frontend" ]; then
         sudo -u "$APP_USER" npm run build
         echo ""
         cd "$APP_DIR"
+
+        # Build documentation
+        if [ -d "$DOCS_DIR" ] && [ -f "${DOCS_DIR}/package.json" ]; then
+            info "Building documentation..."
+            cd "$DOCS_DIR"
+            sudo -u "$APP_USER" npm ci --production=false
+            sudo -u "$APP_USER" npm run build
+            echo ""
+            cd "$APP_DIR"
+        fi
     else
         if [ ! -d "$FRONTEND_DIR" ]; then
             warn "Frontend directory not found, skipping frontend build."

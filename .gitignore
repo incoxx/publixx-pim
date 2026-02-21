@@ -21,6 +21,9 @@ yarn-error.log
 /.vscode
 /pim-frontend/node_modules
 /pim-frontend/dist
+/docs/node_modules
+/docs/.vitepress/dist
+/docs/.vitepress/cache
 /bootstrap/cache
 /storage/logs
 publixx_pim
