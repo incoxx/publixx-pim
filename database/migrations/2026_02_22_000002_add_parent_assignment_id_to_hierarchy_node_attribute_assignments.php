@@ -11,9 +11,13 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('hierarchy_node_attribute_assignments', function (Blueprint $table) {
-            $table->char('parent_assignment_id', 36)->nullable()->after('access_variant');
-            $table->foreign('parent_assignment_id')
-                ->references('id')->on('hierarchy_node_attribute_assignments')
+            if (!Schema::hasColumn('hierarchy_node_attribute_assignments', 'parent_assignment_id')) {
+                $table->char('parent_assignment_id', 36)->nullable()->after('access_variant');
+            }
+
+            $table->foreign('parent_assignment_id', 'hnaa_parent_assignment_fk')
+                ->references('id')
+                ->on('hierarchy_node_attribute_assignments')
                 ->onDelete('cascade');
         });
     }
@@ -21,7 +25,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('hierarchy_node_attribute_assignments', function (Blueprint $table) {
-            $table->dropForeign(['parent_assignment_id']);
+            $table->dropForeign('hnaa_parent_assignment_fk');
             $table->dropColumn('parent_assignment_id');
         });
     }
