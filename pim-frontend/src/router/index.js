@@ -21,7 +21,7 @@ const routes = [
   {
     path: '/search',
     name: 'search',
-    component: () => import('@/views/search/SearchView.vue'),
+    component: () => import('@/views/search/SearchWizardView.vue'),
     meta: { title: 'Suche' },
   },
   {

@@ -20,6 +20,24 @@ export default {
   delete(id) {
     return client.delete(`/attributes/${id}`)
   },
+
+  listSearchable() {
+    return client.get('/attributes', {
+      params: buildParams({
+        filters: { is_searchable: true, is_internal: false, status: 'active' },
+        perPage: 200,
+      }),
+    })
+  },
+
+  listVariantAttributes() {
+    return client.get('/attributes', {
+      params: buildParams({
+        filters: { is_variant_attribute: true, status: 'active' },
+        perPage: 200,
+      }),
+    })
+  },
 }
 
 export const attributeTypes = {

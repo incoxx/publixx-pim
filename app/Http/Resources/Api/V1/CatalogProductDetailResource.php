@@ -36,12 +36,12 @@ class CatalogProductDetailResource extends JsonResource
             ];
         })->values();
 
-        // Build attributes array from EAV values
+        // Build attributes array from EAV values — exclude internal attributes
         $attributes = $this->resource->attributeValues
             ->sortBy(fn ($v) => $v->attribute?->position ?? 999)
             ->map(function (ProductAttributeValue $attrValue) use ($lang) {
                 $attr = $attrValue->attribute;
-                if (!$attr) {
+                if (!$attr || $attr->is_internal) {
                     return null;
                 }
 
@@ -64,6 +64,9 @@ class CatalogProductDetailResource extends JsonResource
             ->filter()
             ->values();
 
+        // Build variants with their variant attribute values
+        $variants = $this->buildVariants($lang);
+
         return [
             'id' => $this->resource->id,
             'sku' => $this->resource->sku,
@@ -75,7 +78,56 @@ class CatalogProductDetailResource extends JsonResource
             'media' => $media,
             'prices' => $prices,
             'attributes' => $attributes,
+            'variants' => $variants,
         ];
+    }
+
+    private function buildVariants(string $lang): array
+    {
+        $product = $this->resource;
+
+        if (!$product->relationLoaded('variants') || $product->variants->isEmpty()) {
+            return [];
+        }
+
+        // Get variant attributes (non-internal, active)
+        $variantAttributes = Attribute::where('is_variant_attribute', true)
+            ->where('is_internal', false)
+            ->where('status', 'active')
+            ->orderBy('position')
+            ->get();
+
+        // Pre-load attribute values for all variants
+        $variantIds = $product->variants->pluck('id');
+        $allVariantValues = ProductAttributeValue::whereIn('product_id', $variantIds)
+            ->whereIn('attribute_id', $variantAttributes->pluck('id'))
+            ->with(['attribute', 'valueListEntry', 'unit'])
+            ->get()
+            ->groupBy('product_id');
+
+        return $product->variants->map(function ($variant) use ($variantAttributes, $allVariantValues, $lang) {
+            $variantAttrValues = $allVariantValues->get($variant->id, collect());
+
+            $variantAttrsOutput = $variantAttributes->map(function ($attr) use ($variantAttrValues, $lang) {
+                $attrValue = $variantAttrValues->firstWhere('attribute_id', $attr->id);
+                $label = $lang === 'en' && $attr->name_en ? $attr->name_en : $attr->name_de;
+
+                return [
+                    'label' => $label,
+                    'value' => $attrValue ? $this->resolveAttributeDisplayValue($attrValue, $attr, $lang) : null,
+                    'unit' => $attrValue?->unit?->abbreviation,
+                ];
+            })->values()->toArray();
+
+            return [
+                'id' => $variant->id,
+                'sku' => $variant->sku,
+                'ean' => $variant->ean,
+                'name' => $variant->name,
+                'status' => $variant->status,
+                'variant_attributes' => $variantAttrsOutput,
+            ];
+        })->values()->toArray();
     }
 
     private function resolveAttributeDisplayValue(ProductAttributeValue $attrValue, Attribute $attr, string $lang): ?string

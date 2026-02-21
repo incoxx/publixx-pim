@@ -107,6 +107,43 @@ function formatPrice(price) {
             </table>
           </div>
 
+          <!-- Variants -->
+          <div v-if="product.variants?.length" class="text-sm">
+            <h4 class="font-semibold text-base-content mb-2">Varianten</h4>
+            <div class="overflow-x-auto">
+              <table class="table table-xs table-zebra w-full">
+                <thead>
+                  <tr>
+                    <th class="text-base-content/60">SKU</th>
+                    <th class="text-base-content/60">Name</th>
+                    <th class="text-base-content/60">Status</th>
+                    <th
+                      v-for="va in (product.variants[0]?.variant_attributes || [])"
+                      :key="va.label"
+                      class="text-base-content/60"
+                    >
+                      {{ va.label }}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="variant in product.variants" :key="variant.id">
+                    <td class="font-mono text-base-content/70">{{ variant.sku }}</td>
+                    <td>{{ variant.name }}</td>
+                    <td>
+                      <span :class="['badge badge-sm', variant.status === 'active' ? 'badge-success' : 'badge-ghost']">
+                        {{ variant.status === 'active' ? 'Aktiv' : variant.status }}
+                      </span>
+                    </td>
+                    <td v-for="(va, idx) in (variant.variant_attributes || [])" :key="idx">
+                      {{ va.value || '—' }}<span v-if="va.unit" class="text-base-content/50 ml-1">{{ va.unit }}</span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
           <!-- Actions -->
           <div class="pt-4 border-t border-base-300 flex gap-2">
             <button

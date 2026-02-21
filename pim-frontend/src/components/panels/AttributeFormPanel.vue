@@ -31,6 +31,8 @@ const formData = ref(
         is_mandatory: false,
         is_unique: false,
         is_inheritable: false,
+        is_variant_attribute: false,
+        is_internal: false,
         description_de: '',
         status: 'active',
       }
@@ -70,6 +72,8 @@ const fields = computed(() => {
     { key: 'is_mandatory', label: 'Pflichtfeld', type: 'boolean' },
     { key: 'is_unique', label: 'Eindeutig', type: 'boolean' },
     { key: 'is_inheritable', label: 'Vererbbar', type: 'boolean' },
+    { key: 'is_variant_attribute', label: 'Varianten-Attribut', type: 'boolean' },
+    { key: 'is_internal', label: 'Intern', type: 'boolean' },
     { key: 'description_de', label: 'Beschreibung', type: 'textarea' },
   )
 

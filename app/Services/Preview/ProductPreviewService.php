@@ -94,6 +94,11 @@ class ProductPreviewService
         $sectionMap = [];
 
         foreach ($effectiveAttributes as $assignment) {
+            // Skip internal attributes in preview output
+            if (!empty($assignment->is_internal)) {
+                continue;
+            }
+
             $sectionName = $assignment->collection_name ?? ($lang === 'en' ? 'General' : 'Allgemein');
             $sectionSort = $assignment->collection_sort ?? 0;
 
@@ -221,13 +226,49 @@ class ProductPreviewService
 
     private function buildVariants(Product $product, string $lang): array
     {
-        return $product->variants->map(function ($variant) {
+        if ($product->variants->isEmpty()) {
+            return [];
+        }
+
+        // Get variant attributes (is_variant_attribute = true, not internal)
+        $variantAttributes = Attribute::where('is_variant_attribute', true)
+            ->where('is_internal', false)
+            ->where('status', 'active')
+            ->orderBy('position')
+            ->get();
+
+        // Pre-load attribute values for all variants
+        $variantIds = $product->variants->pluck('id');
+        $allVariantValues = ProductAttributeValue::whereIn('product_id', $variantIds)
+            ->whereIn('attribute_id', $variantAttributes->pluck('id'))
+            ->with(['attribute', 'valueListEntry', 'unit'])
+            ->get()
+            ->groupBy('product_id');
+
+        return $product->variants->map(function ($variant) use ($variantAttributes, $allVariantValues, $lang) {
+            $variantAttrValues = $allVariantValues->get($variant->id, collect());
+
+            $variantAttrsOutput = $variantAttributes->map(function ($attr) use ($variantAttrValues, $lang) {
+                $attrValue = $variantAttrValues->firstWhere('attribute_id', $attr->id);
+                $label = $lang === 'en' && $attr->name_en ? $attr->name_en : $attr->name_de;
+
+                return [
+                    'attribute_id' => $attr->id,
+                    'technical_name' => $attr->technical_name,
+                    'label' => $label,
+                    'value' => $attrValue ? $this->resolveDisplayValue($attrValue, $lang) : null,
+                    'unit' => $attrValue?->unit?->abbreviation,
+                    'data_type' => $attr->data_type,
+                ];
+            })->values()->toArray();
+
             return [
                 'id' => $variant->id,
                 'sku' => $variant->sku,
                 'ean' => $variant->ean,
                 'name' => $variant->name,
                 'status' => $variant->status,
+                'variant_attributes' => $variantAttrsOutput,
             ];
         })->values()->toArray();
     }

@@ -38,6 +38,8 @@ class AttributeResource extends JsonResource
             'is_unique' => $this->is_unique,
             'is_country_specific' => $this->is_country_specific,
             'is_inheritable' => $this->is_inheritable,
+            'is_variant_attribute' => $this->is_variant_attribute,
+            'is_internal' => $this->is_internal,
             'parent_attribute_id' => $this->parent_attribute_id,
             'children' => AttributeResource::collection($this->whenLoaded('children')),
             'position' => $this->position,
