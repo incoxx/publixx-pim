@@ -93,6 +93,7 @@ class ProductAttributeValueController extends Controller
                 'attribute_name_de' => $assignment->attribute_name_de,
                 'attribute_name_en' => $assignment->attribute_name_en,
                 'data_type' => $assignment->data_type,
+                'value_list_id' => $assignment->value_list_id ?? null,
                 'is_translatable' => (bool) $assignment->is_translatable,
                 'is_mandatory' => (bool) $assignment->is_mandatory,
                 'is_variant_attribute' => (bool) ($assignment->is_variant_attribute ?? false),
