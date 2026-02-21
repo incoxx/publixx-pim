@@ -45,7 +45,7 @@ const fields = computed(() => {
     { key: 'name_en', label: 'Name (EN)', type: 'text' },
     {
       key: 'data_type', label: 'Datentyp', type: 'select', required: true,
-      options: ['String', 'Number', 'Float', 'Date', 'Flag', 'Selection', 'Dictionary', 'Collection']
+      options: ['String', 'Number', 'Float', 'Date', 'Flag', 'Selection', 'Dictionary', 'Collection', 'Composite']
         .map(t => ({ value: t, label: t })),
     },
     {
@@ -59,6 +59,17 @@ const fields = computed(() => {
       key: 'value_list_id', label: 'Werteliste', type: 'select',
       options: [{ value: '', label: '— Keine —' }, ...store.lists.map(l => ({ value: l.id, label: l.name_de || l.technical_name }))],
     })
+  }
+
+  // Show parent attribute selector for non-composite attributes (to make them children of a composite)
+  if (formData.value.data_type !== 'Composite') {
+    const composites = store.items.filter(a => a.data_type === 'Composite' && a.id !== props.attribute?.id)
+    if (composites.length > 0) {
+      base.push({
+        key: 'parent_attribute_id', label: 'Übergeordnetes Composite-Attribut', type: 'select',
+        options: [{ value: '', label: '— Kein übergeordnetes Attribut —' }, ...composites.map(c => ({ value: c.id, label: c.name_de || c.technical_name }))],
+      })
+    }
   }
 
   base.push(

@@ -430,6 +430,9 @@ class ImportExecutor
 
     private function importProducts(array $rows, string $sheetKey): void
     {
+        // Resolve the 'name' attribute once for English name storage
+        $nameAttribute = Attribute::where('technical_name', 'name')->first();
+
         foreach ($rows as $row) {
             $existing = Product::where('sku', $row['sku'])->first();
 
@@ -448,15 +451,33 @@ class ImportExecutor
                 'product_type_ref' => 'product',
             ];
 
+            $productId = null;
+
             if ($existing) {
                 $existing->update($data);
                 $this->stats[$sheetKey]['updated']++;
                 $this->affectedProductIds[] = $existing->id;
+                $productId = $existing->id;
             } else {
                 $data['id'] = Str::uuid()->toString();
                 Product::create($data);
                 $this->stats[$sheetKey]['created']++;
                 $this->affectedProductIds[] = $data['id'];
+                $productId = $data['id'];
+            }
+
+            // Save English name to EAV if provided
+            if ($nameAttribute && !empty($row['name_en'])) {
+                ProductAttributeValue::updateOrCreate(
+                    [
+                        'product_id' => $productId,
+                        'attribute_id' => $nameAttribute->id,
+                        'language' => 'en',
+                    ],
+                    [
+                        'value_string' => $row['name_en'],
+                    ]
+                );
             }
         }
     }

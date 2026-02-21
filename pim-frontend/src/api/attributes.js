@@ -97,6 +97,10 @@ export const valueLists = {
     return client.get('/value-lists', { params: buildParams(options) })
   },
 
+  get(id, options = {}) {
+    return client.get(`/value-lists/${id}`, { params: buildParams(options) })
+  },
+
   create(data) {
     return client.post('/value-lists', data)
   },
@@ -107,6 +111,10 @@ export const valueLists = {
 
   delete(id) {
     return client.delete(`/value-lists/${id}`)
+  },
+
+  getEntries(listId, options = {}) {
+    return client.get(`/value-lists/${listId}/entries`, { params: buildParams(options) })
   },
 
   addEntry(listId, data) {

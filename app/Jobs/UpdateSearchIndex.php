@@ -18,6 +18,7 @@ use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * UpdateSearchIndex – Aktualisiert den denormalisierten products_search_index.
@@ -111,25 +112,33 @@ class UpdateSearchIndex implements ShouldQueue, ShouldBeUnique
         $nameEn = $this->getAttributeValue($product->id, 'productName', 'en');
         $descriptionDe = $this->getAttributeValue($product->id, 'description', 'de');
 
+        $indexData = [
+            'sku' => $product->sku,
+            'ean' => $product->ean,
+            'product_type' => $product->productType?->technical_name,
+            'status' => $product->status,
+            'name_de' => $nameDe ? mb_substr($nameDe, 0, 500) : null,
+            'name_en' => $nameEn ? mb_substr($nameEn, 0, 500) : null,
+            'description_de' => $descriptionDe,
+            'hierarchy_path' => $this->getHierarchyPath($product),
+            'primary_image' => $this->getPrimaryImage($product->id),
+            'list_price' => $this->getListPrice($product->id),
+            'attribute_completeness' => $this->calculateCompleteness($product),
+            'phonetic_name_de' => $nameDe
+                ? mb_substr(KoelnerPhonetik::encode($nameDe), 0, 100)
+                : null,
+            'updated_at' => now(),
+        ];
+
+        // Add product_type_ref and parent_product_id if columns exist
+        if (Schema::hasColumn('products_search_index', 'product_type_ref')) {
+            $indexData['product_type_ref'] = $product->product_type_ref;
+            $indexData['parent_product_id'] = $product->parent_product_id;
+        }
+
         DB::table('products_search_index')->updateOrInsert(
             ['product_id' => $product->id],
-            [
-                'sku' => $product->sku,
-                'ean' => $product->ean,
-                'product_type' => $product->productType?->technical_name,
-                'status' => $product->status,
-                'name_de' => $nameDe ? mb_substr($nameDe, 0, 500) : null,
-                'name_en' => $nameEn ? mb_substr($nameEn, 0, 500) : null,
-                'description_de' => $descriptionDe,
-                'hierarchy_path' => $this->getHierarchyPath($product),
-                'primary_image' => $this->getPrimaryImage($product->id),
-                'list_price' => $this->getListPrice($product->id),
-                'attribute_completeness' => $this->calculateCompleteness($product),
-                'phonetic_name_de' => $nameDe
-                    ? mb_substr(KoelnerPhonetik::encode($nameDe), 0, 100)
-                    : null,
-                'updated_at' => now(),
-            ],
+            $indexData,
         );
 
         Log::debug('UpdateSearchIndex: Index updated', [

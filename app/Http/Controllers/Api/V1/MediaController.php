@@ -141,13 +141,22 @@ class MediaController extends Controller
     /**
      * GET /media/thumb/{media}?w=300&h=300&fit=contain — serve a thumbnail.
      */
-    public function thumb(Request $request, Media $medium): BinaryFileResponse
+    public function thumb(Request $request, Media $medium): BinaryFileResponse|JsonResponse
     {
         $width = min(max(1, (int) $request->query('w', '300')), 1200);
         $height = min(max(1, (int) $request->query('h', '300')), 1200);
         $fit = in_array($request->query('fit'), ['contain', 'cover']) ? $request->query('fit') : 'contain';
 
-        $thumbPath = app(ThumbnailService::class)->generate($medium, $width, $height, $fit);
+        try {
+            $thumbPath = app(ThumbnailService::class)->generate($medium, $width, $height, $fit);
+        } catch (\Throwable $e) {
+            \Log::error('Thumbnail generation failed', [
+                'media_id' => $medium->id,
+                'file_path' => $medium->file_path,
+                'error' => $e->getMessage(),
+            ]);
+            $thumbPath = null;
+        }
 
         if (!$thumbPath) {
             // Fallback: serve original for images, 404 for non-images
@@ -160,7 +169,12 @@ class MediaController extends Controller
                     ]);
                 }
             }
-            abort(404, 'Thumbnail not available.');
+
+            return response()->json([
+                'message' => 'Thumbnail nicht verfügbar.',
+                'media_id' => $medium->id,
+                'file_exists' => Storage::disk('public')->exists($medium->file_path),
+            ], 404);
         }
 
         return response()->file($thumbPath, [

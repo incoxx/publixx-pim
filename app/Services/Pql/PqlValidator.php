@@ -27,13 +27,15 @@ final class PqlValidator
      * Known base fields on products / products_search_index (not EAV).
      */
     private const BASE_FIELDS = [
-        'status'      => ['table' => 'products', 'column' => 'status', 'data_type' => 'String'],
-        'sku'         => ['table' => 'products', 'column' => 'sku', 'data_type' => 'String'],
-        'ean'         => ['table' => 'products', 'column' => 'ean', 'data_type' => 'String'],
-        'name'        => ['table' => 'products', 'column' => 'name', 'data_type' => 'String'],
-        'hierarchy'   => ['table' => 'products_search_index', 'column' => 'hierarchy_path', 'data_type' => 'String'],
+        'status'       => ['table' => 'products', 'column' => 'status', 'data_type' => 'String'],
+        'sku'          => ['table' => 'products', 'column' => 'sku', 'data_type' => 'String'],
+        'ean'          => ['table' => 'products', 'column' => 'ean', 'data_type' => 'String'],
+        'name'         => ['table' => 'products', 'column' => 'name', 'data_type' => 'String'],
+        'hierarchy'    => ['table' => 'products_search_index', 'column' => 'hierarchy_path', 'data_type' => 'String'],
+        'category'     => ['table' => 'products', 'column' => 'master_hierarchy_node_id', 'data_type' => 'String'],
+        'category_id'  => ['table' => 'products', 'column' => 'master_hierarchy_node_id', 'data_type' => 'String'],
         'product_type' => ['table' => 'products_search_index', 'column' => 'product_type', 'data_type' => 'String'],
-        'list_price'  => ['table' => 'products_search_index', 'column' => 'list_price', 'data_type' => 'Number'],
+        'list_price'   => ['table' => 'products_search_index', 'column' => 'list_price', 'data_type' => 'Number'],
     ];
 
     /**

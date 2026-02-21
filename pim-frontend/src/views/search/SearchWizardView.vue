@@ -28,6 +28,7 @@ const showAttributeFilters = ref(false)
 const columns = [
   { key: 'sku', label: 'SKU', mono: true },
   { key: 'name', label: 'Name' },
+  { key: 'product_type_ref', label: 'Typ' },
   { key: 'status', label: 'Status' },
 ]
 
@@ -111,7 +112,7 @@ async function doSearch() {
   // Category filter
   if (selectedCategories.value.length > 0) {
     const catIds = selectedCategories.value.map(id => `"${id}"`).join(', ')
-    conditions.push(`category_id IN (${catIds})`)
+    conditions.push(`category IN (${catIds})`)
   }
 
   // Attribute filters
@@ -308,6 +309,17 @@ function getFilterInputType(dataType) {
       :loading="pql.loading.value"
       @row-click="openProduct"
     >
+      <template #cell-product_type_ref="{ value }">
+        <span
+          :class="[
+            'pim-badge text-[10px]',
+            value === 'variant' ? 'bg-purple-50 text-purple-700' :
+            'bg-[var(--color-bg)] text-[var(--color-text-tertiary)]'
+          ]"
+        >
+          {{ value === 'variant' ? 'Variante' : 'Produkt' }}
+        </span>
+      </template>
       <template #cell-status="{ value }">
         <span
           :class="[

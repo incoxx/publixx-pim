@@ -130,10 +130,22 @@ class ImportController extends Controller
     /**
      * GET /imports/export-format — export all data as re-importable Excel.
      */
-    public function exportImportFormat(ImportFormatExporter $exporter): \Symfony\Component\HttpFoundation\BinaryFileResponse
+    public function exportImportFormat(ImportFormatExporter $exporter): \Symfony\Component\HttpFoundation\BinaryFileResponse|JsonResponse
     {
         $filePath = tempnam(sys_get_temp_dir(), 'pim-export-') . '.xlsx';
-        $exporter->generate($filePath);
+
+        try {
+            $exporter->generate($filePath);
+        } catch (\Throwable $e) {
+            \Log::channel('import')->error('Export fehlgeschlagen', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'message' => 'Export fehlgeschlagen: ' . $e->getMessage(),
+            ], 500);
+        }
 
         $timestamp = now()->format('Y-m-d_His');
 

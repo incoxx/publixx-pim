@@ -69,7 +69,7 @@ class ImportService
             'result' => null,
         ]);
 
-        Log::info("Import hochgeladen: {$uuid}", [
+        Log::channel('import')->info("Import hochgeladen: {$uuid}", [
             'file' => $fileName,
             'sheets' => $parseResult->sheetsFound,
             'total_rows' => $parseResult->totalRows(),
@@ -118,7 +118,7 @@ class ImportService
             'summary' => $validationResult->toArray(),
         ]);
 
-        Log::info("Import validiert: {$importJob->id}", [
+        Log::channel('import')->info("Import validiert: {$importJob->id}", [
             'has_errors' => $validationResult->hasErrors,
             'error_count' => count($validationResult->errors),
         ]);
@@ -218,7 +218,7 @@ class ImportService
                 productIds: $result->affectedProductIds,
             ));
 
-            Log::info("Import synchron abgeschlossen: {$importJob->id}", $result->stats);
+            Log::channel('import')->info("Import synchron abgeschlossen: {$importJob->id}", $result->stats);
         } catch (\Throwable $e) {
             $importJob->update([
                 'status' => 'failed',
@@ -226,7 +226,7 @@ class ImportService
                 'result' => ['error' => $e->getMessage()],
             ]);
 
-            Log::error("Import fehlgeschlagen: {$importJob->id}", ['error' => $e->getMessage()]);
+            Log::channel('import')->error("Import fehlgeschlagen: {$importJob->id}", ['error' => $e->getMessage()]);
             throw $e;
         }
 
@@ -245,7 +245,7 @@ class ImportService
 
         ExecuteImportJob::dispatch($importJob->id, $parseResult);
 
-        Log::info("Import in Queue eingereiht: {$importJob->id}", [
+        Log::channel('import')->info("Import in Queue eingereiht: {$importJob->id}", [
             'total_rows' => $parseResult->totalRows(),
         ]);
 

@@ -88,6 +88,38 @@ function getImageUrl(item) {
   return item.url || ''
 }
 
+function handleImgError(e) {
+  // On thumbnail error, try the original file URL
+  const img = e.target
+  const originalSrc = img.dataset.fallback
+  if (originalSrc && img.src !== originalSrc) {
+    img.dataset.fallback = ''
+    img.src = originalSrc
+  }
+}
+
+// Folder deletion
+const deleteFolderTarget = ref(null)
+const deletingFolder = ref(false)
+
+async function confirmDeleteFolder() {
+  if (!deleteFolderTarget.value) return
+  deletingFolder.value = true
+  try {
+    await hierarchiesApi.deleteNode(deleteFolderTarget.value.id)
+    deleteFolderTarget.value = null
+    if (selectedFolderId.value === deleteFolderTarget.value?.id) {
+      selectedFolderId.value = null
+    }
+    await fetchFolders()
+    await fetchMedia()
+  } catch (e) {
+    console.error('Failed to delete folder:', e)
+  } finally {
+    deletingFolder.value = false
+  }
+}
+
 function openDetail(item) {
   detailItem.value = item
   detailOpen.value = true
@@ -207,6 +239,8 @@ onMounted(() => {
           :expanded="expandedFolders"
           @select="selectFolder"
           @toggle="toggleExpand"
+          @delete="n => deleteFolderTarget = n"
+          @add-sub="id => { showNewFolder = true; newFolderParent = id }"
         />
       </div>
     </div>
@@ -251,7 +285,7 @@ onMounted(() => {
       <div v-else-if="items.length > 0 && viewMode === 'grid'" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
         <div v-for="item in items" :key="item.id" class="pim-card overflow-hidden group cursor-pointer hover:shadow-md transition-shadow relative" @click="openDetail(item)">
           <div class="aspect-square bg-[var(--color-bg)] flex items-center justify-center overflow-hidden">
-            <img v-if="item.media_type === 'image'" :src="getImageUrl(item)" class="w-full h-full object-cover" loading="lazy" alt="" />
+            <img v-if="item.media_type === 'image'" :src="getImageUrl(item)" :data-fallback="item.url || mediaApi.fileUrl(item.file_name)" class="w-full h-full object-cover" loading="lazy" alt="" @error="handleImgError" />
             <Image v-else class="w-8 h-8 text-[var(--color-text-tertiary)]" :stroke-width="1.5" />
           </div>
           <div class="p-2 flex items-center justify-between">
@@ -281,7 +315,7 @@ onMounted(() => {
           @click="openDetail(item)"
         >
           <div class="w-10 h-10 flex-none rounded bg-[var(--color-bg)] overflow-hidden flex items-center justify-center">
-            <img v-if="item.media_type === 'image'" :src="getImageUrl(item)" class="w-full h-full object-cover" loading="lazy" alt="" />
+            <img v-if="item.media_type === 'image'" :src="getImageUrl(item)" :data-fallback="item.url || mediaApi.fileUrl(item.file_name)" class="w-full h-full object-cover" loading="lazy" alt="" @error="handleImgError" />
             <Image v-else class="w-5 h-5 text-[var(--color-text-tertiary)]" :stroke-width="1.5" />
           </div>
           <div class="flex-1 min-w-0">
@@ -374,6 +408,14 @@ onMounted(() => {
       @confirm="confirmDelete"
       @cancel="deleteTarget = null"
     />
+    <PimConfirmDialog
+      :open="!!deleteFolderTarget"
+      title="Ordner löschen?"
+      :message="`Der Ordner '${deleteFolderTarget?.name_de || ''}' und alle Unterordner werden gelöscht. Medien bleiben erhalten.`"
+      :loading="deletingFolder"
+      @confirm="confirmDeleteFolder"
+      @cancel="deleteFolderTarget = null"
+    />
   </div>
 </template>
 
@@ -382,27 +424,45 @@ onMounted(() => {
 const MediaFolderItem = {
   name: 'MediaFolderItem',
   props: { node: Object, depth: Number, selectedId: String, expanded: Object },
-  emits: ['select', 'toggle'],
+  emits: ['select', 'toggle', 'delete', 'add-sub'],
   setup(props, { emit }) {
     const hasChildren = props.node.children && props.node.children.length > 0
     return { hasChildren, emit }
   },
   template: `
     <div>
-      <button
-        class="w-full flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-colors"
+      <div
+        class="group flex items-center gap-0.5 pr-1 rounded text-xs transition-colors"
         :class="selectedId === node.id ? 'bg-[var(--color-primary-light)] text-[var(--color-primary)]' : 'hover:bg-[var(--color-bg)]'"
-        :style="{ paddingLeft: (depth * 12 + 8) + 'px' }"
-        @click="emit('select', node.id)"
       >
-        <button v-if="hasChildren" class="flex-none w-3 h-3" @click.stop="emit('toggle', node.id)">
-          <svg v-if="expanded.has(node.id)" class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
-          <svg v-else class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
+        <button
+          class="flex-1 flex items-center gap-1.5 py-1 min-w-0"
+          :style="{ paddingLeft: (depth * 12 + 8) + 'px' }"
+          @click="emit('select', node.id)"
+        >
+          <button v-if="hasChildren" class="flex-none w-3 h-3" @click.stop="emit('toggle', node.id)">
+            <svg v-if="expanded.has(node.id)" class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+            <svg v-else class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
+          </button>
+          <span v-else class="w-3"></span>
+          <svg class="w-3.5 h-3.5 flex-none text-[var(--color-text-tertiary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          <span class="truncate">{{ node.name_de || node.name }}</span>
         </button>
-        <span v-else class="w-3"></span>
-        <svg class="w-3.5 h-3.5 flex-none text-[var(--color-text-tertiary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-        <span class="truncate">{{ node.name_de || node.name }}</span>
-      </button>
+        <button
+          class="opacity-0 group-hover:opacity-100 flex-none p-0.5 rounded hover:bg-[var(--color-primary-light)]"
+          title="Unterordner erstellen"
+          @click.stop="emit('add-sub', node.id)"
+        >
+          <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+        <button
+          class="opacity-0 group-hover:opacity-100 flex-none p-0.5 rounded hover:bg-[var(--color-error-light)] hover:text-[var(--color-error)]"
+          title="Ordner löschen"
+          @click.stop="emit('delete', node)"
+        >
+          <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        </button>
+      </div>
       <div v-if="hasChildren && expanded.has(node.id)">
         <MediaFolderItem
           v-for="child in node.children"
@@ -413,6 +473,8 @@ const MediaFolderItem = {
           :expanded="expanded"
           @select="(id) => emit('select', id)"
           @toggle="(id) => emit('toggle', id)"
+          @delete="(n) => emit('delete', n)"
+          @add-sub="(id) => emit('add-sub', id)"
         />
       </div>
     </div>

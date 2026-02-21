@@ -35,6 +35,8 @@ final class PqlSqlGenerator
         'ean'          => ['psi' => 'ean',             'p' => 'ean'],
         'name'         => ['psi' => 'name_de',         'p' => 'name'],
         'hierarchy'    => ['psi' => 'hierarchy_path'],
+        'category'     => ['p' => 'master_hierarchy_node_id'],
+        'category_id'  => ['p' => 'master_hierarchy_node_id'],
         'product_type' => ['psi' => 'product_type'],
         'list_price'   => ['psi' => 'list_price'],
     ];
