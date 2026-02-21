@@ -277,6 +277,79 @@ async function createVariant() {
   } finally { variantSaving.value = false }
 }
 
+// ─── Variant Delete ──────────────────────────────────
+const variantDeleteTarget = ref(null)
+const variantDeleting = ref(false)
+
+async function confirmDeleteVariant() {
+  variantDeleting.value = true
+  try {
+    await productsApi.delete(variantDeleteTarget.value.id)
+    variantDeleteTarget.value = null
+    variantsLoaded.value = false
+    await loadVariants()
+  } finally { variantDeleting.value = false }
+}
+
+// ─── Variant Inheritance Rules ───────────────────────
+const inheritanceRulesLoaded = ref(false)
+const inheritanceRulesLoading = ref(false)
+const inheritanceRulesSaving = ref(false)
+const showInheritanceRules = ref(false)
+const editedInheritanceRules = ref({})
+
+const inheritedAttributeIds = computed(() => {
+  const ids = new Set()
+  for (const [attrId, mode] of Object.entries(editedInheritanceRules.value)) {
+    if (mode === 'inherit') ids.add(attrId)
+  }
+  return ids
+})
+
+function isAttributeInherited(attrId) {
+  if (product.value?.product_type_ref !== 'variant') return false
+  return inheritedAttributeIds.value.has(attrId)
+}
+
+async function loadInheritanceRules() {
+  if (inheritanceRulesLoaded.value || !product.value) return
+  const rulesProductId = product.value.product_type_ref === 'variant'
+    ? product.value.parent_product_id
+    : product.value.id
+  if (!rulesProductId) return
+  inheritanceRulesLoading.value = true
+  try {
+    const { data } = await productsApi.getVariantRules(rulesProductId)
+    const rules = data.data || data
+    const map = {}
+    for (const rule of rules) {
+      map[rule.attribute_id] = rule.inheritance_mode
+    }
+    editedInheritanceRules.value = map
+    inheritanceRulesLoaded.value = true
+  } catch { /* silently fail */ }
+  finally { inheritanceRulesLoading.value = false }
+}
+
+function toggleInheritance(attrId) {
+  editedInheritanceRules.value = {
+    ...editedInheritanceRules.value,
+    [attrId]: (editedInheritanceRules.value[attrId] || 'override') === 'inherit' ? 'override' : 'inherit',
+  }
+}
+
+async function saveInheritanceRules() {
+  inheritanceRulesSaving.value = true
+  try {
+    const rules = Object.entries(editedInheritanceRules.value).map(([attribute_id, inheritance_mode]) => ({
+      attribute_id,
+      inheritance_mode,
+    }))
+    await productsApi.setVariantRules(product.value.id, rules)
+  } catch { /* silently fail */ }
+  finally { inheritanceRulesSaving.value = false }
+}
+
 // ─── Media ────────────────────────────────────────────
 const mediaItems = ref([])
 const mediaLoaded = ref(false)
@@ -681,7 +754,7 @@ async function onHierarchyChange(hierarchyId) {
 watch(activeTab, (tab) => {
   if (tab === 'attributes') loadAttributeData()
   if (tab === 'variant-attributes') loadAttributeData()
-  if (tab === 'variants') loadVariants()
+  if (tab === 'variants') { loadVariants(); loadAttributeData() }
   if (tab === 'media') loadMedia()
   if (tab === 'prices') loadPrices()
   if (tab === 'relations') loadRelations()
@@ -692,6 +765,10 @@ onMounted(async () => {
   await store.fetchOne(route.params.id)
   loadAttributeData()
   loadHierarchies()
+  // If variant, load parent's inheritance rules
+  if (product.value?.product_type_ref === 'variant' && product.value?.parent_product_id) {
+    loadInheritanceRules()
+  }
 })
 
 // Re-load when navigating between products/variants (same component, different ID)
@@ -717,6 +794,11 @@ watch(() => route.params.id, async (newId, oldId) => {
   previewData.value = null
   completenessData.value = null
 
+  // Reset inheritance state
+  inheritanceRulesLoaded.value = false
+  editedInheritanceRules.value = {}
+  showInheritanceRules.value = false
+
   // Close open forms
   showVariantForm.value = false
   showPriceForm.value = false
@@ -730,6 +812,10 @@ watch(() => route.params.id, async (newId, oldId) => {
   await store.fetchOne(newId)
   loadAttributeData()
   loadHierarchies()
+  // If variant, load parent's inheritance rules
+  if (product.value?.product_type_ref === 'variant' && product.value?.parent_product_id) {
+    loadInheritanceRules()
+  }
 })
 </script>
 
@@ -756,9 +842,13 @@ watch(() => route.params.id, async (newId, oldId) => {
           </div>
           <p class="text-xs text-[var(--color-text-tertiary)] font-mono">
             {{ product.sku }}
-            <span v-if="product.parent_product_id" class="ml-2 text-[var(--color-text-tertiary)]">
-              (Parent: {{ product.parent_product_id.substring(0, 8) }}…)
-            </span>
+            <router-link
+              v-if="product.parent_product_id"
+              class="ml-2 text-xs text-[var(--color-accent)] hover:underline"
+              :to="`/products/${product.parent_product_id}`"
+            >
+              ← Zum Elternprodukt
+            </router-link>
           </p>
         </template>
       </div>
@@ -863,12 +953,13 @@ watch(() => route.params.id, async (newId, oldId) => {
               {{ attr.name_de || attr.technical_name }}
               <span v-if="attr.is_mandatory" class="text-[var(--color-error)]">*</span>
               <span v-if="attr._is_inherited" class="ml-1 text-[10px] text-blue-500 font-normal">(vererbt)</span>
+              <span v-if="isAttributeInherited(attr.id)" class="ml-1 text-[10px] text-purple-500 font-normal">(vererbt vom Elternprodukt)</span>
             </label>
             <!-- Composite: Button with summary -->
             <button
               v-if="attr.data_type === 'Composite'"
               class="w-full flex items-center justify-between pim-input text-left cursor-pointer hover:border-[var(--color-accent)] transition-colors"
-              :disabled="attr._access === 'read_only'"
+              :disabled="attr._access === 'read_only' || isAttributeInherited(attr.id)"
               @click="openCompositeModal(attr)"
             >
               <span class="text-[13px]" :class="getCompositeSummary(attr) ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-tertiary)]'">
@@ -882,7 +973,7 @@ watch(() => route.params.id, async (newId, oldId) => {
               :type="mapDataTypeToInput(attr.data_type)"
               :modelValue="attributeValues[attr.id]"
               :options="attr.value_list?.entries?.map(e => ({ value: e.id, label: e.value_de || e.label_de || e.code })) || []"
-              :disabled="attr._access === 'read_only'"
+              :disabled="attr._access === 'read_only' || isAttributeInherited(attr.id)"
               @update:modelValue="attributeValues[attr.id] = $event"
             />
           </div>
@@ -917,12 +1008,13 @@ watch(() => route.params.id, async (newId, oldId) => {
                 {{ attr.name_de || attr.technical_name }}
                 <span v-if="attr.is_mandatory" class="text-[var(--color-error)]">*</span>
                 <span v-if="attr._is_inherited" class="ml-1 text-[10px] text-blue-500 font-normal">(vererbt)</span>
+                <span v-if="isAttributeInherited(attr.id)" class="ml-1 text-[10px] text-purple-500 font-normal">(vererbt vom Elternprodukt)</span>
               </label>
               <PimAttributeInput
                 :type="mapDataTypeToInput(attr.data_type)"
                 :modelValue="attributeValues[attr.id]"
                 :options="attr.value_list?.entries?.map(e => ({ value: e.id, label: e.value_de || e.label_de || e.code })) || []"
-                :disabled="attr._access === 'read_only'"
+                :disabled="attr._access === 'read_only' || isAttributeInherited(attr.id)"
                 @update:modelValue="attributeValues[attr.id] = $event"
               />
             </div>
@@ -979,6 +1071,7 @@ watch(() => route.params.id, async (newId, oldId) => {
         :loading="variantsLoading"
         emptyText="Keine Varianten vorhanden"
         @row-click="(row) => router.push(`/products/${row.id}`)"
+        @row-action="(row) => variantDeleteTarget = row"
       >
         <template #cell-status="{ value }">
           <span :class="['pim-badge', value === 'active' ? 'bg-[var(--color-success-light)] text-[var(--color-success)]' : 'bg-[var(--color-bg)] text-[var(--color-text-tertiary)]']">
@@ -986,6 +1079,71 @@ watch(() => route.params.id, async (newId, oldId) => {
           </span>
         </template>
       </PimTable>
+
+      <PimConfirmDialog
+        :open="!!variantDeleteTarget"
+        title="Variante löschen?"
+        message="Diese Variante wird unwiderruflich gelöscht."
+        :loading="variantDeleting"
+        @confirm="confirmDeleteVariant"
+        @cancel="variantDeleteTarget = null"
+      />
+
+      <!-- Variant Inheritance Rules (only on parent products) -->
+      <div v-if="product.product_type_ref !== 'variant'" class="pt-2">
+        <button
+          class="text-xs text-[var(--color-accent)] hover:underline"
+          @click="showInheritanceRules = !showInheritanceRules; if (!inheritanceRulesLoaded) { loadAttributeData(); loadInheritanceRules() }"
+        >
+          {{ showInheritanceRules ? 'Vererbungsregeln ausblenden' : 'Vererbungsregeln verwalten' }}
+        </button>
+
+        <div v-if="showInheritanceRules" class="pim-card p-4 mt-2 space-y-3">
+          <div class="flex items-center justify-between">
+            <h4 class="text-xs font-semibold text-[var(--color-text-primary)]">Vererbungsregeln</h4>
+            <button
+              class="pim-btn pim-btn-primary text-xs"
+              :disabled="inheritanceRulesSaving"
+              @click="saveInheritanceRules"
+            >
+              {{ inheritanceRulesSaving ? 'Speichern…' : 'Regeln speichern' }}
+            </button>
+          </div>
+          <p class="text-[11px] text-[var(--color-text-tertiary)]">
+            Legen Sie fest, welche Attribute Varianten vom Elternprodukt erben (nicht editierbar) oder selbst überschreiben können.
+          </p>
+
+          <div v-if="inheritanceRulesLoading" class="space-y-2">
+            <div v-for="i in 4" :key="i" class="pim-skeleton h-8 w-full rounded" />
+          </div>
+          <div v-else-if="schemaAttributes.length > 0" class="divide-y divide-[var(--color-border)]">
+            <div
+              v-for="attr in schemaAttributes"
+              :key="attr.id"
+              class="flex items-center justify-between py-2"
+            >
+              <span class="text-xs text-[var(--color-text-primary)]">
+                {{ attr.name_de || attr.technical_name }}
+                <span v-if="attr.is_variant_attribute" class="ml-1 text-[10px] text-purple-500">(Varianten-Attribut)</span>
+              </span>
+              <button
+                :class="[
+                  'text-[11px] px-2.5 py-1 rounded-full font-medium transition-colors',
+                  (editedInheritanceRules[attr.id] || 'override') === 'inherit'
+                    ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                    : 'bg-[var(--color-bg)] text-[var(--color-text-tertiary)] hover:bg-[var(--color-border)]',
+                ]"
+                @click="toggleInheritance(attr.id)"
+              >
+                {{ (editedInheritanceRules[attr.id] || 'override') === 'inherit' ? 'Vererben' : 'Überschreiben' }}
+              </button>
+            </div>
+          </div>
+          <div v-else class="text-xs text-[var(--color-text-tertiary)]">
+            Keine Attribute im Produkttyp-Schema gefunden.
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- ═══ Media Tab ═══ -->
