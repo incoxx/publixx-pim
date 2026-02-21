@@ -22,7 +22,12 @@ trait Filterable
         foreach ($filters as $field => $value) {
             $field = preg_replace('/[^a-zA-Z0-9_]/', '', $field);
 
-            if (str_contains($value, ',')) {
+            // Normalize boolean-like strings for tinyint columns
+            if ($value === 'true' || $value === '1') {
+                $query->where($field, 1);
+            } elseif ($value === 'false' || $value === '0') {
+                $query->where($field, 0);
+            } elseif (is_string($value) && str_contains($value, ',')) {
                 $query->whereIn($field, explode(',', $value));
             } else {
                 $query->where($field, $value);

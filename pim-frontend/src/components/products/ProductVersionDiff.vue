@@ -1,35 +1,44 @@
 <script setup>
 import { computed } from 'vue'
-import { useI18n } from 'vue-i18n'
 
 const props = defineProps({
   diffData: { type: Object, required: true },
 })
-
-const { t } = useI18n()
 
 const fieldLabels = {
   name: 'Name',
   sku: 'SKU',
   ean: 'EAN',
   status: 'Status',
-  master_hierarchy_node_id: t('product.version.hierarchyNode'),
+  master_hierarchy_node_id: 'Hierarchie-Knoten',
 }
 
 const statusLabels = {
-  draft: t('product.version.draft'),
-  active: t('product.version.active'),
+  draft: 'Entwurf',
+  active: 'Aktiv',
   inactive: 'Inaktiv',
   discontinued: 'Auslaufend',
 }
+
+const baseFields = computed(() =>
+  props.diffData.fields.filter(f => f.type !== 'attribute')
+)
+const attributeFields = computed(() =>
+  props.diffData.fields.filter(f => f.type === 'attribute')
+)
 
 const changedCount = computed(() =>
   props.diffData.fields.filter(f => f.changed).length
 )
 
+function getFieldLabel(field) {
+  return field.label || fieldLabels[field.field] || field.field
+}
+
 function formatValue(field, value) {
   if (value === null || value === undefined || value === '') return '—'
-  if (field === 'status') return statusLabels[value] || value
+  if (field.field === 'status') return statusLabels[value] || value
+  if (typeof value === 'object') return JSON.stringify(value)
   return String(value)
 }
 </script>
@@ -69,8 +78,9 @@ function formatValue(field, value) {
           </tr>
         </thead>
         <tbody>
+          <!-- Base fields -->
           <tr
-            v-for="field in diffData.fields"
+            v-for="field in baseFields"
             :key="field.field"
             :class="[
               'border-t border-[var(--color-border)]',
@@ -78,7 +88,7 @@ function formatValue(field, value) {
             ]"
           >
             <td class="px-3 py-2 font-medium text-[var(--color-text-secondary)]">
-              {{ fieldLabels[field.field] || field.field }}
+              {{ getFieldLabel(field) }}
             </td>
             <td
               :class="[
@@ -87,7 +97,7 @@ function formatValue(field, value) {
               ]"
             >
               <span :class="field.field === 'sku' || field.field === 'ean' ? 'font-mono' : ''">
-                {{ formatValue(field.field, field.old_value) }}
+                {{ formatValue(field, field.old_value) }}
               </span>
             </td>
             <td
@@ -97,8 +107,45 @@ function formatValue(field, value) {
               ]"
             >
               <span :class="field.field === 'sku' || field.field === 'ean' ? 'font-mono' : ''">
-                {{ formatValue(field.field, field.new_value) }}
+                {{ formatValue(field, field.new_value) }}
               </span>
+            </td>
+          </tr>
+
+          <!-- Attribute fields separator -->
+          <tr v-if="attributeFields.length > 0" class="border-t border-[var(--color-border)]">
+            <td colspan="3" class="px-3 py-1.5 bg-[var(--color-bg)] text-[10px] font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wider">
+              Attributwerte
+            </td>
+          </tr>
+
+          <!-- Attribute fields -->
+          <tr
+            v-for="field in attributeFields"
+            :key="field.field"
+            :class="[
+              'border-t border-[var(--color-border)]',
+              field.changed ? '' : 'opacity-60',
+            ]"
+          >
+            <td class="px-3 py-2 font-medium text-[var(--color-text-secondary)]">
+              {{ getFieldLabel(field) }}
+            </td>
+            <td
+              :class="[
+                'px-3 py-2',
+                field.changed ? 'bg-red-50 text-red-800' : 'text-[var(--color-text-primary)]',
+              ]"
+            >
+              {{ formatValue(field, field.old_value) }}
+            </td>
+            <td
+              :class="[
+                'px-3 py-2',
+                field.changed ? 'bg-green-50 text-green-800' : 'text-[var(--color-text-primary)]',
+              ]"
+            >
+              {{ formatValue(field, field.new_value) }}
             </td>
           </tr>
         </tbody>

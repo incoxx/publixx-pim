@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Models\Product;
+use App\Models\ProductAttributeValue;
 use App\Models\ProductVersion;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -113,9 +114,31 @@ class ProductVersioningService
 
             $fields[] = [
                 'field' => $field,
+                'label' => $field,
                 'old_value' => $oldValue,
                 'new_value' => $newValue,
                 'changed' => $oldValue !== $newValue,
+                'type' => 'base',
+            ];
+        }
+
+        // Compare attribute values stored in snapshots
+        $oldAttrs = $snap1['attributes'] ?? [];
+        $newAttrs = $snap2['attributes'] ?? [];
+        $allAttrKeys = array_unique(array_merge(array_keys($oldAttrs), array_keys($newAttrs)));
+
+        foreach ($allAttrKeys as $attrKey) {
+            $oldValue = $oldAttrs[$attrKey]['value'] ?? null;
+            $newValue = $newAttrs[$attrKey]['value'] ?? null;
+            $label = $newAttrs[$attrKey]['label'] ?? $oldAttrs[$attrKey]['label'] ?? $attrKey;
+
+            $fields[] = [
+                'field' => "attr:{$attrKey}",
+                'label' => $label,
+                'old_value' => $oldValue,
+                'new_value' => $newValue,
+                'changed' => $oldValue !== $newValue,
+                'type' => 'attribute',
             ];
         }
 
@@ -144,6 +167,26 @@ class ProductVersioningService
         foreach (self::VERSIONED_FIELDS as $field) {
             $snapshot[$field] = $product->{$field};
         }
+
+        // Include attribute values in the snapshot
+        $attributeValues = ProductAttributeValue::where('product_id', $product->id)
+            ->with('attribute')
+            ->get();
+
+        $attrs = [];
+        foreach ($attributeValues as $av) {
+            $key = $av->attribute?->technical_name ?? $av->attribute_id;
+            $lang = $av->language ? "_{$av->language}" : '';
+            $attrKey = "{$key}{$lang}";
+
+            $value = $av->value_string ?? $av->value_number ?? $av->value_text ?? $av->value_json;
+
+            $attrs[$attrKey] = [
+                'label' => $av->attribute?->name_de ?? $key,
+                'value' => $value,
+            ];
+        }
+        $snapshot['attributes'] = $attrs;
 
         return $snapshot;
     }

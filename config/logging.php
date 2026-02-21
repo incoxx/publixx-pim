@@ -32,6 +32,13 @@ return [
             'formatter' => env('LOG_STDERR_FORMATTER'),
             'with' => ['stream' => 'php://stderr'],
         ],
+        'import' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/import.log'),
+            'level' => 'debug',
+            'days' => 30,
+            'replace_placeholders' => true,
+        ],
         'null' => [
             'driver' => 'monolog',
             'handler' => Monolog\Handler\NullHandler::class,

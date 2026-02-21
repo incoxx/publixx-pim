@@ -22,7 +22,7 @@ export const useAttributeStore = defineStore('attributes', () => {
       const { data } = await attributesApi.list({
         perPage: meta.value.per_page,
         page: meta.value.current_page,
-        include: 'valueList,unitGroup',
+        include: 'valueList,unitGroup,children',
         ...options,
       })
       items.value = data.data
