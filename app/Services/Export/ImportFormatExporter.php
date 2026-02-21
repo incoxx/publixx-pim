@@ -18,6 +18,8 @@ use App\Models\ProductRelation;
 use App\Models\ProductType;
 use App\Models\Unit;
 use App\Models\ValueList;
+use App\Models\ValueListEntry;
+use Illuminate\Support\Collection;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
@@ -373,7 +375,7 @@ class ImportFormatExporter
 
     /**
      * 06_Hierarchien: Hierarchy + HierarchyNode → Für jeden Knoten:
-     *   hierarchy.technical_name, hierarchy.hierarchy_type, level_1..level_6 (aus Pfad-Segmenten)
+     *   hierarchy.technical_name, hierarchy.hierarchy_type, level_1..level_6 (aus Knotennamen)
      */
     private function exportHierarchien(Worksheet $sheet): void
     {
@@ -381,20 +383,27 @@ class ImportFormatExporter
         $levelColumns = ['C', 'D', 'E', 'F', 'G', 'H'];
 
         Hierarchy::query()
-            ->with(['nodes' => fn ($q) => $q->orderBy('path')])
+            ->with(['nodes' => fn ($q) => $q->orderBy('depth')->orderBy('sort_order')])
             ->orderBy('technical_name')
             ->chunk(500, function ($hierarchies) use ($sheet, &$row, $levelColumns) {
                 foreach ($hierarchies as $hierarchy) {
-                    foreach ($hierarchy->nodes as $node) {
+                    $allNodes = $hierarchy->nodes;
+
+                    foreach ($allNodes as $node) {
+                        // Root-Knoten (depth 0) überspringen – werden nicht als Zeile exportiert
+                        if ($node->depth === 0) {
+                            continue;
+                        }
+
                         $sheet->setCellValue("A{$row}", $hierarchy->technical_name);
                         $sheet->setCellValue("B{$row}", $hierarchy->hierarchy_type);
 
-                        // Pfad in Ebenen aufteilen (z.B. "Elektronik/Smartphones/Apple")
-                        $segments = array_filter(explode('/', $node->path));
-                        foreach (array_values($segments) as $index => $segment) {
+                        // Ebenen-Namen über die Parent-Kette aufbauen (statt aus dem Pfad)
+                        $levelNames = $this->buildLevelNames($node, $allNodes);
+                        foreach ($levelNames as $index => $name) {
                             if ($index < count($levelColumns)) {
                                 $col = $levelColumns[$index];
-                                $sheet->setCellValue("{$col}{$row}", $segment);
+                                $sheet->setCellValue("{$col}{$row}", $name);
                             }
                         }
 
@@ -406,27 +415,34 @@ class ImportFormatExporter
 
     /**
      * 07_Hierarchie_Attribute: HierarchyNodeAttributeAssignment →
-     *   hierarchy.technical_name, node.path, attribute.technical_name,
+     *   hierarchy.technical_name, node.readablePath, attribute.technical_name,
      *   collection_name, collection_sort, attribute_sort, dont_inherit→Ja/Nein
      */
     private function exportHierarchieAttribute(Worksheet $sheet): void
     {
         $row = 2;
 
+        // Alle Knoten vorladen für buildReadablePath
+        $allNodesByHierarchy = $this->loadAllNodesByHierarchy();
+
         HierarchyNodeAttributeAssignment::query()
             ->with([
                 'hierarchyNode.hierarchy',
                 'attribute',
             ])
-            ->chunk(500, function ($assignments) use ($sheet, &$row) {
+            ->chunk(500, function ($assignments) use ($sheet, &$row, $allNodesByHierarchy) {
                 foreach ($assignments as $assignment) {
                     $node = $assignment->hierarchyNode;
                     if (!$node) {
                         continue;
                     }
 
+                    $hierarchyId = $node->hierarchy_id;
+                    $allNodes = $allNodesByHierarchy[$hierarchyId] ?? collect();
+                    $readablePath = $this->buildReadablePath($node, $allNodes);
+
                     $sheet->setCellValue("A{$row}", $node->hierarchy?->technical_name);
-                    $sheet->setCellValue("B{$row}", $node->path);
+                    $sheet->setCellValue("B{$row}", $readablePath);
                     $sheet->setCellValue("C{$row}", $assignment->attribute?->technical_name);
                     $sheet->setCellValue("D{$row}", $assignment->collection_name);
                     $sheet->setCellValue("E{$row}", $assignment->collection_sort);
@@ -475,6 +491,7 @@ class ImportFormatExporter
                 'product',
                 'attribute',
                 'unit',
+                'valueListEntry',
             ])
             ->chunk(500, function ($values) use ($sheet, &$row) {
                 foreach ($values as $pav) {
@@ -522,28 +539,35 @@ class ImportFormatExporter
 
     /**
      * 11_Produkt_Hierarchien:
-     *   - Product.master_hierarchy_node_id → product.sku, hierarchy.technical_name, node.path
-     *   - OutputHierarchyProductAssignment → product.sku, hierarchy.technical_name, node.path
+     *   - Product.master_hierarchy_node_id → product.sku, hierarchy.technical_name, readablePath
+     *   - OutputHierarchyProductAssignment → product.sku, hierarchy.technical_name, readablePath
      */
     private function exportProduktHierarchien(Worksheet $sheet): void
     {
         $row = 2;
+
+        // Alle Knoten vorladen für buildReadablePath
+        $allNodesByHierarchy = $this->loadAllNodesByHierarchy();
 
         // Master-Hierarchie-Zuordnungen (über master_hierarchy_node_id am Produkt)
         Product::query()
             ->whereNotNull('master_hierarchy_node_id')
             ->with('masterHierarchyNode.hierarchy')
             ->orderBy('sku')
-            ->chunk(500, function ($products) use ($sheet, &$row) {
+            ->chunk(500, function ($products) use ($sheet, &$row, $allNodesByHierarchy) {
                 foreach ($products as $product) {
                     $node = $product->masterHierarchyNode;
                     if (!$node) {
                         continue;
                     }
 
+                    $hierarchyId = $node->hierarchy_id;
+                    $allNodes = $allNodesByHierarchy[$hierarchyId] ?? collect();
+                    $readablePath = $this->buildReadablePath($node, $allNodes);
+
                     $sheet->setCellValue("A{$row}", $product->sku);
                     $sheet->setCellValue("B{$row}", $node->hierarchy?->technical_name);
-                    $sheet->setCellValue("C{$row}", $node->path);
+                    $sheet->setCellValue("C{$row}", $readablePath);
                     $row++;
                 }
             });
@@ -554,15 +578,20 @@ class ImportFormatExporter
                 'product',
                 'hierarchyNode.hierarchy',
             ])
-            ->chunk(500, function ($assignments) use ($sheet, &$row) {
+            ->chunk(500, function ($assignments) use ($sheet, &$row, $allNodesByHierarchy) {
                 foreach ($assignments as $assignment) {
                     if (!$assignment->product || !$assignment->hierarchyNode) {
                         continue;
                     }
 
+                    $node = $assignment->hierarchyNode;
+                    $hierarchyId = $node->hierarchy_id;
+                    $allNodes = $allNodesByHierarchy[$hierarchyId] ?? collect();
+                    $readablePath = $this->buildReadablePath($node, $allNodes);
+
                     $sheet->setCellValue("A{$row}", $assignment->product->sku);
-                    $sheet->setCellValue("B{$row}", $assignment->hierarchyNode->hierarchy?->technical_name);
-                    $sheet->setCellValue("C{$row}", $assignment->hierarchyNode->path);
+                    $sheet->setCellValue("B{$row}", $node->hierarchy?->technical_name);
+                    $sheet->setCellValue("C{$row}", $readablePath);
                     $row++;
                 }
             });
@@ -757,10 +786,21 @@ class ImportFormatExporter
 
     /**
      * Ermittelt den konkreten Wert eines ProductAttributeValue
-     * aus den verschiedenen Wertspalten (value_string, value_number, value_date, value_flag).
+     * aus den verschiedenen Wertspalten.
+     * Bei Selection-Attributen wird der technical_name des ValueListEntry verwendet.
      */
     private function resolveAttributeValue(ProductAttributeValue $pav): ?string
     {
+        // Selection: technical_name des ValueListEntry verwenden
+        if ($pav->value_selection_id !== null) {
+            if ($pav->value_string !== null && $pav->value_string !== '') {
+                return $pav->value_string;
+            }
+            // Fallback: ValueListEntry direkt nachschlagen
+            $entry = $pav->valueListEntry ?? ValueListEntry::find($pav->value_selection_id);
+            return $entry?->technical_name;
+        }
+
         if ($pav->value_string !== null && $pav->value_string !== '') {
             return $pav->value_string;
         }
@@ -793,5 +833,67 @@ class ImportFormatExporter
             ->where('language', 'en')
             ->whereHas('attribute', fn ($q) => $q->where('technical_name', 'name'))
             ->value('value_string');
+    }
+
+    // -------------------------------------------------------------------------
+    // Hierarchie-Pfad-Hilfsmethoden
+    // -------------------------------------------------------------------------
+
+    /**
+     * Lädt alle HierarchyNodes gruppiert nach hierarchy_id.
+     *
+     * @return array<string, Collection> hierarchy_id → Collection<HierarchyNode>
+     */
+    private function loadAllNodesByHierarchy(): array
+    {
+        return HierarchyNode::all()
+            ->groupBy('hierarchy_id')
+            ->all();
+    }
+
+    /**
+     * Baut einen lesbaren Pfad aus den name_de-Werten der Knotenvorfahren auf.
+     * Ergebnis: "/Elektronik/Audio/Kopfhörer/" statt "/{uuid}/{uuid}/{uuid}/"
+     *
+     * @param HierarchyNode $node     Der Knoten
+     * @param Collection    $allNodes Alle Knoten dieser Hierarchie
+     */
+    private function buildReadablePath(HierarchyNode $node, Collection $allNodes): string
+    {
+        $segments = [];
+        $current = $node;
+
+        while ($current && $current->depth > 0) {
+            array_unshift($segments, $current->name_de);
+            $parentId = $current->parent_node_id;
+            $current = $parentId ? $allNodes->firstWhere('id', $parentId) : null;
+        }
+
+        if (empty($segments)) {
+            return '/';
+        }
+
+        return '/' . implode('/', $segments) . '/';
+    }
+
+    /**
+     * Baut die Ebenen-Namen (level_1, level_2, ...) eines Knotens über die Parent-Kette auf.
+     *
+     * @param HierarchyNode $node     Der Knoten
+     * @param Collection    $allNodes Alle Knoten dieser Hierarchie
+     * @return string[] Array der Ebenen-Namen (Index 0 = level_1)
+     */
+    private function buildLevelNames(HierarchyNode $node, Collection $allNodes): array
+    {
+        $names = [];
+        $current = $node;
+
+        while ($current && $current->depth > 0) {
+            array_unshift($names, $current->name_de);
+            $parentId = $current->parent_node_id;
+            $current = $parentId ? $allNodes->firstWhere('id', $parentId) : null;
+        }
+
+        return $names;
     }
 }
