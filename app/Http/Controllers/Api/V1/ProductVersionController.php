@@ -110,17 +110,50 @@ class ProductVersionController extends Controller
         $this->authorize('viewAny', [ProductVersion::class, $product]);
 
         $request->validate([
-            'from' => ['required', 'uuid'],
-            'to' => ['required', 'uuid'],
+            'from' => ['required', function ($attribute, $value, $fail) {
+                if ($value !== 'current' && !preg_match('/^[0-9a-f-]{36}$/i', $value)) {
+                    $fail('The from field must be a valid UUID or "current".');
+                }
+            }],
+            'to' => ['required', function ($attribute, $value, $fail) {
+                if ($value !== 'current' && !preg_match('/^[0-9a-f-]{36}$/i', $value)) {
+                    $fail('The to field must be a valid UUID or "current".');
+                }
+            }],
         ]);
 
-        $v1 = ProductVersion::where('product_id', $product->id)
-            ->findOrFail($request->query('from'));
-        $v2 = ProductVersion::where('product_id', $product->id)
-            ->findOrFail($request->query('to'));
+        $fromId = $request->query('from');
+        $toId = $request->query('to');
 
-        $diff = $this->versioningService->compareVersions($v1, $v2);
+        if ($fromId === 'current' && $toId === 'current') {
+            abort(422, 'Mindestens eine Seite muss eine gespeicherte Version sein.');
+        }
+
+        if ($toId === 'current') {
+            $v1 = ProductVersion::where('product_id', $product->id)->findOrFail($fromId);
+            $v1->load('creator');
+            $diff = $this->versioningService->compareWithCurrent($v1, $product);
+        } elseif ($fromId === 'current') {
+            $v2 = ProductVersion::where('product_id', $product->id)->findOrFail($toId);
+            $v2->load('creator');
+            $diff = $this->versioningService->compareWithCurrent($v2, $product);
+            $diff = $this->swapDiffSides($diff);
+        } else {
+            $v1 = ProductVersion::where('product_id', $product->id)->findOrFail($fromId);
+            $v2 = ProductVersion::where('product_id', $product->id)->findOrFail($toId);
+            $diff = $this->versioningService->compareVersions($v1, $v2);
+        }
 
         return response()->json(['data' => $diff]);
+    }
+
+    private function swapDiffSides(array $diff): array
+    {
+        [$diff['left'], $diff['right']] = [$diff['right'], $diff['left']];
+        foreach ($diff['fields'] as &$field) {
+            [$field['old_value'], $field['new_value']] = [$field['new_value'], $field['old_value']];
+        }
+
+        return $diff;
     }
 }

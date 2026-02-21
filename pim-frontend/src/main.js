@@ -80,6 +80,7 @@ const messages = {
         confirmActivate: 'Diese Version sofort aktivieren?',
         confirmRevert: 'Produkt auf diese Version zurücksetzen?',
         hierarchyNode: 'Hierarchie-Knoten',
+        currentState: 'Aktueller Stand',
       },
     },
     hierarchy: {
@@ -305,6 +306,7 @@ const messages = {
         confirmActivate: 'Activate this version immediately?',
         confirmRevert: 'Revert product to this version?',
         hierarchyNode: 'Hierarchy Node',
+        currentState: 'Current State',
       },
     },
     hierarchy: {
