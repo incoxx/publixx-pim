@@ -12,7 +12,9 @@ use App\Services\ThumbnailService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class MediaController extends Controller
@@ -45,7 +47,8 @@ class MediaController extends Controller
         $this->authorize('create', Media::class);
 
         $file = $request->file('file');
-        $path = $file->store('media', 'public');
+        $safeFilename = $this->generateSafeFilename($file);
+        $path = $file->storeAs('media', $safeFilename, 'public');
 
         if ($path === false) {
             return response()->json([
@@ -65,7 +68,7 @@ class MediaController extends Controller
         }
 
         $media = Media::create([
-            'file_name' => $file->getClientOriginalName(),
+            'file_name' => $safeFilename,
             'file_path' => $path,
             'mime_type' => $file->getMimeType(),
             'file_size' => $file->getSize(),
@@ -125,7 +128,7 @@ class MediaController extends Controller
      */
     public function serve(string $filename): BinaryFileResponse
     {
-        $media = Media::where('file_name', $filename)->firstOrFail();
+        $media = Media::where('file_name', $filename)->latest()->firstOrFail();
 
         $path = Storage::disk('public')->path($media->file_path);
 
@@ -147,40 +150,150 @@ class MediaController extends Controller
         $height = min(max(1, (int) $request->query('h', '300')), 1200);
         $fit = in_array($request->query('fit'), ['contain', 'cover']) ? $request->query('fit') : 'contain';
 
-        try {
-            $thumbPath = app(ThumbnailService::class)->generate($medium, $width, $height, $fit);
-        } catch (\Throwable $e) {
-            \Log::error('Thumbnail generation failed', [
+        // Check if source file exists first
+        $originalPath = Storage::disk('public')->path($medium->file_path);
+        if (!file_exists($originalPath)) {
+            \Log::warning('Media file missing on disk', [
                 'media_id' => $medium->id,
                 'file_path' => $medium->file_path,
-                'error' => $e->getMessage(),
+                'expected_path' => $originalPath,
             ]);
-            $thumbPath = null;
-        }
-
-        if (!$thumbPath) {
-            // Fallback: serve original for images, 404 for non-images
-            if (str_starts_with($medium->mime_type, 'image/')) {
-                $originalPath = Storage::disk('public')->path($medium->file_path);
-                if (file_exists($originalPath)) {
-                    return response()->file($originalPath, [
-                        'Content-Type' => $medium->mime_type,
-                        'Cache-Control' => 'public, max-age=86400',
-                    ]);
-                }
-            }
-
             return response()->json([
-                'message' => 'Thumbnail nicht verfügbar.',
+                'message' => 'Datei nicht auf dem Server gefunden.',
                 'media_id' => $medium->id,
-                'file_exists' => Storage::disk('public')->exists($medium->file_path),
+                'file_path' => $medium->file_path,
             ], 404);
         }
 
-        return response()->file($thumbPath, [
-            'Content-Type' => $medium->mime_type,
-            'Cache-Control' => 'public, max-age=86400',
+        // Try thumbnail generation
+        $thumbPath = null;
+        if (extension_loaded('gd') && str_starts_with($medium->mime_type, 'image/')) {
+            try {
+                $thumbPath = app(ThumbnailService::class)->generate($medium, $width, $height, $fit);
+            } catch (\Throwable $e) {
+                \Log::error('Thumbnail generation failed', [
+                    'media_id' => $medium->id,
+                    'file_path' => $medium->file_path,
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
+                ]);
+            }
+        } elseif (!extension_loaded('gd')) {
+            \Log::warning('GD extension not loaded — thumbnails disabled.');
+        }
+
+        // Serve thumbnail if generated
+        if ($thumbPath && file_exists($thumbPath)) {
+            return response()->file($thumbPath, [
+                'Content-Type' => $medium->mime_type,
+                'Cache-Control' => 'public, max-age=86400',
+            ]);
+        }
+
+        // Fallback: serve original for images
+        if (str_starts_with($medium->mime_type, 'image/')) {
+            return response()->file($originalPath, [
+                'Content-Type' => $medium->mime_type,
+                'Cache-Control' => 'public, max-age=86400',
+            ]);
+        }
+
+        return response()->json([
+            'message' => 'Thumbnail nicht verfügbar (kein Bild).',
+            'media_id' => $medium->id,
+        ], 404);
+    }
+
+    /**
+     * GET /media/diagnostics — check storage, GD, file integrity (admin only).
+     */
+    public function diagnostics(): JsonResponse
+    {
+        $this->authorize('viewAny', Media::class);
+
+        $disk = Storage::disk('public');
+        $storagePath = $disk->path('media');
+        $symlinkPath = public_path('storage');
+
+        // Count media in DB
+        $dbCount = Media::count();
+
+        // Count physical files
+        $physicalFiles = 0;
+        if (is_dir($storagePath)) {
+            $physicalFiles = count(array_filter(scandir($storagePath), fn ($f) => !in_array($f, ['.', '..'])));
+        }
+
+        // Find orphaned DB records (file_path in DB but file missing on disk)
+        $missingFiles = [];
+        Media::select('id', 'file_name', 'file_path')->chunk(100, function ($records) use ($disk, &$missingFiles) {
+            foreach ($records as $record) {
+                if (!$disk->exists($record->file_path)) {
+                    $missingFiles[] = [
+                        'id' => $record->id,
+                        'file_name' => $record->file_name,
+                        'file_path' => $record->file_path,
+                    ];
+                }
+            }
+        });
+
+        return response()->json([
+            'status' => 'ok',
+            'checks' => [
+                'gd_extension' => extension_loaded('gd'),
+                'gd_info' => extension_loaded('gd') ? gd_info() : null,
+                'storage_dir_exists' => is_dir($storagePath),
+                'storage_dir_writable' => is_writable($storagePath),
+                'storage_symlink_exists' => is_link($symlinkPath),
+                'storage_symlink_target' => is_link($symlinkPath) ? readlink($symlinkPath) : null,
+            ],
+            'counts' => [
+                'db_records' => $dbCount,
+                'physical_files' => $physicalFiles,
+                'missing_files' => count($missingFiles),
+            ],
+            'missing_files' => array_slice($missingFiles, 0, 20),
+            'paths' => [
+                'storage_path' => $storagePath,
+                'public_storage' => $symlinkPath,
+                'base_url' => url('api/v1/media'),
+            ],
+            'php' => [
+                'version' => PHP_VERSION,
+                'max_upload' => ini_get('upload_max_filesize'),
+                'post_max_size' => ini_get('post_max_size'),
+            ],
         ]);
+    }
+
+    /**
+     * Generate a safe, readable filename with collision handling.
+     * "Mein Bild (1).jpg" → "mein-bild-1.jpg", with _1, _2 suffixes on collision.
+     */
+    private function generateSafeFilename(UploadedFile $file): string
+    {
+        $originalName = $file->getClientOriginalName();
+        $extension = $file->getClientOriginalExtension() ?: ($file->guessExtension() ?: 'bin');
+        $baseName = pathinfo($originalName, PATHINFO_FILENAME);
+
+        // Sanitize: lowercase, replace spaces/special chars with hyphens, collapse multiples
+        $safe = Str::ascii($baseName);
+        $safe = preg_replace('/[^a-zA-Z0-9._-]/', '-', $safe);
+        $safe = preg_replace('/-{2,}/', '-', $safe);
+        $safe = trim($safe, '-');
+        $safe = mb_strtolower($safe) ?: 'datei';
+
+        $disk = Storage::disk('public');
+        $candidate = "{$safe}.{$extension}";
+        $counter = 1;
+
+        while ($disk->exists("media/{$candidate}")) {
+            $candidate = "{$safe}_{$counter}.{$extension}";
+            $counter++;
+        }
+
+        return $candidate;
     }
 
     private function detectMediaType(string $mimeType): string
