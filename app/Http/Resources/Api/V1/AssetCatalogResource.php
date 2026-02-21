@@ -70,7 +70,7 @@ class AssetCatalogResource extends JsonResource
             'folder_name' => $folderPath,
             'thumb_url' => url("api/v1/media/thumb/{$this->id}?w=300&h=300"),
             'preview_url' => url("api/v1/media/thumb/{$this->id}?w=800&h=800"),
-            'original_url' => url("api/v1/media/file/{$this->file_name}"),
+            'original_url' => url('api/v1/media/file/' . rawurlencode($this->file_name)),
             'metadata' => $metadata,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,

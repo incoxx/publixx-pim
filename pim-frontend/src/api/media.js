@@ -39,7 +39,7 @@ export default {
   },
 
   fileUrl(filename) {
-    return `${base}/media/file/${filename}`
+    return `${base}/media/file/${encodeURIComponent(filename)}`
   },
 
   thumbUrl(mediaId, w = 300, h = 300) {

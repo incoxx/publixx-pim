@@ -206,6 +206,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // =====================================================================
     // Agent 3: Media
     // =====================================================================
+    Route::get('media/diagnostics', [MediaController::class, 'diagnostics']);
     Route::apiResource('media', MediaController::class);
     // media/file/{filename} and media/thumb/{medium} are registered outside auth group (public access)
     Route::get('media/{medium}/attribute-values', [MediaAttributeValueController::class, 'index']);

@@ -105,12 +105,13 @@ const deletingFolder = ref(false)
 async function confirmDeleteFolder() {
   if (!deleteFolderTarget.value) return
   deletingFolder.value = true
+  const folderId = deleteFolderTarget.value.id
   try {
-    await hierarchiesApi.deleteNode(deleteFolderTarget.value.id)
-    deleteFolderTarget.value = null
-    if (selectedFolderId.value === deleteFolderTarget.value?.id) {
+    await hierarchiesApi.deleteNode(folderId)
+    if (selectedFolderId.value === folderId) {
       selectedFolderId.value = null
     }
+    deleteFolderTarget.value = null
     await fetchFolders()
     await fetchMedia()
   } catch (e) {

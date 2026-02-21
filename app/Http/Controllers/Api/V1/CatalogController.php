@@ -454,7 +454,7 @@ class CatalogController extends BaseController
      */
     public function media(Request $request, string $filename): BinaryFileResponse
     {
-        $media = Media::where('file_name', $filename)->firstOrFail();
+        $media = Media::where('file_name', $filename)->latest()->firstOrFail();
 
         // For images, serve thumbnail by default (much faster for catalog grids)
         if (str_starts_with($media->mime_type, 'image/') && !$request->query('original')) {

@@ -16,6 +16,11 @@ class ThumbnailService
      */
     public function generate(Media $media, int $width = 300, int $height = 300, string $fit = 'contain'): ?string
     {
+        if (!extension_loaded('gd')) {
+            \Log::warning('ThumbnailService: GD extension not loaded, cannot generate thumbnails.');
+            return null;
+        }
+
         if (!str_starts_with($media->mime_type, 'image/')) {
             return null;
         }
@@ -34,6 +39,11 @@ class ThumbnailService
         // Source file
         $sourcePath = $disk->path($media->file_path);
         if (!file_exists($sourcePath)) {
+            \Log::warning('ThumbnailService: Source file missing', [
+                'media_id' => $media->id,
+                'file_path' => $media->file_path,
+                'expected_path' => $sourcePath,
+            ]);
             return null;
         }
 

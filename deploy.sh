@@ -85,6 +85,10 @@ if [ "$MODE" = "full" ] || [ "$MODE" = "backend" ]; then
     info "Running database migrations..."
     sudo -u "$APP_USER" php "${APP_DIR}/artisan" migrate --force
     echo ""
+
+    info "Ensuring storage symlink exists..."
+    sudo -u "$APP_USER" php "${APP_DIR}/artisan" storage:link 2>/dev/null || true
+    echo ""
 fi
 
 # ─── Frontend Build ──────────────────────────────────────────────────────────
