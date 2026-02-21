@@ -14,6 +14,7 @@ const fieldLabels = {
 }
 
 const statusLabels = {
+  current: 'Aktueller Stand',
   draft: 'Entwurf',
   active: 'Aktiv',
   inactive: 'Inaktiv',
@@ -48,7 +49,9 @@ function formatValue(field, value) {
     <!-- Header -->
     <div class="flex items-center justify-between text-xs text-[var(--color-text-tertiary)]">
       <span>
-        Version {{ diffData.left.version_number }} → Version {{ diffData.right.version_number }}
+        {{ diffData.left.version_number ? 'Version ' + diffData.left.version_number : 'Aktueller Stand' }}
+        →
+        {{ diffData.right.version_number ? 'Version ' + diffData.right.version_number : 'Aktueller Stand' }}
       </span>
       <span>
         {{ changedCount }} {{ changedCount === 1 ? 'Änderung' : 'Änderungen' }}
@@ -64,15 +67,15 @@ function formatValue(field, value) {
               Feld
             </th>
             <th class="text-left px-3 py-2 text-[11px] font-semibold text-[var(--color-text-secondary)] w-2/5">
-              Version {{ diffData.left.version_number }}
+              {{ diffData.left.version_number ? 'Version ' + diffData.left.version_number : 'Aktueller Stand' }}
               <span class="font-normal text-[var(--color-text-tertiary)]">
-                ({{ diffData.left.created_at ? new Date(diffData.left.created_at).toLocaleDateString('de-DE') : '—' }})
+                ({{ diffData.left.created_at ? new Date(diffData.left.created_at).toLocaleDateString('de-DE') : 'jetzt' }})
               </span>
             </th>
             <th class="text-left px-3 py-2 text-[11px] font-semibold text-[var(--color-text-secondary)] w-2/5">
-              Version {{ diffData.right.version_number }}
+              {{ diffData.right.version_number ? 'Version ' + diffData.right.version_number : 'Aktueller Stand' }}
               <span class="font-normal text-[var(--color-text-tertiary)]">
-                ({{ diffData.right.created_at ? new Date(diffData.right.created_at).toLocaleDateString('de-DE') : '—' }})
+                ({{ diffData.right.created_at ? new Date(diffData.right.created_at).toLocaleDateString('de-DE') : 'jetzt' }})
               </span>
             </th>
           </tr>

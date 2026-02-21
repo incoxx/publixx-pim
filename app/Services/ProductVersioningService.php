@@ -104,9 +104,32 @@ class ProductVersioningService
 
     public function compareVersions(ProductVersion $v1, ProductVersion $v2): array
     {
-        $snap1 = $v1->snapshot;
-        $snap2 = $v2->snapshot;
+        $diff = $this->compareSnapshots($v1->snapshot, $v2->snapshot);
+        $diff['left'] = $this->buildVersionMeta($v1);
+        $diff['right'] = $this->buildVersionMeta($v2);
 
+        return $diff;
+    }
+
+    public function compareWithCurrent(ProductVersion $version, Product $product): array
+    {
+        $currentSnapshot = $this->createSnapshotFromProduct($product);
+        $diff = $this->compareSnapshots($version->snapshot, $currentSnapshot);
+        $diff['left'] = $this->buildVersionMeta($version);
+        $diff['right'] = [
+            'version_number' => null,
+            'status' => 'current',
+            'created_at' => now(),
+            'created_by' => null,
+            'change_reason' => null,
+            'is_current' => true,
+        ];
+
+        return $diff;
+    }
+
+    private function compareSnapshots(array $snap1, array $snap2): array
+    {
         $fields = [];
         foreach (self::VERSIONED_FIELDS as $field) {
             $oldValue = $snap1[$field] ?? null;
@@ -142,26 +165,21 @@ class ProductVersioningService
             ];
         }
 
+        return ['fields' => $fields];
+    }
+
+    private function buildVersionMeta(ProductVersion $version): array
+    {
         return [
-            'left' => [
-                'version_number' => $v1->version_number,
-                'status' => $v1->status,
-                'created_at' => $v1->created_at,
-                'created_by' => $v1->creator?->name,
-                'change_reason' => $v1->change_reason,
-            ],
-            'right' => [
-                'version_number' => $v2->version_number,
-                'status' => $v2->status,
-                'created_at' => $v2->created_at,
-                'created_by' => $v2->creator?->name,
-                'change_reason' => $v2->change_reason,
-            ],
-            'fields' => $fields,
+            'version_number' => $version->version_number,
+            'status' => $version->status,
+            'created_at' => $version->created_at,
+            'created_by' => $version->creator?->name,
+            'change_reason' => $version->change_reason,
         ];
     }
 
-    private function createSnapshotFromProduct(Product $product): array
+    public function createSnapshotFromProduct(Product $product): array
     {
         $snapshot = [];
         foreach (self::VERSIONED_FIELDS as $field) {
@@ -170,16 +188,17 @@ class ProductVersioningService
 
         // Include attribute values in the snapshot
         $attributeValues = ProductAttributeValue::where('product_id', $product->id)
-            ->with('attribute')
+            ->with(['attribute', 'valueListEntry'])
             ->get();
 
         $attrs = [];
         foreach ($attributeValues as $av) {
             $key = $av->attribute?->technical_name ?? $av->attribute_id;
             $lang = $av->language ? "_{$av->language}" : '';
-            $attrKey = "{$key}{$lang}";
+            $multiIdx = $av->multiplied_index > 0 ? ":{$av->multiplied_index}" : '';
+            $attrKey = "{$key}{$lang}{$multiIdx}";
 
-            $value = $av->value_string ?? $av->value_number ?? $av->value_text ?? $av->value_json;
+            $value = $this->extractAttributeValue($av);
 
             $attrs[$attrKey] = [
                 'label' => $av->attribute?->name_de ?? $key,
@@ -189,5 +208,37 @@ class ProductVersioningService
         $snapshot['attributes'] = $attrs;
 
         return $snapshot;
+    }
+
+    private function extractAttributeValue(ProductAttributeValue $av): mixed
+    {
+        $dataType = $av->attribute?->data_type;
+
+        return match ($dataType) {
+            'String' => $av->value_string,
+            'Number', 'Float' => $av->value_number !== null
+                ? rtrim(rtrim((string) $av->value_number, '0'), '.')
+                : null,
+            'Date' => $av->value_date?->format('Y-m-d'),
+            'Flag' => $av->value_flag !== null
+                ? ($av->value_flag ? 'Ja' : 'Nein')
+                : null,
+            'Selection', 'Dictionary' => $this->resolveSelectionLabel($av),
+            default => $av->value_string
+                ?? ($av->value_number !== null ? rtrim(rtrim((string) $av->value_number, '0'), '.') : null)
+                ?? $av->value_date?->format('Y-m-d')
+                ?? ($av->value_flag !== null ? ($av->value_flag ? 'Ja' : 'Nein') : null)
+                ?? $this->resolveSelectionLabel($av),
+        };
+    }
+
+    private function resolveSelectionLabel(ProductAttributeValue $av): ?string
+    {
+        $entry = $av->valueListEntry;
+        if (!$entry) {
+            return null;
+        }
+
+        return $entry->display_value_de;
     }
 }

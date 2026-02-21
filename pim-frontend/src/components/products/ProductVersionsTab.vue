@@ -43,11 +43,29 @@ const cancelling = ref(false)
 
 // Status config
 const statusConfig = {
+  current: { label: t('product.version.currentState'), class: 'bg-emerald-100 text-emerald-700' },
   draft: { label: t('product.version.draft'), class: 'bg-[var(--color-bg)] text-[var(--color-text-tertiary)]' },
   scheduled: { label: t('product.version.scheduled'), class: 'bg-blue-100 text-blue-700' },
   active: { label: t('product.version.active'), class: 'bg-[var(--color-success-light)] text-[var(--color-success)]' },
   archived: { label: t('product.version.archived'), class: 'bg-gray-100 text-gray-500' },
 }
+
+// Virtual "current state" entry for compare mode
+const currentVersionEntry = computed(() => ({
+  id: 'current',
+  version_number: null,
+  status: 'current',
+  created_at: null,
+  change_reason: null,
+  creator: null,
+  snapshot: null,
+  _isCurrent: true,
+}))
+
+const compareableVersions = computed(() => {
+  if (!compareMode.value) return versions.value
+  return [currentVersionEntry.value, ...versions.value]
+})
 
 async function loadVersions() {
   loading.value = true
@@ -147,12 +165,21 @@ async function loadDiff() {
   if (!compareLeft.value || !compareRight.value) return
   diffLoading.value = true
   try {
-    // Always put the older version on the left
-    const left = compareLeft.value.version_number < compareRight.value.version_number
-      ? compareLeft.value : compareRight.value
-    const right = compareLeft.value.version_number < compareRight.value.version_number
-      ? compareRight.value : compareLeft.value
-    const { data } = await productVersionsApi.compare(props.productId, left.id, right.id)
+    let left = compareLeft.value
+    let right = compareRight.value
+
+    // Current state always goes on the right side
+    if (left._isCurrent) {
+      ;[left, right] = [right, left]
+    } else if (!right._isCurrent && left.version_number > right.version_number) {
+      // For two real versions, put the older one on the left
+      ;[left, right] = [right, left]
+    }
+
+    const fromId = left._isCurrent ? 'current' : left.id
+    const toId = right._isCurrent ? 'current' : right.id
+
+    const { data } = await productVersionsApi.compare(props.productId, fromId, toId)
     diffData.value = data.data || data
   } catch { /* silently fail */ }
   finally { diffLoading.value = false }
@@ -210,7 +237,7 @@ loadVersions()
       <p class="text-xs text-[var(--color-text-tertiary)]">
         {{ t('product.version.selectTwo') }}
         <span v-if="compareLeft" class="font-medium text-[var(--color-accent)]">
-          (Version {{ compareLeft.version_number }} ausgewählt — noch eine wählen)
+          ({{ compareLeft._isCurrent ? t('product.version.currentState') : 'Version ' + compareLeft.version_number }} ausgewählt — noch eine wählen)
         </span>
       </p>
     </div>
@@ -231,7 +258,7 @@ loadVersions()
     <!-- Version Timeline -->
     <div v-else-if="versions.length > 0" class="space-y-2">
       <div
-        v-for="version in versions"
+        v-for="version in (compareMode ? compareableVersions : versions)"
         :key="version.id"
         :class="[
           'pim-card p-3 cursor-pointer transition-all',
@@ -245,7 +272,12 @@ loadVersions()
           <div class="flex items-center gap-2.5 min-w-0">
             <!-- Version number -->
             <div class="flex items-center justify-center w-7 h-7 rounded-full bg-[var(--color-bg)] text-[11px] font-bold text-[var(--color-text-secondary)] shrink-0">
-              {{ version.version_number }}
+              <template v-if="version._isCurrent">
+                <span class="text-emerald-600">&#9679;</span>
+              </template>
+              <template v-else>
+                {{ version.version_number }}
+              </template>
             </div>
             <div class="min-w-0">
               <div class="flex items-center gap-2">
@@ -306,15 +338,30 @@ loadVersions()
         </div>
 
         <!-- Selected version detail -->
-        <div v-if="selectedVersion?.id === version.id && !compareMode" class="mt-3 pt-3 border-t border-[var(--color-border)]">
+        <div v-if="selectedVersion?.id === version.id && !compareMode && !version._isCurrent" class="mt-3 pt-3 border-t border-[var(--color-border)]">
+          <!-- Base fields -->
           <div class="grid grid-cols-2 gap-x-6 gap-y-2">
-            <div v-for="[key, value] in Object.entries(version.snapshot || {})" :key="key">
+            <div v-for="[key, value] in Object.entries(version.snapshot || {}).filter(([k]) => k !== 'attributes')" :key="key">
               <span class="block text-[11px] text-[var(--color-text-tertiary)]">{{ key }}</span>
               <p class="text-[12px] text-[var(--color-text-primary)]" :class="key === 'sku' || key === 'ean' ? 'font-mono' : ''">
-                {{ value || '—' }}
+                {{ value ?? '—' }}
               </p>
             </div>
           </div>
+          <!-- Attribute values -->
+          <template v-if="version.snapshot?.attributes && Object.keys(version.snapshot.attributes).length > 0">
+            <div class="mt-3 pt-2 border-t border-[var(--color-border)]">
+              <span class="block text-[10px] font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wider mb-2">Attributwerte</span>
+              <div class="grid grid-cols-2 gap-x-6 gap-y-2">
+                <div v-for="[attrKey, attrData] in Object.entries(version.snapshot.attributes)" :key="attrKey">
+                  <span class="block text-[11px] text-[var(--color-text-tertiary)]">{{ attrData.label || attrKey }}</span>
+                  <p class="text-[12px] text-[var(--color-text-primary)]">
+                    {{ attrData.value ?? '—' }}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </template>
         </div>
       </div>
     </div>
