@@ -244,8 +244,18 @@ class AssetCatalogController extends BaseController
 
         return response()->streamDownload(function () use ($mediaItems, $disk) {
             $tmpFile = tempnam(sys_get_temp_dir(), 'pim_assets_');
+
+            // Ensure cleanup even on stream interruption
+            register_shutdown_function(function () use ($tmpFile) {
+                if (file_exists($tmpFile)) {
+                    @unlink($tmpFile);
+                }
+            });
+
             $zip = new ZipArchive();
-            $zip->open($tmpFile, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+            if ($zip->open($tmpFile, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+                return;
+            }
 
             foreach ($mediaItems as $media) {
                 $filePath = $disk->path($media->file_path);

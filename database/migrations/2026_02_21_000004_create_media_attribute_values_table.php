@@ -35,6 +35,7 @@ return new class extends Migration
                 'mav_media_attr_lang_idx_unique'
             );
             $table->index(['media_id', 'attribute_id']);
+            $table->index(['media_id', 'language']);
         });
 
         if (DB::getDriverName() === 'mysql') {

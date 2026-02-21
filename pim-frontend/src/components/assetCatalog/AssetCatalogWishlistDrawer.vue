@@ -1,12 +1,13 @@
 <script setup>
-import { computed, inject } from 'vue'
+import { computed, inject, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAssetCatalogStore } from '@/stores/assetCatalog'
 import { Heart, Trash2, X, Image, Download } from 'lucide-vue-next'
+import { formatFileSize } from '@/utils/formatting'
 
 const { t } = useI18n()
 const store = useAssetCatalogStore()
-const wishlistOpen = inject('wishlistOpen')
+const wishlistOpen = inject('wishlistOpen', ref(false))
 
 const wishlistAssets = computed(() => {
   return store.assets.filter((a) => store.isInWishlist(a.id))
@@ -19,12 +20,6 @@ const unloadedIds = computed(() => {
 
 function closeDrawer() {
   wishlistOpen.value = false
-}
-
-function formatFileSize(bytes) {
-  if (!bytes) return ''
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + ' KB'
-  return (bytes / 1024 / 1024).toFixed(1) + ' MB'
 }
 
 async function downloadAll() {
@@ -92,7 +87,7 @@ async function downloadAll() {
           v-if="unloadedIds.length > 0"
           class="text-center text-xs text-base-content/40 py-2"
         >
-          + {{ unloadedIds.length }} weitere Assets
+          + {{ unloadedIds.length }} {{ t('assetCatalog.moreAssets') }}
         </div>
       </div>
     </div>

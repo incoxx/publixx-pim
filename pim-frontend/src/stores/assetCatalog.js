@@ -31,7 +31,15 @@ export const useAssetCatalogStore = defineStore('assetCatalog', () => {
 
   // --- Wishlist (localStorage-backed) ---
   const WISHLIST_KEY = 'pim_asset_wishlist'
-  const wishlistIds = ref(JSON.parse(localStorage.getItem(WISHLIST_KEY) || '[]'))
+  let savedWishlist = []
+  try {
+    savedWishlist = JSON.parse(localStorage.getItem(WISHLIST_KEY) || '[]')
+    if (!Array.isArray(savedWishlist)) savedWishlist = []
+  } catch {
+    localStorage.removeItem(WISHLIST_KEY)
+    savedWishlist = []
+  }
+  const wishlistIds = ref(savedWishlist)
 
   // --- Computed ---
   const isEmpty = computed(() => assets.value.length === 0 && !loading.value)
@@ -72,7 +80,7 @@ export const useAssetCatalogStore = defineStore('assetCatalog', () => {
         meta.value = { ...meta.value, ...data.meta }
       }
     } catch (e) {
-      error.value = e.response?.data?.message || 'Fehler beim Laden'
+      error.value = e.response?.data?.message || 'Loading error'
       assets.value = []
     } finally {
       loading.value = false
@@ -86,7 +94,7 @@ export const useAssetCatalogStore = defineStore('assetCatalog', () => {
       const { data } = await assetCatalogApi.getAsset(id, { lang: locale.value })
       currentAsset.value = data.data
     } catch (e) {
-      error.value = e.response?.data?.message || 'Asset nicht gefunden'
+      error.value = e.response?.data?.message || 'Asset not found'
       currentAsset.value = null
     } finally {
       assetLoading.value = false
@@ -103,6 +111,7 @@ export const useAssetCatalogStore = defineStore('assetCatalog', () => {
         hierarchy_name: data.data.hierarchy_name,
       }
     } catch (e) {
+      error.value = e.response?.data?.message || 'Failed to load folders'
       console.error('Failed to load folders:', e)
       folders.value = []
     } finally {
@@ -123,7 +132,7 @@ export const useAssetCatalogStore = defineStore('assetCatalog', () => {
       link.remove()
       window.URL.revokeObjectURL(url)
     } catch (e) {
-      error.value = 'Download fehlgeschlagen'
+      error.value = 'Download failed'
       console.error('ZIP download failed:', e)
     }
   }

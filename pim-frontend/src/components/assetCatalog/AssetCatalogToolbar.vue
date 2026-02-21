@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, watch, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAssetCatalogStore } from '@/stores/assetCatalog'
 import { Search, Grid, List, SlidersHorizontal } from 'lucide-vue-next'
@@ -16,6 +16,7 @@ watch(searchInput, (val) => {
     store.fetchAssets()
   }, 300)
 })
+onUnmounted(() => clearTimeout(debounceTimer))
 
 function setSort(field, order) {
   store.setSort(field, order)

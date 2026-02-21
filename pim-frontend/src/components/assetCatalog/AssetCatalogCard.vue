@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAssetCatalogStore } from '@/stores/assetCatalog'
 import { Heart, Eye, Image, FileText } from 'lucide-vue-next'
+import { formatFileSize } from '@/utils/formatting'
 
 const props = defineProps({
   asset: { type: Object, required: true },
@@ -20,13 +21,6 @@ const isImage = computed(() => props.asset.media_type === 'image')
 function toggleWishlist(e) {
   e.stopPropagation()
   store.toggleWishlist(props.asset.id)
-}
-
-function formatFileSize(bytes) {
-  if (!bytes) return ''
-  if (bytes < 1024) return bytes + ' B'
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
-  return (bytes / 1024 / 1024).toFixed(1) + ' MB'
 }
 
 const staggerDelay = computed(() => `${Math.min(props.index * 40, 400)}ms`)

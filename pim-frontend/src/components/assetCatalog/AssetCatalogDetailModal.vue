@@ -3,6 +3,7 @@ import { watch, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAssetCatalogStore } from '@/stores/assetCatalog'
 import { X, Download, Heart, Image, FileText, Info } from 'lucide-vue-next'
+import { formatFileSize } from '@/utils/formatting'
 
 const props = defineProps({
   assetId: String,
@@ -16,13 +17,6 @@ const store = useAssetCatalogStore()
 watch(() => props.assetId, (id) => {
   if (id) store.fetchAsset(id)
 })
-
-function formatFileSize(bytes) {
-  if (!bytes) return ''
-  if (bytes < 1024) return bytes + ' B'
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
-  return (bytes / 1024 / 1024).toFixed(1) + ' MB'
-}
 
 function usageLabel(purpose) {
   const map = { print: t('assetCatalog.usagePrint'), web: t('assetCatalog.usageWeb'), both: t('assetCatalog.usageBoth') }
@@ -124,7 +118,7 @@ function toggleWishlist() {
                     </p>
                   </div>
                   <div v-if="store.currentAsset.description">
-                    <span class="text-xs font-medium text-base-content/50">{{ t('catalog.description') }}</span>
+                    <span class="text-xs font-medium text-base-content/50">{{ t('assetCatalog.description') }}</span>
                     <p class="text-sm text-base-content/70">{{ store.currentAsset.description }}</p>
                   </div>
                   <div v-if="store.currentAsset.folder_name">

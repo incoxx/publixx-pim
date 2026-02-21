@@ -1,13 +1,13 @@
 <script setup>
-import { inject } from 'vue'
+import { inject, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAssetCatalogStore } from '@/stores/assetCatalog'
 import { Image, Heart, Menu, Globe } from 'lucide-vue-next'
 
 const { t } = useI18n()
 const store = useAssetCatalogStore()
-const wishlistOpen = inject('wishlistOpen')
-const sidebarOpen = inject('sidebarOpen')
+const wishlistOpen = inject('wishlistOpen', ref(false))
+const sidebarOpen = inject('sidebarOpen', ref(false))
 
 function toggleLocale() {
   store.setLocale(store.locale === 'de' ? 'en' : 'de')

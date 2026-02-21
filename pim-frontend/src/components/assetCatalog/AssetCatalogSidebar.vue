@@ -66,7 +66,7 @@ function selectAll() {
       </template>
 
       <div v-else-if="!store.foldersLoading" class="px-3 py-4 text-xs text-base-content/30 text-center">
-        Keine Ordner vorhanden
+        {{ t('assetCatalog.noFolders') }}
       </div>
     </div>
   </div>

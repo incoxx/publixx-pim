@@ -1,6 +1,7 @@
 <script setup>
 import { useAssetCatalogStore } from '@/stores/assetCatalog'
 import AssetCatalogCard from './AssetCatalogCard.vue'
+import { formatFileSize } from '@/utils/formatting'
 
 defineProps({
   assets: { type: Array, required: true },
@@ -59,15 +60,3 @@ const store = useAssetCatalogStore()
   </div>
 </template>
 
-<script>
-function formatFileSize(bytes) {
-  if (!bytes) return ''
-  if (bytes < 1024) return bytes + ' B'
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
-  return (bytes / 1024 / 1024).toFixed(1) + ' MB'
-}
-
-export default {
-  methods: { formatFileSize },
-}
-</script>

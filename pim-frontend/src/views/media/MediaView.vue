@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { Upload, Image, Grid, List, Trash2, FolderOpen, Folder, Search, Edit3, X, ChevronRight, ChevronDown, Plus } from 'lucide-vue-next'
 import mediaApi from '@/api/media'
 import hierarchiesApi from '@/api/hierarchies'
@@ -151,6 +151,7 @@ watch(searchTerm, () => {
   clearTimeout(debounceTimer)
   debounceTimer = setTimeout(() => fetchMedia(), 300)
 })
+onUnmounted(() => clearTimeout(debounceTimer))
 watch(usagePurposeFilter, () => fetchMedia())
 watch(selectedFolderId, () => fetchMedia())
 

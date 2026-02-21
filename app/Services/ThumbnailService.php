@@ -72,40 +72,58 @@ class ThumbnailService
             return;
         }
 
-        $srcW = imagesx($srcImage);
-        $srcH = imagesy($srcImage);
+        $destImage = null;
+        $tmpImage = null;
 
-        if ($fit === 'cover') {
-            // Crop to fill
-            $ratio = max($maxW / $srcW, $maxH / $srcH);
-            $newW = (int) round($srcW * $ratio);
-            $newH = (int) round($srcH * $ratio);
-            $offsetX = (int) round(($newW - $maxW) / 2);
-            $offsetY = (int) round(($newH - $maxH) / 2);
+        try {
+            $srcW = imagesx($srcImage);
+            $srcH = imagesy($srcImage);
 
-            $tmpImage = imagecreatetruecolor($newW, $newH);
-            $this->preserveTransparency($tmpImage, $mimeType);
-            imagecopyresampled($tmpImage, $srcImage, 0, 0, 0, 0, $newW, $newH, $srcW, $srcH);
+            if ($fit === 'cover') {
+                // Crop to fill
+                $ratio = max($maxW / $srcW, $maxH / $srcH);
+                $newW = (int) round($srcW * $ratio);
+                $newH = (int) round($srcH * $ratio);
+                $offsetX = (int) round(($newW - $maxW) / 2);
+                $offsetY = (int) round(($newH - $maxH) / 2);
 
-            $destImage = imagecreatetruecolor($maxW, $maxH);
-            $this->preserveTransparency($destImage, $mimeType);
-            imagecopy($destImage, $tmpImage, 0, 0, $offsetX, $offsetY, $maxW, $maxH);
-            imagedestroy($tmpImage);
-        } else {
-            // Contain: fit within bounds, maintaining aspect ratio
-            $ratio = min($maxW / $srcW, $maxH / $srcH);
-            $newW = max(1, (int) round($srcW * $ratio));
-            $newH = max(1, (int) round($srcH * $ratio));
+                $tmpImage = imagecreatetruecolor($newW, $newH);
+                if (!$tmpImage) {
+                    return;
+                }
+                $this->preserveTransparency($tmpImage, $mimeType);
+                imagecopyresampled($tmpImage, $srcImage, 0, 0, 0, 0, $newW, $newH, $srcW, $srcH);
 
-            $destImage = imagecreatetruecolor($newW, $newH);
-            $this->preserveTransparency($destImage, $mimeType);
-            imagecopyresampled($destImage, $srcImage, 0, 0, 0, 0, $newW, $newH, $srcW, $srcH);
+                $destImage = imagecreatetruecolor($maxW, $maxH);
+                if (!$destImage) {
+                    return;
+                }
+                $this->preserveTransparency($destImage, $mimeType);
+                imagecopy($destImage, $tmpImage, 0, 0, $offsetX, $offsetY, $maxW, $maxH);
+            } else {
+                // Contain: fit within bounds, maintaining aspect ratio
+                $ratio = min($maxW / $srcW, $maxH / $srcH);
+                $newW = max(1, (int) round($srcW * $ratio));
+                $newH = max(1, (int) round($srcH * $ratio));
+
+                $destImage = imagecreatetruecolor($newW, $newH);
+                if (!$destImage) {
+                    return;
+                }
+                $this->preserveTransparency($destImage, $mimeType);
+                imagecopyresampled($destImage, $srcImage, 0, 0, 0, 0, $newW, $newH, $srcW, $srcH);
+            }
+
+            $this->saveImage($destImage, $dest, $mimeType);
+        } finally {
+            if ($tmpImage) {
+                imagedestroy($tmpImage);
+            }
+            if ($destImage) {
+                imagedestroy($destImage);
+            }
+            imagedestroy($srcImage);
         }
-
-        $this->saveImage($destImage, $dest, $mimeType);
-
-        imagedestroy($srcImage);
-        imagedestroy($destImage);
     }
 
     private function loadImage(string $path, string $mimeType): ?\GdImage
