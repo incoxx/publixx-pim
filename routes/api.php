@@ -26,6 +26,7 @@ use App\Http\Controllers\Api\V1\ProductPriceController;
 use App\Http\Controllers\Api\V1\ProductRelationAttributeValueController;
 use App\Http\Controllers\Api\V1\ProductRelationController;
 use App\Http\Controllers\Api\V1\ProductVariantController;
+use App\Http\Controllers\Api\V1\ProductVersionController;
 use App\Http\Controllers\Api\V1\PublixxDatasetController;
 use App\Http\Controllers\Api\V1\PxfTemplateController;
 use App\Http\Controllers\Api\V1\RelationTypeController;
@@ -177,6 +178,16 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::post('products/{product}/variants', [ProductVariantController::class, 'store']);
     Route::get('products/{product}/variant-rules', [ProductVariantController::class, 'rules']);
     Route::put('products/{product}/variant-rules', [ProductVariantController::class, 'updateRules']);
+
+    // Product Versions
+    Route::get('products/{product}/versions/compare', [ProductVersionController::class, 'compare']);
+    Route::get('products/{product}/versions', [ProductVersionController::class, 'index']);
+    Route::post('products/{product}/versions', [ProductVersionController::class, 'store']);
+    Route::get('products/{product}/versions/{version}', [ProductVersionController::class, 'show']);
+    Route::post('products/{product}/versions/{version}/activate', [ProductVersionController::class, 'activate']);
+    Route::post('products/{product}/versions/{version}/schedule', [ProductVersionController::class, 'schedule']);
+    Route::post('products/{product}/versions/{version}/cancel-schedule', [ProductVersionController::class, 'cancelSchedule']);
+    Route::post('products/{product}/versions/{version}/revert', [ProductVersionController::class, 'revert']);
 
     // =====================================================================
     // Agent 3: Media

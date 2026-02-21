@@ -13,6 +13,7 @@ import PimCollectionGroup from '@/components/shared/PimCollectionGroup.vue'
 import PimAttributeInput from '@/components/shared/PimAttributeInput.vue'
 import PimTable from '@/components/shared/PimTable.vue'
 import PimConfirmDialog from '@/components/shared/PimConfirmDialog.vue'
+import ProductVersionsTab from '@/components/products/ProductVersionsTab.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -34,6 +35,7 @@ const tabs = [
   { key: 'prices', label: t('product.prices') },
   { key: 'relations', label: t('product.relations') },
   { key: 'preview', label: t('product.preview') },
+  { key: 'versions', label: t('product.versions') },
 ]
 
 const product = computed(() => store.current)
@@ -1235,5 +1237,11 @@ onMounted(async () => {
         <p class="text-sm text-[var(--color-text-tertiary)]">Vorschau konnte nicht geladen werden</p>
       </div>
     </div>
+
+    <!-- ═══ Versions Tab ═══ -->
+    <ProductVersionsTab
+      v-else-if="activeTab === 'versions' && product"
+      :productId="product.id"
+    />
   </div>
 </template>

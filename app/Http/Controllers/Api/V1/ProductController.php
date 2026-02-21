@@ -10,6 +10,7 @@ use App\Http\Resources\Api\V1\ProductResource;
 use App\Models\Product;
 use App\Services\Preview\ProductCompletenessService;
 use App\Services\Preview\ProductPreviewService;
+use App\Services\ProductVersioningService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -117,6 +118,17 @@ class ProductController extends Controller
     public function update(UpdateProductRequest $request, Product $product): ProductResource
     {
         $this->authorize('update', $product);
+
+        // Auto-create version snapshot before applying changes
+        try {
+            app(ProductVersioningService::class)->createVersion(
+                $product,
+                null,
+                $request->user()?->id,
+            );
+        } catch (\Throwable) {
+            // Don't break the update if versioning fails
+        }
 
         $data = $request->validated();
         $data['updated_by'] = $request->user()?->id;

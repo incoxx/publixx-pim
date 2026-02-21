@@ -118,4 +118,14 @@ class Product extends Model
     {
         return $this->hasOne(ProductSearchIndex::class, 'product_id');
     }
+
+    public function versions(): HasMany
+    {
+        return $this->hasMany(ProductVersion::class)->orderByDesc('version_number');
+    }
+
+    public function activeVersion(): HasOne
+    {
+        return $this->hasOne(ProductVersion::class)->where('status', 'active');
+    }
 }
