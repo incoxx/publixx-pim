@@ -51,10 +51,10 @@ class RateLimitMiddleware
 
         $response = $next($request);
 
-        return $response->withHeaders([
-            'X-RateLimit-Limit' => (string) $maxAttempts,
-            'X-RateLimit-Remaining' => (string) $this->limiter->remaining($key, $maxAttempts),
-        ]);
+        $response->headers->set('X-RateLimit-Limit', (string) $maxAttempts);
+        $response->headers->set('X-RateLimit-Remaining', (string) $this->limiter->remaining($key, $maxAttempts));
+
+        return $response;
     }
 
     private function resolveRequestSignature(Request $request, string $tier): string
