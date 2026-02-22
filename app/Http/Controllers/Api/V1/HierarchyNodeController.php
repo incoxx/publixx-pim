@@ -13,6 +13,7 @@ use App\Models\HierarchyNode;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\DB;
 
 class HierarchyNodeController extends Controller
 {
@@ -42,23 +43,26 @@ class HierarchyNodeController extends Controller
     {
         $this->authorize('create', HierarchyNode::class);
 
-        $data = $request->validated();
-        $data['hierarchy_id'] = $hierarchy->id;
+        $node = DB::transaction(function () use ($request, $hierarchy) {
+            $data = $request->validated();
+            $data['hierarchy_id'] = $hierarchy->id;
 
-        // Calculate path and depth from parent
-        if (!empty($data['parent_node_id'])) {
-            $parent = HierarchyNode::findOrFail($data['parent_node_id']);
-            $data['depth'] = $parent->depth + 1;
-            // path will be set in model boot or observer if needed
-        } else {
-            $data['depth'] = 0;
-        }
+            // Calculate path and depth from parent
+            if (!empty($data['parent_node_id'])) {
+                $parent = HierarchyNode::lockForUpdate()->findOrFail($data['parent_node_id']);
+                $data['depth'] = $parent->depth + 1;
+            } else {
+                $data['depth'] = 0;
+            }
 
-        $node = HierarchyNode::create($data);
+            $node = HierarchyNode::create($data);
 
-        // Build materialized path
-        $node->path = $this->buildPath($node);
-        $node->save();
+            // Build materialized path
+            $node->path = $this->buildPath($node);
+            $node->save();
+
+            return $node;
+        });
 
         return (new HierarchyNodeResource($node))
             ->response()
@@ -87,12 +91,13 @@ class HierarchyNodeController extends Controller
     {
         $this->authorize('delete', $hierarchyNode);
 
-        // Delete cascades to children via DB constraint or manual deletion
-        HierarchyNode::where('path', 'LIKE', $hierarchyNode->path . '%')
-            ->where('id', '!=', $hierarchyNode->id)
-            ->delete();
+        DB::transaction(function () use ($hierarchyNode) {
+            HierarchyNode::where('path', 'LIKE', $hierarchyNode->path . '%')
+                ->where('id', '!=', $hierarchyNode->id)
+                ->delete();
 
-        $hierarchyNode->delete();
+            $hierarchyNode->delete();
+        });
 
         return response()->json(null, 204);
     }
@@ -105,40 +110,43 @@ class HierarchyNodeController extends Controller
         $this->authorize('update', $hierarchyNode);
 
         $data = $request->validated();
-
         $oldPath = $hierarchyNode->path;
 
-        $hierarchyNode->parent_node_id = $data['parent_node_id'] ?? null;
-        $hierarchyNode->sort_order = $data['sort_order'] ?? $hierarchyNode->sort_order;
+        DB::transaction(function () use ($data, $hierarchyNode, $oldPath) {
+            $hierarchyNode->parent_node_id = $data['parent_node_id'] ?? null;
+            $hierarchyNode->sort_order = $data['sort_order'] ?? $hierarchyNode->sort_order;
 
-        if ($hierarchyNode->parent_node_id) {
-            $parent = HierarchyNode::findOrFail($hierarchyNode->parent_node_id);
-            $hierarchyNode->depth = $parent->depth + 1;
-        } else {
-            $hierarchyNode->depth = 0;
-        }
+            if ($hierarchyNode->parent_node_id) {
+                $parent = HierarchyNode::lockForUpdate()->findOrFail($hierarchyNode->parent_node_id);
+                $hierarchyNode->depth = $parent->depth + 1;
+            } else {
+                $hierarchyNode->depth = 0;
+            }
 
-        $hierarchyNode->save();
+            $hierarchyNode->save();
 
-        $newPath = $this->buildPath($hierarchyNode);
-        $hierarchyNode->path = $newPath;
-        $hierarchyNode->save();
+            $newPath = $this->buildPath($hierarchyNode);
+            $hierarchyNode->path = $newPath;
+            $hierarchyNode->save();
 
-        // Update all descendants' paths
-        HierarchyNode::where('path', 'LIKE', $oldPath . '%')
-            ->where('id', '!=', $hierarchyNode->id)
-            ->get()
-            ->each(function (HierarchyNode $child) use ($oldPath, $newPath) {
+            // Batch-update all descendants' paths
+            $descendants = HierarchyNode::where('path', 'LIKE', $oldPath . '%')
+                ->where('id', '!=', $hierarchyNode->id)
+                ->lockForUpdate()
+                ->get();
+
+            foreach ($descendants as $child) {
                 $child->path = str_replace($oldPath, $newPath, $child->path);
                 $child->depth = substr_count(trim($child->path, '/'), '/');
                 $child->save();
-            });
+            }
+        });
 
-        // Dispatch event for Inheritance Agent
         try {
+            $newPath = $hierarchyNode->path;
             event(new \App\Events\HierarchyNodeMoved($hierarchyNode, $oldPath !== $newPath ? $hierarchyNode->parent_node_id : null, $oldPath));
         } catch (\Throwable $e) {
-            // Don't break the response
+            \Illuminate\Support\Facades\Log::warning('HierarchyNodeMoved event failed', ['error' => $e->getMessage()]);
         }
 
         return new HierarchyNodeResource($hierarchyNode->fresh());
@@ -151,7 +159,9 @@ class HierarchyNodeController extends Controller
     {
         $this->authorize('create', HierarchyNode::class);
 
-        $clone = $this->deepCopyNode($hierarchyNode, $hierarchyNode->parent_node_id, $hierarchyNode->hierarchy_id);
+        $clone = DB::transaction(function () use ($hierarchyNode) {
+            return $this->deepCopyNode($hierarchyNode, $hierarchyNode->parent_node_id, $hierarchyNode->hierarchy_id);
+        });
 
         return (new HierarchyNodeResource($clone->load('children')))
             ->response()
@@ -219,7 +229,7 @@ class HierarchyNodeController extends Controller
             return "/{$node->id}/";
         }
 
-        $parent = HierarchyNode::find($node->parent_node_id);
-        return $parent ? "{$parent->path}{$node->id}/" : "/{$node->id}/";
+        $parent = HierarchyNode::findOrFail($node->parent_node_id);
+        return "{$parent->path}{$node->id}/";
     }
 }

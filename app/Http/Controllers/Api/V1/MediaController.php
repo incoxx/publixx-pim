@@ -287,8 +287,13 @@ class MediaController extends Controller
         $disk = Storage::disk('public');
         $candidate = "{$safe}.{$extension}";
         $counter = 1;
+        $maxAttempts = 1000;
 
         while ($disk->exists("media/{$candidate}")) {
+            if ($counter >= $maxAttempts) {
+                $candidate = "{$safe}_" . Str::random(8) . ".{$extension}";
+                break;
+            }
             $candidate = "{$safe}_{$counter}.{$extension}";
             $counter++;
         }

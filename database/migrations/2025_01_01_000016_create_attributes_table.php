@@ -20,7 +20,7 @@ return new class extends Migration
             $table->text('description_en')->nullable();
             $table->enum('data_type', [
                 'String', 'Number', 'Float', 'Date', 'Flag',
-                'Selection', 'Dictionary', 'Collection',
+                'Selection', 'Dictionary', 'Collection', 'Composite',
             ]);
             $table->char('attribute_type_id', 36)->nullable();
             $table->char('value_list_id', 36)->nullable();

@@ -9,6 +9,7 @@ use App\Models\ProductAttributeValue;
 use App\Models\ProductVersion;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class ProductVersioningService
 {
@@ -56,8 +57,12 @@ class ProductVersioningService
             // Fire existing event to trigger cache/search invalidation
             try {
                 event(new \App\Events\ProductUpdated($product->fresh()));
-            } catch (\Throwable) {
-                // Don't break the activation
+            } catch (\Throwable $e) {
+                Log::warning('ProductUpdated event failed during version activation', [
+                    'product_id' => $product->id,
+                    'version_id' => $version->id,
+                    'error' => $e->getMessage(),
+                ]);
             }
         });
     }
@@ -84,14 +89,14 @@ class ProductVersioningService
         ]);
     }
 
-    public function revertToVersion(ProductVersion $version): ProductVersion
+    public function revertToVersion(ProductVersion $version, ?string $currentUserId = null): ProductVersion
     {
         $product = $version->product;
 
         $newVersion = $this->createVersion(
             $product,
             "Wiederherstellung von Version {$version->version_number}",
-            $version->created_by,
+            $currentUserId ?? auth()->id(),
         );
 
         // Overwrite the snapshot with the old version's snapshot
@@ -187,9 +192,18 @@ class ProductVersioningService
         }
 
         // Include attribute values in the snapshot
-        $attributeValues = ProductAttributeValue::where('product_id', $product->id)
-            ->with(['attribute', 'valueListEntry'])
-            ->get();
+        try {
+            $attributeValues = ProductAttributeValue::where('product_id', $product->id)
+                ->with(['attribute', 'valueListEntry'])
+                ->get();
+        } catch (\Throwable $e) {
+            Log::error('Failed to load attribute values for snapshot', [
+                'product_id' => $product->id,
+                'error' => $e->getMessage(),
+            ]);
+            $snapshot['attributes'] = [];
+            return $snapshot;
+        }
 
         $attrs = [];
         foreach ($attributeValues as $av) {

@@ -14,6 +14,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class ProductVariantController extends Controller
 {
@@ -52,7 +53,7 @@ class ProductVariantController extends Controller
         try {
             event(new \App\Events\ProductCreated($variant));
         } catch (\Throwable $e) {
-            // Event listeners may fail (e.g. queue unavailable) — don't break the response
+            Log::warning('ProductCreated event failed for variant', ['variant_id' => $variant->id, 'error' => $e->getMessage()]);
         }
 
         return (new ProductResource($variant))

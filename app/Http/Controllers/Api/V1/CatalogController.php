@@ -30,7 +30,7 @@ class CatalogController extends BaseController
     public function products(Request $request): JsonResponse
     {
         $lang = $request->query('lang', 'de');
-        $perPage = min((int) $request->query('per_page', '24'), 100);
+        $perPage = max(1, min((int) $request->query('per_page', '24'), 100));
         $sortField = $request->query('sort', 'name');
         $sortOrder = $request->query('order', 'asc') === 'desc' ? 'desc' : 'asc';
         $search = $request->query('search');

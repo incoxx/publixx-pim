@@ -15,6 +15,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\Log;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
@@ -80,7 +81,7 @@ class ProductController extends Controller
         try {
             event(new \App\Events\ProductCreated($product));
         } catch (\Throwable $e) {
-            // Event listeners may fail (e.g. queue unavailable) — don't break the response
+            Log::warning('ProductCreated event failed', ['product_id' => $product->id, 'error' => $e->getMessage()]);
         }
 
         return (new ProductResource($product->load('productType')))
@@ -138,7 +139,7 @@ class ProductController extends Controller
         try {
             event(new \App\Events\ProductUpdated($product));
         } catch (\Throwable $e) {
-            // Don't break the response
+            Log::warning('ProductUpdated event failed', ['product_id' => $product->id, 'error' => $e->getMessage()]);
         }
 
         return new ProductResource($product->fresh());
@@ -154,7 +155,7 @@ class ProductController extends Controller
         try {
             event(new \App\Events\ProductDeleted($productId));
         } catch (\Throwable $e) {
-            // Don't break the response
+            Log::warning('ProductDeleted event failed', ['product_id' => $productId, 'error' => $e->getMessage()]);
         }
 
         return response()->json(null, 204);

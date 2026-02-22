@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Http\Requests\Api\V1\StoreRoleRequest;
+use App\Http\Requests\Api\V1\UpdateRoleRequest;
 use App\Http\Resources\Api\V1\RoleResource;
 use App\Models\Role;
 use Illuminate\Http\JsonResponse;
@@ -36,16 +38,11 @@ class RoleController extends Controller
     /**
      * POST /api/v1/roles
      */
-    public function store(Request $request): JsonResponse
+    public function store(StoreRoleRequest $request): JsonResponse
     {
         $this->authorize('create', Role::class);
 
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255', 'unique:roles,name'],
-            'guard_name' => ['sometimes', 'string'],
-            'permissions' => ['sometimes', 'array'],
-            'permissions.*' => ['string', 'exists:permissions,name'],
-        ]);
+        $validated = $request->validated();
 
         $role = Role::create([
             'id' => Str::uuid()->toString(),
@@ -81,15 +78,11 @@ class RoleController extends Controller
     /**
      * PUT /api/v1/roles/{role}
      */
-    public function update(Request $request, Role $role): JsonResponse
+    public function update(UpdateRoleRequest $request, Role $role): JsonResponse
     {
         $this->authorize('update', $role);
 
-        $validated = $request->validate([
-            'name' => ['sometimes', 'string', 'max:255', "unique:roles,name,{$role->id}"],
-            'permissions' => ['sometimes', 'array'],
-            'permissions.*' => ['string', 'exists:permissions,name'],
-        ]);
+        $validated = $request->validated();
 
         if (isset($validated['name'])) {
             $role->update(['name' => $validated['name']]);
