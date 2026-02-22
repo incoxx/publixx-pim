@@ -94,6 +94,7 @@ Route::prefix('v1/catalog')->middleware('throttle.pim')->group(function () {
 // =========================================================================
 Route::prefix('v1/debug')->middleware('throttle.pim')->group(function () {
     Route::get('logs', [DebugController::class, 'logs']);
+    Route::delete('logs', [DebugController::class, 'clearLogs']);
 });
 
 // =========================================================================

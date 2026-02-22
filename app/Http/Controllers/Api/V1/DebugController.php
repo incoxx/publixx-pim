@@ -44,4 +44,27 @@ class DebugController extends Controller
         return response(implode('', $output))
             ->header('Content-Type', 'text/plain');
     }
+
+    public function clearLogs(Request $request): Response
+    {
+        $channel = $request->query('channel', 'laravel');
+
+        $allowedChannels = ['laravel', 'import'];
+        if (! in_array($channel, $allowedChannels, true)) {
+            return response('Unknown channel: ' . $channel, 400)
+                ->header('Content-Type', 'text/plain');
+        }
+
+        $path = storage_path("logs/{$channel}.log");
+
+        if (! file_exists($path)) {
+            return response("Log file not found: {$channel}.log", 404)
+                ->header('Content-Type', 'text/plain');
+        }
+
+        file_put_contents($path, '');
+
+        return response("Cleared: {$channel}.log")
+            ->header('Content-Type', 'text/plain');
+    }
 }
