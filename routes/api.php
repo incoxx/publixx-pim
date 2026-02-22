@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\V1\AttributeController;
 use App\Http\Controllers\Api\V1\AttributeTypeController;
 use App\Http\Controllers\Api\V1\AttributeViewController;
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\DebugController;
 use App\Http\Controllers\Api\V1\DeploymentController;
 use App\Http\Controllers\Api\V1\ExportController;
 use App\Http\Controllers\Api\V1\LoadDemoDataController;
@@ -86,6 +87,13 @@ Route::prefix('v1/catalog')->middleware('throttle.pim')->group(function () {
     Route::get('products/{product}/json', [CatalogController::class, 'productJson']);
     Route::get('categories', [CatalogController::class, 'categories']);
     Route::get('media/{filename}', [CatalogController::class, 'media'])->name('catalog.media');
+});
+
+// =========================================================================
+// Debug: Log access (no auth — test server only)
+// =========================================================================
+Route::prefix('v1/debug')->middleware('throttle.pim')->group(function () {
+    Route::get('logs', [DebugController::class, 'logs']);
 });
 
 // =========================================================================
