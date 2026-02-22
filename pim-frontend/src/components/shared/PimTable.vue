@@ -125,8 +125,8 @@ function getCellValue(row, col) {
           <!-- Rows -->
           <tr
             v-else
-            v-for="row in rows"
-            :key="row[rowKey]"
+            v-for="(row, index) in rows"
+            :key="row[rowKey] ?? index"
             class="border-b border-[var(--color-border)] hover:bg-[var(--color-bg)] transition-colors cursor-pointer group"
             @click="handleRowClick(row)"
           >

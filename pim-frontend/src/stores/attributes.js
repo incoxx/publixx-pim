@@ -35,18 +35,33 @@ export const useAttributeStore = defineStore('attributes', () => {
   }
 
   async function fetchTypes() {
-    const { data } = await attributeTypes.list()
-    types.value = data.data || data
+    try {
+      const { data } = await attributeTypes.list()
+      types.value = data.data || data
+    } catch (e) {
+      console.error('Failed to fetch attribute types', e)
+      error.value = e.response?.data?.title || 'Fehler beim Laden der Typen'
+    }
   }
 
   async function fetchValueLists() {
-    const { data } = await valueLists.list({ include: 'entries' })
-    lists.value = data.data || data
+    try {
+      const { data } = await valueLists.list({ include: 'entries' })
+      lists.value = data.data || data
+    } catch (e) {
+      console.error('Failed to fetch value lists', e)
+      error.value = e.response?.data?.title || 'Fehler beim Laden der Wertelisten'
+    }
   }
 
   async function fetchProductTypes() {
-    const { data } = await productTypes.list()
-    prodTypes.value = data.data || data
+    try {
+      const { data } = await productTypes.list()
+      prodTypes.value = data.data || data
+    } catch (e) {
+      console.error('Failed to fetch product types', e)
+      error.value = e.response?.data?.title || 'Fehler beim Laden der Produkttypen'
+    }
   }
 
   async function createAttribute(attrData) {

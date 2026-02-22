@@ -48,7 +48,7 @@ function update(value) {
     :disabled="disabled"
     :min="min"
     :max="max"
-    :step="type === 'decimal' ? step || 0.01 : step || 1"
+    :step="type === 'decimal' ? step ?? 0.01 : step ?? 1"
     @input="update(type === 'decimal' ? parseFloat($event.target.value) : parseInt($event.target.value))"
   />
 

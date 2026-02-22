@@ -102,7 +102,7 @@ export const useCatalogStore = defineStore('catalog', () => {
         }
       }
     } catch (e) {
-      error.value = e.response?.data?.message || 'Fehler beim Laden'
+      error.value = e.response?.data?.title || 'Fehler beim Laden'
       products.value = []
     } finally {
       loading.value = false
@@ -116,7 +116,7 @@ export const useCatalogStore = defineStore('catalog', () => {
       const { data } = await catalogApi.getProduct(id, { lang: locale.value })
       currentProduct.value = data.data
     } catch (e) {
-      error.value = e.response?.data?.message || 'Produkt nicht gefunden'
+      error.value = e.response?.data?.title || 'Produkt nicht gefunden'
       currentProduct.value = null
     } finally {
       productLoading.value = false

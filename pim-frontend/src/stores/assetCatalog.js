@@ -80,7 +80,7 @@ export const useAssetCatalogStore = defineStore('assetCatalog', () => {
         meta.value = { ...meta.value, ...data.meta }
       }
     } catch (e) {
-      error.value = e.response?.data?.message || 'Loading error'
+      error.value = e.response?.data?.title || 'Fehler beim Laden'
       assets.value = []
     } finally {
       loading.value = false
@@ -94,7 +94,7 @@ export const useAssetCatalogStore = defineStore('assetCatalog', () => {
       const { data } = await assetCatalogApi.getAsset(id, { lang: locale.value })
       currentAsset.value = data.data
     } catch (e) {
-      error.value = e.response?.data?.message || 'Asset not found'
+      error.value = e.response?.data?.title || 'Asset nicht gefunden'
       currentAsset.value = null
     } finally {
       assetLoading.value = false
@@ -111,7 +111,7 @@ export const useAssetCatalogStore = defineStore('assetCatalog', () => {
         hierarchy_name: data.data.hierarchy_name,
       }
     } catch (e) {
-      error.value = e.response?.data?.message || 'Failed to load folders'
+      error.value = e.response?.data?.title || 'Fehler beim Laden der Ordner'
       console.error('Failed to load folders:', e)
       folders.value = []
     } finally {
@@ -132,7 +132,7 @@ export const useAssetCatalogStore = defineStore('assetCatalog', () => {
       link.remove()
       window.URL.revokeObjectURL(url)
     } catch (e) {
-      error.value = 'Download failed'
+      error.value = 'Download fehlgeschlagen'
       console.error('ZIP download failed:', e)
     }
   }

@@ -63,13 +63,13 @@ async function handleSubmit(data) {
       for (const [key, val] of Object.entries(serverErrors)) {
         errors.value[key] = Array.isArray(val) ? val[0] : val
       }
-      if (e.response.data.message && !Object.keys(serverErrors).length) {
-        errors.value._general = e.response.data.message
+      if (e.response.data.title && !Object.keys(serverErrors).length) {
+        errors.value._general = e.response.data.title
       }
     } else if (e.response?.status === 403) {
       errors.value._general = 'Keine Berechtigung für diese Aktion.'
     } else {
-      errors.value._general = e.response?.data?.message || 'Ein Fehler ist aufgetreten.'
+      errors.value._general = e.response?.data?.title || 'Ein Fehler ist aufgetreten.'
     }
   } finally {
     loading.value = false

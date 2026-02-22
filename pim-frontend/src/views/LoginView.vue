@@ -19,7 +19,7 @@ async function handleLogin() {
     await authStore.login({ email: email.value, password: password.value })
     router.push(route.query.redirect || '/products')
   } catch (e) {
-    error.value = e.response?.data?.message || 'Anmeldung fehlgeschlagen'
+    error.value = e.response?.data?.title || 'Anmeldung fehlgeschlagen'
   } finally {
     loading.value = false
   }

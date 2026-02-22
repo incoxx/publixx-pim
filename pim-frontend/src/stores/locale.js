@@ -41,7 +41,7 @@ export const useLocaleStore = defineStore('locale', () => {
       try {
         const parsed = JSON.parse(obj[`${field}_json`])
         return parsed[currentLocale.value] || parsed.en || parsed.de || fallback
-      } catch { /* ignore */ }
+      } catch (e) { console.warn('Failed to parse localized JSON field', e) }
     }
     return obj[field] || fallback
   }

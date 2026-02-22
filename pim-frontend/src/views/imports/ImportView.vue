@@ -29,10 +29,17 @@ async function executeImport() {
 }
 
 async function downloadTemplate(type) {
-  const { data } = await importsApi.downloadTemplate(type)
-  const url = URL.createObjectURL(data)
-  const a = document.createElement('a'); a.href = url; a.download = `import-template-${type}.xlsx`; a.click()
-  URL.revokeObjectURL(url)
+  try {
+    const { data } = await importsApi.downloadTemplate(type)
+    const url = URL.createObjectURL(data)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `import-template-${type}.xlsx`
+    a.click()
+    URL.revokeObjectURL(url)
+  } catch (err) {
+    error.value = err.response?.data?.title || 'Download fehlgeschlagen'
+  }
 }
 </script>
 

@@ -69,13 +69,17 @@ onMounted(async () => {
       const { data: treeData } = await hierarchiesApi.getTree(hierarchies.value[0].id)
       hierarchyTree.value = treeData.data || treeData
     }
-  } catch { /* silently fail */ }
+  } catch (e) {
+    console.error('Failed to load hierarchies', e)
+  }
 
   // Load searchable attributes (non-internal)
   try {
     const { data } = await attributesApiDefault.listSearchable()
     searchableAttributes.value = data.data || data
-  } catch { /* silently fail */ }
+  } catch (e) {
+    console.error('Failed to load searchable attributes', e)
+  }
 })
 
 // --- Actions ---
