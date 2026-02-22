@@ -6,6 +6,7 @@ import { useI18n } from 'vue-i18n'
 import { ArrowLeft, Save, Plus, Trash2, Image, Star, X, Search, Download } from 'lucide-vue-next'
 import productsApi from '@/api/products'
 import mediaApi from '@/api/media'
+import { mediaUsageTypes } from '@/api/mediaUsageTypes'
 import { priceTypes, relationTypes } from '@/api/prices'
 import attributesApiDefault, { productTypes, valueLists } from '@/api/attributes'
 import hierarchiesApi from '@/api/hierarchies'
@@ -387,6 +388,8 @@ const mediaLoading = ref(false)
 const showMediaPicker = ref(false)
 const availableMedia = ref([])
 const mediaPickerLoading = ref(false)
+const usageTypesList = ref([])
+const selectedUsageTypeId = ref(null)
 
 async function loadMedia() {
   if (mediaLoaded.value || !product.value) return
@@ -403,8 +406,16 @@ async function openMediaPicker() {
   showMediaPicker.value = true
   mediaPickerLoading.value = true
   try {
-    const { data } = await mediaApi.list({ perPage: 100 })
-    availableMedia.value = data.data || data
+    const [mediaRes, typesRes] = await Promise.all([
+      mediaApi.list({ perPage: 100 }),
+      mediaUsageTypes.list(),
+    ])
+    availableMedia.value = mediaRes.data.data || mediaRes.data
+    const types = typesRes.data.data || typesRes.data
+    usageTypesList.value = types
+    if (types.length > 0 && !selectedUsageTypeId.value) {
+      selectedUsageTypeId.value = types[0].id
+    }
   } catch (e) { console.error('Failed to load available media:', e.message) }
   finally { mediaPickerLoading.value = false }
 }
@@ -413,7 +424,7 @@ async function attachMedia(mediaItem) {
   try {
     await productsApi.attachMedia(product.value.id, {
       media_id: mediaItem.id,
-      usage_type: 'default',
+      usage_type_id: selectedUsageTypeId.value,
       sort_order: mediaItems.value.length,
     })
     showMediaPicker.value = false
@@ -1191,11 +1202,14 @@ watch(() => route.params.id, async (newId, oldId) => {
           <div class="aspect-square bg-[var(--color-bg)] flex items-center justify-center overflow-hidden">
             <img :src="getMediaUrl(m)" class="w-full h-full object-cover" loading="lazy" alt="" />
           </div>
-          <div class="p-2 flex items-center justify-between">
-            <span class="text-[11px] text-[var(--color-text-primary)] truncate flex-1">{{ m.file_name || m.media?.file_name || '—' }}</span>
-            <button class="p-0.5 rounded hover:bg-[var(--color-error-light)] text-[var(--color-text-tertiary)] hover:text-[var(--color-error)] transition-colors" @click="detachMedia(m)">
-              <X class="w-3.5 h-3.5" :stroke-width="2" />
-            </button>
+          <div class="p-2">
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] text-[var(--color-text-primary)] truncate flex-1">{{ m.file_name || m.media?.file_name || '—' }}</span>
+              <button class="p-0.5 rounded hover:bg-[var(--color-error-light)] text-[var(--color-text-tertiary)] hover:text-[var(--color-error)] transition-colors" @click="detachMedia(m)">
+                <X class="w-3.5 h-3.5" :stroke-width="2" />
+              </button>
+            </div>
+            <span v-if="m.usage_type" class="text-[10px] text-[var(--color-text-tertiary)]">{{ m.usage_type?.name_de || m.usage_type?.technical_name || '' }}</span>
           </div>
         </div>
       </div>
@@ -1217,6 +1231,13 @@ watch(() => route.params.id, async (newId, oldId) => {
                 </button>
               </div>
               <div class="flex-1 overflow-y-auto p-4">
+                <!-- Usage type selector -->
+                <div v-if="usageTypesList.length > 0" class="mb-3">
+                  <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Bildtyp</label>
+                  <select class="pim-input" v-model="selectedUsageTypeId">
+                    <option v-for="ut in usageTypesList" :key="ut.id" :value="ut.id">{{ ut.name_de || ut.technical_name }}</option>
+                  </select>
+                </div>
                 <div v-if="mediaPickerLoading" class="grid grid-cols-3 gap-2">
                   <div v-for="i in 6" :key="i" class="pim-skeleton aspect-square rounded" />
                 </div>
@@ -1605,7 +1626,7 @@ watch(() => route.params.id, async (newId, oldId) => {
                 <span class="text-[11px] text-[var(--color-text-primary)] truncate block">{{ m.file_name || '—' }}</span>
                 <div class="flex items-center gap-1 mt-0.5">
                   <span v-if="m.is_primary" class="text-[10px] text-[var(--color-accent)] font-medium">Primär</span>
-                  <span v-if="m.usage_type" class="text-[10px] text-[var(--color-text-tertiary)]">{{ m.usage_type }}</span>
+                  <span v-if="m.usage_type" class="text-[10px] text-[var(--color-text-tertiary)]">{{ m.usage_type?.name_de || m.usage_type?.technical_name || '' }}</span>
                 </div>
               </div>
             </div>

@@ -16,7 +16,7 @@ class ProductMediaAssignment extends Model
     protected $fillable = [
         'product_id',
         'media_id',
-        'usage_type',
+        'usage_type_id',
         'sort_order',
         'is_primary',
     ];
@@ -37,5 +37,10 @@ class ProductMediaAssignment extends Model
     public function media(): BelongsTo
     {
         return $this->belongsTo(Media::class);
+    }
+
+    public function usageType(): BelongsTo
+    {
+        return $this->belongsTo(MediaUsageType::class, 'usage_type_id');
     }
 }

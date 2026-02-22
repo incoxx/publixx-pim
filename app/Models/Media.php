@@ -57,7 +57,7 @@ class Media extends Model
     public function products(): BelongsToMany
     {
         return $this->belongsToMany(Product::class, 'product_media_assignments')
-            ->withPivot(['usage_type', 'sort_order', 'is_primary']);
+            ->withPivot(['usage_type_id', 'sort_order', 'is_primary']);
     }
 
     public function productAssignments(): HasMany

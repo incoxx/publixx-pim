@@ -34,6 +34,7 @@ class ProductPreviewService
             'relations.relationType',
             'relations.targetProduct',
             'media',
+            'mediaAssignments.usageType',
             'variants',
             'createdBy',
             'updatedBy',
@@ -210,18 +211,28 @@ class ProductPreviewService
 
     private function buildMedia(Product $product, string $lang): array
     {
-        return $product->media->map(function ($media) use ($lang) {
+        return $product->mediaAssignments->map(function ($assignment) use ($lang) {
+            $media = $assignment->media;
+            if (!$media) {
+                return null;
+            }
+
             return [
                 'id' => $media->id,
                 'url' => '/api/v1/media/file/' . $media->file_name,
                 'file_name' => $media->file_name,
                 'alt' => $lang === 'en' && $media->alt_text_en ? $media->alt_text_en : ($media->alt_text_de ?? null),
-                'is_primary' => (bool) ($media->pivot->is_primary ?? false),
-                'usage_type' => $media->pivot->usage_type ?? null,
+                'is_primary' => (bool) $assignment->is_primary,
+                'usage_type' => $assignment->usageType ? [
+                    'id' => $assignment->usageType->id,
+                    'technical_name' => $assignment->usageType->technical_name,
+                    'name_de' => $assignment->usageType->name_de,
+                    'name_en' => $assignment->usageType->name_en,
+                ] : null,
                 'media_type' => $media->media_type,
-                'sort_order' => $media->pivot->sort_order ?? 0,
+                'sort_order' => $assignment->sort_order ?? 0,
             ];
-        })->values()->toArray();
+        })->filter()->values()->toArray();
     }
 
     private function buildVariants(Product $product, string $lang): array

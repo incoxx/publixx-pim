@@ -6,6 +6,7 @@ namespace Tests\Feature\Export;
 
 use App\Models\Attribute;
 use App\Models\Media;
+use App\Models\MediaUsageType;
 use App\Models\PriceType;
 use App\Models\Product;
 use App\Models\ProductAttributeValue;
@@ -155,14 +156,16 @@ class MappingResolverTest extends TestCase
         $product = Product::factory()->create();
         $media = Media::factory()->create(['file_path' => 'https://pim.example.com/media/prodrill-18v.jpg']);
 
+        $teaserType = MediaUsageType::factory()->create(['technical_name' => 'teaser']);
+
         ProductMediaAssignment::factory()->create([
             'product_id' => $product->id,
             'media_id' => $media->id,
-            'usage_type' => 'teaser',
+            'usage_type_id' => $teaserType->id,
             'sort_order' => 0,
         ]);
 
-        $product->load('mediaAssignments.media');
+        $product->load(['mediaAssignments.media', 'mediaAssignments.usageType']);
 
         $rules = [
             ['source' => 'media:teaser', 'target' => 'productImage', 'type' => 'media_url'],
@@ -181,21 +184,23 @@ class MappingResolverTest extends TestCase
         $media1 = Media::factory()->create(['file_path' => 'https://pim.example.com/media/front.jpg']);
         $media2 = Media::factory()->create(['file_path' => 'https://pim.example.com/media/side.jpg']);
 
+        $galleryType = MediaUsageType::factory()->create(['technical_name' => 'gallery']);
+
         ProductMediaAssignment::factory()->create([
             'product_id' => $product->id,
             'media_id' => $media1->id,
-            'usage_type' => 'gallery',
+            'usage_type_id' => $galleryType->id,
             'sort_order' => 0,
         ]);
 
         ProductMediaAssignment::factory()->create([
             'product_id' => $product->id,
             'media_id' => $media2->id,
-            'usage_type' => 'gallery',
+            'usage_type_id' => $galleryType->id,
             'sort_order' => 1,
         ]);
 
-        $product->load('mediaAssignments.media');
+        $product->load(['mediaAssignments.media', 'mediaAssignments.usageType']);
 
         $rules = [
             ['source' => 'media:gallery', 'target' => 'gallery', 'type' => 'media_array'],

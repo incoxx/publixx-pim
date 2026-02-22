@@ -141,7 +141,7 @@ class MappingResolver
         $mediaAssignments = $options['media'] ?? $product->mediaAssignments ?? collect();
 
         $assignment = $mediaAssignments
-            ->where('usage_type', $usageType)
+            ->filter(fn ($a) => $a->usageType?->technical_name === $usageType)
             ->sortBy('sort_order')
             ->first();
 
@@ -162,7 +162,7 @@ class MappingResolver
         $mediaAssignments = $options['media'] ?? $product->mediaAssignments ?? collect();
 
         return $mediaAssignments
-            ->where('usage_type', $usageType)
+            ->filter(fn ($a) => $a->usageType?->technical_name === $usageType)
             ->sortBy('sort_order')
             ->map(fn ($a) => $a->media?->file_path)
             ->filter()
@@ -237,7 +237,7 @@ class MappingResolver
                 // Include primary image if loaded
                 if ($target->relationLoaded('mediaAssignments')) {
                     $primary = $target->mediaAssignments
-                        ->where('usage_type', 'teaser')
+                        ->filter(fn ($a) => $a->usageType?->technical_name === 'teaser')
                         ->sortBy('sort_order')
                         ->first();
                     if ($primary && $primary->media) {

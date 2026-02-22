@@ -85,6 +85,12 @@ const routes = [
     meta: { title: 'Medien' },
   },
   {
+    path: '/media-usage-types',
+    name: 'media-usage-types',
+    component: () => import('@/views/mediaUsageTypes/MediaUsageTypeView.vue'),
+    meta: { title: 'Bildtypen' },
+  },
+  {
     path: '/prices',
     name: 'prices',
     component: () => import('@/views/prices/PriceView.vue'),
