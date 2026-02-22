@@ -55,13 +55,16 @@ class HierarchyNodeController extends Controller
                 $data['depth'] = 0;
             }
 
-        // Set temporary path so the NOT NULL column is satisfied on INSERT
-        $data['path'] = '/';
-        $node = HierarchyNode::create($data);
+            // Set temporary path so the NOT NULL column is satisfied on INSERT
+            $data['path'] = '/';
+            $node = HierarchyNode::create($data);
 
-        // Build materialized path using the generated ID
-        $node->path = $this->buildPath($node);
-        $node->save();
+            // Build materialized path using the generated ID
+            $node->path = $this->buildPath($node);
+            $node->save();
+
+            return $node;
+        });
 
         return (new HierarchyNodeResource($node))
             ->response()
