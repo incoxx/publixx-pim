@@ -54,9 +54,11 @@ class HierarchyNodeController extends Controller
             $data['depth'] = 0;
         }
 
+        // Set temporary path so the NOT NULL column is satisfied on INSERT
+        $data['path'] = '/';
         $node = HierarchyNode::create($data);
 
-        // Build materialized path
+        // Build materialized path using the generated ID
         $node->path = $this->buildPath($node);
         $node->save();
 
@@ -168,6 +170,7 @@ class HierarchyNodeController extends Controller
             'name_json'      => $source->name_json,
             'sort_order'     => $source->sort_order + 1,
             'is_active'      => $source->is_active,
+            'path'           => '/',
             'depth'          => $parentNodeId
                 ? (HierarchyNode::find($parentNodeId)?->depth ?? 0) + 1
                 : 0,
