@@ -674,6 +674,7 @@ class ImportFormatExporter
             ->with([
                 'product',
                 'media',
+                'usageType',
             ])
             ->chunk(500, function ($assignments) use ($sheet, &$row) {
                 foreach ($assignments as $assignment) {
@@ -686,7 +687,7 @@ class ImportFormatExporter
                     $sheet->setCellValue("A{$row}", $assignment->product->sku);
                     $sheet->setCellValue("B{$row}", $media->file_name);
                     $sheet->setCellValue("C{$row}", $media->media_type);
-                    $sheet->setCellValue("D{$row}", $assignment->usage_type);
+                    $sheet->setCellValue("D{$row}", $assignment->usageType?->technical_name);
                     $sheet->setCellValue("E{$row}", $media->title_de);
                     $sheet->setCellValue("F{$row}", $media->title_en);
                     $sheet->setCellValue("G{$row}", $media->alt_text_de);

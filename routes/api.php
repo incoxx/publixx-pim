@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\V1\HierarchyNodeController;
 use App\Http\Controllers\Api\V1\ImportController;
 use App\Http\Controllers\Api\V1\MediaAttributeValueController;
 use App\Http\Controllers\Api\V1\MediaController;
+use App\Http\Controllers\Api\V1\MediaUsageTypeController;
 use App\Http\Controllers\Api\V1\NodeAttributeAssignmentController;
 use App\Http\Controllers\Api\V1\PqlController;
 use App\Http\Controllers\Api\V1\PriceTypeController;
@@ -221,6 +222,8 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // media/file/{filename} and media/thumb/{medium} are registered outside auth group (public access)
     Route::get('media/{medium}/attribute-values', [MediaAttributeValueController::class, 'index']);
     Route::put('media/{medium}/attribute-values', [MediaAttributeValueController::class, 'bulkUpdate']);
+
+    Route::apiResource('media-usage-types', MediaUsageTypeController::class);
 
     Route::get('products/{product}/media', [ProductMediaController::class, 'index']);
     Route::post('products/{product}/media', [ProductMediaController::class, 'store']);

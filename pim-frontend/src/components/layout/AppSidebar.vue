@@ -5,7 +5,7 @@ import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import {
   Search, Package, GitBranch, Sliders, Database, Layers, FolderTree,
-  Upload, Download, Image, DollarSign, Users, Settings,
+  Upload, Download, Image, Tags, DollarSign, Users, Settings,
   PanelLeftClose, PanelLeft,
 } from 'lucide-vue-next'
 
@@ -26,6 +26,7 @@ const navItems = computed(() => [
   { icon: Upload, label: t('nav.imports'), to: '/imports' },
   { icon: Download, label: t('nav.exports'), to: '/exports' },
   { icon: Image, label: t('nav.media'), to: '/media' },
+  { icon: Tags, label: t('nav.mediaUsageTypes'), to: '/media-usage-types' },
   { icon: DollarSign, label: t('nav.prices'), to: '/prices' },
   { divider: true },
   { icon: Users, label: t('nav.users'), to: '/users' },

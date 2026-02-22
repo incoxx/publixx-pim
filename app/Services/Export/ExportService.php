@@ -217,6 +217,7 @@ class ExportService
 
         if ($mapping->include_media) {
             $relations[] = 'mediaAssignments.media';
+            $relations[] = 'mediaAssignments.usageType';
         }
 
         if ($mapping->include_prices) {
@@ -230,6 +231,7 @@ class ExportService
         if ($mapping->include_relations) {
             $relations[] = 'outgoingRelations.relationType';
             $relations[] = 'outgoingRelations.targetProduct.mediaAssignments.media';
+            $relations[] = 'outgoingRelations.targetProduct.mediaAssignments.usageType';
         }
 
         // Load hierarchy for path resolution

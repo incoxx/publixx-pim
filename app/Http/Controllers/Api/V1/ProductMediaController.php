@@ -22,7 +22,7 @@ class ProductMediaController extends Controller
         $this->authorize('view', $product);
 
         $query = $product->mediaAssignments()
-            ->with('media')
+            ->with(['media', 'usageType'])
             ->orderBy('sort_order', 'asc');
 
         return ProductMediaResource::collection(
@@ -39,7 +39,7 @@ class ProductMediaController extends Controller
 
         $assignment = $product->mediaAssignments()->create($request->validated());
 
-        return (new ProductMediaResource($assignment->load('media')))
+        return (new ProductMediaResource($assignment->load(['media', 'usageType'])))
             ->response()
             ->setStatusCode(201);
     }

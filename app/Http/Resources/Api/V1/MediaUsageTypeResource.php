@@ -7,19 +7,17 @@ namespace App\Http\Resources\Api\V1;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
-class ProductMediaResource extends JsonResource
+class MediaUsageTypeResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
         return [
             'id' => $this->id,
-            'product_id' => $this->product_id,
-            'media_id' => $this->media_id,
-            'media' => new MediaResource($this->whenLoaded('media')),
-            'usage_type_id' => $this->usage_type_id,
-            'usage_type' => new MediaUsageTypeResource($this->whenLoaded('usageType')),
+            'technical_name' => $this->technical_name,
+            'name_de' => $this->name_de,
+            'name_en' => $this->name_en,
+            'name_json' => $this->name_json,
             'sort_order' => $this->sort_order,
-            'is_primary' => $this->is_primary,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

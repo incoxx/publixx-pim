@@ -14,6 +14,7 @@ use App\Models\OutputHierarchyProductAssignment;
 use App\Models\PriceType;
 use App\Models\Product;
 use App\Models\ProductAttributeValue;
+use App\Models\MediaUsageType;
 use App\Models\ProductMediaAssignment;
 use App\Models\ProductPrice;
 use App\Models\ProductRelation;
@@ -896,7 +897,7 @@ class ImportExecutor
                     'id' => Str::uuid()->toString(),
                     'product_id' => $productResult->id,
                     'media_id' => $media->id,
-                    'usage_type' => $row['usage_type'] ?? 'gallery',
+                    'usage_type_id' => $this->resolveUsageTypeId($row['usage_type'] ?? 'gallery'),
                     'sort_order' => (int) ($row['sort_order'] ?? 0),
                     'is_primary' => $this->toBool($row['is_primary'] ?? false),
                 ]);
@@ -915,6 +916,24 @@ class ImportExecutor
     // ──────────────────────────────────────────────
     //  Hilfs-Methoden
     // ──────────────────────────────────────────────
+
+    /**
+     * Resolves a usage_type technical_name to its ID.
+     */
+    private function resolveUsageTypeId(string $technicalName): ?string
+    {
+        $type = MediaUsageType::where('technical_name', $technicalName)->first();
+
+        if ($type) {
+            return $type->id;
+        }
+
+        // Fallback: try 'gallery', then first available
+        $fallback = MediaUsageType::where('technical_name', 'gallery')->first()
+            ?? MediaUsageType::orderBy('sort_order')->first();
+
+        return $fallback?->id;
+    }
 
     /**
      * Konvertiert Ja/Nein/1/0 in boolean.
