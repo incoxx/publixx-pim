@@ -100,7 +100,7 @@ class ProductVersionController extends Controller
     {
         $this->authorize('revert', $version);
 
-        $newVersion = $this->versioningService->revertToVersion($version);
+        $newVersion = $this->versioningService->revertToVersion($version, auth()->id());
 
         return new ProductVersionResource($newVersion->load('creator'));
     }

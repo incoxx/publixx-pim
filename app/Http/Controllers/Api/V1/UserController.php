@@ -24,7 +24,7 @@ class UserController extends Controller
     {
         $this->authorize('viewAny', User::class);
 
-        $perPage = min((int) $request->query('per_page', '25'), 100);
+        $perPage = max(1, min((int) $request->query('per_page', '25'), 100));
 
         $users = User::with('roles')
             ->when($request->query('search'), function ($query, $search) {

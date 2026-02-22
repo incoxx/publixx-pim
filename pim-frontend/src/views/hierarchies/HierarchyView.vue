@@ -75,7 +75,7 @@ async function handleMove(sourceId, targetId) {
     }
     showFeedback('Knoten verschoben')
   } catch (e) {
-    showFeedback(e.response?.data?.message || 'Fehler beim Verschieben', 'error')
+    showFeedback(e.response?.data?.title || 'Fehler beim Verschieben', 'error')
   }
 }
 
@@ -151,7 +151,7 @@ async function confirmDeleteHierarchy() {
     }
     showFeedback('Hierarchie gelöscht')
   } catch (e) {
-    showFeedback(e.response?.data?.message || 'Fehler beim Löschen der Hierarchie', 'error')
+    showFeedback(e.response?.data?.title || 'Fehler beim Löschen der Hierarchie', 'error')
   } finally {
     hierarchyDeleting.value = false
   }
@@ -193,7 +193,7 @@ async function confirmDeleteNode() {
     await store.fetchTree(selectedHierarchyId.value)
     showFeedback('Knoten gelöscht')
   } catch (e) {
-    showFeedback(e.response?.data?.message || 'Fehler beim Löschen', 'error')
+    showFeedback(e.response?.data?.title || 'Fehler beim Löschen', 'error')
   } finally {
     nodeDeleting.value = false
   }
@@ -207,7 +207,7 @@ async function duplicateNode(node) {
     await store.fetchTree(selectedHierarchyId.value)
     showFeedback('Knoten dupliziert')
   } catch (e) {
-    showFeedback(e.response?.data?.message || 'Fehler beim Duplizieren', 'error')
+    showFeedback(e.response?.data?.title || 'Fehler beim Duplizieren', 'error')
   }
 }
 
@@ -276,7 +276,7 @@ async function assignAttribute(attr) {
     showAttrPicker.value = false
     await loadNodeAttributes(store.selectedNode.id)
   } catch (e) {
-    showFeedback(e.response?.data?.message || 'Fehler beim Zuordnen', 'error')
+    showFeedback(e.response?.data?.title || 'Fehler beim Zuordnen', 'error')
   }
 }
 
@@ -285,7 +285,7 @@ async function removeNodeAttribute(assignment) {
     await hierarchiesApi.removeNodeAttributeAssignment(assignment.id)
     await loadNodeAttributes(store.selectedNode.id)
   } catch (e) {
-    showFeedback(e.response?.data?.message || 'Fehler beim Entfernen', 'error')
+    showFeedback(e.response?.data?.title || 'Fehler beim Entfernen', 'error')
   }
 }
 

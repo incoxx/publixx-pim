@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useProductStore } from '@/stores/products'
 import { useI18n } from 'vue-i18n'
@@ -103,7 +103,7 @@ async function loadAttributeData() {
       try {
         const { data: resolvedData } = await productsApi.getResolvedAttributes(product.value.id)
         resolvedAttrs = resolvedData.data || resolvedData
-      } catch { /* fallback to product type schema */ }
+      } catch (e) { console.warn('Resolved attributes unavailable, falling back to schema:', e.message) }
     }
 
     if (resolvedAttrs && resolvedAttrs.length > 0) {
@@ -145,7 +145,7 @@ async function loadAttributeData() {
         try {
           const { data: schemaData } = await productTypes.getSchema(product.value.product_type_id)
           schema.value = schemaData.data || schemaData
-        } catch { /* schema might not exist */ }
+        } catch (e) { console.warn('Product type schema not found:', e.message) }
       }
     }
     attrLoaded.value = true
@@ -162,9 +162,9 @@ async function loadAttributeData() {
           map[vl.id] = vl
         }
         valueListMap.value = map
-      } catch { /* silently fail */ }
+      } catch (e) { console.error('Failed to load value lists:', e.message) }
     }
-  } catch { /* silently fail */ }
+  } catch (e) { console.error('Failed to load attribute data:', e.message) }
 }
 
 const schemaAttributes = computed(() => {
@@ -267,7 +267,7 @@ async function loadVariants() {
     try {
       const { data: attrData } = await attributesApiDefault.listVariantAttributes()
       variantAttributeDefs.value = attrData.data || attrData
-    } catch { /* no variant attributes */ }
+    } catch (e) { console.warn('Failed to load variant attribute definitions:', e.message) }
 
     // Load attribute values for each variant
     if (variantAttributeDefs.value.length > 0 && variants.value.length > 0) {
@@ -275,7 +275,7 @@ async function loadVariants() {
         try {
           const { data: valData } = await productsApi.getAttributeValues(v.id)
           return { id: v.id, values: valData.data || valData }
-        } catch { return { id: v.id, values: [] } }
+        } catch (e) { console.warn(`Failed to load attribute values for variant ${v.id}:`, e.message); return { id: v.id, values: [] } }
       })
       const results = await Promise.all(promises)
       const map = {}
@@ -284,7 +284,7 @@ async function loadVariants() {
       }
       variantAttrValuesMap.value = map
     }
-  } catch { /* silently fail */ }
+  } catch (e) { console.error('Failed to load variants:', e.message) }
   finally { variantsLoading.value = false }
 }
 
@@ -322,7 +322,7 @@ async function loadMedia() {
     const { data } = await productsApi.getMedia(product.value.id)
     mediaItems.value = data.data || data
     mediaLoaded.value = true
-  } catch { /* silently fail */ }
+  } catch (e) { console.error('Failed to load media:', e.message) }
   finally { mediaLoading.value = false }
 }
 
@@ -332,7 +332,7 @@ async function openMediaPicker() {
   try {
     const { data } = await mediaApi.list({ perPage: 100 })
     availableMedia.value = data.data || data
-  } catch { /* silently fail */ }
+  } catch (e) { console.error('Failed to load available media:', e.message) }
   finally { mediaPickerLoading.value = false }
 }
 
@@ -346,7 +346,7 @@ async function attachMedia(mediaItem) {
     showMediaPicker.value = false
     mediaLoaded.value = false
     await loadMedia()
-  } catch { /* silently fail */ }
+  } catch (e) { console.error('Failed to attach media:', e.message) }
 }
 
 async function detachMedia(item) {
@@ -355,7 +355,7 @@ async function detachMedia(item) {
     await productsApi.detachMedia(pivotId)
     mediaLoaded.value = false
     await loadMedia()
-  } catch { /* silently fail */ }
+  } catch (e) { console.error('Failed to detach media:', e.message) }
 }
 
 function getMediaUrl(item) {
@@ -397,7 +397,7 @@ async function loadPrices() {
     prices.value = pricesResp.data.data || pricesResp.data
     if (typesResp) priceTypesList.value = typesResp.data.data || typesResp.data
     pricesLoaded.value = true
-  } catch { /* silently fail */ }
+  } catch (e) { console.error('Failed to load prices:', e.message) }
   finally { pricesLoading.value = false }
 }
 
@@ -492,7 +492,7 @@ async function loadRelations() {
     relations.value = relResp.data.data || relResp.data
     if (typesResp) relationTypesList.value = typesResp.data.data || typesResp.data
     relationsLoaded.value = true
-  } catch { /* silently fail */ }
+  } catch (e) { console.error('Failed to load relations:', e.message) }
   finally { relationsLoading.value = false }
 }
 
@@ -505,7 +505,7 @@ function searchProducts() {
     try {
       const { data } = await productsApi.list({ search: productSearch.value, perPage: 10 })
       productSearchResults.value = (data.data || data).filter(p => p.id !== product.value.id)
-    } catch { productSearchResults.value = [] }
+    } catch (e) { console.warn('Product search failed:', e.message); productSearchResults.value = [] }
     finally { productSearching.value = false }
   }, 300)
 }
@@ -561,7 +561,7 @@ async function loadPreview() {
     ])
     previewData.value = prevResp.data.data || prevResp.data
     completenessData.value = compResp.data.data || compResp.data
-  } catch { /* silently fail */ }
+  } catch (e) { console.error('Failed to load preview:', e.message) }
   finally { previewLoading.value = false }
 }
 
@@ -599,16 +599,14 @@ const downloadError = ref(null)
 
 function triggerBlobDownload(blob, filename) {
   const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.style.display = 'none'
-  document.body.appendChild(a)
-  a.click()
-  setTimeout(() => {
-    URL.revokeObjectURL(url)
-    document.body.removeChild(a)
-  }, 100)
+  try {
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    a.click()
+  } finally {
+    setTimeout(() => URL.revokeObjectURL(url), 200)
+  }
 }
 
 async function downloadExcel() {
@@ -677,7 +675,7 @@ async function loadHierarchies() {
     } else if (hierarchies.value.length > 0) {
       await loadHierarchyTree(hierarchies.value[0].id)
     }
-  } catch { /* silently fail */ }
+  } catch (e) { console.error('Failed to load hierarchies:', e.message) }
 }
 
 async function loadHierarchyTree(hierarchyId) {
@@ -687,7 +685,7 @@ async function loadHierarchyTree(hierarchyId) {
     const flatNodes = flattenTree(tree, hierarchyId)
     hierarchyNodes.value = [...hierarchyNodes.value.filter(n => n._hierarchyId !== hierarchyId), ...flatNodes]
     if (!selectedHierarchyId.value) selectedHierarchyId.value = hierarchyId
-  } catch { /* silently fail */ }
+  } catch (e) { console.error('Failed to load hierarchy tree:', e.message) }
 }
 
 function flattenTree(nodes, hierarchyId, prefix = '') {
@@ -860,7 +858,7 @@ watch(() => route.params.id, async (newId, oldId) => {
               <select v-if="hierarchies.length > 1" class="pim-input text-xs w-36 shrink-0" :value="selectedHierarchyId" @change="onHierarchyChange($event.target.value)">
                 <option v-for="h in hierarchies" :key="h.id" :value="h.id">{{ h.name_de || h.technical_name }}</option>
               </select>
-              <select class="pim-input text-xs flex-1" v-model="product.master_hierarchy_node_id">
+              <select class="pim-input text-xs flex-1" :value="product.master_hierarchy_node_id || ''" @change="product.master_hierarchy_node_id = $event.target.value || null">
                 <option value="">— Kein Knoten —</option>
                 <option v-for="node in hierarchyNodes" :key="node.id" :value="node.id">{{ node.label }}</option>
               </select>
