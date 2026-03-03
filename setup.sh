@@ -650,22 +650,17 @@ info "Konfiguriere Apache-Port ${APP_PORT}..."
 
 PORTS_CONF="/etc/apache2/ports.conf"
 
-# Listen-Direktive fuer den gewaehlten Port sicherstellen
-if ! grep -q "^Listen ${APP_PORT}$" "$PORTS_CONF" 2>/dev/null; then
-    # Nicht-Standard-Port hinzufuegen
-    if [ "$APP_PORT" -ne 80 ] && [ "$APP_PORT" -ne 443 ]; then
-        echo "Listen ${APP_PORT}" >> "$PORTS_CONF"
-        info "Listen ${APP_PORT} zu ports.conf hinzugefuegt."
+# ports.conf komplett neu schreiben: nur die Ports, die wir brauchen.
+# Das verhindert Konflikte mit Default-Listen-Direktiven (z.B. Port 80),
+# wenn ein anderer Dienst dort bereits laeuft.
+{
+    echo "# Publixx PIM — generiert von setup.sh"
+    echo "Listen ${APP_PORT}"
+    if [ "$USE_SSL" = true ]; then
+        echo "Listen ${SSL_PORT}"
     fi
-fi
-
-# SSL-Port registrieren falls noetig
-if [ "$USE_SSL" = true ] && [ "$SSL_PORT" -ne 443 ]; then
-    if ! grep -q "^Listen ${SSL_PORT}$" "$PORTS_CONF" 2>/dev/null; then
-        echo "Listen ${SSL_PORT}" >> "$PORTS_CONF"
-        info "Listen ${SSL_PORT} (SSL) zu ports.conf hinzugefuegt."
-    fi
-fi
+} > "$PORTS_CONF"
+info "ports.conf: Listen ${APP_PORT}$([ "$USE_SSL" = true ] && echo " + ${SSL_PORT} (SSL)" || echo "")"
 
 # --- Apache VHost ---
 info "Erstelle Apache VirtualHost (Port ${APP_PORT})..."
@@ -872,7 +867,7 @@ echo ""
 echo -e "${BOLD}Nuetzliche Befehle:${NC}"
 echo -e "  Horizon:       sudo supervisorctl status horizon"
 echo -e "  Logs:          tail -f ${INSTALL_DIR}/storage/logs/laravel.log"
-echo -e "  Deploy:        sudo bash ${INSTALL_DIR}/deploy.sh"
+echo -e "  Update:        sudo bash ${INSTALL_DIR}/update.sh"
 echo -e "  Artisan:       cd ${INSTALL_DIR} && php artisan"
 echo ""
 if [ "$DB_EXISTS" = true ] && [ "$DB_RESET" = false ]; then
