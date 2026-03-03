@@ -551,6 +551,16 @@ php -d memory_limit=-1 "$(which composer)" install \
 
 info "PHP-Abhaengigkeiten installiert."
 
+# --- Laravel-Verzeichnisse sicherstellen (bevor artisan laeuft) ---
+info "Stelle sicher, dass Laravel-Verzeichnisse existieren..."
+mkdir -p "${INSTALL_DIR}/bootstrap/cache"
+mkdir -p "${INSTALL_DIR}/storage/framework/"{cache,sessions,views}
+mkdir -p "${INSTALL_DIR}/storage/logs"
+chown -R www-data:www-data "${INSTALL_DIR}/bootstrap/cache"
+chown -R www-data:www-data "${INSTALL_DIR}/storage"
+chmod -R 775 "${INSTALL_DIR}/bootstrap/cache"
+chmod -R 775 "${INSTALL_DIR}/storage"
+
 # Post-Install Scripts separat ausfuehren (package:discover etc.)
 info "Fuehre Composer post-install Scripts aus..."
 php artisan package:discover --ansi 2>&1 || true
