@@ -366,8 +366,12 @@ info "npm installiert: $(npm -v)"
 step "7/10 — Composer installieren"
 
 if ! command -v composer &> /dev/null; then
-    EXPECTED_CHECKSUM="$(php -r 'copy("https://composer.github.io/installer.sig", "php://stdout");')"
-    php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
+    info "Lade Composer herunter..."
+    curl -sS --connect-timeout 15 --max-time 60 https://getcomposer.org/installer -o composer-setup.php \
+        || error "Composer-Installer konnte nicht heruntergeladen werden. Netzwerkproblem?"
+
+    EXPECTED_CHECKSUM="$(curl -sS --connect-timeout 10 --max-time 30 https://composer.github.io/installer.sig)" \
+        || error "Composer-Pruefsumme konnte nicht heruntergeladen werden."
     ACTUAL_CHECKSUM="$(php -r "echo hash_file('sha384', 'composer-setup.php');")"
 
     if [ "$EXPECTED_CHECKSUM" != "$ACTUAL_CHECKSUM" ]; then
@@ -498,10 +502,19 @@ ENVFILE
 
 info ".env erstellt."
 
+# --- Dateiberechtigungen setzen (vor Composer/Artisan, da diese als www-data laufen) ---
+info "Setze Dateiberechtigungen..."
+chown -R www-data:www-data "$INSTALL_DIR"
+find "$INSTALL_DIR" -type f -exec chmod 644 {} \;
+find "$INSTALL_DIR" -type d -exec chmod 755 {} \;
+chmod -R 775 "${INSTALL_DIR}/storage"
+chmod -R 775 "${INSTALL_DIR}/bootstrap/cache"
+info "Berechtigungen gesetzt (www-data)."
+
 # --- Composer Install ---
 info "Installiere PHP-Abhaengigkeiten (Composer)..."
 cd "$INSTALL_DIR"
-sudo -u www-data composer install --no-dev --optimize-autoloader --no-interaction 2>&1 | tail -3
+sudo -u www-data composer install --no-dev --optimize-autoloader --no-interaction 2>&1 | tail -5
 
 # --- App Key generieren ---
 info "Generiere Application Key..."
@@ -559,8 +572,8 @@ fi
 # ═════════════════════════════════════════════════════════════════════════════
 step "10/10 — Apache VHost, Supervisor, Cron & Berechtigungen"
 
-# --- Dateiberechtigungen ---
-info "Setze Dateiberechtigungen..."
+# --- Dateiberechtigungen (final, nach Frontend-Build) ---
+info "Setze finale Dateiberechtigungen..."
 chown -R www-data:www-data "$INSTALL_DIR"
 find "$INSTALL_DIR" -type f -exec chmod 644 {} \;
 find "$INSTALL_DIR" -type d -exec chmod 755 {} \;
