@@ -305,7 +305,37 @@ apt-get install -y -qq mysql-server
 systemctl enable mysql
 systemctl start mysql
 
-# Datenbank und Benutzer anlegen
+# Pruefen ob Datenbank bereits existiert
+DB_EXISTS=false
+DB_RESET=false
+if mysql -u root -e "USE \`${DB_NAME}\`" 2>/dev/null; then
+    DB_EXISTS=true
+    TABLE_COUNT=$(mysql -u root -N -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='${DB_NAME}';")
+    warn "Datenbank '${DB_NAME}' existiert bereits (${TABLE_COUNT} Tabellen)."
+    echo ""
+    ask "Was moechtest du tun?\n"
+    echo -e "  ${BOLD}1${NC}) Zuruecksetzen — Datenbank loeschen und neu anlegen (alle Daten gehen verloren!)"
+    echo -e "  ${BOLD}2${NC}) Beibehalten  — Nur fehlende Migrationen ausfuehren, keine Demodaten"
+    echo ""
+    ask "Auswahl [1/2]: "
+    read -r DB_CHOICE
+    case "$DB_CHOICE" in
+        1)
+            DB_RESET=true
+            warn "Datenbank wird zurueckgesetzt..."
+            mysql -u root -e "DROP DATABASE \`${DB_NAME}\`;"
+            info "Datenbank '${DB_NAME}' geloescht."
+            ;;
+        2)
+            info "Datenbank wird beibehalten."
+            ;;
+        *)
+            error "Ungueltige Auswahl. Abgebrochen."
+            ;;
+    esac
+fi
+
+# Datenbank und Benutzer anlegen (IF NOT EXISTS fuer Wiederholbarkeit)
 mysql -u root <<EOSQL
 CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASS}';
@@ -313,7 +343,11 @@ GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'localhost';
 FLUSH PRIVILEGES;
 EOSQL
 
-info "MySQL-Datenbank '${DB_NAME}' und Benutzer '${DB_USER}' angelegt."
+if [ "$DB_EXISTS" = true ] && [ "$DB_RESET" = false ]; then
+    info "MySQL-Benutzer '${DB_USER}' geprueft, Datenbank '${DB_NAME}' beibehalten."
+else
+    info "MySQL-Datenbank '${DB_NAME}' und Benutzer '${DB_USER}' angelegt."
+fi
 
 # ═════════════════════════════════════════════════════════════════════════════
 #  5. REDIS INSTALLIEREN & KONFIGURIEREN
@@ -522,11 +556,18 @@ sudo -u www-data php artisan key:generate --force
 
 # --- Datenbank migrieren ---
 info "Fuehre Datenbank-Migrationen aus..."
+if [ "$DB_EXISTS" = true ] && [ "$DB_RESET" = false ]; then
+    info "Fuehre nur fehlende Migrationen aus (Datenbank beibehalten)..."
+fi
 sudo -u www-data php artisan migrate --force
 
 # --- Demodaten laden (Seed) ---
-info "Lade Demodaten (Rollen, Benutzer, Produkttypen, Attribute, Hierarchien, Produkte)..."
-sudo -u www-data php artisan db:seed --force
+if [ "$DB_EXISTS" = true ] && [ "$DB_RESET" = false ]; then
+    info "Ueberspringe Demodaten (Datenbank wurde beibehalten)."
+else
+    info "Lade Demodaten (Rollen, Benutzer, Produkttypen, Attribute, Hierarchien, Produkte)..."
+    sudo -u www-data php artisan db:seed --force
+fi
 
 # --- Storage Link ---
 info "Erstelle Storage-Symlink..."
@@ -810,11 +851,18 @@ echo -e "  Logs:          tail -f ${INSTALL_DIR}/storage/logs/laravel.log"
 echo -e "  Deploy:        sudo bash ${INSTALL_DIR}/deploy.sh"
 echo -e "  Artisan:       cd ${INSTALL_DIR} && sudo -u www-data php artisan"
 echo ""
-echo -e "${BOLD}Demodaten geladen:${NC}"
-echo -e "  5 Rollen (Admin, Data Steward, Product Manager, Viewer, Export Manager)"
-echo -e "  2 Admin-Benutzer"
-echo -e "  6 Produkttypen"
-echo -e "  12 Attribute mit Einheiten und Wertelisten"
-echo -e "  Produkt-Hierarchien (Elektrowerkzeuge)"
-echo -e "  5 Demo-Produkte mit Preisen und Attributwerten"
+if [ "$DB_EXISTS" = true ] && [ "$DB_RESET" = false ]; then
+    echo -e "${BOLD}Datenbank:${NC}"
+    echo -e "  Bestehende Datenbank '${DB_NAME}' wurde beibehalten."
+    echo -e "  Fehlende Migrationen wurden ausgefuehrt."
+    echo -e "  Demodaten wurden nicht erneut geladen."
+else
+    echo -e "${BOLD}Demodaten geladen:${NC}"
+    echo -e "  5 Rollen (Admin, Data Steward, Product Manager, Viewer, Export Manager)"
+    echo -e "  2 Admin-Benutzer"
+    echo -e "  6 Produkttypen"
+    echo -e "  12 Attribute mit Einheiten und Wertelisten"
+    echo -e "  Produkt-Hierarchien (Elektrowerkzeuge)"
+    echo -e "  5 Demo-Produkte mit Preisen und Attributwerten"
+fi
 echo ""
