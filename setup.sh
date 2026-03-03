@@ -536,42 +536,34 @@ ENVFILE
 
 info ".env erstellt."
 
-# --- Dateiberechtigungen setzen (vor Composer/Artisan, da diese als www-data laufen) ---
-info "Setze Dateiberechtigungen..."
-chown -R www-data:www-data "$INSTALL_DIR"
-find "$INSTALL_DIR" -type f -exec chmod 644 {} \;
-find "$INSTALL_DIR" -type d -exec chmod 755 {} \;
-chmod -R 775 "${INSTALL_DIR}/storage"
-chmod -R 775 "${INSTALL_DIR}/bootstrap/cache"
-info "Berechtigungen gesetzt (www-data)."
-
 # --- Composer Install ---
 info "Installiere PHP-Abhaengigkeiten (Composer)..."
 cd "$INSTALL_DIR"
-sudo -u www-data composer install --no-dev --optimize-autoloader --no-interaction 2>&1 | tail -5
+export COMPOSER_ALLOW_SUPERUSER=1
+composer install --no-dev --optimize-autoloader --no-interaction 2>&1 | tail -5
 
 # --- App Key generieren ---
 info "Generiere Application Key..."
-sudo -u www-data php artisan key:generate --force
+php artisan key:generate --force
 
 # --- Datenbank migrieren ---
 info "Fuehre Datenbank-Migrationen aus..."
 if [ "$DB_EXISTS" = true ] && [ "$DB_RESET" = false ]; then
     info "Fuehre nur fehlende Migrationen aus (Datenbank beibehalten)..."
 fi
-sudo -u www-data php artisan migrate --force
+php artisan migrate --force
 
 # --- Demodaten laden (Seed) ---
 if [ "$DB_EXISTS" = true ] && [ "$DB_RESET" = false ]; then
     info "Ueberspringe Demodaten (Datenbank wurde beibehalten)."
 else
     info "Lade Demodaten (Rollen, Benutzer, Produkttypen, Attribute, Hierarchien, Produkte)..."
-    sudo -u www-data php artisan db:seed --force
+    php artisan db:seed --force
 fi
 
 # --- Storage Link ---
 info "Erstelle Storage-Symlink..."
-sudo -u www-data php artisan storage:link 2>/dev/null || true
+php artisan storage:link 2>/dev/null || true
 
 # ═════════════════════════════════════════════════════════════════════════════
 #  9. FRONTEND BAUEN (Vue 3 / Vite)
@@ -780,9 +772,9 @@ info "Cron-Job fuer Laravel Scheduler eingerichtet."
 # --- Laravel Caches optimieren ---
 info "Optimiere Laravel-Caches..."
 cd "$INSTALL_DIR"
-sudo -u www-data php artisan config:cache
-sudo -u www-data php artisan route:cache
-sudo -u www-data php artisan view:cache
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
 
 info "Caches erstellt."
 
