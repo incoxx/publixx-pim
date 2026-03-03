@@ -153,6 +153,25 @@ else
     APP_PROTOCOL="http"
 fi
 
+# --- Web-Pfad (Unterverzeichnis) ---
+echo ""
+echo -e "${BOLD}Web-Pfad:${NC}"
+echo -e "  Soll PIM im Root laufen (z.B. https://pim.example.com/)?"
+echo -e "  Oder in einem Unterverzeichnis (z.B. https://example.com/pim)?"
+echo ""
+ask "Web-Pfad (z.B. /web oder /pim, leer fuer Root): "
+read -r WEB_PATH
+
+# Normalisieren: mit / beginnen, ohne / enden, leer = Root
+if [ -n "$WEB_PATH" ]; then
+    WEB_PATH="${WEB_PATH#/}"    # fuehrendes / entfernen
+    WEB_PATH="${WEB_PATH%/}"    # abschliessendes / entfernen
+    WEB_PATH="/${WEB_PATH}"    # mit / beginnen
+    info "PIM wird unter '${WEB_PATH}' installiert."
+else
+    info "PIM wird im Root installiert."
+fi
+
 # URL zusammenbauen (Port nur anhaengen wenn nicht Standard)
 if [ "$APP_PROTOCOL" = "https" ]; then
     DEFAULT_PORT=443
@@ -163,10 +182,10 @@ else
 fi
 
 if [ "$EFFECTIVE_PORT" -eq "$DEFAULT_PORT" ]; then
-    APP_URL="${APP_PROTOCOL}://${SERVER_DOMAIN}"
+    APP_URL="${APP_PROTOCOL}://${SERVER_DOMAIN}${WEB_PATH}"
     SANCTUM_DOMAIN="${SERVER_DOMAIN}"
 else
-    APP_URL="${APP_PROTOCOL}://${SERVER_DOMAIN}:${EFFECTIVE_PORT}"
+    APP_URL="${APP_PROTOCOL}://${SERVER_DOMAIN}:${EFFECTIVE_PORT}${WEB_PATH}"
     SANCTUM_DOMAIN="${SERVER_DOMAIN}:${EFFECTIVE_PORT}"
 fi
 
@@ -212,6 +231,7 @@ echo -e "${BOLD}${BLUE}═══ Zusammenfassung ═══${NC}"
 echo -e "  Server:       ${BOLD}${SERVER_DOMAIN}${NC}"
 echo -e "  Port:         ${BOLD}${APP_PORT}$([ "$USE_SSL" = true ] && echo " (SSL: ${SSL_PORT})" || echo "")${NC}"
 echo -e "  URL:          ${BOLD}${APP_URL}${NC}"
+echo -e "  Web-Pfad:     ${BOLD}${WEB_PATH:-/ (Root)}${NC}"
 echo -e "  SSL:          ${BOLD}$([ "$USE_SSL" = true ] && echo 'Ja (Let'\''s Encrypt)' || echo 'Nein')${NC}"
 echo -e "  MySQL DB:     ${BOLD}${DB_NAME}${NC}"
 echo -e "  MySQL User:   ${BOLD}${DB_USER}${NC}"
@@ -289,8 +309,10 @@ apt-get install -y -qq apache2
 # Module aktivieren
 a2enmod rewrite headers ssl php8.4 > /dev/null 2>&1
 
-# Default-Site deaktivieren
-a2dissite 000-default.conf > /dev/null 2>&1 || true
+# Default-Site nur deaktivieren wenn PIM im Root laeuft
+if [ -z "$WEB_PATH" ]; then
+    a2dissite 000-default.conf > /dev/null 2>&1 || true
+fi
 
 info "Apache installiert und Module aktiviert."
 
@@ -523,6 +545,7 @@ HORIZON_PREFIX=pim_horizon:
 SESSION_DRIVER=redis
 SESSION_LIFETIME=120
 SESSION_SECURE_COOKIE=${SESSION_SECURE}
+SESSION_COOKIE_PATH=${WEB_PATH:-/}
 
 # ─── Sanctum ──────────────────────────────────────────────────────────
 SANCTUM_STATEFUL_DOMAINS=${SANCTUM_DOMAIN}
@@ -610,6 +633,14 @@ if [ -d "$FRONTEND_DIR" ]; then
     npm ci --production=false 2>&1
 
     info "Baue Frontend (Vue 3 + Vite)..."
+
+    # Bei Subdirectory-Deployment: Vite Base-Path und API-URL setzen
+    if [ -n "$WEB_PATH" ]; then
+        export VITE_BASE_PATH="${WEB_PATH}/"
+        export VITE_API_BASE_URL="${WEB_PATH}/api/v1"
+        info "Frontend Base-Path: ${VITE_BASE_PATH}"
+    fi
+
     npm run build 2>&1
 
     # Build-Output nach public/ kopieren
@@ -645,29 +676,84 @@ find "$INSTALL_DIR" -type d -exec chmod 755 {} \;
 chmod -R 775 "${INSTALL_DIR}/storage"
 chmod -R 775 "${INSTALL_DIR}/bootstrap/cache"
 
-# --- Apache Port konfigurieren ---
-info "Konfiguriere Apache-Port ${APP_PORT}..."
+# --- Apache-Konfiguration ---
+if [ -n "$WEB_PATH" ]; then
+    # ╔═══════════════════════════════════════════════════════════════════╗
+    # ║  SUBDIRECTORY-MODUS: Apache Alias (kein eigener VHost)          ║
+    # ╠═══════════════════════════════════════════════════════════════════╣
+    # ║  Verwendet Apache Alias, um PIM unter einem Unterverzeichnis    ║
+    # ║  eines bestehenden VHosts bereitzustellen.                      ║
+    # ║  z.B. https://example.com/web → /var/www/publixx-pim/public    ║
+    # ╚═══════════════════════════════════════════════════════════════════╝
+    info "Konfiguriere Apache-Alias fuer ${WEB_PATH}..."
 
-PORTS_CONF="/etc/apache2/ports.conf"
+    # Alias-Modul aktivieren
+    a2enmod alias > /dev/null 2>&1
 
-# ports.conf komplett neu schreiben: nur die Ports, die wir brauchen.
-# Das verhindert Konflikte mit Default-Listen-Direktiven (z.B. Port 80),
-# wenn ein anderer Dienst dort bereits laeuft.
-{
-    echo "# Publixx PIM — generiert von setup.sh"
-    echo "Listen ${APP_PORT}"
-    if [ "$USE_SSL" = true ]; then
-        echo "Listen ${SSL_PORT}"
+    # Globale Alias-Konfiguration (wird in alle VHosts eingebunden)
+    ALIAS_CONF="/etc/apache2/conf-available/publixx-pim.conf"
+
+    cat > "$ALIAS_CONF" <<ALIASCONF
+# Publixx PIM — Apache Alias fuer Unterverzeichnis ${WEB_PATH}
+# Generiert von setup.sh
+#
+# Diese Konfiguration bindet PIM unter ${WEB_PATH} ein.
+# Sie wird automatisch in alle VHosts geladen.
+
+Alias ${WEB_PATH} ${INSTALL_DIR}/public
+
+<Directory ${INSTALL_DIR}/public>
+    AllowOverride All
+    Require all granted
+    Options -Indexes +FollowSymLinks
+
+    # Sicherheits-Header
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-XSS-Protection "1; mode=block"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+</Directory>
+ALIASCONF
+
+    a2enconf publixx-pim > /dev/null 2>&1
+
+    if apache2ctl configtest 2>&1 | grep -q "Syntax OK"; then
+        systemctl reload apache2
+        info "Apache-Alias '${WEB_PATH}' konfiguriert und Apache neu geladen."
+    else
+        warn "Apache-Konfiguration fehlerhaft — bitte manuell pruefen."
+        apache2ctl configtest
     fi
-} > "$PORTS_CONF"
-info "ports.conf: Listen ${APP_PORT}$([ "$USE_SSL" = true ] && echo " + ${SSL_PORT} (SSL)" || echo "")"
 
-# --- Apache VHost ---
-info "Erstelle Apache VirtualHost (Port ${APP_PORT})..."
+    info "Der Alias ist global aktiv und funktioniert mit allen bestehenden VHosts."
+    info "PIM ist erreichbar unter: ${APP_URL}"
 
-VHOST_FILE="/etc/apache2/sites-available/publixx-pim.conf"
+else
+    # ╔═══════════════════════════════════════════════════════════════════╗
+    # ║  ROOT-MODUS: Eigener VHost (PIM ist die einzige App)            ║
+    # ╚═══════════════════════════════════════════════════════════════════╝
+    info "Konfiguriere Apache-Port ${APP_PORT}..."
 
-cat > "$VHOST_FILE" <<VHOST
+    PORTS_CONF="/etc/apache2/ports.conf"
+
+    # ports.conf komplett neu schreiben: nur die Ports, die wir brauchen.
+    # Das verhindert Konflikte mit Default-Listen-Direktiven (z.B. Port 80),
+    # wenn ein anderer Dienst dort bereits laeuft.
+    {
+        echo "# Publixx PIM — generiert von setup.sh"
+        echo "Listen ${APP_PORT}"
+        if [ "$USE_SSL" = true ]; then
+            echo "Listen ${SSL_PORT}"
+        fi
+    } > "$PORTS_CONF"
+    info "ports.conf: Listen ${APP_PORT}$([ "$USE_SSL" = true ] && echo " + ${SSL_PORT} (SSL)" || echo "")"
+
+    # --- Apache VHost ---
+    info "Erstelle Apache VirtualHost (Port ${APP_PORT})..."
+
+    VHOST_FILE="/etc/apache2/sites-available/publixx-pim.conf"
+
+    cat > "$VHOST_FILE" <<VHOST
 <VirtualHost *:${APP_PORT}>
     ServerName ${SERVER_DOMAIN}
     DocumentRoot ${INSTALL_DIR}/public
@@ -693,45 +779,45 @@ cat > "$VHOST_FILE" <<VHOST
 </VirtualHost>
 VHOST
 
-a2ensite publixx-pim.conf > /dev/null 2>&1
+    a2ensite publixx-pim.conf > /dev/null 2>&1
 
-# Apache-Konfiguration testen
-if apache2ctl configtest 2>&1 | grep -q "Syntax OK"; then
-    systemctl restart apache2
-    info "Apache VHost aktiviert (Port ${APP_PORT}) und Apache neu gestartet."
-else
-    warn "Apache-Konfiguration fehlerhaft — bitte manuell pruefen."
-    apache2ctl configtest
-fi
-
-# --- SSL mit Let's Encrypt (optional) ---
-if [ "$USE_SSL" = true ]; then
-    info "Richte Let's Encrypt SSL ein..."
-    apt-get install -y -qq certbot python3-certbot-apache
-
-    if [ "$APP_PORT" -eq 80 ] && [ "$SSL_PORT" -eq 443 ]; then
-        # Standard-Ports: Certbot kann automatisch konfigurieren
-        certbot --apache \
-            -d "$SERVER_DOMAIN" \
-            --non-interactive \
-            --agree-tos \
-            --email "$SSL_EMAIL" \
-            --redirect \
-        && info "SSL-Zertifikat erfolgreich eingerichtet." \
-        || warn "SSL-Einrichtung fehlgeschlagen — kann spaeter mit 'sudo certbot --apache' nachgeholt werden."
+    # Apache-Konfiguration testen
+    if apache2ctl configtest 2>&1 | grep -q "Syntax OK"; then
+        systemctl restart apache2
+        info "Apache VHost aktiviert (Port ${APP_PORT}) und Apache neu gestartet."
     else
-        # Nicht-Standard-Ports: Nur Zertifikat holen, VHost manuell anpassen
-        certbot certonly --standalone \
-            -d "$SERVER_DOMAIN" \
-            --non-interactive \
-            --agree-tos \
-            --email "$SSL_EMAIL" \
-            --http-01-port "$APP_PORT" \
-        && {
-            info "SSL-Zertifikat erstellt. Erstelle SSL-VHost auf Port ${SSL_PORT}..."
+        warn "Apache-Konfiguration fehlerhaft — bitte manuell pruefen."
+        apache2ctl configtest
+    fi
 
-            # SSL-VHost hinzufuegen
-            cat >> "$VHOST_FILE" <<SSLVHOST
+    # --- SSL mit Let's Encrypt (optional) ---
+    if [ "$USE_SSL" = true ]; then
+        info "Richte Let's Encrypt SSL ein..."
+        apt-get install -y -qq certbot python3-certbot-apache
+
+        if [ "$APP_PORT" -eq 80 ] && [ "$SSL_PORT" -eq 443 ]; then
+            # Standard-Ports: Certbot kann automatisch konfigurieren
+            certbot --apache \
+                -d "$SERVER_DOMAIN" \
+                --non-interactive \
+                --agree-tos \
+                --email "$SSL_EMAIL" \
+                --redirect \
+            && info "SSL-Zertifikat erfolgreich eingerichtet." \
+            || warn "SSL-Einrichtung fehlgeschlagen — kann spaeter mit 'sudo certbot --apache' nachgeholt werden."
+        else
+            # Nicht-Standard-Ports: Nur Zertifikat holen, VHost manuell anpassen
+            certbot certonly --standalone \
+                -d "$SERVER_DOMAIN" \
+                --non-interactive \
+                --agree-tos \
+                --email "$SSL_EMAIL" \
+                --http-01-port "$APP_PORT" \
+            && {
+                info "SSL-Zertifikat erstellt. Erstelle SSL-VHost auf Port ${SSL_PORT}..."
+
+                # SSL-VHost hinzufuegen
+                cat >> "$VHOST_FILE" <<SSLVHOST
 
 <VirtualHost *:${SSL_PORT}>
     ServerName ${SERVER_DOMAIN}
@@ -758,10 +844,11 @@ if [ "$USE_SSL" = true ]; then
     LimitRequestBody 67108864
 </VirtualHost>
 SSLVHOST
-            systemctl restart apache2
-            info "SSL-VHost auf Port ${SSL_PORT} aktiviert."
-        } \
-        || warn "SSL-Einrichtung fehlgeschlagen — kann spaeter nachgeholt werden."
+                systemctl restart apache2
+                info "SSL-VHost auf Port ${SSL_PORT} aktiviert."
+            } \
+            || warn "SSL-Einrichtung fehlgeschlagen — kann spaeter nachgeholt werden."
+        fi
     fi
 fi
 
@@ -846,6 +933,7 @@ echo -e "${NC}"
 echo -e "${BOLD}Zusammenfassung:${NC}"
 echo -e "  Dauer:         ${INSTALL_MINUTES}m ${INSTALL_SECONDS}s"
 echo -e "  URL:           ${BOLD}${APP_URL}${NC}"
+echo -e "  Web-Pfad:      ${BOLD}${WEB_PATH:-/ (Root)}${NC}"
 echo -e "  Pfad:          ${INSTALL_DIR}"
 echo -e "  Datenbank:     ${DB_NAME}"
 echo ""
@@ -885,3 +973,13 @@ else
     echo -e "  5 Demo-Produkte mit Preisen und Attributwerten"
 fi
 echo ""
+if [ -n "$WEB_PATH" ]; then
+    echo -e "${BOLD}Subdirectory-Modus:${NC}"
+    echo -e "  PIM laeuft unter:  ${BOLD}${APP_URL}${NC}"
+    echo -e "  Apache-Alias:      ${WEB_PATH} -> ${INSTALL_DIR}/public"
+    echo -e "  Konfiguration:     /etc/apache2/conf-available/publixx-pim.conf"
+    echo -e ""
+    echo -e "  ${YELLOW}Hinweis: PIM nutzt den bestehenden VHost fuer ${SERVER_DOMAIN}.${NC}"
+    echo -e "  ${YELLOW}Stelle sicher, dass ein VHost fuer diese Domain existiert.${NC}"
+    echo ""
+fi
