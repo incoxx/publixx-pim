@@ -540,7 +540,22 @@ info ".env erstellt."
 info "Installiere PHP-Abhaengigkeiten (Composer)..."
 cd "$INSTALL_DIR"
 export COMPOSER_ALLOW_SUPERUSER=1
-composer install --no-dev --optimize-autoloader --no-interaction 2>&1 | tail -5
+
+# --no-scripts verhindert, dass post-autoload-dump (php artisan package:discover)
+# waehrend des Installs laeuft — das wuerde Laravel bootstrappen und koennte haengen,
+# falls DB/Redis noch nicht erreichbar sind.
+# memory_limit=-1 verhindert stilles Haengen bei wenig RAM.
+php -d memory_limit=-1 "$(which composer)" install \
+    --no-dev \
+    --optimize-autoloader \
+    --no-interaction \
+    --no-scripts \
+    --prefer-dist \
+    2>&1
+
+# Post-Install Scripts separat ausfuehren (package:discover etc.)
+info "Fuehre Composer post-install Scripts aus..."
+php artisan package:discover --ansi 2>&1 || true
 
 # --- App Key generieren ---
 info "Generiere Application Key..."
@@ -575,10 +590,10 @@ FRONTEND_DIR="${INSTALL_DIR}/pim-frontend"
 if [ -d "$FRONTEND_DIR" ]; then
     info "Installiere Frontend-Abhaengigkeiten..."
     cd "$FRONTEND_DIR"
-    npm ci --production=false 2>&1 | tail -3
+    npm ci --production=false 2>&1
 
     info "Baue Frontend (Vue 3 + Vite)..."
-    npm run build 2>&1 | tail -5
+    npm run build 2>&1
 
     # Build-Output nach public/ kopieren
     if [ -d "${FRONTEND_DIR}/dist" ]; then
@@ -841,7 +856,7 @@ echo -e "${BOLD}Nuetzliche Befehle:${NC}"
 echo -e "  Horizon:       sudo supervisorctl status horizon"
 echo -e "  Logs:          tail -f ${INSTALL_DIR}/storage/logs/laravel.log"
 echo -e "  Deploy:        sudo bash ${INSTALL_DIR}/deploy.sh"
-echo -e "  Artisan:       cd ${INSTALL_DIR} && sudo -u www-data php artisan"
+echo -e "  Artisan:       cd ${INSTALL_DIR} && php artisan"
 echo ""
 if [ "$DB_EXISTS" = true ] && [ "$DB_RESET" = false ]; then
     echo -e "${BOLD}Datenbank:${NC}"
