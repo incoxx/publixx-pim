@@ -17,8 +17,27 @@
 #   - Demodaten (Seed)
 #   - Optional: Let's Encrypt SSL
 #
-# Verwendung:
-#   sudo bash setup.sh
+# Schnellstart:
+#
+#   1. Repository klonen (beliebiges Verzeichnis):
+#      git clone https://github.com/incoxx/publixx-pim.git /tmp/publixx-pim
+#
+#   2. Setup-Script ausfuehren:
+#      cd /tmp/publixx-pim
+#      sudo bash setup.sh
+#
+#   3. Das Script fragt interaktiv nach:
+#      - Domain / IP-Adresse
+#      - Apache-Port (Standard: 80)
+#      - SSL ja/nein
+#      - MySQL-Zugangsdaten
+#      - Installationspfad (Standard: /var/www/publixx-pim)
+#
+#   Das Script kopiert alle Dateien automatisch in den gewaehlten
+#   Installationspfad. Das Clone-Verzeichnis kann danach geloescht werden.
+#
+#   Wird das Script direkt im Zielverzeichnis ausgefuehrt (z.B. nach
+#   git clone ... /var/www/publixx-pim), entfaellt das Kopieren.
 #
 # Voraussetzung: Frisches Ubuntu 24.04 LTS mit Root-Zugang
 #
