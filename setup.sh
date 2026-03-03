@@ -399,23 +399,21 @@ info "npm installiert: $(npm -v)"
 # ═════════════════════════════════════════════════════════════════════════════
 step "7/10 — Composer installieren"
 
+export COMPOSER_ALLOW_SUPERUSER=1
+
 if ! command -v composer &> /dev/null; then
-    info "Lade Composer herunter..."
-    curl -sS --connect-timeout 15 --max-time 60 https://getcomposer.org/installer -o composer-setup.php \
-        || error "Composer-Installer konnte nicht heruntergeladen werden. Netzwerkproblem?"
+    info "Installiere Composer via apt..."
+    apt-get install -y -qq composer 2>&1
 
-    EXPECTED_CHECKSUM="$(curl -sS --connect-timeout 10 --max-time 30 https://composer.github.io/installer.sig)" \
-        || error "Composer-Pruefsumme konnte nicht heruntergeladen werden."
-    ACTUAL_CHECKSUM="$(php -r "echo hash_file('sha384', 'composer-setup.php');")"
-
-    if [ "$EXPECTED_CHECKSUM" != "$ACTUAL_CHECKSUM" ]; then
-        rm composer-setup.php
-        error "Composer-Installer Pruefsumme ungueltig! Abbruch."
+    # Falls apt-Version zu alt ist (< 2.x), direkt als PHAR herunterladen
+    if ! composer --version 2>/dev/null | grep -q "^Composer version 2"; then
+        warn "apt-Version zu alt, lade aktuelle Version herunter..."
+        curl -sS --connect-timeout 15 --max-time 120 \
+            https://getcomposer.org/download/latest-stable/composer.phar \
+            -o /usr/local/bin/composer \
+            || error "Composer konnte nicht heruntergeladen werden. Netzwerkproblem?"
+        chmod +x /usr/local/bin/composer
     fi
-
-    php composer-setup.php --quiet
-    rm composer-setup.php
-    mv composer.phar /usr/local/bin/composer
 fi
 
 info "Composer installiert: $(composer --version 2>/dev/null | head -1)"
@@ -539,7 +537,6 @@ info ".env erstellt."
 # --- Composer Install ---
 info "Installiere PHP-Abhaengigkeiten (Composer)..."
 cd "$INSTALL_DIR"
-export COMPOSER_ALLOW_SUPERUSER=1
 
 # --no-scripts verhindert, dass post-autoload-dump (php artisan package:discover)
 # waehrend des Installs laeuft — das wuerde Laravel bootstrappen und koennte haengen,
