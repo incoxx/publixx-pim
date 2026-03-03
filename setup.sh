@@ -99,6 +99,16 @@ if [[ "$SERVER_DOMAIN" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     IS_IP=true
 fi
 
+# --- Port ---
+ask "Apache-Port [80]: "
+read -r APP_PORT
+APP_PORT=${APP_PORT:-80}
+
+# Validieren: nur Zahlen, 1-65535
+if ! [[ "$APP_PORT" =~ ^[0-9]+$ ]] || [ "$APP_PORT" -lt 1 ] || [ "$APP_PORT" -gt 65535 ]; then
+    error "Ungueltiger Port: ${APP_PORT}. Erlaubt: 1-65535."
+fi
+
 # --- Protokoll ---
 USE_SSL=false
 if [ "$IS_IP" = false ]; then
@@ -116,10 +126,30 @@ fi
 
 if [ "$USE_SSL" = true ]; then
     APP_PROTOCOL="https"
+    SSL_PORT=$((APP_PORT + 363))   # z.B. 80->443, 8080->8443
+    if [ "$APP_PORT" -eq 80 ]; then
+        SSL_PORT=443
+    fi
 else
     APP_PROTOCOL="http"
 fi
-APP_URL="${APP_PROTOCOL}://${SERVER_DOMAIN}"
+
+# URL zusammenbauen (Port nur anhaengen wenn nicht Standard)
+if [ "$APP_PROTOCOL" = "https" ]; then
+    DEFAULT_PORT=443
+    EFFECTIVE_PORT=$SSL_PORT
+else
+    DEFAULT_PORT=80
+    EFFECTIVE_PORT=$APP_PORT
+fi
+
+if [ "$EFFECTIVE_PORT" -eq "$DEFAULT_PORT" ]; then
+    APP_URL="${APP_PROTOCOL}://${SERVER_DOMAIN}"
+    SANCTUM_DOMAIN="${SERVER_DOMAIN}"
+else
+    APP_URL="${APP_PROTOCOL}://${SERVER_DOMAIN}:${EFFECTIVE_PORT}"
+    SANCTUM_DOMAIN="${SERVER_DOMAIN}:${EFFECTIVE_PORT}"
+fi
 
 echo ""
 echo -e "${BOLD}MySQL-Konfiguration:${NC}\n"
@@ -161,6 +191,7 @@ INSTALL_DIR=${INSTALL_DIR:-/var/www/publixx-pim}
 echo ""
 echo -e "${BOLD}${BLUE}═══ Zusammenfassung ═══${NC}"
 echo -e "  Server:       ${BOLD}${SERVER_DOMAIN}${NC}"
+echo -e "  Port:         ${BOLD}${APP_PORT}$([ "$USE_SSL" = true ] && echo " (SSL: ${SSL_PORT})" || echo "")${NC}"
 echo -e "  URL:          ${BOLD}${APP_URL}${NC}"
 echo -e "  SSL:          ${BOLD}$([ "$USE_SSL" = true ] && echo 'Ja (Let'\''s Encrypt)' || echo 'Nein')${NC}"
 echo -e "  MySQL DB:     ${BOLD}${DB_NAME}${NC}"
@@ -434,7 +465,7 @@ SESSION_LIFETIME=120
 SESSION_SECURE_COOKIE=${SESSION_SECURE}
 
 # ─── Sanctum ──────────────────────────────────────────────────────────
-SANCTUM_STATEFUL_DOMAINS=${SERVER_DOMAIN}
+SANCTUM_STATEFUL_DOMAINS=${SANCTUM_DOMAIN}
 
 # ─── Filesystem ──────────────────────────────────────────────────────
 FILESYSTEM_DISK=local
@@ -517,13 +548,35 @@ find "$INSTALL_DIR" -type d -exec chmod 755 {} \;
 chmod -R 775 "${INSTALL_DIR}/storage"
 chmod -R 775 "${INSTALL_DIR}/bootstrap/cache"
 
+# --- Apache Port konfigurieren ---
+info "Konfiguriere Apache-Port ${APP_PORT}..."
+
+PORTS_CONF="/etc/apache2/ports.conf"
+
+# Listen-Direktive fuer den gewaehlten Port sicherstellen
+if ! grep -q "^Listen ${APP_PORT}$" "$PORTS_CONF" 2>/dev/null; then
+    # Nicht-Standard-Port hinzufuegen
+    if [ "$APP_PORT" -ne 80 ] && [ "$APP_PORT" -ne 443 ]; then
+        echo "Listen ${APP_PORT}" >> "$PORTS_CONF"
+        info "Listen ${APP_PORT} zu ports.conf hinzugefuegt."
+    fi
+fi
+
+# SSL-Port registrieren falls noetig
+if [ "$USE_SSL" = true ] && [ "$SSL_PORT" -ne 443 ]; then
+    if ! grep -q "^Listen ${SSL_PORT}$" "$PORTS_CONF" 2>/dev/null; then
+        echo "Listen ${SSL_PORT}" >> "$PORTS_CONF"
+        info "Listen ${SSL_PORT} (SSL) zu ports.conf hinzugefuegt."
+    fi
+fi
+
 # --- Apache VHost ---
-info "Erstelle Apache VirtualHost..."
+info "Erstelle Apache VirtualHost (Port ${APP_PORT})..."
 
 VHOST_FILE="/etc/apache2/sites-available/publixx-pim.conf"
 
 cat > "$VHOST_FILE" <<VHOST
-<VirtualHost *:80>
+<VirtualHost *:${APP_PORT}>
     ServerName ${SERVER_DOMAIN}
     DocumentRoot ${INSTALL_DIR}/public
 
@@ -553,7 +606,7 @@ a2ensite publixx-pim.conf > /dev/null 2>&1
 # Apache-Konfiguration testen
 if apache2ctl configtest 2>&1 | grep -q "Syntax OK"; then
     systemctl restart apache2
-    info "Apache VHost aktiviert und Apache neu gestartet."
+    info "Apache VHost aktiviert (Port ${APP_PORT}) und Apache neu gestartet."
 else
     warn "Apache-Konfiguration fehlerhaft — bitte manuell pruefen."
     apache2ctl configtest
@@ -564,14 +617,60 @@ if [ "$USE_SSL" = true ]; then
     info "Richte Let's Encrypt SSL ein..."
     apt-get install -y -qq certbot python3-certbot-apache
 
-    certbot --apache \
-        -d "$SERVER_DOMAIN" \
-        --non-interactive \
-        --agree-tos \
-        --email "$SSL_EMAIL" \
-        --redirect \
-    && info "SSL-Zertifikat erfolgreich eingerichtet." \
-    || warn "SSL-Einrichtung fehlgeschlagen — kann spaeter mit 'sudo certbot --apache' nachgeholt werden."
+    if [ "$APP_PORT" -eq 80 ] && [ "$SSL_PORT" -eq 443 ]; then
+        # Standard-Ports: Certbot kann automatisch konfigurieren
+        certbot --apache \
+            -d "$SERVER_DOMAIN" \
+            --non-interactive \
+            --agree-tos \
+            --email "$SSL_EMAIL" \
+            --redirect \
+        && info "SSL-Zertifikat erfolgreich eingerichtet." \
+        || warn "SSL-Einrichtung fehlgeschlagen — kann spaeter mit 'sudo certbot --apache' nachgeholt werden."
+    else
+        # Nicht-Standard-Ports: Nur Zertifikat holen, VHost manuell anpassen
+        certbot certonly --standalone \
+            -d "$SERVER_DOMAIN" \
+            --non-interactive \
+            --agree-tos \
+            --email "$SSL_EMAIL" \
+            --http-01-port "$APP_PORT" \
+        && {
+            info "SSL-Zertifikat erstellt. Erstelle SSL-VHost auf Port ${SSL_PORT}..."
+
+            # SSL-VHost hinzufuegen
+            cat >> "$VHOST_FILE" <<SSLVHOST
+
+<VirtualHost *:${SSL_PORT}>
+    ServerName ${SERVER_DOMAIN}
+    DocumentRoot ${INSTALL_DIR}/public
+
+    SSLEngine on
+    SSLCertificateFile /etc/letsencrypt/live/${SERVER_DOMAIN}/fullchain.pem
+    SSLCertificateKeyFile /etc/letsencrypt/live/${SERVER_DOMAIN}/privkey.pem
+
+    <Directory ${INSTALL_DIR}/public>
+        AllowOverride All
+        Require all granted
+        Options -Indexes +FollowSymLinks
+    </Directory>
+
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-XSS-Protection "1; mode=block"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+
+    ErrorLog \${APACHE_LOG_DIR}/publixx-pim-ssl-error.log
+    CustomLog \${APACHE_LOG_DIR}/publixx-pim-ssl-access.log combined
+
+    LimitRequestBody 67108864
+</VirtualHost>
+SSLVHOST
+            systemctl restart apache2
+            info "SSL-VHost auf Port ${SSL_PORT} aktiviert."
+        } \
+        || warn "SSL-Einrichtung fehlgeschlagen — kann spaeter nachgeholt werden."
+    fi
 fi
 
 # --- Supervisor fuer Horizon ---
@@ -617,10 +716,20 @@ info "Caches erstellt."
 # --- Firewall (optional, nur wenn ufw installiert) ---
 if command -v ufw &> /dev/null; then
     info "Konfiguriere Firewall (UFW)..."
-    ufw allow 'Apache Full' > /dev/null 2>&1 || true
+    if [ "$APP_PORT" -eq 80 ]; then
+        ufw allow 'Apache Full' > /dev/null 2>&1 || true
+        info "Firewall-Regel: Apache Full (80/443)"
+    else
+        ufw allow "$APP_PORT/tcp" > /dev/null 2>&1 || true
+        info "Firewall-Regel: Port ${APP_PORT}/tcp"
+        if [ "$USE_SSL" = true ] && [ "$SSL_PORT" -ne 443 ]; then
+            ufw allow "$SSL_PORT/tcp" > /dev/null 2>&1 || true
+            info "Firewall-Regel: Port ${SSL_PORT}/tcp (SSL)"
+        fi
+    fi
     ufw allow OpenSSH > /dev/null 2>&1 || true
     # ufw nicht automatisch aktivieren — das soll der Admin entscheiden
-    info "Firewall-Regeln hinzugefuegt (Apache Full + SSH). Aktiviere mit: sudo ufw enable"
+    info "Firewall-Regeln hinzugefuegt. Aktiviere mit: sudo ufw enable"
 fi
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -658,7 +767,7 @@ echo ""
 echo -e "${YELLOW}Wichtig: Aendere die Standard-Passwoerter nach dem ersten Login!${NC}"
 echo ""
 echo -e "${BOLD}Dienste:${NC}"
-echo -e "  Apache:        $(systemctl is-active apache2 2>/dev/null || echo 'unbekannt')"
+echo -e "  Apache:        $(systemctl is-active apache2 2>/dev/null || echo 'unbekannt') (Port ${APP_PORT}$([ "$USE_SSL" = true ] && echo ", SSL ${SSL_PORT}" || echo ""))"
 echo -e "  MySQL:         $(systemctl is-active mysql 2>/dev/null || echo 'unbekannt')"
 echo -e "  Redis:         $(systemctl is-active redis-server 2>/dev/null || echo 'unbekannt')"
 echo -e "  Supervisor:    $(systemctl is-active supervisor 2>/dev/null || echo 'unbekannt')"
