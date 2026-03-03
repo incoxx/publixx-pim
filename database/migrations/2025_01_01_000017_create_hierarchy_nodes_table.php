@@ -26,7 +26,7 @@ return new class extends Migration
             $table->foreign('hierarchy_id')->references('id')->on('hierarchies')->onDelete('cascade');
             $table->foreign('parent_node_id')->references('id')->on('hierarchy_nodes')->onDelete('set null');
             $table->index(['hierarchy_id', 'parent_node_id']);
-            $table->index('path');
+            $table->rawIndex('`path`(768)', 'hierarchy_nodes_path_index');
         });
     }
 
