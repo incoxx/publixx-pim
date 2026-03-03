@@ -335,13 +335,22 @@ if mysql -u root -e "USE \`${DB_NAME}\`" 2>/dev/null; then
     esac
 fi
 
-# Datenbank und Benutzer anlegen (IF NOT EXISTS fuer Wiederholbarkeit)
+# Datenbank und Benutzer anlegen
+# ALTER USER statt CREATE: falls der User schon existiert,
+# wird das Passwort auf den aktuell eingegebenen Wert gesetzt.
 mysql -u root <<EOSQL
 CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASS}';
+ALTER USER '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASS}';
 GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'localhost';
 FLUSH PRIVILEGES;
 EOSQL
+
+# Verbindung testen bevor wir weitermachen
+if ! mysql -u "${DB_USER}" -p"${DB_PASS}" -e "USE \`${DB_NAME}\`" 2>/dev/null; then
+    error "MySQL-Verbindung fehlgeschlagen! Benutzer '${DB_USER}' kann nicht auf '${DB_NAME}' zugreifen."
+fi
+info "MySQL-Verbindung getestet — OK."
 
 if [ "$DB_EXISTS" = true ] && [ "$DB_RESET" = false ]; then
     info "MySQL-Benutzer '${DB_USER}' geprueft, Datenbank '${DB_NAME}' beibehalten."
