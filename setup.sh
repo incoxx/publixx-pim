@@ -400,23 +400,19 @@ info "npm installiert: $(npm -v)"
 step "7/10 — Composer installieren"
 
 export COMPOSER_ALLOW_SUPERUSER=1
+export COMPOSER_NO_INTERACTION=1
+export COMPOSER_DISABLE_XDEBUG_WARN=1
 
 if ! command -v composer &> /dev/null; then
     info "Installiere Composer via apt..."
     apt-get install -y -qq composer 2>&1
-
-    # Falls apt-Version zu alt ist (< 2.x), direkt als PHAR herunterladen
-    if ! composer --version 2>/dev/null | grep -q "^Composer version 2"; then
-        warn "apt-Version zu alt, lade aktuelle Version herunter..."
-        curl -sS --connect-timeout 15 --max-time 120 \
-            https://getcomposer.org/download/latest-stable/composer.phar \
-            -o /usr/local/bin/composer \
-            || error "Composer konnte nicht heruntergeladen werden. Netzwerkproblem?"
-        chmod +x /usr/local/bin/composer
-    fi
 fi
 
-info "Composer installiert: $(composer --version 2>/dev/null | head -1)"
+if command -v composer &> /dev/null; then
+    info "Composer installiert: $(which composer)"
+else
+    error "Composer konnte nicht installiert werden."
+fi
 
 # ═════════════════════════════════════════════════════════════════════════════
 #  8. ANWENDUNG EINRICHTEN
@@ -536,19 +532,24 @@ info ".env erstellt."
 
 # --- Composer Install ---
 info "Installiere PHP-Abhaengigkeiten (Composer)..."
+info "(Dies kann bei der ersten Ausfuehrung einige Minuten dauern...)"
 cd "$INSTALL_DIR"
 
-# --no-scripts verhindert, dass post-autoload-dump (php artisan package:discover)
-# waehrend des Installs laeuft — das wuerde Laravel bootstrappen und koennte haengen,
-# falls DB/Redis noch nicht erreichbar sind.
-# memory_limit=-1 verhindert stilles Haengen bei wenig RAM.
+# --no-scripts: verhindert artisan package:discover waehrend Install (haengt ggf.)
+# --no-plugins: keine Plugin-Downloads waehrend Install
+# --prefer-dist: Zip statt Git-Clone (schneller, weniger Netzwerk)
+# memory_limit=-1: verhindert stilles Haengen bei wenig RAM
 php -d memory_limit=-1 "$(which composer)" install \
     --no-dev \
     --optimize-autoloader \
     --no-interaction \
     --no-scripts \
+    --no-plugins \
     --prefer-dist \
+    -v \
     2>&1
+
+info "PHP-Abhaengigkeiten installiert."
 
 # Post-Install Scripts separat ausfuehren (package:discover etc.)
 info "Fuehre Composer post-install Scripts aus..."
