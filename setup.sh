@@ -399,26 +399,20 @@ info "npm installiert: $(npm -v)"
 # ═════════════════════════════════════════════════════════════════════════════
 step "7/10 — Composer installieren"
 
+export COMPOSER_ALLOW_SUPERUSER=1
+export COMPOSER_NO_INTERACTION=1
+export COMPOSER_DISABLE_XDEBUG_WARN=1
+
 if ! command -v composer &> /dev/null; then
-    info "Lade Composer herunter..."
-    curl -sS --connect-timeout 15 --max-time 60 https://getcomposer.org/installer -o composer-setup.php \
-        || error "Composer-Installer konnte nicht heruntergeladen werden. Netzwerkproblem?"
-
-    EXPECTED_CHECKSUM="$(curl -sS --connect-timeout 10 --max-time 30 https://composer.github.io/installer.sig)" \
-        || error "Composer-Pruefsumme konnte nicht heruntergeladen werden."
-    ACTUAL_CHECKSUM="$(php -r "echo hash_file('sha384', 'composer-setup.php');")"
-
-    if [ "$EXPECTED_CHECKSUM" != "$ACTUAL_CHECKSUM" ]; then
-        rm composer-setup.php
-        error "Composer-Installer Pruefsumme ungueltig! Abbruch."
-    fi
-
-    php composer-setup.php --quiet
-    rm composer-setup.php
-    mv composer.phar /usr/local/bin/composer
+    info "Installiere Composer via apt..."
+    apt-get install -y -qq composer 2>&1
 fi
 
-info "Composer installiert: $(composer --version 2>/dev/null | head -1)"
+if command -v composer &> /dev/null; then
+    info "Composer installiert: $(which composer)"
+else
+    error "Composer konnte nicht installiert werden."
+fi
 
 # ═════════════════════════════════════════════════════════════════════════════
 #  8. ANWENDUNG EINRICHTEN
@@ -538,20 +532,24 @@ info ".env erstellt."
 
 # --- Composer Install ---
 info "Installiere PHP-Abhaengigkeiten (Composer)..."
+info "(Dies kann bei der ersten Ausfuehrung einige Minuten dauern...)"
 cd "$INSTALL_DIR"
-export COMPOSER_ALLOW_SUPERUSER=1
 
-# --no-scripts verhindert, dass post-autoload-dump (php artisan package:discover)
-# waehrend des Installs laeuft — das wuerde Laravel bootstrappen und koennte haengen,
-# falls DB/Redis noch nicht erreichbar sind.
-# memory_limit=-1 verhindert stilles Haengen bei wenig RAM.
+# --no-scripts: verhindert artisan package:discover waehrend Install (haengt ggf.)
+# --no-plugins: keine Plugin-Downloads waehrend Install
+# --prefer-dist: Zip statt Git-Clone (schneller, weniger Netzwerk)
+# memory_limit=-1: verhindert stilles Haengen bei wenig RAM
 php -d memory_limit=-1 "$(which composer)" install \
     --no-dev \
     --optimize-autoloader \
     --no-interaction \
     --no-scripts \
+    --no-plugins \
     --prefer-dist \
+    -v \
     2>&1
+
+info "PHP-Abhaengigkeiten installiert."
 
 # Post-Install Scripts separat ausfuehren (package:discover etc.)
 info "Fuehre Composer post-install Scripts aus..."
