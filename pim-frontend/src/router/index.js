@@ -108,6 +108,12 @@ const routes = [
     component: () => import('@/views/settings/SettingsView.vue'),
     meta: { title: 'Einstellungen' },
   },
+  {
+    path: '/help',
+    name: 'help',
+    component: () => import('@/views/HelpView.vue'),
+    meta: { title: 'Hilfe' },
+  },
   // --- Public Catalog Preview ---
   {
     path: '/preview',

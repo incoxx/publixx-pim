@@ -32,7 +32,7 @@ const allNavItems = [
   { icon: Users, label: () => t('nav.users'), to: '/users', permission: 'users.view' },
   { icon: Settings, label: () => t('nav.settings'), to: '/settings', permission: 'users.view' },
   { divider: true },
-  { icon: HelpCircle, label: () => t('nav.help'), external: true, to: () => `${import.meta.env.VITE_BASE_PATH || '/'}docs/${locale.value}/` },
+  { icon: HelpCircle, label: () => t('nav.help'), to: '/help' },
 ]
 
 const navItems = computed(() =>

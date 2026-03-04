@@ -192,6 +192,9 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // =====================================================================
     // Agent 3: Products
     // =====================================================================
+    // Product Compare (must be before apiResource to avoid {product} conflict)
+    Route::get('products/compare', [ProductController::class, 'compare']);
+
     Route::apiResource('products', ProductController::class);
 
     // Product Preview (generic, no PXF)

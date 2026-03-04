@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, markRaw } from 'vue'
+import { ref, computed, onMounted, markRaw } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useProductStore } from '@/stores/products'
@@ -7,7 +7,7 @@ import { useAttributeStore } from '@/stores/attributes'
 import { useAuthStore } from '@/stores/auth'
 import { useFilters } from '@/composables/useFilters'
 import { useLocaleStore } from '@/stores/locale'
-import { Plus, Languages, Upload, Download, X } from 'lucide-vue-next'
+import { Plus, Languages, Upload, Download, X, GitCompareArrows } from 'lucide-vue-next'
 import PimTable from '@/components/shared/PimTable.vue'
 import PimFilterBar from '@/components/shared/PimFilterBar.vue'
 import PimConfirmDialog from '@/components/shared/PimConfirmDialog.vue'
@@ -65,6 +65,37 @@ async function confirmDelete() {
   } finally {
     deleting.value = false
   }
+}
+
+// ─── Product Comparison ──────────────────────────────
+const selectedProductIds = ref([])
+const showCompare = ref(false)
+const compareData = ref(null)
+const compareLoading = ref(false)
+const showDiffsOnly = ref(false)
+
+const canCompare = computed(() => selectedProductIds.value.length === 2)
+
+function handleSelect(ids) {
+  selectedProductIds.value = ids
+}
+
+const compareRows = computed(() => {
+  if (!compareData.value?.rows) return []
+  if (showDiffsOnly.value) return compareData.value.rows.filter(r => r.is_different)
+  return compareData.value.rows
+})
+
+async function openCompare() {
+  if (!canCompare.value) return
+  showCompare.value = true
+  compareLoading.value = true
+  compareData.value = null
+  try {
+    const { data } = await productsApi.compare(selectedProductIds.value[0], selectedProductIds.value[1])
+    compareData.value = data.data || data
+  } catch (e) { console.error('Compare failed:', e) }
+  finally { compareLoading.value = false }
 }
 
 // ─── XLIFF Translation Export/Import ─────────────────
@@ -187,6 +218,25 @@ onMounted(() => {
       @clear-all="clearFilters"
     />
 
+    <!-- Selection toolbar -->
+    <div v-if="selectedProductIds.length > 0" class="flex items-center gap-3 px-3 py-2 bg-[color-mix(in_srgb,var(--color-accent)_8%,transparent)] border border-[var(--color-accent)]/20 rounded-lg">
+      <span class="text-xs text-[var(--color-text-secondary)]">{{ selectedProductIds.length }} ausgewählt</span>
+      <button
+        v-if="canCompare"
+        class="pim-btn pim-btn-primary text-xs"
+        @click="openCompare"
+      >
+        <GitCompareArrows class="w-3.5 h-3.5" :stroke-width="1.75" />
+        Produkte vergleichen
+      </button>
+      <span v-else-if="selectedProductIds.length === 1" class="text-[11px] text-[var(--color-text-tertiary)]">
+        Noch 1 Produkt auswählen zum Vergleichen
+      </span>
+      <span v-else class="text-[11px] text-[var(--color-text-tertiary)]">
+        Max. 2 Produkte zum Vergleichen auswählen
+      </span>
+    </div>
+
     <!-- Table -->
     <PimTable
       :columns="columns"
@@ -200,6 +250,7 @@ onMounted(() => {
       @sort="handleSort"
       @row-click="openProduct"
       @row-action="handleRowAction"
+      @select="handleSelect"
     >
       <template #cell-status="{ value }">
         <span
@@ -253,5 +304,83 @@ onMounted(() => {
       @confirm="confirmDelete"
       @cancel="deleteTarget = null"
     />
+
+    <!-- Product Comparison Modal -->
+    <Teleport to="body">
+      <transition name="fade">
+        <div v-if="showCompare" class="fixed inset-0 z-50 flex items-center justify-center">
+          <div class="absolute inset-0 bg-black/30 backdrop-blur-sm" @click="showCompare = false" />
+          <div class="relative w-full max-w-4xl max-h-[85vh] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl shadow-xl mx-4 overflow-hidden flex flex-col">
+            <!-- Header -->
+            <div class="flex items-center justify-between px-5 py-3 border-b border-[var(--color-border)] shrink-0">
+              <div class="flex items-center gap-3">
+                <GitCompareArrows class="w-5 h-5 text-[var(--color-accent)]" :stroke-width="1.75" />
+                <span class="text-sm font-semibold text-[var(--color-text-primary)]">Produktvergleich</span>
+                <span v-if="compareData" class="text-[11px] text-[var(--color-text-tertiary)]">
+                  {{ compareData.total_differences }} Unterschiede von {{ compareData.total_attributes }} Feldern
+                </span>
+              </div>
+              <div class="flex items-center gap-2">
+                <label class="flex items-center gap-1.5 text-[11px] text-[var(--color-text-secondary)] cursor-pointer">
+                  <input type="checkbox" v-model="showDiffsOnly" class="rounded border-[var(--color-border-strong)] text-[var(--color-accent)]" />
+                  Nur Unterschiede
+                </label>
+                <button class="p-1.5 rounded hover:bg-[var(--color-bg)]" @click="showCompare = false">
+                  <X class="w-4 h-4" :stroke-width="2" />
+                </button>
+              </div>
+            </div>
+
+            <!-- Content -->
+            <div class="flex-1 overflow-y-auto">
+              <div v-if="compareLoading" class="p-8 space-y-3">
+                <div v-for="i in 8" :key="i" class="pim-skeleton h-8 w-full rounded" />
+              </div>
+              <table v-else-if="compareData" class="w-full text-[13px]">
+                <thead class="sticky top-0 z-10">
+                  <tr class="bg-[var(--color-bg)] border-b border-[var(--color-border)]">
+                    <th class="px-4 py-2.5 text-left font-medium text-[11px] uppercase tracking-wider text-[var(--color-text-tertiary)] w-[200px]">Attribut</th>
+                    <th class="px-4 py-2.5 text-left font-medium text-[11px] uppercase tracking-wider text-[var(--color-accent)]">
+                      {{ compareData.product_a?.sku }}
+                      <span class="font-normal normal-case text-[var(--color-text-tertiary)]">{{ compareData.product_a?.name }}</span>
+                    </th>
+                    <th class="px-4 py-2.5 text-left font-medium text-[11px] uppercase tracking-wider text-[var(--color-accent)]">
+                      {{ compareData.product_b?.sku }}
+                      <span class="font-normal normal-case text-[var(--color-text-tertiary)]">{{ compareData.product_b?.name }}</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="(row, i) in compareRows"
+                    :key="i"
+                    :class="[
+                      'border-b border-[var(--color-border)]',
+                      row.is_different ? 'bg-amber-50/50' : '',
+                    ]"
+                  >
+                    <td class="px-4 py-2 text-[12px] font-medium text-[var(--color-text-secondary)]">
+                      {{ row.attribute_name }}
+                      <span v-if="row.data_type && row.data_type !== 'base'" class="ml-1 text-[10px] text-[var(--color-text-tertiary)]">({{ row.data_type }})</span>
+                    </td>
+                    <td :class="['px-4 py-2', row.is_different ? 'text-[var(--color-text-primary)] font-medium' : 'text-[var(--color-text-secondary)]']">
+                      {{ row.value_a !== null && row.value_a !== '' ? row.value_a : '—' }}
+                    </td>
+                    <td :class="['px-4 py-2', row.is_different ? 'text-[var(--color-text-primary)] font-medium' : 'text-[var(--color-text-secondary)]']">
+                      {{ row.value_b !== null && row.value_b !== '' ? row.value_b : '—' }}
+                    </td>
+                  </tr>
+                  <tr v-if="compareRows.length === 0">
+                    <td colspan="3" class="px-4 py-8 text-center text-sm text-[var(--color-text-tertiary)]">
+                      {{ showDiffsOnly ? 'Keine Unterschiede gefunden — Produkte sind identisch' : 'Keine Daten zum Vergleichen' }}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </transition>
+    </Teleport>
   </div>
 </template>
