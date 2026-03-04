@@ -18,6 +18,7 @@ export default defineConfig({
       link: '/de/',
       themeConfig: {
         nav: [
+          { text: 'Produkt', link: '/de/marketing/' },
           { text: 'Dokumentation', link: '/de/' },
           { text: 'API-Referenz', link: '/de/api/' },
           { text: 'PIM öffnen', link: '/' },
@@ -144,6 +145,7 @@ export default defineConfig({
       link: '/en/',
       themeConfig: {
         nav: [
+          { text: 'Product', link: '/en/marketing/' },
           { text: 'Documentation', link: '/en/' },
           { text: 'API Reference', link: '/en/api/' },
           { text: 'Open PIM', link: '/' },

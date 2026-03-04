@@ -83,3 +83,291 @@
 .dark .vp-doc .api-method.put { background: #92400e; color: #fef3c7; }
 .dark .vp-doc .api-method.patch { background: #92400e; color: #fef3c7; }
 .dark .vp-doc .api-method.delete { background: #991b1b; color: #fee2e2; }
+
+/* ─────────────────────────────────────────────
+   Marketing Landing Pages
+   ───────────────────────────────────────────── */
+
+.marketing-page {
+  margin-top: -1.5rem;
+}
+
+.marketing-container {
+  max-width: 1152px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+}
+
+.marketing-section {
+  padding: 4rem 0;
+}
+
+.marketing-section-alt {
+  background: var(--vp-c-bg-alt);
+}
+
+.marketing-headline {
+  font-size: 2.5rem;
+  font-weight: 800;
+  line-height: 1.15;
+  text-align: center;
+  margin-bottom: 0.75rem;
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #ec4899 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.marketing-subheadline {
+  font-size: 1.25rem;
+  text-align: center;
+  color: var(--vp-c-text-2);
+  margin-bottom: 2.5rem;
+  max-width: 640px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Grids */
+.marketing-grid {
+  display: grid;
+  gap: 1.5rem;
+  margin-top: 2rem;
+}
+
+.marketing-grid-2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.marketing-grid-3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+@media (max-width: 768px) {
+  .marketing-grid-2,
+  .marketing-grid-3 {
+    grid-template-columns: 1fr;
+  }
+
+  .marketing-headline {
+    font-size: 1.75rem;
+  }
+}
+
+/* Pain Cards */
+.marketing-pain-card {
+  background: var(--vp-c-bg);
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 12px;
+  padding: 1.75rem;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.marketing-pain-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+}
+
+.marketing-pain-icon {
+  font-size: 2rem;
+  margin-bottom: 0.75rem;
+}
+
+.marketing-pain-card h3 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+  color: var(--vp-c-text-1);
+}
+
+.marketing-pain-card p {
+  color: var(--vp-c-text-2);
+  font-size: 0.95rem;
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* Feature Cards */
+.marketing-card {
+  background: var(--vp-c-bg);
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 12px;
+  padding: 1.75rem;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.marketing-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 24px rgba(79, 70, 229, 0.12);
+  border-color: var(--vp-c-brand-1);
+}
+
+.marketing-card-icon {
+  font-size: 2rem;
+  margin-bottom: 0.75rem;
+}
+
+.marketing-card h3 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+  color: var(--vp-c-text-1);
+}
+
+.marketing-card p {
+  color: var(--vp-c-text-2);
+  font-size: 0.95rem;
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* USP Cards */
+.marketing-usp-card {
+  background: var(--vp-c-bg);
+  border-left: 4px solid var(--vp-c-brand-1);
+  border-radius: 0 12px 12px 0;
+  padding: 1.5rem 1.75rem;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.marketing-usp-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06);
+}
+
+.marketing-usp-card h3 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+  color: var(--vp-c-brand-1);
+}
+
+.marketing-usp-card p {
+  color: var(--vp-c-text-2);
+  font-size: 0.95rem;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.marketing-usp-card code {
+  background: var(--vp-c-brand-soft);
+  color: var(--vp-c-brand-1);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
+
+/* Comparison Table */
+.marketing-table-wrapper {
+  overflow-x: auto;
+  margin-top: 2rem;
+}
+
+.marketing-compare-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+.marketing-compare-table th,
+.marketing-compare-table td {
+  padding: 1rem 1.25rem;
+  text-align: left;
+  border-bottom: 1px solid var(--vp-c-divider);
+}
+
+.marketing-compare-table thead th {
+  font-weight: 700;
+  font-size: 1rem;
+  background: var(--vp-c-bg-alt);
+}
+
+.marketing-compare-table .marketing-highlight-col {
+  background: rgba(79, 70, 229, 0.06);
+  color: var(--vp-c-brand-1);
+  font-weight: 600;
+}
+
+.dark .marketing-compare-table .marketing-highlight-col {
+  background: rgba(79, 70, 229, 0.15);
+}
+
+.marketing-compare-table tbody tr:hover {
+  background: var(--vp-c-bg-alt);
+}
+
+/* CTA Section */
+.marketing-section-cta {
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #ec4899 100%);
+  padding: 4rem 0;
+}
+
+.marketing-section-cta .marketing-headline {
+  background: none;
+  -webkit-text-fill-color: white;
+}
+
+.marketing-cta-button {
+  display: inline-block;
+  padding: 0.875rem 2rem;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.marketing-cta-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+}
+
+.marketing-cta-primary {
+  background: white;
+  color: #4f46e5;
+}
+
+.marketing-cta-secondary {
+  background: rgba(255, 255, 255, 0.15);
+  color: white;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+}
+
+.marketing-cta-secondary:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* Contact */
+.marketing-contact {
+  max-width: 480px;
+  margin: 2rem auto 0;
+}
+
+.marketing-contact-info {
+  background: var(--vp-c-bg-alt);
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 12px;
+  padding: 2rem;
+}
+
+.marketing-contact-info h3 {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--vp-c-brand-1);
+  margin-bottom: 1rem;
+}
+
+.marketing-contact-info p {
+  color: var(--vp-c-text-2);
+  line-height: 1.8;
+  margin-bottom: 1rem;
+}
+
+.marketing-contact-info a {
+  color: var(--vp-c-brand-1);
+  text-decoration: none;
+}
+
+.marketing-contact-info a:hover {
+  text-decoration: underline;
+}
