@@ -19,7 +19,7 @@ Die Benutzerverwaltung erreichen Sie über den Menüpunkt **Benutzer** in der Si
 | **Erstellt am** | Zeitpunkt der Kontoerstellung |
 
 ::: info Zugriffsrecht
-Nur Benutzer mit der Rolle **Admin** haben Zugriff auf die Benutzerverwaltung und können Konten anlegen, bearbeiten oder löschen.
+Nur Benutzer mit der Rolle **Admin** haben Zugriff auf die Benutzerverwaltung. Der Menüpunkt **Benutzer** ist für alle anderen Rollen ausgeblendet. Admins können Konten anlegen, bearbeiten oder löschen.
 :::
 
 ## Benutzer anlegen
@@ -91,11 +91,12 @@ Der Product Manager ist die typische Rolle für die tägliche Produktdatenpflege
 
 | Eigenschaft | Beschreibung |
 |---|---|
-| **Nur-Lese-Zugriff** | Kann alle Produkte, Attribute und Hierarchien einsehen, aber nicht bearbeiten |
+| **Nur-Lese-Zugriff** | Kann Produkte, Attribute und Hierarchien einsehen, aber nicht bearbeiten |
 | **Suche und Navigation** | Kann die Produktsuche und Hierarchienavigation nutzen |
 | **Kein Schreibzugriff** | Keine Berechtigung zum Anlegen, Bearbeiten oder Löschen von Daten |
+| **Kein Zugriff auf Benutzerverwaltung** | Die Menüpunkte Benutzer und Rollen sind nicht sichtbar |
 
-Die Viewer-Rolle eignet sich für Stakeholder, die Produktdaten einsehen, aber nicht bearbeiten sollen.
+Die Viewer-Rolle eignet sich für Stakeholder, die Produktdaten einsehen, aber nicht bearbeiten sollen. Schaltflächen wie **Speichern** und **Löschen** werden für Viewer automatisch ausgeblendet.
 
 ### Export Manager
 
@@ -112,6 +113,7 @@ Der Export Manager ist für die Datenausgabe und -eingabe über Schnittstellen v
 | Berechtigung | Admin | Data Steward | Product Manager | Viewer | Export Manager |
 |---|---|---|---|---|---|
 | Benutzer verwalten | Ja | -- | -- | -- | -- |
+| Benutzerverwaltung sichtbar | Ja | -- | -- | -- | -- |
 | Systemeinstellungen | Ja | -- | -- | -- | -- |
 | Attribute definieren | Ja | Ja | -- | -- | -- |
 | Hierarchien verwalten | Ja | Ja | -- | -- | -- |

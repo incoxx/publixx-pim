@@ -4,7 +4,7 @@ title: Publixx PIM Dokumentation
 hero:
   name: Publixx PIM
   text: Product Information Management
-  tagline: Flexible, leistungsstarke Produktdatenverwaltung mit EAV-Architektur, Vererbung, PQL-Abfragesprache und nahtloser Integration.
+  tagline: Flexible, leistungsstarke Produktdatenverwaltung mit EAV-Architektur, Vererbung, PQL-Abfragesprache und nahtloser Integration. Open Source (AGPL-3.0).
   actions:
     - theme: brand
       text: Schnellstart

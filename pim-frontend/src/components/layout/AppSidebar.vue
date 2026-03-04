@@ -6,12 +6,12 @@ import { useAuthStore } from '@/stores/auth'
 import {
   Search, Package, GitBranch, Sliders, Database, Layers, FolderTree,
   Upload, Download, Image, Tags, DollarSign, Users, Settings,
-  PanelLeftClose, PanelLeft,
+  HelpCircle, PanelLeftClose, PanelLeft,
 } from 'lucide-vue-next'
 
 const route = useRoute()
 const router = useRouter()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const authStore = useAuthStore()
 
 const allNavItems = [
@@ -31,6 +31,8 @@ const allNavItems = [
   { divider: true },
   { icon: Users, label: () => t('nav.users'), to: '/users', permission: 'users.view' },
   { icon: Settings, label: () => t('nav.settings'), to: '/settings', permission: 'users.view' },
+  { divider: true },
+  { icon: HelpCircle, label: () => t('nav.help'), external: true, to: () => `${import.meta.env.VITE_BASE_PATH || '/'}docs/${locale.value}/` },
 ]
 
 const navItems = computed(() =>
@@ -71,11 +73,11 @@ function isActive(to) {
           :class="[
             'w-full flex items-center gap-3 px-3 py-[7px] mx-1 rounded-md text-[13px] transition-colors duration-100 cursor-pointer',
             authStore.sidebarCollapsed ? 'justify-center mx-1.5' : '',
-            isActive(item.to)
+            !item.external && isActive(typeof item.to === 'function' ? item.to() : item.to)
               ? 'bg-[color-mix(in_srgb,var(--color-accent)_10%,transparent)] text-[var(--color-accent)] font-medium'
               : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg)] hover:text-[var(--color-text-primary)]'
           ]"
-          @click="router.push(item.to)"
+          @click="item.external ? window.open(typeof item.to === 'function' ? item.to() : item.to, '_blank') : router.push(item.to)"
           :title="authStore.sidebarCollapsed ? item.label() : undefined"
         >
           <component :is="item.icon" class="w-[18px] h-[18px] shrink-0" :stroke-width="1.75" />

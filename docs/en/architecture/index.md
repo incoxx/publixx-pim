@@ -10,7 +10,7 @@ Publixx PIM is designed as a modern web application with a clearly separated bac
 
 | Layer | Technology |
 |---|---|
-| **Backend** | Laravel (PHP 8.2+) |
+| **Backend** | Laravel (PHP 8.3+) |
 | **Frontend** | Vue 3 + Tailwind CSS + DaisyUI |
 | **Database** | MySQL / MariaDB |
 | **Cache** | Redis |

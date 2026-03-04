@@ -43,6 +43,18 @@ Das Publixx PIM unterstützt eine feingranulare Zugriffskontrolle über das Roll
 
 Benutzer mit eingeschränkten Rollen sehen ausschliesslich die Produkte, die den zugewiesenen Hierarchie-Knoten zugeordnet sind.
 
+::: info Hinweis
+Der Menüpunkt **Benutzer > Rollen** ist nur für Benutzer mit der Rolle **Admin** sichtbar.
+:::
+
+### Warum sehe ich den Menüpunkt „Benutzer" nicht?
+
+Der Menüpunkt **Benutzer** ist nur für die Rolle **Admin** sichtbar. Benutzer mit anderen Rollen (Data Steward, Product Manager, Viewer, Export Manager) haben keinen Zugriff auf die Benutzerverwaltung. Wenden Sie sich an Ihren Administrator, falls Sie Zugriff benötigen.
+
+### Warum sehe ich keine Speichern- oder Löschen-Schaltflächen?
+
+Die Schaltflächen **Speichern** und **Löschen** werden nur angezeigt, wenn Ihre Rolle die entsprechenden Berechtigungen (z. B. `products.update`, `products.delete`) umfasst. Die Rolle **Viewer** hat ausschliesslich Lesezugriff -- Bearbeitungs- und Lösch-Schaltflächen werden daher automatisch ausgeblendet.
+
 ## Produktdaten
 
 ### Wie viele Produkte kann das System verwalten?
@@ -250,6 +262,10 @@ Das Publixx PIM ist primär für den nativen Betrieb auf einem Linux-Server konz
 - Redis
 - Supervisor/Horizon (als separater Worker-Container)
 
+### Unter welcher Lizenz steht das Publixx PIM?
+
+Das Publixx PIM ist unter der **AGPL-3.0-only** Lizenz veröffentlicht. Diese erlaubt die freie Nutzung, Veränderung und Weitergabe der Software. Wenn Sie die Software (auch verändert) über ein Netzwerk bereitstellen, müssen Sie den Quellcode unter derselben Lizenz verfügbar machen. Alle verwendeten Drittanbieter-Komponenten und deren Lizenzen finden Sie in der Datei `THIRD-PARTY-NOTICES` im Projektverzeichnis.
+
 ## Weitere Fragen?
 
 Falls Ihre Frage hier nicht beantwortet wurde, konsultieren Sie die detaillierten Abschnitte der Dokumentation:
@@ -259,3 +275,5 @@ Falls Ihre Frage hier nicht beantwortet wurde, konsultieren Sie die detaillierte
 - [Export-Dokumentation](/de/export/)
 - [API-Referenz](/de/api/)
 - [PQL-Abfragesprache](/de/api/pql)
+
+Über den Menüpunkt **Hilfe** in der Seitenleiste gelangen Sie jederzeit direkt zu dieser Dokumentation.

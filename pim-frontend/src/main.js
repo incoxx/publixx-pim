@@ -23,6 +23,7 @@ const messages = {
       prices: 'Preise',
       users: 'Benutzer',
       settings: 'Einstellungen',
+      help: 'Hilfe',
     },
     common: {
       save: 'Speichern',
@@ -250,6 +251,7 @@ const messages = {
       prices: 'Prices',
       users: 'Users',
       settings: 'Settings',
+      help: 'Help',
     },
     common: {
       save: 'Save',
