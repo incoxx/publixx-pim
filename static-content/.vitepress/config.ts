@@ -21,7 +21,7 @@ export default defineConfig({
           { text: 'Produkt', link: '/de/marketing/' },
           { text: 'Dokumentation', link: '/de/' },
           { text: 'API-Referenz', link: '/de/api/' },
-          { text: 'PIM öffnen', link: '/web/' },
+          { text: 'PIM öffnen', link: 'https://smartentities.de/web/' },
         ],
         sidebar: {
           '/de/': [
@@ -148,7 +148,7 @@ export default defineConfig({
           { text: 'Product', link: '/en/marketing/' },
           { text: 'Documentation', link: '/en/' },
           { text: 'API Reference', link: '/en/api/' },
-          { text: 'Open PIM', link: '/web/' },
+          { text: 'Open PIM', link: 'https://smartentities.de/web/' },
         ],
         sidebar: {
           '/en/': [
