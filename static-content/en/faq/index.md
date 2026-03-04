@@ -70,7 +70,7 @@ The actual performance depends on the following factors:
 - Server hardware specifications
 
 ::: tip Recommendation
-For inventories exceeding 100,000 products, we recommend the extended hardware configuration described in the [Prerequisites](/en/installation/prerequisites).
+For inventories exceeding 100,000 products, we recommend the extended hardware configuration described in the [Prerequisites](/en/installation/requirements).
 :::
 
 ### How do variants inherit values from the parent product?
