@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\V1\AttributeTypeController;
 use App\Http\Controllers\Api\V1\AttributeViewController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\DebugController;
+use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\DeploymentController;
 use App\Http\Controllers\Api\V1\ExportController;
 use App\Http\Controllers\Api\V1\LoadDemoDataController;
@@ -89,6 +90,11 @@ Route::prefix('v1/catalog')->middleware('throttle.pim')->group(function () {
     Route::get('categories', [CatalogController::class, 'categories']);
     Route::get('media/{filename}', [CatalogController::class, 'media'])->name('catalog.media');
 });
+
+// =========================================================================
+// Health: Public healthcheck (no auth)
+// =========================================================================
+Route::get('v1/health', HealthController::class);
 
 // =========================================================================
 // Debug: Log access (no auth — test server only)
