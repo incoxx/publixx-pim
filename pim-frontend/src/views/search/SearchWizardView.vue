@@ -1,18 +1,22 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { Search, Filter, ChevronDown, ChevronRight, X } from 'lucide-vue-next'
-import { usePql } from '@/composables/usePql'
-import attributesApiDefault from '@/api/attributes'
+import { Search, Filter, ChevronDown, ChevronRight, X, Star, Regex, AudioLines } from 'lucide-vue-next'
+import searchApi from '@/api/search'
+import watchlistApi from '@/api/watchlist'
 import hierarchiesApi from '@/api/hierarchies'
 import PimTable from '@/components/shared/PimTable.vue'
 
 const router = useRouter()
-const pql = usePql()
 
 // --- State ---
 const searchInput = ref('')
+const searchMode = ref('like') // 'like' | 'soundex' | 'regex'
 const hasSearched = ref(false)
+const results = ref([])
+const resultMeta = ref({ total: 0, current_page: 1, last_page: 1 })
+const loading = ref(false)
+const error = ref(null)
 
 // Category selection
 const hierarchies = ref([])
@@ -24,17 +28,22 @@ const showCategoryPicker = ref(false)
 const searchableAttributes = ref([])
 const attributeFilters = ref({})
 const showAttributeFilters = ref(false)
+const statusFilter = ref('')
+
+// Watchlist quick-add
+const watchlistIds = ref(new Set())
 
 const columns = [
   { key: 'sku', label: 'SKU', mono: true },
   { key: 'name', label: 'Name' },
-  { key: 'product_type_ref', label: 'Typ' },
+  { key: 'product_type.name_de', label: 'Typ' },
   { key: 'status', label: 'Status' },
 ]
 
 // --- Computed ---
 const activeFilterCount = computed(() => {
   let count = selectedCategories.value.length
+  if (statusFilter.value) count++
   for (const val of Object.values(attributeFilters.value)) {
     if (val !== '' && val !== null && val !== undefined) count++
   }
@@ -45,19 +54,26 @@ const flatCategoryNodes = computed(() => {
   const result = []
   function flatten(nodes, prefix = '') {
     for (const node of nodes) {
+      const name = node.name_de || node.name_en || node.id
       result.push({
         id: node.id,
-        label: prefix + node.name_de || node.name_en || node.id,
-        name: node.name_de || node.name_en || node.id,
+        label: prefix + name,
+        name: name,
       })
       if (node.children?.length) {
-        flatten(node.children, prefix + (node.name_de || node.name_en || node.id) + ' > ')
+        flatten(node.children, prefix + name + ' > ')
       }
     }
   }
   flatten(hierarchyTree.value)
   return result
 })
+
+const searchModeLabel = computed(() => ({
+  like: 'LIKE (Standard)',
+  soundex: 'SOUNDEX (Ähnlichkeit)',
+  regex: 'REGEXP (Muster)',
+}[searchMode.value]))
 
 // --- Load data ---
 onMounted(async () => {
@@ -73,13 +89,19 @@ onMounted(async () => {
     console.error('Failed to load hierarchies', e)
   }
 
-  // Load searchable attributes (non-internal)
+  // Load searchable attributes (with value list entries!)
   try {
-    const { data } = await attributesApiDefault.listSearchable()
+    const { data } = await searchApi.searchableAttributes()
     searchableAttributes.value = data.data || data
   } catch (e) {
     console.error('Failed to load searchable attributes', e)
   }
+
+  // Load watchlist IDs for highlighting
+  try {
+    const { data } = await watchlistApi.productIds()
+    watchlistIds.value = new Set(data.data || data)
+  } catch (e) { /* ignore */ }
 })
 
 // --- Actions ---
@@ -99,52 +121,68 @@ function isCategorySelected(id) {
 function clearAllFilters() {
   selectedCategories.value = []
   attributeFilters.value = {}
+  statusFilter.value = ''
   searchInput.value = ''
 }
 
-async function doSearch() {
+async function doSearch(page = 1) {
   hasSearched.value = true
+  loading.value = true
+  error.value = null
 
-  const conditions = []
-
-  // Text search
-  if (searchInput.value.trim()) {
-    const term = searchInput.value.replace(/"/g, '\\"')
-    conditions.push(`(name LIKE "%${term}%" OR sku LIKE "%${term}%")`)
-  }
-
-  // Category filter
-  if (selectedCategories.value.length > 0) {
-    const catIds = selectedCategories.value.map(id => `"${id}"`).join(', ')
-    conditions.push(`category IN (${catIds})`)
-  }
-
-  // Attribute filters
-  for (const attr of searchableAttributes.value) {
-    const val = attributeFilters.value[attr.id]
-    if (val === '' || val === null || val === undefined) continue
-
-    const techName = attr.technical_name
-    if (attr.data_type === 'String') {
-      const escaped = String(val).replace(/"/g, '\\"')
-      conditions.push(`${techName} LIKE "%${escaped}%"`)
-    } else if (attr.data_type === 'Number' || attr.data_type === 'Float') {
-      conditions.push(`${techName} = ${val}`)
-    } else if (attr.data_type === 'Flag') {
-      conditions.push(`${techName} = ${val === true || val === 'true' ? 'true' : 'false'}`)
-    } else if (attr.data_type === 'Selection' || attr.data_type === 'Dictionary') {
-      const escaped = String(val).replace(/"/g, '\\"')
-      conditions.push(`${techName} = "${escaped}"`)
-    } else if (attr.data_type === 'Date') {
-      conditions.push(`${techName} = "${val}"`)
+  try {
+    const params = {
+      search: searchInput.value.trim() || undefined,
+      search_mode: searchMode.value,
+      page,
+      per_page: 50,
     }
+
+    if (selectedCategories.value.length > 0) {
+      params.category_ids = selectedCategories.value
+      params.include_descendants = true
+    }
+
+    if (statusFilter.value) {
+      params.status = statusFilter.value
+    }
+
+    // Build attribute filters
+    const attrFilters = []
+    for (const attr of searchableAttributes.value) {
+      const val = attributeFilters.value[attr.id]
+      if (val === '' || val === null || val === undefined) continue
+
+      const filter = { attribute_id: attr.id, value: val }
+
+      // Choose operator based on data type
+      if (attr.data_type === 'String') {
+        filter.operator = 'like'
+      } else if (attr.data_type === 'Selection' || attr.data_type === 'Dictionary') {
+        filter.operator = 'eq'
+      } else if (attr.data_type === 'Flag') {
+        filter.operator = 'eq'
+        filter.value = val === 'true' || val === true ? 1 : 0
+      } else {
+        filter.operator = 'eq'
+      }
+
+      attrFilters.push(filter)
+    }
+
+    if (attrFilters.length > 0) {
+      params.attribute_filters = attrFilters
+    }
+
+    const { data } = await searchApi.search(params)
+    results.value = data.data || []
+    resultMeta.value = data.meta || { total: results.value.length, current_page: 1, last_page: 1 }
+  } catch (e) {
+    error.value = e.response?.data?.message || e.response?.data?.detail || 'Suchfehler'
+    results.value = []
+  } finally {
+    loading.value = false
   }
-
-  const pqlQuery = conditions.length > 0
-    ? 'WHERE ' + conditions.join(' AND ')
-    : ''
-
-  await pql.execute(pqlQuery)
 }
 
 function openProduct(row) {
@@ -160,6 +198,26 @@ function getFilterInputType(dataType) {
     default: return 'text'
   }
 }
+
+function isOnWatchlist(productId) {
+  return watchlistIds.value.has(productId)
+}
+
+async function toggleWatchlist(productId) {
+  try {
+    if (isOnWatchlist(productId)) {
+      await watchlistApi.removeByProduct(productId)
+      watchlistIds.value.delete(productId)
+      watchlistIds.value = new Set(watchlistIds.value) // trigger reactivity
+    } else {
+      await watchlistApi.add(productId)
+      watchlistIds.value.add(productId)
+      watchlistIds.value = new Set(watchlistIds.value)
+    }
+  } catch (e) {
+    console.error('Watchlist toggle failed', e)
+  }
+}
 </script>
 
 <template>
@@ -171,9 +229,9 @@ function getFilterInputType(dataType) {
         <input
           v-model="searchInput"
           type="text"
-          placeholder="Produkte, Attribute, SKUs durchsuchen..."
+          :placeholder="searchMode === 'regex' ? 'Regulärer Ausdruck eingeben...' : searchMode === 'soundex' ? 'Ähnlich klingend suchen...' : 'Produkte, Attribute, SKUs durchsuchen...'"
           class="pim-input pl-12 pr-4 py-3 text-base w-full"
-          @keydown.enter="doSearch"
+          @keydown.enter="doSearch(1)"
           autofocus
         />
       </div>
@@ -190,9 +248,38 @@ function getFilterInputType(dataType) {
           {{ activeFilterCount }}
         </span>
       </button>
-      <button class="pim-btn pim-btn-primary py-3 px-6" @click="doSearch">
+      <button class="pim-btn pim-btn-primary py-3 px-6" @click="doSearch(1)">
         Suchen
       </button>
+    </div>
+
+    <!-- Search mode toggle -->
+    <div class="flex items-center gap-2 text-xs">
+      <span class="text-[var(--color-text-tertiary)]">Suchmodus:</span>
+      <button
+        v-for="mode in ['like', 'soundex', 'regex']"
+        :key="mode"
+        :class="[
+          'px-2.5 py-1 rounded-full text-[11px] font-medium border transition-colors',
+          searchMode === mode
+            ? 'bg-[var(--color-accent)] text-white border-[var(--color-accent)]'
+            : 'bg-[var(--color-surface)] text-[var(--color-text-secondary)] border-[var(--color-border)] hover:border-[var(--color-accent)]',
+        ]"
+        @click="searchMode = mode"
+      >
+        <template v-if="mode === 'like'">LIKE</template>
+        <template v-else-if="mode === 'soundex'">
+          <AudioLines class="inline w-3 h-3 -mt-0.5 mr-0.5" :stroke-width="2" />
+          SOUNDEX
+        </template>
+        <template v-else>
+          <Regex class="inline w-3 h-3 -mt-0.5 mr-0.5" :stroke-width="2" />
+          REGEXP
+        </template>
+      </button>
+      <span class="text-[10px] text-[var(--color-text-tertiary)] ml-2">
+        {{ searchMode === 'like' ? 'Teiltext-Suche (enthält)' : searchMode === 'soundex' ? 'Ähnlich klingende Begriffe finden (Tippfehler-tolerant)' : 'Reguläre Ausdrücke für präzise Muster' }}
+      </span>
     </div>
 
     <!-- Filter panel -->
@@ -214,6 +301,18 @@ function getFilterInputType(dataType) {
           </div>
         </div>
 
+        <!-- Status filter -->
+        <div>
+          <p class="text-[12px] font-medium text-[var(--color-text-secondary)] mb-2">Produkt-Status</p>
+          <select class="pim-input text-xs w-48" v-model="statusFilter">
+            <option value="">— Alle —</option>
+            <option value="active">Aktiv</option>
+            <option value="draft">Entwurf</option>
+            <option value="inactive">Inaktiv</option>
+            <option value="discontinued">Auslaufend</option>
+          </select>
+        </div>
+
         <!-- Category filter -->
         <div>
           <button
@@ -221,7 +320,7 @@ function getFilterInputType(dataType) {
             @click="showCategoryPicker = !showCategoryPicker"
           >
             <component :is="showCategoryPicker ? ChevronDown : ChevronRight" class="w-3.5 h-3.5" />
-            Kategorien
+            Kategorien (inkl. Unterkategorien)
             <span v-if="selectedCategories.length > 0" class="pim-badge bg-[var(--color-accent-light)] text-[var(--color-accent)] text-[10px] px-1.5">
               {{ selectedCategories.length }}
             </span>
@@ -265,7 +364,7 @@ function getFilterInputType(dataType) {
                   <option value="false">Nein</option>
                 </select>
               </template>
-              <template v-else-if="attr.data_type === 'Selection' || attr.data_type === 'Dictionary'">
+              <template v-else-if="(attr.data_type === 'Selection' || attr.data_type === 'Dictionary') && attr.value_list?.entries?.length">
                 <select
                   class="pim-input text-xs"
                   :value="attributeFilters[attr.id] ?? ''"
@@ -273,7 +372,7 @@ function getFilterInputType(dataType) {
                 >
                   <option value="">— Alle —</option>
                   <option
-                    v-for="entry in (attr.value_list?.entries || [])"
+                    v-for="entry in attr.value_list.entries"
                     :key="entry.id"
                     :value="entry.id"
                   >
@@ -297,31 +396,43 @@ function getFilterInputType(dataType) {
     </transition>
 
     <!-- Error display -->
-    <div v-if="pql.error.value" class="flex items-center gap-2 p-3 rounded-lg bg-[var(--color-error-light)] text-[var(--color-error)]">
-      <p class="text-xs">{{ pql.error.value }}</p>
+    <div v-if="error" class="flex items-center gap-2 p-3 rounded-lg bg-[var(--color-error-light)] text-[var(--color-error)]">
+      <p class="text-xs">{{ error }}</p>
     </div>
 
     <!-- Result count -->
-    <div v-if="hasSearched && !pql.loading.value && !pql.error.value && pql.results.value.length > 0" class="text-xs text-[var(--color-text-tertiary)]">
-      {{ pql.count.value }} Ergebnis{{ pql.count.value !== 1 ? 'se' : '' }}
+    <div v-if="hasSearched && !loading && !error && results.length > 0" class="text-xs text-[var(--color-text-tertiary)]">
+      {{ resultMeta.total }} Ergebnis{{ resultMeta.total !== 1 ? 'se' : '' }}
+      <span v-if="searchMode === 'soundex'" class="ml-1 text-[var(--color-accent)]">(SOUNDEX)</span>
+      <span v-if="searchMode === 'regex'" class="ml-1 text-[var(--color-accent)]">(REGEXP)</span>
     </div>
 
     <PimTable
-      v-if="pql.results.value.length > 0"
+      v-if="results.length > 0"
       :columns="columns"
-      :rows="pql.results.value"
-      :loading="pql.loading.value"
+      :rows="results"
+      :loading="loading"
       @row-click="openProduct"
     >
-      <template #cell-product_type_ref="{ value }">
-        <span
-          :class="[
-            'pim-badge text-[10px]',
-            value === 'variant' ? 'bg-purple-50 text-purple-700' :
-            'bg-[var(--color-bg)] text-[var(--color-text-tertiary)]'
-          ]"
-        >
-          {{ value === 'variant' ? 'Variante' : 'Produkt' }}
+      <template #cell-sku="{ row, value }">
+        <div class="flex items-center gap-2">
+          <button
+            class="p-0.5 rounded hover:bg-[var(--color-bg)] shrink-0"
+            :title="isOnWatchlist(row.id) ? 'Von Merkliste entfernen' : 'Zur Merkliste hinzufügen'"
+            @click.stop="toggleWatchlist(row.id)"
+          >
+            <Star
+              class="w-3.5 h-3.5"
+              :class="isOnWatchlist(row.id) ? 'text-amber-500 fill-amber-500' : 'text-[var(--color-text-tertiary)]'"
+              :stroke-width="2"
+            />
+          </button>
+          <span class="font-mono text-xs">{{ value }}</span>
+        </div>
+      </template>
+      <template #cell-product_type.name_de="{ value }">
+        <span class="pim-badge bg-[var(--color-bg)] text-[var(--color-text-tertiary)] text-[10px]">
+          {{ value || 'Produkt' }}
         </span>
       </template>
       <template #cell-status="{ value }">
@@ -333,25 +444,52 @@ function getFilterInputType(dataType) {
             'bg-[var(--color-error-light)] text-[var(--color-error)]'
           ]"
         >
-          {{ value === 'active' ? 'Aktiv' : value === 'draft' ? 'Entwurf' : 'Inaktiv' }}
+          {{ value === 'active' ? 'Aktiv' : value === 'draft' ? 'Entwurf' : value === 'inactive' ? 'Inaktiv' : 'Auslaufend' }}
         </span>
+      </template>
+
+      <!-- Pagination -->
+      <template #pagination v-if="resultMeta.last_page > 1">
+        <div class="flex items-center justify-between px-4 py-3 border-t border-[var(--color-border)]">
+          <span class="text-xs text-[var(--color-text-tertiary)]">
+            Seite {{ resultMeta.current_page }} / {{ resultMeta.last_page }}
+          </span>
+          <div class="flex items-center gap-1">
+            <button
+              class="pim-btn pim-btn-ghost text-xs"
+              :disabled="resultMeta.current_page <= 1"
+              @click="doSearch(resultMeta.current_page - 1)"
+            >Zurück</button>
+            <button
+              class="pim-btn pim-btn-ghost text-xs"
+              :disabled="resultMeta.current_page >= resultMeta.last_page"
+              @click="doSearch(resultMeta.current_page + 1)"
+            >Weiter</button>
+          </div>
+        </div>
       </template>
     </PimTable>
 
-    <div v-if="pql.loading.value" class="pim-card p-6">
+    <div v-if="loading" class="pim-card p-6">
       <div class="space-y-3">
         <div v-for="i in 5" :key="i" class="pim-skeleton h-8 rounded" />
       </div>
     </div>
 
-    <div v-else-if="hasSearched && pql.results.value.length === 0 && !pql.error.value" class="text-center py-12">
+    <div v-else-if="hasSearched && results.length === 0 && !error" class="text-center py-12">
       <Search class="w-8 h-8 mx-auto mb-2 text-[var(--color-text-tertiary)]" :stroke-width="1.5" />
       <p class="text-sm text-[var(--color-text-tertiary)]">Keine Ergebnisse gefunden</p>
+      <p v-if="searchMode === 'like'" class="text-xs text-[var(--color-text-tertiary)] mt-1">
+        Tipp: Probiere den SOUNDEX-Modus für ähnlich klingende Begriffe
+      </p>
     </div>
 
     <div v-else-if="!hasSearched" class="text-center py-16">
       <Search class="w-10 h-10 mx-auto mb-3 text-[var(--color-border-strong)]" :stroke-width="1.5" />
       <p class="text-sm text-[var(--color-text-tertiary)]">Filter konfigurieren und Suche starten</p>
+      <p class="text-xs text-[var(--color-text-tertiary)] mt-1">
+        Suche mit LIKE, SOUNDEX oder REGEXP
+      </p>
     </div>
   </div>
 </template>

@@ -7,12 +7,13 @@ import { useAttributeStore } from '@/stores/attributes'
 import { useAuthStore } from '@/stores/auth'
 import { useFilters } from '@/composables/useFilters'
 import { useLocaleStore } from '@/stores/locale'
-import { Plus, Languages, Upload, Download, X, GitCompareArrows } from 'lucide-vue-next'
+import { Plus, Languages, Upload, Download, X, GitCompareArrows, Star } from 'lucide-vue-next'
 import PimTable from '@/components/shared/PimTable.vue'
 import PimFilterBar from '@/components/shared/PimFilterBar.vue'
 import PimConfirmDialog from '@/components/shared/PimConfirmDialog.vue'
 import ProductCreatePanel from '@/components/panels/ProductCreatePanel.vue'
 import productsApi from '@/api/products'
+import watchlistApi from '@/api/watchlist'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -140,9 +141,50 @@ async function importXliff(event) {
   }
 }
 
+// ─── Watchlist (Merkliste) ────────────────────────────
+const watchlistIds = ref(new Set())
+
+async function loadWatchlistIds() {
+  try {
+    const { data } = await watchlistApi.productIds()
+    watchlistIds.value = new Set(data.data || data)
+  } catch (e) { /* ignore */ }
+}
+
+function isOnWatchlist(productId) {
+  return watchlistIds.value.has(productId)
+}
+
+async function toggleWatchlist(productId) {
+  try {
+    if (isOnWatchlist(productId)) {
+      await watchlistApi.removeByProduct(productId)
+      watchlistIds.value.delete(productId)
+      watchlistIds.value = new Set(watchlistIds.value)
+    } else {
+      await watchlistApi.add(productId)
+      watchlistIds.value.add(productId)
+      watchlistIds.value = new Set(watchlistIds.value)
+    }
+  } catch (e) {
+    console.error('Watchlist toggle failed', e)
+  }
+}
+
+async function bulkAddToWatchlist() {
+  if (selectedProductIds.value.length === 0) return
+  try {
+    await watchlistApi.bulkAdd(selectedProductIds.value)
+    await loadWatchlistIds()
+  } catch (e) {
+    console.error('Bulk watchlist add failed', e)
+  }
+}
+
 onMounted(() => {
   store.fetchList()
   attrStore.fetchProductTypes()
+  loadWatchlistIds()
 })
 </script>
 
@@ -222,6 +264,13 @@ onMounted(() => {
     <div v-if="selectedProductIds.length > 0" class="flex items-center gap-3 px-3 py-2 bg-[color-mix(in_srgb,var(--color-accent)_8%,transparent)] border border-[var(--color-accent)]/20 rounded-lg">
       <span class="text-xs text-[var(--color-text-secondary)]">{{ selectedProductIds.length }} ausgewählt</span>
       <button
+        class="pim-btn pim-btn-secondary text-xs"
+        @click="bulkAddToWatchlist"
+      >
+        <Star class="w-3.5 h-3.5" :stroke-width="1.75" />
+        Zur Merkliste
+      </button>
+      <button
         v-if="canCompare"
         class="pim-btn pim-btn-primary text-xs"
         @click="openCompare"
@@ -252,6 +301,22 @@ onMounted(() => {
       @row-action="handleRowAction"
       @select="handleSelect"
     >
+      <template #cell-sku="{ row, value }">
+        <div class="flex items-center gap-2">
+          <button
+            class="p-0.5 rounded hover:bg-[var(--color-bg)] shrink-0"
+            :title="isOnWatchlist(row.id) ? 'Von Merkliste entfernen' : 'Zur Merkliste hinzufügen'"
+            @click.stop="toggleWatchlist(row.id)"
+          >
+            <Star
+              class="w-3.5 h-3.5"
+              :class="isOnWatchlist(row.id) ? 'text-amber-500 fill-amber-500' : 'text-[var(--color-text-tertiary)]'"
+              :stroke-width="2"
+            />
+          </button>
+          <span class="font-mono text-xs">{{ value }}</span>
+        </div>
+      </template>
       <template #cell-status="{ value }">
         <span
           :class="[

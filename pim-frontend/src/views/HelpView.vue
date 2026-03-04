@@ -2,7 +2,7 @@
 import { useI18n } from 'vue-i18n'
 import {
   HelpCircle, BookOpen, Keyboard, MessageSquare, ExternalLink,
-  Package, Sliders, GitBranch, Upload, Download, Image, DollarSign,
+  Package, Sliders, GitBranch, Upload, Download, Image, DollarSign, Search, Star,
 } from 'lucide-vue-next'
 
 const { t } = useI18n()
@@ -19,6 +19,32 @@ const sections = [
       'Produktvorschau mit Vollständigkeitsprüfung',
       'Excel- und PDF-Export der Produktdaten',
       'XLIFF-Export/Import für Übersetzungen',
+      'Merkliste: Produkte markieren und exportieren (Excel, PDF, XLIFF)',
+      'Produktvergleich: 2 Produkte Attribut für Attribut vergleichen',
+    ],
+  },
+  {
+    icon: Search,
+    title: 'Suche',
+    items: [
+      'SQL-basierte Volltextsuche über alle Produktfelder',
+      'LIKE: Standard-Teiltext-Suche',
+      'SOUNDEX: Ähnlich klingende Begriffe finden (tolerant bei Tippfehlern)',
+      'REGEXP: Reguläre Ausdrücke für präzise Suchmuster',
+      'Kategoriefilter mit automatischer Unterkategorie-Erweiterung',
+      'Attribut-Filter mit Wertelistenauswahl',
+    ],
+  },
+  {
+    icon: Star,
+    title: 'Merkliste',
+    items: [
+      'Produkte aus Suche oder Produktliste zur Merkliste hinzufügen',
+      'Merkliste pro Benutzer in der Datenbank gespeichert',
+      'Export als Excel-Datei',
+      'Export als PDF (alle Produkte in einem Dokument)',
+      'Export als PDF pro SKU im ZIP-Archiv',
+      'XLIFF-Export für Übersetzungsworkflows',
     ],
   },
   {

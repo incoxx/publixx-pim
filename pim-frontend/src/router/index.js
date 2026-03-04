@@ -109,6 +109,12 @@ const routes = [
     meta: { title: 'Einstellungen' },
   },
   {
+    path: '/watchlist',
+    name: 'watchlist',
+    component: () => import('@/views/watchlist/WatchlistView.vue'),
+    meta: { title: 'Merkliste' },
+  },
+  {
     path: '/help',
     name: 'help',
     component: () => import('@/views/HelpView.vue'),

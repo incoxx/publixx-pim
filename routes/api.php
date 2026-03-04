@@ -28,6 +28,8 @@ use App\Http\Controllers\Api\V1\ProductAttributeValueController;
 use App\Http\Controllers\Api\V1\TranslationXliffController;
 use App\Http\Controllers\Api\V1\ProductController;
 use App\Http\Controllers\Api\V1\ProductMediaController;
+use App\Http\Controllers\Api\V1\ProductSearchController;
+use App\Http\Controllers\Api\V1\WatchlistController;
 use App\Http\Controllers\Api\V1\ProductPriceController;
 use App\Http\Controllers\Api\V1\ProductRelationAttributeValueController;
 use App\Http\Controllers\Api\V1\ProductRelationController;
@@ -195,6 +197,10 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // Product Compare (must be before apiResource to avoid {product} conflict)
     Route::get('products/compare', [ProductController::class, 'compare']);
 
+    // Product Search (SQL-based, replaces PQL)
+    Route::post('products/search', [ProductSearchController::class, 'search']);
+    Route::get('products/search/attributes', [ProductSearchController::class, 'searchableAttributes']);
+
     Route::apiResource('products', ProductController::class);
 
     // Product Preview (generic, no PXF)
@@ -276,6 +282,22 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::post('imports/{import}/execute', [ImportController::class, 'execute']);
     Route::get('imports/{import}/result', [ImportController::class, 'result']);
     Route::delete('imports/{import}', [ImportController::class, 'destroy']);
+
+    // =====================================================================
+    // Watchlist (Merkliste)
+    // =====================================================================
+    Route::prefix('watchlist')->group(function () {
+        Route::get('/', [WatchlistController::class, 'index']);
+        Route::post('/', [WatchlistController::class, 'store']);
+        Route::post('bulk', [WatchlistController::class, 'bulkStore']);
+        Route::get('product-ids', [WatchlistController::class, 'productIds']);
+        Route::delete('{watchlistItem}', [WatchlistController::class, 'destroy']);
+        Route::delete('product/{productId}', [WatchlistController::class, 'removeByProduct']);
+        Route::get('export/excel', [WatchlistController::class, 'exportExcel']);
+        Route::get('export/pdf', [WatchlistController::class, 'exportPdf']);
+        Route::get('export/pdf-zip', [WatchlistController::class, 'exportPdfZip']);
+        Route::get('export/xliff', [WatchlistController::class, 'exportXliff']);
+    });
 
     // =====================================================================
     // Agent 5: PQL
