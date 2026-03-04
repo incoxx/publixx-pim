@@ -49,7 +49,7 @@ Das Setup-Script installiert alle Abhaengigkeiten, konfiguriert die Datenbank, b
 | [INSTALL.md](INSTALL.md) | Installations-Anleitung (setup.sh) |
 | [UPDATE.md](UPDATE.md) | Update-Anleitung (update.sh) |
 | [API.md](API.md) | REST API Referenz (180+ Endpoints) |
-| [docs/](docs/) | Ausfuehrliche Dokumentation (VitePress) |
+| [static-content/](static-content/) | Ausfuehrliche Dokumentation (VitePress) |
 
 ## Scripts
 
@@ -72,7 +72,7 @@ publixx-pim/
     migrations/         Datenbankschema
     seeders/            Demo-Daten
   routes/api.php        API-Routen (/api/v1/*)
-  docs/                 VitePress-Dokumentation
+  static-content/       VitePress-Dokumentation + Marketing
 ```
 
 ## Deployment-Modi
