@@ -225,6 +225,53 @@ ask "Installationspfad [/var/www/publixx-pim]: "
 read -r INSTALL_DIR
 INSTALL_DIR=${INSTALL_DIR:-/var/www/publixx-pim}
 
+# --- Zusaetzlicher Admin-Benutzer ---
+echo ""
+echo -e "${BOLD}Admin-Benutzer:${NC}"
+echo -e "  Es werden automatisch Standard-Admins angelegt:"
+echo -e "    admin@publixx.com / password"
+echo -e "    admin@example.com / password"
+echo ""
+CUSTOM_ADMIN=false
+ask "Zusaetzlichen Admin-Benutzer anlegen? [j/N]: "
+read -r ADMIN_ANSWER
+if [[ "$ADMIN_ANSWER" =~ ^[jJyY]$ ]]; then
+    CUSTOM_ADMIN=true
+
+    ask "Admin E-Mail-Adresse: "
+    read -r ADMIN_EMAIL
+    if [ -z "$ADMIN_EMAIL" ]; then
+        warn "E-Mail darf nicht leer sein — ueberspringe zusaetzlichen Admin."
+        CUSTOM_ADMIN=false
+    fi
+
+    if [ "$CUSTOM_ADMIN" = true ]; then
+        ask "Admin Name [Admin]: "
+        read -r ADMIN_NAME
+        ADMIN_NAME=${ADMIN_NAME:-Admin}
+
+        while true; do
+            ask "Admin Passwort: "
+            read -rs ADMIN_PASS
+            echo ""
+            if [ -z "$ADMIN_PASS" ]; then
+                warn "Passwort darf nicht leer sein."
+                continue
+            fi
+            ask "Admin Passwort bestaetigen: "
+            read -rs ADMIN_PASS_CONFIRM
+            echo ""
+            if [ "$ADMIN_PASS" != "$ADMIN_PASS_CONFIRM" ]; then
+                warn "Passwoerter stimmen nicht ueberein. Bitte erneut eingeben."
+                continue
+            fi
+            break
+        done
+
+        info "Admin '${ADMIN_EMAIL}' wird nach der Installation angelegt."
+    fi
+fi
+
 # --- Zusammenfassung ---
 echo ""
 echo -e "${BOLD}${BLUE}═══ Zusammenfassung ═══${NC}"
@@ -237,6 +284,9 @@ echo -e "  MySQL DB:     ${BOLD}${DB_NAME}${NC}"
 echo -e "  MySQL User:   ${BOLD}${DB_USER}${NC}"
 echo -e "  MySQL Pass:   ${BOLD}********${NC}"
 echo -e "  Pfad:         ${BOLD}${INSTALL_DIR}${NC}"
+if [ "$CUSTOM_ADMIN" = true ]; then
+    echo -e "  Extra-Admin:  ${BOLD}${ADMIN_EMAIL}${NC}"
+fi
 echo ""
 ask "Alles korrekt? Installation starten? [j/N]: "
 read -r START_INSTALL
@@ -616,6 +666,30 @@ else
     php artisan db:seed --force
 fi
 
+# --- Zusaetzlichen Admin-Benutzer anlegen ---
+if [ "$CUSTOM_ADMIN" = true ]; then
+    info "Lege zusaetzlichen Admin-Benutzer an: ${ADMIN_EMAIL}..."
+
+    # Passwort mit einfachen Anfuehrungszeichen escapen fuer PHP
+    ADMIN_PASS_ESCAPED=$(printf '%s' "$ADMIN_PASS" | sed "s/'/\\\\'/g")
+
+    php artisan tinker --execute="
+        \$user = \App\Models\User::firstOrCreate(
+            ['email' => '${ADMIN_EMAIL}'],
+            [
+                'name' => '${ADMIN_NAME}',
+                'password' => \Illuminate\Support\Facades\Hash::make('${ADMIN_PASS_ESCAPED}'),
+                'language' => 'de',
+                'is_active' => true,
+            ]
+        );
+        \$user->assignRole('Admin');
+        echo 'Admin-Benutzer ' . \$user->email . ' angelegt (ID: ' . \$user->id . ')';
+    " 2>&1
+
+    info "Admin-Benutzer '${ADMIN_EMAIL}' angelegt."
+fi
+
 # --- Storage Link ---
 info "Erstelle Storage-Symlink..."
 php artisan storage:link 2>/dev/null || true
@@ -693,7 +767,37 @@ if [ -n "$WEB_PATH" ]; then
     # Globale Alias-Konfiguration (wird in alle VHosts eingebunden)
     ALIAS_CONF="/etc/apache2/conf-available/publixx-pim.conf"
 
-    cat > "$ALIAS_CONF" <<ALIASCONF
+    WRITE_ALIAS_CONF=true
+    if [ -f "$ALIAS_CONF" ]; then
+        warn "Apache-Konfiguration existiert bereits:"
+        echo ""
+        echo -e "${CYAN}--- ${ALIAS_CONF} ---${NC}"
+        cat "$ALIAS_CONF"
+        echo -e "${CYAN}--- Ende ---${NC}"
+        echo ""
+        ask "Was moechtest du tun?\n"
+        echo -e "  ${BOLD}1${NC}) Ueberschreiben — Neue Konfiguration fuer '${WEB_PATH}' schreiben"
+        echo -e "  ${BOLD}2${NC}) Beibehalten    — Bestehende Konfiguration nicht aendern"
+        echo ""
+        ask "Auswahl [1/2]: "
+        read -r ALIAS_CHOICE
+        case "$ALIAS_CHOICE" in
+            1)
+                info "Konfiguration wird ueberschrieben..."
+                ;;
+            2)
+                WRITE_ALIAS_CONF=false
+                info "Bestehende Apache-Konfiguration beibehalten."
+                ;;
+            *)
+                WRITE_ALIAS_CONF=false
+                info "Ungueltige Auswahl — bestehende Konfiguration beibehalten."
+                ;;
+        esac
+    fi
+
+    if [ "$WRITE_ALIAS_CONF" = true ]; then
+        cat > "$ALIAS_CONF" <<ALIASCONF
 # Publixx PIM — Apache Alias fuer Unterverzeichnis ${WEB_PATH}
 # Generiert von setup.sh
 #
@@ -715,14 +819,15 @@ Alias ${WEB_PATH} ${INSTALL_DIR}/public
 </Directory>
 ALIASCONF
 
-    a2enconf publixx-pim > /dev/null 2>&1
+        a2enconf publixx-pim > /dev/null 2>&1
 
-    if apache2ctl configtest 2>&1 | grep -q "Syntax OK"; then
-        systemctl reload apache2
-        info "Apache-Alias '${WEB_PATH}' konfiguriert und Apache neu geladen."
-    else
-        warn "Apache-Konfiguration fehlerhaft — bitte manuell pruefen."
-        apache2ctl configtest
+        if apache2ctl configtest 2>&1 | grep -q "Syntax OK"; then
+            systemctl reload apache2
+            info "Apache-Alias '${WEB_PATH}' konfiguriert und Apache neu geladen."
+        else
+            warn "Apache-Konfiguration fehlerhaft — bitte manuell pruefen."
+            apache2ctl configtest
+        fi
     fi
 
     info "Der Alias ist global aktiv und funktioniert mit allen bestehenden VHosts."
@@ -943,6 +1048,11 @@ echo -e "  Passwort:      ${BOLD}password${NC}"
 echo ""
 echo -e "  E-Mail:        ${BOLD}admin@example.com${NC}"
 echo -e "  Passwort:      ${BOLD}password${NC}"
+if [ "$CUSTOM_ADMIN" = true ]; then
+    echo ""
+    echo -e "  E-Mail:        ${BOLD}${ADMIN_EMAIL}${NC}"
+    echo -e "  Passwort:      ${BOLD}********${NC}"
+fi
 echo ""
 echo -e "${YELLOW}Wichtig: Aendere die Standard-Passwoerter nach dem ersten Login!${NC}"
 echo ""
