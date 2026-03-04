@@ -149,8 +149,8 @@ if [ -d "$FRONTEND_DIR" ]; then
     # Build-Output nach public/ kopieren
     if [ -d "${FRONTEND_DIR}/dist" ]; then
         cp "${FRONTEND_DIR}/dist/index.html" "${INSTALL_DIR}/public/spa.html"
-        if [ -d "${FRONTEND_DIR}/dist/assets" ]; then
-            cp -r "${FRONTEND_DIR}/dist/assets" "${INSTALL_DIR}/public/"
+        if [ -d "${FRONTEND_DIR}/dist/pim-assets" ]; then
+            cp -r "${FRONTEND_DIR}/dist/pim-assets" "${INSTALL_DIR}/public/"
         fi
         find "${FRONTEND_DIR}/dist" -maxdepth 1 -type f ! -name "index.html" -exec cp {} "${INSTALL_DIR}/public/" \;
         info "Frontend-Build nach public/ kopiert."

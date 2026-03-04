@@ -23,7 +23,7 @@ class DebugController extends Controller
         $path = storage_path("logs/{$channel}.log");
 
         if (! file_exists($path)) {
-            return response("Log file not found: {$channel}.log", 404)
+            return response("(empty — no log entries yet)\n", 200)
                 ->header('Content-Type', 'text/plain');
         }
 
@@ -58,7 +58,7 @@ class DebugController extends Controller
         $path = storage_path("logs/{$channel}.log");
 
         if (! file_exists($path)) {
-            return response("Log file not found: {$channel}.log", 404)
+            return response("Nothing to clear — no log file yet.\n", 200)
                 ->header('Content-Type', 'text/plain');
         }
 

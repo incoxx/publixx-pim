@@ -24,6 +24,7 @@ export default defineConfig({
     },
   },
   build: {
+    assetsDir: 'pim-assets',
     rollupOptions: {
       output: {
         manualChunks: {

@@ -2,7 +2,7 @@
 /public/build
 /public/hot
 /public/storage
-/public/assets
+/public/pim-assets
 /public/spa.html
 /storage/*.key
 /storage/app/imports
