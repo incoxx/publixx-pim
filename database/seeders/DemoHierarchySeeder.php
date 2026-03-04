@@ -76,21 +76,30 @@ class DemoHierarchySeeder extends Seeder
         // ----- Assign attributes to hierarchy nodes -----
         $allAttrs = Attribute::whereIn('technical_name', [
             'product-name-str', 'product-description-str', 'product-weight-num',
-            'product-color-sel', 'product-material-sel', 'product-norm-str',
+            'product-norm-str', 'product-release-date', 'product-is-new-flag',
+            'product-sku-source-str', 'product-customs-tariff-str',
+            'product-color-sel', 'product-material-sel',
+            'product-voltage-num', 'product-length-num',
         ])->get()->keyBy('technical_name');
 
-        // Root gets basic attributes (inherited by all)
+        // Root gets base attributes (inherited by ALL products)
         $this->assignAttributes($root, [
-            ['attr' => $allAttrs['product-name-str'] ?? null, 'collection' => 'Basisdaten', 'cSort' => 10, 'aSort' => 10],
-            ['attr' => $allAttrs['product-description-str'] ?? null, 'collection' => 'Basisdaten', 'cSort' => 10, 'aSort' => 20],
-            ['attr' => $allAttrs['product-weight-num'] ?? null, 'collection' => 'Technisch', 'cSort' => 20, 'aSort' => 10],
-            ['attr' => $allAttrs['product-norm-str'] ?? null, 'collection' => 'Technisch', 'cSort' => 20, 'aSort' => 20],
+            ['attr' => $allAttrs['product-name-str'] ?? null,           'collection' => 'Basisdaten',  'cSort' => 10, 'aSort' => 10],
+            ['attr' => $allAttrs['product-description-str'] ?? null,    'collection' => 'Basisdaten',  'cSort' => 10, 'aSort' => 20],
+            ['attr' => $allAttrs['product-weight-num'] ?? null,         'collection' => 'Technisch',   'cSort' => 20, 'aSort' => 10],
+            ['attr' => $allAttrs['product-norm-str'] ?? null,           'collection' => 'Technisch',   'cSort' => 20, 'aSort' => 20],
+            ['attr' => $allAttrs['product-is-new-flag'] ?? null,        'collection' => 'Marketing',   'cSort' => 40, 'aSort' => 10],
+            ['attr' => $allAttrs['product-release-date'] ?? null,       'collection' => 'Marketing',   'cSort' => 40, 'aSort' => 20],
+            ['attr' => $allAttrs['product-sku-source-str'] ?? null,     'collection' => 'Logistik',    'cSort' => 50, 'aSort' => 10],
+            ['attr' => $allAttrs['product-customs-tariff-str'] ?? null, 'collection' => 'Logistik',    'cSort' => 50, 'aSort' => 20],
         ]);
 
-        // Bohren gets additional: color, material
+        // Bohren & Schrauben: adds category-specific attributes
         $this->assignAttributes($bohren, [
-            ['attr' => $allAttrs['product-color-sel'] ?? null, 'collection' => 'Ausstattung', 'cSort' => 30, 'aSort' => 10],
-            ['attr' => $allAttrs['product-material-sel'] ?? null, 'collection' => 'Ausstattung', 'cSort' => 30, 'aSort' => 20],
+            ['attr' => $allAttrs['product-voltage-num'] ?? null,   'collection' => 'Technisch',   'cSort' => 20, 'aSort' => 30],
+            ['attr' => $allAttrs['product-length-num'] ?? null,    'collection' => 'Technisch',   'cSort' => 20, 'aSort' => 40],
+            ['attr' => $allAttrs['product-color-sel'] ?? null,     'collection' => 'Ausstattung', 'cSort' => 30, 'aSort' => 10],
+            ['attr' => $allAttrs['product-material-sel'] ?? null,  'collection' => 'Ausstattung', 'cSort' => 30, 'aSort' => 20],
         ]);
     }
 
