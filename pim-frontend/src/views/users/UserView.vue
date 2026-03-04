@@ -36,6 +36,7 @@ function openCreatePanel() {
 }
 
 function openEditPanel(row) {
+  if (!authStore.hasPermission('users.edit')) return
   authStore.openPanel(markRaw(UserFormPanel), {
     user: row,
     rolesList: rolesList.value,
@@ -71,7 +72,7 @@ onMounted(async () => {
   <div class="space-y-4">
     <div class="flex items-center justify-between">
       <h2 class="text-lg font-semibold text-[var(--color-text-primary)]">Benutzer</h2>
-      <button class="pim-btn pim-btn-primary" @click="openCreatePanel">
+      <button v-if="authStore.hasPermission('users.create')" class="pim-btn pim-btn-primary" @click="openCreatePanel">
         <Plus class="w-4 h-4" :stroke-width="2" /> Neuer Benutzer
       </button>
     </div>
@@ -79,6 +80,7 @@ onMounted(async () => {
       :columns="columns"
       :rows="items"
       :loading="loading"
+      :showActions="authStore.hasPermission('users.delete')"
       emptyText="Keine Benutzer"
       @row-click="openEditPanel"
       @row-action="handleRowAction"

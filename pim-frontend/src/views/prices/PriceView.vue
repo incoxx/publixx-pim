@@ -33,6 +33,8 @@ async function fetchPriceTypes() {
 }
 
 function openForm(item = null) {
+  if (item && !authStore.hasPermission('price-types.edit')) return
+  if (!item && !authStore.hasPermission('price-types.create')) return
   if (item) {
     editId.value = item.id
     formData.value = { technical_name: item.technical_name || '', name_de: item.name_de || '', name_en: item.name_en || '' }
@@ -81,7 +83,7 @@ onMounted(() => fetchPriceTypes())
   <div class="space-y-4">
     <div class="flex items-center justify-between">
       <h2 class="text-lg font-semibold text-[var(--color-text-primary)]">Preistypen</h2>
-      <button class="pim-btn pim-btn-primary" @click="openForm()">
+      <button v-if="authStore.hasPermission('price-types.create')" class="pim-btn pim-btn-primary" @click="openForm()">
         <Plus class="w-4 h-4" :stroke-width="2" /> Neuer Preistyp
       </button>
     </div>
@@ -119,6 +121,7 @@ onMounted(() => fetchPriceTypes())
       :columns="columns"
       :rows="items"
       :loading="loading"
+      :showActions="authStore.hasPermission('price-types.delete')"
       emptyText="Keine Preistypen vorhanden"
       @row-click="openForm"
       @row-action="(row) => deleteTarget = row"

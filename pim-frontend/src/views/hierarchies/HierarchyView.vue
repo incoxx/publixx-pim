@@ -326,7 +326,7 @@ onMounted(async () => {
     <div class="w-[320px] shrink-0 pim-card flex flex-col overflow-hidden">
       <div class="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)]">
         <h3 class="text-sm font-semibold text-[var(--color-text-primary)]">{{ t('hierarchy.title') }}</h3>
-        <button class="pim-btn pim-btn-ghost p-1" title="Neue Hierarchie" @click="openCreateHierarchy">
+        <button v-if="authStore.hasPermission('hierarchies.create')" class="pim-btn pim-btn-ghost p-1" title="Neue Hierarchie" @click="openCreateHierarchy">
           <Plus class="w-4 h-4" :stroke-width="2" />
         </button>
       </div>
@@ -341,10 +341,11 @@ onMounted(async () => {
             {{ h.name_de || h.name }} ({{ h.hierarchy_type }})
           </option>
         </select>
-        <button class="pim-btn pim-btn-ghost p-1 shrink-0" title="Hierarchie bearbeiten" @click="openEditHierarchy">
+        <button v-if="authStore.hasPermission('hierarchies.edit')" class="pim-btn pim-btn-ghost p-1 shrink-0" title="Hierarchie bearbeiten" @click="openEditHierarchy">
           <Edit3 class="w-3.5 h-3.5" :stroke-width="1.75" />
         </button>
         <button
+          v-if="authStore.hasPermission('hierarchies.delete')"
           class="pim-btn pim-btn-ghost p-1 shrink-0"
           :class="store.currentHierarchy?.hierarchy_type === 'master' ? 'opacity-30 cursor-not-allowed' : 'text-[var(--color-error)]'"
           :title="store.currentHierarchy?.hierarchy_type === 'master' ? 'Master-Hierarchie kann nicht gelöscht werden' : 'Hierarchie löschen'"
@@ -354,7 +355,7 @@ onMounted(async () => {
         </button>
       </div>
       <!-- Action bar for adding root node -->
-      <div class="px-3 py-2 border-b border-[var(--color-border)]">
+      <div v-if="authStore.hasPermission('hierarchy-nodes.create')" class="px-3 py-2 border-b border-[var(--color-border)]">
         <button class="pim-btn pim-btn-secondary text-xs w-full" @click="createChildNode(null)">
           <FolderPlus class="w-3.5 h-3.5" :stroke-width="2" /> Knoten erstellen
         </button>
@@ -383,12 +384,12 @@ onMounted(async () => {
     <!-- Context Menu Dropdown -->
     <Teleport to="body">
       <div
-        v-if="contextMenu.show"
+        v-if="contextMenu.show && authStore.hasPermission('hierarchy-nodes.edit')"
         class="fixed z-50 min-w-[180px] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg shadow-lg py-1 text-[13px]"
         :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }"
         @click.stop
       >
-        <button class="w-full text-left px-3 py-1.5 hover:bg-[var(--color-bg)] flex items-center gap-2" @click="createChildNode(contextMenu.node)">
+        <button v-if="authStore.hasPermission('hierarchy-nodes.create')" class="w-full text-left px-3 py-1.5 hover:bg-[var(--color-bg)] flex items-center gap-2" @click="createChildNode(contextMenu.node)">
           <FolderPlus class="w-3.5 h-3.5" :stroke-width="1.75" /> Unterknoten erstellen
         </button>
         <button class="w-full text-left px-3 py-1.5 hover:bg-[var(--color-bg)] flex items-center gap-2" @click="editNode(contextMenu.node)">
@@ -404,8 +405,8 @@ onMounted(async () => {
         <button class="w-full text-left px-3 py-1.5 hover:bg-[var(--color-bg)] flex items-center gap-2" @click="moveNodeDown(contextMenu.node)">
           <ChevronDown class="w-3.5 h-3.5" :stroke-width="1.75" /> Nach unten
         </button>
-        <hr class="my-1 border-[var(--color-border)]" />
-        <button class="w-full text-left px-3 py-1.5 hover:bg-[var(--color-bg)] flex items-center gap-2 text-[var(--color-error)]" @click="requestDeleteNode(contextMenu.node)">
+        <hr v-if="authStore.hasPermission('hierarchy-nodes.delete')" class="my-1 border-[var(--color-border)]" />
+        <button v-if="authStore.hasPermission('hierarchy-nodes.delete')" class="w-full text-left px-3 py-1.5 hover:bg-[var(--color-bg)] flex items-center gap-2 text-[var(--color-error)]" @click="requestDeleteNode(contextMenu.node)">
           <Trash2 class="w-3.5 h-3.5" :stroke-width="1.75" /> Löschen
         </button>
       </div>
@@ -418,8 +419,8 @@ onMounted(async () => {
           <h3 class="text-base font-semibold text-[var(--color-text-primary)]">
             {{ store.selectedNode.name_de || store.selectedNode.name }}
           </h3>
-          <div class="flex items-center gap-1">
-            <button class="pim-btn pim-btn-ghost p-1.5" title="Unterknoten erstellen" @click="createChildNode(store.selectedNode)">
+          <div v-if="authStore.hasPermission('hierarchy-nodes.edit')" class="flex items-center gap-1">
+            <button v-if="authStore.hasPermission('hierarchy-nodes.create')" class="pim-btn pim-btn-ghost p-1.5" title="Unterknoten erstellen" @click="createChildNode(store.selectedNode)">
               <FolderPlus class="w-4 h-4" :stroke-width="1.75" />
             </button>
             <button class="pim-btn pim-btn-ghost p-1.5" title="Knoten duplizieren" @click="duplicateNode(store.selectedNode)">
@@ -434,7 +435,7 @@ onMounted(async () => {
             <button class="pim-btn pim-btn-ghost p-1.5" title="Nach unten" @click="moveNodeDown(store.selectedNode)">
               <ChevronDown class="w-4 h-4" :stroke-width="1.75" />
             </button>
-            <button class="pim-btn pim-btn-ghost p-1.5 text-[var(--color-error)]" title="Knoten löschen" @click="requestDeleteNode(store.selectedNode)">
+            <button v-if="authStore.hasPermission('hierarchy-nodes.delete')" class="pim-btn pim-btn-ghost p-1.5 text-[var(--color-error)]" title="Knoten löschen" @click="requestDeleteNode(store.selectedNode)">
               <Trash2 class="w-4 h-4" :stroke-width="1.75" />
             </button>
           </div>
@@ -488,7 +489,7 @@ onMounted(async () => {
         <div class="border-t border-[var(--color-border)] pt-4">
           <div class="flex items-center justify-between mb-3">
             <h4 class="text-sm font-medium text-[var(--color-text-secondary)]">Zugeordnete Attribute</h4>
-            <button class="pim-btn pim-btn-secondary text-xs" @click="showAttrPicker = !showAttrPicker">
+            <button v-if="authStore.hasPermission('hierarchies.edit')" class="pim-btn pim-btn-secondary text-xs" @click="showAttrPicker = !showAttrPicker">
               <Plus class="w-3 h-3" :stroke-width="2" /> Attribut zuordnen
             </button>
           </div>
@@ -521,6 +522,7 @@ onMounted(async () => {
                 <span class="text-[10px] text-[var(--color-text-tertiary)]">{{ assignment.attribute?.data_type }}</span>
               </div>
               <button
+                v-if="authStore.hasPermission('hierarchies.edit')"
                 class="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-[var(--color-error-light)] text-[var(--color-text-tertiary)] hover:text-[var(--color-error)] transition-all"
                 @click="removeNodeAttribute(assignment)"
               >

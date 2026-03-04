@@ -116,12 +116,14 @@ class RoleAndPermissionSeeder extends Seeder
             'imports.view', 'imports.create', 'imports.execute',
         ]);
 
-        // ─── 4. Viewer (Nur Lesen) ──────────────────────────────────
+        // ─── 4. Viewer (Nur Lesen, ohne Benutzerverwaltung) ─────────
         $viewer = Role::firstOrCreate(
             ['name' => 'Viewer', 'guard_name' => 'sanctum'],
         );
         $viewer->syncPermissions(
-            Permission::where('name', 'LIKE', '%.view')->get()
+            Permission::where('name', 'LIKE', '%.view')
+                ->whereNotIn('name', ['users.view', 'roles.view'])
+                ->get()
         );
 
         // ─── 5. Export Manager (Export + Publixx) ────────────────────

@@ -3,7 +3,7 @@
     "type": "project",
     "description": "Publixx PIM — Product Information Management System",
     "keywords": ["pim", "laravel", "publixx"],
-    "license": "proprietary",
+    "license": "AGPL-3.0-only",
     "require": {
         "php": "^8.3",
         "barryvdh/laravel-dompdf": "*",

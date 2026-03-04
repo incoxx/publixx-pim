@@ -37,6 +37,16 @@ Das Publixx PIM basiert auf folgenden Kerntechnologien:
 | **Queue-Worker** | Laravel Horizon + Supervisor | -- |
 | **Authentifizierung** | Laravel Sanctum | -- |
 
+## Lizenz
+
+Das Publixx PIM ist unter der **AGPL-3.0-only** Lizenz veröffentlicht. Das bedeutet:
+
+- Sie dürfen die Software frei nutzen, verändern und verteilen.
+- Änderungen an der Software, die über ein Netzwerk bereitgestellt werden, müssen ebenfalls unter der AGPL-3.0 veröffentlicht werden.
+- Die vollständige Lizenz finden Sie in der Datei `LICENSE` im Projektverzeichnis.
+
+Eine Auflistung aller verwendeten Open-Source-Komponenten und deren Lizenzen finden Sie in der Datei `THIRD-PARTY-NOTICES`.
+
 ## Empfohlener Installationspfad
 
 Für die meisten Anwendungsfälle empfehlen wir folgenden Ablauf:

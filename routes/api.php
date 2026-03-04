@@ -25,6 +25,7 @@ use App\Http\Controllers\Api\V1\PqlController;
 use App\Http\Controllers\Api\V1\PriceTypeController;
 use App\Http\Controllers\Api\V1\ProductTypeController;
 use App\Http\Controllers\Api\V1\ProductAttributeValueController;
+use App\Http\Controllers\Api\V1\TranslationXliffController;
 use App\Http\Controllers\Api\V1\ProductController;
 use App\Http\Controllers\Api\V1\ProductMediaController;
 use App\Http\Controllers\Api\V1\ProductPriceController;
@@ -203,6 +204,10 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::get('products/{product}/attribute-values', [ProductAttributeValueController::class, 'index']);
     Route::get('products/{product}/resolved-attributes', [ProductAttributeValueController::class, 'resolved']);
     Route::put('products/{product}/attribute-values', [ProductAttributeValueController::class, 'bulkUpdate']);
+
+    // Translation XLIFF Export/Import
+    Route::get('translations/xliff/export', [TranslationXliffController::class, 'export']);
+    Route::post('translations/xliff/import', [TranslationXliffController::class, 'import']);
 
     // Product Variants
     Route::get('products/{product}/variants', [ProductVariantController::class, 'index']);

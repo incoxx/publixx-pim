@@ -2,8 +2,10 @@
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useProductStore } from '@/stores/products'
+import { useAuthStore } from '@/stores/auth'
+import { useLocaleStore } from '@/stores/locale'
 import { useI18n } from 'vue-i18n'
-import { ArrowLeft, Save, Plus, Trash2, Image, Star, X, Search, Download } from 'lucide-vue-next'
+import { ArrowLeft, Save, Plus, Trash2, Image, Star, X, Search, Download, Languages } from 'lucide-vue-next'
 import productsApi from '@/api/products'
 import mediaApi from '@/api/media'
 import { mediaUsageTypes } from '@/api/mediaUsageTypes'
@@ -20,10 +22,13 @@ import ProductVersionsTab from '@/components/products/ProductVersionsTab.vue'
 const route = useRoute()
 const router = useRouter()
 const store = useProductStore()
+const authStore = useAuthStore()
+const localeStore = useLocaleStore()
 const { t } = useI18n()
 
 const activeTab = ref('attributes')
 const saving = ref(false)
+const activeDataLang = ref(localeStore.activeDataLocales[0] || 'de')
 
 // Hierarchy assignment
 const hierarchies = ref([])
@@ -45,7 +50,8 @@ const product = computed(() => store.current)
 
 // ─── Attribute Values ─────────────────────────────────
 const schema = ref(null)
-const attributeValues = ref({})
+const attributeValues = ref({})       // non-translatable: { attrId: value }
+const translatedValues = ref({})      // translatable: { `${attrId}_${lang}`: value }
 const attrLoaded = ref(false)
 const valueListMap = ref({})
 
@@ -126,21 +132,32 @@ async function loadAttributeData(overrideNodeId = null) {
         _is_inherited: ra.is_inherited,
         _access: ra.access_product,
       }))
-      // Populate values from resolved data
+      // Populate values from resolved data (primary language)
       for (const ra of resolvedAttrs) {
         if (ra.value !== null && ra.value !== undefined) {
-          attributeValues.value[ra.attribute_id] = ra.value
+          if (ra.is_translatable) {
+            const lang = activeDataLang.value || 'de'
+            translatedValues.value[`${ra.attribute_id}_${lang}`] = ra.value
+          } else {
+            attributeValues.value[ra.attribute_id] = ra.value
+          }
         }
       }
     } else {
       // Fallback: load attribute values + product type schema
-      const { data: valData } = await productsApi.getAttributeValues(product.value.id)
+      const langs = localeStore.activeDataLocales.join(',')
+      const { data: valData } = await productsApi.getAttributeValues(product.value.id, { lang: langs })
       const vals = valData.data || valData
       if (Array.isArray(vals)) {
         for (const val of vals) {
           const attrId = val.attribute_id || val.attribute?.id
           if (!attrId) continue
-          attributeValues.value[attrId] = val.value_string ?? val.value_number ?? val.value_date ?? val.value_flag ?? val.value_selection_id ?? ''
+          const rawValue = val.value_string ?? val.value_number ?? val.value_date ?? val.value_flag ?? val.value_selection_id ?? ''
+          if (val.language) {
+            translatedValues.value[`${attrId}_${val.language}`] = rawValue
+          } else {
+            attributeValues.value[attrId] = rawValue
+          }
         }
       }
       if (product.value.product_type_id) {
@@ -150,6 +167,27 @@ async function loadAttributeData(overrideNodeId = null) {
         } catch (e) { console.warn('Product type schema not found:', e.message) }
       }
     }
+
+    // Load translated values for all active data languages
+    if (schema.value) {
+      const translatableAttrs = (Array.isArray(schema.value) ? schema.value : []).filter(a => a.is_translatable)
+      if (translatableAttrs.length > 0) {
+        const langs = localeStore.activeDataLocales.join(',')
+        try {
+          const { data: tvData } = await productsApi.getAttributeValues(product.value.id, { lang: langs })
+          const tvVals = tvData.data || tvData
+          if (Array.isArray(tvVals)) {
+            for (const val of tvVals) {
+              const attrId = val.attribute_id || val.attribute?.id
+              if (!attrId || !val.language) continue
+              const rawValue = val.value_string ?? val.value_number ?? val.value_date ?? val.value_flag ?? val.value_selection_id ?? ''
+              translatedValues.value[`${attrId}_${val.language}`] = rawValue
+            }
+          }
+        } catch (e) { console.warn('Failed to load translated values:', e.message) }
+      }
+    }
+
     attrLoaded.value = true
 
     // Load value lists for Selection-type attributes
@@ -734,12 +772,24 @@ async function save() {
       ean: product.value.ean,
       master_hierarchy_node_id: product.value.master_hierarchy_node_id || null,
     })
-    // Save attribute values if any changed
-    if (Object.keys(attributeValues.value).length > 0) {
-      const values = Object.entries(attributeValues.value).map(([attribute_id, value]) => ({
-        attribute_id,
-        value,
-      }))
+
+    // Build attribute values payload with language support
+    const values = []
+
+    // Non-translatable attribute values
+    for (const [attribute_id, value] of Object.entries(attributeValues.value)) {
+      values.push({ attribute_id, value })
+    }
+
+    // Translatable attribute values (one entry per language)
+    for (const [key, value] of Object.entries(translatedValues.value)) {
+      const lastUnderscore = key.lastIndexOf('_')
+      const attribute_id = key.substring(0, lastUnderscore)
+      const language = key.substring(lastUnderscore + 1)
+      values.push({ attribute_id, value, language })
+    }
+
+    if (values.length > 0) {
       await store.saveAttributeValues(product.value.id, values)
     }
   } finally {
@@ -797,6 +847,7 @@ watch(() => product.value?.master_hierarchy_node_id, async (newNodeId, oldNodeId
   attrLoaded.value = false
   schema.value = null
   attributeValues.value = {}
+  translatedValues.value = {}
   valueListMap.value = {}
   await loadAttributeData(newNodeId || null)
 })
@@ -836,6 +887,7 @@ watch(() => route.params.id, async (newId, oldId) => {
   // Clear stale data
   schema.value = null
   attributeValues.value = {}
+  translatedValues.value = {}
   variants.value = []
   variantAttributeDefs.value = []
   variantAttrValuesMap.value = {}
@@ -903,7 +955,7 @@ watch(() => route.params.id, async (newId, oldId) => {
           </p>
         </template>
       </div>
-      <button class="pim-btn pim-btn-primary" :disabled="saving" @click="save">
+      <button v-if="authStore.hasPermission('products.edit')" class="pim-btn pim-btn-primary" :disabled="saving" @click="save">
         <Save class="w-4 h-4" :stroke-width="1.75" />
         {{ saving ? 'Speichern…' : t('common.save') }}
       </button>
@@ -989,12 +1041,33 @@ watch(() => route.params.id, async (newId, oldId) => {
         </div>
       </PimCollectionGroup>
 
+      <!-- Language switcher for translatable attributes -->
+      <div v-if="localeStore.activeDataLocales.length > 1 && schemaAttributes.some(a => a.is_translatable)" class="flex items-center gap-2 px-1">
+        <Languages class="w-3.5 h-3.5 text-[var(--color-text-tertiary)]" :stroke-width="1.75" />
+        <div class="flex gap-0 border border-[var(--color-border)] rounded-lg overflow-hidden">
+          <button
+            v-for="loc in localeStore.activeDataLocales"
+            :key="loc"
+            :class="[
+              'px-3 py-1 text-[11px] font-medium transition-colors',
+              activeDataLang === loc
+                ? 'bg-[var(--color-accent)] text-white'
+                : 'bg-[var(--color-card)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg)]',
+            ]"
+            @click="activeDataLang = loc"
+          >
+            {{ loc.toUpperCase() }}
+          </button>
+        </div>
+        <span class="text-[11px] text-[var(--color-text-tertiary)]">{{ t('product.dataLanguage') }}</span>
+      </div>
+
       <!-- Dynamic attributes from product type schema -->
       <PimCollectionGroup
         v-for="group in attributeGroups"
         :key="group.name"
         :title="group.name"
-        :filledCount="group.attributes.filter(a => attributeValues[a.id]).length"
+        :filledCount="group.attributes.filter(a => a.is_translatable ? translatedValues[`${a.id}_${activeDataLang}`] : attributeValues[a.id]).length"
         :totalCount="group.attributes.length"
         :defaultOpen="false"
       >
@@ -1003,6 +1076,9 @@ watch(() => route.params.id, async (newId, oldId) => {
             <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">
               {{ attr.name_de || attr.technical_name }}
               <span v-if="attr.is_mandatory" class="text-[var(--color-error)]">*</span>
+              <span v-if="attr.is_translatable" class="ml-1 text-[10px] text-[var(--color-accent)] font-normal">
+                <Languages class="inline w-3 h-3 -mt-0.5" :stroke-width="1.75" /> {{ activeDataLang.toUpperCase() }}
+              </span>
               <span v-if="attr._is_inherited" class="ml-1 text-[10px] text-blue-500 font-normal">(vererbt)</span>
               <span v-if="isAttributeInherited(attr.id)" class="ml-1 text-[10px] text-purple-500 font-normal">(vererbt vom Elternprodukt)</span>
             </label>
@@ -1018,7 +1094,16 @@ watch(() => route.params.id, async (newId, oldId) => {
               </span>
               <span class="text-[10px] text-[var(--color-text-tertiary)] shrink-0 ml-2">{{ (attr._children || []).length }} Felder</span>
             </button>
-            <!-- Normal attribute -->
+            <!-- Translatable attribute: bind to translatedValues -->
+            <PimAttributeInput
+              v-else-if="attr.is_translatable"
+              :type="mapDataTypeToInput(attr.data_type)"
+              :modelValue="translatedValues[`${attr.id}_${activeDataLang}`]"
+              :options="attr.value_list?.entries?.map(e => ({ value: e.id, label: e.value_de || e.label_de || e.code })) || []"
+              :disabled="attr._access === 'read_only' || isAttributeInherited(attr.id)"
+              @update:modelValue="translatedValues[`${attr.id}_${activeDataLang}`] = $event"
+            />
+            <!-- Normal (non-translatable) attribute -->
             <PimAttributeInput
               v-else
               :type="mapDataTypeToInput(attr.data_type)"

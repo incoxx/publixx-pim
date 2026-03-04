@@ -6,32 +6,38 @@ import { useAuthStore } from '@/stores/auth'
 import {
   Search, Package, GitBranch, Sliders, Database, Layers, FolderTree,
   Upload, Download, Image, Tags, DollarSign, Users, Settings,
-  PanelLeftClose, PanelLeft,
+  HelpCircle, PanelLeftClose, PanelLeft,
 } from 'lucide-vue-next'
 
 const route = useRoute()
 const router = useRouter()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const authStore = useAuthStore()
 
-const navItems = computed(() => [
-  { icon: Search, label: t('nav.search'), to: '/search' },
-  { icon: Package, label: t('nav.products'), to: '/products' },
-  { icon: GitBranch, label: t('nav.hierarchies'), to: '/hierarchies' },
-  { icon: Sliders, label: t('nav.attributes'), to: '/attributes' },
-  { icon: Layers, label: t('nav.productTypes'), to: '/product-types' },
-  { icon: FolderTree, label: t('nav.attributeTypes'), to: '/attribute-types' },
-  { icon: Database, label: t('nav.valueLists'), to: '/value-lists' },
+const allNavItems = [
+  { icon: Search, label: () => t('nav.search'), to: '/search' },
+  { icon: Package, label: () => t('nav.products'), to: '/products' },
+  { icon: GitBranch, label: () => t('nav.hierarchies'), to: '/hierarchies' },
+  { icon: Sliders, label: () => t('nav.attributes'), to: '/attributes' },
+  { icon: Layers, label: () => t('nav.productTypes'), to: '/product-types' },
+  { icon: FolderTree, label: () => t('nav.attributeTypes'), to: '/attribute-types' },
+  { icon: Database, label: () => t('nav.valueLists'), to: '/value-lists' },
   { divider: true },
-  { icon: Upload, label: t('nav.imports'), to: '/imports' },
-  { icon: Download, label: t('nav.exports'), to: '/exports' },
-  { icon: Image, label: t('nav.media'), to: '/media' },
-  { icon: Tags, label: t('nav.mediaUsageTypes'), to: '/media-usage-types' },
-  { icon: DollarSign, label: t('nav.prices'), to: '/prices' },
+  { icon: Upload, label: () => t('nav.imports'), to: '/imports' },
+  { icon: Download, label: () => t('nav.exports'), to: '/exports' },
+  { icon: Image, label: () => t('nav.media'), to: '/media' },
+  { icon: Tags, label: () => t('nav.mediaUsageTypes'), to: '/media-usage-types' },
+  { icon: DollarSign, label: () => t('nav.prices'), to: '/prices' },
   { divider: true },
-  { icon: Users, label: t('nav.users'), to: '/users' },
-  { icon: Settings, label: t('nav.settings'), to: '/settings' },
-])
+  { icon: Users, label: () => t('nav.users'), to: '/users', permission: 'users.view' },
+  { icon: Settings, label: () => t('nav.settings'), to: '/settings', permission: 'users.view' },
+  { divider: true },
+  { icon: HelpCircle, label: () => t('nav.help'), external: true, to: () => `${import.meta.env.VITE_BASE_PATH || '/'}docs/${locale.value}/` },
+]
+
+const navItems = computed(() =>
+  allNavItems.filter(item => !item.permission || authStore.hasPermission(item.permission))
+)
 
 function isActive(to) {
   return route.path === to || route.path.startsWith(to + '/')
@@ -67,15 +73,15 @@ function isActive(to) {
           :class="[
             'w-full flex items-center gap-3 px-3 py-[7px] mx-1 rounded-md text-[13px] transition-colors duration-100 cursor-pointer',
             authStore.sidebarCollapsed ? 'justify-center mx-1.5' : '',
-            isActive(item.to)
+            !item.external && isActive(typeof item.to === 'function' ? item.to() : item.to)
               ? 'bg-[color-mix(in_srgb,var(--color-accent)_10%,transparent)] text-[var(--color-accent)] font-medium'
               : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg)] hover:text-[var(--color-text-primary)]'
           ]"
-          @click="router.push(item.to)"
-          :title="authStore.sidebarCollapsed ? item.label : undefined"
+          @click="item.external ? window.open(typeof item.to === 'function' ? item.to() : item.to, '_blank') : router.push(item.to)"
+          :title="authStore.sidebarCollapsed ? item.label() : undefined"
         >
           <component :is="item.icon" class="w-[18px] h-[18px] shrink-0" :stroke-width="1.75" />
-          <span v-if="!authStore.sidebarCollapsed">{{ item.label }}</span>
+          <span v-if="!authStore.sidebarCollapsed">{{ item.label() }}</span>
         </button>
       </template>
     </nav>

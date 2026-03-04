@@ -66,6 +66,10 @@ Das Publixx PIM ist als moderne Single-Page-Applikation auf Basis von Vue 3 mit 
   <text class="sidebar-text" x="44" y="342">Medien</text>
   <circle class="icon-dot" cx="28" cy="366" r="4" />
   <text class="sidebar-text" x="44" y="370">Preise</text>
+  <!-- Divider -->
+  <line class="divider" x1="16" y1="382" x2="184" y2="382" />
+  <circle class="icon-dot" cx="28" cy="394" r="4" />
+  <text class="sidebar-text" x="44" y="398">Hilfe</text>
   <!-- Content area -->
   <rect class="content-bg" x="216" y="16" width="568" height="50" />
   <text class="title-text" x="232" y="48">Inhaltsbereich</text>
@@ -88,8 +92,9 @@ Die Sidebar ist persistent sichtbar und kann eingeklappt werden. Sie gliedert si
 | **Import / Export** | Datenimport (Excel) und -export (JSON, PXF) |
 | **Medien** | Medienbibliothek mit Upload und Zuordnung |
 | **Preise** | Preisarten, Waehrungen und Gueltigkeiten |
-| **Benutzer** | Benutzerverwaltung, Rollen und Berechtigungen |
+| **Benutzer** | Benutzerverwaltung, Rollen und Berechtigungen *(nur für Admins sichtbar)* |
 | **Einstellungen** | Systemkonfiguration und Benutzereinstellungen |
+| **Hilfe** | Öffnet die Dokumentation in der eingestellten Sprache (Deutsch/Englisch) |
 
 ## Anmeldung und Authentifizierung
 

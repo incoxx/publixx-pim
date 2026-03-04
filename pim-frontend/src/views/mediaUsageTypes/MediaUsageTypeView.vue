@@ -2,8 +2,11 @@
 import { ref, onMounted } from 'vue'
 import { Plus } from 'lucide-vue-next'
 import { mediaUsageTypes } from '@/api/mediaUsageTypes'
+import { useAuthStore } from '@/stores/auth'
 import PimTable from '@/components/shared/PimTable.vue'
 import PimConfirmDialog from '@/components/shared/PimConfirmDialog.vue'
+
+const authStore = useAuthStore()
 
 const items = ref([])
 const loading = ref(false)
@@ -31,6 +34,8 @@ async function fetchItems() {
 }
 
 function openForm(item = null) {
+  if (item && !authStore.hasPermission('media-usage-types.edit')) return
+  if (!item && !authStore.hasPermission('media-usage-types.create')) return
   if (item) {
     editId.value = item.id
     formData.value = {
@@ -84,7 +89,7 @@ onMounted(() => fetchItems())
   <div class="space-y-4">
     <div class="flex items-center justify-between">
       <h2 class="text-lg font-semibold text-[var(--color-text-primary)]">Bildtypen</h2>
-      <button class="pim-btn pim-btn-primary" @click="openForm()">
+      <button v-if="authStore.hasPermission('media-usage-types.create')" class="pim-btn pim-btn-primary" @click="openForm()">
         <Plus class="w-4 h-4" :stroke-width="2" /> Neuer Bildtyp
       </button>
     </div>
@@ -126,6 +131,7 @@ onMounted(() => fetchItems())
       :columns="columns"
       :rows="items"
       :loading="loading"
+      :showActions="authStore.hasPermission('media-usage-types.delete')"
       emptyText="Keine Bildtypen vorhanden"
       @row-click="openForm"
       @row-action="(row) => deleteTarget = row"

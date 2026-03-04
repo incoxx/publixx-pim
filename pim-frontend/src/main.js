@@ -23,6 +23,7 @@ const messages = {
       prices: 'Preise',
       users: 'Benutzer',
       settings: 'Einstellungen',
+      help: 'Hilfe',
     },
     common: {
       save: 'Speichern',
@@ -63,6 +64,12 @@ const messages = {
       preview: 'Vorschau',
       history: 'Historie',
       versions: 'Versionen',
+      dataLanguage: 'Datensprache',
+      translationExportImport: 'Übersetzungen Export/Import',
+      sourceLang: 'Quellsprache',
+      targetLang: 'Zielsprache',
+      xliffImported: 'importiert',
+      xliffSkipped: 'übersprungen',
       version: {
         create: 'Neue Version',
         activate: 'Aktivieren',
@@ -250,6 +257,7 @@ const messages = {
       prices: 'Prices',
       users: 'Users',
       settings: 'Settings',
+      help: 'Help',
     },
     common: {
       save: 'Save',
@@ -290,6 +298,12 @@ const messages = {
       preview: 'Preview',
       history: 'History',
       versions: 'Versions',
+      dataLanguage: 'Data language',
+      translationExportImport: 'Translation Export/Import',
+      sourceLang: 'Source language',
+      targetLang: 'Target language',
+      xliffImported: 'imported',
+      xliffSkipped: 'skipped',
       version: {
         create: 'New Version',
         activate: 'Activate',

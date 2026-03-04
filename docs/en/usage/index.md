@@ -32,9 +32,29 @@ Import product data from Excel files with validation, mapping, and preview capab
 
 Export product data in JSON format or as Publixx catalog exports using PXF templates.
 
+### Media
+
+Upload images, documents, and videos, organize them in the media library, and assign media to products via drag-and-drop.
+
+### Prices
+
+Manage different price types in multiple currencies with validity periods and assign prices to products.
+
 ### Users & Permissions
 
-Manage user accounts, roles, and permissions to control access to the system.
+Manage user accounts, roles, and permissions to control access to the system. The user management section is only visible to users with the **Admin** role. The system provides five roles: Admin, Data Steward, Product Manager, Viewer, and Export Manager.
+
+::: info Note
+Users with the **Viewer** role have read-only access and cannot see the user management menu. Save and delete buttons are automatically hidden for users without the corresponding permissions.
+:::
+
+### Help
+
+The sidebar includes a **Help** link that opens this documentation in the user's configured language (German or English).
+
+## License
+
+Publixx PIM is released under the **AGPL-3.0-only** license. See the `LICENSE` file in the project root for the full license text. A list of all third-party components and their licenses can be found in the `THIRD-PARTY-NOTICES` file.
 
 ::: tip
 The German documentation is more comprehensive. For detailed instructions, see the [German usage guide](/de/bedienung/).

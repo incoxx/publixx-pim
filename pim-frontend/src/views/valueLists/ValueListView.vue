@@ -59,6 +59,7 @@ function openCreatePanel() {
 }
 
 function openEditPanel(row) {
+  if (!authStore.hasPermission('value-lists.edit')) return
   authStore.openPanel(markRaw(ValueListFormPanel), {
     valueList: row,
     onSaved: () => { fetchLists(); if (selectedList.value?.id === row.id) fetchEntries() },
@@ -195,7 +196,7 @@ onMounted(() => fetchLists())
     <div :class="['space-y-4 transition-all', selectedList ? 'w-1/3 flex-none' : 'flex-1']">
       <div class="flex items-center justify-between">
         <h2 class="text-lg font-semibold text-[var(--color-text-primary)]">Wertelisten</h2>
-        <button class="pim-btn pim-btn-primary" @click="openCreatePanel"><Plus class="w-4 h-4" :stroke-width="2" /> Neue Werteliste</button>
+        <button v-if="authStore.hasPermission('value-lists.create')" class="pim-btn pim-btn-primary" @click="openCreatePanel"><Plus class="w-4 h-4" :stroke-width="2" /> Neue Werteliste</button>
       </div>
       <PimFilterBar :search="search" placeholder="Wertelisten durchsuchen..." @update:search="v => { search = v; fetchLists() }" />
       <PimTable
@@ -203,6 +204,7 @@ onMounted(() => fetchLists())
         :rows="items"
         :loading="loading"
         :activeRowId="selectedList?.id"
+        :showActions="authStore.hasPermission('value-lists.delete')"
         emptyText="Keine Wertelisten"
         @row-click="selectList"
         @row-action="handleRowAction"
@@ -222,8 +224,8 @@ onMounted(() => fetchLists())
           </div>
         </div>
         <div class="flex items-center gap-2">
-          <button class="pim-btn pim-btn-ghost text-xs" @click="openEditPanel(selectedList)">Bearbeiten</button>
-          <button class="pim-btn pim-btn-primary text-xs" @click="openAddRow"><Plus class="w-3.5 h-3.5" :stroke-width="2" /> Eintrag</button>
+          <button v-if="authStore.hasPermission('value-lists.edit')" class="pim-btn pim-btn-ghost text-xs" @click="openEditPanel(selectedList)">Bearbeiten</button>
+          <button v-if="authStore.hasPermission('value-lists.edit')" class="pim-btn pim-btn-primary text-xs" @click="openAddRow"><Plus class="w-3.5 h-3.5" :stroke-width="2" /> Eintrag</button>
         </div>
       </div>
 
@@ -237,7 +239,7 @@ onMounted(() => fetchLists())
               <th class="px-3 py-2 text-left">Wert (DE)</th>
               <th class="px-3 py-2 text-left">Wert (EN)</th>
               <th class="px-3 py-2 text-center w-16">Aktiv</th>
-              <th class="px-3 py-2 text-right w-28">Aktionen</th>
+              <th v-if="authStore.hasPermission('value-lists.edit')" class="px-3 py-2 text-right w-28">Aktionen</th>
             </tr>
           </thead>
           <tbody>
@@ -270,7 +272,7 @@ onMounted(() => fetchLists())
                   <td class="px-3 py-1.5 text-center">
                     <input type="checkbox" v-model="editForm.is_active" class="rounded" />
                   </td>
-                  <td class="px-3 py-1.5 text-right">
+                  <td v-if="authStore.hasPermission('value-lists.edit')" class="px-3 py-1.5 text-right">
                     <div class="flex items-center justify-end gap-1">
                       <button class="p-1 rounded hover:bg-[var(--color-primary-light)] text-[var(--color-primary)]" @click="saveEdit" title="Speichern">
                         <Check class="w-3.5 h-3.5" :stroke-width="2" />
@@ -291,7 +293,7 @@ onMounted(() => fetchLists())
                   <td class="px-3 py-1.5 text-center">
                     <span :class="['inline-block w-2 h-2 rounded-full', entry.is_active ? 'bg-green-500' : 'bg-gray-300']" />
                   </td>
-                  <td class="px-3 py-1.5 text-right">
+                  <td v-if="authStore.hasPermission('value-lists.edit')" class="px-3 py-1.5 text-right">
                     <div class="flex items-center justify-end gap-0.5">
                       <button class="p-1 rounded hover:bg-[var(--color-bg)] text-[var(--color-text-tertiary)]" @click="moveEntry(entry, 'up')" :disabled="idx === 0" title="Nach oben">
                         <ArrowUp class="w-3 h-3" :stroke-width="2" />

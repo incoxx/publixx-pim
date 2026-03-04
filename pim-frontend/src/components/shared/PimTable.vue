@@ -11,6 +11,7 @@ const props = defineProps({
   selectable: { type: Boolean, default: false },
   rowKey: { type: String, default: 'id' },
   stickyHeader: { type: Boolean, default: true },
+  showActions: { type: Boolean, default: true },
   emptyText: { type: String, default: 'Keine Einträge' },
   onRowClick: { type: Function, default: null },
 })
@@ -99,7 +100,7 @@ function getCellValue(row, col) {
               </div>
             </th>
             <!-- Actions column -->
-            <th class="w-10"></th>
+            <th v-if="showActions" class="w-10"></th>
           </tr>
         </thead>
 
@@ -111,7 +112,7 @@ function getCellValue(row, col) {
               <td v-for="col in columns" :key="col.key" class="px-3 py-3">
                 <div class="pim-skeleton h-4 rounded" :style="{ width: (40 + Math.random() * 60) + '%' }" />
               </td>
-              <td class="px-3 py-3"><div class="pim-skeleton h-4 w-4 rounded" /></td>
+              <td v-if="showActions" class="px-3 py-3"><div class="pim-skeleton h-4 w-4 rounded" /></td>
             </tr>
           </template>
 
@@ -151,7 +152,7 @@ function getCellValue(row, col) {
                 {{ getCellValue(row, col) }}
               </slot>
             </td>
-            <td class="px-2 py-2.5" @click.stop>
+            <td v-if="showActions" class="px-2 py-2.5" @click.stop>
               <button
                 class="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-[var(--color-border)] transition-all"
                 @click="$emit('row-action', row)"
