@@ -95,14 +95,15 @@ function getSelectionOptions(attr) {
   return []
 }
 
-async function loadAttributeData() {
+async function loadAttributeData(overrideNodeId = null) {
   if (attrLoaded.value || !product.value) return
   try {
     // Try resolved attributes from hierarchy first (includes inheritance info)
     let resolvedAttrs = null
-    if (product.value.master_hierarchy_node_id) {
+    const nodeId = overrideNodeId || product.value.master_hierarchy_node_id
+    if (nodeId) {
       try {
-        const { data: resolvedData } = await productsApi.getResolvedAttributes(product.value.id)
+        const { data: resolvedData } = await productsApi.getResolvedAttributes(product.value.id, nodeId)
         resolvedAttrs = resolvedData.data || resolvedData
       } catch (e) { console.warn('Resolved attributes unavailable, falling back to schema:', e.message) }
     }
@@ -788,6 +789,17 @@ async function onHierarchyChange(hierarchyId) {
   selectedHierarchyId.value = hierarchyId
   await loadHierarchyTree(hierarchyId)
 }
+
+// ─── Hierarchy node change → reload attributes ───────
+watch(() => product.value?.master_hierarchy_node_id, async (newNodeId, oldNodeId) => {
+  if (newNodeId === oldNodeId) return
+  // Reset attribute state and reload with new hierarchy
+  attrLoaded.value = false
+  schema.value = null
+  attributeValues.value = {}
+  valueListMap.value = {}
+  await loadAttributeData(newNodeId || null)
+})
 
 // ─── Tab lazy loading ─────────────────────────────────
 watch(activeTab, (tab) => {
