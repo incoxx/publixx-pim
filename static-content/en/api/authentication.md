@@ -103,7 +103,7 @@ curl -X POST "https://pim.example.com/api/v1/auth/logout" \
 
 ## Current User
 
-Returns the information of the currently authenticated user, including assigned roles and permissions.
+Returns information about the currently authenticated user, including assigned roles and permissions.
 
 ### Request
 

@@ -50,7 +50,7 @@ GET /api/v1/attributes
 | `filter[searchable]` | Boolean | -- | Only searchable attributes |
 | `filter[required]` | Boolean | -- | Only required attributes |
 | `sort` | String | `position` | Sort field |
-| `search` | String | -- | Full-text search (name, code) |
+| `search` | String | -- | Free-text search (name, code) |
 | `page` | Integer | `1` | Page number |
 | `per_page` | Integer | `25` | Entries per page (max. 100) |
 | `lang` | String | -- | Language for translatable fields |

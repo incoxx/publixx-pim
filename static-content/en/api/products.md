@@ -46,7 +46,7 @@ GET /api/v1/products
 | `filter[product_type]` | String | -- | Filter by product type (`simple`, `configurable`) |
 | `filter[hierarchy_node]` | UUID | -- | Products of a hierarchy node |
 | `sort` | String | `created_at` | Sort field (prefix `-` for descending) |
-| `search` | String | -- | Full-text search (SKU, name) |
+| `search` | String | -- | Free-text search (SKU, name) |
 | `include` | String | -- | Related resources (`variants`, `media`, `prices`, `relations`) |
 | `fields` | String | -- | Fields to return |
 | `page` | Integer | `1` | Page number |
@@ -192,7 +192,7 @@ DELETE /api/v1/products/{id}
 
 ### Response (204 No Content)
 
-No content. The product and all associated attribute values, media assignments, prices, and relations are removed.
+No content. The product along with all associated attribute values, media assignments, prices, and relations will be removed.
 
 ::: warning Note
 Deleting a product of type `configurable` also removes all associated variants.
@@ -350,7 +350,7 @@ POST /api/v1/products/{id}/variants
 GET /api/v1/products/{id}/variant-rules
 ```
 
-Returns the rules that define which attributes differentiate the variants:
+Returns the rules that define which attributes distinguish the variants:
 
 ```json
 {
