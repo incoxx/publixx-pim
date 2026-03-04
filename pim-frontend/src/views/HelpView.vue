@@ -7,10 +7,13 @@ import {
 
 const { t } = useI18n()
 
+const docsBase = '/web/help/de'
+
 const sections = [
   {
     icon: Package,
     title: 'Produkte verwalten',
+    link: `${docsBase}/bedienung/produkte`,
     items: [
       'Produkte erstellen, bearbeiten und löschen',
       'Attributwerte pro Sprache pflegen (Sprachumschalter im Attribut-Tab)',
@@ -26,6 +29,7 @@ const sections = [
   {
     icon: Search,
     title: 'Suche',
+    link: `${docsBase}/bedienung/`,
     items: [
       'SQL-basierte Volltextsuche über alle Produktfelder',
       'LIKE: Standard-Teiltext-Suche',
@@ -38,6 +42,7 @@ const sections = [
   {
     icon: Star,
     title: 'Merkliste',
+    link: `${docsBase}/bedienung/produkte`,
     items: [
       'Produkte aus Suche oder Produktliste zur Merkliste hinzufügen',
       'Merkliste pro Benutzer in der Datenbank gespeichert',
@@ -50,6 +55,7 @@ const sections = [
   {
     icon: Sliders,
     title: 'Attribute & Produkttypen',
+    link: `${docsBase}/bedienung/attribute`,
     items: [
       'Attribute mit Datentypen (Text, Zahl, Datum, Auswahl, Composite, …)',
       'Attributgruppen zur logischen Gliederung',
@@ -61,6 +67,7 @@ const sections = [
   {
     icon: GitBranch,
     title: 'Hierarchien',
+    link: `${docsBase}/bedienung/hierarchien`,
     items: [
       'Baumstruktur für Produktkategorien',
       'Attribut-Zuweisung auf Hierarchieebene',
@@ -70,6 +77,7 @@ const sections = [
   {
     icon: Upload,
     title: 'Import & Export',
+    link: `${docsBase}/import/`,
     items: [
       'CSV/Excel-Import von Produktdaten',
       'Vorlagen-Download für konsistente Imports',
@@ -99,6 +107,23 @@ const shortcuts = [
       </div>
     </div>
 
+    <!-- Full documentation link -->
+    <a
+      :href="docsBase + '/'"
+      target="_blank"
+      rel="noopener"
+      class="pim-card p-4 flex items-center gap-3 hover:border-[var(--color-accent)] transition-colors cursor-pointer no-underline"
+    >
+      <div class="w-9 h-9 rounded-lg bg-[color-mix(in_srgb,var(--color-accent)_15%,transparent)] flex items-center justify-center shrink-0">
+        <BookOpen class="w-4.5 h-4.5 text-[var(--color-accent)]" :stroke-width="1.75" />
+      </div>
+      <div class="flex-1 min-w-0">
+        <div class="text-sm font-semibold text-[var(--color-text-primary)]">Vollständige Dokumentation</div>
+        <div class="text-xs text-[var(--color-text-tertiary)]">Architektur, Bedienung, API-Referenz, Installation, FAQ und mehr</div>
+      </div>
+      <ExternalLink class="w-4 h-4 text-[var(--color-text-tertiary)] shrink-0" :stroke-width="1.75" />
+    </a>
+
     <!-- Feature sections -->
     <div class="grid gap-4">
       <div v-for="section in sections" :key="section.title" class="pim-card p-4">
@@ -112,6 +137,16 @@ const shortcuts = [
             {{ item }}
           </li>
         </ul>
+        <a
+          v-if="section.link"
+          :href="section.link"
+          target="_blank"
+          rel="noopener"
+          class="inline-flex items-center gap-1.5 mt-3 text-[12px] text-[var(--color-accent)] hover:underline"
+        >
+          <BookOpen class="w-3 h-3" :stroke-width="1.75" />
+          Mehr erfahren in der Dokumentation
+        </a>
       </div>
     </div>
 
@@ -142,6 +177,42 @@ const shortcuts = [
         <h3 class="text-sm font-semibold text-[var(--color-text-primary)]">Weitere Ressourcen</h3>
       </div>
       <div class="space-y-2">
+        <a
+          :href="docsBase + '/architektur/'"
+          target="_blank"
+          rel="noopener"
+          class="flex items-center gap-2 text-[13px] text-[var(--color-accent)] hover:underline"
+        >
+          <BookOpen class="w-3.5 h-3.5" :stroke-width="1.75" />
+          Architektur & Datenmodell
+        </a>
+        <a
+          :href="docsBase + '/api/'"
+          target="_blank"
+          rel="noopener"
+          class="flex items-center gap-2 text-[13px] text-[var(--color-accent)] hover:underline"
+        >
+          <BookOpen class="w-3.5 h-3.5" :stroke-width="1.75" />
+          JSON API-Referenz
+        </a>
+        <a
+          :href="docsBase + '/installation/'"
+          target="_blank"
+          rel="noopener"
+          class="flex items-center gap-2 text-[13px] text-[var(--color-accent)] hover:underline"
+        >
+          <BookOpen class="w-3.5 h-3.5" :stroke-width="1.75" />
+          Installation & Deployment
+        </a>
+        <a
+          :href="docsBase + '/faq/'"
+          target="_blank"
+          rel="noopener"
+          class="flex items-center gap-2 text-[13px] text-[var(--color-accent)] hover:underline"
+        >
+          <HelpCircle class="w-3.5 h-3.5" :stroke-width="1.75" />
+          FAQ — Häufige Fragen
+        </a>
         <a
           href="https://github.com/incoxx/publixx-pim"
           target="_blank"
