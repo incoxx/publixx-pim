@@ -897,8 +897,59 @@ VHOST
 
     # --- SSL mit Let's Encrypt (optional) ---
     if [ "$USE_SSL" = true ]; then
-        info "Richte Let's Encrypt SSL ein..."
-        apt-get install -y -qq certbot python3-certbot-apache
+        # Pruefen ob bereits ein Zertifikat fuer diese Domain existiert
+        if [ -d "/etc/letsencrypt/live/${SERVER_DOMAIN}" ]; then
+            info "Let's Encrypt Zertifikat fuer '${SERVER_DOMAIN}' existiert bereits."
+            ask "SSL-Zertifikat neu einrichten / erneuern? [j/N]: "
+            read -r SSL_RENEW
+            if [[ ! "$SSL_RENEW" =~ ^[jJyY]$ ]]; then
+                info "Bestehendes SSL-Zertifikat wird beibehalten."
+                # SSL-VHost trotzdem erstellen falls noch nicht vorhanden
+                if ! grep -q "SSLEngine" "$VHOST_FILE" 2>/dev/null; then
+                    info "Erstelle SSL-VHost mit bestehendem Zertifikat auf Port ${SSL_PORT}..."
+
+                    cat >> "$VHOST_FILE" <<SSLEXISTING
+
+<VirtualHost *:${SSL_PORT}>
+    ServerName ${SERVER_DOMAIN}
+    DocumentRoot ${INSTALL_DIR}/public
+
+    SSLEngine on
+    SSLCertificateFile /etc/letsencrypt/live/${SERVER_DOMAIN}/fullchain.pem
+    SSLCertificateKeyFile /etc/letsencrypt/live/${SERVER_DOMAIN}/privkey.pem
+
+    <Directory ${INSTALL_DIR}/public>
+        AllowOverride All
+        Require all granted
+        Options -Indexes +FollowSymLinks
+    </Directory>
+
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-XSS-Protection "1; mode=block"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+
+    ErrorLog \${APACHE_LOG_DIR}/publixx-pim-ssl-error.log
+    CustomLog \${APACHE_LOG_DIR}/publixx-pim-ssl-access.log combined
+
+    LimitRequestBody 67108864
+</VirtualHost>
+SSLEXISTING
+                    systemctl restart apache2
+                    info "SSL-VHost auf Port ${SSL_PORT} mit bestehendem Zertifikat aktiviert."
+                fi
+
+                USE_SSL_SETUP=false
+            else
+                USE_SSL_SETUP=true
+            fi
+        else
+            USE_SSL_SETUP=true
+        fi
+
+        if [ "${USE_SSL_SETUP:-true}" = true ]; then
+            info "Richte Let's Encrypt SSL ein..."
+            apt-get install -y -qq certbot python3-certbot-apache
 
         if [ "$APP_PORT" -eq 80 ] && [ "$SSL_PORT" -eq 443 ]; then
             # Standard-Ports: Certbot kann automatisch konfigurieren
@@ -954,6 +1005,7 @@ SSLVHOST
             } \
             || warn "SSL-Einrichtung fehlgeschlagen — kann spaeter nachgeholt werden."
         fi
+        fi  # USE_SSL_SETUP
     fi
 fi
 
