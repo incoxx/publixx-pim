@@ -3,12 +3,12 @@ import { defineConfig } from 'vitepress'
 export default defineConfig({
   title: 'Publixx PIM',
   description: 'Dokumentation für das Publixx Product Information Management System',
-  base: '/web/docs/',
+  base: '/web/help/',
   cleanUrls: true,
   lastUpdated: true,
 
   head: [
-    ['link', { rel: 'icon', type: 'image/svg+xml', href: '/web/docs/logo.svg' }],
+    ['link', { rel: 'icon', type: 'image/svg+xml', href: '/web/help/logo.svg' }],
   ],
 
   locales: {

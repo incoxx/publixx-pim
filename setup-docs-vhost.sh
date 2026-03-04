@@ -50,7 +50,7 @@ fi
 info "Using VHost config: $VHOST_CONF"
 
 # ─── Check if already configured ────────────────────────────────────────────
-if grep -q "Alias /web/docs" "$VHOST_CONF"; then
+if grep -q "Alias /web/help" "$VHOST_CONF"; then
     warn "Docs alias already exists in $VHOST_CONF — nothing to do."
     exit 0
 fi
@@ -76,13 +76,13 @@ info "Backup created: $BACKUP"
 DOCS_BLOCK=$(cat <<'APACHE'
 
     # ─── Publixx PIM Documentation (VitePress) ──────────────────────
-    Alias /web/docs /var/www/publixx-pim/static-content/.vitepress/dist
+    Alias /web/help /var/www/publixx-pim/static-content/.vitepress/dist
 
     <Directory /var/www/publixx-pim/static-content/.vitepress/dist>
         Options -Indexes
         AllowOverride None
         Require all granted
-        FallbackResource /web/docs/index.html
+        FallbackResource /web/help/index.html
     </Directory>
 APACHE
 )
@@ -105,9 +105,9 @@ if apachectl configtest 2>&1; then
     systemctl reload apache2
     info "Apache reloaded successfully."
     echo ""
-    info "Documentation is now available at: https://your-domain/web/docs/"
-    info "  German:  /web/docs/de/"
-    info "  English: /web/docs/en/"
+    info "Documentation is now available at: https://your-domain/web/help/"
+    info "  German:  /web/help/de/"
+    info "  English: /web/help/en/"
 else
     error "Apache config test failed! Restoring backup..."
     cp "$BACKUP" "$VHOST_CONF"
