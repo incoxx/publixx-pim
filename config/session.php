@@ -11,7 +11,7 @@ return [
     'store' => env('SESSION_STORE'),
     'lottery' => [2, 100],
     'cookie' => env('SESSION_COOKIE', 'pim_session'),
-    'path' => '/',
+    'path' => env('SESSION_COOKIE_PATH', '/'),
     'domain' => env('SESSION_DOMAIN'),
     'secure' => env('SESSION_SECURE_COOKIE'),
     'http_only' => true,
