@@ -57,6 +57,7 @@ class LoadDemoDataController extends Controller
                     'output_hierarchy_product_assignments',
                     'products_search_index',
                     'audit_logs',
+                    'watchlist_items',
                     'products',
                     'hierarchy_node_attribute_assignments',
                     'hierarchy_node_attribute_values',

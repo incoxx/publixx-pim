@@ -162,6 +162,139 @@ class ProductController extends Controller
     }
 
     /**
+     * GET /products/compare?ids=uuid1,uuid2
+     *
+     * Compare 2 products across ALL attributes, highlighting differences.
+     */
+    public function compare(Request $request): JsonResponse
+    {
+        $request->validate([
+            'ids' => 'required|string',
+        ]);
+
+        $ids = explode(',', $request->query('ids'));
+        if (count($ids) !== 2) {
+            return response()->json(['message' => 'Exactly 2 product IDs required.'], 422);
+        }
+
+        $products = Product::with('productType')->whereIn('id', $ids)->get();
+        if ($products->count() !== 2) {
+            return response()->json(['message' => 'One or both products not found.'], 404);
+        }
+
+        $language = $this->getPrimaryLanguage($request);
+        $productA = $products->firstWhere('id', $ids[0]);
+        $productB = $products->firstWhere('id', $ids[1]);
+
+        // Load ALL attribute values for both products
+        $valsA = $productA->attributeValues()
+            ->with('attribute')
+            ->where(function ($q) use ($language) {
+                $q->whereNull('language')->orWhere('language', $language);
+            })
+            ->get();
+
+        $valsB = $productB->attributeValues()
+            ->with('attribute')
+            ->where(function ($q) use ($language) {
+                $q->whereNull('language')->orWhere('language', $language);
+            })
+            ->get();
+
+        // Build maps: attribute_id -> display value
+        $mapA = [];
+        foreach ($valsA as $v) {
+            $value = $v->value_string ?? $v->value_number ?? $v->value_date ?? $v->value_flag ?? $v->value_selection_id;
+            $mapA[$v->attribute_id] = [
+                'value' => $value,
+                'attribute_name' => $v->attribute?->name_de ?? $v->attribute?->technical_name ?? 'Unknown',
+                'technical_name' => $v->attribute?->technical_name ?? '',
+                'data_type' => $v->attribute?->data_type ?? '',
+                'language' => $v->language,
+            ];
+        }
+
+        $mapB = [];
+        foreach ($valsB as $v) {
+            $value = $v->value_string ?? $v->value_number ?? $v->value_date ?? $v->value_flag ?? $v->value_selection_id;
+            $mapB[$v->attribute_id] = [
+                'value' => $value,
+                'attribute_name' => $v->attribute?->name_de ?? $v->attribute?->technical_name ?? 'Unknown',
+                'technical_name' => $v->attribute?->technical_name ?? '',
+                'data_type' => $v->attribute?->data_type ?? '',
+                'language' => $v->language,
+            ];
+        }
+
+        // Merge all attribute IDs
+        $allAttrIds = array_unique(array_merge(array_keys($mapA), array_keys($mapB)));
+
+        // Build base field comparisons
+        $rows = [];
+
+        // Compare base fields first
+        $baseFields = [
+            ['field' => 'sku', 'label' => 'SKU'],
+            ['field' => 'name', 'label' => 'Name'],
+            ['field' => 'ean', 'label' => 'EAN'],
+            ['field' => 'status', 'label' => 'Status'],
+            ['field' => 'product_type_ref', 'label' => 'Typ'],
+        ];
+
+        foreach ($baseFields as $bf) {
+            $valA = $productA->{$bf['field']};
+            $valB = $productB->{$bf['field']};
+            $rows[] = [
+                'attribute_name' => $bf['label'],
+                'technical_name' => $bf['field'],
+                'data_type' => 'base',
+                'value_a' => $valA,
+                'value_b' => $valB,
+                'is_different' => (string) $valA !== (string) $valB,
+            ];
+        }
+
+        // Compare attribute values
+        foreach ($allAttrIds as $attrId) {
+            $a = $mapA[$attrId] ?? null;
+            $b = $mapB[$attrId] ?? null;
+            $name = $a['attribute_name'] ?? $b['attribute_name'] ?? 'Unknown';
+            $techName = $a['technical_name'] ?? $b['technical_name'] ?? '';
+            $dataType = $a['data_type'] ?? $b['data_type'] ?? '';
+            $valA = $a['value'] ?? null;
+            $valB = $b['value'] ?? null;
+
+            $rows[] = [
+                'attribute_id' => $attrId,
+                'attribute_name' => $name,
+                'technical_name' => $techName,
+                'data_type' => $dataType,
+                'value_a' => $valA,
+                'value_b' => $valB,
+                'is_different' => (string) $valA !== (string) $valB,
+            ];
+        }
+
+        return response()->json([
+            'data' => [
+                'product_a' => [
+                    'id' => $productA->id,
+                    'sku' => $productA->sku,
+                    'name' => $productA->name,
+                ],
+                'product_b' => [
+                    'id' => $productB->id,
+                    'sku' => $productB->sku,
+                    'name' => $productB->name,
+                ],
+                'rows' => $rows,
+                'total_differences' => collect($rows)->where('is_different', true)->count(),
+                'total_attributes' => count($rows),
+            ],
+        ]);
+    }
+
+    /**
      * GET /products/{product}/preview
      *
      * Generic product preview — all data in structured sections.

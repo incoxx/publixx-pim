@@ -5,7 +5,7 @@ import { useI18n } from 'vue-i18n'
 export const useLocaleStore = defineStore('locale', () => {
   const currentLocale = ref(localStorage.getItem('pim_locale') || 'de')
   const dataLocales = ref(['de', 'en', 'fr'])
-  const activeDataLocales = ref(['de'])
+  const activeDataLocales = ref(['de', 'en', 'fr'])
 
   const availableLocales = computed(() => [
     { code: 'de', label: 'Deutsch', flag: 'DE' },

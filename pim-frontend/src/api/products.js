@@ -9,6 +9,10 @@ export default {
     return client.get(`/products/${id}`, { params: buildParams(options) })
   },
 
+  compare(id1, id2) {
+    return client.get('/products/compare', { params: { ids: `${id1},${id2}` } })
+  },
+
   create(data) {
     return client.post('/products', data)
   },
