@@ -12,7 +12,7 @@
 set -euo pipefail
 
 APP_DIR="/var/www/publixx-pim"
-DOCS_DIST="${APP_DIR}/docs/.vitepress/dist"
+DOCS_DIST="${APP_DIR}/static-content/.vitepress/dist"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -58,7 +58,7 @@ fi
 # ─── Build docs if dist doesn't exist ───────────────────────────────────────
 if [ ! -d "$DOCS_DIST" ]; then
     info "Docs not built yet. Building now..."
-    cd "${APP_DIR}/docs"
+    cd "${APP_DIR}/static-content"
     if [ ! -d "node_modules" ]; then
         sudo -u www-data npm ci --production=false
     fi
@@ -76,9 +76,9 @@ info "Backup created: $BACKUP"
 DOCS_BLOCK=$(cat <<'APACHE'
 
     # ─── Publixx PIM Documentation (VitePress) ──────────────────────
-    Alias /docs /var/www/publixx-pim/docs/.vitepress/dist
+    Alias /docs /var/www/publixx-pim/static-content/.vitepress/dist
 
-    <Directory /var/www/publixx-pim/docs/.vitepress/dist>
+    <Directory /var/www/publixx-pim/static-content/.vitepress/dist>
         Options -Indexes
         AllowOverride None
         Require all granted

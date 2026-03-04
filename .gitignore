@@ -22,9 +22,9 @@ package-lock.json
 /.vscode
 /pim-frontend/node_modules
 /pim-frontend/dist
-/docs/node_modules
-/docs/.vitepress/dist
-/docs/.vitepress/cache
+/static-content/node_modules
+/static-content/.vitepress/dist
+/static-content/.vitepress/cache
 /bootstrap/cache
 /storage/logs
 publixx_pim

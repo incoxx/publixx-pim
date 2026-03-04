@@ -16,7 +16,7 @@ APP_DIR="/var/www/publixx-pim"
 APP_USER="www-data"
 BRANCH="main"
 FRONTEND_DIR="${APP_DIR}/pim-frontend"
-DOCS_DIR="${APP_DIR}/docs"
+DOCS_DIR="${APP_DIR}/static-content"
 PHP_FPM_SERVICE="php8.4-fpm"
 
 # ─── Colors ───────────────────────────────────────────────────────────────────
@@ -40,10 +40,10 @@ for arg in "$@"; do
         --help|-h)
             echo "Usage: sudo bash deploy.sh [--quick|--backend|--frontend]"
             echo ""
-            echo "  (default)    Full deploy: git pull, composer, migrate, frontend + docs build, cache, restart"
+            echo "  (default)    Full deploy: git pull, composer, migrate, frontend + static-content build, cache, restart"
             echo "  --quick      Quick: git pull, cache clear/rebuild, restart services"
-            echo "  --backend    Backend only: git pull, composer, migrate, cache, restart (no frontend/docs)"
-            echo "  --frontend   Frontend only: git pull, npm install, build frontend + docs"
+            echo "  --backend    Backend only: git pull, composer, migrate, cache, restart (no frontend/static-content)"
+            echo "  --frontend   Frontend only: git pull, npm install, build frontend + static-content"
             echo "  --help       Show this help"
             exit 0
             ;;
