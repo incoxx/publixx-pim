@@ -56,6 +56,7 @@ class ResetDataController extends Controller
                     'output_hierarchy_product_assignments',
                     'products_search_index',
                     'audit_logs',
+                    'watchlist_items',
 
                     // Tier 3
                     'products',
