@@ -4,7 +4,7 @@ title: Media
 
 # Media
 
-The media management of Publixx PIM provides a central library for all product-related files. Here you upload images, documents, and videos, organize them, and assign them to your products.
+The media management of the Publixx PIM provides a central library for all product-related files. Here you upload images, documents, and videos, organize them, and assign them to your products.
 
 ## Media Library
 
@@ -17,7 +17,7 @@ Files can be uploaded in two ways:
 1. **Upload button** -- Click **+ Upload Media** and select one or more files from the file dialog.
 2. **Drag-and-Drop** -- Drag files directly from the desktop or file manager into the upload area of the media library.
 
-After upload, preview images (thumbnails) are automatically generated. The upload progress is displayed per file.
+After uploading, preview images (thumbnails) are automatically generated. The upload progress is displayed per file.
 
 ::: tip Note
 Large files are processed asynchronously. For extensive uploads, thumbnail generation may take a few seconds. However, the files are available immediately after upload.
@@ -37,11 +37,11 @@ The media library offers the following search and filter options:
 
 - **Full-text search** -- Searches file names and metadata.
 - **Type filter** -- Restricts the display to a specific category (Images, Documents, Videos).
-- **Sorting** -- Sort by file name, upload date, or file size.
+- **Sorting** -- Sorts by file name, upload date, or file size.
 
 ## Assigning Media to a Product
 
-The assignment of media to products is done in the **Product detail view** in the **Media** tab.
+The assignment of media to products takes place in the **product detail view** in the **Media** tab.
 
 ### Via Drag-and-Drop
 
@@ -51,7 +51,7 @@ The assignment of media to products is done in the **Product detail view** in th
 
 ### Via Selection Dialog
 
-1. Click **+ Assign Media** in the Media tab.
+1. Click **+ Assign Medium** in the Media tab.
 2. A selection dialog with the media library opens.
 3. Search for and select the desired files.
 4. Confirm the assignment.
@@ -62,13 +62,13 @@ The order of assigned media can be changed via drag-and-drop. The first image in
 
 ## Media Metadata
 
-Each media item has editable metadata that is important for output and discoverability:
+Each medium has editable metadata that is important for output and discoverability:
 
 | Field | Description |
 |---|---|
 | **File Name** | Original name of the uploaded file |
 | **Alt Text** | Alternative text for accessibility and SEO (translatable) |
-| **Title** | Display title of the media item (translatable) |
+| **Title** | Display title of the medium (translatable) |
 | **Usage Type** | Type of usage (see below) |
 | **File Size** | Automatically determined size in KB/MB |
 | **Dimensions** | Width and height in pixels (images only) |
@@ -76,40 +76,40 @@ Each media item has editable metadata that is important for output and discovera
 
 ### Usage Types
 
-The usage type defines the context in which a media item is used:
+The usage type defines the context in which a medium is used:
 
 | Usage Type | Description |
 |---|---|
 | **Teaser** | Main image for product overviews, list views, and preview images |
 | **Gallery** | Additional images for the product image gallery |
 | **Data Sheet** | Technical data sheet or specification (typically: PDF) |
-| **Manual** | User manual or assembly instructions |
-| **Video** | Product video or demonstration video |
+| **Manual** | Operating instructions or assembly guide |
+| **Video** | Product video or application video |
 | **Other** | All other media types |
 
-The usage type is set when assigning to the product and can be changed afterwards. It serves as a filter during export, e.g., to export only teaser images for an online shop.
+The usage type is set when assigning the medium to the product and can be changed afterwards. It serves as a filter during export, for example to export only teaser images for an online shop.
 
 ## Editing and Deleting Media
 
 ### Editing Metadata
 
-Click on a media item in the media library to open its detail view. There you can edit the alt text, title, and usage type. The alt text and title fields are **translatable** and can be maintained in German and English.
+Click on a medium in the media library to open its detail view. There you can edit the alt text, title, and usage type. The alt text and title fields are **translatable** and can be maintained in German and English.
 
-### Deleting Media
+### Deleting a Medium
 
-Click **Delete** in the detail view to remove a media item from the library.
+Click **Delete** in the detail view to remove a medium from the library.
 
 ::: danger Warning
-Deleting a media item also removes it from all product assignments. Check which products use the media item before deleting.
+Deleting a medium also removes it from all product assignments. Before deleting, check which products use the medium.
 :::
 
 ### Removing an Assignment
 
-To detach a media item from a product without deleting it from the library, click the remove icon next to the corresponding media item in the product's Media tab.
+To detach a medium from a product without deleting it from the library, click the remove icon next to the corresponding medium in the product's Media tab.
 
-## API Delivery
+## Delivery via the API
 
-Uploaded media is served via the REST API and can be retrieved by external systems:
+Uploaded media are served via the REST API and can be retrieved by external systems:
 
 - **Original file** -- Access to the original file in full resolution.
 - **Preview image** -- Automatically generated thumbnails for quick preview.
@@ -121,10 +121,10 @@ For details on API integration, please refer to the [API documentation](/en/api/
 
 - **File names** -- Use descriptive file names that describe the product and content (e.g., `SKU12345_frontal.jpg` instead of `IMG_001.jpg`).
 - **Alt texts** -- Maintain alt texts for all images. They are not only important for accessibility but also improve discoverability and SEO.
-- **Usage types** -- Set the usage type consistently so that the correct media items end up in the right places during export.
+- **Usage types** -- Set the usage type consistently so that the right media end up in the right places during export.
 - **File formats** -- Use WebP or JPG in sufficient resolution for product photos. PDF is suitable for data sheets and manuals.
 
 ## Next Steps
 
-- Learn how to [create products](./products) and assign media in the "Media" tab.
+- Learn how to create [Products](./products) and assign media in the "Media" tab.
 - Get to know the [API documentation](/en/api/) to retrieve media programmatically.

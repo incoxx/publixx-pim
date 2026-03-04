@@ -4,7 +4,7 @@ title: Hierarchies
 
 # Hierarchies
 
-Hierarchies are a central organizing principle in Publixx PIM. They structure products in tree structures and control which attributes are available to products in a specific category. The system distinguishes two hierarchy types: **Master hierarchies** for internal product classification and **Output hierarchies** for the export structure.
+Hierarchies are a central organizational principle in the Publixx PIM. They structure products into tree structures and control which attributes are available to products in a specific category. The system distinguishes two types of hierarchies: **Master Hierarchies** for internal product classification and **Output Hierarchies** for the export structure.
 
 ## Hierarchy Types
 
@@ -17,12 +17,12 @@ Master hierarchies form the **primary product classification** and serve the fol
 - **Structural classification** -- The master hierarchy defines the product groups and product categories of your assortment.
 
 ::: info Example
-If the attribute group "Technical Data" is assigned to the node "Electronics" and the group "Display Properties" is assigned to the subnode "Smartphones", then a product in "Smartphones" receives both the attributes from "Technical Data" and from "Display Properties".
+If the attribute group "Technical Data" is assigned to the "Electronics" node and the group "Display Properties" is assigned to the sub-node "Smartphones", then a product in "Smartphones" receives both the attributes from "Technical Data" and from "Display Properties".
 :::
 
 ### Output Hierarchies
 
-Output hierarchies define the **export structure** and are used to map catalog structures, shop categories, or other external classification systems:
+Output hierarchies define the **export structure** and serve to represent catalog structures, shop categories, or other external classification systems:
 
 - **Multiple assignment** -- A product can appear in multiple output hierarchies and at multiple positions within an output hierarchy.
 - **Export control** -- The structure of the output hierarchy is used as the category tree during export.
@@ -81,7 +81,7 @@ Output hierarchies define the **export structure** and are used to map catalog s
   <rect class="h-badge" x="680" y="146" width="42" height="18" />
   <text class="h-badge-text" x="688" y="159">6 Attr</text>
 
-  <!-- Lines from Elektronik to level 2 -->
+  <!-- Lines from Electronics to level 2 -->
   <path class="h-line" d="M 150 176 L 150 192 L 80 192 L 80 210" />
   <path class="h-line" d="M 150 176 L 150 192 L 230 192 L 230 210" />
 
@@ -162,9 +162,9 @@ You can access the hierarchy management via the **Hierarchies** menu item in the
 
 ### Tree View
 
-- **Expand/Collapse** -- Click on the arrow next to a node to show or hide its child nodes.
-- **Node selection** -- Click on the node name to load its details in the right panel.
-- **Context menu** -- A right-click or the three-dot menu on the node offers actions such as rename, move, and delete.
+- **Expand/Collapse** -- Click the arrow next to a node to show or hide its child nodes.
+- **Node selection** -- Click the node name to load its details in the right panel.
+- **Context menu** -- A right-click or the three-dot menu on the node offers actions such as Rename, Move, and Delete.
 
 ### Drag-and-Drop
 
@@ -173,10 +173,10 @@ Nodes can be moved within the hierarchy via drag-and-drop:
 1. Click and hold a node.
 2. Drag it to the desired target node.
 3. The node is inserted as a child node of the target node.
-4. Alternatively, you can place the node between two sibling nodes to reorder it at the same level.
+4. Alternatively, you can place the node between two sibling nodes to reorder it on the same level.
 
 ::: warning Note
-When moving a node, all child nodes are moved along with it. The attribute assignments are preserved, but the inherited attributes of the products may change, as they now inherit from a different parent path.
+When moving a node, all child nodes are moved along with it. Attribute assignments are preserved, but the inherited attributes of products may change since they now inherit from a different parent path.
 :::
 
 ## Node Management
@@ -185,7 +185,7 @@ When moving a node, all child nodes are moved along with it. The attribute assig
 
 1. Select the parent node under which the new node should be created.
 2. Click **+ New Node** or use the context menu.
-3. Enter the **Name (DE/EN)** of the node in the panel (HierarchyNodeFormPanel).
+3. In the panel (HierarchyNodeFormPanel), enter the **Name (DE/EN)** of the node.
 4. Save. The node appears as the last child node of the selected parent node.
 
 ### Renaming a Node
@@ -202,11 +202,11 @@ When deleting a node, you have two options:
 
 | Option | Behavior |
 |---|---|
-| **Only this node** | The node is removed. Child nodes are moved up one level. |
+| **This node only** | The node is removed. Child nodes are moved up one level. |
 | **With all child nodes** | The entire subtree is deleted. |
 
 ::: danger Warning
-Products assigned to a deleted node lose their hierarchy assignment and thereby potentially their attribute definitions. Check which products are affected before deleting.
+Products assigned to a deleted node lose their hierarchy assignment and potentially their attribute definitions. Before deleting, check which products are affected.
 :::
 
 ## Assigning Attributes to Hierarchy Nodes
@@ -219,7 +219,7 @@ A central feature of master hierarchies is the **assignment of attributes to nod
 2. Open the **Attribute Assignments** section.
 3. Click **+ Assign Attribute Group**.
 4. Select an attribute group (AttributeType).
-5. Optional: Define a **Collection Group** if the attributes should be created as a repeatable block.
+5. Optional: Define a **Collection Group** if the attributes should be set up as a repeatable block.
 
 ### Inheritance Along the Path
 
@@ -243,19 +243,19 @@ Collection Groups allow assigning an attribute group as a **repeatable block**. 
 
 ### Master Hierarchy
 
-In the master hierarchy, each product is assigned to **exactly one** node. The assignment is done:
+In the master hierarchy, each product is assigned to **exactly one** node. The assignment takes place:
 
-- **During product creation** -- In the creation panel, the master hierarchy node can optionally be selected.
+- **When creating a product** -- In the creation panel, the master hierarchy node can optionally be selected.
 - **In the product detail view** -- The assigned node can be changed via the hierarchy dropdown.
-- **In the hierarchy tree** -- In the node detail, you can search for and assign products.
+- **In the hierarchy tree** -- In the node details, you can search for and assign products.
 
 ### Output Hierarchy
 
-In output hierarchies, a product can be assigned to **multiple nodes**. The assignment is done via the node detail view, where you can add and remove products.
+In output hierarchies, a product can be assigned to **multiple nodes**. The assignment takes place via the node detail view, where you can add and remove products.
 
 ## Hierarchy Depth
 
-Hierarchies support up to **six levels** (root + 5 sublevels). This restriction ensures that the performance of recursive queries (CTEs) remains optimal and the navigation stays clear.
+Hierarchies support up to **six levels** (root + 5 sub-levels). This limitation ensures that the performance of recursive queries (CTEs) remains optimal and the navigation stays clear.
 
 | Level | Typical Usage |
 |---|---|
@@ -269,5 +269,5 @@ Hierarchies support up to **six levels** (root + 5 sublevels). This restriction 
 ## Next Steps
 
 - Learn how [Attributes](./attributes) are defined and organized into groups.
-- Learn how [Products](./products) are assigned and maintained in the hierarchy.
+- Find out how [Products](./products) are assigned and maintained in the hierarchy.
 - Configure [User permissions](./users) based on hierarchy nodes.

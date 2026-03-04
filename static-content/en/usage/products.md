@@ -4,11 +4,11 @@ title: Products
 
 # Products
 
-Product management is the core of Publixx PIM. Here you create products, maintain attribute values in different languages, manage variants and relations, and control the entire product lifecycle.
+Product management is the heart of the Publixx PIM. Here you create products, maintain attribute values in different languages, manage variants and relations, and control the entire product lifecycle.
 
 ## Product List
 
-After clicking on **Products** in the sidebar, you will reach the product list. This displays all products in a tabular overview with the following columns:
+Clicking on **Products** in the sidebar takes you to the product list. It shows all products in a tabular overview with the following columns:
 
 | Column | Description |
 |---|---|
@@ -16,11 +16,11 @@ After clicking on **Products** in the sidebar, you will reach the product list. 
 | **Name** | Product name in the current language |
 | **Type** | Assigned product type |
 | **Status** | Current status (Draft, Active, Inactive) |
-| **Modified** | Timestamp of the last modification |
+| **Modified** | Time of last modification |
 
 ### Filtering and Searching
 
-Above the table is the **filter bar** (FilterBar), which allows you to narrow down the product list:
+Above the table you will find the **filter bar** (FilterBar), which lets you narrow down the product list:
 
 - **Full-text search** -- Enter a search term to filter products by SKU, name, or other searchable attributes.
 - **Status filter** -- Restrict the display to products with a specific status.
@@ -33,7 +33,7 @@ Click on a sortable column header (SKU, Name, Status, Modified) to sort the list
 
 ### Pagination
 
-The product list is organized into pages. At the bottom of the table you will find the page navigation, which allows you to switch between pages. The number of entries per page can be configured in the settings.
+The product list is paginated. At the bottom of the table you will find the page navigation, which lets you switch between pages. The number of entries per page can be configured in the settings.
 
 ## Creating a Product
 
@@ -173,7 +173,7 @@ The detail view of a product is divided into a **header area** and **tabs**:
 In the header area you can see:
 - **Back button** -- Navigates back to the product list
 - **SKU and product name** -- Identification of the current product
-- **Status display** -- Color-coded badge (Draft/Active/Inactive)
+- **Status indicator** -- Color-coded badge (Draft/Active/Inactive)
 - **Save button** -- Saves all changes (`Ctrl + S`)
 
 ### Tabs
@@ -193,7 +193,7 @@ The product detail view has the following tabs:
 
 ## Editing Attribute Values
 
-In the **Attributes** tab, attribute values are displayed organized by attribute groups. The input field appearance depends on the attribute's data type:
+In the **Attributes** tab, attribute values are displayed grouped by attribute groups. The input field presentation depends on the data type of the attribute:
 
 | Data Type | Input Field | Description |
 |---|---|---|
@@ -202,7 +202,7 @@ In the **Attributes** tab, attribute values are displayed organized by attribute
 | **Float** | Decimal field | Floating-point numbers with unit |
 | **Date** | Date picker | Calendar widget |
 | **Flag** | Checkbox | Yes/No value |
-| **Selection** | Dropdown | Choice from a value list |
+| **Selection** | Dropdown | Selection from a value list |
 | **Dictionary** | JSON editor | Key-value pairs |
 | **Collection** | JSON editor | Structured collections |
 
@@ -220,7 +220,7 @@ Attributes are displayed in logical groups separated by group headers. These gro
 
 ## Product Variants
 
-Variants are variations of a parent product that differ in specific attributes (e.g., color, size). The variant system is based on an **inheritance mechanism**.
+Variants are variations of a parent product that differ in certain attributes (e.g., color, size). The variant system is based on an **inheritance mechanism**.
 
 ### Creating Variants
 
@@ -231,7 +231,7 @@ Variants are variations of a parent product that differ in specific attributes (
 
 ### Inheritance Rules
 
-Each attribute of a variant is subject to one of two inheritance modes:
+Each attribute of a variant follows one of two inheritance modes:
 
 | Mode | Behavior |
 |---|---|
@@ -262,7 +262,7 @@ To add a relation:
 2. Search for the target product by SKU or name.
 3. Confirm the assignment.
 
-Relations are directional: if Product A is defined as an accessory of Product B, this link only applies in that direction.
+Relations are directional: If product A is defined as an accessory of product B, this link only applies in that direction.
 
 ## Product Status and Workflow
 
@@ -279,9 +279,9 @@ Every product goes through a defined status workflow:
 
 | Status | Meaning |
 |---|---|
-| **Draft** | Product is being edited and not yet approved. Not exportable. |
-| **Active** | Product is fully maintained and approved for export. All required attributes must be filled in. |
-| **Inactive** | Product is deactivated and no longer exported. Can be reactivated or set back to Draft at any time. |
+| **Draft** (draft) | Product is being edited and not yet released. Not exportable. |
+| **Active** (active) | Product is fully maintained and approved for export. All required attributes must be filled in. |
+| **Inactive** (inactive) | Product is deactivated and no longer exported. Can be reactivated or set back to Draft at any time. |
 
 ::: warning Status Change to Active
 The transition from **Draft** to **Active** is only possible when all required attributes of the assigned product type are filled in. Otherwise, the system displays an error message listing the missing attributes.
@@ -289,7 +289,7 @@ The transition from **Draft** to **Active** is only possible when all required a
 
 ## Bulk Operations
 
-For efficient editing of large product inventories, bulk operations are available:
+For efficient processing of large product inventories, bulk operations are available:
 
 1. **Multi-selection** -- Enable checkboxes in the product list to select multiple products.
 2. **Bulk actions** -- After selection, action buttons appear:
@@ -305,7 +305,7 @@ Deleting products is irreversible. Deleted products cannot be restored. Use the 
 In the **Versions** tab, you can track all changes to a product:
 
 - **Version list** -- Shows all saved versions with timestamp and user.
-- **Diff view** (ProductVersionDiff) -- Compares two versions and highlights differences with colors (green = added, red = removed).
+- **Diff view** (ProductVersionDiff) -- Compares two versions and highlights differences with color coding (green = added, red = removed).
 
 ## Next Steps
 
