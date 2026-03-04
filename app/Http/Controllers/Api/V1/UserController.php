@@ -11,7 +11,6 @@ use App\Models\Role;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -66,7 +65,7 @@ class UserController extends Controller
             'id' => Str::uuid()->toString(),
             'name' => $validated['name'],
             'email' => $validated['email'],
-            'password' => Hash::make($validated['password']),
+            'password' => $validated['password'],
             'language' => $validated['language'] ?? 'de',
             'is_active' => $validated['is_active'] ?? true,
         ]);
@@ -111,7 +110,7 @@ class UserController extends Controller
             ->toArray();
 
         if (! empty($validated['password'])) {
-            $updateData['password'] = Hash::make($validated['password']);
+            $updateData['password'] = $validated['password'];
         }
 
         $user->update($updateData);
