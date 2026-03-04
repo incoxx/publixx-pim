@@ -2,6 +2,7 @@
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useProductStore } from '@/stores/products'
+import { useAuthStore } from '@/stores/auth'
 import { useI18n } from 'vue-i18n'
 import { ArrowLeft, Save, Plus, Trash2, Image, Star, X, Search, Download } from 'lucide-vue-next'
 import productsApi from '@/api/products'
@@ -20,6 +21,7 @@ import ProductVersionsTab from '@/components/products/ProductVersionsTab.vue'
 const route = useRoute()
 const router = useRouter()
 const store = useProductStore()
+const authStore = useAuthStore()
 const { t } = useI18n()
 
 const activeTab = ref('attributes')
@@ -903,7 +905,7 @@ watch(() => route.params.id, async (newId, oldId) => {
           </p>
         </template>
       </div>
-      <button class="pim-btn pim-btn-primary" :disabled="saving" @click="save">
+      <button v-if="authStore.hasPermission('products.edit')" class="pim-btn pim-btn-primary" :disabled="saving" @click="save">
         <Save class="w-4 h-4" :stroke-width="1.75" />
         {{ saving ? 'Speichern…' : t('common.save') }}
       </button>

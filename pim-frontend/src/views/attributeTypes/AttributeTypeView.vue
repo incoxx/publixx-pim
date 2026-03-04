@@ -42,6 +42,7 @@ function openCreatePanel() {
 }
 
 function openEditPanel(row) {
+  if (!authStore.hasPermission('attribute-types.edit')) return
   authStore.openPanel(markRaw(AttributeTypeFormPanel), {
     attributeType: row,
     onSaved: () => fetchTypes(),
@@ -70,7 +71,7 @@ onMounted(() => fetchTypes())
   <div class="space-y-4">
     <div class="flex items-center justify-between">
       <h2 class="text-lg font-semibold text-[var(--color-text-primary)]">{{ t('attributeType.title') }}</h2>
-      <button class="pim-btn pim-btn-primary" @click="openCreatePanel">
+      <button v-if="authStore.hasPermission('attribute-types.create')" class="pim-btn pim-btn-primary" @click="openCreatePanel">
         <Plus class="w-4 h-4" :stroke-width="2" />
         {{ t('attributeType.newType') }}
       </button>
@@ -86,6 +87,7 @@ onMounted(() => fetchTypes())
       :columns="columns"
       :rows="items"
       :loading="loading"
+      :showActions="authStore.hasPermission('attribute-types.delete')"
       emptyText="Keine Attributgruppen gefunden"
       @row-click="openEditPanel"
       @row-action="handleRowAction"

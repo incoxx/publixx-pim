@@ -3,7 +3,10 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { Upload, Image, Grid, List, Trash2, FolderOpen, Folder, Search, Edit3, X, ChevronRight, ChevronDown, Plus } from 'lucide-vue-next'
 import mediaApi from '@/api/media'
 import hierarchiesApi from '@/api/hierarchies'
+import { useAuthStore } from '@/stores/auth'
 import PimConfirmDialog from '@/components/shared/PimConfirmDialog.vue'
+
+const authStore = useAuthStore()
 
 const items = ref([])
 const loading = ref(false)
@@ -201,7 +204,7 @@ onMounted(() => {
       <div class="flex items-center justify-between">
         <h3 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wider">Ordner</h3>
         <button
-          v-if="assetHierarchyId"
+          v-if="assetHierarchyId && authStore.hasPermission('media.create')"
           class="pim-btn pim-btn-ghost p-0.5"
           @click="showNewFolder = !showNewFolder; newFolderParent = null"
           title="Neuer Ordner"
@@ -272,8 +275,10 @@ onMounted(() => {
 
           <button :class="['pim-btn pim-btn-ghost p-1.5', viewMode==='grid'?'bg-[var(--color-bg)]':'']" @click="viewMode='grid'"><Grid class="w-4 h-4" :stroke-width="1.75" /></button>
           <button :class="['pim-btn pim-btn-ghost p-1.5', viewMode==='list'?'bg-[var(--color-bg)]':'']" @click="viewMode='list'"><List class="w-4 h-4" :stroke-width="1.75" /></button>
-          <input type="file" accept="image/*,application/pdf,.doc,.docx,.xlsx" multiple class="hidden" id="media-upload" @change="handleUpload" />
-          <label for="media-upload" class="pim-btn pim-btn-primary text-sm cursor-pointer"><Upload class="w-4 h-4" :stroke-width="2" /> Hochladen</label>
+          <template v-if="authStore.hasPermission('media.create')">
+            <input type="file" accept="image/*,application/pdf,.doc,.docx,.xlsx" multiple class="hidden" id="media-upload" @change="handleUpload" />
+            <label for="media-upload" class="pim-btn pim-btn-primary text-sm cursor-pointer"><Upload class="w-4 h-4" :stroke-width="2" /> Hochladen</label>
+          </template>
         </div>
       </div>
 
@@ -298,6 +303,7 @@ onMounted(() => {
               </div>
             </div>
             <button
+              v-if="authStore.hasPermission('media.delete')"
               class="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-[var(--color-error-light)] text-[var(--color-text-tertiary)] hover:text-[var(--color-error)] transition-all shrink-0"
               @click.stop="deleteTarget = item"
             >
@@ -326,6 +332,7 @@ onMounted(() => {
           <span class="text-[10px] text-[var(--color-text-tertiary)]">{{ item.media_type }}</span>
           <span v-if="item.usage_purpose" class="text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-bg)] text-[var(--color-text-tertiary)]">{{ item.usage_purpose }}</span>
           <button
+            v-if="authStore.hasPermission('media.delete')"
             class="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-[var(--color-error-light)] text-[var(--color-text-tertiary)] hover:text-[var(--color-error)] transition-all"
             @click.stop="deleteTarget = item"
           >
@@ -393,8 +400,8 @@ onMounted(() => {
         </div>
 
         <div class="flex gap-2">
-          <button class="pim-btn pim-btn-primary text-xs flex-1" @click="saveDetail">Speichern</button>
-          <button class="pim-btn pim-btn-ghost text-xs" @click="deleteTarget = detailItem; closeDetail()">
+          <button v-if="authStore.hasPermission('media.edit')" class="pim-btn pim-btn-primary text-xs flex-1" @click="saveDetail">Speichern</button>
+          <button v-if="authStore.hasPermission('media.delete')" class="pim-btn pim-btn-ghost text-xs" @click="deleteTarget = detailItem; closeDetail()">
             <Trash2 class="w-3.5 h-3.5" />
           </button>
         </div>

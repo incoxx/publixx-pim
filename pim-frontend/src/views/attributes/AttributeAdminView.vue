@@ -40,6 +40,7 @@ function openCreatePanel() {
 }
 
 function openEditPanel(row) {
+  if (!authStore.hasPermission('attributes.edit')) return
   authStore.openPanel(markRaw(AttributeFormPanel), { attribute: row })
 }
 
@@ -68,7 +69,7 @@ onMounted(() => {
   <div class="space-y-4">
     <div class="flex items-center justify-between">
       <h2 class="text-lg font-semibold text-[var(--color-text-primary)]">{{ t('attribute.title') }}</h2>
-      <button class="pim-btn pim-btn-primary" @click="openCreatePanel">
+      <button v-if="authStore.hasPermission('attributes.create')" class="pim-btn pim-btn-primary" @click="openCreatePanel">
         <Plus class="w-4 h-4" :stroke-width="2" />
         {{ t('attribute.newAttribute') }}
       </button>
@@ -88,6 +89,7 @@ onMounted(() => {
       :rows="store.items"
       :loading="store.loading"
       selectable
+      :showActions="authStore.hasPermission('attributes.delete')"
       emptyText="Keine Attribute gefunden"
       @sort="handleSort"
       @row-click="openEditPanel"

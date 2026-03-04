@@ -14,24 +14,28 @@ const router = useRouter()
 const { t } = useI18n()
 const authStore = useAuthStore()
 
-const navItems = computed(() => [
-  { icon: Search, label: t('nav.search'), to: '/search' },
-  { icon: Package, label: t('nav.products'), to: '/products' },
-  { icon: GitBranch, label: t('nav.hierarchies'), to: '/hierarchies' },
-  { icon: Sliders, label: t('nav.attributes'), to: '/attributes' },
-  { icon: Layers, label: t('nav.productTypes'), to: '/product-types' },
-  { icon: FolderTree, label: t('nav.attributeTypes'), to: '/attribute-types' },
-  { icon: Database, label: t('nav.valueLists'), to: '/value-lists' },
+const allNavItems = [
+  { icon: Search, label: () => t('nav.search'), to: '/search' },
+  { icon: Package, label: () => t('nav.products'), to: '/products' },
+  { icon: GitBranch, label: () => t('nav.hierarchies'), to: '/hierarchies' },
+  { icon: Sliders, label: () => t('nav.attributes'), to: '/attributes' },
+  { icon: Layers, label: () => t('nav.productTypes'), to: '/product-types' },
+  { icon: FolderTree, label: () => t('nav.attributeTypes'), to: '/attribute-types' },
+  { icon: Database, label: () => t('nav.valueLists'), to: '/value-lists' },
   { divider: true },
-  { icon: Upload, label: t('nav.imports'), to: '/imports' },
-  { icon: Download, label: t('nav.exports'), to: '/exports' },
-  { icon: Image, label: t('nav.media'), to: '/media' },
-  { icon: Tags, label: t('nav.mediaUsageTypes'), to: '/media-usage-types' },
-  { icon: DollarSign, label: t('nav.prices'), to: '/prices' },
+  { icon: Upload, label: () => t('nav.imports'), to: '/imports' },
+  { icon: Download, label: () => t('nav.exports'), to: '/exports' },
+  { icon: Image, label: () => t('nav.media'), to: '/media' },
+  { icon: Tags, label: () => t('nav.mediaUsageTypes'), to: '/media-usage-types' },
+  { icon: DollarSign, label: () => t('nav.prices'), to: '/prices' },
   { divider: true },
-  { icon: Users, label: t('nav.users'), to: '/users' },
-  { icon: Settings, label: t('nav.settings'), to: '/settings' },
-])
+  { icon: Users, label: () => t('nav.users'), to: '/users', permission: 'users.view' },
+  { icon: Settings, label: () => t('nav.settings'), to: '/settings', permission: 'users.view' },
+]
+
+const navItems = computed(() =>
+  allNavItems.filter(item => !item.permission || authStore.hasPermission(item.permission))
+)
 
 function isActive(to) {
   return route.path === to || route.path.startsWith(to + '/')
@@ -72,10 +76,10 @@ function isActive(to) {
               : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg)] hover:text-[var(--color-text-primary)]'
           ]"
           @click="router.push(item.to)"
-          :title="authStore.sidebarCollapsed ? item.label : undefined"
+          :title="authStore.sidebarCollapsed ? item.label() : undefined"
         >
           <component :is="item.icon" class="w-[18px] h-[18px] shrink-0" :stroke-width="1.75" />
-          <span v-if="!authStore.sidebarCollapsed">{{ item.label }}</span>
+          <span v-if="!authStore.sidebarCollapsed">{{ item.label() }}</span>
         </button>
       </template>
     </nav>

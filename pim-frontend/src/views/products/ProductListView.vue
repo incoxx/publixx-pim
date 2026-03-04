@@ -75,7 +75,7 @@ onMounted(() => {
     <!-- Header -->
     <div class="flex items-center justify-between">
       <h2 class="text-lg font-semibold text-[var(--color-text-primary)]">{{ t('product.title') }}</h2>
-      <button class="pim-btn pim-btn-primary" @click="openCreatePanel">
+      <button v-if="authStore.hasPermission('products.create')" class="pim-btn pim-btn-primary" @click="openCreatePanel">
         <Plus class="w-4 h-4" :stroke-width="2" />
         {{ t('product.newProduct') }}
       </button>
@@ -99,6 +99,7 @@ onMounted(() => {
       :sortField="store.sort.field"
       :sortOrder="store.sort.order"
       selectable
+      :showActions="authStore.hasPermission('products.delete')"
       emptyText="Keine Produkte gefunden"
       @sort="handleSort"
       @row-click="openProduct"
