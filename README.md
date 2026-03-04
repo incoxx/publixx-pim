@@ -44,12 +44,29 @@ Das Setup-Script installiert alle Abhaengigkeiten, konfiguriert die Datenbank, b
 
 ## Dokumentation
 
+Die vollstaendige Dokumentation ist als VitePress-Site verfuegbar:
+
+- **Deutsch**: [https://smartentities.de/web/help/de/](https://smartentities.de/web/help/de/)
+- **English**: [https://smartentities.de/web/help/en/](https://smartentities.de/web/help/en/)
+
+| Kapitel | Inhalt |
+|---|---|
+| [Schnellstart](https://smartentities.de/web/help/de/installation/schnellstart) | In 10 Minuten zum laufenden PIM |
+| [Bedienung](https://smartentities.de/web/help/de/bedienung/) | Benutzerhandbuch fuer alle Module |
+| [Architektur](https://smartentities.de/web/help/de/architektur/) | EAV-Datenmodell, Services, Vererbung |
+| [API-Referenz](https://smartentities.de/web/help/de/api/) | 90+ REST-Endpoints mit Beispielen |
+| [Import](https://smartentities.de/web/help/de/import/) | Excel-Import mit 14-Tab-Struktur |
+| [Export](https://smartentities.de/web/help/de/export/) | JSON-Export und Publixx-Integration |
+| [FAQ](https://smartentities.de/web/help/de/faq/) | Haeufig gestellte Fragen |
+
+Lokale Dokumentation:
+
 | Dokument | Inhalt |
 |---|---|
 | [INSTALL.md](INSTALL.md) | Installations-Anleitung (setup.sh) |
 | [UPDATE.md](UPDATE.md) | Update-Anleitung (update.sh) |
 | [API.md](API.md) | REST API Referenz (180+ Endpoints) |
-| [static-content/](static-content/) | Ausfuehrliche Dokumentation (VitePress) |
+| [static-content/](static-content/) | VitePress-Quelldateien |
 
 ## Scripts
 
@@ -105,4 +122,4 @@ Siehe [API.md](API.md) fuer die vollstaendige Referenz.
 
 ## Lizenz
 
-Proprietaer — Publixx / Incoxx.
+AGPL-3.0-only — siehe [LICENSE](LICENSE).
