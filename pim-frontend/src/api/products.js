@@ -23,7 +23,9 @@ export default {
 
   // Attribute values
   getAttributeValues(id, options = {}) {
-    return client.get(`/products/${id}/attribute-values`, { params: buildParams(options) })
+    const params = buildParams(options)
+    if (options.lang) params.lang = options.lang
+    return client.get(`/products/${id}/attribute-values`, { params })
   },
 
   saveAttributeValues(id, values) {
@@ -110,5 +112,20 @@ export default {
 
   downloadPreviewPdf(id) {
     return client.get(`/products/${id}/preview/export.pdf`, { responseType: 'blob' })
+  },
+
+  // XLIFF Translation Export/Import
+  exportXliff({ sourceLang, targetLang, productIds }) {
+    const params = { source_lang: sourceLang, target_lang: targetLang }
+    if (productIds?.length) params.product_ids = productIds.join(',')
+    return client.get('/translations/xliff/export', { params, responseType: 'blob' })
+  },
+
+  importXliff(file) {
+    const formData = new FormData()
+    formData.append('file', file)
+    return client.post('/translations/xliff/import', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
   },
 }
