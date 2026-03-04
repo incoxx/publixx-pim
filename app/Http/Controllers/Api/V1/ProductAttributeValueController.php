@@ -65,8 +65,17 @@ class ProductAttributeValueController extends Controller
 
         $language = $this->getPrimaryLanguage($request);
 
-        // Get effective attributes from hierarchy
-        $effectiveAttributes = $hierarchyService->getProductAttributes($product);
+        // Allow overriding hierarchy node via query param (preview before saving)
+        $overrideNodeId = $request->query('hierarchy_node_id');
+
+        if ($overrideNodeId) {
+            $node = \App\Models\HierarchyNode::find($overrideNodeId);
+            $effectiveAttributes = $node
+                ? $hierarchyService->getEffectiveAttributes($node)
+                : collect();
+        } else {
+            $effectiveAttributes = $hierarchyService->getProductAttributes($product);
+        }
 
         // Load existing attribute values for this product
         $existingValues = $product->attributeValues()

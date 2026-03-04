@@ -722,8 +722,8 @@ if [ -d "$FRONTEND_DIR" ]; then
         info "Kopiere Frontend-Build nach public/..."
         cp "${FRONTEND_DIR}/dist/index.html" "${INSTALL_DIR}/public/spa.html"
         # Assets kopieren (CSS, JS, Bilder)
-        if [ -d "${FRONTEND_DIR}/dist/assets" ]; then
-            cp -r "${FRONTEND_DIR}/dist/assets" "${INSTALL_DIR}/public/"
+        if [ -d "${FRONTEND_DIR}/dist/pim-assets" ]; then
+            cp -r "${FRONTEND_DIR}/dist/pim-assets" "${INSTALL_DIR}/public/"
         fi
         # Favicon und andere Root-Dateien kopieren
         find "${FRONTEND_DIR}/dist" -maxdepth 1 -type f ! -name "index.html" -exec cp {} "${INSTALL_DIR}/public/" \;

@@ -30,8 +30,9 @@ export default {
     return client.put(`/products/${id}/attribute-values`, { values })
   },
 
-  getResolvedAttributes(id) {
-    return client.get(`/products/${id}/resolved-attributes`)
+  getResolvedAttributes(id, hierarchyNodeId = null) {
+    const params = hierarchyNodeId ? { hierarchy_node_id: hierarchyNodeId } : {}
+    return client.get(`/products/${id}/resolved-attributes`, { params })
   },
 
   // Variants

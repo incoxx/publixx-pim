@@ -65,7 +65,7 @@ class DeploymentController extends Controller
         // Schritt 4b: Build nach public/ kopieren
         $log[] = $this->runStep(
             'copy_frontend',
-            'rm -rf public/assets && cp -r pim-frontend/dist/assets public/assets && cp pim-frontend/dist/index.html public/spa.html',
+            'rm -rf public/pim-assets && cp -r pim-frontend/dist/pim-assets public/pim-assets && cp pim-frontend/dist/index.html public/spa.html',
             $basePath,
             deployUser: $deployUser,
         );
