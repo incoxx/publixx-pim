@@ -4,32 +4,181 @@ title: Schnellstart
 
 # Schnellstart
 
-Diese Anleitung führt Sie in wenigen Schritten von einem leeren System zu einem lokal laufenden Publixx PIM. Sie richtet sich an Entwickler, die das System schnell einrichten und sofort produktiv arbeiten möchten.
+Publixx PIM bietet zwei Wege zur Installation: das **automatische Setup-Script** (empfohlen) fuer Server-Installationen und die **manuelle Installation** fuer Entwicklungsumgebungen.
 
-::: tip Voraussetzung
-Stellen Sie sicher, dass alle in den [Voraussetzungen](./voraussetzungen) beschriebenen Abhängigkeiten installiert sind, bevor Sie beginnen.
-:::
+## Automatische Installation mit setup.sh (empfohlen)
 
-## 1. Repository klonen
+Das mitgelieferte `setup.sh` installiert **alles automatisch** auf einem frischen Ubuntu 24.04 LTS Server: PHP 8.4, MySQL 8, Redis, Apache, Node.js, Composer, Frontend-Build, Supervisor und SSL.
+
+### Voraussetzungen
+
+- Frischer **Ubuntu 24.04 LTS** Server mit Root-Zugang
+- Eine Domain oder IP-Adresse
+
+### Installation
 
 ```bash
-git clone git@github.com:publixx/publixx-pim.git
+git clone https://github.com/incoxx/publixx-pim.git /var/www/publixx-pim
+cd /var/www/publixx-pim
+sudo bash setup.sh
+```
+
+Das Script fuehrt Sie interaktiv durch die Konfiguration:
+
+| Abfrage | Beschreibung | Standard |
+|---|---|---|
+| **Domain/IP** | Server-Hostname oder IP-Adresse | -- (Pflicht) |
+| **Apache-Port** | Webserver-Port | `80` |
+| **SSL mit Let's Encrypt** | Automatisches HTTPS-Zertifikat | Nein |
+| **Web-Pfad** | Subdirectory-Deployment (z.B. `/web`, `/pim`) | leer (Root) |
+| **MySQL-Datenbank** | Datenbankname | `publixx_pim` |
+| **MySQL-Benutzer** | Datenbankbenutzer | `pim` |
+| **MySQL-Passwort** | Datenbankpasswort | -- (Pflicht) |
+| **Installationspfad** | Verzeichnis der Anwendung | `/var/www/publixx-pim` |
+| **Admin-Benutzer** | Optionaler zusaetzlicher Admin-Account | Optional |
+
+### Was setup.sh installiert
+
+Das Script durchlaeuft **10 Schritte** in ca. 5--10 Minuten:
+
+1. **System-Update** -- `apt-get upgrade`
+2. **PHP 8.4** -- mit allen Erweiterungen (mysql, redis, mbstring, xml, zip, gd, bcmath, curl, intl, opcache)
+3. **Apache 2.4** -- mit mod_rewrite, mod_headers, mod_ssl, mod_php
+4. **MySQL 8.0** -- Datenbank und Benutzer werden automatisch angelegt
+5. **Redis** -- mit 512 MB Speicherlimit und allkeys-lru Policy
+6. **Node.js 20 LTS** -- fuer den Frontend-Build
+7. **Composer** -- PHP-Paketmanager
+8. **Anwendung** -- .env, Composer-Install, Migrationen, Demo-Daten, Storage-Link
+9. **Frontend-Build** -- npm ci, Vite-Build, Kopie nach public/
+10. **Webserver & Services** -- Apache-VHost, Supervisor fuer Horizon, Cron, Firewall
+
+### Nach der Installation
+
+```bash
+# Status aller Services pruefen
+bash healthcheck.sh
+
+# Nur HTTP-Endpoint testen
+bash healthcheck.sh --url-only
+
+# JSON-Ausgabe (fuer Monitoring)
+bash healthcheck.sh --json
+```
+
+::: info Standard-Zugangsdaten
+Nach der Installation stehen folgende Demo-Accounts zur Verfuegung:
+- `admin@publixx.com` / `password`
+- `admin@example.com` / `password`
+
+Falls Sie im Setup einen eigenen Admin-Account angelegt haben, verwenden Sie dessen Zugangsdaten. Aendern Sie die Passwoerter nach dem ersten Login.
+:::
+
+### Deployment-Modi
+
+Das Setup-Script unterstuetzt zwei Modi:
+
+**Root-Modus** (Standard): Das PIM ist die einzige Anwendung auf der Domain. Apache VHost auf Port 80/443.
+
+**Subdirectory-Modus**: Das PIM laeuft unter einem Pfad (z.B. `https://example.com/web`). Apache-Alias wird in den bestehenden VHost eingebunden. Ideal wenn bereits andere Anwendungen auf der Domain laufen.
+
+---
+
+## Updates mit update.sh
+
+Fuer nachfolgende Updates steht das Script `update.sh` zur Verfuegung. Es aktualisiert die Anwendung von GitHub, fuehrt Migrationen durch, baut das Frontend neu und startet die Services.
+
+```bash
+sudo bash update.sh
+```
+
+### Optionen
+
+| Option | Beschreibung |
+|---|---|
+| `--branch=NAME` | Anderen Branch verwenden (Standard: main) |
+| `--skip-frontend` | Frontend-Build ueberspringen (schnelleres Update) |
+| `--skip-composer` | Composer-Install ueberspringen |
+| `--seed` | Datenbank-Seeder nach Migrationen ausfuehren |
+| `--force` | Bestaetigung ueberspringen |
+
+### Update-Ablauf
+
+Das Script durchlaeuft folgende Schritte:
+
+1. **Wartungsmodus aktivieren** -- Laravel `down` mit 60-Sekunden-Retry
+2. **Git Pull** -- Neueste Aenderungen vom Branch holen
+3. **Composer Install** -- PHP-Abhaengigkeiten aktualisieren
+4. **Datenbank-Migrationen** -- Ausstehende Schema-Aenderungen ausfuehren
+5. **Frontend-Build** -- npm ci + Vite-Build + Kopie nach public/
+6. **Caches erneuern** -- Config, Route, View und Event Cache
+7. **Services neustarten** -- Berechtigungen, Horizon-Neustart, Apache-Reload
+8. **Healthcheck** -- API-Endpunkt testen + Wartungsmodus deaktivieren
+
+::: tip Schnelles Update
+Fuer reine Backend-Aenderungen (ohne Frontend-Aenderungen) nutzen Sie:
+```bash
+sudo bash update.sh --skip-frontend
+```
+Das reduziert die Update-Zeit erheblich.
+:::
+
+### Fehlerbehandlung
+
+Falls waehrend des Updates ein Fehler auftritt, wird der Wartungsmodus automatisch deaktiviert, damit die Anwendung erreichbar bleibt.
+
+---
+
+## Healthcheck mit healthcheck.sh
+
+Das Healthcheck-Script prueft alle kritischen Services und Abhaengigkeiten:
+
+```bash
+bash healthcheck.sh
+```
+
+### Pruefungen
+
+| Pruefpunkt | Beschreibung |
+|---|---|
+| **Laravel** | Artisan-Datei vorhanden |
+| **.env** | Konfigurationsdatei vorhanden |
+| **PHP** | Version und Status |
+| **Datenbank** | MySQL-Verbindung (SELECT 1) |
+| **Redis** | Cache-Verbindung (PING) |
+| **Apache** | Service-Status |
+| **Supervisor/Horizon** | Queue-Worker laeuft |
+| **Speicherplatz** | Warnung bei < 1 GB, kritisch bei < 200 MB |
+| **Storage** | Schreibrechte auf storage/ |
+| **HTTP-Endpoint** | API-Healthcheck (`/api/v1/health`) |
+
+### Optionen
+
+| Option | Beschreibung |
+|---|---|
+| `--url-only` | Nur HTTP-Endpoint pruefen |
+| `--json` | JSON-Ausgabe (fuer Monitoring-Systeme) |
+| `--quiet` | Nur Exit-Code (0 = gesund, 1 = Fehler) |
+
+---
+
+## Manuelle Installation (Entwicklung)
+
+Fuer die lokale Entwicklungsumgebung koennen Sie die Installation auch manuell durchfuehren. Stellen Sie sicher, dass alle in den [Voraussetzungen](./voraussetzungen) beschriebenen Abhaengigkeiten installiert sind.
+
+### 1. Repository klonen
+
+```bash
+git clone git@github.com:incoxx/publixx-pim.git
 cd publixx-pim
 ```
 
-## 2. PHP-Abhängigkeiten installieren
-
-Installieren Sie alle Backend-Pakete mit Composer:
+### 2. PHP-Abhaengigkeiten installieren
 
 ```bash
 composer install
 ```
 
-Dieser Befehl installiert Laravel 11 sowie alle benötigten PHP-Pakete. Bei der ersten Installation kann dies einige Minuten dauern.
-
-## 3. Frontend-Abhängigkeiten installieren
-
-Das Vue.js-Frontend befindet sich im Unterverzeichnis `pim-frontend`. Wechseln Sie dorthin und installieren Sie die npm-Pakete:
+### 3. Frontend-Abhaengigkeiten installieren
 
 ```bash
 cd pim-frontend
@@ -37,109 +186,68 @@ npm install
 cd ..
 ```
 
-## 4. Umgebungskonfiguration
-
-Kopieren Sie die Beispielkonfiguration und passen Sie die Werte an Ihre lokale Umgebung an:
+### 4. Umgebungskonfiguration
 
 ```bash
 cp .env.example .env
 php artisan key:generate
 ```
 
-Öffnen Sie die `.env`-Datei und konfigurieren Sie mindestens folgende Werte:
-
-### Anwendung
+Oeffnen Sie die `.env`-Datei und konfigurieren Sie mindestens folgende Werte:
 
 ```dotenv
+# Anwendung
 APP_NAME="Publixx PIM"
 APP_ENV=local
 APP_DEBUG=true
 APP_URL=http://localhost:8000
 FRONTEND_URL=http://localhost:5173
-```
 
-### Datenbank
-
-```dotenv
+# Datenbank
 DB_CONNECTION=mysql
 DB_HOST=127.0.0.1
 DB_PORT=3306
 DB_DATABASE=publixx_pim
 DB_USERNAME=root
 DB_PASSWORD=ihr_passwort
+
+# Redis
+CACHE_STORE=redis
+QUEUE_CONNECTION=redis
+SESSION_DRIVER=redis
+
+# Sanctum
+SANCTUM_STATEFUL_DOMAINS=localhost:5173,localhost:8000
 ```
 
-Erstellen Sie die Datenbank, falls noch nicht geschehen:
+Erstellen Sie die Datenbank:
 
 ```bash
 mysql -u root -p -e "CREATE DATABASE publixx_pim CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 ```
 
-### Redis
-
-```dotenv
-REDIS_HOST=127.0.0.1
-REDIS_PASSWORD=null
-REDIS_PORT=6379
-
-CACHE_STORE=redis
-QUEUE_CONNECTION=redis
-SESSION_DRIVER=redis
-```
-
-### Sanctum (API-Authentifizierung)
-
-```dotenv
-SANCTUM_STATEFUL_DOMAINS=localhost:5173,localhost:8000
-```
-
-## 5. Datenbank einrichten
-
-Führen Sie die Migrationen aus, um das Datenbankschema zu erstellen, und starten Sie anschliessend die Seeder, um Basisdaten wie Rollen, Berechtigungen und den Admin-Benutzer anzulegen:
+### 5. Datenbank einrichten
 
 ```bash
 php artisan migrate
 php artisan db:seed
 ```
 
-::: info Standard-Zugangsdaten
-Nach dem Seeding steht ein Admin-Benutzer zur Verfügung. Die Zugangsdaten werden während des Seedings in der Konsole ausgegeben. Notieren Sie sich diese.
-:::
-
-## 6. Storage-Link erstellen
-
-Laravel benötigt einen symbolischen Link, um öffentlich zugängliche Dateien (Medien, Uploads) aus dem `storage`-Verzeichnis bereitzustellen:
+### 6. Storage-Link erstellen
 
 ```bash
 php artisan storage:link
 ```
 
-## 7. Frontend bauen (optional für Produktion)
+### 7. Entwicklungsserver starten
 
-Wenn Sie das Frontend als statische Dateien bereitstellen möchten (z. B. für einen produktionsnahen Test), bauen Sie es und kopieren Sie die Ausgabe in das `public`-Verzeichnis:
-
-```bash
-cd pim-frontend
-npm run build
-cp -r dist/* ../public/
-cd ..
-```
-
-::: warning Hinweis
-Für die lokale Entwicklung nutzen Sie stattdessen den Vite-Entwicklungsserver (siehe Schritt 8). Das Bauen ist nur für produktive oder produktionsnahe Umgebungen nötig.
-:::
-
-## 8. Entwicklungsserver starten
-
-Starten Sie das Backend und das Frontend in zwei separaten Terminals:
+Starten Sie Backend und Frontend in zwei separaten Terminals:
 
 **Terminal 1 -- Laravel Backend:**
 
 ```bash
 php artisan serve
 ```
-
-Das Backend ist nun unter `http://localhost:8000` erreichbar.
 
 **Terminal 2 -- Vite Frontend (Entwicklungsmodus):**
 
@@ -148,48 +256,36 @@ cd pim-frontend
 npm run dev
 ```
 
-Das Frontend ist nun unter `http://localhost:5173` erreichbar und unterstützt Hot Module Replacement (HMR) für schnelle Entwicklungszyklen.
-
 **Terminal 3 -- Queue Worker (optional):**
-
-Für die Verarbeitung von Hintergrundaufgaben (Import, Export) starten Sie den Queue-Worker:
 
 ```bash
 php artisan horizon
 ```
 
-Das Horizon-Dashboard ist unter `http://localhost:8000/horizon` erreichbar.
+Das PIM ist nun unter `http://localhost:5173` erreichbar.
 
-## 9. Installation überprüfen
+### 8. Installation ueberpruefen
 
-Öffnen Sie `http://localhost:5173` in Ihrem Browser. Sie sollten die Login-Seite des Publixx PIM sehen. Melden Sie sich mit den beim Seeding erstellten Zugangsdaten an.
-
-### Checkliste
-
-| Prüfpunkt | Erwartetes Ergebnis |
+| Pruefpunkt | Erwartetes Ergebnis |
 |---|---|
-| Login-Seite wird angezeigt | Frontend-Build und API-Verbindung funktionieren |
-| Login mit Admin-Zugangsdaten | Authentifizierung und Datenbankverbindung funktionieren |
+| Login-Seite wird angezeigt | Frontend und API-Verbindung funktionieren |
+| Login mit Admin-Zugangsdaten | Authentifizierung und Datenbank funktionieren |
 | Dashboard wird geladen | SPA-Routing und API-Endpunkte funktionieren |
-| Horizon-Dashboard erreichbar | Redis-Verbindung und Queue-System funktionieren |
+| Horizon-Dashboard erreichbar | Redis und Queue-System funktionieren |
 
-## Häufige Probleme
+## Haeufige Probleme
 
 ### CORS-Fehler im Browser
 
 Stellen Sie sicher, dass `FRONTEND_URL` und `SANCTUM_STATEFUL_DOMAINS` in der `.env`-Datei korrekt auf die Frontend-URL gesetzt sind.
 
-### Datenbankverbindung schlägt fehl
-
-Prüfen Sie, ob der MySQL-Dienst läuft und die Zugangsdaten in `.env` korrekt sind:
+### Datenbankverbindung schlaegt fehl
 
 ```bash
 php artisan db:monitor
 ```
 
-### Redis-Verbindung schlägt fehl
-
-Prüfen Sie, ob Redis läuft:
+### Redis-Verbindung schlaegt fehl
 
 ```bash
 redis-cli ping
@@ -203,6 +299,6 @@ chmod -R 775 storage bootstrap/cache
 chown -R $USER:www-data storage bootstrap/cache
 ```
 
-## Nächster Schritt
+## Naechster Schritt
 
-Für den produktiven Betrieb lesen Sie die Anleitung zum [Deployment](./deployment).
+Fuer den produktiven Betrieb lesen Sie die Anleitung zum [Deployment](./deployment).
