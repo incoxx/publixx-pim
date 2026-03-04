@@ -216,7 +216,7 @@ hero:
 <p class="marketing-subheadline" style="color: rgba(255,255,255,0.85);">Try publixxPIM now. Free. No sales call required.</p>
 
 <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; margin-top: 2rem;">
-<a href="/docs/en/installation/quickstart" class="marketing-cta-button marketing-cta-primary">Quick Start Guide</a>
+<a href="/web/docs/en/installation/quickstart" class="marketing-cta-button marketing-cta-primary">Quick Start Guide</a>
 <a href="https://github.com/incoxx/publixx-pim" class="marketing-cta-button marketing-cta-secondary" target="_blank" rel="noopener">GitHub Repository</a>
 </div>
 
