@@ -79,8 +79,8 @@ class ImportController extends Controller
         }
 
         $force = (bool) $request->input('force', false);
-        $mode = $request->input('mode', 'update'); // 'update' oder 'delete_insert'
-        if (!in_array($mode, ['update', 'delete_insert'])) {
+        $mode = $request->input('mode', 'update'); // 'update', 'delete_insert' oder 'delete'
+        if (!in_array($mode, ['update', 'delete_insert', 'delete'])) {
             $mode = 'update';
         }
         $this->importService->execute($import, $force, $mode);

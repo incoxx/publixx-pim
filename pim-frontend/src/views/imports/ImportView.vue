@@ -28,7 +28,12 @@ const selectedProfileId = ref(null)
 
 // Step 2: Mapping
 const mappingTab = ref('products')
-const importMode = ref('update') // 'update' oder 'delete_insert'
+const importMode = ref('update') // 'update', 'delete_insert', 'delete'
+const importModes = [
+  { value: 'update', label: 'Update', hint: 'vorhandene aktualisieren' },
+  { value: 'delete_insert', label: 'Delete / Insert', hint: 'komplett neu anlegen' },
+  { value: 'delete', label: 'Löschen', hint: 'per SKU löschen' },
+]
 const skuColumn = ref('SKU')
 const productTypeId = ref(null)
 const columnMappings = ref([])
@@ -486,27 +491,25 @@ const logLevelIcon = { info: CheckCircle, warning: AlertTriangle, error: XCircle
     <!-- Step 2: Mapping -->
     <div v-if="step === 2" class="space-y-4">
       <!-- Import-Modus -->
-      <div class="flex items-center gap-4 px-1">
+      <div class="flex items-center gap-4 px-1 flex-wrap">
         <span class="text-[11px] font-medium text-[var(--color-text-secondary)]">Import-Modus:</span>
-        <label class="flex items-center gap-1.5 cursor-pointer">
-          <input type="radio" v-model="importMode" value="update" class="radio radio-xs radio-accent" />
-          <span class="text-xs" :class="importMode === 'update' ? 'text-[var(--color-text-primary)] font-medium' : 'text-[var(--color-text-tertiary)]'">
-            Update
+        <label v-for="mode in importModes" :key="mode.value" class="flex items-center gap-1.5 cursor-pointer">
+          <input type="radio" v-model="importMode" :value="mode.value" class="radio radio-xs radio-accent" />
+          <span class="text-xs" :class="importMode === mode.value ? 'text-[var(--color-text-primary)] font-medium' : 'text-[var(--color-text-tertiary)]'">
+            {{ mode.label }}
           </span>
-          <span class="text-[10px] text-[var(--color-text-tertiary)]">(vorhandene aktualisieren)</span>
-        </label>
-        <label class="flex items-center gap-1.5 cursor-pointer">
-          <input type="radio" v-model="importMode" value="delete_insert" class="radio radio-xs radio-accent" />
-          <span class="text-xs" :class="importMode === 'delete_insert' ? 'text-[var(--color-text-primary)] font-medium' : 'text-[var(--color-text-tertiary)]'">
-            Delete / Insert
-          </span>
-          <span class="text-[10px] text-[var(--color-text-tertiary)]">(komplett neu anlegen)</span>
+          <span class="text-[10px] text-[var(--color-text-tertiary)]">({{ mode.hint }})</span>
         </label>
       </div>
 
       <div v-if="importMode === 'delete_insert'" class="p-3 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-800">
         <AlertTriangle class="inline w-3.5 h-3.5 -mt-0.5 mr-1" :stroke-width="2" />
         Achtung: Alle Produkte aus der Datei werden zuerst gelöscht (inkl. Werte, Preise, Beziehungen, Medien) und dann komplett neu angelegt.
+      </div>
+
+      <div v-if="importMode === 'delete'" class="p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-800">
+        <XCircle class="inline w-3.5 h-3.5 -mt-0.5 mr-1" :stroke-width="2" />
+        Achtung: Alle Produkte aus der Datei (anhand SKU) werden unwiderruflich gelöscht inkl. aller zugehörigen Daten.
       </div>
 
       <div class="flex border-b border-[var(--color-border)]">
