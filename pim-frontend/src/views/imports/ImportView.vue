@@ -100,7 +100,7 @@ async function handleUpload(e) {
       if (firstSheet?.headers) {
         columnMappings.value = firstSheet.headers
           .filter(h => h.toLowerCase() !== 'sku')
-          .map(h => ({ source: h, target_attribute_id: '', language: 'de' }))
+          .map(h => ({ source: h, target_attribute_id: '', language: '' }))
 
         // Erkannte Datentypen speichern + Checkboxen initialisieren
         if (firstSheet.detected_types) {
@@ -164,9 +164,12 @@ async function deleteProfile(id) {
   }
 }
 
+const autoMatchedSources = ref(new Set()) // Track which sources were auto-matched
+
 function autoMatch() {
   if (!analysis.value?.available_attributes) return
   const attrs = analysis.value.available_attributes
+  const matched = new Set()
   columnMappings.value = columnMappings.value.map(m => {
     if (m.target_attribute_id) return m
     const headerLower = m.source.toLowerCase()
@@ -174,8 +177,13 @@ function autoMatch() {
       a.technical_name.toLowerCase() === headerLower ||
       (a.name_de && a.name_de.toLowerCase() === headerLower)
     )
-    return match ? { ...m, target_attribute_id: match.id } : m
+    if (match) {
+      matched.add(m.source)
+      return { ...m, target_attribute_id: match.id }
+    }
+    return m
   })
+  autoMatchedSources.value = matched
 }
 
 // --- Auto-Generate ---
@@ -369,6 +377,24 @@ const sheetsInfo = computed(() => {
 const availableAttributes = computed(() => analysis.value?.available_attributes || [])
 const mappedCount = computed(() => columnMappings.value.filter(m => m.target_attribute_id).length)
 
+/** Sprache ist nur bei Text-artigen Attributen relevant (nicht bei Number, Float, Date, Flag). */
+function isLanguageRelevant(mapping) {
+  // Wenn ein Attribut zugeordnet ist, prüfe dessen Datentyp
+  if (mapping.target_attribute_id) {
+    const attr = availableAttributes.value.find(a => a.id === mapping.target_attribute_id)
+    if (attr) {
+      const nonTranslatable = ['Number', 'Float', 'Integer', 'Date', 'Flag', 'Boolean']
+      return !nonTranslatable.includes(attr.data_type)
+    }
+  }
+  // Ohne Zuordnung: prüfe erkannten Typ
+  const detected = detectedTypes.value[mapping.source]
+  if (detected) {
+    return !['Number', 'Float', 'Integer', 'Date', 'Flag', 'Boolean'].includes(detected.type)
+  }
+  return true // Default: anzeigen
+}
+
 const logLevelClass = {
   info: 'text-[var(--color-text-tertiary)]',
   warning: 'text-amber-600',
@@ -546,7 +572,12 @@ const logLevelIcon = { info: CheckCircle, warning: AlertTriangle, error: XCircle
           <div
             v-for="(mapping, i) in columnMappings"
             :key="i"
-            class="flex items-center gap-2 p-2 rounded-lg hover:bg-[var(--color-bg)]"
+            :class="[
+              'flex items-center gap-2 p-2 rounded-lg transition-colors',
+              autoMatchedSources.has(mapping.source)
+                ? 'bg-emerald-50 ring-1 ring-emerald-200'
+                : 'hover:bg-[var(--color-bg)]',
+            ]"
           >
             <input
               type="checkbox"
@@ -579,11 +610,17 @@ const logLevelIcon = { info: CheckCircle, warning: AlertTriangle, error: XCircle
                 {{ attr.name_de || attr.technical_name }} ({{ attr.data_type }})
               </option>
             </select>
-            <select class="pim-input text-xs w-16" v-model="mapping.language">
+            <select
+              v-if="isLanguageRelevant(mapping)"
+              class="pim-input text-xs w-16"
+              v-model="mapping.language"
+            >
+              <option value="">—</option>
               <option value="de">DE</option>
               <option value="en">EN</option>
               <option value="fr">FR</option>
             </select>
+            <span v-else class="w-16 text-center text-[10px] text-[var(--color-text-tertiary)]">—</span>
           </div>
         </div>
 
@@ -671,11 +708,11 @@ const logLevelIcon = { info: CheckCircle, warning: AlertTriangle, error: XCircle
       <template v-else-if="preview">
         <div class="grid grid-cols-3 gap-3">
           <div class="pim-card p-4 text-center">
-            <p class="text-2xl font-bold text-[var(--color-accent)]">{{ Object.keys(preview.summary || {}).reduce((sum, k) => sum + ((preview.summary[k]?.total_rows) || 0), 0) }}</p>
+            <p class="text-2xl font-bold text-[var(--color-accent)]">{{ Object.keys(preview.summary || {}).reduce((sum, k) => sum + ((preview.summary[k]?.total) || 0), 0) }}</p>
             <p class="text-[11px] text-[var(--color-text-tertiary)]">Zeilen gesamt</p>
           </div>
           <div class="pim-card p-4 text-center">
-            <p class="text-2xl font-bold text-[var(--color-success)]">{{ Object.keys(preview.summary || {}).reduce((sum, k) => sum + ((preview.summary[k]?.create) || 0) + ((preview.summary[k]?.update) || 0), 0) }}</p>
+            <p class="text-2xl font-bold text-[var(--color-success)]">{{ Object.keys(preview.summary || {}).reduce((sum, k) => sum + ((preview.summary[k]?.valid) || 0), 0) }}</p>
             <p class="text-[11px] text-[var(--color-text-tertiary)]">Gültige Zeilen</p>
           </div>
           <div class="pim-card p-4 text-center">
@@ -733,10 +770,10 @@ const logLevelIcon = { info: CheckCircle, warning: AlertTriangle, error: XCircle
             >
               <span class="font-medium text-[var(--color-text-primary)]">{{ sheetKey }}</span>
               <div class="flex gap-4 text-[var(--color-text-tertiary)]">
-                <span>{{ info.create ?? 0 }} neu</span>
-                <span>{{ info.update ?? 0 }} aktualisieren</span>
-                <span>{{ info.skip ?? 0 }} übersprungen</span>
-                <span v-if="info.error_count" class="text-[var(--color-error)]">{{ info.error_count }} Fehler</span>
+                <span>{{ info.total ?? 0 }} Zeilen</span>
+                <span>{{ info.creates ?? 0 }} neu</span>
+                <span>{{ info.updates ?? 0 }} aktualisieren</span>
+                <span v-if="info.errors" class="text-[var(--color-error)]">{{ info.errors }} Fehler</span>
               </div>
             </div>
           </div>
