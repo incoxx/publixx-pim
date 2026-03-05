@@ -13,7 +13,10 @@ use App\Http\Controllers\Api\V1\DebugController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\DeploymentController;
 use App\Http\Controllers\Api\V1\ExportController;
+use App\Http\Controllers\Api\V1\ExportProfileController;
+use App\Http\Controllers\Api\V1\ImportProfileController;
 use App\Http\Controllers\Api\V1\LoadDemoDataController;
+use App\Http\Controllers\Api\V1\SearchProfileController;
 use App\Http\Controllers\Api\V1\HierarchyController;
 use App\Http\Controllers\Api\V1\HierarchyNodeAttributeValueController;
 use App\Http\Controllers\Api\V1\HierarchyNodeController;
@@ -292,7 +295,27 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::get('imports/{import}/preview', [ImportController::class, 'preview']);
     Route::post('imports/{import}/execute', [ImportController::class, 'execute']);
     Route::get('imports/{import}/result', [ImportController::class, 'result']);
+    Route::get('imports/{import}/logs', [ImportController::class, 'logs']);
+    Route::get('imports/{import}/errors/download', [ImportController::class, 'downloadErrors']);
     Route::delete('imports/{import}', [ImportController::class, 'destroy']);
+
+    // =====================================================================
+    // Search Profiles (Suchprofile)
+    // =====================================================================
+    Route::apiResource('search-profiles', SearchProfileController::class)->except(['show']);
+
+    // =====================================================================
+    // Export Profiles (Exportprofile)
+    // =====================================================================
+    Route::apiResource('export-profiles', ExportProfileController::class)->except(['show']);
+    Route::post('export-profiles/{export_profile}/execute', [ExportProfileController::class, 'execute']);
+
+    // =====================================================================
+    // Import Profiles (Importprofile)
+    // =====================================================================
+    Route::apiResource('import-profiles', ImportProfileController::class)->except(['show']);
+    Route::post('import-profiles/analyze', [ImportProfileController::class, 'analyze']);
+    Route::post('import-profiles/{import_profile}/preview', [ImportProfileController::class, 'preview']);
 
     // =====================================================================
     // Watchlist (Merkliste)

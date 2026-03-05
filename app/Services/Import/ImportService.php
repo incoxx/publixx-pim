@@ -32,6 +32,7 @@ class ImportService
         private readonly SheetValidator $validator,
         private readonly ImportExecutor $executor,
         private readonly TemplateGenerator $templateGenerator,
+        private readonly ImportLogger $logger,
     ) {}
 
     // ──────────────────────────────────────────────
@@ -71,6 +72,11 @@ class ImportService
 
         Log::channel('import')->info("Import hochgeladen: {$uuid}", [
             'file' => $fileName,
+            'sheets' => $parseResult->sheetsFound,
+            'total_rows' => $parseResult->totalRows(),
+        ]);
+
+        $this->logger->info($importJob, 'upload', "Datei '{$fileName}' hochgeladen", [
             'sheets' => $parseResult->sheetsFound,
             'total_rows' => $parseResult->totalRows(),
         ]);
@@ -122,6 +128,22 @@ class ImportService
             'has_errors' => $validationResult->hasErrors,
             'error_count' => count($validationResult->errors),
         ]);
+
+        $this->logger->info($importJob, 'validation', 'Validierung abgeschlossen', [
+            'has_errors' => $validationResult->hasErrors,
+            'error_count' => count($validationResult->errors),
+        ]);
+
+        if ($validationResult->hasErrors) {
+            foreach ($validationResult->errors as $error) {
+                $this->logger->logRow(
+                    $importJob, 'validation', 'error',
+                    $error['sheet'], $error['row'] ?? 0, $error['column'] ?? null,
+                    $error['error'],
+                    array_filter(['value' => $error['value'], 'suggestion' => $error['suggestion']]),
+                );
+            }
+        }
 
         return $importJob->fresh();
     }
@@ -204,6 +226,8 @@ class ImportService
             'started_at' => now(),
         ]);
 
+        $this->logger->info($importJob, 'execution', 'Import-Ausführung gestartet');
+
         try {
             $result = $this->executor->execute($parseResult);
 
@@ -219,6 +243,8 @@ class ImportService
             ));
 
             Log::channel('import')->info("Import synchron abgeschlossen: {$importJob->id}", $result->stats);
+
+            $this->logger->info($importJob, 'execution', 'Import erfolgreich abgeschlossen', $result->stats);
         } catch (\Throwable $e) {
             $importJob->update([
                 'status' => 'failed',
@@ -227,6 +253,8 @@ class ImportService
             ]);
 
             Log::channel('import')->error("Import fehlgeschlagen: {$importJob->id}", ['error' => $e->getMessage()]);
+
+            $this->logger->error($importJob, 'execution', "Import fehlgeschlagen: {$e->getMessage()}");
             throw $e;
         }
 
