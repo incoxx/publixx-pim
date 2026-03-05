@@ -56,6 +56,23 @@ async function saveProfile({ name, is_shared }) {
   }
 }
 
+async function updateProfile({ id, name, is_shared }) {
+  try {
+    await searchProfilesApi.update(id, {
+      name,
+      is_shared,
+      search_text: searchInput.value,
+      search_mode: searchMode.value,
+      status_filter: statusFilter.value || null,
+      category_ids: selectedCategories.value,
+      attribute_filters: attributeFilters.value,
+    })
+    await loadProfiles()
+  } catch (e) {
+    error.value = 'Profil konnte nicht aktualisiert werden'
+  }
+}
+
 async function deleteProfile(id) {
   try {
     await searchProfilesApi.remove(id)
@@ -366,6 +383,7 @@ function openBulkEditor() {
       label="Suchprofil"
       @load="loadProfile"
       @save="saveProfile"
+      @update="updateProfile"
       @delete="deleteProfile"
     />
 

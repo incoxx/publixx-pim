@@ -164,6 +164,24 @@ async function saveProfile({ name, is_shared }) {
   }
 }
 
+async function updateProfile({ id, name, is_shared }) {
+  try {
+    await importProfilesApi.update(id, {
+      name,
+      is_shared,
+      sku_column: skuColumn.value,
+      product_type_id: productTypeId.value,
+      column_mappings: columnMappings.value.filter(m => m.target_attribute_id),
+      price_mappings: priceMappings.value.length ? priceMappings.value : null,
+      relation_mappings: relationMappings.value.length ? relationMappings.value : null,
+    })
+    const { data } = await importProfilesApi.list()
+    importProfiles.value = data.data || data
+  } catch (e) {
+    error.value = 'Profil konnte nicht aktualisiert werden'
+  }
+}
+
 async function deleteProfile(id) {
   try {
     await importProfilesApi.remove(id)
@@ -514,6 +532,7 @@ const logLevelIcon = { info: CheckCircle, warning: AlertTriangle, error: XCircle
       label="Import-Profil"
       @load="loadProfile"
       @save="saveProfile"
+      @update="updateProfile"
       @delete="deleteProfile"
     />
 

@@ -83,9 +83,16 @@ async function countProducts() {
   } finally { countLoading.value = false }
 }
 
+function loadSearchProfileById(id) {
+  selectedSearchProfileId.value = id || null
+  if (!id) return
+  loadSearchProfile(id)
+}
+
 function loadSearchProfile(id) {
   const profile = searchProfiles.value.find(p => p.id === id)
   if (!profile) return
+  selectedSearchProfileId.value = id
   filters.value = {
     status: profile.status_filter || '',
     category_ids: profile.category_ids || [],
@@ -94,6 +101,53 @@ function loadSearchProfile(id) {
   }
   selectedSearchProfileId.value = id
   countProducts()
+}
+
+async function saveSearchProfile({ name, is_shared }) {
+  try {
+    await searchProfilesApi.create({
+      name,
+      is_shared,
+      search_text: '',
+      search_mode: 'like',
+      status_filter: filters.value.status || null,
+      category_ids: filters.value.category_ids || [],
+      attribute_filters: filters.value.attribute_filters || {},
+    })
+    const { data } = await searchProfilesApi.list()
+    searchProfiles.value = data.data || data
+  } catch (e) {
+    error.value = 'Suchprofil konnte nicht gespeichert werden'
+  }
+}
+
+async function updateSearchProfile({ id, name, is_shared }) {
+  try {
+    await searchProfilesApi.update(id, {
+      name,
+      is_shared,
+      search_text: '',
+      search_mode: 'like',
+      status_filter: filters.value.status || null,
+      category_ids: filters.value.category_ids || [],
+      attribute_filters: filters.value.attribute_filters || {},
+    })
+    const { data } = await searchProfilesApi.list()
+    searchProfiles.value = data.data || data
+  } catch (e) {
+    error.value = 'Suchprofil konnte nicht aktualisiert werden'
+  }
+}
+
+async function deleteSearchProfile(id) {
+  try {
+    await searchProfilesApi.remove(id)
+    if (selectedSearchProfileId.value === id) selectedSearchProfileId.value = null
+    const { data } = await searchProfilesApi.list()
+    searchProfiles.value = data.data || data
+  } catch (e) {
+    error.value = 'Suchprofil konnte nicht gelöscht werden'
+  }
 }
 
 function loadExportProfile(id) {
@@ -135,6 +189,30 @@ async function saveExportProfile({ name, is_shared }) {
     exportProfiles.value = data.data || data
   } catch (e) {
     error.value = 'Profil konnte nicht gespeichert werden'
+  }
+}
+
+async function updateExportProfile({ id, name, is_shared }) {
+  try {
+    await exportProfilesApi.update(id, {
+      name,
+      is_shared,
+      search_profile_id: selectedSearchProfileId.value,
+      include_products: includeProducts.value,
+      include_attributes: includeAttributes.value,
+      include_hierarchies: includeHierarchies.value,
+      include_prices: includePrices.value,
+      include_relations: includeRelations.value,
+      include_media: includeMedia.value,
+      include_variants: includeVariants.value,
+      languages: selectedLanguages.value,
+      format: format.value,
+      file_name_template: fileName.value || null,
+    })
+    const { data } = await exportProfilesApi.list()
+    exportProfiles.value = data.data || data
+  } catch (e) {
+    error.value = 'Profil konnte nicht aktualisiert werden'
   }
 }
 
@@ -240,6 +318,7 @@ const tabs = [
       label="Export-Profil"
       @load="loadExportProfile"
       @save="saveExportProfile"
+      @update="updateExportProfile"
       @delete="deleteExportProfile"
     />
 
@@ -262,19 +341,15 @@ const tabs = [
 
     <!-- Tab: Suchfilter -->
     <div v-if="activeTab === 'filter'" class="space-y-4">
-      <div class="flex items-center gap-3 mb-2">
-        <p class="text-xs text-[var(--color-text-secondary)]">Suchprofil verwenden:</p>
-        <select
-          class="pim-input text-xs w-64"
-          :value="selectedSearchProfileId"
-          @change="loadSearchProfile($event.target.value)"
-        >
-          <option value="">— Eigene Filter setzen —</option>
-          <option v-for="p in searchProfiles" :key="p.id" :value="p.id">
-            {{ p.name }}{{ p.is_shared ? ' (geteilt)' : '' }}
-          </option>
-        </select>
-      </div>
+      <ProfileSelector
+        :profiles="searchProfiles"
+        v-model="selectedSearchProfileId"
+        label="Suchprofil"
+        @load="loadSearchProfileById"
+        @save="saveSearchProfile"
+        @update="updateSearchProfile"
+        @delete="deleteSearchProfile"
+      />
 
       <SearchFilterPanel v-model="filters" />
 

@@ -1,6 +1,6 @@
 <script setup>
-import { ref } from 'vue'
-import { Save, Trash2, FolderOpen, Share2 } from 'lucide-vue-next'
+import { ref, computed } from 'vue'
+import { Save, Trash2, FolderOpen, Share2, Pencil, Plus } from 'lucide-vue-next'
 
 const props = defineProps({
   profiles: { type: Array, default: () => [] },
@@ -10,11 +10,16 @@ const props = defineProps({
   label: { type: String, default: 'Profil' },
 })
 
-const emit = defineEmits(['update:modelValue', 'load', 'save', 'delete'])
+const emit = defineEmits(['update:modelValue', 'load', 'save', 'update', 'delete'])
 
 const showSaveDialog = ref(false)
 const saveName = ref('')
 const saveShared = ref(false)
+const saveMode = ref('create') // 'create' | 'update'
+
+const selectedProfile = computed(() =>
+  props.profiles.find(p => p.id === props.modelValue) || null
+)
 
 function onSelect(e) {
   const id = e.target.value
@@ -24,15 +29,27 @@ function onSelect(e) {
   }
 }
 
-function openSaveDialog() {
+function openSaveAsNew() {
+  saveMode.value = 'create'
   saveName.value = ''
   saveShared.value = false
   showSaveDialog.value = true
 }
 
+function openUpdateDialog() {
+  saveMode.value = 'update'
+  saveName.value = selectedProfile.value?.name || ''
+  saveShared.value = selectedProfile.value?.is_shared || false
+  showSaveDialog.value = true
+}
+
 function confirmSave() {
   if (!saveName.value.trim()) return
-  emit('save', { name: saveName.value.trim(), is_shared: saveShared.value })
+  if (saveMode.value === 'update' && props.modelValue) {
+    emit('update', { id: props.modelValue, name: saveName.value.trim(), is_shared: saveShared.value })
+  } else {
+    emit('save', { name: saveName.value.trim(), is_shared: saveShared.value })
+  }
   showSaveDialog.value = false
 }
 
@@ -62,13 +79,24 @@ function deleteProfile() {
       </select>
     </div>
 
+    <!-- Update existing profile -->
+    <button
+      v-if="canSave && modelValue"
+      class="pim-btn pim-btn-secondary text-xs px-2 py-1.5"
+      title="Profil aktualisieren"
+      @click="openUpdateDialog"
+    >
+      <Save class="w-3.5 h-3.5" :stroke-width="1.75" />
+    </button>
+
+    <!-- Save as new -->
     <button
       v-if="canSave"
       class="pim-btn pim-btn-secondary text-xs px-2 py-1.5"
-      title="Profil speichern"
-      @click="openSaveDialog"
+      title="Als neues Profil speichern"
+      @click="openSaveAsNew"
     >
-      <Save class="w-3.5 h-3.5" :stroke-width="1.75" />
+      <Plus class="w-3.5 h-3.5" :stroke-width="1.75" />
     </button>
 
     <button
@@ -86,13 +114,15 @@ function deleteProfile() {
         <div v-if="showSaveDialog" class="fixed inset-0 z-50 flex items-center justify-center">
           <div class="absolute inset-0 bg-black/30 backdrop-blur-sm" @click="showSaveDialog = false" />
           <div class="relative bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl shadow-xl p-5 w-80 space-y-4">
-            <h3 class="text-sm font-semibold text-[var(--color-text-primary)]">{{ label }} speichern</h3>
+            <h3 class="text-sm font-semibold text-[var(--color-text-primary)]">
+              {{ saveMode === 'update' ? `${label} aktualisieren` : `${label} speichern` }}
+            </h3>
             <div>
               <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">Name</label>
               <input
                 v-model="saveName"
                 class="pim-input text-xs w-full"
-                placeholder="Profilname eingeben..."
+                :placeholder="saveMode === 'update' ? 'Profilname ändern...' : 'Profilname eingeben...'"
                 @keydown.enter="confirmSave"
                 autofocus
               />
@@ -104,7 +134,9 @@ function deleteProfile() {
             </label>
             <div class="flex justify-end gap-2">
               <button class="pim-btn pim-btn-secondary text-xs" @click="showSaveDialog = false">Abbrechen</button>
-              <button class="pim-btn pim-btn-primary text-xs" :disabled="!saveName.trim()" @click="confirmSave">Speichern</button>
+              <button class="pim-btn pim-btn-primary text-xs" :disabled="!saveName.trim()" @click="confirmSave">
+                {{ saveMode === 'update' ? 'Aktualisieren' : 'Speichern' }}
+              </button>
             </div>
           </div>
         </div>
