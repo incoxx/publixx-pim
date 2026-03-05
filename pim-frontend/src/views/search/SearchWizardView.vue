@@ -138,7 +138,8 @@ const categoryColumns = {
 
 // Category selection
 const hierarchies = ref([])
-const hierarchyTree = ref([])
+const hierarchyTrees = ref({})
+const selectedHierarchyId = ref(null)
 const selectedCategories = ref([])
 const showCategoryPicker = ref(false)
 
@@ -184,6 +185,11 @@ const activeFilterCount = computed(() => {
   return count
 })
 
+const currentHierarchyTree = computed(() => {
+  if (!selectedHierarchyId.value) return []
+  return hierarchyTrees.value[selectedHierarchyId.value] || []
+})
+
 const flatCategoryNodes = computed(() => {
   const result = []
   function flatten(nodes, prefix = '') {
@@ -199,7 +205,7 @@ const flatCategoryNodes = computed(() => {
       }
     }
   }
-  flatten(hierarchyTree.value)
+  flatten(currentHierarchyTree.value)
   return result
 })
 
@@ -211,13 +217,18 @@ const searchModeLabel = computed(() => ({
 
 // --- Load data ---
 onMounted(async () => {
-  // Load hierarchies
+  // Load hierarchies and all their trees
   try {
     const { data } = await hierarchiesApi.list()
     hierarchies.value = data.data || data
     if (hierarchies.value.length > 0) {
-      const { data: treeData } = await hierarchiesApi.getTree(hierarchies.value[0].id)
-      hierarchyTree.value = treeData.data || treeData
+      selectedHierarchyId.value = hierarchies.value[0].id
+      const trees = {}
+      await Promise.all(hierarchies.value.map(async (h) => {
+        const { data: treeData } = await hierarchiesApi.getTree(h.id)
+        trees[h.id] = treeData.data || treeData
+      }))
+      hierarchyTrees.value = trees
     }
   } catch (e) {
     console.error('Failed to load hierarchies', e)
@@ -629,23 +640,39 @@ function openBulkEditor() {
               {{ selectedCategories.length }}
             </span>
           </button>
-          <div v-if="showCategoryPicker" class="max-h-48 overflow-y-auto border border-[var(--color-border)] rounded-lg p-2 space-y-0.5">
-            <label
-              v-for="cat in flatCategoryNodes"
-              :key="cat.id"
-              class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[var(--color-bg)] cursor-pointer text-xs"
-            >
-              <input
-                type="checkbox"
-                :checked="isCategorySelected(cat.id)"
-                @change="toggleCategory(cat.id)"
-                class="rounded border-[var(--color-border)]"
-              />
-              <span class="text-[var(--color-text-primary)]">{{ cat.label }}</span>
-            </label>
-            <p v-if="flatCategoryNodes.length === 0" class="text-xs text-[var(--color-text-tertiary)] py-2 text-center">
-              Keine Kategorien vorhanden
-            </p>
+          <div v-if="showCategoryPicker" class="space-y-2">
+            <!-- Hierarchy selector -->
+            <div v-if="hierarchies.length > 1" class="flex items-center gap-2">
+              <label class="text-[11px] font-medium text-[var(--color-text-tertiary)]">Hierarchie:</label>
+              <select
+                class="pim-input text-xs flex-1"
+                :value="selectedHierarchyId"
+                @change="selectedHierarchyId = $event.target.value"
+              >
+                <option v-for="h in hierarchies" :key="h.id" :value="h.id">
+                  {{ h.name_de || h.name_en || h.technical_name }}
+                </option>
+              </select>
+            </div>
+            <!-- Category nodes -->
+            <div class="max-h-48 overflow-y-auto border border-[var(--color-border)] rounded-lg p-2 space-y-0.5">
+              <label
+                v-for="cat in flatCategoryNodes"
+                :key="cat.id"
+                class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[var(--color-bg)] cursor-pointer text-xs"
+              >
+                <input
+                  type="checkbox"
+                  :checked="isCategorySelected(cat.id)"
+                  @change="toggleCategory(cat.id)"
+                  class="rounded border-[var(--color-border)]"
+                />
+                <span class="text-[var(--color-text-primary)]">{{ cat.label }}</span>
+              </label>
+              <p v-if="flatCategoryNodes.length === 0" class="text-xs text-[var(--color-text-tertiary)] py-2 text-center">
+                Keine Kategorien vorhanden
+              </p>
+            </div>
           </div>
         </div>
 
