@@ -7,11 +7,15 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Requests\Api\V1\StoreImportRequest;
 use App\Http\Resources\Api\V1\ImportJobResource;
 use App\Models\ImportJob;
+use App\Models\ImportJobError;
+use App\Models\ImportLog;
 use App\Services\Export\ImportFormatExporter;
 use App\Services\Import\ImportService;
 use App\Services\Import\TemplateGenerator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class ImportController extends Controller
 {
@@ -123,6 +127,74 @@ class ImportController extends Controller
         $filePath = $generator->generate($type);
 
         return response()->download($filePath, "pim-import-template-{$type}.xlsx", [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ])->deleteFileAfterSend();
+    }
+
+    /**
+     * GET /imports/{import}/logs — detailed execution log.
+     */
+    public function logs(Request $request, ImportJob $import): JsonResponse
+    {
+        $this->authorize('view', $import);
+
+        $level = $request->input('level');
+        $phase = $request->input('phase');
+
+        $query = ImportLog::where('import_job_id', $import->id)
+            ->orderBy('created_at');
+
+        if ($level) {
+            $query->where('level', $level);
+        }
+        if ($phase) {
+            $query->where('phase', $phase);
+        }
+
+        $logs = $query->get();
+
+        return response()->json(['data' => $logs]);
+    }
+
+    /**
+     * GET /imports/{import}/errors/download — download error report as Excel.
+     */
+    public function downloadErrors(ImportJob $import): \Symfony\Component\HttpFoundation\BinaryFileResponse|JsonResponse
+    {
+        $this->authorize('view', $import);
+
+        $errors = ImportJobError::where('import_job_id', $import->id)->get();
+
+        if ($errors->isEmpty()) {
+            return response()->json(['message' => 'Keine Fehler vorhanden.'], 404);
+        }
+
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Fehlerbericht');
+
+        $headers = ['Zeile', 'Spalte', 'Feld', 'Wert', 'Fehler', 'Vorschlag', 'Sheet'];
+        foreach ($headers as $col => $header) {
+            $sheet->setCellValue([$col + 1, 1], $header);
+        }
+
+        $row = 2;
+        foreach ($errors as $error) {
+            $sheet->setCellValue([1, $row], $error->row);
+            $sheet->setCellValue([2, $row], $error->column);
+            $sheet->setCellValue([3, $row], $error->field);
+            $sheet->setCellValue([4, $row], $error->value);
+            $sheet->setCellValue([5, $row], $error->error);
+            $sheet->setCellValue([6, $row], $error->suggestion);
+            $sheet->setCellValue([7, $row], $error->sheet);
+            $row++;
+        }
+
+        $filePath = tempnam(sys_get_temp_dir(), 'import-errors-') . '.xlsx';
+        $writer = new Xlsx($spreadsheet);
+        $writer->save($filePath);
+
+        return response()->download($filePath, "fehlerbericht-{$import->id}.xlsx", [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         ])->deleteFileAfterSend();
     }

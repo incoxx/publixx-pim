@@ -7,13 +7,64 @@ import {
   Regex, AudioLines, Languages, Download, GitCompareArrows, Pencil,
 } from 'lucide-vue-next'
 import searchApi from '@/api/search'
+import searchProfilesApi from '@/api/searchProfiles'
 import watchlistApi from '@/api/watchlist'
 import productsApi from '@/api/products'
 import hierarchiesApi from '@/api/hierarchies'
 import PimTable from '@/components/shared/PimTable.vue'
+import ProfileSelector from '@/components/shared/ProfileSelector.vue'
 
 const router = useRouter()
 const localeStore = useLocaleStore()
+
+// --- Search Profiles ---
+const searchProfiles = ref([])
+const selectedProfileId = ref(null)
+
+async function loadProfiles() {
+  try {
+    const { data } = await searchProfilesApi.list()
+    searchProfiles.value = data.data || data
+  } catch (e) { /* ignore */ }
+}
+
+async function loadProfile(id) {
+  const profile = searchProfiles.value.find(p => p.id === id)
+  if (!profile) return
+  searchInput.value = profile.search_text || ''
+  searchMode.value = profile.search_mode || 'like'
+  statusFilter.value = profile.status_filter || ''
+  selectedCategories.value = profile.category_ids || []
+  attributeFilters.value = profile.attribute_filters || {}
+  doSearch(1)
+}
+
+async function saveProfile({ name, is_shared }) {
+  try {
+    await searchProfilesApi.create({
+      name,
+      is_shared,
+      search_text: searchInput.value,
+      search_mode: searchMode.value,
+      status_filter: statusFilter.value || null,
+      category_ids: selectedCategories.value,
+      attribute_filters: attributeFilters.value,
+    })
+    await loadProfiles()
+  } catch (e) {
+    error.value = 'Profil konnte nicht gespeichert werden'
+  }
+}
+
+async function deleteProfile(id) {
+  try {
+    await searchProfilesApi.remove(id)
+    selectedProfileId.value = null
+    await loadProfiles()
+  } catch (e) {
+    error.value = 'Profil konnte nicht gelöscht werden'
+  }
+}
 
 // --- State ---
 const searchInput = ref('')
@@ -129,6 +180,9 @@ onMounted(async () => {
     const { data } = await watchlistApi.productIds()
     watchlistIds.value = new Set(data.data || data)
   } catch (e) { /* ignore */ }
+
+  // Load search profiles
+  loadProfiles()
 })
 
 // --- Actions ---
@@ -305,6 +359,16 @@ function openBulkEditor() {
 
 <template>
   <div class="space-y-4 max-w-4xl mx-auto">
+    <!-- Search Profile Selector -->
+    <ProfileSelector
+      :profiles="searchProfiles"
+      v-model="selectedProfileId"
+      label="Suchprofil"
+      @load="loadProfile"
+      @save="saveProfile"
+      @delete="deleteProfile"
+    />
+
     <!-- Search header -->
     <div class="flex flex-wrap items-center gap-2 sm:gap-3">
       <div class="relative flex-1 min-w-0">

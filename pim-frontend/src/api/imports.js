@@ -32,4 +32,12 @@ export default {
   cancel(id) {
     return client.delete(`/imports/${id}`)
   },
+
+  getLogs(id, params = {}) {
+    return client.get(`/imports/${id}/logs`, { params })
+  },
+
+  downloadErrors(id) {
+    return client.get(`/imports/${id}/errors/download`, { responseType: 'blob' })
+  },
 }

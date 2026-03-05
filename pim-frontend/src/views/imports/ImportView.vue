@@ -1,31 +1,218 @@
 <script setup>
-import { ref } from 'vue'
-import { Upload, FileSpreadsheet, Download } from 'lucide-vue-next'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import {
+  Upload, FileSpreadsheet, Download, ArrowRight, ArrowLeft,
+  CheckCircle, AlertTriangle, XCircle, Play, RefreshCw, Columns3,
+  Wand2,
+} from 'lucide-vue-next'
 import importsApi from '@/api/imports'
+import importProfilesApi from '@/api/importProfiles'
+import ProfileSelector from '@/components/shared/ProfileSelector.vue'
 
-const file = ref(null)
-const importJob = ref(null)
-const uploading = ref(false)
+// --- Wizard State ---
+const step = ref(1) // 1=Upload, 2=Mapping, 3=Preview, 4=Execute
 const error = ref('')
 
+// Step 1: Upload
+const file = ref(null)
+const fileInput = ref(null)
+const uploading = ref(false)
+const importJob = ref(null)
+const analysis = ref(null)
+
+// Import Profiles
+const importProfiles = ref([])
+const selectedProfileId = ref(null)
+
+// Step 2: Mapping
+const mappingTab = ref('products')
+const skuColumn = ref('SKU')
+const productTypeId = ref(null)
+const columnMappings = ref([])
+const priceMappings = ref([])
+const relationMappings = ref([])
+
+// Step 3: Preview
+const preview = ref(null)
+const previewLoading = ref(false)
+
+// Step 4: Execute
+const executing = ref(false)
+const executionResult = ref(null)
+const logs = ref([])
+const logPolling = ref(null)
+
+onMounted(async () => {
+  try {
+    const { data } = await importProfilesApi.list()
+    importProfiles.value = data.data || data
+  } catch (e) { /* ignore */ }
+})
+
+onUnmounted(() => {
+  if (logPolling.value) clearInterval(logPolling.value)
+})
+
+// --- Step 1: Upload ---
 async function handleUpload(e) {
-  const f = e.target.files?.[0]
+  const f = e.target?.files?.[0]
   if (!f) return
   file.value = f
   uploading.value = true
   error.value = ''
+
   try {
-    const { data } = await importsApi.upload(f)
-    importJob.value = data.data || data
+    const [uploadRes, analyzeRes] = await Promise.all([
+      importsApi.upload(f),
+      importProfilesApi.analyze(f),
+    ])
+    importJob.value = uploadRes.data.data || uploadRes.data
+    analysis.value = analyzeRes.data.data || analyzeRes.data
+
+    if (analysis.value?.sheets) {
+      const firstSheet = Object.values(analysis.value.sheets)[0]
+      if (firstSheet?.headers) {
+        columnMappings.value = firstSheet.headers
+          .filter(h => h.toLowerCase() !== 'sku')
+          .map(h => ({ source: h, target_attribute_id: '', language: 'de' }))
+      }
+    }
   } catch (err) {
-    error.value = err.response?.data?.title || 'Upload fehlgeschlagen'
+    error.value = err.response?.data?.title || err.response?.data?.message || 'Upload fehlgeschlagen'
   } finally { uploading.value = false }
 }
 
+function handleDrop(e) {
+  e.preventDefault()
+  const f = e.dataTransfer?.files?.[0]
+  if (f) handleUpload({ target: { files: [f] } })
+}
+
+// --- Profile ---
+function loadProfile(id) {
+  const profile = importProfiles.value.find(p => p.id === id)
+  if (!profile) return
+  skuColumn.value = profile.sku_column || 'SKU'
+  productTypeId.value = profile.product_type_id || null
+  columnMappings.value = (profile.column_mappings || []).map(m => ({ ...m }))
+  priceMappings.value = (profile.price_mappings || []).map(m => ({ ...m }))
+  relationMappings.value = (profile.relation_mappings || []).map(m => ({ ...m }))
+}
+
+async function saveProfile({ name, is_shared }) {
+  try {
+    await importProfilesApi.create({
+      name,
+      is_shared,
+      sku_column: skuColumn.value,
+      product_type_id: productTypeId.value,
+      column_mappings: columnMappings.value.filter(m => m.target_attribute_id),
+      price_mappings: priceMappings.value.length ? priceMappings.value : null,
+      relation_mappings: relationMappings.value.length ? relationMappings.value : null,
+    })
+    const { data } = await importProfilesApi.list()
+    importProfiles.value = data.data || data
+  } catch (e) {
+    error.value = 'Profil konnte nicht gespeichert werden'
+  }
+}
+
+async function deleteProfile(id) {
+  try {
+    await importProfilesApi.remove(id)
+    selectedProfileId.value = null
+    const { data } = await importProfilesApi.list()
+    importProfiles.value = data.data || data
+  } catch (e) {
+    error.value = 'Profil konnte nicht gelöscht werden'
+  }
+}
+
+function autoMatch() {
+  if (!analysis.value?.available_attributes) return
+  const attrs = analysis.value.available_attributes
+  columnMappings.value = columnMappings.value.map(m => {
+    if (m.target_attribute_id) return m
+    const headerLower = m.source.toLowerCase()
+    const match = attrs.find(a =>
+      a.technical_name.toLowerCase() === headerLower ||
+      (a.name_de && a.name_de.toLowerCase() === headerLower)
+    )
+    return match ? { ...m, target_attribute_id: match.id } : m
+  })
+}
+
+// --- Step 3: Preview ---
+async function loadPreview() {
+  if (!importJob.value) return
+  previewLoading.value = true
+  error.value = ''
+  try {
+    const { data } = await importsApi.getPreview(importJob.value.id)
+    preview.value = data.data || data
+  } catch (e) {
+    error.value = e.response?.data?.message || 'Vorschau fehlgeschlagen'
+  } finally { previewLoading.value = false }
+}
+
+async function downloadErrors() {
+  if (!importJob.value) return
+  try {
+    const response = await importsApi.downloadErrors(importJob.value.id)
+    const url = URL.createObjectURL(new Blob([response.data]))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `fehlerbericht-${importJob.value.id}.xlsx`
+    a.click()
+    URL.revokeObjectURL(url)
+  } catch (e) {
+    error.value = 'Fehlerbericht konnte nicht heruntergeladen werden'
+  }
+}
+
+// --- Step 4: Execute ---
 async function executeImport() {
   if (!importJob.value) return
-  try { await importsApi.execute(importJob.value.id); importJob.value.status = 'executing' }
-  catch (err) { error.value = err.response?.data?.title || 'Import fehlgeschlagen' }
+  executing.value = true
+  error.value = ''
+  logs.value = []
+
+  logPolling.value = setInterval(pollLogs, 2000)
+
+  try {
+    await importsApi.execute(importJob.value.id)
+    await pollStatus()
+  } catch (e) {
+    error.value = e.response?.data?.message || 'Import fehlgeschlagen'
+  } finally {
+    executing.value = false
+    if (logPolling.value) { clearInterval(logPolling.value); logPolling.value = null }
+    await pollLogs()
+  }
+}
+
+async function pollLogs() {
+  if (!importJob.value) return
+  try {
+    const { data } = await importsApi.getLogs(importJob.value.id)
+    logs.value = data.data || data
+  } catch (e) { /* ignore */ }
+}
+
+async function pollStatus() {
+  if (!importJob.value) return
+  for (let i = 0; i < 60; i++) {
+    await new Promise(r => setTimeout(r, 2000))
+    try {
+      const { data } = await importsApi.getStatus(importJob.value.id)
+      importJob.value = data.data || data
+      if (['completed', 'failed'].includes(importJob.value.status)) {
+        const { data: resultData } = await importsApi.getResult(importJob.value.id)
+        executionResult.value = resultData.data || resultData
+        return
+      }
+    } catch (e) { break }
+  }
 }
 
 async function downloadTemplate(type) {
@@ -37,36 +224,374 @@ async function downloadTemplate(type) {
     a.download = `import-template-${type}.xlsx`
     a.click()
     URL.revokeObjectURL(url)
-  } catch (err) {
-    error.value = err.response?.data?.title || 'Download fehlgeschlagen'
+  } catch (e) {
+    error.value = 'Template-Download fehlgeschlagen'
   }
 }
+
+function resetWizard() {
+  step.value = 1
+  file.value = null
+  importJob.value = null
+  analysis.value = null
+  preview.value = null
+  executionResult.value = null
+  logs.value = []
+  error.value = ''
+}
+
+const errorCount = computed(() => preview.value?.errors?.length ?? 0)
+const sheetsInfo = computed(() => {
+  if (!analysis.value?.sheets) return []
+  return Object.values(analysis.value.sheets)
+})
+const availableAttributes = computed(() => analysis.value?.available_attributes || [])
+const mappedCount = computed(() => columnMappings.value.filter(m => m.target_attribute_id).length)
+
+const logLevelClass = {
+  info: 'text-[var(--color-text-tertiary)]',
+  warning: 'text-amber-600',
+  error: 'text-[var(--color-error)]',
+}
+const logLevelIcon = { info: CheckCircle, warning: AlertTriangle, error: XCircle }
 </script>
 
 <template>
-  <div class="space-y-6">
-    <h2 class="text-lg font-semibold text-[var(--color-text-primary)]">Import</h2>
-    <div class="pim-card p-8">
-      <div class="border-2 border-dashed border-[var(--color-border)] rounded-xl p-12 text-center hover:border-[var(--color-accent)] transition-colors">
-        <Upload class="w-8 h-8 mx-auto mb-3 text-[var(--color-text-tertiary)]" :stroke-width="1.5" />
-        <p class="text-sm text-[var(--color-text-secondary)] mb-2">Excel-Datei hier ablegen oder klicken</p>
-        <input type="file" accept=".xlsx,.xls,.csv" class="hidden" id="import-file" @change="handleUpload" />
-        <label for="import-file" class="pim-btn pim-btn-secondary text-xs cursor-pointer">{{ uploading ? 'Hochladen...' : 'Datei auswaehlen' }}</label>
-      </div>
-    </div>
-    <div v-if="error" class="p-3 rounded-lg bg-[var(--color-error-light)] text-[var(--color-error)] text-sm">{{ error }}</div>
-    <div v-if="importJob" class="pim-card p-6 space-y-4">
-      <div class="flex items-center gap-3">
-        <FileSpreadsheet class="w-5 h-5 text-[var(--color-accent)]" :stroke-width="1.75" />
-        <div><p class="text-sm font-medium">{{ file?.name }}</p><p class="text-xs text-[var(--color-text-tertiary)]">Status: {{ importJob.status }}</p></div>
-      </div>
-      <button v-if="importJob.status === 'validated'" class="pim-btn pim-btn-primary" @click="executeImport">Import ausfuehren</button>
-    </div>
-    <div class="pim-card p-6">
-      <h3 class="text-sm font-semibold text-[var(--color-text-primary)] mb-3">Vorlagen herunterladen</h3>
+  <div class="space-y-4 max-w-4xl mx-auto">
+    <div class="flex items-center justify-between">
+      <h2 class="text-lg font-semibold text-[var(--color-text-primary)]">Import</h2>
       <div class="flex gap-2">
-        <button class="pim-btn pim-btn-secondary text-xs" @click="downloadTemplate('products')"><Download class="w-3.5 h-3.5" :stroke-width="1.75" /> Produkte</button>
-        <button class="pim-btn pim-btn-secondary text-xs" @click="downloadTemplate('attributes')"><Download class="w-3.5 h-3.5" :stroke-width="1.75" /> Attribute</button>
+        <button class="pim-btn pim-btn-secondary text-xs" @click="downloadTemplate('products')">
+          <Download class="w-3.5 h-3.5" :stroke-width="1.75" />
+          Template
+        </button>
+        <button v-if="step > 1" class="pim-btn pim-btn-secondary text-xs" @click="resetWizard">
+          <RefreshCw class="w-3.5 h-3.5" :stroke-width="1.75" />
+          Neuer Import
+        </button>
+      </div>
+    </div>
+
+    <!-- Wizard Steps -->
+    <div class="flex items-center gap-1 text-[11px]">
+      <template v-for="(s, i) in ['Datei hochladen', 'Mapping', 'Vorschau & Validierung', 'Ausführen']" :key="i">
+        <div
+          :class="[
+            'flex items-center gap-1.5 px-3 py-1.5 rounded-full font-medium transition-colors',
+            step > i + 1 ? 'bg-[var(--color-success-light)] text-[var(--color-success)]' :
+            step === i + 1 ? 'bg-[var(--color-accent)] text-white' :
+            'bg-[var(--color-bg)] text-[var(--color-text-tertiary)]',
+          ]"
+        >
+          <CheckCircle v-if="step > i + 1" class="w-3 h-3" :stroke-width="2" />
+          <span v-else>{{ i + 1 }}</span>
+          <span class="hidden sm:inline">{{ s }}</span>
+        </div>
+        <ArrowRight v-if="i < 3" class="w-3 h-3 text-[var(--color-text-tertiary)]" :stroke-width="2" />
+      </template>
+    </div>
+
+    <!-- Import Profile Selector -->
+    <ProfileSelector
+      v-if="step <= 2"
+      :profiles="importProfiles"
+      v-model="selectedProfileId"
+      label="Import-Profil"
+      @load="loadProfile"
+      @save="saveProfile"
+      @delete="deleteProfile"
+    />
+
+    <!-- Step 1: Upload -->
+    <div v-if="step === 1" class="pim-card p-8">
+      <div
+        class="border-2 border-dashed border-[var(--color-border)] rounded-xl p-12 text-center hover:border-[var(--color-accent)] transition-colors cursor-pointer"
+        @dragover.prevent
+        @drop="handleDrop"
+        @click="fileInput?.click()"
+      >
+        <Upload class="w-10 h-10 mx-auto mb-3 text-[var(--color-text-tertiary)]" :stroke-width="1.5" />
+        <p class="text-sm text-[var(--color-text-secondary)]">
+          {{ uploading ? 'Wird hochgeladen und analysiert...' : 'Excel-Datei hierhin ziehen oder klicken' }}
+        </p>
+        <p class="text-xs text-[var(--color-text-tertiary)] mt-1">.xlsx Dateien bis 50 MB</p>
+        <input ref="fileInput" type="file" accept=".xlsx,.xls" class="hidden" @change="handleUpload" />
+      </div>
+
+      <div v-if="analysis && !uploading" class="mt-6 space-y-3">
+        <div class="flex items-center gap-2 text-sm text-[var(--color-text-primary)]">
+          <FileSpreadsheet class="w-4 h-4 text-[var(--color-accent)]" :stroke-width="1.75" />
+          <span class="font-medium">{{ file?.name }}</span>
+        </div>
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          <div v-for="sheet in sheetsInfo" :key="sheet.name" class="p-2 rounded-lg bg-[var(--color-bg)] text-xs">
+            <p class="font-medium text-[var(--color-text-primary)]">{{ sheet.name }}</p>
+            <p class="text-[var(--color-text-tertiary)]">{{ sheet.row_count }} Zeilen, {{ sheet.headers.length }} Spalten</p>
+          </div>
+        </div>
+        <button class="pim-btn pim-btn-primary text-xs" @click="step = 2">
+          Weiter zum Mapping
+          <ArrowRight class="w-3.5 h-3.5" :stroke-width="2" />
+        </button>
+      </div>
+    </div>
+
+    <!-- Step 2: Mapping -->
+    <div v-if="step === 2" class="space-y-4">
+      <div class="flex border-b border-[var(--color-border)]">
+        <button
+          v-for="tab in [{ key: 'products', label: 'Produkte' }, { key: 'prices', label: 'Preise' }, { key: 'relations', label: 'Beziehungen' }]"
+          :key="tab.key"
+          :class="[
+            'px-4 py-2.5 text-xs font-medium border-b-2 -mb-px',
+            mappingTab === tab.key
+              ? 'border-[var(--color-accent)] text-[var(--color-accent)]'
+              : 'border-transparent text-[var(--color-text-tertiary)]',
+          ]"
+          @click="mappingTab = tab.key"
+        >
+          {{ tab.label }}
+        </button>
+      </div>
+
+      <div v-if="mappingTab === 'products'" class="pim-card p-5 space-y-4">
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">SKU-Spalte</label>
+            <select class="pim-input text-xs w-full" v-model="skuColumn">
+              <template v-for="sheet in sheetsInfo" :key="sheet.name">
+                <option v-for="h in (sheet.headers || [])" :key="h" :value="h">{{ h }}</option>
+              </template>
+            </select>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between">
+          <h3 class="text-sm font-semibold text-[var(--color-text-primary)]">
+            <Columns3 class="inline w-4 h-4 -mt-0.5 mr-1" :stroke-width="1.75" />
+            Attribut-Mapping ({{ mappedCount }}/{{ columnMappings.length }})
+          </h3>
+          <button class="pim-btn pim-btn-secondary text-xs" @click="autoMatch">
+            <Wand2 class="w-3.5 h-3.5" :stroke-width="1.75" />
+            Auto-Match
+          </button>
+        </div>
+
+        <div class="space-y-2 max-h-[400px] overflow-y-auto">
+          <div
+            v-for="(mapping, i) in columnMappings"
+            :key="i"
+            class="flex items-center gap-3 p-2 rounded-lg hover:bg-[var(--color-bg)]"
+          >
+            <span class="text-xs font-mono text-[var(--color-text-secondary)] w-40 truncate" :title="mapping.source">
+              {{ mapping.source }}
+            </span>
+            <ArrowRight class="w-3 h-3 text-[var(--color-text-tertiary)] shrink-0" :stroke-width="2" />
+            <select class="pim-input text-xs flex-1" v-model="mapping.target_attribute_id">
+              <option value="">— Nicht zuordnen —</option>
+              <option v-for="attr in availableAttributes" :key="attr.id" :value="attr.id">
+                {{ attr.name_de || attr.technical_name }} ({{ attr.data_type }})
+              </option>
+            </select>
+            <select class="pim-input text-xs w-16" v-model="mapping.language">
+              <option value="de">DE</option>
+              <option value="en">EN</option>
+              <option value="fr">FR</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="mappingTab === 'prices'" class="pim-card p-5">
+        <p class="text-xs text-[var(--color-text-tertiary)]">
+          Preise werden aus dem Sheet "Preise" importiert, sofern vorhanden. Standard-Format: SKU, Preistyp, Betrag, Währung, Ab Menge, Gültig von, Gültig bis.
+        </p>
+      </div>
+
+      <div v-if="mappingTab === 'relations'" class="pim-card p-5">
+        <p class="text-xs text-[var(--color-text-tertiary)]">
+          Beziehungen werden aus dem Sheet "Beziehungen" importiert, sofern vorhanden. Standard-Format: Quell-SKU, Ziel-SKU, Beziehungstyp, Position.
+        </p>
+      </div>
+
+      <div class="flex gap-3">
+        <button class="pim-btn pim-btn-secondary text-xs" @click="step = 1">
+          <ArrowLeft class="w-3.5 h-3.5" :stroke-width="2" />
+          Zurück
+        </button>
+        <button class="pim-btn pim-btn-primary text-xs" @click="step = 3; loadPreview()">
+          Weiter zur Vorschau
+          <ArrowRight class="w-3.5 h-3.5" :stroke-width="2" />
+        </button>
+      </div>
+    </div>
+
+    <!-- Step 3: Preview & Validation -->
+    <div v-if="step === 3" class="space-y-4">
+      <div v-if="previewLoading" class="pim-card p-8">
+        <div class="space-y-3">
+          <div v-for="i in 5" :key="i" class="pim-skeleton h-8 rounded" />
+        </div>
+      </div>
+
+      <template v-else-if="preview">
+        <div class="grid grid-cols-3 gap-3">
+          <div class="pim-card p-4 text-center">
+            <p class="text-2xl font-bold text-[var(--color-accent)]">{{ Object.keys(preview.summary || {}).reduce((sum, k) => sum + ((preview.summary[k]?.total_rows) || 0), 0) }}</p>
+            <p class="text-[11px] text-[var(--color-text-tertiary)]">Zeilen gesamt</p>
+          </div>
+          <div class="pim-card p-4 text-center">
+            <p class="text-2xl font-bold text-[var(--color-success)]">{{ Object.keys(preview.summary || {}).reduce((sum, k) => sum + ((preview.summary[k]?.create) || 0) + ((preview.summary[k]?.update) || 0), 0) }}</p>
+            <p class="text-[11px] text-[var(--color-text-tertiary)]">Gültige Zeilen</p>
+          </div>
+          <div class="pim-card p-4 text-center">
+            <p class="text-2xl font-bold" :class="errorCount > 0 ? 'text-[var(--color-error)]' : 'text-[var(--color-text-tertiary)]'">{{ errorCount }}</p>
+            <p class="text-[11px] text-[var(--color-text-tertiary)]">Fehler</p>
+          </div>
+        </div>
+
+        <!-- Errors -->
+        <div v-if="errorCount > 0" class="pim-card border-[var(--color-error)]/30 overflow-hidden">
+          <div class="flex items-center justify-between px-4 py-3 bg-[var(--color-error-light)]">
+            <div class="flex items-center gap-2">
+              <XCircle class="w-4 h-4 text-[var(--color-error)]" :stroke-width="2" />
+              <span class="text-sm font-semibold text-[var(--color-error)]">{{ errorCount }} Validierungsfehler</span>
+            </div>
+            <button class="pim-btn pim-btn-secondary text-xs" @click="downloadErrors">
+              <Download class="w-3.5 h-3.5" :stroke-width="1.75" />
+              Fehlerbericht
+            </button>
+          </div>
+          <div class="max-h-[300px] overflow-y-auto">
+            <table class="w-full text-xs">
+              <thead class="sticky top-0 bg-[var(--color-surface)]">
+                <tr class="border-b border-[var(--color-border)]">
+                  <th class="px-3 py-2 text-left text-[10px] uppercase text-[var(--color-text-tertiary)]">Sheet</th>
+                  <th class="px-3 py-2 text-left text-[10px] uppercase text-[var(--color-text-tertiary)]">Zeile</th>
+                  <th class="px-3 py-2 text-left text-[10px] uppercase text-[var(--color-text-tertiary)]">Spalte</th>
+                  <th class="px-3 py-2 text-left text-[10px] uppercase text-[var(--color-text-tertiary)]">Wert</th>
+                  <th class="px-3 py-2 text-left text-[10px] uppercase text-[var(--color-text-tertiary)]">Fehler</th>
+                  <th class="px-3 py-2 text-left text-[10px] uppercase text-[var(--color-text-tertiary)]">Vorschlag</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(err, i) in preview.errors" :key="i" class="border-b border-[var(--color-border)]">
+                  <td class="px-3 py-1.5 text-[var(--color-text-tertiary)]">{{ err.sheet }}</td>
+                  <td class="px-3 py-1.5 font-mono">{{ err.row }}</td>
+                  <td class="px-3 py-1.5 font-mono">{{ err.column }}</td>
+                  <td class="px-3 py-1.5 font-mono text-[var(--color-error)]">{{ err.value }}</td>
+                  <td class="px-3 py-1.5 text-[var(--color-error)]">{{ err.error }}</td>
+                  <td class="px-3 py-1.5 text-[var(--color-success)]">{{ err.suggestion }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Sheet Summary -->
+        <div v-if="preview.summary" class="pim-card p-4">
+          <h3 class="text-sm font-semibold text-[var(--color-text-primary)] mb-3">Sheet-Übersicht</h3>
+          <div class="space-y-2">
+            <div
+              v-for="(info, sheetKey) in preview.summary"
+              :key="sheetKey"
+              class="flex items-center justify-between text-xs p-2 rounded-lg bg-[var(--color-bg)]"
+            >
+              <span class="font-medium text-[var(--color-text-primary)]">{{ sheetKey }}</span>
+              <div class="flex gap-4 text-[var(--color-text-tertiary)]">
+                <span>{{ info.create ?? 0 }} neu</span>
+                <span>{{ info.update ?? 0 }} aktualisieren</span>
+                <span>{{ info.skip ?? 0 }} übersprungen</span>
+                <span v-if="info.error_count" class="text-[var(--color-error)]">{{ info.error_count }} Fehler</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <div class="flex gap-3">
+        <button class="pim-btn pim-btn-secondary text-xs" @click="step = 2">
+          <ArrowLeft class="w-3.5 h-3.5" :stroke-width="2" />
+          Zurück
+        </button>
+        <button class="pim-btn pim-btn-primary text-xs" @click="step = 4; executeImport()">
+          <Play class="w-3.5 h-3.5" :stroke-width="2" />
+          Import ausführen
+        </button>
+      </div>
+    </div>
+
+    <!-- Step 4: Execute -->
+    <div v-if="step === 4" class="space-y-4">
+      <div class="pim-card p-5 text-center">
+        <div v-if="executing" class="space-y-3">
+          <RefreshCw class="w-8 h-8 mx-auto text-[var(--color-accent)] animate-spin" :stroke-width="1.5" />
+          <p class="text-sm font-medium text-[var(--color-text-primary)]">Import wird ausgeführt...</p>
+          <p class="text-xs text-[var(--color-text-tertiary)]">{{ importJob?.status }}</p>
+        </div>
+        <div v-else-if="importJob?.status === 'completed'" class="space-y-3">
+          <CheckCircle class="w-10 h-10 mx-auto text-[var(--color-success)]" :stroke-width="1.5" />
+          <p class="text-sm font-semibold text-[var(--color-success)]">Import erfolgreich abgeschlossen</p>
+        </div>
+        <div v-else-if="importJob?.status === 'failed'" class="space-y-3">
+          <XCircle class="w-10 h-10 mx-auto text-[var(--color-error)]" :stroke-width="1.5" />
+          <p class="text-sm font-semibold text-[var(--color-error)]">Import fehlgeschlagen</p>
+          <p class="text-xs text-[var(--color-error)]">{{ executionResult?.result?.error }}</p>
+        </div>
+      </div>
+
+      <div v-if="executionResult?.result && importJob?.status === 'completed'" class="pim-card p-4">
+        <h3 class="text-sm font-semibold text-[var(--color-text-primary)] mb-3">Ergebnis</h3>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <template v-for="(value, key) in executionResult.result" :key="key">
+            <div v-if="typeof value === 'number'" class="p-2 rounded-lg bg-[var(--color-bg)] text-center">
+              <p class="text-lg font-bold text-[var(--color-accent)]">{{ value }}</p>
+              <p class="text-[10px] text-[var(--color-text-tertiary)]">{{ key }}</p>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <!-- Live Log -->
+      <div v-if="logs.length > 0" class="pim-card overflow-hidden">
+        <div class="flex items-center justify-between px-4 py-2.5 bg-[var(--color-bg)] border-b border-[var(--color-border)]">
+          <span class="text-xs font-semibold text-[var(--color-text-primary)]">Import-Protokoll ({{ logs.length }})</span>
+          <button class="pim-btn pim-btn-secondary text-xs px-2 py-1" @click="downloadErrors">
+            <Download class="w-3 h-3" :stroke-width="2" />
+            Fehlerbericht
+          </button>
+        </div>
+        <div class="max-h-[300px] overflow-y-auto p-3 space-y-1 font-mono text-[11px]">
+          <div
+            v-for="log in logs"
+            :key="log.id"
+            :class="['flex items-start gap-2 px-2 py-1 rounded', logLevelClass[log.level]]"
+          >
+            <component :is="logLevelIcon[log.level]" class="w-3 h-3 mt-0.5 shrink-0" :stroke-width="2" />
+            <span class="text-[var(--color-text-tertiary)] shrink-0">{{ log.phase }}</span>
+            <span v-if="log.sheet" class="text-[var(--color-text-tertiary)] shrink-0">[{{ log.sheet }}:{{ log.row }}]</span>
+            <span>{{ log.message }}</span>
+          </div>
+        </div>
+      </div>
+
+      <button class="pim-btn pim-btn-secondary text-xs" @click="resetWizard">
+        <RefreshCw class="w-3.5 h-3.5" :stroke-width="1.75" />
+        Neuen Import starten
+      </button>
+    </div>
+
+    <!-- Error -->
+    <div v-if="error" class="p-3 rounded-lg bg-[var(--color-error-light)] text-[var(--color-error)] text-xs">{{ error }}</div>
+
+    <!-- REST/CLI Hinweis -->
+    <div class="pim-card p-4 bg-[var(--color-bg)]">
+      <p class="text-[11px] font-medium text-[var(--color-text-secondary)] mb-2">REST / CLI</p>
+      <div class="space-y-1 text-[10px] font-mono text-[var(--color-text-tertiary)]">
+        <p>curl -X POST /api/v1/imports -F "file=@datei.xlsx" -H "Authorization: Bearer {token}"</p>
+        <p>curl -X POST /api/v1/imports/{id}/execute -H "Authorization: Bearer {token}"</p>
+        <p>php artisan pim:import /pfad/datei.xlsx --force</p>
+        <p>php artisan pim:import --list-jobs</p>
       </div>
     </div>
   </div>

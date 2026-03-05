@@ -46,4 +46,9 @@ class ImportJob extends Model
     {
         return $this->hasMany(ImportJobError::class);
     }
+
+    public function logs(): HasMany
+    {
+        return $this->hasMany(ImportLog::class);
+    }
 }
