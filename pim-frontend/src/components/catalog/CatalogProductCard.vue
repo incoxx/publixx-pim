@@ -83,13 +83,8 @@ const staggerDelay = computed(() => `${Math.min(props.index * 50, 400)}ms`)
 
       <!-- Product name -->
       <h3 class="text-sm font-semibold line-clamp-2 leading-tight min-h-[2.5rem]">
-        {{ product.name }}
+        {{ product.name || product.sku || '–' }}
       </h3>
-
-      <!-- SKU -->
-      <p class="text-xs text-base-content/50 font-mono">
-        {{ product.sku }}
-      </p>
 
       <!-- Price -->
       <div class="flex justify-between items-end mt-2">
