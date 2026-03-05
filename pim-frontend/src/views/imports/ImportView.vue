@@ -284,6 +284,26 @@ async function loadPreview() {
   try {
     const { data } = await importsApi.getPreview(importJob.value.id)
     preview.value = data.data || data
+
+    // Fallback: Wenn Backend-Summary leer ist (Flat-Datei), baue Preview aus Analyse-Daten
+    const summary = preview.value?.summary
+    if ((!summary || Object.keys(summary).length === 0) && analysis.value?.sheets) {
+      const flatSummary = {}
+      for (const [sheetName, sheet] of Object.entries(analysis.value.sheets)) {
+        flatSummary[sheetName] = {
+          total: sheet.row_count || 0,
+          valid: sheet.row_count || 0,
+          creates: 0,
+          updates: 0,
+          errors: 0,
+        }
+      }
+      preview.value = {
+        ...preview.value,
+        summary: flatSummary,
+        _flat_import: true,
+      }
+    }
   } catch (e) {
     error.value = e.response?.data?.message || 'Vorschau fehlgeschlagen'
   } finally { previewLoading.value = false }
@@ -300,7 +320,11 @@ async function downloadErrors() {
     a.click()
     URL.revokeObjectURL(url)
   } catch (e) {
-    error.value = 'Fehlerbericht konnte nicht heruntergeladen werden'
+    if (e.response?.status === 404) {
+      error.value = 'Keine Fehler vorhanden — kein Fehlerbericht verfügbar.'
+    } else {
+      error.value = 'Fehlerbericht konnte nicht heruntergeladen werden'
+    }
   }
 }
 
@@ -314,7 +338,21 @@ async function executeImport() {
   logPolling.value = setInterval(pollLogs, 2000)
 
   try {
-    await importsApi.execute(importJob.value.id, { mode: importMode.value })
+    const executePayload = { mode: importMode.value }
+    // Flat-Import: Mappings mitsenden, damit das Backend die Flat-Datei importieren kann
+    if (preview.value?._flat_import) {
+      executePayload.flat_import = true
+      executePayload.sku_column = skuColumn.value
+      executePayload.product_type_id = productTypeId.value
+      executePayload.column_mappings = columnMappings.value
+        .filter(m => m.target_attribute_id)
+        .map(m => ({
+          source: m.source,
+          target_attribute_id: m.target_attribute_id,
+          language: m.language || null,
+        }))
+    }
+    await importsApi.execute(importJob.value.id, executePayload)
     await pollStatus()
   } catch (e) {
     error.value = e.response?.data?.message || 'Import fehlgeschlagen'

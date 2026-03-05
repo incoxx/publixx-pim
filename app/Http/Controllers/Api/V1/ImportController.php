@@ -83,7 +83,20 @@ class ImportController extends Controller
         if (!in_array($mode, ['update', 'delete_insert', 'delete'])) {
             $mode = 'update';
         }
-        $this->importService->execute($import, $force, $mode);
+
+        // Flat-Import: Mappings wurden mitgesendet
+        $isFlatImport = (bool) $request->input('flat_import', false);
+
+        if ($isFlatImport) {
+            $this->importService->executeFlatImport($import, [
+                'mode' => $mode,
+                'sku_column' => $request->input('sku_column', 'SKU'),
+                'product_type_id' => $request->input('product_type_id'),
+                'column_mappings' => $request->input('column_mappings', []),
+            ]);
+        } else {
+            $this->importService->execute($import, $force, $mode);
+        }
 
         return response()->json([
             'data' => [

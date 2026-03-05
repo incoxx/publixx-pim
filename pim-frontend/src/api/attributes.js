@@ -41,8 +41,12 @@ export default {
 }
 
 export const attributeTypes = {
-  list() {
-    return client.get('/attribute-types')
+  list(params = {}) {
+    return client.get('/attribute-types', { params })
+  },
+
+  get(id, params = {}) {
+    return client.get(`/attribute-types/${id}`, { params })
   },
 
   create(data) {
