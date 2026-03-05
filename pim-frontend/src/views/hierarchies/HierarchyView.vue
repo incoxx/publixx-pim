@@ -7,7 +7,7 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import {
   Plus, Edit3, Trash2, FolderPlus, Package,
-  Copy, ChevronUp, ChevronDown, Settings,
+  Copy, ChevronUp, ChevronDown, Settings, GripVertical,
 } from 'lucide-vue-next'
 import hierarchiesApi from '@/api/hierarchies'
 import productsApi from '@/api/products'
@@ -289,6 +289,36 @@ async function removeNodeAttribute(assignment) {
   }
 }
 
+async function moveAttributeUp(index) {
+  if (index <= 0) return
+  const list = [...nodeAttributes.value]
+  ;[list[index - 1], list[index]] = [list[index], list[index - 1]]
+  nodeAttributes.value = list
+  await persistAttributeOrder()
+}
+
+async function moveAttributeDown(index) {
+  if (index >= nodeAttributes.value.length - 1) return
+  const list = [...nodeAttributes.value]
+  ;[list[index], list[index + 1]] = [list[index + 1], list[index]]
+  nodeAttributes.value = list
+  await persistAttributeOrder()
+}
+
+async function persistAttributeOrder() {
+  try {
+    const items = nodeAttributes.value.map((a, i) => ({
+      id: a.id,
+      collection_sort: 0,
+      attribute_sort: i,
+    }))
+    await hierarchiesApi.bulkSortAssignments({ items })
+  } catch (e) {
+    showFeedback('Fehler beim Speichern der Reihenfolge', 'error')
+    if (store.selectedNode) await loadNodeAttributes(store.selectedNode.id)
+  }
+}
+
 // ─── Node Products ──────────────────────────────────
 async function loadNodeProducts(nodeId) {
   if (!nodeId) return
@@ -513,21 +543,43 @@ onMounted(async () => {
           </div>
           <div v-else-if="nodeAttributes.length > 0" class="space-y-1">
             <div
-              v-for="assignment in nodeAttributes"
+              v-for="(assignment, idx) in nodeAttributes"
               :key="assignment.id"
               class="flex items-center justify-between px-3 py-2 rounded-lg bg-[var(--color-bg)] group"
             >
               <div class="flex items-center gap-2">
+                <GripVertical class="w-3 h-3 text-[var(--color-text-tertiary)] opacity-40" />
+                <span class="text-[10px] text-[var(--color-text-tertiary)] font-mono w-4 text-right">{{ idx + 1 }}</span>
                 <span class="text-xs font-medium">{{ assignment.attribute?.name_de || assignment.attribute?.technical_name || '—' }}</span>
                 <span class="text-[10px] text-[var(--color-text-tertiary)]">{{ assignment.attribute?.data_type }}</span>
               </div>
-              <button
-                v-if="authStore.hasPermission('hierarchies.edit')"
-                class="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-[var(--color-error-light)] text-[var(--color-text-tertiary)] hover:text-[var(--color-error)] transition-all"
-                @click="removeNodeAttribute(assignment)"
-              >
-                <Trash2 class="w-3.5 h-3.5" :stroke-width="2" />
-              </button>
+              <div class="flex items-center gap-0.5">
+                <template v-if="authStore.hasPermission('hierarchies.edit')">
+                  <button
+                    class="p-0.5 rounded text-[var(--color-text-tertiary)] hover:text-[var(--color-accent)] hover:bg-[var(--color-bg-secondary)] transition-all disabled:opacity-20 disabled:cursor-default"
+                    :disabled="idx === 0"
+                    @click="moveAttributeUp(idx)"
+                    title="Nach oben"
+                  >
+                    <ChevronUp class="w-3.5 h-3.5" :stroke-width="2" />
+                  </button>
+                  <button
+                    class="p-0.5 rounded text-[var(--color-text-tertiary)] hover:text-[var(--color-accent)] hover:bg-[var(--color-bg-secondary)] transition-all disabled:opacity-20 disabled:cursor-default"
+                    :disabled="idx === nodeAttributes.length - 1"
+                    @click="moveAttributeDown(idx)"
+                    title="Nach unten"
+                  >
+                    <ChevronDown class="w-3.5 h-3.5" :stroke-width="2" />
+                  </button>
+                  <button
+                    class="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-[var(--color-error-light)] text-[var(--color-text-tertiary)] hover:text-[var(--color-error)] transition-all ml-1"
+                    @click="removeNodeAttribute(assignment)"
+                    title="Entfernen"
+                  >
+                    <Trash2 class="w-3.5 h-3.5" :stroke-width="2" />
+                  </button>
+                </template>
+              </div>
             </div>
           </div>
           <p v-else class="text-xs text-[var(--color-text-tertiary)]">Keine Attribute zugeordnet</p>
