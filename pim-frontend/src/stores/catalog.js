@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
-import catalogApi from '@/api/catalog'
+import catalogApi, { resolveMediaUrl } from '@/api/catalog'
 
 export const useCatalogStore = defineStore('catalog', () => {
   // --- State ---
@@ -27,6 +27,35 @@ export const useCatalogStore = defineStore('catalog', () => {
   const sort = ref({ field: 'name', order: 'asc' })
   const viewMode = ref(localStorage.getItem('catalog_view_mode') || 'grid')
   const locale = ref(localStorage.getItem('catalog_locale') || 'de')
+
+  // --- Theme Settings ---
+  const themeSettings = ref({
+    font_family: 'Inter',
+    font_heading_size: '1.75rem',
+    font_body_size: '0.875rem',
+    color_primary: '#1B3A5C',
+    color_accent: '#0D9488',
+    color_table_bg: '#f8fafc',
+    color_body_text: '#111827',
+    logo_url: null,
+    catalog_title: 'Produktkatalog',
+    impressum_url: null,
+    kontakt_url: null,
+    impressum_text: null,
+    kontakt_text: null,
+    footer_text: null,
+  })
+
+  async function fetchThemeSettings() {
+    try {
+      const { data } = await catalogApi.getSettings()
+      if (data.data) {
+        themeSettings.value = { ...themeSettings.value, ...data.data }
+      }
+    } catch (e) {
+      console.warn('Failed to load catalog theme settings:', e.message)
+    }
+  }
 
   // --- Wishlist (localStorage-backed) ---
   const WISHLIST_KEY = 'pim_catalog_wishlist'
@@ -91,7 +120,12 @@ export const useCatalogStore = defineStore('catalog', () => {
         lang: locale.value,
       })
       // Response is now a bare array; pagination info in headers
-      products.value = Array.isArray(resp.data) ? resp.data : (resp.data.data || resp.data)
+      const rawProducts = Array.isArray(resp.data) ? resp.data : (resp.data.data || resp.data)
+      // Resolve image URLs for cross-origin deployments
+      products.value = rawProducts.map(p => ({
+        ...p,
+        image_url: resolveMediaUrl(p.image_url),
+      }))
       const headers = resp.headers
       if (headers) {
         meta.value = {
@@ -114,7 +148,12 @@ export const useCatalogStore = defineStore('catalog', () => {
     error.value = null
     try {
       const { data } = await catalogApi.getProduct(id, { lang: locale.value })
-      currentProduct.value = data.data
+      const prod = data.data
+      // Resolve media URLs for cross-origin deployments
+      if (prod?.media) {
+        prod.media = prod.media.map(m => ({ ...m, url: resolveMediaUrl(m.url) }))
+      }
+      currentProduct.value = prod
     } catch (e) {
       error.value = e.response?.data?.title || 'Produkt nicht gefunden'
       currentProduct.value = null
@@ -228,6 +267,8 @@ export const useCatalogStore = defineStore('catalog', () => {
     setSort,
     setViewMode,
     setLocale,
+    themeSettings,
+    fetchThemeSettings,
     productsJsonUrl,
     exportJsonUrl,
     productJsonUrl,

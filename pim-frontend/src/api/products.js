@@ -25,6 +25,10 @@ export default {
     return client.delete(`/products/${id}`)
   },
 
+  duplicate(id, options = {}) {
+    return client.post(`/products/${id}/duplicate`, options)
+  },
+
   // Attribute values
   getAttributeValues(id, options = {}) {
     const params = buildParams(options)
@@ -56,6 +60,10 @@ export default {
 
   setVariantRules(id, rules) {
     return client.put(`/products/${id}/variant-rules`, { rules })
+  },
+
+  generateVariants(id, data) {
+    return client.post(`/products/${id}/variants/generate`, data)
   },
 
   // Media

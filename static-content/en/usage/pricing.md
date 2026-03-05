@@ -4,11 +4,11 @@ title: Pricing
 
 # Pricing
 
-The price management of Publixx PIM enables the central maintenance of product prices in various price types and currencies. This chapter describes the configuration of price types, the entry of prices per product, and the management of validity periods.
+The pricing management of the Publixx PIM enables the central maintenance of product prices in various price types and currencies. This chapter describes the configuration of price types, the recording of prices per product, and the management of validity periods.
 
 ## Price Types
 
-Price types define the various categories of prices that can be maintained in the system. You can access the price type management via the **Prices** menu item in the sidebar.
+Price types define the different categories of prices that can be maintained in the system. You can access the price type management via the **Prices** menu item in the sidebar.
 
 ### Default Price Types
 
@@ -18,10 +18,10 @@ The system supports any number of price types. Typical configurations include:
 |---|---|---|
 | **List Price** (MSRP) | Manufacturer's suggested retail price | Catalog, online shop |
 | **Net Price** | Price without VAT | B2B trade, key accounts |
-| **Gross Price** | Price including VAT | B2C end-customer prices |
+| **Gross Price** | Price including VAT | B2C end customer prices |
 | **Promotional Price** | Time-limited special price | Promotions, sales |
 | **Tiered Price** | Quantity-dependent price | Bulk orders |
-| **Purchase Price** | Internal procurement price | Cost calculation, controlling |
+| **Purchase Price** | Internal procurement price | Calculation, controlling |
 
 ### Creating a Price Type
 
@@ -31,12 +31,12 @@ The system supports any number of price types. Typical configurations include:
 4. Save the price type.
 
 ::: tip Note
-Price types are defined system-wide and apply to all products. The actual price maintenance is done at the product level.
+Price types are defined system-wide and apply to all products. The actual price maintenance takes place at the product level.
 :::
 
 ## Currencies
 
-Publixx PIM supports **multiple currencies** simultaneously. For each price, the currency is stored as an ISO 4217 code (e.g., EUR, USD, CHF, GBP).
+The Publixx PIM supports **multiple currencies** simultaneously. For each price, the currency is stored as an ISO 4217 code (e.g., EUR, USD, CHF, GBP).
 
 ### Available Currencies
 
@@ -53,7 +53,7 @@ The available currencies are defined in the system configuration.
 
 ## Price Maintenance per Product
 
-Price entry is done in the **Product detail view** in the **Prices** tab. There you will see a tabular overview of all recorded prices for the current product.
+Price entry takes place in the **product detail view** in the **Prices** tab. There you will see a tabular overview of all recorded prices for the current product.
 
 ### Creating a Price
 
@@ -64,7 +64,7 @@ Price entry is done in the **Product detail view** in the **Prices** tab. There 
 | Field | Description | Required |
 |---|---|---|
 | **Price Type** | Selection of the price type (e.g., List Price) | Yes |
-| **Amount** | Numeric price value | Yes |
+| **Amount** | Numerical price value | Yes |
 | **Currency** | ISO 4217 currency code | Yes |
 | **Valid From** | Start of validity | No |
 | **Valid Until** | End of validity | No |
@@ -73,17 +73,17 @@ Price entry is done in the **Product detail view** in the **Prices** tab. There 
 
 ### Validity Periods
 
-Prices can be given a **validity period**, defined via the "Valid From" and "Valid Until" fields:
+Prices can be given a **validity period** defined by the "Valid From" and "Valid Until" fields:
 
-- **Without validity** -- The price applies indefinitely.
-- **With start date** -- The price applies from the specified date.
-- **With end date** -- The price applies until the specified date.
-- **With start and end date** -- The price applies only within the defined period.
+- **Without validity** -- The price is valid indefinitely.
+- **With start date** -- The price is valid from the specified date.
+- **With end date** -- The price is valid until the specified date.
+- **With start and end date** -- The price is valid only within the defined period.
 
 Validity periods are particularly useful for **promotional prices** and seasonal price adjustments. During export, you can control whether only currently valid prices or all prices are exported.
 
 ::: info Example
-A product has a list price of 49.99 EUR (without validity) and a promotional price of 39.99 EUR (valid from Dec 1 to Dec 24). During export on Dec 15, both prices are delivered. The promotional price can be treated as having priority by the target system.
+A product has a list price of 49.99 EUR (without validity) and a promotional price of 39.99 EUR (valid from Dec 1 to Dec 24). During export on Dec 15, both prices are delivered. The promotional price can be treated as prioritized by the target system.
 :::
 
 ### Editing a Price
@@ -92,11 +92,11 @@ Click on an existing price in the table to edit it. You can change the amount, c
 
 ### Deleting a Price
 
-Click the delete icon next to a price to remove it. Deletion occurs after a confirmation prompt.
+Click the delete icon next to a price to remove it. Deletion requires a confirmation prompt.
 
 ## Price Overview (Price Management)
 
-Via the **Prices** menu item in the sidebar, you can access the global price overview. This displays a cross-product table of all recorded prices and offers the following functions:
+Via the **Prices** menu item in the sidebar, you can access the global price overview. This shows a cross-product table of all recorded prices and offers the following features:
 
 - **Filter** by price type, currency, or validity status
 - **Search** by product SKU or product name
@@ -109,7 +109,7 @@ Variants do **not** inherit prices from the parent product. Each variant has its
 
 ## Best Practices
 
-- **Consistent price types** -- Use uniform price types in your system. Define which price types you need before the first price maintenance.
+- **Consistent price types** -- Use uniform price types across your system. Define which price types you need before the first price entry.
 - **Validity periods** -- Use validity periods for temporary price changes instead of overwriting existing prices. This way you retain the price history.
 - **Currency consistency** -- Maintain prices in all currencies that your export channels require. Do not rely on automatic conversion.
 

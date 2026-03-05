@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\V1\AttributeController;
 use App\Http\Controllers\Api\V1\AttributeTypeController;
 use App\Http\Controllers\Api\V1\AttributeViewController;
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\BulkEditorController;
 use App\Http\Controllers\Api\V1\DebugController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\DeploymentController;
@@ -39,6 +40,7 @@ use App\Http\Controllers\Api\V1\PublixxDatasetController;
 use App\Http\Controllers\Api\V1\PxfTemplateController;
 use App\Http\Controllers\Api\V1\RelationTypeController;
 use App\Http\Controllers\Api\V1\ResetDataController;
+use App\Http\Controllers\Api\V1\SettingController;
 use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\UnitController;
 use App\Http\Controllers\Api\V1\UnitGroupController;
@@ -91,6 +93,7 @@ Route::prefix('v1/catalog')->middleware('throttle.pim')->group(function () {
     Route::get('products/{product}', [CatalogController::class, 'product']);
     Route::get('products/{product}/json', [CatalogController::class, 'productJson']);
     Route::get('categories', [CatalogController::class, 'categories']);
+    Route::get('settings', [SettingController::class, 'catalogTheme']);
     Route::get('media/{filename}', [CatalogController::class, 'media'])->name('catalog.media');
 });
 
@@ -201,6 +204,13 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::post('products/search', [ProductSearchController::class, 'search']);
     Route::get('products/search/attributes', [ProductSearchController::class, 'searchableAttributes']);
 
+    // Bulk Editor
+    Route::post('products/bulk-edit', [BulkEditorController::class, 'load']);
+    Route::put('products/bulk-edit', [BulkEditorController::class, 'save']);
+
+    // Product Duplicate
+    Route::post('products/{product}/duplicate', [ProductController::class, 'duplicate']);
+
     Route::apiResource('products', ProductController::class);
 
     // Product Preview (generic, no PXF)
@@ -221,6 +231,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // Product Variants
     Route::get('products/{product}/variants', [ProductVariantController::class, 'index']);
     Route::post('products/{product}/variants', [ProductVariantController::class, 'store']);
+    Route::post('products/{product}/variants/generate', [ProductVariantController::class, 'generate']);
     Route::get('products/{product}/variant-rules', [ProductVariantController::class, 'rules']);
     Route::put('products/{product}/variant-rules', [ProductVariantController::class, 'updateRules']);
 
@@ -335,6 +346,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // =====================================================================
     Route::post('admin/reset-data', ResetDataController::class);
     Route::post('admin/load-demo-data', LoadDemoDataController::class);
+    Route::put('settings/catalog-theme', [SettingController::class, 'updateCatalogTheme']);
 
     // =====================================================================
     // PXF Templates

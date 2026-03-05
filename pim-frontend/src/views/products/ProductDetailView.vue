@@ -5,7 +5,7 @@ import { useProductStore } from '@/stores/products'
 import { useAuthStore } from '@/stores/auth'
 import { useLocaleStore } from '@/stores/locale'
 import { useI18n } from 'vue-i18n'
-import { ArrowLeft, Save, Plus, Trash2, Image, Star, X, Search, Download, Languages } from 'lucide-vue-next'
+import { ArrowLeft, Save, Plus, Trash2, Image, Star, X, Search, Download, Languages, Copy, Sparkles } from 'lucide-vue-next'
 import productsApi from '@/api/products'
 import mediaApi from '@/api/media'
 import { mediaUsageTypes } from '@/api/mediaUsageTypes'
@@ -359,6 +359,143 @@ async function confirmDeleteVariant() {
     variantsLoaded.value = false
     await loadVariants()
   } finally { variantDeleting.value = false }
+}
+
+// ─── Product Copy ───────────────────────────────────
+const showCopyDialog = ref(false)
+const copyOptions = ref({
+  include_attributes: true,
+  include_prices: true,
+  include_media: true,
+  include_relations: true,
+})
+const copying = ref(false)
+
+function selectAllCopyOptions(val) {
+  copyOptions.value.include_attributes = val
+  copyOptions.value.include_prices = val
+  copyOptions.value.include_media = val
+  copyOptions.value.include_relations = val
+}
+
+async function duplicateProduct() {
+  copying.value = true
+  try {
+    const { data } = await productsApi.duplicate(product.value.id, copyOptions.value)
+    const newId = data.data?.id || data.id
+    showCopyDialog.value = false
+    router.push(`/products/${newId}`)
+  } catch (e) {
+    console.error('Failed to duplicate product:', e.message)
+    alert('Fehler beim Kopieren: ' + (e.response?.data?.message || e.message))
+  } finally { copying.value = false }
+}
+
+// ─── Variant Generator ──────────────────────────────
+const showGenerator = ref(false)
+const generatorStep = ref(1)
+const generatorDimensions = ref([])
+const generatorSKUPrefix = ref('')
+const generatorLoading = ref(false)
+const generatorResult = ref(null)
+const generatorExcluded = ref(new Set())
+
+function initGenerator() {
+  showGenerator.value = true
+  generatorStep.value = 1
+  generatorResult.value = null
+  generatorExcluded.value = new Set()
+  generatorSKUPrefix.value = product.value?.sku || ''
+  generatorDimensions.value = variantAttributeDefs.value.map(attr => ({
+    attribute_id: attr.id,
+    attribute: attr,
+    selected: false,
+    values: [],
+    textInput: '',
+  }))
+}
+
+const generatorPreview = computed(() => {
+  const activeDims = generatorDimensions.value.filter(d => d.selected && d.values.length > 0)
+  if (activeDims.length === 0) return []
+  // Cartesian product
+  let combos = [[]]
+  for (const dim of activeDims) {
+    const next = []
+    for (const combo of combos) {
+      for (const val of dim.values) {
+        next.push([...combo, { attribute_id: dim.attribute_id, label: dim.attribute.name_de || dim.attribute.technical_name, value: val }])
+      }
+    }
+    combos = next
+  }
+  const prefix = generatorSKUPrefix.value || product.value?.sku || 'VAR'
+  return combos.map((combo, idx) => {
+    const slugParts = combo.map(c => String(c.value).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').substring(0, 20))
+    const sku = `${prefix}-${slugParts.join('-')}`
+    const name = `${product.value?.name || ''} — ${combo.map(c => c.value).join(' / ')}`
+    return { idx, sku, name, combo }
+  })
+})
+
+const generatorPreviewFiltered = computed(() => {
+  return generatorPreview.value.filter(p => !generatorExcluded.value.has(p.idx))
+})
+
+const generatorTotalCombinations = computed(() => {
+  const activeDims = generatorDimensions.value.filter(d => d.selected && d.values.length > 0)
+  if (activeDims.length === 0) return 0
+  return activeDims.reduce((acc, d) => acc * d.values.length, 1)
+})
+
+function toggleGeneratorRow(idx) {
+  const s = new Set(generatorExcluded.value)
+  if (s.has(idx)) s.delete(idx)
+  else s.add(idx)
+  generatorExcluded.value = s
+}
+
+function addDimensionValues(dim) {
+  if (!dim.textInput.trim()) return
+  const newVals = dim.textInput.split(',').map(v => v.trim()).filter(v => v)
+  dim.values = [...new Set([...dim.values, ...newVals])]
+  dim.textInput = ''
+}
+
+function removeDimensionValue(dim, val) {
+  dim.values = dim.values.filter(v => v !== val)
+}
+
+function toggleValueListEntry(dim, entryValue) {
+  const idx = dim.values.indexOf(entryValue)
+  if (idx >= 0) dim.values.splice(idx, 1)
+  else dim.values.push(entryValue)
+}
+
+async function runGenerator() {
+  generatorLoading.value = true
+  try {
+    const activeDims = generatorDimensions.value.filter(d => d.selected && d.values.length > 0)
+    const excluded = generatorExcluded.value
+    // Filter out excluded combos by regenerating only included ones
+    const dimensions = activeDims.map(d => ({
+      attribute_id: d.attribute_id,
+      values: d.values,
+    }))
+    const { data } = await productsApi.generateVariants(product.value.id, {
+      dimensions,
+      sku_prefix: generatorSKUPrefix.value || undefined,
+      status: 'draft',
+    })
+    generatorResult.value = data
+    generatorStep.value = 3
+    // Reload variants
+    variantsLoaded.value = false
+    await loadVariants()
+  } catch (e) {
+    console.error('Failed to generate variants:', e.message)
+    alert('Fehler: ' + (e.response?.data?.message || e.message))
+  } finally { generatorLoading.value = false }
 }
 
 // ─── Variant Inheritance Rules ───────────────────────
@@ -907,6 +1044,8 @@ watch(() => route.params.id, async (newId, oldId) => {
   showPriceForm.value = false
   showRelationForm.value = false
   showMediaPicker.value = false
+  showCopyDialog.value = false
+  showGenerator.value = false
 
   // Reset tab to attributes
   activeTab.value = 'attributes'
@@ -955,10 +1094,58 @@ watch(() => route.params.id, async (newId, oldId) => {
           </p>
         </template>
       </div>
+      <button
+        v-if="authStore.hasPermission('products.create') && product && product.product_type_ref !== 'variant'"
+        class="pim-btn pim-btn-secondary text-xs"
+        @click="showCopyDialog = true"
+      >
+        <Copy class="w-4 h-4" :stroke-width="1.75" />
+        <span class="hidden sm:inline">Kopieren</span>
+      </button>
       <button v-if="authStore.hasPermission('products.edit')" class="pim-btn pim-btn-primary" :disabled="saving" @click="save">
         <Save class="w-4 h-4" :stroke-width="1.75" />
         {{ saving ? 'Speichern…' : t('common.save') }}
       </button>
+    </div>
+
+    <!-- Copy Dialog -->
+    <div v-if="showCopyDialog" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" @click.self="showCopyDialog = false">
+      <div class="pim-card p-6 w-full max-w-sm space-y-4 shadow-xl">
+        <div class="flex items-center justify-between">
+          <h3 class="text-sm font-semibold text-[var(--color-text-primary)]">Produkt kopieren</h3>
+          <button class="pim-btn pim-btn-ghost p-1" @click="showCopyDialog = false"><X class="w-4 h-4" /></button>
+        </div>
+        <p class="text-xs text-[var(--color-text-secondary)]">Was soll in die Kopie übernommen werden?</p>
+        <div class="space-y-2">
+          <label class="flex items-center gap-2 text-sm cursor-pointer">
+            <input type="checkbox" v-model="copyOptions.include_attributes" class="pim-checkbox" />
+            Attributwerte
+          </label>
+          <label class="flex items-center gap-2 text-sm cursor-pointer">
+            <input type="checkbox" v-model="copyOptions.include_prices" class="pim-checkbox" />
+            Preise
+          </label>
+          <label class="flex items-center gap-2 text-sm cursor-pointer">
+            <input type="checkbox" v-model="copyOptions.include_media" class="pim-checkbox" />
+            Medien-Zuordnungen
+          </label>
+          <label class="flex items-center gap-2 text-sm cursor-pointer">
+            <input type="checkbox" v-model="copyOptions.include_relations" class="pim-checkbox" />
+            Relationen
+          </label>
+        </div>
+        <div class="flex gap-3 text-xs text-[var(--color-accent)]">
+          <button class="hover:underline" @click="selectAllCopyOptions(true)">Alle auswählen</button>
+          <button class="hover:underline" @click="selectAllCopyOptions(false)">Keine auswählen</button>
+        </div>
+        <div class="flex gap-2 pt-2">
+          <button class="pim-btn pim-btn-primary text-xs flex-1" :disabled="copying" @click="duplicateProduct">
+            <Copy class="w-3.5 h-3.5" :stroke-width="2" />
+            {{ copying ? 'Wird kopiert…' : 'Kopie erstellen' }}
+          </button>
+          <button class="pim-btn pim-btn-secondary text-xs" @click="showCopyDialog = false">Abbrechen</button>
+        </div>
+      </div>
     </div>
 
     <!-- Tabs -->
@@ -1164,11 +1351,16 @@ watch(() => route.params.id, async (newId, oldId) => {
 
     <!-- ═══ Variants Tab ═══ -->
     <div v-else-if="activeTab === 'variants' && product" class="space-y-3">
-      <div class="flex items-center justify-between">
+      <div class="flex flex-wrap items-center justify-between gap-2">
         <h3 class="text-sm font-medium text-[var(--color-text-primary)]">Varianten</h3>
-        <button class="pim-btn pim-btn-primary text-xs" @click="showVariantForm = !showVariantForm">
-          <Plus class="w-3.5 h-3.5" :stroke-width="2" /> Neue Variante
-        </button>
+        <div class="flex gap-2">
+          <button v-if="variantAttributeDefs.length > 0" class="pim-btn pim-btn-secondary text-xs" @click="initGenerator">
+            <Sparkles class="w-3.5 h-3.5" :stroke-width="2" /> Varianten generieren
+          </button>
+          <button class="pim-btn pim-btn-primary text-xs" @click="showVariantForm = !showVariantForm">
+            <Plus class="w-3.5 h-3.5" :stroke-width="2" /> Neue Variante
+          </button>
+        </div>
       </div>
 
       <!-- Variant creation form -->
@@ -1199,6 +1391,180 @@ watch(() => route.params.id, async (newId, oldId) => {
           </button>
           <button class="pim-btn pim-btn-secondary text-xs" @click="showVariantForm = false">Abbrechen</button>
         </div>
+      </div>
+
+      <!-- Variant Generator Panel -->
+      <div v-if="showGenerator" class="pim-card p-4 space-y-4">
+        <div class="flex items-center justify-between">
+          <h4 class="text-sm font-semibold text-[var(--color-text-primary)] flex items-center gap-1.5">
+            <Sparkles class="w-4 h-4 text-[var(--color-accent)]" :stroke-width="1.75" />
+            Variantengenerator
+          </h4>
+          <button class="pim-btn pim-btn-ghost p-1" @click="showGenerator = false"><X class="w-4 h-4" /></button>
+        </div>
+
+        <!-- Step 1: Select attributes + enter values -->
+        <template v-if="generatorStep === 1">
+          <p class="text-xs text-[var(--color-text-secondary)]">Wählen Sie Variantenattribute und geben Sie die gewünschten Werte ein.</p>
+          <div class="space-y-3">
+            <div v-for="dim in generatorDimensions" :key="dim.attribute_id" class="border border-[var(--color-border)] rounded-lg p-3">
+              <label class="flex items-center gap-2 text-sm font-medium cursor-pointer">
+                <input type="checkbox" v-model="dim.selected" class="pim-checkbox" />
+                {{ dim.attribute.name_de || dim.attribute.technical_name }}
+              </label>
+              <div v-if="dim.selected" class="mt-2 space-y-2">
+                <!-- Value list entries (Selection/Dictionary) -->
+                <template v-if="dim.attribute.value_list?.entries?.length">
+                  <div class="flex flex-wrap gap-1.5">
+                    <label
+                      v-for="entry in dim.attribute.value_list.entries"
+                      :key="entry.id"
+                      class="flex items-center gap-1 text-xs px-2 py-1 rounded border cursor-pointer transition-colors"
+                      :class="dim.values.includes(entry.display_value_de || entry.value_de || entry.code)
+                        ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/10 text-[var(--color-accent)]'
+                        : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-accent)]'"
+                      @click.prevent="toggleValueListEntry(dim, entry.display_value_de || entry.value_de || entry.code)"
+                    >
+                      <input
+                        type="checkbox"
+                        :checked="dim.values.includes(entry.display_value_de || entry.value_de || entry.code)"
+                        class="pim-checkbox w-3 h-3"
+                        @click.stop
+                        @change="toggleValueListEntry(dim, entry.display_value_de || entry.value_de || entry.code)"
+                      />
+                      {{ entry.display_value_de || entry.value_de || entry.code }}
+                    </label>
+                  </div>
+                </template>
+                <!-- Free text input (String/Number) -->
+                <template v-else>
+                  <div class="flex gap-2">
+                    <input
+                      class="pim-input text-xs flex-1"
+                      v-model="dim.textInput"
+                      placeholder="Werte kommasepariert eingeben (z.B. 30, 31, 32)"
+                      @keydown.enter.prevent="addDimensionValues(dim)"
+                    />
+                    <button class="pim-btn pim-btn-secondary text-xs" @click="addDimensionValues(dim)">
+                      <Plus class="w-3 h-3" /> Hinzufügen
+                    </button>
+                  </div>
+                </template>
+                <!-- Show selected values as tags -->
+                <div v-if="dim.values.length" class="flex flex-wrap gap-1">
+                  <span
+                    v-for="val in dim.values"
+                    :key="val"
+                    class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-[var(--color-accent)]/10 text-[var(--color-accent)]"
+                  >
+                    {{ val }}
+                    <button class="hover:text-[var(--color-error)]" @click="removeDimensionValue(dim, val)"><X class="w-3 h-3" /></button>
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between pt-2">
+            <p class="text-xs text-[var(--color-text-tertiary)]">
+              {{ generatorTotalCombinations }} Kombination{{ generatorTotalCombinations !== 1 ? 'en' : '' }}
+            </p>
+            <div class="flex gap-2">
+              <button class="pim-btn pim-btn-secondary text-xs" @click="showGenerator = false">Abbrechen</button>
+              <button
+                class="pim-btn pim-btn-primary text-xs"
+                :disabled="generatorTotalCombinations === 0"
+                @click="generatorStep = 2"
+              >
+                Weiter zur Vorschau
+              </button>
+            </div>
+          </div>
+        </template>
+
+        <!-- Step 2: Preview -->
+        <template v-if="generatorStep === 2">
+          <div class="space-y-3">
+            <div class="flex flex-wrap items-end gap-3">
+              <div>
+                <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">SKU-Prefix</label>
+                <input class="pim-input text-xs w-48" v-model="generatorSKUPrefix" />
+              </div>
+              <p class="text-xs text-[var(--color-text-tertiary)] pb-1.5">
+                {{ generatorPreviewFiltered.length }} von {{ generatorPreview.length }} Varianten ausgewählt
+              </p>
+            </div>
+
+            <div class="max-h-80 overflow-auto border border-[var(--color-border)] rounded-lg">
+              <table class="w-full text-xs">
+                <thead class="bg-[var(--color-bg)] sticky top-0">
+                  <tr>
+                    <th class="px-3 py-2 text-left font-medium text-[var(--color-text-secondary)]"></th>
+                    <th class="px-3 py-2 text-left font-medium text-[var(--color-text-secondary)]">SKU</th>
+                    <th
+                      v-for="dim in generatorDimensions.filter(d => d.selected && d.values.length > 0)"
+                      :key="dim.attribute_id"
+                      class="px-3 py-2 text-left font-medium text-[var(--color-text-secondary)]"
+                    >
+                      {{ dim.attribute.name_de || dim.attribute.technical_name }}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="row in generatorPreview"
+                    :key="row.idx"
+                    class="border-t border-[var(--color-border)]"
+                    :class="generatorExcluded.has(row.idx) ? 'opacity-40' : ''"
+                  >
+                    <td class="px-3 py-1.5">
+                      <input
+                        type="checkbox"
+                        class="pim-checkbox"
+                        :checked="!generatorExcluded.has(row.idx)"
+                        @change="toggleGeneratorRow(row.idx)"
+                      />
+                    </td>
+                    <td class="px-3 py-1.5 font-mono text-[var(--color-text-tertiary)]">{{ row.sku }}</td>
+                    <td
+                      v-for="c in row.combo"
+                      :key="c.attribute_id"
+                      class="px-3 py-1.5"
+                    >
+                      {{ c.value }}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="flex gap-2 justify-end pt-1">
+              <button class="pim-btn pim-btn-secondary text-xs" @click="generatorStep = 1">Zurück</button>
+              <button
+                class="pim-btn pim-btn-primary text-xs"
+                :disabled="generatorLoading || generatorPreviewFiltered.length === 0"
+                @click="runGenerator"
+              >
+                <Sparkles class="w-3.5 h-3.5" />
+                {{ generatorLoading ? 'Wird erstellt…' : `${generatorPreviewFiltered.length} Varianten erstellen` }}
+              </button>
+            </div>
+          </div>
+        </template>
+
+        <!-- Step 3: Result -->
+        <template v-if="generatorStep === 3 && generatorResult">
+          <div class="text-center space-y-2 py-4">
+            <div class="text-3xl">✓</div>
+            <p class="text-sm font-medium text-[var(--color-text-primary)]">
+              {{ generatorResult.created }} Variante{{ generatorResult.created !== 1 ? 'n' : '' }} erstellt
+            </p>
+            <p v-if="generatorResult.skipped > 0" class="text-xs text-[var(--color-text-tertiary)]">
+              {{ generatorResult.skipped }} übersprungen (SKU bereits vorhanden)
+            </p>
+            <button class="pim-btn pim-btn-secondary text-xs mt-3" @click="showGenerator = false">Schließen</button>
+          </div>
+        </template>
       </div>
 
       <PimTable

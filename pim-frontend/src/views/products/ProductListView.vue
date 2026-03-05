@@ -7,7 +7,7 @@ import { useAttributeStore } from '@/stores/attributes'
 import { useAuthStore } from '@/stores/auth'
 import { useFilters } from '@/composables/useFilters'
 import { useLocaleStore } from '@/stores/locale'
-import { Plus, Languages, Upload, Download, X, GitCompareArrows, Star } from 'lucide-vue-next'
+import { Plus, Languages, Upload, Download, X, GitCompareArrows, Star, Pencil } from 'lucide-vue-next'
 import PimTable from '@/components/shared/PimTable.vue'
 import PimFilterBar from '@/components/shared/PimFilterBar.vue'
 import PimConfirmDialog from '@/components/shared/PimConfirmDialog.vue'
@@ -181,6 +181,11 @@ async function bulkAddToWatchlist() {
   }
 }
 
+function openBulkEditor() {
+  const ids = selectedProductIds.value.join(',')
+  router.push({ path: '/products/bulk-edit', query: { ids } })
+}
+
 onMounted(() => {
   store.fetchList()
   attrStore.fetchProductTypes()
@@ -191,7 +196,7 @@ onMounted(() => {
 <template>
   <div class="space-y-4">
     <!-- Header -->
-    <div class="flex items-center justify-between">
+    <div class="flex flex-wrap items-center justify-between gap-2">
       <h2 class="text-lg font-semibold text-[var(--color-text-primary)]">{{ t('product.title') }}</h2>
       <div class="flex items-center gap-2">
         <button class="pim-btn pim-btn-secondary text-xs" @click="showXliffPanel = !showXliffPanel">
@@ -216,7 +221,7 @@ onMounted(() => {
           <X class="w-3.5 h-3.5" :stroke-width="2" />
         </button>
       </div>
-      <div class="flex items-end gap-3">
+      <div class="flex flex-wrap items-end gap-3">
         <div>
           <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">{{ t('product.sourceLang') }}</label>
           <select class="pim-input text-xs w-28" v-model="xliffSourceLang">
@@ -261,7 +266,7 @@ onMounted(() => {
     />
 
     <!-- Selection toolbar -->
-    <div v-if="selectedProductIds.length > 0" class="flex items-center gap-3 px-3 py-2 bg-[color-mix(in_srgb,var(--color-accent)_8%,transparent)] border border-[var(--color-accent)]/20 rounded-lg">
+    <div v-if="selectedProductIds.length > 0" class="flex flex-wrap items-center gap-2 sm:gap-3 px-3 py-2 bg-[color-mix(in_srgb,var(--color-accent)_8%,transparent)] border border-[var(--color-accent)]/20 rounded-lg">
       <span class="text-xs text-[var(--color-text-secondary)]">{{ selectedProductIds.length }} ausgewählt</span>
       <button
         class="pim-btn pim-btn-secondary text-xs"
@@ -276,13 +281,15 @@ onMounted(() => {
         @click="openCompare"
       >
         <GitCompareArrows class="w-3.5 h-3.5" :stroke-width="1.75" />
-        Produkte vergleichen
+        <span class="hidden sm:inline">Produkte vergleichen</span>
+        <span class="sm:hidden">Vergleichen</span>
       </button>
-      <span v-else-if="selectedProductIds.length === 1" class="text-[11px] text-[var(--color-text-tertiary)]">
+      <button class="pim-btn pim-btn-secondary text-xs" @click="openBulkEditor">
+        <Pencil class="w-3.5 h-3.5" :stroke-width="1.75" />
+        <span class="hidden sm:inline">Bulk bearbeiten</span>
+      </button>
+      <span v-if="!canCompare && selectedProductIds.length === 1" class="text-[11px] text-[var(--color-text-tertiary)] hidden sm:inline">
         Noch 1 Produkt auswählen zum Vergleichen
-      </span>
-      <span v-else class="text-[11px] text-[var(--color-text-tertiary)]">
-        Max. 2 Produkte zum Vergleichen auswählen
       </span>
     </div>
 

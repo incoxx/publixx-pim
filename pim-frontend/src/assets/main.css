@@ -249,6 +249,13 @@ body {
   line-height: 1.4;
 }
 
+/* Touch-friendly: ensure usable tap targets on touch devices */
+@media (hover: none) {
+  .pim-btn {
+    min-height: 36px;
+  }
+}
+
 /* Transition classes */
 .fade-enter-active,
 .fade-leave-active {

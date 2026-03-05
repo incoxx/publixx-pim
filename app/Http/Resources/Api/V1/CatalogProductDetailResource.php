@@ -21,7 +21,7 @@ class CatalogProductDetailResource extends JsonResource
 
         $media = $this->resource->media->map(function ($m) use ($lang) {
             return [
-                'url' => '/api/v1/catalog/media/' . $m->file_name,
+                'url' => url('api/v1/catalog/media/' . rawurlencode($m->file_name)),
                 'alt' => $lang === 'en' && $m->alt_text_en ? $m->alt_text_en : $m->alt_text_de,
                 'is_primary' => (bool) $m->pivot->is_primary,
                 'media_type' => $m->media_type,

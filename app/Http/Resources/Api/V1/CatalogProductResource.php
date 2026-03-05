@@ -18,7 +18,7 @@ class CatalogProductResource extends JsonResource
 
         $imageUrl = null;
         if ($this->primary_image) {
-            $imageUrl = '/api/v1/catalog/media/' . $this->primary_image;
+            $imageUrl = url('api/v1/catalog/media/' . rawurlencode($this->primary_image));
         }
 
         return [

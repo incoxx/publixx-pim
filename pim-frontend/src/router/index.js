@@ -31,6 +31,12 @@ const routes = [
     meta: { title: 'Produkte' },
   },
   {
+    path: '/products/bulk-edit',
+    name: 'bulk-editor',
+    component: () => import('@/views/products/BulkEditorView.vue'),
+    meta: { title: 'Bulk-Editor' },
+  },
+  {
     path: '/products/:id',
     name: 'product-detail',
     component: () => import('@/views/products/ProductDetailView.vue'),
@@ -136,6 +142,18 @@ const routes = [
         name: 'catalog-product',
         component: () => import('@/views/catalog/CatalogProductView.vue'),
         meta: { public: true, title: 'Produktdetail' },
+      },
+      {
+        path: 'impressum',
+        name: 'catalog-impressum',
+        component: () => import('@/views/catalog/CatalogLegalPage.vue'),
+        meta: { public: true, title: 'Impressum' },
+      },
+      {
+        path: 'kontakt',
+        name: 'catalog-kontakt',
+        component: () => import('@/views/catalog/CatalogLegalPage.vue'),
+        meta: { public: true, title: 'Kontakt' },
       },
     ],
   },
