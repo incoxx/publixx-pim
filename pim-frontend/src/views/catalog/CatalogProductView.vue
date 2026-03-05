@@ -66,7 +66,7 @@ onMounted(() => {
           </div>
 
           <!-- Name -->
-          <h1 class="text-2xl font-bold text-base-content leading-tight">
+          <h1 class="font-bold text-base-content leading-tight" :style="{ fontSize: 'var(--catalog-heading-size, 1.75rem)' }">
             {{ product.name }}
           </h1>
 

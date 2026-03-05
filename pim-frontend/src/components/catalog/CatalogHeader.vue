@@ -41,10 +41,16 @@ function onSearchClear() {
     <!-- Logo -->
     <div class="flex-none">
       <a href="/preview" class="btn btn-ghost text-lg font-bold text-primary normal-case gap-1 px-2">
-        <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <img
+          v-if="store.themeSettings.logo_url"
+          :src="store.themeSettings.logo_url"
+          alt="Logo"
+          class="h-8 w-auto max-w-[160px] object-contain"
+        />
+        <svg v-else class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
         </svg>
-        <span class="hidden sm:inline">Produktkatalog</span>
+        <span class="hidden sm:inline">{{ store.themeSettings.catalog_title || 'Produktkatalog' }}</span>
       </a>
     </div>
 

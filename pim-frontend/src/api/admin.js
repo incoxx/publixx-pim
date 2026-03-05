@@ -20,4 +20,8 @@ export default {
   rollback(commitHash) {
     return client.post('/admin/deploy/rollback', { commit_hash: commitHash })
   },
+
+  updateCatalogTheme(payload) {
+    return client.put('/settings/catalog-theme', payload)
+  },
 }

@@ -143,6 +143,18 @@ const routes = [
         component: () => import('@/views/catalog/CatalogProductView.vue'),
         meta: { public: true, title: 'Produktdetail' },
       },
+      {
+        path: 'impressum',
+        name: 'catalog-impressum',
+        component: () => import('@/views/catalog/CatalogLegalPage.vue'),
+        meta: { public: true, title: 'Impressum' },
+      },
+      {
+        path: 'kontakt',
+        name: 'catalog-kontakt',
+        component: () => import('@/views/catalog/CatalogLegalPage.vue'),
+        meta: { public: true, title: 'Kontakt' },
+      },
     ],
   },
   // --- Public Asset Preview ---

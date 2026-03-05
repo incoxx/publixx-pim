@@ -40,6 +40,7 @@ use App\Http\Controllers\Api\V1\PublixxDatasetController;
 use App\Http\Controllers\Api\V1\PxfTemplateController;
 use App\Http\Controllers\Api\V1\RelationTypeController;
 use App\Http\Controllers\Api\V1\ResetDataController;
+use App\Http\Controllers\Api\V1\SettingController;
 use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\UnitController;
 use App\Http\Controllers\Api\V1\UnitGroupController;
@@ -92,6 +93,7 @@ Route::prefix('v1/catalog')->middleware('throttle.pim')->group(function () {
     Route::get('products/{product}', [CatalogController::class, 'product']);
     Route::get('products/{product}/json', [CatalogController::class, 'productJson']);
     Route::get('categories', [CatalogController::class, 'categories']);
+    Route::get('settings', [SettingController::class, 'catalogTheme']);
     Route::get('media/{filename}', [CatalogController::class, 'media'])->name('catalog.media');
 });
 
@@ -344,6 +346,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // =====================================================================
     Route::post('admin/reset-data', ResetDataController::class);
     Route::post('admin/load-demo-data', LoadDemoDataController::class);
+    Route::put('settings/catalog-theme', [SettingController::class, 'updateCatalogTheme']);
 
     // =====================================================================
     // PXF Templates

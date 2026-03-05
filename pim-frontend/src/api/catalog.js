@@ -50,4 +50,8 @@ export default {
   getCategories(options = {}) {
     return catalogClient.get('/catalog/categories', { params: buildParams(options) })
   },
+
+  getSettings() {
+    return catalogClient.get('/catalog/settings')
+  },
 }

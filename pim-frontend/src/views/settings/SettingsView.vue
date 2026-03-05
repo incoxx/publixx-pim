@@ -3,14 +3,121 @@ import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useLocaleStore } from '@/stores/locale'
 import { useAuthStore } from '@/stores/auth'
-import { Globe, Palette, AlertTriangle, Server, RotateCcw, CheckCircle, XCircle, Loader2, GitBranch, Database } from 'lucide-vue-next'
+import { Globe, Palette, AlertTriangle, Server, RotateCcw, CheckCircle, XCircle, Loader2, GitBranch, Database, Upload, Trash2, Save } from 'lucide-vue-next'
 import adminApi from '@/api/admin'
+import catalogApi from '@/api/catalog'
+import mediaApi from '@/api/media'
 
 const { t } = useI18n()
 const localeStore = useLocaleStore()
 const authStore = useAuthStore()
 
 const isAdmin = authStore.hasPermission('*') || authStore.userRole === 'Admin'
+
+// ── Catalog Theme State ──
+const FONT_OPTIONS = [
+  'Inter', 'Roboto', 'Open Sans', 'Lato', 'Nunito', 'Source Sans 3', 'Montserrat', 'System (sans-serif)',
+]
+const HEADING_SIZE_OPTIONS = [
+  { value: '1.25rem', label: '1.25rem (klein)' },
+  { value: '1.5rem', label: '1.5rem' },
+  { value: '1.75rem', label: '1.75rem (Standard)' },
+  { value: '2rem', label: '2rem' },
+  { value: '2.25rem', label: '2.25rem (groß)' },
+]
+const BODY_SIZE_OPTIONS = [
+  { value: '0.8125rem', label: '0.8125rem (klein)' },
+  { value: '0.875rem', label: '0.875rem (Standard)' },
+  { value: '1rem', label: '1rem (groß)' },
+]
+
+const themeForm = ref({
+  font_family: 'Inter',
+  font_heading_size: '1.75rem',
+  font_body_size: '0.875rem',
+  color_primary: '#1B3A5C',
+  color_accent: '#0D9488',
+  color_table_bg: '#f8fafc',
+  color_body_text: '#111827',
+  logo_media_id: null,
+  catalog_title: 'Produktkatalog',
+  impressum_url: '',
+  kontakt_url: '',
+  impressum_text: '',
+  kontakt_text: '',
+  footer_text: '',
+})
+const themeLogoPreview = ref(null)
+const themeSaving = ref(false)
+const themeSaved = ref(false)
+const themeError = ref(null)
+const themeLoading = ref(false)
+
+async function loadThemeSettings() {
+  themeLoading.value = true
+  try {
+    const { data } = await catalogApi.getSettings()
+    if (data.data) {
+      const d = data.data
+      themeForm.value = {
+        font_family: d.font_family || 'Inter',
+        font_heading_size: d.font_heading_size || '1.75rem',
+        font_body_size: d.font_body_size || '0.875rem',
+        color_primary: d.color_primary || '#1B3A5C',
+        color_accent: d.color_accent || '#0D9488',
+        color_table_bg: d.color_table_bg || '#f8fafc',
+        color_body_text: d.color_body_text || '#111827',
+        logo_media_id: d.logo_media_id || null,
+        catalog_title: d.catalog_title || 'Produktkatalog',
+        impressum_url: d.impressum_url || '',
+        kontakt_url: d.kontakt_url || '',
+        impressum_text: d.impressum_text || '',
+        kontakt_text: d.kontakt_text || '',
+        footer_text: d.footer_text || '',
+      }
+      themeLogoPreview.value = d.logo_url || null
+    }
+  } catch (e) {
+    console.warn('Failed to load theme settings:', e.message)
+  } finally { themeLoading.value = false }
+}
+
+async function saveThemeSettings() {
+  themeSaving.value = true
+  themeSaved.value = false
+  themeError.value = null
+  try {
+    const payload = { ...themeForm.value }
+    // Convert empty strings to null for optional fields
+    for (const key of ['impressum_url', 'kontakt_url', 'impressum_text', 'kontakt_text', 'footer_text', 'catalog_title']) {
+      if (!payload[key]) payload[key] = null
+    }
+    await adminApi.updateCatalogTheme(payload)
+    themeSaved.value = true
+    setTimeout(() => { themeSaved.value = false }, 3000)
+  } catch (e) {
+    themeError.value = e.response?.data?.message || e.message
+  } finally { themeSaving.value = false }
+}
+
+async function uploadLogo(event) {
+  const file = event.target.files?.[0]
+  if (!file) return
+  try {
+    const { data } = await mediaApi.upload(file, { usage_purpose: 'catalog_logo' })
+    const media = data.data || data
+    themeForm.value.logo_media_id = media.id
+    themeLogoPreview.value = media.thumb_url || media.url || media.file_url
+  } catch (e) {
+    themeError.value = 'Logo-Upload fehlgeschlagen: ' + (e.response?.data?.message || e.message)
+  }
+  event.target.value = ''
+}
+
+function removeLogo() {
+  themeForm.value.logo_media_id = null
+  themeLogoPreview.value = null
+}
 
 // ── Reset State ──
 const confirmText = ref('')
@@ -123,7 +230,10 @@ async function triggerRollback() {
   }
 }
 
-onMounted(loadStatus)
+onMounted(() => {
+  loadStatus()
+  if (isAdmin) loadThemeSettings()
+})
 </script>
 
 <template>
@@ -150,10 +260,139 @@ onMounted(loadStatus)
       </div>
     </div>
 
-    <!-- Darstellung -->
-    <div class="pim-card p-6 space-y-4">
-      <div class="flex items-center gap-3 mb-2"><Palette class="w-5 h-5 text-[var(--color-accent)]" :stroke-width="1.75" /><h3 class="text-sm font-semibold">{{ t('settings.appearance') }}</h3></div>
-      <p class="text-xs text-[var(--color-text-tertiary)]">{{ t('settings.appearancePlaceholder') }}</p>
+    <!-- Darstellung / Katalog-Theme -->
+    <div v-if="isAdmin" class="pim-card p-6 space-y-5">
+      <div class="flex items-center gap-3 mb-2">
+        <Palette class="w-5 h-5 text-[var(--color-accent)]" :stroke-width="1.75" />
+        <h3 class="text-sm font-semibold">Katalog-Darstellung</h3>
+      </div>
+
+      <div v-if="themeLoading" class="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">
+        <Loader2 class="w-4 h-4 animate-spin" /> Lade Einstellungen…
+      </div>
+
+      <template v-else>
+        <!-- Typografie -->
+        <div class="space-y-3">
+          <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">Typografie</h4>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Schriftart</label>
+              <select class="pim-input" v-model="themeForm.font_family">
+                <option v-for="f in FONT_OPTIONS" :key="f" :value="f">{{ f }}</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Überschriften</label>
+              <select class="pim-input" v-model="themeForm.font_heading_size">
+                <option v-for="o in HEADING_SIZE_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Fließtext</label>
+              <select class="pim-input" v-model="themeForm.font_body_size">
+                <option v-for="o in BODY_SIZE_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Farben -->
+        <div class="space-y-3">
+          <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">Farben</h4>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div v-for="c in [
+              { key: 'color_primary', label: 'Primär / Überschriften' },
+              { key: 'color_accent', label: 'Akzentfarbe' },
+              { key: 'color_table_bg', label: 'Tabellen-Hintergrund' },
+              { key: 'color_body_text', label: 'Textfarbe' },
+            ]" :key="c.key">
+              <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">{{ c.label }}</label>
+              <div class="flex items-center gap-2">
+                <input
+                  type="color"
+                  :value="themeForm[c.key]"
+                  @input="themeForm[c.key] = $event.target.value"
+                  class="w-9 h-9 rounded border border-[var(--color-border)] cursor-pointer p-0.5"
+                />
+                <input
+                  type="text"
+                  :value="themeForm[c.key]"
+                  @input="themeForm[c.key] = $event.target.value"
+                  class="pim-input font-mono text-xs flex-1"
+                  maxlength="7"
+                  placeholder="#000000"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Logo & Titel -->
+        <div class="space-y-3">
+          <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">Logo & Titel</h4>
+          <div class="flex items-start gap-4">
+            <div class="w-24 h-16 rounded border border-[var(--color-border)] bg-[var(--color-bg)] flex items-center justify-center overflow-hidden">
+              <img v-if="themeLogoPreview" :src="themeLogoPreview" class="max-w-full max-h-full object-contain p-1" alt="Logo" />
+              <span v-else class="text-[10px] text-[var(--color-text-tertiary)]">Kein Logo</span>
+            </div>
+            <div class="flex-1 space-y-2">
+              <div class="flex gap-2">
+                <label class="pim-btn pim-btn-secondary text-xs cursor-pointer">
+                  <Upload class="w-3.5 h-3.5" /> Logo hochladen
+                  <input type="file" accept="image/*" class="hidden" @change="uploadLogo" />
+                </label>
+                <button v-if="themeForm.logo_media_id" class="pim-btn pim-btn-ghost text-xs text-[var(--color-error)]" @click="removeLogo">
+                  <Trash2 class="w-3.5 h-3.5" /> Entfernen
+                </button>
+              </div>
+              <div>
+                <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Katalog-Titel</label>
+                <input class="pim-input text-xs" v-model="themeForm.catalog_title" placeholder="Produktkatalog" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Legal -->
+        <div class="space-y-3">
+          <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">Impressum & Kontakt</h4>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Impressum-URL</label>
+              <input class="pim-input text-xs" v-model="themeForm.impressum_url" placeholder="https://..." />
+            </div>
+            <div>
+              <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Kontakt-URL</label>
+              <input class="pim-input text-xs" v-model="themeForm.kontakt_url" placeholder="https://..." />
+            </div>
+          </div>
+          <div>
+            <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Impressum-Text <span class="text-[var(--color-text-tertiary)] font-normal">(wird als eigene Seite angezeigt)</span></label>
+            <textarea class="pim-input text-xs" rows="4" v-model="themeForm.impressum_text" placeholder="Firma GmbH, Musterstraße 1, ..."></textarea>
+          </div>
+          <div>
+            <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Kontakt-Text <span class="text-[var(--color-text-tertiary)] font-normal">(wird als eigene Seite angezeigt)</span></label>
+            <textarea class="pim-input text-xs" rows="4" v-model="themeForm.kontakt_text" placeholder="E-Mail: info@firma.de, Tel: ..."></textarea>
+          </div>
+          <div>
+            <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Footer-Text <span class="text-[var(--color-text-tertiary)] font-normal">(ersetzt &bdquo;Powered by&ldquo;)</span></label>
+            <input class="pim-input text-xs" v-model="themeForm.footer_text" placeholder="© 2026 Firma GmbH" />
+          </div>
+        </div>
+
+        <!-- Save -->
+        <div class="flex items-center gap-3 pt-2 border-t border-[var(--color-border)]">
+          <button class="pim-btn pim-btn-primary text-xs" :disabled="themeSaving" @click="saveThemeSettings">
+            <Save class="w-3.5 h-3.5" :stroke-width="2" />
+            {{ themeSaving ? 'Speichern…' : 'Katalog-Theme speichern' }}
+          </button>
+          <span v-if="themeSaved" class="text-xs text-[var(--color-success)] flex items-center gap-1">
+            <CheckCircle class="w-3.5 h-3.5" /> Gespeichert
+          </span>
+          <span v-if="themeError" class="text-xs text-[var(--color-error)]">{{ themeError }}</span>
+        </div>
+      </template>
     </div>
 
     <!-- Admin: Demo-Daten laden -->

@@ -28,6 +28,35 @@ export const useCatalogStore = defineStore('catalog', () => {
   const viewMode = ref(localStorage.getItem('catalog_view_mode') || 'grid')
   const locale = ref(localStorage.getItem('catalog_locale') || 'de')
 
+  // --- Theme Settings ---
+  const themeSettings = ref({
+    font_family: 'Inter',
+    font_heading_size: '1.75rem',
+    font_body_size: '0.875rem',
+    color_primary: '#1B3A5C',
+    color_accent: '#0D9488',
+    color_table_bg: '#f8fafc',
+    color_body_text: '#111827',
+    logo_url: null,
+    catalog_title: 'Produktkatalog',
+    impressum_url: null,
+    kontakt_url: null,
+    impressum_text: null,
+    kontakt_text: null,
+    footer_text: null,
+  })
+
+  async function fetchThemeSettings() {
+    try {
+      const { data } = await catalogApi.getSettings()
+      if (data.data) {
+        themeSettings.value = { ...themeSettings.value, ...data.data }
+      }
+    } catch (e) {
+      console.warn('Failed to load catalog theme settings:', e.message)
+    }
+  }
+
   // --- Wishlist (localStorage-backed) ---
   const WISHLIST_KEY = 'pim_catalog_wishlist'
   const wishlistIds = ref(JSON.parse(localStorage.getItem(WISHLIST_KEY) || '[]'))
@@ -238,6 +267,8 @@ export const useCatalogStore = defineStore('catalog', () => {
     setSort,
     setViewMode,
     setLocale,
+    themeSettings,
+    fetchThemeSettings,
     productsJsonUrl,
     exportJsonUrl,
     productJsonUrl,
