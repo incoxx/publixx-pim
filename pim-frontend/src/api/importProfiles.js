@@ -33,4 +33,8 @@ export default {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
   },
+
+  autoGenerateAttributes(data) {
+    return client.post('/import-profiles/auto-generate-attributes', data)
+  },
 }
