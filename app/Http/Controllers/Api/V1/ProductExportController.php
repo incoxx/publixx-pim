@@ -37,6 +37,7 @@ class ProductExportController extends Controller
             'category_ids' => 'nullable|array',
             'category_ids.*' => 'string|uuid',
             'include_descendants' => 'nullable|boolean',
+            'hierarchy_type' => 'nullable|string|in:master,output',
             'status' => 'nullable|string|in:active,draft,inactive,discontinued',
             'attribute_filters' => 'nullable|array',
             'language' => 'nullable|string|max:5',
@@ -70,7 +71,7 @@ class ProductExportController extends Controller
                 $this->applyTextSearch($query, $validated['search'], $validated['search_mode'] ?? 'like');
             }
             if (!empty($validated['category_ids'])) {
-                $this->applyCategoryFilter($query, $validated['category_ids'], $validated['include_descendants'] ?? true);
+                $this->applyCategoryFilter($query, $validated['category_ids'], $validated['include_descendants'] ?? true, $validated['hierarchy_type'] ?? 'master');
             }
             foreach ($validated['attribute_filters'] ?? [] as $idx => $filter) {
                 $this->applyAttributeFilter($query, $filter, $idx, $language);

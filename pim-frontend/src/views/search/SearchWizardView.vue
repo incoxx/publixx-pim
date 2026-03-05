@@ -122,7 +122,18 @@ const extraSearchColumns = [
   { key: 'ean', label: 'EAN', mono: true },
   { key: 'created_at', label: 'Erstellt', sortable: true },
 ]
-const { visibleColumns: searchVisibleColumns, allColumns: searchAllColumns, visibleKeys: searchVisibleKeys, toggleColumn: searchToggleColumn, moveColumn: searchMoveColumn, resetColumns: searchResetColumns } = useColumnConfig('columns:search', defaultSearchColumns, extraSearchColumns)
+
+// Dynamic attribute columns (populated after searchableAttributes are loaded)
+const attributeColumns = computed(() =>
+  searchableAttributes.value.map(attr => ({
+    key: `attributes.${attr.id}`,
+    label: attr.name_de || attr.technical_name,
+    group: 'Attribute',
+    exportKey: `attr:${attr.id}`,
+  }))
+)
+
+const { visibleColumns: searchVisibleColumns, allColumns: searchAllColumns, visibleKeys: searchVisibleKeys, toggleColumn: searchToggleColumn, moveColumn: searchMoveColumn, resetColumns: searchResetColumns } = useColumnConfig('columns:search', defaultSearchColumns, extraSearchColumns, attributeColumns)
 
 // Excel export
 const excelExporting = ref(false)
@@ -130,8 +141,16 @@ const excelExporting = ref(false)
 async function exportSearchExcel() {
   excelExporting.value = true
   try {
+    // Map attribute column keys to export keys (attr:id)
+    const exportColumns = searchVisibleKeys.value.map(k => {
+      if (k.startsWith('attributes.')) {
+        const col = searchAllColumns.value.find(c => c.key === k)
+        return col?.exportKey || k
+      }
+      return k
+    })
     const params = {
-      columns: searchVisibleKeys.value,
+      columns: exportColumns,
       search: searchInput.value.trim() || undefined,
       search_mode: searchMode.value,
       language: 'de',
@@ -139,6 +158,8 @@ async function exportSearchExcel() {
     if (selectedCategories.value.length > 0) {
       params.category_ids = selectedCategories.value
       params.include_descendants = true
+      const h = hierarchies.value.find(h => h.id === selectedHierarchyId.value)
+      if (h?.hierarchy_type) params.hierarchy_type = h.hierarchy_type
     }
     if (statusFilter.value) params.status = statusFilter.value
     const resp = await productsApi.exportExcel(params)
@@ -364,11 +385,19 @@ async function doProductSearch(page) {
   if (selectedCategories.value.length > 0) {
     params.category_ids = selectedCategories.value
     params.include_descendants = true
+    const h = hierarchies.value.find(h => h.id === selectedHierarchyId.value)
+    if (h?.hierarchy_type) params.hierarchy_type = h.hierarchy_type
   }
 
   if (statusFilter.value) {
     params.status = statusFilter.value
   }
+
+  // Attribute columns (for visible attribute columns in table)
+  const attrColumnIds = searchVisibleKeys.value
+    .filter(k => k.startsWith('attributes.'))
+    .map(k => k.replace('attributes.', ''))
+  if (attrColumnIds.length > 0) params.attribute_columns = attrColumnIds
 
   // Build attribute filters
   const attrFilters = []

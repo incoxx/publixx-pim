@@ -38,7 +38,10 @@ class ProductSearchController extends Controller
             'category_ids' => 'nullable|array',
             'category_ids.*' => 'string|uuid',
             'include_descendants' => 'nullable|boolean',
+            'hierarchy_type' => 'nullable|string|in:master,output',
             'status' => 'nullable|string|in:active,draft,inactive,discontinued',
+            'attribute_columns' => 'nullable|array',
+            'attribute_columns.*' => 'string|uuid',
             'attribute_filters' => 'nullable|array',
             'attribute_filters.*.attribute_id' => 'required|string|uuid',
             'attribute_filters.*.value' => 'required',
@@ -54,7 +57,9 @@ class ProductSearchController extends Controller
         $searchMode = $validated['search_mode'] ?? 'like';
         $categoryIds = $validated['category_ids'] ?? [];
         $includeDescendants = $validated['include_descendants'] ?? true;
+        $hierarchyType = $validated['hierarchy_type'] ?? 'master';
         $status = $validated['status'] ?? null;
+        $attributeColumns = $validated['attribute_columns'] ?? [];
         $attributeFilters = $validated['attribute_filters'] ?? [];
         $sortField = $validated['sort'] ?? 'updated_at';
         $sortOrder = $validated['order'] ?? 'desc';
@@ -77,7 +82,7 @@ class ProductSearchController extends Controller
 
         // ── Category filter (with descendants via materialized path) ──
         if (!empty($categoryIds)) {
-            $this->applyCategoryFilter($query, $categoryIds, $includeDescendants);
+            $this->applyCategoryFilter($query, $categoryIds, $includeDescendants, $hierarchyType);
         }
 
         // ── Attribute filters (subquery-based) ──
@@ -91,8 +96,44 @@ class ProductSearchController extends Controller
         // ── Paginate ──
         $paginated = $query->paginate($perPage);
 
+        $data = collect($paginated->items());
+
+        // ── Attribute columns (optional) ──
+        if (!empty($attributeColumns)) {
+            $productIds = $data->pluck('id');
+            $attrValues = ProductAttributeValue::whereIn('product_id', $productIds)
+                ->whereIn('attribute_id', $attributeColumns)
+                ->where('language', $language)
+                ->with('valueListEntry')
+                ->get()
+                ->groupBy('product_id');
+
+            $data = $data->map(function ($product) use ($attrValues, $attributeColumns) {
+                $attrs = [];
+                $productAttrValues = $attrValues->get($product->id, collect());
+                foreach ($attributeColumns as $attrId) {
+                    $av = $productAttrValues->firstWhere('attribute_id', $attrId);
+                    if (!$av) {
+                        $attrs[$attrId] = null;
+                    } elseif ($av->value_selection_id && $av->valueListEntry) {
+                        $attrs[$attrId] = $av->valueListEntry->display_value_de ?? $av->valueListEntry->code ?? '';
+                    } elseif ($av->value_flag !== null) {
+                        $attrs[$attrId] = $av->value_flag ? 'Ja' : 'Nein';
+                    } elseif ($av->value_date !== null) {
+                        $attrs[$attrId] = $av->value_date;
+                    } elseif ($av->value_number !== null) {
+                        $attrs[$attrId] = $av->value_number;
+                    } else {
+                        $attrs[$attrId] = $av->value_string ?? '';
+                    }
+                }
+                $product->setAttribute('attributes', $attrs);
+                return $product;
+            });
+        }
+
         return response()->json([
-            'data' => $paginated->items(),
+            'data' => $data->values(),
             'meta' => [
                 'current_page' => $paginated->currentPage(),
                 'last_page' => $paginated->lastPage(),
