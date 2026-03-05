@@ -39,7 +39,7 @@ class ImportProfileService
             $colIndex = 1;
             $maxCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($highestColumn);
             for ($col = 1; $col <= $maxCol; $col++) {
-                $value = $worksheet->getCellByColumnAndRow($col, 1)->getValue();
+                $value = $worksheet->getCell([$col, 1])->getValue();
                 if ($value !== null && $value !== '') {
                     $headers[] = trim((string) $value);
                 }
@@ -80,7 +80,7 @@ class ImportProfileService
         // Header lesen
         $headers = [];
         for ($col = 1; $col <= $maxCol; $col++) {
-            $value = $worksheet->getCellByColumnAndRow($col, 1)->getValue();
+            $value = $worksheet->getCell([$col, 1])->getValue();
             $headers[$col] = trim((string) ($value ?? ''));
         }
 
@@ -102,7 +102,7 @@ class ImportProfileService
 
         for ($row = 2; $row <= $highestRow; $row++) {
             $rowData = [];
-            $sku = $skuColumnIndex ? (string) $worksheet->getCellByColumnAndRow($skuColumnIndex, $row)->getValue() : null;
+            $sku = $skuColumnIndex ? (string) $worksheet->getCell([$skuColumnIndex, $row])->getValue() : null;
             $rowData['_sku'] = $sku;
             $rowData['_row'] = $row;
 
@@ -122,7 +122,7 @@ class ImportProfileService
                     continue;
                 }
 
-                $value = $worksheet->getCellByColumnAndRow($colIdx, $row)->getValue();
+                $value = $worksheet->getCell([$colIdx, $row])->getValue();
                 $rowData[$sourceCol] = [
                     'source_value' => $value,
                     'target_attribute' => $attr?->technical_name ?? $attrId,
