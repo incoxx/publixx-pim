@@ -214,22 +214,11 @@ const shortcuts = [
           FAQ — Häufige Fragen
         </a>
         <a
-          href="https://github.com/incoxx/publixx-pim"
-          target="_blank"
-          rel="noopener"
-          class="flex items-center gap-2 text-[13px] text-[var(--color-accent)] hover:underline"
-        >
-          <ExternalLink class="w-3.5 h-3.5" :stroke-width="1.75" />
-          GitHub Repository
-        </a>
-        <a
-          href="https://github.com/incoxx/publixx-pim/issues"
-          target="_blank"
-          rel="noopener"
+          href="mailto:info@incoxx.com"
           class="flex items-center gap-2 text-[13px] text-[var(--color-accent)] hover:underline"
         >
           <MessageSquare class="w-3.5 h-3.5" :stroke-width="1.75" />
-          Fehler melden / Feedback
+          Kontakt aufnehmen — teilen wir Ihnen gerne mit
         </a>
       </div>
     </div>
