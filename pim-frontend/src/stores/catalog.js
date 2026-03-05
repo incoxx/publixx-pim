@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
-import catalogApi from '@/api/catalog'
+import catalogApi, { resolveMediaUrl } from '@/api/catalog'
 
 export const useCatalogStore = defineStore('catalog', () => {
   // --- State ---
@@ -91,7 +91,12 @@ export const useCatalogStore = defineStore('catalog', () => {
         lang: locale.value,
       })
       // Response is now a bare array; pagination info in headers
-      products.value = Array.isArray(resp.data) ? resp.data : (resp.data.data || resp.data)
+      const rawProducts = Array.isArray(resp.data) ? resp.data : (resp.data.data || resp.data)
+      // Resolve image URLs for cross-origin deployments
+      products.value = rawProducts.map(p => ({
+        ...p,
+        image_url: resolveMediaUrl(p.image_url),
+      }))
       const headers = resp.headers
       if (headers) {
         meta.value = {
@@ -114,7 +119,12 @@ export const useCatalogStore = defineStore('catalog', () => {
     error.value = null
     try {
       const { data } = await catalogApi.getProduct(id, { lang: locale.value })
-      currentProduct.value = data.data
+      const prod = data.data
+      // Resolve media URLs for cross-origin deployments
+      if (prod?.media) {
+        prod.media = prod.media.map(m => ({ ...m, url: resolveMediaUrl(m.url) }))
+      }
+      currentProduct.value = prod
     } catch (e) {
       error.value = e.response?.data?.title || 'Produkt nicht gefunden'
       currentProduct.value = null
