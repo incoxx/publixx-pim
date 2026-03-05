@@ -34,7 +34,7 @@ class ImportProfileController extends Controller
             'sku_column' => 'nullable|string|max:100',
             'column_mappings' => 'required|array',
             'column_mappings.*.source' => 'required|string',
-            'column_mappings.*.target_attribute_id' => 'required|string|uuid',
+            'column_mappings.*.target_attribute_id' => 'required|string|uuid|exists:attributes,id',
             'column_mappings.*.language' => 'nullable|string|max:5',
             'price_mappings' => 'nullable|array',
             'relation_mappings' => 'nullable|array',
@@ -60,7 +60,7 @@ class ImportProfileController extends Controller
             'sku_column' => 'nullable|string|max:100',
             'column_mappings' => 'sometimes|array',
             'column_mappings.*.source' => 'required|string',
-            'column_mappings.*.target_attribute_id' => 'required|string|uuid',
+            'column_mappings.*.target_attribute_id' => 'required|string|uuid|exists:attributes,id',
             'column_mappings.*.language' => 'nullable|string|max:5',
             'price_mappings' => 'nullable|array',
             'relation_mappings' => 'nullable|array',
@@ -101,6 +101,10 @@ class ImportProfileController extends Controller
      */
     public function preview(Request $request, ImportProfile $importProfile): JsonResponse
     {
+        if ($importProfile->user_id !== $request->user()->id) {
+            abort(403, 'Nur eigene Profile können in der Vorschau angezeigt werden.');
+        }
+
         $request->validate([
             'file' => 'required|file|mimes:xlsx,xls|max:51200',
             'max_rows' => 'nullable|integer|min:1|max:100',

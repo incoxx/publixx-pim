@@ -97,6 +97,10 @@ class ExportProfileController extends Controller
 
     public function execute(Request $request, ExportProfile $exportProfile): StreamedResponse|JsonResponse
     {
+        if ($exportProfile->user_id !== $request->user()->id) {
+            abort(403, 'Nur eigene Profile können ausgeführt werden.');
+        }
+
         $validated = $request->validate([
             'file_name' => 'nullable|string|max:255',
         ]);
