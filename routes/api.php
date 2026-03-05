@@ -206,6 +206,9 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::post('products/bulk-edit', [BulkEditorController::class, 'load']);
     Route::put('products/bulk-edit', [BulkEditorController::class, 'save']);
 
+    // Product Duplicate
+    Route::post('products/{product}/duplicate', [ProductController::class, 'duplicate']);
+
     Route::apiResource('products', ProductController::class);
 
     // Product Preview (generic, no PXF)
@@ -226,6 +229,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // Product Variants
     Route::get('products/{product}/variants', [ProductVariantController::class, 'index']);
     Route::post('products/{product}/variants', [ProductVariantController::class, 'store']);
+    Route::post('products/{product}/variants/generate', [ProductVariantController::class, 'generate']);
     Route::get('products/{product}/variant-rules', [ProductVariantController::class, 'rules']);
     Route::put('products/{product}/variant-rules', [ProductVariantController::class, 'updateRules']);
 

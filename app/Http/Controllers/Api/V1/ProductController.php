@@ -14,6 +14,7 @@ use App\Services\ProductVersioningService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Log;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -87,6 +88,95 @@ class ProductController extends Controller
         return (new ProductResource($product->load('productType')))
             ->response()
             ->setStatusCode(201);
+    }
+
+    /**
+     * POST /products/{product}/duplicate
+     *
+     * Deep-copy a product with selectable parts.
+     */
+    public function duplicate(Request $request, Product $product): JsonResponse
+    {
+        $this->authorize('create', Product::class);
+
+        $includeAttributes = $request->boolean('include_attributes', true);
+        $includePrices = $request->boolean('include_prices', true);
+        $includeMedia = $request->boolean('include_media', true);
+        $includeRelations = $request->boolean('include_relations', true);
+
+        $newProduct = null;
+
+        DB::transaction(function () use (
+            $product, $request, $includeAttributes, $includePrices, $includeMedia, $includeRelations, &$newProduct
+        ) {
+            // Generate unique SKU
+            $baseSku = $product->sku . '-copy';
+            $sku = $baseSku;
+            $suffix = 1;
+            while (Product::where('sku', $sku)->exists()) {
+                $sku = $baseSku . '-' . $suffix;
+                $suffix++;
+            }
+
+            // Create new product
+            $newProduct = Product::create([
+                'sku' => $sku,
+                'name' => $product->name . ' (Kopie)',
+                'ean' => $product->ean,
+                'status' => 'draft',
+                'product_type_id' => $product->product_type_id,
+                'product_type_ref' => 'product',
+                'master_hierarchy_node_id' => $product->master_hierarchy_node_id,
+                'created_by' => $request->user()?->id,
+            ]);
+
+            // Copy attribute values
+            if ($includeAttributes) {
+                foreach ($product->attributeValues as $av) {
+                    $newAv = $av->replicate();
+                    $newAv->product_id = $newProduct->id;
+                    $newAv->save();
+                }
+            }
+
+            // Copy prices
+            if ($includePrices) {
+                foreach ($product->prices as $price) {
+                    $newPrice = $price->replicate();
+                    $newPrice->product_id = $newProduct->id;
+                    $newPrice->save();
+                }
+            }
+
+            // Copy media assignments
+            if ($includeMedia) {
+                foreach ($product->mediaAssignments as $ma) {
+                    $newMa = $ma->replicate();
+                    $newMa->product_id = $newProduct->id;
+                    $newMa->save();
+                }
+            }
+
+            // Copy outgoing relations
+            if ($includeRelations) {
+                foreach ($product->outgoingRelations as $rel) {
+                    $newRel = $rel->replicate();
+                    $newRel->source_product_id = $newProduct->id;
+                    $newRel->save();
+                }
+            }
+        });
+
+        try {
+            event(new \App\Events\ProductCreated($newProduct));
+        } catch (\Throwable $e) {
+            Log::warning('ProductCreated event failed for duplicate', ['product_id' => $newProduct->id, 'error' => $e->getMessage()]);
+        }
+
+        return response()->json([
+            'message' => 'Product duplicated successfully.',
+            'product' => new ProductResource($newProduct->load('productType')),
+        ], 201);
     }
 
     public function show(Request $request, Product $product): ProductResource
