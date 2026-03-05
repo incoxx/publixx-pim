@@ -38,6 +38,8 @@ class BulkEditorController extends Controller
      */
     public function load(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', Product::class);
+
         $validated = $request->validate([
             'product_ids' => 'required|array|min:1|max:200',
             'product_ids.*' => 'string|uuid',
@@ -131,6 +133,8 @@ class BulkEditorController extends Controller
      */
     public function save(Request $request): JsonResponse
     {
+        $this->authorize('update', Product::class);
+
         $validated = $request->validate([
             'changes' => 'required|array|min:1|max:5000',
             'changes.*.product_id' => 'required|string|uuid',

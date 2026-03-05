@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
-use App\Http\Controllers\Controller;
 use App\Models\Media;
 use App\Models\Setting;
 use Illuminate\Http\JsonResponse;
@@ -54,6 +53,11 @@ class SettingController extends Controller
      */
     public function updateCatalogTheme(Request $request): JsonResponse
     {
+        // Only admins may update catalog theme
+        if (!$request->user()?->hasRole('Admin')) {
+            abort(403, 'Unauthorized.');
+        }
+
         $validated = $request->validate([
             'font_family' => 'nullable|string|max:100',
             'font_heading_size' => 'nullable|string|in:1.25rem,1.5rem,1.75rem,2rem,2.25rem',
@@ -71,10 +75,11 @@ class SettingController extends Controller
             'footer_text' => 'nullable|string|max:500',
         ]);
 
-        // Only store non-null values (keeps payload compact)
-        $payload = array_filter($validated, fn ($v) => $v !== null);
+        // Merge with existing payload so that unsent keys are preserved
+        $existing = Setting::getPayload('catalog_theme') ?? [];
+        $merged = array_merge($existing, $validated);
 
-        Setting::setPayload('catalog_theme', $payload);
+        Setting::setPayload('catalog_theme', $merged);
 
         return response()->json(['message' => 'Catalog theme updated.']);
     }
