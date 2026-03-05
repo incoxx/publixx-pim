@@ -136,6 +136,33 @@ class WatchlistController extends Controller
     }
 
     /**
+     * POST /api/v1/watchlist/bulk-remove
+     */
+    public function bulkRemove(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'uuid',
+        ]);
+
+        $deleted = WatchlistItem::where('user_id', $request->user()->id)
+            ->whereIn('id', $validated['ids'])
+            ->delete();
+
+        return response()->json(['message' => "{$deleted} Einträge entfernt", 'deleted' => $deleted]);
+    }
+
+    /**
+     * DELETE /api/v1/watchlist/all
+     */
+    public function removeAll(Request $request): JsonResponse
+    {
+        $deleted = WatchlistItem::where('user_id', $request->user()->id)->delete();
+
+        return response()->json(['message' => "{$deleted} Einträge entfernt", 'deleted' => $deleted]);
+    }
+
+    /**
      * GET /api/v1/watchlist/product-ids
      *
      * Quick lookup: returns array of product IDs on watchlist.

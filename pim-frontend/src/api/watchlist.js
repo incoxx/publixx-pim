@@ -21,6 +21,14 @@ export default {
     return client.delete(`/watchlist/product/${productId}`)
   },
 
+  bulkRemove(ids) {
+    return client.post('/watchlist/bulk-remove', { ids })
+  },
+
+  removeAll() {
+    return client.delete('/watchlist/all')
+  },
+
   productIds() {
     return client.get('/watchlist/product-ids')
   },

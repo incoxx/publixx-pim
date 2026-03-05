@@ -169,6 +169,32 @@ function openBulkEditor() {
   router.push({ path: '/products/bulk-edit', query: { ids } })
 }
 
+// --- Bulk Remove ---
+const bulkRemoving = ref(false)
+const showRemoveAllConfirm = ref(false)
+
+async function bulkRemoveSelected() {
+  if (selectedIds.value.length === 0) return
+  bulkRemoving.value = true
+  try {
+    await watchlistApi.bulkRemove(selectedIds.value)
+    selectedIds.value = []
+    await loadWatchlist()
+  } catch (e) { console.error('Bulk remove failed', e) }
+  finally { bulkRemoving.value = false }
+}
+
+async function removeAllItems() {
+  bulkRemoving.value = true
+  showRemoveAllConfirm.value = false
+  try {
+    await watchlistApi.removeAll()
+    selectedIds.value = []
+    await loadWatchlist()
+  } catch (e) { console.error('Remove all failed', e) }
+  finally { bulkRemoving.value = false }
+}
+
 onMounted(loadWatchlist)
 </script>
 
@@ -193,6 +219,14 @@ onMounted(loadWatchlist)
         >
           <Download class="w-3.5 h-3.5" :stroke-width="1.75" />
           Export
+        </button>
+        <button
+          v-if="items.length > 0"
+          class="pim-btn pim-btn-danger text-xs"
+          @click="showRemoveAllConfirm = true"
+        >
+          <Trash2 class="w-3.5 h-3.5" :stroke-width="1.75" />
+          Alle entfernen
         </button>
       </div>
     </div>
@@ -284,6 +318,14 @@ onMounted(loadWatchlist)
         <Pencil class="w-3.5 h-3.5" :stroke-width="1.75" />
         <span class="hidden sm:inline">Bulk bearbeiten</span>
       </button>
+      <button
+        class="pim-btn pim-btn-danger text-xs"
+        :disabled="bulkRemoving"
+        @click="bulkRemoveSelected"
+      >
+        <Trash2 class="w-3.5 h-3.5" :stroke-width="1.75" />
+        <span class="hidden sm:inline">{{ bulkRemoving ? 'Entferne…' : 'Von Merkliste entfernen' }}</span>
+      </button>
       <span v-if="selectedIds.length === 1" class="text-[11px] text-[var(--color-text-tertiary)] hidden sm:inline">
         Noch 1 Produkt auswählen zum Vergleichen
       </span>
@@ -350,6 +392,15 @@ onMounted(loadWatchlist)
       :loading="deleting"
       @confirm="confirmDelete"
       @cancel="deleteTarget = null"
+    />
+
+    <PimConfirmDialog
+      :open="showRemoveAllConfirm"
+      title="Alle Einträge entfernen?"
+      :message="`Alle ${items.length} Produkte werden von der Merkliste entfernt. Diese Aktion kann nicht rückgängig gemacht werden.`"
+      :loading="bulkRemoving"
+      @confirm="removeAllItems"
+      @cancel="showRemoveAllConfirm = false"
     />
 
     <!-- Product Comparison Modal -->
