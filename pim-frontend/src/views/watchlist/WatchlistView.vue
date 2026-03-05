@@ -115,7 +115,7 @@ async function exportExcel() {
   try {
     // Map watchlist column keys to export keys via explicit exportKey property
     const exportColumns = visibleKeys.value.map(k => {
-      const col = allColumns.find(c => c.key === k)
+      const col = allColumns.value.find(c => c.key === k)
       return col?.exportKey || k
     })
     const productIds = items.value.map(i => i.product_id).filter(Boolean)

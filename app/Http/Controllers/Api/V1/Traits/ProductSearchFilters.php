@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api\V1\Traits;
 
 use App\Models\Attribute;
 use App\Models\HierarchyNode;
+use App\Models\OutputHierarchyProductAssignment;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -48,22 +49,31 @@ trait ProductSearchFilters
         }
     }
 
-    protected function applyCategoryFilter($query, array $categoryIds, bool $includeDescendants): void
+    protected function applyCategoryFilter($query, array $categoryIds, bool $includeDescendants, string $hierarchyType = 'master'): void
     {
+        $nodeIds = collect($categoryIds);
+
         if ($includeDescendants) {
             $selectedNodes = HierarchyNode::whereIn('id', $categoryIds)->get();
-            $allNodeIds = collect($categoryIds);
 
             foreach ($selectedNodes as $node) {
-                $descendantIds = HierarchyNode::where('path', 'like', $node->path . '%')
-                    ->where('id', '!=', $node->id)
+                $descendantPrefix = $node->path === '/'
+                    ? "/{$node->id}/"
+                    : "{$node->path}{$node->id}/";
+                $descendantIds = HierarchyNode::where('path', 'like', $descendantPrefix . '%')
                     ->pluck('id');
-                $allNodeIds = $allNodeIds->merge($descendantIds);
+                $nodeIds = $nodeIds->merge($descendantIds);
             }
+        }
 
-            $query->whereIn('master_hierarchy_node_id', $allNodeIds->unique()->values());
+        $uniqueNodeIds = $nodeIds->unique()->values();
+
+        if ($hierarchyType === 'output') {
+            $productIds = OutputHierarchyProductAssignment::whereIn('hierarchy_node_id', $uniqueNodeIds)
+                ->pluck('product_id');
+            $query->whereIn('products.id', $productIds);
         } else {
-            $query->whereIn('master_hierarchy_node_id', $categoryIds);
+            $query->whereIn('master_hierarchy_node_id', $uniqueNodeIds);
         }
     }
 

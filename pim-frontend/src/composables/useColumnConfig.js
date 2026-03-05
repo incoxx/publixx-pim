@@ -1,4 +1,4 @@
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, isRef } from 'vue'
 
 /**
  * Composable for configurable table columns with localStorage persistence.
@@ -6,10 +6,17 @@ import { ref, computed, watch } from 'vue'
  * @param {string} storageKey - localStorage key, e.g. 'columns:products'
  * @param {Array} defaultColumns - Default visible columns [{key, label, sortable?, mono?}]
  * @param {Array} extraColumns - Additional optional columns (hidden by default)
+ * @param {Ref<Array>|Array} dynamicColumns - Reactive ref of dynamically loaded columns (e.g. attributes)
  */
-export function useColumnConfig(storageKey, defaultColumns, extraColumns = []) {
-  const allColumns = [...defaultColumns, ...extraColumns]
+export function useColumnConfig(storageKey, defaultColumns, extraColumns = [], dynamicColumns = []) {
+  const staticColumns = [...defaultColumns, ...extraColumns]
   const defaultKeys = defaultColumns.map(c => c.key)
+
+  // allColumns is reactive to support dynamicColumns that load asynchronously
+  const allColumns = computed(() => {
+    const dynamic = isRef(dynamicColumns) ? dynamicColumns.value : dynamicColumns
+    return [...staticColumns, ...dynamic]
+  })
 
   // Load from localStorage or use defaults
   function loadVisibleKeys() {
@@ -17,8 +24,10 @@ export function useColumnConfig(storageKey, defaultColumns, extraColumns = []) {
       const stored = localStorage.getItem(storageKey)
       if (stored) {
         const keys = JSON.parse(stored)
-        // Filter out keys that no longer exist
-        const validKeys = keys.filter(k => allColumns.some(c => c.key === k))
+        // Only validate against static columns at load time;
+        // dynamic columns may not be loaded yet — keep their keys
+        const staticKeys = new Set(staticColumns.map(c => c.key))
+        const validKeys = keys.filter(k => staticKeys.has(k) || k.startsWith('attributes.'))
         if (validKeys.length > 0) return validKeys
       }
     } catch (e) { console.warn('Failed to load column config:', e) }
@@ -34,7 +43,7 @@ export function useColumnConfig(storageKey, defaultColumns, extraColumns = []) {
 
   const visibleColumns = computed(() =>
     visibleKeys.value
-      .map(key => allColumns.find(c => c.key === key))
+      .map(key => allColumns.value.find(c => c.key === key))
       .filter(Boolean)
   )
 
