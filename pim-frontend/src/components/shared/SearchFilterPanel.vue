@@ -18,17 +18,24 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue'])
 
-const hierarchyTree = ref([])
+const hierarchies = ref([])
+const hierarchyTrees = ref({})
+const selectedHierarchyId = ref(null)
 const searchableAttributes = ref([])
 const showCategoryPicker = ref(false)
 
 onMounted(async () => {
   try {
     const { data } = await hierarchiesApi.list()
-    const hierarchies = data.data || data
-    if (hierarchies.length > 0) {
-      const { data: treeData } = await hierarchiesApi.getTree(hierarchies[0].id)
-      hierarchyTree.value = treeData.data || treeData
+    hierarchies.value = data.data || data
+    if (hierarchies.value.length > 0) {
+      selectedHierarchyId.value = hierarchies.value[0].id
+      const trees = {}
+      await Promise.all(hierarchies.value.map(async (h) => {
+        const { data: treeData } = await hierarchiesApi.getTree(h.id)
+        trees[h.id] = treeData.data || treeData
+      }))
+      hierarchyTrees.value = trees
     }
   } catch (e) { /* ignore */ }
 
@@ -36,6 +43,11 @@ onMounted(async () => {
     const { data } = await searchApi.searchableAttributes()
     searchableAttributes.value = data.data || data
   } catch (e) { /* ignore */ }
+})
+
+const currentHierarchyTree = computed(() => {
+  if (!selectedHierarchyId.value) return []
+  return hierarchyTrees.value[selectedHierarchyId.value] || []
 })
 
 const flatCategoryNodes = computed(() => {
@@ -47,7 +59,7 @@ const flatCategoryNodes = computed(() => {
       if (node.children?.length) flatten(node.children, prefix + name + ' > ')
     }
   }
-  flatten(hierarchyTree.value)
+  flatten(currentHierarchyTree.value)
   return result
 })
 
@@ -137,20 +149,36 @@ function getFilterInputType(dataType) {
           {{ (modelValue.category_ids || []).length }}
         </span>
       </button>
-      <div v-if="showCategoryPicker" class="max-h-48 overflow-y-auto border border-[var(--color-border)] rounded-lg p-2 space-y-0.5">
-        <label
-          v-for="cat in flatCategoryNodes"
-          :key="cat.id"
-          class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[var(--color-bg)] cursor-pointer text-xs"
-        >
-          <input
-            type="checkbox"
-            :checked="(modelValue.category_ids || []).includes(cat.id)"
-            @change="toggleCategory(cat.id)"
-            class="rounded border-[var(--color-border)]"
-          />
-          <span>{{ cat.label }}</span>
-        </label>
+      <div v-if="showCategoryPicker" class="space-y-2">
+        <!-- Hierarchy selector -->
+        <div v-if="hierarchies.length > 1" class="flex items-center gap-2">
+          <label class="text-[11px] font-medium text-[var(--color-text-tertiary)]">Hierarchie:</label>
+          <select
+            class="pim-input text-xs flex-1"
+            :value="selectedHierarchyId"
+            @change="selectedHierarchyId = $event.target.value"
+          >
+            <option v-for="h in hierarchies" :key="h.id" :value="h.id">
+              {{ h.name_de || h.name_en || h.technical_name }}
+            </option>
+          </select>
+        </div>
+        <!-- Category nodes -->
+        <div class="max-h-48 overflow-y-auto border border-[var(--color-border)] rounded-lg p-2 space-y-0.5">
+          <label
+            v-for="cat in flatCategoryNodes"
+            :key="cat.id"
+            class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[var(--color-bg)] cursor-pointer text-xs"
+          >
+            <input
+              type="checkbox"
+              :checked="(modelValue.category_ids || []).includes(cat.id)"
+              @change="toggleCategory(cat.id)"
+              class="rounded border-[var(--color-border)]"
+            />
+            <span>{{ cat.label }}</span>
+          </label>
+        </div>
       </div>
     </div>
 
