@@ -92,6 +92,7 @@ class ImportController extends Controller
                 'mode' => $mode,
                 'sku_column' => $request->input('sku_column', 'SKU'),
                 'product_type_id' => $request->input('product_type_id'),
+                'master_hierarchy_node_id' => $request->input('master_hierarchy_node_id'),
                 'column_mappings' => $request->input('column_mappings', []),
             ]);
         } else {

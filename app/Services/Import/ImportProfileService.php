@@ -208,6 +208,7 @@ class ImportProfileService
         array $columns,
         string $hierarchyNodeId,
         string $attributeViewId,
+        ?string $attributeTypeId = null,
     ): array {
         $hierarchyNode = HierarchyNode::findOrFail($hierarchyNodeId);
         $attributeView = AttributeView::findOrFail($attributeViewId);
@@ -258,6 +259,7 @@ class ImportProfileService
                     'name_de' => $headerName,
                     'name_en' => $headerName,
                     'data_type' => $dataType,
+                    'attribute_type_id' => $attributeTypeId,
                     'is_translatable' => false,
                     'is_searchable' => true,
                     'is_mandatory' => false,

@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace App\Services\Import;
 
 use App\Models\Attribute;
+use App\Models\ImportJob;
 use App\Models\Product;
 use App\Models\ProductAttributeValue;
 use App\Models\ProductType;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\IOFactory;
@@ -24,10 +24,35 @@ class FlatImportExecutor
     private array $affectedProductIds = [];
     private array $skippedDetails = [];
     private string $mode = 'update';
+    private ?ImportLogger $logger = null;
+    private ?ImportJob $importJob = null;
 
     public function setMode(string $mode): void
     {
         $this->mode = in_array($mode, ['update', 'delete_insert', 'delete']) ? $mode : 'update';
+    }
+
+    public function setLogger(ImportLogger $logger, ImportJob $importJob): void
+    {
+        $this->logger = $logger;
+        $this->importJob = $importJob;
+    }
+
+    private function log(string $level, string $message, ?string $sheet = null, ?int $row = null, ?string $column = null, array $context = []): void
+    {
+        if (!$this->logger || !$this->importJob) {
+            return;
+        }
+
+        if ($sheet !== null || $row !== null) {
+            $this->logger->logRow($this->importJob, 'execution', $level, $sheet ?? 'flat', $row ?? 0, $column, $message, $context);
+        } else {
+            match ($level) {
+                'warning' => $this->logger->warning($this->importJob, 'execution', $message, $context),
+                'error' => $this->logger->error($this->importJob, 'execution', $message, $context),
+                default => $this->logger->info($this->importJob, 'execution', $message, $context),
+            };
+        }
     }
 
     /**
@@ -37,12 +62,14 @@ class FlatImportExecutor
      * @param array  $columnMappings  [{source, target_attribute_id, language}]
      * @param string $skuColumn       Name der SKU-Spalte
      * @param string|null $productTypeId  Optional: Produkttyp-ID
+     * @param string|null $masterHierarchyNodeId  Optional: Master-Hierarchie-Knoten
      */
     public function execute(
         string $filePath,
         array $columnMappings,
         string $skuColumn = 'SKU',
         ?string $productTypeId = null,
+        ?string $masterHierarchyNodeId = null,
     ): ImportExecutionResult {
         $this->stats = ['created' => 0, 'updated' => 0, 'skipped' => 0, 'errors' => 0];
         $this->affectedProductIds = [];
@@ -85,11 +112,13 @@ class FlatImportExecutor
                 }
             }
             if ($colIdx === null) {
+                $this->log('warning', "Quellspalte '{$source}' nicht in der Datei gefunden — wird übersprungen");
                 continue;
             }
 
             $attribute = Attribute::find($mapping['target_attribute_id'] ?? '');
             if (!$attribute) {
+                $this->log('warning', "Attribut '{$mapping['target_attribute_id']}' nicht gefunden — Spalte '{$source}' wird übersprungen");
                 continue;
             }
 
@@ -103,10 +132,13 @@ class FlatImportExecutor
         // Produkttyp laden (Fallback auf ersten verfügbaren)
         $productType = $productTypeId ? ProductType::find($productTypeId) : ProductType::first();
 
-        Log::channel('import')->info('Flat-Import gestartet', [
-            'rows' => $highestRow - 1,
+        $totalRows = $highestRow - 1;
+        $this->log('info', "Flat-Import gestartet: {$totalRows} Zeilen, " . count($mappings) . " Mappings, Modus: {$this->mode}", context: [
+            'rows' => $totalRows,
             'mappings' => count($mappings),
             'mode' => $this->mode,
+            'product_type' => $productType?->name_de,
+            'hierarchy_node' => $masterHierarchyNodeId,
         ]);
 
         DB::beginTransaction();
@@ -121,10 +153,12 @@ class FlatImportExecutor
                         $skus[] = $sku;
                     }
                 }
-                $this->deleteProductsBySkus($skus);
+                $deletedCount = $this->deleteProductsBySkus($skus);
+                $this->log('info', "{$deletedCount} Produkte gelöscht (Modus: {$this->mode})", context: ['deleted' => $deletedCount]);
 
                 if ($this->mode === 'delete') {
                     DB::commit();
+                    $this->log('info', "Lösch-Import abgeschlossen: {$deletedCount} Produkte entfernt", context: $this->stats);
                     return new ImportExecutionResult(
                         stats: ['flat_import' => $this->stats],
                         affectedProductIds: $this->affectedProductIds,
@@ -144,6 +178,7 @@ class FlatImportExecutor
                             'reason' => 'Leere SKU',
                         ];
                         $this->stats['skipped']++;
+                        $this->log('warning', "Leere SKU — Zeile übersprungen", 'flat', $row);
                         continue;
                     }
 
@@ -166,8 +201,10 @@ class FlatImportExecutor
                         $product->update([
                             'name' => $name,
                             'product_type_id' => $productType?->id ?? $product->product_type_id,
+                            'master_hierarchy_node_id' => $masterHierarchyNodeId ?? $product->master_hierarchy_node_id,
                         ]);
                         $this->stats['updated']++;
+                        $this->log('info', "Produkt aktualisiert: {$sku}", 'flat', $row, null, ['sku' => $sku, 'action' => 'updated']);
                     } else {
                         $product = Product::create([
                             'id' => Str::uuid()->toString(),
@@ -176,13 +213,16 @@ class FlatImportExecutor
                             'product_type_id' => $productType?->id,
                             'product_type_ref' => 'product',
                             'status' => 'draft',
+                            'master_hierarchy_node_id' => $masterHierarchyNodeId,
                         ]);
                         $this->stats['created']++;
+                        $this->log('info', "Produkt angelegt: {$sku}", 'flat', $row, null, ['sku' => $sku, 'action' => 'created']);
                     }
 
                     $this->affectedProductIds[] = $product->id;
 
                     // Attributwerte schreiben
+                    $valuesWritten = 0;
                     foreach ($mappings as $m) {
                         $value = $worksheet->getCell([$m['colIdx'], $row])->getValue();
                         if ($value === null || $value === '') {
@@ -200,6 +240,7 @@ class FlatImportExecutor
                             ],
                             $valueData,
                         );
+                        $valuesWritten++;
                     }
                 } catch (\Throwable $e) {
                     $this->stats['errors']++;
@@ -208,17 +249,18 @@ class FlatImportExecutor
                         'row' => $row,
                         'reason' => 'Fehler: ' . $e->getMessage(),
                     ];
-                    Log::channel('import')->error("Flat-Import Zeile {$row}: {$e->getMessage()}");
+                    $this->log('error', "Zeile {$row}: {$e->getMessage()}", 'flat', $row);
                 }
             }
 
             DB::commit();
         } catch (\Throwable $e) {
             DB::rollBack();
+            $this->log('error', "Import abgebrochen: {$e->getMessage()}");
             throw $e;
         }
 
-        Log::channel('import')->info('Flat-Import abgeschlossen', $this->stats);
+        $this->log('info', "Flat-Import abgeschlossen: {$this->stats['created']} erstellt, {$this->stats['updated']} aktualisiert, {$this->stats['skipped']} übersprungen, {$this->stats['errors']} Fehler", context: $this->stats);
 
         return new ImportExecutionResult(
             stats: ['flat_import' => $this->stats],
@@ -227,15 +269,15 @@ class FlatImportExecutor
         );
     }
 
-    private function deleteProductsBySkus(array $skus): void
+    private function deleteProductsBySkus(array $skus): int
     {
         if (empty($skus)) {
-            return;
+            return 0;
         }
 
         $productIds = Product::whereIn('sku', $skus)->pluck('id')->toArray();
         if (empty($productIds)) {
-            return;
+            return 0;
         }
 
         \App\Models\ProductRelation::whereIn('source_product_id', $productIds)
@@ -249,7 +291,7 @@ class FlatImportExecutor
         Product::whereIn('id', $productIds)->where('product_type_ref', 'product')->delete();
 
         $this->stats['deleted'] = count($productIds);
-        Log::channel('import')->info('Flat-Import: Produkte gelöscht', ['count' => count($productIds)]);
+        return count($productIds);
     }
 
     private function mapValueToColumns(mixed $value, string $dataType): array
