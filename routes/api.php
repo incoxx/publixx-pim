@@ -315,6 +315,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // =====================================================================
     Route::apiResource('import-profiles', ImportProfileController::class)->except(['show']);
     Route::post('import-profiles/analyze', [ImportProfileController::class, 'analyze']);
+    Route::post('import-profiles/auto-generate-attributes', [ImportProfileController::class, 'autoGenerateAttributes']);
     Route::post('import-profiles/{import_profile}/preview', [ImportProfileController::class, 'preview']);
 
     // =====================================================================
