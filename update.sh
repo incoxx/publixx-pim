@@ -148,7 +148,8 @@ CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")
 STASHED=false
 if ! git diff --quiet HEAD 2>/dev/null || [ -n "$(git ls-files --others --exclude-standard)" ]; then
     warn "Lokale Aenderungen erkannt — werden temporaer gesichert (git stash)..."
-    git stash push -u -m "update.sh auto-stash $(date +%Y%m%d-%H%M%S)"
+    git stash push -u -m "update.sh auto-stash $(date +%Y%m%d-%H%M%S)" \
+        -- . ':(exclude)storage/framework' ':(exclude)storage/logs' ':(exclude)storage/app/public'
     STASHED=true
     info "Lokale Aenderungen gesichert."
 fi

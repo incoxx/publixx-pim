@@ -26,5 +26,15 @@ package-lock.json
 /static-content/.vitepress/dist
 /static-content/.vitepress/cache
 /bootstrap/cache
-/storage/logs
+/storage/app/public
+/storage/framework/cache/*
+/storage/framework/sessions/*
+/storage/framework/views/*
+/storage/framework/down
+/storage/framework/maintenance.php
+/storage/logs/*
+!/storage/framework/cache/.gitkeep
+!/storage/framework/sessions/.gitkeep
+!/storage/framework/views/.gitkeep
+!/storage/logs/.gitkeep
 publixx_pim
