@@ -23,7 +23,7 @@ const { search, activeFilters, setSearch, removeFilter, clearFilters } = useFilt
 })
 
 function loadWithFilters() {
-  const opts = { search: search.value, include: 'attributeType,valueList,unitGroup,children' }
+  const opts = { search: search.value, include: 'attributeType,valueList,unitGroup,children,attributeViews' }
   if (Object.keys(activeFilterEntries.value).length > 0) {
     opts.filters = { ...activeFilterEntries.value }
   }
@@ -77,6 +77,7 @@ const columns = [
   { key: 'name_de', label: 'Name (DE)', sortable: true },
   { key: 'data_type', label: 'Datentyp', sortable: true },
   { key: 'attribute_type.name_de', label: 'Gruppe' },
+  { key: '_views', label: 'Sichten' },
   { key: 'is_translatable', label: 'Übersetzbar' },
   { key: 'is_multipliable', label: 'Multipliziert' },
   { key: 'is_searchable', label: 'Suchbar' },
@@ -92,7 +93,7 @@ const deleteTarget = ref(null)
 const deleting = ref(false)
 
 function handleSort(field, order) {
-  store.fetchAttributes({ sort: field, order, filters: activeFilterEntries.value, include: 'attributeType,valueList,unitGroup,children' })
+  store.fetchAttributes({ sort: field, order, filters: activeFilterEntries.value, include: 'attributeType,valueList,unitGroup,children,attributeViews' })
 }
 
 function openCreatePanel() {
@@ -119,7 +120,7 @@ async function confirmDelete() {
 }
 
 onMounted(() => {
-  store.fetchAttributes({ include: 'attributeType,valueList,unitGroup,children' })
+  store.fetchAttributes({ include: 'attributeType,valueList,unitGroup,children,attributeViews' })
   store.fetchTypes()
   store.fetchValueLists()
 })
@@ -238,6 +239,12 @@ onMounted(() => {
     >
       <template #cell-data_type="{ value }">
         <span class="pim-badge bg-[var(--color-bg)] text-[var(--color-text-secondary)]">{{ value }}</span>
+      </template>
+      <template #cell-_views="{ row }">
+        <div class="flex flex-wrap gap-0.5">
+          <span v-for="v in (row.attribute_views || [])" :key="v.id" class="pim-badge bg-[var(--color-primary-light)] text-[var(--color-primary)] text-[10px]">{{ v.name_de || v.technical_name }}</span>
+          <span v-if="!row.attribute_views?.length" class="text-[var(--color-text-tertiary)]">—</span>
+        </div>
       </template>
       <template #cell-is_translatable="{ value }">
         <span :class="value ? 'text-[var(--color-success)]' : 'text-[var(--color-text-tertiary)]'">{{ value ? 'Ja' : 'Nein' }}</span>

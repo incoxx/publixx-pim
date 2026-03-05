@@ -200,7 +200,7 @@ onMounted(() => {
 <template>
   <div class="flex gap-4 h-full">
     <!-- Folder Sidebar -->
-    <div class="w-56 flex-none space-y-2">
+    <div class="w-56 flex-none pim-card p-3 space-y-2 self-start">
       <div class="flex items-center justify-between">
         <h3 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wider">Ordner</h3>
         <button

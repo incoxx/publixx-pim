@@ -15,6 +15,7 @@ const messages = {
       attributes: 'Attribute',
       productTypes: 'Produkttypen',
       attributeTypes: 'Attributgruppen',
+      attributeViews: 'Attribut-Sichten',
       valueLists: 'Wertelisten',
       imports: 'Import',
       exports: 'Export',
@@ -100,6 +101,10 @@ const messages = {
     productType: {
       title: 'Produkttypen',
       newProductType: 'Neuer Produkttyp',
+    },
+    attributeView: {
+      title: 'Attribut-Sichten',
+      newView: 'Neue Sicht',
     },
     attributeType: {
       title: 'Attributgruppen',
@@ -249,6 +254,7 @@ const messages = {
       attributes: 'Attributes',
       productTypes: 'Product Types',
       attributeTypes: 'Attribute Groups',
+      attributeViews: 'Attribute Views',
       valueLists: 'Value Lists',
       imports: 'Import',
       exports: 'Export',
@@ -334,6 +340,10 @@ const messages = {
     productType: {
       title: 'Product Types',
       newProductType: 'New Product Type',
+    },
+    attributeView: {
+      title: 'Attribute Views',
+      newView: 'New View',
     },
     attributeType: {
       title: 'Attribute Groups',

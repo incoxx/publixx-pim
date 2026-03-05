@@ -135,8 +135,8 @@ export const valueLists = {
 }
 
 export const attributeViews = {
-  list() {
-    return client.get('/attribute-views')
+  list(params = {}) {
+    return client.get('/attribute-views', { params })
   },
 
   create(data) {

@@ -100,7 +100,7 @@ class ProductPreviewService
                 continue;
             }
 
-            $sectionName = $assignment->collection_name ?? ($lang === 'en' ? 'General' : 'Allgemein');
+            $sectionName = $assignment->collection_name ?? $assignment->attribute_view_name_de ?? ($lang === 'en' ? 'General' : 'Allgemein');
             $sectionSort = $assignment->collection_sort ?? 0;
 
             if (!isset($sectionMap[$sectionName])) {

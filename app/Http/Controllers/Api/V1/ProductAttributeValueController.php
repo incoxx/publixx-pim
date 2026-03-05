@@ -107,7 +107,7 @@ class ProductAttributeValueController extends Controller
                 'is_mandatory' => (bool) $assignment->is_mandatory,
                 'is_variant_attribute' => (bool) ($assignment->is_variant_attribute ?? false),
                 'parent_attribute_id' => $assignment->parent_attribute_id ?? null,
-                'collection_name' => $assignment->collection_name,
+                'collection_name' => $assignment->collection_name ?? $assignment->attribute_view_name_de ?? null,
                 'collection_sort' => $assignment->collection_sort,
                 'attribute_sort' => $assignment->attribute_sort,
                 'access_product' => $assignment->access_product ?? 'editable',

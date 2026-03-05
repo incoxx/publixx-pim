@@ -6,7 +6,7 @@ import { useAuthStore } from '@/stores/auth'
 import {
   Search, Package, GitBranch, Sliders, Database, Layers, FolderTree,
   Upload, Download, Image, Tags, DollarSign, Users, Settings,
-  HelpCircle, PanelLeftClose, PanelLeft, Star,
+  HelpCircle, PanelLeftClose, PanelLeft, Star, LayoutGrid,
 } from 'lucide-vue-next'
 
 const route = useRoute()
@@ -22,6 +22,7 @@ const allNavItems = [
   { icon: Sliders, label: () => t('nav.attributes'), to: '/attributes' },
   { icon: Layers, label: () => t('nav.productTypes'), to: '/product-types' },
   { icon: FolderTree, label: () => t('nav.attributeTypes'), to: '/attribute-types' },
+  { icon: LayoutGrid, label: () => t('nav.attributeViews'), to: '/attribute-views' },
   { icon: Database, label: () => t('nav.valueLists'), to: '/value-lists' },
   { divider: true },
   { icon: Upload, label: () => t('nav.imports'), to: '/imports' },

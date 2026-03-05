@@ -56,11 +56,17 @@ class MediaController extends Controller
             ], 500);
         }
 
-        // Auto-detect image dimensions
+        // Fix EXIF orientation for JPEG images (portrait photos rotated by camera)
+        $storedPath = \Illuminate\Support\Facades\Storage::disk('public')->path($path);
+        if (in_array($file->getMimeType(), ['image/jpeg', 'image/jpg']) && function_exists('exif_read_data')) {
+            $this->fixExifOrientation($storedPath);
+        }
+
+        // Auto-detect image dimensions (after EXIF fix)
         $width = $request->input('width');
         $height = $request->input('height');
         if (($width === null || $height === null) && str_starts_with($file->getMimeType(), 'image/')) {
-            $dimensions = @getimagesize($file->getRealPath());
+            $dimensions = @getimagesize($storedPath);
             if ($dimensions) {
                 $width = $width ?? $dimensions[0];
                 $height = $height ?? $dimensions[1];
@@ -299,6 +305,45 @@ class MediaController extends Controller
         }
 
         return $candidate;
+    }
+
+    /**
+     * Read EXIF orientation from JPEG and rotate the image file accordingly.
+     */
+    private function fixExifOrientation(string $filePath): void
+    {
+        try {
+            $exif = @exif_read_data($filePath);
+            if (!$exif || !isset($exif['Orientation'])) {
+                return;
+            }
+
+            $orientation = (int) $exif['Orientation'];
+            if ($orientation <= 1) {
+                return; // Already correct
+            }
+
+            $image = @imagecreatefromjpeg($filePath);
+            if (!$image) {
+                return;
+            }
+
+            $rotated = match ($orientation) {
+                3 => imagerotate($image, 180, 0),
+                6 => imagerotate($image, -90, 0),
+                8 => imagerotate($image, 90, 0),
+                default => null,
+            };
+
+            if ($rotated) {
+                imagejpeg($rotated, $filePath, 95);
+                imagedestroy($rotated);
+            }
+
+            imagedestroy($image);
+        } catch (\Throwable) {
+            // Silently ignore — image remains as-is
+        }
     }
 
     private function detectMediaType(string $mimeType): string
