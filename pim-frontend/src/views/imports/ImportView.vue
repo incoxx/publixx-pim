@@ -3,10 +3,12 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import {
   Upload, FileSpreadsheet, Download, ArrowRight, ArrowLeft,
   CheckCircle, AlertTriangle, XCircle, Play, RefreshCw, Columns3,
-  Wand2,
+  Wand2, Sparkles, Plus,
 } from 'lucide-vue-next'
 import importsApi from '@/api/imports'
 import importProfilesApi from '@/api/importProfiles'
+import hierarchiesApi from '@/api/hierarchies'
+import { attributeViews as attributeViewsApi, productTypes as productTypesApi } from '@/api/attributes'
 import ProfileSelector from '@/components/shared/ProfileSelector.vue'
 
 // --- Wizard State ---
@@ -26,11 +28,27 @@ const selectedProfileId = ref(null)
 
 // Step 2: Mapping
 const mappingTab = ref('products')
+const importMode = ref('update') // 'update' oder 'delete_insert'
 const skuColumn = ref('SKU')
 const productTypeId = ref(null)
 const columnMappings = ref([])
 const priceMappings = ref([])
 const relationMappings = ref([])
+
+// Product Types
+const productTypes = ref([])
+
+// Auto-Generate Attributes
+const autoGenerateChecked = ref({}) // header → boolean
+const detectedTypes = ref({}) // header → { type, confidence, samples }
+const hierarchies = ref([])
+const hierarchyNodes = ref([])
+const attributeViews = ref([])
+const selectedHierarchyId = ref(null)
+const selectedNodeId = ref(null)
+const selectedViewId = ref(null)
+const autoGenerating = ref(false)
+const autoGenerateResult = ref(null)
 
 // Step 3: Preview
 const preview = ref(null)
@@ -44,8 +62,16 @@ const logPolling = ref(null)
 
 onMounted(async () => {
   try {
-    const { data } = await importProfilesApi.list()
-    importProfiles.value = data.data || data
+    const [profilesRes, hierarchiesRes, viewsRes, typesRes] = await Promise.all([
+      importProfilesApi.list(),
+      hierarchiesApi.list(),
+      attributeViewsApi.list(),
+      productTypesApi.list(),
+    ])
+    importProfiles.value = profilesRes.data.data || profilesRes.data
+    hierarchies.value = (hierarchiesRes.data.data || hierarchiesRes.data).filter(h => h.hierarchy_type === 'master')
+    attributeViews.value = viewsRes.data.data || viewsRes.data
+    productTypes.value = typesRes.data.data || typesRes.data
   } catch (e) { /* ignore */ }
 })
 
@@ -75,6 +101,16 @@ async function handleUpload(e) {
         columnMappings.value = firstSheet.headers
           .filter(h => h.toLowerCase() !== 'sku')
           .map(h => ({ source: h, target_attribute_id: '', language: 'de' }))
+
+        // Erkannte Datentypen speichern + Checkboxen initialisieren
+        if (firstSheet.detected_types) {
+          detectedTypes.value = firstSheet.detected_types
+        }
+        const checked = {}
+        for (const h of firstSheet.headers) {
+          if (h.toLowerCase() !== 'sku') checked[h] = false
+        }
+        autoGenerateChecked.value = checked
       }
     }
   } catch (err) {
@@ -142,6 +178,91 @@ function autoMatch() {
   })
 }
 
+// --- Auto-Generate ---
+async function loadNodes() {
+  if (!selectedHierarchyId.value) { hierarchyNodes.value = []; selectedNodeId.value = null; return }
+  try {
+    const { data } = await hierarchiesApi.getTree(selectedHierarchyId.value)
+    const tree = data.data || data
+    // Flatten tree into a list with indentation
+    const flat = []
+    function walk(nodes, depth = 0) {
+      for (const node of (nodes || [])) {
+        flat.push({ ...node, _depth: depth, _label: '\u00A0\u00A0'.repeat(depth) + (node.name_de || node.name_en || node.id) })
+        if (node.children?.length) walk(node.children, depth + 1)
+      }
+    }
+    walk(Array.isArray(tree) ? tree : tree.nodes || [tree])
+    hierarchyNodes.value = flat
+  } catch (e) { hierarchyNodes.value = [] }
+}
+
+const autoGenerateSelectedCount = computed(() =>
+  Object.values(autoGenerateChecked.value).filter(Boolean).length
+)
+
+function toggleAllAutoGenerate() {
+  const allChecked = autoGenerateSelectedCount.value === columnMappings.value.filter(m => !m.target_attribute_id).length
+  for (const m of columnMappings.value) {
+    if (!m.target_attribute_id) {
+      autoGenerateChecked.value[m.source] = !allChecked
+    }
+  }
+}
+
+async function runAutoGenerate() {
+  if (!selectedNodeId.value || !selectedViewId.value) {
+    error.value = 'Bitte Kategorie und Attribut-Sicht auswählen'
+    return
+  }
+  const columns = columnMappings.value
+    .filter(m => autoGenerateChecked.value[m.source])
+    .map(m => ({
+      header: m.source,
+      auto_generate: true,
+      detected_type: detectedTypes.value[m.source]?.type || 'String',
+    }))
+
+  if (!columns.length) { error.value = 'Keine Spalten zum Anlegen ausgewählt'; return }
+
+  autoGenerating.value = true
+  error.value = ''
+  autoGenerateResult.value = null
+
+  try {
+    const { data } = await importProfilesApi.autoGenerateAttributes({
+      hierarchy_node_id: selectedNodeId.value,
+      attribute_view_id: selectedViewId.value,
+      columns,
+    })
+    autoGenerateResult.value = data.data || data
+
+    // Neu-erstellte und existierende Attribute dem Mapping zuordnen + Attributliste aktualisieren
+    const allNew = [...(autoGenerateResult.value.created || []), ...(autoGenerateResult.value.existing || [])]
+    for (const attr of allNew) {
+      // Zur verfügbaren Liste hinzufügen falls nicht vorhanden
+      if (!analysis.value.available_attributes.find(a => a.id === attr.id)) {
+        analysis.value.available_attributes.push(attr)
+      }
+      // Auto-Zuordnung im Mapping
+      const mapping = columnMappings.value.find(m =>
+        m.source.toLowerCase() === attr.name_de?.toLowerCase() ||
+        m.source.toLowerCase() === attr.technical_name?.toLowerCase()
+      )
+      if (mapping && !mapping.target_attribute_id) {
+        mapping.target_attribute_id = attr.id
+      }
+    }
+
+    // Checkboxen zurücksetzen
+    for (const key of Object.keys(autoGenerateChecked.value)) {
+      autoGenerateChecked.value[key] = false
+    }
+  } catch (e) {
+    error.value = e.response?.data?.message || 'Attribute konnten nicht angelegt werden'
+  } finally { autoGenerating.value = false }
+}
+
 // --- Step 3: Preview ---
 async function loadPreview() {
   if (!importJob.value) return
@@ -180,7 +301,7 @@ async function executeImport() {
   logPolling.value = setInterval(pollLogs, 2000)
 
   try {
-    await importsApi.execute(importJob.value.id)
+    await importsApi.execute(importJob.value.id, { mode: importMode.value })
     await pollStatus()
   } catch (e) {
     error.value = e.response?.data?.message || 'Import fehlgeschlagen'
@@ -338,6 +459,30 @@ const logLevelIcon = { info: CheckCircle, warning: AlertTriangle, error: XCircle
 
     <!-- Step 2: Mapping -->
     <div v-if="step === 2" class="space-y-4">
+      <!-- Import-Modus -->
+      <div class="flex items-center gap-4 px-1">
+        <span class="text-[11px] font-medium text-[var(--color-text-secondary)]">Import-Modus:</span>
+        <label class="flex items-center gap-1.5 cursor-pointer">
+          <input type="radio" v-model="importMode" value="update" class="radio radio-xs radio-accent" />
+          <span class="text-xs" :class="importMode === 'update' ? 'text-[var(--color-text-primary)] font-medium' : 'text-[var(--color-text-tertiary)]'">
+            Update
+          </span>
+          <span class="text-[10px] text-[var(--color-text-tertiary)]">(vorhandene aktualisieren)</span>
+        </label>
+        <label class="flex items-center gap-1.5 cursor-pointer">
+          <input type="radio" v-model="importMode" value="delete_insert" class="radio radio-xs radio-accent" />
+          <span class="text-xs" :class="importMode === 'delete_insert' ? 'text-[var(--color-text-primary)] font-medium' : 'text-[var(--color-text-tertiary)]'">
+            Delete / Insert
+          </span>
+          <span class="text-[10px] text-[var(--color-text-tertiary)]">(komplett neu anlegen)</span>
+        </label>
+      </div>
+
+      <div v-if="importMode === 'delete_insert'" class="p-3 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-800">
+        <AlertTriangle class="inline w-3.5 h-3.5 -mt-0.5 mr-1" :stroke-width="2" />
+        Achtung: Alle Produkte aus der Datei werden zuerst gelöscht (inkl. Werte, Preise, Beziehungen, Medien) und dann komplett neu angelegt.
+      </div>
+
       <div class="flex border-b border-[var(--color-border)]">
         <button
           v-for="tab in [{ key: 'products', label: 'Produkte' }, { key: 'prices', label: 'Preise' }, { key: 'relations', label: 'Beziehungen' }]"
@@ -355,7 +500,7 @@ const logLevelIcon = { info: CheckCircle, warning: AlertTriangle, error: XCircle
       </div>
 
       <div v-if="mappingTab === 'products'" class="pim-card p-5 space-y-4">
-        <div class="grid grid-cols-2 gap-4">
+        <div class="grid grid-cols-3 gap-4">
           <div>
             <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">SKU-Spalte</label>
             <select class="pim-input text-xs w-full" v-model="skuColumn">
@@ -363,6 +508,26 @@ const logLevelIcon = { info: CheckCircle, warning: AlertTriangle, error: XCircle
                 <option v-for="h in (sheet.headers || [])" :key="h" :value="h">{{ h }}</option>
               </template>
             </select>
+          </div>
+          <div>
+            <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">Produkttyp</label>
+            <select class="pim-input text-xs w-full" v-model="productTypeId">
+              <option :value="null">— Optional —</option>
+              <option v-for="pt in productTypes" :key="pt.id" :value="pt.id">{{ pt.name_de || pt.technical_name }}</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">Kategorie</label>
+            <div class="flex gap-2">
+              <select class="pim-input text-xs flex-1" v-model="selectedHierarchyId" @change="loadNodes">
+                <option :value="null">— Hierarchie —</option>
+                <option v-for="h in hierarchies" :key="h.id" :value="h.id">{{ h.name_de || h.technical_name }}</option>
+              </select>
+              <select class="pim-input text-xs flex-1" v-model="selectedNodeId" :disabled="!hierarchyNodes.length">
+                <option :value="null">— Knoten —</option>
+                <option v-for="n in hierarchyNodes" :key="n.id" :value="n.id">{{ n._label }}</option>
+              </select>
+            </div>
           </div>
         </div>
 
@@ -381,10 +546,31 @@ const logLevelIcon = { info: CheckCircle, warning: AlertTriangle, error: XCircle
           <div
             v-for="(mapping, i) in columnMappings"
             :key="i"
-            class="flex items-center gap-3 p-2 rounded-lg hover:bg-[var(--color-bg)]"
+            class="flex items-center gap-2 p-2 rounded-lg hover:bg-[var(--color-bg)]"
           >
-            <span class="text-xs font-mono text-[var(--color-text-secondary)] w-40 truncate" :title="mapping.source">
+            <input
+              type="checkbox"
+              v-model="autoGenerateChecked[mapping.source]"
+              :disabled="!!mapping.target_attribute_id"
+              class="checkbox checkbox-xs checkbox-accent shrink-0"
+              :title="mapping.target_attribute_id ? 'Bereits zugeordnet' : 'Für Auto-Anlage markieren'"
+            />
+            <span class="text-xs font-mono text-[var(--color-text-secondary)] w-36 truncate" :title="mapping.source">
               {{ mapping.source }}
+            </span>
+            <span
+              v-if="detectedTypes[mapping.source]"
+              class="text-[9px] px-1.5 py-0.5 rounded-full font-medium shrink-0"
+              :class="{
+                'bg-blue-100 text-blue-700': detectedTypes[mapping.source].type === 'String',
+                'bg-emerald-100 text-emerald-700': detectedTypes[mapping.source].type === 'Number',
+                'bg-amber-100 text-amber-700': detectedTypes[mapping.source].type === 'Float',
+                'bg-purple-100 text-purple-700': detectedTypes[mapping.source].type === 'Date',
+                'bg-pink-100 text-pink-700': detectedTypes[mapping.source].type === 'Flag',
+              }"
+              :title="`Erkannt: ${detectedTypes[mapping.source].type} (${detectedTypes[mapping.source].confidence}% Konfidenz, ${detectedTypes[mapping.source].samples} Werte)`"
+            >
+              {{ detectedTypes[mapping.source].type }}
             </span>
             <ArrowRight class="w-3 h-3 text-[var(--color-text-tertiary)] shrink-0" :stroke-width="2" />
             <select class="pim-input text-xs flex-1" v-model="mapping.target_attribute_id">
@@ -398,6 +584,54 @@ const logLevelIcon = { info: CheckCircle, warning: AlertTriangle, error: XCircle
               <option value="en">EN</option>
               <option value="fr">FR</option>
             </select>
+          </div>
+        </div>
+
+        <!-- Auto-Generate Attribute Panel -->
+        <div v-if="autoGenerateSelectedCount > 0 || autoGenerateResult" class="border border-dashed border-[var(--color-accent)]/40 rounded-xl p-4 space-y-3 bg-[var(--color-accent)]/5">
+          <div class="flex items-center gap-2">
+            <Sparkles class="w-4 h-4 text-[var(--color-accent)]" :stroke-width="1.75" />
+            <h4 class="text-xs font-semibold text-[var(--color-text-primary)]">
+              Attribute automatisch anlegen
+              <span v-if="autoGenerateSelectedCount > 0" class="text-[var(--color-accent)]">({{ autoGenerateSelectedCount }} ausgewählt)</span>
+            </h4>
+            <button
+              class="ml-auto text-[10px] text-[var(--color-accent)] hover:underline"
+              @click="toggleAllAutoGenerate"
+            >
+              {{ autoGenerateSelectedCount === columnMappings.filter(m => !m.target_attribute_id).length ? 'Keine' : 'Alle nicht zugeordneten' }} auswählen
+            </button>
+          </div>
+
+          <div v-if="!selectedNodeId" class="text-[10px] text-amber-600">
+            Bitte oben eine Kategorie (Hierarchie + Knoten) auswählen, um Attribute zuordnen zu können.
+          </div>
+
+          <div>
+            <label class="block text-[10px] font-medium text-[var(--color-text-secondary)] mb-1">Attribut-Sicht (Gruppe)</label>
+            <select class="pim-input text-xs w-full" v-model="selectedViewId">
+              <option :value="null">— Sicht wählen —</option>
+              <option v-for="v in attributeViews" :key="v.id" :value="v.id">{{ v.name_de || v.technical_name }}</option>
+            </select>
+          </div>
+
+          <button
+            class="pim-btn pim-btn-primary text-xs"
+            :disabled="autoGenerating || autoGenerateSelectedCount === 0 || !selectedNodeId || !selectedViewId"
+            @click="runAutoGenerate"
+          >
+            <Plus v-if="!autoGenerating" class="w-3.5 h-3.5" :stroke-width="2" />
+            <RefreshCw v-else class="w-3.5 h-3.5 animate-spin" :stroke-width="2" />
+            {{ autoGenerating ? 'Wird angelegt...' : `${autoGenerateSelectedCount} Attribute anlegen` }}
+          </button>
+
+          <!-- Result -->
+          <div v-if="autoGenerateResult" class="text-xs p-3 rounded-lg bg-[var(--color-success-light)] text-[var(--color-success)]">
+            <CheckCircle class="inline w-3.5 h-3.5 -mt-0.5 mr-1" :stroke-width="2" />
+            {{ autoGenerateResult.created?.length || 0 }} neu angelegt,
+            {{ autoGenerateResult.existing?.length || 0 }} bereits vorhanden,
+            {{ autoGenerateResult.assigned_to_category || 0 }} der Kategorie zugeordnet,
+            {{ autoGenerateResult.assigned_to_view || 0 }} der Sicht zugeordnet.
           </div>
         </div>
       </div>
