@@ -1354,7 +1354,7 @@ watch(() => route.params.id, async (newId, oldId) => {
       <div class="flex flex-wrap items-center justify-between gap-2">
         <h3 class="text-sm font-medium text-[var(--color-text-primary)]">Varianten</h3>
         <div class="flex gap-2">
-          <button v-if="variantAttributeDefs.length > 0" class="pim-btn pim-btn-secondary text-xs" @click="initGenerator">
+          <button class="pim-btn pim-btn-secondary text-xs" @click="initGenerator">
             <Sparkles class="w-3.5 h-3.5" :stroke-width="2" /> Varianten generieren
           </button>
           <button class="pim-btn pim-btn-primary text-xs" @click="showVariantForm = !showVariantForm">
@@ -1406,6 +1406,10 @@ watch(() => route.params.id, async (newId, oldId) => {
         <!-- Step 1: Select attributes + enter values -->
         <template v-if="generatorStep === 1">
           <p class="text-xs text-[var(--color-text-secondary)]">Wählen Sie Variantenattribute und geben Sie die gewünschten Werte ein.</p>
+          <div v-if="generatorDimensions.length === 0" class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-xs text-yellow-800 space-y-1">
+            <p class="font-medium">Keine Varianten-Attribute vorhanden</p>
+            <p>Markieren Sie zuerst mindestens ein Attribut als Varianten-Attribut (unter <strong>Attribute</strong> → Attribut bearbeiten → <em>Varianten-Attribut</em> aktivieren).</p>
+          </div>
           <div class="space-y-3">
             <div v-for="dim in generatorDimensions" :key="dim.attribute_id" class="border border-[var(--color-border)] rounded-lg p-3">
               <label class="flex items-center gap-2 text-sm font-medium cursor-pointer">

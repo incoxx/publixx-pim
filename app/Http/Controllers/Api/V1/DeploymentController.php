@@ -79,6 +79,9 @@ class DeploymentController extends Controller
             deployUser: $deployUser,
         );
 
+        // Schritt 5b: Storage-Link sicherstellen
+        $log[] = $this->runStep('storage_link', 'php artisan storage:link 2>/dev/null; mkdir -p storage/app/public/media', $basePath, deployUser: $deployUser);
+
         // Schritt 6: Caches neu bauen
         $log[] = $this->runStep('config_cache', 'php artisan config:cache', $basePath, deployUser: $deployUser);
         $log[] = $this->runStep('route_cache', 'php artisan route:cache', $basePath, deployUser: $deployUser);

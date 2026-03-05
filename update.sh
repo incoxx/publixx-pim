@@ -285,12 +285,25 @@ chmod -R 775 "${INSTALL_DIR}/storage"
 chmod -R 775 "${INSTALL_DIR}/bootstrap/cache"
 info "Dateiberechtigungen gesetzt."
 
-# Horizon neu starten
+# Horizon / Queue Worker neu starten
 if command -v supervisorctl > /dev/null 2>&1; then
-    supervisorctl restart horizon > /dev/null 2>&1 && info "Horizon neu gestartet." \
-        || warn "Horizon konnte nicht neu gestartet werden."
+    if supervisorctl status horizon > /dev/null 2>&1; then
+        supervisorctl restart horizon > /dev/null 2>&1 && info "Horizon neu gestartet." \
+            || warn "Horizon konnte nicht neu gestartet werden."
+    else
+        warn "Horizon nicht in Supervisor konfiguriert — starte Queue Worker..."
+        # Alten Worker beenden falls vorhanden
+        pkill -f "artisan queue:work" > /dev/null 2>&1 || true
+        nohup php artisan queue:work --queue=indexing,default --sleep=3 --tries=3 \
+            >> "${INSTALL_DIR}/storage/logs/queue-worker.log" 2>&1 &
+        info "Queue Worker gestartet (PID: $!)."
+    fi
 else
-    warn "supervisorctl nicht gefunden — Horizon-Neustart uebersprungen."
+    warn "supervisorctl nicht gefunden — starte Queue Worker direkt..."
+    pkill -f "artisan queue:work" > /dev/null 2>&1 || true
+    nohup php artisan queue:work --queue=indexing,default --sleep=3 --tries=3 \
+        >> "${INSTALL_DIR}/storage/logs/queue-worker.log" 2>&1 &
+    info "Queue Worker gestartet (PID: $!)."
 fi
 
 # Apache neu laden (graceful)
