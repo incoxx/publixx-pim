@@ -79,15 +79,33 @@ watchEffect(() => {
     color_accent: '--color-accent',
     color_body_text: '--color-base-content',
     color_table_bg: '--color-base-200',
+    color_button: '--color-secondary',
   }
   for (const [key, cssVar] of Object.entries(colorMap)) {
     const oklch = hexToOklch(t[key])
     if (oklch) el.style.setProperty(cssVar, oklch)
   }
 
+  // Custom CSS vars for sidebar and table stripes (consumed by components)
+  if (t.color_sidebar) el.style.setProperty('--catalog-sidebar-color', t.color_sidebar)
+  if (t.color_table_stripe) el.style.setProperty('--catalog-stripe-color', t.color_table_stripe)
+
   // Font sizes as CSS vars for components to pick up
   el.style.setProperty('--catalog-heading-size', t.font_heading_size || '1.75rem')
   el.style.setProperty('--catalog-body-size', t.font_body_size || '0.875rem')
+
+  // SEO: update document title and meta description
+  const seoTitle = t.seo_title || t.catalog_title || 'Produktkatalog'
+  document.title = seoTitle
+  let metaDesc = document.querySelector('meta[name="description"]')
+  if (t.seo_description) {
+    if (!metaDesc) {
+      metaDesc = document.createElement('meta')
+      metaDesc.setAttribute('name', 'description')
+      document.head.appendChild(metaDesc)
+    }
+    metaDesc.setAttribute('content', t.seo_description)
+  }
 })
 
 onMounted(() => {

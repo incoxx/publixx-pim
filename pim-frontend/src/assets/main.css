@@ -313,3 +313,17 @@ body {
   error: #DC2626;
   error-content: #ffffff;
 }
+
+/* Catalog sidebar active item — uses custom --catalog-sidebar-color from theme settings */
+[data-theme="pim-catalog"] .catalog-sidebar-active {
+  color: var(--catalog-sidebar-color, #1B3A5C);
+  background-color: color-mix(in srgb, var(--catalog-sidebar-color, #1B3A5C) 10%, transparent);
+}
+
+/* Catalog table stripe rows — override DaisyUI zebra and add custom stripe class */
+[data-theme="pim-catalog"] .table-zebra tbody tr:nth-child(even) {
+  background-color: var(--catalog-stripe-color, #f1f5f9);
+}
+[data-theme="pim-catalog"] .catalog-stripe-row:nth-child(even) {
+  background-color: var(--catalog-stripe-color, #f1f5f9);
+}

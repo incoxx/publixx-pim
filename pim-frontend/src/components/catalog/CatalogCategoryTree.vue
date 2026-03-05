@@ -50,7 +50,7 @@ function selectCategory(node) {
         class="flex items-center gap-1 py-1.5 px-2 rounded-lg cursor-pointer transition-all duration-200 text-sm group"
         :class="
           store.selectedCategoryId === node.id
-            ? 'bg-primary/10 text-primary font-medium'
+            ? 'catalog-sidebar-active font-medium'
             : 'hover:bg-base-200 text-base-content'
         "
         @click="selectCategory(node)"

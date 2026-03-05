@@ -39,8 +39,13 @@ const themeForm = ref({
   color_accent: '#0D9488',
   color_table_bg: '#f8fafc',
   color_body_text: '#111827',
+  color_sidebar: '#1B3A5C',
+  color_button: '#0D9488',
+  color_table_stripe: '#f1f5f9',
   logo_media_id: null,
   catalog_title: 'Produktkatalog',
+  seo_title: '',
+  seo_description: '',
   impressum_url: '',
   kontakt_url: '',
   impressum_text: '',
@@ -67,8 +72,13 @@ async function loadThemeSettings() {
         color_accent: d.color_accent || '#0D9488',
         color_table_bg: d.color_table_bg || '#f8fafc',
         color_body_text: d.color_body_text || '#111827',
+        color_sidebar: d.color_sidebar || '#1B3A5C',
+        color_button: d.color_button || '#0D9488',
+        color_table_stripe: d.color_table_stripe || '#f1f5f9',
         logo_media_id: d.logo_media_id || null,
         catalog_title: d.catalog_title || 'Produktkatalog',
+        seo_title: d.seo_title || '',
+        seo_description: d.seo_description || '',
         impressum_url: d.impressum_url || '',
         kontakt_url: d.kontakt_url || '',
         impressum_text: d.impressum_text || '',
@@ -89,7 +99,7 @@ async function saveThemeSettings() {
   try {
     const payload = { ...themeForm.value }
     // Convert empty strings to null for optional fields
-    for (const key of ['impressum_url', 'kontakt_url', 'impressum_text', 'kontakt_text', 'footer_text', 'catalog_title']) {
+    for (const key of ['impressum_url', 'kontakt_url', 'impressum_text', 'kontakt_text', 'footer_text', 'catalog_title', 'seo_title', 'seo_description']) {
       if (!payload[key]) payload[key] = null
     }
     await adminApi.updateCatalogTheme(payload)
@@ -304,7 +314,10 @@ onMounted(() => {
             <div v-for="c in [
               { key: 'color_primary', label: 'Primär / Überschriften' },
               { key: 'color_accent', label: 'Akzentfarbe' },
+              { key: 'color_sidebar', label: 'Menüpunkte (Sidebar)' },
+              { key: 'color_button', label: 'Buttons' },
               { key: 'color_table_bg', label: 'Tabellen-Hintergrund' },
+              { key: 'color_table_stripe', label: 'Tabellen-Zeilen (alternierend)' },
               { key: 'color_body_text', label: 'Textfarbe' },
             ]" :key="c.key">
               <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">{{ c.label }}</label>
@@ -351,6 +364,20 @@ onMounted(() => {
                 <input class="pim-input text-xs" v-model="themeForm.catalog_title" placeholder="Produktkatalog" />
               </div>
             </div>
+          </div>
+        </div>
+
+        <!-- SEO -->
+        <div class="space-y-3">
+          <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">SEO / Meta-Tags</h4>
+          <div>
+            <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">SEO-Titel <span class="text-[var(--color-text-tertiary)] font-normal">(Browser-Tab & Suchmaschinen)</span></label>
+            <input class="pim-input text-xs" v-model="themeForm.seo_title" placeholder="z.B. Produktkatalog – Firma GmbH" />
+          </div>
+          <div>
+            <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Meta-Description <span class="text-[var(--color-text-tertiary)] font-normal">(max. 160 Zeichen)</span></label>
+            <textarea class="pim-input text-xs" rows="2" v-model="themeForm.seo_description" maxlength="500" placeholder="Kurze Beschreibung für Suchmaschinen…"></textarea>
+            <p class="text-[10px] text-[var(--color-text-tertiary)] mt-0.5">{{ (themeForm.seo_description || '').length }} / 160 Zeichen</p>
           </div>
         </div>
 
