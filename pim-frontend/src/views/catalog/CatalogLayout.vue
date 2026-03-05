@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref, provide, watchEffect } from 'vue'
+import { onMounted, onUnmounted, ref, provide, watchEffect } from 'vue'
 import { useCatalogStore } from '@/stores/catalog'
 import CatalogHeader from '@/components/catalog/CatalogHeader.vue'
 import CatalogSidebar from '@/components/catalog/CatalogSidebar.vue'
@@ -15,26 +15,37 @@ const themeRoot = ref(null)
 provide('wishlistOpen', wishlistOpen)
 provide('sidebarOpen', sidebarOpen)
 
-// Convert hex color to oklch-compatible HSL for DaisyUI
-function hexToHSL(hex) {
-  const r = parseInt(hex.slice(1, 3), 16) / 255
-  const g = parseInt(hex.slice(3, 5), 16) / 255
-  const b = parseInt(hex.slice(5, 7), 16) / 255
-  const max = Math.max(r, g, b)
-  const min = Math.min(r, g, b)
-  let h = 0
-  let s = 0
-  const l = (max + min) / 2
-  if (max !== min) {
-    const d = max - min
-    s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
-    switch (max) {
-      case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break
-      case g: h = ((b - r) / d + 2) / 6; break
-      case b: h = ((r - g) / d + 4) / 6; break
-    }
-  }
-  return `${Math.round(h * 360)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`
+// Convert hex color (#RRGGBB) to oklch() string for DaisyUI v5
+function hexToOklch(hex) {
+  if (!hex || !/^#[0-9A-Fa-f]{6}$/.test(hex)) return null
+  // sRGB 0-1
+  let r = parseInt(hex.slice(1, 3), 16) / 255
+  let g = parseInt(hex.slice(3, 5), 16) / 255
+  let b = parseInt(hex.slice(5, 7), 16) / 255
+  // linearize sRGB
+  r = r <= 0.04045 ? r / 12.92 : Math.pow((r + 0.055) / 1.055, 2.4)
+  g = g <= 0.04045 ? g / 12.92 : Math.pow((g + 0.055) / 1.055, 2.4)
+  b = b <= 0.04045 ? b / 12.92 : Math.pow((b + 0.055) / 1.055, 2.4)
+  // sRGB → XYZ (D65)
+  const x = 0.4124564 * r + 0.3575761 * g + 0.1804375 * b
+  const y = 0.2126729 * r + 0.7151522 * g + 0.0721750 * b
+  const z = 0.0193339 * r + 0.1191920 * g + 0.9503041 * b
+  // XYZ → LMS
+  const l_ = 0.8189330101 * x + 0.3618667424 * y - 0.1288597137 * z
+  const m_ = 0.0329845436 * x + 0.9293118715 * y + 0.0361456387 * z
+  const s_ = 0.0482003018 * x + 0.2643662691 * y + 0.6338517070 * z
+  // cube root
+  const lc = Math.cbrt(l_), mc = Math.cbrt(m_), sc = Math.cbrt(s_)
+  // LMS → OKLab
+  const L = 0.2104542553 * lc + 0.7936177850 * mc - 0.0040720468 * sc
+  const A = 1.9779984951 * lc - 2.4285922050 * mc + 0.4505937099 * sc
+  const B = 0.0259040371 * lc + 0.7827717662 * mc - 0.8086757660 * sc
+  // OKLab → OKLCh
+  const C = Math.sqrt(A * A + B * B)
+  let H = Math.atan2(B, A) * (180 / Math.PI)
+  if (H < 0) H += 360
+  // DaisyUI v5 expects: oklch(L% C H)
+  return `oklch(${(L * 100).toFixed(2)}% ${C.toFixed(4)} ${H.toFixed(2)})`
 }
 
 let fontLinkEl = null
@@ -62,11 +73,17 @@ watchEffect(() => {
     fontLinkEl = null
   }
 
-  // Apply DaisyUI color overrides via CSS custom properties
-  if (t.color_primary) el.style.setProperty('--p', hexToHSL(t.color_primary))
-  if (t.color_accent) el.style.setProperty('--a', hexToHSL(t.color_accent))
-  if (t.color_body_text) el.style.setProperty('--bc', hexToHSL(t.color_body_text))
-  if (t.color_table_bg) el.style.setProperty('--b2', hexToHSL(t.color_table_bg))
+  // Apply DaisyUI v5 color overrides (oklch CSS custom properties)
+  const colorMap = {
+    color_primary: '--color-primary',
+    color_accent: '--color-accent',
+    color_body_text: '--color-base-content',
+    color_table_bg: '--color-base-200',
+  }
+  for (const [key, cssVar] of Object.entries(colorMap)) {
+    const oklch = hexToOklch(t[key])
+    if (oklch) el.style.setProperty(cssVar, oklch)
+  }
 
   // Font sizes as CSS vars for components to pick up
   el.style.setProperty('--catalog-heading-size', t.font_heading_size || '1.75rem')
@@ -76,6 +93,13 @@ watchEffect(() => {
 onMounted(() => {
   store.fetchCategories()
   store.fetchThemeSettings()
+})
+
+onUnmounted(() => {
+  if (fontLinkEl) {
+    fontLinkEl.remove()
+    fontLinkEl = null
+  }
 })
 </script>
 

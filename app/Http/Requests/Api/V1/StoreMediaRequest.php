@@ -26,7 +26,7 @@ class StoreMediaRequest extends FormRequest
             'width' => 'nullable|integer',
             'height' => 'nullable|integer',
             'asset_folder_id' => 'nullable|uuid|exists:hierarchy_nodes,id',
-            'usage_purpose' => 'nullable|in:print,web,both',
+            'usage_purpose' => 'nullable|in:print,web,both,catalog_logo',
         ];
     }
 }
