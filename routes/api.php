@@ -32,6 +32,7 @@ use App\Http\Controllers\Api\V1\ProductAttributeValueController;
 use App\Http\Controllers\Api\V1\TranslationXliffController;
 use App\Http\Controllers\Api\V1\ProductController;
 use App\Http\Controllers\Api\V1\ProductMediaController;
+use App\Http\Controllers\Api\V1\ProductExportController;
 use App\Http\Controllers\Api\V1\ProductSearchController;
 use App\Http\Controllers\Api\V1\WatchlistController;
 use App\Http\Controllers\Api\V1\ProductPriceController;
@@ -207,6 +208,9 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // Product Search (SQL-based, replaces PQL)
     Route::post('products/search', [ProductSearchController::class, 'search']);
     Route::get('products/search/attributes', [ProductSearchController::class, 'searchableAttributes']);
+
+    // Product Excel Export (configurable columns + filters)
+    Route::post('products/export/excel', [ProductExportController::class, 'exportExcel']);
 
     // Bulk Editor
     Route::post('products/bulk-edit', [BulkEditorController::class, 'load']);

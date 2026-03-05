@@ -6,7 +6,7 @@ import { useAuthStore } from '@/stores/auth'
 import {
   Search, Package, GitBranch, Sliders, Database, Layers, FolderTree,
   Upload, Download, Image, Tags, DollarSign, Users, Settings,
-  HelpCircle, PanelLeftClose, PanelLeft, Star, LayoutGrid,
+  HelpCircle, PanelLeftClose, PanelLeft, Star, LayoutGrid, Ruler,
 } from 'lucide-vue-next'
 
 const route = useRoute()
@@ -19,11 +19,12 @@ const allNavItems = [
   { icon: Package, label: () => t('nav.products'), to: '/products' },
   { icon: Star, label: () => 'Merkliste', to: '/watchlist' },
   { icon: GitBranch, label: () => t('nav.hierarchies'), to: '/hierarchies' },
-  { icon: Sliders, label: () => t('nav.attributes'), to: '/attributes' },
   { icon: Layers, label: () => t('nav.productTypes'), to: '/product-types' },
-  { icon: FolderTree, label: () => t('nav.attributeTypes'), to: '/attribute-types' },
   { icon: LayoutGrid, label: () => t('nav.attributeViews'), to: '/attribute-views' },
+  { icon: FolderTree, label: () => t('nav.attributeTypes'), to: '/attribute-types' },
+  { icon: Sliders, label: () => t('nav.attributes'), to: '/attributes' },
   { icon: Database, label: () => t('nav.valueLists'), to: '/value-lists' },
+  { icon: Ruler, label: () => 'Einheiten', to: '/units' },
   { divider: true },
   { icon: Upload, label: () => t('nav.imports'), to: '/imports' },
   { icon: Download, label: () => t('nav.exports'), to: '/exports' },

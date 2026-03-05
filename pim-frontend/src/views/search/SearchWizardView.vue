@@ -1,11 +1,11 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useLocaleStore } from '@/stores/locale'
 import {
   Search, Filter, ChevronDown, ChevronRight, X, Star,
   Regex, AudioLines, Languages, Download, GitCompareArrows, Pencil,
-  Package, Sliders, GitBranch, Image, FolderTree,
+  Package, Sliders, GitBranch, Image, FolderTree, FileSpreadsheet,
 } from 'lucide-vue-next'
 import searchApi from '@/api/search'
 import searchProfilesApi from '@/api/searchProfiles'
@@ -16,6 +16,9 @@ import mediaApi from '@/api/media'
 import attributesApiDefault from '@/api/attributes'
 import PimTable from '@/components/shared/PimTable.vue'
 import ProfileSelector from '@/components/shared/ProfileSelector.vue'
+import ColumnConfigPopover from '@/components/shared/ColumnConfigPopover.vue'
+import { useColumnConfig } from '@/composables/useColumnConfig'
+import { triggerDownload } from '@/utils/download'
 
 const router = useRouter()
 const localeStore = useLocaleStore()
@@ -107,14 +110,46 @@ const searchCategoryDefs = [
   { key: 'media', label: 'Medien', icon: Image },
 ]
 
+// Column config for products search tab
+const defaultSearchColumns = [
+  { key: 'sku', label: 'SKU', mono: true, sortable: true },
+  { key: 'name', label: 'Name', sortable: true },
+  { key: 'product_type.name_de', label: 'Typ' },
+  { key: 'status', label: 'Status', sortable: true },
+  { key: 'updated_at', label: 'Geändert', sortable: true },
+]
+const extraSearchColumns = [
+  { key: 'ean', label: 'EAN', mono: true },
+  { key: 'created_at', label: 'Erstellt', sortable: true },
+]
+const { visibleColumns: searchVisibleColumns, allColumns: searchAllColumns, visibleKeys: searchVisibleKeys, toggleColumn: searchToggleColumn, moveColumn: searchMoveColumn, resetColumns: searchResetColumns } = useColumnConfig('columns:search', defaultSearchColumns, extraSearchColumns)
+
+// Excel export
+const excelExporting = ref(false)
+
+async function exportSearchExcel() {
+  excelExporting.value = true
+  try {
+    const params = {
+      columns: searchVisibleKeys.value,
+      search: searchInput.value.trim() || undefined,
+      search_mode: searchMode.value,
+      language: 'de',
+    }
+    if (selectedCategories.value.length > 0) {
+      params.category_ids = selectedCategories.value
+      params.include_descendants = true
+    }
+    if (statusFilter.value) params.status = statusFilter.value
+    const resp = await productsApi.exportExcel(params)
+    triggerDownload(resp.data, `suchergebnisse-${new Date().toISOString().slice(0, 10)}.xlsx`)
+  } catch (e) {
+    error.value = 'Excel-Export fehlgeschlagen'
+    console.error('Excel export failed:', e)
+  } finally { excelExporting.value = false }
+}
+
 const categoryColumns = {
-  products: [
-    { key: 'sku', label: 'SKU', mono: true, sortable: true },
-    { key: 'name', label: 'Name', sortable: true },
-    { key: 'product_type.name_de', label: 'Typ' },
-    { key: 'status', label: 'Status', sortable: true },
-    { key: 'updated_at', label: 'Geändert', sortable: true },
-  ],
   attributes: [
     { key: 'technical_name', label: 'Techn. Name', mono: true, sortable: true },
     { key: 'name_de', label: 'Name', sortable: true },
@@ -173,7 +208,10 @@ const compareRows = computed(() => {
   return compareData.value.rows
 })
 
-const columns = computed(() => categoryColumns[searchCategory.value] || categoryColumns.products)
+const columns = computed(() => {
+  if (searchCategory.value === 'products') return searchVisibleColumns.value
+  return categoryColumns[searchCategory.value] || categoryColumns.products
+})
 
 // --- Computed ---
 const activeFilterCount = computed(() => {
@@ -207,6 +245,12 @@ const flatCategoryNodes = computed(() => {
   }
   flatten(currentHierarchyTree.value)
   return result
+})
+
+// Clear categories that don't belong to the new hierarchy
+watch(selectedHierarchyId, () => {
+  const validIds = new Set(flatCategoryNodes.value.map(n => n.id))
+  selectedCategories.value = selectedCategories.value.filter(id => validIds.has(id))
 })
 
 const searchModeLabel = computed(() => ({
@@ -459,15 +503,6 @@ async function bulkAddToWatchlist() {
   }
 }
 
-function triggerDownload(blob, filename) {
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.click()
-  setTimeout(() => URL.revokeObjectURL(url), 200)
-}
-
 async function exportXliff() {
   xliffExporting.value = true
   try {
@@ -562,6 +597,23 @@ function openBulkEditor() {
         >
           {{ activeFilterCount }}
         </span>
+      </button>
+      <ColumnConfigPopover
+        v-if="searchCategory === 'products'"
+        :allColumns="searchAllColumns"
+        :visibleKeys="searchVisibleKeys"
+        @toggle="searchToggleColumn"
+        @move="searchMoveColumn"
+        @reset="searchResetColumns"
+      />
+      <button
+        v-if="searchCategory === 'products' && hasSearched && results.length > 0"
+        class="pim-btn pim-btn-secondary py-3 px-4"
+        :disabled="excelExporting"
+        @click="exportSearchExcel"
+      >
+        <FileSpreadsheet class="w-4 h-4" :stroke-width="1.75" />
+        <span class="ml-1.5 text-sm hidden sm:inline">{{ excelExporting ? 'Export...' : 'Excel' }}</span>
       </button>
       <button class="pim-btn pim-btn-primary py-3 px-6" @click="doSearch(1)">
         Suchen
