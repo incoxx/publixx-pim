@@ -12,11 +12,13 @@ use Illuminate\Http\Request;
 class ImportProfileController extends Controller
 {
     public function __construct(
-        private readonly ImportProfileService $profileService,
+        private readonly ImportProfileService $importService,
     ) {}
 
     public function index(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', ImportProfile::class);
+
         $profiles = ImportProfile::visibleTo($request->user()->id)
             ->with('productType')
             ->orderBy('name')
@@ -27,6 +29,8 @@ class ImportProfileController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        $this->authorize('create', ImportProfile::class);
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'is_shared' => 'boolean',
@@ -49,9 +53,7 @@ class ImportProfileController extends Controller
 
     public function update(Request $request, ImportProfile $importProfile): JsonResponse
     {
-        if ($importProfile->user_id !== $request->user()->id) {
-            abort(403, 'Nur eigene Profile können bearbeitet werden.');
-        }
+        $this->authorize('update', $importProfile);
 
         $validated = $request->validate([
             'name' => 'sometimes|string|max:255',
@@ -73,9 +75,7 @@ class ImportProfileController extends Controller
 
     public function destroy(Request $request, ImportProfile $importProfile): JsonResponse
     {
-        if ($importProfile->user_id !== $request->user()->id) {
-            abort(403, 'Nur eigene Profile können gelöscht werden.');
-        }
+        $this->authorize('delete', $importProfile);
 
         $importProfile->delete();
 
@@ -87,11 +87,13 @@ class ImportProfileController extends Controller
      */
     public function analyze(Request $request): JsonResponse
     {
+        $this->authorize('create', ImportProfile::class);
+
         $request->validate([
             'file' => 'required|file|mimes:xlsx,xls|max:51200',
         ]);
 
-        $analysis = $this->profileService->analyzeFile($request->file('file'));
+        $analysis = $this->importService->analyzeFile($request->file('file'));
 
         return response()->json(['data' => $analysis]);
     }
@@ -101,9 +103,7 @@ class ImportProfileController extends Controller
      */
     public function preview(Request $request, ImportProfile $importProfile): JsonResponse
     {
-        if ($importProfile->user_id !== $request->user()->id) {
-            abort(403, 'Nur eigene Profile können in der Vorschau angezeigt werden.');
-        }
+        $this->authorize('preview', $importProfile);
 
         $request->validate([
             'file' => 'required|file|mimes:xlsx,xls|max:51200',
@@ -111,7 +111,7 @@ class ImportProfileController extends Controller
         ]);
 
         $maxRows = $request->integer('max_rows', 20);
-        $preview = $this->profileService->preview($importProfile, $request->file('file'), $maxRows);
+        $preview = $this->importService->preview($importProfile, $request->file('file'), $maxRows);
 
         return response()->json(['data' => $preview]);
     }

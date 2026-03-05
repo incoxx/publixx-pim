@@ -21,15 +21,20 @@ use App\Models\Role;
 use App\Models\Unit;
 use App\Models\UnitGroup;
 use App\Models\User;
+use App\Models\ExportProfile;
+use App\Models\ImportProfile;
+use App\Models\SearchProfile;
 use App\Models\ValueList;
 use App\Models\ValueListEntry;
 use App\Policies\AttributePolicy;
 use App\Policies\AttributeTypePolicy;
 use App\Policies\AttributeViewPolicy;
 use App\Policies\ExportPolicy;
+use App\Policies\ExportProfilePolicy;
 use App\Policies\HierarchyNodePolicy;
 use App\Policies\HierarchyPolicy;
 use App\Policies\ImportJobPolicy;
+use App\Policies\ImportProfilePolicy;
 use App\Policies\MediaPolicy;
 use App\Policies\MediaUsageTypePolicy;
 use App\Policies\NodeAttributeAssignmentPolicy;
@@ -38,6 +43,7 @@ use App\Policies\ProductPolicy;
 use App\Policies\ProductTypePolicy;
 use App\Policies\RelationTypePolicy;
 use App\Policies\RolePolicy;
+use App\Policies\SearchProfilePolicy;
 use App\Policies\UnitGroupPolicy;
 use App\Policies\UnitPolicy;
 use App\Policies\UserPolicy;
@@ -75,6 +81,9 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(User::class, UserPolicy::class);
         Gate::policy(ValueList::class, ValueListPolicy::class);
         Gate::policy(ValueListEntry::class, ValueListEntryPolicy::class);
+        Gate::policy(SearchProfile::class, SearchProfilePolicy::class);
+        Gate::policy(ExportProfile::class, ExportProfilePolicy::class);
+        Gate::policy(ImportProfile::class, ImportProfilePolicy::class);
 
         // ExportPolicy — no model, registered as Gates
         Gate::define('export.view', [ExportPolicy::class, 'viewAny']);

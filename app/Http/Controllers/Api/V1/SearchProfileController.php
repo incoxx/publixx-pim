@@ -12,6 +12,8 @@ class SearchProfileController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', SearchProfile::class);
+
         $profiles = SearchProfile::visibleTo($request->user()->id)
             ->orderBy('name')
             ->get();
@@ -21,6 +23,8 @@ class SearchProfileController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        $this->authorize('create', SearchProfile::class);
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'is_shared' => 'boolean',
@@ -44,9 +48,7 @@ class SearchProfileController extends Controller
 
     public function update(Request $request, SearchProfile $searchProfile): JsonResponse
     {
-        if ($searchProfile->user_id !== $request->user()->id) {
-            abort(403, 'Nur eigene Profile können bearbeitet werden.');
-        }
+        $this->authorize('update', $searchProfile);
 
         $validated = $request->validate([
             'name' => 'sometimes|string|max:255',
@@ -69,9 +71,7 @@ class SearchProfileController extends Controller
 
     public function destroy(Request $request, SearchProfile $searchProfile): JsonResponse
     {
-        if ($searchProfile->user_id !== $request->user()->id) {
-            abort(403, 'Nur eigene Profile können gelöscht werden.');
-        }
+        $this->authorize('delete', $searchProfile);
 
         $searchProfile->delete();
 

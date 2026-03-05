@@ -18,6 +18,8 @@ class ExportProfileController extends Controller
 
     public function index(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', ExportProfile::class);
+
         $profiles = ExportProfile::visibleTo($request->user()->id)
             ->with('searchProfile')
             ->orderBy('name')
@@ -28,6 +30,8 @@ class ExportProfileController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        $this->authorize('create', ExportProfile::class);
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'is_shared' => 'boolean',
@@ -56,9 +60,7 @@ class ExportProfileController extends Controller
 
     public function update(Request $request, ExportProfile $exportProfile): JsonResponse
     {
-        if ($exportProfile->user_id !== $request->user()->id) {
-            abort(403, 'Nur eigene Profile können bearbeitet werden.');
-        }
+        $this->authorize('update', $exportProfile);
 
         $validated = $request->validate([
             'name' => 'sometimes|string|max:255',
@@ -86,9 +88,7 @@ class ExportProfileController extends Controller
 
     public function destroy(Request $request, ExportProfile $exportProfile): JsonResponse
     {
-        if ($exportProfile->user_id !== $request->user()->id) {
-            abort(403, 'Nur eigene Profile können gelöscht werden.');
-        }
+        $this->authorize('delete', $exportProfile);
 
         $exportProfile->delete();
 
@@ -97,9 +97,7 @@ class ExportProfileController extends Controller
 
     public function execute(Request $request, ExportProfile $exportProfile): StreamedResponse|JsonResponse
     {
-        if ($exportProfile->user_id !== $request->user()->id) {
-            abort(403, 'Nur eigene Profile können ausgeführt werden.');
-        }
+        $this->authorize('execute', $exportProfile);
 
         $validated = $request->validate([
             'file_name' => 'nullable|string|max:255',
