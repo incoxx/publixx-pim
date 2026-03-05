@@ -276,33 +276,43 @@ async function runAutoGenerate() {
   } finally { autoGenerating.value = false }
 }
 
+// Erkennt ob es ein Flat-Import ist (keine PIM-Sheets erkannt)
+const isFlatImport = computed(() => {
+  const found = importJob.value?.sheets_found
+  return !found || found.length === 0
+})
+
 // --- Step 3: Preview ---
 async function loadPreview() {
   if (!importJob.value) return
   previewLoading.value = true
   error.value = ''
   try {
-    const { data } = await importsApi.getPreview(importJob.value.id)
-    preview.value = data.data || data
-
-    // Fallback: Wenn Backend-Summary leer ist (Flat-Datei), baue Preview aus Analyse-Daten
-    const summary = preview.value?.summary
-    if ((!summary || Object.keys(summary).length === 0) && analysis.value?.sheets) {
+    if (isFlatImport.value && analysis.value?.sheets) {
+      // Flat-Import: Preview direkt aus Analyse-Daten bauen (Backend kennt kein Flat-Format)
       const flatSummary = {}
       for (const [sheetName, sheet] of Object.entries(analysis.value.sheets)) {
-        flatSummary[sheetName] = {
-          total: sheet.row_count || 0,
-          valid: sheet.row_count || 0,
-          creates: 0,
-          updates: 0,
-          errors: 0,
+        if (sheet.row_count > 0) {
+          flatSummary[sheetName] = {
+            total: sheet.row_count || 0,
+            valid: sheet.row_count || 0,
+            creates: 0,
+            updates: 0,
+            errors: 0,
+          }
         }
       }
       preview.value = {
-        ...preview.value,
+        import_id: importJob.value.id,
+        status: importJob.value.status,
         summary: flatSummary,
+        errors: [],
         _flat_import: true,
       }
+    } else {
+      // PIM-Format: Backend-Preview nutzen
+      const { data } = await importsApi.getPreview(importJob.value.id)
+      preview.value = data.data || data
     }
   } catch (e) {
     error.value = e.response?.data?.message || 'Vorschau fehlgeschlagen'
@@ -340,7 +350,7 @@ async function executeImport() {
   try {
     const executePayload = { mode: importMode.value }
     // Flat-Import: Mappings mitsenden, damit das Backend die Flat-Datei importieren kann
-    if (preview.value?._flat_import) {
+    if (isFlatImport.value) {
       executePayload.flat_import = true
       executePayload.sku_column = skuColumn.value
       executePayload.product_type_id = productTypeId.value
@@ -415,7 +425,8 @@ function resetWizard() {
 const errorCount = computed(() => preview.value?.errors?.length ?? 0)
 const sheetsInfo = computed(() => {
   if (!analysis.value?.sheets) return []
-  return Object.values(analysis.value.sheets)
+  // Leere Sheets (z.B. "Tabelle1" mit 0 Zeilen) ausfiltern
+  return Object.values(analysis.value.sheets).filter(s => s.row_count > 0 || s.headers?.length > 0)
 })
 const availableAttributes = computed(() => analysis.value?.available_attributes || [])
 const mappedCount = computed(() => columnMappings.value.filter(m => m.target_attribute_id).length)
