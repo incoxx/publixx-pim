@@ -29,7 +29,7 @@ function selectAll() {
         class="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors"
         :class="
           !store.selectedCategoryId
-            ? 'bg-primary/10 text-primary font-medium'
+            ? 'catalog-sidebar-active font-medium'
             : 'hover:bg-base-200 text-base-content'
         "
         @click="selectAll"
