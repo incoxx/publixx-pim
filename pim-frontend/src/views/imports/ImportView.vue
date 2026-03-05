@@ -8,7 +8,7 @@ import {
 import importsApi from '@/api/imports'
 import importProfilesApi from '@/api/importProfiles'
 import hierarchiesApi from '@/api/hierarchies'
-import { attributeViews as attributeViewsApi, productTypes as productTypesApi } from '@/api/attributes'
+import { attributeViews as attributeViewsApi, productTypes as productTypesApi, attributeTypes as attributeTypesApi } from '@/api/attributes'
 import ProfileSelector from '@/components/shared/ProfileSelector.vue'
 
 // --- Wizard State ---
@@ -35,6 +35,8 @@ const importModes = [
   { value: 'delete', label: 'Löschen', hint: 'per SKU löschen' },
 ]
 const skuColumn = ref('SKU')
+const nameColumn = ref('')
+const eanColumn = ref('')
 const productTypeId = ref(null)
 const columnMappings = ref([])
 const priceMappings = ref([])
@@ -52,6 +54,8 @@ const attributeViews = ref([])
 const selectedHierarchyId = ref(null)
 const selectedNodeId = ref(null)
 const selectedViewId = ref(null)
+const selectedAttributeTypeId = ref(null)
+const attributeTypesList = ref([])
 const autoGenerating = ref(false)
 const autoGenerateResult = ref(null)
 
@@ -67,16 +71,18 @@ const logPolling = ref(null)
 
 onMounted(async () => {
   try {
-    const [profilesRes, hierarchiesRes, viewsRes, typesRes] = await Promise.all([
+    const [profilesRes, hierarchiesRes, viewsRes, typesRes, attrTypesRes] = await Promise.all([
       importProfilesApi.list(),
       hierarchiesApi.list(),
       attributeViewsApi.list(),
       productTypesApi.list(),
+      attributeTypesApi.list(),
     ])
     importProfiles.value = profilesRes.data.data || profilesRes.data
     hierarchies.value = (hierarchiesRes.data.data || hierarchiesRes.data).filter(h => h.hierarchy_type === 'master')
     attributeViews.value = viewsRes.data.data || viewsRes.data
     productTypes.value = typesRes.data.data || typesRes.data
+    attributeTypesList.value = attrTypesRes.data.data || attrTypesRes.data
   } catch (e) { /* ignore */ }
 })
 
@@ -246,6 +252,7 @@ async function runAutoGenerate() {
     const { data } = await importProfilesApi.autoGenerateAttributes({
       hierarchy_node_id: selectedNodeId.value,
       attribute_view_id: selectedViewId.value,
+      attribute_type_id: selectedAttributeTypeId.value || undefined,
       columns,
     })
     autoGenerateResult.value = data.data || data
@@ -353,7 +360,10 @@ async function executeImport() {
     if (isFlatImport.value) {
       executePayload.flat_import = true
       executePayload.sku_column = skuColumn.value
+      executePayload.name_column = nameColumn.value || null
+      executePayload.ean_column = eanColumn.value || null
       executePayload.product_type_id = productTypeId.value
+      executePayload.master_hierarchy_node_id = selectedNodeId.value
       executePayload.column_mappings = columnMappings.value
         .filter(m => m.target_attribute_id)
         .map(m => ({
@@ -580,7 +590,7 @@ const logLevelIcon = { info: CheckCircle, warning: AlertTriangle, error: XCircle
       <div v-if="mappingTab === 'products'" class="pim-card p-5 space-y-4">
         <div class="grid grid-cols-3 gap-4">
           <div>
-            <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">SKU-Spalte</label>
+            <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">SKU-Spalte *</label>
             <select class="pim-input text-xs w-full" v-model="skuColumn">
               <template v-for="sheet in sheetsInfo" :key="sheet.name">
                 <option v-for="h in (sheet.headers || [])" :key="h" :value="h">{{ h }}</option>
@@ -588,13 +598,33 @@ const logLevelIcon = { info: CheckCircle, warning: AlertTriangle, error: XCircle
             </select>
           </div>
           <div>
+            <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">Name-Spalte</label>
+            <select class="pim-input text-xs w-full" v-model="nameColumn">
+              <option value="">— Nicht zuordnen —</option>
+              <template v-for="sheet in sheetsInfo" :key="sheet.name">
+                <option v-for="h in (sheet.headers || [])" :key="h" :value="h">{{ h }}</option>
+              </template>
+            </select>
+          </div>
+          <div>
+            <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">EAN-Spalte</label>
+            <select class="pim-input text-xs w-full" v-model="eanColumn">
+              <option value="">— Nicht zuordnen —</option>
+              <template v-for="sheet in sheetsInfo" :key="sheet.name">
+                <option v-for="h in (sheet.headers || [])" :key="h" :value="h">{{ h }}</option>
+              </template>
+            </select>
+          </div>
+        </div>
+        <div class="grid grid-cols-3 gap-4">
+          <div>
             <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">Produkttyp</label>
             <select class="pim-input text-xs w-full" v-model="productTypeId">
               <option :value="null">— Optional —</option>
               <option v-for="pt in productTypes" :key="pt.id" :value="pt.id">{{ pt.name_de || pt.technical_name }}</option>
             </select>
           </div>
-          <div>
+          <div class="col-span-2">
             <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">Kategorie</label>
             <div class="flex gap-2">
               <select class="pim-input text-xs flex-1" v-model="selectedHierarchyId" @change="loadNodes">
@@ -696,12 +726,21 @@ const logLevelIcon = { info: CheckCircle, warning: AlertTriangle, error: XCircle
             Bitte oben eine Kategorie (Hierarchie + Knoten) auswählen, um Attribute zuordnen zu können.
           </div>
 
-          <div>
-            <label class="block text-[10px] font-medium text-[var(--color-text-secondary)] mb-1">Attribut-Sicht (Gruppe)</label>
-            <select class="pim-input text-xs w-full" v-model="selectedViewId">
-              <option :value="null">— Sicht wählen —</option>
-              <option v-for="v in attributeViews" :key="v.id" :value="v.id">{{ v.name_de || v.technical_name }}</option>
-            </select>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-[10px] font-medium text-[var(--color-text-secondary)] mb-1">Attribut-Sicht</label>
+              <select class="pim-input text-xs w-full" v-model="selectedViewId">
+                <option :value="null">— Sicht wählen —</option>
+                <option v-for="v in attributeViews" :key="v.id" :value="v.id">{{ v.name_de || v.technical_name }}</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-[10px] font-medium text-[var(--color-text-secondary)] mb-1">Attributgruppe</label>
+              <select class="pim-input text-xs w-full" v-model="selectedAttributeTypeId">
+                <option :value="null">— Optional —</option>
+                <option v-for="at in attributeTypesList" :key="at.id" :value="at.id">{{ at.name_de || at.technical_name }}</option>
+              </select>
+            </div>
           </div>
 
           <button

@@ -91,7 +91,10 @@ class ImportController extends Controller
             $this->importService->executeFlatImport($import, [
                 'mode' => $mode,
                 'sku_column' => $request->input('sku_column', 'SKU'),
+                'name_column' => $request->input('name_column'),
+                'ean_column' => $request->input('ean_column'),
                 'product_type_id' => $request->input('product_type_id'),
+                'master_hierarchy_node_id' => $request->input('master_hierarchy_node_id'),
                 'column_mappings' => $request->input('column_mappings', []),
             ]);
         } else {
