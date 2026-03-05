@@ -26,6 +26,9 @@ const deletingUnit = ref(false)
 const showAddRow = ref(false)
 const newUnit = ref({ technical_name: '', abbreviation: '', conversion_factor: 1, is_base_unit: false })
 
+// Error feedback
+const unitError = ref(null)
+
 // Inline edit
 const editingUnitId = ref(null)
 const editForm = ref({})
@@ -107,13 +110,15 @@ function openAddRow() {
 
 async function saveNewUnit() {
   if (!newUnit.value.technical_name.trim()) return
+  unitError.value = null
   try {
     await units.create(selectedGroup.value.id, newUnit.value)
     showAddRow.value = false
     await fetchUnits()
     await fetchGroups()
   } catch (e) {
-    console.error('Failed to add unit:', e)
+    const msg = e.response?.data?.message || e.response?.data?.errors?.technical_name?.[0]
+    unitError.value = msg || 'Einheit konnte nicht erstellt werden'
   }
 }
 
@@ -134,12 +139,14 @@ function cancelEdit() {
 }
 
 async function saveEdit() {
+  unitError.value = null
   try {
     await units.update(editingUnitId.value, editForm.value)
     editingUnitId.value = null
     await fetchUnits()
   } catch (e) {
-    console.error('Failed to update unit:', e)
+    const msg = e.response?.data?.message || e.response?.data?.errors?.technical_name?.[0]
+    unitError.value = msg || 'Einheit konnte nicht aktualisiert werden'
   }
 }
 
@@ -198,6 +205,12 @@ onMounted(() => fetchGroups())
             <Plus class="w-3.5 h-3.5" :stroke-width="2" /> Einheit
           </button>
         </div>
+      </div>
+
+      <!-- Error -->
+      <div v-if="unitError" class="flex items-center justify-between gap-2 p-3 rounded-lg bg-[var(--color-error-light)] text-[var(--color-error)]">
+        <p class="text-xs">{{ unitError }}</p>
+        <button class="text-xs hover:underline" @click="unitError = null">Schließen</button>
       </div>
 
       <!-- Units table -->

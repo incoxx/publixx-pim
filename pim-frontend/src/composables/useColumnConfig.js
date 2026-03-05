@@ -21,7 +21,7 @@ export function useColumnConfig(storageKey, defaultColumns, extraColumns = []) {
         const validKeys = keys.filter(k => allColumns.some(c => c.key === k))
         if (validKeys.length > 0) return validKeys
       }
-    } catch { /* ignore */ }
+    } catch (e) { console.warn('Failed to load column config:', e) }
     return [...defaultKeys]
   }
 

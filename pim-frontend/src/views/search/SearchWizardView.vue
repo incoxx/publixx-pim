@@ -18,6 +18,7 @@ import PimTable from '@/components/shared/PimTable.vue'
 import ProfileSelector from '@/components/shared/ProfileSelector.vue'
 import ColumnConfigPopover from '@/components/shared/ColumnConfigPopover.vue'
 import { useColumnConfig } from '@/composables/useColumnConfig'
+import { triggerDownload } from '@/utils/download'
 
 const router = useRouter()
 const localeStore = useLocaleStore()
@@ -141,14 +142,11 @@ async function exportSearchExcel() {
     }
     if (statusFilter.value) params.status = statusFilter.value
     const resp = await productsApi.exportExcel(params)
-    const url = URL.createObjectURL(resp.data)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `suchergebnisse-${new Date().toISOString().slice(0, 10)}.xlsx`
-    a.click()
-    setTimeout(() => URL.revokeObjectURL(url), 200)
-  } catch (e) { console.error('Excel export failed:', e) }
-  finally { excelExporting.value = false }
+    triggerDownload(resp.data, `suchergebnisse-${new Date().toISOString().slice(0, 10)}.xlsx`)
+  } catch (e) {
+    error.value = 'Excel-Export fehlgeschlagen'
+    console.error('Excel export failed:', e)
+  } finally { excelExporting.value = false }
 }
 
 const categoryColumns = {
@@ -503,15 +501,6 @@ async function bulkAddToWatchlist() {
   } catch (e) {
     console.error('Bulk watchlist add failed', e)
   }
-}
-
-function triggerDownload(blob, filename) {
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.click()
-  setTimeout(() => URL.revokeObjectURL(url), 200)
 }
 
 async function exportXliff() {

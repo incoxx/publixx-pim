@@ -11,6 +11,7 @@ import productsApi from '@/api/products'
 import PimTable from '@/components/shared/PimTable.vue'
 import ColumnConfigPopover from '@/components/shared/ColumnConfigPopover.vue'
 import { useColumnConfig } from '@/composables/useColumnConfig'
+import { triggerDownload } from '@/utils/download'
 import PimConfirmDialog from '@/components/shared/PimConfirmDialog.vue'
 
 const router = useRouter()
@@ -56,15 +57,15 @@ const compareRows = computed(() => {
 })
 
 const defaultWatchlistColumns = [
-  { key: 'product.sku', label: 'SKU', mono: true },
-  { key: 'product.name', label: 'Name' },
-  { key: 'product.status', label: 'Status' },
-  { key: 'product.product_type.name_de', label: 'Typ' },
-  { key: 'created_at', label: 'Hinzugefügt' },
+  { key: 'product.sku', label: 'SKU', mono: true, exportKey: 'sku' },
+  { key: 'product.name', label: 'Name', exportKey: 'name' },
+  { key: 'product.status', label: 'Status', exportKey: 'status' },
+  { key: 'product.product_type.name_de', label: 'Typ', exportKey: 'product_type' },
+  { key: 'created_at', label: 'Hinzugefügt', exportKey: 'created_at' },
 ]
 
 const extraWatchlistColumns = [
-  { key: 'product.ean', label: 'EAN', mono: true },
+  { key: 'product.ean', label: 'EAN', mono: true, exportKey: 'ean' },
 ]
 
 const { visibleColumns, allColumns, visibleKeys, toggleColumn, moveColumn, resetColumns } = useColumnConfig('columns:watchlist', defaultWatchlistColumns, extraWatchlistColumns)
@@ -109,20 +110,14 @@ async function confirmDelete() {
   }
 }
 
-function triggerDownload(blob, filename) {
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.click()
-  setTimeout(() => URL.revokeObjectURL(url), 200)
-}
-
 async function exportExcel() {
   exporting.value = 'excel'
   try {
-    // Map watchlist column keys (product.sku -> sku) for export
-    const exportColumns = visibleKeys.value.map(k => k.replace(/^product\./, ''))
+    // Map watchlist column keys to export keys via explicit exportKey property
+    const exportColumns = visibleKeys.value.map(k => {
+      const col = allColumns.find(c => c.key === k)
+      return col?.exportKey || k
+    })
     const productIds = items.value.map(i => i.product_id).filter(Boolean)
     const resp = await productsApi.exportExcel({
       columns: exportColumns,
@@ -130,8 +125,10 @@ async function exportExcel() {
       language: 'de',
     })
     triggerDownload(resp.data, `merkliste-${new Date().toISOString().slice(0,10)}.xlsx`)
-  } catch (e) { console.error('Excel export failed', e) }
-  finally { exporting.value = null }
+  } catch (e) {
+    error.value = 'Excel-Export fehlgeschlagen'
+    console.error('Excel export failed', e)
+  } finally { exporting.value = null }
 }
 
 async function exportPdf() {

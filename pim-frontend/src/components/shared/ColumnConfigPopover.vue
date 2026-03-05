@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { Columns3, ArrowUp, ArrowDown, RotateCcw } from 'lucide-vue-next'
 
 const props = defineProps({
@@ -23,11 +23,14 @@ function move(key, direction) {
   emit('move', key, direction)
 }
 
-function handleClickOutside(e) {
-  if (!e.target.closest('.column-config-popover')) {
+function onEscape(e) {
+  if (e.key === 'Escape' && open.value) {
     open.value = false
   }
 }
+
+onMounted(() => window.addEventListener('keydown', onEscape))
+onUnmounted(() => window.removeEventListener('keydown', onEscape))
 </script>
 
 <template>

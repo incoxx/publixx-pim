@@ -45,6 +45,16 @@ class ProductExportController extends Controller
         $columns = $validated['columns'];
         $language = $validated['language'] ?? 'de';
 
+        // Whitelist: only allow known base columns and attr: prefix
+        $allowedBaseColumns = ['sku', 'name', 'status', 'ean', 'product_type', 'product_type.name_de', 'updated_at', 'created_at'];
+        $columns = array_filter($columns, function ($col) use ($allowedBaseColumns) {
+            return in_array($col, $allowedBaseColumns) || str_starts_with($col, 'attr:');
+        });
+
+        if (empty($columns)) {
+            return response()->json(['message' => 'Keine gültigen Spalten angegeben'], 422);
+        }
+
         // Build product query
         $query = Product::query()
             ->with('productType')
@@ -67,7 +77,11 @@ class ProductExportController extends Controller
             }
         }
 
-        $products = $query->limit(5000)->get();
+        $products = $query->limit(5001)->get();
+        $truncated = $products->count() > 5000;
+        if ($truncated) {
+            $products = $products->take(5000);
+        }
 
         // Identify attribute columns (prefix: attr:)
         $attrColumns = [];
@@ -85,6 +99,11 @@ class ProductExportController extends Controller
         $attrMap = [];
         if (!empty($attrColumns)) {
             $attrMap = Attribute::whereIn('id', $attrColumns)->pluck('name_de', 'id')->toArray();
+            // Log missing attributes
+            $missingAttrs = array_diff($attrColumns, array_map('strval', array_keys($attrMap)));
+            if (!empty($missingAttrs)) {
+                \Illuminate\Support\Facades\Log::warning('Export: unknown attribute IDs requested', ['ids' => $missingAttrs]);
+            }
             $productIds = $products->pluck('id');
             $values = ProductAttributeValue::whereIn('product_id', $productIds)
                 ->whereIn('attribute_id', $attrColumns)
@@ -162,12 +181,18 @@ class ProductExportController extends Controller
 
         $filename = 'produkte-' . now()->format('Y-m-d') . '.xlsx';
 
+        $headers = [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ];
+        if ($truncated) {
+            $headers['X-Export-Truncated'] = 'true';
+            $headers['X-Export-Limit'] = '5000';
+        }
+
         return response()->streamDownload(function () use ($spreadsheet) {
             $writer = new Xlsx($spreadsheet);
             $writer->save('php://output');
-        }, $filename, [
-            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        ]);
+        }, $filename, $headers);
     }
 
     private function getProductColumnValue(Product $product, string $column): string

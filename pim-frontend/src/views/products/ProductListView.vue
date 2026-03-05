@@ -11,6 +11,7 @@ import { Plus, Languages, Upload, Download, X, GitCompareArrows, Star, Pencil, F
 import PimTable from '@/components/shared/PimTable.vue'
 import ColumnConfigPopover from '@/components/shared/ColumnConfigPopover.vue'
 import { useColumnConfig } from '@/composables/useColumnConfig'
+import { triggerDownload } from '@/utils/download'
 import PimFilterBar from '@/components/shared/PimFilterBar.vue'
 import PimConfirmDialog from '@/components/shared/PimConfirmDialog.vue'
 import ProductCreatePanel from '@/components/panels/ProductCreatePanel.vue'
@@ -49,6 +50,7 @@ const excelExporting = ref(false)
 
 async function exportExcel() {
   excelExporting.value = true
+  exportError.value = null
   try {
     const params = {
       columns: visibleKeys.value,
@@ -56,16 +58,14 @@ async function exportExcel() {
       language: 'de',
     }
     const resp = await productsApi.exportExcel(params)
-    const url = URL.createObjectURL(resp.data)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `produkte-${new Date().toISOString().slice(0, 10)}.xlsx`
-    a.click()
-    setTimeout(() => URL.revokeObjectURL(url), 200)
-  } catch (e) { console.error('Excel export failed:', e) }
-  finally { excelExporting.value = false }
+    triggerDownload(resp.data, `produkte-${new Date().toISOString().slice(0, 10)}.xlsx`)
+  } catch (e) {
+    exportError.value = 'Excel-Export fehlgeschlagen'
+    console.error('Excel export failed:', e)
+  } finally { excelExporting.value = false }
 }
 
+const exportError = ref(null)
 const deleteTarget = ref(null)
 const deleting = ref(false)
 
@@ -145,12 +145,7 @@ async function exportXliff() {
       sourceLang: xliffSourceLang.value,
       targetLang: xliffTargetLang.value,
     })
-    const url = URL.createObjectURL(resp.data)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `pim-translations-${xliffSourceLang.value}-${xliffTargetLang.value}.xliff`
-    a.click()
-    setTimeout(() => URL.revokeObjectURL(url), 200)
+    triggerDownload(resp.data, `pim-translations-${xliffSourceLang.value}-${xliffTargetLang.value}.xliff`)
   } catch (e) { console.error('XLIFF export failed:', e) }
   finally { xliffExporting.value = false }
 }
@@ -295,6 +290,12 @@ onMounted(() => {
           <li v-for="(err, i) in xliffImportResult.errors" :key="i">{{ err }}</li>
         </ul>
       </div>
+    </div>
+
+    <!-- Export error -->
+    <div v-if="exportError" class="flex items-center justify-between gap-2 p-3 rounded-lg bg-[var(--color-error-light)] text-[var(--color-error)]">
+      <p class="text-xs">{{ exportError }}</p>
+      <button class="text-xs hover:underline" @click="exportError = null">Schließen</button>
     </div>
 
     <!-- Filter bar -->

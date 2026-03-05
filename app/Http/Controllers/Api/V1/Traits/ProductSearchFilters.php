@@ -28,9 +28,11 @@ trait ProductSearchFilters
                 break;
 
             case 'regex':
-                $query->where(function ($q) use ($term, $searchColumns) {
+                // Limit regex length to prevent DoS via complex patterns
+                $safeTerm = mb_substr($term, 0, 200);
+                $query->where(function ($q) use ($safeTerm, $searchColumns) {
                     foreach ($searchColumns as $col) {
-                        $q->orWhereRaw("{$col} REGEXP ?", [$term]);
+                        $q->orWhereRaw("{$col} REGEXP ?", [$safeTerm]);
                     }
                 });
                 break;
