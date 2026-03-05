@@ -144,6 +144,15 @@ step "2/8 — Neuesten Stand von GitHub holen"
 # Aktuellen Branch merken
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")
 
+# Lokale Aenderungen sichern (z.B. durch Bild-Uploads, Cache-Dateien etc.)
+STASHED=false
+if ! git diff --quiet HEAD 2>/dev/null || [ -n "$(git ls-files --others --exclude-standard)" ]; then
+    warn "Lokale Aenderungen erkannt — werden temporaer gesichert (git stash)..."
+    git stash push -u -m "update.sh auto-stash $(date +%Y%m%d-%H%M%S)"
+    STASHED=true
+    info "Lokale Aenderungen gesichert."
+fi
+
 # Falls nicht auf dem Ziel-Branch: wechseln
 if [ "$CURRENT_BRANCH" != "$BRANCH" ]; then
     warn "Aktueller Branch: ${CURRENT_BRANCH} — wechsle zu ${BRANCH}..."
@@ -154,6 +163,18 @@ fi
 # Aenderungen holen und mergen
 OLD_HEAD=$(git rev-parse HEAD)
 git pull origin "$BRANCH"
+
+# Lokale Aenderungen wiederherstellen
+if [ "$STASHED" = true ]; then
+    info "Stelle lokale Aenderungen wieder her..."
+    if git stash pop 2>/dev/null; then
+        info "Lokale Aenderungen wiederhergestellt."
+    else
+        warn "Lokale Aenderungen konnten nicht automatisch gemergt werden."
+        warn "Gesichert als: $(git stash list | head -1)"
+        warn "Manuell wiederherstellen mit: git stash pop"
+    fi
+fi
 
 NEW_HEAD=$(git rev-parse HEAD)
 
