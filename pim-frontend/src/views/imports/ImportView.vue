@@ -28,6 +28,7 @@ const selectedProfileId = ref(null)
 
 // Step 2: Mapping
 const mappingTab = ref('products')
+const importMode = ref('update') // 'update' oder 'delete_insert'
 const skuColumn = ref('SKU')
 const productTypeId = ref(null)
 const columnMappings = ref([])
@@ -300,7 +301,7 @@ async function executeImport() {
   logPolling.value = setInterval(pollLogs, 2000)
 
   try {
-    await importsApi.execute(importJob.value.id)
+    await importsApi.execute(importJob.value.id, { mode: importMode.value })
     await pollStatus()
   } catch (e) {
     error.value = e.response?.data?.message || 'Import fehlgeschlagen'
@@ -458,6 +459,30 @@ const logLevelIcon = { info: CheckCircle, warning: AlertTriangle, error: XCircle
 
     <!-- Step 2: Mapping -->
     <div v-if="step === 2" class="space-y-4">
+      <!-- Import-Modus -->
+      <div class="flex items-center gap-4 px-1">
+        <span class="text-[11px] font-medium text-[var(--color-text-secondary)]">Import-Modus:</span>
+        <label class="flex items-center gap-1.5 cursor-pointer">
+          <input type="radio" v-model="importMode" value="update" class="radio radio-xs radio-accent" />
+          <span class="text-xs" :class="importMode === 'update' ? 'text-[var(--color-text-primary)] font-medium' : 'text-[var(--color-text-tertiary)]'">
+            Update
+          </span>
+          <span class="text-[10px] text-[var(--color-text-tertiary)]">(vorhandene aktualisieren)</span>
+        </label>
+        <label class="flex items-center gap-1.5 cursor-pointer">
+          <input type="radio" v-model="importMode" value="delete_insert" class="radio radio-xs radio-accent" />
+          <span class="text-xs" :class="importMode === 'delete_insert' ? 'text-[var(--color-text-primary)] font-medium' : 'text-[var(--color-text-tertiary)]'">
+            Delete / Insert
+          </span>
+          <span class="text-[10px] text-[var(--color-text-tertiary)]">(komplett neu anlegen)</span>
+        </label>
+      </div>
+
+      <div v-if="importMode === 'delete_insert'" class="p-3 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-800">
+        <AlertTriangle class="inline w-3.5 h-3.5 -mt-0.5 mr-1" :stroke-width="2" />
+        Achtung: Alle Produkte aus der Datei werden zuerst gelöscht (inkl. Werte, Preise, Beziehungen, Medien) und dann komplett neu angelegt.
+      </div>
+
       <div class="flex border-b border-[var(--color-border)]">
         <button
           v-for="tab in [{ key: 'products', label: 'Produkte' }, { key: 'prices', label: 'Preise' }, { key: 'relations', label: 'Beziehungen' }]"

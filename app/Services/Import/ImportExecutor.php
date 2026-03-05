@@ -45,9 +45,22 @@ class ImportExecutor
     /** Übersprungene Zeilen mit Grund (für Ergebnis-Report). */
     private array $skippedDetails = [];
 
+    /** Import-Modus: 'update' (Upsert) oder 'delete_insert' (löschen + neu anlegen). */
+    private string $mode = 'update';
+
     public function __construct(?ReferenceResolver $resolver = null)
     {
         $this->resolver = $resolver ?? new ReferenceResolver();
+    }
+
+    /**
+     * Setzt den Import-Modus.
+     *
+     * @param string $mode 'update' oder 'delete_insert'
+     */
+    public function setMode(string $mode): void
+    {
+        $this->mode = in_array($mode, ['update', 'delete_insert']) ? $mode : 'update';
     }
 
     /**
@@ -84,6 +97,11 @@ class ImportExecutor
         DB::beginTransaction();
 
         try {
+            // Bei delete_insert: betroffene Daten vorher löschen
+            if ($this->mode === 'delete_insert') {
+                $this->deleteExistingData($parseResult);
+            }
+
             foreach ($sheetOrder as $sheetKey) {
                 if (!$parseResult->hasSheet($sheetKey)) {
                     continue;
@@ -190,6 +208,74 @@ class ImportExecutor
             'data' => array_filter($row, fn ($k) => $k !== '_row', ARRAY_FILTER_USE_KEY),
             'trace' => $e->getTraceAsString(),
         ]);
+    }
+
+    // ──────────────────────────────────────────────
+    //  Delete/Insert: Vorhandene Daten löschen
+    // ──────────────────────────────────────────────
+
+    /**
+     * Löscht vorhandene Daten, die im Import enthalten sind (nur bei delete_insert Modus).
+     * Löscht nur Daten, die durch den Import betroffen werden (anhand SKUs).
+     */
+    private function deleteExistingData(ParseResult $parseResult): void
+    {
+        Log::channel('import')->info('Delete/Insert-Modus: Lösche vorhandene Daten vor Neuanlage');
+
+        // SKUs aus dem Produkt-Sheet sammeln
+        $productSkus = [];
+        if ($parseResult->hasSheet('08_Produkte')) {
+            foreach ($parseResult->getSheetData('08_Produkte') as $row) {
+                if (!empty($row['sku'])) {
+                    $productSkus[] = $row['sku'];
+                }
+            }
+        }
+
+        // Varianten-SKUs sammeln
+        $variantSkus = [];
+        if ($parseResult->hasSheet('10_Varianten')) {
+            foreach ($parseResult->getSheetData('10_Varianten') as $row) {
+                if (!empty($row['variant_sku'])) {
+                    $variantSkus[] = $row['variant_sku'];
+                }
+            }
+        }
+
+        $allSkus = array_merge($productSkus, $variantSkus);
+
+        if (!empty($allSkus)) {
+            $productIds = Product::whereIn('sku', $allSkus)->pluck('id')->toArray();
+
+            if (!empty($productIds)) {
+                // Abhängige Daten in korrekter Reihenfolge löschen
+                ProductRelation::whereIn('source_product_id', $productIds)
+                    ->orWhereIn('target_product_id', $productIds)
+                    ->delete();
+
+                ProductPrice::whereIn('product_id', $productIds)->delete();
+
+                ProductMediaAssignment::whereIn('product_id', $productIds)->delete();
+
+                ProductAttributeValue::whereIn('product_id', $productIds)->delete();
+
+                OutputHierarchyProductAssignment::whereIn('product_id', $productIds)->delete();
+
+                // Varianten vor Elternprodukten löschen
+                Product::whereIn('id', $productIds)
+                    ->where('product_type_ref', 'variant')
+                    ->delete();
+
+                Product::whereIn('id', $productIds)
+                    ->where('product_type_ref', 'product')
+                    ->delete();
+
+                Log::channel('import')->info('Delete/Insert: Produkte und abhängige Daten gelöscht', [
+                    'skus' => count($allSkus),
+                    'product_ids' => count($productIds),
+                ]);
+            }
+        }
     }
 
     // ──────────────────────────────────────────────

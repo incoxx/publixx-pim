@@ -17,8 +17,8 @@ export default {
     return client.get(`/imports/${id}/preview`)
   },
 
-  execute(id) {
-    return client.post(`/imports/${id}/execute`)
+  execute(id, params = {}) {
+    return client.post(`/imports/${id}/execute`, params)
   },
 
   getResult(id) {

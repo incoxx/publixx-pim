@@ -79,7 +79,11 @@ class ImportController extends Controller
         }
 
         $force = (bool) $request->input('force', false);
-        $this->importService->execute($import, $force);
+        $mode = $request->input('mode', 'update'); // 'update' oder 'delete_insert'
+        if (!in_array($mode, ['update', 'delete_insert'])) {
+            $mode = 'update';
+        }
+        $this->importService->execute($import, $force, $mode);
 
         return response()->json([
             'data' => [

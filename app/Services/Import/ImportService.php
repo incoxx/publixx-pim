@@ -188,7 +188,15 @@ class ImportService
      * @param bool      $force     Import trotz Validierungsfehlern erzwingen
      * @return ImportJob
      */
-    public function execute(ImportJob $importJob, bool $force = false): ImportJob
+    /**
+     * Führt den Import aus. Bei > 100 Zeilen async via Queue.
+     *
+     * @param ImportJob $importJob Der validierte ImportJob
+     * @param bool      $force     Import trotz Validierungsfehlern erzwingen
+     * @param string    $mode      'update' (Upsert) oder 'delete_insert' (vorhandene löschen, neu anlegen)
+     * @return ImportJob
+     */
+    public function execute(ImportJob $importJob, bool $force = false, string $mode = 'update'): ImportJob
     {
         if ($importJob->status !== 'validated') {
             throw new \RuntimeException(
@@ -205,6 +213,8 @@ class ImportService
                 );
             }
         }
+
+        $this->executor->setMode($mode);
 
         $fullPath = Storage::disk('local')->path($importJob->file_path);
         $parseResult = $this->parser->parse($fullPath);
