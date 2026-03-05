@@ -247,6 +247,9 @@ elif [ -d "$FRONTEND_DIR" ]; then
     info "Installiere Frontend-Abhaengigkeiten..."
     npm ci --production=false 2>&1
 
+    # Bekannte Sicherheitsluecken automatisch patchen
+    npm audit fix 2>/dev/null || true
+
     info "Baue Frontend (Vue 3 + Vite)..."
 
     # Bei Subdirectory-Deployment: Vite Base-Path und API-URL setzen
