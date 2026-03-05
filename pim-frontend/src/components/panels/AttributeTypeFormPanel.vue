@@ -1,7 +1,8 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { attributeTypes } from '@/api/attributes'
+import attributesApi from '@/api/attributes'
 import PimForm from '@/components/shared/PimForm.vue'
 
 const props = defineProps({
@@ -12,6 +13,8 @@ const props = defineProps({
 const authStore = useAuthStore()
 const loading = ref(false)
 const errors = ref({})
+const assignedAttributes = ref([])
+const loadingAttributes = ref(false)
 
 const isEdit = computed(() => !!props.attributeType)
 
@@ -41,6 +44,20 @@ const fields = computed(() => [
   { key: 'sort_order', label: 'Sortierung', type: 'number' },
 ])
 
+onMounted(async () => {
+  if (isEdit.value && props.attributeType?.id) {
+    loadingAttributes.value = true
+    try {
+      const { data } = await attributesApi.list({
+        filters: { attribute_type_id: props.attributeType.id },
+        per_page: 200,
+      })
+      assignedAttributes.value = data.data || data
+    } catch (e) { /* ignore */ }
+    finally { loadingAttributes.value = false }
+  }
+})
+
 async function handleSubmit(data) {
   loading.value = true
   errors.value = {}
@@ -66,8 +83,8 @@ async function handleSubmit(data) {
 </script>
 
 <template>
-  <div class="p-4">
-    <h3 class="text-sm font-semibold text-[var(--color-text-primary)] mb-4">
+  <div class="p-4 space-y-6">
+    <h3 class="text-sm font-semibold text-[var(--color-text-primary)]">
       {{ isEdit ? 'Attributgruppe bearbeiten' : 'Neue Attributgruppe' }}
     </h3>
     <PimForm
@@ -79,5 +96,32 @@ async function handleSubmit(data) {
       @submit="handleSubmit"
       @cancel="authStore.closePanel()"
     />
+
+    <!-- Zugeordnete Attribute -->
+    <div v-if="isEdit" class="border-t border-[var(--color-border)] pt-4">
+      <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] mb-2">
+        Zugeordnete Attribute
+        <span v-if="!loadingAttributes" class="text-[var(--color-text-tertiary)] font-normal">({{ assignedAttributes.length }})</span>
+      </h4>
+      <div v-if="loadingAttributes" class="space-y-2">
+        <div v-for="i in 3" :key="i" class="pim-skeleton h-6 rounded" />
+      </div>
+      <div v-else-if="assignedAttributes.length === 0" class="text-xs text-[var(--color-text-tertiary)] italic">
+        Keine Attribute zugeordnet.
+      </div>
+      <div v-else class="space-y-1 max-h-[300px] overflow-y-auto">
+        <div
+          v-for="attr in assignedAttributes"
+          :key="attr.id"
+          class="flex items-center justify-between p-2 rounded-lg bg-[var(--color-bg)] text-xs"
+        >
+          <div class="flex items-center gap-2 min-w-0">
+            <span class="font-mono text-[var(--color-accent)] truncate">{{ attr.technical_name }}</span>
+            <span class="text-[var(--color-text-secondary)] truncate">{{ attr.name_de }}</span>
+          </div>
+          <span class="pim-badge bg-[var(--color-bg)] text-[var(--color-text-tertiary)] shrink-0">{{ attr.data_type }}</span>
+        </div>
+      </div>
+    </div>
   </div>
 </template>

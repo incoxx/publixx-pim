@@ -21,13 +21,14 @@ const columns = [
   { key: 'technical_name', label: 'Code', sortable: true, mono: true },
   { key: 'name_de', label: 'Name DE', sortable: true },
   { key: 'name_en', label: 'Name EN', sortable: true },
+  { key: 'attributes_count', label: 'Attribute' },
   { key: 'sort_order', label: 'Sortierung', sortable: true },
 ]
 
 async function fetchTypes() {
   loading.value = true
   try {
-    const { data } = await attributeTypes.list()
+    const { data } = await attributeTypes.list({ include: 'attributes_count' })
     items.value = data.data || data
   } finally {
     loading.value = false
@@ -91,7 +92,11 @@ onMounted(() => fetchTypes())
       emptyText="Keine Attributgruppen gefunden"
       @row-click="openEditPanel"
       @row-action="handleRowAction"
-    />
+    >
+      <template #cell-attributes_count="{ value }">
+        <span class="pim-badge bg-[var(--color-bg)] text-[var(--color-text-secondary)]">{{ value ?? 0 }}</span>
+      </template>
+    </PimTable>
 
     <PimConfirmDialog
       :open="!!deleteTarget"

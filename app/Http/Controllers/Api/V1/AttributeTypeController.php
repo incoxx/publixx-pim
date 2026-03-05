@@ -21,6 +21,7 @@ class AttributeTypeController extends Controller
         $this->authorize('viewAny', AttributeType::class);
 
         $query = AttributeType::query()
+            ->withCount('attributes')
             ->with($this->parseIncludes($request, self::ALLOWED_INCLUDES));
 
         $this->applySorting($query, $request, 'sort_order', 'asc');

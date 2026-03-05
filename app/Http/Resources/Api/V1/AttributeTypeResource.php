@@ -19,6 +19,7 @@ class AttributeTypeResource extends JsonResource
             'name_json' => $this->name_json,
             'description' => $this->description,
             'sort_order' => $this->sort_order,
+            'attributes_count' => $this->when(isset($this->attributes_count), $this->attributes_count),
             'attributes' => AttributeResource::collection($this->whenLoaded('attributes')),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,

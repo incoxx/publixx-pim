@@ -33,6 +33,7 @@ class ImportService
         private readonly ImportExecutor $executor,
         private readonly TemplateGenerator $templateGenerator,
         private readonly ImportLogger $logger,
+        private readonly FlatImportExecutor $flatExecutor,
     ) {}
 
     // ──────────────────────────────────────────────
@@ -186,13 +187,6 @@ class ImportService
      *
      * @param ImportJob $importJob Der validierte ImportJob
      * @param bool      $force     Import trotz Validierungsfehlern erzwingen
-     * @return ImportJob
-     */
-    /**
-     * Führt den Import aus. Bei > 100 Zeilen async via Queue.
-     *
-     * @param ImportJob $importJob Der validierte ImportJob
-     * @param bool      $force     Import trotz Validierungsfehlern erzwingen
      * @param string    $mode      'update' (Upsert) oder 'delete_insert' (vorhandene löschen, neu anlegen)
      * @return ImportJob
      */
@@ -265,6 +259,61 @@ class ImportService
             Log::channel('import')->error("Import fehlgeschlagen: {$importJob->id}", ['error' => $e->getMessage()]);
 
             $this->logger->error($importJob, 'execution', "Import fehlgeschlagen: {$e->getMessage()}");
+            throw $e;
+        }
+
+        return $importJob->fresh();
+    }
+
+    // ──────────────────────────────────────────────
+    //  Phase 3b: Flat-Import (Benutzer-Mappings)
+    // ──────────────────────────────────────────────
+
+    /**
+     * Führt einen Flat-Import mit Benutzer-definierten Spalten-Mappings aus.
+     */
+    public function executeFlatImport(ImportJob $importJob, array $options): ImportJob
+    {
+        $importJob->update([
+            'status' => 'executing',
+            'started_at' => now(),
+        ]);
+
+        $this->logger->info($importJob, 'execution', 'Flat-Import gestartet');
+
+        try {
+            $fullPath = Storage::disk('local')->path($importJob->file_path);
+            $this->flatExecutor->setMode($options['mode'] ?? 'update');
+
+            $result = $this->flatExecutor->execute(
+                $fullPath,
+                $options['column_mappings'] ?? [],
+                $options['sku_column'] ?? 'SKU',
+                $options['product_type_id'] ?? null,
+            );
+
+            $importJob->update([
+                'status' => 'completed',
+                'completed_at' => now(),
+                'result' => $result->toArray(),
+            ]);
+
+            event(new ImportCompleted(
+                importJobId: $importJob->id,
+                productIds: $result->affectedProductIds,
+            ));
+
+            Log::channel('import')->info("Flat-Import abgeschlossen: {$importJob->id}", $result->stats);
+            $this->logger->info($importJob, 'execution', 'Flat-Import erfolgreich abgeschlossen', $result->stats);
+        } catch (\Throwable $e) {
+            $importJob->update([
+                'status' => 'failed',
+                'completed_at' => now(),
+                'result' => ['error' => $e->getMessage()],
+            ]);
+
+            Log::channel('import')->error("Flat-Import fehlgeschlagen: {$importJob->id}", ['error' => $e->getMessage()]);
+            $this->logger->error($importJob, 'execution', "Flat-Import fehlgeschlagen: {$e->getMessage()}");
             throw $e;
         }
 
