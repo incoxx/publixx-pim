@@ -154,7 +154,7 @@ function getCellValue(row, col) {
             </td>
             <td v-if="showActions" class="px-2 py-2.5" @click.stop>
               <button
-                class="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-[var(--color-border)] transition-all"
+                class="p-1 rounded hover:bg-[var(--color-border)] transition-all opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
                 @click="$emit('row-action', row)"
               >
                 <MoreHorizontal class="w-4 h-4 text-[var(--color-text-tertiary)]" />

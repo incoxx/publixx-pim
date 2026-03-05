@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\V1\AttributeController;
 use App\Http\Controllers\Api\V1\AttributeTypeController;
 use App\Http\Controllers\Api\V1\AttributeViewController;
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\BulkEditorController;
 use App\Http\Controllers\Api\V1\DebugController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\DeploymentController;
@@ -200,6 +201,10 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // Product Search (SQL-based, replaces PQL)
     Route::post('products/search', [ProductSearchController::class, 'search']);
     Route::get('products/search/attributes', [ProductSearchController::class, 'searchableAttributes']);
+
+    // Bulk Editor
+    Route::post('products/bulk-edit', [BulkEditorController::class, 'load']);
+    Route::put('products/bulk-edit', [BulkEditorController::class, 'save']);
 
     Route::apiResource('products', ProductController::class);
 

@@ -31,6 +31,12 @@ const routes = [
     meta: { title: 'Produkte' },
   },
   {
+    path: '/products/bulk-edit',
+    name: 'bulk-editor',
+    component: () => import('@/views/products/BulkEditorView.vue'),
+    meta: { title: 'Bulk-Editor' },
+  },
+  {
     path: '/products/:id',
     name: 'product-detail',
     component: () => import('@/views/products/ProductDetailView.vue'),

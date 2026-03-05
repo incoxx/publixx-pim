@@ -20,7 +20,7 @@ function switchLocale(code) {
 </script>
 
 <template>
-  <header class="sticky top-0 z-20 flex items-center justify-between h-14 px-6 bg-[var(--color-surface)]/80 backdrop-blur-md border-b border-[var(--color-border)]">
+  <header class="sticky top-0 z-20 flex items-center justify-between h-14 px-3 sm:px-6 bg-[var(--color-surface)]/80 backdrop-blur-md border-b border-[var(--color-border)]">
     <!-- Left: Title -->
     <div class="flex items-center gap-3">
       <h1 class="text-sm font-semibold text-[var(--color-text-primary)]">{{ pageTitle }}</h1>
@@ -35,7 +35,7 @@ function switchLocale(code) {
       >
         <Command class="w-3.5 h-3.5" :stroke-width="1.75" />
         <span class="hidden sm:inline">{{ t('nav.search') }}</span>
-        <span class="pim-kbd text-[10px]">⌘K</span>
+        <span class="pim-kbd text-[10px] hidden sm:inline-flex">⌘K</span>
       </button>
 
       <!-- Locale switcher -->
