@@ -60,7 +60,7 @@ class ImportExecutor
      */
     public function setMode(string $mode): void
     {
-        $this->mode = in_array($mode, ['update', 'delete_insert']) ? $mode : 'update';
+        $this->mode = in_array($mode, ['update', 'delete_insert', 'delete']) ? $mode : 'update';
     }
 
     /**
@@ -97,9 +97,29 @@ class ImportExecutor
         DB::beginTransaction();
 
         try {
-            // Bei delete_insert: betroffene Daten vorher löschen
+            // Bei delete_insert: betroffene Daten vorher löschen, dann importieren
             if ($this->mode === 'delete_insert') {
                 $this->deleteExistingData($parseResult);
+            }
+
+            // Bei delete: nur löschen, kein Import
+            if ($this->mode === 'delete') {
+                $deleteStats = $this->deleteExistingData($parseResult);
+                $this->stats['_delete'] = [
+                    'created' => 0,
+                    'updated' => 0,
+                    'skipped' => 0,
+                    'errors' => 0,
+                    'deleted' => $deleteStats,
+                ];
+
+                DB::commit();
+
+                return new ImportExecutionResult(
+                    stats: $this->stats,
+                    affectedProductIds: $this->affectedProductIds,
+                    skippedDetails: $this->skippedDetails,
+                );
             }
 
             foreach ($sheetOrder as $sheetKey) {
@@ -215,10 +235,12 @@ class ImportExecutor
     // ──────────────────────────────────────────────
 
     /**
-     * Löscht vorhandene Daten, die im Import enthalten sind (nur bei delete_insert Modus).
+     * Löscht vorhandene Daten, die im Import enthalten sind.
      * Löscht nur Daten, die durch den Import betroffen werden (anhand SKUs).
+     *
+     * @return int Anzahl gelöschter Produkte
      */
-    private function deleteExistingData(ParseResult $parseResult): void
+    private function deleteExistingData(ParseResult $parseResult): int
     {
         Log::channel('import')->info('Delete/Insert-Modus: Lösche vorhandene Daten vor Neuanlage');
 
@@ -270,12 +292,16 @@ class ImportExecutor
                     ->where('product_type_ref', 'product')
                     ->delete();
 
-                Log::channel('import')->info('Delete/Insert: Produkte und abhängige Daten gelöscht', [
+                Log::channel('import')->info('Delete: Produkte und abhängige Daten gelöscht', [
                     'skus' => count($allSkus),
                     'product_ids' => count($productIds),
                 ]);
+
+                return count($productIds);
             }
         }
+
+        return 0;
     }
 
     // ──────────────────────────────────────────────
