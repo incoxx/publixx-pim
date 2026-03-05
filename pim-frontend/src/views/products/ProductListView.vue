@@ -7,8 +7,10 @@ import { useAttributeStore } from '@/stores/attributes'
 import { useAuthStore } from '@/stores/auth'
 import { useFilters } from '@/composables/useFilters'
 import { useLocaleStore } from '@/stores/locale'
-import { Plus, Languages, Upload, Download, X, GitCompareArrows, Star, Pencil } from 'lucide-vue-next'
+import { Plus, Languages, Upload, Download, X, GitCompareArrows, Star, Pencil, FileSpreadsheet } from 'lucide-vue-next'
 import PimTable from '@/components/shared/PimTable.vue'
+import ColumnConfigPopover from '@/components/shared/ColumnConfigPopover.vue'
+import { useColumnConfig } from '@/composables/useColumnConfig'
 import PimFilterBar from '@/components/shared/PimFilterBar.vue'
 import PimConfirmDialog from '@/components/shared/PimConfirmDialog.vue'
 import ProductCreatePanel from '@/components/panels/ProductCreatePanel.vue'
@@ -27,13 +29,42 @@ const { search, activeFilters, setSearch, removeFilter, clearFilters } = useFilt
   store.fetchList()
 })
 
-const columns = [
+const defaultColumns = [
   { key: 'sku', label: 'SKU', sortable: true, mono: true },
   { key: 'name', label: 'Name', sortable: true },
   { key: 'product_type.name_de', label: 'Typ' },
   { key: 'status', label: 'Status', sortable: true },
   { key: 'updated_at', label: 'Geändert', sortable: true },
 ]
+
+const extraColumns = [
+  { key: 'ean', label: 'EAN', mono: true },
+  { key: 'created_at', label: 'Erstellt', sortable: true },
+]
+
+const { visibleColumns, allColumns, visibleKeys, isColumnVisible, toggleColumn, moveColumn, resetColumns } = useColumnConfig('columns:products', defaultColumns, extraColumns)
+
+// Excel export
+const excelExporting = ref(false)
+
+async function exportExcel() {
+  excelExporting.value = true
+  try {
+    const params = {
+      columns: visibleKeys.value,
+      search: search.value || undefined,
+      language: 'de',
+    }
+    const resp = await productsApi.exportExcel(params)
+    const url = URL.createObjectURL(resp.data)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `produkte-${new Date().toISOString().slice(0, 10)}.xlsx`
+    a.click()
+    setTimeout(() => URL.revokeObjectURL(url), 200)
+  } catch (e) { console.error('Excel export failed:', e) }
+  finally { excelExporting.value = false }
+}
 
 const deleteTarget = ref(null)
 const deleting = ref(false)
@@ -199,6 +230,17 @@ onMounted(() => {
     <div class="flex flex-wrap items-center justify-between gap-2">
       <h2 class="text-lg font-semibold text-[var(--color-text-primary)]">{{ t('product.title') }}</h2>
       <div class="flex items-center gap-2">
+        <ColumnConfigPopover
+          :allColumns="allColumns"
+          :visibleKeys="visibleKeys"
+          @toggle="toggleColumn"
+          @move="moveColumn"
+          @reset="resetColumns"
+        />
+        <button class="pim-btn pim-btn-secondary text-xs" :disabled="excelExporting" @click="exportExcel">
+          <FileSpreadsheet class="w-3.5 h-3.5" :stroke-width="1.75" />
+          {{ excelExporting ? 'Export...' : 'Excel' }}
+        </button>
         <button class="pim-btn pim-btn-secondary text-xs" @click="showXliffPanel = !showXliffPanel">
           <Languages class="w-3.5 h-3.5" :stroke-width="1.75" />
           XLIFF
@@ -295,7 +337,7 @@ onMounted(() => {
 
     <!-- Table -->
     <PimTable
-      :columns="columns"
+      :columns="visibleColumns"
       :rows="store.items"
       :loading="store.loading"
       :sortField="store.sort.field"

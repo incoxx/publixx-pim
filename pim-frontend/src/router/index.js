@@ -79,6 +79,12 @@ const routes = [
     meta: { title: 'Wertelisten' },
   },
   {
+    path: '/units',
+    name: 'units',
+    component: () => import('@/views/units/UnitGroupView.vue'),
+    meta: { title: 'Einheiten' },
+  },
+  {
     path: '/imports',
     name: 'imports',
     component: () => import('@/views/imports/ImportView.vue'),

@@ -9,6 +9,8 @@ import {
 import watchlistApi from '@/api/watchlist'
 import productsApi from '@/api/products'
 import PimTable from '@/components/shared/PimTable.vue'
+import ColumnConfigPopover from '@/components/shared/ColumnConfigPopover.vue'
+import { useColumnConfig } from '@/composables/useColumnConfig'
 import PimConfirmDialog from '@/components/shared/PimConfirmDialog.vue'
 
 const router = useRouter()
@@ -53,13 +55,19 @@ const compareRows = computed(() => {
   return compareData.value.rows
 })
 
-const columns = [
+const defaultWatchlistColumns = [
   { key: 'product.sku', label: 'SKU', mono: true },
   { key: 'product.name', label: 'Name' },
   { key: 'product.status', label: 'Status' },
   { key: 'product.product_type.name_de', label: 'Typ' },
   { key: 'created_at', label: 'Hinzugefügt' },
 ]
+
+const extraWatchlistColumns = [
+  { key: 'product.ean', label: 'EAN', mono: true },
+]
+
+const { visibleColumns, allColumns, visibleKeys, toggleColumn, moveColumn, resetColumns } = useColumnConfig('columns:watchlist', defaultWatchlistColumns, extraWatchlistColumns)
 
 const tableRows = computed(() =>
   items.value.map(item => ({
@@ -113,7 +121,14 @@ function triggerDownload(blob, filename) {
 async function exportExcel() {
   exporting.value = 'excel'
   try {
-    const resp = await watchlistApi.exportExcel()
+    // Map watchlist column keys (product.sku -> sku) for export
+    const exportColumns = visibleKeys.value.map(k => k.replace(/^product\./, ''))
+    const productIds = items.value.map(i => i.product_id).filter(Boolean)
+    const resp = await productsApi.exportExcel({
+      columns: exportColumns,
+      product_ids: productIds,
+      language: 'de',
+    })
     triggerDownload(resp.data, `merkliste-${new Date().toISOString().slice(0,10)}.xlsx`)
   } catch (e) { console.error('Excel export failed', e) }
   finally { exporting.value = null }
@@ -212,6 +227,14 @@ onMounted(loadWatchlist)
         </div>
       </div>
       <div class="flex items-center gap-2">
+        <ColumnConfigPopover
+          v-if="items.length > 0"
+          :allColumns="allColumns"
+          :visibleKeys="visibleKeys"
+          @toggle="toggleColumn"
+          @move="moveColumn"
+          @reset="resetColumns"
+        />
         <button
           v-if="items.length > 0"
           class="pim-btn pim-btn-secondary text-xs"
@@ -341,7 +364,7 @@ onMounted(loadWatchlist)
 
     <!-- Table -->
     <PimTable
-      :columns="columns"
+      :columns="visibleColumns"
       :rows="tableRows"
       :loading="loading"
       selectable

@@ -140,4 +140,9 @@ export default {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
   },
+
+  // Excel Export with configurable columns + filters
+  exportExcel(params) {
+    return client.post('/products/export/excel', params, { responseType: 'blob' })
+  },
 }

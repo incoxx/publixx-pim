@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { ChevronDown, ChevronRight, X } from 'lucide-vue-next'
 import searchApi from '@/api/search'
 import hierarchiesApi from '@/api/hierarchies'
@@ -61,6 +61,16 @@ const flatCategoryNodes = computed(() => {
   }
   flatten(currentHierarchyTree.value)
   return result
+})
+
+// Clear categories that don't belong to the new hierarchy
+watch(selectedHierarchyId, () => {
+  const validIds = new Set(flatCategoryNodes.value.map(n => n.id))
+  const current = props.modelValue.category_ids || []
+  const filtered = current.filter(id => validIds.has(id))
+  if (filtered.length !== current.length) {
+    update('category_ids', filtered)
+  }
 })
 
 const activeFilterCount = computed(() => {
