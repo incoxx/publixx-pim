@@ -164,6 +164,24 @@ async function saveProfile({ name, is_shared }) {
   }
 }
 
+async function updateProfile({ id, name, is_shared }) {
+  try {
+    await importProfilesApi.update(id, {
+      name,
+      is_shared,
+      sku_column: skuColumn.value,
+      product_type_id: productTypeId.value,
+      column_mappings: columnMappings.value.filter(m => m.target_attribute_id),
+      price_mappings: priceMappings.value.length ? priceMappings.value : null,
+      relation_mappings: relationMappings.value.length ? relationMappings.value : null,
+    })
+    const { data } = await importProfilesApi.list()
+    importProfiles.value = data.data || data
+  } catch (e) {
+    error.value = 'Profil konnte nicht aktualisiert werden'
+  }
+}
+
 async function deleteProfile(id) {
   try {
     await importProfilesApi.remove(id)
@@ -218,6 +236,10 @@ async function loadNodes() {
 
 const autoGenerateSelectedCount = computed(() =>
   Object.values(autoGenerateChecked.value).filter(Boolean).length
+)
+const unmappedCount = computed(() => columnMappings.value.filter(m => !m.target_attribute_id).length)
+const allUnmappedChecked = computed(() =>
+  unmappedCount.value > 0 && autoGenerateSelectedCount.value === unmappedCount.value
 )
 
 function toggleAllAutoGenerate() {
@@ -510,6 +532,7 @@ const logLevelIcon = { info: CheckCircle, warning: AlertTriangle, error: XCircle
       label="Import-Profil"
       @load="loadProfile"
       @save="saveProfile"
+      @update="updateProfile"
       @delete="deleteProfile"
     />
 
@@ -651,6 +674,18 @@ const logLevelIcon = { info: CheckCircle, warning: AlertTriangle, error: XCircle
         </div>
 
         <div class="space-y-2 max-h-[400px] overflow-y-auto">
+          <!-- Header mit Select-All Checkbox -->
+          <div class="flex items-center gap-2 p-2 rounded-lg bg-[var(--color-bg)] border-b border-[var(--color-border)] sticky top-0 z-10">
+            <input
+              type="checkbox"
+              :checked="allUnmappedChecked"
+              :indeterminate="autoGenerateSelectedCount > 0 && !allUnmappedChecked"
+              @change="toggleAllAutoGenerate"
+              class="checkbox checkbox-xs checkbox-accent shrink-0"
+              title="Alle nicht zugeordneten auswählen / abwählen"
+            />
+            <span class="text-[10px] font-medium text-[var(--color-text-tertiary)]">Alle auswählen ({{ autoGenerateSelectedCount }}/{{ unmappedCount }})</span>
+          </div>
           <div
             v-for="(mapping, i) in columnMappings"
             :key="i"
@@ -718,7 +753,7 @@ const logLevelIcon = { info: CheckCircle, warning: AlertTriangle, error: XCircle
               class="ml-auto text-[10px] text-[var(--color-accent)] hover:underline"
               @click="toggleAllAutoGenerate"
             >
-              {{ autoGenerateSelectedCount === columnMappings.filter(m => !m.target_attribute_id).length ? 'Keine' : 'Alle nicht zugeordneten' }} auswählen
+              {{ allUnmappedChecked ? 'Keine' : 'Alle nicht zugeordneten' }} auswählen
             </button>
           </div>
 

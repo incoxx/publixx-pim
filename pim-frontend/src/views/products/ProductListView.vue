@@ -382,7 +382,7 @@ onMounted(() => {
       <transition name="fade">
         <div v-if="showCompare" class="fixed inset-0 z-50 flex items-center justify-center">
           <div class="absolute inset-0 bg-black/30 backdrop-blur-sm" @click="showCompare = false" />
-          <div class="relative w-full max-w-4xl max-h-[85vh] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl shadow-xl mx-4 overflow-hidden flex flex-col">
+          <div class="relative w-full max-w-6xl max-h-[90vh] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl shadow-xl mx-4 overflow-hidden flex flex-col">
             <!-- Header -->
             <div class="flex items-center justify-between px-5 py-3 border-b border-[var(--color-border)] shrink-0">
               <div class="flex items-center gap-3">
