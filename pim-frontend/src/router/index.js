@@ -67,6 +67,12 @@ const routes = [
     meta: { title: 'Attributgruppen' },
   },
   {
+    path: '/attribute-views',
+    name: 'attribute-views',
+    component: () => import('@/views/attributeViews/AttributeViewAdminView.vue'),
+    meta: { title: 'Attribut-Sichten' },
+  },
+  {
     path: '/value-lists',
     name: 'value-lists',
     component: () => import('@/views/valueLists/ValueListView.vue'),

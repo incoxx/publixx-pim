@@ -42,6 +42,7 @@ class AttributeResource extends JsonResource
             'is_internal' => $this->is_internal,
             'parent_attribute_id' => $this->parent_attribute_id,
             'children' => AttributeResource::collection($this->whenLoaded('children')),
+            'attribute_views' => AttributeViewResource::collection($this->whenLoaded('attributeViews')),
             'position' => $this->position,
             'source_system' => $this->source_system,
             'source_attribute_name' => $this->source_attribute_name,

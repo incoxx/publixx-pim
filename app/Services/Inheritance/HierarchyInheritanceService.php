@@ -156,9 +156,12 @@ class HierarchyInheritanceService
         $ancestorIds = $this->getAncestorIds($node);
 
         // Build a single query for all ancestor + own node attributes
+        // Left join attribute_views to use view name as fallback for collection_name
         $attributes = DB::table('hierarchy_node_attribute_assignments as hnaa')
             ->join('attributes as a', 'a.id', '=', 'hnaa.attribute_id')
             ->join('hierarchy_nodes as hn', 'hn.id', '=', 'hnaa.hierarchy_node_id')
+            ->leftJoin('attribute_view_assignments as ava', 'ava.attribute_id', '=', 'a.id')
+            ->leftJoin('attribute_views as av', 'av.id', '=', 'ava.attribute_view_id')
             ->where(function ($query) use ($ancestorIds, $node) {
                 // Ancestor attributes: only those with dont_inherit = false
                 if (!empty($ancestorIds)) {
@@ -195,6 +198,16 @@ class HierarchyInheritanceService
                 'a.value_list_id',
                 'hnaa.parent_assignment_id',
                 'hn.depth as node_depth',
+                DB::raw('MIN(av.name_de) as attribute_view_name_de'),
+            ])
+            ->groupBy([
+                'hnaa.id', 'hnaa.hierarchy_node_id', 'hnaa.attribute_id',
+                'hnaa.collection_name', 'hnaa.collection_sort', 'hnaa.attribute_sort',
+                'hnaa.dont_inherit', 'hnaa.access_hierarchy', 'hnaa.access_product',
+                'hnaa.access_variant', 'a.technical_name', 'a.name_de', 'a.name_en',
+                'a.data_type', 'a.is_translatable', 'a.is_mandatory', 'a.is_inheritable',
+                'a.is_variant_attribute', 'a.is_internal', 'a.parent_attribute_id',
+                'a.value_list_id', 'hnaa.parent_assignment_id', 'hn.depth',
             ])
             ->orderBy('hn.depth', 'asc')
             ->get();
