@@ -178,6 +178,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::apiResource('hierarchies.nodes', HierarchyNodeController::class)
         ->shallow()
         ->parameters(['nodes' => 'hierarchy_node']);
+    Route::get('hierarchy-nodes', [HierarchyNodeController::class, 'searchAll']);
     Route::put('hierarchy-nodes/{hierarchy_node}/move', [HierarchyNodeController::class, 'move']);
     Route::post('hierarchy-nodes/{hierarchy_node}/duplicate', [HierarchyNodeController::class, 'duplicate']);
 

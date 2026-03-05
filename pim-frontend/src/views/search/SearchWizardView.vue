@@ -5,12 +5,15 @@ import { useLocaleStore } from '@/stores/locale'
 import {
   Search, Filter, ChevronDown, ChevronRight, X, Star,
   Regex, AudioLines, Languages, Download, GitCompareArrows, Pencil,
+  Package, Sliders, GitBranch, Image, FolderTree,
 } from 'lucide-vue-next'
 import searchApi from '@/api/search'
 import searchProfilesApi from '@/api/searchProfiles'
 import watchlistApi from '@/api/watchlist'
 import productsApi from '@/api/products'
 import hierarchiesApi from '@/api/hierarchies'
+import mediaApi from '@/api/media'
+import attributesApiDefault from '@/api/attributes'
 import PimTable from '@/components/shared/PimTable.vue'
 import ProfileSelector from '@/components/shared/ProfileSelector.vue'
 
@@ -92,6 +95,47 @@ const resultMeta = ref({ total: 0, current_page: 1, last_page: 1 })
 const loading = ref(false)
 const error = ref(null)
 
+// Search category (entity type)
+const searchCategory = ref('products')
+const sortField = ref('updated_at')
+const sortOrder = ref('desc')
+
+const searchCategoryDefs = [
+  { key: 'products', label: 'Produkte', icon: Package },
+  { key: 'attributes', label: 'Attribute', icon: Sliders },
+  { key: 'nodes', label: 'Kategorieknoten', icon: FolderTree },
+  { key: 'media', label: 'Medien', icon: Image },
+]
+
+const categoryColumns = {
+  products: [
+    { key: 'sku', label: 'SKU', mono: true, sortable: true },
+    { key: 'name', label: 'Name', sortable: true },
+    { key: 'product_type.name_de', label: 'Typ' },
+    { key: 'status', label: 'Status', sortable: true },
+    { key: 'updated_at', label: 'Geändert', sortable: true },
+  ],
+  attributes: [
+    { key: 'technical_name', label: 'Techn. Name', mono: true, sortable: true },
+    { key: 'name_de', label: 'Name', sortable: true },
+    { key: 'data_type', label: 'Datentyp', sortable: true },
+    { key: 'attribute_type.name_de', label: 'Gruppe' },
+    { key: 'status', label: 'Status' },
+  ],
+  nodes: [
+    { key: 'name_de', label: 'Name', sortable: true },
+    { key: 'path', label: 'Pfad' },
+    { key: 'depth', label: 'Tiefe', sortable: true },
+    { key: 'is_active', label: 'Aktiv' },
+  ],
+  media: [
+    { key: 'file_name', label: 'Datei', mono: true, sortable: true },
+    { key: 'title_de', label: 'Titel', sortable: true },
+    { key: 'mime_type', label: 'Typ' },
+    { key: 'media_type', label: 'Medientyp' },
+  ],
+}
+
 // Category selection
 const hierarchies = ref([])
 const hierarchyTree = ref([])
@@ -128,12 +172,7 @@ const compareRows = computed(() => {
   return compareData.value.rows
 })
 
-const columns = [
-  { key: 'sku', label: 'SKU', mono: true },
-  { key: 'name', label: 'Name' },
-  { key: 'product_type.name_de', label: 'Typ' },
-  { key: 'status', label: 'Status' },
-]
+const columns = computed(() => categoryColumns[searchCategory.value] || categoryColumns.products)
 
 // --- Computed ---
 const activeFilterCount = computed(() => {
@@ -223,58 +262,32 @@ function clearAllFilters() {
   searchInput.value = ''
 }
 
+function switchCategory(cat) {
+  searchCategory.value = cat
+  results.value = []
+  resultMeta.value = { total: 0, current_page: 1, last_page: 1 }
+  hasSearched.value = false
+  sortField.value = 'updated_at'
+  sortOrder.value = 'desc'
+}
+
+function handleSort(field, order) {
+  sortField.value = field
+  sortOrder.value = order
+  doSearch(1)
+}
+
 async function doSearch(page = 1) {
   hasSearched.value = true
   loading.value = true
   error.value = null
 
   try {
-    const params = {
-      search: searchInput.value.trim() || undefined,
-      search_mode: searchMode.value,
-      page,
-      per_page: 50,
+    if (searchCategory.value === 'products') {
+      await doProductSearch(page)
+    } else {
+      await doEntitySearch(page)
     }
-
-    if (selectedCategories.value.length > 0) {
-      params.category_ids = selectedCategories.value
-      params.include_descendants = true
-    }
-
-    if (statusFilter.value) {
-      params.status = statusFilter.value
-    }
-
-    // Build attribute filters
-    const attrFilters = []
-    for (const attr of searchableAttributes.value) {
-      const val = attributeFilters.value[attr.id]
-      if (val === '' || val === null || val === undefined) continue
-
-      const filter = { attribute_id: attr.id, value: val }
-
-      // Choose operator based on data type
-      if (attr.data_type === 'String') {
-        filter.operator = 'like'
-      } else if (attr.data_type === 'Selection' || attr.data_type === 'Dictionary') {
-        filter.operator = 'eq'
-      } else if (attr.data_type === 'Flag') {
-        filter.operator = 'eq'
-        filter.value = val === 'true' || val === true ? 1 : 0
-      } else {
-        filter.operator = 'eq'
-      }
-
-      attrFilters.push(filter)
-    }
-
-    if (attrFilters.length > 0) {
-      params.attribute_filters = attrFilters
-    }
-
-    const { data } = await searchApi.search(params)
-    results.value = data.data || []
-    resultMeta.value = data.meta || { total: results.value.length, current_page: 1, last_page: 1 }
   } catch (e) {
     error.value = e.response?.data?.message || e.response?.data?.detail || 'Suchfehler'
     results.value = []
@@ -283,8 +296,110 @@ async function doSearch(page = 1) {
   }
 }
 
-function openProduct(row) {
-  router.push(`/products/${row.id}`)
+async function doProductSearch(page) {
+  const params = {
+    search: searchInput.value.trim() || undefined,
+    search_mode: searchMode.value,
+    page,
+    per_page: 50,
+    sort: sortField.value,
+    order: sortOrder.value,
+  }
+
+  if (selectedCategories.value.length > 0) {
+    params.category_ids = selectedCategories.value
+    params.include_descendants = true
+  }
+
+  if (statusFilter.value) {
+    params.status = statusFilter.value
+  }
+
+  // Build attribute filters
+  const attrFilters = []
+  for (const attr of searchableAttributes.value) {
+    const val = attributeFilters.value[attr.id]
+    if (val === '' || val === null || val === undefined) continue
+
+    const filter = { attribute_id: attr.id, value: val }
+
+    if (attr.data_type === 'String') {
+      filter.operator = 'like'
+    } else if (attr.data_type === 'Selection' || attr.data_type === 'Dictionary') {
+      filter.operator = 'eq'
+    } else if (attr.data_type === 'Flag') {
+      filter.operator = 'eq'
+      filter.value = val === 'true' || val === true ? 1 : 0
+    } else {
+      filter.operator = 'eq'
+    }
+
+    attrFilters.push(filter)
+  }
+
+  if (attrFilters.length > 0) {
+    params.attribute_filters = attrFilters
+  }
+
+  const { data } = await searchApi.search(params)
+  results.value = data.data || []
+  resultMeta.value = data.meta || { total: results.value.length, current_page: 1, last_page: 1 }
+}
+
+async function doEntitySearch(page) {
+  const options = {
+    page,
+    perPage: 50,
+    sort: sortField.value,
+    order: sortOrder.value,
+  }
+
+  if (searchInput.value.trim()) {
+    options.search = searchInput.value.trim()
+  }
+
+  let response
+
+  switch (searchCategory.value) {
+    case 'attributes':
+      // Only show searchable attributes
+      options.filters = { is_searchable: 1, is_internal: 0 }
+      options.include = 'attributeType'
+      response = await attributesApiDefault.list(options)
+      break
+    case 'nodes':
+      response = await hierarchiesApi.searchNodes(options)
+      break
+    case 'media':
+      response = await mediaApi.list(options)
+      break
+    default:
+      return
+  }
+
+  results.value = response.data.data || []
+  resultMeta.value = response.data.meta || { total: results.value.length, current_page: 1, last_page: 1 }
+}
+
+function openResult(row) {
+  switch (searchCategory.value) {
+    case 'products':
+      router.push(`/products/${row.id}`)
+      break
+    case 'attributes':
+      router.push(`/attributes`)
+      break
+    case 'nodes':
+      if (row.hierarchy_id) {
+        router.push(`/hierarchies/${row.hierarchy_id}`)
+      } else {
+        router.push('/hierarchies')
+      }
+      break
+    case 'media':
+      router.push(`/media`)
+      break
+  }
 }
 
 function getFilterInputType(dataType) {
@@ -376,8 +491,27 @@ function openBulkEditor() {
 
 <template>
   <div class="space-y-4 max-w-4xl mx-auto">
-    <!-- Search Profile Selector -->
+    <!-- Entity category tabs -->
+    <div class="flex items-center gap-1 border-b border-[var(--color-border)] pb-0">
+      <button
+        v-for="cat in searchCategoryDefs"
+        :key="cat.key"
+        :class="[
+          'flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 transition-colors -mb-px',
+          searchCategory === cat.key
+            ? 'border-[var(--color-accent)] text-[var(--color-accent)]'
+            : 'border-transparent text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] hover:border-[var(--color-border-strong)]',
+        ]"
+        @click="switchCategory(cat.key)"
+      >
+        <component :is="cat.icon" class="w-3.5 h-3.5" :stroke-width="1.75" />
+        {{ cat.label }}
+      </button>
+    </div>
+
+    <!-- Search Profile Selector (products only) -->
     <ProfileSelector
+      v-if="searchCategory === 'products'"
       :profiles="searchProfiles"
       v-model="selectedProfileId"
       label="Suchprofil"
@@ -394,13 +528,18 @@ function openBulkEditor() {
         <input
           v-model="searchInput"
           type="text"
-          :placeholder="searchMode === 'regex' ? 'Regulärer Ausdruck eingeben...' : searchMode === 'soundex' ? 'Ähnlich klingend suchen...' : 'Produkte, Attribute, SKUs durchsuchen...'"
+          :placeholder="searchCategory === 'products'
+            ? (searchMode === 'regex' ? 'Regulärer Ausdruck eingeben...' : searchMode === 'soundex' ? 'Ähnlich klingend suchen...' : 'Produkte, Attribute, SKUs durchsuchen...')
+            : searchCategory === 'attributes' ? 'Attribute durchsuchen...'
+            : searchCategory === 'nodes' ? 'Kategorieknoten durchsuchen (inkl. Unterkategorien)...'
+            : 'Medien durchsuchen...'"
           class="pim-input pl-12 pr-4 py-3 text-base w-full"
           @keydown.enter="doSearch(1)"
           autofocus
         />
       </div>
       <button
+        v-if="searchCategory === 'products'"
         class="pim-btn pim-btn-secondary py-3 px-4 relative"
         @click="showAttributeFilters = !showAttributeFilters"
       >
@@ -418,8 +557,8 @@ function openBulkEditor() {
       </button>
     </div>
 
-    <!-- Search mode toggle -->
-    <div class="flex flex-wrap items-center gap-2 text-xs">
+    <!-- Search mode toggle (products only) -->
+    <div v-if="searchCategory === 'products'" class="flex flex-wrap items-center gap-2 text-xs">
       <span class="text-[var(--color-text-tertiary)]">Suchmodus:</span>
       <button
         v-for="mode in ['like', 'soundex', 'regex']"
@@ -447,9 +586,9 @@ function openBulkEditor() {
       </span>
     </div>
 
-    <!-- Filter panel -->
+    <!-- Filter panel (products only) -->
     <transition name="slide">
-      <div v-if="showAttributeFilters" class="pim-card p-4 space-y-4">
+      <div v-if="showAttributeFilters && searchCategory === 'products'" class="pim-card p-4 space-y-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-semibold text-[var(--color-text-primary)]">Suchfilter</h3>
           <div class="flex gap-2">
@@ -572,8 +711,8 @@ function openBulkEditor() {
       <span v-if="searchMode === 'regex'" class="ml-1 text-[var(--color-accent)]">(REGEXP)</span>
     </div>
 
-    <!-- Selection toolbar -->
-    <div v-if="selectedProductIds.length > 0" class="flex flex-wrap items-center gap-2 sm:gap-3 px-3 py-2 bg-[color-mix(in_srgb,var(--color-accent)_8%,transparent)] border border-[var(--color-accent)]/20 rounded-lg">
+    <!-- Selection toolbar (products only) -->
+    <div v-if="searchCategory === 'products' && selectedProductIds.length > 0" class="flex flex-wrap items-center gap-2 sm:gap-3 px-3 py-2 bg-[color-mix(in_srgb,var(--color-accent)_8%,transparent)] border border-[var(--color-accent)]/20 rounded-lg">
       <span class="text-xs text-[var(--color-text-secondary)]">{{ selectedProductIds.length }} ausgewählt</span>
       <button class="pim-btn pim-btn-secondary text-xs" @click="bulkAddToWatchlist">
         <Star class="w-3.5 h-3.5" :stroke-width="1.75" />
@@ -600,8 +739,8 @@ function openBulkEditor() {
       </span>
     </div>
 
-    <!-- XLIFF Export Panel -->
-    <div v-if="showXliffPanel && selectedProductIds.length > 0" class="pim-card p-4 space-y-3">
+    <!-- XLIFF Export Panel (products only) -->
+    <div v-if="searchCategory === 'products' && showXliffPanel && selectedProductIds.length > 0" class="pim-card p-4 space-y-3">
       <div class="flex items-center justify-between">
         <h3 class="text-sm font-semibold text-[var(--color-text-primary)]">
           <Languages class="inline w-4 h-4 -mt-0.5 mr-1" :stroke-width="1.75" />
@@ -641,11 +780,16 @@ function openBulkEditor() {
       :columns="columns"
       :rows="results"
       :loading="loading"
-      selectable
-      @row-click="openProduct"
+      :sortField="sortField"
+      :sortOrder="sortOrder"
+      :selectable="searchCategory === 'products'"
+      :showActions="false"
+      @row-click="openResult"
       @select="handleSelect"
+      @sort="handleSort"
     >
-      <template #cell-sku="{ row, value }">
+      <!-- Product-specific cells -->
+      <template v-if="searchCategory === 'products'" #cell-sku="{ row, value }">
         <div class="flex items-center gap-2">
           <button
             class="p-0.5 rounded hover:bg-[var(--color-bg)] shrink-0"
@@ -661,7 +805,7 @@ function openBulkEditor() {
           <span class="font-mono text-xs">{{ value }}</span>
         </div>
       </template>
-      <template #cell-product_type.name_de="{ value }">
+      <template v-if="searchCategory === 'products'" #cell-product_type.name_de="{ value }">
         <span class="pim-badge bg-[var(--color-bg)] text-[var(--color-text-tertiary)] text-[10px]">
           {{ value || 'Produkt' }}
         </span>
@@ -677,6 +821,51 @@ function openBulkEditor() {
         >
           {{ value === 'active' ? 'Aktiv' : value === 'draft' ? 'Entwurf' : value === 'inactive' ? 'Inaktiv' : 'Auslaufend' }}
         </span>
+      </template>
+
+      <!-- Attribute-specific cells -->
+      <template v-if="searchCategory === 'attributes'" #cell-data_type="{ value }">
+        <span class="pim-badge bg-[var(--color-bg)] text-[var(--color-text-tertiary)] text-[10px]">
+          {{ value || '—' }}
+        </span>
+      </template>
+      <template v-if="searchCategory === 'attributes'" #cell-attribute_type.name_de="{ value }">
+        <span class="text-xs text-[var(--color-text-secondary)]">{{ value || '—' }}</span>
+      </template>
+
+      <!-- Node-specific cells -->
+      <template v-if="searchCategory === 'nodes'" #cell-path="{ value }">
+        <span class="text-[11px] font-mono text-[var(--color-text-tertiary)] truncate max-w-[200px] block" :title="value">
+          {{ value || '/' }}
+        </span>
+      </template>
+      <template v-if="searchCategory === 'nodes'" #cell-is_active="{ value }">
+        <span
+          :class="[
+            'pim-badge text-[10px]',
+            value ? 'bg-[var(--color-success-light)] text-[var(--color-success)]' : 'bg-[var(--color-bg)] text-[var(--color-text-tertiary)]',
+          ]"
+        >
+          {{ value ? 'Aktiv' : 'Inaktiv' }}
+        </span>
+      </template>
+      <template v-if="searchCategory === 'nodes'" #cell-name_de="{ row, value }">
+        <div>
+          <span class="text-sm">{{ value }}</span>
+          <span v-if="row.hierarchy?.name_de" class="ml-1.5 text-[10px] text-[var(--color-text-tertiary)]">
+            ({{ row.hierarchy.name_de }})
+          </span>
+        </div>
+      </template>
+
+      <!-- Media-specific cells -->
+      <template v-if="searchCategory === 'media'" #cell-mime_type="{ value }">
+        <span class="pim-badge bg-[var(--color-bg)] text-[var(--color-text-tertiary)] text-[10px]">
+          {{ value || '—' }}
+        </span>
+      </template>
+      <template v-if="searchCategory === 'media'" #cell-media_type="{ value }">
+        <span class="text-xs text-[var(--color-text-secondary)]">{{ value || '—' }}</span>
       </template>
 
       <!-- Pagination -->
@@ -710,23 +899,31 @@ function openBulkEditor() {
     <div v-else-if="hasSearched && results.length === 0 && !error" class="text-center py-12">
       <Search class="w-8 h-8 mx-auto mb-2 text-[var(--color-text-tertiary)]" :stroke-width="1.5" />
       <p class="text-sm text-[var(--color-text-tertiary)]">Keine Ergebnisse gefunden</p>
-      <p v-if="searchMode === 'like'" class="text-xs text-[var(--color-text-tertiary)] mt-1">
+      <p v-if="searchCategory === 'products' && searchMode === 'like'" class="text-xs text-[var(--color-text-tertiary)] mt-1">
         Tipp: Probiere den SOUNDEX-Modus für ähnlich klingende Begriffe
+      </p>
+      <p v-if="searchCategory === 'nodes'" class="text-xs text-[var(--color-text-tertiary)] mt-1">
+        Tipp: Die Suche findet auch alle Unterkategorien einer Hauptkategorie
       </p>
     </div>
 
     <div v-else-if="!hasSearched" class="text-center py-16">
-      <Search class="w-10 h-10 mx-auto mb-3 text-[var(--color-border-strong)]" :stroke-width="1.5" />
-      <p class="text-sm text-[var(--color-text-tertiary)]">Filter konfigurieren und Suche starten</p>
-      <p class="text-xs text-[var(--color-text-tertiary)] mt-1">
+      <component :is="searchCategoryDefs.find(c => c.key === searchCategory)?.icon || Search" class="w-10 h-10 mx-auto mb-3 text-[var(--color-border-strong)]" :stroke-width="1.5" />
+      <p class="text-sm text-[var(--color-text-tertiary)]">
+        {{ searchCategory === 'products' ? 'Filter konfigurieren und Suche starten' :
+           searchCategory === 'attributes' ? 'Durchsuchbare Attribute finden' :
+           searchCategory === 'nodes' ? 'Kategorieknoten durchsuchen (inkl. Unterkategorien)' :
+           'Medien durchsuchen' }}
+      </p>
+      <p v-if="searchCategory === 'products'" class="text-xs text-[var(--color-text-tertiary)] mt-1">
         Suche mit LIKE, SOUNDEX oder REGEXP
       </p>
     </div>
 
-    <!-- Product Comparison Modal -->
+    <!-- Product Comparison Modal (products only) -->
     <Teleport to="body">
       <transition name="fade">
-        <div v-if="showCompare" class="fixed inset-0 z-50 flex items-center justify-center">
+        <div v-if="searchCategory === 'products' && showCompare" class="fixed inset-0 z-50 flex items-center justify-center">
           <div class="absolute inset-0 bg-black/30 backdrop-blur-sm" @click="showCompare = false" />
           <div class="relative w-full max-w-4xl max-h-[85vh] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl shadow-xl mx-4 overflow-hidden flex flex-col">
             <div class="flex items-center justify-between px-5 py-3 border-b border-[var(--color-border)] shrink-0">

@@ -36,6 +36,68 @@ class HierarchyNodeController extends Controller
         );
     }
 
+    private const SEARCH_COLUMNS = ['name_de', 'name_en'];
+    private const ALLOWED_FILTERS_SEARCH = ['hierarchy_id', 'is_active'];
+
+    /**
+     * GET /hierarchy-nodes — search across all hierarchy nodes.
+     *
+     * Supports ?include_descendants=1 — when searching, also return all
+     * descendant nodes of every node that matches the search term.
+     */
+    public function searchAll(Request $request): AnonymousResourceCollection
+    {
+        $this->authorize('viewAny', HierarchyNode::class);
+
+        $query = HierarchyNode::query()
+            ->with(['hierarchy']);
+
+        // If include_descendants is set and there is a search term, find matching
+        // nodes first, then include all descendants via path LIKE.
+        $search = $request->query('search');
+        $includeDescendants = $request->boolean('include_descendants', true);
+
+        if (!empty($search) && $includeDescendants) {
+            // Find IDs + paths of nodes matching the search
+            $matchingNodes = HierarchyNode::query()
+                ->where(function ($q) use ($search) {
+                    foreach (self::SEARCH_COLUMNS as $col) {
+                        $q->orWhere($col, 'LIKE', "%{$search}%");
+                    }
+                })
+                ->select(['id', 'path'])
+                ->get();
+
+            if ($matchingNodes->isNotEmpty()) {
+                $query->where(function ($q) use ($matchingNodes, $search) {
+                    // Direct matches
+                    foreach (self::SEARCH_COLUMNS as $col) {
+                        $q->orWhere($col, 'LIKE', "%{$search}%");
+                    }
+                    // Descendants of matching nodes (path starts with parent path)
+                    foreach ($matchingNodes as $node) {
+                        $q->orWhere('path', 'LIKE', $node->path . '%');
+                    }
+                });
+            } else {
+                // No matches — still apply normal search so result is empty
+                $this->applySearch($query, $request, self::SEARCH_COLUMNS);
+            }
+        } else {
+            $this->applySearch($query, $request, self::SEARCH_COLUMNS);
+        }
+
+        $this->applyFilters($query, array_intersect_key(
+            $request->query('filter', []),
+            array_flip(self::ALLOWED_FILTERS_SEARCH)
+        ));
+        $this->applySorting($query, $request, 'path', 'asc');
+
+        return HierarchyNodeResource::collection(
+            $query->paginate($this->getPerPage($request))
+        );
+    }
+
     /**
      * POST /hierarchies/{hierarchy}/nodes — create a new node.
      */

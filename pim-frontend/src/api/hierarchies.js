@@ -5,6 +5,10 @@ export default {
     return client.get('/hierarchies', { params: buildParams(options) })
   },
 
+  searchNodes(options = {}) {
+    return client.get('/hierarchy-nodes', { params: buildParams(options) })
+  },
+
   create(data) {
     return client.post('/hierarchies', data)
   },
