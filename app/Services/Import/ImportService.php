@@ -293,6 +293,8 @@ class ImportService
                 $options['sku_column'] ?? 'SKU',
                 $options['product_type_id'] ?? null,
                 $options['master_hierarchy_node_id'] ?? null,
+                $options['name_column'] ?? null,
+                $options['ean_column'] ?? null,
             );
 
             $importJob->update([

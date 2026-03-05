@@ -63,6 +63,8 @@ class FlatImportExecutor
      * @param string $skuColumn       Name der SKU-Spalte
      * @param string|null $productTypeId  Optional: Produkttyp-ID
      * @param string|null $masterHierarchyNodeId  Optional: Master-Hierarchie-Knoten
+     * @param string|null $nameColumn    Optional: Spalte für den Produktnamen
+     * @param string|null $eanColumn     Optional: Spalte für die EAN
      */
     public function execute(
         string $filePath,
@@ -70,6 +72,8 @@ class FlatImportExecutor
         string $skuColumn = 'SKU',
         ?string $productTypeId = null,
         ?string $masterHierarchyNodeId = null,
+        ?string $nameColumn = null,
+        ?string $eanColumn = null,
     ): ImportExecutionResult {
         $this->stats = ['created' => 0, 'updated' => 0, 'skipped' => 0, 'errors' => 0];
         $this->affectedProductIds = [];
@@ -98,6 +102,26 @@ class FlatImportExecutor
 
         if ($skuColIdx === null) {
             throw new \RuntimeException("SKU-Spalte '{$skuColumn}' nicht in der Datei gefunden.");
+        }
+
+        // Stammdaten-Spalten-Indizes finden (Name, EAN)
+        $nameColIdx = null;
+        $eanColIdx = null;
+        if ($nameColumn) {
+            foreach ($headers as $colIdx => $header) {
+                if (strcasecmp($header, $nameColumn) === 0) {
+                    $nameColIdx = $colIdx;
+                    break;
+                }
+            }
+        }
+        if ($eanColumn) {
+            foreach ($headers as $colIdx => $header) {
+                if (strcasecmp($header, $eanColumn) === 0) {
+                    $eanColIdx = $colIdx;
+                    break;
+                }
+            }
         }
 
         // Mapping vorbereiten: source → {colIdx, attribute, language}
@@ -185,30 +209,35 @@ class FlatImportExecutor
                     // Produkt erstellen oder aktualisieren
                     $product = Product::where('sku', $sku)->first();
 
-                    // Name aus der ersten String-Mapping-Spalte oder SKU
-                    $name = $sku;
-                    foreach ($mappings as $m) {
-                        if ($m['attribute']->technical_name === 'name') {
-                            $val = $worksheet->getCell([$m['colIdx'], $row])->getValue();
-                            if ($val !== null && $val !== '') {
-                                $name = (string) $val;
-                            }
-                            break;
-                        }
+                    // Stammdaten aus zugeordneten Spalten lesen
+                    $name = $nameColIdx
+                        ? trim((string) ($worksheet->getCell([$nameColIdx, $row])->getValue() ?? ''))
+                        : '';
+                    if ($name === '') {
+                        $name = $sku; // Fallback: SKU als Name
                     }
 
+                    $ean = $eanColIdx
+                        ? trim((string) ($worksheet->getCell([$eanColIdx, $row])->getValue() ?? ''))
+                        : null;
+
                     if ($product) {
-                        $product->update([
+                        $updateData = [
                             'name' => $name,
                             'product_type_id' => $productType?->id ?? $product->product_type_id,
                             'master_hierarchy_node_id' => $masterHierarchyNodeId ?? $product->master_hierarchy_node_id,
-                        ]);
+                        ];
+                        if ($ean !== null && $ean !== '') {
+                            $updateData['ean'] = $ean;
+                        }
+                        $product->update($updateData);
                         $this->stats['updated']++;
                         $this->log('info', "Produkt aktualisiert: {$sku}", 'flat', $row, null, ['sku' => $sku, 'action' => 'updated']);
                     } else {
                         $product = Product::create([
                             'id' => Str::uuid()->toString(),
                             'sku' => $sku,
+                            'ean' => ($ean !== null && $ean !== '') ? $ean : null,
                             'name' => $name,
                             'product_type_id' => $productType?->id,
                             'product_type_ref' => 'product',
