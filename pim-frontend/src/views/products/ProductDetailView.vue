@@ -956,7 +956,13 @@ async function loadHierarchyTree(hierarchyId) {
     const tree = data.data || data
     const flatNodes = flattenTree(tree, hierarchyId)
     hierarchyNodes.value = [...hierarchyNodes.value.filter(n => n._hierarchyId !== hierarchyId), ...flatNodes]
-    if (!selectedHierarchyId.value) selectedHierarchyId.value = hierarchyId
+    // Auto-select hierarchy that contains the product's current node
+    const nodeId = product.value?.master_hierarchy_node_id
+    if (nodeId && flatNodes.some(n => n.id === nodeId)) {
+      selectedHierarchyId.value = hierarchyId
+    } else if (!selectedHierarchyId.value) {
+      selectedHierarchyId.value = hierarchyId
+    }
   } catch (e) { console.error('Failed to load hierarchy tree:', e.message) }
 }
 
@@ -1212,7 +1218,7 @@ watch(() => route.params.id, async (newId, oldId) => {
               </select>
               <select class="pim-input text-xs flex-1" :value="product.master_hierarchy_node_id || ''" @change="product.master_hierarchy_node_id = $event.target.value || null">
                 <option value="">— Kein Knoten —</option>
-                <option v-for="node in hierarchyNodes" :key="node.id" :value="node.id">{{ node.label }}</option>
+                <option v-for="node in hierarchyNodes.filter(n => !selectedHierarchyId || n._hierarchyId === selectedHierarchyId)" :key="node.id" :value="node.id">{{ node.label }}</option>
               </select>
             </div>
           </div>

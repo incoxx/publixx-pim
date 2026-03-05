@@ -136,6 +136,11 @@ body {
   white-space: nowrap;
   border: 1px solid transparent;
 }
+.pim-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
 
 .pim-btn-primary {
   background: var(--color-primary);

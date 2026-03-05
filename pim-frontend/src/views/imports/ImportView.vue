@@ -219,6 +219,10 @@ async function loadNodes() {
 const autoGenerateSelectedCount = computed(() =>
   Object.values(autoGenerateChecked.value).filter(Boolean).length
 )
+const unmappedCount = computed(() => columnMappings.value.filter(m => !m.target_attribute_id).length)
+const allUnmappedChecked = computed(() =>
+  unmappedCount.value > 0 && autoGenerateSelectedCount.value === unmappedCount.value
+)
 
 function toggleAllAutoGenerate() {
   const allChecked = autoGenerateSelectedCount.value === columnMappings.value.filter(m => !m.target_attribute_id).length
@@ -651,6 +655,18 @@ const logLevelIcon = { info: CheckCircle, warning: AlertTriangle, error: XCircle
         </div>
 
         <div class="space-y-2 max-h-[400px] overflow-y-auto">
+          <!-- Header mit Select-All Checkbox -->
+          <div class="flex items-center gap-2 p-2 rounded-lg bg-[var(--color-bg)] border-b border-[var(--color-border)] sticky top-0 z-10">
+            <input
+              type="checkbox"
+              :checked="allUnmappedChecked"
+              :indeterminate="autoGenerateSelectedCount > 0 && !allUnmappedChecked"
+              @change="toggleAllAutoGenerate"
+              class="checkbox checkbox-xs checkbox-accent shrink-0"
+              title="Alle nicht zugeordneten auswählen / abwählen"
+            />
+            <span class="text-[10px] font-medium text-[var(--color-text-tertiary)]">Alle auswählen ({{ autoGenerateSelectedCount }}/{{ unmappedCount }})</span>
+          </div>
           <div
             v-for="(mapping, i) in columnMappings"
             :key="i"
@@ -718,7 +734,7 @@ const logLevelIcon = { info: CheckCircle, warning: AlertTriangle, error: XCircle
               class="ml-auto text-[10px] text-[var(--color-accent)] hover:underline"
               @click="toggleAllAutoGenerate"
             >
-              {{ autoGenerateSelectedCount === columnMappings.filter(m => !m.target_attribute_id).length ? 'Keine' : 'Alle nicht zugeordneten' }} auswählen
+              {{ allUnmappedChecked ? 'Keine' : 'Alle nicht zugeordneten' }} auswählen
             </button>
           </div>
 
