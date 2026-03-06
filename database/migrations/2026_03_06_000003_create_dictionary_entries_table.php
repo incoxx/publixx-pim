@@ -28,7 +28,7 @@ return new class extends Migration
             $table->integer('sort_order')->default(0);
             $table->timestamps();
 
-            $table->unique(['attribute_id', 'dictionary_entry_id']);
+            $table->unique(['attribute_id', 'dictionary_entry_id'], 'attr_dict_entry_unique');
         });
     }
 
