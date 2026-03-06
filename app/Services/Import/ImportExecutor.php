@@ -6,6 +6,7 @@ namespace App\Services\Import;
 
 use App\Models\Attribute;
 use App\Models\AttributeType;
+use App\Models\AttributeView;
 use App\Models\Hierarchy;
 use App\Models\HierarchyNode;
 use App\Models\HierarchyNodeAttributeAssignment;
@@ -82,7 +83,10 @@ class ImportExecutor
             '02_Attributgruppen',
             '03_Einheiten',
             '04_Wertelisten',
+            '15_Attribut_Sichten',
             '05_Attribute',
+            '16_Preistypen',
+            '17_Beziehungstypen',
             '06_Hierarchien',
             '07_Hierarchie_Attribute',
             '08_Produkte',
@@ -153,6 +157,9 @@ class ImportExecutor
                     '12_Produktbeziehungen' => 'importProductRelations',
                     '13_Preise' => 'importPrices',
                     '14_Medien' => 'importMedia',
+                    '15_Attribut_Sichten' => 'importAttributeViews',
+                    '16_Preistypen' => 'importPriceTypes',
+                    '17_Beziehungstypen' => 'importRelationTypes',
                     default => null,
                 };
 
@@ -164,6 +171,7 @@ class ImportExecutor
                 if (in_array($sheetKey, [
                     '01_Produkttypen', '02_Attributgruppen', '03_Einheiten',
                     '04_Wertelisten', '05_Attribute', '06_Hierarchien', '08_Produkte',
+                    '15_Attribut_Sichten', '16_Preistypen', '17_Beziehungstypen',
                 ])) {
                     $this->resolver->clearCache();
                 }
@@ -1192,5 +1200,93 @@ class ImportExecutor
             'mp3' => 'audio/mpeg',
             default => 'application/octet-stream',
         };
+    }
+
+    // ── Attribut-Sichten ──────────────────────────────────────────────────
+
+    private function importAttributeViews(array $rows, string $sheetKey): void
+    {
+        foreach ($rows as $row) {
+            try {
+                $existing = AttributeView::where('technical_name', $row['technical_name'])->first();
+
+                $data = [
+                    'technical_name' => $row['technical_name'],
+                    'name_de' => $row['name_de'],
+                    'name_en' => $row['name_en'] ?? null,
+                    'description' => $row['description'] ?? null,
+                    'sort_order' => (int) ($row['sort_order'] ?? 0),
+                    'is_write_protected' => $this->toBool($row['is_write_protected'] ?? null),
+                ];
+
+                if ($existing) {
+                    $existing->update($data);
+                    $this->stats[$sheetKey]['updated']++;
+                } else {
+                    $data['id'] = Str::uuid()->toString();
+                    AttributeView::create($data);
+                    $this->stats[$sheetKey]['created']++;
+                }
+            } catch (\Throwable $e) {
+                $this->logRowError($sheetKey, $row, $e);
+            }
+        }
+    }
+
+    // ── Preistypen ────────────────────────────────────────────────────────
+
+    private function importPriceTypes(array $rows, string $sheetKey): void
+    {
+        foreach ($rows as $row) {
+            try {
+                $existing = PriceType::where('technical_name', $row['technical_name'])->first();
+
+                $data = [
+                    'technical_name' => $row['technical_name'],
+                    'name_de' => $row['name_de'],
+                    'name_en' => $row['name_en'] ?? null,
+                ];
+
+                if ($existing) {
+                    $existing->update($data);
+                    $this->stats[$sheetKey]['updated']++;
+                } else {
+                    $data['id'] = Str::uuid()->toString();
+                    PriceType::create($data);
+                    $this->stats[$sheetKey]['created']++;
+                }
+            } catch (\Throwable $e) {
+                $this->logRowError($sheetKey, $row, $e);
+            }
+        }
+    }
+
+    // ── Beziehungstypen ───────────────────────────────────────────────────
+
+    private function importRelationTypes(array $rows, string $sheetKey): void
+    {
+        foreach ($rows as $row) {
+            try {
+                $existing = ProductRelationType::where('technical_name', $row['technical_name'])->first();
+
+                $data = [
+                    'technical_name' => $row['technical_name'],
+                    'name_de' => $row['name_de'],
+                    'name_en' => $row['name_en'] ?? null,
+                    'is_bidirectional' => $this->toBool($row['is_bidirectional'] ?? null),
+                ];
+
+                if ($existing) {
+                    $existing->update($data);
+                    $this->stats[$sheetKey]['updated']++;
+                } else {
+                    $data['id'] = Str::uuid()->toString();
+                    ProductRelationType::create($data);
+                    $this->stats[$sheetKey]['created']++;
+                }
+            } catch (\Throwable $e) {
+                $this->logRowError($sheetKey, $row, $e);
+            }
+        }
     }
 }

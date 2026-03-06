@@ -6,6 +6,9 @@ namespace App\Services\Export;
 
 use App\Models\Attribute;
 use App\Models\AttributeType;
+use App\Models\AttributeView;
+use App\Models\PriceType;
+use App\Models\ProductRelationType;
 use App\Models\Hierarchy;
 use App\Models\HierarchyNode;
 use App\Models\HierarchyNodeAttributeAssignment;
@@ -167,6 +170,25 @@ class ImportFormatExporter
             'H' => 'Sortierung',
             'I' => 'Primär (Ja/Nein)',
         ],
+        '15_Attribut_Sichten' => [
+            'A' => 'Technischer Name*',
+            'B' => 'Name (Deutsch)*',
+            'C' => 'Name (Englisch)',
+            'D' => 'Beschreibung',
+            'E' => 'Sortierung',
+            'F' => 'Schreibgeschützt (Ja/Nein)',
+        ],
+        '16_Preistypen' => [
+            'A' => 'Technischer Name*',
+            'B' => 'Name (Deutsch)*',
+            'C' => 'Name (Englisch)',
+        ],
+        '17_Beziehungstypen' => [
+            'A' => 'Technischer Name*',
+            'B' => 'Name (Deutsch)*',
+            'C' => 'Name (Englisch)',
+            'D' => 'Bidirektional (Ja/Nein)',
+        ],
     ];
 
     /**
@@ -208,6 +230,9 @@ class ImportFormatExporter
         $this->exportProduktbeziehungen($spreadsheet->getSheetByName('12_Produktbeziehungen'));
         $this->exportPreise($spreadsheet->getSheetByName('13_Preise'));
         $this->exportMedien($spreadsheet->getSheetByName('14_Medien'));
+        $this->exportAttributSichten($spreadsheet->getSheetByName('15_Attribut_Sichten'));
+        $this->exportPreistypen($spreadsheet->getSheetByName('16_Preistypen'));
+        $this->exportBeziehungstypen($spreadsheet->getSheetByName('17_Beziehungstypen'));
 
         $spreadsheet->setActiveSheetIndex(0);
 
@@ -696,6 +721,61 @@ class ImportFormatExporter
                     $row++;
                 }
             });
+    }
+
+    /**
+     * 15_Attribut_Sichten: AttributeView → technical_name, name_de, name_en, description, sort_order, is_write_protected
+     */
+    private function exportAttributSichten(Worksheet $sheet): void
+    {
+        $row = 2;
+
+        AttributeView::query()->orderBy('sort_order')->chunk(500, function ($views) use ($sheet, &$row) {
+            foreach ($views as $view) {
+                $sheet->setCellValue("A{$row}", $view->technical_name);
+                $sheet->setCellValue("B{$row}", $view->name_de);
+                $sheet->setCellValue("C{$row}", $view->name_en);
+                $sheet->setCellValue("D{$row}", $view->description);
+                $sheet->setCellValue("E{$row}", $view->sort_order);
+                $sheet->setCellValue("F{$row}", $this->boolToJaNein($view->is_write_protected));
+                $row++;
+            }
+        });
+    }
+
+    /**
+     * 16_Preistypen: PriceType → technical_name, name_de, name_en
+     */
+    private function exportPreistypen(Worksheet $sheet): void
+    {
+        $row = 2;
+
+        PriceType::query()->orderBy('technical_name')->chunk(500, function ($types) use ($sheet, &$row) {
+            foreach ($types as $type) {
+                $sheet->setCellValue("A{$row}", $type->technical_name);
+                $sheet->setCellValue("B{$row}", $type->name_de);
+                $sheet->setCellValue("C{$row}", $type->name_en);
+                $row++;
+            }
+        });
+    }
+
+    /**
+     * 17_Beziehungstypen: ProductRelationType → technical_name, name_de, name_en, is_bidirectional
+     */
+    private function exportBeziehungstypen(Worksheet $sheet): void
+    {
+        $row = 2;
+
+        ProductRelationType::query()->orderBy('technical_name')->chunk(500, function ($types) use ($sheet, &$row) {
+            foreach ($types as $type) {
+                $sheet->setCellValue("A{$row}", $type->technical_name);
+                $sheet->setCellValue("B{$row}", $type->name_de);
+                $sheet->setCellValue("C{$row}", $type->name_en);
+                $sheet->setCellValue("D{$row}", $this->boolToJaNein($type->is_bidirectional));
+                $row++;
+            }
+        });
     }
 
     // -------------------------------------------------------------------------

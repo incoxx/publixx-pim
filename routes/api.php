@@ -13,7 +13,9 @@ use App\Http\Controllers\Api\V1\DebugController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\DeploymentController;
 use App\Http\Controllers\Api\V1\ExportController;
+use App\Http\Controllers\Api\V1\ExportJobController;
 use App\Http\Controllers\Api\V1\ExportProfileController;
+use App\Http\Controllers\Api\V1\JsonExportImportController;
 use App\Http\Controllers\Api\V1\ImportProfileController;
 use App\Http\Controllers\Api\V1\LoadDemoDataController;
 use App\Http\Controllers\Api\V1\SearchProfileController;
@@ -361,6 +363,26 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
         Route::get('products/{id}/publixx', [ExportController::class, 'publixx']);
         Route::post('query', [ExportController::class, 'query']);
     });
+
+    // =====================================================================
+    // JSON Export/Import
+    // =====================================================================
+    Route::prefix('json-export')->group(function () {
+        Route::get('/', [JsonExportImportController::class, 'export']);
+        Route::post('/', [JsonExportImportController::class, 'exportFiltered']);
+        Route::get('sections', [JsonExportImportController::class, 'sections']);
+    });
+    Route::prefix('json-import')->group(function () {
+        Route::post('/', [JsonExportImportController::class, 'import']);
+        Route::post('validate', [JsonExportImportController::class, 'validate']);
+    });
+
+    // =====================================================================
+    // Export-Job-Steuerung
+    // =====================================================================
+    Route::apiResource('export-jobs', ExportJobController::class);
+    Route::post('export-jobs/{export_job}/execute', [ExportJobController::class, 'execute']);
+    Route::get('export-jobs/{export_job}/download', [ExportJobController::class, 'download']);
 
     // =====================================================================
     // Agent 7: Publixx Live-API
