@@ -93,7 +93,9 @@ class ElementRenderer
 
         // Number
         if ($attributeValue->value_number !== null) {
-            return rtrim(rtrim(number_format((float) $attributeValue->value_number, 4, ',', '.'), '0'), ',');
+            $dec = $language === 'de' ? ',' : '.';
+            $thou = $language === 'de' ? '.' : ',';
+            return rtrim(rtrim(number_format((float) $attributeValue->value_number, 4, $dec, $thou), '0'), $dec);
         }
 
         // Date

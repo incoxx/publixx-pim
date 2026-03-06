@@ -26,20 +26,15 @@ class ReportDataCollector
         $query = $this->buildQuery($searchProfile);
         $relations = $this->determineRelations($template->template_json);
 
+        $productQuery = $query->with($relations);
         if ($limit) {
-            $products = $query->with($relations)->limit($limit)->get();
-        } else {
-            // Chunk-load for memory efficiency
-            $products = collect();
-            $query->with($relations)->chunk(100, function ($chunk) use (&$products) {
-                $products = $products->concat($chunk);
-            });
+            $productQuery->limit($limit);
         }
+        $products = $productQuery->get();
 
         $grouped = $this->groupProducts($products, $template->template_json, $template->language ?? 'de');
 
         return [
-            'products' => $products,
             'grouped' => $grouped,
             'total' => $products->count(),
         ];
@@ -213,7 +208,20 @@ class ReportDataCollector
         $groups = $templateJson['groups'] ?? [];
 
         if (empty($groups)) {
-            return [['label' => '', 'value' => '', 'products' => $products->all(), 'subgroups' => []]];
+            // Provide a default group wrapping all products with the same structure
+            // as grouped data to avoid missing-key errors in Blade/DocxWriter
+            return [[
+                'definition' => [
+                    'header' => ['elements' => []],
+                    'detail' => ['elements' => $templateJson['detail']['elements'] ?? []],
+                    'footer' => ['elements' => []],
+                ],
+                'label' => '',
+                'value' => '',
+                'products' => $products->all(),
+                'subgroups' => [],
+                'count' => $products->count(),
+            ]];
         }
 
         return $this->buildGroupLevel($products, $groups, $language);

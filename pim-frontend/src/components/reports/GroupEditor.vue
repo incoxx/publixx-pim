@@ -161,43 +161,91 @@ function canAddSubgroup(groupId) {
             />
           </div>
 
-          <!-- Subgroups -->
-          <div v-if="group.groups?.length" class="pl-4 border-l-2 border-[var(--color-border)] space-y-2 mt-2">
-            <div v-for="sub in group.groups" :key="sub.id" class="pim-card overflow-hidden">
-              <div
-                class="flex items-center gap-2 px-3 py-1.5 bg-[var(--color-surface)] cursor-pointer hover:bg-[var(--color-bg)]"
-                @click="store.selectGroup(sub.id)"
-                :class="store.selectedGroupId === sub.id ? 'ring-2 ring-[var(--color-accent)]' : ''"
-              >
-                <button @click.stop="toggleGroup(sub.id)" class="shrink-0">
-                  <ChevronDown v-if="isExpanded(sub.id)" class="w-3 h-3 text-[var(--color-text-tertiary)]" :stroke-width="2" />
-                  <ChevronRight v-else class="w-3 h-3 text-[var(--color-text-tertiary)]" :stroke-width="2" />
-                </button>
-                <span class="text-[11px] font-medium text-[var(--color-text-primary)] flex-1">{{ sub.label || 'Untergruppe' }}</span>
-                <span class="text-[10px] text-[var(--color-text-tertiary)]">{{ getGroupFieldLabel(sub.field) }}</span>
-                <button
-                  class="text-[var(--color-text-tertiary)] hover:text-[var(--color-error)]"
-                  @click.stop="store.removeGroup(sub.id)"
-                >
-                  <Trash2 class="w-3 h-3" :stroke-width="2" />
-                </button>
-              </div>
-              <div v-if="isExpanded(sub.id)" class="px-3 py-2 space-y-2 border-t border-[var(--color-border)]">
-                <div>
-                  <div class="text-[10px] font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wide py-0.5">Header</div>
-                  <GroupSection :group-id="sub.id" section="header" :elements="sub.header?.elements || []" />
+          <!-- Subgroups (recursive) -->
+          <template v-if="group.groups?.length">
+            <div class="pl-4 border-l-2 border-[var(--color-border)] space-y-2 mt-2">
+              <template v-for="sub in group.groups" :key="sub.id">
+                <div class="pim-card overflow-hidden" :class="store.selectedGroupId === sub.id ? 'ring-2 ring-[var(--color-accent)]' : ''">
+                  <div
+                    class="flex items-center gap-2 px-3 py-1.5 bg-[var(--color-surface)] cursor-pointer hover:bg-[var(--color-bg)]"
+                    @click="store.selectGroup(sub.id)"
+                  >
+                    <button @click.stop="toggleGroup(sub.id)" class="shrink-0">
+                      <ChevronDown v-if="isExpanded(sub.id)" class="w-3 h-3 text-[var(--color-text-tertiary)]" :stroke-width="2" />
+                      <ChevronRight v-else class="w-3 h-3 text-[var(--color-text-tertiary)]" :stroke-width="2" />
+                    </button>
+                    <span class="text-[11px] font-medium text-[var(--color-text-primary)] flex-1">{{ sub.label || 'Untergruppe' }}</span>
+                    <span class="text-[10px] text-[var(--color-text-tertiary)]">{{ getGroupFieldLabel(sub.field) }}</span>
+                    <button
+                      v-if="canAddSubgroup(sub.id)"
+                      class="text-[var(--color-text-tertiary)] hover:text-[var(--color-accent)]"
+                      @click.stop="store.addGroup(sub.id)"
+                      title="Untergruppe hinzufügen"
+                    >
+                      <Plus class="w-3 h-3" :stroke-width="2" />
+                    </button>
+                    <button
+                      class="text-[var(--color-text-tertiary)] hover:text-[var(--color-error)]"
+                      @click.stop="store.removeGroup(sub.id)"
+                    >
+                      <Trash2 class="w-3 h-3" :stroke-width="2" />
+                    </button>
+                  </div>
+                  <div v-if="isExpanded(sub.id)" class="px-3 py-2 space-y-2 border-t border-[var(--color-border)]">
+                    <div v-for="sec in ['header', 'detail', 'footer']" :key="sec">
+                      <button
+                        class="text-[10px] font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wide w-full text-left py-0.5"
+                        @click="toggleSection(`${sub.id}-${sec}`)"
+                      >
+                        {{ isSectionExpanded(`${sub.id}-${sec}`) ? '▾' : '▸' }} {{ sec === 'detail' ? 'Detail (pro Produkt)' : sec.charAt(0).toUpperCase() + sec.slice(1) }}
+                        <span class="text-[var(--color-text-tertiary)] font-normal">({{ sub[sec]?.elements?.length || 0 }})</span>
+                      </button>
+                      <GroupSection
+                        v-if="isSectionExpanded(`${sub.id}-${sec}`)"
+                        :group-id="sub.id"
+                        :section="sec"
+                        :elements="sub[sec]?.elements || []"
+                      />
+                    </div>
+                    <!-- Recursive subgroups -->
+                    <template v-if="sub.groups?.length">
+                      <div class="pl-4 border-l-2 border-[var(--color-border)] space-y-2 mt-2">
+                        <template v-for="sub2 in sub.groups" :key="sub2.id">
+                          <div class="pim-card overflow-hidden" :class="store.selectedGroupId === sub2.id ? 'ring-2 ring-[var(--color-accent)]' : ''">
+                            <div
+                              class="flex items-center gap-2 px-3 py-1.5 bg-[var(--color-surface)] cursor-pointer hover:bg-[var(--color-bg)]"
+                              @click="store.selectGroup(sub2.id)"
+                            >
+                              <button @click.stop="toggleGroup(sub2.id)" class="shrink-0">
+                                <ChevronDown v-if="isExpanded(sub2.id)" class="w-3 h-3 text-[var(--color-text-tertiary)]" :stroke-width="2" />
+                                <ChevronRight v-else class="w-3 h-3 text-[var(--color-text-tertiary)]" :stroke-width="2" />
+                              </button>
+                              <span class="text-[11px] font-medium text-[var(--color-text-primary)] flex-1">{{ sub2.label || 'Untergruppe' }}</span>
+                              <span class="text-[10px] text-[var(--color-text-tertiary)]">{{ getGroupFieldLabel(sub2.field) }}</span>
+                              <button
+                                class="text-[var(--color-text-tertiary)] hover:text-[var(--color-error)]"
+                                @click.stop="store.removeGroup(sub2.id)"
+                              >
+                                <Trash2 class="w-3 h-3" :stroke-width="2" />
+                              </button>
+                            </div>
+                            <div v-if="isExpanded(sub2.id)" class="px-3 py-2 space-y-2 border-t border-[var(--color-border)]">
+                              <div v-for="sec in ['header', 'detail', 'footer']" :key="sec">
+                                <div class="text-[10px] font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wide py-0.5">
+                                  {{ sec === 'detail' ? 'Detail (pro Produkt)' : sec.charAt(0).toUpperCase() + sec.slice(1) }}
+                                </div>
+                                <GroupSection :group-id="sub2.id" :section="sec" :elements="sub2[sec]?.elements || []" />
+                              </div>
+                            </div>
+                          </div>
+                        </template>
+                      </div>
+                    </template>
+                  </div>
                 </div>
-                <div>
-                  <div class="text-[10px] font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wide py-0.5">Detail</div>
-                  <GroupSection :group-id="sub.id" section="detail" :elements="sub.detail?.elements || []" />
-                </div>
-                <div>
-                  <div class="text-[10px] font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wide py-0.5">Footer</div>
-                  <GroupSection :group-id="sub.id" section="footer" :elements="sub.footer?.elements || []" />
-                </div>
-              </div>
+              </template>
             </div>
-          </div>
+          </template>
         </div>
       </div>
     </template>

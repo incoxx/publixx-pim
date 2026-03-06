@@ -169,10 +169,7 @@ class ReportTemplateController extends Controller
             'async' => 'sometimes|boolean',
         ]);
 
-        // Override format if specified
-        if (isset($validated['format'])) {
-            $template->format = $validated['format'];
-        }
+        $format = $validated['format'] ?? $template->format;
 
         $searchProfile = isset($validated['search_profile_id'])
             ? SearchProfile::find($validated['search_profile_id'])
@@ -184,7 +181,7 @@ class ReportTemplateController extends Controller
             $reportJob = ReportJob::create([
                 'report_template_id' => $template->id,
                 'search_profile_id' => $searchProfile?->id ?? $template->search_profile_id,
-                'format' => $template->format,
+                'format' => $format,
                 'last_status' => 'pending',
                 'user_id' => $request->user()?->id,
             ]);
@@ -197,7 +194,7 @@ class ReportTemplateController extends Controller
             ], 202);
         }
 
-        $result = $this->reportService->execute($template, $searchProfile);
+        $result = $this->reportService->execute($template, $searchProfile, format: $format);
 
         return response()->download(
             $result['path'],
@@ -219,15 +216,13 @@ class ReportTemplateController extends Controller
             'limit' => 'sometimes|integer|min:1|max:10',
         ]);
 
-        if (isset($validated['format'])) {
-            $template->format = $validated['format'];
-        }
+        $format = $validated['format'] ?? $template->format;
 
         $searchProfile = isset($validated['search_profile_id'])
             ? SearchProfile::find($validated['search_profile_id'])
             : null;
 
-        $result = $this->reportService->preview($template, $searchProfile, $validated['limit'] ?? 5);
+        $result = $this->reportService->preview($template, $searchProfile, $validated['limit'] ?? 5, $format);
 
         return response()->download(
             $result['path'],
@@ -241,6 +236,7 @@ class ReportTemplateController extends Controller
     public function jobStatus(Request $request, string $id): JsonResponse
     {
         $job = ReportJob::findOrFail($id);
+        $this->authorizeJobAccess($request, $job);
 
         return response()->json(['data' => $job->load('reportTemplate')]);
     }
@@ -251,6 +247,7 @@ class ReportTemplateController extends Controller
     public function jobDownload(Request $request, string $id)
     {
         $job = ReportJob::findOrFail($id);
+        $this->authorizeJobAccess($request, $job);
 
         if (!$job->last_output_path || !file_exists($job->last_output_path)) {
             return response()->json([
@@ -269,6 +266,14 @@ class ReportTemplateController extends Controller
         $userId = $request->user()?->id;
         if (!$template->is_shared && $template->user_id && $userId !== $template->user_id) {
             abort(403, 'Kein Zugriff auf dieses Report-Template.');
+        }
+    }
+
+    private function authorizeJobAccess(Request $request, ReportJob $job): void
+    {
+        $userId = $request->user()?->id;
+        if ($job->user_id && $userId !== $job->user_id) {
+            abort(403, 'Kein Zugriff auf diesen Report-Job.');
         }
     }
 }

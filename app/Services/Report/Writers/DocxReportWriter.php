@@ -230,6 +230,7 @@ class DocxReportWriter
             match ($element['type']) {
                 'field' => $this->renderFieldElement($section, $product, $element, $language),
                 'attribute' => $this->renderAttributeElement($section, $product, $element, $language),
+                'image' => $this->renderImageElement($section, $product, $element),
                 'separator' => $section->addText(str_repeat('─', 60), ['size' => 6, 'color' => 'CCCCCC']),
                 'pageBreak' => $section->addPageBreak(),
                 'text' => $this->renderTextElement($section, $element, ['language' => $language]),
@@ -365,6 +366,28 @@ class DocxReportWriter
         }
 
         return $fontStyle;
+    }
+
+    private function renderImageElement($section, $product, array $element): void
+    {
+        $media = $product->mediaAssignments?->first()?->media;
+        if (!$media || !$media->file_name) {
+            return;
+        }
+
+        $imgPath = storage_path('app/public/media/' . $media->file_name);
+        if (!file_exists($imgPath)) {
+            return;
+        }
+
+        $width = $element['width'] ?? 80;
+        $height = $element['height'] ?? 80;
+
+        $section->addImage($imgPath, [
+            'width' => $width,
+            'height' => $height,
+            'wrappingStyle' => 'inline',
+        ]);
     }
 
     private function buildParagraphStyle(array $style): array

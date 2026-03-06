@@ -6,6 +6,7 @@ import {
   Plus, Pencil, Trash2, Play, Download, FileText, FileSpreadsheet,
 } from 'lucide-vue-next'
 import reportTemplatesApi from '@/api/reportTemplates'
+import { createEmptyTemplate } from '@/stores/reportDesigner'
 
 const router = useRouter()
 const { t } = useI18n()
@@ -34,13 +35,11 @@ async function loadTemplates() {
 async function createTemplate() {
   if (!newName.value.trim()) return
   try {
+    const templateJson = createEmptyTemplate()
+    templateJson.title = newName.value.trim()
     const { data } = await reportTemplatesApi.create({
       name: newName.value.trim(),
-      template_json: {
-        version: 1, title: newName.value.trim(),
-        pageHeader: { elements: [] }, pageFooter: { elements: [] },
-        groups: [], style: { font: 'Arial', size: 11, primaryColor: '#2563eb' },
-      },
+      template_json: templateJson,
       format: 'pdf',
     })
     const tmpl = data.data || data

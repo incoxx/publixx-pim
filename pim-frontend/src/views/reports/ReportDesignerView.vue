@@ -1,13 +1,12 @@
 <script setup>
-import { ref, onMounted, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { useReportDesignerStore } from '@/stores/reportDesigner'
 import {
   ArrowLeft, Save, Eye, Download, FileText, FileSpreadsheet,
 } from 'lucide-vue-next'
 import reportTemplatesApi from '@/api/reportTemplates'
 import searchProfilesApi from '@/api/searchProfiles'
-import ProfileSelector from '@/components/shared/ProfileSelector.vue'
 import FieldPalette from '@/components/reports/FieldPalette.vue'
 import GroupEditor from '@/components/reports/GroupEditor.vue'
 import ElementProperties from '@/components/reports/ElementProperties.vue'
@@ -21,14 +20,36 @@ const saving = ref(false)
 const previewing = ref(false)
 const exporting = ref(false)
 const error = ref('')
+const loadError = ref(false)
 
 onMounted(async () => {
   const id = route.params.id
-  await Promise.all([
-    store.loadTemplate(id),
-    store.loadFields(),
-    loadSearchProfiles(),
-  ])
+  try {
+    await Promise.all([
+      store.loadTemplate(id),
+      store.loadFields(),
+      loadSearchProfiles(),
+    ])
+  } catch (e) {
+    loadError.value = true
+    error.value = 'Template konnte nicht geladen werden.'
+  }
+})
+
+// Unsaved changes guard
+function beforeUnload(e) {
+  if (store.isDirty) {
+    e.preventDefault()
+    e.returnValue = ''
+  }
+}
+window.addEventListener('beforeunload', beforeUnload)
+onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload))
+
+onBeforeRouteLeave(() => {
+  if (store.isDirty && !confirm('Es gibt ungespeicherte Änderungen. Seite wirklich verlassen?')) {
+    return false
+  }
 })
 
 async function loadSearchProfiles() {
@@ -217,8 +238,12 @@ function onSearchProfileChange(id) {
     </div>
   </div>
 
-  <!-- Loading state -->
-  <div v-else class="flex items-center justify-center h-64 text-[var(--color-text-tertiary)]">
-    Lade Template...
+  <!-- Loading / Error state -->
+  <div v-else class="flex flex-col items-center justify-center h-64 text-[var(--color-text-tertiary)]">
+    <template v-if="loadError">
+      <p class="text-[var(--color-error)] text-sm mb-2">{{ error }}</p>
+      <button class="pim-btn pim-btn-secondary text-xs" @click="router.push('/reports')">Zurück zur Übersicht</button>
+    </template>
+    <template v-else>Lade Template...</template>
   </div>
 </template>

@@ -24,7 +24,7 @@ class ReportService
      *
      * @return array{path: string, format: string, size: int, duration: float}
      */
-    public function execute(ReportTemplate $template, ?SearchProfile $searchProfile = null, ?string $outputDir = null): array
+    public function execute(ReportTemplate $template, ?SearchProfile $searchProfile = null, ?string $outputDir = null, ?string $format = null): array
     {
         $startTime = microtime(true);
         $outputDir = $outputDir ?? storage_path('app/reports');
@@ -34,9 +34,9 @@ class ReportService
         }
 
         $searchProfile = $searchProfile ?? $template->searchProfile;
-        $format = $template->format ?? 'pdf';
+        $format = $format ?? $template->format ?? 'pdf';
 
-        Log::info("Report-Generierung gestartet: {$template->name}", [
+        Log::channel('export')->info("Report-Generierung gestartet: {$template->name}", [
             'template_id' => $template->id,
             'format' => $format,
         ]);
@@ -66,7 +66,7 @@ class ReportService
 
         $duration = round(microtime(true) - $startTime, 2);
 
-        Log::info("Report-Generierung abgeschlossen: {$template->name}", [
+        Log::channel('export')->info("Report-Generierung abgeschlossen: {$template->name}", [
             'template_id' => $template->id,
             'path' => $outputPath,
             'products' => $data['total'],
@@ -97,12 +97,9 @@ class ReportService
         ]);
 
         try {
-            // Override format from job if set
-            if ($job->format) {
-                $template->format = $job->format;
-            }
+            $format = $job->format ?: null;
 
-            $result = $this->execute($template, $searchProfile);
+            $result = $this->execute($template, $searchProfile, format: $format);
 
             $job->update([
                 'last_status' => 'completed',
@@ -130,7 +127,7 @@ class ReportService
     /**
      * Generate a preview with limited products (always synchronous).
      */
-    public function preview(ReportTemplate $template, ?SearchProfile $searchProfile = null, int $limit = 5): array
+    public function preview(ReportTemplate $template, ?SearchProfile $searchProfile = null, int $limit = 5, ?string $format = null): array
     {
         $searchProfile = $searchProfile ?? $template->searchProfile;
         $data = $this->dataCollector->collect($template, $searchProfile, $limit);
@@ -148,7 +145,7 @@ class ReportService
             mkdir($outputDir, 0755, true);
         }
 
-        $format = $template->format ?? 'pdf';
+        $format = $format ?? $template->format ?? 'pdf';
         $extension = $format === 'docx' ? 'docx' : 'pdf';
         $outputPath = "{$outputDir}/preview_" . uniqid() . ".{$extension}";
 

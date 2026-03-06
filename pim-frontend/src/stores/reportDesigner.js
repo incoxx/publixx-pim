@@ -230,7 +230,7 @@ export const useReportDesignerStore = defineStore('reportDesigner', () => {
 
 // --- Helpers ---
 
-function createEmptyTemplate() {
+export function createEmptyTemplate() {
   return {
     version: 1,
     title: '',

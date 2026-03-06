@@ -182,11 +182,11 @@ const groupFields = computed(() => store.availableFields?.group_fields || [])
         <div class="grid grid-cols-2 gap-2">
           <div>
             <label class="block text-[10px] font-medium text-[var(--color-text-tertiary)] mb-0.5">Breite (px)</label>
-            <input type="number" :value="sel.element.width || 80" class="pim-input text-xs w-full" @input="updateElement('width', parseInt($event.target.value))" />
+            <input type="number" :value="sel.element.width || 80" class="pim-input text-xs w-full" @input="updateElement('width', parseInt($event.target.value) || 80)" />
           </div>
           <div>
             <label class="block text-[10px] font-medium text-[var(--color-text-tertiary)] mb-0.5">Höhe (px)</label>
-            <input type="number" :value="sel.element.height || 80" class="pim-input text-xs w-full" @input="updateElement('height', parseInt($event.target.value))" />
+            <input type="number" :value="sel.element.height || 80" class="pim-input text-xs w-full" @input="updateElement('height', parseInt($event.target.value) || 80)" />
           </div>
         </div>
       </template>
@@ -211,7 +211,7 @@ const groupFields = computed(() => store.availableFields?.group_fields || [])
           <div class="grid grid-cols-2 gap-2">
             <div>
               <label class="block text-[9px] text-[var(--color-text-tertiary)] mb-0.5">Schriftgröße</label>
-              <input type="number" :value="sel.element.style?.fontSize || 10" class="pim-input text-xs w-full" min="6" max="36" @input="updateStyle('fontSize', parseInt($event.target.value))" />
+              <input type="number" :value="sel.element.style?.fontSize || 10" class="pim-input text-xs w-full" min="6" max="36" @input="updateStyle('fontSize', parseInt($event.target.value) || 10)" />
             </div>
             <div>
               <label class="block text-[9px] text-[var(--color-text-tertiary)] mb-0.5">Ausrichtung</label>
