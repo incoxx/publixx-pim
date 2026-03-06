@@ -69,6 +69,7 @@ class MappingResolver
         return match ($type) {
             'text' => $this->resolveText($source, $product, $language, $options),
             'unit_value' => $this->resolveUnitValue($source, $product, $language, $options),
+            'composite' => $this->resolveComposite($source, $product, $language, $options),
             'media_url' => $this->resolveMediaUrl($source, $product, $options),
             'media_array' => $this->resolveMediaArray($source, $product, $options),
             'price' => $this->resolvePrice($source, $product, $options),
@@ -301,6 +302,63 @@ class MappingResolver
         }
 
         return !empty($result) ? $result : null;
+    }
+
+    /**
+     * composite: attribute:tech_name → JSON object with child attribute values
+     * e.g. { "width": 10, "height": 20, "depth": 30, "_formatted": "10 x 20 x 30 mm" }
+     */
+    protected function resolveComposite(string $source, Product $product, string $language, array $options): ?array
+    {
+        $techName = $this->extractSourceParam($source);
+        $attribute = Attribute::where('technical_name', $techName)
+            ->where('data_type', 'Composite')
+            ->first();
+
+        if (!$attribute) {
+            return null;
+        }
+
+        $children = Attribute::where('parent_attribute_id', $attribute->id)
+            ->orderBy('position')
+            ->get();
+
+        if ($children->isEmpty()) {
+            return null;
+        }
+
+        $result = [];
+        $values = [];
+        foreach ($children as $child) {
+            $attrValue = $this->findAttributeValueByTechName($child->technical_name, $product, $language, $options);
+            $childLabel = $language === 'en' && $child->name_en ? $child->name_en : $child->name_de;
+            $childKey = $child->technical_name;
+
+            if ($attrValue === null) {
+                $result[$childKey] = null;
+                $values[] = '';
+                continue;
+            }
+
+            $val = $attrValue->value_string
+                ?? ($attrValue->value_number !== null ? (float) $attrValue->value_number : null)
+                ?? ($attrValue->value_flag !== null ? $attrValue->value_flag : null)
+                ?? ($attrValue->value_date !== null ? (string) $attrValue->value_date : null);
+
+            $result[$childKey] = $val;
+            $values[] = $val !== null ? (string) $val : '';
+        }
+
+        // Add formatted summary if composite_format is defined
+        if ($attribute->composite_format) {
+            $formatted = $attribute->composite_format;
+            foreach ($values as $i => $v) {
+                $formatted = str_replace("{" . $i . "}", $v, $formatted);
+            }
+            $result['_formatted'] = trim($formatted);
+        }
+
+        return !empty(array_filter($result, fn ($v) => $v !== null)) ? $result : null;
     }
 
     // ─── Helpers ────────────────────────────────────────────────

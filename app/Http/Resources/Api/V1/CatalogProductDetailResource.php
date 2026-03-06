@@ -55,10 +55,13 @@ class CatalogProductDetailResource extends JsonResource
                 $unit = $attrValue->unit?->abbreviation;
 
                 return [
+                    'attribute_id' => $attr->id,
                     'label' => $label,
                     'value' => $displayValue,
                     'unit' => $unit,
                     'data_type' => $attr->data_type,
+                    'parent_attribute_id' => $attr->parent_attribute_id,
+                    'composite_format' => $attr->data_type === 'Composite' ? $attr->composite_format : null,
                 ];
             })
             ->filter()
