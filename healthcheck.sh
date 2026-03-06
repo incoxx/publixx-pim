@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # ╔══════════════════════════════════════════════════════════════════════╗
-# ║              Publixx PIM — Healthcheck Script                       ║
+# ║              anyPIM — Healthcheck Script                       ║
 # ║              Prueft alle kritischen Services und Abhaengigkeiten    ║
 # ╚══════════════════════════════════════════════════════════════════════╝
 #
@@ -208,7 +208,7 @@ fi
 
 # Normaler Modus
 echo ""
-echo -e "${BOLD}${BLUE}  Publixx PIM — Healthcheck${NC}"
+echo -e "${BOLD}${BLUE}  anyPIM — Healthcheck${NC}"
 echo -e "  ─────────────────────────────"
 echo ""
 

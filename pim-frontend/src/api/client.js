@@ -84,5 +84,8 @@ export function buildParams(options = {}) {
     }
   }
 
+  if (options.attribute_columns) params.attribute_columns = options.attribute_columns
+  if (options.language) params.language = options.language
+
   return params
 }

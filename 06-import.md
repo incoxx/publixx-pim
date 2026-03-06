@@ -1,4 +1,4 @@
-# Publixx PIM — Excel-Import
+# anyPIM — Excel-Import
 
 > **Zweck:** Excel-basierter Datenimport. Verwende diesen Skill beim Implementieren der Import-Engine, Validierung, Template-Generierung und Import-UI.
 

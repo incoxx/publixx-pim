@@ -4,7 +4,7 @@ title: Vererbungssystem
 
 # Vererbungssystem
 
-Das Vererbungssystem ist eines der zentralen Architekturelemente von Publixx PIM. Es reduziert Redundanz, gewaehrleistet Konsistenz und ermoeglicht die effiziente Pflege grosser Produktsortimente mit gemeinsamen Eigenschaften. Das System arbeitet auf zwei unabhaengigen Ebenen, die sich gegenseitig ergaenzen.
+Das Vererbungssystem ist eines der zentralen Architekturelemente von anyPIM. Es reduziert Redundanz, gewaehrleistet Konsistenz und ermoeglicht die effiziente Pflege grosser Produktsortimente mit gemeinsamen Eigenschaften. Das System arbeitet auf zwei unabhaengigen Ebenen, die sich gegenseitig ergaenzen.
 
 ## Uebersicht der Vererbungstypen
 

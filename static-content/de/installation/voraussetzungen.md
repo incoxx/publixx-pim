@@ -4,13 +4,13 @@ title: Voraussetzungen
 
 # Voraussetzungen
 
-Bevor Sie mit der Installation des Publixx PIM beginnen, stellen Sie sicher, dass Ihre Umgebung die folgenden Anforderungen erfüllt. Die Angaben beziehen sich auf den produktiven Betrieb -- für die lokale Entwicklung gelten dieselben Software-Voraussetzungen, die Hardware-Anforderungen sind jedoch geringer.
+Bevor Sie mit der Installation des anyPIM beginnen, stellen Sie sicher, dass Ihre Umgebung die folgenden Anforderungen erfüllt. Die Angaben beziehen sich auf den produktiven Betrieb -- für die lokale Entwicklung gelten dieselben Software-Voraussetzungen, die Hardware-Anforderungen sind jedoch geringer.
 
 ## Software-Anforderungen
 
 ### PHP 8.3+
 
-Das Publixx PIM setzt PHP in Version 8.3 oder höher voraus. Folgende PHP-Erweiterungen müssen aktiviert sein:
+Das anyPIM setzt PHP in Version 8.3 oder höher voraus. Folgende PHP-Erweiterungen müssen aktiviert sein:
 
 | Erweiterung | Zweck |
 |---|---|
@@ -153,7 +153,7 @@ Für die lokale Entwicklung genügen in der Regel:
 
 ## Betriebssystem
 
-Das Publixx PIM ist für den Betrieb unter **Ubuntu 24.04 LTS** optimiert und getestet. Andere Linux-Distributionen (Debian 12, Rocky Linux 9) können ebenfalls verwendet werden, sind aber nicht offiziell getestet.
+Das anyPIM ist für den Betrieb unter **Ubuntu 24.04 LTS** optimiert und getestet. Andere Linux-Distributionen (Debian 12, Rocky Linux 9) können ebenfalls verwendet werden, sind aber nicht offiziell getestet.
 
 ::: info Zusammenfassung der Versionsanforderungen
 | Komponente | Mindestversion |

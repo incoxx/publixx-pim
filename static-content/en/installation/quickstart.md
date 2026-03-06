@@ -4,7 +4,7 @@ title: Quick Start
 
 # Quick Start
 
-Publixx PIM offers two installation paths: the **automated setup script** (recommended) for server installations and **manual installation** for development environments.
+anyPIM offers two installation paths: the **automated setup script** (recommended) for server installations and **manual installation** for development environments.
 
 ## Automated Installation with setup.sh (Recommended)
 
@@ -197,7 +197,7 @@ Open the `.env` file and configure at least the following values:
 
 ```dotenv
 # Application
-APP_NAME="Publixx PIM"
+APP_NAME="anyPIM"
 APP_ENV=local
 APP_DEBUG=true
 APP_URL=http://localhost:8000

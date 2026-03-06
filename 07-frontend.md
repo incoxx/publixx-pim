@@ -1,4 +1,4 @@
-# Publixx PIM — Frontend (Vue.js)
+# anyPIM — Frontend (Vue.js)
 
 > **Zweck:** Vue.js 3 SPA-Architektur und UI. Verwende diesen Skill beim Bauen von Komponenten, Views, Stores, Composables und beim Styling.
 

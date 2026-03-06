@@ -2,13 +2,13 @@
 title: Bedienung - Übersicht
 ---
 
-# Bedienung des Publixx PIM
+# Bedienung des anyPIM
 
-Willkommen im Bedienungshandbuch des Publixx PIM. Dieses Kapitel richtet sich an alle Anwender, die täglich mit dem System arbeiten: vom Produktmanager über den Data Steward bis zum Export-Verantwortlichen. Sie erfahren hier, wie Sie Produkte anlegen und pflegen, Attribute konfigurieren, Hierarchien aufbauen, Medien verwalten, Preise erfassen und Benutzer administrieren.
+Willkommen im Bedienungshandbuch des anyPIM. Dieses Kapitel richtet sich an alle Anwender, die täglich mit dem System arbeiten: vom Produktmanager über den Data Steward bis zum Export-Verantwortlichen. Sie erfahren hier, wie Sie Produkte anlegen und pflegen, Attribute konfigurieren, Hierarchien aufbauen, Medien verwalten, Preise erfassen und Benutzer administrieren.
 
 ## Die Benutzeroberfläche im Überblick
 
-Das Publixx PIM ist als moderne Single-Page-Applikation auf Basis von Vue 3 mit Tailwind CSS und DaisyUI umgesetzt. Nach dem Login gelangen Sie auf das Dashboard, von dem aus alle Funktionsbereiche über die **Seitenleiste** (Sidebar) erreichbar sind.
+Das anyPIM ist als moderne Single-Page-Applikation auf Basis von Vue 3 mit Tailwind CSS und DaisyUI umgesetzt. Nach dem Login gelangen Sie auf das Dashboard, von dem aus alle Funktionsbereiche über die **Seitenleiste** (Sidebar) erreichbar sind.
 
 ### Aufbau der Oberfläche
 
@@ -40,7 +40,7 @@ Das Publixx PIM ist als moderne Single-Page-Applikation auf Basis von Vue 3 mit 
   <!-- Logo area -->
   <rect class="logo-bg" x="16" y="16" width="28" height="28" />
   <text class="logo-text" x="24" y="36">P</text>
-  <text class="brand-text" x="54" y="36">Publixx PIM</text>
+  <text class="brand-text" x="54" y="36">anyPIM</text>
   <!-- Sidebar nav items -->
   <circle class="icon-dot" cx="28" cy="72" r="4" />
   <text class="sidebar-text" x="44" y="76">Suche</text>
@@ -110,7 +110,7 @@ Klicken Sie in der Sidebar unten auf **Abmelden**, um Ihre Sitzung sicher zu bee
 
 ## Sprachumschaltung
 
-Das Publixx PIM unterstuetzt **Deutsch** und **Englisch** als Oberflaechensprachen. Die Spracheinstellung koennen Sie an zwei Stellen aendern:
+Das anyPIM unterstuetzt **Deutsch** und **Englisch** als Oberflaechensprachen. Die Spracheinstellung koennen Sie an zwei Stellen aendern:
 
 1. **Benutzereinstellungen** -- Unter Ihrem Benutzerprofil koennen Sie die bevorzugte Sprache dauerhaft festlegen.
 2. **Sidebar** -- Ueber den Sprachschalter in der Seitenleiste wechseln Sie schnell zwischen DE und EN.

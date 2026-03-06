@@ -4,7 +4,7 @@ title: Import - Overview
 
 # Import
 
-The import module of the Publixx PIM enables bulk ingestion of product data via standardized Excel files. It is designed for product managers and data stewards who want to efficiently load large volumes of data into the system -- without requiring technical API knowledge.
+The import module of the anyPIM enables bulk ingestion of product data via standardized Excel files. It is designed for product managers and data stewards who want to efficiently load large volumes of data into the system -- without requiring technical API knowledge.
 
 ## Concept
 

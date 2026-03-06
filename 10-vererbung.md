@@ -1,4 +1,4 @@
-# Publixx PIM — Vererbungskonzept
+# anyPIM — Vererbungskonzept
 
 > **Zweck:** Attributvererbung über Hierarchien und von Produkten auf Varianten. Verwende diesen Skill beim Implementieren der Vererbungs-Engine und der Datenpflege-Logik.
 

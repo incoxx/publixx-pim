@@ -1,8 +1,8 @@
 import client from './client'
 
 export default {
-  list() {
-    return client.get('/watchlist')
+  list(params = {}) {
+    return client.get('/watchlist', { params })
   },
 
   add(productId, note = null) {

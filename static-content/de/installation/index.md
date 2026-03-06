@@ -4,17 +4,17 @@ title: Installation - Übersicht
 
 # Installation
 
-Dieses Kapitel beschreibt die vollständige Einrichtung des Publixx PIM -- von den Systemvoraussetzungen über die lokale Entwicklungsumgebung bis hin zum produktiven Deployment auf einem Linux-Server.
+Dieses Kapitel beschreibt die vollständige Einrichtung des anyPIM -- von den Systemvoraussetzungen über die lokale Entwicklungsumgebung bis hin zum produktiven Deployment auf einem Linux-Server.
 
 ## Kapitelstruktur
 
 ### [Voraussetzungen](./voraussetzungen)
 
-Detaillierte Aufstellung aller Software- und Hardwareanforderungen, die das Publixx PIM benötigt. Hier erfahren Sie, welche PHP-Erweiterungen installiert sein müssen, welche MySQL-Version unterstützt wird und wie die empfohlene Serverdimensionierung aussieht.
+Detaillierte Aufstellung aller Software- und Hardwareanforderungen, die das anyPIM benötigt. Hier erfahren Sie, welche PHP-Erweiterungen installiert sein müssen, welche MySQL-Version unterstützt wird und wie die empfohlene Serverdimensionierung aussieht.
 
 ### [Schnellstart](./schnellstart)
 
-Schritt-für-Schritt-Anleitung, um das Publixx PIM in wenigen Minuten lokal zum Laufen zu bringen. Ideal für Entwickler, die sofort produktiv arbeiten möchten. Umfasst das Klonen des Repositorys, die Installation der Abhängigkeiten, die Konfiguration der Umgebungsvariablen sowie den Start der Entwicklungsserver.
+Schritt-für-Schritt-Anleitung, um das anyPIM in wenigen Minuten lokal zum Laufen zu bringen. Ideal für Entwickler, die sofort produktiv arbeiten möchten. Umfasst das Klonen des Repositorys, die Installation der Abhängigkeiten, die Konfiguration der Umgebungsvariablen sowie den Start der Entwicklungsserver.
 
 ### [Deployment](./deployment)
 
@@ -22,7 +22,7 @@ Anleitung für das produktive Deployment auf einem Ubuntu-Server mit Nginx, PHP-
 
 ## Technologie-Stack
 
-Das Publixx PIM basiert auf folgenden Kerntechnologien:
+Das anyPIM basiert auf folgenden Kerntechnologien:
 
 | Komponente | Technologie | Version |
 |---|---|---|
@@ -39,7 +39,7 @@ Das Publixx PIM basiert auf folgenden Kerntechnologien:
 
 ## Lizenz
 
-Das Publixx PIM ist unter der **AGPL-3.0-only** Lizenz veröffentlicht. Das bedeutet:
+Das anyPIM ist unter der **AGPL-3.0-only** Lizenz veröffentlicht. Das bedeutet:
 
 - Sie dürfen die Software frei nutzen, verändern und verteilen.
 - Änderungen an der Software, die über ein Netzwerk bereitgestellt werden, müssen ebenfalls unter der AGPL-3.0 veröffentlicht werden.

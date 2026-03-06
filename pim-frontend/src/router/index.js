@@ -223,7 +223,7 @@ router.beforeEach((to, from, next) => {
 
 // Document title
 router.afterEach((to) => {
-  const appName = import.meta.env.VITE_APP_NAME || 'Publixx PIM'
+  const appName = import.meta.env.VITE_APP_NAME || 'anyPIM'
   document.title = to.meta.title ? `${to.meta.title} — ${appName}` : appName
 })
 

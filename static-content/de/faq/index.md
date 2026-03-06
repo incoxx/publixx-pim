@@ -4,7 +4,7 @@ title: Häufig gestellte Fragen (FAQ)
 
 # Häufig gestellte Fragen (FAQ)
 
-Hier finden Sie Antworten auf die am häufigsten gestellten Fragen zum Publixx PIM. Die Fragen sind thematisch gruppiert und decken Bereiche von der alltäglichen Nutzung bis zur Systemadministration ab.
+Hier finden Sie Antworten auf die am häufigsten gestellten Fragen zum anyPIM. Die Fragen sind thematisch gruppiert und decken Bereiche von der alltäglichen Nutzung bis zur Systemadministration ab.
 
 ## Benutzerverwaltung
 
@@ -34,7 +34,7 @@ Fordern Sie den Benutzer auf, das Passwort nach dem ersten Login umgehend zu än
 
 ### Wie kann ich Benutzer auf bestimmte Produktkategorien einschränken?
 
-Das Publixx PIM unterstützt eine feingranulare Zugriffskontrolle über das Rollen- und Berechtigungssystem. So richten Sie eine Einschränkung ein:
+Das anyPIM unterstützt eine feingranulare Zugriffskontrolle über das Rollen- und Berechtigungssystem. So richten Sie eine Einschränkung ein:
 
 1. Erstellen Sie unter **Benutzer > Rollen** eine neue Rolle (z. B. "Produktmanager Elektro").
 2. Weisen Sie der Rolle die gewünschten Berechtigungen zu (z. B. Produkte lesen, bearbeiten -- aber nicht löschen).
@@ -59,7 +59,7 @@ Die Schaltflächen **Speichern** und **Löschen** werden nur angezeigt, wenn Ihr
 
 ### Wie viele Produkte kann das System verwalten?
 
-Das Publixx PIM ist für Produktbestände von **100.000+ Produkten** mit jeweils zahlreichen Attributwerten, Varianten und Medien ausgelegt. Auf der empfohlenen Hardware-Konfiguration (8 vCPU, 16 GB RAM, NVMe-SSD) wurden in internen Tests Bestände mit über 200.000 Produkten und mehreren Millionen Attributwerten performant verwaltet.
+Das anyPIM ist für Produktbestände von **100.000+ Produkten** mit jeweils zahlreichen Attributwerten, Varianten und Medien ausgelegt. Auf der empfohlenen Hardware-Konfiguration (8 vCPU, 16 GB RAM, NVMe-SSD) wurden in internen Tests Bestände mit über 200.000 Produkten und mehreren Millionen Attributwerten performant verwaltet.
 
 Die tatsächliche Leistungsfähigkeit hängt von folgenden Faktoren ab:
 
@@ -88,7 +88,7 @@ Dieses Verhalten lässt sich pro Attribut über die Eigenschaft `inheritable` st
 
 ### Was kann ich tun, wenn beim Import Fehler auftreten?
 
-Der Importprozess im Publixx PIM ist dreistufig aufgebaut (Upload, Validierung, Ausführung). Fehler werden in der Validierungsphase erkannt und detailliert gemeldet, **bevor** Daten in die Datenbank geschrieben werden.
+Der Importprozess im anyPIM ist dreistufig aufgebaut (Upload, Validierung, Ausführung). Fehler werden in der Validierungsphase erkannt und detailliert gemeldet, **bevor** Daten in die Datenbank geschrieben werden.
 
 Bei Validierungsfehlern gehen Sie wie folgt vor:
 
@@ -220,7 +220,7 @@ Stellen Sie sicher, dass Laravel Horizon mit ausreichend Workern konfiguriert is
 
 ### Wie füge ich eine neue Sprache hinzu?
 
-Das Publixx PIM unterstützt beliebig viele Inhaltssprachen für Produktdaten. So fügen Sie eine neue Sprache hinzu:
+Das anyPIM unterstützt beliebig viele Inhaltssprachen für Produktdaten. So fügen Sie eine neue Sprache hinzu:
 
 1. **Sprache über den Import anlegen**: Fügen Sie die Sprache im Tab `01_Sprachen` der Excel-Importdatei hinzu (ISO-639-1-Code und Bezeichnung).
 2. **Alternativ über die API**:
@@ -254,7 +254,7 @@ tail -f storage/logs/laravel.log
 
 ### Kann ich das System in einer Docker-Umgebung betreiben?
 
-Das Publixx PIM ist primär für den nativen Betrieb auf einem Linux-Server konzipiert und dokumentiert. Ein Docker-Setup ist grundsätzlich möglich, wird aber derzeit nicht offiziell bereitgestellt. Bei einer Containerisierung müssen Sie folgende Dienste als separate Container oder Services berücksichtigen:
+Das anyPIM ist primär für den nativen Betrieb auf einem Linux-Server konzipiert und dokumentiert. Ein Docker-Setup ist grundsätzlich möglich, wird aber derzeit nicht offiziell bereitgestellt. Bei einer Containerisierung müssen Sie folgende Dienste als separate Container oder Services berücksichtigen:
 
 - PHP-FPM (mit allen erforderlichen Erweiterungen)
 - Nginx
@@ -262,9 +262,9 @@ Das Publixx PIM ist primär für den nativen Betrieb auf einem Linux-Server konz
 - Redis
 - Supervisor/Horizon (als separater Worker-Container)
 
-### Unter welcher Lizenz steht das Publixx PIM?
+### Unter welcher Lizenz steht das anyPIM?
 
-Das Publixx PIM ist unter der **AGPL-3.0-only** Lizenz veröffentlicht. Diese erlaubt die freie Nutzung, Veränderung und Weitergabe der Software. Wenn Sie die Software (auch verändert) über ein Netzwerk bereitstellen, müssen Sie den Quellcode unter derselben Lizenz verfügbar machen. Alle verwendeten Drittanbieter-Komponenten und deren Lizenzen finden Sie in der Datei `THIRD-PARTY-NOTICES` im Projektverzeichnis.
+Das anyPIM ist unter der **AGPL-3.0-only** Lizenz veröffentlicht. Diese erlaubt die freie Nutzung, Veränderung und Weitergabe der Software. Wenn Sie die Software (auch verändert) über ein Netzwerk bereitstellen, müssen Sie den Quellcode unter derselben Lizenz verfügbar machen. Alle verwendeten Drittanbieter-Komponenten und deren Lizenzen finden Sie in der Datei `THIRD-PARTY-NOTICES` im Projektverzeichnis.
 
 ## Weitere Fragen?
 

@@ -191,7 +191,7 @@ XML;
         $xliff = <<<XML
 <?xml version="1.0" encoding="UTF-8"?>
 <xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
-  <file source-language="{$sourceLang}" target-language="{$targetLang}" datatype="plaintext" original="publixx-pim">
+  <file source-language="{$sourceLang}" target-language="{$targetLang}" datatype="plaintext" original="anypim">
     <body>
 {$units}    </body>
   </file>

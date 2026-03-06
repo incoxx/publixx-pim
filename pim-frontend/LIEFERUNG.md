@@ -1,4 +1,4 @@
-# Publixx PIM Frontend — Lieferung Agent 8
+# anyPIM Frontend — Lieferung Agent 8
 
 > **Datum:** 19.02.2026 | **Agent:** 8 (Frontend) | **Phase:** 3
 
@@ -125,7 +125,7 @@ In `.env` (oder `.env.local` für lokale Overrides):
 
 ```env
 VITE_API_BASE_URL=http://localhost:8000/api/v1
-VITE_APP_NAME=Publixx PIM
+VITE_APP_NAME=anyPIM
 VITE_DEFAULT_LOCALE=de
 ```
 

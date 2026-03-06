@@ -4,7 +4,7 @@ title: Pricing
 
 # Pricing
 
-The pricing management of the Publixx PIM enables the central maintenance of product prices in various price types and currencies. This chapter describes the configuration of price types, the recording of prices per product, and the management of validity periods.
+The pricing management of the anyPIM enables the central maintenance of product prices in various price types and currencies. This chapter describes the configuration of price types, the recording of prices per product, and the management of validity periods.
 
 ## Price Types
 
@@ -36,7 +36,7 @@ Price types are defined system-wide and apply to all products. The actual price 
 
 ## Currencies
 
-The Publixx PIM supports **multiple currencies** simultaneously. For each price, the currency is stored as an ISO 4217 code (e.g., EUR, USD, CHF, GBP).
+The anyPIM supports **multiple currencies** simultaneously. For each price, the currency is stored as an ISO 4217 code (e.g., EUR, USD, CHF, GBP).
 
 ### Available Currencies
 

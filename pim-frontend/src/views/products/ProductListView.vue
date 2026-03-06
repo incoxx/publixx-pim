@@ -7,7 +7,7 @@ import { useAttributeStore } from '@/stores/attributes'
 import { useAuthStore } from '@/stores/auth'
 import { useFilters } from '@/composables/useFilters'
 import { useLocaleStore } from '@/stores/locale'
-import { Plus, Languages, Upload, Download, X, GitCompareArrows, Star, Pencil, FileSpreadsheet } from 'lucide-vue-next'
+import { Plus, Languages, Upload, Download, X, GitCompareArrows, Star, Pencil, FileSpreadsheet, ListFilter } from 'lucide-vue-next'
 import PimTable from '@/components/shared/PimTable.vue'
 import ColumnConfigPopover from '@/components/shared/ColumnConfigPopover.vue'
 import { useColumnConfig } from '@/composables/useColumnConfig'
@@ -17,6 +17,7 @@ import PimConfirmDialog from '@/components/shared/PimConfirmDialog.vue'
 import ProductCreatePanel from '@/components/panels/ProductCreatePanel.vue'
 import productsApi from '@/api/products'
 import watchlistApi from '@/api/watchlist'
+import searchApi from '@/api/search'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -27,7 +28,7 @@ const localeStore = useLocaleStore()
 
 const { search, activeFilters, setSearch, removeFilter, clearFilters } = useFilters(() => {
   store.setSearch(search.value)
-  store.fetchList()
+  fetchWithAttributes()
 })
 
 const defaultColumns = [
@@ -43,7 +44,71 @@ const extraColumns = [
   { key: 'created_at', label: 'Erstellt', sortable: true },
 ]
 
-const { visibleColumns, allColumns, visibleKeys, isColumnVisible, toggleColumn, moveColumn, resetColumns } = useColumnConfig('columns:products', defaultColumns, extraColumns)
+// Dynamic attribute columns
+const searchableAttributes = ref([])
+
+const attributeColumns = computed(() =>
+  searchableAttributes.value.map(attr => ({
+    key: `attributes.${attr.id}`,
+    label: attr.name_de || attr.technical_name,
+    group: 'Attribute',
+  }))
+)
+
+const { visibleColumns, allColumns, visibleKeys, isColumnVisible, toggleColumn, moveColumn, resetColumns } = useColumnConfig('columns:products', defaultColumns, extraColumns, attributeColumns)
+
+// Quick Lookup
+const showQuickLookup = ref(false)
+const quickLookupFilters = ref({})
+
+const statusOptions = [
+  { value: 'active', label: 'Aktiv' },
+  { value: 'draft', label: 'Entwurf' },
+  { value: 'inactive', label: 'Inaktiv' },
+  { value: 'discontinued', label: 'Auslaufend' },
+]
+
+const productTypeOptions = computed(() =>
+  attrStore.prodTypes.map(pt => ({ value: pt.name_de || pt.technical_name, label: pt.name_de || pt.technical_name }))
+)
+
+const quickLookupConfig = computed(() => ({
+  sku: { type: 'text', placeholder: 'SKU...' },
+  name: { type: 'text', placeholder: 'Name...' },
+  'product_type.name_de': { type: 'select', options: productTypeOptions.value },
+  status: { type: 'select', options: statusOptions },
+  ean: { type: 'text', placeholder: 'EAN...' },
+}))
+
+function getCellValueForFilter(row, colKey) {
+  const keys = colKey.split('.')
+  let val = row
+  for (const k of keys) val = val?.[k]
+  return val
+}
+
+const filteredItems = computed(() => {
+  if (!showQuickLookup.value) return store.items
+  const filters = quickLookupFilters.value
+  const activeFiltersArr = Object.entries(filters).filter(([, v]) => v !== '' && v != null)
+  if (activeFiltersArr.length === 0) return store.items
+
+  return store.items.filter(row => {
+    return activeFiltersArr.every(([colKey, filterVal]) => {
+      const cellVal = getCellValueForFilter(row, colKey)
+      if (cellVal == null || cellVal === '—') return false
+      const config = quickLookupConfig.value[colKey]
+      if (config?.type === 'select') {
+        return String(cellVal) === String(filterVal)
+      }
+      return String(cellVal).toLowerCase().startsWith(String(filterVal).toLowerCase())
+    })
+  })
+})
+
+function onQuickLookupChange(filters) {
+  quickLookupFilters.value = filters
+}
 
 // Excel export
 const excelExporting = ref(false)
@@ -71,7 +136,7 @@ const deleting = ref(false)
 
 function handleSort(field, order) {
   store.setSort(field, order)
-  store.fetchList()
+  fetchWithAttributes()
 }
 
 function openProduct(row) {
@@ -93,7 +158,7 @@ async function confirmDelete() {
   try {
     await store.remove(deleteTarget.value.id)
     deleteTarget.value = null
-    await store.fetchList()
+    await fetchWithAttributes()
   } finally {
     deleting.value = false
   }
@@ -158,7 +223,7 @@ async function importXliff(event) {
   try {
     const { data } = await productsApi.importXliff(file)
     xliffImportResult.value = data
-    store.fetchList()
+    fetchWithAttributes()
   } catch (e) {
     xliffImportResult.value = { message: 'Import fehlgeschlagen', errors: [e.message] }
   } finally {
@@ -212,8 +277,25 @@ function openBulkEditor() {
   router.push({ path: '/products/bulk-edit', query: { ids } })
 }
 
-onMounted(() => {
-  store.fetchList()
+// Fetch with attribute columns
+function fetchWithAttributes() {
+  const attrColumnIds = visibleKeys.value
+    .filter(k => k.startsWith('attributes.'))
+    .map(k => k.replace('attributes.', ''))
+  const options = attrColumnIds.length > 0 ? { attribute_columns: attrColumnIds, language: 'de' } : {}
+  store.fetchList(options)
+}
+
+onMounted(async () => {
+  // Load searchable attributes for dynamic columns
+  try {
+    const { data } = await searchApi.searchableAttributes()
+    searchableAttributes.value = data.data || data
+  } catch (e) {
+    console.error('Failed to load searchable attributes', e)
+  }
+
+  fetchWithAttributes()
   attrStore.fetchProductTypes()
   loadWatchlistIds()
 })
@@ -232,6 +314,15 @@ onMounted(() => {
           @move="moveColumn"
           @reset="resetColumns"
         />
+        <button
+          class="pim-btn pim-btn-secondary text-xs"
+          :class="showQuickLookup ? 'bg-[var(--color-accent-light)] text-[var(--color-accent)]' : ''"
+          @click="showQuickLookup = !showQuickLookup"
+          title="Quick Lookup"
+        >
+          <ListFilter class="w-3.5 h-3.5" :stroke-width="1.75" />
+          <span class="hidden sm:inline">Quick Lookup</span>
+        </button>
         <button class="pim-btn pim-btn-secondary text-xs" :disabled="excelExporting" @click="exportExcel">
           <FileSpreadsheet class="w-3.5 h-3.5" :stroke-width="1.75" />
           {{ excelExporting ? 'Export...' : 'Excel' }}
@@ -339,17 +430,20 @@ onMounted(() => {
     <!-- Table -->
     <PimTable
       :columns="visibleColumns"
-      :rows="store.items"
+      :rows="filteredItems"
       :loading="store.loading"
       :sortField="store.sort.field"
       :sortOrder="store.sort.order"
       selectable
       :showActions="authStore.hasPermission('products.delete')"
       emptyText="Keine Produkte gefunden"
+      :quickLookup="showQuickLookup"
+      :quickLookupConfig="quickLookupConfig"
       @sort="handleSort"
       @row-click="openProduct"
       @row-action="handleRowAction"
       @select="handleSelect"
+      @quick-lookup-change="onQuickLookupChange"
     >
       <template #cell-sku="{ row, value }">
         <div class="flex items-center gap-2">
@@ -396,7 +490,7 @@ onMounted(() => {
             <button
               class="pim-btn pim-btn-ghost text-xs"
               :disabled="store.meta.current_page <= 1"
-              @click="store.setPage(store.meta.current_page - 1); store.fetchList()"
+              @click="store.setPage(store.meta.current_page - 1); fetchWithAttributes()"
             >Zurück</button>
             <span class="text-xs text-[var(--color-text-secondary)] px-2">
               {{ store.meta.current_page }} / {{ store.meta.last_page }}
@@ -404,7 +498,7 @@ onMounted(() => {
             <button
               class="pim-btn pim-btn-ghost text-xs"
               :disabled="store.meta.current_page >= store.meta.last_page"
-              @click="store.setPage(store.meta.current_page + 1); store.fetchList()"
+              @click="store.setPage(store.meta.current_page + 1); fetchWithAttributes()"
             >Weiter</button>
           </div>
         </div>

@@ -116,7 +116,7 @@ class AuthController extends Controller
         array $extra = [],
     ): JsonResponse {
         return response()->json(array_merge([
-            'type' => "https://publixx-pim.local/problems/{$type}",
+            'type' => "https://anypim.local/problems/{$type}",
             'title' => $title,
             'detail' => $detail,
             'status' => $status,

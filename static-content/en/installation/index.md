@@ -4,17 +4,17 @@ title: Installation - Overview
 
 # Installation
 
-This chapter describes the complete setup of Publixx PIM — from system requirements through the local development environment to production deployment on a Linux server.
+This chapter describes the complete setup of anyPIM — from system requirements through the local development environment to production deployment on a Linux server.
 
 ## Chapter Structure
 
 ### [Requirements](./requirements)
 
-Detailed listing of all software and hardware requirements for Publixx PIM. Learn which PHP extensions must be installed, which MySQL version is supported, and the recommended server sizing.
+Detailed listing of all software and hardware requirements for anyPIM. Learn which PHP extensions must be installed, which MySQL version is supported, and the recommended server sizing.
 
 ### [Quick Start](./quickstart)
 
-Step-by-step guide to get Publixx PIM running locally in just a few minutes. Ideal for developers who want to be productive immediately. Covers cloning the repository, installing dependencies, configuring environment variables, and starting the development servers.
+Step-by-step guide to get anyPIM running locally in just a few minutes. Ideal for developers who want to be productive immediately. Covers cloning the repository, installing dependencies, configuring environment variables, and starting the development servers.
 
 ### [Deployment](./deployment)
 
@@ -37,7 +37,7 @@ Guide for production deployment on an Ubuntu server with Nginx, PHP-FPM, SSL cer
 
 ## License
 
-Publixx PIM is released under the **AGPL-3.0-only** license. This means:
+anyPIM is released under the **AGPL-3.0-only** license. This means:
 
 - You may freely use, modify, and distribute the software.
 - Modifications to the software provided over a network must also be published under AGPL-3.0.

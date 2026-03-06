@@ -1,4 +1,4 @@
-# Publixx PIM — Datenmodell
+# anyPIM — Datenmodell
 
 > **Zweck:** Vollständiges Entity-Relationship-Modell. Verwende diesen Skill beim Erstellen von Migrations, Models, Seedern, API-Resources oder bei Fragen zum Schema.
 

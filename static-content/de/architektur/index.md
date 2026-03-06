@@ -4,7 +4,7 @@ title: Architekturuebersicht
 
 # Architekturuebersicht
 
-Publixx PIM ist als moderne Webanwendung mit klar getrenntem Backend und Frontend konzipiert. Das Backend stellt eine vollstaendige REST-API bereit, das Frontend konsumiert diese als Single-Page-Application. Diese Architektur ermoeglicht sowohl die Nutzung ueber die Weboberflaeche als auch die direkte API-Integration durch Drittsysteme.
+anyPIM ist als moderne Webanwendung mit klar getrenntem Backend und Frontend konzipiert. Das Backend stellt eine vollstaendige REST-API bereit, das Frontend konsumiert diese als Single-Page-Application. Diese Architektur ermoeglicht sowohl die Nutzung ueber die Weboberflaeche als auch die direkte API-Integration durch Drittsysteme.
 
 ## Systemarchitektur
 
@@ -181,7 +181,7 @@ Vite uebernimmt sowohl die Entwicklungsumgebung (HMR mit unter 100ms Aktualisier
 
 ### Redis als Anwendungscache
 
-Publixx PIM nutzt Redis fuer zwei Zwecke: als Anwendungscache und als Queue-Broker.
+anyPIM nutzt Redis fuer zwei Zwecke: als Anwendungscache und als Queue-Broker.
 
 **Tagged Cache Invalidation:**
 Caches werden mit Tags versehen, die eine gezielte Invalidierung ermoeglichen. Aendert sich ein Produkt, werden alle Caches mit dem Tag `product:{id}` invalidiert -- unabhaengig davon, ob sie Listendarstellungen, Detailansichten oder Suchindex-Eintraege betreffen.

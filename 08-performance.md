@@ -1,4 +1,4 @@
-# Publixx PIM — Performance-Architektur
+# anyPIM — Performance-Architektur
 
 > **Zweck:** Das System muss rasend schnell sein. Verwende diesen Skill bei Optimierung, Caching, Indizierung und Infrastruktur-Entscheidungen.
 

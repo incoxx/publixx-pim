@@ -132,7 +132,7 @@ const shortcuts = [
       </div>
       <div>
         <h2 class="text-lg font-semibold text-[var(--color-text-primary)]">{{ t('nav.help') }}</h2>
-        <p class="text-xs text-[var(--color-text-tertiary)]">Publixx PIM — Product Information Management</p>
+        <p class="text-xs text-[var(--color-text-tertiary)]">anyPIM — Product Information Management</p>
       </div>
     </div>
 
@@ -253,7 +253,7 @@ const shortcuts = [
     </div>
 
     <p class="text-[11px] text-[var(--color-text-tertiary)]">
-      Publixx PIM ist lizenziert unter AGPL-3.0.
+      anyPIM ist lizenziert unter AGPL-3.0.
     </p>
   </div>
 </template>

@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Publixx PIM — Docs VHost Setup
+# anyPIM — Docs VHost Setup
 #
 # Adds the Apache Alias for the VitePress documentation to the active VHost.
 #
@@ -75,7 +75,7 @@ info "Backup created: $BACKUP"
 # ─── Inject docs config before closing </VirtualHost> ───────────────────────
 DOCS_BLOCK=$(cat <<'APACHE'
 
-    # ─── Publixx PIM Documentation (VitePress) ──────────────────────
+    # ─── anyPIM Documentation (VitePress) ──────────────────────
     Alias /web/help /var/www/publixx-pim/static-content/.vitepress/dist
 
     <Directory /var/www/publixx-pim/static-content/.vitepress/dist>

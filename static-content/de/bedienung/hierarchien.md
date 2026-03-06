@@ -4,7 +4,7 @@ title: Hierarchien
 
 # Hierarchien
 
-Hierarchien sind ein zentrales Organisationsprinzip im Publixx PIM. Sie strukturieren Produkte in Baumstrukturen und steuern, welche Attribute den Produkten in einer bestimmten Kategorie zur Verfügung stehen. Das System unterscheidet zwei Hierarchiearten: **Master-Hierarchien** für die interne Produktklassifizierung und **Ausgabe-Hierarchien** für die Exportstruktur.
+Hierarchien sind ein zentrales Organisationsprinzip im anyPIM. Sie strukturieren Produkte in Baumstrukturen und steuern, welche Attribute den Produkten in einer bestimmten Kategorie zur Verfügung stehen. Das System unterscheidet zwei Hierarchiearten: **Master-Hierarchien** für die interne Produktklassifizierung und **Ausgabe-Hierarchien** für die Exportstruktur.
 
 ## Hierarchietypen
 

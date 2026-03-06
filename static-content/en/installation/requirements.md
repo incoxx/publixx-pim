@@ -4,13 +4,13 @@ title: Requirements
 
 # Requirements
 
-Before starting the installation of Publixx PIM, ensure your environment meets the following requirements. The specifications apply to production use — for local development, the same software requirements apply, but hardware requirements are lower.
+Before starting the installation of anyPIM, ensure your environment meets the following requirements. The specifications apply to production use — for local development, the same software requirements apply, but hardware requirements are lower.
 
 ## Software Requirements
 
 ### PHP 8.3+
 
-Publixx PIM requires PHP version 8.3 or higher. The following PHP extensions must be enabled:
+anyPIM requires PHP version 8.3 or higher. The following PHP extensions must be enabled:
 
 | Extension | Purpose |
 |---|---|
@@ -108,7 +108,7 @@ For larger product catalogs (100,000+ products), extensive media libraries, or h
 
 ## Operating System
 
-Publixx PIM is optimized and tested for **Ubuntu 24.04 LTS**. Other Linux distributions (Debian 12, Rocky Linux 9) can also be used but are not officially tested.
+anyPIM is optimized and tested for **Ubuntu 24.04 LTS**. Other Linux distributions (Debian 12, Rocky Linux 9) can also be used but are not officially tested.
 
 ## Next Step
 

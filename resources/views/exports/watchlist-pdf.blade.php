@@ -125,7 +125,7 @@
 @endforeach
 
 <div class="footer">
-    Publixx PIM &mdash; {{ $lang === 'en' ? 'Watchlist Export' : 'Merkliste Export' }} &mdash; {{ now()->format('d.m.Y H:i') }}
+    anyPIM &mdash; {{ $lang === 'en' ? 'Watchlist Export' : 'Merkliste Export' }} &mdash; {{ now()->format('d.m.Y H:i') }}
 </div>
 
 </body>

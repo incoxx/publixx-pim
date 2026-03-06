@@ -1,8 +1,8 @@
 import { defineConfig } from 'vitepress'
 
 export default defineConfig({
-  title: 'Publixx PIM',
-  description: 'Dokumentation für das Publixx Product Information Management System',
+  title: 'anyPIM',
+  description: 'Dokumentation für das anyPIM Product Information Management System',
   base: '/web/help/',
   cleanUrls: true,
   lastUpdated: true,
@@ -241,7 +241,7 @@ export default defineConfig({
 
   themeConfig: {
     logo: '/logo.svg',
-    siteTitle: 'Publixx PIM',
+    siteTitle: 'anyPIM',
 
     socialLinks: [
       { icon: 'github', link: 'https://github.com/incoxx/publixx-pim' },
@@ -252,8 +252,8 @@ export default defineConfig({
     },
 
     footer: {
-      message: 'Publixx PIM Dokumentation',
-      copyright: '© 2025 Publixx / incoxx GmbH',
+      message: 'anyPIM Dokumentation',
+      copyright: '© 2025 anyPIM / incoxx GmbH',
     },
   },
 })

@@ -4,7 +4,7 @@ title: Media
 
 # Media
 
-The media management of the Publixx PIM provides a central library for all product-related files. Here you upload images, documents, and videos, organize them, and assign them to your products.
+The media management of the anyPIM provides a central library for all product-related files. Here you upload images, documents, and videos, organize them, and assign them to your products.
 
 ## Media Library
 

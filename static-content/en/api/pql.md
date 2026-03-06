@@ -4,7 +4,7 @@ title: PQL Query Language
 
 # PQL Query Language (Product Query Language)
 
-PQL is a domain-specific query language for Publixx PIM that allows you to filter and search products using arbitrary attribute combinations.
+PQL is a domain-specific query language for anyPIM that allows you to filter and search products using arbitrary attribute combinations.
 
 ## API Endpoints
 

@@ -135,7 +135,7 @@ class JsonFormatExporter
     {
         $data = [
             '_meta' => [
-                'format' => 'publixx-pim-json',
+                'format' => 'anypim-json',
                 'version' => '1.0',
                 'exported_at' => now()->toIso8601String(),
                 'sections' => array_values($sections),

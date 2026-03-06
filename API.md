@@ -1,4 +1,4 @@
-# Publixx PIM — API Referenz
+# anyPIM — API Referenz
 
 Base-URL: `/api/v1`
 Authentifizierung: Laravel Sanctum (Bearer Token)

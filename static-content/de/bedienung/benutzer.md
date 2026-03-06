@@ -4,7 +4,7 @@ title: Benutzer
 
 # Benutzer
 
-Die Benutzerverwaltung des Publixx PIM basiert auf einem rollenbasierten Zugriffskontrollsystem (RBAC). Dieses Kapitel beschreibt das Anlegen und Verwalten von Benutzerkonten, die verfügbaren Rollen sowie das feingranulare Berechtigungssystem.
+Die Benutzerverwaltung des anyPIM basiert auf einem rollenbasierten Zugriffskontrollsystem (RBAC). Dieses Kapitel beschreibt das Anlegen und Verwalten von Benutzerkonten, die verfügbaren Rollen sowie das feingranulare Berechtigungssystem.
 
 ## Benutzerliste
 
@@ -52,7 +52,7 @@ Gelöschte Benutzerkonten können nicht wiederhergestellt werden. In der Version
 
 ## Rollen
 
-Das Publixx PIM definiert fünf Systemrollen mit unterschiedlichen Verantwortungsbereichen:
+Das anyPIM definiert fünf Systemrollen mit unterschiedlichen Verantwortungsbereichen:
 
 ### Admin
 
@@ -127,7 +127,7 @@ Der Export Manager ist für die Datenausgabe und -eingabe über Schnittstellen v
 
 ## Berechtigungssystem
 
-Zusätzlich zu den Rollen bietet das Publixx PIM ein **feingranulares Berechtigungssystem**, das individuelle Berechtigungen pro Benutzer ermöglicht.
+Zusätzlich zu den Rollen bietet das anyPIM ein **feingranulares Berechtigungssystem**, das individuelle Berechtigungen pro Benutzer ermöglicht.
 
 ### Berechtigungsschema
 

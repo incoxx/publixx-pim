@@ -1,4 +1,4 @@
-# Publixx PIM — Auth & Rechteverwaltung
+# anyPIM — Auth & Rechteverwaltung
 
 > **Zweck:** Authentifizierung und Autorisierung. Verwende diesen Skill bei Login, Token-Management, Rollen, Berechtigungen und Policies.
 

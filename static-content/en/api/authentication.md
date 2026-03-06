@@ -4,7 +4,7 @@ title: Authentication
 
 # Authentication
 
-The Publixx PIM API uses **Bearer token authentication** via Laravel Sanctum. Every API access requires a valid token that is issued upon login.
+The anyPIM API uses **Bearer token authentication** via Laravel Sanctum. Every API access requires a valid token that is issued upon login.
 
 ## Endpoint Overview
 

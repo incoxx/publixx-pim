@@ -4,7 +4,7 @@ title: Deployment
 
 # Deployment
 
-This guide describes the production deployment of Publixx PIM on an Ubuntu server. It covers the complete server setup, configuration of all services, and automated deployment with the included deploy script.
+This guide describes the production deployment of anyPIM on an Ubuntu server. It covers the complete server setup, configuration of all services, and automated deployment with the included deploy script.
 
 ::: tip Prerequisite
 Ensure your server meets the hardware and software requirements described in the [Requirements](./requirements).
@@ -14,7 +14,7 @@ Ensure your server meets the hardware and software requirements described in the
 
 ### Operating System
 
-Publixx PIM is optimized for **Ubuntu 24.04 LTS**. First, update the system:
+anyPIM is optimized for **Ubuntu 24.04 LTS**. First, update the system:
 
 ```bash
 sudo apt update && sudo apt upgrade -y

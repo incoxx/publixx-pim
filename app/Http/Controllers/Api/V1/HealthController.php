@@ -24,7 +24,7 @@ class HealthController extends Controller
         // 1. Application
         $checks['app'] = [
             'status' => 'ok',
-            'version' => config('app.name', 'Publixx PIM'),
+            'version' => config('app.name', 'anyPIM'),
             'environment' => config('app.env'),
             'debug' => config('app.debug'),
         ];

@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 /**
- * Publixx PIM – Sanctum-Konfiguration
+ * anyPIM – Sanctum-Konfiguration
  *
  * Ergänzt/überschreibt die Default-Sanctum-Config.
  */

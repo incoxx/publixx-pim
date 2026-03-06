@@ -71,7 +71,7 @@ class ImportController extends Controller
 
         if ($import->status !== 'validated') {
             return $this->errorResponse(
-                'urn:publixx:pim:import:invalid-state',
+                'urn:anypim:import:invalid-state',
                 'Import cannot be executed',
                 422,
                 "Import status is '{$import->status}', must be 'validated'."

@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # ╔══════════════════════════════════════════════════════════════════════╗
-# ║              Publixx PIM — Update Script                            ║
+# ║              anyPIM — Update Script                            ║
 # ║              Holt den neuesten Stand von GitHub und baut neu        ║
 # ╚══════════════════════════════════════════════════════════════════════╝
 #
@@ -88,7 +88,7 @@ fi
 echo -e "${BOLD}${BLUE}"
 cat << 'BANNER'
   ╔══════════════════════════════════════════════════════════╗
-  ║   Publixx PIM — Update                                  ║
+  ║   anyPIM — Update                                  ║
   ╚══════════════════════════════════════════════════════════╝
 BANNER
 echo -e "${NC}"

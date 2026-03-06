@@ -4,7 +4,7 @@ title: Attribute
 
 # Attribute
 
-Attribute bilden das Datenmodell des Publixx PIM. Dank der EAV-Architektur (Entity-Attribute-Value) können Sie beliebig viele Attribute definieren, ohne das Datenbankschema ändern zu müssen. Dieses Kapitel beschreibt die Verwaltung von Attributen, deren Datentypen, Eigenschaften sowie die zugehörigen Konfigurationsbereiche für Attributgruppen, Wertelisten, Einheiten und Attributansichten.
+Attribute bilden das Datenmodell des anyPIM. Dank der EAV-Architektur (Entity-Attribute-Value) können Sie beliebig viele Attribute definieren, ohne das Datenbankschema ändern zu müssen. Dieses Kapitel beschreibt die Verwaltung von Attributen, deren Datentypen, Eigenschaften sowie die zugehörigen Konfigurationsbereiche für Attributgruppen, Wertelisten, Einheiten und Attributansichten.
 
 ## Attributverwaltung im Überblick
 
@@ -22,7 +22,7 @@ Die Attributverwaltung erreichen Sie über den Menüpunkt **Attribute** in der S
 
 ## Datentypen
 
-Das Publixx PIM unterstützt acht Datentypen, die das Eingabefeld und die Validierung bestimmen:
+Das anyPIM unterstützt acht Datentypen, die das Eingabefeld und die Validierung bestimmen:
 
 <svg viewBox="0 0 800 440" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;margin:1.5rem 0;">
   <defs>

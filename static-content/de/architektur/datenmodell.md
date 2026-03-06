@@ -4,7 +4,7 @@ title: Datenmodell
 
 # Datenmodell
 
-Das Datenmodell von Publixx PIM umfasst **35 Tabellen**, die in neun fachliche Domaenen gegliedert sind. Alle Tabellen verwenden **UUID-Primaerschluessel** fuer global eindeutige Identifikatoren und nutzen an zahlreichen Stellen **JSON-Spalten** fuer flexible, schemaunabhaengige Datenstrukturen.
+Das Datenmodell von anyPIM umfasst **35 Tabellen**, die in neun fachliche Domaenen gegliedert sind. Alle Tabellen verwenden **UUID-Primaerschluessel** fuer global eindeutige Identifikatoren und nutzen an zahlreichen Stellen **JSON-Spalten** fuer flexible, schemaunabhaengige Datenstrukturen.
 
 ## Domaenenuebersicht
 
@@ -99,7 +99,7 @@ Das Attributmodell bildet das Rueckgrat der EAV-Architektur. Es definiert, welch
 
 ## Das EAV-Muster im Detail
 
-Die zentrale Designentscheidung von Publixx PIM ist das **Entity-Attribute-Value-Muster**. Die folgende Darstellung zeigt die drei Kernentitaeten und ihre Beziehungen.
+Die zentrale Designentscheidung von anyPIM ist das **Entity-Attribute-Value-Muster**. Die folgende Darstellung zeigt die drei Kernentitaeten und ihre Beziehungen.
 
 <svg viewBox="0 0 880 520" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;margin:2rem auto;display:block;">
   <defs>

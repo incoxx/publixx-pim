@@ -17,7 +17,7 @@ Jede JSON-Exportdatei beginnt mit einem `_meta`-Block:
 ```json
 {
   "_meta": {
-    "format": "publixx-pim-json",
+    "format": "anypim-json",
     "version": "1.0",
     "exported_at": "2026-03-06T14:30:00+01:00",
     "sections": [

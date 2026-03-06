@@ -4,7 +4,7 @@ title: Products
 
 # Products
 
-Product management is the heart of the Publixx PIM. Here you create products, maintain attribute values in different languages, manage variants and relations, and control the entire product lifecycle.
+Product management is the heart of the anyPIM. Here you create products, maintain attribute values in different languages, manage variants and relations, and control the entire product lifecycle.
 
 ## Product List
 
