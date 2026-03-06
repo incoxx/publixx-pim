@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useAttributeStore } from '@/stores/attributes'
 import { useAuthStore } from '@/stores/auth'
 import PimForm from '@/components/shared/PimForm.vue'
@@ -12,6 +12,10 @@ const store = useAttributeStore()
 const authStore = useAuthStore()
 const loading = ref(false)
 const errors = ref({})
+
+onMounted(() => {
+  if (!store.allItems.length) store.fetchAllAttributes()
+})
 
 const isEdit = computed(() => !!props.attribute)
 
@@ -68,7 +72,7 @@ const fields = computed(() => {
 
   // Show composite format field and child attribute selector for Composite attributes
   if (formData.value.data_type === 'Composite') {
-    const eligibleChildren = store.items.filter(a => {
+    const eligibleChildren = (store.allItems.length ? store.allItems : store.items).filter(a => {
       if (a.data_type === 'Composite') return false
       if (a.id === props.attribute?.id) return false
       // Available if unassigned or already assigned to this composite
@@ -92,7 +96,7 @@ const fields = computed(() => {
   // Show parent attribute selector only for types that can be children of a composite
   const compositeChildTypes = ['String', 'Number', 'Float', 'Date', 'Flag']
   if (compositeChildTypes.includes(formData.value.data_type)) {
-    const composites = store.items.filter(a => a.data_type === 'Composite' && a.id !== props.attribute?.id)
+    const composites = (store.allItems.length ? store.allItems : store.items).filter(a => a.data_type === 'Composite' && a.id !== props.attribute?.id)
     if (composites.length > 0) {
       base.push({
         key: 'parent_attribute_id', label: 'Übergeordnetes Composite-Attribut', type: 'select',

@@ -4,6 +4,7 @@ import attributesApi, { attributeTypes, valueLists, productTypes } from '@/api/a
 
 export const useAttributeStore = defineStore('attributes', () => {
   const items = ref([])
+  const allItems = ref([])
   const types = ref([])
   const lists = ref([])
   const prodTypes = ref([])
@@ -31,6 +32,15 @@ export const useAttributeStore = defineStore('attributes', () => {
       error.value = e.response?.data?.title || 'Fehler'
     } finally {
       loading.value = false
+    }
+  }
+
+  async function fetchAllAttributes() {
+    try {
+      const { data } = await attributesApi.list({ perPage: 1000, include: 'children' })
+      allItems.value = data.data
+    } catch (e) {
+      console.error('Failed to fetch all attributes', e)
     }
   }
 
@@ -80,8 +90,8 @@ export const useAttributeStore = defineStore('attributes', () => {
   }
 
   return {
-    items, types, lists, prodTypes, loading, error, meta, dataTypes,
-    fetchAttributes, fetchTypes, fetchValueLists, fetchProductTypes,
+    items, allItems, types, lists, prodTypes, loading, error, meta, dataTypes,
+    fetchAttributes, fetchAllAttributes, fetchTypes, fetchValueLists, fetchProductTypes,
     createAttribute, updateAttribute, deleteAttribute,
   }
 })
