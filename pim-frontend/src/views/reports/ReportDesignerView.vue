@@ -88,8 +88,16 @@ async function preview() {
       : 'application/pdf'
     const blob = new Blob([response.data], { type: mimeType })
     const url = URL.createObjectURL(blob)
-    window.open(url, '_blank')
-    setTimeout(() => URL.revokeObjectURL(url), 30000)
+    if (format === 'docx') {
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${store.currentTemplate.name || 'report'}_vorschau.docx`
+      a.click()
+      setTimeout(() => URL.revokeObjectURL(url), 200)
+    } else {
+      window.open(url, '_blank')
+      setTimeout(() => URL.revokeObjectURL(url), 30000)
+    }
   } catch (e) {
     error.value = 'Vorschau konnte nicht generiert werden'
   } finally {
