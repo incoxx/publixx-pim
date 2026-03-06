@@ -170,6 +170,18 @@ export const useReportDesignerStore = defineStore('reportDesigner', () => {
     }
   }
 
+  function moveElement(groupId, section, fromIndex, toIndex) {
+    const group = findGroup(templateJson.value.groups, groupId)
+    if (!group) return
+
+    const elements = group[section].elements
+    if (fromIndex < 0 || fromIndex >= elements.length || toIndex < 0 || toIndex >= elements.length) return
+
+    const [moved] = elements.splice(fromIndex, 1)
+    elements.splice(toIndex, 0, moved)
+    isDirty.value = true
+  }
+
   // --- Selection ---
   function selectElement(elementId, groupId, section) {
     selectedElementId.value = elementId
@@ -222,7 +234,7 @@ export const useReportDesignerStore = defineStore('reportDesigner', () => {
     loadTemplates, loadTemplate, saveTemplate, createTemplate, deleteTemplate,
     loadFields,
     addGroup, removeGroup, updateGroup,
-    addElement, removeElement, updateElement,
+    addElement, removeElement, updateElement, moveElement,
     selectElement, selectGroup, clearSelection,
     updatePageHeader, updatePageFooter,
   }
