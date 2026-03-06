@@ -109,6 +109,11 @@ export default {
     return client.delete(`/product-relations/${relationId}`)
   },
 
+  // Output Hierarchy Assignments
+  getOutputHierarchyAssignments(id) {
+    return client.get(`/products/${id}/output-hierarchy-assignments`)
+  },
+
   // Preview
   getPreview(id) {
     return client.get(`/products/${id}/preview`)

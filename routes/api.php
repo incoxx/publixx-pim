@@ -21,6 +21,7 @@ use App\Http\Controllers\Api\V1\ImportProfileController;
 use App\Http\Controllers\Api\V1\LoadDemoDataController;
 use App\Http\Controllers\Api\V1\SearchProfileController;
 use App\Http\Controllers\Api\V1\HierarchyController;
+use App\Http\Controllers\Api\V1\OutputHierarchyProductAssignmentController;
 use App\Http\Controllers\Api\V1\HierarchyNodeAttributeValueController;
 use App\Http\Controllers\Api\V1\HierarchyNodeController;
 use App\Http\Controllers\Api\V1\ImportController;
@@ -207,6 +208,15 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::get('hierarchy-nodes/{hierarchy_node}/attribute-values', [HierarchyNodeAttributeValueController::class, 'index']);
     Route::put('hierarchy-nodes/{hierarchy_node}/attribute-values', [HierarchyNodeAttributeValueController::class, 'bulkUpdate']);
     Route::delete('hierarchy-node-attribute-values/{hierarchy_node_attribute_value}', [HierarchyNodeAttributeValueController::class, 'destroy']);
+
+    // =====================================================================
+    // Output Hierarchy Product Assignments
+    // =====================================================================
+    Route::get('hierarchy-nodes/{hierarchy_node}/output-products', [OutputHierarchyProductAssignmentController::class, 'index']);
+    Route::post('hierarchy-nodes/{hierarchy_node}/output-products', [OutputHierarchyProductAssignmentController::class, 'store']);
+    Route::put('hierarchy-nodes/{hierarchy_node}/output-products/sort', [OutputHierarchyProductAssignmentController::class, 'bulkSort']);
+    Route::delete('output-hierarchy-product-assignments/{assignment}', [OutputHierarchyProductAssignmentController::class, 'destroy']);
+    Route::get('products/{product}/output-hierarchy-assignments', [OutputHierarchyProductAssignmentController::class, 'productAssignments']);
 
     // =====================================================================
     // Agent 3: Products

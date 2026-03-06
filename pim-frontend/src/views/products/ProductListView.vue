@@ -41,6 +41,7 @@ const defaultColumns = [
 
 const extraColumns = [
   { key: 'ean', label: 'EAN', mono: true },
+  { key: 'master_hierarchy_node.name_de', label: 'Hierarchie-Knoten' },
   { key: 'created_at', label: 'Erstellt', sortable: true },
 ]
 
@@ -283,6 +284,7 @@ function fetchWithAttributes() {
     .filter(k => k.startsWith('attributes.'))
     .map(k => k.replace('attributes.', ''))
   const options = attrColumnIds.length > 0 ? { attribute_columns: attrColumnIds, language: 'de' } : {}
+  options.include = 'productType,masterHierarchyNode'
   store.fetchList(options)
 }
 

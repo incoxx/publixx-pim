@@ -6,8 +6,8 @@ import { useAuthStore } from '@/stores/auth'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import {
-  Plus, Edit3, Trash2, FolderPlus, Package,
-  Copy, ChevronUp, ChevronDown, Settings, GripVertical,
+  Plus, Edit3, Trash2, FolderPlus, Package, Search,
+  Copy, ChevronUp, ChevronDown, Settings, GripVertical, X,
 } from 'lucide-vue-next'
 import hierarchiesApi from '@/api/hierarchies'
 import productsApi from '@/api/products'
@@ -28,9 +28,16 @@ const nodeAttributes = ref([])
 const nodeAttrsLoading = ref(false)
 const showAttrPicker = ref(false)
 
-// Node products
+// Node products (master hierarchy)
 const nodeProducts = ref([])
 const nodeProductsLoading = ref(false)
+
+// Output hierarchy product assignments
+const outputProductAssignments = ref([])
+const showProductSearch = ref(false)
+const productSearchQuery = ref('')
+const productSearchResults = ref([])
+let productSearchTimer = null
 
 // Delete state
 const deleteNodeTarget = ref(null)
@@ -324,10 +331,82 @@ async function loadNodeProducts(nodeId) {
   if (!nodeId) return
   nodeProductsLoading.value = true
   try {
-    const { data } = await productsApi.list({ filters: { master_hierarchy_node_id: nodeId }, perPage: 20 })
-    nodeProducts.value = data.data || data
-  } catch { nodeProducts.value = [] }
-  finally { nodeProductsLoading.value = false }
+    if (store.isMasterHierarchy) {
+      const { data } = await productsApi.list({ filters: { master_hierarchy_node_id: nodeId }, perPage: 20 })
+      nodeProducts.value = data.data || data
+      outputProductAssignments.value = []
+    } else {
+      const { data } = await hierarchiesApi.getOutputProducts(nodeId, { perPage: 100 })
+      outputProductAssignments.value = data.data || data
+      nodeProducts.value = []
+    }
+  } catch {
+    nodeProducts.value = []
+    outputProductAssignments.value = []
+  } finally { nodeProductsLoading.value = false }
+}
+
+// ─── Output Hierarchy Product Assignment ─────────────
+function searchProducts() {
+  clearTimeout(productSearchTimer)
+  if (!productSearchQuery.value.trim()) { productSearchResults.value = []; return }
+  productSearchTimer = setTimeout(async () => {
+    try {
+      const assignedIds = new Set(outputProductAssignments.value.map(a => a.product?.id || a.product_id))
+      const { data } = await productsApi.list({ search: productSearchQuery.value, perPage: 10 })
+      productSearchResults.value = (data.data || data).filter(p => !assignedIds.has(p.id))
+    } catch { productSearchResults.value = [] }
+  }, 300)
+}
+
+async function assignProductToNode(product) {
+  if (!store.selectedNode) return
+  try {
+    await hierarchiesApi.assignOutputProduct(store.selectedNode.id, { product_id: product.id })
+    productSearchQuery.value = ''
+    productSearchResults.value = []
+    showProductSearch.value = false
+    await loadNodeProducts(store.selectedNode.id)
+    showFeedback('Produkt zugeordnet')
+  } catch (e) {
+    showFeedback(e.response?.data?.message || e.response?.data?.errors?.product_id?.[0] || 'Fehler beim Zuordnen', 'error')
+  }
+}
+
+async function removeOutputProduct(assignmentId) {
+  try {
+    await hierarchiesApi.removeOutputProductAssignment(assignmentId)
+    await loadNodeProducts(store.selectedNode.id)
+    showFeedback('Zuordnung entfernt')
+  } catch (e) {
+    showFeedback(e.response?.data?.title || 'Fehler beim Entfernen', 'error')
+  }
+}
+
+async function moveOutputProductUp(index) {
+  if (index <= 0) return
+  const list = [...outputProductAssignments.value]
+  ;[list[index - 1], list[index]] = [list[index], list[index - 1]]
+  outputProductAssignments.value = list
+  await persistOutputProductOrder()
+}
+
+async function moveOutputProductDown(index) {
+  if (index >= outputProductAssignments.value.length - 1) return
+  const list = [...outputProductAssignments.value]
+  ;[list[index], list[index + 1]] = [list[index + 1], list[index]]
+  outputProductAssignments.value = list
+  await persistOutputProductOrder()
+}
+
+async function persistOutputProductOrder() {
+  try {
+    const items = outputProductAssignments.value.map((a, i) => ({ id: a.id, sort_order: i }))
+    await hierarchiesApi.sortOutputProducts(store.selectedNode.id, items)
+  } catch (e) {
+    showFeedback('Fehler beim Speichern der Reihenfolge', 'error')
+    if (store.selectedNode) await loadNodeProducts(store.selectedNode.id)
+  }
 }
 
 // Watch node selection to load attributes and products
@@ -338,7 +417,11 @@ watch(() => store.selectedNode, (node) => {
   } else {
     nodeAttributes.value = []
     nodeProducts.value = []
+    outputProductAssignments.value = []
   }
+  showProductSearch.value = false
+  productSearchQuery.value = ''
+  productSearchResults.value = []
 })
 
 onMounted(async () => {
@@ -481,7 +564,7 @@ onMounted(async () => {
           </div>
           <div>
             <span class="text-[12px] text-[var(--color-text-tertiary)]">Produkte</span>
-            <p>{{ nodeProducts.length || store.selectedNode.product_count || 0 }}</p>
+            <p>{{ (store.isMasterHierarchy ? nodeProducts.length : outputProductAssignments.length) || store.selectedNode.product_count || 0 }}</p>
           </div>
         </div>
 
@@ -492,27 +575,113 @@ onMounted(async () => {
               <Package class="w-3.5 h-3.5 inline-block mr-1 -mt-0.5" :stroke-width="1.75" />
               Zugeordnete Produkte
             </h4>
+            <button v-if="!store.isMasterHierarchy && authStore.hasPermission('hierarchies.edit')" class="pim-btn pim-btn-secondary text-xs" @click="showProductSearch = !showProductSearch">
+              <Plus class="w-3 h-3" :stroke-width="2" /> Produkt zuordnen
+            </button>
           </div>
+
+          <!-- Product search (output hierarchies only) -->
+          <div v-if="showProductSearch && !store.isMasterHierarchy" class="mb-3 p-3 bg-[var(--color-bg)] rounded-lg space-y-2">
+            <div class="relative">
+              <Search class="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)]" :stroke-width="1.75" />
+              <input
+                v-model="productSearchQuery"
+                class="pim-input text-xs w-full pl-8"
+                placeholder="Produkt suchen (SKU, Name)..."
+                @input="searchProducts"
+                @keyup.escape="showProductSearch = false"
+              />
+            </div>
+            <div v-if="productSearchResults.length > 0" class="max-h-48 overflow-y-auto space-y-1">
+              <div
+                v-for="prod in productSearchResults"
+                :key="prod.id"
+                class="flex items-center justify-between px-2 py-1.5 rounded hover:bg-[var(--color-surface)] cursor-pointer"
+                @click="assignProductToNode(prod)"
+              >
+                <div class="flex items-center gap-2">
+                  <span class="text-xs font-mono text-[var(--color-text-secondary)]">{{ prod.sku }}</span>
+                  <span class="text-xs">{{ prod.name || '—' }}</span>
+                </div>
+                <Plus class="w-3.5 h-3.5 text-[var(--color-primary)]" :stroke-width="2" />
+              </div>
+            </div>
+            <p v-else-if="productSearchQuery.length > 0 && productSearchResults.length === 0" class="text-xs text-[var(--color-text-tertiary)]">Keine Produkte gefunden</p>
+          </div>
+
           <div v-if="nodeProductsLoading" class="space-y-2">
             <div v-for="i in 3" :key="i" class="pim-skeleton h-8 rounded" />
           </div>
-          <div v-else-if="nodeProducts.length > 0" class="space-y-1">
-            <div
-              v-for="prod in nodeProducts"
-              :key="prod.id"
-              class="flex items-center justify-between px-3 py-2 rounded-lg bg-[var(--color-bg)] cursor-pointer hover:bg-[var(--color-surface)] transition-colors"
-              @click="router.push(`/products/${prod.id}`)"
-            >
-              <div class="flex items-center gap-2">
-                <span class="text-xs font-mono text-[var(--color-text-secondary)]">{{ prod.sku }}</span>
-                <span class="text-xs font-medium">{{ prod.name || '—' }}</span>
+
+          <!-- Output hierarchy: sortable product list -->
+          <template v-else-if="!store.isMasterHierarchy">
+            <div v-if="outputProductAssignments.length > 0" class="space-y-1">
+              <div
+                v-for="(assignment, idx) in outputProductAssignments"
+                :key="assignment.id"
+                class="flex items-center justify-between px-3 py-2 rounded-lg bg-[var(--color-bg)] group"
+              >
+                <div class="flex items-center gap-2 flex-1 min-w-0 cursor-pointer" @click="router.push(`/products/${assignment.product?.id || assignment.product_id}`)">
+                  <GripVertical class="w-3 h-3 text-[var(--color-text-tertiary)] opacity-40 shrink-0" />
+                  <span class="text-[10px] text-[var(--color-text-tertiary)] font-mono w-4 text-right shrink-0">{{ idx + 1 }}</span>
+                  <span class="text-xs font-mono text-[var(--color-text-secondary)] shrink-0">{{ assignment.product?.sku || '—' }}</span>
+                  <span class="text-xs font-medium truncate">{{ assignment.product?.name || '—' }}</span>
+                </div>
+                <div class="flex items-center gap-0.5 shrink-0">
+                  <span :class="['pim-badge text-[10px] mr-1', assignment.product?.status === 'active' ? 'bg-[var(--color-success-light)] text-[var(--color-success)]' : 'bg-[var(--color-bg)] text-[var(--color-text-tertiary)]']">
+                    {{ assignment.product?.status || '—' }}
+                  </span>
+                  <template v-if="authStore.hasPermission('hierarchies.edit')">
+                    <button
+                      class="p-0.5 rounded text-[var(--color-text-tertiary)] hover:text-[var(--color-accent)] hover:bg-[var(--color-bg-secondary)] transition-all disabled:opacity-20 disabled:cursor-default"
+                      :disabled="idx === 0"
+                      @click="moveOutputProductUp(idx)"
+                      title="Nach oben"
+                    >
+                      <ChevronUp class="w-3.5 h-3.5" :stroke-width="2" />
+                    </button>
+                    <button
+                      class="p-0.5 rounded text-[var(--color-text-tertiary)] hover:text-[var(--color-accent)] hover:bg-[var(--color-bg-secondary)] transition-all disabled:opacity-20 disabled:cursor-default"
+                      :disabled="idx === outputProductAssignments.length - 1"
+                      @click="moveOutputProductDown(idx)"
+                      title="Nach unten"
+                    >
+                      <ChevronDown class="w-3.5 h-3.5" :stroke-width="2" />
+                    </button>
+                    <button
+                      class="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-[var(--color-error-light)] text-[var(--color-text-tertiary)] hover:text-[var(--color-error)] transition-all ml-1"
+                      @click="removeOutputProduct(assignment.id)"
+                      title="Entfernen"
+                    >
+                      <Trash2 class="w-3.5 h-3.5" :stroke-width="2" />
+                    </button>
+                  </template>
+                </div>
               </div>
-              <span :class="['pim-badge text-[10px]', prod.status === 'active' ? 'bg-[var(--color-success-light)] text-[var(--color-success)]' : 'bg-[var(--color-bg)] text-[var(--color-text-tertiary)]']">
-                {{ prod.status }}
-              </span>
             </div>
-          </div>
-          <p v-else class="text-xs text-[var(--color-text-tertiary)]">Keine Produkte zugeordnet. Weisen Sie Produkte über die Produktdetailseite zu.</p>
+            <p v-else class="text-xs text-[var(--color-text-tertiary)]">Keine Produkte zugeordnet. Nutzen Sie die Suche, um Produkte zuzuordnen.</p>
+          </template>
+
+          <!-- Master hierarchy: read-only product list -->
+          <template v-else>
+            <div v-if="nodeProducts.length > 0" class="space-y-1">
+              <div
+                v-for="prod in nodeProducts"
+                :key="prod.id"
+                class="flex items-center justify-between px-3 py-2 rounded-lg bg-[var(--color-bg)] cursor-pointer hover:bg-[var(--color-surface)] transition-colors"
+                @click="router.push(`/products/${prod.id}`)"
+              >
+                <div class="flex items-center gap-2">
+                  <span class="text-xs font-mono text-[var(--color-text-secondary)]">{{ prod.sku }}</span>
+                  <span class="text-xs font-medium">{{ prod.name || '—' }}</span>
+                </div>
+                <span :class="['pim-badge text-[10px]', prod.status === 'active' ? 'bg-[var(--color-success-light)] text-[var(--color-success)]' : 'bg-[var(--color-bg)] text-[var(--color-text-tertiary)]']">
+                  {{ prod.status }}
+                </span>
+              </div>
+            </div>
+            <p v-else class="text-xs text-[var(--color-text-tertiary)]">Keine Produkte zugeordnet. Weisen Sie Produkte über die Produktdetailseite zu.</p>
+          </template>
         </div>
 
         <!-- Assigned Attributes -->
