@@ -830,6 +830,22 @@ async function confirmDeleteRelation() {
   } finally { relationDeleting.value = false }
 }
 
+function getPreviewCompositeSummary(compositeAttr, allAttrs) {
+  const children = allAttrs.filter(a => a.parent_attribute_id === compositeAttr.attribute_id)
+  const values = children.map(c => c.display_value)
+
+  if (compositeAttr.composite_format) {
+    let result = compositeAttr.composite_format
+    children.forEach((_, i) => {
+      result = result.replace(`{${i}}`, values[i] != null ? String(values[i]) : '')
+    })
+    return result.trim() || null
+  }
+
+  const filled = values.filter(v => v != null && v !== '')
+  return filled.length > 0 ? filled.join(' × ') : null
+}
+
 // ─── Preview (Generic) ───────────────────────────────
 const previewData = ref(null)
 const previewLoading = ref(false)
@@ -2032,21 +2048,49 @@ watch(() => route.params.id, async (newId, oldId) => {
           :defaultOpen="false"
         >
           <div class="space-y-0 pt-3">
-            <div
-              v-for="attr in section.attributes"
-              :key="attr.attribute_id + (attr.language || '')"
-              class="flex items-center justify-between py-1.5 border-b border-[var(--color-border)] last:border-0"
-            >
-              <span class="text-[12px] font-medium text-[var(--color-text-secondary)]">
-                {{ attr.label }}
-                <span v-if="attr.is_mandatory" class="text-[var(--color-error)]">*</span>
-                <span v-if="attr.language" class="text-[10px] text-[var(--color-text-tertiary)] ml-1">[{{ attr.language }}]</span>
-              </span>
-              <span class="text-[12px] text-[var(--color-text-primary)]">
-                {{ attr.display_value || '—' }}
-                <span v-if="attr.unit" class="text-[var(--color-text-tertiary)]">{{ attr.unit }}</span>
-              </span>
-            </div>
+            <template v-for="attr in section.attributes" :key="attr.attribute_id + (attr.language || '')">
+              <!-- Skip child attributes that belong to a composite (shown grouped below their parent) -->
+              <template v-if="!attr.parent_attribute_id">
+                <!-- Composite attribute: show label + formatted summary + children -->
+                <div v-if="attr.data_type === 'Composite'" class="py-1.5 border-b border-[var(--color-border)] last:border-0">
+                  <div class="flex items-center justify-between">
+                    <span class="text-[12px] font-medium text-[var(--color-text-secondary)]">
+                      {{ attr.label }}
+                      <span class="pim-badge bg-[var(--color-bg)] text-[var(--color-text-tertiary)] text-[9px] ml-1">Composite</span>
+                    </span>
+                    <span class="text-[12px] text-[var(--color-text-primary)]">
+                      {{ getPreviewCompositeSummary(attr, section.attributes) || '—' }}
+                    </span>
+                  </div>
+                  <!-- Child attributes indented -->
+                  <div class="ml-4 mt-1 space-y-0">
+                    <div
+                      v-for="child in section.attributes.filter(a => a.parent_attribute_id === attr.attribute_id)"
+                      :key="child.attribute_id"
+                      class="flex items-center justify-between py-1 text-[11px] text-[var(--color-text-tertiary)]"
+                    >
+                      <span>{{ child.label }}</span>
+                      <span class="text-[var(--color-text-secondary)]">
+                        {{ child.display_value || '—' }}
+                        <span v-if="child.unit">{{ child.unit }}</span>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <!-- Normal attribute -->
+                <div v-else class="flex items-center justify-between py-1.5 border-b border-[var(--color-border)] last:border-0">
+                  <span class="text-[12px] font-medium text-[var(--color-text-secondary)]">
+                    {{ attr.label }}
+                    <span v-if="attr.is_mandatory" class="text-[var(--color-error)]">*</span>
+                    <span v-if="attr.language" class="text-[10px] text-[var(--color-text-tertiary)] ml-1">[{{ attr.language }}]</span>
+                  </span>
+                  <span class="text-[12px] text-[var(--color-text-primary)]">
+                    {{ attr.display_value || '—' }}
+                    <span v-if="attr.unit" class="text-[var(--color-text-tertiary)]">{{ attr.unit }}</span>
+                  </span>
+                </div>
+              </template>
+            </template>
           </div>
         </PimCollectionGroup>
 

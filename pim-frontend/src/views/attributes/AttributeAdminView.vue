@@ -76,6 +76,7 @@ const columns = [
   { key: 'technical_name', label: 'Techn. Name', sortable: true, mono: true },
   { key: 'name_de', label: 'Name (DE)', sortable: true },
   { key: 'data_type', label: 'Datentyp', sortable: true },
+  { key: '_children', label: 'Kind-Attribute' },
   { key: 'attribute_type.name_de', label: 'Gruppe' },
   { key: '_views', label: 'Sichten' },
   { key: 'is_translatable', label: 'Übersetzbar' },
@@ -239,6 +240,13 @@ onMounted(() => {
     >
       <template #cell-data_type="{ value }">
         <span class="pim-badge bg-[var(--color-bg)] text-[var(--color-text-secondary)]">{{ value }}</span>
+      </template>
+      <template #cell-_children="{ row }">
+        <div v-if="row.data_type === 'Composite' && row.children?.length" class="flex flex-wrap gap-0.5">
+          <span v-for="c in row.children" :key="c.id" class="pim-badge bg-[var(--color-bg)] text-[var(--color-text-secondary)] text-[10px]">{{ c.name_de || c.technical_name }}</span>
+        </div>
+        <span v-else-if="row.parent_attribute_id" class="text-[10px] text-[var(--color-text-tertiary)]">→ Kind von Composite</span>
+        <span v-else class="text-[var(--color-text-tertiary)]">—</span>
       </template>
       <template #cell-_views="{ row }">
         <div class="flex flex-wrap gap-0.5">

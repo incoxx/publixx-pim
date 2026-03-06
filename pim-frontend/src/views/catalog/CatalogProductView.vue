@@ -24,6 +24,23 @@ function formatPrice(price) {
   }).format(price.amount)
 }
 
+function getCatalogCompositeSummary(compositeAttr) {
+  if (!product.value?.attributes) return null
+  const children = product.value.attributes.filter(a => a.parent_attribute_id === compositeAttr.attribute_id)
+  const values = children.map(c => c.value)
+
+  if (compositeAttr.composite_format) {
+    let result = compositeAttr.composite_format
+    children.forEach((_, i) => {
+      result = result.replace(`{${i}}`, values[i] != null ? String(values[i]) : '')
+    })
+    return result.trim() || null
+  }
+
+  const filled = values.filter(v => v != null && v !== '')
+  return filled.length > 0 ? filled.join(' × ') : null
+}
+
 function goBack() {
   router.push({ name: 'catalog' })
 }
@@ -92,12 +109,19 @@ onMounted(() => {
             <h3 class="font-semibold text-base-content mb-2">{{ t('catalog.attributes') }}</h3>
             <table class="table table-xs table-zebra w-full">
               <tbody>
-                <tr v-for="(attr, idx) in product.attributes" :key="idx">
-                  <td class="text-base-content/60 font-medium w-2/5 align-top whitespace-nowrap">{{ attr.label }}</td>
-                  <td class="text-base-content">
-                    {{ attr.value }}<span v-if="attr.unit" class="text-base-content/50 ml-1">{{ attr.unit }}</span>
-                  </td>
-                </tr>
+                <template v-for="(attr, idx) in product.attributes" :key="idx">
+                  <tr v-if="!attr.parent_attribute_id">
+                    <td class="text-base-content/60 font-medium w-2/5 align-top whitespace-nowrap">{{ attr.label }}</td>
+                    <td class="text-base-content">
+                      <template v-if="attr.data_type === 'Composite'">
+                        {{ getCatalogCompositeSummary(attr) || '—' }}
+                      </template>
+                      <template v-else>
+                        {{ attr.value }}<span v-if="attr.unit" class="text-base-content/50 ml-1">{{ attr.unit }}</span>
+                      </template>
+                    </td>
+                  </tr>
+                </template>
               </tbody>
             </table>
           </div>
