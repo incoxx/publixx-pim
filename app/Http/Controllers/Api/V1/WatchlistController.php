@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Models\Product;
+use App\Models\ProductAttributeValue;
 use App\Models\WatchlistItem;
 use App\Services\Preview\ProductPreviewService;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -29,12 +30,23 @@ class WatchlistController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
 
-        $data = $items->map(fn(WatchlistItem $item) => [
-            'id' => $item->id,
-            'product_id' => $item->product_id,
-            'note' => $item->note,
-            'created_at' => $item->created_at,
-            'product' => $item->product ? [
+        // Optionally load attribute column values
+        $attributeColumns = $request->input('attribute_columns', []);
+        $attrValuesMap = collect();
+
+        if (!empty($attributeColumns) && is_array($attributeColumns)) {
+            $language = $request->input('language', 'de');
+            $productIds = $items->pluck('product_id')->filter();
+            $attrValuesMap = ProductAttributeValue::whereIn('product_id', $productIds)
+                ->whereIn('attribute_id', $attributeColumns)
+                ->where('language', $language)
+                ->with('valueListEntry')
+                ->get()
+                ->groupBy('product_id');
+        }
+
+        $data = $items->map(function (WatchlistItem $item) use ($attributeColumns, $attrValuesMap) {
+            $productData = $item->product ? [
                 'id' => $item->product->id,
                 'sku' => $item->product->sku,
                 'name' => $item->product->name,
@@ -43,8 +55,39 @@ class WatchlistController extends Controller
                     'id' => $item->product->productType->id,
                     'name_de' => $item->product->productType->name_de,
                 ] : null,
-            ] : null,
-        ]);
+            ] : null;
+
+            // Append attribute values if requested
+            if ($productData && !empty($attributeColumns)) {
+                $attrs = [];
+                $productAttrValues = $attrValuesMap->get($item->product_id, collect());
+                foreach ($attributeColumns as $attrId) {
+                    $av = $productAttrValues->firstWhere('attribute_id', $attrId);
+                    if (!$av) {
+                        $attrs[$attrId] = null;
+                    } elseif ($av->value_selection_id && $av->valueListEntry) {
+                        $attrs[$attrId] = $av->valueListEntry->display_value_de ?? $av->valueListEntry->code ?? '';
+                    } elseif ($av->value_flag !== null) {
+                        $attrs[$attrId] = $av->value_flag ? 'Ja' : 'Nein';
+                    } elseif ($av->value_date !== null) {
+                        $attrs[$attrId] = $av->value_date;
+                    } elseif ($av->value_number !== null) {
+                        $attrs[$attrId] = $av->value_number;
+                    } else {
+                        $attrs[$attrId] = $av->value_string ?? '';
+                    }
+                }
+                $productData['attributes'] = $attrs;
+            }
+
+            return [
+                'id' => $item->id,
+                'product_id' => $item->product_id,
+                'note' => $item->note,
+                'created_at' => $item->created_at,
+                'product' => $productData,
+            ];
+        });
 
         return response()->json(['data' => $data]);
     }

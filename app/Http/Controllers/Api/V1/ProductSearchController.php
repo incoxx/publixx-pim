@@ -40,6 +40,8 @@ class ProductSearchController extends Controller
             'include_descendants' => 'nullable|boolean',
             'hierarchy_type' => 'nullable|string|in:master,output',
             'status' => 'nullable|string|in:active,draft,inactive,discontinued',
+            'product_type_ids' => 'nullable|array',
+            'product_type_ids.*' => 'string|uuid',
             'attribute_columns' => 'nullable|array',
             'attribute_columns.*' => 'string|uuid',
             'attribute_filters' => 'nullable|array',
@@ -73,6 +75,12 @@ class ProductSearchController extends Controller
         // ── Status filter ──
         if ($status) {
             $query->where('status', $status);
+        }
+
+        // ── Product type filter ──
+        $productTypeIds = $validated['product_type_ids'] ?? [];
+        if (!empty($productTypeIds)) {
+            $query->whereIn('product_type_id', $productTypeIds);
         }
 
         // ── Text search with multiple modes ──

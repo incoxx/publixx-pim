@@ -3,9 +3,9 @@ import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useLocaleStore } from '@/stores/locale'
 import {
-  Search, Filter, ChevronDown, ChevronRight, X, Star,
+  Search, Filter, ChevronDown, ChevronUp, ChevronRight, X, Star,
   Regex, AudioLines, Languages, Download, GitCompareArrows, Pencil,
-  Package, Sliders, GitBranch, Image, FolderTree, FileSpreadsheet,
+  Package, Sliders, GitBranch, Image, FolderTree, FileSpreadsheet, Code2, ListFilter,
 } from 'lucide-vue-next'
 import searchApi from '@/api/search'
 import searchProfilesApi from '@/api/searchProfiles'
@@ -19,9 +19,11 @@ import ProfileSelector from '@/components/shared/ProfileSelector.vue'
 import ColumnConfigPopover from '@/components/shared/ColumnConfigPopover.vue'
 import { useColumnConfig } from '@/composables/useColumnConfig'
 import { triggerDownload } from '@/utils/download'
+import { useAttributeStore } from '@/stores/attributes'
 
 const router = useRouter()
 const localeStore = useLocaleStore()
+const attrStore = useAttributeStore()
 
 // --- Search Profiles ---
 const searchProfiles = ref([])
@@ -204,6 +206,11 @@ const searchableAttributes = ref([])
 const attributeFilters = ref({})
 const showAttributeFilters = ref(false)
 const statusFilter = ref('')
+const selectedProductTypes = ref([])
+
+// Quick Lookup
+const showQuickLookup = ref(false)
+const quickLookupFilters = ref({})
 
 // Watchlist quick-add
 const watchlistIds = ref(new Set())
@@ -234,9 +241,78 @@ const columns = computed(() => {
   return categoryColumns[searchCategory.value] || categoryColumns.products
 })
 
+// --- Quick Lookup ---
+const statusOptions = [
+  { value: 'active', label: 'Aktiv' },
+  { value: 'draft', label: 'Entwurf' },
+  { value: 'inactive', label: 'Inaktiv' },
+  { value: 'discontinued', label: 'Auslaufend' },
+]
+
+const productTypeOptions = computed(() =>
+  attrStore.prodTypes.map(pt => ({ value: pt.name_de || pt.technical_name, label: pt.name_de || pt.technical_name }))
+)
+
+const quickLookupConfig = computed(() => {
+  const config = {
+    sku: { type: 'text', placeholder: 'SKU...' },
+    name: { type: 'text', placeholder: 'Name...' },
+    'product_type.name_de': { type: 'select', options: productTypeOptions.value },
+    status: { type: 'select', options: statusOptions },
+    ean: { type: 'text', placeholder: 'EAN...' },
+  }
+  // Add dynamic attribute columns
+  for (const attr of searchableAttributes.value) {
+    const key = `attributes.${attr.id}`
+    if (attr.data_type === 'Selection' || attr.data_type === 'Dictionary') {
+      config[key] = {
+        type: 'select',
+        options: (attr.value_list?.entries || []).map(e => ({
+          value: e.display_value_de || e.code,
+          label: e.display_value_de || e.code,
+        })),
+      }
+    } else if (attr.data_type !== 'Date') {
+      config[key] = { type: 'text', placeholder: '...' }
+    }
+  }
+  return config
+})
+
+function getCellValueForFilter(row, colKey) {
+  const keys = colKey.split('.')
+  let val = row
+  for (const k of keys) val = val?.[k]
+  return val
+}
+
+const filteredResults = computed(() => {
+  if (!showQuickLookup.value) return results.value
+  const filters = quickLookupFilters.value
+  const activeFilters = Object.entries(filters).filter(([, v]) => v !== '' && v != null)
+  if (activeFilters.length === 0) return results.value
+
+  return results.value.filter(row => {
+    return activeFilters.every(([colKey, filterVal]) => {
+      const cellVal = getCellValueForFilter(row, colKey)
+      if (cellVal == null || cellVal === '—') return false
+      const config = quickLookupConfig.value[colKey]
+      if (config?.type === 'select') {
+        return String(cellVal) === String(filterVal)
+      }
+      // Text: prefix match
+      return String(cellVal).toLowerCase().startsWith(String(filterVal).toLowerCase())
+    })
+  })
+})
+
+function onQuickLookupChange(filters) {
+  quickLookupFilters.value = filters
+}
+
 // --- Computed ---
 const activeFilterCount = computed(() => {
-  let count = selectedCategories.value.length
+  let count = selectedCategories.value.length + selectedProductTypes.value.length
   if (statusFilter.value) count++
   for (const val of Object.values(attributeFilters.value)) {
     if (val !== '' && val !== null && val !== undefined) count++
@@ -313,11 +389,27 @@ onMounted(async () => {
     watchlistIds.value = new Set(data.data || data)
   } catch (e) { /* ignore */ }
 
+  // Load product types for filter
+  attrStore.fetchProductTypes()
+
   // Load search profiles
   loadProfiles()
 })
 
 // --- Actions ---
+function toggleProductType(id) {
+  const idx = selectedProductTypes.value.indexOf(id)
+  if (idx === -1) {
+    selectedProductTypes.value.push(id)
+  } else {
+    selectedProductTypes.value.splice(idx, 1)
+  }
+}
+
+function isProductTypeSelected(id) {
+  return selectedProductTypes.value.includes(id)
+}
+
 function toggleCategory(categoryId) {
   const idx = selectedCategories.value.indexOf(categoryId)
   if (idx === -1) {
@@ -333,6 +425,7 @@ function isCategorySelected(id) {
 
 function clearAllFilters() {
   selectedCategories.value = []
+  selectedProductTypes.value = []
   attributeFilters.value = {}
   statusFilter.value = ''
   searchInput.value = ''
@@ -387,6 +480,10 @@ async function doProductSearch(page) {
     params.include_descendants = true
     const h = hierarchies.value.find(h => h.id === selectedHierarchyId.value)
     if (h?.hierarchy_type) params.hierarchy_type = h.hierarchy_type
+  }
+
+  if (selectedProductTypes.value.length > 0) {
+    params.product_type_ids = selectedProductTypes.value
   }
 
   if (statusFilter.value) {
@@ -562,6 +659,46 @@ function openBulkEditor() {
   const ids = selectedProductIds.value.join(',')
   router.push({ path: '/products/bulk-edit', query: { ids } })
 }
+
+// --- API Call Display ---
+const showApiCall = ref(false)
+const apiBaseUrl = computed(() => import.meta.env.VITE_API_BASE_URL || '/api/v1')
+
+const apiCallDisplay = computed(() => {
+  if (searchCategory.value !== 'products') return null
+  const params = {
+    search: searchInput.value.trim() || undefined,
+    search_mode: searchMode.value,
+    page: resultMeta.value.current_page,
+    per_page: 50,
+    sort: sortField.value,
+    order: sortOrder.value,
+  }
+
+  if (selectedProductTypes.value.length > 0) {
+    params.product_type_ids = selectedProductTypes.value
+  }
+
+  if (selectedCategories.value.length > 0) {
+    params.category_ids = selectedCategories.value
+    params.include_descendants = true
+    const h = hierarchies.value.find(h => h.id === selectedHierarchyId.value)
+    if (h?.hierarchy_type) params.hierarchy_type = h.hierarchy_type
+  }
+
+  if (statusFilter.value) {
+    params.status = statusFilter.value
+  }
+
+  // Clean undefined values
+  const cleanParams = Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined))
+
+  const url = `${apiBaseUrl.value}/products/search`
+  const body = JSON.stringify(cleanParams, null, 2)
+  const curl = `curl -X POST "${window.location.origin}${url}" \\\n  -H "Content-Type: application/json" \\\n  -H "Authorization: Bearer <TOKEN>" \\\n  -d '${JSON.stringify(cleanParams)}'`
+
+  return { method: 'POST', url, body, curl }
+})
 </script>
 
 <template>
@@ -598,8 +735,8 @@ function openBulkEditor() {
 
     <!-- Search header -->
     <div class="flex flex-wrap items-center gap-2 sm:gap-3">
-      <div class="relative flex-1 min-w-0">
-        <Search class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--color-text-tertiary)]" :stroke-width="1.75" />
+      <div class="flex items-center gap-3 flex-1 min-w-0">
+        <Search class="w-5 h-5 text-[var(--color-text-tertiary)] shrink-0" :stroke-width="1.75" />
         <input
           v-model="searchInput"
           type="text"
@@ -608,7 +745,7 @@ function openBulkEditor() {
             : searchCategory === 'attributes' ? 'Attribute durchsuchen...'
             : searchCategory === 'nodes' ? 'Kategorieknoten durchsuchen (inkl. Unterkategorien)...'
             : 'Medien durchsuchen...'"
-          class="pim-input pl-12 pr-4 py-3 text-base w-full"
+          class="pim-input pl-4 pr-4 py-3 text-base w-full"
           @keydown.enter="doSearch(1)"
           autofocus
         />
@@ -620,6 +757,8 @@ function openBulkEditor() {
       >
         <Filter class="w-4 h-4" :stroke-width="1.75" />
         <span class="ml-1.5 text-sm hidden sm:inline">Filter</span>
+        <ChevronUp v-if="showAttributeFilters" class="w-3.5 h-3.5 ml-0.5" :stroke-width="2" />
+        <ChevronDown v-else class="w-3.5 h-3.5 ml-0.5" :stroke-width="2" />
         <span
           v-if="activeFilterCount > 0"
           class="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-[var(--color-accent)] text-white text-[10px] flex items-center justify-center font-bold"
@@ -635,6 +774,16 @@ function openBulkEditor() {
         @move="searchMoveColumn"
         @reset="searchResetColumns"
       />
+      <button
+        v-if="searchCategory === 'products'"
+        class="pim-btn pim-btn-secondary py-3 px-4"
+        :class="showQuickLookup ? 'bg-[var(--color-accent-light)] text-[var(--color-accent)]' : ''"
+        @click="showQuickLookup = !showQuickLookup"
+        title="Quick Lookup"
+      >
+        <ListFilter class="w-4 h-4" :stroke-width="1.75" />
+        <span class="ml-1.5 text-sm hidden sm:inline">Quick Lookup</span>
+      </button>
       <button
         v-if="searchCategory === 'products' && hasSearched && results.length > 0"
         class="pim-btn pim-btn-secondary py-3 px-4"
@@ -707,6 +856,31 @@ function openBulkEditor() {
             <option value="inactive">Inaktiv</option>
             <option value="discontinued">Auslaufend</option>
           </select>
+        </div>
+
+        <!-- Product type filter -->
+        <div v-if="attrStore.prodTypes.length > 0">
+          <p class="text-[12px] font-medium text-[var(--color-text-secondary)] mb-2">
+            Produkttypen
+            <span v-if="selectedProductTypes.length > 0" class="pim-badge bg-[var(--color-accent-light)] text-[var(--color-accent)] text-[10px] px-1.5 ml-1">
+              {{ selectedProductTypes.length }}
+            </span>
+          </p>
+          <div class="max-h-36 overflow-y-auto border border-[var(--color-border)] rounded-lg p-2 space-y-0.5">
+            <label
+              v-for="pt in attrStore.prodTypes"
+              :key="pt.id"
+              class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[var(--color-bg)] cursor-pointer text-xs"
+            >
+              <input
+                type="checkbox"
+                :checked="isProductTypeSelected(pt.id)"
+                @change="toggleProductType(pt.id)"
+                class="rounded border-[var(--color-border)]"
+              />
+              <span class="text-[var(--color-text-primary)]">{{ pt.name_de || pt.technical_name }}</span>
+            </label>
+          </div>
         </div>
 
         <!-- Category filter -->
@@ -886,15 +1060,18 @@ function openBulkEditor() {
     <PimTable
       v-if="results.length > 0"
       :columns="columns"
-      :rows="results"
+      :rows="searchCategory === 'products' ? filteredResults : results"
       :loading="loading"
       :sortField="sortField"
       :sortOrder="sortOrder"
       :selectable="searchCategory === 'products'"
       :showActions="false"
+      :quickLookup="showQuickLookup && searchCategory === 'products'"
+      :quickLookupConfig="quickLookupConfig"
       @row-click="openResult"
       @select="handleSelect"
       @sort="handleSort"
+      @quick-lookup-change="onQuickLookupChange"
     >
       <!-- Product-specific cells -->
       <template v-if="searchCategory === 'products'" #cell-sku="{ row, value }">
@@ -1026,6 +1203,35 @@ function openBulkEditor() {
       <p v-if="searchCategory === 'products'" class="text-xs text-[var(--color-text-tertiary)] mt-1">
         Suche mit LIKE, SOUNDEX oder REGEXP
       </p>
+    </div>
+
+    <!-- API Call Display -->
+    <div v-if="hasSearched && searchCategory === 'products' && results.length > 0 && apiCallDisplay" class="mt-4">
+      <button
+        class="flex items-center gap-1.5 text-xs text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors"
+        @click="showApiCall = !showApiCall"
+      >
+        <Code2 class="w-3.5 h-3.5" :stroke-width="1.75" />
+        API Aufruf
+        <ChevronUp v-if="showApiCall" class="w-3 h-3" :stroke-width="2" />
+        <ChevronDown v-else class="w-3 h-3" :stroke-width="2" />
+      </button>
+      <div v-if="showApiCall" class="pim-card p-4 mt-2 space-y-3">
+        <div>
+          <p class="text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">Endpoint</p>
+          <code class="text-xs text-[var(--color-accent)] bg-[var(--color-bg)] px-2 py-1 rounded">
+            {{ apiCallDisplay.method }} {{ apiCallDisplay.url }}
+          </code>
+        </div>
+        <div>
+          <p class="text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">Request Body (JSON)</p>
+          <pre class="text-[11px] bg-[var(--color-bg)] p-3 rounded overflow-x-auto text-[var(--color-text-primary)]">{{ apiCallDisplay.body }}</pre>
+        </div>
+        <div>
+          <p class="text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">curl</p>
+          <pre class="text-[11px] bg-[var(--color-bg)] p-3 rounded overflow-x-auto text-[var(--color-text-primary)]">{{ apiCallDisplay.curl }}</pre>
+        </div>
+      </div>
     </div>
 
     <!-- Product Comparison Modal (products only) -->

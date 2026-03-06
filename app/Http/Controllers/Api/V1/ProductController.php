@@ -8,6 +8,7 @@ use App\Http\Requests\Api\V1\StoreProductRequest;
 use App\Http\Requests\Api\V1\UpdateProductRequest;
 use App\Http\Resources\Api\V1\ProductResource;
 use App\Models\Product;
+use App\Models\ProductAttributeValue;
 use App\Services\Preview\ProductCompletenessService;
 use App\Services\Preview\ProductPreviewService;
 use App\Services\ProductVersioningService;
@@ -65,9 +66,44 @@ class ProductController extends Controller
         $this->applySearch($query, $request, ['name', 'sku', 'ean']);
         $this->applySorting($query, $request, 'created_at', 'desc');
 
-        return ProductResource::collection(
-            $query->paginate($this->getPerPage($request))
-        );
+        $paginated = $query->paginate($this->getPerPage($request));
+
+        // Optionally load attribute column values (for dynamic table columns)
+        $attributeColumns = $request->input('attribute_columns', []);
+        if (!empty($attributeColumns) && is_array($attributeColumns)) {
+            $language = $request->input('language', 'de');
+            $productIds = collect($paginated->items())->pluck('id');
+            $attrValues = ProductAttributeValue::whereIn('product_id', $productIds)
+                ->whereIn('attribute_id', $attributeColumns)
+                ->where('language', $language)
+                ->with('valueListEntry')
+                ->get()
+                ->groupBy('product_id');
+
+            foreach ($paginated->items() as $product) {
+                $attrs = [];
+                $productAttrValues = $attrValues->get($product->id, collect());
+                foreach ($attributeColumns as $attrId) {
+                    $av = $productAttrValues->firstWhere('attribute_id', $attrId);
+                    if (!$av) {
+                        $attrs[$attrId] = null;
+                    } elseif ($av->value_selection_id && $av->valueListEntry) {
+                        $attrs[$attrId] = $av->valueListEntry->display_value_de ?? $av->valueListEntry->code ?? '';
+                    } elseif ($av->value_flag !== null) {
+                        $attrs[$attrId] = $av->value_flag ? 'Ja' : 'Nein';
+                    } elseif ($av->value_date !== null) {
+                        $attrs[$attrId] = $av->value_date;
+                    } elseif ($av->value_number !== null) {
+                        $attrs[$attrId] = $av->value_number;
+                    } else {
+                        $attrs[$attrId] = $av->value_string ?? '';
+                    }
+                }
+                $product->setAttribute('attributes', $attrs);
+            }
+        }
+
+        return ProductResource::collection($paginated);
     }
 
     public function store(StoreProductRequest $request): JsonResponse

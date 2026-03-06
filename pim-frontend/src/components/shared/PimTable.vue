@@ -14,11 +14,35 @@ const props = defineProps({
   showActions: { type: Boolean, default: true },
   emptyText: { type: String, default: 'Keine Einträge' },
   onRowClick: { type: Function, default: null },
+  quickLookup: { type: Boolean, default: false },
+  quickLookupConfig: { type: Object, default: () => ({}) },
 })
 
-const emit = defineEmits(['sort', 'select', 'row-click', 'row-action'])
+const emit = defineEmits(['sort', 'select', 'row-click', 'row-action', 'quick-lookup-change'])
 
 const selectedIds = ref(new Set())
+const quickLookupValues = ref({})
+
+// Debounce timer for text inputs
+let debounceTimer = null
+
+function onQuickLookupInput(colKey, value) {
+  quickLookupValues.value = { ...quickLookupValues.value, [colKey]: value }
+  clearTimeout(debounceTimer)
+  debounceTimer = setTimeout(() => {
+    emit('quick-lookup-change', { ...quickLookupValues.value })
+  }, 300)
+}
+
+function onQuickLookupSelect(colKey, value) {
+  quickLookupValues.value = { ...quickLookupValues.value, [colKey]: value }
+  emit('quick-lookup-change', { ...quickLookupValues.value })
+}
+
+// Reset quick lookup values when columns change
+watch(() => props.columns, () => {
+  quickLookupValues.value = {}
+})
 
 const allSelected = computed(() =>
   props.rows.length > 0 && props.rows.every(r => selectedIds.value.has(r[props.rowKey]))
@@ -100,6 +124,43 @@ function getCellValue(row, col) {
               </div>
             </th>
             <!-- Actions column -->
+            <th v-if="showActions" class="w-10"></th>
+          </tr>
+
+          <!-- Quick Lookup row -->
+          <tr v-if="quickLookup" class="bg-[var(--color-surface)] border-b border-[var(--color-border)]">
+            <th v-if="selectable" class="w-10"></th>
+            <th
+              v-for="col in columns"
+              :key="'ql-' + col.key"
+              class="px-2 py-1.5"
+            >
+              <template v-if="quickLookupConfig[col.key]?.type === 'text'">
+                <input
+                  type="text"
+                  :value="quickLookupValues[col.key] || ''"
+                  @input="onQuickLookupInput(col.key, $event.target.value)"
+                  :placeholder="quickLookupConfig[col.key]?.placeholder || '...'"
+                  class="pim-input text-xs w-full py-1 px-2"
+                />
+              </template>
+              <template v-else-if="quickLookupConfig[col.key]?.type === 'select'">
+                <select
+                  :value="quickLookupValues[col.key] || ''"
+                  @change="onQuickLookupSelect(col.key, $event.target.value)"
+                  class="pim-input text-xs w-full py-1 px-2"
+                >
+                  <option value="">—</option>
+                  <option
+                    v-for="opt in quickLookupConfig[col.key].options"
+                    :key="opt.value"
+                    :value="opt.value"
+                  >
+                    {{ opt.label }}
+                  </option>
+                </select>
+              </template>
+            </th>
             <th v-if="showActions" class="w-10"></th>
           </tr>
         </thead>

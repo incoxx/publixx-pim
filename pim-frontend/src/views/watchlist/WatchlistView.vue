@@ -4,10 +4,13 @@ import { useRouter } from 'vue-router'
 import { useLocaleStore } from '@/stores/locale'
 import {
   Star, Trash2, Download, FileSpreadsheet, FileText,
-  Languages, Archive, X, GitCompareArrows, Pencil,
+  Languages, Archive, X, GitCompareArrows, Pencil, ListFilter,
+  Code2, ChevronDown, ChevronUp,
 } from 'lucide-vue-next'
+import { useAttributeStore } from '@/stores/attributes'
 import watchlistApi from '@/api/watchlist'
 import productsApi from '@/api/products'
+import searchApi from '@/api/search'
 import PimTable from '@/components/shared/PimTable.vue'
 import ColumnConfigPopover from '@/components/shared/ColumnConfigPopover.vue'
 import { useColumnConfig } from '@/composables/useColumnConfig'
@@ -16,6 +19,7 @@ import PimConfirmDialog from '@/components/shared/PimConfirmDialog.vue'
 
 const router = useRouter()
 const localeStore = useLocaleStore()
+const attrStore = useAttributeStore()
 
 const items = ref([])
 const loading = ref(false)
@@ -68,7 +72,59 @@ const extraWatchlistColumns = [
   { key: 'product.ean', label: 'EAN', mono: true, exportKey: 'ean' },
 ]
 
-const { visibleColumns, allColumns, visibleKeys, toggleColumn, moveColumn, resetColumns } = useColumnConfig('columns:watchlist', defaultWatchlistColumns, extraWatchlistColumns)
+// Dynamic attribute columns
+const searchableAttributes = ref([])
+
+const attributeColumns = computed(() =>
+  searchableAttributes.value.map(attr => ({
+    key: `product.attributes.${attr.id}`,
+    label: attr.name_de || attr.technical_name,
+    group: 'Attribute',
+    exportKey: `attr:${attr.id}`,
+  }))
+)
+
+const { visibleColumns, allColumns, visibleKeys, toggleColumn, moveColumn, resetColumns } = useColumnConfig('columns:watchlist', defaultWatchlistColumns, extraWatchlistColumns, attributeColumns)
+
+// Quick Lookup
+const showQuickLookup = ref(false)
+const quickLookupFilters = ref({})
+
+const statusOptions = [
+  { value: 'active', label: 'Aktiv' },
+  { value: 'draft', label: 'Entwurf' },
+  { value: 'inactive', label: 'Inaktiv' },
+  { value: 'discontinued', label: 'Auslaufend' },
+]
+
+const productTypeOptions = computed(() =>
+  attrStore.prodTypes.map(pt => ({ value: pt.name_de || pt.technical_name, label: pt.name_de || pt.technical_name }))
+)
+
+const quickLookupConfig = computed(() => {
+  const config = {
+    'product.sku': { type: 'text', placeholder: 'SKU...' },
+    'product.name': { type: 'text', placeholder: 'Name...' },
+    'product.status': { type: 'select', options: statusOptions },
+    'product.product_type.name_de': { type: 'select', options: productTypeOptions.value },
+    'product.ean': { type: 'text', placeholder: 'EAN...' },
+  }
+  searchableAttributes.value.forEach(attr => {
+    config[`product.attributes.${attr.id}`] = { type: 'text', placeholder: `${attr.name_de || attr.technical_name}...` }
+  })
+  return config
+})
+
+function getCellValueForFilter(row, colKey) {
+  const keys = colKey.split('.')
+  let val = row
+  for (const k of keys) val = val?.[k]
+  return val
+}
+
+function onQuickLookupChange(filters) {
+  quickLookupFilters.value = filters
+}
 
 const tableRows = computed(() =>
   items.value.map(item => ({
@@ -78,11 +134,39 @@ const tableRows = computed(() =>
   }))
 )
 
+const filteredTableRows = computed(() => {
+  const rows = tableRows.value
+  if (!showQuickLookup.value) return rows
+  const filters = quickLookupFilters.value
+  const activeFiltersArr = Object.entries(filters).filter(([, v]) => v !== '' && v != null)
+  if (activeFiltersArr.length === 0) return rows
+
+  return rows.filter(row => {
+    return activeFiltersArr.every(([colKey, filterVal]) => {
+      const cellVal = getCellValueForFilter(row, colKey)
+      if (cellVal == null || cellVal === '—') return false
+      const config = quickLookupConfig.value[colKey]
+      if (config?.type === 'select') {
+        return String(cellVal) === String(filterVal)
+      }
+      return String(cellVal).toLowerCase().startsWith(String(filterVal).toLowerCase())
+    })
+  })
+})
+
 async function loadWatchlist() {
   loading.value = true
   error.value = null
   try {
-    const { data } = await watchlistApi.list()
+    const attrIds = visibleKeys.value
+      .filter(k => k.startsWith('product.attributes.'))
+      .map(k => k.replace('product.attributes.', ''))
+    const params = {}
+    if (attrIds.length > 0) {
+      params.attribute_columns = attrIds
+      params.language = 'de'
+    }
+    const { data } = await watchlistApi.list(params)
     items.value = data.data || data
   } catch (e) {
     error.value = 'Fehler beim Laden der Merkliste'
@@ -207,7 +291,24 @@ async function removeAllItems() {
   finally { bulkRemoving.value = false }
 }
 
-onMounted(loadWatchlist)
+// --- API Call Display ---
+const showApiCall = ref(false)
+const apiBaseUrl = computed(() => import.meta.env.VITE_API_BASE_URL || '/api/v1')
+
+const apiCallDisplay = computed(() => {
+  const url = `${apiBaseUrl.value}/watchlist`
+  const curl = `curl -X GET "${window.location.origin}${url}" \\\n  -H "Accept: application/json" \\\n  -H "Authorization: Bearer <TOKEN>"`
+  return { method: 'GET', url, curl }
+})
+
+onMounted(async () => {
+  attrStore.fetchProductTypes()
+  try {
+    const { data } = await searchApi.searchableAttributes()
+    searchableAttributes.value = data.data || data
+  } catch (e) { /* ignore */ }
+  loadWatchlist()
+})
 </script>
 
 <template>
@@ -232,6 +333,16 @@ onMounted(loadWatchlist)
           @move="moveColumn"
           @reset="resetColumns"
         />
+        <button
+          v-if="items.length > 0"
+          class="pim-btn pim-btn-secondary text-xs"
+          :class="showQuickLookup ? 'bg-[var(--color-accent-light)] text-[var(--color-accent)]' : ''"
+          @click="showQuickLookup = !showQuickLookup"
+          title="Quick Lookup"
+        >
+          <ListFilter class="w-3.5 h-3.5" :stroke-width="1.75" />
+          <span class="hidden sm:inline">Quick Lookup</span>
+        </button>
         <button
           v-if="items.length > 0"
           class="pim-btn pim-btn-secondary text-xs"
@@ -362,14 +473,17 @@ onMounted(loadWatchlist)
     <!-- Table -->
     <PimTable
       :columns="visibleColumns"
-      :rows="tableRows"
+      :rows="filteredTableRows"
       :loading="loading"
       selectable
       showActions
       emptyText="Keine Produkte auf der Merkliste"
+      :quickLookup="showQuickLookup"
+      :quickLookupConfig="quickLookupConfig"
       @row-click="openProduct"
       @row-action="handleRowAction"
       @select="handleSelect"
+      @quick-lookup-change="onQuickLookupChange"
     >
       <template #cell-product.sku="{ row, value }">
         <div class="flex items-center gap-2">
@@ -403,6 +517,31 @@ onMounted(loadWatchlist)
       <p class="text-xs text-[var(--color-text-tertiary)] mt-1">
         Füge Produkte über die Suche oder die Produktliste hinzu
       </p>
+    </div>
+
+    <!-- API Call Display -->
+    <div v-if="items.length > 0" class="mt-4">
+      <button
+        class="flex items-center gap-1.5 text-xs text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors"
+        @click="showApiCall = !showApiCall"
+      >
+        <Code2 class="w-3.5 h-3.5" :stroke-width="1.75" />
+        API Aufruf
+        <ChevronUp v-if="showApiCall" class="w-3 h-3" :stroke-width="2" />
+        <ChevronDown v-else class="w-3 h-3" :stroke-width="2" />
+      </button>
+      <div v-if="showApiCall" class="pim-card p-4 mt-2 space-y-3">
+        <div>
+          <p class="text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">Endpoint</p>
+          <code class="text-xs text-[var(--color-accent)] bg-[var(--color-bg)] px-2 py-1 rounded">
+            {{ apiCallDisplay.method }} {{ apiCallDisplay.url }}
+          </code>
+        </div>
+        <div>
+          <p class="text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">curl</p>
+          <pre class="text-[11px] bg-[var(--color-bg)] p-3 rounded overflow-x-auto text-[var(--color-text-primary)]">{{ apiCallDisplay.curl }}</pre>
+        </div>
+      </div>
     </div>
 
     <PimConfirmDialog
