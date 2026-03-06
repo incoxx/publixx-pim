@@ -44,6 +44,7 @@ use App\Http\Controllers\Api\V1\ProductVariantController;
 use App\Http\Controllers\Api\V1\ProductVersionController;
 use App\Http\Controllers\Api\V1\PublixxDatasetController;
 use App\Http\Controllers\Api\V1\PxfTemplateController;
+use App\Http\Controllers\Api\V1\ReportTemplateController;
 use App\Http\Controllers\Api\V1\RelationTypeController;
 use App\Http\Controllers\Api\V1\ResetDataController;
 use App\Http\Controllers\Api\V1\SettingController;
@@ -400,6 +401,16 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::post('admin/reset-data', ResetDataController::class);
     Route::post('admin/load-demo-data', LoadDemoDataController::class);
     Route::put('settings/catalog-theme', [SettingController::class, 'updateCatalogTheme']);
+
+    // =====================================================================
+    // Report Designer
+    // =====================================================================
+    Route::get('report-templates/fields', [ReportTemplateController::class, 'fields']);
+    Route::apiResource('report-templates', ReportTemplateController::class);
+    Route::post('report-templates/{report_template}/execute', [ReportTemplateController::class, 'execute']);
+    Route::post('report-templates/{report_template}/preview', [ReportTemplateController::class, 'preview']);
+    Route::get('report-jobs/{report_job}', [ReportTemplateController::class, 'jobStatus']);
+    Route::get('report-jobs/{report_job}/download', [ReportTemplateController::class, 'jobDownload']);
 
     // =====================================================================
     // PXF Templates
