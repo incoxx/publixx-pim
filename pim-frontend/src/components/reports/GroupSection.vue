@@ -1,7 +1,7 @@
 <script setup>
 import { useReportDesignerStore } from '@/stores/reportDesigner'
 import ElementCard from './ElementCard.vue'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 
 const props = defineProps({
   groupId: { type: String, required: true },
@@ -89,20 +89,33 @@ function removeElement(elementId) {
 function selectElement(elementId) {
   store.selectElement(elementId, props.groupId, props.section)
 }
+
+function focusSection() {
+  store.setFocusedSection(props.groupId, props.section)
+}
+
+const isFocused = computed(() =>
+  store.focusedSection.groupId === props.groupId && store.focusedSection.section === props.section
+)
 </script>
 
 <template>
   <div
-    class="min-h-[32px] rounded border border-dashed transition-colors"
-    :class="dragOver
-      ? 'border-[var(--color-accent)] bg-[color-mix(in_srgb,var(--color-accent)_5%,transparent)]'
-      : 'border-[var(--color-border)]'"
+    class="min-h-[32px] rounded border transition-colors"
+    :class="[
+      dragOver
+        ? 'border-[var(--color-accent)] bg-[color-mix(in_srgb,var(--color-accent)_5%,transparent)]'
+        : isFocused
+          ? 'border-[var(--color-accent)] border-solid'
+          : 'border-[var(--color-border)] border-dashed',
+    ]"
+    @click.self="focusSection"
     @dragover="onDragOver"
     @dragleave="onDragLeave"
     @drop="onDrop"
   >
-    <div v-if="!elements.length" class="flex items-center justify-center h-8 text-[10px] text-[var(--color-text-tertiary)]">
-      Felder hierher ziehen
+    <div v-if="!elements.length" class="flex items-center justify-center h-8 text-[10px] text-[var(--color-text-tertiary)] cursor-pointer" @click="focusSection">
+      {{ isFocused ? 'Doppelklick auf Feld zum Hinzufügen' : 'Klicken zum Fokussieren oder Felder hierher ziehen' }}
     </div>
     <div v-else class="p-1 space-y-0.5">
       <div

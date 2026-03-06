@@ -44,6 +44,14 @@ function onDragStart(event, item) {
 function toggleGroup(key) {
   expandedGroups.value[key] = !expandedGroups.value[key]
 }
+
+function onDoubleClick(item) {
+  const { groupId, section } = store.focusedSection
+  if (!groupId || !section) return
+  store.addElement(groupId, section, item)
+}
+
+const hasFocus = computed(() => !!store.focusedSection.groupId)
 </script>
 
 <template>
@@ -72,9 +80,11 @@ function toggleGroup(key) {
         <div
           v-for="field in store.availableFields.base_fields"
           :key="field.field"
-          class="flex items-center gap-2 px-2 py-1 rounded text-[11px] cursor-grab hover:bg-[var(--color-bg)] text-[var(--color-text-secondary)]"
+          class="flex items-center gap-2 px-2 py-1 rounded text-[11px] hover:bg-[var(--color-bg)] text-[var(--color-text-secondary)]"
+          :class="hasFocus ? 'cursor-pointer' : 'cursor-grab'"
           draggable="true"
           @dragstart="onDragStart($event, { type: 'field', field: field.field, label: field.label_de, showLabel: true })"
+          @dblclick="onDoubleClick({ type: 'field', field: field.field, label: field.label_de, showLabel: true })"
         >
           <GripVertical class="w-3 h-3 text-[var(--color-text-tertiary)]" :stroke-width="1.5" />
           <Hash class="w-3 h-3 text-[var(--color-accent)]" :stroke-width="2" />
@@ -95,9 +105,11 @@ function toggleGroup(key) {
         <div
           v-for="el in store.availableFields.layout_elements"
           :key="el.type"
-          class="flex items-center gap-2 px-2 py-1 rounded text-[11px] cursor-grab hover:bg-[var(--color-bg)] text-[var(--color-text-secondary)]"
+          class="flex items-center gap-2 px-2 py-1 rounded text-[11px] hover:bg-[var(--color-bg)] text-[var(--color-text-secondary)]"
+          :class="hasFocus ? 'cursor-pointer' : 'cursor-grab'"
           draggable="true"
           @dragstart="onDragStart($event, { type: el.type, ...(el.type === 'text' ? { content: 'Text hier eingeben' } : {}), ...(el.type === 'counter' ? { label: 'Anzahl', format: '{count} Produkte' } : {}), ...(el.type === 'image' ? { source: 'primary', width: 80, height: 80 } : {}) })"
+          @dblclick="onDoubleClick({ type: el.type, ...(el.type === 'text' ? { content: 'Text hier eingeben' } : {}), ...(el.type === 'counter' ? { label: 'Anzahl', format: '{count} Produkte' } : {}), ...(el.type === 'image' ? { source: 'primary', width: 80, height: 80 } : {}) })"
         >
           <GripVertical class="w-3 h-3 text-[var(--color-text-tertiary)]" :stroke-width="1.5" />
           <component :is="getIcon(el.type)" class="w-3 h-3 text-[var(--color-accent)]" :stroke-width="2" />
@@ -118,9 +130,11 @@ function toggleGroup(key) {
         <div
           v-for="attr in attrs"
           :key="attr.attributeId"
-          class="flex items-center gap-2 px-2 py-1 rounded text-[11px] cursor-grab hover:bg-[var(--color-bg)] text-[var(--color-text-secondary)]"
+          class="flex items-center gap-2 px-2 py-1 rounded text-[11px] hover:bg-[var(--color-bg)] text-[var(--color-text-secondary)]"
+          :class="hasFocus ? 'cursor-pointer' : 'cursor-grab'"
           draggable="true"
           @dragstart="onDragStart($event, { type: 'attribute', attributeId: attr.attributeId, label: attr.label_de, showLabel: true, showValue: true, showUnit: true })"
+          @dblclick="onDoubleClick({ type: 'attribute', attributeId: attr.attributeId, label: attr.label_de, showLabel: true, showValue: true, showUnit: true })"
           :title="attr.technical_name"
         >
           <GripVertical class="w-3 h-3 text-[var(--color-text-tertiary)]" :stroke-width="1.5" />

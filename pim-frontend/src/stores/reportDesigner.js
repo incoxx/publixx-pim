@@ -19,6 +19,9 @@ export const useReportDesignerStore = defineStore('reportDesigner', () => {
   const selectedElementId = ref(null)
   const selectedGroupId = ref(null)
 
+  // Focus state for double-click add
+  const focusedSection = ref({ groupId: null, section: null })
+
   // Dirty tracking
   const isDirty = ref(false)
 
@@ -108,6 +111,8 @@ export const useReportDesignerStore = defineStore('reportDesigner', () => {
       label: 'Neue Gruppe',
       sortOrder: 'asc',
       pageBreak: false,
+      detailLayout: 'table',
+      tableStyle: createDefaultTableStyle(),
       header: { elements: [] },
       detail: { elements: [] },
       footer: { elements: [] },
@@ -198,6 +203,10 @@ export const useReportDesignerStore = defineStore('reportDesigner', () => {
     selectedGroupId.value = null
   }
 
+  function setFocusedSection(groupId, section) {
+    focusedSection.value = { groupId, section }
+  }
+
   // --- Page Header/Footer ---
   function updatePageHeader(elements) {
     templateJson.value.pageHeader = { elements }
@@ -230,12 +239,14 @@ export const useReportDesignerStore = defineStore('reportDesigner', () => {
     templates, loading, currentTemplate, templateJson,
     availableFields, fieldsLoading,
     selectedElementId, selectedGroupId, selectedElement, selectedGroup,
+    focusedSection,
     isDirty,
     loadTemplates, loadTemplate, saveTemplate, createTemplate, deleteTemplate,
     loadFields,
     addGroup, removeGroup, updateGroup,
     addElement, removeElement, updateElement, moveElement,
     selectElement, selectGroup, clearSelection,
+    setFocusedSection,
     updatePageHeader, updatePageFooter,
   }
 })
@@ -250,6 +261,19 @@ export function createEmptyTemplate() {
     pageFooter: { elements: [] },
     groups: [],
     style: { font: 'Arial', size: 11, primaryColor: '#2563eb' },
+  }
+}
+
+export function createDefaultTableStyle() {
+  return {
+    showBorders: true,
+    borderColor: '#e5e7eb',
+    alternateRowBg: true,
+    alternateRowColor: '#f9fafb',
+    columnWidths: {},
+    headerBg: '#f3f4f6',
+    headerColor: '#374151',
+    compact: false,
   }
 }
 
