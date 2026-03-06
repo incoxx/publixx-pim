@@ -3,6 +3,7 @@ import { useI18n } from 'vue-i18n'
 import {
   HelpCircle, BookOpen, Keyboard, MessageSquare, ExternalLink,
   Package, Sliders, GitBranch, Upload, Download, Image, DollarSign, Search, Star,
+  FileJson, PlayCircle,
 } from 'lucide-vue-next'
 
 const { t } = useI18n()
@@ -83,6 +84,34 @@ const sections = [
       'Vorlagen-Download für konsistente Imports',
       'Export in verschiedene Formate',
       'XLIFF-Export/Import für Übersetzungsworkflows',
+    ],
+  },
+  {
+    icon: FileJson,
+    title: 'JSON Export/Import',
+    link: `${docsBase}/json-export-import/`,
+    items: [
+      'Vollexport aller PIM-Daten als JSON (18 Sektionen in Abhängigkeitsreihenfolge)',
+      'Sektionsauswahl: Nur bestimmte Entitätstypen exportieren',
+      'Produktfilter: Status, Produkttyp, Freitext, Aktualisierungsdatum',
+      'JSON-Import mit Validierung und Upsert- oder Delete-Insert-Modus',
+      'REST-API: GET/POST /api/v1/json-export, POST /api/v1/json-import',
+      'CLI: php artisan pim:json-export, php artisan pim:json-import',
+      'Gut lesbar formatiertes JSON — ideal für Schnittstellen und Datensicherungen',
+    ],
+  },
+  {
+    icon: PlayCircle,
+    title: 'Export-Jobs',
+    link: `${docsBase}/export-jobs/`,
+    items: [
+      'Benannte Export-Jobs mit vorkonfigurierten Filtern und Formaten erstellen',
+      'Unterstützte Formate: JSON, Excel, CSV, XML',
+      'Sektionsauswahl pro Job (nur bei JSON-Format)',
+      'Sofortige oder asynchrone Ausführung über Queue',
+      'Download der letzten Export-Datei direkt aus der Job-Übersicht',
+      'REST-API und CLI (php artisan pim:export-job) für Automatisierung',
+      'Vorbereitet für geplante Ausführung (Cron-Ausdruck)',
     ],
   },
 ]

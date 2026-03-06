@@ -84,7 +84,7 @@ class JsonExport extends Command
         $exporter->exportToFile($outputPath, $sections, $filters);
 
         $duration = round(microtime(true) - $startTime, 2);
-        $size = $this->formatBytes(filesize($outputPath));
+        $size = $this->formatBytes((int) filesize($outputPath));
 
         $this->newLine();
         $this->info("Export abgeschlossen!");

@@ -115,15 +115,26 @@ class ExportJobService
         return [
             'path' => $outputPath,
             'format' => 'json',
-            'size' => filesize($outputPath),
+            'size' => (int) filesize($outputPath),
         ];
     }
 
     /**
      * Excel-Export im 14-Sheet-Import-Format.
+     *
+     * Hinweis: Der ImportFormatExporter unterstützt aktuell keine Filter.
+     * Es werden immer alle Daten exportiert.
      */
     private function executeExcelExport(ExportJob $job, string $outputDir): array
     {
+        $filters = $this->resolveFilters($job);
+        if (!empty($filters)) {
+            Log::channel('export')->warning("Excel-Export ignoriert Filter (nicht unterstützt)", [
+                'job_id' => $job->id,
+                'filters' => $filters,
+            ]);
+        }
+
         $fileName = $this->buildFileName($job, 'xlsx');
         $outputPath = "{$outputDir}/{$fileName}";
 
@@ -132,7 +143,7 @@ class ExportJobService
         return [
             'path' => $outputPath,
             'format' => 'excel',
-            'size' => filesize($outputPath),
+            'size' => (int) filesize($outputPath),
         ];
     }
 
@@ -179,7 +190,7 @@ class ExportJobService
         return [
             'path' => $outputPath,
             'format' => $job->format,
-            'size' => filesize($outputPath),
+            'size' => (int) filesize($outputPath),
         ];
     }
 

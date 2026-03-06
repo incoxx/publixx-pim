@@ -153,7 +153,7 @@ class ExportJobExecute extends Command
             $this->newLine();
             $this->info('Export abgeschlossen!');
             $this->line("  Datei:  {$result['path']}");
-            $this->line("  Größe:  " . $this->formatBytes($result['size']));
+            $this->line("  Größe:  " . $this->formatBytes((int) ($result['size'] ?? 0)));
             $this->line("  Dauer:  {$result['duration']}s");
 
             return self::SUCCESS;

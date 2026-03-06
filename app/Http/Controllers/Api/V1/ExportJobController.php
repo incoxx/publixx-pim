@@ -63,9 +63,10 @@ class ExportJobController extends Controller
         return response()->json(['data' => $job], 201);
     }
 
-    public function show(string $id): JsonResponse
+    public function show(Request $request, string $id): JsonResponse
     {
         $job = ExportJob::findOrFail($id);
+        $this->authorizeJobAccess($request, $job);
 
         return response()->json([
             'data' => $job->load(['exportProfile', 'searchProfile']),
@@ -75,6 +76,7 @@ class ExportJobController extends Controller
     public function update(Request $request, string $id): JsonResponse
     {
         $job = ExportJob::findOrFail($id);
+        $this->authorizeJobAccess($request, $job);
 
         $validated = $request->validate([
             'name' => 'sometimes|string|max:255',
@@ -95,9 +97,10 @@ class ExportJobController extends Controller
         return response()->json(['data' => $job->fresh()]);
     }
 
-    public function destroy(string $id): JsonResponse
+    public function destroy(Request $request, string $id): JsonResponse
     {
         $job = ExportJob::findOrFail($id);
+        $this->authorizeJobAccess($request, $job);
         $job->delete();
 
         return response()->json(null, 204);
@@ -109,6 +112,7 @@ class ExportJobController extends Controller
     public function execute(Request $request, string $id): JsonResponse
     {
         $job = ExportJob::findOrFail($id);
+        $this->authorizeJobAccess($request, $job);
         $async = $request->boolean('async', false);
 
         if ($async) {
@@ -136,9 +140,10 @@ class ExportJobController extends Controller
     /**
      * GET /api/v1/export-jobs/{id}/download — Letzte Export-Datei herunterladen.
      */
-    public function download(string $id)
+    public function download(Request $request, string $id)
     {
         $job = ExportJob::findOrFail($id);
+        $this->authorizeJobAccess($request, $job);
 
         if (!$job->last_output_path || !file_exists($job->last_output_path)) {
             return response()->json([
@@ -150,5 +155,17 @@ class ExportJobController extends Controller
             $job->last_output_path,
             basename($job->last_output_path),
         );
+    }
+
+    /**
+     * Prüft, ob der aktuelle Benutzer Zugriff auf den Job hat.
+     * Geteilte Jobs sind für alle sichtbar, private Jobs nur für den Ersteller.
+     */
+    private function authorizeJobAccess(Request $request, ExportJob $job): void
+    {
+        $userId = $request->user()?->id;
+        if (!$job->is_shared && $job->user_id && $userId !== $job->user_id) {
+            abort(403, 'Kein Zugriff auf diesen Export-Job.');
+        }
     }
 }

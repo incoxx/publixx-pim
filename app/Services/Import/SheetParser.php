@@ -205,6 +205,37 @@ class SheetParser
             'required' => ['sku', 'file_name'],
             'identifier' => ['sku', 'file_name'],
         ],
+        '15_Attribut_Sichten' => [
+            'columns' => [
+                'A' => 'technical_name',
+                'B' => 'name_de',
+                'C' => 'name_en',
+                'D' => 'description',
+                'E' => 'sort_order',
+                'F' => 'is_write_protected',
+            ],
+            'required' => ['technical_name', 'name_de'],
+            'identifier' => ['technical_name'],
+        ],
+        '16_Preistypen' => [
+            'columns' => [
+                'A' => 'technical_name',
+                'B' => 'name_de',
+                'C' => 'name_en',
+            ],
+            'required' => ['technical_name', 'name_de'],
+            'identifier' => ['technical_name'],
+        ],
+        '17_Beziehungstypen' => [
+            'columns' => [
+                'A' => 'technical_name',
+                'B' => 'name_de',
+                'C' => 'name_en',
+                'D' => 'is_bidirectional',
+            ],
+            'required' => ['technical_name', 'name_de'],
+            'identifier' => ['technical_name'],
+        ],
     ];
 
     /**

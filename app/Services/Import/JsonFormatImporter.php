@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Services\Import;
 
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -98,34 +97,21 @@ class JsonFormatImporter
         // ParseResult simulieren für den ImportExecutor
         $parseResult = $this->buildParseResult($data);
 
-        DB::beginTransaction();
+        // ImportExecutor verwaltet seine eigene Transaktion – kein zusätzliches Wrapping nötig.
+        $result = $this->executor->execute($parseResult);
 
-        try {
-            $result = $this->executor->execute($parseResult);
+        $duration = round(microtime(true) - $startTime, 2);
+        Log::channel('import')->info("JSON-Import abgeschlossen in {$duration}s", [
+            'stats' => $result->stats,
+            'affected_products' => count($result->affectedProductIds),
+        ]);
 
-            DB::commit();
-
-            $duration = round(microtime(true) - $startTime, 2);
-            Log::channel('import')->info("JSON-Import abgeschlossen in {$duration}s", [
-                'stats' => $result->stats,
-                'affected_products' => count($result->affectedProductIds),
-            ]);
-
-            return new JsonImportResult(
-                stats: $result->stats,
-                affectedProductIds: $result->affectedProductIds,
-                skippedDetails: $result->skippedDetails,
-                durationSeconds: $duration,
-            );
-        } catch (\Throwable $e) {
-            DB::rollBack();
-
-            Log::channel('import')->error("JSON-Import fehlgeschlagen: {$e->getMessage()}", [
-                'trace' => $e->getTraceAsString(),
-            ]);
-
-            throw $e;
-        }
+        return new JsonImportResult(
+            stats: $result->stats,
+            affectedProductIds: $result->affectedProductIds,
+            skippedDetails: $result->skippedDetails,
+            durationSeconds: $duration,
+        );
     }
 
     /**
@@ -199,6 +185,37 @@ class JsonFormatImporter
     private function buildParseResult(array $data): ParseResult
     {
         $sheets = [];
+
+        // Attribut-Sichten (JSON: attribute_views → Sheet: 15_Attribut_Sichten)
+        if (isset($data['attribute_views'])) {
+            $sheets['15_Attribut_Sichten'] = array_map(fn ($v) => [
+                'technical_name' => $v['technical_name'],
+                'name_de' => $v['name_de'],
+                'name_en' => $v['name_en'] ?? null,
+                'description' => $v['description'] ?? null,
+                'sort_order' => $v['sort_order'] ?? 0,
+                'is_write_protected' => $v['is_write_protected'] ?? false,
+            ], $data['attribute_views']);
+        }
+
+        // Preistypen (JSON: price_types → Sheet: 16_Preistypen)
+        if (isset($data['price_types'])) {
+            $sheets['16_Preistypen'] = array_map(fn ($p) => [
+                'technical_name' => $p['technical_name'],
+                'name_de' => $p['name_de'],
+                'name_en' => $p['name_en'] ?? null,
+            ], $data['price_types']);
+        }
+
+        // Beziehungstypen (JSON: relation_types → Sheet: 17_Beziehungstypen)
+        if (isset($data['relation_types'])) {
+            $sheets['17_Beziehungstypen'] = array_map(fn ($r) => [
+                'technical_name' => $r['technical_name'],
+                'name_de' => $r['name_de'],
+                'name_en' => $r['name_en'] ?? null,
+                'is_bidirectional' => $r['is_bidirectional'] ?? false,
+            ], $data['relation_types']);
+        }
 
         // Einheiten (JSON: unit_groups + units → Sheet: 03_Einheiten)
         if (isset($data['units'])) {

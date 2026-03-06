@@ -135,7 +135,17 @@ class JsonExportImportController extends Controller
             ], 422);
         }
 
-        $result = $this->importer->importData($data);
+        try {
+            $result = $this->importer->importData($data);
+        } catch (\Throwable $e) {
+            Log::channel('import')->error('JSON-Import via REST fehlgeschlagen', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'error' => 'Import fehlgeschlagen: ' . $e->getMessage(),
+            ], 500);
+        }
 
         Log::channel('import')->info('JSON-Import via REST abgeschlossen', $result->toArray());
 
