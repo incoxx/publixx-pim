@@ -69,8 +69,7 @@ const fields = computed(() => {
   // Show composite format field and child attribute selector for Composite attributes
   if (formData.value.data_type === 'Composite') {
     const eligibleChildren = store.items.filter(a => {
-      const childTypes = ['String', 'Number', 'Float', 'Date', 'Flag']
-      if (!childTypes.includes(a.data_type)) return false
+      if (a.data_type === 'Composite') return false
       if (a.id === props.attribute?.id) return false
       // Available if unassigned or already assigned to this composite
       if (!a.parent_attribute_id) return true
@@ -79,7 +78,7 @@ const fields = computed(() => {
     })
     if (eligibleChildren.length > 0) {
       base.push({
-        key: 'child_attribute_ids', label: 'Kind-Attribute', type: 'multiselect',
+        key: 'child_attribute_ids', label: 'Kind-Attribute', type: 'multicombobox',
         options: eligibleChildren.map(a => ({ value: a.id, label: a.name_de || a.technical_name })),
         hint: 'Attribute die zu diesem Composite gehören.',
       })

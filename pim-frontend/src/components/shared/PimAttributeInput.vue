@@ -50,6 +50,38 @@ function clearDictEntry() {
   dictSearch.value = ''
 }
 
+// Multi-combobox state
+const mcSearch = ref('')
+const mcOpen = ref(false)
+
+const mcFilteredOptions = computed(() => {
+  const selected = props.modelValue || []
+  let opts = props.options.filter(o => !selected.includes(o.value ?? o))
+  if (mcSearch.value) {
+    const term = mcSearch.value.toLowerCase()
+    opts = opts.filter(o => (o.label ?? String(o)).toLowerCase().includes(term))
+  }
+  return opts
+})
+
+const mcSelectedOptions = computed(() => {
+  const selected = props.modelValue || []
+  return selected.map(v => {
+    const found = props.options.find(o => (o.value ?? o) === v)
+    return { value: v, label: found ? (found.label ?? found) : v }
+  })
+})
+
+function mcSelect(opt) {
+  const val = opt.value ?? opt
+  emit('update:modelValue', [...(props.modelValue || []), val])
+  mcSearch.value = ''
+}
+
+function mcRemove(val) {
+  emit('update:modelValue', (props.modelValue || []).filter(v => v !== val))
+}
+
 function update(value) {
   emit('update:modelValue', value)
 }
@@ -217,6 +249,60 @@ function update(value) {
         <div v-if="filteredDictOptions.length === 0" class="px-3 py-2 text-[12px] text-[var(--color-text-tertiary)]">
           Keine Einträge gefunden
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Multi-Combobox (searchable multi-select dropdown) -->
+  <div v-else-if="type === 'multicombobox'" class="relative">
+    <!-- Selected tags -->
+    <div v-if="mcSelectedOptions.length" class="flex flex-wrap gap-1 mb-1.5">
+      <span
+        v-for="sel in mcSelectedOptions"
+        :key="sel.value"
+        class="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-md bg-[var(--color-bg)] text-[var(--color-text-secondary)] text-[11px] border border-[var(--color-border)]"
+      >
+        {{ sel.label }}
+        <button
+          v-if="!disabled"
+          type="button"
+          class="ml-0.5 hover:text-[var(--color-error)]"
+          @click="mcRemove(sel.value)"
+        >
+          <X class="w-3 h-3" :stroke-width="2" />
+        </button>
+      </span>
+    </div>
+    <!-- Search input -->
+    <input
+      type="text"
+      :class="[...inputClass, 'text-[13px]']"
+      v-model="mcSearch"
+      :placeholder="placeholder || 'Suchen…'"
+      :disabled="disabled"
+      @focus="mcOpen = true"
+      @blur="setTimeout(() => mcOpen = false, 200)"
+    />
+    <!-- Dropdown -->
+    <div
+      v-if="mcOpen && mcFilteredOptions.length > 0"
+      class="absolute z-30 left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg shadow-lg"
+    >
+      <div
+        v-for="opt in mcFilteredOptions"
+        :key="opt.value ?? opt"
+        class="px-3 py-1.5 text-[13px] cursor-pointer hover:bg-[var(--color-bg)] transition-colors"
+        @mousedown.prevent="mcSelect(opt)"
+      >
+        {{ opt.label ?? opt }}
+      </div>
+    </div>
+    <div
+      v-if="mcOpen && mcFilteredOptions.length === 0 && mcSearch"
+      class="absolute z-30 left-0 right-0 mt-1 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg shadow-lg"
+    >
+      <div class="px-3 py-2 text-[12px] text-[var(--color-text-tertiary)]">
+        Keine Einträge gefunden
       </div>
     </div>
   </div>
