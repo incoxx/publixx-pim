@@ -187,7 +187,7 @@ else
     # Aenderungen zusammenfassen
     echo ""
     echo -e "  ${BOLD}Aenderungen:${NC}"
-    git log --oneline "${OLD_HEAD}..${NEW_HEAD}" | head -10 | while read -r line; do
+    git log --oneline -10 "${OLD_HEAD}..${NEW_HEAD}" | while read -r line; do
         echo -e "    ${CYAN}${line}${NC}"
     done
     TOTAL=$(git rev-list --count "${OLD_HEAD}..${NEW_HEAD}")
