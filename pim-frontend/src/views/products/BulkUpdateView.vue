@@ -115,12 +115,8 @@ function attrInputOptions(attr) {
 }
 
 // ── Tab 2: Relations ────────────────────────────────
-const relationOps = ref([]) // [{relationType, targetProduct, action}]
+const relationOps = ref([]) // [{relationType, targetProduct, action, search, results, loading}]
 const relationTypesList = ref([])
-const relProductSearch = ref('')
-const relProductResults = ref([])
-const relSearchLoading = ref(false)
-const relEditIndex = ref(null) // which relation op is being edited
 
 async function loadRelationTypes() {
   try {
@@ -129,30 +125,33 @@ async function loadRelationTypes() {
   } catch { relationTypesList.value = [] }
 }
 
-const debouncedRelProductSearch = useDebounceFn(async () => {
-  if (!relProductSearch.value.trim()) { relProductResults.value = []; return }
-  relSearchLoading.value = true
-  try {
-    const { data } = await productsApi.list({ search: relProductSearch.value, perPage: 10 })
-    relProductResults.value = data.data || data
-  } catch { relProductResults.value = [] }
-  finally { relSearchLoading.value = false }
-}, 300)
+function searchRelProduct(index) {
+  const op = relationOps.value[index]
+  if (!op.search?.trim()) { op.results = []; return }
+  op.loading = true
+  productsApi.list({ search: op.search, perPage: 10 })
+    .then(({ data }) => { op.results = data.data || data })
+    .catch(() => { op.results = [] })
+    .finally(() => { op.loading = false })
+}
+
+const debouncedRelProductSearch = useDebounceFn(searchRelProduct, 300)
 
 function addRelationOp() {
   relationOps.value.push({
     relationType: relationTypesList.value[0] || null,
     targetProduct: null,
     action: 'add',
+    search: '',
+    results: [],
+    loading: false,
   })
-  relEditIndex.value = relationOps.value.length - 1
 }
 
 function selectRelProduct(product, index) {
   relationOps.value[index].targetProduct = product
-  relProductSearch.value = ''
-  relProductResults.value = []
-  relEditIndex.value = null
+  relationOps.value[index].search = ''
+  relationOps.value[index].results = []
 }
 
 function removeRelOp(index) {
@@ -215,6 +214,7 @@ const statusOptions = [
 
 // ── Tab 5: Master Hierarchy ─────────────────────────
 const masterHierarchyNodeId = ref(null)
+const masterHierarchyChanged = ref(false) // true when user actively configured this tab
 const masterHierarchy = ref(null) // the master hierarchy object
 const masterTree = ref([])
 const masterTreeLoading = ref(false)
@@ -242,6 +242,13 @@ async function loadMasterHierarchy() {
 function selectMasterNode(node) {
   masterSelectedNode.value = node
   masterHierarchyNodeId.value = node?.id || null
+  masterHierarchyChanged.value = true
+}
+
+function clearMasterHierarchy() {
+  masterSelectedNode.value = null
+  masterHierarchyNodeId.value = null
+  masterHierarchyChanged.value = true
 }
 
 function toggleMasterExpanded(nodeId) {
@@ -254,12 +261,8 @@ function toggleMasterExpanded(nodeId) {
 }
 
 // ── Tab 6: Media ────────────────────────────────────
-const mediaOps = ref([]) // [{media, usageType, action}]
+const mediaOps = ref([]) // [{media, usageType, action, search, results, loading}]
 const usageTypesList = ref([])
-const mediaSearchQuery = ref('')
-const mediaSearchResults = ref([])
-const mediaSearchLoading = ref(false)
-const mediaEditIndex = ref(null)
 
 async function loadUsageTypes() {
   try {
@@ -268,26 +271,33 @@ async function loadUsageTypes() {
   } catch { usageTypesList.value = [] }
 }
 
-const debouncedMediaSearch = useDebounceFn(async () => {
-  if (!mediaSearchQuery.value.trim()) { mediaSearchResults.value = []; return }
-  mediaSearchLoading.value = true
-  try {
-    const { data } = await mediaApi.list({ search: mediaSearchQuery.value, perPage: 10 })
-    mediaSearchResults.value = data.data || data
-  } catch { mediaSearchResults.value = [] }
-  finally { mediaSearchLoading.value = false }
-}, 300)
+function searchMediaForRow(index) {
+  const op = mediaOps.value[index]
+  if (!op.search?.trim()) { op.results = []; return }
+  op.loading = true
+  mediaApi.list({ search: op.search, perPage: 10 })
+    .then(({ data }) => { op.results = data.data || data })
+    .catch(() => { op.results = [] })
+    .finally(() => { op.loading = false })
+}
+
+const debouncedMediaSearch = useDebounceFn(searchMediaForRow, 300)
 
 function addMediaOp() {
-  mediaOps.value.push({ media: null, usageType: usageTypesList.value[0] || null, action: 'assign' })
-  mediaEditIndex.value = mediaOps.value.length - 1
+  mediaOps.value.push({
+    media: null,
+    usageType: usageTypesList.value[0] || null,
+    action: 'assign',
+    search: '',
+    results: [],
+    loading: false,
+  })
 }
 
 function selectMedia(medium, index) {
   mediaOps.value[index].media = medium
-  mediaSearchQuery.value = ''
-  mediaSearchResults.value = []
-  mediaEditIndex.value = null
+  mediaOps.value[index].search = ''
+  mediaOps.value[index].results = []
 }
 
 function removeMediaOp(index) {
@@ -301,7 +311,7 @@ const operationCount = computed(() => {
   if (relationOps.value.filter(r => r.targetProduct).length > 0) count += relationOps.value.filter(r => r.targetProduct).length
   if (hierarchyOps.value.filter(h => h.node).length > 0) count += hierarchyOps.value.filter(h => h.node).length
   if (statusOperation.value) count++
-  if (masterHierarchyNodeId.value) count++
+  if (masterHierarchyChanged.value) count++
   if (mediaOps.value.filter(m => m.media).length > 0) count += mediaOps.value.filter(m => m.media).length
   return count
 })
@@ -339,7 +349,7 @@ function buildOperations() {
     ops.status = statusOperation.value
   }
 
-  if (masterHierarchyNodeId.value) {
+  if (masterHierarchyChanged.value) {
     ops.master_hierarchy_node_id = masterHierarchyNodeId.value
   }
 
@@ -508,7 +518,7 @@ onMounted(() => {
               class="ml-1 w-2 h-2 rounded-full bg-[var(--color-accent)]"
             />
             <span
-              v-if="tab.key === 'master_hierarchy' && masterHierarchyNodeId"
+              v-if="tab.key === 'master_hierarchy' && masterHierarchyChanged"
               class="ml-1 w-2 h-2 rounded-full bg-[var(--color-accent)]"
             />
             <span
@@ -669,7 +679,7 @@ onMounted(() => {
                   <div v-if="op.targetProduct" class="flex items-center gap-2 px-2 py-1.5 bg-[var(--color-surface)] rounded">
                     <span class="text-xs font-mono text-[var(--color-text-secondary)]">{{ op.targetProduct.sku }}</span>
                     <span class="text-xs">{{ op.targetProduct.name || '—' }}</span>
-                    <button class="pim-btn pim-btn-ghost p-0.5 ml-auto" @click="op.targetProduct = null; relEditIndex = idx">
+                    <button class="pim-btn pim-btn-ghost p-0.5 ml-auto" @click="op.targetProduct = null">
                       <X class="w-3 h-3" :stroke-width="2" />
                     </button>
                   </div>
@@ -677,16 +687,15 @@ onMounted(() => {
                     <div class="relative">
                       <Search class="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)]" :stroke-width="1.75" />
                       <input
-                        v-model="relProductSearch"
+                        v-model="op.search"
                         class="pim-input text-xs w-full pl-8"
                         placeholder="Produkt suchen (SKU, Name)…"
-                        @input="relEditIndex = idx; debouncedRelProductSearch()"
-                        @focus="relEditIndex = idx"
+                        @input="debouncedRelProductSearch(idx)"
                       />
                     </div>
-                    <div v-if="relEditIndex === idx && relProductResults.length > 0" class="max-h-32 overflow-y-auto mt-1 space-y-0.5">
+                    <div v-if="op.results?.length > 0" class="max-h-32 overflow-y-auto mt-1 space-y-0.5">
                       <div
-                        v-for="p in relProductResults"
+                        v-for="p in op.results"
                         :key="p.id"
                         class="flex items-center gap-2 px-2 py-1 rounded hover:bg-[var(--color-surface)] cursor-pointer text-xs"
                         @click="selectRelProduct(p, idx)"
@@ -778,7 +787,19 @@ onMounted(() => {
 
           <!-- ═══ Tab: Master-Hierarchie ═══ -->
           <div v-else-if="activeTab === 'master_hierarchy'" class="space-y-3">
-            <p class="text-sm text-[var(--color-text-secondary)]">Master-Hierarchie-Knoten für alle markierten Produkte zuordnen</p>
+            <div class="flex items-center justify-between">
+              <p class="text-sm text-[var(--color-text-secondary)]">Master-Hierarchie-Knoten für alle markierten Produkte zuordnen</p>
+              <button v-if="!masterHierarchyChanged || masterHierarchyNodeId" class="pim-btn pim-btn-secondary text-xs" @click="clearMasterHierarchy">
+                <Trash2 class="w-3 h-3" :stroke-width="2" /> Zuordnung entfernen
+              </button>
+            </div>
+            <div v-if="masterHierarchyChanged && !masterHierarchyNodeId" class="flex items-center gap-2 p-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
+              <AlertTriangle class="w-3.5 h-3.5 shrink-0" :stroke-width="1.75" />
+              <span>Master-Hierarchie-Zuordnung wird für alle ausgewählten Produkte entfernt.</span>
+              <button class="pim-btn pim-btn-ghost p-0.5 ml-auto" @click="masterHierarchyChanged = false">
+                <X class="w-3.5 h-3.5" :stroke-width="2" />
+              </button>
+            </div>
             <div v-if="masterSelectedNode" class="flex items-center gap-2 p-2 bg-[var(--color-bg)] rounded-lg text-xs">
               <FolderTree class="w-3.5 h-3.5 text-[var(--color-accent)]" :stroke-width="1.75" />
               <span class="font-medium">{{ masterSelectedNode.name_de || masterSelectedNode.name }}</span>
@@ -843,7 +864,7 @@ onMounted(() => {
                   <div v-if="op.media" class="flex items-center gap-2 px-2 py-1.5 bg-[var(--color-surface)] rounded text-xs">
                     <Image class="w-3.5 h-3.5 text-[var(--color-text-tertiary)]" :stroke-width="1.75" />
                     <span class="font-medium">{{ op.media.original_filename || op.media.filename || op.media.id }}</span>
-                    <button class="pim-btn pim-btn-ghost p-0.5 ml-auto" @click="op.media = null; mediaEditIndex = idx">
+                    <button class="pim-btn pim-btn-ghost p-0.5 ml-auto" @click="op.media = null">
                       <X class="w-3 h-3" :stroke-width="2" />
                     </button>
                   </div>
@@ -851,16 +872,15 @@ onMounted(() => {
                     <div class="relative">
                       <Search class="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)]" :stroke-width="1.75" />
                       <input
-                        v-model="mediaSearchQuery"
+                        v-model="op.search"
                         class="pim-input text-xs w-full pl-8"
                         placeholder="Medium suchen (Dateiname)…"
-                        @input="mediaEditIndex = idx; debouncedMediaSearch()"
-                        @focus="mediaEditIndex = idx"
+                        @input="debouncedMediaSearch(idx)"
                       />
                     </div>
-                    <div v-if="mediaEditIndex === idx && mediaSearchResults.length > 0" class="max-h-32 overflow-y-auto mt-1 space-y-0.5">
+                    <div v-if="op.results?.length > 0" class="max-h-32 overflow-y-auto mt-1 space-y-0.5">
                       <div
-                        v-for="m in mediaSearchResults"
+                        v-for="m in op.results"
                         :key="m.id"
                         class="flex items-center gap-2 px-2 py-1 rounded hover:bg-[var(--color-surface)] cursor-pointer text-xs"
                         @click="selectMedia(m, idx)"

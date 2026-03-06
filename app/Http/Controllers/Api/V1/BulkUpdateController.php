@@ -49,7 +49,7 @@ class BulkUpdateController extends Controller
             $summary['status'] = $this->processStatus($productIds, $operations['status'], false);
         }
 
-        if (!empty($operations['master_hierarchy_node_id'])) {
+        if (array_key_exists('master_hierarchy_node_id', $operations)) {
             $summary['master_hierarchy'] = $this->processMasterHierarchy($productIds, $operations['master_hierarchy_node_id'], false);
         }
 
@@ -86,7 +86,7 @@ class BulkUpdateController extends Controller
                 $results['status'] = $this->processStatus($productIds, $operations['status'], true);
             }
 
-            if (!empty($operations['master_hierarchy_node_id'])) {
+            if (array_key_exists('master_hierarchy_node_id', $operations)) {
                 $results['master_hierarchy'] = $this->processMasterHierarchy($productIds, $operations['master_hierarchy_node_id'], true);
             }
 
@@ -95,12 +95,17 @@ class BulkUpdateController extends Controller
             }
         });
 
-        // Fire events for changed products (outside transaction for performance)
-        $changedAttrIds = collect($operations['attributes'] ?? [])->pluck('attribute_id')->unique()->toArray();
-        if (!empty($changedAttrIds)) {
-            foreach ($productIds as $pid) {
+        // Fire events only for products that actually had attribute changes
+        if (!empty($results['attributes']['changed_product_ids'])) {
+            $changedAttrIds = collect($operations['attributes'])->pluck('attribute_id')->unique()->toArray();
+            foreach ($results['attributes']['changed_product_ids'] as $pid) {
                 event(new \App\Events\AttributeValuesChanged($pid, $changedAttrIds));
             }
+        }
+
+        // Remove internal tracking data from response
+        if (isset($results['attributes'])) {
+            unset($results['attributes']['changed_product_ids']);
         }
 
         return response()->json([
@@ -116,6 +121,7 @@ class BulkUpdateController extends Controller
         $details = [];
         $totalUpdated = 0;
         $totalSkipped = 0;
+        $changedProductIds = [];
 
         $attributes = Attribute::whereIn('id', collect($ops)->pluck('attribute_id'))->get()->keyBy('id');
 
@@ -142,7 +148,8 @@ class BulkUpdateController extends Controller
                 ->get()
                 ->keyBy('product_id');
 
-            $wouldUpdate = 0;
+            // Determine which products should be updated
+            $toUpdate = [];
             $wouldSkip = 0;
 
             foreach ($productIds as $pid) {
@@ -157,32 +164,57 @@ class BulkUpdateController extends Controller
                 };
 
                 if ($shouldUpdate) {
-                    $wouldUpdate++;
-
-                    if ($persist) {
-                        if ($mode === 'clear') {
-                            if ($existingValue) {
-                                $existingValue->delete();
-                            }
-                        } else {
-                            $valueData = $this->resolveValueColumns($attribute, $op['value']);
-                            ProductAttributeValue::updateOrCreate(
-                                [
-                                    'product_id' => $pid,
-                                    'attribute_id' => $attribute->id,
-                                    'language' => $language,
-                                    'multiplied_index' => 0,
-                                ],
-                                array_merge($valueData, [
-                                    'is_inherited' => false,
-                                    'inherited_from_node_id' => null,
-                                    'inherited_from_product_id' => null,
-                                ])
-                            );
-                        }
-                    }
+                    $toUpdate[] = $pid;
                 } else {
                     $wouldSkip++;
+                }
+            }
+
+            $wouldUpdate = count($toUpdate);
+
+            if ($persist && $wouldUpdate > 0) {
+                if ($mode === 'clear') {
+                    // Bulk delete
+                    ProductAttributeValue::whereIn('product_id', $toUpdate)
+                        ->where('attribute_id', $attribute->id)
+                        ->where(function ($q) use ($language) {
+                            if ($language) {
+                                $q->where('language', $language);
+                            } else {
+                                $q->whereNull('language');
+                            }
+                        })
+                        ->where('multiplied_index', 0)
+                        ->delete();
+                } else {
+                    // Bulk upsert
+                    $valueData = $this->resolveValueColumns($attribute, $op['value']);
+                    $rows = [];
+                    foreach ($toUpdate as $pid) {
+                        $rows[] = array_merge([
+                            'product_id' => $pid,
+                            'attribute_id' => $attribute->id,
+                            'language' => $language,
+                            'multiplied_index' => 0,
+                            'is_inherited' => false,
+                            'inherited_from_node_id' => null,
+                            'inherited_from_product_id' => null,
+                        ], $valueData);
+                    }
+
+                    // Upsert in chunks to avoid hitting query size limits
+                    foreach (array_chunk($rows, 500) as $chunk) {
+                        ProductAttributeValue::upsert(
+                            $chunk,
+                            ['product_id', 'attribute_id', 'language', 'multiplied_index'],
+                            array_merge(array_keys($valueData), ['is_inherited', 'inherited_from_node_id', 'inherited_from_product_id'])
+                        );
+                    }
+                }
+
+                // Track changed products for events
+                foreach ($toUpdate as $pid) {
+                    $changedProductIds[$pid] = true;
                 }
             }
 
@@ -197,11 +229,17 @@ class BulkUpdateController extends Controller
             ];
         }
 
-        return [
+        $result = [
             'updated' => $totalUpdated,
             'skipped' => $totalSkipped,
             'details' => $details,
         ];
+
+        if ($persist) {
+            $result['changed_product_ids'] = array_keys($changedProductIds);
+        }
+
+        return $result;
     }
 
     // ── Relations ───────────────────────────────────────
@@ -310,18 +348,30 @@ class BulkUpdateController extends Controller
 
     // ── Master Hierarchy ────────────────────────────────
 
-    private function processMasterHierarchy(array $productIds, string $nodeId, bool $persist): array
+    private function processMasterHierarchy(array $productIds, ?string $nodeId, bool $persist): array
     {
-        $alreadyTarget = Product::whereIn('id', $productIds)->where('master_hierarchy_node_id', $nodeId)->count();
-        $wouldChange = count($productIds) - $alreadyTarget;
+        if ($nodeId === null) {
+            // Clear master hierarchy: count those that already have null
+            $alreadyTarget = Product::whereIn('id', $productIds)->whereNull('master_hierarchy_node_id')->count();
+            $wouldChange = count($productIds) - $alreadyTarget;
 
-        if ($persist && $wouldChange > 0) {
-            Product::whereIn('id', $productIds)
-                ->where(function ($q) use ($nodeId) {
-                    $q->where('master_hierarchy_node_id', '!=', $nodeId)
-                      ->orWhereNull('master_hierarchy_node_id');
-                })
-                ->update(['master_hierarchy_node_id' => $nodeId]);
+            if ($persist && $wouldChange > 0) {
+                Product::whereIn('id', $productIds)
+                    ->whereNotNull('master_hierarchy_node_id')
+                    ->update(['master_hierarchy_node_id' => null]);
+            }
+        } else {
+            $alreadyTarget = Product::whereIn('id', $productIds)->where('master_hierarchy_node_id', $nodeId)->count();
+            $wouldChange = count($productIds) - $alreadyTarget;
+
+            if ($persist && $wouldChange > 0) {
+                Product::whereIn('id', $productIds)
+                    ->where(function ($q) use ($nodeId) {
+                        $q->where('master_hierarchy_node_id', '!=', $nodeId)
+                          ->orWhereNull('master_hierarchy_node_id');
+                    })
+                    ->update(['master_hierarchy_node_id' => $nodeId]);
+            }
         }
 
         return [
