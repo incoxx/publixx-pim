@@ -10,7 +10,8 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('dictionary_entries', function (Blueprint $table) {
+        if (!Schema::hasTable('dictionary_entries')) {
+            Schema::create('dictionary_entries', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->string('category', 100)->nullable()->index();
             $table->string('short_text_de', 255);
@@ -19,9 +20,11 @@ return new class extends Migration
             $table->text('long_text_en')->nullable();
             $table->enum('status', ['active', 'inactive'])->default('active');
             $table->timestamps();
-        });
+            });
+        }
 
-        Schema::create('attribute_dictionary_entry', function (Blueprint $table) {
+        if (!Schema::hasTable('attribute_dictionary_entry')) {
+            Schema::create('attribute_dictionary_entry', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->foreignUuid('attribute_id')->constrained()->cascadeOnDelete();
             $table->foreignUuid('dictionary_entry_id')->constrained()->cascadeOnDelete();
@@ -29,7 +32,8 @@ return new class extends Migration
             $table->timestamps();
 
             $table->unique(['attribute_id', 'dictionary_entry_id'], 'attr_dict_entry_unique');
-        });
+            });
+        }
     }
 
     public function down(): void
