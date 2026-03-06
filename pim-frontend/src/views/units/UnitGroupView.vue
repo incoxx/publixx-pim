@@ -24,7 +24,7 @@ const deletingUnit = ref(false)
 
 // Inline add
 const showAddRow = ref(false)
-const newUnit = ref({ technical_name: '', abbreviation: '', conversion_factor: 1, is_base_unit: false })
+const newUnit = ref({ technical_name: '', abbreviation: '', conversion_factor: 1, is_base_unit: false, is_translatable: false })
 
 // Error feedback
 const unitError = ref(null)
@@ -130,6 +130,7 @@ function startEdit(unit) {
     abbreviation: unit.abbreviation || '',
     conversion_factor: unit.conversion_factor ?? 1,
     is_base_unit: unit.is_base_unit,
+    is_translatable: unit.is_translatable ?? false,
   }
   showAddRow.value = false
 }

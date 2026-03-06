@@ -69,4 +69,21 @@ export default {
   bulkSortAssignments(data) {
     return client.put('/node-attribute-assignments/bulk-sort', data)
   },
+
+  // Output hierarchy product assignments
+  getOutputProducts(nodeId, options = {}) {
+    return client.get(`/hierarchy-nodes/${nodeId}/output-products`, { params: buildParams(options) })
+  },
+
+  assignOutputProduct(nodeId, data) {
+    return client.post(`/hierarchy-nodes/${nodeId}/output-products`, data)
+  },
+
+  removeOutputProductAssignment(assignmentId) {
+    return client.delete(`/output-hierarchy-product-assignments/${assignmentId}`)
+  },
+
+  sortOutputProducts(nodeId, items) {
+    return client.put(`/hierarchy-nodes/${nodeId}/output-products/sort`, { items })
+  },
 }

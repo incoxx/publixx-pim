@@ -43,11 +43,18 @@ const tabs = [
   { key: 'media', label: t('product.media') },
   { key: 'prices', label: t('product.prices') },
   { key: 'relations', label: t('product.relations') },
+  { key: 'output-hierarchies', label: 'Ausgabehierarchien' },
   { key: 'preview', label: t('product.preview') },
   { key: 'versions', label: t('product.versions') },
 ]
 
 const product = computed(() => store.current)
+
+const masterNodePath = computed(() => {
+  const nodeId = product.value?.master_hierarchy_node_id
+  if (!nodeId) return null
+  return hierarchyNodes.value.find(n => n.id === nodeId)?.label || null
+})
 
 // ─── Attribute Values ─────────────────────────────────
 const schema = ref(null)
@@ -846,6 +853,69 @@ function getPreviewCompositeSummary(compositeAttr, allAttrs) {
   return filled.length > 0 ? filled.join(' × ') : null
 }
 
+// ─── Output Hierarchy Assignments ──────────────────────
+const outputHierarchyAssignments = ref([])
+const outputHierarchyLoading = ref(false)
+const outputHierarchyLoaded = ref(false)
+const showOutputHierarchyForm = ref(false)
+const selectedOutputHierarchyId = ref(null)
+const selectedOutputNodeId = ref(null)
+const outputHierarchyNodeOptions = ref([])
+const outputHierarchyDeleteTarget = ref(null)
+const outputHierarchyDeleting = ref(false)
+
+const outputHierarchies = computed(() => hierarchies.value.filter(h => h.hierarchy_type === 'output'))
+
+async function loadOutputHierarchyAssignments() {
+  if (outputHierarchyLoaded.value || !product.value) return
+  outputHierarchyLoading.value = true
+  try {
+    const { data } = await productsApi.getOutputHierarchyAssignments(product.value.id)
+    outputHierarchyAssignments.value = data.data || data
+    outputHierarchyLoaded.value = true
+  } catch (e) { console.error('Failed to load output hierarchy assignments:', e.message) }
+  finally { outputHierarchyLoading.value = false }
+}
+
+async function onOutputHierarchyChange(hierarchyId) {
+  selectedOutputHierarchyId.value = hierarchyId
+  selectedOutputNodeId.value = null
+  if (!hierarchyId) { outputHierarchyNodeOptions.value = []; return }
+  try {
+    const { data } = await hierarchiesApi.getTree(hierarchyId)
+    const tree = data.data || data
+    outputHierarchyNodeOptions.value = flattenTree(tree, hierarchyId)
+  } catch { outputHierarchyNodeOptions.value = [] }
+}
+
+async function assignOutputHierarchyNode() {
+  if (!selectedOutputNodeId.value || !product.value) return
+  try {
+    await hierarchiesApi.assignOutputProduct(selectedOutputNodeId.value, { product_id: product.value.id })
+    showOutputHierarchyForm.value = false
+    selectedOutputHierarchyId.value = null
+    selectedOutputNodeId.value = null
+    outputHierarchyNodeOptions.value = []
+    outputHierarchyLoaded.value = false
+    await loadOutputHierarchyAssignments()
+    showFeedback?.('Zuordnung erstellt') // showFeedback may not exist in this component
+  } catch (e) {
+    console.error('Failed to assign output hierarchy:', e.message)
+  }
+}
+
+async function confirmDeleteOutputHierarchyAssignment() {
+  if (!outputHierarchyDeleteTarget.value) return
+  outputHierarchyDeleting.value = true
+  try {
+    await hierarchiesApi.removeOutputProductAssignment(outputHierarchyDeleteTarget.value.id)
+    outputHierarchyDeleteTarget.value = null
+    outputHierarchyLoaded.value = false
+    await loadOutputHierarchyAssignments()
+  } catch (e) { console.error('Failed to remove output hierarchy assignment:', e.message) }
+  finally { outputHierarchyDeleting.value = false }
+}
+
 // ─── Preview (Generic) ───────────────────────────────
 const previewData = ref(null)
 const previewLoading = ref(false)
@@ -1043,6 +1113,7 @@ watch(activeTab, (tab) => {
   if (tab === 'media') loadMedia()
   if (tab === 'prices') loadPrices()
   if (tab === 'relations') loadRelations()
+  if (tab === 'output-hierarchies') loadOutputHierarchyAssignments()
   if (tab === 'preview') loadPreview()
 })
 
@@ -1066,6 +1137,7 @@ watch(() => route.params.id, async (newId, oldId) => {
   mediaLoaded.value = false
   pricesLoaded.value = false
   relationsLoaded.value = false
+  outputHierarchyLoaded.value = false
 
   // Clear stale data
   schema.value = null
@@ -1261,6 +1333,7 @@ watch(() => route.params.id, async (newId, oldId) => {
                 <option v-for="node in hierarchyNodes.filter(n => !selectedHierarchyId || n._hierarchyId === selectedHierarchyId)" :key="node.id" :value="node.id">{{ node.label }}</option>
               </select>
             </div>
+            <p v-if="masterNodePath" class="text-[11px] text-[var(--color-text-tertiary)] mt-1 font-mono">{{ masterNodePath }}</p>
           </div>
         </div>
       </PimCollectionGroup>
@@ -1921,6 +1994,89 @@ watch(() => route.params.id, async (newId, oldId) => {
         :loading="relationDeleting"
         @confirm="confirmDeleteRelation"
         @cancel="relationDeleteTarget = null"
+      />
+    </div>
+
+    <!-- ═══ Output Hierarchies Tab ═══ -->
+    <div v-else-if="activeTab === 'output-hierarchies' && product" class="space-y-3">
+      <div class="flex items-center justify-between">
+        <h3 class="text-sm font-semibold text-[var(--color-text-primary)]">Ausgabehierarchie-Zuordnungen</h3>
+        <button class="pim-btn pim-btn-primary text-xs" @click="showOutputHierarchyForm = !showOutputHierarchyForm">
+          <Plus class="w-3.5 h-3.5" :stroke-width="2" /> Zuordnung hinzufugen
+        </button>
+      </div>
+
+      <!-- Add form -->
+      <div v-if="showOutputHierarchyForm" class="pim-card p-4 space-y-3">
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Ausgabehierarchie</label>
+            <select class="pim-input text-xs w-full" :value="selectedOutputHierarchyId || ''" @change="onOutputHierarchyChange($event.target.value)">
+              <option value="">— Hierarchie wählen —</option>
+              <option v-for="h in outputHierarchies" :key="h.id" :value="h.id">{{ h.name_de || h.technical_name }}</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Knoten</label>
+            <select class="pim-input text-xs w-full" v-model="selectedOutputNodeId" :disabled="!selectedOutputHierarchyId">
+              <option :value="null">— Knoten wählen —</option>
+              <option v-for="node in outputHierarchyNodeOptions" :key="node.id" :value="node.id">{{ node.label }}</option>
+            </select>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <button class="pim-btn pim-btn-primary text-xs" :disabled="!selectedOutputNodeId" @click="assignOutputHierarchyNode">
+            Zuordnen
+          </button>
+          <button class="pim-btn pim-btn-ghost text-xs" @click="showOutputHierarchyForm = false">Abbrechen</button>
+        </div>
+      </div>
+
+      <!-- Loading -->
+      <div v-if="outputHierarchyLoading" class="space-y-2">
+        <div v-for="i in 3" :key="i" class="pim-skeleton h-10 rounded" />
+      </div>
+
+      <!-- Assignment list -->
+      <div v-else-if="outputHierarchyAssignments.length > 0" class="pim-card overflow-hidden">
+        <table class="w-full text-xs">
+          <thead>
+            <tr class="bg-[var(--color-bg)] text-[var(--color-text-secondary)] text-[10px] uppercase tracking-wider">
+              <th class="px-3 py-2 text-left">Hierarchie</th>
+              <th class="px-3 py-2 text-left">Knoten</th>
+              <th class="px-3 py-2 text-right w-12">#</th>
+              <th class="px-3 py-2 text-right w-16">Aktion</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="assignment in outputHierarchyAssignments"
+              :key="assignment.id"
+              class="border-t border-[var(--color-border)] hover:bg-[var(--color-bg)] transition-colors"
+            >
+              <td class="px-3 py-2 text-[var(--color-text-secondary)]">{{ assignment.hierarchy_node?.hierarchy?.name_de || '—' }}</td>
+              <td class="px-3 py-2 font-medium text-[var(--color-text-primary)]">{{ assignment.hierarchy_node?.name_de || '—' }}</td>
+              <td class="px-3 py-2 text-right font-mono text-[var(--color-text-tertiary)]">{{ assignment.sort_order ?? 0 }}</td>
+              <td class="px-3 py-2 text-right">
+                <button class="p-1 rounded hover:bg-[var(--color-error-light)] text-[var(--color-text-tertiary)] hover:text-[var(--color-error)]" @click="outputHierarchyDeleteTarget = assignment" title="Entfernen">
+                  <Trash2 class="w-3.5 h-3.5" :stroke-width="2" />
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p v-else class="text-xs text-[var(--color-text-tertiary)] py-8 text-center">Keine Ausgabehierarchie-Zuordnungen. Klicken Sie auf "Zuordnung hinzufügen" um eine Hierarchie zuzuweisen.</p>
+
+      <!-- Delete confirm -->
+      <PimConfirmDialog
+        :open="!!outputHierarchyDeleteTarget"
+        title="Zuordnung entfernen?"
+        message="Die Zuordnung dieses Produkts zum Ausgabehierarchie-Knoten wird entfernt."
+        :loading="outputHierarchyDeleting"
+        @confirm="confirmDeleteOutputHierarchyAssignment"
+        @cancel="outputHierarchyDeleteTarget = null"
       />
     </div>
 

@@ -1,10 +1,17 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import AppSidebar from './AppSidebar.vue'
 import AppHeader from './AppHeader.vue'
 
 const authStore = useAuthStore()
+const route = useRoute()
+
+// Close panel when navigating to a different route
+watch(() => route.path, () => {
+  authStore.closePanel()
+})
 
 const mainClass = computed(() => ({
   'ml-[240px]': !authStore.sidebarCollapsed,
@@ -51,6 +58,7 @@ const mainClass = computed(() => ({
           v-if="authStore.panelComponent"
           :is="authStore.panelComponent"
           v-bind="authStore.panelProps"
+          :key="Object.values(authStore.panelProps).map(p => p?.id).join('-') || 'new'"
         />
       </div>
     </transition>
