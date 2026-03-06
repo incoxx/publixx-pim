@@ -13,7 +13,7 @@ const sizes = {
 
 <template>
   <div class="inline-flex items-center" :style="{ gap: sizes[size].gap + 'px' }">
-    <!-- Icon: Abstract data-hub / connection symbol -->
+    <!-- Icon: Abstract data-hub with hexagonal shape -->
     <svg
       :width="sizes[size].icon"
       :height="sizes[size].icon"
@@ -21,40 +21,45 @@ const sizes = {
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
     >
-      <!-- Outer shield/badge shape -->
+      <defs>
+        <linearGradient :id="'pim-grad-' + size" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#6366f1" />
+          <stop offset="50%" stop-color="#8b5cf6" />
+          <stop offset="100%" stop-color="#06b6d4" />
+        </linearGradient>
+      </defs>
+      <!-- Rounded hexagon outline -->
       <path
-        d="M24 2L6 10v14c0 11.1 7.7 21.4 18 24 10.3-2.6 18-12.9 18-24V10L24 2z"
+        d="M24 4L40 13v22L24 44L8 35V13L24 4z"
         fill="none"
-        stroke="currentColor"
+        :stroke="`url(#pim-grad-${size})`"
         stroke-width="2.5"
         stroke-linejoin="round"
-        class="text-[var(--color-primary)]"
       />
-      <!-- Central hub node -->
-      <circle cx="24" cy="20" r="4" fill="currentColor" class="text-[var(--color-primary)]" />
-      <!-- Top connector -->
-      <line x1="24" y1="10" x2="24" y2="16" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" class="text-[var(--color-primary)]" />
-      <!-- Bottom connector -->
-      <line x1="24" y1="24" x2="24" y2="34" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" class="text-[var(--color-primary)]" />
-      <!-- Left connector -->
-      <line x1="14" y1="26" x2="20.5" y2="21.5" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" class="text-[var(--color-primary)]" />
-      <!-- Right connector -->
-      <line x1="34" y1="26" x2="27.5" y2="21.5" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" class="text-[var(--color-primary)]" />
-      <!-- Bottom-left node -->
-      <circle cx="12" cy="28" r="3" fill="currentColor" class="text-[var(--color-primary)]" />
-      <!-- Bottom-right node -->
-      <circle cx="36" cy="28" r="3" fill="currentColor" class="text-[var(--color-primary)]" />
-      <!-- Bottom node -->
-      <circle cx="24" cy="36" r="3" fill="currentColor" class="text-[var(--color-primary)]" />
-      <!-- Top node -->
-      <circle cx="24" cy="9" r="2.5" fill="currentColor" class="text-[var(--color-primary)]" />
+      <!-- Central hub -->
+      <circle cx="24" cy="24" r="4.5" :fill="`url(#pim-grad-${size})`" />
+      <!-- Top-right connector + node -->
+      <line x1="27" y1="20.5" x2="34" y2="15" :stroke="`url(#pim-grad-${size})`" stroke-width="2" stroke-linecap="round" />
+      <circle cx="35" cy="14" r="2.5" :fill="`url(#pim-grad-${size})`" />
+      <!-- Top-left connector + node -->
+      <line x1="21" y1="20.5" x2="14" y2="15" :stroke="`url(#pim-grad-${size})`" stroke-width="2" stroke-linecap="round" />
+      <circle cx="13" cy="14" r="2.5" :fill="`url(#pim-grad-${size})`" />
+      <!-- Bottom connector + node -->
+      <line x1="24" y1="28.5" x2="24" y2="36" :stroke="`url(#pim-grad-${size})`" stroke-width="2" stroke-linecap="round" />
+      <circle cx="24" cy="37.5" r="2.5" :fill="`url(#pim-grad-${size})`" />
+      <!-- Left connector + node -->
+      <line x1="19.5" y1="24" x2="12" y2="27" :stroke="`url(#pim-grad-${size})`" stroke-width="2" stroke-linecap="round" />
+      <circle cx="11" cy="27.5" r="2" :fill="`url(#pim-grad-${size})`" />
+      <!-- Right connector + node -->
+      <line x1="28.5" y1="24" x2="36" y2="27" :stroke="`url(#pim-grad-${size})`" stroke-width="2" stroke-linecap="round" />
+      <circle cx="37" cy="27.5" r="2" :fill="`url(#pim-grad-${size})`" />
     </svg>
 
     <!-- Text block -->
     <div v-if="showText" class="flex flex-col leading-none">
       <span
-        class="font-bold tracking-tight text-[var(--color-primary)]"
-        :style="{ fontSize: sizes[size].text1 + 'px', lineHeight: 1.1 }"
+        class="font-bold tracking-tight"
+        :style="{ fontSize: sizes[size].text1 + 'px', lineHeight: 1.1, background: 'linear-gradient(135deg, #6366f1, #8b5cf6, #06b6d4)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }"
       >anyPIM</span>
       <span
         class="text-[var(--color-text-tertiary)] font-medium tracking-wide"

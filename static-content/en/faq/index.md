@@ -140,7 +140,7 @@ GET /api/v1/export/products?updated_after=2025-01-15T08:00:00Z
 
 The **regular search** is a simple free-text field that searches product names and SKUs. It is suitable for quickly finding known products.
 
-**PQL (Publixx Query Language)** is an SQL-like query language that allows you to formulate arbitrarily complex filter criteria across all product attributes. PQL supports:
+**PQL (Product Query Language)** is an SQL-like query language that allows you to formulate arbitrarily complex filter criteria across all product attributes. PQL supports:
 
 - Comparison operators (`=`, `>`, `<`, `LIKE`, `IN`, `BETWEEN`)
 - Logical operators (`AND`, `OR`, `NOT`)

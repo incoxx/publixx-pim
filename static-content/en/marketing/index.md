@@ -1,9 +1,9 @@
 ---
 layout: home
-title: publixxPIM — A new Sheriff is in town
+title: anyPIM — A new Sheriff is in town
 hero:
   name: "A new Sheriff is in town."
-  text: publixxPIM
+  text: anyPIM
   tagline: "The open-source PIM system that delivers enterprise features — without enterprise pricing. Setup in 10 minutes. Zero license fees. No vendor lock-in."
   actions:
     - theme: brand
@@ -58,7 +58,7 @@ hero:
 <section class="marketing-section">
 <div class="marketing-container">
 
-<h2 class="marketing-headline">publixxPIM puts an end to that.</h2>
+<h2 class="marketing-headline">anyPIM puts an end to that.</h2>
 <p class="marketing-subheadline">A PIM system that adapts to your requirements — not the other way around.</p>
 
 <div class="marketing-grid marketing-grid-3">
@@ -84,7 +84,7 @@ hero:
 <div class="marketing-card">
 <div class="marketing-card-icon">📦</div>
 <h3>Excel Import & Export</h3>
-<p>14-tab Excel import with intelligent validation. Export to JSON, Publixx catalog, or your custom format.</p>
+<p>14-tab Excel import with intelligent validation. Export to JSON, PXF catalog, or your custom format.</p>
 </div>
 
 <div class="marketing-card">
@@ -107,7 +107,7 @@ hero:
 <section class="marketing-section marketing-section-alt">
 <div class="marketing-container">
 
-<h2 class="marketing-headline">Why publixxPIM?</h2>
+<h2 class="marketing-headline">Why anyPIM?</h2>
 <p class="marketing-subheadline">Not just another PIM. The PIM that was missing.</p>
 
 <div class="marketing-grid marketing-grid-2">
@@ -150,14 +150,14 @@ hero:
 <section class="marketing-section">
 <div class="marketing-container">
 
-<h2 class="marketing-headline">publixxPIM vs. Enterprise PIM</h2>
+<h2 class="marketing-headline">anyPIM vs. Enterprise PIM</h2>
 
 <div class="marketing-table-wrapper">
 <table class="marketing-compare-table">
 <thead>
 <tr>
 <th>Criteria</th>
-<th class="marketing-highlight-col">publixxPIM</th>
+<th class="marketing-highlight-col">anyPIM</th>
 <th>Typical Enterprise PIM</th>
 </tr>
 </thead>
@@ -213,7 +213,7 @@ hero:
 <div class="marketing-container" style="text-align: center;">
 
 <h2 class="marketing-headline" style="color: white;">Ready to make the switch?</h2>
-<p class="marketing-subheadline" style="color: rgba(255,255,255,0.85);">Try publixxPIM now. Free. No sales call required.</p>
+<p class="marketing-subheadline" style="color: rgba(255,255,255,0.85);">Try anyPIM now. Free. No sales call required.</p>
 
 <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; margin-top: 2rem;">
 <a href="/web/help/en/installation/quickstart" class="marketing-cta-button marketing-cta-primary">Quick Start Guide</a>

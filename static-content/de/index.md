@@ -28,7 +28,7 @@ features:
     details: Eigene Abfragesprache zum Filtern und Suchen von Produkten über beliebige Attributkombinationen.
   - icon: 📦
     title: Import & Export
-    details: Excel-Import mit Validierung, JSON-Export und Publixx-Katalog-Integration über PXF-Templates.
+    details: Excel-Import mit Validierung, JSON-Export und Katalog-Integration über PXF-Templates.
   - icon: 🌐
     title: Vollständige REST API
     details: 90+ JSON-API-Endpoints mit Token-Authentifizierung für nahtlose Integration in bestehende Systeme.

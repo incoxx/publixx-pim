@@ -140,7 +140,7 @@ GET /api/v1/export/products?updated_after=2025-01-15T08:00:00Z
 
 Die **normale Suche** ist ein einfaches Freitextfeld, das Produktnamen und SKUs durchsucht. Sie eignet sich für schnelles Auffinden bekannter Produkte.
 
-**PQL (Publixx Query Language)** ist eine SQL-ähnliche Abfragesprache, mit der Sie beliebig komplexe Filterkriterien über alle Produktattribute formulieren können. PQL unterstützt:
+**PQL (Product Query Language)** ist eine SQL-ähnliche Abfragesprache, mit der Sie beliebig komplexe Filterkriterien über alle Produktattribute formulieren können. PQL unterstützt:
 
 - Vergleichsoperatoren (`=`, `>`, `<`, `LIKE`, `IN`, `BETWEEN`)
 - Logische Verknüpfungen (`AND`, `OR`, `NOT`)

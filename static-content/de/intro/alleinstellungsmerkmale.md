@@ -50,8 +50,7 @@ anyPIM unterscheidet sich durch eine Reihe architektonischer und funktionaler En
 
   <!-- Hub -->
   <circle cx="400" cy="280" r="70" fill="url(#hubGrad)" filter="url(#shadow)"/>
-  <text x="400" y="272" text-anchor="middle" fill="white" font-size="15" font-weight="bold">Publixx</text>
-  <text x="400" y="294" text-anchor="middle" fill="white" font-size="15" font-weight="bold">PIM</text>
+  <text x="400" y="282" text-anchor="middle" fill="white" font-size="15" font-weight="bold">anyPIM</text>
 
   <!-- Spoke 1: EAV -->
   <rect x="70" y="62" rx="12" ry="12" width="180" height="72" fill="url(#spokeGrad1)" filter="url(#shadow)"/>
@@ -71,7 +70,7 @@ anyPIM unterscheidet sich durch eine Reihe architektonischer und funktionaler En
   <!-- Spoke 4: Import/Export -->
   <rect x="610" y="275" rx="12" ry="12" width="180" height="72" fill="url(#spokeGrad4)" filter="url(#shadow)"/>
   <text x="700" y="305" text-anchor="middle" fill="white" font-size="13" font-weight="bold">Import / Export</text>
-  <text x="700" y="325" text-anchor="middle" fill="white" font-size="11">Excel + Publixx PXF</text>
+  <text x="700" y="325" text-anchor="middle" fill="white" font-size="11">Excel + PXF</text>
 
   <!-- Spoke 5: RBAC -->
   <rect x="70" y="462" rx="12" ry="12" width="180" height="72" fill="url(#spokeGrad5)" filter="url(#shadow)"/>
@@ -137,7 +136,7 @@ Dieses System reduziert Redundanz drastisch: Gemeinsame Attribute wie Markenname
 
 ---
 
-## 3. PQL -- Publixx Query Language
+## 3. PQL -- Product Query Language
 
 PQL ist eine eigenstaendige, SQL-aehnliche Abfragesprache, die speziell fuer die Suche und Filterung von Produkten ueber beliebige Attributkombinationen entwickelt wurde. Sie geht ueber die Moeglichkeiten typischer Filterinterfaces hinaus:
 
@@ -174,16 +173,16 @@ Das **Fuzzy-Matching** bei der Zuordnung von Spaltennamen zu Attributen ist beso
 
 ---
 
-## 5. Konfigurierbarer Export mit Publixx-Integration
+## 5. Konfigurierbarer Export mit Katalog-Integration
 
 Das Export-System arbeitet mit **konfigurierbaren Mapping-Templates** (PXF-Format). Jedes Template definiert:
 
 - Welche Attribute exportiert werden
 - Wie Attributnamen im Zielformat heissen sollen (Mapping)
 - Welche Transformationen angewendet werden
-- Fuer welchen Kanal (z.B. Publixx-Katalog, Webshop, Marktplatz) der Export bestimmt ist
+- Fuer welchen Kanal (z.B. Katalog, Webshop, Marktplatz) der Export bestimmt ist
 
-Die **Publixx-Katalog-Integration** ermoeglicht den direkten Export von Produktdaten in das Publixx-Katalogsystem. Aenderungen an Produkten koennen automatisch oder manuell an den Katalog uebermittelt werden.
+Die **Katalog-Integration** ermoeglicht den direkten Export von Produktdaten in Katalogsysteme. Aenderungen an Produkten koennen automatisch oder manuell an den Katalog uebermittelt werden.
 
 ---
 

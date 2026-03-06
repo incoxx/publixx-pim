@@ -70,7 +70,7 @@ anyPIM fundamentally differs from conventional PIM systems through a series of a
   <!-- Spoke 4: Import/Export -->
   <rect x="610" y="275" rx="12" ry="12" width="180" height="72" fill="url(#spokeGrad4)" filter="url(#shadow)"/>
   <text x="700" y="305" text-anchor="middle" fill="white" font-size="13" font-weight="bold">Import / Export</text>
-  <text x="700" y="325" text-anchor="middle" fill="white" font-size="11">Excel + Publixx PXF</text>
+  <text x="700" y="325" text-anchor="middle" fill="white" font-size="11">Excel + PXF</text>
 
   <!-- Spoke 5: RBAC -->
   <rect x="70" y="462" rx="12" ry="12" width="180" height="72" fill="url(#spokeGrad5)" filter="url(#shadow)"/>
@@ -136,7 +136,7 @@ This system drastically reduces redundancy: Common attributes like brand name, m
 
 ---
 
-## 3. PQL — Publixx Query Language
+## 3. PQL — Product Query Language
 
 PQL is a standalone, SQL-like query language specifically designed for searching and filtering products across any attribute combination. It goes beyond the capabilities of typical filter interfaces:
 
@@ -173,16 +173,16 @@ The **fuzzy matching** for column-to-attribute mapping is particularly valuable:
 
 ---
 
-## 5. Configurable Export with Publixx Integration
+## 5. Configurable Export with Catalog Integration
 
 The export system works with **configurable mapping templates** (PXF format). Each template defines:
 
 - Which attributes to export
 - How attribute names should be mapped in the target format
 - Which transformations to apply
-- Which channel the export is intended for (e.g., Publixx catalog, webshop, marketplace)
+- Which channel the export is intended for (e.g., catalog, webshop, marketplace)
 
-The **Publixx catalog integration** enables direct export of product data to the Publixx catalog system. Changes to products can be transmitted automatically or manually.
+The **catalog integration** enables direct export of product data to catalog systems. Changes to products can be transmitted automatically or manually.
 
 ---
 

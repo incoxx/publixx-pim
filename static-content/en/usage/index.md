@@ -30,7 +30,7 @@ Import product data from Excel files with validation, mapping, and preview capab
 
 ### Export
 
-Export product data in JSON format or as Publixx catalog exports using PXF templates.
+Export product data in JSON format or as catalog exports using PXF templates.
 
 ### Media
 
