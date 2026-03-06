@@ -7,7 +7,7 @@ import { useAttributeStore } from '@/stores/attributes'
 import { useAuthStore } from '@/stores/auth'
 import { useFilters } from '@/composables/useFilters'
 import { useLocaleStore } from '@/stores/locale'
-import { Plus, Languages, Upload, Download, X, GitCompareArrows, Star, Pencil, FileSpreadsheet, ListFilter } from 'lucide-vue-next'
+import { Plus, Languages, Upload, Download, X, GitCompareArrows, Star, Pencil, FileSpreadsheet, ListFilter, Settings } from 'lucide-vue-next'
 import PimTable from '@/components/shared/PimTable.vue'
 import ColumnConfigPopover from '@/components/shared/ColumnConfigPopover.vue'
 import { useColumnConfig } from '@/composables/useColumnConfig'
@@ -278,6 +278,11 @@ function openBulkEditor() {
   router.push({ path: '/products/bulk-edit', query: { ids } })
 }
 
+function openBulkUpdate() {
+  const ids = selectedProductIds.value.join(',')
+  router.push({ path: '/products/bulk-update', query: { ids } })
+}
+
 // Fetch with attribute columns
 function fetchWithAttributes() {
   const attrColumnIds = visibleKeys.value
@@ -423,6 +428,10 @@ onMounted(async () => {
       <button class="pim-btn pim-btn-secondary text-xs" @click="openBulkEditor">
         <Pencil class="w-3.5 h-3.5" :stroke-width="1.75" />
         <span class="hidden sm:inline">Bulk bearbeiten</span>
+      </button>
+      <button class="pim-btn pim-btn-secondary text-xs" @click="openBulkUpdate">
+        <Settings class="w-3.5 h-3.5" :stroke-width="1.75" />
+        <span class="hidden sm:inline">Massendatenpflege</span>
       </button>
       <span v-if="!canCompare && selectedProductIds.length === 1" class="text-[11px] text-[var(--color-text-tertiary)] hidden sm:inline">
         Noch 1 Produkt auswählen zum Vergleichen

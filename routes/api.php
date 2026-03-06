@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\V1\AttributeTypeController;
 use App\Http\Controllers\Api\V1\AttributeViewController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BulkEditorController;
+use App\Http\Controllers\Api\V1\BulkUpdateController;
 use App\Http\Controllers\Api\V1\DebugController;
 use App\Http\Controllers\Api\V1\DictionaryEntryController;
 use App\Http\Controllers\Api\V1\HealthController;
@@ -234,6 +235,10 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // Bulk Editor
     Route::post('products/bulk-edit', [BulkEditorController::class, 'load']);
     Route::put('products/bulk-edit', [BulkEditorController::class, 'save']);
+
+    // Bulk Update (Massendatenpflege)
+    Route::post('products/bulk-update/preview', [BulkUpdateController::class, 'preview']);
+    Route::put('products/bulk-update', [BulkUpdateController::class, 'execute']);
 
     // Product Duplicate
     Route::post('products/{product}/duplicate', [ProductController::class, 'duplicate']);
