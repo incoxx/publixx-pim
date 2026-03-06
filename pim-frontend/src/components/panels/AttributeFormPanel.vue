@@ -17,7 +17,10 @@ const isEdit = computed(() => !!props.attribute)
 
 const formData = ref(
   props.attribute
-    ? { ...props.attribute }
+    ? {
+        ...props.attribute,
+        child_attribute_ids: (props.attribute.children || []).map(c => c.id),
+      }
     : {
         technical_name: '',
         name_de: '',
@@ -25,6 +28,7 @@ const formData = ref(
         data_type: '',
         attribute_type_id: '',
         value_list_id: '',
+        child_attribute_ids: [],
         is_translatable: false,
         is_multipliable: false,
         is_searchable: false,
@@ -62,8 +66,24 @@ const fields = computed(() => {
     })
   }
 
-  // Show composite format field for Composite attributes
+  // Show composite format field and child attribute selector for Composite attributes
   if (formData.value.data_type === 'Composite') {
+    const eligibleChildren = store.items.filter(a => {
+      const childTypes = ['String', 'Number', 'Float', 'Date', 'Flag']
+      if (!childTypes.includes(a.data_type)) return false
+      if (a.id === props.attribute?.id) return false
+      // Available if unassigned or already assigned to this composite
+      if (!a.parent_attribute_id) return true
+      if (a.parent_attribute_id === props.attribute?.id) return true
+      return false
+    })
+    if (eligibleChildren.length > 0) {
+      base.push({
+        key: 'child_attribute_ids', label: 'Kind-Attribute', type: 'multiselect',
+        options: eligibleChildren.map(a => ({ value: a.id, label: a.name_de || a.technical_name })),
+        hint: 'Attribute die zu diesem Composite gehören.',
+      })
+    }
     base.push({
       key: 'composite_format', label: 'Anzeigeformat', type: 'text',
       hint: 'Platzhalter {0}, {1}, {2}… für Kind-Attribute in Reihenfolge. Beispiel: {0} x {1} x {2} mm',
@@ -105,11 +125,36 @@ async function handleSubmit(data) {
   loading.value = true
   errors.value = {}
   try {
+    const { child_attribute_ids, ...attrData } = data
+    let savedId
+
     if (isEdit.value) {
-      await store.updateAttribute(props.attribute.id, data)
+      await store.updateAttribute(props.attribute.id, attrData)
+      savedId = props.attribute.id
     } else {
-      await store.createAttribute(data)
+      const created = await store.createAttribute(attrData)
+      savedId = created.id
     }
+
+    // Update child attribute relationships for Composite attributes
+    if (data.data_type === 'Composite' && savedId) {
+      const newChildIds = child_attribute_ids || []
+      const oldChildIds = (props.attribute?.children || []).map(c => c.id)
+
+      // Assign new children (set parent_attribute_id)
+      for (const childId of newChildIds) {
+        if (!oldChildIds.includes(childId)) {
+          await store.updateAttribute(childId, { parent_attribute_id: savedId })
+        }
+      }
+      // Unassign removed children (clear parent_attribute_id)
+      for (const childId of oldChildIds) {
+        if (!newChildIds.includes(childId)) {
+          await store.updateAttribute(childId, { parent_attribute_id: null })
+        }
+      }
+    }
+
     await store.fetchAttributes()
     authStore.closePanel()
   } catch (e) {
