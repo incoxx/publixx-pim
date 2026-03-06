@@ -158,18 +158,21 @@ class ReportTemplateController extends Controller
     /**
      * POST /api/v1/report-templates/{id}/execute — Generate report.
      */
-    public function execute(Request $request, string $id): JsonResponse
+    public function execute(Request $request, string $id)
     {
         $template = ReportTemplate::findOrFail($id);
         $this->authorizeAccess($request, $template);
 
         $validated = $request->validate([
             'search_profile_id' => 'sometimes|string|nullable|exists:search_profiles,id',
+            'product_ids' => 'sometimes|array',
+            'product_ids.*' => 'string',
             'format' => 'sometimes|string|in:docx,pdf',
             'async' => 'sometimes|boolean',
         ]);
 
         $format = $validated['format'] ?? $template->format;
+        $productIds = $validated['product_ids'] ?? null;
 
         $searchProfile = isset($validated['search_profile_id'])
             ? SearchProfile::find($validated['search_profile_id'])
@@ -194,7 +197,7 @@ class ReportTemplateController extends Controller
             ], 202);
         }
 
-        $result = $this->reportService->execute($template, $searchProfile, format: $format);
+        $result = $this->reportService->execute($template, $searchProfile, format: $format, productIds: $productIds);
 
         return response()->download(
             $result['path'],

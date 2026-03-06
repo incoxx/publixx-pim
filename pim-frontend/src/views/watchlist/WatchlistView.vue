@@ -16,6 +16,7 @@ import ColumnConfigPopover from '@/components/shared/ColumnConfigPopover.vue'
 import { useColumnConfig } from '@/composables/useColumnConfig'
 import { triggerDownload } from '@/utils/download'
 import PimConfirmDialog from '@/components/shared/PimConfirmDialog.vue'
+import ReportTemplatePickerModal from '@/components/reports/ReportTemplatePickerModal.vue'
 
 const router = useRouter()
 const localeStore = useLocaleStore()
@@ -27,6 +28,7 @@ const error = ref(null)
 
 // Export state
 const showExportPanel = ref(false)
+const showReportPicker = ref(false)
 const exporting = ref(null) // 'excel' | 'pdf' | 'pdf-zip' | 'xliff' | null
 const xliffSourceLang = ref('de')
 const xliffTargetLang = ref('en')
@@ -291,6 +293,8 @@ async function removeAllItems() {
   finally { bulkRemoving.value = false }
 }
 
+const watchlistProductIds = computed(() => items.value.map(i => i.product_id).filter(Boolean))
+
 // --- API Call Display ---
 const showApiCall = ref(false)
 const apiBaseUrl = computed(() => import.meta.env.VITE_API_BASE_URL || '/api/v1')
@@ -403,6 +407,18 @@ onMounted(async () => {
         >
           <Archive class="w-3.5 h-3.5" :stroke-width="1.75" />
           {{ exporting === 'pdf-zip' ? 'Export…' : 'PDF pro SKU (ZIP)' }}
+        </button>
+
+        <div class="border-l border-[var(--color-border)] h-8 hidden sm:block" />
+
+        <!-- Report -->
+        <button
+          class="pim-btn pim-btn-secondary text-xs"
+          :disabled="exporting !== null"
+          @click="showReportPicker = true"
+        >
+          <FileText class="w-3.5 h-3.5" :stroke-width="1.75" />
+          Report
         </button>
 
         <div class="border-l border-[var(--color-border)] h-8 hidden sm:block" />
@@ -633,5 +649,11 @@ onMounted(async () => {
         </div>
       </transition>
     </Teleport>
+
+    <!-- Report Template Picker -->
+    <ReportTemplatePickerModal
+      v-model:open="showReportPicker"
+      :productIds="watchlistProductIds"
+    />
   </div>
 </template>
