@@ -97,6 +97,18 @@ const routes = [
     meta: { title: 'Export' },
   },
   {
+    path: '/json-export-import',
+    name: 'json-export-import',
+    component: () => import('@/views/exports/JsonExportImportView.vue'),
+    meta: { title: 'JSON Export/Import' },
+  },
+  {
+    path: '/export-jobs',
+    name: 'export-jobs',
+    component: () => import('@/views/exports/ExportJobView.vue'),
+    meta: { title: 'Export-Jobs' },
+  },
+  {
     path: '/media',
     name: 'media',
     component: () => import('@/views/media/MediaView.vue'),
