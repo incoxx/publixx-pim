@@ -1,5 +1,5 @@
 <script setup>
-import { X, Type, Hash, Tag, Image, Minus, SeparatorHorizontal, BarChart3 } from 'lucide-vue-next'
+import { X, GripVertical, Type, Hash, Tag, Image, Minus, SeparatorHorizontal, BarChart3 } from 'lucide-vue-next'
 
 const props = defineProps({
   element: { type: Object, required: true },
@@ -29,6 +29,7 @@ function getLabel() {
       : 'hover:bg-[var(--color-bg)]'"
     @click="emit('click')"
   >
+    <GripVertical class="w-3 h-3 shrink-0 text-[var(--color-text-tertiary)] cursor-grab" :stroke-width="2" />
     <component
       :is="typeIcons[element.type] || Type"
       class="w-3 h-3 shrink-0"

@@ -78,11 +78,15 @@ async function preview() {
     // Save first if dirty
     if (store.isDirty) await store.saveTemplate()
 
+    const format = store.currentTemplate.format || 'pdf'
     const response = await reportTemplatesApi.preview(store.currentTemplate.id, {
-      format: store.currentTemplate.format || 'pdf',
+      format,
       limit: 5,
     })
-    const blob = new Blob([response.data])
+    const mimeType = format === 'docx'
+      ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      : 'application/pdf'
+    const blob = new Blob([response.data], { type: mimeType })
     const url = URL.createObjectURL(blob)
     window.open(url, '_blank')
     setTimeout(() => URL.revokeObjectURL(url), 30000)
@@ -102,7 +106,10 @@ async function exportReport(format) {
     const response = await reportTemplatesApi.execute(store.currentTemplate.id, { format })
     const ext = format === 'docx' ? 'docx' : 'pdf'
     const name = store.currentTemplate.name || 'report'
-    const blob = new Blob([response.data])
+    const mimeType = format === 'docx'
+      ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      : 'application/pdf'
+    const blob = new Blob([response.data], { type: mimeType })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
