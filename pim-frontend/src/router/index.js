@@ -79,6 +79,12 @@ const routes = [
     meta: { title: 'Wertelisten' },
   },
   {
+    path: '/dictionary',
+    name: 'dictionary',
+    component: () => import('@/views/dictionary/DictionaryAdminView.vue'),
+    meta: { title: 'Wörterbuch' },
+  },
+  {
     path: '/units',
     name: 'units',
     component: () => import('@/views/units/UnitGroupView.vue'),

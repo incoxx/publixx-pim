@@ -160,7 +160,7 @@ class TemplateGenerator
      */
     private const array ENUM_HINTS = [
         '05_Attribute' => [
-            'E' => 'String, Number, Float, Date, Flag, Selection, Dictionary, Collection',
+            'E' => 'String, Number, Float, Date, Flag, Selection, Dictionary, Composite, RichText',
             'R' => 'PIM, SAP ERP, Other',
         ],
         '06_Hierarchien' => [

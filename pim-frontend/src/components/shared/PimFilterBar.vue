@@ -36,7 +36,7 @@ onUnmounted(() => {
         type="text"
         :value="search"
         :placeholder="placeholder"
-        class="pim-input pl-8 pr-3 text-[13px]"
+        class="pim-input pl-9 pr-3 text-[13px]"
         @input="$emit('update:search', $event.target.value)"
       />
     </div>

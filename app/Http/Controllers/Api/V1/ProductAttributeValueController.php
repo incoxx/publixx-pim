@@ -206,7 +206,7 @@ class ProductAttributeValueController extends Controller
                 'value_string' => $value,
                 'value_selection_id' => $entry['value_selection_id'] ?? null,
             ]),
-            'Collection' => array_merge($columns, ['value_string' => is_array($value) ? json_encode($value) : (string) $value]),
+            'RichText' => array_merge($columns, ['value_string' => (string) $value]),
             'Composite' => $columns,
             default => array_merge($columns, ['value_string' => (string) $value]),
         };

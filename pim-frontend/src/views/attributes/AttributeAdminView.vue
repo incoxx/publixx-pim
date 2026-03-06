@@ -62,8 +62,8 @@ const dataTypeOptions = [
   { value: 'Flag', label: 'Flag' },
   { value: 'Selection', label: 'Selection' },
   { value: 'Dictionary', label: 'Dictionary' },
-  { value: 'Collection', label: 'Collection' },
   { value: 'Composite', label: 'Composite' },
+  { value: 'RichText', label: 'RichText' },
 ]
 
 const attributeTypeOptions = computed(() => [

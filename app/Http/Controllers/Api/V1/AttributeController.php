@@ -17,6 +17,7 @@ class AttributeController extends Controller
     private const ALLOWED_INCLUDES = [
         'attributeType', 'unitGroup', 'defaultUnit', 'valueList',
         'children', 'parent', 'comparisonOperatorGroup', 'attributeViews',
+        'dictionaryEntries',
     ];
 
     private const ALLOWED_FILTERS = [

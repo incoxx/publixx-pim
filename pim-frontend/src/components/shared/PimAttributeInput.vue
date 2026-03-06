@@ -1,6 +1,8 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, defineAsyncComponent } from 'vue'
 import { Check } from 'lucide-vue-next'
+
+const PimRichTextEditor = defineAsyncComponent(() => import('./PimRichTextEditor.vue'))
 
 const props = defineProps({
   type: { type: String, default: 'text' },
@@ -52,9 +54,18 @@ function update(value) {
     @input="update(type === 'decimal' ? parseFloat($event.target.value) : parseInt($event.target.value))"
   />
 
+  <!-- Rich Text Editor -->
+  <PimRichTextEditor
+    v-else-if="type === 'richtext'"
+    :modelValue="modelValue"
+    :disabled="disabled"
+    :placeholder="placeholder"
+    @update:modelValue="update($event)"
+  />
+
   <!-- Textarea -->
   <textarea
-    v-else-if="type === 'textarea' || type === 'richtext'"
+    v-else-if="type === 'textarea'"
     :class="[...inputClass, 'min-h-[80px] resize-y']"
     :value="modelValue"
     :placeholder="placeholder"
