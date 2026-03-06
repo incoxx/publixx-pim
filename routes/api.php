@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\V1\AttributeViewController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BulkEditorController;
 use App\Http\Controllers\Api\V1\DebugController;
+use App\Http\Controllers\Api\V1\DictionaryEntryController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\DeploymentController;
 use App\Http\Controllers\Api\V1\ExportController;
@@ -160,6 +161,11 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // =====================================================================
     Route::apiResource('value-lists', ValueListController::class);
     Route::apiResource('value-lists.entries', ValueListEntryController::class)->shallow();
+
+    // =====================================================================
+    // Dictionary Entries
+    // =====================================================================
+    Route::apiResource('dictionary-entries', DictionaryEntryController::class);
 
     // =====================================================================
     // Agent 3: Attribute Views & Assignments

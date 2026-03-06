@@ -45,7 +45,7 @@ const fields = computed(() => {
     { key: 'name_en', label: 'Name (EN)', type: 'text' },
     {
       key: 'data_type', label: 'Datentyp', type: 'select', required: true,
-      options: ['String', 'Number', 'Float', 'Date', 'Flag', 'Selection', 'Dictionary', 'Collection', 'Composite']
+      options: ['String', 'Number', 'Float', 'Date', 'Flag', 'Selection', 'Dictionary', 'Composite', 'RichText']
         .map(t => ({ value: t, label: t })),
     },
     {
@@ -54,10 +54,19 @@ const fields = computed(() => {
     },
   ]
 
-  if (formData.value.data_type === 'Selection') {
+  if (formData.value.data_type === 'Selection' || formData.value.data_type === 'Dictionary') {
     base.push({
-      key: 'value_list_id', label: 'Werteliste', type: 'select',
+      key: 'value_list_id', label: formData.value.data_type === 'Dictionary' ? 'Werteliste (Wörterbuch)' : 'Werteliste', type: 'select',
       options: [{ value: '', label: '— Keine —' }, ...store.lists.map(l => ({ value: l.id, label: l.name_de || l.technical_name }))],
+      hint: formData.value.data_type === 'Dictionary' ? 'Wörterbucheinträge können unter Menü → Wörterbuch verwaltet werden.' : undefined,
+    })
+  }
+
+  // Show composite format field for Composite attributes
+  if (formData.value.data_type === 'Composite') {
+    base.push({
+      key: 'composite_format', label: 'Anzeigeformat', type: 'text',
+      hint: 'Platzhalter {0}, {1}, {2}… für Kind-Attribute in Reihenfolge. Beispiel: {0} x {1} x {2} mm',
     })
   }
 

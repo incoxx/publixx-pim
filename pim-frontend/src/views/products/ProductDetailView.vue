@@ -72,18 +72,27 @@ function onCompositeValuesUpdate(newValues) {
 
 function getCompositeSummary(compositeAttr) {
   const children = compositeAttr._children || []
-  const parts = children
-    .map(c => attributeValues.value[c.id])
-    .filter(v => v !== undefined && v !== null && v !== '')
-  if (parts.length === 0) return null
-  return parts.join(' × ')
+  const parts = children.map(c => attributeValues.value[c.id])
+
+  // Use composite_format if defined (e.g. "{0} x {1} x {2} mm")
+  if (compositeAttr.composite_format) {
+    let result = compositeAttr.composite_format
+    children.forEach((_, i) => {
+      result = result.replace(`{${i}}`, parts[i] !== undefined && parts[i] !== null ? String(parts[i]) : '')
+    })
+    return result.trim() || null
+  }
+
+  const filled = parts.filter(v => v !== undefined && v !== null && v !== '')
+  if (filled.length === 0) return null
+  return filled.join(' × ')
 }
 
 function mapDataTypeToInput(backendType) {
   const map = {
     'String': 'text', 'Number': 'number', 'Float': 'decimal',
     'Date': 'date', 'Flag': 'boolean', 'Selection': 'select',
-    'Dictionary': 'json', 'Collection': 'json', 'Composite': 'composite',
+    'Dictionary': 'json', 'Composite': 'composite', 'RichText': 'richtext',
   }
   return map[backendType] || 'text'
 }

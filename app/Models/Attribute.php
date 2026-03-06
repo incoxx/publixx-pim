@@ -42,6 +42,7 @@ class Attribute extends Model
         'is_variant_attribute',
         'is_internal',
         'parent_attribute_id',
+        'composite_format',
         'position',
         'source_system',
         'source_attribute_name',
@@ -155,5 +156,13 @@ class Attribute extends Model
     public function variantInheritanceRules(): HasMany
     {
         return $this->hasMany(VariantInheritanceRule::class);
+    }
+
+    public function dictionaryEntries(): BelongsToMany
+    {
+        return $this->belongsToMany(DictionaryEntry::class, 'attribute_dictionary_entry')
+            ->withPivot('sort_order')
+            ->withTimestamps()
+            ->orderBy('sort_order');
     }
 }

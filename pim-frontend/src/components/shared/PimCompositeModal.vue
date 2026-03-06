@@ -32,6 +32,16 @@ const title = computed(() => {
   return props.compositeAttribute.name_de || props.compositeAttribute.technical_name || 'Composite'
 })
 
+const formatPreview = computed(() => {
+  if (!props.compositeAttribute?.composite_format) return null
+  let result = props.compositeAttribute.composite_format
+  children.value.forEach((child, i) => {
+    const val = localValues.value[child.id]
+    result = result.replace(`{${i}}`, val !== undefined && val !== null ? String(val) : '…')
+  })
+  return result
+})
+
 function close() {
   emit('update:open', false)
 }
@@ -87,6 +97,12 @@ function onKeydown(e) {
             <p v-if="children.length === 0" class="text-sm text-[var(--color-text-tertiary)] text-center py-4">
               Keine Kind-Attribute definiert
             </p>
+          </div>
+
+          <!-- Format Preview -->
+          <div v-if="formatPreview" class="px-5 py-2 bg-[var(--color-bg)] border-t border-[var(--color-border)]">
+            <span class="text-[11px] font-medium text-[var(--color-text-tertiary)]">Vorschau:</span>
+            <span class="ml-1 text-[13px] text-[var(--color-text-primary)]">{{ formatPreview }}</span>
           </div>
 
           <!-- Footer -->

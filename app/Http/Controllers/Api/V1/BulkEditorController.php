@@ -59,7 +59,7 @@ class BulkEditorController extends Controller
 
         // Load attributes
         $attrQuery = Attribute::where('is_internal', false)
-            ->whereNotIn('data_type', ['Composite', 'Collection']);
+            ->whereNotIn('data_type', ['Composite']);
 
         if (!empty($validated['attribute_ids'])) {
             $attrQuery->whereIn('id', $validated['attribute_ids']);
