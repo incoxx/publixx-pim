@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useDebounceFn } from '@vueuse/core'
 import {
   ArrowLeft, Plus, Trash2, Search, Check, AlertTriangle,
-  ChevronRight, X, Package, Settings, Link2, FolderTree, Image,
+  X, Package, Settings, Link2, FolderTree, Image,
 } from 'lucide-vue-next'
 import bulkUpdateApi from '@/api/bulkUpdate'
 import attributesApi from '@/api/attributes'
@@ -164,10 +164,18 @@ const hierarchiesList = ref([])
 const hierarchyTrees = ref({}) // hierarchyId -> tree nodes
 const hierarchyTreeLoading = ref(false)
 
+let allHierarchiesCache = null
+
+async function loadAllHierarchies() {
+  if (allHierarchiesCache) return allHierarchiesCache
+  const { data } = await hierarchiesApi.list()
+  allHierarchiesCache = data.data || data
+  return allHierarchiesCache
+}
+
 async function loadHierarchies() {
   try {
-    const { data } = await hierarchiesApi.list()
-    const all = data.data || data
+    const all = await loadAllHierarchies()
     hierarchiesList.value = all.filter(h => h.hierarchy_type !== 'master')
   } catch { hierarchiesList.value = [] }
 }
@@ -223,8 +231,7 @@ const masterExpandedNodes = ref(new Set())
 
 async function loadMasterHierarchy() {
   try {
-    const { data } = await hierarchiesApi.list()
-    const all = data.data || data
+    const all = await loadAllHierarchies()
     masterHierarchy.value = all.find(h => h.hierarchy_type === 'master') || null
     if (masterHierarchy.value) {
       masterTreeLoading.value = true
@@ -379,6 +386,7 @@ async function runPreview() {
     return
   }
   previewing.value = true
+  previewResult.value = null
   try {
     const { data } = await bulkUpdateApi.preview({
       productIds: productIds.value,
@@ -978,7 +986,7 @@ onMounted(() => {
               </div>
 
               <!-- Warning for destructive ops -->
-              <div v-if="previewResult.attributes?.details?.some(d => d.mode === 'clear') || previewResult.relations?.removed > 0 || previewResult.output_hierarchy?.removed > 0"
+              <div v-if="previewResult.attributes?.details?.some(d => d.mode === 'clear') || previewResult.relations?.removed > 0 || previewResult.output_hierarchy?.removed > 0 || (previewResult.master_hierarchy && masterHierarchyChanged && !masterHierarchyNodeId) || previewResult.media?.removed > 0"
                 class="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800"
               >
                 <AlertTriangle class="w-4 h-4 shrink-0 mt-0.5" :stroke-width="1.75" />

@@ -249,41 +249,54 @@ class BulkUpdateController extends Controller
         $added = 0;
         $removed = 0;
         $alreadyExists = 0;
-        $errors = [];
 
         foreach ($ops as $op) {
-            foreach ($productIds as $pid) {
-                $existing = ProductRelation::where('source_product_id', $pid)
-                    ->where('target_product_id', $op['target_product_id'])
-                    ->where('relation_type_id', $op['relation_type_id'])
-                    ->first();
+            // Bulk-load existing relations for this operation across all products
+            $existingSet = ProductRelation::whereIn('source_product_id', $productIds)
+                ->where('target_product_id', $op['target_product_id'])
+                ->where('relation_type_id', $op['relation_type_id'])
+                ->pluck('source_product_id')
+                ->flip()
+                ->all();
 
-                if ($op['action'] === 'add') {
-                    if ($existing) {
+            if ($op['action'] === 'add') {
+                $toAdd = [];
+                foreach ($productIds as $pid) {
+                    if (isset($existingSet[$pid])) {
                         $alreadyExists++;
                     } else {
                         $added++;
-                        if ($persist) {
-                            ProductRelation::create([
-                                'source_product_id' => $pid,
-                                'target_product_id' => $op['target_product_id'],
-                                'relation_type_id' => $op['relation_type_id'],
-                                'sort_order' => 0,
-                            ]);
-                        }
+                        $toAdd[] = [
+                            'source_product_id' => $pid,
+                            'target_product_id' => $op['target_product_id'],
+                            'relation_type_id' => $op['relation_type_id'],
+                            'sort_order' => 0,
+                        ];
                     }
-                } elseif ($op['action'] === 'remove') {
-                    if ($existing) {
+                }
+                if ($persist && !empty($toAdd)) {
+                    foreach (array_chunk($toAdd, 500) as $chunk) {
+                        ProductRelation::insert($chunk);
+                    }
+                }
+            } elseif ($op['action'] === 'remove') {
+                $toRemove = [];
+                foreach ($productIds as $pid) {
+                    if (isset($existingSet[$pid])) {
                         $removed++;
-                        if ($persist) {
-                            $existing->delete();
-                        }
+                        $toRemove[] = $pid;
                     }
+                }
+                if ($persist && !empty($toRemove)) {
+                    ProductRelation::whereIn('source_product_id', $toRemove)
+                        ->where('target_product_id', $op['target_product_id'])
+                        ->where('relation_type_id', $op['relation_type_id'])
+                        ->delete();
                 }
             }
         }
 
-        return compact('added', 'removed', 'alreadyExists', 'errors');
+        return compact('added', 'removed', 'alreadyExists');
     }
 
     // ── Output Hierarchy ────────────────────────────────
@@ -295,31 +308,44 @@ class BulkUpdateController extends Controller
         $alreadyAssigned = 0;
 
         foreach ($ops as $op) {
-            foreach ($productIds as $pid) {
-                $existing = OutputHierarchyProductAssignment::where('product_id', $pid)
-                    ->where('hierarchy_node_id', $op['hierarchy_node_id'])
-                    ->first();
+            // Bulk-load existing assignments for this node across all products
+            $existingSet = OutputHierarchyProductAssignment::whereIn('product_id', $productIds)
+                ->where('hierarchy_node_id', $op['hierarchy_node_id'])
+                ->pluck('product_id')
+                ->flip()
+                ->all();
 
-                if ($op['action'] === 'assign') {
-                    if ($existing) {
+            if ($op['action'] === 'assign') {
+                $toAssign = [];
+                foreach ($productIds as $pid) {
+                    if (isset($existingSet[$pid])) {
                         $alreadyAssigned++;
                     } else {
                         $assigned++;
-                        if ($persist) {
-                            OutputHierarchyProductAssignment::create([
-                                'hierarchy_node_id' => $op['hierarchy_node_id'],
-                                'product_id' => $pid,
-                                'sort_order' => 0,
-                            ]);
-                        }
+                        $toAssign[] = [
+                            'hierarchy_node_id' => $op['hierarchy_node_id'],
+                            'product_id' => $pid,
+                            'sort_order' => 0,
+                        ];
                     }
-                } elseif ($op['action'] === 'remove') {
-                    if ($existing) {
+                }
+                if ($persist && !empty($toAssign)) {
+                    foreach (array_chunk($toAssign, 500) as $chunk) {
+                        OutputHierarchyProductAssignment::insert($chunk);
+                    }
+                }
+            } elseif ($op['action'] === 'remove') {
+                $toRemove = [];
+                foreach ($productIds as $pid) {
+                    if (isset($existingSet[$pid])) {
                         $removed++;
-                        if ($persist) {
-                            $existing->delete();
-                        }
+                        $toRemove[] = $pid;
                     }
+                }
+                if ($persist && !empty($toRemove)) {
+                    OutputHierarchyProductAssignment::whereIn('product_id', $toRemove)
+                        ->where('hierarchy_node_id', $op['hierarchy_node_id'])
+                        ->delete();
                 }
             }
         }
@@ -389,38 +415,52 @@ class BulkUpdateController extends Controller
         $alreadyAssigned = 0;
 
         foreach ($ops as $op) {
-            foreach ($productIds as $pid) {
-                $query = ProductMediaAssignment::where('product_id', $pid)
-                    ->where('media_id', $op['media_id']);
+            // Bulk-load existing assignments for this media across all products
+            $query = ProductMediaAssignment::whereIn('product_id', $productIds)
+                ->where('media_id', $op['media_id']);
 
-                if (!empty($op['usage_type_id'])) {
-                    $query->where('usage_type_id', $op['usage_type_id']);
-                }
+            if (!empty($op['usage_type_id'])) {
+                $query->where('usage_type_id', $op['usage_type_id']);
+            }
 
-                $existing = $query->first();
+            $existingSet = $query->pluck('product_id')->flip()->all();
 
-                if ($op['action'] === 'assign') {
-                    if ($existing) {
+            if ($op['action'] === 'assign') {
+                $toAssign = [];
+                foreach ($productIds as $pid) {
+                    if (isset($existingSet[$pid])) {
                         $alreadyAssigned++;
                     } else {
                         $assigned++;
-                        if ($persist) {
-                            ProductMediaAssignment::create([
-                                'product_id' => $pid,
-                                'media_id' => $op['media_id'],
-                                'usage_type_id' => $op['usage_type_id'] ?? null,
-                                'sort_order' => 0,
-                                'is_primary' => false,
-                            ]);
-                        }
+                        $toAssign[] = [
+                            'product_id' => $pid,
+                            'media_id' => $op['media_id'],
+                            'usage_type_id' => $op['usage_type_id'] ?? null,
+                            'sort_order' => 0,
+                            'is_primary' => false,
+                        ];
                     }
-                } elseif ($op['action'] === 'remove') {
-                    if ($existing) {
+                }
+                if ($persist && !empty($toAssign)) {
+                    foreach (array_chunk($toAssign, 500) as $chunk) {
+                        ProductMediaAssignment::insert($chunk);
+                    }
+                }
+            } elseif ($op['action'] === 'remove') {
+                $toRemove = [];
+                foreach ($productIds as $pid) {
+                    if (isset($existingSet[$pid])) {
                         $removed++;
-                        if ($persist) {
-                            $existing->delete();
-                        }
+                        $toRemove[] = $pid;
                     }
+                }
+                if ($persist && !empty($toRemove)) {
+                    $deleteQuery = ProductMediaAssignment::whereIn('product_id', $toRemove)
+                        ->where('media_id', $op['media_id']);
+                    if (!empty($op['usage_type_id'])) {
+                        $deleteQuery->where('usage_type_id', $op['usage_type_id']);
+                    }
+                    $deleteQuery->delete();
                 }
             }
         }
