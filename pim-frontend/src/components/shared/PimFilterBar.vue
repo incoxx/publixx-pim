@@ -29,14 +29,14 @@ onUnmounted(() => {
 <template>
   <div class="flex items-center gap-2 flex-wrap">
     <!-- Search -->
-    <div class="relative flex-1 min-w-[200px] max-w-sm">
-      <Search class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--color-text-tertiary)]" :stroke-width="1.75" />
+    <div class="flex items-center gap-2 flex-1 min-w-[200px] max-w-sm">
+      <Search class="w-4 h-4 text-[var(--color-text-tertiary)] shrink-0" :stroke-width="1.75" />
       <input
         ref="searchRef"
         type="text"
         :value="search"
         :placeholder="placeholder"
-        class="pim-input pl-9 pr-3 text-[13px]"
+        class="pim-input pr-3 text-[13px] flex-1"
         @input="$emit('update:search', $event.target.value)"
       />
     </div>

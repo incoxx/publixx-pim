@@ -1,6 +1,6 @@
 <script setup>
-import { computed, defineAsyncComponent } from 'vue'
-import { Check } from 'lucide-vue-next'
+import { ref, computed, defineAsyncComponent } from 'vue'
+import { Check, X } from 'lucide-vue-next'
 
 const PimRichTextEditor = defineAsyncComponent(() => import('./PimRichTextEditor.vue'))
 
@@ -22,6 +22,33 @@ const inputClass = computed(() => [
   'pim-input',
   props.error ? 'border-[var(--color-error)] focus:border-[var(--color-error)] focus:ring-[var(--color-error)]' : '',
 ])
+
+// Dictionary combobox state
+const dictSearch = ref('')
+const dictOpen = ref(false)
+
+const filteredDictOptions = computed(() => {
+  if (!dictSearch.value) return props.options
+  const term = dictSearch.value.toLowerCase()
+  return props.options.filter(o => (o.label ?? String(o)).toLowerCase().includes(term))
+})
+
+const selectedDictLabel = computed(() => {
+  if (!props.modelValue) return ''
+  const found = props.options.find(o => String(o.value ?? o) === String(props.modelValue))
+  return found ? (found.label ?? found) : ''
+})
+
+function selectDictEntry(opt) {
+  emit('update:modelValue', opt.value ?? opt)
+  dictSearch.value = ''
+  dictOpen.value = false
+}
+
+function clearDictEntry() {
+  emit('update:modelValue', null)
+  dictSearch.value = ''
+}
 
 function update(value) {
   emit('update:modelValue', value)
@@ -146,6 +173,53 @@ function update(value) {
     :disabled="disabled"
     @input="update($event.target.value)"
   />
+
+  <!-- Dictionary (searchable combobox) -->
+  <div v-else-if="type === 'dictionary'" class="relative">
+    <!-- Selected value display -->
+    <div v-if="modelValue && !dictOpen" class="flex items-center gap-1">
+      <span :class="[...inputClass, 'flex-1 cursor-pointer text-[13px]']" @click="dictOpen = true">
+        {{ selectedDictLabel || modelValue }}
+      </span>
+      <button
+        v-if="!disabled"
+        type="button"
+        class="p-1 rounded hover:bg-[var(--color-bg)] text-[var(--color-text-tertiary)]"
+        @click="clearDictEntry"
+      >
+        <X class="w-3.5 h-3.5" :stroke-width="2" />
+      </button>
+    </div>
+    <!-- Search input -->
+    <div v-else>
+      <input
+        type="text"
+        :class="[...inputClass, 'text-[13px]']"
+        v-model="dictSearch"
+        :placeholder="placeholder || 'Wörterbuch durchsuchen…'"
+        :disabled="disabled"
+        @focus="dictOpen = true"
+        @blur="setTimeout(() => dictOpen = false, 200)"
+      />
+      <!-- Dropdown -->
+      <div
+        v-if="dictOpen"
+        class="absolute z-30 left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg shadow-lg"
+      >
+        <div
+          v-for="opt in filteredDictOptions"
+          :key="opt.value ?? opt"
+          class="px-3 py-1.5 text-[13px] cursor-pointer hover:bg-[var(--color-bg)] transition-colors"
+          @mousedown.prevent="selectDictEntry(opt)"
+        >
+          {{ opt.label ?? opt }}
+        </div>
+        <div v-if="filteredDictOptions.length === 0" class="px-3 py-2 text-[12px] text-[var(--color-text-tertiary)]">
+          Keine Einträge gefunden
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- JSON -->
   <textarea

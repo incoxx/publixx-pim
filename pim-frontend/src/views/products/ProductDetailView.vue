@@ -11,6 +11,7 @@ import mediaApi from '@/api/media'
 import { mediaUsageTypes } from '@/api/mediaUsageTypes'
 import { priceTypes, relationTypes } from '@/api/prices'
 import attributesApiDefault, { productTypes, valueLists } from '@/api/attributes'
+import dictionaryApi from '@/api/dictionary'
 import hierarchiesApi from '@/api/hierarchies'
 import PimCollectionGroup from '@/components/shared/PimCollectionGroup.vue'
 import PimAttributeInput from '@/components/shared/PimAttributeInput.vue'
@@ -54,6 +55,7 @@ const attributeValues = ref({})       // non-translatable: { attrId: value }
 const translatedValues = ref({})      // translatable: { `${attrId}_${lang}`: value }
 const attrLoaded = ref(false)
 const valueListMap = ref({})
+const dictionaryEntries = ref([])
 
 // ─── Composite Modal State ────────────────────────────
 const compositeModalOpen = ref(false)
@@ -92,7 +94,7 @@ function mapDataTypeToInput(backendType) {
   const map = {
     'String': 'text', 'Number': 'number', 'Float': 'decimal',
     'Date': 'date', 'Flag': 'boolean', 'Selection': 'select',
-    'Dictionary': 'json', 'Composite': 'composite', 'RichText': 'richtext',
+    'Dictionary': 'dictionary', 'Composite': 'composite', 'RichText': 'richtext',
   }
   return map[backendType] || 'text'
 }
@@ -212,6 +214,19 @@ async function loadAttributeData(overrideNodeId = null) {
         }
         valueListMap.value = map
       } catch (e) { console.error('Failed to load value lists:', e.message) }
+    }
+
+    // Load dictionary entries for Dictionary-type attributes
+    const dictAttrs = (Array.isArray(schema.value) ? schema.value : schema.value?.attributes || [])
+      .filter(a => a.data_type === 'Dictionary')
+    if (dictAttrs.length > 0) {
+      try {
+        const { data: dictData } = await dictionaryApi.list({ perPage: 1000 })
+        dictionaryEntries.value = (dictData.data || dictData).map(e => ({
+          value: e.id,
+          label: e.short_text_de || e.short_text_en || e.category || String(e.id),
+        }))
+      } catch (e) { console.error('Failed to load dictionary entries:', e.message) }
     }
   } catch (e) { console.error('Failed to load attribute data:', e.message) }
 }
@@ -1301,7 +1316,7 @@ watch(() => route.params.id, async (newId, oldId) => {
               v-else-if="attr.is_translatable"
               :type="mapDataTypeToInput(attr.data_type)"
               :modelValue="translatedValues[`${attr.id}_${activeDataLang}`]"
-              :options="attr.value_list?.entries?.map(e => ({ value: e.id, label: e.value_de || e.label_de || e.code })) || []"
+              :options="attr.data_type === 'Dictionary' ? dictionaryEntries : (attr.value_list?.entries?.map(e => ({ value: e.id, label: e.value_de || e.label_de || e.code })) || [])"
               :disabled="attr._access === 'read_only' || isAttributeInherited(attr.id)"
               @update:modelValue="translatedValues[`${attr.id}_${activeDataLang}`] = $event"
             />
@@ -1310,7 +1325,7 @@ watch(() => route.params.id, async (newId, oldId) => {
               v-else
               :type="mapDataTypeToInput(attr.data_type)"
               :modelValue="attributeValues[attr.id]"
-              :options="attr.value_list?.entries?.map(e => ({ value: e.id, label: e.value_de || e.label_de || e.code })) || []"
+              :options="attr.data_type === 'Dictionary' ? dictionaryEntries : (attr.value_list?.entries?.map(e => ({ value: e.id, label: e.value_de || e.label_de || e.code })) || [])"
               :disabled="attr._access === 'read_only' || isAttributeInherited(attr.id)"
               @update:modelValue="attributeValues[attr.id] = $event"
             />

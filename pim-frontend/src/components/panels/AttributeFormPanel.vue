@@ -70,8 +70,9 @@ const fields = computed(() => {
     })
   }
 
-  // Show parent attribute selector for non-composite attributes (to make them children of a composite)
-  if (formData.value.data_type !== 'Composite') {
+  // Show parent attribute selector only for types that can be children of a composite
+  const compositeChildTypes = ['String', 'Number', 'Float', 'Date', 'Flag']
+  if (compositeChildTypes.includes(formData.value.data_type)) {
     const composites = store.items.filter(a => a.data_type === 'Composite' && a.id !== props.attribute?.id)
     if (composites.length > 0) {
       base.push({
