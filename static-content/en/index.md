@@ -28,7 +28,7 @@ features:
     details: Custom query language for filtering and searching products across any attribute combination.
   - icon: 📦
     title: Import & Export
-    details: Excel import with validation, JSON export, and Publixx catalog integration via PXF templates.
+    details: Excel import with validation, JSON export, and catalog integration via PXF templates.
   - icon: 🌐
     title: Full REST API
     details: 90+ JSON API endpoints with token authentication for seamless integration into existing systems.
