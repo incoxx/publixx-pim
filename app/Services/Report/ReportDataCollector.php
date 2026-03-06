@@ -21,9 +21,11 @@ class ReportDataCollector
      *
      * @return array{products: Collection, grouped: array, total: int}
      */
-    public function collect(ReportTemplate $template, ?SearchProfile $searchProfile = null, ?int $limit = null): array
+    public function collect(ReportTemplate $template, ?SearchProfile $searchProfile = null, ?int $limit = null, ?array $productIds = null): array
     {
-        $query = $this->buildQuery($searchProfile);
+        $query = $productIds
+            ? Product::whereIn('id', $productIds)
+            : $this->buildQuery($searchProfile);
         $relations = $this->determineRelations($template->template_json);
 
         $productQuery = $query->with($relations);

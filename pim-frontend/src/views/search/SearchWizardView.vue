@@ -5,7 +5,7 @@ import { useLocaleStore } from '@/stores/locale'
 import {
   Search, Filter, ChevronDown, ChevronUp, ChevronRight, X, Star,
   Regex, AudioLines, Languages, Download, GitCompareArrows, Pencil,
-  Package, Sliders, GitBranch, Image, FolderTree, FileSpreadsheet, Code2, ListFilter,
+  Package, Sliders, GitBranch, Image, FolderTree, FileSpreadsheet, FileText, Code2, ListFilter,
 } from 'lucide-vue-next'
 import searchApi from '@/api/search'
 import searchProfilesApi from '@/api/searchProfiles'
@@ -20,6 +20,7 @@ import ColumnConfigPopover from '@/components/shared/ColumnConfigPopover.vue'
 import { useColumnConfig } from '@/composables/useColumnConfig'
 import { triggerDownload } from '@/utils/download'
 import { useAttributeStore } from '@/stores/attributes'
+import ReportTemplatePickerModal from '@/components/reports/ReportTemplatePickerModal.vue'
 
 const router = useRouter()
 const localeStore = useLocaleStore()
@@ -218,6 +219,7 @@ const watchlistIds = ref(new Set())
 // Selection & XLIFF export
 const selectedProductIds = ref([])
 const showXliffPanel = ref(false)
+const showReportPicker = ref(false)
 const xliffSourceLang = ref('de')
 const xliffTargetLang = ref('en')
 const xliffExporting = ref(false)
@@ -229,6 +231,11 @@ const compareLoading = ref(false)
 const showDiffsOnly = ref(false)
 
 const canCompare = computed(() => selectedProductIds.value.length === 2)
+const reportProductIds = computed(() =>
+  selectedProductIds.value.length > 0
+    ? selectedProductIds.value
+    : results.value.map(r => r.id)
+)
 
 const compareRows = computed(() => {
   if (!compareData.value?.rows) return []
@@ -793,6 +800,14 @@ const apiCallDisplay = computed(() => {
         <FileSpreadsheet class="w-4 h-4" :stroke-width="1.75" />
         <span class="ml-1.5 text-sm hidden sm:inline">{{ excelExporting ? 'Export...' : 'Excel' }}</span>
       </button>
+      <button
+        v-if="searchCategory === 'products' && hasSearched && results.length > 0"
+        class="pim-btn pim-btn-secondary py-3 px-4"
+        @click="showReportPicker = true"
+      >
+        <FileText class="w-4 h-4" :stroke-width="1.75" />
+        <span class="ml-1.5 text-sm hidden sm:inline">Report</span>
+      </button>
       <button class="pim-btn pim-btn-primary py-3 px-6" @click="doSearch(1)">
         Suchen
       </button>
@@ -1015,6 +1030,10 @@ const apiCallDisplay = computed(() => {
       <button class="pim-btn pim-btn-secondary text-xs" @click="openBulkEditor">
         <Pencil class="w-3.5 h-3.5" :stroke-width="1.75" />
         <span class="hidden sm:inline">Bulk bearbeiten</span>
+      </button>
+      <button class="pim-btn pim-btn-secondary text-xs" @click="showReportPicker = true">
+        <FileText class="w-3.5 h-3.5" :stroke-width="1.75" />
+        <span class="hidden sm:inline">Report</span>
       </button>
       <span v-if="selectedProductIds.length === 1" class="text-[11px] text-[var(--color-text-tertiary)] hidden sm:inline">
         Noch 1 Produkt auswählen zum Vergleichen
@@ -1305,6 +1324,12 @@ const apiCallDisplay = computed(() => {
         </div>
       </transition>
     </Teleport>
+
+    <!-- Report Template Picker -->
+    <ReportTemplatePickerModal
+      v-model:open="showReportPicker"
+      :productIds="reportProductIds"
+    />
   </div>
 </template>
 

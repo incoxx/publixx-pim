@@ -3,7 +3,7 @@ import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { useReportDesignerStore } from '@/stores/reportDesigner'
 import {
-  ArrowLeft, Save, Eye, Download, FileText, FileSpreadsheet,
+  ArrowLeft, Save, Eye, Download, FileText, FileSpreadsheet, Filter,
 } from 'lucide-vue-next'
 import reportTemplatesApi from '@/api/reportTemplates'
 import searchProfilesApi from '@/api/searchProfiles'
@@ -191,9 +191,11 @@ function onSearchProfileChange(id) {
       <div class="flex-1"></div>
 
       <!-- Search Profile -->
-      <div class="w-48">
+      <div class="flex items-center gap-1.5">
+        <Filter class="w-3.5 h-3.5 text-[var(--color-text-secondary)]" :stroke-width="2" />
+        <span class="text-xs text-[var(--color-text-secondary)] whitespace-nowrap">Suchprofil:</span>
         <select
-          class="pim-input text-xs w-full"
+          class="pim-input text-xs w-48"
           :value="store.currentTemplate.search_profile_id || ''"
           @change="onSearchProfileChange($event.target.value)"
         >

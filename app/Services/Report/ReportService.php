@@ -24,7 +24,7 @@ class ReportService
      *
      * @return array{path: string, format: string, size: int, duration: float}
      */
-    public function execute(ReportTemplate $template, ?SearchProfile $searchProfile = null, ?string $outputDir = null, ?string $format = null): array
+    public function execute(ReportTemplate $template, ?SearchProfile $searchProfile = null, ?string $outputDir = null, ?string $format = null, ?array $productIds = null): array
     {
         $startTime = microtime(true);
         $outputDir = $outputDir ?? storage_path('app/reports');
@@ -42,7 +42,7 @@ class ReportService
         ]);
 
         // Collect product data
-        $data = $this->dataCollector->collect($template, $searchProfile);
+        $data = $this->dataCollector->collect($template, $searchProfile, productIds: $productIds);
 
         $templateJson = $template->template_json;
         $options = [
