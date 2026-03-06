@@ -109,6 +109,18 @@ const routes = [
     meta: { title: 'Export-Jobs' },
   },
   {
+    path: '/reports',
+    name: 'reports',
+    component: () => import('@/views/reports/ReportListView.vue'),
+    meta: { title: 'Berichte' },
+  },
+  {
+    path: '/reports/:id',
+    name: 'report-designer',
+    component: () => import('@/views/reports/ReportDesignerView.vue'),
+    meta: { title: 'Bericht-Designer' },
+  },
+  {
     path: '/media',
     name: 'media',
     component: () => import('@/views/media/MediaView.vue'),
