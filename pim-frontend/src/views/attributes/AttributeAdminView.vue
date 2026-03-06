@@ -242,7 +242,7 @@ onMounted(() => {
       </template>
       <template #cell-_views="{ row }">
         <div class="flex flex-wrap gap-0.5">
-          <span v-for="v in (row.attribute_views || [])" :key="v.id" class="pim-badge bg-[var(--color-primary-light)] text-[var(--color-primary)] text-[10px]">{{ v.name_de || v.technical_name }}</span>
+          <span v-for="v in (row.attribute_views || [])" :key="v.id" class="pim-badge bg-[var(--color-bg)] text-[var(--color-text-secondary)] text-[10px]">{{ v.name_de || v.technical_name }}</span>
           <span v-if="!row.attribute_views?.length" class="text-[var(--color-text-tertiary)]">—</span>
         </div>
       </template>
