@@ -39,6 +39,13 @@ return [
             'days' => 30,
             'replace_placeholders' => true,
         ],
+        'export' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/export.log'),
+            'level' => 'debug',
+            'days' => 30,
+            'replace_placeholders' => true,
+        ],
         'null' => [
             'driver' => 'monolog',
             'handler' => Monolog\Handler\NullHandler::class,
