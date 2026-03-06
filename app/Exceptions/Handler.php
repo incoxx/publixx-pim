@@ -21,7 +21,7 @@ use Throwable;
  *
  * Every error response follows the format:
  * {
- *   "type": "urn:publixx:pim:error:<error-type>",
+ *   "type": "urn:anypim:error:<error-type>",
  *   "title": "Human-readable summary",
  *   "status": 422,
  *   "detail": "Detailed explanation",
@@ -52,43 +52,43 @@ class Handler extends ExceptionHandler
         return match (true) {
             $e instanceof ValidationException => $this->renderValidationException($e),
             $e instanceof ModelNotFoundException => $this->renderProblem(
-                'urn:publixx:pim:error:not-found',
+                'urn:anypim:error:not-found',
                 'Resource not found',
                 404,
                 "The requested {$this->getModelName($e)} was not found."
             ),
             $e instanceof NotFoundHttpException => $this->renderProblem(
-                'urn:publixx:pim:error:not-found',
+                'urn:anypim:error:not-found',
                 'Endpoint not found',
                 404,
                 'The requested URL does not match any API endpoint.'
             ),
             $e instanceof AuthenticationException => $this->renderProblem(
-                'urn:publixx:pim:error:unauthenticated',
+                'urn:anypim:error:unauthenticated',
                 'Unauthenticated',
                 401,
                 'A valid authentication token is required.'
             ),
             $e instanceof MethodNotAllowedHttpException => $this->renderProblem(
-                'urn:publixx:pim:error:method-not-allowed',
+                'urn:anypim:error:method-not-allowed',
                 'Method not allowed',
                 405,
                 'The HTTP method is not supported for this endpoint.'
             ),
             $e instanceof TooManyRequestsHttpException => $this->renderProblem(
-                'urn:publixx:pim:error:rate-limit',
+                'urn:anypim:error:rate-limit',
                 'Too many requests',
                 429,
                 'Rate limit exceeded. Please try again later.'
             ),
             $e instanceof HttpException => $this->renderProblem(
-                'urn:publixx:pim:error:http',
+                'urn:anypim:error:http',
                 $e->getMessage() ?: 'HTTP Error',
                 $e->getStatusCode(),
                 $e->getMessage()
             ),
             default => $this->renderProblem(
-                'urn:publixx:pim:error:internal',
+                'urn:anypim:error:internal',
                 'Internal server error',
                 500,
                 config('app.debug') ? $e->getMessage() : 'An unexpected error occurred.'
@@ -99,7 +99,7 @@ class Handler extends ExceptionHandler
     private function renderValidationException(ValidationException $e): JsonResponse
     {
         return $this->renderProblem(
-            'urn:publixx:pim:error:validation',
+            'urn:anypim:error:validation',
             'Validation failed',
             422,
             'One or more fields failed validation.',

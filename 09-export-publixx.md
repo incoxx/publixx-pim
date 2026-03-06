@@ -1,4 +1,4 @@
-# Publixx PIM — Export & Publixx-Integration
+# anyPIM — Export & Publixx-Integration
 
 > **Zweck:** JSON-Export und Publixx-Anbindung. Verwende diesen Skill beim Implementieren der Export-Engine, Mapping-Konfiguration und Live-API-Endpunkte für Publixx.
 

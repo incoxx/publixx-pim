@@ -57,7 +57,7 @@ use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
-| Publixx PIM — Merged API Routes
+| anyPIM — Merged API Routes
 |--------------------------------------------------------------------------
 |
 | Agents: 2 (Auth), 3 (API), 5 (PQL), 7 (Export/Publixx)

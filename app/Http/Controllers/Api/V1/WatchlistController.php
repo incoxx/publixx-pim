@@ -396,7 +396,7 @@ class WatchlistController extends Controller
 
         $xml = '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
         $xml .= '<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">' . "\n";
-        $xml .= '<file source-language="' . $sourceLang . '" target-language="' . $targetLang . '" datatype="plaintext" original="publixx-pim-watchlist">' . "\n";
+        $xml .= '<file source-language="' . $sourceLang . '" target-language="' . $targetLang . '" datatype="plaintext" original="anypim-watchlist">' . "\n";
         $xml .= '<body>' . "\n";
 
         foreach ($products as $product) {

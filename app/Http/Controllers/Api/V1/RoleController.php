@@ -108,7 +108,7 @@ class RoleController extends Controller
 
         if ($role->users()->count() > 0) {
             return response()->json([
-                'type' => 'https://publixx-pim.local/problems/roles/in-use',
+                'type' => 'https://anypim.local/problems/roles/in-use',
                 'title' => 'Role In Use',
                 'detail' => "The role '{$role->name}' is still assigned to {$role->users()->count()} user(s).",
                 'status' => Response::HTTP_CONFLICT,

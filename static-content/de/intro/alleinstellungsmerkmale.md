@@ -2,9 +2,9 @@
 title: Alleinstellungsmerkmale
 ---
 
-# Alleinstellungsmerkmale des Publixx PIM
+# Alleinstellungsmerkmale des anyPIM
 
-Publixx PIM unterscheidet sich durch eine Reihe architektonischer und funktionaler Entscheidungen grundlegend von herkoemmlichen PIM-Systemen. Dieses Kapitel stellt die zentralen Differenzierungsmerkmale vor und erlaeutert, warum sie fuer den produktiven Einsatz relevant sind.
+anyPIM unterscheidet sich durch eine Reihe architektonischer und funktionaler Entscheidungen grundlegend von herkoemmlichen PIM-Systemen. Dieses Kapitel stellt die zentralen Differenzierungsmerkmale vor und erlaeutert, warum sie fuer den produktiven Einsatz relevant sind.
 
 ## Uebersicht der Kernmerkmale
 
@@ -93,7 +93,7 @@ Publixx PIM unterscheidet sich durch eine Reihe architektonischer und funktional
 
 ## 1. EAV-Architektur -- Unbegrenzt flexible Attribute
 
-Herkoemmliche PIM-Systeme legen Produkteigenschaften als feste Spalten in einer Datenbanktabelle ab. Jedes neue Attribut erfordert dort eine Schemamigration, Deployment-Zyklen und unter Umstaenden Ausfallzeiten. Publixx PIM verfolgt einen grundlegend anderen Ansatz.
+Herkoemmliche PIM-Systeme legen Produkteigenschaften als feste Spalten in einer Datenbanktabelle ab. Jedes neue Attribut erfordert dort eine Schemamigration, Deployment-Zyklen und unter Umstaenden Ausfallzeiten. anyPIM verfolgt einen grundlegend anderen Ansatz.
 
 Das **Entity-Attribute-Value-Modell** (EAV) entkoppelt die Produktstruktur vom Datenbankschema. Attribute werden als eigenstaendige Entitaeten definiert und ihre Werte in einer separaten Zuordnungstabelle (`product_attribute_values`) gespeichert. Das bedeutet:
 
@@ -116,7 +116,7 @@ Die Performance-Herausforderung, die EAV-Systeme typischerweise mit sich bringen
 
 ## 2. Zweistufiges Vererbungssystem
 
-Publixx PIM implementiert Vererbung auf zwei Ebenen, die sich gegenseitig ergaenzen:
+anyPIM implementiert Vererbung auf zwei Ebenen, die sich gegenseitig ergaenzen:
 
 ### Hierarchie-Vererbung (Knoten zu Produkt)
 
@@ -189,7 +189,7 @@ Die **Publixx-Katalog-Integration** ermoeglicht den direkten Export von Produktd
 
 ## 6. Feingranulares Berechtigungssystem (RBAC)
 
-Das Berechtigungssystem geht weit ueber die ueblichen Rollen wie "Admin", "Editor" und "Viewer" hinaus. Aufbauend auf Spatie Permission implementiert Publixx PIM **zwei zusaetzliche Granularitaetsebenen**:
+Das Berechtigungssystem geht weit ueber die ueblichen Rollen wie "Admin", "Editor" und "Viewer" hinaus. Aufbauend auf Spatie Permission implementiert anyPIM **zwei zusaetzliche Granularitaetsebenen**:
 
 ### Attribut-View-Einschraenkungen
 
@@ -253,4 +253,4 @@ Der `products_search_index` ist eine denormalisierte Tabelle, die die wichtigste
 - **Unterstuetzung fuer PQL** -- die PQL-Engine nutzt den Index als primaere Datenquelle
 - **Automatische Invalidierung** -- Aenderungen an Produkten, Attributen oder Vererbungswerten loesen eine Neuberechnung des betroffenen Index-Eintrags aus
 
-Durch diese Strategie erreicht Publixx PIM die Flexibilitaet eines EAV-Systems bei gleichzeitiger Abfrageperformance, die mit fest definierten Schemata vergleichbar ist.
+Durch diese Strategie erreicht anyPIM die Flexibilitaet eines EAV-Systems bei gleichzeitiger Abfrageperformance, die mit fest definierten Schemata vergleichbar ist.

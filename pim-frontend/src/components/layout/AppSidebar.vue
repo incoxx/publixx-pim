@@ -9,6 +9,7 @@ import {
   HelpCircle, PanelLeftClose, PanelLeft, Star, LayoutGrid, Ruler,
   FileJson, PlayCircle,
 } from 'lucide-vue-next'
+import AnyPimLogo from '@/components/shared/AnyPimLogo.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -58,16 +59,8 @@ function isActive(to) {
     ]"
   >
     <!-- Logo -->
-    <div class="flex items-center gap-2 px-4 h-14 border-b border-[var(--color-border)] shrink-0">
-      <div class="w-7 h-7 rounded-md bg-[var(--color-primary)] flex items-center justify-center shrink-0">
-        <span class="text-white font-bold text-xs">P</span>
-      </div>
-      <span
-        v-if="!authStore.sidebarCollapsed"
-        class="font-semibold text-sm text-[var(--color-primary)] tracking-tight"
-      >
-        Publixx PIM
-      </span>
+    <div class="flex items-center px-3 h-14 border-b border-[var(--color-border)] shrink-0">
+      <AnyPimLogo :showText="!authStore.sidebarCollapsed" size="sm" />
     </div>
 
     <!-- Nav -->

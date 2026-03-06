@@ -4,7 +4,7 @@ title: PQL-Abfragesprache
 
 # PQL-Abfragesprache (Product Query Language)
 
-PQL ist eine domänenspezifische Abfragesprache für das Publixx PIM, die es ermöglicht, Produkte über beliebige Attributkombinationen zu filtern und zu durchsuchen.
+PQL ist eine domänenspezifische Abfragesprache für das anyPIM, die es ermöglicht, Produkte über beliebige Attributkombinationen zu filtern und zu durchsuchen.
 
 ## API-Endpunkte
 

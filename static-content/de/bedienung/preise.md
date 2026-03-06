@@ -4,7 +4,7 @@ title: Preise
 
 # Preise
 
-Die Preisverwaltung des Publixx PIM ermöglicht die zentrale Pflege von Produktpreisen in verschiedenen Preisarten und Währungen. Dieses Kapitel beschreibt die Konfiguration von Preisarten, die Erfassung von Preisen pro Produkt sowie die Verwaltung von Gültigkeitszeiträumen.
+Die Preisverwaltung des anyPIM ermöglicht die zentrale Pflege von Produktpreisen in verschiedenen Preisarten und Währungen. Dieses Kapitel beschreibt die Konfiguration von Preisarten, die Erfassung von Preisen pro Produkt sowie die Verwaltung von Gültigkeitszeiträumen.
 
 ## Preisarten
 
@@ -36,7 +36,7 @@ Preisarten sind systemweit definiert und gelten für alle Produkte. Die tatsäch
 
 ## Währungen
 
-Das Publixx PIM unterstützt **mehrere Währungen** gleichzeitig. Für jeden Preis wird die Währung als ISO-4217-Code gespeichert (z.B. EUR, USD, CHF, GBP).
+Das anyPIM unterstützt **mehrere Währungen** gleichzeitig. Für jeden Preis wird die Währung als ISO-4217-Code gespeichert (z.B. EUR, USD, CHF, GBP).
 
 ### Verfügbare Währungen
 

@@ -206,7 +206,7 @@
 @endif
 
 <div class="footer">
-    Publixx PIM &mdash; {{ $lang === 'en' ? 'Product Preview' : 'Produkt-Vorschau' }} &mdash; {{ now()->format('d.m.Y H:i') }}
+    anyPIM &mdash; {{ $lang === 'en' ? 'Product Preview' : 'Produkt-Vorschau' }} &mdash; {{ now()->format('d.m.Y H:i') }}
 </div>
 
 </body>

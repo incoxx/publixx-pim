@@ -1,4 +1,4 @@
-# Publixx PIM — PQL Engine
+# anyPIM — PQL Engine
 
 > **Zweck:** PQL-zu-SQL-Transpiler im PIM-Backend. Verwende diesen Skill beim Implementieren des PQL-Parsers, der SQL-Generierung und der PQL-API-Endpunkte.
 

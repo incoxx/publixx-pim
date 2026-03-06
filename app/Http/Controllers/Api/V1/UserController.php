@@ -135,7 +135,7 @@ class UserController extends Controller
 
         if ($user->id === auth()->id()) {
             return response()->json([
-                'type' => 'https://publixx-pim.local/problems/users/self-deletion',
+                'type' => 'https://anypim.local/problems/users/self-deletion',
                 'title' => 'Self-Deletion Not Allowed',
                 'detail' => 'You cannot delete your own account.',
                 'status' => Response::HTTP_FORBIDDEN,

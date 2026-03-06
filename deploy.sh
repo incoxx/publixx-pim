@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Publixx PIM — Deploy & Restart Script
+# anyPIM — Deploy & Restart Script
 #
 # Usage:
 #   sudo bash deploy.sh              # Full deploy (pull + backend + frontend + restart)

@@ -1,4 +1,4 @@
-# Publixx PIM — Installations-Anleitung
+# anyPIM — Installations-Anleitung
 
 ## Voraussetzungen
 

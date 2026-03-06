@@ -4,7 +4,7 @@ title: API Reference
 
 # API Reference
 
-The Publixx PIM provides a complete REST API with over 90 endpoints that make all system functions programmatically accessible. The API follows consistent conventions and uses JSON as data format.
+The anyPIM provides a complete REST API with over 90 endpoints that make all system functions programmatically accessible. The API follows consistent conventions and uses JSON as data format.
 
 ## Base URL
 

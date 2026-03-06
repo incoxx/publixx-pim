@@ -4,7 +4,7 @@ title: Schnellstart
 
 # Schnellstart
 
-Publixx PIM bietet zwei Wege zur Installation: das **automatische Setup-Script** (empfohlen) fuer Server-Installationen und die **manuelle Installation** fuer Entwicklungsumgebungen.
+anyPIM bietet zwei Wege zur Installation: das **automatische Setup-Script** (empfohlen) fuer Server-Installationen und die **manuelle Installation** fuer Entwicklungsumgebungen.
 
 ## Automatische Installation mit setup.sh (empfohlen)
 
@@ -197,7 +197,7 @@ Oeffnen Sie die `.env`-Datei und konfigurieren Sie mindestens folgende Werte:
 
 ```dotenv
 # Anwendung
-APP_NAME="Publixx PIM"
+APP_NAME="anyPIM"
 APP_ENV=local
 APP_DEBUG=true
 APP_URL=http://localhost:8000

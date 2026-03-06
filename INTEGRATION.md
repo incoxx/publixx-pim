@@ -1,4 +1,4 @@
-# Publixx PIM — Integrationsbericht
+# anyPIM — Integrationsbericht
 
 > **Datum:** 19.02.2026 | **Phase:** 4 (Integration) | **Status:** ✅ Komplett
 

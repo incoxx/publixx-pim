@@ -1,8 +1,8 @@
 ---
 layout: home
-title: Publixx PIM Dokumentation
+title: anyPIM Dokumentation
 hero:
-  name: Publixx PIM
+  name: anyPIM
   text: Product Information Management
   tagline: Flexible, leistungsstarke Produktdatenverwaltung mit EAV-Architektur, Vererbung, PQL-Abfragesprache und nahtloser Integration. Open Source (AGPL-3.0).
   actions:
@@ -39,7 +39,7 @@ features:
 
 ## Willkommen
 
-Publixx PIM ist ein **Product Information Management System**, das speziell für die Anforderungen moderner Produktdatenverwaltung entwickelt wurde. Es kombiniert die Flexibilität einer EAV-Architektur mit der Leistungsfähigkeit von Laravel und Vue.js.
+anyPIM ist ein **Product Information Management System**, das speziell für die Anforderungen moderner Produktdatenverwaltung entwickelt wurde. Es kombiniert die Flexibilität einer EAV-Architektur mit der Leistungsfähigkeit von Laravel und Vue.js.
 
 ### Für wen ist diese Dokumentation?
 

@@ -2,9 +2,9 @@
 title: Unique Features
 ---
 
-# Unique Features of Publixx PIM
+# Unique Features of anyPIM
 
-Publixx PIM fundamentally differs from conventional PIM systems through a series of architectural and functional design decisions. This chapter presents the key differentiators and explains why they matter for productive use.
+anyPIM fundamentally differs from conventional PIM systems through a series of architectural and functional design decisions. This chapter presents the key differentiators and explains why they matter for productive use.
 
 ## Overview of Core Features
 
@@ -50,8 +50,7 @@ Publixx PIM fundamentally differs from conventional PIM systems through a series
 
   <!-- Hub -->
   <circle cx="400" cy="280" r="70" fill="url(#hubGrad)" filter="url(#shadow)"/>
-  <text x="400" y="272" text-anchor="middle" fill="white" font-size="15" font-weight="bold">Publixx</text>
-  <text x="400" y="294" text-anchor="middle" fill="white" font-size="15" font-weight="bold">PIM</text>
+  <text x="400" y="284" text-anchor="middle" fill="white" font-size="15" font-weight="bold">anyPIM</text>
 
   <!-- Spoke 1: EAV -->
   <rect x="70" y="62" rx="12" ry="12" width="180" height="72" fill="url(#spokeGrad1)" filter="url(#shadow)"/>
@@ -93,7 +92,7 @@ Publixx PIM fundamentally differs from conventional PIM systems through a series
 
 ## 1. EAV Architecture — Unlimited Flexible Attributes
 
-Conventional PIM systems store product properties as fixed columns in a database table. Every new attribute requires a schema migration, deployment cycles, and potentially downtime. Publixx PIM takes a fundamentally different approach.
+Conventional PIM systems store product properties as fixed columns in a database table. Every new attribute requires a schema migration, deployment cycles, and potentially downtime. anyPIM takes a fundamentally different approach.
 
 The **Entity-Attribute-Value model** (EAV) decouples the product structure from the database schema. Attributes are defined as independent entities and their values are stored in a separate mapping table (`product_attribute_values`). This means:
 
@@ -116,7 +115,7 @@ The performance challenge typical of EAV systems (many JOINs during queries) is 
 
 ## 2. Two-Level Inheritance System
 
-Publixx PIM implements inheritance on two levels that complement each other:
+anyPIM implements inheritance on two levels that complement each other:
 
 ### Hierarchy Inheritance (Node to Product)
 
@@ -189,7 +188,7 @@ The **Publixx catalog integration** enables direct export of product data to the
 
 ## 6. Fine-Grained Permission System (RBAC)
 
-The permission system goes far beyond typical roles like "Admin", "Editor", and "Viewer". Building on Spatie Permission, Publixx PIM implements **two additional granularity levels**:
+The permission system goes far beyond typical roles like "Admin", "Editor", and "Viewer". Building on Spatie Permission, anyPIM implements **two additional granularity levels**:
 
 ### Attribute View Restrictions
 
@@ -253,4 +252,4 @@ The `products_search_index` is a denormalized table that consolidates the most i
 - **PQL support** — the PQL engine uses the index as its primary data source
 - **Automatic invalidation** — changes to products, attributes, or inheritance values trigger a recalculation of the affected index entry
 
-Through this strategy, Publixx PIM achieves the flexibility of an EAV system with query performance comparable to fixed schema designs.
+Through this strategy, anyPIM achieves the flexibility of an EAV system with query performance comparable to fixed schema designs.

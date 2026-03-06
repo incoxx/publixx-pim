@@ -4,7 +4,7 @@ title: Produkte
 
 # Produkte
 
-Die Produktverwaltung bildet das Herzstück des Publixx PIM. Hier legen Sie Produkte an, pflegen Attributwerte in verschiedenen Sprachen, verwalten Varianten und Relationen und steuern den gesamten Produktlebenszyklus.
+Die Produktverwaltung bildet das Herzstück des anyPIM. Hier legen Sie Produkte an, pflegen Attributwerte in verschiedenen Sprachen, verwalten Varianten und Relationen und steuern den gesamten Produktlebenszyklus.
 
 ## Produktliste
 

@@ -4,7 +4,7 @@ title: Frequently Asked Questions (FAQ)
 
 # Frequently Asked Questions (FAQ)
 
-Here you will find answers to the most frequently asked questions about Publixx PIM. The questions are grouped by topic and cover areas from everyday usage to system administration.
+Here you will find answers to the most frequently asked questions about anyPIM. The questions are grouped by topic and cover areas from everyday usage to system administration.
 
 ## User Management
 
@@ -34,7 +34,7 @@ Ask the user to change the password immediately after the first login.
 
 ### How can I restrict users to specific product categories?
 
-Publixx PIM supports fine-grained access control through the roles and permissions system. Here is how to set up a restriction:
+anyPIM supports fine-grained access control through the roles and permissions system. Here is how to set up a restriction:
 
 1. Under **Users > Roles**, create a new role (e.g., "Product Manager Electrical").
 2. Assign the desired permissions to the role (e.g., read and edit products -- but not delete).
@@ -59,7 +59,7 @@ The **Save** and **Delete** buttons are only displayed if your role includes the
 
 ### How many products can the system manage?
 
-Publixx PIM is designed for product inventories of **100,000+ products**, each with numerous attribute values, variants, and media. On the recommended hardware configuration (8 vCPU, 16 GB RAM, NVMe SSD), internal tests have shown that inventories with over 200,000 products and several million attribute values can be managed with good performance.
+anyPIM is designed for product inventories of **100,000+ products**, each with numerous attribute values, variants, and media. On the recommended hardware configuration (8 vCPU, 16 GB RAM, NVMe SSD), internal tests have shown that inventories with over 200,000 products and several million attribute values can be managed with good performance.
 
 The actual performance depends on the following factors:
 
@@ -88,7 +88,7 @@ This behavior can be controlled per attribute via the `inheritable` property. At
 
 ### What can I do if errors occur during import?
 
-The import process in Publixx PIM is structured in three stages (upload, validation, execution). Errors are detected during the validation phase and reported in detail **before** data is written to the database.
+The import process in anyPIM is structured in three stages (upload, validation, execution). Errors are detected during the validation phase and reported in detail **before** data is written to the database.
 
 When validation errors occur, proceed as follows:
 
@@ -220,7 +220,7 @@ Ensure that Laravel Horizon is configured with sufficient workers so that import
 
 ### How do I add a new language?
 
-Publixx PIM supports any number of content languages for product data. Here is how to add a new language:
+anyPIM supports any number of content languages for product data. Here is how to add a new language:
 
 1. **Create the language via import**: Add the language in the `01_Sprachen` tab of the Excel import file (ISO 639-1 code and label).
 2. **Alternatively via the API**:
@@ -254,7 +254,7 @@ tail -f storage/logs/laravel.log
 
 ### Can I run the system in a Docker environment?
 
-Publixx PIM is primarily designed and documented for native operation on a Linux server. A Docker setup is possible in principle but is not officially provided at this time. When containerizing, you need to account for the following services as separate containers or services:
+anyPIM is primarily designed and documented for native operation on a Linux server. A Docker setup is possible in principle but is not officially provided at this time. When containerizing, you need to account for the following services as separate containers or services:
 
 - PHP-FPM (with all required extensions)
 - Nginx
@@ -262,9 +262,9 @@ Publixx PIM is primarily designed and documented for native operation on a Linux
 - Redis
 - Supervisor/Horizon (as a separate worker container)
 
-### Under what license is Publixx PIM released?
+### Under what license is anyPIM released?
 
-Publixx PIM is released under the **AGPL-3.0-only** license. This permits the free use, modification, and distribution of the software. If you make the software available (including modified versions) over a network, you must make the source code available under the same license. All third-party components used and their licenses can be found in the `THIRD-PARTY-NOTICES` file in the project directory.
+anyPIM is released under the **AGPL-3.0-only** license. This permits the free use, modification, and distribution of the software. If you make the software available (including modified versions) over a network, you must make the source code available under the same license. All third-party components used and their licenses can be found in the `THIRD-PARTY-NOTICES` file in the project directory.
 
 ## More Questions?
 

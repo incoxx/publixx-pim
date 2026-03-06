@@ -5,7 +5,7 @@ declare(strict_types=1);
 use Illuminate\Support\Str;
 
 /**
- * Publixx PIM – Laravel Horizon Konfiguration
+ * anyPIM – Laravel Horizon Konfiguration
  *
  * Queue-Architektur:
  * - default:   Allgemeine Jobs

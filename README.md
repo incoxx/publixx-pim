@@ -1,4 +1,4 @@
-# Publixx PIM
+# anyPIM
 
 Product Information Management System — eine Laravel 11 + Vue 3 Anwendung zur zentralen Verwaltung von Produktdaten, Medien, Hierarchien und Exporten.
 

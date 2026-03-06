@@ -1,11 +1,11 @@
 #!/bin/bash
 #
 # ╔══════════════════════════════════════════════════════════════════════╗
-# ║              Publixx PIM — Setup & Installer                       ║
+# ║              anyPIM — Setup & Installer                       ║
 # ║              Ubuntu 24.04 LTS · Apache · PHP 8.4 · MySQL 8        ║
 # ╚══════════════════════════════════════════════════════════════════════╝
 #
-# Dieses Script richtet eine vollstaendige Publixx PIM Instanz ein:
+# Dieses Script richtet eine vollstaendige anyPIM Instanz ein:
 #   - Apache2 mit VirtualHost
 #   - PHP 8.4 + alle benoetigten Extensions
 #   - MySQL 8.0 mit Datenbank und Benutzer
@@ -498,7 +498,7 @@ fi
 # ═════════════════════════════════════════════════════════════════════════════
 #  8. ANWENDUNG EINRICHTEN
 # ═════════════════════════════════════════════════════════════════════════════
-step "8/10 — Publixx PIM einrichten"
+step "8/10 — anyPIM einrichten"
 
 # Supervisor installieren (fuer Horizon)
 apt-get install -y -qq supervisor
@@ -546,7 +546,7 @@ else
 fi
 
 cat > "${INSTALL_DIR}/.env" <<ENVFILE
-APP_NAME="Publixx PIM"
+APP_NAME="anyPIM"
 APP_ENV=production
 APP_KEY=
 APP_DEBUG=false
@@ -798,7 +798,7 @@ if [ -n "$WEB_PATH" ]; then
 
     if [ "$WRITE_ALIAS_CONF" = true ]; then
         cat > "$ALIAS_CONF" <<ALIASCONF
-# Publixx PIM — Apache Alias fuer Unterverzeichnis ${WEB_PATH}
+# anyPIM — Apache Alias fuer Unterverzeichnis ${WEB_PATH}
 # Generiert von setup.sh
 #
 # Diese Konfiguration bindet PIM unter ${WEB_PATH} ein.
@@ -845,7 +845,7 @@ else
     # Das verhindert Konflikte mit Default-Listen-Direktiven (z.B. Port 80),
     # wenn ein anderer Dienst dort bereits laeuft.
     {
-        echo "# Publixx PIM — generiert von setup.sh"
+        echo "# anyPIM — generiert von setup.sh"
         echo "Listen ${APP_PORT}"
         if [ "$USE_SSL" = true ]; then
             echo "Listen ${SSL_PORT}"

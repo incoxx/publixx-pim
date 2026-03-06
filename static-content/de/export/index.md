@@ -4,11 +4,11 @@ title: Export - Übersicht
 
 # Export
 
-Das Export-Modul des Publixx PIM stellt Produktdaten in strukturierter Form für externe Systeme bereit. Es unterstützt sowohl generische JSON-Exporte als auch die spezialisierte Publixx-Integration über PXF-Datensätze (Publixx Exchange Format).
+Das Export-Modul des anyPIM stellt Produktdaten in strukturierter Form für externe Systeme bereit. Es unterstützt sowohl generische JSON-Exporte als auch die spezialisierte Publixx-Integration über PXF-Datensätze (Publixx Exchange Format).
 
 ## Exportformate
 
-Das Publixx PIM bietet zwei Export-Kanäle:
+Das anyPIM bietet zwei Export-Kanäle:
 
 | Kanal | Format | Zielgruppe | Beschreibung |
 |---|---|---|---|

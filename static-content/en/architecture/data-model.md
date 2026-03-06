@@ -4,7 +4,7 @@ title: Data Model
 
 # Data Model
 
-The Publixx PIM data model comprises **35 tables**, organized into nine functional domains. All tables use **UUID primary keys** for globally unique identifiers and make extensive use of **JSON columns** for flexible, schema-independent data structures.
+The anyPIM data model comprises **35 tables**, organized into nine functional domains. All tables use **UUID primary keys** for globally unique identifiers and make extensive use of **JSON columns** for flexible, schema-independent data structures.
 
 ## Domain Overview
 
@@ -99,7 +99,7 @@ The attribute model forms the backbone of the EAV architecture. It defines which
 
 ## The EAV Pattern in Detail
 
-The central design decision of Publixx PIM is the **Entity-Attribute-Value pattern**. The following diagram shows the three core entities and their relationships.
+The central design decision of anyPIM is the **Entity-Attribute-Value pattern**. The following diagram shows the three core entities and their relationships.
 
 <svg viewBox="0 0 880 520" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;margin:2rem auto;display:block;">
   <defs>

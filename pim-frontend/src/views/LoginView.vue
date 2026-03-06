@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import AnyPimLogo from '@/components/shared/AnyPimLogo.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -30,10 +31,9 @@ async function handleLogin() {
   <div class="min-h-screen flex items-center justify-center bg-[var(--color-bg)]">
     <div class="w-full max-w-sm">
       <div class="text-center mb-8">
-        <div class="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-[var(--color-primary)] mb-4">
-          <span class="text-white font-bold text-xl">P</span>
+        <div class="inline-flex mb-4">
+          <AnyPimLogo size="lg" />
         </div>
-        <h1 class="text-lg font-semibold text-[var(--color-text-primary)]">Publixx PIM</h1>
         <p class="text-sm text-[var(--color-text-secondary)] mt-1">Product Information Management</p>
       </div>
 

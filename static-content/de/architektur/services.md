@@ -4,13 +4,13 @@ title: Services und Events
 
 # Services und Events
 
-Die Service-Schicht bildet das Herzstueck der Geschaeftslogik in Publixx PIM. Alle Operationen, die ueber einfache CRUD-Vorgaenge hinausgehen, werden in dedizierten Services gekapselt. Controller delegieren an Services, Services orchestrieren Models und loesen Events aus.
+Die Service-Schicht bildet das Herzstueck der Geschaeftslogik in anyPIM. Alle Operationen, die ueber einfache CRUD-Vorgaenge hinausgehen, werden in dedizierten Services gekapselt. Controller delegieren an Services, Services orchestrieren Models und loesen Events aus.
 
 ## Service-Architektur
 
 ### Designprinzipien
 
-Services in Publixx PIM folgen einheitlichen Architekturprinzipien:
+Services in anyPIM folgen einheitlichen Architekturprinzipien:
 
 1. **Single Responsibility**: Jeder Service deckt einen klar abgegrenzten fachlichen Bereich ab
 2. **Dependency Injection**: Services erhalten ihre Abhaengigkeiten ueber Constructor Injection und werden ueber den Laravel Service Container aufgeloest
@@ -158,7 +158,7 @@ Der `ProductVersioningService` verwaltet die Aenderungshistorie von Produkten.
 
 ## Event-System
 
-Publixx PIM nutzt das Laravel-Event-System intensiv, um lose gekoppelte Reaktionen auf Geschaeftsereignisse zu ermoeglichen. Events werden synchron ausgeloest, die zugehoerigen Listener koennen jedoch asynchrone Queue-Jobs dispatchen.
+anyPIM nutzt das Laravel-Event-System intensiv, um lose gekoppelte Reaktionen auf Geschaeftsereignisse zu ermoeglichen. Events werden synchron ausgeloest, die zugehoerigen Listener koennen jedoch asynchrone Queue-Jobs dispatchen.
 
 ### Kern-Events
 

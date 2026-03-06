@@ -1,4 +1,4 @@
-# Publixx PIM — Update-Anleitung
+# anyPIM — Update-Anleitung
 
 ## Schnell-Update
 

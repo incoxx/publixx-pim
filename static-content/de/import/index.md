@@ -4,7 +4,7 @@ title: Import - Übersicht
 
 # Import
 
-Das Import-Modul des Publixx PIM ermöglicht die Massenübernahme von Produktdaten über standardisierte Excel-Dateien. Es richtet sich an Produktmanager und Data Stewards, die grosse Datenmengen effizient in das System einpflegen möchten -- ohne technische API-Kenntnisse.
+Das Import-Modul des anyPIM ermöglicht die Massenübernahme von Produktdaten über standardisierte Excel-Dateien. Es richtet sich an Produktmanager und Data Stewards, die grosse Datenmengen effizient in das System einpflegen möchten -- ohne technische API-Kenntnisse.
 
 ## Konzept
 

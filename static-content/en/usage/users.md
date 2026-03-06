@@ -4,7 +4,7 @@ title: Users
 
 # Users
 
-The user management of the Publixx PIM is based on a role-based access control system (RBAC). This chapter describes the creation and management of user accounts, the available roles, and the fine-grained permission system.
+The user management of the anyPIM is based on a role-based access control system (RBAC). This chapter describes the creation and management of user accounts, the available roles, and the fine-grained permission system.
 
 ## User List
 
@@ -52,7 +52,7 @@ Deleted user accounts cannot be restored. In the version history of products, th
 
 ## Roles
 
-The Publixx PIM defines five system roles with different areas of responsibility:
+The anyPIM defines five system roles with different areas of responsibility:
 
 ### Admin
 
@@ -127,7 +127,7 @@ The Export Manager is responsible for data output and input via interfaces.
 
 ## Permission System
 
-In addition to roles, the Publixx PIM offers a **fine-grained permission system** that allows individual permissions per user.
+In addition to roles, the anyPIM offers a **fine-grained permission system** that allows individual permissions per user.
 
 ### Permission Schema
 

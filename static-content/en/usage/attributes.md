@@ -4,7 +4,7 @@ title: Attributes
 
 # Attributes
 
-Attributes form the data model of the Publixx PIM. Thanks to the EAV architecture (Entity-Attribute-Value), you can define any number of attributes without having to modify the database schema. This chapter describes the management of attributes, their data types, properties, and the associated configuration areas for attribute groups, value lists, units, and attribute views.
+Attributes form the data model of the anyPIM. Thanks to the EAV architecture (Entity-Attribute-Value), you can define any number of attributes without having to modify the database schema. This chapter describes the management of attributes, their data types, properties, and the associated configuration areas for attribute groups, value lists, units, and attribute views.
 
 ## Attribute Management Overview
 
@@ -22,7 +22,7 @@ Use the **+ New Attribute** button to open the form panel (AttributeFormPanel) f
 
 ## Data Types
 
-The Publixx PIM supports eight data types that determine the input field and validation:
+The anyPIM supports eight data types that determine the input field and validation:
 
 <svg viewBox="0 0 800 440" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;margin:1.5rem 0;">
   <defs>

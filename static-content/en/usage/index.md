@@ -4,11 +4,11 @@ title: Usage Guide
 
 # Usage Guide
 
-Welcome to the Publixx PIM usage guide. This chapter is intended for all users who work with the system on a daily basis: from product managers and data stewards to export administrators.
+Welcome to the anyPIM usage guide. This chapter is intended for all users who work with the system on a daily basis: from product managers and data stewards to export administrators.
 
 ## Overview
 
-The Publixx PIM user interface is a modern single-page application built with Vue 3, Tailwind CSS, and DaisyUI. After logging in, you'll reach the dashboard from which all functional areas are accessible via the sidebar.
+The anyPIM user interface is a modern single-page application built with Vue 3, Tailwind CSS, and DaisyUI. After logging in, you'll reach the dashboard from which all functional areas are accessible via the sidebar.
 
 ## Key Areas
 
@@ -54,7 +54,7 @@ The sidebar includes a **Help** link that opens this documentation in the user's
 
 ## License
 
-Publixx PIM is released under the **AGPL-3.0-only** license. See the `LICENSE` file in the project root for the full license text. A list of all third-party components and their licenses can be found in the `THIRD-PARTY-NOTICES` file.
+anyPIM is released under the **AGPL-3.0-only** license. See the `LICENSE` file in the project root for the full license text. A list of all third-party components and their licenses can be found in the `THIRD-PARTY-NOTICES` file.
 
 ::: tip
 The German documentation is more comprehensive. For detailed instructions, see the [German usage guide](/de/bedienung/).

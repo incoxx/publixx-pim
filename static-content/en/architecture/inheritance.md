@@ -4,7 +4,7 @@ title: Inheritance System
 
 # Inheritance System
 
-The inheritance system is one of the central architectural elements of Publixx PIM. It reduces redundancy, ensures consistency, and enables efficient maintenance of large product assortments with shared properties. The system operates on two independent levels that complement each other.
+The inheritance system is one of the central architectural elements of anyPIM. It reduces redundancy, ensures consistency, and enables efficient maintenance of large product assortments with shared properties. The system operates on two independent levels that complement each other.
 
 ## Overview of Inheritance Types
 

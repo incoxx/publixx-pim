@@ -4,7 +4,7 @@ title: Deployment
 
 # Deployment
 
-Diese Anleitung beschreibt das produktive Deployment des Publixx PIM auf einem Ubuntu-Server. Sie umfasst die vollständige Server-Einrichtung, die Konfiguration aller Dienste sowie das automatisierte Deployment mit dem mitgelieferten Deploy-Skript.
+Diese Anleitung beschreibt das produktive Deployment des anyPIM auf einem Ubuntu-Server. Sie umfasst die vollständige Server-Einrichtung, die Konfiguration aller Dienste sowie das automatisierte Deployment mit dem mitgelieferten Deploy-Skript.
 
 ::: tip Voraussetzung
 Stellen Sie sicher, dass Ihr Server die in den [Voraussetzungen](./voraussetzungen) beschriebenen Hardware- und Software-Anforderungen erfüllt.
@@ -14,7 +14,7 @@ Stellen Sie sicher, dass Ihr Server die in den [Voraussetzungen](./voraussetzung
 
 ### Betriebssystem
 
-Das Publixx PIM ist für **Ubuntu 24.04 LTS** optimiert. Aktualisieren Sie zunächst das System:
+Das anyPIM ist für **Ubuntu 24.04 LTS** optimiert. Aktualisieren Sie zunächst das System:
 
 ```bash
 sudo apt update && sudo apt upgrade -y

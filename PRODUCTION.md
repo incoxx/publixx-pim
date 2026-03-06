@@ -1,4 +1,4 @@
-# Publixx PIM — Production-Betrieb
+# anyPIM — Production-Betrieb
 
 Vollstaendige Anleitung fuer Installation, Updates und Betrieb auf einem Production-Server.
 
@@ -6,7 +6,7 @@ Vollstaendige Anleitung fuer Installation, Updates und Betrieb auf einem Product
 
 ## Uebersicht
 
-Publixx PIM liefert zwei Scripts fuer den kompletten Server-Lifecycle:
+anyPIM liefert zwei Scripts fuer den kompletten Server-Lifecycle:
 
 | Script | Zweck | Ausfuehrung |
 |---|---|---|

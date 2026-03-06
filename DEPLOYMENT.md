@@ -1,4 +1,4 @@
-# Publixx PIM — Deployment-Anleitung
+# anyPIM — Deployment-Anleitung
 
 Server: **IONOS Cloud VPS M** (4 vCPU, 8 GB RAM, 160 GB SSD, Ubuntu 24.04 LTS)
 Domain: `publixx-pim.incoxx.com`

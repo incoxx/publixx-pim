@@ -4,7 +4,7 @@ title: Architecture Overview
 
 # Architecture Overview
 
-Publixx PIM is designed as a modern web application with a clearly separated backend and frontend. The backend provides a complete REST API, and the frontend consumes it as a single-page application. This architecture enables both usage through the web interface and direct API integration by third-party systems.
+anyPIM is designed as a modern web application with a clearly separated backend and frontend. The backend provides a complete REST API, and the frontend consumes it as a single-page application. This architecture enables both usage through the web interface and direct API integration by third-party systems.
 
 ## Technology Stack
 

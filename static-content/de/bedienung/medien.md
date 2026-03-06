@@ -4,7 +4,7 @@ title: Medien
 
 # Medien
 
-Die Medienverwaltung des Publixx PIM bietet eine zentrale Bibliothek für alle produktbezogenen Dateien. Hier laden Sie Bilder, Dokumente und Videos hoch, organisieren diese und weisen sie Ihren Produkten zu.
+Die Medienverwaltung des anyPIM bietet eine zentrale Bibliothek für alle produktbezogenen Dateien. Hier laden Sie Bilder, Dokumente und Videos hoch, organisieren diese und weisen sie Ihren Produkten zu.
 
 ## Medienbibliothek
 

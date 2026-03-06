@@ -1,8 +1,8 @@
 {
     "name": "publixx/pim",
     "type": "project",
-    "description": "Publixx PIM — Product Information Management System",
-    "keywords": ["pim", "laravel", "publixx"],
+    "description": "anyPIM — Product Information Management System",
+    "keywords": ["pim", "laravel", "anypim"],
     "license": "AGPL-3.0-only",
     "require": {
         "php": "^8.3",

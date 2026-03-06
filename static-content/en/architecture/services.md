@@ -4,13 +4,13 @@ title: Services and Events
 
 # Services and Events
 
-The service layer forms the core of the business logic in Publixx PIM. All operations that go beyond simple CRUD operations are encapsulated in dedicated services. Controllers delegate to services, services orchestrate models and trigger events.
+The service layer forms the core of the business logic in anyPIM. All operations that go beyond simple CRUD operations are encapsulated in dedicated services. Controllers delegate to services, services orchestrate models and trigger events.
 
 ## Service Architecture
 
 ### Design Principles
 
-Services in Publixx PIM follow consistent architectural principles:
+Services in anyPIM follow consistent architectural principles:
 
 1. **Single Responsibility**: Each service covers a clearly defined functional area
 2. **Dependency Injection**: Services receive their dependencies via constructor injection and are resolved through the Laravel Service Container
@@ -158,7 +158,7 @@ The `ProductVersioningService` manages the change history of products.
 
 ## Event System
 
-Publixx PIM makes extensive use of the Laravel event system to enable loosely coupled reactions to business events. Events are triggered synchronously, but the associated listeners can dispatch asynchronous queue jobs.
+anyPIM makes extensive use of the Laravel event system to enable loosely coupled reactions to business events. Events are triggered synchronously, but the associated listeners can dispatch asynchronous queue jobs.
 
 ### Core Events
 

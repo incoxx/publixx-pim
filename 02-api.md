@@ -1,4 +1,4 @@
-# Publixx PIM — RESTful API
+# anyPIM — RESTful API
 
 > **Zweck:** Vollständige API-Referenz. Verwende diesen Skill beim Erstellen von Controllern, Routen, Form Requests, API Resources und Tests.
 

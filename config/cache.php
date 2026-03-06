@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 /**
- * Publixx PIM – Cache-Konfiguration
+ * anyPIM – Cache-Konfiguration
  *
  * Redis-Instanzen:
  * - cache:    Produkt-Cache, Hierarchie-Cache, PQL-Cache, Attribut-Cache

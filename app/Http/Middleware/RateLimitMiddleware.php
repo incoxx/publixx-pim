@@ -34,7 +34,7 @@ class RateLimitMiddleware
             $retryAfter = $this->limiter->availableIn($key);
 
             return response()->json([
-                'type' => 'https://publixx-pim.local/problems/rate-limit-exceeded',
+                'type' => 'https://anypim.local/problems/rate-limit-exceeded',
                 'title' => 'Too Many Requests',
                 'detail' => "Rate limit exceeded. Try again in {$retryAfter} seconds.",
                 'status' => Response::HTTP_TOO_MANY_REQUESTS,

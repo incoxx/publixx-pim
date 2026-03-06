@@ -1,4 +1,4 @@
-# Publixx PIM — PXF-Integration & Visualisierung
+# anyPIM — PXF-Integration & Visualisierung
 
 > **Zweck:** PXF-Templates aus Publixx im PIM rendern. Verwende diesen Skill beim Bauen des PXF-Renderers, der Preview-API, des Template-Managements und der Publixx-Anbindung.
 
