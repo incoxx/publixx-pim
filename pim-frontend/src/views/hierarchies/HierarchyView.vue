@@ -1,7 +1,7 @@
 <script setup>
-import { ref, watch, onMounted, onUnmounted, markRaw } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, markRaw } from 'vue'
+import { useDebounceFn } from '@vueuse/core'
 import { useHierarchyStore } from '@/stores/hierarchies'
-import { useAttributeStore } from '@/stores/attributes'
 import { useAuthStore } from '@/stores/auth'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
@@ -10,6 +10,7 @@ import {
   Copy, ChevronUp, ChevronDown, Settings, GripVertical, X,
 } from 'lucide-vue-next'
 import hierarchiesApi from '@/api/hierarchies'
+import attributesApi from '@/api/attributes'
 import productsApi from '@/api/products'
 import PimTree from '@/components/shared/PimTree.vue'
 import PimConfirmDialog from '@/components/shared/PimConfirmDialog.vue'
@@ -19,7 +20,6 @@ import HierarchyNodeFormPanel from '@/components/panels/HierarchyNodeFormPanel.v
 const { t } = useI18n()
 const router = useRouter()
 const store = useHierarchyStore()
-const attrStore = useAttributeStore()
 const authStore = useAuthStore()
 const selectedHierarchyId = ref(null)
 
@@ -27,6 +27,15 @@ const selectedHierarchyId = ref(null)
 const nodeAttributes = ref([])
 const nodeAttrsLoading = ref(false)
 const showAttrPicker = ref(false)
+
+// Attribute picker (server-side search + pagination)
+const attrPickerSearch = ref('')
+const attrPickerItems = ref([])
+const attrPickerLoading = ref(false)
+const attrPickerMeta = ref({ current_page: 1, last_page: 1, total: 0, per_page: 20 })
+
+// Assigned attributes search (client-side filter)
+const nodeAttrSearch = ref('')
 
 // Node products (master hierarchy)
 const nodeProducts = ref([])
@@ -280,8 +289,10 @@ async function assignAttribute(attr) {
       access_hierarchy: 'visible',
       access_variant: 'editable',
     })
-    showAttrPicker.value = false
     await loadNodeAttributes(store.selectedNode.id)
+    // Refresh picker to exclude newly assigned attribute
+    await fetchPickerAttributes(attrPickerMeta.value.current_page)
+    showFeedback('Attribut zugeordnet')
   } catch (e) {
     showFeedback(e.response?.data?.title || 'Fehler beim Zuordnen', 'error')
   }
@@ -325,6 +336,60 @@ async function persistAttributeOrder() {
     if (store.selectedNode) await loadNodeAttributes(store.selectedNode.id)
   }
 }
+
+// ─── Attribute Picker (search + pagination) ─────────
+async function fetchPickerAttributes(page = 1) {
+  attrPickerLoading.value = true
+  try {
+    const assignedIds = new Set(nodeAttributes.value.map(a => a.attribute?.id || a.attribute_id))
+    const { data } = await attributesApi.list({
+      search: attrPickerSearch.value || undefined,
+      page,
+      perPage: 20,
+      sort: 'name_de',
+      order: 'asc',
+    })
+    const items = data.data || data
+    attrPickerItems.value = items.filter(a => !assignedIds.has(a.id))
+    attrPickerMeta.value = data.meta || { current_page: page, last_page: 1, total: items.length, per_page: 20 }
+  } catch {
+    attrPickerItems.value = []
+  } finally {
+    attrPickerLoading.value = false
+  }
+}
+
+const debouncedPickerSearch = useDebounceFn(() => {
+  fetchPickerAttributes(1)
+}, 300)
+
+function onAttrPickerSearchInput() {
+  attrPickerMeta.value.current_page = 1
+  debouncedPickerSearch()
+}
+
+function attrPickerPrevPage() {
+  if (attrPickerMeta.value.current_page > 1) {
+    fetchPickerAttributes(attrPickerMeta.value.current_page - 1)
+  }
+}
+
+function attrPickerNextPage() {
+  if (attrPickerMeta.value.current_page < attrPickerMeta.value.last_page) {
+    fetchPickerAttributes(attrPickerMeta.value.current_page + 1)
+  }
+}
+
+// Computed: filter assigned attributes client-side
+const filteredNodeAttributes = computed(() => {
+  if (!nodeAttrSearch.value.trim()) return nodeAttributes.value
+  const q = nodeAttrSearch.value.toLowerCase()
+  return nodeAttributes.value.filter(a => {
+    const name = (a.attribute?.name_de || a.attribute?.technical_name || '').toLowerCase()
+    const tech = (a.attribute?.technical_name || '').toLowerCase()
+    return name.includes(q) || tech.includes(q)
+  })
+})
 
 // ─── Node Products ──────────────────────────────────
 async function loadNodeProducts(nodeId) {
@@ -409,6 +474,14 @@ async function persistOutputProductOrder() {
   }
 }
 
+// When attr picker opens, fetch first page
+watch(showAttrPicker, (open) => {
+  if (open) {
+    attrPickerSearch.value = ''
+    fetchPickerAttributes(1)
+  }
+})
+
 // Watch node selection to load attributes and products
 watch(() => store.selectedNode, (node) => {
   if (node) {
@@ -420,13 +493,14 @@ watch(() => store.selectedNode, (node) => {
     outputProductAssignments.value = []
   }
   showProductSearch.value = false
+  showAttrPicker.value = false
   productSearchQuery.value = ''
   productSearchResults.value = []
+  nodeAttrSearch.value = ''
 })
 
 onMounted(async () => {
   await store.fetchHierarchies()
-  attrStore.fetchAttributes()
   if (store.hierarchies.length > 0) {
     await selectHierarchy(store.hierarchies[0].id)
   }
@@ -693,64 +767,120 @@ onMounted(async () => {
             </button>
           </div>
 
-          <!-- Attribute picker -->
-          <div v-if="showAttrPicker" class="mb-3 p-3 bg-[var(--color-bg)] rounded-lg max-h-48 overflow-y-auto space-y-1">
-            <div
-              v-for="attr in attrStore.items"
-              :key="attr.id"
-              class="flex items-center justify-between px-2 py-1.5 rounded hover:bg-[var(--color-surface)] cursor-pointer"
-              @click="assignAttribute(attr)"
-            >
-              <span class="text-xs">{{ attr.name_de || attr.technical_name }}</span>
-              <span class="text-[10px] text-[var(--color-text-tertiary)]">{{ attr.data_type }}</span>
+          <!-- Attribute picker (searchable + paginated) -->
+          <div v-if="showAttrPicker" class="mb-3 p-3 bg-[var(--color-bg)] rounded-lg space-y-2">
+            <div class="relative">
+              <Search class="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)]" :stroke-width="1.75" />
+              <input
+                v-model="attrPickerSearch"
+                class="pim-input text-xs w-full pl-8"
+                placeholder="Attribut suchen (Name, Technischer Name)…"
+                @input="onAttrPickerSearchInput"
+                @keyup.escape="showAttrPicker = false"
+              />
             </div>
-            <p v-if="attrStore.items.length === 0" class="text-xs text-[var(--color-text-tertiary)]">Keine Attribute verfügbar</p>
+            <div v-if="attrPickerLoading" class="space-y-1">
+              <div v-for="i in 4" :key="i" class="pim-skeleton h-7 rounded" />
+            </div>
+            <div v-else-if="attrPickerItems.length > 0" class="max-h-64 overflow-y-auto space-y-1">
+              <div
+                v-for="attr in attrPickerItems"
+                :key="attr.id"
+                class="flex items-center justify-between px-2 py-1.5 rounded hover:bg-[var(--color-surface)] cursor-pointer"
+                @click="assignAttribute(attr)"
+              >
+                <div class="flex items-center gap-2 min-w-0">
+                  <span class="text-xs font-medium truncate">{{ attr.name_de || attr.technical_name }}</span>
+                  <span v-if="attr.name_de && attr.technical_name" class="text-[10px] text-[var(--color-text-tertiary)] font-mono truncate">{{ attr.technical_name }}</span>
+                </div>
+                <span class="text-[10px] text-[var(--color-text-tertiary)] shrink-0 ml-2">{{ attr.data_type }}</span>
+              </div>
+            </div>
+            <p v-else class="text-xs text-[var(--color-text-tertiary)]">Keine Attribute gefunden</p>
+            <!-- Pagination -->
+            <div v-if="attrPickerMeta.last_page > 1" class="flex items-center justify-between pt-1 border-t border-[var(--color-border)]">
+              <span class="text-[11px] text-[var(--color-text-tertiary)]">
+                Seite {{ attrPickerMeta.current_page }} von {{ attrPickerMeta.last_page }}
+                ({{ attrPickerMeta.total }} gesamt)
+              </span>
+              <div class="flex items-center gap-1">
+                <button
+                  class="pim-btn pim-btn-ghost p-1 text-xs disabled:opacity-30"
+                  :disabled="attrPickerMeta.current_page <= 1"
+                  @click="attrPickerPrevPage"
+                >
+                  <ChevronUp class="w-3.5 h-3.5 -rotate-90" :stroke-width="2" />
+                </button>
+                <button
+                  class="pim-btn pim-btn-ghost p-1 text-xs disabled:opacity-30"
+                  :disabled="attrPickerMeta.current_page >= attrPickerMeta.last_page"
+                  @click="attrPickerNextPage"
+                >
+                  <ChevronDown class="w-3.5 h-3.5 -rotate-90" :stroke-width="2" />
+                </button>
+              </div>
+            </div>
           </div>
 
           <div v-if="nodeAttrsLoading" class="space-y-2">
             <div v-for="i in 3" :key="i" class="pim-skeleton h-8 rounded" />
           </div>
-          <div v-else-if="nodeAttributes.length > 0" class="space-y-1">
-            <div
-              v-for="(assignment, idx) in nodeAttributes"
-              :key="assignment.id"
-              class="flex items-center justify-between px-3 py-2 rounded-lg bg-[var(--color-bg)] group"
-            >
-              <div class="flex items-center gap-2">
-                <GripVertical class="w-3 h-3 text-[var(--color-text-tertiary)] opacity-40" />
-                <span class="text-[10px] text-[var(--color-text-tertiary)] font-mono w-4 text-right">{{ idx + 1 }}</span>
-                <span class="text-xs font-medium">{{ assignment.attribute?.name_de || assignment.attribute?.technical_name || '—' }}</span>
-                <span class="text-[10px] text-[var(--color-text-tertiary)]">{{ assignment.attribute?.data_type }}</span>
+          <template v-else-if="nodeAttributes.length > 0">
+            <!-- Search within assigned attributes (shown when >10) -->
+            <div v-if="nodeAttributes.length > 10" class="mb-2">
+              <div class="relative">
+                <Search class="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)]" :stroke-width="1.75" />
+                <input
+                  v-model="nodeAttrSearch"
+                  class="pim-input text-xs w-full pl-8"
+                  placeholder="Zugeordnete Attribute filtern…"
+                />
               </div>
-              <div class="flex items-center gap-0.5">
-                <template v-if="authStore.hasPermission('hierarchies.edit')">
-                  <button
-                    class="p-0.5 rounded text-[var(--color-text-tertiary)] hover:text-[var(--color-accent)] hover:bg-[var(--color-bg-secondary)] transition-all disabled:opacity-20 disabled:cursor-default"
-                    :disabled="idx === 0"
-                    @click="moveAttributeUp(idx)"
-                    title="Nach oben"
-                  >
-                    <ChevronUp class="w-3.5 h-3.5" :stroke-width="2" />
-                  </button>
-                  <button
-                    class="p-0.5 rounded text-[var(--color-text-tertiary)] hover:text-[var(--color-accent)] hover:bg-[var(--color-bg-secondary)] transition-all disabled:opacity-20 disabled:cursor-default"
-                    :disabled="idx === nodeAttributes.length - 1"
-                    @click="moveAttributeDown(idx)"
-                    title="Nach unten"
-                  >
-                    <ChevronDown class="w-3.5 h-3.5" :stroke-width="2" />
-                  </button>
-                  <button
-                    class="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-[var(--color-error-light)] text-[var(--color-text-tertiary)] hover:text-[var(--color-error)] transition-all ml-1"
-                    @click="removeNodeAttribute(assignment)"
-                    title="Entfernen"
-                  >
-                    <Trash2 class="w-3.5 h-3.5" :stroke-width="2" />
-                  </button>
-                </template>
+              <p v-if="nodeAttrSearch && filteredNodeAttributes.length === 0" class="text-xs text-[var(--color-text-tertiary)] mt-1">Keine Treffer</p>
+            </div>
+            <div class="space-y-1">
+              <div
+                v-for="(assignment, idx) in filteredNodeAttributes"
+                :key="assignment.id"
+                class="flex items-center justify-between px-3 py-2 rounded-lg bg-[var(--color-bg)] group"
+              >
+                <div class="flex items-center gap-2">
+                  <GripVertical class="w-3 h-3 text-[var(--color-text-tertiary)] opacity-40" />
+                  <span class="text-[10px] text-[var(--color-text-tertiary)] font-mono w-4 text-right">{{ idx + 1 }}</span>
+                  <span class="text-xs font-medium">{{ assignment.attribute?.name_de || assignment.attribute?.technical_name || '—' }}</span>
+                  <span class="text-[10px] text-[var(--color-text-tertiary)]">{{ assignment.attribute?.data_type }}</span>
+                </div>
+                <div class="flex items-center gap-0.5">
+                  <template v-if="authStore.hasPermission('hierarchies.edit')">
+                    <button
+                      class="p-0.5 rounded text-[var(--color-text-tertiary)] hover:text-[var(--color-accent)] hover:bg-[var(--color-bg-secondary)] transition-all disabled:opacity-20 disabled:cursor-default"
+                      :disabled="idx === 0"
+                      @click="moveAttributeUp(idx)"
+                      title="Nach oben"
+                    >
+                      <ChevronUp class="w-3.5 h-3.5" :stroke-width="2" />
+                    </button>
+                    <button
+                      class="p-0.5 rounded text-[var(--color-text-tertiary)] hover:text-[var(--color-accent)] hover:bg-[var(--color-bg-secondary)] transition-all disabled:opacity-20 disabled:cursor-default"
+                      :disabled="idx === nodeAttributes.length - 1"
+                      @click="moveAttributeDown(idx)"
+                      title="Nach unten"
+                    >
+                      <ChevronDown class="w-3.5 h-3.5" :stroke-width="2" />
+                    </button>
+                    <button
+                      class="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-[var(--color-error-light)] text-[var(--color-text-tertiary)] hover:text-[var(--color-error)] transition-all ml-1"
+                      @click="removeNodeAttribute(assignment)"
+                      title="Entfernen"
+                    >
+                      <Trash2 class="w-3.5 h-3.5" :stroke-width="2" />
+                    </button>
+                  </template>
+                </div>
               </div>
             </div>
-          </div>
+            <p v-if="nodeAttributes.length > 0" class="text-[11px] text-[var(--color-text-tertiary)] mt-1">{{ nodeAttributes.length }} Attribute zugeordnet</p>
+          </template>
           <p v-else class="text-xs text-[var(--color-text-tertiary)]">Keine Attribute zugeordnet</p>
         </div>
       </div>
