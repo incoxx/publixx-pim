@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { useReportDesignerStore } from '@/stores/reportDesigner'
 import { Settings } from 'lucide-vue-next'
+import GroupFieldPicker from './GroupFieldPicker.vue'
 
 const store = useReportDesignerStore()
 
@@ -23,6 +24,28 @@ function updateGroup(key, value) {
   if (!store.selectedGroupId) return
   store.updateGroup(store.selectedGroupId, { [key]: value })
 }
+
+function updateTableStyle(key, value) {
+  if (!store.selectedGroupId || !group.value) return
+  const style = { ...(group.value.tableStyle || {}), [key]: value }
+  store.updateGroup(store.selectedGroupId, { tableStyle: style })
+}
+
+function updateColumnWidth(elementId, value) {
+  if (!store.selectedGroupId || !group.value) return
+  const widths = { ...(group.value.tableStyle?.columnWidths || {}) }
+  if (value) {
+    widths[elementId] = value
+  } else {
+    delete widths[elementId]
+  }
+  updateTableStyle('columnWidths', widths)
+}
+
+const detailElements = computed(() => {
+  if (!group.value) return []
+  return group.value.detail?.elements?.filter(e => ['field', 'attribute'].includes(e.type)) || []
+})
 
 const groupFields = computed(() => store.availableFields?.group_fields || [])
 </script>
@@ -54,13 +77,12 @@ const groupFields = computed(() => store.availableFields?.group_fields || [])
 
       <div>
         <label class="block text-[10px] font-medium text-[var(--color-text-tertiary)] mb-0.5">Gruppierungsfeld</label>
-        <select
-          :value="group.field"
-          class="pim-input text-xs w-full"
-          @change="updateGroup('field', $event.target.value)"
-        >
-          <option v-for="gf in groupFields" :key="gf.field" :value="gf.field">{{ gf.label_de }}</option>
-        </select>
+        <GroupFieldPicker
+          :modelValue="group.field"
+          :groupFields="groupFields"
+          :attributes="store.availableFields?.attributes || []"
+          @update:modelValue="updateGroup('field', $event)"
+        />
       </div>
 
       <div>
@@ -84,6 +106,111 @@ const groupFields = computed(() => store.availableFields?.group_fields || [])
         />
         Seitenumbruch nach Gruppe
       </label>
+
+      <!-- Detail Layout -->
+      <div class="border-t border-[var(--color-border)] pt-3 mt-3">
+        <div class="text-[10px] font-semibold text-[var(--color-text-tertiary)] mb-2">Detail-Layout</div>
+        <div class="flex gap-1">
+          <button
+            class="flex-1 px-2 py-1.5 rounded text-[11px] font-medium border transition-colors"
+            :class="(group.detailLayout || 'table') === 'table'
+              ? 'bg-[var(--color-accent)] text-white border-[var(--color-accent)]'
+              : 'bg-[var(--color-surface)] text-[var(--color-text-secondary)] border-[var(--color-border)] hover:border-[var(--color-accent)]'"
+            @click="updateGroup('detailLayout', 'table')"
+          >
+            Tabelle
+          </button>
+          <button
+            class="flex-1 px-2 py-1.5 rounded text-[11px] font-medium border transition-colors"
+            :class="group.detailLayout === 'list'
+              ? 'bg-[var(--color-accent)] text-white border-[var(--color-accent)]'
+              : 'bg-[var(--color-surface)] text-[var(--color-text-secondary)] border-[var(--color-border)] hover:border-[var(--color-accent)]'"
+            @click="updateGroup('detailLayout', 'list')"
+          >
+            Liste
+          </button>
+        </div>
+        <p class="text-[9px] text-[var(--color-text-tertiary)] mt-1">
+          {{ (group.detailLayout || 'table') === 'table' ? 'Produkte als Zeilen, Felder als Spalten' : 'Label → Wert untereinander pro Produkt' }}
+        </p>
+      </div>
+
+      <!-- Table Styling -->
+      <div class="border-t border-[var(--color-border)] pt-3 mt-3">
+        <div class="text-[10px] font-semibold text-[var(--color-text-tertiary)] mb-2">Tabellen-Stil</div>
+
+        <div class="space-y-2">
+          <div class="flex items-center justify-between">
+            <label class="flex items-center gap-2 text-[11px] cursor-pointer text-[var(--color-text-secondary)]">
+              <input type="checkbox" :checked="group.tableStyle?.showBorders !== false" class="rounded" @change="updateTableStyle('showBorders', $event.target.checked)" />
+              Rahmen
+            </label>
+            <input
+              v-if="group.tableStyle?.showBorders !== false"
+              type="color"
+              :value="group.tableStyle?.borderColor || '#e5e7eb'"
+              class="w-6 h-5 rounded border border-[var(--color-border)] cursor-pointer"
+              @input="updateTableStyle('borderColor', $event.target.value)"
+            />
+          </div>
+
+          <div class="flex items-center justify-between">
+            <label class="flex items-center gap-2 text-[11px] cursor-pointer text-[var(--color-text-secondary)]">
+              <input type="checkbox" :checked="group.tableStyle?.alternateRowBg !== false" class="rounded" @change="updateTableStyle('alternateRowBg', $event.target.checked)" />
+              Zebrastreifen
+            </label>
+            <input
+              v-if="group.tableStyle?.alternateRowBg !== false"
+              type="color"
+              :value="group.tableStyle?.alternateRowColor || '#f9fafb'"
+              class="w-6 h-5 rounded border border-[var(--color-border)] cursor-pointer"
+              @input="updateTableStyle('alternateRowColor', $event.target.value)"
+            />
+          </div>
+
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] text-[var(--color-text-secondary)]">Header-Hg.</span>
+            <input
+              type="color"
+              :value="group.tableStyle?.headerBg || '#f3f4f6'"
+              class="w-6 h-5 rounded border border-[var(--color-border)] cursor-pointer"
+              @input="updateTableStyle('headerBg', $event.target.value)"
+            />
+          </div>
+
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] text-[var(--color-text-secondary)]">Header-Text</span>
+            <input
+              type="color"
+              :value="group.tableStyle?.headerColor || '#374151'"
+              class="w-6 h-5 rounded border border-[var(--color-border)] cursor-pointer"
+              @input="updateTableStyle('headerColor', $event.target.value)"
+            />
+          </div>
+
+          <label class="flex items-center gap-2 text-[11px] cursor-pointer text-[var(--color-text-secondary)]">
+            <input type="checkbox" :checked="group.tableStyle?.compact" class="rounded" @change="updateTableStyle('compact', $event.target.checked)" />
+            Kompakt
+          </label>
+        </div>
+      </div>
+
+      <!-- Column Widths -->
+      <div v-if="detailElements.length > 0" class="border-t border-[var(--color-border)] pt-3 mt-3">
+        <div class="text-[10px] font-semibold text-[var(--color-text-tertiary)] mb-2">Spaltenbreiten</div>
+        <div class="space-y-1.5">
+          <div v-for="el in detailElements" :key="el.id" class="flex items-center gap-2">
+            <span class="text-[11px] text-[var(--color-text-secondary)] truncate w-24">{{ el.label || el.field || 'Attribut' }}</span>
+            <input
+              :value="group.tableStyle?.columnWidths?.[el.id] || ''"
+              class="pim-input text-[11px] w-16"
+              placeholder="auto"
+              @input="updateColumnWidth(el.id, $event.target.value)"
+            />
+          </div>
+          <p class="text-[9px] text-[var(--color-text-tertiary)]">z.B. 25%, 120px, oder leer für automatisch</p>
+        </div>
+      </div>
     </div>
 
     <!-- Element Properties -->

@@ -26,29 +26,71 @@
         @if (!empty($group['products']))
             @php
                 $detailElements = $definition['detail']['elements'] ?? [];
-                $fieldElements = array_filter($detailElements, fn($e) => in_array($e['type'], ['field', 'attribute']));
+                $fieldElements = array_values(array_filter($detailElements, fn($e) => in_array($e['type'], ['field', 'attribute'])));
+                $detailLayout = $definition['detailLayout'] ?? 'table';
+                $tStyle = $definition['tableStyle'] ?? [];
+                $showBorders = $tStyle['showBorders'] ?? true;
+                $borderColor = $tStyle['borderColor'] ?? '#e5e7eb';
+                $alternateRowBg = $tStyle['alternateRowBg'] ?? true;
+                $alternateRowColor = $tStyle['alternateRowColor'] ?? '#f9fafb';
+                $headerBg = $tStyle['headerBg'] ?? '#f3f4f6';
+                $headerColor = $tStyle['headerColor'] ?? '#374151';
+                $compact = $tStyle['compact'] ?? false;
+                $columnWidths = $tStyle['columnWidths'] ?? [];
+                $cellPad = $compact ? '2px 6px' : '3px 8px';
+                $borderCss = $showBorders ? "1px solid {$borderColor}" : 'none';
+                $renderer = app(\App\Services\Report\ElementRenderer::class);
             @endphp
 
-            @if (count($fieldElements) >= 2)
+            @if ($detailLayout === 'list')
+                {{-- List layout: Label → Value per row --}}
+                @foreach ($group['products'] as $product)
+                    <table style="width: 100%; border-collapse: collapse; margin-bottom: 10px;">
+                        @foreach ($fieldElements as $rowIdx => $col)
+                            @php
+                                $rowBg = ($alternateRowBg && $rowIdx % 2 === 1) ? "background: {$alternateRowColor};" : '';
+                                $label = $col['label'] ?? $col['field'] ?? '';
+                                if ($col['type'] === 'field') {
+                                    $val = $renderer->resolveFieldValue($product, $col['field'] ?? '', $lang);
+                                } else {
+                                    $resolved = $renderer->resolveAttributeValue($product, $col['attributeId'] ?? '', $lang);
+                                    $parts = [];
+                                    if (($col['showValue'] ?? true) && $resolved['value']) $parts[] = $resolved['value'];
+                                    if (($col['showUnit'] ?? true) && $resolved['unit']) $parts[] = $resolved['unit'];
+                                    $val = implode(' ', $parts);
+                                }
+                            @endphp
+                            <tr style="{{ $rowBg }}">
+                                <td style="padding: {{ $cellPad }}; border-bottom: {{ $borderCss }}; font-weight: bold; width: 35%; font-size: 9px; color: #6b7280;">{{ $label }}</td>
+                                <td style="padding: {{ $cellPad }}; border-bottom: {{ $borderCss }}; font-size: 10px;">{{ $val }}</td>
+                            </tr>
+                        @endforeach
+                    </table>
+                @endforeach
+            @elseif (count($fieldElements) >= 2)
                 {{-- Table layout --}}
-                <table>
+                <table style="width: 100%; border-collapse: collapse; margin-bottom: 8px;">
                     <thead>
                         <tr>
                             @foreach ($fieldElements as $col)
-                                <th>{{ $col['label'] ?? $col['field'] ?? '' }}</th>
+                                @php $colWidth = $columnWidths[$col['id'] ?? ''] ?? ''; @endphp
+                                <th style="background: {{ $headerBg }}; color: {{ $headerColor }}; text-align: left; padding: {{ $cellPad }}; border-bottom: {{ $borderCss }}; font-size: 9px;{{ $colWidth ? " width: {$colWidth};" : '' }}">
+                                    {{ $col['label'] ?? $col['field'] ?? '' }}
+                                </th>
                             @endforeach
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach ($group['products'] as $product)
-                            <tr>
+                        @foreach ($group['products'] as $rowIdx => $product)
+                            @php $rowBg = ($alternateRowBg && $rowIdx % 2 === 1) ? "background: {$alternateRowColor};" : ''; @endphp
+                            <tr style="{{ $rowBg }}">
                                 @foreach ($fieldElements as $col)
-                                    <td>
+                                    <td style="padding: {{ $cellPad }}; border-bottom: {{ $borderCss }}; font-size: 10px;">
                                         @if ($col['type'] === 'field')
-                                            {{ app(\App\Services\Report\ElementRenderer::class)->resolveFieldValue($product, $col['field'] ?? '', $lang) }}
+                                            {{ $renderer->resolveFieldValue($product, $col['field'] ?? '', $lang) }}
                                         @elseif ($col['type'] === 'attribute')
                                             @php
-                                                $resolved = app(\App\Services\Report\ElementRenderer::class)->resolveAttributeValue($product, $col['attributeId'] ?? '', $lang);
+                                                $resolved = $renderer->resolveAttributeValue($product, $col['attributeId'] ?? '', $lang);
                                                 $parts = [];
                                                 if (($col['showValue'] ?? true) && $resolved['value']) $parts[] = $resolved['value'];
                                                 if (($col['showUnit'] ?? true) && $resolved['unit']) $parts[] = $resolved['unit'];
@@ -62,7 +104,7 @@
                     </tbody>
                 </table>
             @else
-                {{-- Block layout --}}
+                {{-- Block layout (single field) --}}
                 @foreach ($group['products'] as $product)
                     @foreach ($detailElements as $element)
                         @include('reports.partials.detail-element', ['element' => $element, 'product' => $product, 'lang' => $lang])

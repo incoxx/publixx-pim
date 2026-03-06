@@ -167,24 +167,38 @@ class DocxReportWriter
             return;
         }
 
-        // Check if we should use table layout
-        $fieldElements = array_filter($detailElements, fn ($e) => in_array($e['type'], ['field', 'attribute']));
+        $layout = $definition['detailLayout'] ?? 'table';
+        $tStyle = $definition['tableStyle'] ?? [];
 
-        if (count($fieldElements) >= 2) {
-            $this->renderProductsAsTable($section, $products, $detailElements, $language);
+        if ($layout === 'list') {
+            $this->renderProductsAsList($section, $products, $detailElements, $language, $tStyle);
         } else {
-            foreach ($products as $product) {
-                $this->renderProductBlock($section, $product, $detailElements, $language);
+            $fieldElements = array_filter($detailElements, fn ($e) => in_array($e['type'], ['field', 'attribute']));
+            if (count($fieldElements) >= 2) {
+                $this->renderProductsAsTable($section, $products, $detailElements, $language, $tStyle);
+            } else {
+                foreach ($products as $product) {
+                    $this->renderProductBlock($section, $product, $detailElements, $language);
+                }
             }
         }
     }
 
-    private function renderProductsAsTable($section, array $products, array $elements, string $language): void
+    private function renderProductsAsTable($section, array $products, array $elements, string $language, array $tStyle = []): void
     {
+        $showBorders = $tStyle['showBorders'] ?? true;
+        $borderColor = ltrim($tStyle['borderColor'] ?? '#e5e7eb', '#');
+        $compact = $tStyle['compact'] ?? false;
+        $headerBg = ltrim($tStyle['headerBg'] ?? '#f3f4f6', '#');
+        $headerColor = ltrim($tStyle['headerColor'] ?? '#374151', '#');
+        $alternateRowBg = $tStyle['alternateRowBg'] ?? true;
+        $alternateRowColor = ltrim($tStyle['alternateRowColor'] ?? '#f9fafb', '#');
+        $columnWidths = $tStyle['columnWidths'] ?? [];
+
         $tableStyle = [
-            'borderSize' => 4,
-            'borderColor' => 'CCCCCC',
-            'cellMargin' => 60,
+            'borderSize' => $showBorders ? 4 : 0,
+            'borderColor' => $showBorders ? $borderColor : 'FFFFFF',
+            'cellMargin' => $compact ? 40 : 60,
         ];
 
         // Filter to renderable field/attribute elements
@@ -201,27 +215,130 @@ class DocxReportWriter
         $table->addRow();
         foreach ($columns as $col) {
             $label = $col['label'] ?? $col['field'] ?? '';
-            $table->addCell(null, ['bgColor' => 'F3F4F6'])->addText(
+            $cellWidth = $this->parseCellWidth($columnWidths[$col['id'] ?? ''] ?? null);
+            $table->addCell($cellWidth, ['bgColor' => $headerBg])->addText(
                 $label,
-                ['bold' => true, 'size' => 9],
+                ['bold' => true, 'size' => $compact ? 8 : 9, 'color' => $headerColor],
                 ['spaceAfter' => 0]
             );
         }
 
         // Data rows
-        foreach ($products as $product) {
+        foreach ($products as $rowIndex => $product) {
             $table->addRow();
+            $rowBg = ($alternateRowBg && $rowIndex % 2 === 1) ? $alternateRowColor : null;
             foreach ($columns as $col) {
                 $value = $this->resolveElementValue($product, $col, $language);
-                $table->addCell()->addText(
+                $cellStyle = $rowBg ? ['bgColor' => $rowBg] : [];
+                $cellWidth = $this->parseCellWidth($columnWidths[$col['id'] ?? ''] ?? null);
+                if ($cellWidth) {
+                    $cellStyle['width'] = $cellWidth;
+                }
+                $table->addCell($cellWidth, $cellStyle)->addText(
                     $value,
-                    ['size' => 10],
+                    ['size' => $compact ? 9 : 10],
                     ['spaceAfter' => 0]
                 );
             }
         }
 
         $section->addTextBreak();
+    }
+
+    private function renderProductsAsList($section, array $products, array $elements, string $language, array $tStyle = []): void
+    {
+        $showBorders = $tStyle['showBorders'] ?? true;
+        $borderColor = ltrim($tStyle['borderColor'] ?? '#e5e7eb', '#');
+        $compact = $tStyle['compact'] ?? false;
+        $alternateRowBg = $tStyle['alternateRowBg'] ?? true;
+        $alternateRowColor = ltrim($tStyle['alternateRowColor'] ?? '#f9fafb', '#');
+
+        $fieldElements = array_filter($elements, fn ($e) => in_array($e['type'], ['field', 'attribute']));
+        $fieldElements = array_values($fieldElements);
+
+        foreach ($products as $productIndex => $product) {
+            if ($productIndex > 0) {
+                $section->addTextBreak();
+            }
+
+            $tableStyle = [
+                'borderSize' => $showBorders ? 2 : 0,
+                'borderColor' => $showBorders ? $borderColor : 'FFFFFF',
+                'cellMargin' => $compact ? 30 : 50,
+            ];
+
+            $table = $section->addTable($tableStyle);
+
+            foreach ($fieldElements as $rowIndex => $element) {
+                $table->addRow();
+
+                $rowBg = ($alternateRowBg && $rowIndex % 2 === 1) ? $alternateRowColor : null;
+                $labelCellStyle = array_merge(
+                    ['width' => 3000],
+                    $rowBg ? ['bgColor' => $rowBg] : [],
+                );
+                $valueCellStyle = $rowBg ? ['bgColor' => $rowBg] : [];
+
+                $label = $element['label'] ?? $element['field'] ?? '';
+                $value = $this->resolveElementValue($product, $element, $language);
+
+                $table->addCell(3000, $labelCellStyle)->addText(
+                    $label,
+                    ['bold' => true, 'size' => $compact ? 8 : 9, 'color' => '666666'],
+                    ['spaceAfter' => 0]
+                );
+                $table->addCell(null, $valueCellStyle)->addText(
+                    $value,
+                    ['size' => $compact ? 9 : 10],
+                    ['spaceAfter' => 0]
+                );
+            }
+
+            // Also render non-field elements (images, separators, etc.)
+            foreach ($elements as $element) {
+                if (!in_array($element['type'], ['field', 'attribute'])) {
+                    match ($element['type']) {
+                        'image' => $this->renderImageElement($section, $product, $element),
+                        'separator' => $section->addText(str_repeat('─', 60), ['size' => 6, 'color' => 'CCCCCC']),
+                        'text' => $this->renderTextElement($section, $element, ['language' => $language]),
+                        default => null,
+                    };
+                }
+            }
+        }
+
+        $section->addTextBreak();
+    }
+
+    /**
+     * Parse a cell width value (e.g. '25%', '120px') into twips.
+     */
+    private function parseCellWidth(?string $width): ?int
+    {
+        if (!$width) {
+            return null;
+        }
+
+        $width = trim($width);
+
+        if (str_ends_with($width, '%')) {
+            // Convert percentage to twips (assuming ~9638 twips available width on A4 portrait)
+            $percent = (float) rtrim($width, '%');
+            return (int) round($percent / 100 * 9638);
+        }
+
+        if (str_ends_with($width, 'px')) {
+            // Convert pixels to twips (1px ≈ 15 twips)
+            $px = (float) rtrim($width, 'px');
+            return (int) round($px * 15);
+        }
+
+        // Assume plain number is pixels
+        if (is_numeric($width)) {
+            return (int) round((float) $width * 15);
+        }
+
+        return null;
     }
 
     private function renderProductBlock($section, $product, array $elements, string $language): void
