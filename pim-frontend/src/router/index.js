@@ -37,6 +37,12 @@ const routes = [
     meta: { title: 'Bulk-Editor' },
   },
   {
+    path: '/products/bulk-update',
+    name: 'bulk-update',
+    component: () => import('@/views/products/BulkUpdateView.vue'),
+    meta: { title: 'Massendatenpflege' },
+  },
+  {
     path: '/products/:id',
     name: 'product-detail',
     component: () => import('@/views/products/ProductDetailView.vue'),

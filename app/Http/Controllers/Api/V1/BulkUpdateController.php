@@ -1,0 +1,415 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Http\Controllers\Api\V1;
+
+use App\Http\Requests\Api\V1\BulkUpdateRequest;
+use App\Models\Attribute;
+use App\Models\OutputHierarchyProductAssignment;
+use App\Models\Product;
+use App\Models\ProductAttributeValue;
+use App\Models\ProductMediaAssignment;
+use App\Models\ProductRelation;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\DB;
+
+/**
+ * Massendatenpflege — bulk update multiple products at once.
+ *
+ * POST /products/bulk-update/preview  → dry-run summary
+ * PUT  /products/bulk-update          → execute changes
+ */
+class BulkUpdateController extends Controller
+{
+    public function preview(BulkUpdateRequest $request): JsonResponse
+    {
+        $this->authorize('update', Product::class);
+
+        $productIds = $request->validated('product_ids');
+        $operations = $request->validated('operations');
+
+        $summary = [
+            'total_products' => count($productIds),
+        ];
+
+        if (!empty($operations['attributes'])) {
+            $summary['attributes'] = $this->processAttributes($productIds, $operations['attributes'], false);
+        }
+
+        if (!empty($operations['relations'])) {
+            $summary['relations'] = $this->processRelations($productIds, $operations['relations'], false);
+        }
+
+        if (!empty($operations['output_hierarchy'])) {
+            $summary['output_hierarchy'] = $this->processOutputHierarchy($productIds, $operations['output_hierarchy'], false);
+        }
+
+        if (!empty($operations['status'])) {
+            $summary['status'] = $this->processStatus($productIds, $operations['status'], false);
+        }
+
+        if (!empty($operations['master_hierarchy_node_id'])) {
+            $summary['master_hierarchy'] = $this->processMasterHierarchy($productIds, $operations['master_hierarchy_node_id'], false);
+        }
+
+        if (!empty($operations['media'])) {
+            $summary['media'] = $this->processMedia($productIds, $operations['media'], false);
+        }
+
+        return response()->json(['summary' => $summary]);
+    }
+
+    public function execute(BulkUpdateRequest $request): JsonResponse
+    {
+        $this->authorize('update', Product::class);
+
+        $productIds = $request->validated('product_ids');
+        $operations = $request->validated('operations');
+
+        $results = [];
+
+        DB::transaction(function () use ($productIds, $operations, &$results) {
+            if (!empty($operations['attributes'])) {
+                $results['attributes'] = $this->processAttributes($productIds, $operations['attributes'], true);
+            }
+
+            if (!empty($operations['relations'])) {
+                $results['relations'] = $this->processRelations($productIds, $operations['relations'], true);
+            }
+
+            if (!empty($operations['output_hierarchy'])) {
+                $results['output_hierarchy'] = $this->processOutputHierarchy($productIds, $operations['output_hierarchy'], true);
+            }
+
+            if (!empty($operations['status'])) {
+                $results['status'] = $this->processStatus($productIds, $operations['status'], true);
+            }
+
+            if (!empty($operations['master_hierarchy_node_id'])) {
+                $results['master_hierarchy'] = $this->processMasterHierarchy($productIds, $operations['master_hierarchy_node_id'], true);
+            }
+
+            if (!empty($operations['media'])) {
+                $results['media'] = $this->processMedia($productIds, $operations['media'], true);
+            }
+        });
+
+        // Fire events for changed products (outside transaction for performance)
+        $changedAttrIds = collect($operations['attributes'] ?? [])->pluck('attribute_id')->unique()->toArray();
+        if (!empty($changedAttrIds)) {
+            foreach ($productIds as $pid) {
+                event(new \App\Events\AttributeValuesChanged($pid, $changedAttrIds));
+            }
+        }
+
+        return response()->json([
+            'message' => 'Bulk update completed.',
+            'results' => $results,
+        ]);
+    }
+
+    // ── Attributes ──────────────────────────────────────
+
+    private function processAttributes(array $productIds, array $ops, bool $persist): array
+    {
+        $details = [];
+        $totalUpdated = 0;
+        $totalSkipped = 0;
+
+        $attributes = Attribute::whereIn('id', collect($ops)->pluck('attribute_id'))->get()->keyBy('id');
+
+        foreach ($ops as $op) {
+            $attribute = $attributes->get($op['attribute_id']);
+            if (!$attribute) {
+                continue;
+            }
+
+            $mode = $op['mode'];
+            $language = $op['language'] ?? null;
+
+            // Load existing values for this attribute across all products
+            $existing = ProductAttributeValue::whereIn('product_id', $productIds)
+                ->where('attribute_id', $attribute->id)
+                ->where(function ($q) use ($language) {
+                    if ($language) {
+                        $q->where('language', $language);
+                    } else {
+                        $q->whereNull('language');
+                    }
+                })
+                ->where('multiplied_index', 0)
+                ->get()
+                ->keyBy('product_id');
+
+            $wouldUpdate = 0;
+            $wouldSkip = 0;
+
+            foreach ($productIds as $pid) {
+                $existingValue = $existing->get($pid);
+                $hasValue = $existingValue !== null && $this->extractValue($existingValue) !== null;
+
+                $shouldUpdate = match ($mode) {
+                    'overwrite' => true,
+                    'fill_empty' => !$hasValue,
+                    'clear' => $hasValue,
+                    default => false,
+                };
+
+                if ($shouldUpdate) {
+                    $wouldUpdate++;
+
+                    if ($persist) {
+                        if ($mode === 'clear') {
+                            if ($existingValue) {
+                                $existingValue->delete();
+                            }
+                        } else {
+                            $valueData = $this->resolveValueColumns($attribute, $op['value']);
+                            ProductAttributeValue::updateOrCreate(
+                                [
+                                    'product_id' => $pid,
+                                    'attribute_id' => $attribute->id,
+                                    'language' => $language,
+                                    'multiplied_index' => 0,
+                                ],
+                                array_merge($valueData, [
+                                    'is_inherited' => false,
+                                    'inherited_from_node_id' => null,
+                                    'inherited_from_product_id' => null,
+                                ])
+                            );
+                        }
+                    }
+                } else {
+                    $wouldSkip++;
+                }
+            }
+
+            $totalUpdated += $wouldUpdate;
+            $totalSkipped += $wouldSkip;
+
+            $details[] = [
+                'attribute_name' => $attribute->name_de ?: $attribute->technical_name,
+                'mode' => $mode,
+                'would_update' => $wouldUpdate,
+                'would_skip' => $wouldSkip,
+            ];
+        }
+
+        return [
+            'updated' => $totalUpdated,
+            'skipped' => $totalSkipped,
+            'details' => $details,
+        ];
+    }
+
+    // ── Relations ───────────────────────────────────────
+
+    private function processRelations(array $productIds, array $ops, bool $persist): array
+    {
+        $added = 0;
+        $removed = 0;
+        $alreadyExists = 0;
+        $errors = [];
+
+        foreach ($ops as $op) {
+            foreach ($productIds as $pid) {
+                $existing = ProductRelation::where('source_product_id', $pid)
+                    ->where('target_product_id', $op['target_product_id'])
+                    ->where('relation_type_id', $op['relation_type_id'])
+                    ->first();
+
+                if ($op['action'] === 'add') {
+                    if ($existing) {
+                        $alreadyExists++;
+                    } else {
+                        $added++;
+                        if ($persist) {
+                            ProductRelation::create([
+                                'source_product_id' => $pid,
+                                'target_product_id' => $op['target_product_id'],
+                                'relation_type_id' => $op['relation_type_id'],
+                                'sort_order' => 0,
+                            ]);
+                        }
+                    }
+                } elseif ($op['action'] === 'remove') {
+                    if ($existing) {
+                        $removed++;
+                        if ($persist) {
+                            $existing->delete();
+                        }
+                    }
+                }
+            }
+        }
+
+        return compact('added', 'removed', 'alreadyExists', 'errors');
+    }
+
+    // ── Output Hierarchy ────────────────────────────────
+
+    private function processOutputHierarchy(array $productIds, array $ops, bool $persist): array
+    {
+        $assigned = 0;
+        $removed = 0;
+        $alreadyAssigned = 0;
+
+        foreach ($ops as $op) {
+            foreach ($productIds as $pid) {
+                $existing = OutputHierarchyProductAssignment::where('product_id', $pid)
+                    ->where('hierarchy_node_id', $op['hierarchy_node_id'])
+                    ->first();
+
+                if ($op['action'] === 'assign') {
+                    if ($existing) {
+                        $alreadyAssigned++;
+                    } else {
+                        $assigned++;
+                        if ($persist) {
+                            OutputHierarchyProductAssignment::create([
+                                'hierarchy_node_id' => $op['hierarchy_node_id'],
+                                'product_id' => $pid,
+                                'sort_order' => 0,
+                            ]);
+                        }
+                    }
+                } elseif ($op['action'] === 'remove') {
+                    if ($existing) {
+                        $removed++;
+                        if ($persist) {
+                            $existing->delete();
+                        }
+                    }
+                }
+            }
+        }
+
+        return compact('assigned', 'removed', 'alreadyAssigned');
+    }
+
+    // ── Status ──────────────────────────────────────────
+
+    private function processStatus(array $productIds, string $status, bool $persist): array
+    {
+        $alreadyTarget = Product::whereIn('id', $productIds)->where('status', $status)->count();
+        $wouldChange = count($productIds) - $alreadyTarget;
+
+        if ($persist && $wouldChange > 0) {
+            Product::whereIn('id', $productIds)
+                ->where('status', '!=', $status)
+                ->update(['status' => $status]);
+        }
+
+        return [
+            'would_change' => $wouldChange,
+            'already_target' => $alreadyTarget,
+        ];
+    }
+
+    // ── Master Hierarchy ────────────────────────────────
+
+    private function processMasterHierarchy(array $productIds, string $nodeId, bool $persist): array
+    {
+        $alreadyTarget = Product::whereIn('id', $productIds)->where('master_hierarchy_node_id', $nodeId)->count();
+        $wouldChange = count($productIds) - $alreadyTarget;
+
+        if ($persist && $wouldChange > 0) {
+            Product::whereIn('id', $productIds)
+                ->where(function ($q) use ($nodeId) {
+                    $q->where('master_hierarchy_node_id', '!=', $nodeId)
+                      ->orWhereNull('master_hierarchy_node_id');
+                })
+                ->update(['master_hierarchy_node_id' => $nodeId]);
+        }
+
+        return [
+            'would_change' => $wouldChange,
+            'already_target' => $alreadyTarget,
+        ];
+    }
+
+    // ── Media ───────────────────────────────────────────
+
+    private function processMedia(array $productIds, array $ops, bool $persist): array
+    {
+        $assigned = 0;
+        $removed = 0;
+        $alreadyAssigned = 0;
+
+        foreach ($ops as $op) {
+            foreach ($productIds as $pid) {
+                $query = ProductMediaAssignment::where('product_id', $pid)
+                    ->where('media_id', $op['media_id']);
+
+                if (!empty($op['usage_type_id'])) {
+                    $query->where('usage_type_id', $op['usage_type_id']);
+                }
+
+                $existing = $query->first();
+
+                if ($op['action'] === 'assign') {
+                    if ($existing) {
+                        $alreadyAssigned++;
+                    } else {
+                        $assigned++;
+                        if ($persist) {
+                            ProductMediaAssignment::create([
+                                'product_id' => $pid,
+                                'media_id' => $op['media_id'],
+                                'usage_type_id' => $op['usage_type_id'] ?? null,
+                                'sort_order' => 0,
+                                'is_primary' => false,
+                            ]);
+                        }
+                    }
+                } elseif ($op['action'] === 'remove') {
+                    if ($existing) {
+                        $removed++;
+                        if ($persist) {
+                            $existing->delete();
+                        }
+                    }
+                }
+            }
+        }
+
+        return compact('assigned', 'removed', 'alreadyAssigned');
+    }
+
+    // ── Shared Helpers ──────────────────────────────────
+
+    private function extractValue(ProductAttributeValue $pav): mixed
+    {
+        if ($pav->value_string !== null) return $pav->value_string;
+        if ($pav->value_number !== null) return $pav->value_number;
+        if ($pav->value_date !== null) return $pav->value_date;
+        if ($pav->value_flag !== null) return (bool) $pav->value_flag;
+        if ($pav->value_selection_id !== null) return $pav->value_selection_id;
+        return null;
+    }
+
+    private function resolveValueColumns(Attribute $attribute, mixed $value): array
+    {
+        $columns = [
+            'value_string' => null,
+            'value_number' => null,
+            'value_date' => null,
+            'value_flag' => null,
+            'value_selection_id' => null,
+        ];
+
+        return match ($attribute->data_type) {
+            'String', 'RichText' => array_merge($columns, ['value_string' => $value !== null ? (string) $value : null]),
+            'Number', 'Float' => array_merge($columns, ['value_number' => $value !== null ? (float) $value : null]),
+            'Date' => array_merge($columns, ['value_date' => $value]),
+            'Flag' => array_merge($columns, ['value_flag' => $value !== null ? (bool) $value : null]),
+            'Selection', 'Dictionary' => array_merge($columns, [
+                'value_string' => $value !== null ? (string) $value : null,
+                'value_selection_id' => $value,
+            ]),
+            default => array_merge($columns, ['value_string' => $value !== null ? (string) $value : null]),
+        };
+    }
+}
