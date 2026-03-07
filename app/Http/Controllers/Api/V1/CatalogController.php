@@ -7,12 +7,14 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Resources\Api\V1\CatalogCategoryNodeResource;
 use App\Http\Resources\Api\V1\CatalogProductDetailResource;
 use App\Http\Resources\Api\V1\CatalogProductResource;
+use App\Models\AttributeViewAssignment;
 use App\Models\Hierarchy;
 use App\Models\HierarchyNode;
 use App\Models\Media;
 use App\Models\OutputHierarchyProductAssignment;
 use App\Models\Product;
 use App\Models\ProductSearchIndex;
+use App\Models\Setting;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller as BaseController;
@@ -178,9 +180,20 @@ class CatalogController extends BaseController
             ];
         }
 
+        // Load attribute view filter from settings
+        $themePayload = Setting::getPayload('catalog_theme') ?? [];
+        $attributeViewIds = $themePayload['attribute_view_ids'] ?? [];
+        $allowedAttributeIds = null;
+        if (!empty($attributeViewIds)) {
+            $allowedAttributeIds = AttributeViewAssignment::whereIn('attribute_view_id', $attributeViewIds)
+                ->pluck('attribute_id')
+                ->unique()
+                ->toArray();
+        }
+
         return response()->json([
             'data' => (new CatalogProductDetailResource($product))
-                ->additional(['lang' => $lang, 'breadcrumb' => $breadcrumb])
+                ->additional(['lang' => $lang, 'breadcrumb' => $breadcrumb, 'allowed_attribute_ids' => $allowedAttributeIds])
                 ->resolve(),
         ]);
     }
@@ -232,9 +245,20 @@ class CatalogController extends BaseController
             ];
         }
 
+        // Load attribute view filter from settings
+        $themePayload = Setting::getPayload('catalog_theme') ?? [];
+        $attributeViewIds = $themePayload['attribute_view_ids'] ?? [];
+        $allowedAttributeIds = null;
+        if (!empty($attributeViewIds)) {
+            $allowedAttributeIds = AttributeViewAssignment::whereIn('attribute_view_id', $attributeViewIds)
+                ->pluck('attribute_id')
+                ->unique()
+                ->toArray();
+        }
+
         return response()->json(
             (new CatalogProductDetailResource($product))
-                ->additional(['lang' => $lang, 'breadcrumb' => $breadcrumb])
+                ->additional(['lang' => $lang, 'breadcrumb' => $breadcrumb, 'allowed_attribute_ids' => $allowedAttributeIds])
                 ->resolve(),
             200,
             ['Content-Type' => 'application/json'],
@@ -391,6 +415,12 @@ class CatalogController extends BaseController
         $type = $request->query('type', 'master');
         $hierarchyId = $request->query('hierarchy_id');
         $lang = $request->query('lang', 'de');
+
+        // Fall back to hierarchy_id from catalog theme settings if not passed as param
+        if (!$hierarchyId) {
+            $themePayload = Setting::getPayload('catalog_theme') ?? [];
+            $hierarchyId = $themePayload['hierarchy_id'] ?? null;
+        }
 
         $hierarchyQuery = Hierarchy::where('hierarchy_type', $type);
         if ($hierarchyId) {

@@ -94,6 +94,12 @@ watchEffect(() => {
   el.style.setProperty('--catalog-heading-size', t.font_heading_size || '1.75rem')
   el.style.setProperty('--catalog-body-size', t.font_body_size || '0.875rem')
 
+  // Header & mobile menu colors
+  if (t.color_header_bg) el.style.setProperty('--catalog-header-bg', t.color_header_bg)
+  if (t.color_header_text) el.style.setProperty('--catalog-header-text', t.color_header_text)
+  if (t.color_mobile_menu_bg) el.style.setProperty('--catalog-mobile-menu-bg', t.color_mobile_menu_bg)
+  if (t.color_mobile_menu_text) el.style.setProperty('--catalog-mobile-menu-text', t.color_mobile_menu_text)
+
   // SEO: update document title and meta description
   const seoTitle = t.seo_title || t.catalog_title || 'Produktkatalog'
   document.title = seoTitle
@@ -108,9 +114,9 @@ watchEffect(() => {
   }
 })
 
-onMounted(() => {
+onMounted(async () => {
+  await store.fetchThemeSettings()
   store.fetchCategories()
-  store.fetchThemeSettings()
 })
 
 onUnmounted(() => {

@@ -14,7 +14,13 @@ function selectAll() {
 </script>
 
 <template>
-  <aside class="bg-base-100 w-72 min-h-full border-r border-base-300 flex flex-col">
+  <aside
+    class="bg-base-100 w-72 min-h-full border-r border-base-300 flex flex-col"
+    :style="{
+      backgroundColor: store.themeSettings.color_mobile_menu_bg || undefined,
+      color: store.themeSettings.color_mobile_menu_text || undefined,
+    }"
+  >
     <!-- Header -->
     <div class="p-4 border-b border-base-300">
       <h2 class="font-semibold text-sm text-base-content/80 flex items-center gap-2">

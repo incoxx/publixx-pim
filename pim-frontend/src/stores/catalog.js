@@ -51,6 +51,11 @@ export const useCatalogStore = defineStore('catalog', () => {
       const { data } = await catalogApi.getSettings()
       if (data.data) {
         themeSettings.value = { ...themeSettings.value, ...data.data }
+
+        // Apply default_locale from settings if user hasn't explicitly chosen one
+        if (!localStorage.getItem('catalog_locale') && data.data.default_locale) {
+          locale.value = data.data.default_locale
+        }
       }
     } catch (e) {
       console.warn('Failed to load catalog theme settings:', e.message)
@@ -165,10 +170,15 @@ export const useCatalogStore = defineStore('catalog', () => {
   async function fetchCategories() {
     categoriesLoading.value = true
     try {
-      const { data } = await catalogApi.getCategories({
+      const opts = {
         type: hierarchyType.value,
         lang: locale.value,
-      })
+      }
+      // Use hierarchy_id from settings if available
+      if (themeSettings.value.hierarchy_id) {
+        opts.hierarchyId = themeSettings.value.hierarchy_id
+      }
+      const { data } = await catalogApi.getCategories(opts)
       categories.value = data.data.nodes || []
       hierarchyInfo.value = {
         hierarchy_id: data.data.hierarchy_id,
