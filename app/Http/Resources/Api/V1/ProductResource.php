@@ -29,6 +29,7 @@ class ProductResource extends JsonResource
             'relations' => ProductRelationResource::collection($this->whenLoaded('relations')),
             'parent_product' => new ProductResource($this->whenLoaded('parentProduct')),
             'master_hierarchy_node' => new HierarchyNodeResource($this->whenLoaded('masterHierarchyNode')),
+            'attributes' => $this->when(isset($this->resource->getAttributes()['attributes']), $this->attributes),
             'created_by' => $this->created_by,
             'updated_by' => $this->updated_by,
             'created_at' => $this->created_at,
