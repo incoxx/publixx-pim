@@ -89,9 +89,18 @@ export const useAttributeStore = defineStore('attributes', () => {
     items.value = items.value.filter(a => a.id !== id)
   }
 
+  function setPage(page) {
+    meta.value = { ...meta.value, current_page: page }
+  }
+
+  async function bulkUpdate(ids, fields) {
+    const { data } = await attributesApi.bulkUpdate(ids, fields)
+    return data
+  }
+
   return {
     items, allItems, types, lists, prodTypes, loading, error, meta, dataTypes,
     fetchAttributes, fetchAllAttributes, fetchTypes, fetchValueLists, fetchProductTypes,
-    createAttribute, updateAttribute, deleteAttribute,
+    createAttribute, updateAttribute, deleteAttribute, setPage, bulkUpdate,
   }
 })
