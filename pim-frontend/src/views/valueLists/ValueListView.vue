@@ -273,12 +273,12 @@ onMounted(() => fetchLists())
                     <input type="checkbox" v-model="editForm.is_active" class="rounded" />
                   </td>
                   <td v-if="authStore.hasPermission('value-lists.edit')" class="px-3 py-1.5 text-right">
-                    <div class="flex items-center justify-end gap-1">
-                      <button class="p-1 rounded hover:bg-[var(--color-primary-light)] text-[var(--color-primary)]" @click="saveEdit" title="Speichern">
-                        <Check class="w-3.5 h-3.5" :stroke-width="2" />
+                    <div class="flex items-center justify-end gap-1.5">
+                      <button class="pim-btn pim-btn-primary !text-xs !py-1 !px-2.5" @click="saveEdit">
+                        <Check class="w-3 h-3" :stroke-width="2.5" /> Speichern
                       </button>
-                      <button class="p-1 rounded hover:bg-[var(--color-bg)] text-[var(--color-text-tertiary)]" @click="cancelEdit" title="Abbrechen">
-                        <X class="w-3.5 h-3.5" :stroke-width="2" />
+                      <button class="pim-btn pim-btn-ghost !text-xs !py-1 !px-2" @click="cancelEdit">
+                        Abbrechen
                       </button>
                     </div>
                   </td>
@@ -313,25 +313,25 @@ onMounted(() => fetchLists())
               </tr>
 
               <!-- Add row -->
-              <tr v-if="showAddRow" class="border-t border-[var(--color-border)] bg-[var(--color-primary-light)]">
-                <td class="px-3 py-1.5 text-[var(--color-text-tertiary)]">+</td>
-                <td class="px-3 py-1.5">
-                  <input v-model="newEntry.technical_name" class="pim-input text-xs w-full font-mono" placeholder="z.B. #ff0000 oder rot" @keyup.enter="saveNewEntry" />
+              <tr v-if="showAddRow" class="border-t-2 border-[var(--color-primary)] bg-[var(--color-primary)]/10">
+                <td class="px-3 py-2 text-[var(--color-text-tertiary)]">+</td>
+                <td class="px-3 py-2">
+                  <input v-model="newEntry.technical_name" class="pim-input text-xs w-full font-mono" placeholder="z.B. #ff0000 oder rot" @keyup.enter="saveNewEntry" @keyup.escape="showAddRow = false" />
                 </td>
-                <td class="px-3 py-1.5">
-                  <input v-model="newEntry.display_value_de" class="pim-input text-xs w-full" placeholder="Anzeigename DE" @keyup.enter="saveNewEntry" />
+                <td class="px-3 py-2">
+                  <input v-model="newEntry.display_value_de" class="pim-input text-xs w-full" placeholder="Anzeigename DE" @keyup.enter="saveNewEntry" @keyup.escape="showAddRow = false" />
                 </td>
-                <td class="px-3 py-1.5">
-                  <input v-model="newEntry.display_value_en" class="pim-input text-xs w-full" placeholder="Display name EN" @keyup.enter="saveNewEntry" />
+                <td class="px-3 py-2">
+                  <input v-model="newEntry.display_value_en" class="pim-input text-xs w-full" placeholder="Display name EN" @keyup.enter="saveNewEntry" @keyup.escape="showAddRow = false" />
                 </td>
-                <td class="px-3 py-1.5 text-center">—</td>
-                <td class="px-3 py-1.5 text-right">
-                  <div class="flex items-center justify-end gap-1">
-                    <button class="p-1 rounded hover:bg-[var(--color-primary-light)] text-[var(--color-primary)]" @click="saveNewEntry" title="Speichern">
-                      <Check class="w-3.5 h-3.5" :stroke-width="2" />
+                <td class="px-3 py-2 text-center">—</td>
+                <td v-if="authStore.hasPermission('value-lists.edit')" class="px-3 py-2 text-right">
+                  <div class="flex items-center justify-end gap-1.5">
+                    <button class="pim-btn pim-btn-primary !text-xs !py-1 !px-2.5" @click="saveNewEntry">
+                      <Check class="w-3 h-3" :stroke-width="2.5" /> Speichern
                     </button>
-                    <button class="p-1 rounded hover:bg-[var(--color-bg)] text-[var(--color-text-tertiary)]" @click="showAddRow = false" title="Abbrechen">
-                      <X class="w-3.5 h-3.5" :stroke-width="2" />
+                    <button class="pim-btn pim-btn-ghost !text-xs !py-1 !px-2" @click="showAddRow = false">
+                      Abbrechen
                     </button>
                   </div>
                 </td>

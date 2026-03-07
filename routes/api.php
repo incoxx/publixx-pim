@@ -145,6 +145,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // =====================================================================
     // Agent 3: Attributes
     // =====================================================================
+    Route::put('attributes/bulk-update', [AttributeController::class, 'bulkUpdate']);
     Route::apiResource('attributes', AttributeController::class);
 
     // =====================================================================

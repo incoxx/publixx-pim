@@ -82,4 +82,47 @@ class AttributeController extends Controller
 
         return response()->json(null, 204);
     }
+
+    private const BULK_ALLOWED_FIELDS = [
+        'is_translatable', 'is_multipliable', 'is_searchable', 'is_mandatory',
+        'is_unique', 'is_inheritable', 'is_variant_attribute', 'is_internal',
+        'attribute_type_id', 'status',
+    ];
+
+    public function bulkUpdate(Request $request): JsonResponse
+    {
+        $this->authorize('update', Attribute::class);
+
+        $request->validate([
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'uuid|exists:attributes,id',
+            'fields' => 'required|array|min:1',
+            'fields.is_translatable' => 'boolean',
+            'fields.is_multipliable' => 'boolean',
+            'fields.is_searchable' => 'boolean',
+            'fields.is_mandatory' => 'boolean',
+            'fields.is_unique' => 'boolean',
+            'fields.is_inheritable' => 'boolean',
+            'fields.is_variant_attribute' => 'boolean',
+            'fields.is_internal' => 'boolean',
+            'fields.attribute_type_id' => 'nullable|uuid|exists:attribute_types,id',
+            'fields.status' => 'in:active,inactive',
+        ]);
+
+        $fields = array_intersect_key(
+            $request->input('fields'),
+            array_flip(self::BULK_ALLOWED_FIELDS)
+        );
+
+        if (empty($fields)) {
+            return response()->json(['message' => 'No valid fields provided.'], 422);
+        }
+
+        $count = Attribute::whereIn('id', $request->input('ids'))->update($fields);
+
+        return response()->json([
+            'message' => "{$count} Attribute aktualisiert.",
+            'updated' => $count,
+        ]);
+    }
 }

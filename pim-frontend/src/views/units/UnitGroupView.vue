@@ -254,12 +254,12 @@ onMounted(() => fetchGroups())
                     <input type="checkbox" v-model="editForm.is_base_unit" class="rounded" />
                   </td>
                   <td class="px-3 py-1.5 text-right">
-                    <div class="flex items-center justify-end gap-1">
-                      <button class="p-1 rounded hover:bg-[var(--color-primary-light)] text-[var(--color-primary)]" @click="saveEdit" title="Speichern">
-                        <Check class="w-3.5 h-3.5" :stroke-width="2" />
+                    <div class="flex items-center justify-end gap-1.5">
+                      <button class="pim-btn pim-btn-primary !text-xs !py-1 !px-2.5" @click="saveEdit">
+                        <Check class="w-3 h-3" :stroke-width="2.5" /> Speichern
                       </button>
-                      <button class="p-1 rounded hover:bg-[var(--color-bg)] text-[var(--color-text-tertiary)]" @click="cancelEdit" title="Abbrechen">
-                        <X class="w-3.5 h-3.5" :stroke-width="2" />
+                      <button class="pim-btn pim-btn-ghost !text-xs !py-1 !px-2" @click="cancelEdit">
+                        Abbrechen
                       </button>
                     </div>
                   </td>
@@ -286,26 +286,26 @@ onMounted(() => fetchGroups())
               </tr>
 
               <!-- Add row -->
-              <tr v-if="showAddRow" class="border-t border-[var(--color-border)] bg-[var(--color-primary-light)]">
-                <td class="px-3 py-1.5">
-                  <input v-model="newUnit.technical_name" class="pim-input text-xs w-full font-mono" placeholder="z.B. kilogramm" @keyup.enter="saveNewUnit" />
+              <tr v-if="showAddRow" class="border-t-2 border-[var(--color-primary)] bg-[var(--color-primary)]/10">
+                <td class="px-3 py-2">
+                  <input v-model="newUnit.technical_name" class="pim-input text-xs w-full font-mono" placeholder="z.B. kilogramm" @keyup.enter="saveNewUnit" @keyup.escape="showAddRow = false" ref="newUnitInput" />
                 </td>
-                <td class="px-3 py-1.5">
-                  <input v-model="newUnit.abbreviation" class="pim-input text-xs w-full" placeholder="z.B. kg" @keyup.enter="saveNewUnit" />
+                <td class="px-3 py-2">
+                  <input v-model="newUnit.abbreviation" class="pim-input text-xs w-full" placeholder="z.B. kg" @keyup.enter="saveNewUnit" @keyup.escape="showAddRow = false" />
                 </td>
-                <td class="px-3 py-1.5">
-                  <input v-model.number="newUnit.conversion_factor" type="number" step="any" class="pim-input text-xs w-full text-right" @keyup.enter="saveNewUnit" />
+                <td class="px-3 py-2">
+                  <input v-model.number="newUnit.conversion_factor" type="number" step="any" class="pim-input text-xs w-full text-right" @keyup.enter="saveNewUnit" @keyup.escape="showAddRow = false" />
                 </td>
-                <td class="px-3 py-1.5 text-center">
+                <td class="px-3 py-2 text-center">
                   <input type="checkbox" v-model="newUnit.is_base_unit" class="rounded" />
                 </td>
-                <td class="px-3 py-1.5 text-right">
-                  <div class="flex items-center justify-end gap-1">
-                    <button class="p-1 rounded hover:bg-[var(--color-primary-light)] text-[var(--color-primary)]" @click="saveNewUnit" title="Speichern">
-                      <Check class="w-3.5 h-3.5" :stroke-width="2" />
+                <td class="px-3 py-2 text-right">
+                  <div class="flex items-center justify-end gap-1.5">
+                    <button class="pim-btn pim-btn-primary !text-xs !py-1 !px-2.5" @click="saveNewUnit">
+                      <Check class="w-3 h-3" :stroke-width="2.5" /> Speichern
                     </button>
-                    <button class="p-1 rounded hover:bg-[var(--color-bg)] text-[var(--color-text-tertiary)]" @click="showAddRow = false" title="Abbrechen">
-                      <X class="w-3.5 h-3.5" :stroke-width="2" />
+                    <button class="pim-btn pim-btn-ghost !text-xs !py-1 !px-2" @click="showAddRow = false">
+                      Abbrechen
                     </button>
                   </div>
                 </td>
