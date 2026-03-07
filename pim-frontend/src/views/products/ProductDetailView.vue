@@ -145,6 +145,7 @@ async function loadAttributeData(overrideNodeId = null) {
         is_translatable: ra.is_translatable,
         is_variant_attribute: ra.is_variant_attribute || false,
         parent_attribute_id: ra.parent_attribute_id || null,
+        composite_format: ra.composite_format || null,
         group: ra.collection_name || 'Vererbte Attribute',
         _source: ra.source,
         _is_inherited: ra.is_inherited,
