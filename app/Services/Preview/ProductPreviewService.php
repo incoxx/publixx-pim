@@ -134,9 +134,7 @@ class ProductPreviewService
                     'is_mandatory' => (bool) $assignment->is_mandatory,
                     'language' => null,
                     'parent_attribute_id' => $assignment->parent_attribute_id ?? null,
-                    'composite_format' => $assignment->data_type === 'Composite'
-                        ? (\App\Models\Attribute::find($assignment->attribute_id)?->composite_format)
-                        : null,
+                    'composite_format' => $assignment->composite_format ?? null,
                 ];
             } else {
                 foreach ($attrValues as $attrValue) {
@@ -154,9 +152,7 @@ class ProductPreviewService
                         'is_mandatory' => (bool) $assignment->is_mandatory,
                         'language' => $attrValue->language,
                         'parent_attribute_id' => $assignment->parent_attribute_id ?? null,
-                        'composite_format' => $assignment->data_type === 'Composite'
-                            ? (\App\Models\Attribute::find($assignment->attribute_id)?->composite_format)
-                            : null,
+                        'composite_format' => $assignment->composite_format ?? null,
                     ];
                 }
             }

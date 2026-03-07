@@ -350,7 +350,8 @@ async function fetchPickerAttributes(page = 1) {
       order: 'asc',
     })
     const items = data.data || data
-    attrPickerItems.value = items.filter(a => !assignedIds.has(a.id))
+    // Hide child attributes (parent_attribute_id set) and already assigned
+    attrPickerItems.value = items.filter(a => !assignedIds.has(a.id) && !a.parent_attribute_id)
     attrPickerMeta.value = data.meta || { current_page: page, last_page: 1, total: items.length, per_page: 20 }
   } catch {
     attrPickerItems.value = []
@@ -380,15 +381,28 @@ function attrPickerNextPage() {
   }
 }
 
-// Computed: filter assigned attributes client-side
+// Computed: filter assigned attributes client-side (hide composite children)
 const filteredNodeAttributes = computed(() => {
-  if (!nodeAttrSearch.value.trim()) return nodeAttributes.value
-  const q = nodeAttrSearch.value.toLowerCase()
-  return nodeAttributes.value.filter(a => {
-    const name = (a.attribute?.name_de || a.attribute?.technical_name || '').toLowerCase()
-    const tech = (a.attribute?.technical_name || '').toLowerCase()
-    return name.includes(q) || tech.includes(q)
+  // Hide child attributes of composites (they're managed via their parent)
+  const compositeIds = new Set(
+    nodeAttributes.value
+      .filter(a => a.attribute?.data_type === 'Composite')
+      .map(a => a.attribute?.id || a.attribute_id)
+  )
+  let attrs = nodeAttributes.value.filter(a => {
+    const parentId = a.attribute?.parent_attribute_id
+    return !parentId || !compositeIds.has(parentId)
   })
+
+  if (nodeAttrSearch.value.trim()) {
+    const q = nodeAttrSearch.value.toLowerCase()
+    attrs = attrs.filter(a => {
+      const name = (a.attribute?.name_de || a.attribute?.technical_name || '').toLowerCase()
+      const tech = (a.attribute?.technical_name || '').toLowerCase()
+      return name.includes(q) || tech.includes(q)
+    })
+  }
+  return attrs
 })
 
 // ─── Node Products ──────────────────────────────────
@@ -849,6 +863,9 @@ onMounted(async () => {
                   <span class="text-[10px] text-[var(--color-text-tertiary)] font-mono w-4 text-right">{{ idx + 1 }}</span>
                   <span class="text-xs font-medium">{{ assignment.attribute?.name_de || assignment.attribute?.technical_name || '—' }}</span>
                   <span class="text-[10px] text-[var(--color-text-tertiary)]">{{ assignment.attribute?.data_type }}</span>
+                  <span v-if="assignment.attribute?.data_type === 'Composite'" class="text-[10px] text-[var(--color-accent)]">
+                    ({{ nodeAttributes.filter(a => a.attribute?.parent_attribute_id === (assignment.attribute?.id || assignment.attribute_id)).length }} Felder)
+                  </span>
                 </div>
                 <div class="flex items-center gap-0.5">
                   <template v-if="authStore.hasPermission('hierarchies.edit')">

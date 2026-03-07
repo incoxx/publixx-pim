@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import { useCatalogStore } from '@/stores/catalog'
 import { ArrowLeft, Heart, Package, Braces } from 'lucide-vue-next'
 import CatalogImageGallery from '@/components/catalog/CatalogImageGallery.vue'
+import { formatCompositeSummary } from '@/utils/formatting'
 
 const route = useRoute()
 const router = useRouter()
@@ -26,19 +27,11 @@ function formatPrice(price) {
 
 function getCatalogCompositeSummary(compositeAttr) {
   if (!product.value?.attributes) return null
-  const children = product.value.attributes.filter(a => a.parent_attribute_id === compositeAttr.attribute_id)
-  const values = children.map(c => c.value)
-
-  if (compositeAttr.composite_format) {
-    let result = compositeAttr.composite_format
-    children.forEach((_, i) => {
-      result = result.replace(`{${i}}`, values[i] != null ? String(values[i]) : '')
-    })
-    return result.trim() || null
-  }
-
-  const filled = values.filter(v => v != null && v !== '')
-  return filled.length > 0 ? filled.join(' × ') : null
+  return formatCompositeSummary({
+    compositeFormat: compositeAttr.composite_format,
+    children: product.value.attributes.filter(a => a.parent_attribute_id === compositeAttr.attribute_id),
+    getValue: c => c.value,
+  })
 }
 
 function goBack() {

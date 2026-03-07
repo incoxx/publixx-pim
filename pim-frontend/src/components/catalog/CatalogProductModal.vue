@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useCatalogStore } from '@/stores/catalog'
 import { X, Heart, Braces } from 'lucide-vue-next'
 import CatalogImageGallery from './CatalogImageGallery.vue'
+import { formatCompositeSummary } from '@/utils/formatting'
 
 const props = defineProps({
   productId: { type: String, default: null },
@@ -97,12 +98,24 @@ function formatPrice(price) {
             <h4 class="font-semibold text-base-content mb-2">{{ t('catalog.attributes') }}</h4>
             <table class="table table-xs table-zebra w-full">
               <tbody>
-                <tr v-for="(attr, idx) in product.attributes" :key="idx">
-                  <td class="text-base-content/60 font-medium w-2/5 align-top">{{ attr.label }}</td>
-                  <td class="text-base-content">
-                    {{ attr.value }}<span v-if="attr.unit" class="text-base-content/50 ml-1">{{ attr.unit }}</span>
-                  </td>
-                </tr>
+                <template v-for="(attr, idx) in product.attributes" :key="idx">
+                  <!-- Skip child attributes of composites (shown via parent) -->
+                  <tr v-if="!attr.parent_attribute_id || !product.attributes.some(a => a.data_type === 'Composite' && a.attribute_id === attr.parent_attribute_id)">
+                    <td class="text-base-content/60 font-medium w-2/5 align-top">{{ attr.label }}</td>
+                    <td class="text-base-content">
+                      <template v-if="attr.data_type === 'Composite'">
+                        {{ formatCompositeSummary({
+                          compositeFormat: attr.composite_format,
+                          children: product.attributes.filter(a => a.parent_attribute_id === attr.attribute_id),
+                          getValue: c => c.value,
+                        }) || '—' }}
+                      </template>
+                      <template v-else>
+                        {{ attr.value }}<span v-if="attr.unit" class="text-base-content/50 ml-1">{{ attr.unit }}</span>
+                      </template>
+                    </td>
+                  </tr>
+                </template>
               </tbody>
             </table>
           </div>
