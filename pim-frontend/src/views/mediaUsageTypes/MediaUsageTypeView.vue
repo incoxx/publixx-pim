@@ -99,7 +99,7 @@ onMounted(() => fetchItems())
       <h3 class="text-sm font-semibold text-[var(--color-text-primary)]">
         {{ editId ? 'Bildtyp bearbeiten' : 'Neuer Bildtyp' }}
       </h3>
-      <div class="grid grid-cols-4 gap-3">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <div>
           <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Technischer Name <span class="text-[var(--color-error)]">*</span></label>
           <input class="pim-input" v-model="formData.technical_name" :disabled="!!editId" />

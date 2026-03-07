@@ -49,12 +49,12 @@ function toggleWishlist() {
 
         <div class="relative bg-base-100 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
           <!-- Header -->
-          <div class="flex items-center justify-between p-4 border-b border-base-300">
-            <h2 class="text-lg font-semibold truncate">
+          <div class="flex items-center justify-between p-3 md:p-4 border-b border-base-300 gap-2">
+            <h2 class="text-sm md:text-lg font-semibold truncate min-w-0">
               {{ store.currentAsset?.title || store.currentAsset?.file_name || t('assetCatalog.assetDetail') }}
             </h2>
-            <div class="flex items-center gap-2">
-              <button class="btn btn-ghost btn-sm" @click="toggleWishlist">
+            <div class="flex items-center gap-1 md:gap-2 shrink-0">
+              <button class="btn btn-ghost btn-sm btn-circle md:btn-square" @click="toggleWishlist">
                 <Heart
                   class="w-4 h-4"
                   :class="store.currentAsset && store.isInWishlist(store.currentAsset.id) ? 'fill-error text-error' : ''"
@@ -62,7 +62,7 @@ function toggleWishlist() {
               </button>
               <button class="btn btn-primary btn-sm gap-1" @click="downloadAsset">
                 <Download class="w-4 h-4" />
-                {{ t('assetCatalog.download') }}
+                <span class="hidden sm:inline">{{ t('assetCatalog.download') }}</span>
               </button>
               <button class="btn btn-ghost btn-sm btn-circle" @click="emit('close')">
                 <X class="w-5 h-5" />

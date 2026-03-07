@@ -33,7 +33,7 @@ function formatPrice(price) {
 </script>
 
 <template>
-  <div class="bg-base-100 w-80 min-h-full border-l border-base-300 flex flex-col">
+  <div class="bg-base-100 w-[85vw] max-w-80 min-h-full border-l border-base-300 flex flex-col">
     <!-- Header -->
     <div class="p-4 border-b border-base-300 flex items-center justify-between">
       <h2 class="font-semibold text-sm flex items-center gap-2">

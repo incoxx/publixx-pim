@@ -30,7 +30,13 @@ function onSearchClear() {
 </script>
 
 <template>
-  <div class="navbar bg-base-100 shadow-sm border-b border-base-300 sticky top-0 z-30 px-4 gap-2">
+  <div
+    class="navbar bg-base-100 shadow-sm border-b border-base-300 sticky top-0 z-30 px-4 gap-2"
+    :style="{
+      backgroundColor: store.themeSettings.color_header_bg || undefined,
+      color: store.themeSettings.color_header_text || undefined,
+    }"
+  >
     <!-- Mobile hamburger -->
     <div class="flex-none lg:hidden">
       <button class="btn btn-square btn-ghost btn-sm" @click="sidebarOpen = true">

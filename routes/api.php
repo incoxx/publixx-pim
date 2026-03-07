@@ -237,6 +237,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::put('products/bulk-edit', [BulkEditorController::class, 'save']);
 
     // Bulk Update (Massendatenpflege)
+    Route::post('products/common-attributes', [BulkUpdateController::class, 'commonAttributes']);
     Route::post('products/bulk-update/preview', [BulkUpdateController::class, 'preview']);
     Route::put('products/bulk-update', [BulkUpdateController::class, 'execute']);
 

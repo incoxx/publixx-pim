@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router'
 import { useLocaleStore } from '@/stores/locale'
 import {
   Star, Trash2, Download, FileSpreadsheet, FileText,
-  Languages, Archive, X, GitCompareArrows, Pencil, ListFilter,
+  Languages, Archive, X, GitCompareArrows, Pencil, Settings, ListFilter,
   Code2, ChevronDown, ChevronUp,
 } from 'lucide-vue-next'
 import { useAttributeStore } from '@/stores/attributes'
@@ -267,6 +267,11 @@ function openBulkEditor() {
   router.push({ path: '/products/bulk-edit', query: { ids } })
 }
 
+function openBulkUpdate() {
+  const ids = selectedProductIds.value.join(',')
+  router.push({ path: '/products/bulk-update', query: { ids } })
+}
+
 // --- Bulk Remove ---
 const bulkRemoving = ref(false)
 const showRemoveAllConfirm = ref(false)
@@ -464,6 +469,10 @@ onMounted(async () => {
       <button class="pim-btn pim-btn-secondary text-xs" @click="openBulkEditor">
         <Pencil class="w-3.5 h-3.5" :stroke-width="1.75" />
         <span class="hidden sm:inline">Bulk bearbeiten</span>
+      </button>
+      <button class="pim-btn pim-btn-secondary text-xs" @click="openBulkUpdate">
+        <Settings class="w-3.5 h-3.5" :stroke-width="1.75" />
+        <span class="hidden sm:inline">Massendatenpflege</span>
       </button>
       <button
         class="pim-btn pim-btn-danger text-xs"

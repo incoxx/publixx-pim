@@ -14,4 +14,12 @@ export default {
       operations,
     })
   },
+
+  commonAttributes({ productIds, search, excludeIds }) {
+    return client.post('/products/common-attributes', {
+      product_ids: productIds,
+      search: search || undefined,
+      exclude_ids: excludeIds || undefined,
+    })
+  },
 }

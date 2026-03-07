@@ -1182,7 +1182,7 @@ watch(() => route.params.id, async (newId, oldId) => {
 <template>
   <div class="space-y-4">
     <!-- Header -->
-    <div class="flex items-center gap-3">
+    <div class="flex flex-wrap items-center gap-2 sm:gap-3">
       <button class="pim-btn pim-btn-ghost p-1.5" @click="router.push('/products')">
         <ArrowLeft class="w-4 h-4" :stroke-width="1.75" />
       </button>
@@ -1268,12 +1268,12 @@ watch(() => route.params.id, async (newId, oldId) => {
 
     <!-- Tabs -->
     <div class="border-b border-[var(--color-border)]">
-      <nav class="flex gap-0 -mb-px">
+      <nav class="flex gap-0 -mb-px overflow-x-auto scrollbar-none">
         <button
           v-for="tab in tabs"
           :key="tab.key"
           :class="[
-            'px-4 py-2.5 text-[13px] font-medium border-b-2 transition-colors',
+            'px-4 py-2.5 text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap',
             activeTab === tab.key
               ? 'border-[var(--color-accent)] text-[var(--color-accent)]'
               : 'border-transparent text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-border)]',
@@ -1324,8 +1324,8 @@ watch(() => route.params.id, async (newId, oldId) => {
           </div>
           <div v-if="product.product_type_ref !== 'variant'">
             <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Master-Hierarchie-Knoten</label>
-            <div class="flex gap-2">
-              <select v-if="hierarchies.length > 1" class="pim-input text-xs w-36 shrink-0" :value="selectedHierarchyId" @change="onHierarchyChange($event.target.value)">
+            <div class="flex flex-col sm:flex-row gap-2">
+              <select v-if="hierarchies.length > 1" class="pim-input text-xs w-full sm:w-36 shrink-0" :value="selectedHierarchyId" @change="onHierarchyChange($event.target.value)">
                 <option v-for="h in hierarchies" :key="h.id" :value="h.id">{{ h.name_de || h.technical_name }}</option>
               </select>
               <select class="pim-input text-xs flex-1" :value="product.master_hierarchy_node_id || ''" @change="product.master_hierarchy_node_id = $event.target.value || null">
@@ -1484,7 +1484,7 @@ watch(() => route.params.id, async (newId, oldId) => {
 
       <!-- Variant creation form -->
       <div v-if="showVariantForm" class="pim-card p-4 space-y-3">
-        <div class="grid grid-cols-2 gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">SKU <span class="text-[var(--color-error)]">*</span></label>
             <input class="pim-input" v-model="variantForm.sku" />
@@ -2145,7 +2145,7 @@ watch(() => route.params.id, async (newId, oldId) => {
           :filledCount="Object.values(previewData.stammdaten).filter(v => v !== null && v !== '').length"
           :totalCount="Object.keys(previewData.stammdaten).length"
         >
-          <div class="grid grid-cols-2 gap-x-6 gap-y-2 pt-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 pt-3">
             <div>
               <span class="block text-[11px] text-[var(--color-text-tertiary)]">SKU</span>
               <p class="text-[13px] font-mono text-[var(--color-text-primary)]">{{ previewData.stammdaten.sku || '—' }}</p>

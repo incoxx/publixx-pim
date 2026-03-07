@@ -31,6 +31,13 @@ class SettingController extends Controller
         'impressum_text' => null,
         'kontakt_text' => null,
         'footer_text' => null,
+        'hierarchy_id' => null,
+        'attribute_view_ids' => [],
+        'default_locale' => 'de',
+        'color_header_bg' => null,
+        'color_header_text' => null,
+        'color_mobile_menu_bg' => null,
+        'color_mobile_menu_text' => null,
     ];
 
     /**
@@ -83,6 +90,14 @@ class SettingController extends Controller
             'impressum_text' => 'nullable|string|max:5000',
             'kontakt_text' => 'nullable|string|max:5000',
             'footer_text' => 'nullable|string|max:500',
+            'hierarchy_id' => 'nullable|uuid|exists:hierarchies,id',
+            'attribute_view_ids' => 'nullable|array',
+            'attribute_view_ids.*' => 'uuid|exists:attribute_views,id',
+            'default_locale' => 'nullable|string|in:de,en',
+            'color_header_bg' => ['nullable', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'color_header_text' => ['nullable', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'color_mobile_menu_bg' => ['nullable', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'color_mobile_menu_text' => ['nullable', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
         ]);
 
         // Merge with existing payload so that unsent keys are preserved

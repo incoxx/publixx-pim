@@ -7,6 +7,8 @@ import { Globe, Palette, AlertTriangle, Server, RotateCcw, CheckCircle, XCircle,
 import adminApi from '@/api/admin'
 import catalogApi from '@/api/catalog'
 import mediaApi from '@/api/media'
+import hierarchiesApi from '@/api/hierarchies'
+import { attributeViews as attributeViewsApi } from '@/api/attributes'
 
 const { t } = useI18n()
 const localeStore = useLocaleStore()
@@ -31,6 +33,28 @@ const BODY_SIZE_OPTIONS = [
   { value: '1rem', label: '1rem (groß)' },
 ]
 
+// ── Hierarchies & Attribute Views for catalog config ──
+const availableHierarchies = ref([])
+const availableAttributeViews = ref([])
+
+async function loadHierarchies() {
+  try {
+    const { data } = await hierarchiesApi.list({ per_page: 200 })
+    availableHierarchies.value = (data.data || data || [])
+  } catch (e) {
+    console.warn('Failed to load hierarchies:', e.message)
+  }
+}
+
+async function loadAttributeViews() {
+  try {
+    const { data } = await attributeViewsApi.list()
+    availableAttributeViews.value = (data.data || data || [])
+  } catch (e) {
+    console.warn('Failed to load attribute views:', e.message)
+  }
+}
+
 const themeForm = ref({
   font_family: 'Inter',
   font_heading_size: '1.75rem',
@@ -42,6 +66,10 @@ const themeForm = ref({
   color_sidebar: '#1B3A5C',
   color_button: '#0D9488',
   color_table_stripe: '#f1f5f9',
+  color_header_bg: '',
+  color_header_text: '',
+  color_mobile_menu_bg: '',
+  color_mobile_menu_text: '',
   logo_media_id: null,
   catalog_title: 'Produktkatalog',
   seo_title: '',
@@ -51,6 +79,9 @@ const themeForm = ref({
   impressum_text: '',
   kontakt_text: '',
   footer_text: '',
+  hierarchy_id: null,
+  attribute_view_ids: [],
+  default_locale: 'de',
 })
 const themeLogoPreview = ref(null)
 const themeSaving = ref(false)
@@ -84,6 +115,13 @@ async function loadThemeSettings() {
         impressum_text: d.impressum_text || '',
         kontakt_text: d.kontakt_text || '',
         footer_text: d.footer_text || '',
+        hierarchy_id: d.hierarchy_id || null,
+        attribute_view_ids: d.attribute_view_ids || [],
+        default_locale: d.default_locale || 'de',
+        color_header_bg: d.color_header_bg || '',
+        color_header_text: d.color_header_text || '',
+        color_mobile_menu_bg: d.color_mobile_menu_bg || '',
+        color_mobile_menu_text: d.color_mobile_menu_text || '',
       }
       themeLogoPreview.value = d.logo_url || null
     }
@@ -99,9 +137,11 @@ async function saveThemeSettings() {
   try {
     const payload = { ...themeForm.value }
     // Convert empty strings to null for optional fields
-    for (const key of ['impressum_url', 'kontakt_url', 'impressum_text', 'kontakt_text', 'footer_text', 'catalog_title', 'seo_title', 'seo_description']) {
+    for (const key of ['impressum_url', 'kontakt_url', 'impressum_text', 'kontakt_text', 'footer_text', 'catalog_title', 'seo_title', 'seo_description', 'color_header_bg', 'color_header_text', 'color_mobile_menu_bg', 'color_mobile_menu_text']) {
       if (!payload[key]) payload[key] = null
     }
+    if (!payload.hierarchy_id) payload.hierarchy_id = null
+    if (!payload.attribute_view_ids || payload.attribute_view_ids.length === 0) payload.attribute_view_ids = []
     await adminApi.updateCatalogTheme(payload)
     themeSaved.value = true
     setTimeout(() => { themeSaved.value = false }, 3000)
@@ -242,7 +282,11 @@ async function triggerRollback() {
 
 onMounted(() => {
   loadStatus()
-  if (isAdmin) loadThemeSettings()
+  if (isAdmin) {
+    loadThemeSettings()
+    loadHierarchies()
+    loadAttributeViews()
+  }
 })
 </script>
 
@@ -307,6 +351,52 @@ onMounted(() => {
           </div>
         </div>
 
+        <!-- Katalog-Konfiguration -->
+        <div class="space-y-3">
+          <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">Katalog-Konfiguration</h4>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Hierarchie</label>
+              <select class="pim-input text-xs" v-model="themeForm.hierarchy_id">
+                <option :value="null">— Standard (erste Master-Hierarchie) —</option>
+                <option v-for="h in availableHierarchies" :key="h.id" :value="h.id">
+                  {{ h.name_de || h.name }} ({{ h.hierarchy_type }})
+                </option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Standard-Sprache</label>
+              <select class="pim-input text-xs" v-model="themeForm.default_locale">
+                <option value="de">Deutsch</option>
+                <option value="en">English</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">
+              Attribut-Views
+              <span class="text-[var(--color-text-tertiary)] font-normal">(Nicht gewählt: alle Attribute werden angezeigt)</span>
+            </label>
+            <div v-if="availableAttributeViews.length === 0" class="text-xs text-[var(--color-text-tertiary)]">Keine Attribut-Views vorhanden</div>
+            <div v-else class="flex flex-wrap gap-x-4 gap-y-1.5 mt-1">
+              <label v-for="av in availableAttributeViews" :key="av.id" class="flex items-center gap-1.5 text-xs cursor-pointer">
+                <input
+                  type="checkbox"
+                  :value="av.id"
+                  :checked="themeForm.attribute_view_ids.includes(av.id)"
+                  @change="
+                    $event.target.checked
+                      ? themeForm.attribute_view_ids.push(av.id)
+                      : themeForm.attribute_view_ids = themeForm.attribute_view_ids.filter(id => id !== av.id)
+                  "
+                  class="rounded border-[var(--color-border-strong)] text-[var(--color-accent)]"
+                />
+                {{ av.name_de || av.name }}
+              </label>
+            </div>
+          </div>
+        </div>
+
         <!-- Farben -->
         <div class="space-y-3">
           <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">Farben</h4>
@@ -319,12 +409,16 @@ onMounted(() => {
               { key: 'color_table_bg', label: 'Tabellen-Hintergrund' },
               { key: 'color_table_stripe', label: 'Tabellen-Zeilen (alternierend)' },
               { key: 'color_body_text', label: 'Textfarbe' },
+              { key: 'color_header_bg', label: 'Header-Hintergrund' },
+              { key: 'color_header_text', label: 'Header-Text' },
+              { key: 'color_mobile_menu_bg', label: 'Mobiles Menü Hintergrund' },
+              { key: 'color_mobile_menu_text', label: 'Mobiles Menü Text' },
             ]" :key="c.key">
               <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">{{ c.label }}</label>
               <div class="flex items-center gap-2">
                 <input
                   type="color"
-                  :value="themeForm[c.key]"
+                  :value="themeForm[c.key] || '#000000'"
                   @input="themeForm[c.key] = $event.target.value"
                   class="w-9 h-9 rounded border border-[var(--color-border)] cursor-pointer p-0.5"
                 />

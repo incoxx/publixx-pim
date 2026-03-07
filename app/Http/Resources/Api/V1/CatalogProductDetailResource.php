@@ -15,6 +15,7 @@ class CatalogProductDetailResource extends JsonResource
     {
         $lang = $this->additional['lang'] ?? $request->query('lang', 'de');
         $breadcrumb = $this->additional['breadcrumb'] ?? [];
+        $allowedAttributeIds = $this->additional['allowed_attribute_ids'] ?? null;
 
         $name = $this->resource->name;
         $description = $this->resource->searchIndex?->description_de;
@@ -39,9 +40,14 @@ class CatalogProductDetailResource extends JsonResource
         // Build attributes array from EAV values — exclude internal attributes
         $attributes = $this->resource->attributeValues
             ->sortBy(fn ($v) => $v->attribute?->position ?? 999)
-            ->map(function (ProductAttributeValue $attrValue) use ($lang) {
+            ->map(function (ProductAttributeValue $attrValue) use ($lang, $allowedAttributeIds) {
                 $attr = $attrValue->attribute;
                 if (!$attr || $attr->is_internal) {
+                    return null;
+                }
+
+                // Filter by attribute view if configured
+                if ($allowedAttributeIds !== null && !in_array($attr->id, $allowedAttributeIds)) {
                     return null;
                 }
 

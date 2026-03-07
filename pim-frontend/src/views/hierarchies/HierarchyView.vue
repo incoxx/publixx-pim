@@ -508,9 +508,9 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="flex gap-4 h-[calc(100vh-140px)]">
+  <div class="flex flex-col lg:flex-row gap-4 h-auto lg:h-[calc(100vh-140px)]">
     <!-- Left: Tree -->
-    <div class="w-[320px] shrink-0 pim-card flex flex-col overflow-hidden">
+    <div class="w-full lg:w-[320px] shrink-0 pim-card flex flex-col overflow-hidden max-h-[50vh] lg:max-h-none">
       <div class="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)]">
         <h3 class="text-sm font-semibold text-[var(--color-text-primary)]">{{ t('hierarchy.title') }}</h3>
         <button v-if="authStore.hasPermission('hierarchies.create')" class="pim-btn pim-btn-ghost p-1" title="Neue Hierarchie" @click="openCreateHierarchy">
@@ -627,7 +627,7 @@ onMounted(async () => {
             </button>
           </div>
         </div>
-        <div class="grid grid-cols-3 gap-4 text-sm">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
           <div>
             <span class="text-[12px] text-[var(--color-text-tertiary)]">Ebene</span>
             <p class="font-mono text-xs">{{ store.selectedNode.depth ?? '—' }}</p>
