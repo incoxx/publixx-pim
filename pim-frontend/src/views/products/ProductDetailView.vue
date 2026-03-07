@@ -1268,12 +1268,12 @@ watch(() => route.params.id, async (newId, oldId) => {
 
     <!-- Tabs -->
     <div class="border-b border-[var(--color-border)]">
-      <nav class="flex gap-0 -mb-px">
+      <nav class="flex gap-0 -mb-px overflow-x-auto scrollbar-none">
         <button
           v-for="tab in tabs"
           :key="tab.key"
           :class="[
-            'px-4 py-2.5 text-[13px] font-medium border-b-2 transition-colors',
+            'px-4 py-2.5 text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap',
             activeTab === tab.key
               ? 'border-[var(--color-accent)] text-[var(--color-accent)]'
               : 'border-transparent text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-border)]',
