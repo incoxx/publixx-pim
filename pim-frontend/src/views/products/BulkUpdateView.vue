@@ -513,7 +513,7 @@ onMounted(() => {
     <template v-if="!executeResult">
       <!-- Tab nav -->
       <div class="pim-card">
-        <nav class="flex border-b border-[var(--color-border)] overflow-x-auto">
+        <nav class="flex border-b border-[var(--color-border)] overflow-x-auto scrollbar-none">
           <button
             v-for="tab in tabs"
             :key="tab.key"

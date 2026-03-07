@@ -53,14 +53,14 @@ function formatPrice(price) {
       </div>
 
       <!-- Content -->
-      <div v-else-if="product" class="grid grid-cols-1 md:grid-cols-2">
+      <div v-else-if="product" class="grid grid-cols-1 md:grid-cols-2 max-h-[85vh] overflow-y-auto">
         <!-- Left: Image gallery -->
-        <div class="p-6 bg-base-200/50">
+        <div class="p-4 md:p-6 bg-base-200/50">
           <CatalogImageGallery :media="product.media || []" />
         </div>
 
         <!-- Right: Product info -->
-        <div class="p-6 space-y-4 overflow-y-auto max-h-[80vh]">
+        <div class="p-4 md:p-6 space-y-4 md:overflow-y-auto md:max-h-[80vh]">
           <!-- Breadcrumb -->
           <div v-if="product.category_breadcrumb?.length" class="breadcrumbs text-xs">
             <ul>
@@ -98,7 +98,7 @@ function formatPrice(price) {
             <table class="table table-xs table-zebra w-full">
               <tbody>
                 <tr v-for="(attr, idx) in product.attributes" :key="idx">
-                  <td class="text-base-content/60 font-medium w-2/5 align-top whitespace-nowrap">{{ attr.label }}</td>
+                  <td class="text-base-content/60 font-medium w-2/5 align-top">{{ attr.label }}</td>
                   <td class="text-base-content">
                     {{ attr.value }}<span v-if="attr.unit" class="text-base-content/50 ml-1">{{ attr.unit }}</span>
                   </td>

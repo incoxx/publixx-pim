@@ -611,7 +611,7 @@ const logLevelIcon = { info: CheckCircle, warning: AlertTriangle, error: XCircle
       </div>
 
       <div v-if="mappingTab === 'products'" class="pim-card p-5 space-y-4">
-        <div class="grid grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <div>
             <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">SKU-Spalte *</label>
             <select class="pim-input text-xs w-full" v-model="skuColumn">
@@ -639,7 +639,7 @@ const logLevelIcon = { info: CheckCircle, warning: AlertTriangle, error: XCircle
             </select>
           </div>
         </div>
-        <div class="grid grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <div>
             <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">Produkttyp</label>
             <select class="pim-input text-xs w-full" v-model="productTypeId">

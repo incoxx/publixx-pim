@@ -445,7 +445,7 @@ const sectionLabel = (s) => ({
             <!-- Format -->
             <div>
               <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Format *</label>
-              <div class="grid grid-cols-4 gap-2">
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 <button
                   v-for="fmt in ['json', 'excel', 'csv', 'xml']"
                   :key="fmt"
