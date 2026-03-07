@@ -19,6 +19,7 @@ import PimTable from '@/components/shared/PimTable.vue'
 import PimConfirmDialog from '@/components/shared/PimConfirmDialog.vue'
 import PimCompositeModal from '@/components/shared/PimCompositeModal.vue'
 import ProductVersionsTab from '@/components/products/ProductVersionsTab.vue'
+import { formatCompositeSummary } from '@/utils/formatting'
 
 const route = useRoute()
 const router = useRouter()
@@ -80,21 +81,11 @@ function onCompositeValuesUpdate(newValues) {
 }
 
 function getCompositeSummary(compositeAttr) {
-  const children = compositeAttr._children || []
-  const parts = children.map(c => attributeValues.value[c.id])
-
-  // Use composite_format if defined (e.g. "{0} x {1} x {2} mm")
-  if (compositeAttr.composite_format) {
-    let result = compositeAttr.composite_format
-    children.forEach((_, i) => {
-      result = result.replace(`{${i}}`, parts[i] !== undefined && parts[i] !== null ? String(parts[i]) : '')
-    })
-    return result.trim() || null
-  }
-
-  const filled = parts.filter(v => v !== undefined && v !== null && v !== '')
-  if (filled.length === 0) return null
-  return filled.join(' × ')
+  return formatCompositeSummary({
+    compositeFormat: compositeAttr.composite_format,
+    children: compositeAttr._children || [],
+    getValue: c => attributeValues.value[c.id],
+  })
 }
 
 function mapDataTypeToInput(backendType) {
@@ -839,19 +830,11 @@ async function confirmDeleteRelation() {
 }
 
 function getPreviewCompositeSummary(compositeAttr, allAttrs) {
-  const children = allAttrs.filter(a => a.parent_attribute_id === compositeAttr.attribute_id)
-  const values = children.map(c => c.display_value)
-
-  if (compositeAttr.composite_format) {
-    let result = compositeAttr.composite_format
-    children.forEach((_, i) => {
-      result = result.replace(`{${i}}`, values[i] != null ? String(values[i]) : '')
-    })
-    return result.trim() || null
-  }
-
-  const filled = values.filter(v => v != null && v !== '')
-  return filled.length > 0 ? filled.join(' × ') : null
+  return formatCompositeSummary({
+    compositeFormat: compositeAttr.composite_format,
+    children: allAttrs.filter(a => a.parent_attribute_id === compositeAttr.attribute_id),
+    getValue: c => c.display_value,
+  })
 }
 
 // ─── Output Hierarchy Assignments ──────────────────────

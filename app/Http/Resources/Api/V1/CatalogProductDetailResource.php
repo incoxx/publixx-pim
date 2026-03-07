@@ -73,6 +73,9 @@ class CatalogProductDetailResource extends JsonResource
             ->filter()
             ->values();
 
+        // Add composite parent entries (they have no own value but aggregate children)
+        $attributes = $this->injectCompositeParents($attributes, $lang, $allowedAttributeIds);
+
         // Build variants with their variant attribute values
         $variants = $this->buildVariants($lang);
 
@@ -137,6 +140,66 @@ class CatalogProductDetailResource extends JsonResource
                 'variant_attributes' => $variantAttrsOutput,
             ];
         })->values()->toArray();
+    }
+
+    /**
+     * Inject composite parent entries for any child attributes present in the list.
+     */
+    private function injectCompositeParents($attributes, string $lang, ?array $allowedAttributeIds)
+    {
+        // Find parent_attribute_ids that are referenced but not present
+        $existingIds = $attributes->pluck('attribute_id')->toArray();
+        $parentIds = $attributes->pluck('parent_attribute_id')->filter()->unique()->values();
+        $missingParentIds = $parentIds->diff($existingIds);
+
+        if ($missingParentIds->isEmpty()) {
+            return $attributes;
+        }
+
+        $composites = Attribute::whereIn('id', $missingParentIds)
+            ->where('data_type', 'Composite')
+            ->get();
+
+        $newEntries = [];
+        foreach ($composites as $composite) {
+            if ($allowedAttributeIds !== null && !in_array($composite->id, $allowedAttributeIds)) {
+                continue;
+            }
+
+            $label = $lang === 'en' && $composite->name_en ? $composite->name_en : $composite->name_de;
+
+            // Build formatted value from children in the attributes list
+            $children = $attributes->where('parent_attribute_id', $composite->id)->values();
+            $values = $children->pluck('value')->toArray();
+            $formattedValue = null;
+
+            if ($composite->composite_format) {
+                $result = $composite->composite_format;
+                foreach ($values as $i => $v) {
+                    $result = str_replace('{' . $i . '}', $v !== null ? (string) $v : '', $result);
+                }
+                $formattedValue = trim($result) ?: null;
+            } else {
+                $filled = array_filter($values, fn ($v) => $v !== null && $v !== '');
+                $formattedValue = !empty($filled) ? implode(' × ', $filled) : null;
+            }
+
+            $newEntries[] = [
+                'attribute_id' => $composite->id,
+                'label' => $label,
+                'value' => $formattedValue,
+                'unit' => null,
+                'data_type' => 'Composite',
+                'parent_attribute_id' => null,
+                'composite_format' => $composite->composite_format,
+            ];
+        }
+
+        if (empty($newEntries)) {
+            return $attributes;
+        }
+
+        return collect(array_merge($newEntries, $attributes->toArray()))->values();
     }
 
     private function resolveAttributeDisplayValue(ProductAttributeValue $attrValue, Attribute $attr, string $lang): ?string

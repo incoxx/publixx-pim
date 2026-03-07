@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Report;
 
+use App\Models\Attribute;
 use App\Models\Product;
 
 class ElementRenderer
@@ -56,15 +57,26 @@ class ElementRenderer
      */
     public function resolveAttributeValue(Product $product, string $attributeId, string $language = 'de'): array
     {
+        $attribute = Attribute::find($attributeId);
+
+        if (!$attribute) {
+            return ['label' => '', 'value' => '', 'unit' => ''];
+        }
+
+        $label = $attribute->{"name_{$language}"} ?? $attribute->name_de ?? $attribute->technical_name ?? '';
+
+        // Composite attributes: aggregate child values with format template
+        if ($attribute->data_type === 'Composite') {
+            $value = $this->resolveCompositeDisplayValue($product, $attribute, $language);
+            return ['label' => $label, 'value' => $value, 'unit' => ''];
+        }
+
         $attributeValue = $product->attributeValues
             ->first(fn ($av) => $av->attribute_id === $attributeId);
 
         if (!$attributeValue) {
-            return ['label' => '', 'value' => '', 'unit' => ''];
+            return ['label' => $label, 'value' => '', 'unit' => ''];
         }
-
-        $attribute = $attributeValue->attribute;
-        $label = $attribute?->{"name_{$language}"} ?? $attribute?->name_de ?? $attribute?->technical_name ?? '';
 
         // Resolve value based on data type
         $value = $this->resolveAttributeDisplayValue($attributeValue, $language);
@@ -72,6 +84,37 @@ class ElementRenderer
         $unit = $attributeValue->unit?->abbreviation ?? '';
 
         return ['label' => $label, 'value' => $value, 'unit' => $unit];
+    }
+
+    /**
+     * Resolve a composite attribute's display value by aggregating child values.
+     */
+    private function resolveCompositeDisplayValue(Product $product, Attribute $composite, string $language): string
+    {
+        $children = $composite->childAttributes()->orderBy('position')->get();
+
+        if ($children->isEmpty()) {
+            return '';
+        }
+
+        $values = [];
+        foreach ($children as $child) {
+            $childValue = $product->attributeValues
+                ->first(fn ($av) => $av->attribute_id === $child->id);
+
+            $values[] = $childValue ? $this->resolveAttributeDisplayValue($childValue, $language) : '';
+        }
+
+        if ($composite->composite_format) {
+            $result = $composite->composite_format;
+            foreach ($values as $i => $v) {
+                $result = str_replace('{' . $i . '}', $v, $result);
+            }
+            return trim($result);
+        }
+
+        $filled = array_filter($values, fn ($v) => $v !== '');
+        return implode(' × ', $filled);
     }
 
     /**
