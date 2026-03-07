@@ -5,13 +5,16 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Requests\Api\V1\BulkUpdateRequest;
+use App\Http\Resources\Api\V1\AttributeResource;
 use App\Models\Attribute;
 use App\Models\OutputHierarchyProductAssignment;
 use App\Models\Product;
 use App\Models\ProductAttributeValue;
 use App\Models\ProductMediaAssignment;
 use App\Models\ProductRelation;
+use App\Services\Inheritance\HierarchyInheritanceService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -22,6 +25,74 @@ use Illuminate\Support\Facades\DB;
  */
 class BulkUpdateController extends Controller
 {
+    /**
+     * Return attributes that are common (intersection) across all given products'
+     * master hierarchy assignments.
+     */
+    public function commonAttributes(Request $request, HierarchyInheritanceService $service): JsonResponse
+    {
+        $this->authorize('update', Product::class);
+
+        $request->validate([
+            'product_ids' => 'required|array|min:1|max:500',
+            'product_ids.*' => 'uuid',
+            'search' => 'nullable|string|max:255',
+            'exclude_ids' => 'nullable|array',
+            'exclude_ids.*' => 'uuid',
+        ]);
+
+        $products = Product::whereIn('id', $request->input('product_ids'))->get();
+        $warning = null;
+
+        // Compute intersection of attribute IDs across all products
+        $attributeSets = [];
+        foreach ($products as $product) {
+            $attrs = $service->getProductAttributes($product);
+            if ($attrs->isEmpty() && !$product->master_hierarchy_node_id) {
+                $warning = 'Eines oder mehrere Produkte haben keine Master-Hierarchie-Zuordnung.';
+            }
+            $attributeSets[] = $attrs->pluck('attribute_id')->unique()->all();
+        }
+
+        if (empty($attributeSets)) {
+            return response()->json(['data' => [], 'warning' => 'Keine Produkte gefunden.']);
+        }
+
+        $commonIds = array_shift($attributeSets);
+        foreach ($attributeSets as $set) {
+            $commonIds = array_intersect($commonIds, $set);
+        }
+        $commonIds = array_values($commonIds);
+
+        if (empty($commonIds)) {
+            return response()->json(['data' => [], 'warning' => $warning]);
+        }
+
+        // Load full attribute models, excluding Composite parent attributes
+        $query = Attribute::whereIn('id', $commonIds)
+            ->where('data_type', '!=', 'Composite')
+            ->with('valueList.entries')
+            ->orderBy('name_de');
+
+        if ($search = $request->input('search')) {
+            $query->where(function ($q) use ($search) {
+                $q->where('name_de', 'like', "%{$search}%")
+                  ->orWhere('technical_name', 'like', "%{$search}%");
+            });
+        }
+
+        if ($excludeIds = $request->input('exclude_ids')) {
+            $query->whereNotIn('id', $excludeIds);
+        }
+
+        $attributes = $query->get();
+
+        return response()->json([
+            'data' => AttributeResource::collection($attributes),
+            'warning' => $warning,
+        ]);
+    }
+
     public function preview(BulkUpdateRequest $request): JsonResponse
     {
         $this->authorize('update', Product::class);

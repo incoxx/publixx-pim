@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router'
 import { useLocaleStore } from '@/stores/locale'
 import {
   Search, Filter, ChevronDown, ChevronUp, ChevronRight, X, Star,
-  Regex, AudioLines, Languages, Download, GitCompareArrows, Pencil,
+  Regex, AudioLines, Languages, Download, GitCompareArrows, Pencil, Settings,
   Package, Sliders, GitBranch, Image, FolderTree, FileSpreadsheet, FileText, Code2, ListFilter,
 } from 'lucide-vue-next'
 import searchApi from '@/api/search'
@@ -667,6 +667,11 @@ function openBulkEditor() {
   router.push({ path: '/products/bulk-edit', query: { ids } })
 }
 
+function openBulkUpdate() {
+  const ids = selectedProductIds.value.join(',')
+  router.push({ path: '/products/bulk-update', query: { ids } })
+}
+
 // --- API Call Display ---
 const showApiCall = ref(false)
 const apiBaseUrl = computed(() => import.meta.env.VITE_API_BASE_URL || '/api/v1')
@@ -1030,6 +1035,10 @@ const apiCallDisplay = computed(() => {
       <button class="pim-btn pim-btn-secondary text-xs" @click="openBulkEditor">
         <Pencil class="w-3.5 h-3.5" :stroke-width="1.75" />
         <span class="hidden sm:inline">Bulk bearbeiten</span>
+      </button>
+      <button class="pim-btn pim-btn-secondary text-xs" @click="openBulkUpdate">
+        <Settings class="w-3.5 h-3.5" :stroke-width="1.75" />
+        <span class="hidden sm:inline">Massendatenpflege</span>
       </button>
       <button class="pim-btn pim-btn-secondary text-xs" @click="showReportPicker = true">
         <FileText class="w-3.5 h-3.5" :stroke-width="1.75" />

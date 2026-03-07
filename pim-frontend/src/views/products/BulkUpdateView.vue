@@ -54,21 +54,40 @@ const attrPickerSearch = ref('')
 const attrPickerItems = ref([])
 const attrPickerLoading = ref(false)
 const attrPickerMeta = ref({ current_page: 1, last_page: 1, total: 0 })
+const attrPickerWarning = ref(null)
 
 async function fetchAttrPickerItems(page = 1) {
   attrPickerLoading.value = true
+  attrPickerWarning.value = null
   try {
     const usedIds = new Set(attrOperations.value.map(o => o.attribute.id))
-    const { data } = await attributesApi.list({
-      search: attrPickerSearch.value || undefined,
-      page,
-      perPage: 20,
-      sort: 'name_de',
-      order: 'asc',
-    })
-    const items = data.data || data
-    attrPickerItems.value = items.filter(a => !usedIds.has(a.id))
-    attrPickerMeta.value = data.meta || { current_page: page, last_page: 1, total: items.length }
+
+    if (productIds.value.length > 0) {
+      // Use hierarchy-aware common attributes
+      const { data } = await bulkUpdateApi.commonAttributes({
+        productIds: productIds.value,
+        search: attrPickerSearch.value || undefined,
+        excludeIds: usedIds.size > 0 ? [...usedIds] : undefined,
+      })
+      const items = data.data || data
+      attrPickerItems.value = items
+      attrPickerMeta.value = { current_page: 1, last_page: 1, total: items.length }
+      if (data.warning) {
+        attrPickerWarning.value = data.warning
+      }
+    } else {
+      // Fallback: no product IDs, load all attributes
+      const { data } = await attributesApi.list({
+        search: attrPickerSearch.value || undefined,
+        page,
+        perPage: 20,
+        sort: 'name_de',
+        order: 'asc',
+      })
+      const items = data.data || data
+      attrPickerItems.value = items.filter(a => !usedIds.has(a.id))
+      attrPickerMeta.value = data.meta || { current_page: page, last_page: 1, total: items.length }
+    }
   } catch {
     attrPickerItems.value = []
   } finally {
@@ -579,7 +598,10 @@ onMounted(() => {
                   <span class="text-[10px] text-[var(--color-text-tertiary)] shrink-0 ml-2">{{ attr.data_type }}</span>
                 </div>
               </div>
-              <p v-else class="text-xs text-[var(--color-text-tertiary)]">Keine Attribute gefunden</p>
+              <div v-else class="space-y-1">
+                <p class="text-xs text-[var(--color-text-tertiary)]">Keine gemeinsamen Attribute gefunden</p>
+                <p v-if="attrPickerWarning" class="text-xs text-[var(--color-warning,#b45309)]">{{ attrPickerWarning }}</p>
+              </div>
               <div v-if="attrPickerMeta.last_page > 1" class="flex items-center justify-between pt-1 border-t border-[var(--color-border)]">
                 <span class="text-[11px] text-[var(--color-text-tertiary)]">Seite {{ attrPickerMeta.current_page }} / {{ attrPickerMeta.last_page }}</span>
                 <div class="flex gap-1">
