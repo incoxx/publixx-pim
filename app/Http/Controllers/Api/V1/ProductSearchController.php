@@ -111,7 +111,7 @@ class ProductSearchController extends Controller
             $productIds = $data->pluck('id');
             $attrValues = ProductAttributeValue::whereIn('product_id', $productIds)
                 ->whereIn('attribute_id', $attributeColumns)
-                ->where('language', $language)
+                ->where(fn ($q) => $q->where('language', $language)->orWhereNull('language'))
                 ->with('valueListEntry')
                 ->get()
                 ->groupBy('product_id');

@@ -108,7 +108,7 @@ class ProductExportController extends Controller
             $productIds = $products->pluck('id');
             $values = ProductAttributeValue::whereIn('product_id', $productIds)
                 ->whereIn('attribute_id', $attrColumns)
-                ->where('language', $language)
+                ->where(fn ($q) => $q->where('language', $language)->orWhereNull('language'))
                 ->get();
 
             foreach ($values as $v) {

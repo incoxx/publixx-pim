@@ -39,7 +39,7 @@ class WatchlistController extends Controller
             $productIds = $items->pluck('product_id')->filter();
             $attrValuesMap = ProductAttributeValue::whereIn('product_id', $productIds)
                 ->whereIn('attribute_id', $attributeColumns)
-                ->where('language', $language)
+                ->where(fn ($q) => $q->where('language', $language)->orWhereNull('language'))
                 ->with('valueListEntry')
                 ->get()
                 ->groupBy('product_id');
