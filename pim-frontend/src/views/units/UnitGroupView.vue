@@ -103,7 +103,7 @@ watch(selectedGroup, (v) => {
 
 // Add unit
 function openAddRow() {
-  newUnit.value = { technical_name: '', abbreviation: '', conversion_factor: 1, is_base_unit: false }
+  newUnit.value = { technical_name: '', abbreviation: '', conversion_factor: 1, is_base_unit: false, is_translatable: false }
   showAddRow.value = true
   editingUnitId.value = null
 }

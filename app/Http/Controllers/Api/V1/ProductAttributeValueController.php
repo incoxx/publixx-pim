@@ -86,6 +86,54 @@ class ProductAttributeValueController extends Controller
             ->get()
             ->keyBy('attribute_id');
 
+        // Ensure child attributes of any Composite in the effective list are included,
+        // even when they are not explicitly assigned to the hierarchy node.
+        $compositeIds = $effectiveAttributes
+            ->filter(fn ($a) => $a->data_type === 'Composite')
+            ->pluck('attribute_id')
+            ->all();
+
+        if (!empty($compositeIds)) {
+            $existingAttrIds = $effectiveAttributes->pluck('attribute_id')->all();
+            $missingChildren = Attribute::whereIn('parent_attribute_id', $compositeIds)
+                ->whereNotIn('id', $existingAttrIds)
+                ->get();
+
+            foreach ($missingChildren as $child) {
+                $parent = $effectiveAttributes->firstWhere('attribute_id', $child->parent_attribute_id);
+                $effectiveAttributes->push((object) [
+                    'attribute_id' => $child->id,
+                    'attribute_technical_name' => $child->technical_name,
+                    'attribute_name_de' => $child->name_de,
+                    'attribute_name_en' => $child->name_en,
+                    'data_type' => $child->data_type,
+                    'value_list_id' => $child->value_list_id,
+                    'is_translatable' => $child->is_translatable,
+                    'is_mandatory' => $child->is_mandatory,
+                    'is_variant_attribute' => $child->is_variant_attribute ?? false,
+                    'parent_attribute_id' => $child->parent_attribute_id,
+                    'composite_format' => $child->composite_format,
+                    'collection_name' => $parent->collection_name ?? null,
+                    'collection_sort' => $parent->collection_sort ?? 0,
+                    'attribute_sort' => $child->position ?? 999,
+                    'access_product' => $parent->access_product ?? 'editable',
+                    'access_variant' => $parent->access_variant ?? 'editable',
+                    'attribute_view_name_de' => $parent->attribute_view_name_de ?? null,
+                ]);
+
+                // Also load existing values for these children
+                $childValues = $product->attributeValues()
+                    ->where('attribute_id', $child->id)
+                    ->where(function ($q) use ($language) {
+                        $q->whereNull('language')->orWhere('language', $language);
+                    })
+                    ->first();
+                if ($childValues) {
+                    $existingValues->put($child->id, $childValues);
+                }
+            }
+        }
+
         $result = $effectiveAttributes->map(function ($assignment) use ($existingValues) {
             $pav = $existingValues->get($assignment->attribute_id);
             $value = null;
