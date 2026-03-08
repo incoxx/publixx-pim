@@ -11,7 +11,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('relation_type_default_attributes', function (Blueprint $table) {
-            $table->char('id', 36)->primary();
+            $table->id();
             $table->char('relation_type_id', 36);
             $table->char('attribute_id', 36);
             $table->integer('sort_order')->default(0);
