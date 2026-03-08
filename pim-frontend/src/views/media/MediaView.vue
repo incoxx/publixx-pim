@@ -1,10 +1,12 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { Upload, Image, Grid, List, Trash2, FolderOpen, Folder, Search, Edit3, X, ChevronRight, ChevronDown, Plus } from 'lucide-vue-next'
+import { Upload, Image, Grid, List, Trash2, FolderOpen, FolderPlus, Search, X, Plus } from 'lucide-vue-next'
 import mediaApi from '@/api/media'
 import hierarchiesApi from '@/api/hierarchies'
 import { useAuthStore } from '@/stores/auth'
 import PimConfirmDialog from '@/components/shared/PimConfirmDialog.vue'
+import PimTree from '@/components/shared/PimTree.vue'
+import PimAttributeInput from '@/components/shared/PimAttributeInput.vue'
 
 const authStore = useAuthStore()
 
@@ -27,6 +29,14 @@ const expandedFolders = ref(new Set())
 const newFolderName = ref('')
 const showNewFolder = ref(false)
 const newFolderParent = ref(null)
+
+// Folder context menu
+const contextMenu = ref({ show: false, x: 0, y: 0, node: null })
+
+// Asset attributes (from hierarchy node)
+const assetAttributes = ref([])
+const assetAttributeValues = ref({})
+const assetAttrsLoading = ref(false)
 
 // Build filter options
 const filterOptions = computed(() => {
@@ -92,7 +102,6 @@ function getImageUrl(item) {
 }
 
 function handleImgError(e) {
-  // On thumbnail error, try the original file URL
   const img = e.target
   const originalSrc = img.dataset.fallback
   if (originalSrc && img.src !== originalSrc) {
@@ -124,14 +133,116 @@ async function confirmDeleteFolder() {
   }
 }
 
+// ─── PimTree event handlers ─────────────────────────
+function handleTreeSelect(node) {
+  selectedFolderId.value = selectedFolderId.value === node.id ? null : node.id
+}
+
+function handleTreeToggle(nodeId) {
+  if (expandedFolders.value.has(nodeId)) expandedFolders.value.delete(nodeId)
+  else expandedFolders.value.add(nodeId)
+}
+
+function handleTreeContextMenu(event, node) {
+  const rect = event.currentTarget?.getBoundingClientRect() || { left: event.clientX, bottom: event.clientY }
+  contextMenu.value = {
+    show: true,
+    x: rect.left || event.clientX,
+    y: (rect.bottom || event.clientY) + 4,
+    node,
+  }
+}
+
+function closeContextMenu() {
+  contextMenu.value.show = false
+}
+
+function handleDocClick() {
+  if (contextMenu.value.show) closeContextMenu()
+}
+
+// ─── Asset attribute helpers ────────────────────────
+function mapDataTypeToInput(dataType) {
+  return {
+    String: 'text', Number: 'number', Float: 'decimal', Date: 'date',
+    Flag: 'boolean', Selection: 'select', Dictionary: 'dictionary', RichText: 'richtext',
+  }[dataType] || 'text'
+}
+
+function resolveValueFromEntry(entry, attribute) {
+  if (!entry) return null
+  switch (attribute.data_type) {
+    case 'Number': case 'Float': return entry.value_number
+    case 'Date': return entry.value_date
+    case 'Flag': return entry.value_flag
+    case 'Selection': case 'Dictionary': return entry.value_selection_id || entry.value_string
+    default: return entry.value_string
+  }
+}
+
+async function loadAssetAttributes(mediaItem) {
+  assetAttributes.value = []
+  assetAttributeValues.value = {}
+  if (!mediaItem?.asset_folder_id) return
+
+  assetAttrsLoading.value = true
+  try {
+    // Load attribute definitions from hierarchy node and current values in parallel
+    const [attrsRes, valsRes] = await Promise.all([
+      hierarchiesApi.getNodeAttributes(mediaItem.asset_folder_id),
+      mediaApi.getAttributeValues(mediaItem.id),
+    ])
+    const assignments = attrsRes.data.data || attrsRes.data || []
+    assetAttributes.value = assignments
+
+    // Build values map from existing attribute values
+    const values = valsRes.data.data || valsRes.data || []
+    const valMap = {}
+    for (const val of values) {
+      const attr = assignments.find(a => (a.attribute?.id || a.attribute_id) === val.attribute_id)
+      if (attr) {
+        valMap[val.attribute_id] = resolveValueFromEntry(val, attr.attribute || {})
+      }
+    }
+    assetAttributeValues.value = valMap
+  } catch (e) {
+    console.error('Failed to load asset attributes:', e)
+  } finally {
+    assetAttrsLoading.value = false
+  }
+}
+
+async function saveAssetAttributeValues() {
+  if (!detailItem.value || assetAttributes.value.length === 0) return
+
+  const valuesArray = []
+  for (const assignment of assetAttributes.value) {
+    const attrId = assignment.attribute?.id || assignment.attribute_id
+    const value = assetAttributeValues.value[attrId]
+    if (value !== undefined && value !== null && value !== '') {
+      valuesArray.push({
+        attribute_id: attrId,
+        value,
+      })
+    }
+  }
+
+  if (valuesArray.length > 0) {
+    await mediaApi.updateAttributeValues(detailItem.value.id, valuesArray)
+  }
+}
+
 function openDetail(item) {
   detailItem.value = item
   detailOpen.value = true
+  loadAssetAttributes(item)
 }
 
 function closeDetail() {
   detailOpen.value = false
   detailItem.value = null
+  assetAttributes.value = []
+  assetAttributeValues.value = {}
 }
 
 async function saveDetail() {
@@ -144,6 +255,7 @@ async function saveDetail() {
     usage_purpose: detailItem.value.usage_purpose,
     asset_folder_id: detailItem.value.asset_folder_id,
   })
+  await saveAssetAttributeValues()
   closeDetail()
   await fetchMedia()
 }
@@ -155,15 +267,6 @@ async function confirmDelete() {
     deleteTarget.value = null
     await fetchMedia()
   } finally { deleting.value = false }
-}
-
-function selectFolder(id) {
-  selectedFolderId.value = selectedFolderId.value === id ? null : id
-}
-
-function toggleExpand(id) {
-  if (expandedFolders.value.has(id)) expandedFolders.value.delete(id)
-  else expandedFolders.value.add(id)
 }
 
 async function createFolder() {
@@ -182,18 +285,35 @@ async function createFolder() {
   }
 }
 
+function contextCreateSubfolder() {
+  if (!contextMenu.value.node) return
+  showNewFolder.value = true
+  newFolderParent.value = contextMenu.value.node.id
+  closeContextMenu()
+}
+
+function contextDeleteFolder() {
+  if (!contextMenu.value.node) return
+  deleteFolderTarget.value = contextMenu.value.node
+  closeContextMenu()
+}
+
 let debounceTimer = null
 watch(searchTerm, () => {
   clearTimeout(debounceTimer)
   debounceTimer = setTimeout(() => fetchMedia(), 300)
 })
-onUnmounted(() => clearTimeout(debounceTimer))
+onUnmounted(() => {
+  clearTimeout(debounceTimer)
+  document.removeEventListener('click', handleDocClick, true)
+})
 watch(usagePurposeFilter, () => fetchMedia())
 watch(selectedFolderId, () => fetchMedia())
 
 onMounted(() => {
   fetchMedia()
   fetchFolders()
+  document.addEventListener('click', handleDocClick, true)
 })
 </script>
 
@@ -228,26 +348,45 @@ onMounted(() => {
       <button
         class="w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors"
         :class="!selectedFolderId ? 'bg-[var(--color-primary-light)] text-[var(--color-primary)]' : 'hover:bg-[var(--color-bg)]'"
-        @click="selectFolder(null)"
+        @click="selectedFolderId = null"
       >
         <FolderOpen class="w-3.5 h-3.5" :stroke-width="1.75" />
         <span>Alle Medien</span>
       </button>
 
-      <!-- Folder tree -->
-      <div v-for="node in folders" :key="node.id" class="space-y-0.5">
-        <MediaFolderItem
-          :node="node"
-          :depth="0"
-          :selected-id="selectedFolderId"
-          :expanded="expandedFolders"
-          @select="selectFolder"
-          @toggle="toggleExpand"
-          @delete="n => deleteFolderTarget = n"
-          @add-sub="id => { showNewFolder = true; newFolderParent = id }"
-        />
+      <!-- Folder tree (PimTree) -->
+      <div v-if="foldersLoading" class="space-y-1 px-1">
+        <div v-for="i in 4" :key="i" class="pim-skeleton h-5 rounded" :style="{ width: (50 + Math.random() * 40) + '%' }" />
       </div>
+      <PimTree
+        v-else-if="folders.length > 0"
+        :nodes="folders"
+        :selectedId="selectedFolderId"
+        :expandedIds="expandedFolders"
+        :draggable="false"
+        @select="handleTreeSelect"
+        @toggle="handleTreeToggle"
+        @context-menu="handleTreeContextMenu"
+      />
     </div>
+
+    <!-- Context Menu -->
+    <Teleport to="body">
+      <div
+        v-if="contextMenu.show && authStore.hasPermission('media.create')"
+        class="fixed z-50 min-w-[170px] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg shadow-lg py-1 text-[13px]"
+        :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }"
+        @click.stop
+      >
+        <button class="w-full text-left px-3 py-1.5 hover:bg-[var(--color-bg)] flex items-center gap-2" @click="contextCreateSubfolder">
+          <FolderPlus class="w-3.5 h-3.5" :stroke-width="1.75" /> Unterordner erstellen
+        </button>
+        <hr class="my-1 border-[var(--color-border)]" />
+        <button class="w-full text-left px-3 py-1.5 hover:bg-[var(--color-bg)] flex items-center gap-2 text-[var(--color-error)]" @click="contextDeleteFolder">
+          <Trash2 class="w-3.5 h-3.5" :stroke-width="1.75" /> Löschen
+        </button>
+      </div>
+    </Teleport>
 
     <!-- Main content -->
     <div class="flex-1 space-y-4" @dragover.prevent @drop="handleDrop">
@@ -399,6 +538,25 @@ onMounted(() => {
           </div>
         </div>
 
+        <!-- Asset Attributes (from hierarchy node) -->
+        <div v-if="assetAttrsLoading" class="border-t border-[var(--color-border)] pt-3 space-y-2">
+          <div v-for="i in 2" :key="i" class="pim-skeleton h-12 rounded" />
+        </div>
+        <div v-else-if="assetAttributes.length > 0" class="border-t border-[var(--color-border)] pt-3 space-y-3">
+          <h4 class="text-[10px] font-medium text-[var(--color-text-secondary)] uppercase tracking-wider">Attribute</h4>
+          <div v-for="assignment in assetAttributes" :key="assignment.id">
+            <label class="text-[10px] font-medium text-[var(--color-text-secondary)] uppercase block mb-1">
+              {{ assignment.attribute?.name_de || assignment.attribute?.technical_name }}
+            </label>
+            <PimAttributeInput
+              :type="mapDataTypeToInput(assignment.attribute?.data_type)"
+              :modelValue="assetAttributeValues[assignment.attribute?.id || assignment.attribute_id]"
+              :options="(assignment.attribute?.value_list?.entries || []).map(e => ({ value: e.id, label: e.value_de || e.label_de || e.code }))"
+              @update:modelValue="assetAttributeValues[assignment.attribute?.id || assignment.attribute_id] = $event"
+            />
+          </div>
+        </div>
+
         <div class="flex gap-2">
           <button v-if="authStore.hasPermission('media.edit')" class="pim-btn pim-btn-primary text-xs flex-1" @click="saveDetail">Speichern</button>
           <button v-if="authStore.hasPermission('media.delete')" class="pim-btn pim-btn-ghost text-xs" @click="deleteTarget = detailItem; closeDetail()">
@@ -426,73 +584,6 @@ onMounted(() => {
     />
   </div>
 </template>
-
-<script>
-// Recursive folder item
-const MediaFolderItem = {
-  name: 'MediaFolderItem',
-  props: { node: Object, depth: Number, selectedId: String, expanded: Object },
-  emits: ['select', 'toggle', 'delete', 'add-sub'],
-  setup(props, { emit }) {
-    const hasChildren = props.node.children && props.node.children.length > 0
-    return { hasChildren, emit }
-  },
-  template: `
-    <div>
-      <div
-        class="group flex items-center gap-0.5 pr-1 rounded text-xs transition-colors"
-        :class="selectedId === node.id ? 'bg-[var(--color-primary-light)] text-[var(--color-primary)]' : 'hover:bg-[var(--color-bg)]'"
-      >
-        <button
-          class="flex-1 flex items-center gap-1.5 py-1 min-w-0"
-          :style="{ paddingLeft: (depth * 12 + 8) + 'px' }"
-          @click="emit('select', node.id)"
-        >
-          <button v-if="hasChildren" class="flex-none w-3 h-3" @click.stop="emit('toggle', node.id)">
-            <svg v-if="expanded.has(node.id)" class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
-            <svg v-else class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
-          </button>
-          <span v-else class="w-3"></span>
-          <svg class="w-3.5 h-3.5 flex-none text-[var(--color-text-tertiary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-          <span class="truncate">{{ node.name_de || node.name }}</span>
-        </button>
-        <button
-          class="opacity-0 group-hover:opacity-100 flex-none p-0.5 rounded hover:bg-[var(--color-primary-light)]"
-          title="Unterordner erstellen"
-          @click.stop="emit('add-sub', node.id)"
-        >
-          <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
-        </button>
-        <button
-          class="opacity-0 group-hover:opacity-100 flex-none p-0.5 rounded hover:bg-[var(--color-error-light)] hover:text-[var(--color-error)]"
-          title="Ordner löschen"
-          @click.stop="emit('delete', node)"
-        >
-          <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-        </button>
-      </div>
-      <div v-if="hasChildren && expanded.has(node.id)">
-        <MediaFolderItem
-          v-for="child in node.children"
-          :key="child.id"
-          :node="child"
-          :depth="depth + 1"
-          :selected-id="selectedId"
-          :expanded="expanded"
-          @select="(id) => emit('select', id)"
-          @toggle="(id) => emit('toggle', id)"
-          @delete="(n) => emit('delete', n)"
-          @add-sub="(id) => emit('add-sub', id)"
-        />
-      </div>
-    </div>
-  `,
-}
-
-export default {
-  components: { MediaFolderItem },
-}
-</script>
 
 <style scoped>
 .slide-enter-active,
