@@ -640,6 +640,11 @@ async function saveHierarchyAttrValues() {
       }
       values.push(entry)
     }
+    if (values.length === 0) {
+      showFeedback('Keine Werte zum Speichern')
+      hierarchyAttrSaving.value = false
+      return
+    }
     await hierarchiesApi.updateNodeAttributeValues(store.selectedNode.id, values)
     showFeedback('Hierarchie-Attributwerte gespeichert')
   } catch (e) {
