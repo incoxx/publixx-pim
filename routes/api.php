@@ -315,6 +315,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // Agent 3: Relations
     // =====================================================================
     Route::apiResource('relation-types', RelationTypeController::class);
+    Route::put('relation-types/{relationType}/default-attributes', [RelationTypeController::class, 'updateDefaultAttributes']);
     Route::get('products/{product}/relations', [ProductRelationController::class, 'index']);
     Route::post('products/{product}/relations', [ProductRelationController::class, 'store']);
     Route::delete('product-relations/{product_relation}', [ProductRelationController::class, 'destroy']);

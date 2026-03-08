@@ -22,7 +22,7 @@ class ProductRelationController extends Controller
         $this->authorize('view', $product);
 
         $query = $product->relations()
-            ->with(['relationType', 'targetProduct', 'attributeValues.attribute'])
+            ->with(['relationType.defaultAttributes', 'targetProduct', 'attributeValues.attribute'])
             ->orderBy('sort_order', 'asc');
 
         return ProductRelationResource::collection(

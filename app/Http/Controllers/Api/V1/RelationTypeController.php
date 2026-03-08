@@ -18,7 +18,7 @@ class RelationTypeController extends Controller
     {
         $this->authorize('viewAny', ProductRelationType::class);
 
-        $query = ProductRelationType::query();
+        $query = ProductRelationType::with('defaultAttributes');
         $this->applySorting($query, $request, 'name_de', 'asc');
 
         return RelationTypeResource::collection(
@@ -41,7 +41,7 @@ class RelationTypeController extends Controller
     {
         $this->authorize('view', $relationType);
 
-        return new RelationTypeResource($relationType);
+        return new RelationTypeResource($relationType->load('defaultAttributes'));
     }
 
     public function update(UpdateRelationTypeRequest $request, ProductRelationType $relationType): RelationTypeResource
@@ -60,5 +60,27 @@ class RelationTypeController extends Controller
         $relationType->delete();
 
         return response()->json(null, 204);
+    }
+
+    public function updateDefaultAttributes(Request $request, ProductRelationType $relationType): RelationTypeResource
+    {
+        $this->authorize('update', $relationType);
+
+        $request->validate([
+            'attributes' => 'present|array',
+            'attributes.*.attribute_id' => 'required|uuid|exists:attributes,id',
+            'attributes.*.sort_order' => 'integer|min:0',
+        ]);
+
+        $syncData = [];
+        foreach ($request->input('attributes', []) as $item) {
+            $syncData[$item['attribute_id']] = [
+                'sort_order' => $item['sort_order'] ?? 0,
+            ];
+        }
+
+        $relationType->defaultAttributes()->sync($syncData);
+
+        return new RelationTypeResource($relationType->load('defaultAttributes'));
     }
 }

@@ -5,7 +5,7 @@ import { useProductStore } from '@/stores/products'
 import { useAuthStore } from '@/stores/auth'
 import { useLocaleStore } from '@/stores/locale'
 import { useI18n } from 'vue-i18n'
-import { ArrowLeft, Save, Plus, Trash2, Image, Star, X, Search, Download, Languages, Copy, Sparkles } from 'lucide-vue-next'
+import { ArrowLeft, Save, Plus, Trash2, Image, Star, X, Search, Download, Languages, Copy, Sparkles, Tags } from 'lucide-vue-next'
 import productsApi from '@/api/products'
 import mediaApi from '@/api/media'
 import { mediaUsageTypes } from '@/api/mediaUsageTypes'
@@ -918,6 +918,24 @@ async function toggleRelationExpand(relation) {
   }
   expandedRelationId.value = relation.id
   await loadRelationAttrValues(relation.id)
+  // Pre-populate default attributes from relation type if no attributes exist yet
+  if (relationAttrValues.value.length === 0) {
+    const defaults = relation.relation_type?.default_attributes || []
+    if (defaults.length > 0) {
+      relationAttrValues.value = defaults.map(attr => ({
+        attribute_id: attr.id,
+        attribute: attr,
+        value_string: null,
+        value_number: null,
+        value_date: null,
+        value_flag: null,
+        value_selection_id: null,
+        unit_id: null,
+        language: null,
+        multiplied_index: 0,
+      }))
+    }
+  }
   if (!relationAttrListLoaded.value) {
     try {
       const { data } = await attributesApiDefault.list({ perPage: 9999 })
@@ -2195,7 +2213,10 @@ watch(() => route.params.id, async (newId, oldId) => {
               <span class="text-[var(--color-text-secondary)]">{{ rel.relation_type?.name_de || '—' }}</span>
               <span class="font-mono text-[var(--color-text-secondary)]">{{ rel.target_product?.sku || '—' }}</span>
               <span>{{ rel.target_product?.name || '—' }}</span>
-              <span class="text-[var(--color-text-tertiary)]">Pos. {{ rel.sort_order }}</span>
+              <span class="flex items-center gap-1 text-[var(--color-text-tertiary)]" :title="(rel.attribute_values?.length || 0) + ' Attribute'">
+                <Tags class="w-3.5 h-3.5" :stroke-width="1.75" />
+                <span>{{ rel.attribute_values?.length || 0 }}</span>
+              </span>
             </div>
             <button
               class="text-[var(--color-text-tertiary)] hover:text-[var(--color-error)] p-1"

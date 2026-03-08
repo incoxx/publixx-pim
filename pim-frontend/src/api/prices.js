@@ -28,6 +28,9 @@ export const relationTypes = {
   delete(id) {
     return client.delete(`/relation-types/${id}`)
   },
+  updateDefaultAttributes(id, attributes) {
+    return client.put(`/relation-types/${id}/default-attributes`, { attributes })
+  },
 }
 
 export default { priceTypes, relationTypes }
