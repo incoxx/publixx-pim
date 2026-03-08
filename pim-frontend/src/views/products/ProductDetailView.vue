@@ -2205,7 +2205,7 @@ watch(() => route.params.id, async (newId, oldId) => {
                 Vollständigkeit: {{ completenessData.overall_percentage }}%
               </p>
               <p class="text-[11px] text-[var(--color-text-tertiary)] mt-0.5">
-                {{ completenessData.filled_fields }} von {{ completenessData.total_fields }} Feldern befüllt
+                {{ completenessData.filled_fields }} von {{ completenessData.total_fields }} Pflichtfeldern befüllt
               </p>
               <div class="flex flex-wrap gap-1.5 mt-2">
                 <span
@@ -2261,8 +2261,8 @@ watch(() => route.params.id, async (newId, oldId) => {
           v-for="section in previewData.attribute_sections"
           :key="section.section_name"
           :title="section.section_name"
-          :filledCount="section.attributes.filter(a => a.display_value !== null).length"
-          :totalCount="section.attributes.length"
+          :filledCount="section.attributes.filter(a => a.is_mandatory && a.display_value !== null).length"
+          :totalCount="section.attributes.filter(a => a.is_mandatory).length"
           :defaultOpen="true"
         >
           <div class="pt-2">
