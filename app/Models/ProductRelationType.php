@@ -7,6 +7,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ProductRelationType extends Model
@@ -32,5 +33,12 @@ class ProductRelationType extends Model
     public function relations(): HasMany
     {
         return $this->hasMany(ProductRelation::class, 'relation_type_id');
+    }
+
+    public function defaultAttributes(): BelongsToMany
+    {
+        return $this->belongsToMany(Attribute::class, 'relation_type_default_attributes', 'relation_type_id', 'attribute_id')
+            ->withPivot('sort_order')
+            ->orderByPivot('sort_order');
     }
 }
