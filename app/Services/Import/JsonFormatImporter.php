@@ -351,12 +351,13 @@ class JsonFormatImporter
 
         // Produktbeziehungen (JSON: product_relations → Sheet: 12_Produktbeziehungen)
         if (isset($data['product_relations'])) {
-            $sheets['12_Produktbeziehungen'] = array_map(fn ($r) => [
+            $sheets['12_Produktbeziehungen'] = array_map(fn ($r) => array_filter([
                 'source_sku' => $r['source_sku'],
                 'target_sku' => $r['target_sku'],
                 'relation_type' => $r['relation_type'],
                 'sort_order' => $r['sort_order'] ?? 0,
-            ], $data['product_relations']);
+                'attribute_values' => $r['attribute_values'] ?? null,
+            ], fn ($v) => $v !== null), $data['product_relations']);
         }
 
         // Preise (JSON: prices → Sheet: 13_Preise)

@@ -109,6 +109,14 @@ export default {
     return client.delete(`/product-relations/${relationId}`)
   },
 
+  getRelationAttributeValues(relationId) {
+    return client.get(`/product-relations/${relationId}/attribute-values`)
+  },
+
+  saveRelationAttributeValues(relationId, values) {
+    return client.put(`/product-relations/${relationId}/attribute-values`, { values })
+  },
+
   // Output Hierarchy Assignments
   getOutputHierarchyAssignments(id) {
     return client.get(`/products/${id}/output-hierarchy-assignments`)

@@ -20,6 +20,7 @@ use App\Models\MediaUsageType;
 use App\Models\ProductMediaAssignment;
 use App\Models\ProductPrice;
 use App\Models\ProductRelation;
+use App\Models\ProductRelationAttributeValue;
 use App\Models\ProductRelationType;
 use App\Models\ProductType;
 use App\Models\Unit;
@@ -942,7 +943,7 @@ class ImportExecutor
                 ->first();
 
             if (!$existing) {
-                ProductRelation::create([
+                $relation = ProductRelation::create([
                     'id' => Str::uuid()->toString(),
                     'source_product_id' => $sourceResult->id,
                     'target_product_id' => $targetResult->id,
@@ -952,11 +953,53 @@ class ImportExecutor
                 $this->stats[$sheetKey]['created']++;
             } else {
                 $existing->update(['sort_order' => (int) ($row['sort_order'] ?? 0)]);
+                $relation = $existing;
                 $this->stats[$sheetKey]['updated']++;
+            }
+
+            // Import attribute values on the relation edge
+            if (!empty($row['attribute_values']) && is_array($row['attribute_values'])) {
+                $this->importRelationAttributeValues($relation, $row['attribute_values']);
             }
             } catch (\Throwable $e) {
                 $this->logRowError($sheetKey, $row, $e);
             }
+        }
+    }
+
+    private function importRelationAttributeValues(ProductRelation $relation, array $attrValues): void
+    {
+        foreach ($attrValues as $av) {
+            $attrResult = $this->resolver->resolveAttribute($av['attribute'] ?? '');
+            if (!$attrResult->resolved()) {
+                continue;
+            }
+
+            $unitId = null;
+            if (!empty($av['unit'])) {
+                $unitResult = $this->resolver->resolveUnit($av['unit']);
+                if ($unitResult->resolved()) {
+                    $unitId = $unitResult->id;
+                }
+            }
+
+            $key = [
+                'product_relation_id' => $relation->id,
+                'attribute_id' => $attrResult->id,
+                'language' => $av['language'] ?? null,
+                'multiplied_index' => $av['multiplied_index'] ?? 0,
+            ];
+
+            $data = array_filter([
+                'value_string' => $av['value_string'] ?? null,
+                'value_number' => $av['value_number'] ?? null,
+                'value_date' => $av['value_date'] ?? null,
+                'value_flag' => $av['value_flag'] ?? null,
+                'value_selection_id' => $av['value_selection_id'] ?? null,
+                'unit_id' => $unitId,
+            ], fn ($v) => $v !== null);
+
+            ProductRelationAttributeValue::updateOrCreate($key, $data);
         }
     }
 

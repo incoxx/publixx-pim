@@ -829,6 +829,15 @@ const productSearch = ref('')
 const productSearchResults = ref([])
 const productSearching = ref(false)
 
+// Relation attribute editing state
+const expandedRelationId = ref(null)
+const relationAttrValues = ref([])
+const relationAttrLoading = ref(false)
+const relationAttrSaving = ref(false)
+const relationAttrList = ref([]) // all available attributes for dropdown
+const relationAttrListLoaded = ref(false)
+const newRelationAttr = ref({ attribute_id: '' })
+
 const relationColumns = [
   { key: 'relation_type.name_de', label: 'Beziehungstyp' },
   { key: 'target_product.sku', label: 'Ziel-SKU', mono: true },
@@ -899,6 +908,107 @@ async function confirmDeleteRelation() {
     relationsLoaded.value = false
     await loadRelations()
   } finally { relationDeleting.value = false }
+}
+
+// ─── Relation Attribute Editing ──────────────────────
+async function toggleRelationExpand(relation) {
+  if (expandedRelationId.value === relation.id) {
+    expandedRelationId.value = null
+    return
+  }
+  expandedRelationId.value = relation.id
+  await loadRelationAttrValues(relation.id)
+  if (!relationAttrListLoaded.value) {
+    try {
+      const { data } = await attributesApiDefault.list({ perPage: 9999 })
+      relationAttrList.value = data.data || data
+      relationAttrListLoaded.value = true
+    } catch (e) { console.error('Failed to load attributes:', e.message) }
+  }
+}
+
+async function loadRelationAttrValues(relationId) {
+  relationAttrLoading.value = true
+  try {
+    const { data } = await productsApi.getRelationAttributeValues(relationId)
+    relationAttrValues.value = (data.data || data).map(v => ({ ...v }))
+  } catch (e) {
+    console.error('Failed to load relation attribute values:', e.message)
+    relationAttrValues.value = []
+  } finally {
+    relationAttrLoading.value = false
+  }
+}
+
+function getRelationAttrValueField(attrVal) {
+  const attr = attrVal.attribute
+  if (!attr) return attrVal.value_string ?? attrVal.value_number ?? ''
+  switch (attr.data_type) {
+    case 'Number': case 'Float': return 'value_number'
+    case 'Date': return 'value_date'
+    case 'Flag': return 'value_flag'
+    case 'Selection': return 'value_selection_id'
+    default: return 'value_string'
+  }
+}
+
+function getRelationAttrDisplayValue(attrVal) {
+  if (attrVal.value_flag !== null && attrVal.value_flag !== undefined && attrVal.attribute?.data_type === 'Flag') return attrVal.value_flag ? 'Ja' : 'Nein'
+  if (attrVal.value_selection_id && attrVal.value_list_entry) return attrVal.value_list_entry.value_de || attrVal.value_list_entry.code
+  return attrVal.value_string ?? attrVal.value_number ?? attrVal.value_date ?? ''
+}
+
+function addRelationAttribute() {
+  const attrId = newRelationAttr.value.attribute_id
+  if (!attrId) return
+  const attr = relationAttrList.value.find(a => a.id === attrId)
+  if (!attr) return
+  // Don't add duplicates
+  if (relationAttrValues.value.some(v => v.attribute_id === attrId)) return
+  relationAttrValues.value.push({
+    attribute_id: attrId,
+    attribute: attr,
+    value_string: null,
+    value_number: null,
+    value_date: null,
+    value_flag: null,
+    value_selection_id: null,
+    unit_id: null,
+    language: null,
+    multiplied_index: 0,
+  })
+  newRelationAttr.value.attribute_id = ''
+}
+
+function removeRelationAttribute(index) {
+  relationAttrValues.value.splice(index, 1)
+}
+
+async function saveRelationAttrValues() {
+  if (!expandedRelationId.value) return
+  relationAttrSaving.value = true
+  try {
+    const values = relationAttrValues.value.map(v => {
+      const entry = {
+        attribute_id: v.attribute_id,
+        language: v.language || null,
+        multiplied_index: v.multiplied_index || 0,
+      }
+      if (v.value_string !== null && v.value_string !== '') entry.value_string = v.value_string
+      if (v.value_number !== null && v.value_number !== '') entry.value_number = v.value_number
+      if (v.value_date !== null && v.value_date !== '') entry.value_date = v.value_date
+      if (v.value_flag !== null) entry.value_flag = v.value_flag
+      if (v.value_selection_id) entry.value_selection_id = v.value_selection_id
+      if (v.unit_id) entry.unit_id = v.unit_id
+      return entry
+    })
+    const { data } = await productsApi.saveRelationAttributeValues(expandedRelationId.value, values)
+    relationAttrValues.value = (data.data || data).map(v => ({ ...v }))
+  } catch (e) {
+    console.error('Failed to save relation attribute values:', e.message)
+  } finally {
+    relationAttrSaving.value = false
+  }
 }
 
 function getPreviewCompositeSummary(compositeAttr, allAttrs) {
@@ -1206,6 +1316,8 @@ watch(() => route.params.id, async (newId, oldId) => {
   mediaItems.value = []
   prices.value = []
   relations.value = []
+  expandedRelationId.value = null
+  relationAttrValues.value = []
   previewData.value = null
   completenessData.value = null
 
@@ -2065,13 +2177,94 @@ watch(() => route.params.id, async (newId, oldId) => {
         </div>
       </div>
 
-      <PimTable
-        :columns="relationColumns"
-        :rows="relations"
-        :loading="relationsLoading"
-        emptyText="Keine Beziehungen vorhanden"
-        @row-action="(row) => relationDeleteTarget = row"
-      />
+      <!-- Relation list with expandable attribute editing -->
+      <div v-if="relationsLoading" class="text-center py-8">
+        <p class="text-sm text-[var(--color-text-tertiary)]">Laden…</p>
+      </div>
+      <div v-else-if="relations.length === 0" class="text-center py-8">
+        <p class="text-sm text-[var(--color-text-tertiary)]">Keine Beziehungen vorhanden</p>
+      </div>
+      <div v-else class="space-y-2">
+        <div v-for="rel in relations" :key="rel.id" class="pim-card overflow-hidden">
+          <!-- Relation row -->
+          <div
+            class="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-[var(--color-bg)] transition-colors"
+            @click="toggleRelationExpand(rel)"
+          >
+            <div class="flex-1 grid grid-cols-4 gap-3 text-xs">
+              <span class="text-[var(--color-text-secondary)]">{{ rel.relation_type?.name_de || '—' }}</span>
+              <span class="font-mono text-[var(--color-text-secondary)]">{{ rel.target_product?.sku || '—' }}</span>
+              <span>{{ rel.target_product?.name || '—' }}</span>
+              <span class="text-[var(--color-text-tertiary)]">Pos. {{ rel.sort_order }}</span>
+            </div>
+            <button
+              class="text-[var(--color-text-tertiary)] hover:text-[var(--color-error)] p-1"
+              title="Löschen"
+              @click.stop="relationDeleteTarget = rel"
+            >
+              <Trash2 class="w-3.5 h-3.5" :stroke-width="1.75" />
+            </button>
+          </div>
+
+          <!-- Expanded: Attribute editing -->
+          <div v-if="expandedRelationId === rel.id" class="border-t border-[var(--color-border)] bg-[var(--color-bg)] px-4 py-3 space-y-3">
+            <div v-if="relationAttrLoading" class="text-center py-4">
+              <p class="text-xs text-[var(--color-text-tertiary)]">Attribute laden…</p>
+            </div>
+            <template v-else>
+              <h4 class="text-[12px] font-semibold text-[var(--color-text-primary)]">Beziehungsattribute</h4>
+
+              <!-- Existing attribute values -->
+              <div v-if="relationAttrValues.length > 0" class="space-y-2">
+                <div v-for="(attrVal, idx) in relationAttrValues" :key="attrVal.attribute_id" class="flex items-end gap-2">
+                  <div class="flex-1">
+                    <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">
+                      {{ attrVal.attribute?.name_de || attrVal.attribute?.technical_name || 'Attribut' }}
+                    </label>
+                    <PimAttributeInput
+                      :type="mapDataTypeToInput(attrVal.attribute?.data_type || 'String')"
+                      :modelValue="attrVal[getRelationAttrValueField(attrVal)]"
+                      :options="attrVal.attribute?.value_list?.entries?.map(e => ({ value: e.id, label: e.value_de || e.label_de || e.code })) || []"
+                      @update:modelValue="attrVal[getRelationAttrValueField(attrVal)] = $event"
+                    />
+                  </div>
+                  <button
+                    class="pim-btn pim-btn-secondary text-xs px-2 py-1.5 mb-0.5"
+                    title="Entfernen"
+                    @click="removeRelationAttribute(idx)"
+                  >
+                    <X class="w-3 h-3" :stroke-width="2" />
+                  </button>
+                </div>
+              </div>
+              <p v-else class="text-[11px] text-[var(--color-text-tertiary)]">Keine Attribute gepflegt.</p>
+
+              <!-- Add attribute -->
+              <div class="flex items-end gap-2">
+                <div class="flex-1">
+                  <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">Attribut hinzufügen</label>
+                  <PimAttributeInput
+                    type="select"
+                    v-model="newRelationAttr.attribute_id"
+                    :options="relationAttrList.filter(a => !relationAttrValues.some(v => v.attribute_id === a.id)).map(a => ({ value: a.id, label: a.name_de || a.technical_name }))"
+                    placeholder="Attribut wählen…"
+                  />
+                </div>
+                <button class="pim-btn pim-btn-secondary text-xs px-3 py-1.5 mb-0.5" :disabled="!newRelationAttr.attribute_id" @click="addRelationAttribute">
+                  <Plus class="w-3 h-3" :stroke-width="2" /> Hinzufügen
+                </button>
+              </div>
+
+              <!-- Save button -->
+              <div class="flex justify-end pt-1">
+                <button class="pim-btn pim-btn-primary text-xs" :disabled="relationAttrSaving" @click="saveRelationAttrValues">
+                  {{ relationAttrSaving ? 'Speichern…' : 'Attribute speichern' }}
+                </button>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
 
       <PimConfirmDialog
         :open="!!relationDeleteTarget"

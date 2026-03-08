@@ -14,6 +14,7 @@ const messages = {
       hierarchies: 'Hierarchien',
       attributes: 'Attribute',
       productTypes: 'Produkttypen',
+      relationTypes: 'Produktbeziehungen',
       attributeTypes: 'Attributgruppen',
       attributeViews: 'Attribut-Sichten',
       valueLists: 'Wertelisten',
@@ -102,6 +103,10 @@ const messages = {
     productType: {
       title: 'Produkttypen',
       newProductType: 'Neuer Produkttyp',
+    },
+    relationType: {
+      title: 'Produktbeziehungen',
+      newRelationType: 'Neuer Beziehungstyp',
     },
     attributeView: {
       title: 'Attribut-Sichten',
@@ -254,6 +259,7 @@ const messages = {
       hierarchies: 'Hierarchies',
       attributes: 'Attributes',
       productTypes: 'Product Types',
+      relationTypes: 'Product Relations',
       attributeTypes: 'Attribute Groups',
       attributeViews: 'Attribute Views',
       valueLists: 'Value Lists',
@@ -342,6 +348,10 @@ const messages = {
     productType: {
       title: 'Product Types',
       newProductType: 'New Product Type',
+    },
+    relationType: {
+      title: 'Product Relations',
+      newRelationType: 'New Relation Type',
     },
     attributeView: {
       title: 'Attribute Views',
