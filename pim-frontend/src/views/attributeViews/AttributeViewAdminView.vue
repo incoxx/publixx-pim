@@ -6,7 +6,7 @@ import { useI18n } from 'vue-i18n'
 import { Plus } from 'lucide-vue-next'
 import PimTable from '@/components/shared/PimTable.vue'
 import PimFilterBar from '@/components/shared/PimFilterBar.vue'
-import PimConfirmDialog from '@/components/shared/PimConfirmDialog.vue'
+import PimDeleteConfirmDialog from '@/components/shared/PimDeleteConfirmDialog.vue'
 import AttributeViewFormPanel from '@/components/panels/AttributeViewFormPanel.vue'
 
 const { t } = useI18n()
@@ -58,10 +58,10 @@ function handleRowAction(row) {
   deleteTarget.value = row
 }
 
-async function confirmDelete() {
+async function confirmDelete({ force }) {
   deleting.value = true
   try {
-    await attributeViews.delete(deleteTarget.value.id)
+    await attributeViews.delete(deleteTarget.value.id, { force })
     deleteTarget.value = null
     await fetchViews()
   } finally {
@@ -102,10 +102,12 @@ onMounted(() => fetchViews())
       </template>
     </PimTable>
 
-    <PimConfirmDialog
+    <PimDeleteConfirmDialog
       :open="!!deleteTarget"
       title="Attribut-Sicht löschen?"
       :message="`Die Attribut-Sicht '${deleteTarget?.name_de || deleteTarget?.technical_name || ''}' wird unwiderruflich gelöscht.`"
+      entityType="attribute-views"
+      :entityId="deleteTarget?.id"
       :loading="deleting"
       @confirm="confirmDelete"
       @cancel="deleteTarget = null"

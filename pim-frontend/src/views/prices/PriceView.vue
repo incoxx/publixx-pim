@@ -4,7 +4,7 @@ import { Plus, DollarSign } from 'lucide-vue-next'
 import { priceTypes } from '@/api/prices'
 import { useAuthStore } from '@/stores/auth'
 import PimTable from '@/components/shared/PimTable.vue'
-import PimConfirmDialog from '@/components/shared/PimConfirmDialog.vue'
+import PimDeleteConfirmDialog from '@/components/shared/PimDeleteConfirmDialog.vue'
 import PimForm from '@/components/shared/PimForm.vue'
 
 const authStore = useAuthStore()
@@ -67,10 +67,10 @@ async function saveForm() {
   } finally { formSaving.value = false }
 }
 
-async function confirmDelete() {
+async function confirmDelete({ force }) {
   deleting.value = true
   try {
-    await priceTypes.delete(deleteTarget.value.id)
+    await priceTypes.delete(deleteTarget.value.id, { force })
     deleteTarget.value = null
     await fetchPriceTypes()
   } finally { deleting.value = false }
@@ -127,10 +127,12 @@ onMounted(() => fetchPriceTypes())
       @row-action="(row) => deleteTarget = row"
     />
 
-    <PimConfirmDialog
+    <PimDeleteConfirmDialog
       :open="!!deleteTarget"
       title="Preistyp löschen?"
       :message="`Der Preistyp '${deleteTarget?.name_de || deleteTarget?.technical_name || ''}' wird unwiderruflich gelöscht.`"
+      entityType="price-types"
+      :entityId="deleteTarget?.id"
       :loading="deleting"
       @confirm="confirmDelete"
       @cancel="deleteTarget = null"

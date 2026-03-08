@@ -4,14 +4,16 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Models\Concerns\HasDeletionConstraints;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class SearchProfile extends Model
 {
-    use HasFactory, HasUuids;
+    use HasDeletionConstraints, HasFactory, HasUuids;
 
     protected $fillable = [
         'name',
@@ -42,11 +44,29 @@ class SearchProfile extends Model
         return $this->belongsTo(User::class);
     }
 
+    public function exportProfiles(): HasMany
+    {
+        return $this->hasMany(ExportProfile::class);
+    }
+
+    public function reportTemplates(): HasMany
+    {
+        return $this->hasMany(ReportTemplate::class);
+    }
+
     public function scopeVisibleTo($query, string $userId)
     {
         return $query->where(function ($q) use ($userId) {
             $q->where('user_id', $userId)
               ->orWhere('is_shared', true);
         });
+    }
+
+    public function deletionConstraints(): array
+    {
+        return [
+            'exportProfiles'  => 'Exportprofile',
+            'reportTemplates' => 'Report-Vorlagen',
+        ];
     }
 }

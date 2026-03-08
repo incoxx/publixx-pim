@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Requests\Api\V1\StoreAttributeRequest;
 use App\Http\Requests\Api\V1\UpdateAttributeRequest;
 use App\Http\Resources\Api\V1\AttributeResource;
+use App\Http\Traits\ChecksDeletionConstraints;
 use App\Models\Attribute;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -14,6 +15,7 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class AttributeController extends Controller
 {
+    use ChecksDeletionConstraints;
     private const ALLOWED_INCLUDES = [
         'attributeType', 'unitGroup', 'defaultUnit', 'valueList',
         'children', 'parent', 'comparisonOperatorGroup', 'attributeViews',
@@ -74,13 +76,18 @@ class AttributeController extends Controller
         return new AttributeResource($attribute->fresh());
     }
 
-    public function destroy(Attribute $attribute): JsonResponse
+    public function dependencies(Attribute $attribute): JsonResponse
+    {
+        $this->authorize('view', $attribute);
+
+        return $this->dependenciesResponse($attribute);
+    }
+
+    public function destroy(Request $request, Attribute $attribute): JsonResponse
     {
         $this->authorize('delete', $attribute);
 
-        $attribute->delete();
-
-        return response()->json(null, 204);
+        return $this->destroyWithConstraintCheck($request, $attribute);
     }
 
     private const BULK_ALLOWED_FIELDS = [

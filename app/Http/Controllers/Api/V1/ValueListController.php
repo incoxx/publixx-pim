@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Requests\Api\V1\StoreValueListRequest;
 use App\Http\Requests\Api\V1\UpdateValueListRequest;
 use App\Http\Resources\Api\V1\ValueListResource;
+use App\Http\Traits\ChecksDeletionConstraints;
 use App\Models\ValueList;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -14,6 +15,7 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class ValueListController extends Controller
 {
+    use ChecksDeletionConstraints;
     private const ALLOWED_INCLUDES = ['entries', 'attributes'];
 
     public function index(Request $request): AnonymousResourceCollection
@@ -60,12 +62,17 @@ class ValueListController extends Controller
         return new ValueListResource($valueList->fresh());
     }
 
-    public function destroy(ValueList $valueList): JsonResponse
+    public function dependencies(ValueList $valueList): JsonResponse
+    {
+        $this->authorize('view', $valueList);
+
+        return $this->dependenciesResponse($valueList);
+    }
+
+    public function destroy(Request $request, ValueList $valueList): JsonResponse
     {
         $this->authorize('delete', $valueList);
 
-        $valueList->delete();
-
-        return response()->json(null, 204);
+        return $this->destroyWithConstraintCheck($request, $valueList);
     }
 }

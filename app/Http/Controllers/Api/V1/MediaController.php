@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Requests\Api\V1\StoreMediaRequest;
 use App\Http\Requests\Api\V1\UpdateMediaRequest;
 use App\Http\Resources\Api\V1\MediaResource;
+use App\Http\Traits\ChecksDeletionConstraints;
 use App\Models\Media;
 use App\Services\ThumbnailService;
 use Illuminate\Http\JsonResponse;
@@ -19,6 +20,8 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class MediaController extends Controller
 {
+    use ChecksDeletionConstraints;
+
     private const ALLOWED_FILTERS = ['media_type', 'mime_type', 'asset_folder_id', 'usage_purpose'];
 
     public function index(Request $request): AnonymousResourceCollection
@@ -112,21 +115,18 @@ class MediaController extends Controller
         return new MediaResource($medium->fresh());
     }
 
-    public function destroy(Media $medium): JsonResponse
+    public function dependencies(Media $medium): JsonResponse
+    {
+        $this->authorize('view', $medium);
+
+        return $this->dependenciesResponse($medium);
+    }
+
+    public function destroy(Request $request, Media $medium): JsonResponse
     {
         $this->authorize('delete', $medium);
 
-        // Delete thumbnails
-        app(ThumbnailService::class)->clearCache($medium);
-
-        // Delete the physical file
-        if (Storage::disk('public')->exists($medium->file_path)) {
-            Storage::disk('public')->delete($medium->file_path);
-        }
-
-        $medium->delete();
-
-        return response()->json(null, 204);
+        return $this->destroyWithConstraintCheck($request, $medium);
     }
 
     /**

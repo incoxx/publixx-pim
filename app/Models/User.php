@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Models\Concerns\HasDeletionConstraints;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -14,7 +15,7 @@ use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable
 {
-    use HasApiTokens, HasFactory, HasRoles, HasUuids, Notifiable;
+    use HasApiTokens, HasDeletionConstraints, HasFactory, HasRoles, HasUuids, Notifiable;
 
     protected $guard_name = 'sanctum';
 
@@ -65,5 +66,14 @@ class User extends Authenticatable
     public function watchlistItems(): HasMany
     {
         return $this->hasMany(WatchlistItem::class);
+    }
+
+    public function deletionConstraints(): array
+    {
+        return [
+            'createdProducts' => 'Erstellte Produkte',
+            'importJobs'      => 'Import-Jobs',
+            'watchlistItems'  => 'Merklisten-Einträge',
+        ];
     }
 }

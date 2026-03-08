@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Models\Concerns\HasDeletionConstraints;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -11,7 +12,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class DictionaryEntry extends Model
 {
-    use HasFactory, HasUuids;
+    use HasDeletionConstraints, HasFactory, HasUuids;
 
     protected $fillable = [
         'category',
@@ -27,5 +28,12 @@ class DictionaryEntry extends Model
         return $this->belongsToMany(Attribute::class, 'attribute_dictionary_entry')
             ->withPivot('sort_order')
             ->withTimestamps();
+    }
+
+    public function deletionConstraints(): array
+    {
+        return [
+            'attributes' => 'Attribute',
+        ];
     }
 }

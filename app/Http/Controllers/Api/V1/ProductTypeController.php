@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Requests\Api\V1\StoreProductTypeRequest;
 use App\Http\Requests\Api\V1\UpdateProductTypeRequest;
 use App\Http\Resources\Api\V1\ProductTypeResource;
+use App\Http\Traits\ChecksDeletionConstraints;
 use App\Models\ProductType;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -14,6 +15,7 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class ProductTypeController extends Controller
 {
+    use ChecksDeletionConstraints;
     private const ALLOWED_INCLUDES = ['products'];
 
     public function index(Request $request): AnonymousResourceCollection
@@ -63,13 +65,18 @@ class ProductTypeController extends Controller
         return new ProductTypeResource($productType->fresh());
     }
 
-    public function destroy(ProductType $productType): JsonResponse
+    public function dependencies(ProductType $productType): JsonResponse
+    {
+        $this->authorize('view', $productType);
+
+        return $this->dependenciesResponse($productType);
+    }
+
+    public function destroy(Request $request, ProductType $productType): JsonResponse
     {
         $this->authorize('delete', $productType);
 
-        $productType->delete();
-
-        return response()->json(null, 204);
+        return $this->destroyWithConstraintCheck($request, $productType);
     }
 
     /**

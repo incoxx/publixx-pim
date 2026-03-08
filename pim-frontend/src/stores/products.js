@@ -67,8 +67,8 @@ export const useProductStore = defineStore('products', () => {
     return data.data || data
   }
 
-  async function remove(id) {
-    await productsApi.delete(id)
+  async function remove(id, { force = false } = {}) {
+    await productsApi.delete(id, { force })
     items.value = items.value.filter(p => p.id !== id)
     if (current.value?.id === id) current.value = null
   }

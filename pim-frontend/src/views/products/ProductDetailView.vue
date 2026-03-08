@@ -17,6 +17,7 @@ import PimCollectionGroup from '@/components/shared/PimCollectionGroup.vue'
 import PimAttributeInput from '@/components/shared/PimAttributeInput.vue'
 import PimTable from '@/components/shared/PimTable.vue'
 import PimConfirmDialog from '@/components/shared/PimConfirmDialog.vue'
+import PimDeleteConfirmDialog from '@/components/shared/PimDeleteConfirmDialog.vue'
 import PimCompositeModal from '@/components/shared/PimCompositeModal.vue'
 import ProductVersionsTab from '@/components/products/ProductVersionsTab.vue'
 import { formatCompositeSummary } from '@/utils/formatting'
@@ -446,10 +447,10 @@ async function createVariant() {
 const variantDeleteTarget = ref(null)
 const variantDeleting = ref(false)
 
-async function confirmDeleteVariant() {
+async function confirmDeleteVariant({ force = false } = {}) {
   variantDeleting.value = true
   try {
-    await productsApi.delete(variantDeleteTarget.value.id)
+    await productsApi.delete(variantDeleteTarget.value.id, { force })
     variantDeleteTarget.value = null
     variantsLoaded.value = false
     await loadVariants()
@@ -1921,10 +1922,12 @@ watch(() => route.params.id, async (newId, oldId) => {
         </template>
       </PimTable>
 
-      <PimConfirmDialog
+      <PimDeleteConfirmDialog
         :open="!!variantDeleteTarget"
         title="Variante löschen?"
         message="Diese Variante wird unwiderruflich gelöscht."
+        entityType="products"
+        :entityId="variantDeleteTarget?.id || ''"
         :loading="variantDeleting"
         @confirm="confirmDeleteVariant"
         @cancel="variantDeleteTarget = null"

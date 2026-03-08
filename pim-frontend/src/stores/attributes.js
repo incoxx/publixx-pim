@@ -84,8 +84,8 @@ export const useAttributeStore = defineStore('attributes', () => {
     return data.data || data
   }
 
-  async function deleteAttribute(id) {
-    await attributesApi.delete(id)
+  async function deleteAttribute(id, { force = false } = {}) {
+    await attributesApi.delete(id, { force })
     items.value = items.value.filter(a => a.id !== id)
   }
 

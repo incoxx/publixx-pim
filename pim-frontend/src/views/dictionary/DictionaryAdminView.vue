@@ -6,7 +6,7 @@ import { useFilters } from '@/composables/useFilters'
 import { Plus, Filter, X } from 'lucide-vue-next'
 import PimTable from '@/components/shared/PimTable.vue'
 import PimFilterBar from '@/components/shared/PimFilterBar.vue'
-import PimConfirmDialog from '@/components/shared/PimConfirmDialog.vue'
+import PimDeleteConfirmDialog from '@/components/shared/PimDeleteConfirmDialog.vue'
 import DictionaryEntryFormPanel from '@/components/panels/DictionaryEntryFormPanel.vue'
 
 const store = useDictionaryStore()
@@ -80,10 +80,10 @@ function handleRowAction(row) {
   deleteTarget.value = row
 }
 
-async function confirmDelete() {
+async function confirmDelete({ force } = {}) {
   deleting.value = true
   try {
-    await store.deleteEntry(deleteTarget.value.id)
+    await store.deleteEntry(deleteTarget.value.id, { force })
     deleteTarget.value = null
   } finally {
     deleting.value = false
@@ -188,11 +188,13 @@ onMounted(() => {
       </template>
     </PimTable>
 
-    <PimConfirmDialog
+    <PimDeleteConfirmDialog
       :open="!!deleteTarget"
       title="Wörterbucheintrag löschen?"
       :message="`Der Eintrag '${deleteTarget?.short_text_de || ''}' wird unwiderruflich gelöscht.`"
       :loading="deleting"
+      entityType="dictionary-entries"
+      :entityId="deleteTarget?.id"
       @confirm="confirmDelete"
       @cancel="deleteTarget = null"
     />

@@ -9,6 +9,7 @@ use App\Http\Requests\Api\V1\UpdateUnitGroupRequest;
 use App\Http\Requests\Api\V1\StoreUnitRequest;
 use App\Http\Resources\Api\V1\UnitGroupResource;
 use App\Http\Resources\Api\V1\UnitResource;
+use App\Http\Traits\ChecksDeletionConstraints;
 use App\Models\UnitGroup;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -16,6 +17,8 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class UnitGroupController extends Controller
 {
+    use ChecksDeletionConstraints;
+
     private const ALLOWED_INCLUDES = ['units'];
 
     public function index(Request $request): AnonymousResourceCollection
@@ -62,12 +65,17 @@ class UnitGroupController extends Controller
         return new UnitGroupResource($unitGroup->fresh());
     }
 
-    public function destroy(UnitGroup $unitGroup): JsonResponse
+    public function dependencies(UnitGroup $unitGroup): JsonResponse
+    {
+        $this->authorize('view', $unitGroup);
+
+        return $this->dependenciesResponse($unitGroup);
+    }
+
+    public function destroy(Request $request, UnitGroup $unitGroup): JsonResponse
     {
         $this->authorize('delete', $unitGroup);
 
-        $unitGroup->delete();
-
-        return response()->json(null, 204);
+        return $this->destroyWithConstraintCheck($request, $unitGroup);
     }
 }

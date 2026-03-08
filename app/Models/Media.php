@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Models\Concerns\HasDeletionConstraints;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -13,7 +14,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Media extends Model
 {
-    use HasFactory, HasUuids;
+    use HasDeletionConstraints, HasFactory, HasUuids;
 
     protected $table = 'media';
 
@@ -63,5 +64,13 @@ class Media extends Model
     public function productAssignments(): HasMany
     {
         return $this->hasMany(ProductMediaAssignment::class);
+    }
+
+    public function deletionConstraints(): array
+    {
+        return [
+            'productAssignments' => 'Produkt-Zuordnungen',
+            'attributeValues'    => 'Attributwerte',
+        ];
     }
 }

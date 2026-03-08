@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Models\Concerns\HasDeletionConstraints;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -12,7 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ProductRelationType extends Model
 {
-    use HasFactory, HasUuids;
+    use HasDeletionConstraints, HasFactory, HasUuids;
 
     protected $fillable = [
         'technical_name',
@@ -40,5 +41,13 @@ class ProductRelationType extends Model
         return $this->belongsToMany(Attribute::class, 'relation_type_default_attributes', 'relation_type_id', 'attribute_id')
             ->withPivot('sort_order')
             ->orderByPivot('sort_order');
+    }
+
+    public function deletionConstraints(): array
+    {
+        return [
+            'relations'         => 'Produktbeziehungen',
+            'defaultAttributes' => 'Standard-Attribute',
+        ];
     }
 }

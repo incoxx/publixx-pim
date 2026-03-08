@@ -5,7 +5,7 @@ import { unitGroups, units } from '@/api/units'
 import { Plus, ChevronLeft, Trash2, Check, X } from 'lucide-vue-next'
 import PimTable from '@/components/shared/PimTable.vue'
 import PimFilterBar from '@/components/shared/PimFilterBar.vue'
-import PimConfirmDialog from '@/components/shared/PimConfirmDialog.vue'
+import PimDeleteConfirmDialog from '@/components/shared/PimDeleteConfirmDialog.vue'
 import UnitGroupFormPanel from '@/components/panels/UnitGroupFormPanel.vue'
 
 const authStore = useAuthStore()
@@ -68,10 +68,10 @@ function handleRowAction(row) {
   deleteTarget.value = row
 }
 
-async function confirmDelete() {
+async function confirmDelete({ force } = {}) {
   deleting.value = true
   try {
-    await unitGroups.delete(deleteTarget.value.id)
+    await unitGroups.delete(deleteTarget.value.id, { force })
     if (selectedGroup.value?.id === deleteTarget.value.id) selectedGroup.value = null
     deleteTarget.value = null
     await fetchGroups()
@@ -152,10 +152,10 @@ async function saveEdit() {
 }
 
 // Delete unit
-async function confirmDeleteUnit() {
+async function confirmDeleteUnit({ force } = {}) {
   deletingUnit.value = true
   try {
-    await units.delete(deleteUnitTarget.value.id)
+    await units.delete(deleteUnitTarget.value.id, { force })
     deleteUnitTarget.value = null
     await fetchUnits()
     await fetchGroups()
@@ -324,21 +324,25 @@ onMounted(() => fetchGroups())
     </div>
 
     <!-- Confirm delete group -->
-    <PimConfirmDialog
+    <PimDeleteConfirmDialog
       :open="!!deleteTarget"
       title="Einheitengruppe löschen?"
       :message="`Die Einheitengruppe '${deleteTarget?.name_de || ''}' und alle zugehörigen Einheiten werden gelöscht.`"
       :loading="deleting"
+      entityType="unit-groups"
+      :entityId="deleteTarget?.id"
       @confirm="confirmDelete"
       @cancel="deleteTarget = null"
     />
 
     <!-- Confirm delete unit -->
-    <PimConfirmDialog
+    <PimDeleteConfirmDialog
       :open="!!deleteUnitTarget"
       title="Einheit löschen?"
       :message="`Die Einheit '${deleteUnitTarget?.technical_name || ''}' wird gelöscht.`"
       :loading="deletingUnit"
+      entityType="units"
+      :entityId="deleteUnitTarget?.id"
       @confirm="confirmDeleteUnit"
       @cancel="deleteUnitTarget = null"
     />

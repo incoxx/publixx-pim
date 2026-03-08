@@ -17,8 +17,12 @@ export default {
     return client.put(`/report-templates/${id}`, data)
   },
 
-  remove(id) {
-    return client.delete(`/report-templates/${id}`)
+  dependencies(id) {
+    return client.get(`/report-templates/${id}/dependencies`)
+  },
+
+  remove(id, { force = false } = {}) {
+    return client.delete(`/report-templates/${id}`, { params: force ? { force: true } : {} })
   },
 
   fields() {

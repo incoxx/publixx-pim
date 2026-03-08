@@ -7,7 +7,7 @@ import { relationTypes } from '@/api/prices'
 import { Plus } from 'lucide-vue-next'
 import PimTable from '@/components/shared/PimTable.vue'
 import PimFilterBar from '@/components/shared/PimFilterBar.vue'
-import PimConfirmDialog from '@/components/shared/PimConfirmDialog.vue'
+import PimDeleteConfirmDialog from '@/components/shared/PimDeleteConfirmDialog.vue'
 import RelationTypeFormPanel from '@/components/panels/RelationTypeFormPanel.vue'
 
 const { t } = useI18n()
@@ -58,10 +58,10 @@ function handleRowAction(row) {
   deleteTarget.value = row
 }
 
-async function confirmDelete() {
+async function confirmDelete({ force } = {}) {
   deleting.value = true
   try {
-    await relationTypes.delete(deleteTarget.value.id)
+    await relationTypes.delete(deleteTarget.value.id, { force })
     items.value = items.value.filter(rt => rt.id !== deleteTarget.value.id)
     deleteTarget.value = null
   } finally {
@@ -111,11 +111,13 @@ onMounted(() => {
       </template>
     </PimTable>
 
-    <PimConfirmDialog
+    <PimDeleteConfirmDialog
       :open="!!deleteTarget"
       title="Beziehungstyp löschen?"
       :message="`Der Beziehungstyp '${deleteTarget?.name_de || deleteTarget?.technical_name || ''}' wird unwiderruflich gelöscht.`"
       :loading="deleting"
+      entityType="relation-types"
+      :entityId="deleteTarget?.id"
       @confirm="confirmDelete"
       @cancel="deleteTarget = null"
     />

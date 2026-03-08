@@ -35,8 +35,8 @@ export const useDictionaryStore = defineStore('dictionary', () => {
     return data.data || data
   }
 
-  async function deleteEntry(id) {
-    await dictionaryApi.delete(id)
+  async function deleteEntry(id, { force = false } = {}) {
+    await dictionaryApi.delete(id, { force })
     items.value = items.value.filter(e => e.id !== id)
   }
 

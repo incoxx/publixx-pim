@@ -6,7 +6,7 @@ import { useI18n } from 'vue-i18n'
 import { Plus } from 'lucide-vue-next'
 import PimTable from '@/components/shared/PimTable.vue'
 import PimFilterBar from '@/components/shared/PimFilterBar.vue'
-import PimConfirmDialog from '@/components/shared/PimConfirmDialog.vue'
+import PimDeleteConfirmDialog from '@/components/shared/PimDeleteConfirmDialog.vue'
 import AttributeTypeFormPanel from '@/components/panels/AttributeTypeFormPanel.vue'
 
 const { t } = useI18n()
@@ -54,10 +54,10 @@ function handleRowAction(row) {
   deleteTarget.value = row
 }
 
-async function confirmDelete() {
+async function confirmDelete({ force }) {
   deleting.value = true
   try {
-    await attributeTypes.delete(deleteTarget.value.id)
+    await attributeTypes.delete(deleteTarget.value.id, { force })
     deleteTarget.value = null
     await fetchTypes()
   } finally {
@@ -98,10 +98,12 @@ onMounted(() => fetchTypes())
       </template>
     </PimTable>
 
-    <PimConfirmDialog
+    <PimDeleteConfirmDialog
       :open="!!deleteTarget"
       title="Attributgruppe löschen?"
       :message="`Die Attributgruppe '${deleteTarget?.name_de || deleteTarget?.technical_name || ''}' wird unwiderruflich gelöscht.`"
+      entityType="attribute-types"
+      :entityId="deleteTarget?.id"
       :loading="deleting"
       @confirm="confirmDelete"
       @cancel="deleteTarget = null"

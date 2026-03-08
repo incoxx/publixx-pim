@@ -7,7 +7,7 @@ import { useFilters } from '@/composables/useFilters'
 import { Plus, Filter, X, Pencil, ListFilter } from 'lucide-vue-next'
 import PimTable from '@/components/shared/PimTable.vue'
 import PimFilterBar from '@/components/shared/PimFilterBar.vue'
-import PimConfirmDialog from '@/components/shared/PimConfirmDialog.vue'
+import PimDeleteConfirmDialog from '@/components/shared/PimDeleteConfirmDialog.vue'
 import AttributeFormPanel from '@/components/panels/AttributeFormPanel.vue'
 import AttributePagination from '@/components/attributes/AttributePagination.vue'
 import AttributeBulkUpdateDialog from '@/components/attributes/AttributeBulkUpdateDialog.vue'
@@ -186,10 +186,10 @@ function handleRowAction(row) {
   deleteTarget.value = row
 }
 
-async function confirmDelete() {
+async function confirmDelete({ force } = {}) {
   deleting.value = true
   try {
-    await store.deleteAttribute(deleteTarget.value.id)
+    await store.deleteAttribute(deleteTarget.value.id, { force })
     deleteTarget.value = null
   } finally {
     deleting.value = false
@@ -390,11 +390,13 @@ onMounted(() => {
       </template>
     </PimTable>
 
-    <PimConfirmDialog
+    <PimDeleteConfirmDialog
       :open="!!deleteTarget"
       title="Attribut löschen?"
       :message="`Das Attribut '${deleteTarget?.name_de || deleteTarget?.technical_name || ''}' wird unwiderruflich gelöscht.`"
       :loading="deleting"
+      entityType="attributes"
+      :entityId="deleteTarget?.id"
       @confirm="confirmDelete"
       @cancel="deleteTarget = null"
     />

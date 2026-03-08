@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Models\Concerns\HasDeletionConstraints;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -14,7 +15,7 @@ use Illuminate\Support\Facades\DB;
 
 class HierarchyNode extends Model
 {
-    use HasFactory, HasUuids;
+    use HasDeletionConstraints, HasFactory, HasUuids;
 
     protected $fillable = [
         'hierarchy_id',
@@ -80,6 +81,17 @@ class HierarchyNode extends Model
     public function outputProductAssignments(): HasMany
     {
         return $this->hasMany(OutputHierarchyProductAssignment::class);
+    }
+
+    public function deletionConstraints(): array
+    {
+        return [
+            'children'                  => 'Unterknoten',
+            'products'                  => 'Produkte',
+            'attributeAssignments'      => 'Attribut-Zuordnungen',
+            'attributeValues'           => 'Attributwerte',
+            'outputProductAssignments'  => 'Ausgabe-Zuordnungen',
+        ];
     }
 
     /**

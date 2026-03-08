@@ -10,8 +10,11 @@ export const priceTypes = {
   update(id, data) {
     return client.put(`/price-types/${id}`, data)
   },
-  delete(id) {
-    return client.delete(`/price-types/${id}`)
+  dependencies(id) {
+    return client.get(`/price-types/${id}/dependencies`)
+  },
+  delete(id, { force = false } = {}) {
+    return client.delete(`/price-types/${id}`, { params: force ? { force: true } : {} })
   },
 }
 
@@ -25,8 +28,11 @@ export const relationTypes = {
   update(id, data) {
     return client.put(`/relation-types/${id}`, data)
   },
-  delete(id) {
-    return client.delete(`/relation-types/${id}`)
+  dependencies(id) {
+    return client.get(`/relation-types/${id}/dependencies`)
+  },
+  delete(id, { force = false } = {}) {
+    return client.delete(`/relation-types/${id}`, { params: force ? { force: true } : {} })
   },
   updateDefaultAttributes(id, attributes) {
     return client.put(`/relation-types/${id}/default-attributes`, { attributes })

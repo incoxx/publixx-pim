@@ -17,7 +17,11 @@ export default {
     return client.put(`/dictionary-entries/${id}`, data)
   },
 
-  delete(id) {
-    return client.delete(`/dictionary-entries/${id}`)
+  dependencies(id) {
+    return client.get(`/dictionary-entries/${id}/dependencies`)
+  },
+
+  delete(id, { force = false } = {}) {
+    return client.delete(`/dictionary-entries/${id}`, { params: force ? { force: true } : {} })
   },
 }

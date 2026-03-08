@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Models\Concerns\HasDeletionConstraints;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -11,7 +12,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ComparisonOperatorGroup extends Model
 {
-    use HasFactory, HasUuids;
+    use HasDeletionConstraints, HasFactory, HasUuids;
 
     protected $fillable = [
         'technical_name',
@@ -30,5 +31,18 @@ class ComparisonOperatorGroup extends Model
     public function operators(): HasMany
     {
         return $this->hasMany(ComparisonOperator::class, 'group_id');
+    }
+
+    public function attributes(): HasMany
+    {
+        return $this->hasMany(Attribute::class);
+    }
+
+    public function deletionConstraints(): array
+    {
+        return [
+            'operators'  => 'Operatoren',
+            'attributes' => 'Attribute',
+        ];
     }
 }

@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Requests\Api\V1\StoreAttributeTypeRequest;
 use App\Http\Requests\Api\V1\UpdateAttributeTypeRequest;
 use App\Http\Resources\Api\V1\AttributeTypeResource;
+use App\Http\Traits\ChecksDeletionConstraints;
 use App\Models\AttributeType;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -14,6 +15,7 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class AttributeTypeController extends Controller
 {
+    use ChecksDeletionConstraints;
     private const ALLOWED_INCLUDES = ['attributes'];
 
     public function index(Request $request): AnonymousResourceCollection
@@ -60,12 +62,17 @@ class AttributeTypeController extends Controller
         return new AttributeTypeResource($attributeType->fresh());
     }
 
-    public function destroy(AttributeType $attributeType): JsonResponse
+    public function dependencies(AttributeType $attributeType): JsonResponse
+    {
+        $this->authorize('view', $attributeType);
+
+        return $this->dependenciesResponse($attributeType);
+    }
+
+    public function destroy(Request $request, AttributeType $attributeType): JsonResponse
     {
         $this->authorize('delete', $attributeType);
 
-        $attributeType->delete();
-
-        return response()->json(null, 204);
+        return $this->destroyWithConstraintCheck($request, $attributeType);
     }
 }

@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Requests\Api\V1\StoreUnitRequest;
 use App\Http\Requests\Api\V1\UpdateUnitRequest;
 use App\Http\Resources\Api\V1\UnitResource;
+use App\Http\Traits\ChecksDeletionConstraints;
 use App\Models\Unit;
 use App\Models\UnitGroup;
 use Illuminate\Http\JsonResponse;
@@ -15,6 +16,8 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class UnitController extends Controller
 {
+    use ChecksDeletionConstraints;
+
     public function index(Request $request, UnitGroup $unitGroup): AnonymousResourceCollection
     {
         $this->authorize('viewAny', Unit::class);
@@ -54,12 +57,17 @@ class UnitController extends Controller
         return new UnitResource($unit->fresh());
     }
 
-    public function destroy(Unit $unit): JsonResponse
+    public function dependencies(Unit $unit): JsonResponse
+    {
+        $this->authorize('view', $unit);
+
+        return $this->dependenciesResponse($unit);
+    }
+
+    public function destroy(Request $request, Unit $unit): JsonResponse
     {
         $this->authorize('delete', $unit);
 
-        $unit->delete();
-
-        return response()->json(null, 204);
+        return $this->destroyWithConstraintCheck($request, $unit);
     }
 }
