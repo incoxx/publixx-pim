@@ -2215,77 +2215,62 @@ watch(() => route.params.id, async (newId, oldId) => {
           </div>
         </div>
 
-        <!-- Stammdaten -->
-        <PimCollectionGroup
-          title="Stammdaten"
-          :filledCount="Object.values(previewData.stammdaten).filter(v => v !== null && v !== '').length"
-          :totalCount="Object.keys(previewData.stammdaten).length"
-        >
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 pt-3">
-            <div>
-              <span class="block text-[11px] text-[var(--color-text-tertiary)]">SKU</span>
-              <p class="text-[13px] font-mono text-[var(--color-text-primary)]">{{ previewData.stammdaten.sku || '—' }}</p>
-            </div>
-            <div>
-              <span class="block text-[11px] text-[var(--color-text-tertiary)]">EAN</span>
-              <p class="text-[13px] font-mono text-[var(--color-text-primary)]">{{ previewData.stammdaten.ean || '—' }}</p>
-            </div>
-            <div>
-              <span class="block text-[11px] text-[var(--color-text-tertiary)]">Name</span>
-              <p class="text-[13px] text-[var(--color-text-primary)]">{{ previewData.stammdaten.name || '—' }}</p>
-            </div>
-            <div>
-              <span class="block text-[11px] text-[var(--color-text-tertiary)]">Status</span>
-              <span :class="[
-                'pim-badge text-[11px]',
-                previewData.stammdaten.status === 'active' ? 'bg-[var(--color-success-light)] text-[var(--color-success)]' : 'bg-[var(--color-bg)] text-[var(--color-text-tertiary)]'
-              ]">
-                {{ previewData.stammdaten.status || '—' }}
-              </span>
-            </div>
-            <div>
-              <span class="block text-[11px] text-[var(--color-text-tertiary)]">Produkttyp</span>
-              <p class="text-[13px] text-[var(--color-text-primary)]">{{ previewData.stammdaten.product_type?.name || '—' }}</p>
-            </div>
-            <div>
-              <span class="block text-[11px] text-[var(--color-text-tertiary)]">Hierarchie</span>
-              <p class="text-[13px] text-[var(--color-text-primary)]">
-                {{ previewData.stammdaten.category_breadcrumb?.map(b => b.name).join(' › ') || '—' }}
-              </p>
-            </div>
-            <div>
-              <span class="block text-[11px] text-[var(--color-text-tertiary)]">Erstellt</span>
-              <p class="text-[13px] text-[var(--color-text-primary)]">
-                {{ previewData.stammdaten.created_at ? new Date(previewData.stammdaten.created_at).toLocaleDateString('de-DE') : '—' }}
-                <span v-if="previewData.stammdaten.created_by" class="text-[var(--color-text-tertiary)]">von {{ previewData.stammdaten.created_by }}</span>
-              </p>
-            </div>
-            <div>
-              <span class="block text-[11px] text-[var(--color-text-tertiary)]">Aktualisiert</span>
-              <p class="text-[13px] text-[var(--color-text-primary)]">
-                {{ previewData.stammdaten.updated_at ? new Date(previewData.stammdaten.updated_at).toLocaleDateString('de-DE') : '—' }}
-                <span v-if="previewData.stammdaten.updated_by" class="text-[var(--color-text-tertiary)]">von {{ previewData.stammdaten.updated_by }}</span>
-              </p>
-            </div>
+        <!-- Stammdaten (compact header card) -->
+        <div class="pim-card px-5 py-4">
+          <p class="text-base font-semibold text-[var(--color-text-primary)] leading-tight">
+            {{ previewData.stammdaten.name || '—' }}
+          </p>
+          <div class="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-[12px] text-[var(--color-text-secondary)]">
+            <span><span class="text-[var(--color-text-tertiary)]">SKU:</span> <span class="font-mono">{{ previewData.stammdaten.sku || '—' }}</span></span>
+            <span><span class="text-[var(--color-text-tertiary)]">EAN:</span> <span class="font-mono">{{ previewData.stammdaten.ean || '—' }}</span></span>
+            <span :class="[
+              'pim-badge text-[11px]',
+              previewData.stammdaten.status === 'active' ? 'bg-[var(--color-success-light)] text-[var(--color-success)]' : 'bg-[var(--color-bg)] text-[var(--color-text-tertiary)]'
+            ]">
+              {{ previewData.stammdaten.status || '—' }}
+            </span>
+            <span><span class="text-[var(--color-text-tertiary)]">Typ:</span> {{ previewData.stammdaten.product_type?.name || '—' }}</span>
           </div>
-        </PimCollectionGroup>
+          <p v-if="previewData.stammdaten.category_breadcrumb?.length" class="text-[11px] text-[var(--color-text-tertiary)] mt-2">
+            {{ previewData.stammdaten.category_breadcrumb.map(b => b.name).join(' › ') }}
+          </p>
+          <div class="flex flex-wrap gap-x-4 gap-y-0.5 mt-2 text-[11px] text-[var(--color-text-tertiary)]">
+            <span v-if="previewData.stammdaten.created_at">
+              Erstellt: {{ new Date(previewData.stammdaten.created_at).toLocaleDateString('de-DE') }}
+              <span v-if="previewData.stammdaten.created_by"> von {{ previewData.stammdaten.created_by }}</span>
+            </span>
+            <span v-if="previewData.stammdaten.updated_at">
+              Aktualisiert: {{ new Date(previewData.stammdaten.updated_at).toLocaleDateString('de-DE') }}
+              <span v-if="previewData.stammdaten.updated_by"> von {{ previewData.stammdaten.updated_by }}</span>
+            </span>
+          </div>
+        </div>
 
-        <!-- Attribute Sections -->
+        <!-- Attribute Sections (table layout) -->
         <PimCollectionGroup
           v-for="section in previewData.attribute_sections"
           :key="section.section_name"
           :title="section.section_name"
           :filledCount="section.attributes.filter(a => a.display_value !== null).length"
           :totalCount="section.attributes.length"
-          :defaultOpen="false"
+          :defaultOpen="true"
         >
-          <div class="space-y-0 pt-3">
+          <div class="pt-2">
+            <!-- Table header -->
+            <div class="grid grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_24px] gap-x-3 px-2 py-1.5 text-[10px] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider border-b border-[var(--color-border)]">
+              <span>Attribut</span>
+              <span>Wert</span>
+              <span></span>
+            </div>
+            <!-- Rows -->
             <template v-for="attr in section.attributes" :key="attr.attribute_id + (attr.language || '')">
-              <!-- Skip child attributes that belong to a composite (shown grouped below their parent) -->
               <template v-if="!attr.parent_attribute_id">
-                <!-- Composite attribute: show label + formatted summary + children -->
-                <div v-if="attr.data_type === 'Composite'" class="py-1.5 border-b border-[var(--color-border)] last:border-0">
-                  <div class="flex items-center justify-between">
+                <!-- Composite attribute -->
+                <div v-if="attr.data_type === 'Composite'">
+                  <div :class="[
+                    'grid grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_24px] gap-x-3 px-2 py-2 border-b border-[var(--color-border)] items-center',
+                    !getPreviewCompositeSummary(attr, section.attributes) ? 'bg-red-50/60' : ''
+                  ]">
                     <span class="text-[12px] font-medium text-[var(--color-text-secondary)]">
                       {{ attr.label }}
                       <span class="pim-badge bg-[var(--color-bg)] text-[var(--color-text-tertiary)] text-[9px] ml-1">Composite</span>
@@ -2293,24 +2278,30 @@ watch(() => route.params.id, async (newId, oldId) => {
                     <span class="text-[12px] text-[var(--color-text-primary)]">
                       {{ getPreviewCompositeSummary(attr, section.attributes) || '—' }}
                     </span>
+                    <span :class="['inline-block w-2 h-2 rounded-full mx-auto', getPreviewCompositeSummary(attr, section.attributes) ? 'bg-[var(--color-success)]' : 'border-2 border-[var(--color-text-tertiary)]']" />
                   </div>
-                  <!-- Child attributes indented -->
-                  <div class="ml-4 mt-1 space-y-0">
-                    <div
-                      v-for="child in section.attributes.filter(a => a.parent_attribute_id === attr.attribute_id)"
-                      :key="child.attribute_id"
-                      class="flex items-center justify-between py-1 text-[11px] text-[var(--color-text-tertiary)]"
-                    >
-                      <span>{{ child.label }}</span>
-                      <span class="text-[var(--color-text-secondary)]">
-                        {{ child.display_value || '—' }}
-                        <span v-if="child.unit">{{ child.unit }}</span>
-                      </span>
-                    </div>
+                  <!-- Child attributes -->
+                  <div
+                    v-for="child in section.attributes.filter(a => a.parent_attribute_id === attr.attribute_id)"
+                    :key="child.attribute_id"
+                    :class="[
+                      'grid grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_24px] gap-x-3 px-2 py-1.5 border-b border-[var(--color-border)] items-center',
+                      !child.display_value ? 'bg-red-50/60' : ''
+                    ]"
+                  >
+                    <span class="text-[11px] text-[var(--color-text-tertiary)] pl-4">{{ child.label }}</span>
+                    <span class="text-[11px] text-[var(--color-text-secondary)]">
+                      {{ child.display_value || '—' }}
+                      <span v-if="child.unit" class="text-[var(--color-text-tertiary)]"> {{ child.unit }}</span>
+                    </span>
+                    <span :class="['inline-block w-1.5 h-1.5 rounded-full mx-auto', child.display_value ? 'bg-[var(--color-success)]' : 'border border-[var(--color-text-tertiary)]']" />
                   </div>
                 </div>
                 <!-- Normal attribute -->
-                <div v-else class="flex items-center justify-between py-1.5 border-b border-[var(--color-border)] last:border-0">
+                <div v-else :class="[
+                  'grid grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_24px] gap-x-3 px-2 py-2 border-b border-[var(--color-border)] last:border-0 items-center',
+                  !attr.display_value ? 'bg-red-50/60' : ''
+                ]">
                   <span class="text-[12px] font-medium text-[var(--color-text-secondary)]">
                     {{ attr.label }}
                     <span v-if="attr.is_mandatory" class="text-[var(--color-error)]">*</span>
@@ -2318,8 +2309,9 @@ watch(() => route.params.id, async (newId, oldId) => {
                   </span>
                   <span class="text-[12px] text-[var(--color-text-primary)]">
                     {{ attr.display_value || '—' }}
-                    <span v-if="attr.unit" class="text-[var(--color-text-tertiary)]">{{ attr.unit }}</span>
+                    <span v-if="attr.unit" class="text-[var(--color-text-tertiary)]"> {{ attr.unit }}</span>
                   </span>
+                  <span :class="['inline-block w-2 h-2 rounded-full mx-auto', attr.display_value ? 'bg-[var(--color-success)]' : 'border-2 border-[var(--color-text-tertiary)]']" />
                 </div>
               </template>
             </template>
