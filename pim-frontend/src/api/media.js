@@ -30,6 +30,13 @@ export default {
     return client.delete(`/media/${id}`)
   },
 
+  bulkMove(mediaIds, assetFolderId) {
+    return client.post('/media/bulk-move', {
+      media_ids: mediaIds,
+      asset_folder_id: assetFolderId,
+    })
+  },
+
   getAttributeValues(mediaId, params = {}) {
     return client.get(`/media/${mediaId}/attribute-values`, { params: buildParams(params) })
   },

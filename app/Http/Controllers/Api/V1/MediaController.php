@@ -211,6 +211,28 @@ class MediaController extends Controller
     }
 
     /**
+     * POST /media/bulk-move — move multiple media items to a folder.
+     */
+    public function bulkMove(Request $request): JsonResponse
+    {
+        $this->authorize('update', Media::class);
+
+        $validated = $request->validate([
+            'media_ids' => ['required', 'array', 'min:1'],
+            'media_ids.*' => ['required', 'integer', 'exists:media,id'],
+            'asset_folder_id' => ['nullable', 'integer', 'exists:hierarchy_nodes,id'],
+        ]);
+
+        Media::whereIn('id', $validated['media_ids'])
+            ->update(['asset_folder_id' => $validated['asset_folder_id']]);
+
+        return response()->json([
+            'message' => 'Medien erfolgreich verschoben.',
+            'moved' => count($validated['media_ids']),
+        ]);
+    }
+
+    /**
      * GET /media/diagnostics — check storage, GD, file integrity (admin only).
      */
     public function diagnostics(): JsonResponse

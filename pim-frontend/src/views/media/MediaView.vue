@@ -1,6 +1,6 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { Upload, Image, Grid, List, Trash2, FolderOpen, FolderPlus, Search, X, Plus } from 'lucide-vue-next'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { Upload, Image, Grid, List, Trash2, FolderOpen, FolderPlus, Search, X, Plus, MoveRight, CheckSquare } from 'lucide-vue-next'
 import mediaApi from '@/api/media'
 import hierarchiesApi from '@/api/hierarchies'
 import { useAuthStore } from '@/stores/auth'
@@ -20,6 +20,12 @@ const selectedFolderId = ref(null)
 const usagePurposeFilter = ref('')
 const detailItem = ref(null)
 const detailOpen = ref(false)
+
+// Selection & move
+const selectedIds = ref(new Set())
+const showMoveDialog = ref(false)
+const moveFolderId = ref(null)
+const moving = ref(false)
 
 // Folders
 const folders = ref([])
@@ -285,6 +291,57 @@ async function createFolder() {
   }
 }
 
+// ─── Selection & Move helpers ────────────────────────
+const allSelected = computed(() => items.value.length > 0 && items.value.every(i => selectedIds.value.has(i.id)))
+
+function toggleSelect(id) {
+  if (selectedIds.value.has(id)) selectedIds.value.delete(id)
+  else selectedIds.value.add(id)
+  // trigger reactivity
+  selectedIds.value = new Set(selectedIds.value)
+}
+
+function toggleSelectAll() {
+  if (allSelected.value) {
+    selectedIds.value = new Set()
+  } else {
+    selectedIds.value = new Set(items.value.map(i => i.id))
+  }
+}
+
+function clearSelection() {
+  selectedIds.value = new Set()
+}
+
+function flattenFolders(nodes, depth = 0) {
+  const result = []
+  for (const node of nodes) {
+    result.push({ id: node.id, name_de: node.name_de, depth })
+    if (node.children?.length) {
+      result.push(...flattenFolders(node.children, depth + 1))
+    }
+  }
+  return result
+}
+
+const flatFolderList = computed(() => flattenFolders(folders.value))
+
+async function moveSelectedToFolder() {
+  if (selectedIds.value.size === 0) return
+  moving.value = true
+  try {
+    await mediaApi.bulkMove([...selectedIds.value], moveFolderId.value)
+    showMoveDialog.value = false
+    moveFolderId.value = null
+    clearSelection()
+    await fetchMedia()
+  } catch (e) {
+    console.error('Failed to move media:', e)
+  } finally {
+    moving.value = false
+  }
+}
+
 function contextCreateSubfolder() {
   if (!contextMenu.value.node) return
   showNewFolder.value = true
@@ -307,8 +364,8 @@ onUnmounted(() => {
   clearTimeout(debounceTimer)
   document.removeEventListener('click', handleDocClick, true)
 })
-watch(usagePurposeFilter, () => fetchMedia())
-watch(selectedFolderId, () => fetchMedia())
+watch(usagePurposeFilter, () => { clearSelection(); fetchMedia() })
+watch(selectedFolderId, () => { clearSelection(); fetchMedia() })
 
 onMounted(() => {
   fetchMedia()
@@ -421,6 +478,26 @@ onMounted(() => {
         </div>
       </div>
 
+      <!-- Selection toolbar -->
+      <Transition name="slide-down">
+        <div v-if="selectedIds.size > 0" class="flex items-center gap-3 px-3 py-2 rounded-lg bg-[var(--color-primary-light)] border border-[var(--color-primary)] text-sm">
+          <CheckSquare class="w-4 h-4 text-[var(--color-primary)]" :stroke-width="2" />
+          <span class="text-[var(--color-primary)] font-medium">{{ selectedIds.size }} ausgewählt</span>
+          <button
+            v-if="authStore.hasPermission('media.edit')"
+            class="pim-btn pim-btn-primary pim-btn-sm flex items-center gap-1.5"
+            @click="showMoveDialog = true"
+          >
+            <MoveRight class="w-3.5 h-3.5" :stroke-width="2" />
+            In Ordner verschieben
+          </button>
+          <button class="pim-btn pim-btn-ghost pim-btn-sm ml-auto" @click="clearSelection">
+            <X class="w-3.5 h-3.5" :stroke-width="2" />
+            Auswahl aufheben
+          </button>
+        </div>
+      </Transition>
+
       <!-- Loading -->
       <div v-if="loading" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
         <div v-for="i in 10" :key="i" class="pim-skeleton aspect-square rounded-lg" />
@@ -429,7 +506,14 @@ onMounted(() => {
       <!-- Grid -->
       <div v-else-if="items.length > 0 && viewMode === 'grid'" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
         <div v-for="item in items" :key="item.id" class="pim-card overflow-hidden group cursor-pointer hover:shadow-md transition-shadow relative" @click="openDetail(item)">
-          <div class="aspect-square bg-[var(--color-bg)] flex items-center justify-center overflow-hidden">
+          <div class="aspect-square bg-[var(--color-bg)] flex items-center justify-center overflow-hidden relative">
+            <input
+              type="checkbox"
+              :checked="selectedIds.has(item.id)"
+              class="absolute top-2 left-2 z-10 w-4 h-4 accent-[var(--color-primary)] cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
+              :class="{ '!opacity-100': selectedIds.has(item.id) }"
+              @click.stop="toggleSelect(item.id)"
+            />
             <img v-if="item.media_type === 'image'" :src="getImageUrl(item)" :data-fallback="item.url || mediaApi.fileUrl(item.file_name)" class="w-full h-full object-cover" loading="lazy" alt="" @error="handleImgError" />
             <Image v-else class="w-8 h-8 text-[var(--color-text-tertiary)]" :stroke-width="1.5" />
           </div>
@@ -454,12 +538,29 @@ onMounted(() => {
 
       <!-- List view -->
       <div v-else-if="items.length > 0 && viewMode === 'list'" class="space-y-1">
+        <!-- Select-all header -->
+        <div class="flex items-center gap-3 px-2 py-1.5 text-[10px] font-medium text-[var(--color-text-secondary)] uppercase tracking-wider">
+          <input
+            type="checkbox"
+            :checked="allSelected"
+            class="w-4 h-4 flex-none accent-[var(--color-primary)] cursor-pointer"
+            @change="toggleSelectAll"
+          />
+          <span>Alle auswählen</span>
+        </div>
         <div
           v-for="item in items"
           :key="item.id"
           class="flex items-center gap-3 p-2 pim-card cursor-pointer hover:shadow-sm transition-shadow"
+          :class="{ 'ring-1 ring-[var(--color-primary)] bg-[var(--color-primary-light)]': selectedIds.has(item.id) }"
           @click="openDetail(item)"
         >
+          <input
+            type="checkbox"
+            :checked="selectedIds.has(item.id)"
+            class="w-4 h-4 flex-none accent-[var(--color-primary)] cursor-pointer"
+            @click.stop="toggleSelect(item.id)"
+          />
           <div class="w-10 h-10 flex-none rounded bg-[var(--color-bg)] overflow-hidden flex items-center justify-center">
             <img v-if="item.media_type === 'image'" :src="getImageUrl(item)" :data-fallback="item.url || mediaApi.fileUrl(item.file_name)" class="w-full h-full object-cover" loading="lazy" alt="" @error="handleImgError" />
             <Image v-else class="w-5 h-5 text-[var(--color-text-tertiary)]" :stroke-width="1.5" />
@@ -566,6 +667,35 @@ onMounted(() => {
       </div>
     </Transition>
 
+    <!-- Move to folder dialog -->
+    <Teleport to="body">
+      <Transition name="fade">
+        <div v-if="showMoveDialog" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" @click.self="showMoveDialog = false">
+          <div class="bg-[var(--color-surface)] rounded-xl shadow-xl w-full max-w-sm p-5 space-y-4">
+            <h3 class="text-sm font-semibold text-[var(--color-text-primary)]">
+              {{ selectedIds.size }} Medium{{ selectedIds.size > 1 ? ' Assets' : '' }} verschieben
+            </h3>
+            <div>
+              <label class="text-[10px] font-medium text-[var(--color-text-secondary)] uppercase block mb-1">Zielordner</label>
+              <select v-model="moveFolderId" class="pim-select text-xs w-full">
+                <option :value="null">— Kein Ordner (Stammverzeichnis) —</option>
+                <option v-for="f in flatFolderList" :key="f.id" :value="f.id">
+                  {{ '  '.repeat(f.depth) }}{{ f.depth > 0 ? '└ ' : '' }}{{ f.name_de }}
+                </option>
+              </select>
+            </div>
+            <div class="flex justify-end gap-2">
+              <button class="pim-btn pim-btn-ghost text-xs" @click="showMoveDialog = false">Abbrechen</button>
+              <button class="pim-btn pim-btn-primary text-xs flex items-center gap-1.5" :disabled="moving" @click="moveSelectedToFolder">
+                <MoveRight v-if="!moving" class="w-3.5 h-3.5" :stroke-width="2" />
+                {{ moving ? 'Verschiebe…' : 'Verschieben' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
     <PimConfirmDialog
       :open="!!deleteTarget"
       title="Medium löschen?"
@@ -590,4 +720,14 @@ onMounted(() => {
 .slide-leave-active { transition: all 0.2s ease; }
 .slide-enter-from,
 .slide-leave-to { opacity: 0; transform: translateX(20px); }
+
+.slide-down-enter-active,
+.slide-down-leave-active { transition: all 0.2s ease; }
+.slide-down-enter-from,
+.slide-down-leave-to { opacity: 0; transform: translateY(-8px); }
+
+.fade-enter-active,
+.fade-leave-active { transition: opacity 0.15s ease; }
+.fade-enter-from,
+.fade-leave-to { opacity: 0; }
 </style>

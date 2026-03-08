@@ -154,6 +154,7 @@ class ProductAttributeValueController extends Controller
                 'is_translatable' => (bool) $assignment->is_translatable,
                 'is_mandatory' => (bool) $assignment->is_mandatory,
                 'is_variant_attribute' => (bool) ($assignment->is_variant_attribute ?? false),
+                'attribute_type_id' => $assignment->attribute_type_id ?? null,
                 'parent_attribute_id' => $assignment->parent_attribute_id ?? null,
                 'composite_format' => $assignment->composite_format ?? null,
                 'collection_name' => $assignment->collection_name ?? $assignment->attribute_view_name_de ?? null,
