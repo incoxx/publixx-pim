@@ -157,7 +157,7 @@ async function loadAttributeData(overrideNodeId = null) {
         name_en: ra.attribute_name_en,
         data_type: ra.data_type,
         value_list_id: ra.value_list_id || null,
-        is_mandatory: ra.is_mandatory,
+        is_mandatory: !!(ra.is_mandatory || ra.is_required),
         is_translatable: ra.is_translatable,
         is_variant_attribute: ra.is_variant_attribute || false,
         attribute_type_id: ra.attribute_type_id || null,

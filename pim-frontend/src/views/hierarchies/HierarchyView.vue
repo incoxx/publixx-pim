@@ -384,6 +384,7 @@ async function saveNodeAttrValues() {
     for (const assignment of nodeAttributes.value) {
       const attr = assignment.attribute
       if (!attr) continue
+      if (assignment.access_hierarchy !== 'editable') continue
       const val = nodeAttrValues.value[attr.id]
       if (val === undefined || val === null || val === '') continue
       const entry = { attribute_id: attr.id }
@@ -1065,13 +1066,15 @@ onMounted(async () => {
                   <label v-if="authStore.hasPermission('hierarchies.edit')" class="flex items-center gap-1 ml-2 cursor-pointer" @click.stop>
                     <input
                       type="checkbox"
-                      :checked="assignment.is_required"
-                      class="w-3 h-3 rounded border-[var(--color-border)] text-[var(--color-error)] accent-[var(--color-error)]"
+                      :checked="assignment.is_required || assignment.attribute?.is_mandatory"
+                      :disabled="assignment.attribute?.is_mandatory"
+                      class="w-3 h-3 rounded border-[var(--color-border)] text-[var(--color-error)] accent-[var(--color-error)] disabled:opacity-60"
                       @change="toggleRequired(assignment)"
                     />
                     <span class="text-[10px] text-[var(--color-text-tertiary)]">Pflicht</span>
+                    <span v-if="assignment.attribute?.is_mandatory" class="text-[10px] text-[var(--color-text-tertiary)]">(global)</span>
                   </label>
-                  <span v-else-if="assignment.is_required" class="text-[10px] text-[var(--color-error)] font-medium ml-2">Pflicht</span>
+                  <span v-else-if="assignment.is_required || assignment.attribute?.is_mandatory" class="text-[10px] text-[var(--color-error)] font-medium ml-2">Pflicht</span>
                 </div>
                 <div class="flex items-center gap-0.5">
                   <template v-if="authStore.hasPermission('hierarchies.edit')">
@@ -1107,8 +1110,8 @@ onMounted(async () => {
           <p v-else class="text-xs text-[var(--color-text-tertiary)]">Keine Attribute zugeordnet</p>
         </div>
 
-        <!-- Node Attribute Values (editable) -->
-        <div v-if="nodeAttributes.length > 0" class="border-t border-[var(--color-border)] pt-4">
+        <!-- Node Attribute Values (only for access_hierarchy = 'editable') -->
+        <div v-if="nodeAttributes.some(a => a.access_hierarchy === 'editable')" class="border-t border-[var(--color-border)] pt-4">
           <div class="flex items-center justify-between mb-3">
             <h4 class="text-sm font-medium text-[var(--color-text-secondary)]">Attributwerte</h4>
             <button
@@ -1123,7 +1126,7 @@ onMounted(async () => {
           </div>
           <div class="space-y-3">
             <template v-for="assignment in filteredNodeAttributes" :key="'val-' + assignment.id">
-              <div v-if="assignment.attribute?.data_type !== 'Composite'">
+              <div v-if="assignment.attribute?.data_type !== 'Composite' && assignment.access_hierarchy === 'editable'">
                 <label class="block text-[12px] text-[var(--color-text-secondary)] mb-1">
                   {{ assignment.attribute?.name_de || assignment.attribute?.technical_name }}
                   <span class="text-[10px] text-[var(--color-text-tertiary)] ml-1">{{ assignment.attribute?.data_type }}</span>
