@@ -38,6 +38,10 @@ const attrPickerMeta = ref({ current_page: 1, last_page: 1, total: 0, per_page: 
 // Assigned attributes search (client-side filter)
 const nodeAttrSearch = ref('')
 
+// Node-assigned attribute values (EAV on nodes)
+const nodeAttrValues = ref({})
+const nodeAttrValuesSaving = ref(false)
+
 // Node products (master hierarchy)
 const nodeProducts = ref([])
 const nodeProductsLoading = ref(false)
@@ -345,6 +349,62 @@ async function persistAttributeOrder() {
   }
 }
 
+// ─── Node Attribute Values ───────────────────────────
+async function loadNodeAttrValues(nodeId) {
+  if (!nodeId) { nodeAttrValues.value = {}; return }
+  try {
+    const { data } = await hierarchiesApi.getNodeAttributeValues(nodeId, { perPage: 500 })
+    const vals = data.data || data
+    const map = {}
+    for (const v of vals) {
+      const attrId = v.attribute_id || v.attribute?.id
+      map[attrId] = v.value_string ?? v.value_number ?? v.value_date ?? v.value_flag ?? v.value_selection_id ?? null
+    }
+    nodeAttrValues.value = map
+  } catch {
+    nodeAttrValues.value = {}
+  }
+}
+
+async function saveNodeAttrValues() {
+  if (!store.selectedNode || nodeAttributes.value.length === 0) return
+  nodeAttrValuesSaving.value = true
+  try {
+    const values = []
+    for (const assignment of nodeAttributes.value) {
+      const attr = assignment.attribute
+      if (!attr) continue
+      const val = nodeAttrValues.value[attr.id]
+      if (val === undefined || val === null || val === '') continue
+      const entry = { attribute_id: attr.id }
+      switch (attr.data_type) {
+        case 'Number': case 'Float':
+          entry.value_number = Number(val)
+          break
+        case 'Date':
+          entry.value_date = val
+          break
+        case 'Flag':
+          entry.value_flag = !!val
+          break
+        case 'Selection': case 'Dictionary':
+          entry.value_string = String(val)
+          entry.value_selection_id = val
+          break
+        default:
+          entry.value_string = String(val)
+      }
+      values.push(entry)
+    }
+    await hierarchiesApi.updateNodeAttributeValues(store.selectedNode.id, values)
+    showFeedback('Attributwerte gespeichert')
+  } catch (e) {
+    showFeedback(e.response?.data?.title || 'Fehler beim Speichern', 'error')
+  } finally {
+    nodeAttrValuesSaving.value = false
+  }
+}
+
 // ─── Attribute Picker (search + pagination) ─────────
 async function fetchPickerAttributes(page = 1) {
   attrPickerLoading.value = true
@@ -587,6 +647,7 @@ watch(() => store.selectedNode, async (node) => {
   if (node) {
     loadNodeAttributes(node.id)
     loadNodeProducts(node.id)
+    loadNodeAttrValues(node.id)
     // Load hierarchy-level attrs if needed, then load values for this node
     await loadHierarchyLevelAttrs(selectedHierarchyId.value)
     loadHierarchyAttrValues(node.id)
@@ -595,6 +656,7 @@ watch(() => store.selectedNode, async (node) => {
     nodeProducts.value = []
     outputProductAssignments.value = []
     hierarchyAttrValues.value = {}
+    nodeAttrValues.value = {}
   }
   showProductSearch.value = false
   showAttrPicker.value = false
@@ -1019,6 +1081,40 @@ onMounted(async () => {
             <p v-if="nodeAttributes.length > 0" class="text-[11px] text-[var(--color-text-tertiary)] mt-1">{{ nodeAttributes.length }} Attribute zugeordnet</p>
           </template>
           <p v-else class="text-xs text-[var(--color-text-tertiary)]">Keine Attribute zugeordnet</p>
+        </div>
+
+        <!-- Node Attribute Values (editable) -->
+        <div v-if="nodeAttributes.length > 0" class="border-t border-[var(--color-border)] pt-4">
+          <div class="flex items-center justify-between mb-3">
+            <h4 class="text-sm font-medium text-[var(--color-text-secondary)]">Attributwerte</h4>
+            <button
+              v-if="authStore.hasPermission('hierarchies.edit')"
+              class="pim-btn pim-btn-primary text-xs"
+              :disabled="nodeAttrValuesSaving"
+              @click="saveNodeAttrValues"
+            >
+              <Save class="w-3 h-3" :stroke-width="2" />
+              {{ nodeAttrValuesSaving ? 'Speichern…' : 'Speichern' }}
+            </button>
+          </div>
+          <div class="space-y-3">
+            <template v-for="assignment in filteredNodeAttributes" :key="'val-' + assignment.id">
+              <div v-if="assignment.attribute?.data_type !== 'Composite'">
+                <label class="block text-[12px] text-[var(--color-text-secondary)] mb-1">
+                  {{ assignment.attribute?.name_de || assignment.attribute?.technical_name }}
+                  <span class="text-[10px] text-[var(--color-text-tertiary)] ml-1">{{ assignment.attribute?.data_type }}</span>
+                </label>
+                <PimAttributeInput
+                  :type="mapDataTypeToInput(assignment.attribute?.data_type)"
+                  :modelValue="nodeAttrValues[assignment.attribute?.id] ?? null"
+                  @update:modelValue="nodeAttrValues[assignment.attribute?.id] = $event"
+                  :options="(assignment.attribute?.value_list?.entries || []).map(e => ({ value: e.id, label: e.value_de || e.label_de || e.code }))"
+                  :disabled="!authStore.hasPermission('hierarchies.edit')"
+                  size="sm"
+                />
+              </div>
+            </template>
+          </div>
         </div>
       </div>
       <div v-else class="flex items-center justify-center h-full">

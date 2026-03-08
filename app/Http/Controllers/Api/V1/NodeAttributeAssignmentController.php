@@ -34,12 +34,12 @@ class NodeAttributeAssignmentController extends Controller
 
             $query = HierarchyNodeAttributeAssignment::whereIn('hierarchy_node_id', $nodeIds)
                 ->where('dont_inherit', false)
-                ->with('attribute')
+                ->with('attribute.valueList.entries')
                 ->orderBy('collection_sort', 'asc')
                 ->orderBy('attribute_sort', 'asc');
         } else {
             $query = $hierarchyNode->attributeAssignments()
-                ->with('attribute')
+                ->with('attribute.valueList.entries')
                 ->orderBy('collection_sort', 'asc')
                 ->orderBy('attribute_sort', 'asc');
         }
