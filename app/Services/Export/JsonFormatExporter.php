@@ -574,7 +574,7 @@ class JsonFormatExporter
         $productIds = $this->getFilteredProductIds($filters);
 
         $query = ProductRelation::query()
-            ->with(['sourceProduct', 'targetProduct', 'relationType']);
+            ->with(['sourceProduct', 'targetProduct', 'relationType', 'attributeValues.attribute', 'attributeValues.unit']);
 
         if ($productIds !== null) {
             $query->whereIn('source_product_id', $productIds);
@@ -585,12 +585,28 @@ class JsonFormatExporter
                 if (!$r->sourceProduct || !$r->targetProduct) {
                     continue;
                 }
-                $result[] = [
+                $entry = [
                     'source_sku' => $r->sourceProduct->sku,
                     'target_sku' => $r->targetProduct->sku,
                     'relation_type' => $r->relationType?->technical_name,
                     'sort_order' => $r->sort_order,
                 ];
+
+                if ($r->attributeValues->isNotEmpty()) {
+                    $entry['attribute_values'] = $r->attributeValues->map(fn ($av) => array_filter([
+                        'attribute' => $av->attribute?->technical_name,
+                        'value_string' => $av->value_string,
+                        'value_number' => $av->value_number !== null ? (float) $av->value_number : null,
+                        'value_date' => $av->value_date?->toDateString(),
+                        'value_flag' => $av->value_flag,
+                        'value_selection_id' => $av->value_selection_id,
+                        'unit' => $av->unit?->technical_name,
+                        'language' => $av->language,
+                        'multiplied_index' => $av->multiplied_index,
+                    ], fn ($v) => $v !== null))->values()->toArray();
+                }
+
+                $result[] = $entry;
             }
         });
 
