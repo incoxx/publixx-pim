@@ -21,6 +21,7 @@ use App\Http\Controllers\Api\V1\JsonExportImportController;
 use App\Http\Controllers\Api\V1\ImportProfileController;
 use App\Http\Controllers\Api\V1\LoadDemoDataController;
 use App\Http\Controllers\Api\V1\SearchProfileController;
+use App\Http\Controllers\Api\V1\HierarchyAttributeAssignmentController;
 use App\Http\Controllers\Api\V1\HierarchyController;
 use App\Http\Controllers\Api\V1\OutputHierarchyProductAssignmentController;
 use App\Http\Controllers\Api\V1\HierarchyNodeAttributeValueController;
@@ -188,6 +189,12 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // =====================================================================
     Route::apiResource('hierarchies', HierarchyController::class);
     Route::get('hierarchies/{hierarchy}/tree', [HierarchyController::class, 'tree']);
+
+    // Hierarchy-level attribute assignments
+    Route::get('hierarchies/{hierarchy}/attributes', [HierarchyAttributeAssignmentController::class, 'index']);
+    Route::post('hierarchies/{hierarchy}/attributes', [HierarchyAttributeAssignmentController::class, 'store']);
+    Route::delete('hierarchy-attribute-assignments/{hierarchy_attribute_assignment}', [HierarchyAttributeAssignmentController::class, 'destroy']);
+
     Route::apiResource('hierarchies.nodes', HierarchyNodeController::class)
         ->shallow()
         ->parameters(['nodes' => 'hierarchy_node']);

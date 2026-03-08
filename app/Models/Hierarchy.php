@@ -38,4 +38,9 @@ class Hierarchy extends Model
     {
         return $this->hasMany(HierarchyNode::class)->whereNull('parent_node_id');
     }
+
+    public function attributeAssignments(): HasMany
+    {
+        return $this->hasMany(HierarchyAttributeAssignment::class);
+    }
 }

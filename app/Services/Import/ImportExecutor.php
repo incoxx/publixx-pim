@@ -9,6 +9,7 @@ use App\Models\AttributeType;
 use App\Models\AttributeView;
 use App\Models\Hierarchy;
 use App\Models\HierarchyNode;
+use App\Models\HierarchyAttributeAssignment;
 use App\Models\HierarchyNodeAttributeAssignment;
 use App\Models\Media;
 use App\Models\OutputHierarchyProductAssignment;
@@ -89,6 +90,7 @@ class ImportExecutor
             '17_Beziehungstypen',
             '06_Hierarchien',
             '07_Hierarchie_Attribute',
+            '07b_Hierarchie_Ebene_Attribute',
             '08_Produkte',
             '09_Produktwerte',
             '10_Varianten',
@@ -150,6 +152,7 @@ class ImportExecutor
                     '05_Attribute' => 'importAttributes',
                     '06_Hierarchien' => 'importHierarchies',
                     '07_Hierarchie_Attribute' => 'importHierarchyAttributes',
+                    '07b_Hierarchie_Ebene_Attribute' => 'importHierarchyLevelAttributes',
                     '08_Produkte' => 'importProducts',
                     '09_Produktwerte' => 'importProductValues',
                     '10_Varianten' => 'importVariants',
@@ -629,6 +632,46 @@ class ImportExecutor
                 HierarchyNodeAttributeAssignment::create($data);
                 $this->stats[$sheetKey]['created']++;
             }
+            } catch (\Throwable $e) {
+                $this->logRowError($sheetKey, $row, $e);
+            }
+        }
+    }
+
+    private function importHierarchyLevelAttributes(array $rows, string $sheetKey): void
+    {
+        foreach ($rows as $row) {
+            try {
+                $hierarchyResult = $this->resolver->resolveHierarchy($row['hierarchy']);
+                if (!$hierarchyResult->resolved()) {
+                    $this->logSkipped($sheetKey, $row, "Hierarchie nicht gefunden: '{$row['hierarchy']}'");
+                    continue;
+                }
+
+                $attrResult = $this->resolver->resolveAttribute($row['attribute']);
+                if (!$attrResult->resolved()) {
+                    $this->logSkipped($sheetKey, $row, "Attribut nicht gefunden: '{$row['attribute']}'");
+                    continue;
+                }
+
+                $existing = HierarchyAttributeAssignment::where('hierarchy_id', $hierarchyResult->id)
+                    ->where('attribute_id', $attrResult->id)
+                    ->first();
+
+                $data = [
+                    'hierarchy_id' => $hierarchyResult->id,
+                    'attribute_id' => $attrResult->id,
+                    'sort_order' => (int) ($row['sort_order'] ?? 0),
+                ];
+
+                if ($existing) {
+                    $existing->update($data);
+                    $this->stats[$sheetKey]['updated']++;
+                } else {
+                    $data['id'] = Str::uuid()->toString();
+                    HierarchyAttributeAssignment::create($data);
+                    $this->stats[$sheetKey]['created']++;
+                }
             } catch (\Throwable $e) {
                 $this->logRowError($sheetKey, $row, $e);
             }
