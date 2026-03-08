@@ -134,34 +134,38 @@ class ProductCompletenessService
         $sections = [];
 
         foreach ($grouped as $sectionName => $attributes) {
-            $total = $attributes->count();
-            $filled = 0;
+            $mandatoryTotal = 0;
+            $mandatoryFilled = 0;
             $missing = [];
 
             foreach ($attributes as $attr) {
+                $isMandatory = (bool) ($attr->is_mandatory || !empty($attr->is_required));
                 $hasFill = in_array($attr->attribute_id, $existingValueIds);
 
-                if ($hasFill) {
-                    $filled++;
-                } else {
-                    $label = $lang === 'en' && $attr->attribute_name_en
-                        ? $attr->attribute_name_en
-                        : $attr->attribute_name_de;
+                if ($isMandatory) {
+                    $mandatoryTotal++;
+                    if ($hasFill) {
+                        $mandatoryFilled++;
+                    } else {
+                        $label = $lang === 'en' && $attr->attribute_name_en
+                            ? $attr->attribute_name_en
+                            : $attr->attribute_name_de;
 
-                    $missing[] = [
-                        'attribute_id' => $attr->attribute_id,
-                        'label' => $label,
-                        'is_mandatory' => (bool) ($attr->is_mandatory || !empty($attr->is_required)),
-                    ];
+                        $missing[] = [
+                            'attribute_id' => $attr->attribute_id,
+                            'label' => $label,
+                            'is_mandatory' => true,
+                        ];
+                    }
                 }
             }
 
             $sections[] = [
                 'name' => $sectionName,
                 'icon' => 'list',
-                'percentage' => $total > 0 ? (int) round(($filled / $total) * 100) : 100,
-                'total' => $total,
-                'filled' => $filled,
+                'percentage' => $mandatoryTotal > 0 ? (int) round(($mandatoryFilled / $mandatoryTotal) * 100) : 100,
+                'total' => $mandatoryTotal,
+                'filled' => $mandatoryFilled,
                 'missing' => $missing,
             ];
         }
