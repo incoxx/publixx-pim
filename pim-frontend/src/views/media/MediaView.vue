@@ -453,7 +453,7 @@ onMounted(() => {
         <div class="flex items-center gap-2">
           <!-- Search -->
           <div class="relative">
-            <Search class="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--color-text-tertiary)]" />
+            <Search class="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--color-text-tertiary)] z-10 pointer-events-none" />
             <input
               v-model="searchTerm"
               class="pim-input text-xs pl-7 w-48"
@@ -480,9 +480,9 @@ onMounted(() => {
 
       <!-- Selection toolbar -->
       <Transition name="slide-down">
-        <div v-if="selectedIds.size > 0" class="flex items-center gap-3 px-3 py-2 rounded-lg bg-[var(--color-primary-light)] border border-[var(--color-primary)] text-sm">
-          <CheckSquare class="w-4 h-4 text-[var(--color-primary)]" :stroke-width="2" />
-          <span class="text-[var(--color-primary)] font-medium">{{ selectedIds.size }} ausgewählt</span>
+        <div v-if="selectedIds.size > 0" class="flex items-center gap-3 px-3 py-2 rounded-lg bg-[var(--color-bg)] border border-[var(--color-border)] text-sm">
+          <CheckSquare class="w-4 h-4 text-[var(--color-text-secondary)]" :stroke-width="2" />
+          <span class="text-[var(--color-text-primary)] font-medium">{{ selectedIds.size }} ausgewählt</span>
           <button
             v-if="authStore.hasPermission('media.edit')"
             class="pim-btn pim-btn-primary pim-btn-sm flex items-center gap-1.5"
@@ -552,7 +552,7 @@ onMounted(() => {
           v-for="item in items"
           :key="item.id"
           class="flex items-center gap-3 p-2 pim-card cursor-pointer hover:shadow-sm transition-shadow"
-          :class="{ 'ring-1 ring-[var(--color-primary)] bg-[var(--color-primary-light)]': selectedIds.has(item.id) }"
+          :class="{ 'ring-1 ring-[var(--color-border)] bg-[var(--color-bg)]': selectedIds.has(item.id) }"
           @click="openDetail(item)"
         >
           <input

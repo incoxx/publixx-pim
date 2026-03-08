@@ -219,8 +219,8 @@ class MediaController extends Controller
 
         $validated = $request->validate([
             'media_ids' => ['required', 'array', 'min:1'],
-            'media_ids.*' => ['required', 'integer', 'exists:media,id'],
-            'asset_folder_id' => ['nullable', 'integer', 'exists:hierarchy_nodes,id'],
+            'media_ids.*' => ['required', 'uuid', 'exists:media,id'],
+            'asset_folder_id' => ['nullable', 'uuid', 'exists:hierarchy_nodes,id'],
         ]);
 
         Media::whereIn('id', $validated['media_ids'])

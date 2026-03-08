@@ -30,7 +30,7 @@ function openProduct(row) {
 <template>
   <div class="space-y-4 max-w-3xl mx-auto">
     <div class="relative">
-      <Search class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--color-text-tertiary)]" :stroke-width="1.75" />
+      <Search class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--color-text-tertiary)] z-10 pointer-events-none" :stroke-width="1.75" />
       <input v-model="searchInput" type="text" placeholder="Produkte, Attribute, SKUs durchsuchen..." class="pim-input pl-12 pr-4 py-3 text-base" @keydown.enter="doSearch" autofocus />
     </div>
 
