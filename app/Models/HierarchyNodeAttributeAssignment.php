@@ -23,6 +23,7 @@ class HierarchyNodeAttributeAssignment extends Model
         'collection_sort',
         'attribute_sort',
         'dont_inherit',
+        'is_required',
         'access_hierarchy',
         'access_product',
         'access_variant',
@@ -35,6 +36,7 @@ class HierarchyNodeAttributeAssignment extends Model
             'collection_sort' => 'integer',
             'attribute_sort' => 'integer',
             'dont_inherit' => 'boolean',
+            'is_required' => 'boolean',
         ];
     }
 

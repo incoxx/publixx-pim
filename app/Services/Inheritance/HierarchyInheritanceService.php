@@ -185,6 +185,7 @@ class HierarchyInheritanceService
                 'hnaa.access_hierarchy',
                 'hnaa.access_product',
                 'hnaa.access_variant',
+                'hnaa.is_required',
                 'a.technical_name as attribute_technical_name',
                 'a.name_de as attribute_name_de',
                 'a.name_en as attribute_name_en',
@@ -205,7 +206,7 @@ class HierarchyInheritanceService
             ->groupBy([
                 'hnaa.id', 'hnaa.hierarchy_node_id', 'hnaa.attribute_id',
                 'hnaa.collection_name', 'hnaa.collection_sort', 'hnaa.attribute_sort',
-                'hnaa.dont_inherit', 'hnaa.access_hierarchy', 'hnaa.access_product',
+                'hnaa.dont_inherit', 'hnaa.is_required', 'hnaa.access_hierarchy', 'hnaa.access_product',
                 'hnaa.access_variant', 'a.technical_name', 'a.name_de', 'a.name_en',
                 'a.data_type', 'a.is_translatable', 'a.is_mandatory', 'a.is_inheritable',
                 'a.is_variant_attribute', 'a.is_internal', 'a.attribute_type_id', 'a.parent_attribute_id',
