@@ -406,6 +406,10 @@ async function saveNodeAttrValues() {
       }
       values.push(entry)
     }
+    if (values.length === 0) {
+      showFeedback('Keine Werte zum Speichern')
+      return
+    }
     await hierarchiesApi.updateNodeAttributeValues(store.selectedNode.id, values)
     showFeedback('Attributwerte gespeichert')
   } catch (e) {
