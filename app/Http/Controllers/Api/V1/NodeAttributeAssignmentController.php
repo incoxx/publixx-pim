@@ -59,13 +59,16 @@ class NodeAttributeAssignmentController extends Controller
         $data = $request->validated();
         $data['hierarchy_node_id'] = $hierarchyNode->id;
 
+        // Auto-set is_required for globally mandatory attributes
+        $attribute = Attribute::find($data['attribute_id']);
+        if ($attribute && $attribute->is_mandatory) {
+            $data['is_required'] = true;
+        }
+
         $assignment = HierarchyNodeAttributeAssignment::create($data);
 
         // Notify Inheritance Agent
         event(new \App\Events\HierarchyAttributeChanged($hierarchyNode->id, $data['attribute_id']));
-
-        // Auto-assign child attributes for Composite attributes
-        $attribute = Attribute::find($data['attribute_id']);
         if ($attribute && $attribute->data_type === 'Composite') {
             $this->autoAssignCompositeChildren($assignment, $attribute, $hierarchyNode);
         }
