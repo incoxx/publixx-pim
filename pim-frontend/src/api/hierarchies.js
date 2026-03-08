@@ -49,6 +49,28 @@ export default {
     return client.post(`/hierarchy-nodes/${nodeId}/duplicate`)
   },
 
+  // Hierarchy-level attribute assignments
+  getHierarchyAttributes(hierarchyId, options = {}) {
+    return client.get(`/hierarchies/${hierarchyId}/attributes`, { params: buildParams(options) })
+  },
+
+  assignHierarchyAttribute(hierarchyId, data) {
+    return client.post(`/hierarchies/${hierarchyId}/attributes`, data)
+  },
+
+  removeHierarchyAttribute(assignmentId) {
+    return client.delete(`/hierarchy-attribute-assignments/${assignmentId}`)
+  },
+
+  // Node attribute values
+  getNodeAttributeValues(nodeId, options = {}) {
+    return client.get(`/hierarchy-nodes/${nodeId}/attribute-values`, { params: buildParams(options) })
+  },
+
+  updateNodeAttributeValues(nodeId, values) {
+    return client.put(`/hierarchy-nodes/${nodeId}/attribute-values`, { values })
+  },
+
   // Node attributes
   getNodeAttributes(nodeId, options = {}) {
     return client.get(`/hierarchy-nodes/${nodeId}/attributes`, { params: buildParams(options) })

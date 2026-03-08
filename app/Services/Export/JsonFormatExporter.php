@@ -9,6 +9,7 @@ use App\Models\AttributeType;
 use App\Models\AttributeView;
 use App\Models\Hierarchy;
 use App\Models\HierarchyNode;
+use App\Models\HierarchyAttributeAssignment;
 use App\Models\HierarchyNodeAttributeAssignment;
 use App\Models\OutputHierarchyProductAssignment;
 use App\Models\PriceType;
@@ -64,6 +65,7 @@ class JsonFormatExporter
         'relation_types',
         'hierarchies',
         'hierarchy_attribute_assignments',
+        'hierarchy_level_attribute_assignments',
         'products',
         'product_attribute_values',
         'variants',
@@ -176,6 +178,7 @@ class JsonFormatExporter
             'relation_types' => $this->exportRelationTypes(),
             'hierarchies' => $this->exportHierarchies(),
             'hierarchy_attribute_assignments' => $this->exportHierarchyAttributeAssignments(),
+            'hierarchy_level_attribute_assignments' => $this->exportHierarchyLevelAttributeAssignments(),
             'products' => $this->exportProducts($filters),
             'product_attribute_values' => $this->exportProductAttributeValues($filters),
             'variants' => $this->exportVariants($filters),
@@ -405,6 +408,21 @@ class JsonFormatExporter
             });
 
         return $result;
+    }
+
+    private function exportHierarchyLevelAttributeAssignments(): array
+    {
+        return HierarchyAttributeAssignment::query()
+            ->with(['hierarchy', 'attribute'])
+            ->orderBy('hierarchy_id')
+            ->orderBy('sort_order')
+            ->get()
+            ->map(fn (HierarchyAttributeAssignment $a) => [
+                'hierarchy' => $a->hierarchy?->technical_name,
+                'attribute' => $a->attribute?->technical_name,
+                'sort_order' => $a->sort_order,
+            ])
+            ->toArray();
     }
 
     // ─── Produkte und abhängige Daten ──────────────────────────

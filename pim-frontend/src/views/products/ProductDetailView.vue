@@ -10,7 +10,7 @@ import productsApi from '@/api/products'
 import mediaApi from '@/api/media'
 import { mediaUsageTypes } from '@/api/mediaUsageTypes'
 import { priceTypes, relationTypes } from '@/api/prices'
-import attributesApiDefault, { productTypes, valueLists } from '@/api/attributes'
+import attributesApiDefault, { productTypes, valueLists, attributeViews, attributeTypes } from '@/api/attributes'
 import dictionaryApi from '@/api/dictionary'
 import hierarchiesApi from '@/api/hierarchies'
 import PimCollectionGroup from '@/components/shared/PimCollectionGroup.vue'
@@ -28,7 +28,7 @@ const authStore = useAuthStore()
 const localeStore = useLocaleStore()
 const { t } = useI18n()
 
-const activeTab = ref('attributes')
+const activeTab = ref('base-data')
 const saving = ref(false)
 const activeDataLang = ref(localeStore.activeDataLocales[0] || 'de')
 
@@ -38,6 +38,7 @@ const hierarchyNodes = ref([])
 const selectedHierarchyId = ref(null)
 
 const tabs = [
+  { key: 'base-data', label: 'Grunddaten' },
   { key: 'attributes', label: t('product.attributes') },
   { key: 'variant-attributes', label: 'Varianten-Attribute' },
   { key: 'variants', label: t('product.variants') },
@@ -48,6 +49,29 @@ const tabs = [
   { key: 'preview', label: t('product.preview') },
   { key: 'versions', label: t('product.versions') },
 ]
+
+// ─── Attribute Filters ──────────────────────────────────
+const attrFilterSearch = ref('')
+const attrFilterView = ref(null)
+const attrFilterGroup = ref(null)
+const availableAttrViews = ref([])
+const availableAttrGroups = ref([])
+const filterOptionsLoaded = ref(false)
+
+async function loadFilterOptions() {
+  if (filterOptionsLoaded.value) return
+  try {
+    const [viewsRes, typesRes] = await Promise.all([
+      attributeViews.list({ include: 'attributes' }),
+      attributeTypes.list(),
+    ])
+    availableAttrViews.value = viewsRes.data.data || viewsRes.data || []
+    availableAttrGroups.value = typesRes.data.data || typesRes.data || []
+    filterOptionsLoaded.value = true
+  } catch (e) {
+    console.error('Failed to load filter options:', e)
+  }
+}
 
 const product = computed(() => store.current)
 
@@ -278,6 +302,47 @@ const variantAttributeGroups = computed(() => {
     groups[groupName].push(attr)
   }
   return Object.entries(groups).map(([name, attributes]) => ({ name, attributes }))
+})
+
+// ─── Filtered Attributes (flat list for Attribute tab) ──
+const filteredAttributes = computed(() => {
+  const allAttrs = schemaAttributes.value.filter(a => !a.is_variant_attribute)
+  if (allAttrs.length === 0) return []
+
+  const compositeIds = new Set(allAttrs.filter(a => a.data_type === 'Composite').map(a => a.id))
+  let attrs = allAttrs.filter(a => !a.parent_attribute_id || !compositeIds.has(a.parent_attribute_id))
+
+  for (const attr of attrs) {
+    if (attr.data_type === 'Composite') {
+      attr._children = allAttrs.filter(c => c.parent_attribute_id === attr.id)
+    }
+  }
+
+  // Filter: Attribut-Sicht
+  if (attrFilterView.value) {
+    const view = availableAttrViews.value.find(v => v.id === attrFilterView.value)
+    if (view) {
+      const viewAttrIds = new Set((view.attributes || []).map(a => a.id))
+      attrs = attrs.filter(a => viewAttrIds.has(a.id))
+    }
+  }
+
+  // Filter: Attributgruppe (AttributeType)
+  if (attrFilterGroup.value) {
+    attrs = attrs.filter(a => a.attribute_type_id === attrFilterGroup.value || a.attribute_type?.id === attrFilterGroup.value)
+  }
+
+  // Filter: Freitext-Suche
+  if (attrFilterSearch.value.trim()) {
+    const q = attrFilterSearch.value.toLowerCase()
+    attrs = attrs.filter(a => {
+      const name = (a.name_de || '').toLowerCase()
+      const tech = (a.technical_name || '').toLowerCase()
+      return name.includes(q) || tech.includes(q)
+    })
+  }
+
+  return attrs
 })
 
 // ─── Variants ─────────────────────────────────────────
@@ -1091,7 +1156,8 @@ watch(() => product.value?.master_hierarchy_node_id, async (newNodeId, oldNodeId
 
 // ─── Tab lazy loading ─────────────────────────────────
 watch(activeTab, (tab) => {
-  if (tab === 'attributes') loadAttributeData()
+  if (tab === 'base-data') loadAttributeData()
+  if (tab === 'attributes') { loadAttributeData(); loadFilterOptions() }
   if (tab === 'variant-attributes') loadAttributeData()
   if (tab === 'variants') { loadVariants(); loadAttributeData() }
   if (tab === 'media') loadMedia()
@@ -1281,9 +1347,8 @@ watch(() => route.params.id, async (newId, oldId) => {
       </div>
     </div>
 
-    <!-- ═══ Attributes Tab ═══ -->
-    <div v-else-if="activeTab === 'attributes' && product" class="space-y-3">
-      <!-- Base fields (always shown) -->
+    <!-- ═══ Base Data Tab ═══ -->
+    <div v-else-if="activeTab === 'base-data' && product" class="space-y-3">
       <PimCollectionGroup title="Stammdaten" :filledCount="3" :totalCount="5">
         <div class="space-y-3 pt-3">
           <div>
@@ -1330,6 +1395,37 @@ watch(() => route.params.id, async (newId, oldId) => {
           </div>
         </div>
       </PimCollectionGroup>
+    </div>
+
+    <!-- ═══ Attributes Tab ═══ -->
+    <div v-else-if="activeTab === 'attributes' && product" class="space-y-3">
+      <!-- Filter bar -->
+      <div class="pim-card p-3">
+        <div class="flex flex-wrap items-center gap-3">
+          <div class="relative flex-1 min-w-[200px] max-w-sm">
+            <Search class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--color-text-tertiary)]" :stroke-width="1.75" />
+            <input v-model="attrFilterSearch" class="pim-input text-xs pl-8 w-full" placeholder="Attribut suchen (Name)…" />
+          </div>
+          <select v-model="attrFilterView" class="pim-select text-xs">
+            <option :value="null">Alle Sichten</option>
+            <option v-for="view in availableAttrViews" :key="view.id" :value="view.id">
+              {{ view.name_de || view.technical_name }}
+            </option>
+          </select>
+          <select v-model="attrFilterGroup" class="pim-select text-xs">
+            <option :value="null">Alle Gruppen</option>
+            <option v-for="group in availableAttrGroups" :key="group.id" :value="group.id">
+              {{ group.name_de || group.technical_name }}
+            </option>
+          </select>
+        </div>
+        <div v-if="attrFilterSearch || attrFilterView || attrFilterGroup" class="flex items-center gap-2 mt-2">
+          <span class="text-[11px] text-[var(--color-text-tertiary)]">{{ filteredAttributes.length }} Attribute</span>
+          <button class="text-[11px] text-[var(--color-accent)] hover:underline" @click="attrFilterSearch = ''; attrFilterView = null; attrFilterGroup = null">
+            Filter zurücksetzen
+          </button>
+        </div>
+      </div>
 
       <!-- Language switcher for translatable attributes -->
       <div v-if="localeStore.activeDataLocales.length > 1 && schemaAttributes.some(a => a.is_translatable)" class="flex items-center gap-2 px-1">
@@ -1352,59 +1448,54 @@ watch(() => route.params.id, async (newId, oldId) => {
         <span class="text-[11px] text-[var(--color-text-tertiary)]">{{ t('product.dataLanguage') }}</span>
       </div>
 
-      <!-- Dynamic attributes from product type schema -->
-      <PimCollectionGroup
-        v-for="group in attributeGroups"
-        :key="group.name"
-        :title="group.name"
-        :filledCount="group.attributes.filter(a => a.is_translatable ? translatedValues[`${a.id}_${activeDataLang}`] : attributeValues[a.id]).length"
-        :totalCount="group.attributes.length"
-        :defaultOpen="false"
-      >
-        <div class="space-y-3 pt-3">
-          <div v-for="attr in group.attributes" :key="attr.id">
-            <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">
-              {{ attr.name_de || attr.technical_name }}
-              <span v-if="attr.is_mandatory" class="text-[var(--color-error)]">*</span>
-              <span v-if="attr.is_translatable" class="ml-1 text-[10px] text-[var(--color-accent)] font-normal">
-                <Languages class="inline w-3 h-3 -mt-0.5" :stroke-width="1.75" /> {{ activeDataLang.toUpperCase() }}
-              </span>
-              <span v-if="attr._is_inherited" class="ml-1 text-[10px] text-blue-500 font-normal">(vererbt)</span>
-              <span v-if="isAttributeInherited(attr.id)" class="ml-1 text-[10px] text-purple-500 font-normal">(vererbt vom Elternprodukt)</span>
-            </label>
-            <!-- Composite: Button with summary -->
-            <button
-              v-if="attr.data_type === 'Composite'"
-              class="w-full flex items-center justify-between pim-input text-left cursor-pointer hover:border-[var(--color-accent)] transition-colors"
-              :disabled="attr._access === 'read_only' || isAttributeInherited(attr.id)"
-              @click="openCompositeModal(attr)"
-            >
-              <span class="text-[13px]" :class="getCompositeSummary(attr) ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-tertiary)]'">
-                {{ getCompositeSummary(attr) || 'Bearbeiten…' }}
-              </span>
-              <span class="text-[10px] text-[var(--color-text-tertiary)] shrink-0 ml-2">{{ (attr._children || []).length }} Felder</span>
-            </button>
-            <!-- Translatable attribute: bind to translatedValues -->
-            <PimAttributeInput
-              v-else-if="attr.is_translatable"
-              :type="mapDataTypeToInput(attr.data_type)"
-              :modelValue="translatedValues[`${attr.id}_${activeDataLang}`]"
-              :options="attr.data_type === 'Dictionary' ? dictionaryEntries : (attr.value_list?.entries?.map(e => ({ value: e.id, label: e.value_de || e.label_de || e.code })) || [])"
-              :disabled="attr._access === 'read_only' || isAttributeInherited(attr.id)"
-              @update:modelValue="translatedValues[`${attr.id}_${activeDataLang}`] = $event"
-            />
-            <!-- Normal (non-translatable) attribute -->
-            <PimAttributeInput
-              v-else
-              :type="mapDataTypeToInput(attr.data_type)"
-              :modelValue="attributeValues[attr.id]"
-              :options="attr.data_type === 'Dictionary' ? dictionaryEntries : (attr.value_list?.entries?.map(e => ({ value: e.id, label: e.value_de || e.label_de || e.code })) || [])"
-              :disabled="attr._access === 'read_only' || isAttributeInherited(attr.id)"
-              @update:modelValue="attributeValues[attr.id] = $event"
-            />
-          </div>
+      <!-- Flat attribute list -->
+      <div class="pim-card p-4 space-y-4">
+        <div v-if="filteredAttributes.length === 0" class="text-center py-8">
+          <p class="text-sm text-[var(--color-text-tertiary)]">Keine Attribute gefunden</p>
         </div>
-      </PimCollectionGroup>
+        <div v-for="attr in filteredAttributes" :key="attr.id">
+          <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">
+            {{ attr.name_de || attr.technical_name }}
+            <span v-if="attr.is_mandatory" class="text-[var(--color-error)]">*</span>
+            <span v-if="attr.attribute_type?.name_de" class="ml-1 text-[10px] text-[var(--color-text-tertiary)] font-normal">{{ attr.attribute_type.name_de }}</span>
+            <span v-if="attr.is_translatable" class="ml-1 text-[10px] text-[var(--color-accent)] font-normal">
+              <Languages class="inline w-3 h-3 -mt-0.5" :stroke-width="1.75" /> {{ activeDataLang.toUpperCase() }}
+            </span>
+            <span v-if="attr._is_inherited" class="ml-1 text-[10px] text-blue-500 font-normal">(vererbt)</span>
+            <span v-if="isAttributeInherited(attr.id)" class="ml-1 text-[10px] text-purple-500 font-normal">(vererbt vom Elternprodukt)</span>
+          </label>
+          <!-- Composite: Button with summary -->
+          <button
+            v-if="attr.data_type === 'Composite'"
+            class="w-full flex items-center justify-between pim-input text-left cursor-pointer hover:border-[var(--color-accent)] transition-colors"
+            :disabled="attr._access === 'read_only' || isAttributeInherited(attr.id)"
+            @click="openCompositeModal(attr)"
+          >
+            <span class="text-[13px]" :class="getCompositeSummary(attr) ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-tertiary)]'">
+              {{ getCompositeSummary(attr) || 'Bearbeiten…' }}
+            </span>
+            <span class="text-[10px] text-[var(--color-text-tertiary)] shrink-0 ml-2">{{ (attr._children || []).length }} Felder</span>
+          </button>
+          <!-- Translatable attribute: bind to translatedValues -->
+          <PimAttributeInput
+            v-else-if="attr.is_translatable"
+            :type="mapDataTypeToInput(attr.data_type)"
+            :modelValue="translatedValues[`${attr.id}_${activeDataLang}`]"
+            :options="attr.data_type === 'Dictionary' ? dictionaryEntries : (attr.value_list?.entries?.map(e => ({ value: e.id, label: e.value_de || e.label_de || e.code })) || [])"
+            :disabled="attr._access === 'read_only' || isAttributeInherited(attr.id)"
+            @update:modelValue="translatedValues[`${attr.id}_${activeDataLang}`] = $event"
+          />
+          <!-- Normal (non-translatable) attribute -->
+          <PimAttributeInput
+            v-else
+            :type="mapDataTypeToInput(attr.data_type)"
+            :modelValue="attributeValues[attr.id]"
+            :options="attr.data_type === 'Dictionary' ? dictionaryEntries : (attr.value_list?.entries?.map(e => ({ value: e.id, label: e.value_de || e.label_de || e.code })) || [])"
+            :disabled="attr._access === 'read_only' || isAttributeInherited(attr.id)"
+            @update:modelValue="attributeValues[attr.id] = $event"
+          />
+        </div>
+      </div>
 
       <!-- Composite Modal -->
       <PimCompositeModal

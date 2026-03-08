@@ -295,6 +295,15 @@ class JsonFormatImporter
             ], $data['hierarchy_attribute_assignments']);
         }
 
+        // Hierarchie-Ebene-Attribut-Zuordnungen (JSON: hierarchy_level_attribute_assignments → Sheet: 07b_Hierarchie_Ebene_Attribute)
+        if (isset($data['hierarchy_level_attribute_assignments'])) {
+            $sheets['07b_Hierarchie_Ebene_Attribute'] = array_map(fn ($a) => [
+                'hierarchy' => $a['hierarchy'],
+                'attribute' => $a['attribute'],
+                'sort_order' => $a['sort_order'] ?? 0,
+            ], $data['hierarchy_level_attribute_assignments']);
+        }
+
         // Produkte (JSON: products → Sheet: 08_Produkte)
         if (isset($data['products'])) {
             $sheets['08_Produkte'] = array_map(fn ($p) => [

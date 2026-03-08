@@ -7,12 +7,13 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import {
   Plus, Edit3, Trash2, FolderPlus, Package, Search,
-  Copy, ChevronUp, ChevronDown, Settings, GripVertical, X,
+  Copy, ChevronUp, ChevronDown, Settings, GripVertical, X, Save,
 } from 'lucide-vue-next'
 import hierarchiesApi from '@/api/hierarchies'
 import attributesApi from '@/api/attributes'
 import productsApi from '@/api/products'
 import PimTree from '@/components/shared/PimTree.vue'
+import PimAttributeInput from '@/components/shared/PimAttributeInput.vue'
 import PimConfirmDialog from '@/components/shared/PimConfirmDialog.vue'
 import HierarchyFormPanel from '@/components/panels/HierarchyFormPanel.vue'
 import HierarchyNodeFormPanel from '@/components/panels/HierarchyNodeFormPanel.vue'
@@ -48,6 +49,12 @@ const productSearchQuery = ref('')
 const productSearchResults = ref([])
 let productSearchTimer = null
 
+// Hierarchy-level attributes (values editable per node)
+const hierarchyLevelAttrs = ref([])
+const hierarchyAttrValues = ref({})
+const hierarchyAttrSaving = ref(false)
+const hierarchyAttrsLoaded = ref(null) // track which hierarchy was loaded
+
 // Delete state
 const deleteNodeTarget = ref(null)
 const nodeDeleting = ref(false)
@@ -72,6 +79,7 @@ function showFeedback(msg, type = 'success') {
 async function selectHierarchy(id) {
   selectedHierarchyId.value = id
   store.selectNode(null)
+  hierarchyAttrsLoaded.value = null // force reload for new hierarchy
   await store.fetchTree(id)
 }
 
@@ -488,6 +496,84 @@ async function persistOutputProductOrder() {
   }
 }
 
+// ─── Hierarchy-level Attribute Helpers ───────────────
+function mapDataTypeToInput(dataType) {
+  return {
+    String: 'text', Number: 'number', Float: 'decimal', Date: 'date',
+    Flag: 'boolean', Selection: 'select', Dictionary: 'dictionary', RichText: 'richtext',
+  }[dataType] || 'text'
+}
+
+async function loadHierarchyLevelAttrs(hierarchyId) {
+  if (!hierarchyId || hierarchyAttrsLoaded.value === hierarchyId) return
+  try {
+    const { data } = await hierarchiesApi.getHierarchyAttributes(hierarchyId)
+    hierarchyLevelAttrs.value = (data.data || data).map(a => a.attribute || a)
+    hierarchyAttrsLoaded.value = hierarchyId
+  } catch {
+    hierarchyLevelAttrs.value = []
+  }
+}
+
+async function loadHierarchyAttrValues(nodeId) {
+  if (!nodeId || hierarchyLevelAttrs.value.length === 0) {
+    hierarchyAttrValues.value = {}
+    return
+  }
+  try {
+    const { data } = await hierarchiesApi.getNodeAttributeValues(nodeId, { perPage: 500 })
+    const vals = data.data || data
+    const map = {}
+    for (const v of vals) {
+      const attrId = v.attribute_id || v.attribute?.id
+      // Pick whichever typed value is set
+      const value = v.value_string ?? v.value_number ?? v.value_date ?? v.value_flag ?? v.value_selection_id ?? null
+      map[attrId] = value
+    }
+    hierarchyAttrValues.value = map
+  } catch {
+    hierarchyAttrValues.value = {}
+  }
+}
+
+async function saveHierarchyAttrValues() {
+  if (!store.selectedNode) return
+  hierarchyAttrSaving.value = true
+  try {
+    const values = []
+    for (const attr of hierarchyLevelAttrs.value) {
+      const val = hierarchyAttrValues.value[attr.id]
+      if (val === undefined || val === null || val === '') continue
+      const entry = { attribute_id: attr.id }
+      // Map value to the correct typed column
+      switch (attr.data_type) {
+        case 'Number': case 'Float':
+          entry.value_number = Number(val)
+          break
+        case 'Date':
+          entry.value_date = val
+          break
+        case 'Flag':
+          entry.value_flag = !!val
+          break
+        case 'Selection': case 'Dictionary':
+          entry.value_string = val
+          entry.value_selection_id = val
+          break
+        default:
+          entry.value_string = String(val)
+      }
+      values.push(entry)
+    }
+    await hierarchiesApi.updateNodeAttributeValues(store.selectedNode.id, values)
+    showFeedback('Hierarchie-Attributwerte gespeichert')
+  } catch (e) {
+    showFeedback(e.response?.data?.title || 'Fehler beim Speichern', 'error')
+  } finally {
+    hierarchyAttrSaving.value = false
+  }
+}
+
 // When attr picker opens, fetch first page
 watch(showAttrPicker, (open) => {
   if (open) {
@@ -497,14 +583,18 @@ watch(showAttrPicker, (open) => {
 })
 
 // Watch node selection to load attributes and products
-watch(() => store.selectedNode, (node) => {
+watch(() => store.selectedNode, async (node) => {
   if (node) {
     loadNodeAttributes(node.id)
     loadNodeProducts(node.id)
+    // Load hierarchy-level attrs if needed, then load values for this node
+    await loadHierarchyLevelAttrs(selectedHierarchyId.value)
+    loadHierarchyAttrValues(node.id)
   } else {
     nodeAttributes.value = []
     nodeProducts.value = []
     outputProductAssignments.value = []
+    hierarchyAttrValues.value = {}
   }
   showProductSearch.value = false
   showAttrPicker.value = false
@@ -770,6 +860,36 @@ onMounted(async () => {
             </div>
             <p v-else class="text-xs text-[var(--color-text-tertiary)]">Keine Produkte zugeordnet. Weisen Sie Produkte über die Produktdetailseite zu.</p>
           </template>
+        </div>
+
+        <!-- Hierarchy-level Attribute Values -->
+        <div v-if="hierarchyLevelAttrs.length > 0" class="border-t border-[var(--color-border)] pt-4">
+          <div class="flex items-center justify-between mb-3">
+            <h4 class="text-sm font-medium text-[var(--color-text-secondary)]">Hierarchie-Attribute</h4>
+            <button
+              class="pim-btn pim-btn-primary text-xs"
+              :disabled="hierarchyAttrSaving"
+              @click="saveHierarchyAttrValues"
+            >
+              <Save class="w-3 h-3" :stroke-width="2" />
+              {{ hierarchyAttrSaving ? 'Speichern…' : 'Speichern' }}
+            </button>
+          </div>
+          <div class="space-y-3">
+            <div v-for="attr in hierarchyLevelAttrs" :key="attr.id">
+              <label class="block text-[12px] text-[var(--color-text-secondary)] mb-1">
+                {{ attr.name_de || attr.technical_name }}
+                <span class="text-[10px] text-[var(--color-text-tertiary)] ml-1">{{ attr.data_type }}</span>
+              </label>
+              <PimAttributeInput
+                :type="mapDataTypeToInput(attr.data_type)"
+                :modelValue="hierarchyAttrValues[attr.id] ?? null"
+                @update:modelValue="hierarchyAttrValues[attr.id] = $event"
+                :options="attr.value_list?.entries || []"
+                size="sm"
+              />
+            </div>
+          </div>
         </div>
 
         <!-- Assigned Attributes -->
