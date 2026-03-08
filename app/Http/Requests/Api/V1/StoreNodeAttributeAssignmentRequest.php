@@ -21,6 +21,7 @@ class StoreNodeAttributeAssignmentRequest extends FormRequest
             'collection_sort' => 'integer',
             'attribute_sort' => 'integer',
             'dont_inherit' => 'boolean',
+            'is_required' => 'boolean',
             'access_hierarchy' => 'in:hidden,visible,editable',
             'access_product' => 'in:hidden,visible,editable',
             'access_variant' => 'in:hidden,visible,editable',

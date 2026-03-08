@@ -54,6 +54,7 @@ const tabs = [
 const attrFilterSearch = ref('')
 const attrFilterView = ref(null)
 const attrFilterGroup = ref(null)
+const attrFilterMandatory = ref(false)
 const availableAttrViews = ref([])
 const availableAttrGroups = ref([])
 const filterOptionsLoaded = ref(false)
@@ -341,6 +342,11 @@ const filteredAttributes = computed(() => {
       const tech = (a.technical_name || '').toLowerCase()
       return name.includes(q) || tech.includes(q)
     })
+  }
+
+  // Filter: Nur Pflichtfelder
+  if (attrFilterMandatory.value) {
+    attrs = attrs.filter(a => a.is_mandatory)
   }
 
   return attrs
@@ -1419,10 +1425,14 @@ watch(() => route.params.id, async (newId, oldId) => {
               {{ group.name_de || group.technical_name }}
             </option>
           </select>
+          <label class="flex items-center gap-1.5 cursor-pointer select-none">
+            <input type="checkbox" v-model="attrFilterMandatory" class="w-3.5 h-3.5 rounded border-[var(--color-border)] accent-[var(--color-error)]" />
+            <span class="text-xs text-[var(--color-text-secondary)]">Nur Pflichtfelder</span>
+          </label>
         </div>
-        <div v-if="attrFilterSearch || attrFilterView || attrFilterGroup" class="flex items-center gap-2 mt-2">
+        <div v-if="attrFilterSearch || attrFilterView || attrFilterGroup || attrFilterMandatory" class="flex items-center gap-2 mt-2">
           <span class="text-[11px] text-[var(--color-text-tertiary)]">{{ filteredAttributes.length }} Attribute</span>
-          <button class="text-[11px] text-[var(--color-accent)] hover:underline" @click="attrFilterSearch = ''; attrFilterView = null; attrFilterGroup = null">
+          <button class="text-[11px] text-[var(--color-accent)] hover:underline" @click="attrFilterSearch = ''; attrFilterView = null; attrFilterGroup = null; attrFilterMandatory = false">
             Filter zurücksetzen
           </button>
         </div>

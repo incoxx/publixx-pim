@@ -20,6 +20,7 @@ class NodeAttributeAssignmentResource extends JsonResource
             'collection_sort' => $this->collection_sort,
             'attribute_sort' => $this->attribute_sort,
             'dont_inherit' => $this->dont_inherit,
+            'is_required' => $this->is_required,
             'access_hierarchy' => $this->access_hierarchy,
             'access_product' => $this->access_product,
             'access_variant' => $this->access_variant,

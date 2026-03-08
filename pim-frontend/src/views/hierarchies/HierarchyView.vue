@@ -349,6 +349,16 @@ async function persistAttributeOrder() {
   }
 }
 
+async function toggleRequired(assignment) {
+  const newValue = !assignment.is_required
+  try {
+    await hierarchiesApi.updateNodeAttributeAssignment(assignment.id, { is_required: newValue })
+    assignment.is_required = newValue
+  } catch (e) {
+    showFeedback('Fehler beim Aktualisieren', 'error')
+  }
+}
+
 // ─── Node Attribute Values ───────────────────────────
 async function loadNodeAttrValues(nodeId) {
   if (!nodeId) { nodeAttrValues.value = {}; return }
@@ -1048,6 +1058,16 @@ onMounted(async () => {
                   <span v-if="assignment.attribute?.data_type === 'Composite'" class="text-[10px] text-[var(--color-accent)]">
                     ({{ nodeAttributes.filter(a => a.attribute?.parent_attribute_id === (assignment.attribute?.id || assignment.attribute_id)).length }} Felder)
                   </span>
+                  <label v-if="authStore.hasPermission('hierarchies.edit')" class="flex items-center gap-1 ml-2 cursor-pointer" @click.stop>
+                    <input
+                      type="checkbox"
+                      :checked="assignment.is_required"
+                      class="w-3 h-3 rounded border-[var(--color-border)] text-[var(--color-error)] accent-[var(--color-error)]"
+                      @change="toggleRequired(assignment)"
+                    />
+                    <span class="text-[10px] text-[var(--color-text-tertiary)]">Pflicht</span>
+                  </label>
+                  <span v-else-if="assignment.is_required" class="text-[10px] text-[var(--color-error)] font-medium ml-2">Pflicht</span>
                 </div>
                 <div class="flex items-center gap-0.5">
                   <template v-if="authStore.hasPermission('hierarchies.edit')">

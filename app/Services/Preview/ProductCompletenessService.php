@@ -151,7 +151,7 @@ class ProductCompletenessService
                     $missing[] = [
                         'attribute_id' => $attr->attribute_id,
                         'label' => $label,
-                        'is_mandatory' => (bool) $attr->is_mandatory,
+                        'is_mandatory' => (bool) ($attr->is_mandatory || !empty($attr->is_required)),
                     ];
                 }
             }
