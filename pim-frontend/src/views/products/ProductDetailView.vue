@@ -1404,7 +1404,7 @@ watch(() => route.params.id, async (newId, oldId) => {
       <div class="pim-card p-3">
         <div class="flex flex-wrap items-center gap-3">
           <div class="relative flex-1 min-w-[200px] max-w-sm">
-            <Search class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--color-text-tertiary)]" :stroke-width="1.75" />
+            <Search class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--color-text-tertiary)] z-10 pointer-events-none" :stroke-width="1.75" />
             <input v-model="attrFilterSearch" class="pim-input text-xs pl-8 w-full" placeholder="Attribut suchen (Name)…" />
           </div>
           <select v-model="attrFilterView" class="pim-select text-xs">
@@ -2029,7 +2029,7 @@ watch(() => route.params.id, async (newId, oldId) => {
           <div class="col-span-2 relative">
             <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Zielprodukt <span class="text-[var(--color-error)]">*</span></label>
             <div class="relative">
-              <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--color-text-tertiary)]" :stroke-width="1.75" />
+              <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--color-text-tertiary)] z-10 pointer-events-none" :stroke-width="1.75" />
               <input class="pim-input pl-9" v-model="productSearch" placeholder="SKU oder Name suchen…" @input="searchProducts" />
             </div>
             <p v-if="relationErrors.target_product_id" class="text-[11px] text-[var(--color-error)] mt-0.5">{{ relationErrors.target_product_id }}</p>

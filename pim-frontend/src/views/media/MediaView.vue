@@ -453,7 +453,7 @@ onMounted(() => {
         <div class="flex items-center gap-2">
           <!-- Search -->
           <div class="relative">
-            <Search class="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--color-text-tertiary)]" />
+            <Search class="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--color-text-tertiary)] z-10 pointer-events-none" />
             <input
               v-model="searchTerm"
               class="pim-input text-xs pl-7 w-48"
