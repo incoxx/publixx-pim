@@ -84,6 +84,11 @@ export const useAttributeStore = defineStore('attributes', () => {
     return data.data || data
   }
 
+  async function copyAttribute(id) {
+    const { data } = await attributesApi.copy(id)
+    return data.data || data
+  }
+
   async function deleteAttribute(id, { force = false } = {}) {
     await attributesApi.delete(id, { force })
     items.value = items.value.filter(a => a.id !== id)
@@ -101,6 +106,6 @@ export const useAttributeStore = defineStore('attributes', () => {
   return {
     items, allItems, types, lists, prodTypes, loading, error, meta, dataTypes,
     fetchAttributes, fetchAllAttributes, fetchTypes, fetchValueLists, fetchProductTypes,
-    createAttribute, updateAttribute, deleteAttribute, setPage, bulkUpdate,
+    createAttribute, updateAttribute, copyAttribute, deleteAttribute, setPage, bulkUpdate,
   }
 })
