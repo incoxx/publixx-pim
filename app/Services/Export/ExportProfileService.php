@@ -32,19 +32,25 @@ class ExportProfileService
     /**
      * Führt einen Export basierend auf dem Profil aus.
      */
-    public function execute(ExportProfile $profile, ?string $fileName = null): StreamedResponse|JsonResponse
+    public function execute(ExportProfile $profile, ?string $fileName = null, bool $zip = false): StreamedResponse|JsonResponse
     {
         $products = $this->resolveProducts($profile);
         $data = $this->buildExportData($profile, $products);
 
         $resolvedFileName = $this->resolveFileName($profile, $fileName);
 
-        return match ($profile->format) {
+        $response = match ($profile->format) {
             'csv' => (new CsvWriter())->write($data, $resolvedFileName),
             'json' => (new JsonWriter())->write($data, $resolvedFileName),
             'xml' => (new XmlWriter())->write($data, $resolvedFileName),
             default => (new ExcelWriter())->write($data, $resolvedFileName),
         };
+
+        if (!$zip) {
+            return $response;
+        }
+
+        return $this->wrapInZip($response, $resolvedFileName, $profile->format);
     }
 
     /**
@@ -251,5 +257,44 @@ class ExportProfileService
         );
 
         return $name;
+    }
+
+    /**
+     * Wraps a streamed export response into a ZIP archive.
+     */
+    private function wrapInZip(StreamedResponse $originalResponse, string $fileName, string $format): StreamedResponse
+    {
+        $ext = match ($format) {
+            'csv' => 'csv',
+            'json' => 'json',
+            'xml' => 'xml',
+            default => 'xlsx',
+        };
+        $innerName = "{$fileName}.{$ext}";
+        $zipName = "{$fileName}.zip";
+
+        // Capture the original response body
+        ob_start();
+        $originalResponse->sendContent();
+        $content = ob_get_clean();
+
+        $tempFile = tempnam(sys_get_temp_dir(), 'pim_zip_');
+
+        $zip = new \ZipArchive();
+        $zip->open($tempFile, \ZipArchive::OVERWRITE);
+        $zip->addFromString($innerName, $content);
+        $zip->close();
+
+        $zipContent = file_get_contents($tempFile);
+        unlink($tempFile);
+
+        return new StreamedResponse(function () use ($zipContent) {
+            echo $zipContent;
+        }, 200, [
+            'Content-Type' => 'application/zip',
+            'Content-Disposition' => "attachment; filename=\"{$zipName}\"",
+            'Content-Length' => strlen($zipContent),
+            'Cache-Control' => 'no-store',
+        ]);
     }
 }

@@ -101,11 +101,13 @@ class ExportProfileController extends Controller
 
         $validated = $request->validate([
             'file_name' => 'nullable|string|max:255',
+            'zip' => 'boolean',
         ]);
 
         $fileName = $validated['file_name'] ?? null;
+        $zip = $validated['zip'] ?? false;
 
-        return $this->exportService->execute($exportProfile, $fileName);
+        return $this->exportService->execute($exportProfile, $fileName, $zip);
     }
 
     /**
