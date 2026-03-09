@@ -111,7 +111,7 @@ class ExportProfileController extends Controller
     /**
      * GET /api/v1/export-profiles/{id}/stream — JSON direkt als API-Response streamen.
      */
-    public function stream(Request $request, ExportProfile $exportProfile): StreamedResponse|JsonResponse
+    public function stream(Request $request, ExportProfile $exportProfile): JsonResponse
     {
         $this->authorize('execute', $exportProfile);
 

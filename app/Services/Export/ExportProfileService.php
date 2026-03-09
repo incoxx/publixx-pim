@@ -50,17 +50,12 @@ class ExportProfileService
     /**
      * Gibt die JSON-Exportdaten direkt als API-Response zurück (kein Download).
      */
-    public function stream(ExportProfile $profile): StreamedResponse
+    public function stream(ExportProfile $profile): \Illuminate\Http\JsonResponse
     {
         $products = $this->resolveProducts($profile);
         $data = $this->buildExportData($profile, $products);
 
-        return response()->stream(function () use ($data) {
-            echo json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        }, 200, [
-            'Content-Type' => 'application/json; charset=UTF-8',
-            'X-Accel-Buffering' => 'no',
-        ]);
+        return JsonWriter::asInlineResponse($data);
     }
 
     /**
