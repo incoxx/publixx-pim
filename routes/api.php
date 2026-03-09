@@ -488,8 +488,9 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // =====================================================================
     Route::prefix('tms')->group(function () {
         Route::get('units', [TmsProxyController::class, 'units']);
-        Route::get('units/{id}', [TmsProxyController::class, 'unit']);
-        Route::put('units/{id}/translations/{lang}', [TmsProxyController::class, 'updateTranslation']);
+        Route::get('units/{id}', [TmsProxyController::class, 'unit'])->where('id', '[a-f0-9\-]{36}');
+        Route::put('units/{id}/translations/{lang}', [TmsProxyController::class, 'updateTranslation'])
+            ->where(['id' => '[a-f0-9\-]{36}', 'lang' => '[a-z]{2,5}']);
         Route::get('stats', [TmsProxyController::class, 'stats']);
         Route::get('missing', [TmsProxyController::class, 'missing']);
         Route::post('retranslate', [TmsProxyController::class, 'retranslate']);

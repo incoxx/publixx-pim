@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { X, Save, RefreshCw, Loader2 } from 'lucide-vue-next'
 import { useTranslationsStore } from '@/stores/translations'
 
@@ -14,6 +14,7 @@ const editLang = ref('')
 const editText = ref('')
 const saving = ref(false)
 const retranslating = ref(false)
+const saveError = ref(null)
 
 function getTranslation(lang) {
   return props.unit.translations?.find(t => t.target_lang === lang)
@@ -22,23 +23,26 @@ function getTranslation(lang) {
 function startEdit(lang) {
   editLang.value = lang
   editText.value = getTranslation(lang)?.translation || ''
+  saveError.value = null
 }
 
 function cancelEdit() {
   editLang.value = ''
   editText.value = ''
+  saveError.value = null
 }
 
 async function saveTranslation() {
   if (!editText.value.trim()) return
   saving.value = true
+  saveError.value = null
   try {
     await store.updateTranslation(props.unit.id, editLang.value, editText.value.trim())
     editLang.value = ''
     editText.value = ''
     emit('updated')
   } catch (e) {
-    // error handled in store
+    saveError.value = e.response?.data?.message || 'Fehler beim Speichern'
   } finally {
     saving.value = false
   }
@@ -46,13 +50,28 @@ async function saveTranslation() {
 
 async function retranslateUnit() {
   retranslating.value = true
+  saveError.value = null
   try {
     await store.retranslate([props.unit.id])
-    setTimeout(() => store.fetchUnit(props.unit.id), 2000)
+    await store.fetchUnit(props.unit.id)
+  } catch (e) {
+    saveError.value = e.response?.data?.message || 'Fehler bei der Neuübersetzung'
   } finally {
     retranslating.value = false
   }
 }
+
+function onKeydown(e) {
+  if (e.key === 'Escape') emit('close')
+}
+
+onMounted(() => {
+  document.addEventListener('keydown', onKeydown)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', onKeydown)
+})
 
 const statusLabels = { pending: 'Ausstehend', auto: 'Automatisch', reviewed: 'Geprüft' }
 const statusColors = {
@@ -79,6 +98,17 @@ const providerLabels = { deepl: 'DeepL', google: 'Google', claude: 'Claude', hum
       </div>
 
       <div class="p-5 space-y-5">
+        <!-- Error -->
+        <div
+          v-if="saveError"
+          class="flex items-center gap-2 px-3 py-2 bg-red-50 border border-red-200 rounded-md text-xs text-red-700"
+        >
+          <span>{{ saveError }}</span>
+          <button @click="saveError = null" class="ml-auto text-red-400 hover:text-red-600">
+            <X class="w-3.5 h-3.5" />
+          </button>
+        </div>
+
         <!-- Source -->
         <div>
           <div class="text-xs text-[var(--color-text-tertiary)] mb-1">Quelltext ({{ unit.source_lang?.toUpperCase() }})</div>

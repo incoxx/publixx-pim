@@ -21,15 +21,21 @@ class TmsProxyController extends Controller
      */
     public function units(Request $request): JsonResponse
     {
-        $data = $this->client->getUnits($request->query());
+        $this->abortIfDisabled();
+
+        $params = $request->only(['page', 'per_page', 'search', 'domain', 'status', 'lang']);
+
+        $data = $this->client->getUnits($params);
         return response()->json($data);
     }
 
     /**
      * GET /tms/units/{id} — single unit with translations + usages.
      */
-    public function unit(string $id): JsonResponse
+    public function unit(Request $request, string $id): JsonResponse
     {
+        $this->abortIfDisabled();
+
         $data = $this->client->getUnit($id);
         return response()->json($data);
     }
@@ -39,6 +45,9 @@ class TmsProxyController extends Controller
      */
     public function updateTranslation(Request $request, string $id, string $lang): JsonResponse
     {
+        $this->abortIfDisabled();
+        $this->authorize('manage', 'translations');
+
         $request->validate([
             'translation' => 'required|string|max:5000',
         ]);
@@ -52,6 +61,8 @@ class TmsProxyController extends Controller
      */
     public function stats(): JsonResponse
     {
+        $this->abortIfDisabled();
+
         $data = $this->client->getStats();
         return response()->json($data);
     }
@@ -61,7 +72,11 @@ class TmsProxyController extends Controller
      */
     public function missing(Request $request): JsonResponse
     {
-        $data = $this->client->getMissing($request->query());
+        $this->abortIfDisabled();
+
+        $params = $request->only(['page', 'per_page', 'lang']);
+
+        $data = $this->client->getMissing($params);
         return response()->json($data);
     }
 
@@ -70,10 +85,14 @@ class TmsProxyController extends Controller
      */
     public function retranslate(Request $request): JsonResponse
     {
+        $this->abortIfDisabled();
+        $this->authorize('manage', 'translations');
+
         $request->validate([
-            'unit_ids' => 'required|array',
-            'unit_ids.*' => 'string',
+            'unit_ids' => 'required|array|max:100',
+            'unit_ids.*' => 'string|max:36',
             'target_langs' => 'nullable|array',
+            'target_langs.*' => 'string|max:5',
         ]);
 
         $data = $this->client->retranslate($request->only('unit_ids', 'target_langs'));
@@ -85,6 +104,9 @@ class TmsProxyController extends Controller
      */
     public function triggerIngest(): JsonResponse
     {
+        $this->abortIfDisabled();
+        $this->authorize('manage', 'translations');
+
         IngestToTmsJob::dispatch();
 
         return response()->json([
@@ -97,10 +119,20 @@ class TmsProxyController extends Controller
      */
     public function syncToDatabase(): JsonResponse
     {
+        $this->abortIfDisabled();
+        $this->authorize('manage', 'translations');
+
         SyncTmsTranslationsJob::dispatch();
 
         return response()->json([
             'message' => 'TMS sync job dispatched.',
         ]);
+    }
+
+    private function abortIfDisabled(): void
+    {
+        if (!$this->client->isEnabled()) {
+            abort(503, 'TMS is not enabled.');
+        }
     }
 }

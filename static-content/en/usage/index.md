@@ -40,6 +40,10 @@ Upload images, documents, and videos, organize them in the media library, and as
 
 Manage different price types in multiple currencies with validity periods and assign prices to products.
 
+### Translations (TMS)
+
+Manage the translation of metadata such as attribute names, value list entries, and hierarchy nodes. The Translation Memory Service automatically translates via DeepL, Google Translate, or Claude and synchronizes the results back into the PIM database.
+
 ### Users & Permissions
 
 Manage user accounts, roles, and permissions to control access to the system. The user management section is only visible to users with the **Admin** role. The system provides five roles: Admin, Data Steward, Product Manager, Viewer, and Export Manager.

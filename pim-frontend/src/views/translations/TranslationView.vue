@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted, computed, watch } from 'vue'
 import { useTranslationsStore } from '@/stores/translations'
-import { Languages, RefreshCw, Download, Upload, Search, Globe, BarChart3, AlertCircle, Check, Loader2, Settings } from 'lucide-vue-next'
+import { Languages, RefreshCw, Download, Upload, Search, Globe, BarChart3, AlertCircle, Check, Loader2, Settings, X } from 'lucide-vue-next'
 import TranslationStatsCard from './TranslationStatsCard.vue'
 import TranslationUnitPanel from './TranslationUnitPanel.vue'
 
@@ -16,7 +16,8 @@ const selectedUnitId = ref(null)
 const showPanel = ref(false)
 const ingestLoading = ref(false)
 const syncLoading = ref(false)
-const page = ref(1)
+const unitsPage = ref(1)
+const missingPage = ref(1)
 
 const tabs = [
   { key: 'overview', label: 'Übersicht', icon: BarChart3 },
@@ -60,7 +61,7 @@ watch(activeTab, (tab) => {
 
 function loadUnits() {
   store.fetchUnits({
-    page: page.value,
+    page: unitsPage.value,
     per_page: 50,
     search: searchQuery.value || undefined,
     domain: selectedDomain.value || undefined,
@@ -71,7 +72,7 @@ function loadUnits() {
 
 function loadMissing() {
   store.fetchMissing({
-    page: page.value,
+    page: missingPage.value,
     per_page: 50,
     lang: selectedLang.value,
   })
@@ -89,15 +90,20 @@ function closePanel() {
 }
 
 function onSearch() {
-  page.value = 1
+  unitsPage.value = 1
+  missingPage.value = 1
   if (activeTab.value === 'units') loadUnits()
   if (activeTab.value === 'missing') loadMissing()
 }
 
 function goToPage(p) {
-  page.value = p
-  if (activeTab.value === 'units') loadUnits()
-  if (activeTab.value === 'missing') loadMissing()
+  if (activeTab.value === 'units') {
+    unitsPage.value = p
+    loadUnits()
+  } else if (activeTab.value === 'missing') {
+    missingPage.value = p
+    loadMissing()
+  }
 }
 
 async function triggerIngest() {
@@ -118,12 +124,34 @@ async function triggerSync() {
   }
 }
 
+function dismissError() {
+  store.error = null
+}
+
 const pagination = computed(() => {
   return activeTab.value === 'missing' ? store.missingPagination : store.unitsPagination
 })
 
 const displayedUnits = computed(() => {
   return activeTab.value === 'missing' ? store.missingUnits : store.units
+})
+
+const tableLoading = computed(() => {
+  return activeTab.value === 'missing' ? store.missingLoading : store.unitsLoading
+})
+
+const paginationPages = computed(() => {
+  const last = pagination.value.lastPage || 1
+  const current = pagination.value.currentPage || 1
+  if (last <= 7) return Array.from({ length: last }, (_, i) => i + 1)
+  const pages = [1]
+  const start = Math.max(2, current - 1)
+  const end = Math.min(last - 1, current + 1)
+  if (start > 2) pages.push('...')
+  for (let i = start; i <= end; i++) pages.push(i)
+  if (end < last - 1) pages.push('...')
+  pages.push(last)
+  return pages
 })
 </script>
 
@@ -135,6 +163,20 @@ const displayedUnits = computed(() => {
         <Languages class="w-6 h-6 text-[var(--color-accent)]" :stroke-width="1.75" />
         <h1 class="text-xl font-semibold text-[var(--color-text-primary)]">Übersetzungen</h1>
       </div>
+    </div>
+
+    <!-- Error Banner -->
+    <div
+      v-if="store.error"
+      class="mb-4 flex items-center justify-between gap-3 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700"
+    >
+      <div class="flex items-center gap-2">
+        <AlertCircle class="w-4 h-4 shrink-0" />
+        {{ store.error }}
+      </div>
+      <button @click="dismissError" class="text-red-400 hover:text-red-600">
+        <X class="w-4 h-4" />
+      </button>
     </div>
 
     <!-- Tabs -->
@@ -237,7 +279,7 @@ const displayedUnits = computed(() => {
             </tr>
           </thead>
           <tbody>
-            <tr v-if="store.loading" class="border-b border-[var(--color-border)]">
+            <tr v-if="tableLoading" class="border-b border-[var(--color-border)]">
               <td colspan="4" class="px-4 py-8 text-center text-[var(--color-text-tertiary)]">
                 <Loader2 class="w-5 h-5 animate-spin mx-auto mb-2" />
                 Lade...
@@ -289,19 +331,24 @@ const displayedUnits = computed(() => {
           {{ pagination.total }} Einträge
         </div>
         <div class="flex gap-1">
-          <button
-            v-for="p in pagination.lastPage"
-            :key="p"
-            :class="[
-              'px-3 py-1.5 text-sm rounded-md',
-              p === pagination.currentPage
-                ? 'bg-[var(--color-accent)] text-white'
-                : 'bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg)]'
-            ]"
-            @click="goToPage(p)"
-          >
-            {{ p }}
-          </button>
+          <template v-for="(p, idx) in paginationPages" :key="idx">
+            <span
+              v-if="p === '...'"
+              class="px-2 py-1.5 text-sm text-[var(--color-text-tertiary)]"
+            >…</span>
+            <button
+              v-else
+              :class="[
+                'px-3 py-1.5 text-sm rounded-md',
+                p === pagination.currentPage
+                  ? 'bg-[var(--color-accent)] text-white'
+                  : 'bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg)]'
+              ]"
+              @click="goToPage(p)"
+            >
+              {{ p }}
+            </button>
+          </template>
         </div>
       </div>
     </div>

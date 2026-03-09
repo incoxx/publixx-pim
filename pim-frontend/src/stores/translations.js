@@ -9,11 +9,14 @@ export const useTranslationsStore = defineStore('translations', () => {
   const stats = ref(null)
   const missingUnits = ref([])
   const missingPagination = ref({})
-  const loading = ref(false)
+  const unitsLoading = ref(false)
+  const unitLoading = ref(false)
+  const statsLoading = ref(false)
+  const missingLoading = ref(false)
   const error = ref(null)
 
   async function fetchUnits(params = {}) {
-    loading.value = true
+    unitsLoading.value = true
     error.value = null
     try {
       const { data } = await translationsApi.getUnits(params)
@@ -25,35 +28,41 @@ export const useTranslationsStore = defineStore('translations', () => {
         total: data.total,
       }
     } catch (e) {
-      error.value = e.response?.data?.message || 'Fehler beim Laden'
+      error.value = e.response?.data?.message || 'Fehler beim Laden der Begriffe'
     } finally {
-      loading.value = false
+      unitsLoading.value = false
     }
   }
 
   async function fetchUnit(id) {
-    loading.value = true
+    unitLoading.value = true
+    error.value = null
     try {
       const { data } = await translationsApi.getUnit(id)
       currentUnit.value = data
     } catch (e) {
-      error.value = e.response?.data?.message || 'Fehler beim Laden'
+      error.value = e.response?.data?.message || 'Fehler beim Laden der Übersetzungseinheit'
     } finally {
-      loading.value = false
+      unitLoading.value = false
     }
   }
 
   async function fetchStats() {
+    statsLoading.value = true
+    error.value = null
     try {
       const { data } = await translationsApi.getStats()
       stats.value = data
     } catch (e) {
-      error.value = e.response?.data?.message || 'Fehler beim Laden'
+      error.value = e.response?.data?.message || 'Fehler beim Laden der Statistiken'
+    } finally {
+      statsLoading.value = false
     }
   }
 
   async function fetchMissing(params = {}) {
-    loading.value = true
+    missingLoading.value = true
+    error.value = null
     try {
       const { data } = await translationsApi.getMissing(params)
       missingUnits.value = data.data || []
@@ -64,20 +73,16 @@ export const useTranslationsStore = defineStore('translations', () => {
         total: data.total,
       }
     } catch (e) {
-      error.value = e.response?.data?.message || 'Fehler beim Laden'
+      error.value = e.response?.data?.message || 'Fehler beim Laden fehlender Übersetzungen'
     } finally {
-      loading.value = false
+      missingLoading.value = false
     }
   }
 
   async function updateTranslation(unitId, lang, translation) {
-    try {
-      await translationsApi.updateTranslation(unitId, lang, { translation })
-      if (currentUnit.value?.id === unitId) {
-        await fetchUnit(unitId)
-      }
-    } catch (e) {
-      throw e
+    await translationsApi.updateTranslation(unitId, lang, { translation })
+    if (currentUnit.value?.id === unitId) {
+      await fetchUnit(unitId)
     }
   }
 
@@ -96,7 +101,8 @@ export const useTranslationsStore = defineStore('translations', () => {
   }
 
   return {
-    units, unitsPagination, currentUnit, stats, missingUnits, missingPagination, loading, error,
+    units, unitsPagination, currentUnit, stats, missingUnits, missingPagination,
+    unitsLoading, unitLoading, statsLoading, missingLoading, error,
     fetchUnits, fetchUnit, fetchStats, fetchMissing, updateTranslation, retranslate, triggerIngest, syncToDatabase,
   }
 })
