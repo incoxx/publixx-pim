@@ -3,7 +3,7 @@ import { ref, onMounted, computed } from 'vue'
 import {
   Download, FileSpreadsheet, FileJson, FileCode, FileText,
   Package, Tag, DollarSign, Link, Image, Layers,
-  Radio,
+  Radio, Archive,
 } from 'lucide-vue-next'
 import { resolveApiUrl } from '@/api/client'
 import exportsApi from '@/api/exports'
@@ -45,6 +45,7 @@ const selectedLanguages = ref(['de'])
 // Channel
 const format = ref('excel')
 const fileName = ref('')
+const zipExport = ref(false)
 
 // Export Profiles
 const exportProfiles = ref([])
@@ -261,10 +262,11 @@ async function runExport() {
   try {
     const response = await exportProfilesApi.execute(selectedExportProfileId.value, {
       file_name: fileName.value || undefined,
+      zip: zipExport.value || undefined,
     })
     const ext = { excel: 'xlsx', csv: 'csv', json: 'json', xml: 'xml' }[format.value] || 'xlsx'
     const name = fileName.value || `export-${new Date().toISOString().slice(0, 10)}`
-    triggerDownload(new Blob([response.data]), `${name}.${ext}`)
+    triggerDownload(new Blob([response.data]), zipExport.value ? `${name}.zip` : `${name}.${ext}`)
   } catch (e) {
     error.value = e.response?.data?.title || 'Export fehlgeschlagen'
   } finally { exporting.value = false }
@@ -460,6 +462,12 @@ const streamUrl = computed(() => {
           Platzhalter: {date}, {profile}, {format}
         </p>
       </div>
+
+      <label class="flex items-center gap-2 cursor-pointer text-xs">
+        <input type="checkbox" v-model="zipExport" class="rounded" />
+        <Archive class="w-4 h-4 text-[var(--color-text-tertiary)]" :stroke-width="1.75" />
+        Datei als ZIP komprimieren
+      </label>
 
       <!-- Stream URL (nur bei JSON + gespeichertem Profil) -->
       <StreamUrlBox v-if="streamUrl" :url="streamUrl" />
