@@ -2,8 +2,10 @@ import axios from 'axios'
 import { useAuthStore } from '@/stores/auth'
 import router from '@/router'
 
+const apiBaseURL = import.meta.env.VITE_API_BASE_URL || '/api/v1'
+
 const client = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1',
+  baseURL: apiBaseURL,
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
@@ -64,6 +66,20 @@ client.interceptors.response.use(
 )
 
 export default client
+
+/**
+ * Resolves a full, absolute URL for an API path (e.g. "export-profiles/uuid/stream").
+ * Respects VITE_API_BASE_URL so sub-directory deployments (e.g. /web) work correctly.
+ */
+export function resolveApiUrl(path) {
+  // apiBaseURL is e.g. "/web/api/v1" or "/api/v1"
+  const base = apiBaseURL.replace(/\/+$/, '')
+  const clean = path.replace(/^\/+/, '')
+  const fullPath = `${base}/${clean}`
+  // If baseURL is already absolute (https://...), return as-is
+  if (/^https?:\/\//.test(fullPath)) return fullPath
+  return `${window.location.origin}${fullPath}`
+}
 
 // Helper: build query params from options
 export function buildParams(options = {}) {

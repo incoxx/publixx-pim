@@ -5,6 +5,7 @@ import {
   Package, Tag, DollarSign, Link, Image, Layers,
   Radio,
 } from 'lucide-vue-next'
+import { resolveApiUrl } from '@/api/client'
 import exportsApi from '@/api/exports'
 import exportProfilesApi from '@/api/exportProfiles'
 import searchProfilesApi from '@/api/searchProfiles'
@@ -305,7 +306,7 @@ const tabs = [
 // --- Stream URL ---
 const streamUrl = computed(() => {
   if (format.value !== 'json' || !selectedExportProfileId.value) return null
-  return `${window.location.origin}/api/v1/export-profiles/${selectedExportProfileId.value}/stream`
+  return resolveApiUrl(`export-profiles/${selectedExportProfileId.value}/stream`)
 })
 </script>
 
