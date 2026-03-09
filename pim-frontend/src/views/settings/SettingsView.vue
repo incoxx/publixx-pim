@@ -42,7 +42,7 @@ const POPUP_SIZE_OPTIONS = [
   { value: 'full', label: 'Vollbild' },
 ]
 
-const FACET_DATA_TYPES = ['ValueList', 'Boolean', 'Decimal', 'Integer', 'Text']
+const FACET_DATA_TYPES = ['ValueList', 'Boolean', 'Decimal', 'Integer', 'String']
 
 // ── Hierarchies, Attribute Views & Attributes for catalog config ──
 const availableHierarchies = ref([])
