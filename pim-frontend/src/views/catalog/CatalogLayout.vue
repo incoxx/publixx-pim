@@ -48,6 +48,30 @@ function hexToOklch(hex) {
   return `oklch(${(L * 100).toFixed(2)}% ${C.toFixed(4)} ${H.toFixed(2)})`
 }
 
+// Parse hex → {r,g,b} 0-255
+function hexToRgb(hex) {
+  return {
+    r: parseInt(hex.slice(1, 3), 16),
+    g: parseInt(hex.slice(3, 5), 16),
+    b: parseInt(hex.slice(5, 7), 16),
+  }
+}
+
+// Lighten or darken a hex color by a factor (-1..+1)
+function adjustBrightness(hex, factor) {
+  if (!hex || !/^#[0-9A-Fa-f]{6}$/.test(hex)) return hex
+  const { r, g, b } = hexToRgb(hex)
+  const adjust = (c) => {
+    if (factor > 0) return Math.round(c + (255 - c) * factor) // lighten
+    return Math.round(c * (1 + factor)) // darken
+  }
+  const clamp = (v) => Math.max(0, Math.min(255, v))
+  const rr = clamp(adjust(r)).toString(16).padStart(2, '0')
+  const gg = clamp(adjust(g)).toString(16).padStart(2, '0')
+  const bb = clamp(adjust(b)).toString(16).padStart(2, '0')
+  return `#${rr}${gg}${bb}`
+}
+
 let fontLinkEl = null
 
 watchEffect(() => {
@@ -84,6 +108,16 @@ watchEffect(() => {
   for (const [key, cssVar] of Object.entries(colorMap)) {
     const oklch = hexToOklch(t[key])
     if (oklch) el.style.setProperty(cssVar, oklch)
+  }
+
+  // Derive base-100 (cards, modals) and base-300 (borders) from table_bg
+  if (t.color_table_bg) {
+    const base100 = adjustBrightness(t.color_table_bg, 0.5) // lighter → card surface
+    const base300 = adjustBrightness(t.color_table_bg, -0.15) // darker → borders
+    const b100 = hexToOklch(base100)
+    const b300 = hexToOklch(base300)
+    if (b100) el.style.setProperty('--color-base-100', b100)
+    if (b300) el.style.setProperty('--color-base-300', b300)
   }
 
   // Custom CSS vars for sidebar and table stripes (consumed by components)
