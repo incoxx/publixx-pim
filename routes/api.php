@@ -38,6 +38,7 @@ use App\Http\Controllers\Api\V1\PqlController;
 use App\Http\Controllers\Api\V1\PriceTypeController;
 use App\Http\Controllers\Api\V1\ProductTypeController;
 use App\Http\Controllers\Api\V1\ProductAttributeValueController;
+use App\Http\Controllers\Api\V1\TmsProxyController;
 use App\Http\Controllers\Api\V1\TranslationXliffController;
 use App\Http\Controllers\Api\V1\ProductController;
 use App\Http\Controllers\Api\V1\ProductMediaController;
@@ -481,6 +482,20 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::apiResource('pxf-templates', PxfTemplateController::class);
     Route::get('pxf-templates/{pxf_template}/dependencies', [PxfTemplateController::class, 'dependencies']);
     Route::get('pxf-templates/{pxf_template}/preview/{product}', [PxfTemplateController::class, 'preview']);
+
+    // =====================================================================
+    // TMS: Translation Management
+    // =====================================================================
+    Route::prefix('tms')->group(function () {
+        Route::get('units', [TmsProxyController::class, 'units']);
+        Route::get('units/{id}', [TmsProxyController::class, 'unit']);
+        Route::put('units/{id}/translations/{lang}', [TmsProxyController::class, 'updateTranslation']);
+        Route::get('stats', [TmsProxyController::class, 'stats']);
+        Route::get('missing', [TmsProxyController::class, 'missing']);
+        Route::post('retranslate', [TmsProxyController::class, 'retranslate']);
+        Route::post('ingest', [TmsProxyController::class, 'triggerIngest']);
+        Route::post('sync', [TmsProxyController::class, 'syncToDatabase']);
+    });
 
     // =====================================================================
     // Admin: Deployment (nur Admin-Rolle)

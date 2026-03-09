@@ -201,6 +201,7 @@ class JsonFormatExporter
                 'technical_name' => $g->technical_name,
                 'name_de' => $g->name_de,
                 'name_en' => $g->name_en,
+                'name_json' => $g->name_json,
             ])
             ->toArray();
     }
@@ -215,6 +216,7 @@ class JsonFormatExporter
             ->map(fn (Unit $u) => [
                 'technical_name' => $u->technical_name,
                 'abbreviation' => $u->abbreviation,
+                'abbreviation_json' => $u->abbreviation_json,
                 'unit_group' => $u->unitGroup?->technical_name,
                 'conversion_factor' => $u->conversion_factor,
                 'is_base_unit' => $u->is_base_unit,
@@ -231,6 +233,7 @@ class JsonFormatExporter
                 'technical_name' => $v->technical_name,
                 'name_de' => $v->name_de,
                 'name_en' => $v->name_en,
+                'name_json' => $v->name_json,
                 'description' => $v->description,
             ])
             ->toArray();
@@ -245,6 +248,7 @@ class JsonFormatExporter
                 'technical_name' => $g->technical_name,
                 'name_de' => $g->name_de,
                 'name_en' => $g->name_en,
+                'name_json' => $g->name_json,
                 'description' => $g->description,
                 'sort_order' => $g->sort_order,
             ])
@@ -261,10 +265,12 @@ class JsonFormatExporter
                 'technical_name' => $list->technical_name,
                 'name_de' => $list->name_de,
                 'name_en' => $list->name_en,
+                'name_json' => $list->name_json,
                 'entries' => $list->entries->map(fn (ValueListEntry $e) => [
                     'technical_name' => $e->technical_name,
                     'display_value_de' => $e->display_value_de,
                     'display_value_en' => $e->display_value_en,
+                    'display_value_json' => $e->display_value_json,
                     'sort_order' => $e->sort_order,
                 ])->toArray(),
             ])
@@ -281,6 +287,7 @@ class JsonFormatExporter
                 'technical_name' => $a->technical_name,
                 'name_de' => $a->name_de,
                 'name_en' => $a->name_en,
+                'name_json' => $a->name_json,
                 'description' => $a->description_de,
                 'data_type' => $a->data_type,
                 'attribute_group' => $a->attributeType?->technical_name,
@@ -310,6 +317,7 @@ class JsonFormatExporter
                 'technical_name' => $t->technical_name,
                 'name_de' => $t->name_de,
                 'name_en' => $t->name_en,
+                'name_json' => $t->name_json,
                 'description' => $t->description,
                 'has_variants' => $t->has_variants,
                 'has_ean' => $t->has_ean,
@@ -328,6 +336,7 @@ class JsonFormatExporter
                 'technical_name' => $p->technical_name,
                 'name_de' => $p->name_de,
                 'name_en' => $p->name_en,
+                'name_json' => $p->name_json,
                 'description' => $p->description,
             ])
             ->toArray();
@@ -342,6 +351,7 @@ class JsonFormatExporter
                 'technical_name' => $r->technical_name,
                 'name_de' => $r->name_de,
                 'name_en' => $r->name_en,
+                'name_json' => $r->name_json,
                 'is_bidirectional' => $r->is_bidirectional,
             ])
             ->toArray();
@@ -362,6 +372,7 @@ class JsonFormatExporter
                     'technical_name' => $h->technical_name,
                     'name_de' => $h->name_de,
                     'name_en' => $h->name_en,
+                    'name_json' => $h->name_json,
                     'hierarchy_type' => $h->hierarchy_type,
                     'nodes' => $nodes
                         ->filter(fn (HierarchyNode $n) => $n->depth > 0)
@@ -371,6 +382,7 @@ class JsonFormatExporter
                             'path' => $this->buildReadablePath($n, $nodes),
                             'name_de' => $n->name_de,
                             'name_en' => $n->name_en,
+                            'name_json' => $n->name_json,
                             'depth' => $n->depth,
                             'sort_order' => $n->sort_order,
                         ])

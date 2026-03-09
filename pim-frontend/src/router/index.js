@@ -157,6 +157,12 @@ const routes = [
     meta: { title: 'Preise' },
   },
   {
+    path: '/translations',
+    name: 'translations',
+    component: () => import('@/views/translations/TranslationView.vue'),
+    meta: { title: 'Übersetzungen' },
+  },
+  {
     path: '/users',
     name: 'users',
     component: () => import('@/views/users/UserView.vue'),
