@@ -29,7 +29,7 @@ const coverageColor = computed(() => {
 </script>
 
 <template>
-  <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg p-5">
+  <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg p-4 sm:p-5">
     <div class="flex items-center justify-between mb-3">
       <div class="flex items-center gap-2">
         <span class="text-xs font-mono uppercase bg-[var(--color-bg)] px-1.5 py-0.5 rounded border border-[var(--color-border)]">{{ lang }}</span>
@@ -43,17 +43,17 @@ const coverageColor = computed(() => {
       <div :class="[coverageColor, 'h-2 rounded-full transition-all duration-500']" :style="{ width: stats.coverage + '%' }" />
     </div>
 
-    <div class="grid grid-cols-3 gap-2 text-xs">
-      <div>
-        <div class="text-[var(--color-text-tertiary)]">Übersetzt</div>
+    <div class="grid grid-cols-3 gap-3 text-xs">
+      <div class="min-w-0">
+        <div class="text-[var(--color-text-tertiary)] truncate">Übersetzt</div>
         <div class="font-medium text-green-600">{{ stats.translated }}</div>
       </div>
-      <div>
-        <div class="text-[var(--color-text-tertiary)]">Geprüft</div>
+      <div class="min-w-0">
+        <div class="text-[var(--color-text-tertiary)] truncate">Geprüft</div>
         <div class="font-medium text-blue-600">{{ stats.reviewed }}</div>
       </div>
-      <div>
-        <div class="text-[var(--color-text-tertiary)]">Fehlend</div>
+      <div class="min-w-0">
+        <div class="text-[var(--color-text-tertiary)] truncate">Fehlend</div>
         <div class="font-medium text-amber-600">{{ stats.missing }}</div>
       </div>
     </div>

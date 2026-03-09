@@ -28,6 +28,11 @@ const inWishlist = computed(() =>
   product.value ? store.isInWishlist(product.value.id) : false,
 )
 
+const modalSizeClass = computed(() => {
+  const map = { '4xl': 'max-w-4xl', '5xl': 'max-w-5xl', '6xl': 'max-w-6xl', '7xl': 'max-w-7xl', 'full': 'max-w-full' }
+  return map[store.themeSettings.popup_max_width] || 'max-w-4xl'
+})
+
 function formatPrice(price) {
   if (!price?.amount) return '--'
   return new Intl.NumberFormat(store.locale === 'de' ? 'de-DE' : 'en-US', {
@@ -39,7 +44,7 @@ function formatPrice(price) {
 
 <template>
   <dialog class="modal" :class="{ 'modal-open': open }">
-    <div class="modal-box max-w-4xl w-11/12 p-0 overflow-hidden">
+    <div :class="['modal-box w-11/12 p-0 overflow-hidden', modalSizeClass]">
       <!-- Close button -->
       <button
         class="btn btn-sm btn-circle btn-ghost absolute right-3 top-3 z-10"

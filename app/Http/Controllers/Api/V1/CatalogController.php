@@ -14,7 +14,10 @@ use App\Models\Media;
 use App\Models\OutputHierarchyProductAssignment;
 use App\Models\Product;
 use App\Models\ProductSearchIndex;
+use App\Models\Attribute;
+use App\Models\ProductAttributeValue;
 use App\Models\Setting;
+use App\Models\ValueListEntry;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller as BaseController;
@@ -91,6 +94,46 @@ class CatalogController extends BaseController
                       ->orWhere('products_search_index.ean', 'like', $likeTerm)
                       ->orWhere('products_search_index.description_de', 'like', $likeTerm);
                 });
+            }
+        }
+
+        // Facet filters
+        $filters = $request->query('filters', []);
+        if (is_array($filters)) {
+            $filterIdx = 0;
+            foreach ($filters as $attrId => $filterValue) {
+                if (!is_string($attrId) || empty($filterValue)) {
+                    continue;
+                }
+                $alias = "pav_f{$filterIdx}";
+                $filterIdx++;
+
+                $query->join("product_attribute_values as {$alias}", function ($join) use ($alias, $attrId) {
+                    $join->on("{$alias}.product_id", '=', 'products.id')
+                         ->where("{$alias}.attribute_id", '=', $attrId);
+                });
+
+                if (str_contains($filterValue, ':')) {
+                    // Range filter (min:max)
+                    [$min, $max] = explode(':', $filterValue, 2);
+                    if ($min !== '') {
+                        $query->where("{$alias}.value_number", '>=', (float) $min);
+                    }
+                    if ($max !== '') {
+                        $query->where("{$alias}.value_number", '<=', (float) $max);
+                    }
+                } elseif ($filterValue === '0' || $filterValue === '1') {
+                    $query->where("{$alias}.value_flag", '=', $filterValue === '1');
+                } else {
+                    // Value list or text — comma-separated IDs or values
+                    $values = array_filter(explode(',', $filterValue));
+                    if (!empty($values)) {
+                        $query->where(function ($q) use ($alias, $values) {
+                            $q->whereIn("{$alias}.value_selection_id", $values)
+                              ->orWhereIn("{$alias}.value_string", $values);
+                        });
+                    }
+                }
             }
         }
 
@@ -507,6 +550,147 @@ class CatalogController extends BaseController
             'Content-Type' => $media->mime_type,
             'Cache-Control' => 'public, max-age=86400',
         ]);
+    }
+
+    /**
+     * GET /api/v1/catalog/facets
+     *
+     * Returns available facet filters based on configured attributes.
+     */
+    public function facets(Request $request): JsonResponse
+    {
+        $lang = $request->query('lang', 'de');
+        $themePayload = Setting::getPayload('catalog_theme') ?? [];
+        $facetAttributeIds = $themePayload['facet_attribute_ids'] ?? [];
+
+        if (empty($facetAttributeIds)) {
+            return response()->json(['facets' => []]);
+        }
+
+        $attributes = Attribute::whereIn('id', $facetAttributeIds)->get()->keyBy('id');
+
+        // Only active products
+        $activeProductIds = Product::where('status', 'active')
+            ->where('product_type_ref', 'product')
+            ->pluck('id');
+
+        $facets = [];
+
+        foreach ($facetAttributeIds as $attrId) {
+            $attr = $attributes->get($attrId);
+            if (!$attr) {
+                continue;
+            }
+
+            $label = $lang === 'en' && $attr->name_en ? $attr->name_en : ($attr->name_de ?: $attr->technical_name);
+            $dataType = $attr->data_type;
+
+            $baseQuery = ProductAttributeValue::where('attribute_id', $attrId)
+                ->whereIn('product_id', $activeProductIds);
+
+            if (in_array($dataType, ['ValueList', 'Selection', 'Dictionary'])) {
+                // Get distinct value_list_entry values with counts
+                $rows = (clone $baseQuery)
+                    ->whereNotNull('value_selection_id')
+                    ->select('value_selection_id', DB::raw('COUNT(DISTINCT product_id) as cnt'))
+                    ->groupBy('value_selection_id')
+                    ->orderByDesc('cnt')
+                    ->limit(50)
+                    ->get();
+
+                $entryIds = $rows->pluck('value_selection_id')->toArray();
+                $entries = ValueListEntry::whereIn('id', $entryIds)->get()->keyBy('id');
+
+                $values = [];
+                foreach ($rows as $row) {
+                    $entry = $entries->get($row->value_selection_id);
+                    if (!$entry) {
+                        continue;
+                    }
+                    $displayValue = $lang === 'en' && $entry->display_value_en
+                        ? $entry->display_value_en
+                        : $entry->display_value_de;
+                    $values[] = [
+                        'value' => $displayValue,
+                        'value_id' => $row->value_selection_id,
+                        'count' => $row->cnt,
+                    ];
+                }
+
+                $facets[] = [
+                    'attribute_id' => $attrId,
+                    'label' => $label,
+                    'data_type' => 'ValueList',
+                    'values' => $values,
+                ];
+            } elseif ($dataType === 'Boolean' || $dataType === 'Flag') {
+                $counts = (clone $baseQuery)
+                    ->whereNotNull('value_flag')
+                    ->select('value_flag', DB::raw('COUNT(DISTINCT product_id) as cnt'))
+                    ->groupBy('value_flag')
+                    ->get()
+                    ->keyBy('value_flag');
+
+                $facets[] = [
+                    'attribute_id' => $attrId,
+                    'label' => $label,
+                    'data_type' => 'Boolean',
+                    'values' => [
+                        ['value' => 'Ja', 'filter_value' => '1', 'count' => $counts->get(1)?->cnt ?? 0],
+                        ['value' => 'Nein', 'filter_value' => '0', 'count' => $counts->get(0)?->cnt ?? 0],
+                    ],
+                ];
+            } elseif (in_array($dataType, ['Decimal', 'Integer', 'Number', 'Float'])) {
+                $stats = (clone $baseQuery)
+                    ->whereNotNull('value_number')
+                    ->select(
+                        DB::raw('MIN(value_number) as min_val'),
+                        DB::raw('MAX(value_number) as max_val'),
+                        DB::raw('COUNT(DISTINCT product_id) as cnt')
+                    )
+                    ->first();
+
+                $unit = null;
+                $firstWithUnit = (clone $baseQuery)->whereNotNull('unit_id')->first();
+                if ($firstWithUnit && $firstWithUnit->unit) {
+                    $unit = $firstWithUnit->unit->abbreviation;
+                }
+
+                $facets[] = [
+                    'attribute_id' => $attrId,
+                    'label' => $label,
+                    'data_type' => 'Decimal',
+                    'min' => $stats->min_val !== null ? (float) $stats->min_val : null,
+                    'max' => $stats->max_val !== null ? (float) $stats->max_val : null,
+                    'count' => $stats->cnt ?? 0,
+                    'unit' => $unit,
+                ];
+            } elseif ($dataType === 'Text' || $dataType === 'String') {
+                $rows = (clone $baseQuery)
+                    ->whereNotNull('value_string')
+                    ->where('value_string', '!=', '')
+                    ->select('value_string', DB::raw('COUNT(DISTINCT product_id) as cnt'))
+                    ->groupBy('value_string')
+                    ->orderByDesc('cnt')
+                    ->limit(20)
+                    ->get();
+
+                $values = $rows->map(fn ($r) => [
+                    'value' => $r->value_string,
+                    'value_id' => $r->value_string,
+                    'count' => $r->cnt,
+                ])->toArray();
+
+                $facets[] = [
+                    'attribute_id' => $attrId,
+                    'label' => $label,
+                    'data_type' => 'Text',
+                    'values' => $values,
+                ];
+            }
+        }
+
+        return response()->json(['facets' => $facets]);
     }
 
     /**

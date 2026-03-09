@@ -182,7 +182,7 @@ const paginationPages = computed(() => {
 </script>
 
 <template>
-  <div class="p-6 max-w-[1400px] mx-auto">
+  <div class="p-4 sm:p-6 max-w-[1400px] mx-auto">
     <!-- Header -->
     <div class="flex items-center justify-between mb-6">
       <div class="flex items-center gap-3">
@@ -206,12 +206,12 @@ const paginationPages = computed(() => {
     </div>
 
     <!-- Tabs -->
-    <div class="flex gap-1 mb-6 border-b border-[var(--color-border)]">
+    <div class="flex gap-1 mb-6 border-b border-[var(--color-border)] overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
       <button
         v-for="tab in tabs"
         :key="tab.key"
         :class="[
-          'flex items-center gap-2 px-4 py-2.5 text-[13px] font-medium border-b-2 -mb-px transition-colors',
+          'flex items-center gap-2 px-4 py-2.5 text-[13px] font-medium border-b-2 -mb-px transition-colors whitespace-nowrap shrink-0',
           activeTab === tab.key
             ? 'border-[var(--color-accent)] text-[var(--color-accent)]'
             : 'border-transparent text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
@@ -226,14 +226,12 @@ const paginationPages = computed(() => {
     <!-- Tab: Overview -->
     <div v-if="activeTab === 'overview'">
       <div v-if="store.stats" class="space-y-6">
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg p-5">
-            <div class="text-sm text-[var(--color-text-secondary)] mb-1">Begriffe gesamt</div>
-            <div class="text-2xl font-semibold text-[var(--color-text-primary)]">{{ store.stats.total_units }}</div>
-          </div>
+        <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg p-4 sm:p-5">
+          <div class="text-sm text-[var(--color-text-secondary)] mb-1">Begriffe gesamt</div>
+          <div class="text-2xl font-semibold text-[var(--color-text-primary)]">{{ store.stats.total_units }}</div>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
           <TranslationStatsCard
             v-for="(langStats, lang) in store.stats.languages"
             :key="lang"
@@ -251,8 +249,8 @@ const paginationPages = computed(() => {
     <!-- Tab: Units / Missing -->
     <div v-if="activeTab === 'units' || activeTab === 'missing'">
       <!-- Toolbar -->
-      <div class="flex items-center gap-3 mb-4">
-        <div class="relative flex-1 max-w-md">
+      <div class="flex flex-wrap items-center gap-2 sm:gap-3 mb-4">
+        <div class="relative flex-1 min-w-[200px]">
           <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-tertiary)]" />
           <input
             v-model="searchQuery"
@@ -274,7 +272,7 @@ const paginationPages = computed(() => {
         <select
           v-if="activeTab === 'units'"
           v-model="selectedDomain"
-          class="px-3 py-2 text-sm bg-[var(--color-surface)] border border-[var(--color-border)] rounded-md"
+          class="flex-1 sm:flex-none min-w-0 px-3 py-2 text-sm bg-[var(--color-surface)] border border-[var(--color-border)] rounded-md"
           @change="onSearch"
         >
           <option v-for="opt in domainOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
@@ -283,7 +281,7 @@ const paginationPages = computed(() => {
         <select
           v-if="activeTab === 'units'"
           v-model="selectedStatus"
-          class="px-3 py-2 text-sm bg-[var(--color-surface)] border border-[var(--color-border)] rounded-md"
+          class="flex-1 sm:flex-none min-w-0 px-3 py-2 text-sm bg-[var(--color-surface)] border border-[var(--color-border)] rounded-md"
           @change="onSearch"
         >
           <option value="">Alle Status</option>
@@ -294,8 +292,8 @@ const paginationPages = computed(() => {
       </div>
 
       <!-- Table -->
-      <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg overflow-hidden">
-        <table class="w-full text-sm">
+      <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg overflow-x-auto">
+        <table class="w-full text-sm min-w-[600px]">
           <thead>
             <tr class="border-b border-[var(--color-border)] bg-[var(--color-bg)]">
               <th class="text-left px-4 py-3 font-medium text-[var(--color-text-secondary)]">Quelltext</th>
@@ -352,7 +350,7 @@ const paginationPages = computed(() => {
       </div>
 
       <!-- Pagination -->
-      <div v-if="pagination.lastPage > 1" class="flex items-center justify-between mt-4">
+      <div v-if="pagination.lastPage > 1" class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mt-4">
         <div class="text-sm text-[var(--color-text-tertiary)]">
           {{ pagination.total }} Einträge
         </div>
@@ -381,16 +379,16 @@ const paginationPages = computed(() => {
 
     <!-- Tab: Settings -->
     <div v-if="activeTab === 'settings'" class="space-y-6">
-      <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg p-6">
+      <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg p-4 sm:p-6">
         <h2 class="text-base font-medium text-[var(--color-text-primary)] mb-4">TMS Aktionen</h2>
         <div class="flex flex-col gap-3">
-          <div class="flex items-center justify-between py-3 border-b border-[var(--color-border)]">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3 border-b border-[var(--color-border)]">
             <div>
               <div class="text-sm font-medium text-[var(--color-text-primary)]">PIM-Daten an TMS senden</div>
               <div class="text-xs text-[var(--color-text-tertiary)] mt-0.5">Alle Metadaten-Entitäten an den Translation Memory Service übertragen</div>
             </div>
             <button
-              class="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[var(--color-accent)] text-white rounded-md hover:opacity-90 disabled:opacity-50"
+              class="flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium bg-[var(--color-accent)] text-white rounded-md hover:opacity-90 disabled:opacity-50 shrink-0 w-full sm:w-auto"
               :disabled="ingestLoading"
               @click="triggerIngest"
             >
@@ -400,13 +398,13 @@ const paginationPages = computed(() => {
             </button>
           </div>
 
-          <div class="flex items-center justify-between py-3 border-b border-[var(--color-border)]">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3 border-b border-[var(--color-border)]">
             <div>
               <div class="text-sm font-medium text-[var(--color-text-primary)]">Übersetzungen synchronisieren</div>
               <div class="text-xs text-[var(--color-text-tertiary)] mt-0.5">TMS-Übersetzungen in die PIM-Datenbank zurückschreiben (name_json Felder)</div>
             </div>
             <button
-              class="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[var(--color-accent)] text-white rounded-md hover:opacity-90 disabled:opacity-50"
+              class="flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium bg-[var(--color-accent)] text-white rounded-md hover:opacity-90 disabled:opacity-50 shrink-0 w-full sm:w-auto"
               :disabled="syncLoading"
               @click="triggerSync"
             >
@@ -416,13 +414,13 @@ const paginationPages = computed(() => {
             </button>
           </div>
 
-          <div class="flex items-center justify-between py-3">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
             <div>
               <div class="text-sm font-medium text-[var(--color-text-primary)]">Statistiken aktualisieren</div>
               <div class="text-xs text-[var(--color-text-tertiary)] mt-0.5">Übersetzungs-Statistiken neu laden</div>
             </div>
             <button
-              class="flex items-center gap-2 px-4 py-2 text-sm font-medium border border-[var(--color-border)] rounded-md hover:bg-[var(--color-bg)]"
+              class="flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium border border-[var(--color-border)] rounded-md hover:bg-[var(--color-bg)] shrink-0 w-full sm:w-auto"
               @click="refreshStats"
             >
               <RefreshCw class="w-4 h-4" />
@@ -456,7 +454,7 @@ const paginationPages = computed(() => {
         </div>
       </div>
 
-      <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg p-6">
+      <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg p-4 sm:p-6">
         <h2 class="text-base font-medium text-[var(--color-text-primary)] mb-4">Konfiguration</h2>
         <div class="text-sm text-[var(--color-text-secondary)] space-y-2">
           <p>Die TMS-Konfiguration erfolgt über Umgebungsvariablen:</p>

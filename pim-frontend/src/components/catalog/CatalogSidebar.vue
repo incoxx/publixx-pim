@@ -2,6 +2,7 @@
 import { useI18n } from 'vue-i18n'
 import { useCatalogStore } from '@/stores/catalog'
 import CatalogCategoryTree from './CatalogCategoryTree.vue'
+import CatalogFacets from './CatalogFacets.vue'
 import { FolderTree } from 'lucide-vue-next'
 
 const { t } = useI18n()
@@ -56,5 +57,8 @@ function selectAll() {
         :level="0"
       />
     </div>
+
+    <!-- Facet filters -->
+    <CatalogFacets />
   </aside>
 </template>
