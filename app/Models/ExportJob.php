@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ExportJob extends Model
 {
@@ -22,6 +23,8 @@ class ExportJob extends Model
         'sections',
         'filters',
         'cron_expression',
+        'delivery_type',
+        'delivery_config',
         'is_active',
         'last_status',
         'last_run_at',
@@ -39,6 +42,7 @@ class ExportJob extends Model
         return [
             'sections' => 'array',
             'filters' => 'array',
+            'delivery_config' => 'array',
             'is_active' => 'boolean',
             'is_shared' => 'boolean',
             'last_run_at' => 'datetime',
@@ -60,6 +64,11 @@ class ExportJob extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function logs(): HasMany
+    {
+        return $this->hasMany(ExportJobLog::class)->orderByDesc('created_at');
     }
 
     public function scopeActive($query)

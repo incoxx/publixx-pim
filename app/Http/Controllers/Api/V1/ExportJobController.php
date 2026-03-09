@@ -6,6 +6,8 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Jobs\ExecuteExportJob;
 use App\Models\ExportJob;
+use App\Models\ExportJobLog;
+use App\Services\Export\ExportDeliveryService;
 use App\Services\Export\ExportJobService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -21,6 +23,7 @@ use Illuminate\Support\Facades\Storage;
  *   DELETE /api/v1/export-jobs/{id}         — Job löschen
  *   POST   /api/v1/export-jobs/{id}/execute — Job sofort ausführen
  *   GET    /api/v1/export-jobs/{id}/download — Letzte Export-Datei herunterladen
+ *   GET    /api/v1/export-jobs/{id}/logs     — Ausführungsprotokoll
  */
 class ExportJobController extends Controller
 {
@@ -52,15 +55,28 @@ class ExportJobController extends Controller
             'sections.*' => 'string',
             'filters' => 'sometimes|array|nullable',
             'cron_expression' => 'sometimes|string|nullable|max:100',
+            'delivery_type' => 'sometimes|string|nullable|in:filesystem,sftp,http',
+            'delivery_config' => 'sometimes|array|nullable',
             'is_active' => 'sometimes|boolean',
             'is_shared' => 'sometimes|boolean',
         ]);
 
         $validated['user_id'] = $request->user()?->id;
 
+        // Credentials verschlüsseln
+        if (!empty($validated['delivery_config']) && !empty($validated['delivery_type'])) {
+            $validated['delivery_config'] = ExportDeliveryService::encryptCredentials(
+                $validated['delivery_config'],
+                $validated['delivery_type'],
+            );
+        }
+
         $job = ExportJob::create($validated);
 
-        return response()->json(['data' => $job], 201);
+        // next_run_at initial berechnen
+        $this->jobService->updateNextRunAt($job);
+
+        return response()->json(['data' => $job->fresh()], 201);
     }
 
     public function show(Request $request, string $id): JsonResponse
@@ -88,11 +104,26 @@ class ExportJobController extends Controller
             'sections.*' => 'string',
             'filters' => 'sometimes|array|nullable',
             'cron_expression' => 'sometimes|string|nullable|max:100',
+            'delivery_type' => 'sometimes|string|nullable|in:filesystem,sftp,http',
+            'delivery_config' => 'sometimes|array|nullable',
             'is_active' => 'sometimes|boolean',
             'is_shared' => 'sometimes|boolean',
         ]);
 
+        // Credentials verschlüsseln
+        if (!empty($validated['delivery_config']) && !empty($validated['delivery_type'] ?? $job->delivery_type)) {
+            $validated['delivery_config'] = ExportDeliveryService::encryptCredentials(
+                $validated['delivery_config'],
+                $validated['delivery_type'] ?? $job->delivery_type,
+            );
+        }
+
         $job->update($validated);
+
+        // next_run_at neu berechnen bei Änderung von cron_expression oder is_active
+        if (array_key_exists('cron_expression', $validated) || array_key_exists('is_active', $validated)) {
+            $this->jobService->updateNextRunAt($job->fresh());
+        }
 
         return response()->json(['data' => $job->fresh()]);
     }
@@ -155,6 +186,19 @@ class ExportJobController extends Controller
             $job->last_output_path,
             basename($job->last_output_path),
         );
+    }
+
+    /**
+     * GET /api/v1/export-jobs/{id}/logs — Ausführungsprotokoll.
+     */
+    public function logs(Request $request, string $id): JsonResponse
+    {
+        $job = ExportJob::findOrFail($id);
+        $this->authorizeJobAccess($request, $job);
+
+        $logs = $job->logs()->limit(50)->get();
+
+        return response()->json(['data' => $logs]);
     }
 
     /**

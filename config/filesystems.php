@@ -9,6 +9,11 @@ return [
             'serve' => true,
             'throw' => false,
         ],
+        'exports' => [
+            'driver' => 'local',
+            'root' => storage_path('app/exports'),
+            'throw' => true,
+        ],
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),

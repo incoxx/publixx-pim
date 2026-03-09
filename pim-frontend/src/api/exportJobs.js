@@ -28,4 +28,8 @@ export default {
   download(id) {
     return client.get(`/export-jobs/${id}/download`, { responseType: 'blob' })
   },
+
+  logs(id) {
+    return client.get(`/export-jobs/${id}/logs`)
+  },
 }

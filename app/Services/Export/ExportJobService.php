@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace App\Services\Export;
 
 use App\Models\ExportJob;
+use App\Models\ExportJobLog;
 use App\Models\ExportProfile;
 use App\Models\SearchProfile;
+use Cron\CronExpression;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
@@ -25,6 +27,7 @@ class ExportJobService
         private readonly JsonFormatExporter $jsonExporter,
         private readonly ExportProfileService $profileService,
         private readonly ImportFormatExporter $importFormatExporter,
+        private readonly ExportDeliveryService $deliveryService,
     ) {}
 
     /**
@@ -53,6 +56,18 @@ class ExportJobService
             'last_error' => null,
         ]);
 
+        // Log-Eintrag erstellen
+        $logEntry = ExportJobLog::create([
+            'export_job_id' => $job->id,
+            'status' => 'running',
+            'started_at' => now(),
+            'meta' => [
+                'format' => $job->format,
+                'sections' => $job->sections,
+                'filters' => $job->filters,
+            ],
+        ]);
+
         try {
             $result = match ($job->format) {
                 'json' => $this->executeJsonExport($job, $outputDir),
@@ -62,6 +77,9 @@ class ExportJobService
 
             $duration = round(microtime(true) - $startTime, 2);
 
+            // Delivery ausführen
+            $delivery = $this->deliveryService->deliver($job, $result['path']);
+
             $job->update([
                 'last_status' => 'completed',
                 'last_duration_seconds' => $duration,
@@ -70,17 +88,36 @@ class ExportJobService
                     'format' => $result['format'],
                     'size_bytes' => $result['size'],
                     'duration_seconds' => $duration,
+                    'delivery_status' => $delivery['status'],
                 ],
             ]);
+
+            // Log-Eintrag abschließen
+            $logEntry->update([
+                'status' => 'completed',
+                'finished_at' => now(),
+                'duration_seconds' => $duration,
+                'output_path' => $result['path'],
+                'file_size_bytes' => $result['size'],
+                'delivery_status' => $delivery['status'] !== 'skipped' ? $delivery['status'] : null,
+                'delivery_error' => $delivery['error'],
+            ]);
+
+            // next_run_at berechnen
+            $this->updateNextRunAt($job);
+
+            // Log-Retention: max 50 Einträge pro Job
+            $this->pruneOldLogs($job);
 
             Log::channel('export')->info("Export-Job abgeschlossen: {$job->name}", [
                 'job_id' => $job->id,
                 'path' => $result['path'],
                 'size' => $result['size'],
                 'duration' => $duration,
+                'delivery' => $delivery['status'],
             ]);
 
-            return array_merge($result, ['duration' => $duration]);
+            return array_merge($result, ['duration' => $duration, 'delivery' => $delivery]);
         } catch (\Throwable $e) {
             $duration = round(microtime(true) - $startTime, 2);
 
@@ -90,6 +127,17 @@ class ExportJobService
                 'last_error' => $e->getMessage(),
             ]);
 
+            $logEntry->update([
+                'status' => 'failed',
+                'finished_at' => now(),
+                'duration_seconds' => $duration,
+                'error' => $e->getMessage(),
+            ]);
+
+            // next_run_at auch bei Fehler berechnen
+            $this->updateNextRunAt($job);
+            $this->pruneOldLogs($job);
+
             Log::channel('export')->error("Export-Job fehlgeschlagen: {$job->name}", [
                 'job_id' => $job->id,
                 'error' => $e->getMessage(),
@@ -97,6 +145,40 @@ class ExportJobService
 
             throw $e;
         }
+    }
+
+    /**
+     * Berechnet next_run_at aus der cron_expression.
+     */
+    public function updateNextRunAt(ExportJob $job): void
+    {
+        if ($job->cron_expression && $job->is_active) {
+            try {
+                $cron = new CronExpression($job->cron_expression);
+                $job->update(['next_run_at' => $cron->getNextRunDate()]);
+            } catch (\Throwable $e) {
+                Log::channel('export')->warning("Ungültige Cron-Expression: {$job->cron_expression}", [
+                    'job_id' => $job->id,
+                ]);
+            }
+        } else {
+            $job->update(['next_run_at' => null]);
+        }
+    }
+
+    /**
+     * Behält max. 50 Log-Einträge pro Job.
+     */
+    private function pruneOldLogs(ExportJob $job): void
+    {
+        $idsToKeep = ExportJobLog::where('export_job_id', $job->id)
+            ->orderByDesc('created_at')
+            ->limit(50)
+            ->pluck('id');
+
+        ExportJobLog::where('export_job_id', $job->id)
+            ->whereNotIn('id', $idsToKeep)
+            ->delete();
     }
 
     /**
