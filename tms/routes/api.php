@@ -6,7 +6,7 @@ use Tms\Http\Controllers\ResolveController;
 use Tms\Http\Controllers\UnitController;
 use Tms\Http\Middleware\ValidateApiKey;
 
-Route::middleware(ValidateApiKey::class)->prefix('api')->group(function () {
+Route::middleware(ValidateApiKey::class)->group(function () {
     // Ingest: receive entities from PIM
     Route::post('ingest', IngestController::class);
 
