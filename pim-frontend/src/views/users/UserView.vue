@@ -4,7 +4,7 @@ import { Plus, Shield } from 'lucide-vue-next'
 import usersApi, { roles } from '@/api/users'
 import { useAuthStore } from '@/stores/auth'
 import PimTable from '@/components/shared/PimTable.vue'
-import PimConfirmDialog from '@/components/shared/PimConfirmDialog.vue'
+import PimDeleteConfirmDialog from '@/components/shared/PimDeleteConfirmDialog.vue'
 import UserFormPanel from '@/components/panels/UserFormPanel.vue'
 
 const authStore = useAuthStore()
@@ -48,10 +48,10 @@ function handleRowAction(row) {
   deleteTarget.value = row
 }
 
-async function confirmDelete() {
+async function confirmDelete({ force }) {
   deleting.value = true
   try {
-    await usersApi.delete(deleteTarget.value.id)
+    await usersApi.delete(deleteTarget.value.id, { force })
     deleteTarget.value = null
     await fetchUsers()
   } finally {
@@ -95,10 +95,12 @@ onMounted(async () => {
       </template>
     </PimTable>
 
-    <PimConfirmDialog
+    <PimDeleteConfirmDialog
       :open="!!deleteTarget"
       title="Benutzer löschen?"
       :message="`Der Benutzer '${deleteTarget?.name || ''}' wird unwiderruflich gelöscht.`"
+      entityType="users"
+      :entityId="deleteTarget?.id"
       :loading="deleting"
       @confirm="confirmDelete"
       @cancel="deleteTarget = null"

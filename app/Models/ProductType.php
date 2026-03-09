@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Models\Concerns\HasDeletionConstraints;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -11,7 +12,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ProductType extends Model
 {
-    use HasFactory, HasUuids;
+    use HasDeletionConstraints, HasFactory, HasUuids;
 
     protected $fillable = [
         'technical_name',
@@ -60,5 +61,13 @@ class ProductType extends Model
     public function pxfTemplates(): HasMany
     {
         return $this->hasMany(PxfTemplate::class);
+    }
+
+    public function deletionConstraints(): array
+    {
+        return [
+            'products'     => 'Produkte',
+            'pxfTemplates' => 'PXF-Templates',
+        ];
     }
 }

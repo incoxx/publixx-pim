@@ -21,8 +21,12 @@ export default {
     return client.put(`/products/${id}`, data)
   },
 
-  delete(id) {
-    return client.delete(`/products/${id}`)
+  dependencies(id) {
+    return client.get(`/products/${id}/dependencies`)
+  },
+
+  delete(id, { force = false } = {}) {
+    return client.delete(`/products/${id}`, { params: force ? { force: true } : {} })
   },
 
   duplicate(id, options = {}) {

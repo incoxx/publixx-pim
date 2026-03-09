@@ -4,7 +4,7 @@ import { Upload, Image, Grid, List, Trash2, FolderOpen, FolderPlus, Search, X, P
 import mediaApi from '@/api/media'
 import hierarchiesApi from '@/api/hierarchies'
 import { useAuthStore } from '@/stores/auth'
-import PimConfirmDialog from '@/components/shared/PimConfirmDialog.vue'
+import PimDeleteConfirmDialog from '@/components/shared/PimDeleteConfirmDialog.vue'
 import PimTree from '@/components/shared/PimTree.vue'
 import PimAttributeInput from '@/components/shared/PimAttributeInput.vue'
 
@@ -120,12 +120,12 @@ function handleImgError(e) {
 const deleteFolderTarget = ref(null)
 const deletingFolder = ref(false)
 
-async function confirmDeleteFolder() {
+async function confirmDeleteFolder({ force } = {}) {
   if (!deleteFolderTarget.value) return
   deletingFolder.value = true
   const folderId = deleteFolderTarget.value.id
   try {
-    await hierarchiesApi.deleteNode(folderId)
+    await hierarchiesApi.deleteNode(folderId, { force })
     if (selectedFolderId.value === folderId) {
       selectedFolderId.value = null
     }
@@ -266,10 +266,10 @@ async function saveDetail() {
   await fetchMedia()
 }
 
-async function confirmDelete() {
+async function confirmDelete({ force } = {}) {
   deleting.value = true
   try {
-    await mediaApi.delete(deleteTarget.value.id)
+    await mediaApi.delete(deleteTarget.value.id, { force })
     deleteTarget.value = null
     await fetchMedia()
   } finally { deleting.value = false }
@@ -696,19 +696,23 @@ onMounted(() => {
       </Transition>
     </Teleport>
 
-    <PimConfirmDialog
+    <PimDeleteConfirmDialog
       :open="!!deleteTarget"
       title="Medium löschen?"
       :message="`Die Datei '${deleteTarget?.file_name || ''}' wird unwiderruflich gelöscht.`"
       :loading="deleting"
+      entityType="media"
+      :entityId="deleteTarget?.id"
       @confirm="confirmDelete"
       @cancel="deleteTarget = null"
     />
-    <PimConfirmDialog
+    <PimDeleteConfirmDialog
       :open="!!deleteFolderTarget"
       title="Ordner löschen?"
       :message="`Der Ordner '${deleteFolderTarget?.name_de || ''}' und alle Unterordner werden gelöscht. Medien bleiben erhalten.`"
       :loading="deletingFolder"
+      entityType="hierarchy-nodes"
+      :entityId="deleteFolderTarget?.id"
       @confirm="confirmDeleteFolder"
       @cancel="deleteFolderTarget = null"
     />

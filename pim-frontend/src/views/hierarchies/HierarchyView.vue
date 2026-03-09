@@ -14,7 +14,7 @@ import attributesApi from '@/api/attributes'
 import productsApi from '@/api/products'
 import PimTree from '@/components/shared/PimTree.vue'
 import PimAttributeInput from '@/components/shared/PimAttributeInput.vue'
-import PimConfirmDialog from '@/components/shared/PimConfirmDialog.vue'
+import PimDeleteConfirmDialog from '@/components/shared/PimDeleteConfirmDialog.vue'
 import HierarchyFormPanel from '@/components/panels/HierarchyFormPanel.vue'
 import HierarchyNodeFormPanel from '@/components/panels/HierarchyNodeFormPanel.vue'
 
@@ -164,10 +164,10 @@ function requestDeleteHierarchy() {
   deleteHierarchyTarget.value = store.currentHierarchy
 }
 
-async function confirmDeleteHierarchy() {
+async function confirmDeleteHierarchy({ force } = {}) {
   hierarchyDeleting.value = true
   try {
-    await store.deleteHierarchy(deleteHierarchyTarget.value.id)
+    await store.deleteHierarchy(deleteHierarchyTarget.value.id, { force })
     deleteHierarchyTarget.value = null
     store.selectNode(null)
     await store.fetchHierarchies()
@@ -210,10 +210,10 @@ function requestDeleteNode(node) {
   deleteNodeTarget.value = node
 }
 
-async function confirmDeleteNode() {
+async function confirmDeleteNode({ force } = {}) {
   nodeDeleting.value = true
   try {
-    await store.deleteNode(deleteNodeTarget.value.id)
+    await store.deleteNode(deleteNodeTarget.value.id, { force })
     if (store.selectedNode?.id === deleteNodeTarget.value?.id) {
       store.selectNode(null)
     }
@@ -1155,21 +1155,25 @@ onMounted(async () => {
     </div>
 
     <!-- Delete Node Confirm -->
-    <PimConfirmDialog
+    <PimDeleteConfirmDialog
       :open="!!deleteNodeTarget"
       title="Knoten löschen?"
       :message="`Der Knoten '${deleteNodeTarget?.name_de || ''}' und alle Unterknoten werden unwiderruflich gelöscht.`"
       :loading="nodeDeleting"
+      entityType="hierarchy-nodes"
+      :entityId="deleteNodeTarget?.id"
       @confirm="confirmDeleteNode"
       @cancel="deleteNodeTarget = null"
     />
 
     <!-- Delete Hierarchy Confirm -->
-    <PimConfirmDialog
+    <PimDeleteConfirmDialog
       :open="!!deleteHierarchyTarget"
       title="Hierarchie löschen?"
       :message="`Die Hierarchie '${deleteHierarchyTarget?.name_de || ''}' und alle zugehörigen Knoten werden unwiderruflich gelöscht.`"
       :loading="hierarchyDeleting"
+      entityType="hierarchies"
+      :entityId="deleteHierarchyTarget?.id"
       @confirm="confirmDeleteHierarchy"
       @cancel="deleteHierarchyTarget = null"
     />

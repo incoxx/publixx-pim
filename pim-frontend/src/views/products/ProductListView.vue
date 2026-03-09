@@ -13,7 +13,7 @@ import ColumnConfigPopover from '@/components/shared/ColumnConfigPopover.vue'
 import { useColumnConfig } from '@/composables/useColumnConfig'
 import { triggerDownload } from '@/utils/download'
 import PimFilterBar from '@/components/shared/PimFilterBar.vue'
-import PimConfirmDialog from '@/components/shared/PimConfirmDialog.vue'
+import PimDeleteConfirmDialog from '@/components/shared/PimDeleteConfirmDialog.vue'
 import ProductCreatePanel from '@/components/panels/ProductCreatePanel.vue'
 import productsApi from '@/api/products'
 import watchlistApi from '@/api/watchlist'
@@ -154,10 +154,10 @@ function handleRowAction(row) {
   deleteTarget.value = row
 }
 
-async function confirmDelete() {
+async function confirmDelete({ force } = {}) {
   deleting.value = true
   try {
-    await store.remove(deleteTarget.value.id)
+    await store.remove(deleteTarget.value.id, { force })
     deleteTarget.value = null
     await fetchWithAttributes()
   } finally {
@@ -516,11 +516,13 @@ onMounted(async () => {
       </template>
     </PimTable>
 
-    <PimConfirmDialog
+    <PimDeleteConfirmDialog
       :open="!!deleteTarget"
       title="Produkt löschen?"
       :message="`Das Produkt '${deleteTarget?.name || deleteTarget?.sku || ''}' wird unwiderruflich gelöscht.`"
       :loading="deleting"
+      entityType="products"
+      :entityId="deleteTarget?.id"
       @confirm="confirmDelete"
       @cancel="deleteTarget = null"
     />

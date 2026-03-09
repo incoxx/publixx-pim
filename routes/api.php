@@ -142,6 +142,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // Agent 2: User & Role Management
     // =====================================================================
     Route::apiResource('users', UserController::class);
+    Route::get('users/{user}/dependencies', [UserController::class, 'dependencies']);
     Route::apiResource('roles', RoleController::class);
     Route::put('roles/{role}/permissions', [RoleController::class, 'syncPermissions']);
 
@@ -150,33 +151,41 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // =====================================================================
     Route::put('attributes/bulk-update', [AttributeController::class, 'bulkUpdate']);
     Route::apiResource('attributes', AttributeController::class);
+    Route::get('attributes/{attribute}/dependencies', [AttributeController::class, 'dependencies']);
 
     // =====================================================================
     // Agent 3: Attribute Types
     // =====================================================================
     Route::apiResource('attribute-types', AttributeTypeController::class);
+    Route::get('attribute-types/{attribute_type}/dependencies', [AttributeTypeController::class, 'dependencies']);
 
     // =====================================================================
     // Agent 3: Unit Groups & Units
     // =====================================================================
     Route::apiResource('unit-groups', UnitGroupController::class);
+    Route::get('unit-groups/{unit_group}/dependencies', [UnitGroupController::class, 'dependencies']);
     Route::apiResource('unit-groups.units', UnitController::class)->shallow();
+    Route::get('units/{unit}/dependencies', [UnitController::class, 'dependencies']);
 
     // =====================================================================
     // Agent 3: Value Lists & Entries
     // =====================================================================
     Route::apiResource('value-lists', ValueListController::class);
+    Route::get('value-lists/{value_list}/dependencies', [ValueListController::class, 'dependencies']);
     Route::apiResource('value-lists.entries', ValueListEntryController::class)->shallow();
+    Route::get('entries/{entry}/dependencies', [ValueListEntryController::class, 'dependencies']);
 
     // =====================================================================
     // Dictionary Entries
     // =====================================================================
     Route::apiResource('dictionary-entries', DictionaryEntryController::class);
+    Route::get('dictionary-entries/{dictionary_entry}/dependencies', [DictionaryEntryController::class, 'dependencies']);
 
     // =====================================================================
     // Agent 3: Attribute Views & Assignments
     // =====================================================================
     Route::apiResource('attribute-views', AttributeViewController::class);
+    Route::get('attribute-views/{attribute_view}/dependencies', [AttributeViewController::class, 'dependencies']);
     Route::post('attribute-views/{attribute_view}/attributes', [AttributeViewController::class, 'assignAttribute']);
     Route::delete('attribute-views/{attribute_view}/attributes/{attribute}', [AttributeViewController::class, 'removeAttribute']);
 
@@ -184,12 +193,14 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // Agent 3: Product Types
     // =====================================================================
     Route::apiResource('product-types', ProductTypeController::class);
+    Route::get('product-types/{product_type}/dependencies', [ProductTypeController::class, 'dependencies']);
     Route::get('product-types/{product_type}/schema', [ProductTypeController::class, 'schema']);
 
     // =====================================================================
     // Agent 3: Hierarchies
     // =====================================================================
     Route::apiResource('hierarchies', HierarchyController::class);
+    Route::get('hierarchies/{hierarchy}/dependencies', [HierarchyController::class, 'dependencies']);
     Route::get('hierarchies/{hierarchy}/tree', [HierarchyController::class, 'tree']);
 
     // Hierarchy-level attribute assignments
@@ -200,6 +211,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::apiResource('hierarchies.nodes', HierarchyNodeController::class)
         ->shallow()
         ->parameters(['nodes' => 'hierarchy_node']);
+    Route::get('hierarchy-nodes/{hierarchy_node}/dependencies', [HierarchyNodeController::class, 'dependencies']);
     Route::get('hierarchy-nodes', [HierarchyNodeController::class, 'searchAll']);
     Route::put('hierarchy-nodes/{hierarchy_node}/move', [HierarchyNodeController::class, 'move']);
     Route::post('hierarchy-nodes/{hierarchy_node}/duplicate', [HierarchyNodeController::class, 'duplicate']);
@@ -255,6 +267,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::post('products/{product}/duplicate', [ProductController::class, 'duplicate']);
 
     Route::apiResource('products', ProductController::class);
+    Route::get('products/{product}/dependencies', [ProductController::class, 'dependencies']);
 
     // Product Preview (generic, no PXF)
     Route::get('products/{product}/preview', [ProductController::class, 'preview']);
@@ -294,11 +307,13 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::get('media/diagnostics', [MediaController::class, 'diagnostics']);
     Route::post('media/bulk-move', [MediaController::class, 'bulkMove']);
     Route::apiResource('media', MediaController::class);
+    Route::get('media/{medium}/dependencies', [MediaController::class, 'dependencies']);
     // media/file/{filename} and media/thumb/{medium} are registered outside auth group (public access)
     Route::get('media/{medium}/attribute-values', [MediaAttributeValueController::class, 'index']);
     Route::put('media/{medium}/attribute-values', [MediaAttributeValueController::class, 'bulkUpdate']);
 
     Route::apiResource('media-usage-types', MediaUsageTypeController::class);
+    Route::get('media-usage-types/{media_usage_type}/dependencies', [MediaUsageTypeController::class, 'dependencies']);
 
     Route::get('products/{product}/media', [ProductMediaController::class, 'index']);
     Route::post('products/{product}/media', [ProductMediaController::class, 'store']);
@@ -308,6 +323,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // Agent 3: Prices
     // =====================================================================
     Route::apiResource('price-types', PriceTypeController::class);
+    Route::get('price-types/{price_type}/dependencies', [PriceTypeController::class, 'dependencies']);
     Route::get('products/{product}/prices', [ProductPriceController::class, 'index']);
     Route::post('products/{product}/prices', [ProductPriceController::class, 'store']);
     Route::put('product-prices/{product_price}', [ProductPriceController::class, 'update']);
@@ -317,6 +333,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // Agent 3: Relations
     // =====================================================================
     Route::apiResource('relation-types', RelationTypeController::class);
+    Route::get('relation-types/{relation_type}/dependencies', [RelationTypeController::class, 'dependencies']);
     Route::put('relation-types/{relationType}/default-attributes', [RelationTypeController::class, 'updateDefaultAttributes']);
     Route::get('products/{product}/relations', [ProductRelationController::class, 'index']);
     Route::post('products/{product}/relations', [ProductRelationController::class, 'store']);
@@ -345,6 +362,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // Search Profiles (Suchprofile)
     // =====================================================================
     Route::apiResource('search-profiles', SearchProfileController::class)->except(['show']);
+    Route::get('search-profiles/{search_profile}/dependencies', [SearchProfileController::class, 'dependencies']);
 
     // =====================================================================
     // Export Profiles (Exportprofile)
@@ -441,6 +459,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // =====================================================================
     Route::get('report-templates/fields', [ReportTemplateController::class, 'fields']);
     Route::apiResource('report-templates', ReportTemplateController::class);
+    Route::get('report-templates/{report_template}/dependencies', [ReportTemplateController::class, 'dependencies']);
     Route::post('report-templates/{report_template}/execute', [ReportTemplateController::class, 'execute']);
     Route::post('report-templates/{report_template}/preview', [ReportTemplateController::class, 'preview']);
     Route::get('report-jobs/{report_job}', [ReportTemplateController::class, 'jobStatus']);
@@ -451,6 +470,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // =====================================================================
     Route::post('pxf-templates/import', [PxfTemplateController::class, 'import']);
     Route::apiResource('pxf-templates', PxfTemplateController::class);
+    Route::get('pxf-templates/{pxf_template}/dependencies', [PxfTemplateController::class, 'dependencies']);
     Route::get('pxf-templates/{pxf_template}/preview/{product}', [PxfTemplateController::class, 'preview']);
 
     // =====================================================================

@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Requests\Api\V1\StoreRelationTypeRequest;
 use App\Http\Requests\Api\V1\UpdateRelationTypeRequest;
 use App\Http\Resources\Api\V1\RelationTypeResource;
+use App\Http\Traits\ChecksDeletionConstraints;
 use App\Models\ProductRelationType;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -14,6 +15,7 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class RelationTypeController extends Controller
 {
+    use ChecksDeletionConstraints;
     public function index(Request $request): AnonymousResourceCollection
     {
         $this->authorize('viewAny', ProductRelationType::class);
@@ -53,13 +55,18 @@ class RelationTypeController extends Controller
         return new RelationTypeResource($relationType->fresh());
     }
 
-    public function destroy(ProductRelationType $relationType): JsonResponse
+    public function dependencies(ProductRelationType $relationType): JsonResponse
+    {
+        $this->authorize('view', $relationType);
+
+        return $this->dependenciesResponse($relationType);
+    }
+
+    public function destroy(Request $request, ProductRelationType $relationType): JsonResponse
     {
         $this->authorize('delete', $relationType);
 
-        $relationType->delete();
-
-        return response()->json(null, 204);
+        return $this->destroyWithConstraintCheck($request, $relationType);
     }
 
     public function updateDefaultAttributes(Request $request, ProductRelationType $relationType): RelationTypeResource

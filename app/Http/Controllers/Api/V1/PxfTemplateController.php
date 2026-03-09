@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Http\Traits\ChecksDeletionConstraints;
 use App\Models\PxfTemplate;
 use App\Models\Product;
 use App\Models\PublixxExportMapping;
@@ -14,6 +15,8 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class PxfTemplateController extends Controller
 {
+    use ChecksDeletionConstraints;
+
     private const ALLOWED_INCLUDES = ['productType', 'exportMapping'];
 
     public function index(Request $request): JsonResponse
@@ -82,11 +85,14 @@ class PxfTemplateController extends Controller
         return response()->json(['data' => $pxfTemplate->fresh()]);
     }
 
-    public function destroy(PxfTemplate $pxfTemplate): JsonResponse
+    public function dependencies(PxfTemplate $pxfTemplate): JsonResponse
     {
-        $pxfTemplate->delete();
+        return $this->dependenciesResponse($pxfTemplate);
+    }
 
-        return response()->json(null, 204);
+    public function destroy(Request $request, PxfTemplate $pxfTemplate): JsonResponse
+    {
+        return $this->destroyWithConstraintCheck($request, $pxfTemplate);
     }
 
     /**

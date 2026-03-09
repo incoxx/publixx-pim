@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Http\Traits\ChecksDeletionConstraints;
 use App\Models\SearchProfile;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class SearchProfileController extends Controller
 {
+    use ChecksDeletionConstraints;
     public function index(Request $request): JsonResponse
     {
         $this->authorize('viewAny', SearchProfile::class);
@@ -69,12 +71,17 @@ class SearchProfileController extends Controller
         return response()->json(['data' => $searchProfile]);
     }
 
+    public function dependencies(SearchProfile $searchProfile): JsonResponse
+    {
+        $this->authorize('view', $searchProfile);
+
+        return $this->dependenciesResponse($searchProfile);
+    }
+
     public function destroy(Request $request, SearchProfile $searchProfile): JsonResponse
     {
         $this->authorize('delete', $searchProfile);
 
-        $searchProfile->delete();
-
-        return response()->json(null, 204);
+        return $this->destroyWithConstraintCheck($request, $searchProfile);
     }
 }

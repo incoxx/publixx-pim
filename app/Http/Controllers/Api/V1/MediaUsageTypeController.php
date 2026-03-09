@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Requests\Api\V1\StoreMediaUsageTypeRequest;
 use App\Http\Requests\Api\V1\UpdateMediaUsageTypeRequest;
 use App\Http\Resources\Api\V1\MediaUsageTypeResource;
+use App\Http\Traits\ChecksDeletionConstraints;
 use App\Models\MediaUsageType;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -14,6 +15,7 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class MediaUsageTypeController extends Controller
 {
+    use ChecksDeletionConstraints;
     public function index(Request $request): AnonymousResourceCollection
     {
         $this->authorize('viewAny', MediaUsageType::class);
@@ -53,12 +55,17 @@ class MediaUsageTypeController extends Controller
         return new MediaUsageTypeResource($mediaUsageType->fresh());
     }
 
-    public function destroy(MediaUsageType $mediaUsageType): JsonResponse
+    public function dependencies(MediaUsageType $mediaUsageType): JsonResponse
+    {
+        $this->authorize('view', $mediaUsageType);
+
+        return $this->dependenciesResponse($mediaUsageType);
+    }
+
+    public function destroy(Request $request, MediaUsageType $mediaUsageType): JsonResponse
     {
         $this->authorize('delete', $mediaUsageType);
 
-        $mediaUsageType->delete();
-
-        return response()->json(null, 204);
+        return $this->destroyWithConstraintCheck($request, $mediaUsageType);
     }
 }

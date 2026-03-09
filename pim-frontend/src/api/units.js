@@ -13,8 +13,11 @@ export const unitGroups = {
   update(id, data) {
     return client.put(`/unit-groups/${id}`, data)
   },
-  delete(id) {
-    return client.delete(`/unit-groups/${id}`)
+  dependencies(id) {
+    return client.get(`/unit-groups/${id}/dependencies`)
+  },
+  delete(id, { force = false } = {}) {
+    return client.delete(`/unit-groups/${id}`, { params: force ? { force: true } : {} })
   },
 }
 
@@ -28,7 +31,10 @@ export const units = {
   update(unitId, data) {
     return client.put(`/units/${unitId}`, data)
   },
-  delete(unitId) {
-    return client.delete(`/units/${unitId}`)
+  dependencies(unitId) {
+    return client.get(`/units/${unitId}/dependencies`)
+  },
+  delete(unitId, { force = false } = {}) {
+    return client.delete(`/units/${unitId}`, { params: force ? { force: true } : {} })
   },
 }

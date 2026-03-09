@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Requests\Api\V1\User\StoreUserRequest;
 use App\Http\Requests\Api\V1\User\UpdateUserRequest;
 use App\Http\Resources\Api\V1\UserResource;
+use App\Http\Traits\ChecksDeletionConstraints;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
@@ -16,6 +17,8 @@ use Symfony\Component\HttpFoundation\Response;
 
 class UserController extends Controller
 {
+    use ChecksDeletionConstraints;
+
     /**
      * GET /api/v1/users
      */
@@ -126,10 +129,17 @@ class UserController extends Controller
         ]);
     }
 
+    public function dependencies(User $user): JsonResponse
+    {
+        $this->authorize('view', $user);
+
+        return $this->dependenciesResponse($user);
+    }
+
     /**
      * DELETE /api/v1/users/{user}
      */
-    public function destroy(User $user): JsonResponse
+    public function destroy(Request $request, User $user): JsonResponse
     {
         $this->authorize('delete', $user);
 
@@ -144,9 +154,6 @@ class UserController extends Controller
             ]);
         }
 
-        $user->tokens()->delete();
-        $user->delete();
-
-        return response()->json(null, Response::HTTP_NO_CONTENT);
+        return $this->destroyWithConstraintCheck($request, $user);
     }
 }

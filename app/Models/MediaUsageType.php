@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Models\Concerns\HasDeletionConstraints;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -11,7 +12,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class MediaUsageType extends Model
 {
-    use HasFactory, HasUuids;
+    use HasDeletionConstraints, HasFactory, HasUuids;
 
     protected $fillable = [
         'technical_name',
@@ -32,5 +33,12 @@ class MediaUsageType extends Model
     public function mediaAssignments(): HasMany
     {
         return $this->hasMany(ProductMediaAssignment::class, 'usage_type_id');
+    }
+
+    public function deletionConstraints(): array
+    {
+        return [
+            'mediaAssignments' => 'Medien-Zuordnungen',
+        ];
     }
 }

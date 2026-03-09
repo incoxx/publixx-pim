@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Requests\Api\V1\StoreProductRequest;
 use App\Http\Requests\Api\V1\UpdateProductRequest;
 use App\Http\Resources\Api\V1\ProductResource;
+use App\Http\Traits\ChecksDeletionConstraints;
 use App\Models\Product;
 use App\Models\ProductAttributeValue;
 use App\Services\Preview\ProductCompletenessService;
@@ -28,6 +29,8 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ProductController extends Controller
 {
+    use ChecksDeletionConstraints;
+
     private const ALLOWED_INCLUDES = [
         'productType', 'attributeValues', 'variants', 'media',
         'prices', 'relations', 'parentProduct', 'masterHierarchyNode',
@@ -271,20 +274,18 @@ class ProductController extends Controller
         return new ProductResource($product->fresh());
     }
 
-    public function destroy(Product $product): JsonResponse
+    public function dependencies(Product $product): JsonResponse
+    {
+        $this->authorize('view', $product);
+
+        return $this->dependenciesResponse($product);
+    }
+
+    public function destroy(Request $request, Product $product): JsonResponse
     {
         $this->authorize('delete', $product);
 
-        $productId = $product->id;
-        $product->delete();
-
-        try {
-            event(new \App\Events\ProductDeleted($productId));
-        } catch (\Throwable $e) {
-            Log::warning('ProductDeleted event failed', ['product_id' => $productId, 'error' => $e->getMessage()]);
-        }
-
-        return response()->json(null, 204);
+        return $this->destroyWithConstraintCheck($request, $product);
     }
 
     /**

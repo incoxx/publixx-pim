@@ -13,8 +13,12 @@ export default {
     return client.put(`/users/${id}`, data)
   },
 
-  delete(id) {
-    return client.delete(`/users/${id}`)
+  dependencies(id) {
+    return client.get(`/users/${id}/dependencies`)
+  },
+
+  delete(id, { force = false } = {}) {
+    return client.delete(`/users/${id}`, { params: force ? { force: true } : {} })
   },
 }
 

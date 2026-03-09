@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Requests\Api\V1\StoreValueListEntryRequest;
 use App\Http\Requests\Api\V1\UpdateValueListEntryRequest;
 use App\Http\Resources\Api\V1\ValueListEntryResource;
+use App\Http\Traits\ChecksDeletionConstraints;
 use App\Models\ValueList;
 use App\Models\ValueListEntry;
 use Illuminate\Http\JsonResponse;
@@ -15,6 +16,7 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class ValueListEntryController extends Controller
 {
+    use ChecksDeletionConstraints;
     public function index(Request $request, ValueList $valueList): AnonymousResourceCollection
     {
         $this->authorize('viewAny', ValueListEntry::class);
@@ -59,12 +61,17 @@ class ValueListEntryController extends Controller
         return new ValueListEntryResource($entry->fresh());
     }
 
-    public function destroy(ValueListEntry $entry): JsonResponse
+    public function dependencies(ValueListEntry $entry): JsonResponse
+    {
+        $this->authorize('view', $entry);
+
+        return $this->dependenciesResponse($entry);
+    }
+
+    public function destroy(Request $request, ValueListEntry $entry): JsonResponse
     {
         $this->authorize('delete', $entry);
 
-        $entry->delete();
-
-        return response()->json(null, 204);
+        return $this->destroyWithConstraintCheck($request, $entry);
     }
 }

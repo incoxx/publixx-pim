@@ -8,6 +8,7 @@ use App\Http\Requests\Api\V1\StoreHierarchyRequest;
 use App\Http\Requests\Api\V1\UpdateHierarchyRequest;
 use App\Http\Resources\Api\V1\HierarchyResource;
 use App\Http\Resources\Api\V1\HierarchyNodeResource;
+use App\Http\Traits\ChecksDeletionConstraints;
 use App\Models\Hierarchy;
 use App\Models\HierarchyNode;
 use Illuminate\Http\JsonResponse;
@@ -16,6 +17,8 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class HierarchyController extends Controller
 {
+    use ChecksDeletionConstraints;
+
     private const ALLOWED_INCLUDES = ['nodes'];
 
     public function index(Request $request): AnonymousResourceCollection
@@ -65,7 +68,14 @@ class HierarchyController extends Controller
         return new HierarchyResource($hierarchy->fresh());
     }
 
-    public function destroy(Hierarchy $hierarchy): JsonResponse
+    public function dependencies(Hierarchy $hierarchy): JsonResponse
+    {
+        $this->authorize('view', $hierarchy);
+
+        return $this->dependenciesResponse($hierarchy);
+    }
+
+    public function destroy(Request $request, Hierarchy $hierarchy): JsonResponse
     {
         $this->authorize('delete', $hierarchy);
 
@@ -75,9 +85,7 @@ class HierarchyController extends Controller
             ], 422);
         }
 
-        $hierarchy->delete();
-
-        return response()->json(null, 204);
+        return $this->destroyWithConstraintCheck($request, $hierarchy);
     }
 
     /**

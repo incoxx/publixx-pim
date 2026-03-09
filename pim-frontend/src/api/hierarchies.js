@@ -17,8 +17,12 @@ export default {
     return client.put(`/hierarchies/${id}`, data)
   },
 
-  delete(id) {
-    return client.delete(`/hierarchies/${id}`)
+  dependencies(id) {
+    return client.get(`/hierarchies/${id}/dependencies`)
+  },
+
+  delete(id, { force = false } = {}) {
+    return client.delete(`/hierarchies/${id}`, { params: force ? { force: true } : {} })
   },
 
   getTree(id, options = {}) {
@@ -37,8 +41,12 @@ export default {
     return client.put(`/hierarchy-nodes/${nodeId}`, data)
   },
 
-  deleteNode(nodeId) {
-    return client.delete(`/hierarchy-nodes/${nodeId}`)
+  dependenciesNode(nodeId) {
+    return client.get(`/hierarchy-nodes/${nodeId}/dependencies`)
+  },
+
+  deleteNode(nodeId, { force = false } = {}) {
+    return client.delete(`/hierarchy-nodes/${nodeId}`, { params: force ? { force: true } : {} })
   },
 
   moveNode(nodeId, data) {

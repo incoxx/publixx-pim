@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Models\Concerns\HasDeletionConstraints;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -14,7 +15,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Product extends Model
 {
-    use HasFactory, HasUuids;
+    use HasDeletionConstraints, HasFactory, HasUuids;
 
     protected $fillable = [
         'product_type_id',
@@ -127,5 +128,18 @@ class Product extends Model
     public function activeVersion(): HasOne
     {
         return $this->hasOne(ProductVersion::class)->where('status', 'active');
+    }
+
+    public function deletionConstraints(): array
+    {
+        return [
+            'attributeValues'            => 'Attributwerte',
+            'variants'                   => 'Varianten',
+            'mediaAssignments'           => 'Medien-Zuordnungen',
+            'prices'                     => 'Preise',
+            'outgoingRelations'          => 'Ausgehende Beziehungen',
+            'incomingRelations'          => 'Eingehende Beziehungen',
+            'versions'                   => 'Versionen',
+        ];
     }
 }

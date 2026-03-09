@@ -8,6 +8,7 @@ use App\Http\Requests\Api\V1\StoreAttributeViewRequest;
 use App\Http\Requests\Api\V1\UpdateAttributeViewRequest;
 use App\Http\Requests\Api\V1\AssignAttributeToViewRequest;
 use App\Http\Resources\Api\V1\AttributeViewResource;
+use App\Http\Traits\ChecksDeletionConstraints;
 use App\Models\AttributeView;
 use App\Models\AttributeViewAssignment;
 use Illuminate\Http\JsonResponse;
@@ -16,6 +17,7 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class AttributeViewController extends Controller
 {
+    use ChecksDeletionConstraints;
     private const ALLOWED_INCLUDES = ['attributes'];
 
     public function index(Request $request): AnonymousResourceCollection
@@ -61,13 +63,18 @@ class AttributeViewController extends Controller
         return new AttributeViewResource($attributeView->fresh());
     }
 
-    public function destroy(AttributeView $attributeView): JsonResponse
+    public function dependencies(AttributeView $attributeView): JsonResponse
+    {
+        $this->authorize('view', $attributeView);
+
+        return $this->dependenciesResponse($attributeView);
+    }
+
+    public function destroy(Request $request, AttributeView $attributeView): JsonResponse
     {
         $this->authorize('delete', $attributeView);
 
-        $attributeView->delete();
-
-        return response()->json(null, 204);
+        return $this->destroyWithConstraintCheck($request, $attributeView);
     }
 
     /**

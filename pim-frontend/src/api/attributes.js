@@ -17,8 +17,12 @@ export default {
     return client.put(`/attributes/${id}`, data)
   },
 
-  delete(id) {
-    return client.delete(`/attributes/${id}`)
+  dependencies(id) {
+    return client.get(`/attributes/${id}/dependencies`)
+  },
+
+  delete(id, { force = false } = {}) {
+    return client.delete(`/attributes/${id}`, { params: force ? { force: true } : {} })
   },
 
   bulkUpdate(ids, fields) {
@@ -61,8 +65,12 @@ export const attributeTypes = {
     return client.put(`/attribute-types/${id}`, data)
   },
 
-  delete(id) {
-    return client.delete(`/attribute-types/${id}`)
+  dependencies(id) {
+    return client.get(`/attribute-types/${id}/dependencies`)
+  },
+
+  delete(id, { force = false } = {}) {
+    return client.delete(`/attribute-types/${id}`, { params: force ? { force: true } : {} })
   },
 }
 
@@ -83,8 +91,12 @@ export const unitGroups = {
     return client.put(`/unit-groups/${id}`, data)
   },
 
-  delete(id) {
-    return client.delete(`/unit-groups/${id}`)
+  dependencies(id) {
+    return client.get(`/unit-groups/${id}/dependencies`)
+  },
+
+  delete(id, { force = false } = {}) {
+    return client.delete(`/unit-groups/${id}`, { params: force ? { force: true } : {} })
   },
 
   addUnit(groupId, data) {
@@ -95,8 +107,12 @@ export const unitGroups = {
     return client.put(`/units/${unitId}`, data)
   },
 
-  deleteUnit(unitId) {
-    return client.delete(`/units/${unitId}`)
+  dependenciesUnit(unitId) {
+    return client.get(`/units/${unitId}/dependencies`)
+  },
+
+  deleteUnit(unitId, { force = false } = {}) {
+    return client.delete(`/units/${unitId}`, { params: force ? { force: true } : {} })
   },
 }
 
@@ -117,8 +133,12 @@ export const valueLists = {
     return client.put(`/value-lists/${id}`, data)
   },
 
-  delete(id) {
-    return client.delete(`/value-lists/${id}`)
+  dependencies(id) {
+    return client.get(`/value-lists/${id}/dependencies`)
+  },
+
+  delete(id, { force = false } = {}) {
+    return client.delete(`/value-lists/${id}`, { params: force ? { force: true } : {} })
   },
 
   getEntries(listId, options = {}) {
@@ -133,8 +153,12 @@ export const valueLists = {
     return client.put(`/value-list-entries/${entryId}`, data)
   },
 
-  deleteEntry(entryId) {
-    return client.delete(`/value-list-entries/${entryId}`)
+  dependenciesEntry(entryId) {
+    return client.get(`/entries/${entryId}/dependencies`)
+  },
+
+  deleteEntry(entryId, { force = false } = {}) {
+    return client.delete(`/value-list-entries/${entryId}`, { params: force ? { force: true } : {} })
   },
 }
 
@@ -151,8 +175,12 @@ export const attributeViews = {
     return client.put(`/attribute-views/${id}`, data)
   },
 
-  delete(id) {
-    return client.delete(`/attribute-views/${id}`)
+  dependencies(id) {
+    return client.get(`/attribute-views/${id}/dependencies`)
+  },
+
+  delete(id, { force = false } = {}) {
+    return client.delete(`/attribute-views/${id}`, { params: force ? { force: true } : {} })
   },
 
   addAttribute(viewId, data) {
@@ -181,8 +209,12 @@ export const productTypes = {
     return client.put(`/product-types/${id}`, data)
   },
 
-  delete(id) {
-    return client.delete(`/product-types/${id}`)
+  dependencies(id) {
+    return client.get(`/product-types/${id}/dependencies`)
+  },
+
+  delete(id, { force = false } = {}) {
+    return client.delete(`/product-types/${id}`, { params: force ? { force: true } : {} })
   },
 
   getSchema(id) {

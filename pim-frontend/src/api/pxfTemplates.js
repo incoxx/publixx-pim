@@ -17,8 +17,12 @@ export default {
     return client.put(`/pxf-templates/${id}`, data)
   },
 
-  delete(id) {
-    return client.delete(`/pxf-templates/${id}`)
+  dependencies(id) {
+    return client.get(`/pxf-templates/${id}/dependencies`)
+  },
+
+  delete(id, { force = false } = {}) {
+    return client.delete(`/pxf-templates/${id}`, { params: force ? { force: true } : {} })
   },
 
   preview(templateId, productId) {

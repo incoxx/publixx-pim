@@ -5,7 +5,7 @@ import { valueLists } from '@/api/attributes'
 import { Plus, ChevronLeft, Trash2, ArrowUp, ArrowDown, Check, X, Link } from 'lucide-vue-next'
 import PimTable from '@/components/shared/PimTable.vue'
 import PimFilterBar from '@/components/shared/PimFilterBar.vue'
-import PimConfirmDialog from '@/components/shared/PimConfirmDialog.vue'
+import PimDeleteConfirmDialog from '@/components/shared/PimDeleteConfirmDialog.vue'
 import ValueListFormPanel from '@/components/panels/ValueListFormPanel.vue'
 
 const authStore = useAuthStore()
@@ -70,10 +70,10 @@ function handleRowAction(row) {
   deleteTarget.value = row
 }
 
-async function confirmDelete() {
+async function confirmDelete({ force } = {}) {
   deleting.value = true
   try {
-    await valueLists.delete(deleteTarget.value.id)
+    await valueLists.delete(deleteTarget.value.id, { force })
     if (selectedList.value?.id === deleteTarget.value.id) selectedList.value = null
     deleteTarget.value = null
     await fetchLists()
@@ -160,10 +160,10 @@ async function saveEdit() {
 }
 
 // Delete entry
-async function confirmDeleteEntry() {
+async function confirmDeleteEntry({ force } = {}) {
   deletingEntry.value = true
   try {
-    await valueLists.deleteEntry(deleteEntryTarget.value.id)
+    await valueLists.deleteEntry(deleteEntryTarget.value.id, { force })
     deleteEntryTarget.value = null
     await fetchEntries()
     await fetchLists()
@@ -381,21 +381,25 @@ onMounted(() => fetchLists())
     </div>
 
     <!-- Confirm delete list -->
-    <PimConfirmDialog
+    <PimDeleteConfirmDialog
       :open="!!deleteTarget"
       title="Werteliste löschen?"
       :message="`Die Werteliste '${deleteTarget?.name_de || ''}' wird unwiderruflich gelöscht.`"
       :loading="deleting"
+      entityType="value-lists"
+      :entityId="deleteTarget?.id"
       @confirm="confirmDelete"
       @cancel="deleteTarget = null"
     />
 
     <!-- Confirm delete entry -->
-    <PimConfirmDialog
+    <PimDeleteConfirmDialog
       :open="!!deleteEntryTarget"
       title="Eintrag löschen?"
       :message="`Der Eintrag '${deleteEntryTarget?.technical_name || ''}' wird gelöscht.`"
       :loading="deletingEntry"
+      entityType="entries"
+      :entityId="deleteEntryTarget?.id"
       @confirm="confirmDeleteEntry"
       @cancel="deleteEntryTarget = null"
     />

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Http\Traits\ChecksDeletionConstraints;
 use App\Jobs\ExecuteReportJob;
 use App\Models\Attribute;
 use App\Models\ReportJob;
@@ -15,6 +16,8 @@ use Illuminate\Http\Request;
 
 class ReportTemplateController extends Controller
 {
+    use ChecksDeletionConstraints;
+
     public function __construct(
         private readonly ReportService $reportService,
     ) {}
@@ -85,13 +88,16 @@ class ReportTemplateController extends Controller
         return response()->json(['data' => $template->fresh()->load('searchProfile')]);
     }
 
-    public function destroy(Request $request, string $id): JsonResponse
+    public function dependencies(ReportTemplate $reportTemplate): JsonResponse
     {
-        $template = ReportTemplate::findOrFail($id);
-        $this->authorizeAccess($request, $template);
-        $template->delete();
+        return $this->dependenciesResponse($reportTemplate);
+    }
 
-        return response()->json(null, 204);
+    public function destroy(Request $request, ReportTemplate $reportTemplate): JsonResponse
+    {
+        $this->authorizeAccess($request, $reportTemplate);
+
+        return $this->destroyWithConstraintCheck($request, $reportTemplate);
     }
 
     /**

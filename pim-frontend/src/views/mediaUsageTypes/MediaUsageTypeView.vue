@@ -4,7 +4,7 @@ import { Plus } from 'lucide-vue-next'
 import { mediaUsageTypes } from '@/api/mediaUsageTypes'
 import { useAuthStore } from '@/stores/auth'
 import PimTable from '@/components/shared/PimTable.vue'
-import PimConfirmDialog from '@/components/shared/PimConfirmDialog.vue'
+import PimDeleteConfirmDialog from '@/components/shared/PimDeleteConfirmDialog.vue'
 
 const authStore = useAuthStore()
 
@@ -73,10 +73,10 @@ async function saveForm() {
   } finally { formSaving.value = false }
 }
 
-async function confirmDelete() {
+async function confirmDelete({ force }) {
   deleting.value = true
   try {
-    await mediaUsageTypes.delete(deleteTarget.value.id)
+    await mediaUsageTypes.delete(deleteTarget.value.id, { force })
     deleteTarget.value = null
     await fetchItems()
   } finally { deleting.value = false }
@@ -137,10 +137,12 @@ onMounted(() => fetchItems())
       @row-action="(row) => deleteTarget = row"
     />
 
-    <PimConfirmDialog
+    <PimDeleteConfirmDialog
       :open="!!deleteTarget"
       title="Bildtyp löschen?"
       :message="`Der Bildtyp '${deleteTarget?.name_de || deleteTarget?.technical_name || ''}' wird unwiderruflich gelöscht.`"
+      entityType="media-usage-types"
+      :entityId="deleteTarget?.id"
       :loading="deleting"
       @confirm="confirmDelete"
       @cancel="deleteTarget = null"

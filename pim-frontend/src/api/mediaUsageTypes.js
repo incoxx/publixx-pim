@@ -10,8 +10,11 @@ export const mediaUsageTypes = {
   update(id, data) {
     return client.put(`/media-usage-types/${id}`, data)
   },
-  delete(id) {
-    return client.delete(`/media-usage-types/${id}`)
+  dependencies(id) {
+    return client.get(`/media-usage-types/${id}/dependencies`)
+  },
+  delete(id, { force = false } = {}) {
+    return client.delete(`/media-usage-types/${id}`, { params: force ? { force: true } : {} })
   },
 }
 

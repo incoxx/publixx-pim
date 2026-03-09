@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Requests\Api\V1\StoreDictionaryEntryRequest;
 use App\Http\Requests\Api\V1\UpdateDictionaryEntryRequest;
 use App\Http\Resources\Api\V1\DictionaryEntryResource;
+use App\Http\Traits\ChecksDeletionConstraints;
 use App\Models\DictionaryEntry;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -14,6 +15,8 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class DictionaryEntryController extends Controller
 {
+    use ChecksDeletionConstraints;
+
     private const ALLOWED_FILTERS = ['status', 'category'];
 
     public function index(Request $request): AnonymousResourceCollection
@@ -61,12 +64,17 @@ class DictionaryEntryController extends Controller
         return new DictionaryEntryResource($dictionaryEntry->fresh());
     }
 
-    public function destroy(DictionaryEntry $dictionaryEntry): JsonResponse
+    public function dependencies(DictionaryEntry $dictionaryEntry): JsonResponse
+    {
+        $this->authorize('view', $dictionaryEntry);
+
+        return $this->dependenciesResponse($dictionaryEntry);
+    }
+
+    public function destroy(Request $request, DictionaryEntry $dictionaryEntry): JsonResponse
     {
         $this->authorize('delete', $dictionaryEntry);
 
-        $dictionaryEntry->delete();
-
-        return response()->json(null, 204);
+        return $this->destroyWithConstraintCheck($request, $dictionaryEntry);
     }
 }

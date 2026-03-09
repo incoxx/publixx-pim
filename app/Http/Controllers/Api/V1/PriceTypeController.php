@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Requests\Api\V1\StorePriceTypeRequest;
 use App\Http\Requests\Api\V1\UpdatePriceTypeRequest;
 use App\Http\Resources\Api\V1\PriceTypeResource;
+use App\Http\Traits\ChecksDeletionConstraints;
 use App\Models\PriceType;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -14,6 +15,7 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class PriceTypeController extends Controller
 {
+    use ChecksDeletionConstraints;
     public function index(Request $request): AnonymousResourceCollection
     {
         $this->authorize('viewAny', PriceType::class);
@@ -53,12 +55,17 @@ class PriceTypeController extends Controller
         return new PriceTypeResource($priceType->fresh());
     }
 
-    public function destroy(PriceType $priceType): JsonResponse
+    public function dependencies(PriceType $priceType): JsonResponse
+    {
+        $this->authorize('view', $priceType);
+
+        return $this->dependenciesResponse($priceType);
+    }
+
+    public function destroy(Request $request, PriceType $priceType): JsonResponse
     {
         $this->authorize('delete', $priceType);
 
-        $priceType->delete();
-
-        return response()->json(null, 204);
+        return $this->destroyWithConstraintCheck($request, $priceType);
     }
 }

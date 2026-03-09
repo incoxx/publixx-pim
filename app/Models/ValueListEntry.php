@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Models\Concerns\HasDeletionConstraints;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -12,7 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ValueListEntry extends Model
 {
-    use HasFactory, HasUuids;
+    use HasDeletionConstraints, HasFactory, HasUuids;
 
     protected $fillable = [
         'value_list_id',
@@ -47,5 +48,18 @@ class ValueListEntry extends Model
     public function children(): HasMany
     {
         return $this->hasMany(ValueListEntry::class, 'parent_entry_id');
+    }
+
+    public function productAttributeValues(): HasMany
+    {
+        return $this->hasMany(ProductAttributeValue::class, 'value_selection_id');
+    }
+
+    public function deletionConstraints(): array
+    {
+        return [
+            'children'               => 'Untereinträge',
+            'productAttributeValues' => 'Produktattributwerte',
+        ];
     }
 }

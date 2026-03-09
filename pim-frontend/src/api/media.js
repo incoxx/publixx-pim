@@ -26,8 +26,12 @@ export default {
     return client.put(`/media/${id}`, data)
   },
 
-  delete(id) {
-    return client.delete(`/media/${id}`)
+  dependencies(id) {
+    return client.get(`/media/${id}/dependencies`)
+  },
+
+  delete(id, { force = false } = {}) {
+    return client.delete(`/media/${id}`, { params: force ? { force: true } : {} })
   },
 
   bulkMove(mediaIds, assetFolderId) {

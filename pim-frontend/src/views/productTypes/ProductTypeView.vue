@@ -7,7 +7,7 @@ import { productTypes } from '@/api/attributes'
 import { Plus } from 'lucide-vue-next'
 import PimTable from '@/components/shared/PimTable.vue'
 import PimFilterBar from '@/components/shared/PimFilterBar.vue'
-import PimConfirmDialog from '@/components/shared/PimConfirmDialog.vue'
+import PimDeleteConfirmDialog from '@/components/shared/PimDeleteConfirmDialog.vue'
 import ProductTypeFormPanel from '@/components/panels/ProductTypeFormPanel.vue'
 
 const { t } = useI18n()
@@ -61,10 +61,10 @@ function handleRowAction(row) {
   deleteTarget.value = row
 }
 
-async function confirmDelete() {
+async function confirmDelete({ force }) {
   deleting.value = true
   try {
-    await productTypes.delete(deleteTarget.value.id)
+    await productTypes.delete(deleteTarget.value.id, { force })
     items.value = items.value.filter(pt => pt.id !== deleteTarget.value.id)
     deleteTarget.value = null
   } finally {
@@ -129,10 +129,12 @@ onMounted(() => {
       </template>
     </PimTable>
 
-    <PimConfirmDialog
+    <PimDeleteConfirmDialog
       :open="!!deleteTarget"
       title="Produkttyp löschen?"
       :message="`Der Produkttyp '${deleteTarget?.name_de || deleteTarget?.technical_name || ''}' wird unwiderruflich gelöscht.`"
+      entityType="product-types"
+      :entityId="deleteTarget?.id"
       :loading="deleting"
       @confirm="confirmDelete"
       @cancel="deleteTarget = null"
