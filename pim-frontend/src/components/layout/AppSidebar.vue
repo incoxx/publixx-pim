@@ -7,7 +7,7 @@ import {
   Search, Package, GitBranch, Sliders, Database, Layers, FolderTree,
   Upload, Download, Image, Tags, DollarSign, Users, Settings,
   HelpCircle, PanelLeftClose, PanelLeft, Star, LayoutGrid, Ruler,
-  FileJson, PlayCircle, FileBarChart, BookOpen, Link2,
+  FileJson, PlayCircle, FileBarChart, BookOpen, Link2, Zap,
 } from 'lucide-vue-next'
 import AnyPimLogo from '@/components/shared/AnyPimLogo.vue'
 
@@ -41,6 +41,7 @@ const allNavItems = [
   { divider: true },
   { icon: Users, label: () => t('nav.users'), to: '/users', permission: 'users.view' },
   { icon: Settings, label: () => t('nav.settings'), to: '/settings', permission: 'users.view' },
+  { icon: Zap, label: () => 'API Tester', to: '/api-tester', permission: 'users.view' },
   { icon: Database, label: () => 'Datenbank', to: '/database-viewer', permission: 'users.view', external: true },
   { divider: true },
   { icon: HelpCircle, label: () => t('nav.help'), to: '/help' },
