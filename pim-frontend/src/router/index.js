@@ -175,6 +175,12 @@ const routes = [
     meta: { title: 'Merkliste' },
   },
   {
+    path: '/api-tester',
+    name: 'api-tester',
+    component: () => import('@/views/admin/ApiTesterView.vue'),
+    meta: { title: 'API Tester' },
+  },
+  {
     path: '/help',
     name: 'help',
     component: () => import('@/views/HelpView.vue'),

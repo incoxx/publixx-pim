@@ -7,7 +7,7 @@ import {
   Search, Package, GitBranch, Sliders, Database, Layers, FolderTree,
   Upload, Download, Image, Tags, DollarSign, Users, Settings,
   HelpCircle, PanelLeftClose, PanelLeft, Star, LayoutGrid, Ruler,
-  FileJson, PlayCircle, FileBarChart, BookOpen, Link2,
+  FileJson, PlayCircle, FileBarChart, BookOpen, Link2, Zap,
 } from 'lucide-vue-next'
 import AnyPimLogo from '@/components/shared/AnyPimLogo.vue'
 
@@ -41,7 +41,8 @@ const allNavItems = [
   { divider: true },
   { icon: Users, label: () => t('nav.users'), to: '/users', permission: 'users.view' },
   { icon: Settings, label: () => t('nav.settings'), to: '/settings', permission: 'users.view' },
-  { icon: Database, label: () => 'Datenbank', to: () => '/database-viewer', permission: 'users.view', external: true },
+  { icon: Zap, label: () => 'API Tester', to: '/api-tester', permission: 'users.view' },
+  { icon: Database, label: () => 'Datenbank', to: '/database-viewer', permission: 'users.view', external: true },
   { divider: true },
   { icon: HelpCircle, label: () => t('nav.help'), to: '/help' },
 ]
@@ -52,6 +53,15 @@ const navItems = computed(() =>
 
 function isActive(to) {
   return route.path === to || route.path.startsWith(to + '/')
+}
+
+function navigate(item) {
+  const url = typeof item.to === 'function' ? item.to() : item.to
+  if (item.external) {
+    window.open(url, '_blank')
+  } else {
+    router.push(url)
+  }
 }
 </script>
 
@@ -80,7 +90,7 @@ function isActive(to) {
               ? 'bg-[color-mix(in_srgb,var(--color-accent)_10%,transparent)] text-[var(--color-accent)] font-medium'
               : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg)] hover:text-[var(--color-text-primary)]'
           ]"
-          @click="item.external ? window.open(typeof item.to === 'function' ? item.to() : item.to, '_blank') : router.push(item.to)"
+          @click="navigate(item)"
           :title="authStore.sidebarCollapsed ? item.label() : undefined"
         >
           <component :is="item.icon" class="w-[18px] h-[18px] shrink-0" :stroke-width="1.75" />
