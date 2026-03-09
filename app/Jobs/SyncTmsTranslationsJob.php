@@ -88,11 +88,11 @@ class SyncTmsTranslationsJob implements ShouldQueue, ShouldBeUnique
         ],
     ];
 
-    public function handle(TmsClient $client): void
+    public function handle(TmsClient $client): array
     {
         if (!$client->isEnabled()) {
             Log::info('TMS sync skipped — TMS is disabled.');
-            return;
+            return ['total_updated' => 0, 'skipped' => true, 'message' => 'TMS is disabled.'];
         }
 
         $targetLangs = array_filter(config('tms.target_languages', ['en', 'fr', 'es', 'it', 'nl']));
@@ -199,5 +199,7 @@ class SyncTmsTranslationsJob implements ShouldQueue, ShouldBeUnique
         });
 
         Log::info("TMS sync completed: {$totalUpdated} records updated.");
+
+        return ['total_updated' => $totalUpdated, 'skipped' => false, 'message' => "{$totalUpdated} Datensätze aktualisiert."];
     }
 }

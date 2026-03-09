@@ -435,14 +435,14 @@ if command -v supervisorctl > /dev/null 2>&1; then
     else
         warn "Horizon nicht in Supervisor konfiguriert — starte Queue Worker..."
         # Alten Worker beenden falls vorhanden
-        pkill -f "artisan queue:work" > /dev/null 2>&1 || true
+        pkill -f "${INSTALL_DIR}/artisan queue:work" > /dev/null 2>&1 || true
         nohup php artisan queue:work --queue=indexing,default --sleep=3 --tries=3 \
             >> "${INSTALL_DIR}/storage/logs/queue-worker.log" 2>&1 &
         info "Queue Worker gestartet (PID: $!)."
     fi
 else
     warn "supervisorctl nicht gefunden — starte Queue Worker direkt..."
-    pkill -f "artisan queue:work" > /dev/null 2>&1 || true
+    pkill -f "${INSTALL_DIR}/artisan queue:work" > /dev/null 2>&1 || true
     nohup php artisan queue:work --queue=indexing,default --sleep=3 --tries=3 \
         >> "${INSTALL_DIR}/storage/logs/queue-worker.log" 2>&1 &
     info "Queue Worker gestartet (PID: $!)."
