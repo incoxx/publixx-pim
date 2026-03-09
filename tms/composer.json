@@ -1,0 +1,22 @@
+{
+    "name": "anypim/tms",
+    "type": "project",
+    "description": "Translation Memory Service for anyPIM",
+    "require": {
+        "php": "^8.2",
+        "laravel/framework": "^11.0",
+        "laravel/sanctum": "^4.0",
+        "predis/predis": "^2.0"
+    },
+    "require-dev": {
+        "fakerphp/faker": "^1.23",
+        "phpunit/phpunit": "^11.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Tms\\": "app/"
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}

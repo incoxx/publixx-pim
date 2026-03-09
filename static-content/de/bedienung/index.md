@@ -92,6 +92,7 @@ Die Sidebar ist persistent sichtbar und kann eingeklappt werden. Sie gliedert si
 | **Import / Export** | Datenimport (Excel) und -export (JSON, PXF) |
 | **Medien** | Medienbibliothek mit Upload und Zuordnung |
 | **Preise** | Preisarten, Waehrungen und Gueltigkeiten |
+| **Uebersetzungen** | Translation Memory Service fuer Metadaten-Uebersetzungen |
 | **Benutzer** | Benutzerverwaltung, Rollen und Berechtigungen *(nur für Admins sichtbar)* |
 | **Einstellungen** | Systemkonfiguration und Benutzereinstellungen |
 | **Hilfe** | Öffnet die Dokumentation in der eingestellten Sprache (Deutsch/Englisch) |
@@ -138,6 +139,9 @@ Verwalten Sie verschiedene Preisarten in mehreren Waehrungen mit Gueltigkeitszei
 
 ### [Benutzer](./benutzer)
 Administrieren Sie Benutzerkonten, weisen Sie Rollen zu (Admin, Data Steward, Product Manager, Viewer, Export Manager) und konfigurieren Sie feingranulare Berechtigungen auf Entitaets- und Aktionsebene.
+
+### [Uebersetzungen (TMS)](./uebersetzungen)
+Verwalten Sie die Uebersetzung von Metadaten wie Attributnamen, Wertelisten-Eintraegen und Hierarchie-Knoten. Das Translation Memory Service uebersetzt automatisch ueber DeepL, Google Translate oder Claude und synchronisiert die Ergebnisse in die PIM-Datenbank.
 
 ## Tastenkombinationen
 
