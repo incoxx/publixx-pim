@@ -42,7 +42,7 @@ const allNavItems = [
   { icon: Users, label: () => t('nav.users'), to: '/users', permission: 'users.view' },
   { icon: Settings, label: () => t('nav.settings'), to: '/settings', permission: 'users.view' },
   { icon: Zap, label: () => 'API Tester', to: '/api-tester', permission: 'users.view' },
-  { icon: Database, label: () => 'Datenbank', to: '/database-viewer', permission: 'users.view', external: true },
+  { icon: Database, label: () => 'Datenbank', to: '/db', permission: 'users.view' },
   { divider: true },
   { icon: HelpCircle, label: () => t('nav.help'), to: '/help' },
 ]

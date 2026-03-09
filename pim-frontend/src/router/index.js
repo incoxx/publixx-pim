@@ -181,6 +181,12 @@ const routes = [
     meta: { title: 'API Tester' },
   },
   {
+    path: '/db',
+    name: 'database-viewer',
+    component: () => import('@/views/admin/DatabaseViewerView.vue'),
+    meta: { title: 'Datenbank' },
+  },
+  {
     path: '/help',
     name: 'help',
     component: () => import('@/views/HelpView.vue'),
