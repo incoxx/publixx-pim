@@ -3,7 +3,7 @@ import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useLocaleStore } from '@/stores/locale'
 import { useAuthStore } from '@/stores/auth'
-import { Globe, Palette, AlertTriangle, Server, RotateCcw, CheckCircle, XCircle, Loader2, GitBranch, Database, Upload, Trash2, Save, Filter } from 'lucide-vue-next'
+import { Globe, Palette, AlertTriangle, Server, RotateCcw, CheckCircle, XCircle, Loader2, GitBranch, Database, Upload, Trash2, Save, Filter, LayoutGrid, Columns3, Image } from 'lucide-vue-next'
 import adminApi from '@/api/admin'
 import catalogApi from '@/api/catalog'
 import mediaApi from '@/api/media'
@@ -42,12 +42,26 @@ const POPUP_SIZE_OPTIONS = [
   { value: 'full', label: 'Vollbild' },
 ]
 
-const FACET_DATA_TYPES = ['ValueList', 'Boolean', 'Decimal', 'Integer', 'Text']
+const FACET_DATA_TYPES = ['ValueList', 'Boolean', 'Decimal', 'Integer', 'String']
+
+const DETAIL_LAYOUT_OPTIONS = [
+  { value: 'classic', label: 'Klassisch', desc: 'Bild links, Info rechts' },
+  { value: 'tabs', label: 'Tabs', desc: 'Bild links, Tabs rechts' },
+  { value: 'hero', label: 'Hero', desc: 'Bild oben, Info darunter' },
+]
+
+const IMAGE_RATIO_OPTIONS = [
+  { value: '4/3', label: 'Quer (4:3)' },
+  { value: '1/1', label: 'Quadrat (1:1)' },
+  { value: '3/4', label: 'Hoch (3:4)' },
+  { value: '16/9', label: 'Breit (16:9)' },
+]
 
 // ── Hierarchies, Attribute Views & Attributes for catalog config ──
 const availableHierarchies = ref([])
 const availableAttributeViews = ref([])
 const availableAttributes = ref([])
+const allAttributes = ref([])
 
 async function loadHierarchies() {
   try {
@@ -71,6 +85,7 @@ async function loadAttributes() {
   try {
     const { data } = await attributesApi.list({ per_page: 500 })
     const all = data.data || data || []
+    allAttributes.value = all.filter(a => a.data_type !== 'Composite')
     availableAttributes.value = all.filter(a => FACET_DATA_TYPES.includes(a.data_type))
   } catch (e) {
     console.warn('Failed to load attributes:', e.message)
@@ -112,6 +127,11 @@ const themeForm = ref({
   default_locale: 'de',
   popup_max_width: '4xl',
   facet_attribute_ids: [],
+  detail_layout: 'classic',
+  card_attribute_ids: [],
+  card_show_sku: false,
+  card_show_category: true,
+  card_image_ratio: '4/3',
 })
 const themeLogoPreview = ref(null)
 const themeSaving = ref(false)
@@ -154,6 +174,11 @@ async function loadThemeSettings() {
         color_mobile_menu_text: d.color_mobile_menu_text || '',
         popup_max_width: d.popup_max_width || '4xl',
         facet_attribute_ids: d.facet_attribute_ids || [],
+        detail_layout: d.detail_layout || 'classic',
+        card_attribute_ids: d.card_attribute_ids || [],
+        card_show_sku: d.card_show_sku ?? false,
+        card_show_category: d.card_show_category ?? true,
+        card_image_ratio: d.card_image_ratio || '4/3',
       }
       themeLogoPreview.value = d.logo_url || null
     }
@@ -431,6 +456,118 @@ onMounted(() => {
                   class="rounded border-[var(--color-border-strong)] text-[var(--color-accent)]"
                 />
                 {{ av.name_de || av.name }}
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Detail-Ansicht -->
+        <div class="space-y-3">
+          <div class="flex items-center gap-2">
+            <Columns3 class="w-3.5 h-3.5 text-[var(--color-text-secondary)]" :stroke-width="2" />
+            <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">Detail-Ansicht</h4>
+          </div>
+          <p class="text-[11px] text-[var(--color-text-tertiary)]">Layout für die Produktdetailseite und das Popup.</p>
+          <div class="grid grid-cols-3 gap-2">
+            <button
+              v-for="opt in DETAIL_LAYOUT_OPTIONS"
+              :key="opt.value"
+              class="flex flex-col items-center gap-2 px-3 py-3 rounded-lg border text-center transition-all hover:shadow-sm"
+              :class="themeForm.detail_layout === opt.value
+                ? 'border-[var(--color-accent)] ring-2 ring-[var(--color-accent)]/30 bg-[var(--color-accent)]/5'
+                : 'border-[var(--color-border)] hover:border-[var(--color-border-strong)]'"
+              @click="themeForm.detail_layout = opt.value"
+            >
+              <!-- Mini layout preview -->
+              <div class="w-full aspect-[4/3] rounded border border-[var(--color-border)] bg-[var(--color-bg)] p-1.5 flex gap-1" v-if="opt.value === 'classic'">
+                <div class="w-1/2 rounded-sm bg-[var(--color-border)]"></div>
+                <div class="w-1/2 flex flex-col gap-0.5">
+                  <div class="h-1.5 w-3/4 rounded-full bg-[var(--color-border-strong)]"></div>
+                  <div class="h-1 w-1/2 rounded-full bg-[var(--color-border)]"></div>
+                  <div class="flex-1 rounded-sm bg-[var(--color-border)]/50 mt-0.5"></div>
+                </div>
+              </div>
+              <div class="w-full aspect-[4/3] rounded border border-[var(--color-border)] bg-[var(--color-bg)] p-1.5 flex gap-1" v-else-if="opt.value === 'tabs'">
+                <div class="w-1/2 rounded-sm bg-[var(--color-border)]"></div>
+                <div class="w-1/2 flex flex-col gap-0.5">
+                  <div class="h-1.5 w-3/4 rounded-full bg-[var(--color-border-strong)]"></div>
+                  <div class="flex gap-0.5 mt-0.5">
+                    <div class="h-1 w-4 rounded-full bg-[var(--color-accent)]"></div>
+                    <div class="h-1 w-4 rounded-full bg-[var(--color-border)]"></div>
+                    <div class="h-1 w-4 rounded-full bg-[var(--color-border)]"></div>
+                  </div>
+                  <div class="flex-1 rounded-sm bg-[var(--color-border)]/50 mt-0.5"></div>
+                </div>
+              </div>
+              <div class="w-full aspect-[4/3] rounded border border-[var(--color-border)] bg-[var(--color-bg)] p-1.5 flex flex-col gap-1" v-else>
+                <div class="h-1/2 w-full rounded-sm bg-[var(--color-border)]"></div>
+                <div class="h-1.5 w-2/3 rounded-full bg-[var(--color-border-strong)]"></div>
+                <div class="flex gap-1 flex-1">
+                  <div class="w-1/2 rounded-sm bg-[var(--color-border)]/50"></div>
+                  <div class="w-1/2 rounded-sm bg-[var(--color-border)]/50"></div>
+                </div>
+              </div>
+              <div>
+                <span class="text-[11px] font-semibold text-[var(--color-text-primary)]">{{ opt.label }}</span>
+                <span class="block text-[10px] text-[var(--color-text-tertiary)]">{{ opt.desc }}</span>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <!-- Produktkarten -->
+        <div class="space-y-3">
+          <div class="flex items-center gap-2">
+            <LayoutGrid class="w-3.5 h-3.5 text-[var(--color-text-secondary)]" :stroke-width="2" />
+            <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">Produktkarten</h4>
+          </div>
+          <p class="text-[11px] text-[var(--color-text-tertiary)]">Darstellung und Inhalte der Produktkarten im Katalog.</p>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">
+                <Image class="w-3 h-3 inline-block mr-1" :stroke-width="2" />
+                Bild-Seitenverhältnis
+              </label>
+              <select class="pim-input text-xs" v-model="themeForm.card_image_ratio">
+                <option v-for="o in IMAGE_RATIO_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
+              </select>
+            </div>
+            <div class="flex flex-col justify-end gap-2">
+              <label class="flex items-center gap-2 text-xs cursor-pointer min-h-[44px]">
+                <input type="checkbox" v-model="themeForm.card_show_category" class="rounded border-[var(--color-border-strong)] text-[var(--color-accent)]" />
+                Kategorie-Pfad anzeigen
+              </label>
+              <label class="flex items-center gap-2 text-xs cursor-pointer min-h-[44px]">
+                <input type="checkbox" v-model="themeForm.card_show_sku" class="rounded border-[var(--color-border-strong)] text-[var(--color-accent)]" />
+                Artikelnummer (SKU) anzeigen
+              </label>
+            </div>
+          </div>
+          <div>
+            <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">
+              Attribute auf Karten
+              <span class="text-[var(--color-text-tertiary)] font-normal">(max. 3 werden angezeigt)</span>
+            </label>
+            <div v-if="allAttributes.length === 0" class="text-xs text-[var(--color-text-tertiary)]">Keine Attribute vorhanden</div>
+            <div v-else class="grid grid-cols-1 sm:grid-cols-2 gap-1.5 mt-1 max-h-48 overflow-y-auto">
+              <label
+                v-for="attr in allAttributes"
+                :key="attr.id"
+                class="flex items-center gap-2 px-2.5 py-2 rounded-md cursor-pointer hover:bg-[var(--color-bg)] transition-colors min-h-[44px]"
+              >
+                <input
+                  type="checkbox"
+                  :value="attr.id"
+                  :checked="themeForm.card_attribute_ids.includes(attr.id)"
+                  @change="
+                    $event.target.checked
+                      ? themeForm.card_attribute_ids.push(attr.id)
+                      : themeForm.card_attribute_ids = themeForm.card_attribute_ids.filter(id => id !== attr.id)
+                  "
+                  class="rounded border-[var(--color-border-strong)] text-[var(--color-accent)] shrink-0"
+                />
+                <span class="text-xs text-[var(--color-text-primary)] truncate">{{ attr.name_de || attr.name }}</span>
+                <span class="text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-bg)] text-[var(--color-text-tertiary)] shrink-0">{{ attr.data_type }}</span>
               </label>
             </div>
           </div>

@@ -63,6 +63,16 @@ const staggerDelay = computed(() => `${Math.min(props.index * 30, 300)}ms`)
           <p v-if="product.description" class="text-xs text-base-content/60 line-clamp-1 mt-1 hidden sm:block">
             {{ product.description }}
           </p>
+          <!-- Card attributes -->
+          <div v-if="product.card_attributes?.length" class="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 hidden sm:flex">
+            <span
+              v-for="(attr, idx) in product.card_attributes.slice(0, 3)"
+              :key="idx"
+              class="text-[11px] text-base-content/60"
+            >
+              <span class="text-base-content/40">{{ attr.label }}:</span> {{ attr.value }}
+            </span>
+          </div>
         </div>
 
         <div class="flex items-center gap-2 flex-none">
