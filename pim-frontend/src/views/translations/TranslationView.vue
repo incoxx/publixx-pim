@@ -16,6 +16,7 @@ const selectedUnitId = ref(null)
 const showPanel = ref(false)
 const ingestLoading = ref(false)
 const syncLoading = ref(false)
+const actionLog = ref([])
 const unitsPage = ref(1)
 const missingPage = ref(1)
 
@@ -106,10 +107,20 @@ function goToPage(p) {
   }
 }
 
+function addLog(type, message) {
+  const time = new Date().toLocaleTimeString('de-DE')
+  actionLog.value.unshift({ time, type, message })
+  if (actionLog.value.length > 20) actionLog.value.pop()
+}
+
 async function triggerIngest() {
   ingestLoading.value = true
+  addLog('info', 'Ingest gestartet — sende PIM-Daten an TMS...')
   try {
-    await store.triggerIngest()
+    const { data } = await store.triggerIngest()
+    addLog('success', data.message || `${data.total_sent} Entitäten gesendet.`)
+  } catch (e) {
+    addLog('error', 'Ingest fehlgeschlagen: ' + (e.response?.data?.message || e.message))
   } finally {
     ingestLoading.value = false
   }
@@ -117,10 +128,25 @@ async function triggerIngest() {
 
 async function triggerSync() {
   syncLoading.value = true
+  addLog('info', 'Sync gestartet — hole Übersetzungen von TMS...')
   try {
-    await store.syncToDatabase()
+    const { data } = await store.syncToDatabase()
+    addLog('success', data.message || `${data.total_updated} Datensätze aktualisiert.`)
+  } catch (e) {
+    addLog('error', 'Sync fehlgeschlagen: ' + (e.response?.data?.message || e.message))
   } finally {
     syncLoading.value = false
+  }
+}
+
+async function refreshStats() {
+  addLog('info', 'Statistiken werden geladen...')
+  try {
+    await store.fetchStats()
+    const total = store.stats?.total_units ?? 0
+    addLog('success', `Statistiken aktualisiert — ${total} Begriffe im TMS.`)
+  } catch (e) {
+    addLog('error', 'Statistiken laden fehlgeschlagen: ' + (e.response?.data?.message || e.message))
   }
 }
 
@@ -397,11 +423,35 @@ const paginationPages = computed(() => {
             </div>
             <button
               class="flex items-center gap-2 px-4 py-2 text-sm font-medium border border-[var(--color-border)] rounded-md hover:bg-[var(--color-bg)]"
-              @click="store.fetchStats()"
+              @click="refreshStats"
             >
               <RefreshCw class="w-4 h-4" />
               Aktualisieren
             </button>
+          </div>
+        </div>
+
+        <!-- Action Log -->
+        <div v-if="actionLog.length" class="mt-4 border-t border-[var(--color-border)] pt-4">
+          <div class="flex items-center justify-between mb-2">
+            <div class="text-xs font-medium text-[var(--color-text-tertiary)] uppercase tracking-wide">Protokoll</div>
+            <button class="text-xs text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]" @click="actionLog = []">Leeren</button>
+          </div>
+          <div class="space-y-1 max-h-48 overflow-y-auto font-mono text-xs">
+            <div
+              v-for="(entry, i) in actionLog"
+              :key="i"
+              class="flex gap-2 py-1"
+            >
+              <span class="text-[var(--color-text-tertiary)] shrink-0">{{ entry.time }}</span>
+              <span
+                :class="{
+                  'text-[var(--color-accent)]': entry.type === 'success',
+                  'text-red-500': entry.type === 'error',
+                  'text-[var(--color-text-secondary)]': entry.type === 'info',
+                }"
+              >{{ entry.message }}</span>
+            </div>
           </div>
         </div>
       </div>

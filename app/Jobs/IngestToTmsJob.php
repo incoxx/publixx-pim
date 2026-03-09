@@ -32,11 +32,11 @@ class IngestToTmsJob implements ShouldQueue, ShouldBeUnique
     public array $backoff = [5, 15, 60];
     public int $uniqueFor = 300; // 5 minutes
 
-    public function handle(TmsClient $client): void
+    public function handle(TmsClient $client): array
     {
         if (!$client->isEnabled()) {
             Log::info('TMS ingest skipped — TMS is disabled.');
-            return;
+            return ['total_sent' => 0, 'skipped' => true, 'message' => 'TMS is disabled.'];
         }
 
         $entities = [];
@@ -178,6 +178,8 @@ class IngestToTmsJob implements ShouldQueue, ShouldBeUnique
         }
 
         Log::info("TMS ingest completed: {$totalSent} entities sent.");
+
+        return ['total_sent' => $totalSent, 'skipped' => false, 'message' => "{$totalSent} Entitäten an TMS gesendet."];
     }
 
     private function buildEntity(string $type, string $id, string $label, array $fields): array

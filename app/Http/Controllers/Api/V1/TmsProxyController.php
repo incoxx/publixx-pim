@@ -100,33 +100,31 @@ class TmsProxyController extends Controller
     }
 
     /**
-     * POST /tms/ingest — trigger manual ingest from PIM to TMS.
+     * POST /tms/ingest — run ingest from PIM to TMS (synchronous).
      */
     public function triggerIngest(): JsonResponse
     {
         $this->abortIfDisabled();
         $this->authorize('manage', 'translations');
 
-        IngestToTmsJob::dispatch();
+        $job = new IngestToTmsJob();
+        $result = $job->handle($this->client);
 
-        return response()->json([
-            'message' => 'TMS ingest job dispatched.',
-        ]);
+        return response()->json($result);
     }
 
     /**
-     * POST /tms/sync — sync translations from TMS back into PIM database.
+     * POST /tms/sync — sync translations from TMS back into PIM database (synchronous).
      */
     public function syncToDatabase(): JsonResponse
     {
         $this->abortIfDisabled();
         $this->authorize('manage', 'translations');
 
-        SyncTmsTranslationsJob::dispatch();
+        $job = new SyncTmsTranslationsJob();
+        $result = $job->handle($this->client);
 
-        return response()->json([
-            'message' => 'TMS sync job dispatched.',
-        ]);
+        return response()->json($result);
     }
 
     private function abortIfDisabled(): void
