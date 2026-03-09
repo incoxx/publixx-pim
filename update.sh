@@ -226,6 +226,11 @@ step "4/8 — Datenbank-Migrationen"
 php artisan migrate --force
 info "Migrationen ausgefuehrt."
 
+# Database Viewer Assets publizieren (falls Paket installiert)
+if php artisan database-viewer:publish 2>/dev/null; then
+    info "Database Viewer Assets publiziert."
+fi
+
 if [ "$RUN_SEED" = true ]; then
     info "Fuehre Seeders aus (--seed)..."
     php artisan db:seed --force
