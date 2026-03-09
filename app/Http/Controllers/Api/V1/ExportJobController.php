@@ -185,6 +185,21 @@ class ExportJobController extends Controller
             ], 404);
         }
 
+        if ($request->boolean('zip')) {
+            $originalName = basename($job->last_output_path);
+            $zipName = pathinfo($originalName, PATHINFO_FILENAME) . '.zip';
+            $tempFile = tempnam(sys_get_temp_dir(), 'pim_zip_');
+
+            $zip = new \ZipArchive();
+            $zip->open($tempFile, \ZipArchive::OVERWRITE);
+            $zip->addFile($job->last_output_path, $originalName);
+            $zip->close();
+
+            return response()->download($tempFile, $zipName, [
+                'Content-Type' => 'application/zip',
+            ])->deleteFileAfterSend();
+        }
+
         return response()->download(
             $job->last_output_path,
             basename($job->last_output_path),
