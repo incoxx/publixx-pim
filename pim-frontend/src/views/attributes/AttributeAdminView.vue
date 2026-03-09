@@ -1,10 +1,10 @@
 <script setup>
-import { ref, onMounted, markRaw, computed } from 'vue'
+import { ref, onMounted, onBeforeUnmount, markRaw, computed } from 'vue'
 import { useAttributeStore } from '@/stores/attributes'
 import { useAuthStore } from '@/stores/auth'
 import { useI18n } from 'vue-i18n'
 import { useFilters } from '@/composables/useFilters'
-import { Plus, Filter, X, Pencil, ListFilter } from 'lucide-vue-next'
+import { Plus, Filter, X, Pencil, ListFilter, Copy, Trash2, MoreHorizontal } from 'lucide-vue-next'
 import PimTable from '@/components/shared/PimTable.vue'
 import PimFilterBar from '@/components/shared/PimFilterBar.vue'
 import PimDeleteConfirmDialog from '@/components/shared/PimDeleteConfirmDialog.vue'
@@ -164,6 +164,8 @@ const columns = [
 
 const deleteTarget = ref(null)
 const deleting = ref(false)
+const actionMenuRow = ref(null)
+const copying = ref(false)
 
 function handleSort(field, order) {
   store.fetchAttributes({ sort: field, order, filters: activeFilterEntries.value, include: 'attributeType,valueList,unitGroup,children,attributeViews' })
@@ -183,6 +185,26 @@ function openEditPanel(row) {
 }
 
 function handleRowAction(row) {
+  actionMenuRow.value = actionMenuRow.value?.id === row.id ? null : row
+}
+
+function closeActionMenu() {
+  actionMenuRow.value = null
+}
+
+async function handleCopy(row) {
+  actionMenuRow.value = null
+  copying.value = true
+  try {
+    await store.copyAttribute(row.id)
+    loadWithFilters()
+  } finally {
+    copying.value = false
+  }
+}
+
+function handleDelete(row) {
+  actionMenuRow.value = null
   deleteTarget.value = row
 }
 
@@ -196,10 +218,21 @@ async function confirmDelete({ force } = {}) {
   }
 }
 
+function onClickOutside(e) {
+  if (actionMenuRow.value && !e.target.closest('.relative')) {
+    actionMenuRow.value = null
+  }
+}
+
 onMounted(() => {
   store.fetchAttributes({ include: 'attributeType,valueList,unitGroup,children,attributeViews' })
   store.fetchTypes()
   store.fetchValueLists()
+  document.addEventListener('click', onClickOutside)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', onClickOutside)
 })
 </script>
 
@@ -331,13 +364,12 @@ onMounted(() => {
       :rows="filteredItems"
       :loading="store.loading"
       selectable
-      :showActions="authStore.hasPermission('attributes.delete')"
+      :showActions="authStore.hasPermission('attributes.create') || authStore.hasPermission('attributes.delete')"
       emptyText="Keine Attribute gefunden"
       :quickLookup="showQuickLookup"
       :quickLookupConfig="quickLookupConfig"
       @sort="handleSort"
       @row-click="openEditPanel"
-      @row-action="handleRowAction"
       @select="handleSelect"
       @quick-lookup-change="onQuickLookupChange"
     >
@@ -383,6 +415,39 @@ onMounted(() => {
       </template>
       <template #cell-description_de="{ value }">
         <span class="text-[var(--color-text-tertiary)] text-xs truncate max-w-[200px] block">{{ value || '—' }}</span>
+      </template>
+
+      <template #actions="{ row }">
+        <div class="relative">
+          <button
+            class="p-1 rounded hover:bg-[var(--color-border)] transition-all opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
+            @click="handleRowAction(row)"
+          >
+            <MoreHorizontal class="w-4 h-4 text-[var(--color-text-tertiary)]" />
+          </button>
+          <div
+            v-if="actionMenuRow?.id === row.id"
+            class="absolute right-0 top-full mt-1 z-50 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg shadow-lg py-1 min-w-[160px]"
+          >
+            <button
+              v-if="authStore.hasPermission('attributes.create')"
+              class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-[var(--color-text-primary)] hover:bg-[var(--color-bg)] transition-colors"
+              :disabled="copying"
+              @click="handleCopy(row)"
+            >
+              <Copy class="w-3.5 h-3.5" :stroke-width="1.75" />
+              Kopieren
+            </button>
+            <button
+              v-if="authStore.hasPermission('attributes.delete')"
+              class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-red-600 hover:bg-[var(--color-bg)] transition-colors"
+              @click="handleDelete(row)"
+            >
+              <Trash2 class="w-3.5 h-3.5" :stroke-width="1.75" />
+              Löschen
+            </button>
+          </div>
+        </div>
       </template>
 
       <template #pagination>

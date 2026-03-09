@@ -3,6 +3,7 @@ import { ref, onMounted, computed } from 'vue'
 import {
   Download, FileSpreadsheet, FileJson, FileCode, FileText,
   Package, Tag, DollarSign, Link, Image, Layers,
+  Radio,
 } from 'lucide-vue-next'
 import exportsApi from '@/api/exports'
 import exportProfilesApi from '@/api/exportProfiles'
@@ -10,6 +11,7 @@ import searchProfilesApi from '@/api/searchProfiles'
 import searchApi from '@/api/search'
 import ProfileSelector from '@/components/shared/ProfileSelector.vue'
 import SearchFilterPanel from '@/components/shared/SearchFilterPanel.vue'
+import StreamUrlBox from '@/components/shared/StreamUrlBox.vue'
 
 // --- State ---
 const activeTab = ref('filter') // 'filter' | 'data' | 'channel'
@@ -299,6 +301,12 @@ const tabs = [
   { key: 'data', label: 'Datenauswahl' },
   { key: 'channel', label: 'Export-Kanal' },
 ]
+
+// --- Stream URL ---
+const streamUrl = computed(() => {
+  if (format.value !== 'json' || !selectedExportProfileId.value) return null
+  return `${window.location.origin}/api/v1/export-profiles/${selectedExportProfileId.value}/stream`
+})
 </script>
 
 <template>
@@ -450,6 +458,15 @@ const tabs = [
         <p class="text-[10px] text-[var(--color-text-tertiary)] mt-1">
           Platzhalter: {date}, {profile}, {format}
         </p>
+      </div>
+
+      <!-- Stream URL (nur bei JSON + gespeichertem Profil) -->
+      <StreamUrlBox v-if="streamUrl" :url="streamUrl" />
+      <div v-else-if="format === 'json' && !selectedExportProfileId" class="p-3 rounded-lg bg-[var(--color-bg)] border border-dashed border-[var(--color-border)]">
+        <div class="flex items-center gap-1.5">
+          <Radio class="w-3.5 h-3.5 text-[var(--color-text-tertiary)]" :stroke-width="2" />
+          <span class="text-[11px] text-[var(--color-text-tertiary)]">JSON Stream API — Erst Export-Profil speichern, dann wird die Stream-URL verfügbar.</span>
+        </div>
       </div>
     </div>
 

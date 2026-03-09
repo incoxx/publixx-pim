@@ -12,6 +12,7 @@ use App\Models\Attribute;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\DB;
 
 class AttributeController extends Controller
 {
@@ -74,6 +75,40 @@ class AttributeController extends Controller
         $attribute->update($request->validated());
 
         return new AttributeResource($attribute->fresh());
+    }
+
+    public function copy(Attribute $attribute): JsonResponse
+    {
+        $this->authorize('create', Attribute::class);
+
+        $copy = DB::transaction(function () use ($attribute) {
+            $baseName = $attribute->technical_name . '_copy';
+            $suffix = '';
+            $counter = 1;
+
+            while (Attribute::where('technical_name', $baseName . $suffix)->exists()) {
+                $suffix = '_' . $counter;
+                $counter++;
+            }
+
+            $data = $attribute->replicate([
+                'id', 'created_at', 'updated_at',
+            ])->toArray();
+
+            $data['technical_name'] = $baseName . $suffix;
+            if ($data['name_de']) {
+                $data['name_de'] .= ' (Kopie)';
+            }
+            if ($data['name_en']) {
+                $data['name_en'] .= ' (Copy)';
+            }
+
+            return Attribute::create($data);
+        });
+
+        return (new AttributeResource($copy))
+            ->response()
+            ->setStatusCode(201);
     }
 
     public function dependencies(Attribute $attribute): JsonResponse

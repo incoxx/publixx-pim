@@ -48,6 +48,17 @@ class ExportProfileService
     }
 
     /**
+     * Gibt die JSON-Exportdaten direkt als API-Response zurück (kein Download).
+     */
+    public function stream(ExportProfile $profile): \Illuminate\Http\JsonResponse
+    {
+        $products = $this->resolveProducts($profile);
+        $data = $this->buildExportData($profile, $products);
+
+        return JsonWriter::asInlineResponse($data);
+    }
+
+    /**
      * Gibt die Anzahl der Produkte zurück, die der Export treffen würde.
      */
     public function count(ExportProfile $profile): int

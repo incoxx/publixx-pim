@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\V1\DictionaryEntryController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\DeploymentController;
 use App\Http\Controllers\Api\V1\ExportController;
+use App\Http\Controllers\Api\V1\ExportFileController;
 use App\Http\Controllers\Api\V1\ExportJobController;
 use App\Http\Controllers\Api\V1\ExportProfileController;
 use App\Http\Controllers\Api\V1\JsonExportImportController;
@@ -152,6 +153,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::put('attributes/bulk-update', [AttributeController::class, 'bulkUpdate']);
     Route::apiResource('attributes', AttributeController::class);
     Route::get('attributes/{attribute}/dependencies', [AttributeController::class, 'dependencies']);
+    Route::post('attributes/{attribute}/copy', [AttributeController::class, 'copy']);
 
     // =====================================================================
     // Agent 3: Attribute Types
@@ -369,6 +371,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // =====================================================================
     Route::apiResource('export-profiles', ExportProfileController::class)->except(['show']);
     Route::post('export-profiles/{export_profile}/execute', [ExportProfileController::class, 'execute']);
+    Route::get('export-profiles/{export_profile}/stream', [ExportProfileController::class, 'stream']);
 
     // =====================================================================
     // Import Profiles (Importprofile)
@@ -436,6 +439,12 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::apiResource('export-jobs', ExportJobController::class);
     Route::post('export-jobs/{export_job}/execute', [ExportJobController::class, 'execute']);
     Route::get('export-jobs/{export_job}/download', [ExportJobController::class, 'download']);
+    Route::get('export-jobs/{export_job}/logs', [ExportJobController::class, 'logs']);
+    Route::get('export-jobs/{export_job}/stream', [ExportJobController::class, 'stream']);
+
+    // Export-Dateien (Filesystem Viewer)
+    Route::get('export-files', [ExportFileController::class, 'index']);
+    Route::delete('export-files/{name}', [ExportFileController::class, 'destroy']);
 
     // =====================================================================
     // Agent 7: Publixx Live-API
