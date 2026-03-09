@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
-import { ArrowUp, ArrowDown, ArrowUpDown, MoreHorizontal } from 'lucide-vue-next'
+import { ArrowUp, ArrowDown, ArrowUpDown, Trash2 } from 'lucide-vue-next'
 
 const props = defineProps({
   columns: { type: Array, required: true },
@@ -216,10 +216,11 @@ function getCellValue(row, col) {
             <td v-if="showActions" class="px-2 py-2.5 relative" @click.stop>
               <slot name="actions" :row="row">
                 <button
-                  class="p-1 rounded hover:bg-[var(--color-border)] transition-all opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
+                  class="p-1 rounded hover:bg-[var(--color-error-light)] text-[var(--color-text-tertiary)] hover:text-[var(--color-error)] transition-all opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
                   @click="$emit('row-action', row)"
+                  title="Löschen"
                 >
-                  <MoreHorizontal class="w-4 h-4 text-[var(--color-text-tertiary)]" />
+                  <Trash2 class="w-4 h-4" :stroke-width="1.75" />
                 </button>
               </slot>
             </td>
