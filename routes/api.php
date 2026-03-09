@@ -439,6 +439,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::post('export-jobs/{export_job}/execute', [ExportJobController::class, 'execute']);
     Route::get('export-jobs/{export_job}/download', [ExportJobController::class, 'download']);
     Route::get('export-jobs/{export_job}/logs', [ExportJobController::class, 'logs']);
+    Route::get('export-jobs/{export_job}/stream', [ExportJobController::class, 'stream']);
 
     // Export-Dateien (Filesystem Viewer)
     Route::get('export-files', [ExportFileController::class, 'index']);

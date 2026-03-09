@@ -9,9 +9,11 @@ use App\Models\ExportJob;
 use App\Models\ExportJobLog;
 use App\Services\Export\ExportDeliveryService;
 use App\Services\Export\ExportJobService;
+use App\Services\Export\JsonFormatExporter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * REST-API für Export-Job-Steuerung.
@@ -24,6 +26,7 @@ use Illuminate\Support\Facades\Storage;
  *   POST   /api/v1/export-jobs/{id}/execute — Job sofort ausführen
  *   GET    /api/v1/export-jobs/{id}/download — Letzte Export-Datei herunterladen
  *   GET    /api/v1/export-jobs/{id}/logs     — Ausführungsprotokoll
+ *   GET    /api/v1/export-jobs/{id}/stream   — JSON-Export direkt als API-Response streamen
  */
 class ExportJobController extends Controller
 {
@@ -186,6 +189,32 @@ class ExportJobController extends Controller
             $job->last_output_path,
             basename($job->last_output_path),
         );
+    }
+
+    /**
+     * GET /api/v1/export-jobs/{id}/stream — JSON-Export direkt als API-Response streamen.
+     *
+     * Gibt die PIM-Daten des Jobs direkt als JSON zurück, ohne Datei auf Disk.
+     * Nur für Jobs mit format=json verfügbar.
+     */
+    public function stream(Request $request, string $id, JsonFormatExporter $exporter): StreamedResponse
+    {
+        $job = ExportJob::findOrFail($id);
+        $this->authorizeJobAccess($request, $job);
+
+        if ($job->format !== 'json') {
+            abort(422, 'Streaming ist nur für JSON-Exporte verfügbar.');
+        }
+
+        $filters = $this->jobService->resolveFilters($job);
+        $sections = $job->sections ?? [];
+
+        return response()->stream(function () use ($exporter, $sections, $filters) {
+            echo $exporter->export($sections, $filters);
+        }, 200, [
+            'Content-Type' => 'application/json; charset=UTF-8',
+            'X-Accel-Buffering' => 'no',
+        ]);
     }
 
     /**

@@ -4,7 +4,7 @@ import {
   Play, Plus, Trash2, Edit3, Download, FileJson, FileSpreadsheet,
   FileText, FileCode, Clock, CheckCircle, XCircle, Loader2,
   ChevronDown, ChevronUp, Save, X, Send, HardDrive, Globe, Server,
-  History, FolderOpen, Timer,
+  History, FolderOpen, Timer, Copy, ExternalLink, Radio,
 } from 'lucide-vue-next'
 import exportJobsApi from '@/api/exportJobs'
 import exportFilesApi from '@/api/exportFiles'
@@ -231,6 +231,20 @@ async function downloadResult(job) {
   } catch (e) {
     error.value = 'Download fehlgeschlagen'
   }
+}
+
+function getStreamUrl(job) {
+  const base = window.location.origin
+  return `${base}/api/v1/export-jobs/${job.id}/stream`
+}
+
+const copiedStreamUrl = ref(null)
+async function copyStreamUrl(job) {
+  try {
+    await navigator.clipboard.writeText(getStreamUrl(job))
+    copiedStreamUrl.value = job.id
+    setTimeout(() => { copiedStreamUrl.value = null }, 2000)
+  } catch (e) { /* ignore */ }
 }
 
 function toggleExpand(jobId) {
@@ -610,6 +624,33 @@ const sectionLabel = (s) => ({
               <div>
                 <span class="text-[var(--color-text-tertiary)]">Nächste Ausführung</span>
                 <p class="font-medium text-[var(--color-text-primary)]">{{ formatDate(job.next_run_at) }}</p>
+              </div>
+            </div>
+
+            <!-- Stream URL (nur JSON) -->
+            <div v-if="job.format === 'json'" class="p-2.5 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)]">
+              <div class="flex items-center gap-1.5 mb-1.5">
+                <Radio class="w-3 h-3 text-green-500" :stroke-width="2" />
+                <span class="text-[var(--color-text-tertiary)] text-[10px] font-medium uppercase tracking-wide">JSON Stream API</span>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <code class="flex-1 text-[10px] font-mono text-[var(--color-text-secondary)] bg-[var(--color-bg)] px-2 py-1.5 rounded select-all overflow-x-auto whitespace-nowrap">{{ getStreamUrl(job) }}</code>
+                <button
+                  class="p-1.5 rounded hover:bg-[var(--color-bg)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] transition-colors shrink-0"
+                  @click="copyStreamUrl(job)"
+                  :title="copiedStreamUrl === job.id ? 'Kopiert!' : 'URL kopieren'"
+                >
+                  <CheckCircle v-if="copiedStreamUrl === job.id" class="w-3.5 h-3.5 text-green-500" :stroke-width="2" />
+                  <Copy v-else class="w-3.5 h-3.5" :stroke-width="2" />
+                </button>
+                <a
+                  :href="getStreamUrl(job)"
+                  target="_blank"
+                  class="p-1.5 rounded hover:bg-[var(--color-bg)] text-[var(--color-text-tertiary)] hover:text-blue-500 transition-colors shrink-0"
+                  title="Im Browser öffnen"
+                >
+                  <ExternalLink class="w-3.5 h-3.5" :stroke-width="2" />
+                </a>
               </div>
             </div>
 

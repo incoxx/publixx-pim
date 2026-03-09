@@ -279,7 +279,7 @@ class ExportJobService
     /**
      * Löst Filter auf: direkte Filter oder via SearchProfile.
      */
-    private function resolveFilters(ExportJob $job): array
+    public function resolveFilters(ExportJob $job): array
     {
         $filters = $job->filters ?? [];
 
