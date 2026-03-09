@@ -43,9 +43,18 @@ const filteredRoutes = computed(() => {
   )
 })
 
-// Build the final URL from template + params + query
+// The API client baseURL (e.g. '/web/api/v1' or '/api/v1')
+const apiBase = (import.meta.env.VITE_API_BASE_URL || '/api/v1').replace(/\/+$/, '')
+
+// Strip the /api/v1 prefix that the backend returns, so we can use the client's baseURL
+function stripApiPrefix(uri) {
+  // Routes come as "api/v1/..." or "/api/v1/..." from backend
+  return uri.replace(/^\/?api\/v1\/?/, '/')
+}
+
+// Build the final URL from template + params + query (relative to client baseURL)
 const resolvedUrl = computed(() => {
-  let u = urlTemplate.value
+  let u = stripApiPrefix(urlTemplate.value)
   // Replace {param} placeholders
   for (const p of urlParams.value) {
     u = u.replace(`{${p.name}}`, encodeURIComponent(p.value || p.name))
@@ -59,6 +68,9 @@ const resolvedUrl = computed(() => {
   if (qParts.length) u += '?' + qParts.join('&')
   return u
 })
+
+// Full URL for display purposes
+const displayUrl = computed(() => apiBase + resolvedUrl.value)
 
 // Check if there are unfilled URL params
 const hasUnfilledParams = computed(() =>
@@ -130,7 +142,6 @@ async function sendRequest() {
     const config = {
       method: method.value.toLowerCase(),
       url: finalUrl,
-      baseURL: '',
       validateStatus: () => true,
     }
 
@@ -165,7 +176,7 @@ async function sendRequest() {
     // Add to history
     history.value.unshift({
       method: method.value,
-      url: finalUrl,
+      url: displayUrl.value,
       template: urlTemplate.value,
       status: res.status,
       time: responseTime.value,
@@ -317,7 +328,7 @@ function loadFromHistory(item) {
               </select>
               <div class="flex-1 relative">
                 <input
-                  :value="resolvedUrl"
+                  :value="displayUrl"
                   type="text"
                   class="pim-input text-xs font-mono w-full pr-2"
                   placeholder="/api/v1/..."
