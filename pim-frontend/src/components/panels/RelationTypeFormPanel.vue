@@ -20,6 +20,8 @@ const allAttributes = ref([])
 const defaultAttributes = ref([])
 const loadingAttributes = ref(false)
 const savingAttributes = ref(false)
+const saveAttrError = ref('')
+const saveAttrSuccess = ref(false)
 const newAttrId = ref('')
 
 const isEdit = computed(() => !!props.relationType)
@@ -80,6 +82,8 @@ function removeDefaultAttribute(index) {
 async function saveDefaultAttributes() {
   if (!props.relationType?.id) return
   savingAttributes.value = true
+  saveAttrError.value = ''
+  saveAttrSuccess.value = false
   try {
     const payload = defaultAttributes.value.map((a, idx) => ({
       attribute_id: a.id,
@@ -88,8 +92,11 @@ async function saveDefaultAttributes() {
     const { data } = await relationTypes.updateDefaultAttributes(props.relationType.id, payload)
     const updated = data.data || data
     defaultAttributes.value = (updated.default_attributes || []).map(a => ({ ...a }))
+    saveAttrSuccess.value = true
+    setTimeout(() => { saveAttrSuccess.value = false }, 3000)
   } catch (e) {
-    console.error('Failed to save default attributes:', e.message)
+    console.error('Failed to save default attributes:', e)
+    saveAttrError.value = e.response?.data?.message || e.message || 'Fehler beim Speichern'
   } finally {
     savingAttributes.value = false
   }
@@ -196,7 +203,13 @@ async function handleSubmit(data) {
           </button>
         </div>
 
-        <!-- Save button -->
+        <!-- Save feedback + button -->
+        <div v-if="saveAttrError" class="text-xs text-[var(--color-error)] bg-red-50 rounded p-2 mt-2">
+          {{ saveAttrError }}
+        </div>
+        <div v-if="saveAttrSuccess" class="text-xs text-[var(--color-success,#16a34a)] bg-green-50 rounded p-2 mt-2">
+          Default-Attribute gespeichert.
+        </div>
         <div class="flex justify-end pt-2">
           <button
             class="pim-btn pim-btn-primary text-xs"

@@ -39,6 +39,7 @@ class ProductRelationType extends Model
     {
         return $this->belongsToMany(Attribute::class, 'relation_type_default_attributes', 'relation_type_id', 'attribute_id')
             ->withPivot('sort_order')
+            ->withTimestamps()
             ->orderByPivot('sort_order');
     }
 }
