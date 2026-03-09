@@ -12,6 +12,7 @@
 # Optionen:
 #   --branch=NAME     Anderen Branch als 'main' verwenden
 #   --skip-frontend   Frontend-Build ueberspringen
+#   --skip-docs       Dokumentations-Build ueberspringen
 #   --skip-composer   Composer Install ueberspringen
 #   --seed            Nach Migrationen auch Seeders ausfuehren
 #   --force           Keine Bestaetigung vor dem Update
@@ -22,9 +23,10 @@
 #   3. Composer Install (PHP-Abhaengigkeiten)
 #   4. Datenbank-Migrationen
 #   5. Frontend-Build (npm ci + npm run build, subdirectory-aware)
-#   6. Laravel-Caches neu erstellen
-#   7. Services neu starten + Dateiberechtigungen
-#   8. Healthcheck + Wartungsmodus deaktivieren
+#   6. Dokumentation bauen (VitePress)
+#   7. Laravel-Caches neu erstellen
+#   8. Services neu starten + Dateiberechtigungen
+#   9. Healthcheck + Wartungsmodus deaktivieren
 #
 
 set -euo pipefail
@@ -46,6 +48,7 @@ step()    { echo -e "\n${BLUE}━━━ $1 ━━━${NC}\n"; }
 # ─── Argumente parsen ──────────────────────────────────────────────────────
 BRANCH="main"
 SKIP_FRONTEND=false
+SKIP_DOCS=false
 SKIP_COMPOSER=false
 RUN_SEED=false
 FORCE=false
@@ -54,11 +57,12 @@ for arg in "$@"; do
     case "$arg" in
         --branch=*)      BRANCH="${arg#*=}" ;;
         --skip-frontend) SKIP_FRONTEND=true ;;
+        --skip-docs)     SKIP_DOCS=true ;;
         --skip-composer) SKIP_COMPOSER=true ;;
         --seed)          RUN_SEED=true ;;
         --force)         FORCE=true ;;
         --help|-h)
-            echo "Verwendung: sudo bash update.sh [--branch=NAME] [--skip-frontend] [--skip-composer] [--seed] [--force]"
+            echo "Verwendung: sudo bash update.sh [--branch=NAME] [--skip-frontend] [--skip-docs] [--skip-composer] [--seed] [--force]"
             exit 0
             ;;
         *)
@@ -123,7 +127,7 @@ cd "$INSTALL_DIR"
 # ═════════════════════════════════════════════════════════════════════════════
 #  1. WARTUNGSMODUS
 # ═════════════════════════════════════════════════════════════════════════════
-step "1/8 — Wartungsmodus aktivieren"
+step "1/9 — Wartungsmodus aktivieren"
 
 php artisan down --retry=60 2>/dev/null || true
 info "Wartungsmodus aktiviert."
@@ -139,7 +143,7 @@ trap cleanup ERR
 # ═════════════════════════════════════════════════════════════════════════════
 #  2. GIT PULL
 # ═════════════════════════════════════════════════════════════════════════════
-step "2/8 — Neuesten Stand von GitHub holen"
+step "2/9 — Neuesten Stand von GitHub holen"
 
 # Aktuellen Branch merken
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")
@@ -200,7 +204,7 @@ fi
 # ═════════════════════════════════════════════════════════════════════════════
 #  3. COMPOSER INSTALL
 # ═════════════════════════════════════════════════════════════════════════════
-step "3/8 — PHP-Abhaengigkeiten aktualisieren"
+step "3/9 — PHP-Abhaengigkeiten aktualisieren"
 
 if [ "$SKIP_COMPOSER" = true ]; then
     info "Composer-Install uebersprungen (--skip-composer)."
@@ -221,7 +225,7 @@ fi
 # ═════════════════════════════════════════════════════════════════════════════
 #  4. DATENBANK-MIGRATIONEN
 # ═════════════════════════════════════════════════════════════════════════════
-step "4/8 — Datenbank-Migrationen"
+step "4/9 — Datenbank-Migrationen"
 
 php artisan migrate --force
 info "Migrationen ausgefuehrt."
@@ -235,7 +239,7 @@ fi
 # ═════════════════════════════════════════════════════════════════════════════
 #  5. FRONTEND BUILD
 # ═════════════════════════════════════════════════════════════════════════════
-step "5/8 — Frontend bauen"
+step "5/9 — Frontend bauen"
 
 FRONTEND_DIR="${INSTALL_DIR}/pim-frontend"
 
@@ -285,9 +289,38 @@ else
 fi
 
 # ═════════════════════════════════════════════════════════════════════════════
-#  6. CACHES & OPTIMIERUNGEN
+#  6. DOKUMENTATION BAUEN (VitePress)
 # ═════════════════════════════════════════════════════════════════════════════
-step "6/8 — Caches neu erstellen"
+step "6/9 — Dokumentation bauen"
+
+DOCS_DIR="${INSTALL_DIR}/static-content"
+
+if [ "$SKIP_DOCS" = true ]; then
+    info "Dokumentations-Build uebersprungen (--skip-docs)."
+elif [ -d "$DOCS_DIR" ] && [ -f "${DOCS_DIR}/package.json" ]; then
+    cd "$DOCS_DIR"
+
+    info "Installiere Dokumentations-Abhaengigkeiten..."
+    npm ci --production=false 2>&1
+
+    info "Baue Dokumentation (VitePress)..."
+    npm run build 2>&1
+
+    if [ -d "${DOCS_DIR}/.vitepress/dist" ]; then
+        info "Dokumentation erfolgreich gebaut (${DOCS_DIR}/.vitepress/dist)."
+    else
+        warn "Dokumentation dist/ nicht gefunden — Build moeglicherweise fehlgeschlagen."
+    fi
+
+    cd "$INSTALL_DIR"
+else
+    warn "Dokumentations-Verzeichnis nicht gefunden — ueberspringe Dokumentations-Build."
+fi
+
+# ═════════════════════════════════════════════════════════════════════════════
+#  7. CACHES & OPTIMIERUNGEN
+# ═════════════════════════════════════════════════════════════════════════════
+step "7/9 — Caches neu erstellen"
 
 php artisan config:cache
 php artisan route:cache
@@ -297,9 +330,9 @@ php artisan event:cache 2>/dev/null || true
 info "Caches erstellt."
 
 # ═════════════════════════════════════════════════════════════════════════════
-#  7. SERVICES NEU STARTEN & BERECHTIGUNGEN
+#  8. SERVICES NEU STARTEN & BERECHTIGUNGEN
 # ═════════════════════════════════════════════════════════════════════════════
-step "7/8 — Services neu starten"
+step "8/9 — Services neu starten"
 
 # Dateiberechtigungen korrigieren
 chown -R www-data:www-data "$INSTALL_DIR"
@@ -335,9 +368,9 @@ systemctl reload apache2 > /dev/null 2>&1 && info "Apache neu geladen." \
     || warn "Apache konnte nicht neu geladen werden."
 
 # ═════════════════════════════════════════════════════════════════════════════
-#  8. HEALTHCHECK & WARTUNGSMODUS BEENDEN
+#  9. HEALTHCHECK & WARTUNGSMODUS BEENDEN
 # ═════════════════════════════════════════════════════════════════════════════
-step "8/8 — Healthcheck & Wartungsmodus beenden"
+step "9/9 — Healthcheck & Wartungsmodus beenden"
 
 # Wartungsmodus deaktivieren
 trap - ERR
