@@ -21,6 +21,10 @@ export default {
     return client.get(`/attributes/${id}/dependencies`)
   },
 
+  copy(id) {
+    return client.post(`/attributes/${id}/copy`)
+  },
+
   delete(id, { force = false } = {}) {
     return client.delete(`/attributes/${id}`, { params: force ? { force: true } : {} })
   },

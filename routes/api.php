@@ -152,6 +152,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::put('attributes/bulk-update', [AttributeController::class, 'bulkUpdate']);
     Route::apiResource('attributes', AttributeController::class);
     Route::get('attributes/{attribute}/dependencies', [AttributeController::class, 'dependencies']);
+    Route::post('attributes/{attribute}/copy', [AttributeController::class, 'copy']);
 
     // =====================================================================
     // Agent 3: Attribute Types
