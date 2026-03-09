@@ -6,6 +6,7 @@ import {
   ChevronDown, ChevronUp, Save, X, Send, HardDrive, Globe, Server,
   History, FolderOpen, Timer,
 } from 'lucide-vue-next'
+import { resolveApiUrl } from '@/api/client'
 import exportJobsApi from '@/api/exportJobs'
 import exportFilesApi from '@/api/exportFiles'
 import searchProfilesApi from '@/api/searchProfiles'
@@ -235,7 +236,7 @@ async function downloadResult(job) {
 }
 
 function getStreamUrl(job) {
-  return `${window.location.origin}/api/v1/export-jobs/${job.id}/stream`
+  return resolveApiUrl(`export-jobs/${job.id}/stream`)
 }
 
 function toggleExpand(jobId) {
