@@ -7,9 +7,11 @@ use App\Http\Controllers\Api\V1\CatalogController;
 use App\Http\Controllers\Api\V1\AttributeController;
 use App\Http\Controllers\Api\V1\AttributeTypeController;
 use App\Http\Controllers\Api\V1\AttributeViewController;
+use App\Http\Controllers\Api\V1\ApiTesterController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BulkEditorController;
 use App\Http\Controllers\Api\V1\BulkUpdateController;
+use App\Http\Controllers\Api\V1\DatabaseViewerController;
 use App\Http\Controllers\Api\V1\DebugController;
 use App\Http\Controllers\Api\V1\DictionaryEntryController;
 use App\Http\Controllers\Api\V1\HealthController;
@@ -479,4 +481,16 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
         Route::post('deploy', [DeploymentController::class, 'deploy']);
         Route::post('deploy/rollback', [DeploymentController::class, 'rollback']);
     });
+
+    // =====================================================================
+    // Admin: API Tester
+    // =====================================================================
+    Route::get('admin/api-routes', [ApiTesterController::class, 'routes']);
+
+    // =====================================================================
+    // Admin: Database Viewer (read-only)
+    // =====================================================================
+    Route::get('admin/db/tables', [DatabaseViewerController::class, 'tables']);
+    Route::get('admin/db/tables/{table}/columns', [DatabaseViewerController::class, 'columns']);
+    Route::get('admin/db/tables/{table}/rows', [DatabaseViewerController::class, 'rows']);
 });
