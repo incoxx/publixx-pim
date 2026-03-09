@@ -21,6 +21,8 @@ class CatalogProductResource extends JsonResource
             $imageUrl = url('api/v1/catalog/media/' . rawurlencode($this->primary_image));
         }
 
+        $cardAttributes = $this->additional['card_attributes'][$this->id] ?? [];
+
         return [
             'id' => $this->id,
             'sku' => $this->sku,
@@ -31,6 +33,7 @@ class CatalogProductResource extends JsonResource
             'image_url' => $imageUrl,
             'price' => $this->list_price,
             'product_type' => $this->product_type,
+            'card_attributes' => $cardAttributes,
         ];
     }
 }

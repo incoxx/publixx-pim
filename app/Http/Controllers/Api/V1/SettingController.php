@@ -40,6 +40,11 @@ class SettingController extends Controller
         'color_mobile_menu_text' => null,
         'popup_max_width' => '4xl',
         'facet_attribute_ids' => [],
+        'detail_layout' => 'classic',
+        'card_attribute_ids' => [],
+        'card_show_sku' => false,
+        'card_show_category' => true,
+        'card_image_ratio' => '4/3',
     ];
 
     /**
@@ -103,6 +108,12 @@ class SettingController extends Controller
             'popup_max_width' => 'nullable|string|in:4xl,5xl,6xl,7xl,full',
             'facet_attribute_ids' => 'nullable|array',
             'facet_attribute_ids.*' => 'uuid|exists:attributes,id',
+            'detail_layout' => 'nullable|string|in:classic,tabs,hero',
+            'card_attribute_ids' => 'nullable|array',
+            'card_attribute_ids.*' => 'uuid|exists:attributes,id',
+            'card_show_sku' => 'nullable|boolean',
+            'card_show_category' => 'nullable|boolean',
+            'card_image_ratio' => 'nullable|string|in:4/3,1/1,3/4,16/9',
         ]);
 
         // Merge with existing payload so that unsent keys are preserved

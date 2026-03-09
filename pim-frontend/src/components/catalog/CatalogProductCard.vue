@@ -16,6 +16,10 @@ const store = useCatalogStore()
 
 const inWishlist = computed(() => store.isInWishlist(props.product.id))
 
+const showCategory = computed(() => store.themeSettings.card_show_category !== false)
+const showSku = computed(() => store.themeSettings.card_show_sku === true)
+const imageRatio = computed(() => store.themeSettings.card_image_ratio || '4/3')
+
 function toggleWishlist(e) {
   e.stopPropagation()
   store.toggleWishlist(props.product.id)
@@ -39,7 +43,7 @@ const staggerDelay = computed(() => `${Math.min(props.index * 50, 400)}ms`)
     @click="emit('view-detail', product)"
   >
     <!-- Image -->
-    <figure class="relative overflow-hidden aspect-[4/3] bg-base-200">
+    <figure class="relative overflow-hidden bg-base-200" :style="{ aspectRatio: imageRatio }">
       <img
         v-if="product.image_url"
         :src="product.image_url"
@@ -75,7 +79,7 @@ const staggerDelay = computed(() => `${Math.min(props.index * 50, 400)}ms`)
     <div class="card-body p-4 gap-1">
       <!-- Category path -->
       <p
-        v-if="product.category_path"
+        v-if="showCategory && product.category_path"
         class="text-[11px] text-base-content/40 truncate"
       >
         {{ product.category_path }}
@@ -85,6 +89,22 @@ const staggerDelay = computed(() => `${Math.min(props.index * 50, 400)}ms`)
       <h3 class="text-sm font-semibold line-clamp-2 leading-tight min-h-[2.5rem]">
         {{ product.name || product.sku || '–' }}
       </h3>
+
+      <!-- SKU -->
+      <p v-if="showSku" class="text-[11px] text-base-content/50 font-mono truncate">
+        {{ product.sku }}
+      </p>
+
+      <!-- Card attributes -->
+      <div v-if="product.card_attributes?.length" class="mt-1 space-y-0.5">
+        <div
+          v-for="(attr, idx) in product.card_attributes.slice(0, 3)"
+          :key="idx"
+          class="text-[11px] text-base-content/60 truncate"
+        >
+          <span class="text-base-content/40">{{ attr.label }}:</span> {{ attr.value }}
+        </div>
+      </div>
 
       <!-- Price -->
       <div class="flex justify-between items-end mt-2">

@@ -161,8 +161,40 @@ class CatalogController extends BaseController
 
         $paginated = $query->paginate($perPage);
 
+        // Load card attributes if configured
+        $themePayload = Setting::getPayload('catalog_theme') ?? [];
+        $cardAttributeIds = $themePayload['card_attribute_ids'] ?? [];
+        $cardAttributeMap = [];
+
+        if (!empty($cardAttributeIds)) {
+            $productIds = collect($paginated->items())->pluck('id')->toArray();
+            if (!empty($productIds)) {
+                $cardValues = ProductAttributeValue::whereIn('product_id', $productIds)
+                    ->whereIn('attribute_id', $cardAttributeIds)
+                    ->with(['attribute', 'valueListEntry', 'unit'])
+                    ->get();
+
+                foreach ($cardValues as $cv) {
+                    $attr = $cv->attribute;
+                    if (!$attr || $attr->is_internal) {
+                        continue;
+                    }
+                    $label = $lang === 'en' && $attr->name_en ? $attr->name_en : $attr->name_de;
+                    $value = $this->resolveExportAttributeValue($cv, $attr, $lang);
+                    if ($value === null || $value === '') {
+                        continue;
+                    }
+                    $unit = $cv->unit?->abbreviation;
+                    $cardAttributeMap[$cv->product_id][] = [
+                        'label' => $label,
+                        'value' => $unit ? $value . ' ' . $unit : $value,
+                    ];
+                }
+            }
+        }
+
         $data = CatalogProductResource::collection($paginated->items())
-            ->additional(['lang' => $lang])
+            ->additional(['lang' => $lang, 'card_attributes' => $cardAttributeMap])
             ->resolve();
 
         return response()->json($data, 200, [
