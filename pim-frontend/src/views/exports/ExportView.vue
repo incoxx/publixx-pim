@@ -3,6 +3,7 @@ import { ref, onMounted, computed } from 'vue'
 import {
   Download, FileSpreadsheet, FileJson, FileCode, FileText,
   Package, Tag, DollarSign, Link, Image, Layers,
+  Radio, Copy, CheckCircle, ExternalLink,
 } from 'lucide-vue-next'
 import exportsApi from '@/api/exports'
 import exportProfilesApi from '@/api/exportProfiles'
@@ -299,6 +300,22 @@ const tabs = [
   { key: 'data', label: 'Datenauswahl' },
   { key: 'channel', label: 'Export-Kanal' },
 ]
+
+// --- Stream URL ---
+const streamUrl = computed(() => {
+  if (format.value !== 'json' || !selectedExportProfileId.value) return null
+  return `${window.location.origin}/api/v1/export-profiles/${selectedExportProfileId.value}/stream`
+})
+
+const copiedStream = ref(false)
+async function copyStreamUrl() {
+  if (!streamUrl.value) return
+  try {
+    await navigator.clipboard.writeText(streamUrl.value)
+    copiedStream.value = true
+    setTimeout(() => { copiedStream.value = false }, 2000)
+  } catch (e) { /* ignore */ }
+}
 </script>
 
 <template>
@@ -450,6 +467,40 @@ const tabs = [
         <p class="text-[10px] text-[var(--color-text-tertiary)] mt-1">
           Platzhalter: {date}, {profile}, {format}
         </p>
+      </div>
+
+      <!-- Stream URL (nur bei JSON + gespeichertem Profil) -->
+      <div v-if="streamUrl" class="p-3 rounded-lg bg-[var(--color-bg)] border border-[var(--color-border)]">
+        <div class="flex items-center gap-1.5 mb-2">
+          <Radio class="w-3.5 h-3.5 text-green-500" :stroke-width="2" />
+          <span class="text-[11px] font-semibold text-[var(--color-text-primary)]">JSON Stream API</span>
+          <span class="text-[10px] text-[var(--color-text-tertiary)]">— Daten direkt per API abrufen</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <code class="flex-1 text-[11px] font-mono text-[var(--color-text-secondary)] bg-[var(--color-surface)] px-2.5 py-2 rounded select-all overflow-x-auto whitespace-nowrap">{{ streamUrl }}</code>
+          <button
+            class="p-1.5 rounded hover:bg-[var(--color-surface)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] transition-colors shrink-0"
+            @click="copyStreamUrl"
+            :title="copiedStream ? 'Kopiert!' : 'URL kopieren'"
+          >
+            <CheckCircle v-if="copiedStream" class="w-4 h-4 text-green-500" :stroke-width="2" />
+            <Copy v-else class="w-4 h-4" :stroke-width="2" />
+          </button>
+          <a
+            :href="streamUrl"
+            target="_blank"
+            class="p-1.5 rounded hover:bg-[var(--color-surface)] text-[var(--color-text-tertiary)] hover:text-blue-500 transition-colors shrink-0"
+            title="Im Browser öffnen"
+          >
+            <ExternalLink class="w-4 h-4" :stroke-width="2" />
+          </a>
+        </div>
+      </div>
+      <div v-else-if="format === 'json' && !selectedExportProfileId" class="p-3 rounded-lg bg-[var(--color-bg)] border border-dashed border-[var(--color-border)]">
+        <div class="flex items-center gap-1.5">
+          <Radio class="w-3.5 h-3.5 text-[var(--color-text-tertiary)]" :stroke-width="2" />
+          <span class="text-[11px] text-[var(--color-text-tertiary)]">JSON Stream API — Erst Export-Profil speichern, dann wird die Stream-URL verfügbar.</span>
+        </div>
       </div>
     </div>
 

@@ -371,6 +371,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // =====================================================================
     Route::apiResource('export-profiles', ExportProfileController::class)->except(['show']);
     Route::post('export-profiles/{export_profile}/execute', [ExportProfileController::class, 'execute']);
+    Route::get('export-profiles/{export_profile}/stream', [ExportProfileController::class, 'stream']);
 
     // =====================================================================
     // Import Profiles (Importprofile)
