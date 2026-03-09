@@ -31,6 +31,10 @@ class ResolveController
             return response()->json([]);
         }
 
+        // Cap input sizes to prevent abuse
+        $hashes = array_slice($hashes, 0, 200);
+        $langs = array_slice($langs, 0, 20);
+
         $prefix = config('tms.cache_prefix', 'tms:t:');
         $ttl = config('tms.cache_ttl', 86400);
         $result = [];

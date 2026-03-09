@@ -15,7 +15,7 @@ class ValidateApiKey
         $expected = config('tms.api_key');
 
         if (empty($expected)) {
-            return $next($request);
+            return response()->json(['message' => 'TMS API key not configured'], 500);
         }
 
         $token = $request->bearerToken();

@@ -42,7 +42,7 @@ class ProcessIngestBatchJob implements ShouldQueue
                 $text = $field['text'];
                 $lang = $field['lang'];
                 $fieldName = $field['field'];
-                $hash = hash('sha256', $lang . $text);
+                $hash = hash('sha256', $lang . '|' . $text);
 
                 // Derive domain from entity_type
                 $domain = $entityType;

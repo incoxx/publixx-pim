@@ -113,7 +113,7 @@ class SyncTmsTranslationsJob implements ShouldQueue, ShouldBeUnique
                     if (empty($sourceText)) {
                         continue;
                     }
-                    $hash = hash('sha256', 'de' . $sourceText);
+                    $hash = hash('sha256', 'de|' . $sourceText);
                     $hashMap[$hash][] = $record;
                     $uniqueHashes[$hash] = true;
                 }
@@ -161,7 +161,7 @@ class SyncTmsTranslationsJob implements ShouldQueue, ShouldBeUnique
                 if (empty($sourceText)) {
                     continue;
                 }
-                $hash = hash('sha256', 'de' . $sourceText);
+                $hash = hash('sha256', 'de|' . $sourceText);
                 $hashMap[$hash][] = $entry;
                 $uniqueHashes[$hash] = true;
             }
