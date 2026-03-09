@@ -6,6 +6,7 @@ namespace Tms\Http\Controllers;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Redis;
 use Tms\Jobs\TranslateUnitJob;
 use Tms\Models\TmsTranslation;
 use Tms\Models\TmsUnit;
@@ -20,7 +21,8 @@ class UnitController
         $query = TmsUnit::query()->withCount('translations');
 
         if ($search = $request->query('search')) {
-            $query->where('source_text', 'LIKE', "%{$search}%");
+            $escaped = str_replace(['%', '_'], ['\\%', '\\_'], $search);
+            $query->where('source_text', 'LIKE', "%{$escaped}%");
         }
 
         if ($domain = $request->query('domain')) {
@@ -73,6 +75,7 @@ class UnitController
                 'translation' => $request->input('translation'),
                 'provider' => 'human',
                 'status' => 'reviewed',
+                'confidence' => 1.00,
                 'reviewed_at' => now(),
             ]
         );
@@ -80,7 +83,7 @@ class UnitController
         // Update Redis cache
         $prefix = config('tms.cache_prefix', 'tms:t:');
         $ttl = config('tms.cache_ttl', 86400);
-        \Illuminate\Support\Facades\Redis::setex(
+        Redis::setex(
             "{$prefix}{$unit->text_hash}:{$lang}",
             $ttl,
             $translation->translation
@@ -97,11 +100,18 @@ class UnitController
         $totalUnits = TmsUnit::count();
         $targetLangs = config('tms.target_languages', ['en', 'fr', 'es', 'it', 'nl']);
 
+        // Single grouped query instead of N queries per language
+        $counts = TmsTranslation::selectRaw('target_lang, status, count(*) as cnt')
+            ->whereIn('target_lang', $targetLangs)
+            ->groupBy('target_lang', 'status')
+            ->get();
+
         $stats = [];
         foreach ($targetLangs as $lang) {
-            $translated = TmsTranslation::where('target_lang', $lang)->count();
-            $reviewed = TmsTranslation::where('target_lang', $lang)->where('status', 'reviewed')->count();
-            $auto = TmsTranslation::where('target_lang', $lang)->where('status', 'auto')->count();
+            $langCounts = $counts->where('target_lang', $lang);
+            $translated = $langCounts->sum('cnt');
+            $reviewed = $langCounts->where('status', 'reviewed')->sum('cnt');
+            $auto = $langCounts->where('status', 'auto')->sum('cnt');
 
             $stats[$lang] = [
                 'total' => $totalUnits,
@@ -140,8 +150,8 @@ class UnitController
     public function retranslate(Request $request): JsonResponse
     {
         $request->validate([
-            'unit_ids' => 'required|array',
-            'unit_ids.*' => 'string',
+            'unit_ids' => 'required|array|max:100',
+            'unit_ids.*' => 'required|string|uuid',
             'target_langs' => 'nullable|array',
         ]);
 
