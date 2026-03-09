@@ -35,6 +35,11 @@ function buildParams(options = {}) {
   if (options.lang) params.lang = options.lang
   if (options.type) params.type = options.type
   if (options.hierarchyId) params.hierarchy_id = options.hierarchyId
+  if (options.filters) {
+    for (const [attrId, value] of Object.entries(options.filters)) {
+      params[`filters[${attrId}]`] = value
+    }
+  }
   return params
 }
 
@@ -53,5 +58,9 @@ export default {
 
   getSettings() {
     return catalogClient.get('/catalog/settings')
+  },
+
+  getFacets(options = {}) {
+    return catalogClient.get('/catalog/facets', { params: buildParams(options) })
   },
 }

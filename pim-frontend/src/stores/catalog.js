@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed, watch } from 'vue'
+import { ref, reactive, computed, watch } from 'vue'
 import catalogApi, { resolveMediaUrl } from '@/api/catalog'
 
 export const useCatalogStore = defineStore('catalog', () => {
@@ -12,6 +12,10 @@ export const useCatalogStore = defineStore('catalog', () => {
   const productLoading = ref(false)
   const categoriesLoading = ref(false)
   const error = ref(null)
+
+  // --- Facets ---
+  const facets = ref([])
+  const activeFilters = reactive({}) // { attributeId: 'value1,value2' or 'min:max' or '1'/'0' }
 
   const meta = ref({
     current_page: 1,
@@ -114,6 +118,7 @@ export const useCatalogStore = defineStore('catalog', () => {
     loading.value = true
     error.value = null
     try {
+      const filtersPayload = Object.keys(activeFilters).length > 0 ? { ...activeFilters } : undefined
       const resp = await catalogApi.getProducts({
         page: meta.value.current_page,
         perPage: meta.value.per_page,
@@ -123,6 +128,7 @@ export const useCatalogStore = defineStore('catalog', () => {
         category: selectedCategoryId.value || undefined,
         hierarchyType: hierarchyType.value,
         lang: locale.value,
+        filters: filtersPayload,
       })
       // Response is now a bare array; pagination info in headers
       const rawProducts = Array.isArray(resp.data) ? resp.data : (resp.data.data || resp.data)
@@ -244,6 +250,36 @@ export const useCatalogStore = defineStore('catalog', () => {
     localStorage.setItem('catalog_locale', loc)
   }
 
+  // Facets
+  async function fetchFacets() {
+    try {
+      const { data } = await catalogApi.getFacets({ lang: locale.value })
+      facets.value = data.facets || []
+    } catch (e) {
+      console.warn('Failed to load facets:', e.message)
+      facets.value = []
+    }
+  }
+
+  function setFilter(attributeId, value) {
+    activeFilters[attributeId] = value
+    meta.value.current_page = 1
+  }
+
+  function clearFilter(attributeId) {
+    delete activeFilters[attributeId]
+    meta.value.current_page = 1
+  }
+
+  function clearAllFilters() {
+    for (const key of Object.keys(activeFilters)) {
+      delete activeFilters[key]
+    }
+    meta.value.current_page = 1
+  }
+
+  const activeFilterCount = computed(() => Object.keys(activeFilters).length)
+
   return {
     products,
     currentProduct,
@@ -282,5 +318,12 @@ export const useCatalogStore = defineStore('catalog', () => {
     productsJsonUrl,
     exportJsonUrl,
     productJsonUrl,
+    facets,
+    activeFilters,
+    activeFilterCount,
+    fetchFacets,
+    setFilter,
+    clearFilter,
+    clearAllFilters,
   }
 })

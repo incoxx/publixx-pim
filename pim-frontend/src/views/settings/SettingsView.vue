@@ -3,12 +3,13 @@ import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useLocaleStore } from '@/stores/locale'
 import { useAuthStore } from '@/stores/auth'
-import { Globe, Palette, AlertTriangle, Server, RotateCcw, CheckCircle, XCircle, Loader2, GitBranch, Database, Upload, Trash2, Save } from 'lucide-vue-next'
+import { Globe, Palette, AlertTriangle, Server, RotateCcw, CheckCircle, XCircle, Loader2, GitBranch, Database, Upload, Trash2, Save, Filter } from 'lucide-vue-next'
 import adminApi from '@/api/admin'
 import catalogApi from '@/api/catalog'
 import mediaApi from '@/api/media'
 import hierarchiesApi from '@/api/hierarchies'
-import { attributeViews as attributeViewsApi } from '@/api/attributes'
+import attributesApi, { attributeViews as attributeViewsApi } from '@/api/attributes'
+import catalogPresets from '@/config/catalogPresets'
 
 const { t } = useI18n()
 const localeStore = useLocaleStore()
@@ -33,9 +34,20 @@ const BODY_SIZE_OPTIONS = [
   { value: '1rem', label: '1rem (groß)' },
 ]
 
-// ── Hierarchies & Attribute Views for catalog config ──
+const POPUP_SIZE_OPTIONS = [
+  { value: '4xl', label: 'Standard (896px)' },
+  { value: '5xl', label: 'Groß (1024px)' },
+  { value: '6xl', label: 'Sehr groß (1152px)' },
+  { value: '7xl', label: 'Extra groß (1280px)' },
+  { value: 'full', label: 'Vollbild' },
+]
+
+const FACET_DATA_TYPES = ['ValueList', 'Boolean', 'Decimal', 'Integer', 'Text']
+
+// ── Hierarchies, Attribute Views & Attributes for catalog config ──
 const availableHierarchies = ref([])
 const availableAttributeViews = ref([])
+const availableAttributes = ref([])
 
 async function loadHierarchies() {
   try {
@@ -52,6 +64,22 @@ async function loadAttributeViews() {
     availableAttributeViews.value = (data.data || data || [])
   } catch (e) {
     console.warn('Failed to load attribute views:', e.message)
+  }
+}
+
+async function loadAttributes() {
+  try {
+    const { data } = await attributesApi.list({ per_page: 500 })
+    const all = data.data || data || []
+    availableAttributes.value = all.filter(a => FACET_DATA_TYPES.includes(a.data_type))
+  } catch (e) {
+    console.warn('Failed to load attributes:', e.message)
+  }
+}
+
+function applyPreset(preset) {
+  for (const [key, value] of Object.entries(preset.colors)) {
+    themeForm.value[key] = value
   }
 }
 
@@ -82,6 +110,8 @@ const themeForm = ref({
   hierarchy_id: null,
   attribute_view_ids: [],
   default_locale: 'de',
+  popup_max_width: '4xl',
+  facet_attribute_ids: [],
 })
 const themeLogoPreview = ref(null)
 const themeSaving = ref(false)
@@ -122,6 +152,8 @@ async function loadThemeSettings() {
         color_header_text: d.color_header_text || '',
         color_mobile_menu_bg: d.color_mobile_menu_bg || '',
         color_mobile_menu_text: d.color_mobile_menu_text || '',
+        popup_max_width: d.popup_max_width || '4xl',
+        facet_attribute_ids: d.facet_attribute_ids || [],
       }
       themeLogoPreview.value = d.logo_url || null
     }
@@ -286,6 +318,7 @@ onMounted(() => {
     loadThemeSettings()
     loadHierarchies()
     loadAttributeViews()
+    loadAttributes()
   }
 })
 </script>
@@ -371,6 +404,12 @@ onMounted(() => {
                 <option value="en">English</option>
               </select>
             </div>
+            <div>
+              <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Produkt-Popup Breite</label>
+              <select class="pim-input text-xs" v-model="themeForm.popup_max_width">
+                <option v-for="o in POPUP_SIZE_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
+              </select>
+            </div>
           </div>
           <div>
             <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">
@@ -394,6 +433,59 @@ onMounted(() => {
                 {{ av.name_de || av.name }}
               </label>
             </div>
+          </div>
+        </div>
+
+        <!-- Facettensuche -->
+        <div class="space-y-3">
+          <div class="flex items-center gap-2">
+            <Filter class="w-3.5 h-3.5 text-[var(--color-text-secondary)]" :stroke-width="2" />
+            <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">Facettensuche</h4>
+          </div>
+          <p class="text-[11px] text-[var(--color-text-tertiary)]">Attribute als Filter-Facetten im Katalog anzeigen. Nur Wertelisten, Boolean, Dezimal, Ganzzahl und Text werden unterstuetzt.</p>
+          <div v-if="availableAttributes.length === 0" class="text-xs text-[var(--color-text-tertiary)]">Keine passenden Attribute vorhanden</div>
+          <div v-else class="grid grid-cols-1 sm:grid-cols-2 gap-1.5 mt-1">
+            <label
+              v-for="attr in availableAttributes"
+              :key="attr.id"
+              class="flex items-center gap-2 px-2.5 py-2 rounded-md cursor-pointer hover:bg-[var(--color-bg)] transition-colors min-h-[44px]"
+            >
+              <input
+                type="checkbox"
+                :value="attr.id"
+                :checked="themeForm.facet_attribute_ids.includes(attr.id)"
+                @change="
+                  $event.target.checked
+                    ? themeForm.facet_attribute_ids.push(attr.id)
+                    : themeForm.facet_attribute_ids = themeForm.facet_attribute_ids.filter(id => id !== attr.id)
+                "
+                class="rounded border-[var(--color-border-strong)] text-[var(--color-accent)] shrink-0"
+              />
+              <span class="text-xs text-[var(--color-text-primary)] truncate">{{ attr.name_de || attr.name }}</span>
+              <span class="text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-bg)] text-[var(--color-text-tertiary)] shrink-0">{{ attr.data_type }}</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Farb-Presets -->
+        <div class="space-y-3">
+          <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">Farb-Presets</h4>
+          <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+            <button
+              v-for="preset in catalogPresets"
+              :key="preset.name"
+              class="flex items-center gap-2 px-3 py-2.5 rounded-lg border text-left transition-all hover:shadow-sm"
+              :class="themeForm.color_primary === preset.colors.color_primary && themeForm.color_accent === preset.colors.color_accent
+                ? 'border-[var(--color-accent)] ring-2 ring-[var(--color-accent)]/30 bg-[var(--color-accent)]/5'
+                : 'border-[var(--color-border)] hover:border-[var(--color-border-strong)]'"
+              @click="applyPreset(preset)"
+            >
+              <div class="flex -space-x-1.5 shrink-0">
+                <span class="w-5 h-5 rounded-full border-2 border-white shadow-sm" :style="{ backgroundColor: preset.colors.color_primary }"></span>
+                <span class="w-5 h-5 rounded-full border-2 border-white shadow-sm" :style="{ backgroundColor: preset.colors.color_accent }"></span>
+              </div>
+              <span class="text-[11px] font-medium text-[var(--color-text-primary)] truncate">{{ preset.name }}</span>
+            </button>
           </div>
         </div>
 

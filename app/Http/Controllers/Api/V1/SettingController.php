@@ -38,6 +38,8 @@ class SettingController extends Controller
         'color_header_text' => null,
         'color_mobile_menu_bg' => null,
         'color_mobile_menu_text' => null,
+        'popup_max_width' => '4xl',
+        'facet_attribute_ids' => [],
     ];
 
     /**
@@ -98,6 +100,9 @@ class SettingController extends Controller
             'color_header_text' => ['nullable', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'color_mobile_menu_bg' => ['nullable', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'color_mobile_menu_text' => ['nullable', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'popup_max_width' => 'nullable|string|in:4xl,5xl,6xl,7xl,full',
+            'facet_attribute_ids' => 'nullable|array',
+            'facet_attribute_ids.*' => 'uuid|exists:attributes,id',
         ]);
 
         // Merge with existing payload so that unsent keys are preserved

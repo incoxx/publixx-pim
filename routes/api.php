@@ -109,6 +109,7 @@ Route::prefix('v1/catalog')->middleware('throttle.pim')->group(function () {
     Route::get('products/{product}/json', [CatalogController::class, 'productJson']);
     Route::get('categories', [CatalogController::class, 'categories']);
     Route::get('settings', [SettingController::class, 'catalogTheme']);
+    Route::get('facets', [CatalogController::class, 'facets']);
     Route::get('media/{filename}', [CatalogController::class, 'media'])->name('catalog.media');
 });
 
