@@ -94,6 +94,7 @@ async function saveDefaultAttributes() {
     defaultAttributes.value = (updated.default_attributes || []).map(a => ({ ...a }))
     saveAttrSuccess.value = true
     setTimeout(() => { saveAttrSuccess.value = false }, 3000)
+    if (props.onSaved) props.onSaved()
   } catch (e) {
     console.error('Failed to save default attributes:', e)
     saveAttrError.value = e.response?.data?.message || e.message || 'Fehler beim Speichern'
