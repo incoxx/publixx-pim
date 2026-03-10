@@ -10,6 +10,7 @@ import mediaApi from '@/api/media'
 import hierarchiesApi from '@/api/hierarchies'
 import attributesApi, { attributeViews as attributeViewsApi } from '@/api/attributes'
 import { priceTypes as priceTypesApi } from '@/api/prices'
+import { mediaUsageTypes } from '@/api/mediaUsageTypes'
 import catalogPresets from '@/config/catalogPresets'
 
 const { t } = useI18n()
@@ -64,6 +65,7 @@ const availableAttributeViews = ref([])
 const availableAttributes = ref([])
 const allAttributes = ref([])
 const availablePriceTypes = ref([])
+const availableUsageTypes = ref([])
 
 async function loadHierarchies() {
   try {
@@ -100,6 +102,15 @@ async function loadPriceTypes() {
     availablePriceTypes.value = data.data || data || []
   } catch (e) {
     console.warn('Failed to load price types:', e.message)
+  }
+}
+
+async function loadUsageTypes() {
+  try {
+    const { data } = await mediaUsageTypes.list()
+    availableUsageTypes.value = data.data || data || []
+  } catch (e) {
+    console.warn('Failed to load usage types:', e.message)
   }
 }
 
@@ -251,6 +262,7 @@ const themeForm = ref({
   card_price_type_id: null,
   card_price_country: null,
   card_image_ratio: '4/3',
+  thumbnail_usage_type_id: null,
   description_attributes: [],
 })
 const activeThemeTab = ref('general')
@@ -304,6 +316,7 @@ async function loadThemeSettings() {
         card_price_type_id: d.card_price_type_id || null,
         card_price_country: d.card_price_country || null,
         card_image_ratio: d.card_image_ratio || '4/3',
+        thumbnail_usage_type_id: d.thumbnail_usage_type_id || null,
         description_attributes: d.description_attributes || [],
       }
       themeLogoPreview.value = d.logo_url || null
@@ -335,6 +348,7 @@ async function saveThemeSettings() {
     if (!payload.primary_card_attribute_id) payload.primary_card_attribute_id = null
     if (!payload.card_price_type_id) payload.card_price_type_id = null
     if (!payload.card_price_country) payload.card_price_country = null
+    if (!payload.thumbnail_usage_type_id) payload.thumbnail_usage_type_id = null
     await adminApi.updateCatalogTheme(payload)
     themeSaved.value = true
     setTimeout(() => { themeSaved.value = false }, 3000)
@@ -488,6 +502,7 @@ onMounted(() => {
     loadAttributeViews()
     loadAttributes()
     loadPriceTypes()
+    loadUsageTypes()
   }
 })
 </script>
@@ -903,6 +918,21 @@ onMounted(() => {
                 <option v-for="o in IMAGE_RATIO_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
               </select>
             </div>
+            <div>
+              <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">
+                <Image class="w-3 h-3 inline-block mr-1" :stroke-width="2" />
+                Thumbnail-Bildtyp
+              </label>
+              <select class="pim-input text-xs" v-model="themeForm.thumbnail_usage_type_id">
+                <option :value="null">Standard (Primärbild)</option>
+                <option v-for="ut in availableUsageTypes" :key="ut.id" :value="ut.id">
+                  {{ ut.name_de || ut.technical_name }}
+                </option>
+              </select>
+              <p class="text-[10px] text-[var(--color-text-tertiary)] mt-0.5">Welcher Bildtyp als Thumbnail in den Produktkacheln verwendet wird.</p>
+            </div>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div class="flex flex-col justify-end gap-2">
               <label class="flex items-center gap-2 text-xs cursor-pointer min-h-[44px]">
                 <input type="checkbox" v-model="themeForm.card_show_category" class="rounded border-[var(--color-border-strong)] text-[var(--color-accent)]" />

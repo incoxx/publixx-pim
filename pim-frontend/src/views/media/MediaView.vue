@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
-import { Upload, Image, Grid, List, Trash2, FolderOpen, FolderPlus, Search, X, Plus, MoveRight, CheckSquare, Link, FileSpreadsheet, Wand2, Loader2 } from 'lucide-vue-next'
+import { Upload, Image, Grid, List, Trash2, FolderOpen, FolderPlus, Search, X, Plus, MoveRight, CheckSquare, Link, FileSpreadsheet, Wand2, Loader2, ChevronLeft, ChevronRight } from 'lucide-vue-next'
 import mediaApi from '@/api/media'
 import { mediaUsageTypes as mediaUsageTypesApi } from '@/api/mediaUsageTypes'
 import hierarchiesApi from '@/api/hierarchies'
@@ -21,6 +21,11 @@ const selectedFolderId = ref(null)
 const usagePurposeFilter = ref('')
 const detailItem = ref(null)
 const detailOpen = ref(false)
+
+// Pagination
+const currentPage = ref(1)
+const totalPages = ref(1)
+const totalItems = ref(0)
 
 // Selection & move
 const selectedIds = ref(new Set())
@@ -47,7 +52,7 @@ const assetAttrsLoading = ref(false)
 
 // Build filter options
 const filterOptions = computed(() => {
-  const opts = { perPage: 50, sort: 'created_at', order: 'desc' }
+  const opts = { perPage: 50, sort: 'created_at', order: 'desc', page: currentPage.value }
   const filters = {}
   if (selectedFolderId.value) filters.asset_folder_id = selectedFolderId.value
   if (usagePurposeFilter.value) filters.usage_purpose = usagePurposeFilter.value
@@ -61,9 +66,20 @@ async function fetchMedia() {
   try {
     const { data } = await mediaApi.list(filterOptions.value)
     items.value = data.data || data
+    if (data.meta) {
+      currentPage.value = data.meta.current_page || 1
+      totalPages.value = data.meta.last_page || 1
+      totalItems.value = data.meta.total || 0
+    }
   } finally {
     loading.value = false
   }
+}
+
+function goToPage(page) {
+  if (page < 1 || page > totalPages.value) return
+  currentPage.value = page
+  fetchMedia()
 }
 
 async function fetchFolders() {
@@ -462,14 +478,14 @@ function closeAutoMatch() {
 let debounceTimer = null
 watch(searchTerm, () => {
   clearTimeout(debounceTimer)
-  debounceTimer = setTimeout(() => fetchMedia(), 300)
+  debounceTimer = setTimeout(() => { currentPage.value = 1; fetchMedia() }, 300)
 })
 onUnmounted(() => {
   clearTimeout(debounceTimer)
   document.removeEventListener('click', handleDocClick, true)
 })
-watch(usagePurposeFilter, () => { clearSelection(); fetchMedia() })
-watch(selectedFolderId, () => { clearSelection(); fetchMedia() })
+watch(usagePurposeFilter, () => { clearSelection(); currentPage.value = 1; fetchMedia() })
+watch(selectedFolderId, () => { clearSelection(); currentPage.value = 1; fetchMedia() })
 
 onMounted(() => {
   fetchMedia()
@@ -700,6 +716,36 @@ onMounted(() => {
         <Image class="w-10 h-10 mx-auto mb-3 text-[var(--color-text-tertiary)]" :stroke-width="1.5" />
         <p class="text-sm text-[var(--color-text-tertiary)]">Keine Medien vorhanden</p>
         <p class="text-xs text-[var(--color-text-tertiary)] mt-1">Dateien hierhin ziehen oder "Hochladen" klicken</p>
+      </div>
+
+      <!-- Pagination -->
+      <div v-if="totalPages > 1" class="flex items-center justify-between mt-4 px-1">
+        <span class="text-[11px] text-[var(--color-text-tertiary)]">{{ totalItems }} Medien</span>
+        <div class="flex items-center gap-1">
+          <button
+            class="p-1.5 rounded hover:bg-[var(--color-bg)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            :disabled="currentPage <= 1"
+            @click="goToPage(currentPage - 1)"
+          >
+            <ChevronLeft class="w-4 h-4" :stroke-width="2" />
+          </button>
+          <template v-for="p in totalPages" :key="p">
+            <button
+              v-if="p === 1 || p === totalPages || (p >= currentPage - 2 && p <= currentPage + 2)"
+              class="min-w-[28px] h-7 rounded text-xs transition-colors"
+              :class="p === currentPage ? 'bg-[var(--color-accent)] text-white font-medium' : 'hover:bg-[var(--color-bg)] text-[var(--color-text-secondary)]'"
+              @click="goToPage(p)"
+            >{{ p }}</button>
+            <span v-else-if="p === currentPage - 3 || p === currentPage + 3" class="text-xs text-[var(--color-text-tertiary)] px-1">…</span>
+          </template>
+          <button
+            class="p-1.5 rounded hover:bg-[var(--color-bg)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            :disabled="currentPage >= totalPages"
+            @click="goToPage(currentPage + 1)"
+          >
+            <ChevronRight class="w-4 h-4" :stroke-width="2" />
+          </button>
+        </div>
       </div>
     </div>
 

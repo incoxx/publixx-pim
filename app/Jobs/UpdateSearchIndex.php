@@ -16,6 +16,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Queue\SerializesModels;
+use App\Models\Setting;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -190,13 +191,44 @@ class UpdateSearchIndex implements ShouldQueue, ShouldBeUnique
 
     /**
      * Primäres Bild des Produkts ermitteln.
+     *
+     * Bevorzugt Bilder mit dem konfigurierten Thumbnail-Bildtyp (usage_type_id),
+     * dann is_primary=true, dann das erste zugeordnete Bild nach sort_order.
      */
     private function getPrimaryImage(string $productId): ?string
     {
-        return ProductMediaAssignment::query()
+        // Check for configured thumbnail usage type
+        $themePayload = Setting::getPayload('catalog_theme');
+        $thumbnailUsageTypeId = $themePayload['thumbnail_usage_type_id'] ?? null;
+
+        if ($thumbnailUsageTypeId) {
+            $image = ProductMediaAssignment::query()
+                ->join('media', 'media.id', '=', 'product_media_assignments.media_id')
+                ->where('product_media_assignments.product_id', $productId)
+                ->where('product_media_assignments.usage_type_id', $thumbnailUsageTypeId)
+                ->orderBy('product_media_assignments.sort_order')
+                ->value('media.file_name');
+            if ($image) {
+                return $image;
+            }
+        }
+
+        // Fallback: is_primary flag
+        $image = ProductMediaAssignment::query()
             ->join('media', 'media.id', '=', 'product_media_assignments.media_id')
             ->where('product_media_assignments.product_id', $productId)
             ->where('product_media_assignments.is_primary', true)
+            ->value('media.file_name');
+        if ($image) {
+            return $image;
+        }
+
+        // Fallback: first image by sort_order
+        return ProductMediaAssignment::query()
+            ->join('media', 'media.id', '=', 'product_media_assignments.media_id')
+            ->where('product_media_assignments.product_id', $productId)
+            ->where('media.media_type', 'image')
+            ->orderBy('product_media_assignments.sort_order')
             ->value('media.file_name');
     }
 
