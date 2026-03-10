@@ -141,6 +141,19 @@ class ProductPreviewService
                     $displayValue = $this->resolveDisplayValue($attrValue, $lang);
                     $unit = $attrValue->unit?->abbreviation;
 
+                    // For link types: build link_data and ensure display_value fallback
+                    $isLinkType = in_array($assignment->data_type, ['Hyperlink', 'ImageLink', 'PdfLink', 'VideoLink']);
+                    $linkData = null;
+                    if ($isLinkType && $attrValue->value_string) {
+                        $linkData = json_decode($attrValue->value_string, true);
+                        if (!is_array($linkData) || empty($linkData['url'])) {
+                            $linkData = null;
+                        }
+                        if (($displayValue === null || $displayValue === '') && $linkData) {
+                            $displayValue = $linkData['title'] ?? $linkData['url'] ?? null;
+                        }
+                    }
+
                     $attrEntry = [
                         'attribute_id' => $assignment->attribute_id,
                         'technical_name' => $assignment->attribute_technical_name,
@@ -155,8 +168,8 @@ class ProductPreviewService
                         'composite_format' => $assignment->composite_format ?? null,
                     ];
 
-                    if (in_array($assignment->data_type, ['Hyperlink', 'ImageLink', 'PdfLink', 'VideoLink']) && $attrValue->value_string) {
-                        $attrEntry['link_data'] = json_decode($attrValue->value_string, true) ?: null;
+                    if ($linkData) {
+                        $attrEntry['link_data'] = $linkData;
                     }
 
                     $sections[$sectionIndex]['attributes'][] = $attrEntry;

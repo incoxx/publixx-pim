@@ -49,6 +49,7 @@ class SettingController extends Controller
         'card_price_country' => null,
         'card_image_ratio' => '4/3',
         'description_attributes' => [],
+        'pdf_display_mode' => 'link',
     ];
 
     /**
@@ -125,6 +126,7 @@ class SettingController extends Controller
             'description_attributes' => 'nullable|array',
             'description_attributes.*.attribute_id' => 'required|uuid|exists:attributes,id',
             'description_attributes.*.typography' => 'required|string|in:xs,sm,base,lg,xl,2xl,3xl',
+            'pdf_display_mode' => 'nullable|string|in:link,embedded',
         ]);
 
         // Merge with existing payload so that unsent keys are preserved
