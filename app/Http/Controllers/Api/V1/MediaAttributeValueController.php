@@ -101,6 +101,7 @@ class MediaAttributeValueController extends Controller
                 'value_string' => $value,
                 'value_selection_id' => $entry['value_selection_id'] ?? null,
             ]),
+            'RichText', 'Hyperlink', 'ImageLink', 'PdfLink', 'VideoLink' => array_merge($columns, ['value_string' => (string) $value]),
             default => array_merge($columns, ['value_string' => (string) $value]),
         };
     }

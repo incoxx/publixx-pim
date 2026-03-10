@@ -256,6 +256,7 @@ class ProductVariantController extends Controller
                 'value_string' => $value,
                 'value_selection_id' => $value,
             ]),
+            'RichText', 'Hyperlink', 'ImageLink', 'PdfLink', 'VideoLink' => array_merge($columns, ['value_string' => $value]),
             default => array_merge($columns, ['value_string' => $value]),
         };
     }

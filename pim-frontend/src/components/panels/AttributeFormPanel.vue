@@ -53,7 +53,7 @@ const fields = computed(() => {
     { key: 'name_en', label: 'Name (EN)', type: 'text' },
     {
       key: 'data_type', label: 'Datentyp', type: 'select', required: true,
-      options: ['String', 'Number', 'Float', 'Date', 'Flag', 'Selection', 'Dictionary', 'Composite', 'RichText']
+      options: ['String', 'Number', 'Float', 'Date', 'Flag', 'Selection', 'Dictionary', 'Composite', 'RichText', 'Hyperlink', 'ImageLink', 'PdfLink', 'VideoLink']
         .map(t => ({ value: t, label: t })),
     },
     {

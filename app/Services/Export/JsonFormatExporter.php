@@ -795,6 +795,11 @@ class JsonFormatExporter
         }
 
         if ($pav->value_string !== null && $pav->value_string !== '') {
+            // Decode JSON for link data types so the export contains structured objects
+            if (in_array($pav->attribute?->data_type, ['Hyperlink', 'ImageLink', 'PdfLink', 'VideoLink'], true)) {
+                $decoded = json_decode($pav->value_string, true);
+                return $decoded ?? $pav->value_string;
+            }
             return $pav->value_string;
         }
 

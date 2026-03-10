@@ -120,6 +120,7 @@ function mapDataTypeToInput(backendType) {
     'String': 'text', 'Number': 'number', 'Float': 'decimal',
     'Date': 'date', 'Flag': 'boolean', 'Selection': 'select',
     'Dictionary': 'dictionary', 'Composite': 'composite', 'RichText': 'richtext',
+    'Hyperlink': 'hyperlink', 'ImageLink': 'imagelink', 'PdfLink': 'pdflink', 'VideoLink': 'videolink',
   }
   return map[backendType] || 'text'
 }

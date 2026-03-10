@@ -234,6 +234,7 @@ class BulkEditorController extends Controller
                 'value_string' => $value !== null ? (string) $value : null,
                 'value_selection_id' => $value,
             ]),
+            'RichText', 'Hyperlink', 'ImageLink', 'PdfLink', 'VideoLink' => array_merge($columns, ['value_string' => $value !== null ? (string) $value : null]),
             default => array_merge($columns, ['value_string' => $value !== null ? (string) $value : null]),
         };
     }
