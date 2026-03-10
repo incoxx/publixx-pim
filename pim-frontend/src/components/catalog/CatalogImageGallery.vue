@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { Package, ChevronLeft, ChevronRight, FileText } from 'lucide-vue-next'
 import PdfPreview from '@/components/shared/PdfPreview.vue'
 
@@ -14,9 +14,16 @@ function isPdf(m) {
 }
 
 const galleryItems = computed(() =>
-  props.media.filter((m) => m.media_type === 'image' || !m.media_type || isPdf(m))
+  props.media.filter((m) => m.media_type === 'image' || isPdf(m))
 )
 const current = computed(() => galleryItems.value[selectedIndex.value])
+
+// Clamp selectedIndex when gallery items change
+watch(galleryItems, (items) => {
+  if (selectedIndex.value >= items.length) {
+    selectedIndex.value = Math.max(0, items.length - 1)
+  }
+})
 
 function prev() {
   selectedIndex.value = selectedIndex.value > 0 ? selectedIndex.value - 1 : galleryItems.value.length - 1

@@ -13,15 +13,26 @@ const loading = ref(true)
 const error = ref(false)
 const pageCount = ref(0)
 let pdfDoc = null
+let renderGeneration = 0
 
 async function renderPdf() {
   if (!props.url || !canvasRef.value) return
+
+  // Cancel stale renders via generation counter
+  const thisGeneration = ++renderGeneration
+
+  // Destroy previous document to avoid memory leak
+  if (pdfDoc) {
+    pdfDoc.destroy()
+    pdfDoc = null
+  }
 
   loading.value = true
   error.value = false
 
   try {
     const pdfjsLib = await import('pdfjs-dist')
+    if (thisGeneration !== renderGeneration) return
 
     // Configure worker — use bundled worker from pdfjs-dist
     if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
@@ -35,11 +46,20 @@ async function renderPdf() {
       disableStream: true,
     })
 
-    pdfDoc = await loadingTask.promise
+    const doc = await loadingTask.promise
+    if (thisGeneration !== renderGeneration) {
+      doc.destroy()
+      return
+    }
+
+    pdfDoc = doc
     pageCount.value = pdfDoc.numPages
 
     const page = await pdfDoc.getPage(1)
+    if (thisGeneration !== renderGeneration) return
+
     const canvas = canvasRef.value
+    if (!canvas) return
     const ctx = canvas.getContext('2d')
 
     // Scale to fit container width while keeping aspect ratio
@@ -50,15 +70,18 @@ async function renderPdf() {
 
     canvas.width = scaledViewport.width
     canvas.height = scaledViewport.height
-    canvas.style.width = `${scaledViewport.width / scale * Math.min(scale, 1.5)}px`
+    canvas.style.width = `${containerWidth}px`
     canvas.style.height = 'auto'
 
     await page.render({ canvasContext: ctx, viewport: scaledViewport }).promise
   } catch (e) {
+    if (thisGeneration !== renderGeneration) return
     console.warn('PDF preview failed:', e.message)
     error.value = true
   } finally {
-    loading.value = false
+    if (thisGeneration === renderGeneration) {
+      loading.value = false
+    }
   }
 }
 
@@ -67,6 +90,7 @@ onMounted(() => renderPdf())
 watch(() => props.url, () => renderPdf())
 
 onBeforeUnmount(() => {
+  renderGeneration++ // cancel any in-flight render
   if (pdfDoc) {
     pdfDoc.destroy()
     pdfDoc = null
@@ -77,11 +101,10 @@ onBeforeUnmount(() => {
 <template>
   <div class="pdf-preview">
     <!-- Title + link -->
-    <a :href="url" target="_blank" rel="noopener noreferrer"
-       class="inline-flex items-center gap-1.5 text-sm font-medium hover:underline"
-       :class="error ? 'text-[var(--color-accent,theme(colors.primary))]' : 'text-[var(--color-accent,theme(colors.primary))]'">
+    <a v-if="title" :href="url" target="_blank" rel="noopener noreferrer"
+       class="inline-flex items-center gap-1.5 text-sm font-medium hover:underline text-[var(--color-accent,theme(colors.primary))]">
       <FileText class="w-4 h-4 shrink-0" />
-      {{ title || url }}
+      {{ title }}
       <ExternalLink class="w-3 h-3 shrink-0 opacity-50" />
     </a>
 

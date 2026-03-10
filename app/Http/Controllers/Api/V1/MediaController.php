@@ -28,7 +28,7 @@ class MediaController extends Controller
     use ChecksDeletionConstraints;
 
     private const ALLOWED_FILTERS = ['media_type', 'mime_type', 'asset_folder_id', 'usage_purpose'];
-    private const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'tiff', 'tif', 'pdf', 'eps', 'ai'];
+    private const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'tiff', 'tif', 'pdf', 'eps', 'ai', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'csv'];
     private const MAX_BULK_IMPORT_ROWS = 500;
 
     public function index(Request $request): AnonymousResourceCollection
@@ -58,6 +58,13 @@ class MediaController extends Controller
 
         $file = $request->file('file');
         $safeFilename = $this->generateSafeFilename($file);
+
+        // Ensure media directory exists
+        $disk = \Illuminate\Support\Facades\Storage::disk('public');
+        if (!$disk->exists('media')) {
+            $disk->makeDirectory('media');
+        }
+
         $path = $file->storeAs('media', $safeFilename, 'public');
 
         if ($path === false) {
@@ -759,7 +766,16 @@ class MediaController extends Controller
         return match (true) {
             str_starts_with($mimeType, 'image/') => 'image',
             str_starts_with($mimeType, 'video/') => 'video',
-            in_array($mimeType, ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']) => 'document',
+            in_array($mimeType, [
+                'application/pdf',
+                'application/msword',
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'application/vnd.ms-excel',
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'application/vnd.ms-powerpoint',
+                'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+                'text/csv',
+            ]) => 'document',
             default => 'other',
         };
     }
