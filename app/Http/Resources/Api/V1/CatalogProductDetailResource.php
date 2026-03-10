@@ -79,12 +79,15 @@ class CatalogProductDetailResource extends JsonResource
         // Build variants with their variant attribute values
         $variants = $this->buildVariants($lang);
 
+        $descriptionAttributes = $this->additional['description_attributes'] ?? [];
+
         return [
             'id' => $this->resource->id,
             'sku' => $this->resource->sku,
             'ean' => $this->resource->ean,
             'name' => $name,
             'description' => $description,
+            'description_attributes' => $descriptionAttributes,
             'product_type' => $this->resource->searchIndex?->product_type,
             'category_breadcrumb' => $breadcrumb,
             'media' => $media,

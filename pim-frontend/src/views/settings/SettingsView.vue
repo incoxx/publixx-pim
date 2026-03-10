@@ -145,6 +145,68 @@ function onCardDragEnd() {
   cardDragIdx.value = null
 }
 
+// ── Description attribute ordering (drag & drop) ──
+const TYPOGRAPHY_OPTIONS = [
+  { value: 'xs', label: 'Sehr klein' },
+  { value: 'sm', label: 'Klein' },
+  { value: 'base', label: 'Normal' },
+  { value: 'lg', label: 'Groß' },
+  { value: 'xl', label: 'Sehr groß' },
+  { value: '2xl', label: 'Extra groß' },
+  { value: '3xl', label: 'Maximal' },
+]
+
+const descDragIdx = ref(null)
+
+const selectedDescAttributes = computed(() => {
+  return (themeForm.value.description_attributes || [])
+    .map(da => {
+      const attr = allAttributes.value.find(a => a.id === da.attribute_id)
+      return attr ? { ...da, name: attr.name_de || attr.name, data_type: attr.data_type } : null
+    })
+    .filter(Boolean)
+})
+
+const unselectedDescAttributes = computed(() => {
+  const selected = new Set((themeForm.value.description_attributes || []).map(da => da.attribute_id))
+  return allAttributes.value.filter(a => !selected.has(a.id) && !a.is_internal)
+})
+
+function addDescAttribute(attr) {
+  const existing = themeForm.value.description_attributes || []
+  if (!existing.some(da => da.attribute_id === attr.id)) {
+    themeForm.value.description_attributes = [...existing, { attribute_id: attr.id, typography: 'base' }]
+  }
+}
+
+function removeDescAttribute(attrId) {
+  themeForm.value.description_attributes = (themeForm.value.description_attributes || []).filter(da => da.attribute_id !== attrId)
+}
+
+function setDescTypography(attrId, typography) {
+  themeForm.value.description_attributes = (themeForm.value.description_attributes || []).map(da =>
+    da.attribute_id === attrId ? { ...da, typography } : da
+  )
+}
+
+function onDescDragStart(idx) {
+  descDragIdx.value = idx
+}
+
+function onDescDragOver(e, idx) {
+  e.preventDefault()
+  if (descDragIdx.value === null || descDragIdx.value === idx) return
+  const items = [...(themeForm.value.description_attributes || [])]
+  const [moved] = items.splice(descDragIdx.value, 1)
+  items.splice(idx, 0, moved)
+  themeForm.value.description_attributes = items
+  descDragIdx.value = idx
+}
+
+function onDescDragEnd() {
+  descDragIdx.value = null
+}
+
 function applyPreset(preset) {
   for (const [key, value] of Object.entries(preset.colors)) {
     themeForm.value[key] = value
@@ -189,6 +251,7 @@ const themeForm = ref({
   card_price_type_id: null,
   card_price_country: null,
   card_image_ratio: '4/3',
+  description_attributes: [],
 })
 const activeThemeTab = ref('general')
 const themeLogoPreview = ref(null)
@@ -241,6 +304,7 @@ async function loadThemeSettings() {
         card_price_type_id: d.card_price_type_id || null,
         card_price_country: d.card_price_country || null,
         card_image_ratio: d.card_image_ratio || '4/3',
+        description_attributes: d.description_attributes || [],
       }
       themeLogoPreview.value = d.logo_url || null
     }
@@ -263,6 +327,7 @@ async function saveThemeSettings() {
     if (!payload.attribute_view_ids || payload.attribute_view_ids.length === 0) payload.attribute_view_ids = []
     if (!payload.facet_attribute_ids || payload.facet_attribute_ids.length === 0) payload.facet_attribute_ids = []
     if (!payload.card_attribute_ids || payload.card_attribute_ids.length === 0) payload.card_attribute_ids = []
+    if (!payload.description_attributes || payload.description_attributes.length === 0) payload.description_attributes = []
     // Ensure booleans are actual booleans (not strings)
     payload.card_show_sku = !!payload.card_show_sku
     payload.card_show_category = !!payload.card_show_category
@@ -751,6 +816,73 @@ onMounted(() => {
                 <span class="block text-[10px] text-[var(--color-text-tertiary)]">{{ opt.desc }}</span>
               </div>
             </button>
+          </div>
+        </div>
+
+        <!-- Beschreibung (Produktdetail) -->
+        <div class="space-y-3">
+          <div class="flex items-center gap-2">
+            <BookOpen class="w-3.5 h-3.5 text-[var(--color-text-secondary)]" :stroke-width="2" />
+            <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">Beschreibung (Produktdetail)</h4>
+          </div>
+          <p class="text-[11px] text-[var(--color-text-tertiary)]">Attribute, die im Beschreibungs-Bereich der Produktdetailseite angezeigt werden. Reihenfolge und Typografie sind konfigurierbar.</p>
+          <div v-if="allAttributes.length === 0" class="text-xs text-[var(--color-text-tertiary)]">Keine Attribute vorhanden</div>
+          <div v-else class="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-1">
+            <!-- Selected description attributes (draggable, ordered, with typography) -->
+            <div>
+              <p class="text-[10px] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wide mb-1">Ausgewählt (Reihenfolge ziehen)</p>
+              <div v-if="selectedDescAttributes.length === 0" class="text-xs text-[var(--color-text-tertiary)] italic py-3 px-2 border border-dashed border-[var(--color-border)] rounded-md text-center">
+                Keine Attribute ausgewählt – Standard-Beschreibung wird verwendet
+              </div>
+              <div class="space-y-1">
+                <div
+                  v-for="(da, idx) in selectedDescAttributes"
+                  :key="da.attribute_id"
+                  draggable="true"
+                  @dragstart="onDescDragStart(idx)"
+                  @dragover="onDescDragOver($event, idx)"
+                  @drop.prevent
+                  @dragend="onDescDragEnd"
+                  class="flex items-center gap-1.5 px-2 py-1.5 rounded-md border border-[var(--color-border)] bg-[var(--color-bg-elevated,var(--color-bg))] cursor-grab active:cursor-grabbing hover:border-[var(--color-accent)] transition-colors group"
+                  :class="{ 'opacity-50': descDragIdx === idx }"
+                >
+                  <GripVertical class="w-3.5 h-3.5 text-[var(--color-text-tertiary)] shrink-0" :stroke-width="2" />
+                  <span class="text-[11px] font-medium text-[var(--color-accent)] w-4 shrink-0">{{ idx + 1 }}</span>
+                  <span class="text-xs text-[var(--color-text-primary)] truncate flex-1">{{ da.name }}</span>
+                  <select
+                    class="text-[10px] px-1 py-0.5 rounded border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text-secondary)] shrink-0 cursor-pointer"
+                    :value="da.typography"
+                    @change="setDescTypography(da.attribute_id, $event.target.value)"
+                  >
+                    <option v-for="t in TYPOGRAPHY_OPTIONS" :key="t.value" :value="t.value">{{ t.label }}</option>
+                  </select>
+                  <button
+                    type="button"
+                    class="p-0.5 rounded hover:bg-red-100 text-[var(--color-text-tertiary)] hover:text-red-500 transition-colors shrink-0"
+                    @click="removeDescAttribute(da.attribute_id)"
+                    title="Entfernen"
+                  >
+                    <X class="w-3.5 h-3.5" :stroke-width="2" />
+                  </button>
+                </div>
+              </div>
+            </div>
+            <!-- Available attributes -->
+            <div>
+              <p class="text-[10px] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wide mb-1">Verfügbar</p>
+              <div class="space-y-1 max-h-48 overflow-y-auto">
+                <div
+                  v-for="attr in unselectedDescAttributes"
+                  :key="attr.id"
+                  class="flex items-center gap-1.5 px-2 py-1.5 rounded-md border border-transparent hover:border-[var(--color-border)] hover:bg-[var(--color-bg)] cursor-pointer transition-colors"
+                  @click="addDescAttribute(attr)"
+                >
+                  <Plus class="w-3.5 h-3.5 text-[var(--color-accent)] shrink-0" :stroke-width="2" />
+                  <span class="text-xs text-[var(--color-text-primary)] truncate flex-1">{{ attr.name_de || attr.name }}</span>
+                  <span class="text-[10px] px-1 py-0.5 rounded bg-[var(--color-bg)] text-[var(--color-text-tertiary)] shrink-0">{{ attr.data_type }}</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 

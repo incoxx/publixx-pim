@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useCatalogStore } from '@/stores/catalog'
 import { X, Heart, Braces } from 'lucide-vue-next'
 import CatalogImageGallery from './CatalogImageGallery.vue'
+import CatalogProductDescription from './CatalogProductDescription.vue'
 import { formatCompositeSummary } from '@/utils/formatting'
 
 const props = defineProps({
@@ -122,9 +123,9 @@ function formatPrice(price) {
             </div>
 
             <!-- Description -->
-            <div v-if="product.description" class="text-sm text-base-content/70 leading-relaxed">
+            <div v-if="product.description_attributes?.length || product.description">
               <h4 class="font-semibold text-base-content mb-1">{{ t('catalog.description') }}</h4>
-              <p>{{ product.description }}</p>
+              <CatalogProductDescription :description="product.description" :description-attributes="product.description_attributes" />
             </div>
 
             <!-- Attributes -->
@@ -257,9 +258,8 @@ function formatPrice(price) {
             <!-- Tab content (scrollable) -->
             <div class="flex-1 overflow-y-auto min-h-0">
               <!-- Overview tab -->
-              <div v-if="activeTab === 'overview'" class="text-sm text-base-content/70 leading-relaxed">
-                <p v-if="product.description">{{ product.description }}</p>
-                <p v-else class="text-base-content/40 italic">Keine Beschreibung vorhanden.</p>
+              <div v-if="activeTab === 'overview'">
+                <CatalogProductDescription :description="product.description" :description-attributes="product.description_attributes" />
               </div>
 
               <!-- Attributes tab -->
@@ -380,9 +380,9 @@ function formatPrice(price) {
             </div>
 
             <!-- Description card -->
-            <div v-if="product.description" class="bg-base-200/30 rounded-xl p-4">
-              <h4 class="font-semibold text-base-content mb-2 text-sm">{{ t('catalog.description') }}</h4>
-              <p class="text-sm text-base-content/70 leading-relaxed">{{ product.description }}</p>
+            <div v-if="product.description_attributes?.length || product.description" class="bg-base-200/30 rounded-xl p-4">
+              <h4 v-if="!product.description_attributes?.length" class="font-semibold text-base-content mb-2 text-sm">{{ t('catalog.description') }}</h4>
+              <CatalogProductDescription :description="product.description" :description-attributes="product.description_attributes" />
             </div>
 
             <!-- Attributes & Variants side-by-side on desktop -->

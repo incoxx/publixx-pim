@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import { useCatalogStore } from '@/stores/catalog'
 import { ArrowLeft, Heart, Package, Braces } from 'lucide-vue-next'
 import CatalogImageGallery from '@/components/catalog/CatalogImageGallery.vue'
+import CatalogProductDescription from '@/components/catalog/CatalogProductDescription.vue'
 import { formatCompositeSummary } from '@/utils/formatting'
 
 const route = useRoute()
@@ -98,9 +99,9 @@ onMounted(() => {
           <div v-if="product.prices?.length" class="text-3xl font-bold text-primary">
             {{ formatPrice(product.prices[0]) }}
           </div>
-          <div v-if="product.description" class="text-sm text-base-content/70 leading-relaxed">
+          <div v-if="product.description_attributes?.length || product.description">
             <h3 class="font-semibold text-base-content mb-2">{{ t('catalog.description') }}</h3>
-            <p>{{ product.description }}</p>
+            <CatalogProductDescription :description="product.description" :description-attributes="product.description_attributes" />
           </div>
           <div v-if="parentAttributes.length" class="text-sm">
             <h3 class="font-semibold text-base-content mb-2">{{ t('catalog.attributes') }}</h3>
@@ -181,9 +182,8 @@ onMounted(() => {
           </div>
           <!-- Tab content -->
           <div class="flex-1">
-            <div v-if="activeTab === 'overview'" class="text-sm text-base-content/70 leading-relaxed">
-              <p v-if="product.description">{{ product.description }}</p>
-              <p v-else class="text-base-content/40 italic">Keine Beschreibung vorhanden.</p>
+            <div v-if="activeTab === 'overview'">
+              <CatalogProductDescription :description="product.description" :description-attributes="product.description_attributes" />
             </div>
             <div v-if="activeTab === 'attributes'" class="text-sm">
               <table class="table table-xs table-zebra w-full">
@@ -253,9 +253,9 @@ onMounted(() => {
           </div>
           <div v-if="product.prices?.length" class="text-3xl font-bold text-primary whitespace-nowrap">{{ formatPrice(product.prices[0]) }}</div>
         </div>
-        <div v-if="product.description" class="bg-base-200/30 rounded-xl p-4">
-          <h3 class="font-semibold text-base-content mb-2 text-sm">{{ t('catalog.description') }}</h3>
-          <p class="text-sm text-base-content/70 leading-relaxed">{{ product.description }}</p>
+        <div v-if="product.description_attributes?.length || product.description" class="bg-base-200/30 rounded-xl p-4">
+          <h3 v-if="!product.description_attributes?.length" class="font-semibold text-base-content mb-2 text-sm">{{ t('catalog.description') }}</h3>
+          <CatalogProductDescription :description="product.description" :description-attributes="product.description_attributes" />
         </div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div v-if="parentAttributes.length" class="bg-base-200/30 rounded-xl p-4">
