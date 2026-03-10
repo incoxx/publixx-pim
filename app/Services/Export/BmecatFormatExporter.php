@@ -482,19 +482,38 @@ class BmecatFormatExporter
         }
 
         $nodeIds = $hierarchy->nodes->pluck('id')->toArray();
+        $nodeIdSet = array_flip($nodeIds);
 
+        // 1) Explizite Zuordnungen aus output_hierarchy_product_assignments
         $assignments = OutputHierarchyProductAssignment::whereIn('product_id', $productIds)
             ->whereIn('hierarchy_node_id', $nodeIds)
             ->with(['product', 'hierarchyNode'])
             ->get();
 
         $result = [];
+        $mappedProductIds = [];
+
         foreach ($assignments as $assignment) {
             if ($assignment->product && $assignment->hierarchyNode) {
                 $result[] = [
                     'sku' => $assignment->product->sku,
                     'group_id' => $assignment->hierarchyNode->id,
                     'sort_order' => $assignment->sort_order ?? 1,
+                ];
+                $mappedProductIds[$assignment->product_id] = true;
+            }
+        }
+
+        // 2) Fallback: master_hierarchy_node_id für Produkte ohne explizite Zuordnung
+        foreach ($products as $product) {
+            if (isset($mappedProductIds[$product->id])) {
+                continue;
+            }
+            if ($product->master_hierarchy_node_id && isset($nodeIdSet[$product->master_hierarchy_node_id])) {
+                $result[] = [
+                    'sku' => $product->sku,
+                    'group_id' => $product->master_hierarchy_node_id,
+                    'sort_order' => 1,
                 ];
             }
         }
