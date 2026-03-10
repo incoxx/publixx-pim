@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<BMECAT version="2005" xmlns="http://www.bmecat.org/bmecat/2005">
+  <HEADER>
+    <CATALOG>
+      <LANGUAGE>deu</LANGUAGE>
+      <CATALOG_ID>TEST-2024</CATALOG_ID>
+      <CATALOG_VERSION>001.000</CATALOG_VERSION>
+      <CATALOG_NAME>Testkatalog</CATALOG_NAME>
+      <CURRENCY>EUR</CURRENCY>
+    </CATALOG>
+    <SUPPLIER>
+      <SUPPLIER_ID type="supplier_specific">SUPPLIER-TEST</SUPPLIER_ID>
+      <SUPPLIER_NAME>Test Lieferant GmbH</SUPPLIER_NAME>
+    </SUPPLIER>
+  </HEADER>
+
+  <T_NEW_CATALOG>
+    <!-- Hierarchie -->
+    <CATALOG_GROUP_SYSTEM>
+      <GROUP_SYSTEM_ID>main</GROUP_SYSTEM_ID>
+      <GROUP_SYSTEM_NAME>Hauptkatalog</GROUP_SYSTEM_NAME>
+      <CATALOG_STRUCTURE type="root">
+        <GROUP_ID>1</GROUP_ID>
+        <GROUP_NAME>Alle Produkte</GROUP_NAME>
+        <PARENT_ID>0</PARENT_ID>
+      </CATALOG_STRUCTURE>
+      <CATALOG_STRUCTURE type="node">
+        <GROUP_ID>10</GROUP_ID>
+        <GROUP_NAME>Elektronik</GROUP_NAME>
+        <PARENT_ID>1</PARENT_ID>
+        <GROUP_ORDER>1</GROUP_ORDER>
+      </CATALOG_STRUCTURE>
+      <CATALOG_STRUCTURE type="leaf">
+        <GROUP_ID>100</GROUP_ID>
+        <GROUP_NAME>Notebooks</GROUP_NAME>
+        <PARENT_ID>10</PARENT_ID>
+        <GROUP_ORDER>1</GROUP_ORDER>
+      </CATALOG_STRUCTURE>
+      <CATALOG_STRUCTURE type="leaf">
+        <GROUP_ID>101</GROUP_ID>
+        <GROUP_NAME>Zubehör</GROUP_NAME>
+        <PARENT_ID>10</PARENT_ID>
+        <GROUP_ORDER>2</GROUP_ORDER>
+      </CATALOG_STRUCTURE>
+    </CATALOG_GROUP_SYSTEM>
+
+    <!-- Produkt 1: Notebook -->
+    <PRODUCT mode="new">
+      <SUPPLIER_PID>NB-001</SUPPLIER_PID>
+      <PRODUCT_DETAILS>
+        <DESCRIPTION_SHORT>Business Notebook 15"</DESCRIPTION_SHORT>
+        <DESCRIPTION_LONG>Leistungsstarkes Business Notebook mit 15.6" Display</DESCRIPTION_LONG>
+        <EAN>4006381333931</EAN>
+        <MANUFACTURER_NAME>TechBrand</MANUFACTURER_NAME>
+        <MANUFACTURER_PID>TB-NB-2024</MANUFACTURER_PID>
+        <DELIVERY_TIME>3</DELIVERY_TIME>
+        <KEYWORD>Notebook</KEYWORD>
+        <KEYWORD>Laptop</KEYWORD>
+      </PRODUCT_DETAILS>
+
+      <PRODUCT_FEATURES>
+        <REFERENCE_FEATURE_SYSTEM_NAME>ECLASS-5.1</REFERENCE_FEATURE_SYSTEM_NAME>
+        <REFERENCE_FEATURE_GROUP_ID>27-01-10-01</REFERENCE_FEATURE_GROUP_ID>
+        <FEATURE>
+          <FNAME>Bildschirmgröße</FNAME>
+          <FVALUE>15.6</FVALUE>
+          <FUNIT>Zoll</FUNIT>
+          <FORDER>1</FORDER>
+        </FEATURE>
+        <FEATURE>
+          <FNAME>RAM</FNAME>
+          <FVALUE>16</FVALUE>
+          <FUNIT>GB</FUNIT>
+          <FORDER>2</FORDER>
+        </FEATURE>
+        <FEATURE>
+          <FNAME>Farbe</FNAME>
+          <FVALUE>Silber</FVALUE>
+          <FVALUE>Space Grau</FVALUE>
+          <FORDER>3</FORDER>
+        </FEATURE>
+      </PRODUCT_FEATURES>
+
+      <PRODUCT_ORDER_DETAILS>
+        <ORDER_UNIT>C62</ORDER_UNIT>
+        <CONTENT_UNIT>C62</CONTENT_UNIT>
+        <NO_CU_PER_OU>1</NO_CU_PER_OU>
+        <QUANTITY_MIN>1</QUANTITY_MIN>
+        <QUANTITY_INTERVAL>1</QUANTITY_INTERVAL>
+      </PRODUCT_ORDER_DETAILS>
+
+      <PRODUCT_PRICE_DETAILS>
+        <DATETIME type="valid_start_date">2024-01-01</DATETIME>
+        <DATETIME type="valid_end_date">2024-12-31</DATETIME>
+        <PRODUCT_PRICE price_type="net_list">
+          <PRICE_AMOUNT>1499.50</PRICE_AMOUNT>
+          <PRICE_CURRENCY>EUR</PRICE_CURRENCY>
+          <TAX>0.19</TAX>
+          <LOWER_BOUND>1</LOWER_BOUND>
+          <TERRITORY>DE</TERRITORY>
+        </PRODUCT_PRICE>
+        <PRODUCT_PRICE price_type="net_list">
+          <PRICE_AMOUNT>1300.90</PRICE_AMOUNT>
+          <PRICE_CURRENCY>EUR</PRICE_CURRENCY>
+          <TAX>0.19</TAX>
+          <LOWER_BOUND>100</LOWER_BOUND>
+          <TERRITORY>DE</TERRITORY>
+        </PRODUCT_PRICE>
+      </PRODUCT_PRICE_DETAILS>
+
+      <MIME_INFO>
+        <MIME>
+          <MIME_TYPE>image/jpeg</MIME_TYPE>
+          <MIME_SOURCE>images/NB-001.jpg</MIME_SOURCE>
+          <MIME_PURPOSE>normal</MIME_PURPOSE>
+          <MIME_ORDER>1</MIME_ORDER>
+        </MIME>
+      </MIME_INFO>
+
+      <PRODUCT_REFERENCE type="accessories">
+        <PROD_ID_TO>ACC-MOUSE-01</PROD_ID_TO>
+      </PRODUCT_REFERENCE>
+      <PRODUCT_REFERENCE type="similar">
+        <PROD_ID_TO>NB-002</PROD_ID_TO>
+      </PRODUCT_REFERENCE>
+    </PRODUCT>
+
+    <!-- Produkt 2: Maus (Zubehör) -->
+    <PRODUCT mode="new">
+      <SUPPLIER_PID>ACC-MOUSE-01</SUPPLIER_PID>
+      <PRODUCT_DETAILS>
+        <DESCRIPTION_SHORT>Wireless Maus</DESCRIPTION_SHORT>
+        <DESCRIPTION_LONG>Ergonomische kabellose Maus mit USB-Empfänger</DESCRIPTION_LONG>
+        <EAN>4006381333948</EAN>
+        <MANUFACTURER_NAME>TechBrand</MANUFACTURER_NAME>
+      </PRODUCT_DETAILS>
+
+      <PRODUCT_FEATURES>
+        <FEATURE>
+          <FNAME>Farbe</FNAME>
+          <FVALUE>Schwarz</FVALUE>
+        </FEATURE>
+        <FEATURE>
+          <FNAME>Gewicht</FNAME>
+          <FVALUE>85</FVALUE>
+          <FUNIT>g</FUNIT>
+        </FEATURE>
+      </PRODUCT_FEATURES>
+
+      <PRODUCT_PRICE_DETAILS>
+        <PRODUCT_PRICE price_type="net_list">
+          <PRICE_AMOUNT>29.90</PRICE_AMOUNT>
+          <PRICE_CURRENCY>EUR</PRICE_CURRENCY>
+          <TAX>0.19</TAX>
+          <LOWER_BOUND>1</LOWER_BOUND>
+        </PRODUCT_PRICE>
+      </PRODUCT_PRICE_DETAILS>
+
+      <PRODUCT_REFERENCE type="accessories">
+        <PROD_ID_TO>NB-001</PROD_ID_TO>
+      </PRODUCT_REFERENCE>
+    </PRODUCT>
+
+    <!-- Zuordnungen Produkt zu Kataloggruppe -->
+    <PRODUCT_TO_CATALOGGROUP_MAP>
+      <PROD_ID>NB-001</PROD_ID>
+      <CATALOG_GROUP_ID>100</CATALOG_GROUP_ID>
+      <PRODUCT_ORDER>1</PRODUCT_ORDER>
+    </PRODUCT_TO_CATALOGGROUP_MAP>
+
+    <PRODUCT_TO_CATALOGGROUP_MAP>
+      <PROD_ID>ACC-MOUSE-01</PROD_ID>
+      <CATALOG_GROUP_ID>101</CATALOG_GROUP_ID>
+      <PRODUCT_ORDER>1</PRODUCT_ORDER>
+    </PRODUCT_TO_CATALOGGROUP_MAP>
+  </T_NEW_CATALOG>
+</BMECAT>

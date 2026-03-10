@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\V1\ExportController;
 use App\Http\Controllers\Api\V1\ExportFileController;
 use App\Http\Controllers\Api\V1\ExportJobController;
 use App\Http\Controllers\Api\V1\ExportProfileController;
+use App\Http\Controllers\Api\V1\BmecatImportController;
 use App\Http\Controllers\Api\V1\JsonExportImportController;
 use App\Http\Controllers\Api\V1\ImportProfileController;
 use App\Http\Controllers\Api\V1\LoadDemoDataController;
@@ -436,6 +437,10 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::prefix('json-import')->group(function () {
         Route::post('/', [JsonExportImportController::class, 'import']);
         Route::post('validate', [JsonExportImportController::class, 'validate']);
+    });
+    Route::prefix('bmecat-import')->group(function () {
+        Route::post('/', [BmecatImportController::class, 'import']);
+        Route::post('validate', [BmecatImportController::class, 'validate']);
     });
 
     // =====================================================================
