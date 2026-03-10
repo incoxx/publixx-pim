@@ -4,18 +4,13 @@ declare(strict_types=1);
 
 namespace App\Services\Export;
 
-use App\Models\Attribute;
 use App\Models\Hierarchy;
 use App\Models\HierarchyNode;
 use App\Models\OutputHierarchyProductAssignment;
-use App\Models\PriceType;
 use App\Models\Product;
 use App\Models\ProductAttributeValue;
-use App\Models\ProductPrice;
-use App\Models\ProductRelation;
-use App\Models\ProductRelationType;
-use App\Models\ProductType;
 use App\Services\Import\BmecatElementMap;
+use Illuminate\Support\Collection;
 
 /**
  * Exportiert PIM-Daten als BMEcat-XML (1.2 oder 2005).
@@ -34,6 +29,13 @@ class BmecatFormatExporter
     private array $attributeIds = [];
     private array $priceTypeIds = [];
     private array $relationTypeIds = [];
+
+    /** @var string[] Attribute technical_names die als PRODUCT_DETAILS-Felder gemappt werden */
+    private const DETAIL_ATTRIBUTES = [
+        'description_long', 'beschreibung', 'beschreibung_lang',
+        'manufacturer_name', 'hersteller', 'manufacturer_pid',
+        'hersteller_artikelnummer', 'delivery_time', 'lieferzeit',
+    ];
 
     public function setVersion(string $version): void
     {
@@ -99,16 +101,25 @@ class BmecatFormatExporter
             $this->writeCatalogGroupSystem($xml, $hierarchy);
         }
 
-        // Produkte
-        $products = $this->loadProducts();
-        $productCategoryMap = $this->loadProductCategoryMap($hierarchy, $products);
+        // Produkte in Chunks verarbeiten um Memory-Verbrauch zu begrenzen
+        $categoryMappings = [];
+        $this->buildProductQuery()->chunk(500, function (Collection $products) use ($xml, $hierarchy, &$categoryMappings) {
+            foreach ($products as $product) {
+                $this->writeProduct($xml, $product);
+            }
 
-        foreach ($products as $product) {
-            $this->writeProduct($xml, $product);
-        }
+            // Kategorie-Zuordnungen für diesen Chunk sammeln
+            if ($hierarchy) {
+                $chunkMappings = $this->loadProductCategoryMap($hierarchy, $products);
+                array_push($categoryMappings, ...$chunkMappings);
+            }
+
+            // Memory nach jedem Chunk freigeben
+            $xml->flush();
+        });
 
         // PRODUCT_TO_CATALOGGROUP_MAP (standalone)
-        foreach ($productCategoryMap as $mapping) {
+        foreach ($categoryMappings as $mapping) {
             $this->writeProductToCatalogGroupMap($xml, $mapping);
         }
 
@@ -162,24 +173,26 @@ class BmecatFormatExporter
         $xml->writeElement('GROUP_SYSTEM_ID', $hierarchy->technical_name);
         $xml->writeElement('GROUP_SYSTEM_NAME', $hierarchy->name_de ?? $hierarchy->technical_name);
 
+        // Parent-IDs vorberechnen um N+1 für leaf-Detection zu vermeiden
+        $parentIds = $hierarchy->nodes->pluck('parent_node_id')->filter()->unique();
+
         foreach ($hierarchy->nodes as $node) {
-            $this->writeCatalogStructure($xml, $node);
+            $this->writeCatalogStructure($xml, $node, $parentIds);
         }
 
         $xml->endElement(); // CATALOG_GROUP_SYSTEM
     }
 
-    private function writeCatalogStructure(\XMLWriter $xml, HierarchyNode $node): void
+    private function writeCatalogStructure(\XMLWriter $xml, HierarchyNode $node, Collection $parentIds): void
     {
         $xml->startElement('CATALOG_STRUCTURE');
 
-        // type attribute
-        $type = 'node';
-        if ($node->depth === 0 || $node->parent_node_id === null) {
-            $type = 'root';
-        } elseif ($node->children()->count() === 0) {
-            $type = 'leaf';
-        }
+        // type aus vorberechneten parentIds ableiten (keine DB-Query)
+        $type = match (true) {
+            $node->parent_node_id === null, $node->depth === 0 => 'root',
+            !$parentIds->contains($node->id) => 'leaf',
+            default => 'node',
+        };
         $xml->writeAttribute('type', $type);
 
         $xml->writeElement('GROUP_ID', $node->id);
@@ -202,7 +215,10 @@ class BmecatFormatExporter
     // Products
     // =========================================================================
 
-    private function loadProducts(): \Illuminate\Support\Collection
+    /**
+     * Baut die Produkt-Query mit allen nötigen Eager-Loads.
+     */
+    private function buildProductQuery(): \Illuminate\Database\Eloquent\Builder
     {
         $query = Product::query()
             ->where('status', '!=', 'inactive')
@@ -216,6 +232,7 @@ class BmecatFormatExporter
                 },
                 'attributeValues.attribute',
                 'attributeValues.unit',
+                'attributeValues.valueListEntry',
                 'prices' => function ($q) {
                     if (!empty($this->priceTypeIds)) {
                         $q->whereIn('price_type_id', $this->priceTypeIds);
@@ -229,13 +246,14 @@ class BmecatFormatExporter
                 },
                 'outgoingRelations.relationType',
                 'outgoingRelations.targetProduct',
+                'media',
             ]);
 
         if (!empty($this->productTypeIds)) {
             $query->whereIn('product_type_id', $this->productTypeIds);
         }
 
-        return $query->get();
+        return $query;
     }
 
     private function writeProduct(\XMLWriter $xml, Product $product): void
@@ -255,7 +273,7 @@ class BmecatFormatExporter
         $this->writeProductFeatures($xml, $product);
 
         // PRODUCT_ORDER_DETAILS / ARTICLE_ORDER_DETAILS
-        $this->writeProductOrderDetails($xml);
+        $this->writeProductOrderDetails($xml, $product);
 
         // PRODUCT_PRICE_DETAILS / ARTICLE_PRICE_DETAILS
         $this->writeProductPriceDetails($xml, $product);
@@ -314,14 +332,7 @@ class BmecatFormatExporter
     private function writeProductFeatures(\XMLWriter $xml, Product $product): void
     {
         $values = $product->attributeValues->filter(function ($av) {
-            // Nur Attribute die als FEATURE exportiert werden sollen
-            // Interne Felder wie description_long, manufacturer etc. überspringen
-            $skip = [
-                'description_long', 'beschreibung', 'beschreibung_lang',
-                'manufacturer_name', 'hersteller', 'manufacturer_pid',
-                'hersteller_artikelnummer', 'delivery_time', 'lieferzeit',
-            ];
-            return $av->attribute && !in_array($av->attribute->technical_name, $skip);
+            return $av->attribute && !in_array($av->attribute->technical_name, self::DETAIL_ATTRIBUTES);
         });
 
         if ($values->isEmpty()) {
@@ -354,15 +365,24 @@ class BmecatFormatExporter
         $xml->endElement(); // PRODUCT_FEATURES
     }
 
-    private function writeProductOrderDetails(\XMLWriter $xml): void
+    private function writeProductOrderDetails(\XMLWriter $xml, Product $product): void
     {
         $el = $this->elementMap;
         $xml->startElement($el['product_order_details']);
-        $xml->writeElement('ORDER_UNIT', 'C62'); // Stück (UN/CEFACT)
-        $xml->writeElement('CONTENT_UNIT', 'C62');
-        $xml->writeElement('NO_CU_PER_OU', '1');
-        $xml->writeElement('QUANTITY_MIN', '1');
-        $xml->writeElement('QUANTITY_INTERVAL', '1');
+
+        // Bestelleinheit aus Attributen lesen, Default: C62 (Stück)
+        $orderUnit = $this->getAttributeValue($product, 'order_unit')
+            ?? $this->getAttributeValue($product, 'bestelleinheit')
+            ?? 'C62';
+        $contentUnit = $this->getAttributeValue($product, 'content_unit')
+            ?? $this->getAttributeValue($product, 'inhaltseinheit')
+            ?? $orderUnit;
+
+        $xml->writeElement('ORDER_UNIT', $orderUnit);
+        $xml->writeElement('CONTENT_UNIT', $contentUnit);
+        $xml->writeElement('NO_CU_PER_OU', $this->getAttributeValue($product, 'no_cu_per_ou') ?? '1');
+        $xml->writeElement('QUANTITY_MIN', $this->getAttributeValue($product, 'quantity_min') ?? '1');
+        $xml->writeElement('QUANTITY_INTERVAL', $this->getAttributeValue($product, 'quantity_interval') ?? '1');
         $xml->endElement();
     }
 
@@ -375,32 +395,29 @@ class BmecatFormatExporter
         $el = $this->elementMap;
         $xml->startElement($el['product_price_details']);
 
-        // Gruppierung nach PriceType
-        $grouped = $product->prices->groupBy('price_type_id');
+        foreach ($product->prices as $price) {
+            $xml->startElement($el['product_price']);
+            $xml->writeAttribute('price_type', $price->priceType->technical_name ?? 'net_list');
 
-        foreach ($grouped as $prices) {
-            foreach ($prices as $price) {
-                $xml->startElement($el['product_price']);
-                $xml->writeAttribute('price_type', $price->priceType->technical_name ?? 'net_list');
+            $xml->writeElement('PRICE_AMOUNT', number_format((float) $price->amount, 2, '.', ''));
 
-                $xml->writeElement('PRICE_AMOUNT', number_format((float) $price->amount, 2, '.', ''));
-
-                if ($price->currency) {
-                    $xml->writeElement('PRICE_CURRENCY', $price->currency);
-                }
-
-                $xml->writeElement('TAX', '0.19');
-
-                if ($price->scale_from) {
-                    $xml->writeElement('LOWER_BOUND', (string) $price->scale_from);
-                }
-
-                if ($price->country) {
-                    $xml->writeElement('TERRITORY', $price->country);
-                }
-
-                $xml->endElement(); // PRODUCT_PRICE
+            if ($price->currency) {
+                $xml->writeElement('PRICE_CURRENCY', $price->currency);
             }
+
+            // Steuersatz: aus Config oder Default 0.19
+            $tax = config('pim.export.default_tax_rate', 0.19);
+            $xml->writeElement('TAX', number_format((float) $tax, 2, '.', ''));
+
+            if ($price->scale_from !== null) {
+                $xml->writeElement('LOWER_BOUND', (string) $price->scale_from);
+            }
+
+            if ($price->country) {
+                $xml->writeElement('TERRITORY', $price->country);
+            }
+
+            $xml->endElement(); // PRODUCT_PRICE
         }
 
         $xml->endElement(); // PRODUCT_PRICE_DETAILS
@@ -408,25 +425,15 @@ class BmecatFormatExporter
 
     private function writeMimeInfo(\XMLWriter $xml, Product $product): void
     {
-        if (!method_exists($product, 'media') || !$product->relationLoaded('media')) {
-            // Medien nachladen falls möglich
-            try {
-                $media = $product->media()->get();
-            } catch (\Throwable) {
-                return;
-            }
-        } else {
-            $media = $product->media;
-        }
-
-        if ($media->isEmpty()) {
+        // media ist per eager-load geladen
+        if (!$product->relationLoaded('media') || $product->media->isEmpty()) {
             return;
         }
 
         $xml->startElement('MIME_INFO');
 
         $order = 1;
-        foreach ($media as $medium) {
+        foreach ($product->media as $medium) {
             $xml->startElement('MIME');
             $xml->writeElement('MIME_TYPE', $medium->mime_type ?? 'image/jpeg');
             $xml->writeElement('MIME_SOURCE', $medium->file_name ?? $medium->path ?? '');
@@ -466,12 +473,8 @@ class BmecatFormatExporter
     // Product-to-CatalogGroup Map
     // =========================================================================
 
-    private function loadProductCategoryMap(?Hierarchy $hierarchy, $products): array
+    private function loadProductCategoryMap(Hierarchy $hierarchy, Collection $products): array
     {
-        if (!$hierarchy) {
-            return [];
-        }
-
         $productIds = $products->pluck('id')->toArray();
         if (empty($productIds)) {
             return [];

@@ -140,7 +140,17 @@ async function runExport() {
     a.click()
     setTimeout(() => URL.revokeObjectURL(url), 200)
   } catch (e) {
-    error.value = e.response?.data?.message || 'Export fehlgeschlagen'
+    if (e.response?.data instanceof Blob) {
+      try {
+        const text = await e.response.data.text()
+        const json = JSON.parse(text)
+        error.value = json.message || json.error || 'Export fehlgeschlagen'
+      } catch {
+        error.value = 'Export fehlgeschlagen'
+      }
+    } else {
+      error.value = e.response?.data?.message || 'Export fehlgeschlagen'
+    }
   } finally {
     exporting.value = false
   }
@@ -527,7 +537,7 @@ const tabs = [
           <p>php artisan pim:bmecat-import /pfad/katalog.xml --mode=update</p>
         </template>
         <template v-else>
-          <p>curl /api/v1/bmecat-export?version=2005 -H "Authorization: Bearer {token}" -o export.xml</p>
+          <p>curl -X POST /api/v1/bmecat-export -d '{"version":"2005"}' -H "Content-Type: application/json" -H "Authorization: Bearer {token}" -o export.xml</p>
           <p>php artisan pim:bmecat-export --version=2005 --hierarchy=main -o export.xml</p>
         </template>
       </div>
