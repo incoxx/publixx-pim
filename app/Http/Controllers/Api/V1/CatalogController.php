@@ -375,9 +375,58 @@ class CatalogController extends BaseController
                 ->toArray();
         }
 
+        // Load description attributes configuration
+        $descriptionAttributes = $themePayload['description_attributes'] ?? [];
+        $descriptionAttrData = [];
+        if (!empty($descriptionAttributes)) {
+            $descAttrIds = array_column($descriptionAttributes, 'attribute_id');
+            $typographyMap = [];
+            foreach ($descriptionAttributes as $da) {
+                $typographyMap[$da['attribute_id']] = $da['typography'] ?? 'base';
+            }
+
+            $descValues = ProductAttributeValue::where('product_id', $product->id)
+                ->whereIn('attribute_id', $descAttrIds)
+                ->with(['attribute', 'valueListEntry', 'unit'])
+                ->get();
+
+            foreach ($descValues as $dv) {
+                $attr = $dv->attribute;
+                if (!$attr || $attr->is_internal) {
+                    continue;
+                }
+                $label = $lang === 'en' && $attr->name_en ? $attr->name_en : $attr->name_de;
+                $value = $this->resolveExportAttributeValue($dv, $attr, $lang);
+                if ($value === null || $value === '') {
+                    continue;
+                }
+                $unit = $dv->unit?->abbreviation;
+                $descriptionAttrData[$attr->id] = [
+                    'attribute_id' => $attr->id,
+                    'label' => $label,
+                    'value' => $unit ? $value . ' ' . $unit : $value,
+                    'typography' => $typographyMap[$attr->id] ?? 'base',
+                ];
+            }
+
+            // Preserve configured order
+            $ordered = [];
+            foreach ($descAttrIds as $id) {
+                if (isset($descriptionAttrData[$id])) {
+                    $ordered[] = $descriptionAttrData[$id];
+                }
+            }
+            $descriptionAttrData = $ordered;
+        }
+
         return response()->json([
             'data' => (new CatalogProductDetailResource($product))
-                ->additional(['lang' => $lang, 'breadcrumb' => $breadcrumb, 'allowed_attribute_ids' => $allowedAttributeIds])
+                ->additional([
+                    'lang' => $lang,
+                    'breadcrumb' => $breadcrumb,
+                    'allowed_attribute_ids' => $allowedAttributeIds,
+                    'description_attributes' => $descriptionAttrData,
+                ])
                 ->resolve(),
         ]);
     }
@@ -440,9 +489,57 @@ class CatalogController extends BaseController
                 ->toArray();
         }
 
+        // Load description attributes configuration
+        $descriptionAttributes = $themePayload['description_attributes'] ?? [];
+        $descriptionAttrData = [];
+        if (!empty($descriptionAttributes)) {
+            $descAttrIds = array_column($descriptionAttributes, 'attribute_id');
+            $typographyMap = [];
+            foreach ($descriptionAttributes as $da) {
+                $typographyMap[$da['attribute_id']] = $da['typography'] ?? 'base';
+            }
+
+            $descValues = ProductAttributeValue::where('product_id', $product->id)
+                ->whereIn('attribute_id', $descAttrIds)
+                ->with(['attribute', 'valueListEntry', 'unit'])
+                ->get();
+
+            foreach ($descValues as $dv) {
+                $attr = $dv->attribute;
+                if (!$attr || $attr->is_internal) {
+                    continue;
+                }
+                $label = $lang === 'en' && $attr->name_en ? $attr->name_en : $attr->name_de;
+                $value = $this->resolveExportAttributeValue($dv, $attr, $lang);
+                if ($value === null || $value === '') {
+                    continue;
+                }
+                $unit = $dv->unit?->abbreviation;
+                $descriptionAttrData[$attr->id] = [
+                    'attribute_id' => $attr->id,
+                    'label' => $label,
+                    'value' => $unit ? $value . ' ' . $unit : $value,
+                    'typography' => $typographyMap[$attr->id] ?? 'base',
+                ];
+            }
+
+            $ordered = [];
+            foreach ($descAttrIds as $id) {
+                if (isset($descriptionAttrData[$id])) {
+                    $ordered[] = $descriptionAttrData[$id];
+                }
+            }
+            $descriptionAttrData = $ordered;
+        }
+
         return response()->json(
             (new CatalogProductDetailResource($product))
-                ->additional(['lang' => $lang, 'breadcrumb' => $breadcrumb, 'allowed_attribute_ids' => $allowedAttributeIds])
+                ->additional([
+                    'lang' => $lang,
+                    'breadcrumb' => $breadcrumb,
+                    'allowed_attribute_ids' => $allowedAttributeIds,
+                    'description_attributes' => $descriptionAttrData,
+                ])
                 ->resolve(),
             200,
             ['Content-Type' => 'application/json'],
