@@ -114,6 +114,7 @@ class SettingController extends Controller
             'detail_layout' => 'nullable|string|in:classic,tabs,hero',
             'card_attribute_ids' => 'nullable|array',
             'card_attribute_ids.*' => 'uuid|exists:attributes,id',
+            'primary_card_attribute_id' => 'nullable|uuid|exists:attributes,id',
             'card_show_sku' => 'nullable|boolean',
             'card_show_category' => 'nullable|boolean',
             'card_show_price' => 'nullable|boolean',

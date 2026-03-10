@@ -195,6 +195,13 @@ class CatalogController extends BaseController
                         'value' => $unit ? $value . ' ' . $unit : $value,
                     ];
                 }
+
+                // Sort card attributes per product according to configured order
+                $cardAttrOrder = array_flip($cardAttributeIds);
+                foreach ($cardAttributeMap as $pid => $attrs) {
+                    usort($attrs, fn ($a, $b) => ($cardAttrOrder[$a['attribute_id']] ?? 999) - ($cardAttrOrder[$b['attribute_id']] ?? 999));
+                    $cardAttributeMap[$pid] = $attrs;
+                }
             }
         }
 
