@@ -205,8 +205,15 @@ When deleting a node, you have two options:
 | **This node only** | The node is removed. Child nodes are moved up one level. |
 | **With all child nodes** | The entire subtree is deleted. |
 
+#### Deletion with Dependencies (Force Delete)
+
+If a node has dependencies (e.g., assigned products, child nodes, or attribute assignments), the system displays a **confirmation dialog** with details about the affected dependencies:
+
+- Number and type of dependencies (products, child nodes, attribute assignments)
+- Option for **forced deletion** (`Force Delete`), which removes the node despite existing dependencies
+
 ::: danger Warning
-Products assigned to a deleted node lose their hierarchy assignment and potentially their attribute definitions. Before deleting, check which products are affected.
+Products assigned to a deleted node lose their hierarchy assignment and potentially their attribute definitions. Before deleting, check which products are affected. Forced deletion cannot be undone.
 :::
 
 ## Assigning Attributes to Hierarchy Nodes
@@ -238,6 +245,35 @@ Collection Groups allow assigning an attribute group as a **repeatable block**. 
 
 - The attribute group "Certification" contains the attributes `cert_name`, `cert_number`, `cert_valid_until`.
 - When assigned as a Collection Group, the user can create any number of certification entries for the product.
+
+## Attribute Values on Hierarchy Nodes
+
+In addition to assigning attribute groups, **concrete attribute values** can be maintained on hierarchy nodes. These values apply to the node itself and can be used in exports or catalog output.
+
+### Configuring Node Attributes
+
+1. Select a node in the hierarchy.
+2. Open the **Node Attributes** section.
+3. Use **Assign Attribute** to assign individual attributes to the node. For each attribute, you can specify whether it is marked as **required** (`is_required`).
+4. Maintain the attribute values directly on the node.
+
+### Supported Value Types
+
+Node attributes support the same value types as product attributes:
+
+- **String** -- Text values, also multilingual (`language` field)
+- **Number** -- Integers
+- **Float** -- Floating-point numbers with optional unit
+- **Date** -- Date values
+- **Flag** -- Yes/No values
+- **Selection** -- Selection from a value list
+
+### Use Cases
+
+- **Category descriptions** -- Texts that appear as category descriptions in catalog output.
+- **Category images** -- Reference to a medium for category display.
+- **SEO metadata** -- Title and description for the category page in the online shop.
+- **Assortment properties** -- Attributes that apply to all products in a category.
 
 ## Assigning Products to Hierarchy Nodes
 

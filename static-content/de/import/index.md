@@ -143,6 +143,54 @@ Das System nutzt intelligentes Matching, um Tippfehler in Referenzen automatisch
 
 Wird ein ähnlicher, aber nicht exakt übereinstimmender Wert gefunden, zeigt das System einen Korrekturvorschlag in der Validierungsvorschau an.
 
+## BMEcat-Import
+
+Neben dem Excel-Import unterstützt das anyPIM den Import von Produktdaten im **BMEcat-Format** (Versionen 1.2 und 2005). BMEcat ist ein standardisiertes XML-Format für den elektronischen Austausch von Produktkatalogen, das vor allem im B2B-Bereich weit verbreitet ist.
+
+### Unterstützte BMEcat-Versionen
+
+| Version | Standard | Beschreibung |
+|---|---|---|
+| **BMEcat 1.2** | Klassisch | Weit verbreitet, besonders im deutschsprachigen Raum |
+| **BMEcat 2005** | Aktuell | Erweiterte Struktur mit zusätzlichen Elementen |
+
+### Import-Modi
+
+Der BMEcat-Import unterstützt zwei Modi:
+
+| Modus | Beschreibung |
+|---|---|
+| **Update** | Bestehende Daten werden aktualisiert, neue Datensätze angelegt (Upsert) |
+| **Delete & Insert** | Alle vorhandenen Daten der betroffenen Entitäten werden gelöscht und neu importiert |
+
+### Importierte Daten
+
+Folgende BMEcat-Elemente werden verarbeitet:
+
+- **Produkttypen** und Produktstammdaten (PRODUCT)
+- **Attribute** aus FEATURE/FNAME-Elementen
+- **Preise** aus PRODUCT_PRICE_DETAILS
+- **Hierarchien** aus CATALOG_GROUP_SYSTEM
+- **Hierarchie-Attributzuordnungen**
+- **Produkt-Hierarchie-Zuordnungen** (PRODUCT_TO_CATALOGGROUP_MAP)
+- **Produktbeziehungen** (PRODUCT_REFERENCE)
+- **Medienreferenzen** (MIME_INFO)
+
+### Validierung
+
+Der BMEcat-Import bietet einen **Validierungsmodus**, der die XML-Datei prüft, ohne Daten zu importieren:
+
+```
+POST /api/v1/bmecat-import/validate
+```
+
+Die Validierung erkennt fehlende Pflichtfelder, ungültige Referenzen und Strukturfehler im XML.
+
+### Technische Details
+
+- **Streaming-Verarbeitung** -- Die XML-Datei wird mit XMLReader geparst, um auch große Dateien speichereffizient verarbeiten zu können.
+- **Transaktionssicherheit** -- Der Import erfolgt transaktionsgesichert.
+
 ## Weiterführende Dokumentation
 
 - [Excel-Format](/de/import/excel-format) -- Detaillierte Spaltendokumentation aller 14 Tabs

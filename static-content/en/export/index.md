@@ -150,6 +150,45 @@ The timestamp considers changes to:
 - Variants and their attribute values
 - Relations
 
+## BMEcat Export
+
+The anyPIM supports the export of product data in **BMEcat format** (versions 1.2 and 2005). The BMEcat export generates standard-compliant XML files that can be directly processed by ERP systems, online shops, and procurement platforms.
+
+### Supported Versions
+
+| Version | Element Mapping |
+|---|---|
+| **BMEcat 1.2** | Classic element names and structure |
+| **BMEcat 2005** | Extended element names (e.g., `PRODUCT` instead of `ARTICLE`) |
+
+### Filter Options
+
+The BMEcat export supports flexible filtering:
+
+- **Hierarchy** -- Export only for specific categories/hierarchy nodes
+- **Product types** -- Restriction to specific product types
+- **Attributes** -- Selection of attributes to export
+- **Price types** -- Filtering by price type
+- **Relation types** -- Selection of product relationships to export
+
+### Exported Elements
+
+| BMEcat Element | Content |
+|---|---|
+| **PRODUCT / ARTICLE** | Product master data (SKU, name, description) |
+| **PRODUCT_DETAILS** | Detail attributes (long description, manufacturer, delivery time) |
+| **PRODUCT_FEATURES** | Product features from EAV attributes |
+| **PRODUCT_PRICE_DETAILS** | Price information with currency and tiering |
+| **MIME_INFO** | Media references (images, documents) |
+| **PRODUCT_REFERENCE** | Product relationships (accessories, spare parts) |
+| **CATALOG_GROUP_SYSTEM** | Hierarchy structure |
+| **PRODUCT_TO_CATALOGGROUP_MAP** | Product-category assignments |
+
+### Technical Details
+
+- **Streaming output** -- The export uses XMLWriter for memory-efficient processing. Products are processed in chunks.
+- **Element mapping** -- The `BmecatElementMap` class automatically translates between BMEcat 1.2 and 2005 element names.
+
 ## Further Documentation
 
 - [JSON Export](/en/export/json-export) -- Endpoints, filters, formats, and pagination

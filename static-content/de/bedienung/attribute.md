@@ -22,7 +22,7 @@ Die Attributverwaltung erreichen Sie über den Menüpunkt **Attribute** in der S
 
 ## Datentypen
 
-Das anyPIM unterstützt acht Datentypen, die das Eingabefeld und die Validierung bestimmen:
+Das anyPIM unterstützt verschiedene Datentypen, die das Eingabefeld und die Validierung bestimmen:
 
 <svg viewBox="0 0 800 440" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;margin:1.5rem 0;">
   <defs>
@@ -146,6 +146,38 @@ Strukturierte Schlüssel-Wert-Paare als JSON-Objekt. Das System stellt einen JSO
 
 #### Collection
 JSON-Arrays mit wiederholbaren Strukturen. Ermöglicht das Speichern von Listen gleichartiger Datensätze innerhalb eines einzelnen Attributs. Anwendungsbeispiel: Mehrere Zertifizierungseinträge mit jeweils Name, Nummer und Gültigkeitsdatum.
+
+### Link-Datentypen
+
+Neben den Basisdatentypen stellt das anyPIM vier spezialisierte **Link-Datentypen** bereit, die URLs mit Typ-Validierung speichern:
+
+#### Hyperlink
+Speichert eine allgemeine URL (Weblink). Das Eingabefeld validiert die URL-Struktur. In der Katalogansicht und im Export wird der Link als klickbarer Hyperlink dargestellt.
+
+#### ImageLink
+Speichert eine URL zu einem externen Bild. Im Katalog und in der Produktvorschau wird das referenzierte Bild direkt angezeigt. Geeignet für Produktbilder, die auf einem externen CDN gehostet werden.
+
+#### PdfLink
+Speichert eine URL zu einem PDF-Dokument. In der Katalogansicht wird der Link als PDF-Download dargestellt. Geeignet für externe Datenblätter, Zertifikate oder Anleitungen.
+
+#### VideoLink
+Speichert eine URL zu einem Video. In der Katalogansicht kann das Video eingebettet oder als Link angezeigt werden. Geeignet für Produktvideos auf YouTube, Vimeo oder eigenen Servern.
+
+### Composite (Zusammengesetztes Attribut)
+
+#### Composite
+Ein Composite-Attribut fasst mehrere **Kindattribute** zu einem zusammengesetzten Wert zusammen. Es definiert ein **Anzeigeformat** (`composite_format`), das bestimmt, wie die Einzelwerte zu einem Gesamtwert kombiniert werden.
+
+**Konfiguration:**
+- **Kindattribute** -- Das Composite-Attribut hat untergeordnete Attribute (Children), die die Einzelwerte liefern.
+- **Anzeigeformat** -- Ein Muster mit Platzhaltern `{0}`, `{1}`, `{2}` etc., die durch die Werte der Kindattribute ersetzt werden. Beispiel: `{0} x {1} x {2} mm` für Abmessungen.
+
+**Beispiel:**
+- Composite-Attribut: `dimensions` (Anzeigeformat: `{0} x {1} x {2} mm`)
+- Kindattribute: `length` (Float), `width` (Float), `height` (Float)
+- Ergebnis: „120 x 80 x 45 mm"
+
+In der Produktdetailansicht öffnet ein Klick auf das Composite-Feld einen **Bearbeitungsdialog**, in dem die einzelnen Kindattribute separat gepflegt werden. Die Vorschau zeigt den zusammengesetzten Wert gemäß dem Anzeigeformat.
 
 ## Attributeigenschaften
 
