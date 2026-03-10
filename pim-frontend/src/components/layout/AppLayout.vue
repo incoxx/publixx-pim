@@ -13,10 +13,9 @@ watch(() => route.path, () => {
   authStore.closePanel()
 })
 
-const mainClass = computed(() => ({
-  'ml-[240px]': !authStore.sidebarCollapsed,
-  'ml-[56px]': authStore.sidebarCollapsed,
-  'mr-[360px]': authStore.panelOpen,
+const mainStyle = computed(() => ({
+  marginLeft: authStore.sidebarCollapsed ? '56px' : authStore.sidebarWidth + 'px',
+  marginRight: authStore.panelOpen ? '360px' : '0',
 }))
 </script>
 
@@ -26,7 +25,7 @@ const mainClass = computed(() => ({
     <AppSidebar />
 
     <!-- Main content -->
-    <div :class="mainClass" class="transition-all duration-200 ease-out">
+    <div :style="mainStyle" class="transition-all duration-200 ease-out">
       <AppHeader />
       <main class="p-6">
         <router-view v-slot="{ Component }">
