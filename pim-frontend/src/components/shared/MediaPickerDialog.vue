@@ -122,7 +122,7 @@ function formatFileSize(bytes) {
             <select
               v-if="usageTypes.length > 0"
               :value="selectedUsageTypeId"
-              @change="emit('update:selectedUsageTypeId', ($event.target as HTMLSelectElement).value || null)"
+              @change="emit('update:selectedUsageTypeId', $event.target.value || null)"
               class="pim-select text-xs min-w-[140px]"
             >
               <option v-for="ut in usageTypes" :key="ut.id" :value="ut.id">
