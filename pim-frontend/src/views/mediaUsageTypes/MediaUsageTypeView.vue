@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { Plus } from 'lucide-vue-next'
 import { mediaUsageTypes } from '@/api/mediaUsageTypes'
 import { useAuthStore } from '@/stores/auth'
@@ -14,16 +14,33 @@ const deleteTarget = ref(null)
 const deleting = ref(false)
 const showForm = ref(false)
 const editId = ref(null)
-const formData = ref({ technical_name: '', name_de: '', name_en: '', sort_order: 0 })
+const formData = ref({ technical_name: '', name_de: '', name_en: '', sort_order: 0, allowed_extensions: null })
 const formErrors = ref({})
 const formSaving = ref(false)
+const allExtensionsAllowed = ref(true)
+
+const extensionGroups = [
+  { label: 'Bilder', exts: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'tiff'] },
+  { label: 'Dokumente', exts: ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'csv'] },
+  { label: 'Design', exts: ['eps', 'ai'] },
+]
 
 const columns = [
   { key: 'technical_name', label: 'Technischer Name', mono: true },
   { key: 'name_de', label: 'Name (DE)' },
   { key: 'name_en', label: 'Name (EN)' },
+  { key: 'allowed_extensions_display', label: 'Dateitypen' },
   { key: 'sort_order', label: 'Sortierung', width: '100px' },
 ]
+
+const tableRows = computed(() =>
+  items.value.map(item => ({
+    ...item,
+    allowed_extensions_display: item.allowed_extensions
+      ? item.allowed_extensions.join(', ')
+      : 'Alle',
+  }))
+)
 
 async function fetchItems() {
   loading.value = true
@@ -43,23 +60,57 @@ function openForm(item = null) {
       name_de: item.name_de || '',
       name_en: item.name_en || '',
       sort_order: item.sort_order ?? 0,
+      allowed_extensions: item.allowed_extensions ? [...item.allowed_extensions] : null,
     }
+    allExtensionsAllowed.value = item.allowed_extensions === null
   } else {
     editId.value = null
-    formData.value = { technical_name: '', name_de: '', name_en: '', sort_order: 0 }
+    formData.value = { technical_name: '', name_de: '', name_en: '', sort_order: 0, allowed_extensions: null }
+    allExtensionsAllowed.value = true
   }
   formErrors.value = {}
   showForm.value = true
+}
+
+function toggleAllExtensions() {
+  allExtensionsAllowed.value = !allExtensionsAllowed.value
+  if (allExtensionsAllowed.value) {
+    formData.value.allowed_extensions = null
+  } else {
+    formData.value.allowed_extensions = []
+  }
+}
+
+function toggleExt(ext) {
+  if (allExtensionsAllowed.value) return
+  const list = formData.value.allowed_extensions || []
+  const idx = list.indexOf(ext)
+  if (idx >= 0) {
+    list.splice(idx, 1)
+  } else {
+    list.push(ext)
+  }
+  formData.value.allowed_extensions = [...list]
+}
+
+function isExtSelected(ext) {
+  if (allExtensionsAllowed.value) return false
+  return (formData.value.allowed_extensions || []).includes(ext)
 }
 
 async function saveForm() {
   formSaving.value = true
   formErrors.value = {}
   try {
+    const payload = { ...formData.value }
+    // Convert empty array to null (= all allowed)
+    if (Array.isArray(payload.allowed_extensions) && payload.allowed_extensions.length === 0) {
+      payload.allowed_extensions = null
+    }
     if (editId.value) {
-      await mediaUsageTypes.update(editId.value, formData.value)
+      await mediaUsageTypes.update(editId.value, payload)
     } else {
-      await mediaUsageTypes.create(formData.value)
+      await mediaUsageTypes.create(payload)
     }
     showForm.value = false
     await fetchItems()
@@ -119,6 +170,35 @@ onMounted(() => fetchItems())
           <input class="pim-input" type="number" v-model.number="formData.sort_order" />
         </div>
       </div>
+
+      <!-- Allowed extensions -->
+      <div>
+        <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-2">Erlaubte Dateitypen</label>
+        <label class="inline-flex items-center gap-2 cursor-pointer mb-2">
+          <input type="checkbox" :checked="allExtensionsAllowed" class="w-3.5 h-3.5 accent-[var(--color-primary)]" @change="toggleAllExtensions" />
+          <span class="text-xs text-[var(--color-text-primary)]">Alle Dateitypen erlaubt</span>
+        </label>
+        <div v-if="!allExtensionsAllowed" class="space-y-2">
+          <div v-for="group in extensionGroups" :key="group.label">
+            <span class="text-[11px] text-[var(--color-text-tertiary)] font-medium">{{ group.label }}</span>
+            <div class="flex flex-wrap gap-1.5 mt-1">
+              <button
+                v-for="ext in group.exts"
+                :key="ext"
+                type="button"
+                class="px-2 py-0.5 rounded text-[11px] border transition-colors"
+                :class="isExtSelected(ext)
+                  ? 'bg-[var(--color-accent)] text-white border-[var(--color-accent)]'
+                  : 'bg-[var(--color-surface)] text-[var(--color-text-secondary)] border-[var(--color-border)] hover:border-[var(--color-accent)]'"
+                @click="toggleExt(ext)"
+              >
+                .{{ ext }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="flex gap-2">
         <button class="pim-btn pim-btn-primary text-xs" :disabled="formSaving" @click="saveForm">
           {{ formSaving ? 'Speichern…' : 'Speichern' }}
@@ -129,7 +209,7 @@ onMounted(() => fetchItems())
 
     <PimTable
       :columns="columns"
-      :rows="items"
+      :rows="tableRows"
       :loading="loading"
       :showActions="authStore.hasPermission('media-usage-types.delete')"
       emptyText="Keine Bildtypen vorhanden"

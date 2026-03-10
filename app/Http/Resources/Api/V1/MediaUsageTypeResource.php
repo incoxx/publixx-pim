@@ -18,6 +18,7 @@ class MediaUsageTypeResource extends JsonResource
             'name_en' => $this->name_en,
             'name_json' => $this->name_json,
             'sort_order' => $this->sort_order,
+            'allowed_extensions' => $this->allowed_extensions,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

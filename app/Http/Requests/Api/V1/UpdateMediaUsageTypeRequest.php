@@ -25,6 +25,8 @@ class UpdateMediaUsageTypeRequest extends FormRequest
             'name_en' => 'nullable|string|max:255',
             'name_json' => 'nullable|array',
             'sort_order' => 'integer',
+            'allowed_extensions' => 'nullable|array',
+            'allowed_extensions.*' => 'string|max:10',
         ];
     }
 }

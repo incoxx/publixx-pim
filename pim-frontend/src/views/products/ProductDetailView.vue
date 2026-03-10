@@ -666,6 +666,12 @@ const selectedUsageTypeId = ref(null)
 const mediaViewMode = ref('grid') // 'grid' | 'list'
 const mediaFilter = ref('')
 
+const selectedUsageTypeExtensions = computed(() => {
+  if (!selectedUsageTypeId.value) return null
+  const ut = usageTypesList.value.find(t => t.id === selectedUsageTypeId.value)
+  return ut?.allowed_extensions ?? null
+})
+
 async function loadMedia() {
   if (mediaLoaded.value || !product.value) return
   mediaLoading.value = true
@@ -729,9 +735,12 @@ async function detachMedia(item) {
 }
 
 function getMediaUrl(item) {
-  const fname = item.file_name || item.media?.file_name
+  // Use thumb_url from the media relation for grid display (faster, cached)
+  const media = item.media || item
+  if (media.thumb_url) return media.thumb_url
+  const fname = media.file_name || item.file_name
   if (fname) return mediaApi.fileUrl(fname)
-  return item.url || ''
+  return media.url || item.url || ''
 }
 
 function isMediaPdf(item) {
@@ -2147,6 +2156,7 @@ watch(() => route.params.id, async (newId, oldId) => {
         :usage-types="usageTypesList"
         :selected-usage-type-id="selectedUsageTypeId"
         :exclude-media-ids="assignedMediaIds"
+        :allowed-extensions="selectedUsageTypeExtensions"
         @update:selected-usage-type-id="selectedUsageTypeId = $event"
         @select="attachMedia($event)"
       />
