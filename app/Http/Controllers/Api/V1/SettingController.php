@@ -45,6 +45,8 @@ class SettingController extends Controller
         'card_show_sku' => false,
         'card_show_category' => true,
         'card_show_price' => true,
+        'card_price_type_id' => null,
+        'card_price_country' => null,
         'card_image_ratio' => '4/3',
     ];
 
@@ -115,6 +117,8 @@ class SettingController extends Controller
             'card_show_sku' => 'nullable|boolean',
             'card_show_category' => 'nullable|boolean',
             'card_show_price' => 'nullable|boolean',
+            'card_price_type_id' => 'nullable|uuid|exists:price_types,id',
+            'card_price_country' => 'nullable|string|max:2',
             'card_image_ratio' => 'nullable|string|in:4/3,1/1,3/4,16/9',
         ]);
 

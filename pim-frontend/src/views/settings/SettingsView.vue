@@ -9,6 +9,7 @@ import catalogApi from '@/api/catalog'
 import mediaApi from '@/api/media'
 import hierarchiesApi from '@/api/hierarchies'
 import attributesApi, { attributeViews as attributeViewsApi } from '@/api/attributes'
+import { priceTypes as priceTypesApi } from '@/api/prices'
 import catalogPresets from '@/config/catalogPresets'
 
 const { t } = useI18n()
@@ -62,6 +63,7 @@ const availableHierarchies = ref([])
 const availableAttributeViews = ref([])
 const availableAttributes = ref([])
 const allAttributes = ref([])
+const availablePriceTypes = ref([])
 
 async function loadHierarchies() {
   try {
@@ -89,6 +91,15 @@ async function loadAttributes() {
     availableAttributes.value = all.filter(a => FACET_DATA_TYPES.includes(a.data_type))
   } catch (e) {
     console.warn('Failed to load attributes:', e.message)
+  }
+}
+
+async function loadPriceTypes() {
+  try {
+    const { data } = await priceTypesApi.list()
+    availablePriceTypes.value = data.data || data || []
+  } catch (e) {
+    console.warn('Failed to load price types:', e.message)
   }
 }
 
@@ -132,6 +143,8 @@ const themeForm = ref({
   card_show_sku: false,
   card_show_category: true,
   card_show_price: true,
+  card_price_type_id: null,
+  card_price_country: null,
   card_image_ratio: '4/3',
 })
 const themeLogoPreview = ref(null)
@@ -180,6 +193,8 @@ async function loadThemeSettings() {
         card_show_sku: d.card_show_sku ?? false,
         card_show_category: d.card_show_category ?? true,
         card_show_price: d.card_show_price ?? true,
+        card_price_type_id: d.card_price_type_id || null,
+        card_price_country: d.card_price_country || null,
         card_image_ratio: d.card_image_ratio || '4/3',
       }
       themeLogoPreview.value = d.logo_url || null
@@ -207,6 +222,8 @@ async function saveThemeSettings() {
     payload.card_show_sku = !!payload.card_show_sku
     payload.card_show_category = !!payload.card_show_category
     payload.card_show_price = !!payload.card_show_price
+    if (!payload.card_price_type_id) payload.card_price_type_id = null
+    if (!payload.card_price_country) payload.card_price_country = null
     await adminApi.updateCatalogTheme(payload)
     themeSaved.value = true
     setTimeout(() => { themeSaved.value = false }, 3000)
@@ -359,6 +376,7 @@ onMounted(() => {
     loadHierarchies()
     loadAttributeViews()
     loadAttributes()
+    loadPriceTypes()
   }
 })
 </script>
@@ -560,6 +578,30 @@ onMounted(() => {
                 <input type="checkbox" v-model="themeForm.card_show_price" class="rounded border-[var(--color-border-strong)] text-[var(--color-accent)]" />
                 Preis anzeigen
               </label>
+            </div>
+          </div>
+          <!-- Price type & country config (only shown when price is enabled) -->
+          <div v-if="themeForm.card_show_price" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Preistyp</label>
+              <select class="pim-input text-xs" v-model="themeForm.card_price_type_id">
+                <option :value="null">Standard (Listenpreis)</option>
+                <option v-for="pt in availablePriceTypes" :key="pt.id" :value="pt.id">
+                  {{ pt.name_de || pt.name_en || pt.technical_name }}
+                </option>
+              </select>
+              <p class="text-[10px] text-[var(--color-text-tertiary)] mt-0.5">Welcher Preistyp auf Karten angezeigt wird.</p>
+            </div>
+            <div>
+              <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Land (ISO)</label>
+              <input
+                type="text"
+                class="pim-input text-xs uppercase"
+                v-model="themeForm.card_price_country"
+                maxlength="2"
+                placeholder="z.B. DE, AT, CH"
+              />
+              <p class="text-[10px] text-[var(--color-text-tertiary)] mt-0.5">Länderspezifischer Preis (optional, 2-stelliger ISO-Code).</p>
             </div>
           </div>
           <div>

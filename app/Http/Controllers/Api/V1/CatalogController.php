@@ -16,6 +16,7 @@ use App\Models\Product;
 use App\Models\ProductSearchIndex;
 use App\Models\Attribute;
 use App\Models\ProductAttributeValue;
+use App\Models\ProductPrice;
 use App\Models\Setting;
 use App\Models\ValueListEntry;
 use Illuminate\Http\JsonResponse;
@@ -193,9 +194,49 @@ class CatalogController extends BaseController
             }
         }
 
-        // Attach card attributes directly to each item (additional() does NOT propagate to individual resources)
+        // Resolve price from configured price type + country (instead of hardcoded list_price)
+        $priceTypeId = $themePayload['card_price_type_id'] ?? null;
+        $priceCountry = $themePayload['card_price_country'] ?? null;
+        $priceMap = [];
+
+        if ($priceTypeId) {
+            $productIds = $productIds ?? collect($paginated->items())->pluck('id')->toArray();
+            if (!empty($productIds)) {
+                $priceQuery = ProductPrice::whereIn('product_id', $productIds)
+                    ->where('price_type_id', $priceTypeId)
+                    ->where(function ($q) {
+                        $q->whereNull('valid_to')
+                           ->orWhere('valid_to', '>=', now()->toDateString());
+                    });
+
+                if ($priceCountry) {
+                    $priceQuery->where(function ($q) use ($priceCountry) {
+                        $q->where('country', $priceCountry)
+                           ->orWhereNull('country');
+                    })->orderByRaw('country IS NULL ASC'); // prefer country-specific
+                }
+
+                $priceQuery->orderBy('valid_from', 'desc');
+
+                $prices = $priceQuery->get();
+                foreach ($prices as $price) {
+                    // Keep only the first (most relevant) price per product
+                    if (!isset($priceMap[$price->product_id])) {
+                        $priceMap[$price->product_id] = [
+                            'amount' => (float) $price->amount,
+                            'currency' => $price->currency,
+                        ];
+                    }
+                }
+            }
+        }
+
+        // Attach card attributes + resolved price to each item
         foreach ($paginated->items() as $item) {
             $item->card_attributes = $cardAttributeMap[$item->id] ?? [];
+            if (!empty($priceMap) && isset($priceMap[$item->id])) {
+                $item->resolved_price = $priceMap[$item->id];
+            }
         }
 
         $data = CatalogProductResource::collection($paginated->items())

@@ -27,7 +27,7 @@ const formattedPrice = computed(() => {
   if (!props.product.price) return null
   return new Intl.NumberFormat(store.locale === 'de' ? 'de-DE' : 'en-US', {
     style: 'currency',
-    currency: 'EUR',
+    currency: props.product.currency || 'EUR',
   }).format(props.product.price)
 })
 

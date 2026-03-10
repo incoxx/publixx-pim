@@ -21,6 +21,11 @@ class CatalogProductResource extends JsonResource
             $imageUrl = url('api/v1/catalog/media/' . rawurlencode($this->primary_image));
         }
 
+        // Use resolved price if available (from configured price type), fallback to list_price
+        $resolvedPrice = $this->resolved_price ?? null;
+        $price = $resolvedPrice ? $resolvedPrice['amount'] : $this->list_price;
+        $currency = $resolvedPrice ? $resolvedPrice['currency'] : 'EUR';
+
         return [
             'id' => $this->id,
             'sku' => $this->sku,
@@ -29,7 +34,8 @@ class CatalogProductResource extends JsonResource
             'description' => $description,
             'category_path' => $this->hierarchy_path,
             'image_url' => $imageUrl,
-            'price' => $this->list_price,
+            'price' => $price,
+            'currency' => $currency,
             'product_type' => $this->product_type,
             'card_attributes' => $this->card_attributes ?? [],
         ];
