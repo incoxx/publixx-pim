@@ -3,7 +3,7 @@ import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useLocaleStore } from '@/stores/locale'
 import { useAuthStore } from '@/stores/auth'
-import { Globe, Palette, AlertTriangle, Server, RotateCcw, CheckCircle, XCircle, Loader2, GitBranch, Database, Upload, Trash2, Save, Filter, LayoutGrid, Columns3, Image } from 'lucide-vue-next'
+import { Globe, Palette, AlertTriangle, Server, RotateCcw, CheckCircle, XCircle, Loader2, GitBranch, Database, Upload, Trash2, Save, Filter, LayoutGrid, Columns3, Image, Settings2, Paintbrush, BookOpen } from 'lucide-vue-next'
 import adminApi from '@/api/admin'
 import catalogApi from '@/api/catalog'
 import mediaApi from '@/api/media'
@@ -147,6 +147,7 @@ const themeForm = ref({
   card_price_country: null,
   card_image_ratio: '4/3',
 })
+const activeThemeTab = ref('general')
 const themeLogoPreview = ref(null)
 const themeSaving = ref(false)
 const themeSaved = ref(false)
@@ -417,30 +418,28 @@ onMounted(() => {
       </div>
 
       <template v-else>
-        <!-- Typografie -->
-        <div class="space-y-3">
-          <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">Typografie</h4>
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
-              <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Schriftart</label>
-              <select class="pim-input" v-model="themeForm.font_family">
-                <option v-for="f in FONT_OPTIONS" :key="f" :value="f">{{ f }}</option>
-              </select>
-            </div>
-            <div>
-              <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Überschriften</label>
-              <select class="pim-input" v-model="themeForm.font_heading_size">
-                <option v-for="o in HEADING_SIZE_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
-              </select>
-            </div>
-            <div>
-              <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Fließtext</label>
-              <select class="pim-input" v-model="themeForm.font_body_size">
-                <option v-for="o in BODY_SIZE_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
-              </select>
-            </div>
-          </div>
+        <!-- Tab Navigation -->
+        <div class="flex gap-1 border-b border-[var(--color-border)] -mx-6 px-6">
+          <button
+            v-for="tab in [
+              { key: 'general', label: 'Allgemein', icon: Settings2 },
+              { key: 'design', label: 'Design', icon: Paintbrush },
+              { key: 'catalog', label: 'Katalog', icon: BookOpen },
+            ]"
+            :key="tab.key"
+            class="flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 -mb-px transition-colors"
+            :class="activeThemeTab === tab.key
+              ? 'border-[var(--color-accent)] text-[var(--color-accent)]'
+              : 'border-transparent text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'"
+            @click="activeThemeTab = tab.key"
+          >
+            <component :is="tab.icon" class="w-3.5 h-3.5" :stroke-width="2" />
+            {{ tab.label }}
+          </button>
         </div>
+
+        <!-- ═══ TAB: Allgemein ═══ -->
+        <div v-show="activeThemeTab === 'general'" class="space-y-5">
 
         <!-- Katalog-Konfiguration -->
         <div class="space-y-3">
@@ -493,6 +492,168 @@ onMounted(() => {
             </div>
           </div>
         </div>
+
+        <!-- Logo & Titel -->
+        <div class="space-y-3">
+          <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">Logo & Titel</h4>
+          <div class="flex items-start gap-4">
+            <div class="w-24 h-16 rounded border border-[var(--color-border)] bg-[var(--color-bg)] flex items-center justify-center overflow-hidden">
+              <img v-if="themeLogoPreview" :src="themeLogoPreview" class="max-w-full max-h-full object-contain p-1" alt="Logo" />
+              <span v-else class="text-[10px] text-[var(--color-text-tertiary)]">Kein Logo</span>
+            </div>
+            <div class="flex-1 space-y-2">
+              <div class="flex gap-2">
+                <label class="pim-btn pim-btn-secondary text-xs cursor-pointer">
+                  <Upload class="w-3.5 h-3.5" /> Logo hochladen
+                  <input type="file" accept="image/*" class="hidden" @change="uploadLogo" />
+                </label>
+                <button v-if="themeForm.logo_media_id" class="pim-btn pim-btn-ghost text-xs text-[var(--color-error)]" @click="removeLogo">
+                  <Trash2 class="w-3.5 h-3.5" /> Entfernen
+                </button>
+              </div>
+              <div>
+                <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Katalog-Titel</label>
+                <input class="pim-input text-xs" v-model="themeForm.catalog_title" placeholder="Produktkatalog" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SEO -->
+        <div class="space-y-3">
+          <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">SEO / Meta-Tags</h4>
+          <div>
+            <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">SEO-Titel <span class="text-[var(--color-text-tertiary)] font-normal">(Browser-Tab & Suchmaschinen)</span></label>
+            <input class="pim-input text-xs" v-model="themeForm.seo_title" placeholder="z.B. Produktkatalog – Firma GmbH" />
+          </div>
+          <div>
+            <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Meta-Description <span class="text-[var(--color-text-tertiary)] font-normal">(max. 160 Zeichen)</span></label>
+            <textarea class="pim-input text-xs" rows="2" v-model="themeForm.seo_description" maxlength="500" placeholder="Kurze Beschreibung für Suchmaschinen…"></textarea>
+            <p class="text-[10px] text-[var(--color-text-tertiary)] mt-0.5">{{ (themeForm.seo_description || '').length }} / 160 Zeichen</p>
+          </div>
+        </div>
+
+        <!-- Legal -->
+        <div class="space-y-3">
+          <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">Impressum & Kontakt</h4>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Impressum-URL</label>
+              <input class="pim-input text-xs" v-model="themeForm.impressum_url" placeholder="https://..." />
+            </div>
+            <div>
+              <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Kontakt-URL</label>
+              <input class="pim-input text-xs" v-model="themeForm.kontakt_url" placeholder="https://..." />
+            </div>
+          </div>
+          <div>
+            <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Impressum-Text <span class="text-[var(--color-text-tertiary)] font-normal">(wird als eigene Seite angezeigt)</span></label>
+            <textarea class="pim-input text-xs" rows="4" v-model="themeForm.impressum_text" placeholder="Firma GmbH, Musterstraße 1, ..."></textarea>
+          </div>
+          <div>
+            <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Kontakt-Text <span class="text-[var(--color-text-tertiary)] font-normal">(wird als eigene Seite angezeigt)</span></label>
+            <textarea class="pim-input text-xs" rows="4" v-model="themeForm.kontakt_text" placeholder="E-Mail: info@firma.de, Tel: ..."></textarea>
+          </div>
+          <div>
+            <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Footer-Text <span class="text-[var(--color-text-tertiary)] font-normal">(ersetzt &bdquo;Powered by&ldquo;)</span></label>
+            <input class="pim-input text-xs" v-model="themeForm.footer_text" placeholder="© 2026 Firma GmbH" />
+          </div>
+        </div>
+
+        </div><!-- end TAB: Allgemein -->
+
+        <!-- ═══ TAB: Design ═══ -->
+        <div v-show="activeThemeTab === 'design'" class="space-y-5">
+
+        <!-- Typografie -->
+        <div class="space-y-3">
+          <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">Typografie</h4>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Schriftart</label>
+              <select class="pim-input" v-model="themeForm.font_family">
+                <option v-for="f in FONT_OPTIONS" :key="f" :value="f">{{ f }}</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Überschriften</label>
+              <select class="pim-input" v-model="themeForm.font_heading_size">
+                <option v-for="o in HEADING_SIZE_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Fließtext</label>
+              <select class="pim-input" v-model="themeForm.font_body_size">
+                <option v-for="o in BODY_SIZE_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Farb-Presets -->
+        <div class="space-y-3">
+          <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">Farb-Presets</h4>
+          <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+            <button
+              v-for="preset in catalogPresets"
+              :key="preset.name"
+              class="flex items-center gap-2 px-3 py-2.5 rounded-lg border text-left transition-all hover:shadow-sm"
+              :class="themeForm.color_primary === preset.colors.color_primary && themeForm.color_accent === preset.colors.color_accent
+                ? 'border-[var(--color-accent)] ring-2 ring-[var(--color-accent)]/30 bg-[var(--color-accent)]/5'
+                : 'border-[var(--color-border)] hover:border-[var(--color-border-strong)]'"
+              @click="applyPreset(preset)"
+            >
+              <div class="flex -space-x-1.5 shrink-0">
+                <span class="w-5 h-5 rounded-full border-2 border-white shadow-sm" :style="{ backgroundColor: preset.colors.color_primary }"></span>
+                <span class="w-5 h-5 rounded-full border-2 border-white shadow-sm" :style="{ backgroundColor: preset.colors.color_accent }"></span>
+              </div>
+              <span class="text-[11px] font-medium text-[var(--color-text-primary)] truncate">{{ preset.name }}</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Farben -->
+        <div class="space-y-3">
+          <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">Farben</h4>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div v-for="c in [
+              { key: 'color_primary', label: 'Primär / Überschriften' },
+              { key: 'color_accent', label: 'Akzentfarbe' },
+              { key: 'color_sidebar', label: 'Menüpunkte (Sidebar)' },
+              { key: 'color_button', label: 'Buttons' },
+              { key: 'color_table_bg', label: 'Tabellen-Hintergrund' },
+              { key: 'color_table_stripe', label: 'Tabellen-Zeilen (alternierend)' },
+              { key: 'color_body_text', label: 'Textfarbe' },
+              { key: 'color_header_bg', label: 'Header-Hintergrund' },
+              { key: 'color_header_text', label: 'Header-Text' },
+              { key: 'color_mobile_menu_bg', label: 'Mobiles Menü Hintergrund' },
+              { key: 'color_mobile_menu_text', label: 'Mobiles Menü Text' },
+            ]" :key="c.key">
+              <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">{{ c.label }}</label>
+              <div class="flex items-center gap-2">
+                <input
+                  type="color"
+                  :value="themeForm[c.key] || '#000000'"
+                  @input="themeForm[c.key] = $event.target.value"
+                  class="w-9 h-9 rounded border border-[var(--color-border)] cursor-pointer p-0.5"
+                />
+                <input
+                  type="text"
+                  :value="themeForm[c.key]"
+                  @input="themeForm[c.key] = $event.target.value"
+                  class="pim-input font-mono text-xs flex-1"
+                  maxlength="7"
+                  placeholder="#000000"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        </div><!-- end TAB: Design -->
+
+        <!-- ═══ TAB: Katalog ═══ -->
+        <div v-show="activeThemeTab === 'catalog'" class="space-y-5">
 
         <!-- Detail-Ansicht -->
         <div class="space-y-3">
@@ -665,132 +826,7 @@ onMounted(() => {
           </div>
         </div>
 
-        <!-- Farb-Presets -->
-        <div class="space-y-3">
-          <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">Farb-Presets</h4>
-          <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
-            <button
-              v-for="preset in catalogPresets"
-              :key="preset.name"
-              class="flex items-center gap-2 px-3 py-2.5 rounded-lg border text-left transition-all hover:shadow-sm"
-              :class="themeForm.color_primary === preset.colors.color_primary && themeForm.color_accent === preset.colors.color_accent
-                ? 'border-[var(--color-accent)] ring-2 ring-[var(--color-accent)]/30 bg-[var(--color-accent)]/5'
-                : 'border-[var(--color-border)] hover:border-[var(--color-border-strong)]'"
-              @click="applyPreset(preset)"
-            >
-              <div class="flex -space-x-1.5 shrink-0">
-                <span class="w-5 h-5 rounded-full border-2 border-white shadow-sm" :style="{ backgroundColor: preset.colors.color_primary }"></span>
-                <span class="w-5 h-5 rounded-full border-2 border-white shadow-sm" :style="{ backgroundColor: preset.colors.color_accent }"></span>
-              </div>
-              <span class="text-[11px] font-medium text-[var(--color-text-primary)] truncate">{{ preset.name }}</span>
-            </button>
-          </div>
-        </div>
-
-        <!-- Farben -->
-        <div class="space-y-3">
-          <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">Farben</h4>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div v-for="c in [
-              { key: 'color_primary', label: 'Primär / Überschriften' },
-              { key: 'color_accent', label: 'Akzentfarbe' },
-              { key: 'color_sidebar', label: 'Menüpunkte (Sidebar)' },
-              { key: 'color_button', label: 'Buttons' },
-              { key: 'color_table_bg', label: 'Tabellen-Hintergrund' },
-              { key: 'color_table_stripe', label: 'Tabellen-Zeilen (alternierend)' },
-              { key: 'color_body_text', label: 'Textfarbe' },
-              { key: 'color_header_bg', label: 'Header-Hintergrund' },
-              { key: 'color_header_text', label: 'Header-Text' },
-              { key: 'color_mobile_menu_bg', label: 'Mobiles Menü Hintergrund' },
-              { key: 'color_mobile_menu_text', label: 'Mobiles Menü Text' },
-            ]" :key="c.key">
-              <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">{{ c.label }}</label>
-              <div class="flex items-center gap-2">
-                <input
-                  type="color"
-                  :value="themeForm[c.key] || '#000000'"
-                  @input="themeForm[c.key] = $event.target.value"
-                  class="w-9 h-9 rounded border border-[var(--color-border)] cursor-pointer p-0.5"
-                />
-                <input
-                  type="text"
-                  :value="themeForm[c.key]"
-                  @input="themeForm[c.key] = $event.target.value"
-                  class="pim-input font-mono text-xs flex-1"
-                  maxlength="7"
-                  placeholder="#000000"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Logo & Titel -->
-        <div class="space-y-3">
-          <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">Logo & Titel</h4>
-          <div class="flex items-start gap-4">
-            <div class="w-24 h-16 rounded border border-[var(--color-border)] bg-[var(--color-bg)] flex items-center justify-center overflow-hidden">
-              <img v-if="themeLogoPreview" :src="themeLogoPreview" class="max-w-full max-h-full object-contain p-1" alt="Logo" />
-              <span v-else class="text-[10px] text-[var(--color-text-tertiary)]">Kein Logo</span>
-            </div>
-            <div class="flex-1 space-y-2">
-              <div class="flex gap-2">
-                <label class="pim-btn pim-btn-secondary text-xs cursor-pointer">
-                  <Upload class="w-3.5 h-3.5" /> Logo hochladen
-                  <input type="file" accept="image/*" class="hidden" @change="uploadLogo" />
-                </label>
-                <button v-if="themeForm.logo_media_id" class="pim-btn pim-btn-ghost text-xs text-[var(--color-error)]" @click="removeLogo">
-                  <Trash2 class="w-3.5 h-3.5" /> Entfernen
-                </button>
-              </div>
-              <div>
-                <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Katalog-Titel</label>
-                <input class="pim-input text-xs" v-model="themeForm.catalog_title" placeholder="Produktkatalog" />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- SEO -->
-        <div class="space-y-3">
-          <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">SEO / Meta-Tags</h4>
-          <div>
-            <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">SEO-Titel <span class="text-[var(--color-text-tertiary)] font-normal">(Browser-Tab & Suchmaschinen)</span></label>
-            <input class="pim-input text-xs" v-model="themeForm.seo_title" placeholder="z.B. Produktkatalog – Firma GmbH" />
-          </div>
-          <div>
-            <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Meta-Description <span class="text-[var(--color-text-tertiary)] font-normal">(max. 160 Zeichen)</span></label>
-            <textarea class="pim-input text-xs" rows="2" v-model="themeForm.seo_description" maxlength="500" placeholder="Kurze Beschreibung für Suchmaschinen…"></textarea>
-            <p class="text-[10px] text-[var(--color-text-tertiary)] mt-0.5">{{ (themeForm.seo_description || '').length }} / 160 Zeichen</p>
-          </div>
-        </div>
-
-        <!-- Legal -->
-        <div class="space-y-3">
-          <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">Impressum & Kontakt</h4>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Impressum-URL</label>
-              <input class="pim-input text-xs" v-model="themeForm.impressum_url" placeholder="https://..." />
-            </div>
-            <div>
-              <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Kontakt-URL</label>
-              <input class="pim-input text-xs" v-model="themeForm.kontakt_url" placeholder="https://..." />
-            </div>
-          </div>
-          <div>
-            <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Impressum-Text <span class="text-[var(--color-text-tertiary)] font-normal">(wird als eigene Seite angezeigt)</span></label>
-            <textarea class="pim-input text-xs" rows="4" v-model="themeForm.impressum_text" placeholder="Firma GmbH, Musterstraße 1, ..."></textarea>
-          </div>
-          <div>
-            <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Kontakt-Text <span class="text-[var(--color-text-tertiary)] font-normal">(wird als eigene Seite angezeigt)</span></label>
-            <textarea class="pim-input text-xs" rows="4" v-model="themeForm.kontakt_text" placeholder="E-Mail: info@firma.de, Tel: ..."></textarea>
-          </div>
-          <div>
-            <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Footer-Text <span class="text-[var(--color-text-tertiary)] font-normal">(ersetzt &bdquo;Powered by&ldquo;)</span></label>
-            <input class="pim-input text-xs" v-model="themeForm.footer_text" placeholder="© 2026 Firma GmbH" />
-          </div>
-        </div>
+        </div><!-- end TAB: Katalog -->
 
         <!-- Save -->
         <div class="flex items-center gap-3 pt-2 border-t border-[var(--color-border)]">
