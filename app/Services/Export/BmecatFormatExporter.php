@@ -6,6 +6,7 @@ namespace App\Services\Export;
 
 use App\Models\Hierarchy;
 use App\Models\HierarchyNode;
+use App\Models\MediaUsageType;
 use App\Models\OutputHierarchyProductAssignment;
 use App\Models\Product;
 use App\Models\ProductAttributeValue;
@@ -13,7 +14,7 @@ use App\Services\Import\BmecatElementMap;
 use Illuminate\Support\Collection;
 
 /**
- * Exportiert PIM-Daten als BMEcat-XML (1.2 oder 2005).
+ * Exportiert PIM-Daten als BMEcat-XML (Version 1.2 oder 2005).
  *
  * Unterstützt T_NEW_CATALOG und erlaubt Filterung nach Hierarchie,
  * Produkttypen, Attributen, Preistypen und Beziehungstypen.
@@ -29,6 +30,9 @@ class BmecatFormatExporter
     private array $attributeIds = [];
     private array $priceTypeIds = [];
     private array $relationTypeIds = [];
+
+    /** @var array<string, string> usage_type_id → technical_name */
+    private array $usageTypeMap = [];
 
     /** @var string[] Attribute technical_names die als PRODUCT_DETAILS-Felder gemappt werden */
     private const DETAIL_ATTRIBUTES = [
@@ -74,6 +78,9 @@ class BmecatFormatExporter
     {
         $this->elementMap = BmecatElementMap::forVersion($this->version);
         $isV12 = BmecatElementMap::isVersion12($this->version);
+
+        // UsageType-Map einmalig laden (ID → technical_name)
+        $this->usageTypeMap = MediaUsageType::pluck('technical_name', 'id')->toArray();
 
         $xml = new \XMLWriter();
         $xml->openMemory();
@@ -439,7 +446,8 @@ class BmecatFormatExporter
             $xml->writeElement('MIME_TYPE', $medium->mime_type ?? 'image/jpeg');
             $xml->writeElement('MIME_SOURCE', $medium->file_name ?? $medium->path ?? '');
 
-            $purpose = $medium->pivot->usage_type ?? 'normal';
+            $usageTypeId = $medium->pivot->usage_type_id;
+            $purpose = $usageTypeId ? ($this->usageTypeMap[$usageTypeId] ?? 'normal') : 'normal';
             $xml->writeElement('MIME_PURPOSE', $this->mapMimePurpose($purpose));
             $xml->writeElement('MIME_ORDER', (string) $order);
             $order++;
@@ -464,7 +472,7 @@ class BmecatFormatExporter
             }
 
             $xml->startElement($el['product_reference']);
-            $xml->writeAttribute('type', $relation->relationType->technical_name ?? 'similar');
+            $xml->writeAttribute('type', $relation->relationType?->technical_name ?? 'similar');
             $xml->writeElement($el['prod_id_to'], $relation->targetProduct->sku);
             $xml->endElement();
         }
@@ -482,19 +490,38 @@ class BmecatFormatExporter
         }
 
         $nodeIds = $hierarchy->nodes->pluck('id')->toArray();
+        $nodeIdSet = array_flip($nodeIds);
 
+        // 1) Explizite Zuordnungen aus output_hierarchy_product_assignments
         $assignments = OutputHierarchyProductAssignment::whereIn('product_id', $productIds)
             ->whereIn('hierarchy_node_id', $nodeIds)
             ->with(['product', 'hierarchyNode'])
             ->get();
 
         $result = [];
+        $mappedProductIds = [];
+
         foreach ($assignments as $assignment) {
             if ($assignment->product && $assignment->hierarchyNode) {
                 $result[] = [
                     'sku' => $assignment->product->sku,
                     'group_id' => $assignment->hierarchyNode->id,
                     'sort_order' => $assignment->sort_order ?? 1,
+                ];
+                $mappedProductIds[$assignment->product_id] = true;
+            }
+        }
+
+        // 2) Fallback: master_hierarchy_node_id für Produkte ohne explizite Zuordnung
+        foreach ($products as $product) {
+            if (isset($mappedProductIds[$product->id])) {
+                continue;
+            }
+            if ($product->master_hierarchy_node_id && isset($nodeIdSet[$product->master_hierarchy_node_id])) {
+                $result[] = [
+                    'sku' => $product->sku,
+                    'group_id' => $product->master_hierarchy_node_id,
+                    'sort_order' => 1,
                 ];
             }
         }

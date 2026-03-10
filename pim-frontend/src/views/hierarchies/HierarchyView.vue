@@ -508,13 +508,15 @@ async function loadNodeProducts(nodeId) {
   } finally { nodeProductsLoading.value = false }
 }
 
-// ─── Output Hierarchy Product Assignment ─────────────
+// ─── Product Assignment (both master + output) ──────
 function searchProducts() {
   clearTimeout(productSearchTimer)
   if (!productSearchQuery.value.trim()) { productSearchResults.value = []; return }
   productSearchTimer = setTimeout(async () => {
     try {
-      const assignedIds = new Set(outputProductAssignments.value.map(a => a.product?.id || a.product_id))
+      const assignedIds = store.isMasterHierarchy
+        ? new Set(nodeProducts.value.map(p => p.id))
+        : new Set(outputProductAssignments.value.map(a => a.product?.id || a.product_id))
       const { data } = await productsApi.list({ search: productSearchQuery.value, perPage: 10 })
       productSearchResults.value = (data.data || data).filter(p => !assignedIds.has(p.id))
     } catch { productSearchResults.value = [] }
@@ -524,7 +526,11 @@ function searchProducts() {
 async function assignProductToNode(product) {
   if (!store.selectedNode) return
   try {
-    await hierarchiesApi.assignOutputProduct(store.selectedNode.id, { product_id: product.id })
+    if (store.isMasterHierarchy) {
+      await hierarchiesApi.assignMasterProduct(store.selectedNode.id, { product_id: product.id })
+    } else {
+      await hierarchiesApi.assignOutputProduct(store.selectedNode.id, { product_id: product.id })
+    }
     productSearchQuery.value = ''
     productSearchResults.value = []
     showProductSearch.value = false
@@ -538,6 +544,17 @@ async function assignProductToNode(product) {
 async function removeOutputProduct(assignmentId) {
   try {
     await hierarchiesApi.removeOutputProductAssignment(assignmentId)
+    await loadNodeProducts(store.selectedNode.id)
+    showFeedback('Zuordnung entfernt')
+  } catch (e) {
+    showFeedback(e.response?.data?.title || 'Fehler beim Entfernen', 'error')
+  }
+}
+
+async function removeMasterProduct(productId) {
+  if (!store.selectedNode) return
+  try {
+    await hierarchiesApi.removeMasterProduct(store.selectedNode.id, productId)
     await loadNodeProducts(store.selectedNode.id)
     showFeedback('Zuordnung entfernt')
   } catch (e) {
@@ -835,13 +852,13 @@ onMounted(async () => {
               <Package class="w-3.5 h-3.5 inline-block mr-1 -mt-0.5" :stroke-width="1.75" />
               Zugeordnete Produkte
             </h4>
-            <button v-if="!store.isMasterHierarchy && authStore.hasPermission('hierarchies.edit')" class="pim-btn pim-btn-secondary text-xs" @click="showProductSearch = !showProductSearch">
+            <button v-if="authStore.hasPermission('hierarchies.edit')" class="pim-btn pim-btn-secondary text-xs" @click="showProductSearch = !showProductSearch">
               <Plus class="w-3 h-3" :stroke-width="2" /> Produkt zuordnen
             </button>
           </div>
 
-          <!-- Product search (output hierarchies only) -->
-          <div v-if="showProductSearch && !store.isMasterHierarchy" class="mb-3 p-3 bg-[var(--color-bg)] rounded-lg space-y-2">
+          <!-- Product search (all hierarchy types) -->
+          <div v-if="showProductSearch" class="mb-3 p-3 bg-[var(--color-bg)] rounded-lg space-y-2">
             <div class="relative">
               <Search class="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)]" :stroke-width="1.75" />
               <input
@@ -922,25 +939,34 @@ onMounted(async () => {
             <p v-else class="text-xs text-[var(--color-text-tertiary)]">Keine Produkte zugeordnet. Nutzen Sie die Suche, um Produkte zuzuordnen.</p>
           </template>
 
-          <!-- Master hierarchy: read-only product list -->
+          <!-- Master hierarchy: editable product list -->
           <template v-else>
             <div v-if="nodeProducts.length > 0" class="space-y-1">
               <div
                 v-for="prod in nodeProducts"
                 :key="prod.id"
-                class="flex items-center justify-between px-3 py-2 rounded-lg bg-[var(--color-bg)] cursor-pointer hover:bg-[var(--color-surface)] transition-colors"
-                @click="router.push(`/products/${prod.id}`)"
+                class="flex items-center justify-between px-3 py-2 rounded-lg bg-[var(--color-bg)] group"
               >
-                <div class="flex items-center gap-2">
-                  <span class="text-xs font-mono text-[var(--color-text-secondary)]">{{ prod.sku }}</span>
-                  <span class="text-xs font-medium">{{ prod.name || '—' }}</span>
+                <div class="flex items-center gap-2 flex-1 min-w-0 cursor-pointer" @click="router.push(`/products/${prod.id}`)">
+                  <span class="text-xs font-mono text-[var(--color-text-secondary)] shrink-0">{{ prod.sku }}</span>
+                  <span class="text-xs font-medium truncate">{{ prod.name || '—' }}</span>
                 </div>
-                <span :class="['pim-badge text-[10px]', prod.status === 'active' ? 'bg-[var(--color-success-light)] text-[var(--color-success)]' : 'bg-[var(--color-bg)] text-[var(--color-text-tertiary)]']">
-                  {{ prod.status }}
-                </span>
+                <div class="flex items-center gap-1 shrink-0">
+                  <span :class="['pim-badge text-[10px] mr-1', prod.status === 'active' ? 'bg-[var(--color-success-light)] text-[var(--color-success)]' : 'bg-[var(--color-bg)] text-[var(--color-text-tertiary)]']">
+                    {{ prod.status }}
+                  </span>
+                  <button
+                    v-if="authStore.hasPermission('hierarchies.edit')"
+                    class="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-[var(--color-error-light)] text-[var(--color-text-tertiary)] hover:text-[var(--color-error)] transition-all"
+                    @click.stop="removeMasterProduct(prod.id)"
+                    title="Zuordnung entfernen"
+                  >
+                    <X class="w-3.5 h-3.5" :stroke-width="2" />
+                  </button>
+                </div>
               </div>
             </div>
-            <p v-else class="text-xs text-[var(--color-text-tertiary)]">Keine Produkte zugeordnet. Weisen Sie Produkte über die Produktdetailseite zu.</p>
+            <p v-else class="text-xs text-[var(--color-text-tertiary)]">Keine Produkte zugeordnet. Nutzen Sie die Suche, um Produkte zuzuordnen.</p>
           </template>
         </div>
 

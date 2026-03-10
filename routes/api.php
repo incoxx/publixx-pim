@@ -247,6 +247,10 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::delete('output-hierarchy-product-assignments/{assignment}', [OutputHierarchyProductAssignmentController::class, 'destroy']);
     Route::get('products/{product}/output-hierarchy-assignments', [OutputHierarchyProductAssignmentController::class, 'productAssignments']);
 
+    // Master Hierarchy Product Assignments
+    Route::post('hierarchy-nodes/{hierarchy_node}/master-products', [OutputHierarchyProductAssignmentController::class, 'assignMasterProduct']);
+    Route::delete('hierarchy-nodes/{hierarchy_node}/master-products/{product}', [OutputHierarchyProductAssignmentController::class, 'removeMasterProduct']);
+
     // =====================================================================
     // Agent 3: Products
     // =====================================================================

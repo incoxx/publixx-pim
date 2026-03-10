@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Requests\Api\V1\StoreOutputHierarchyProductAssignmentRequest;
 use App\Http\Resources\Api\V1\OutputHierarchyProductAssignmentResource;
+use App\Http\Resources\Api\V1\ProductResource;
 use App\Models\HierarchyNode;
 use App\Models\OutputHierarchyProductAssignment;
 use App\Models\Product;
@@ -79,6 +80,43 @@ class OutputHierarchyProductAssignmentController extends Controller
         return OutputHierarchyProductAssignmentResource::collection(
             $query->paginate($this->getPerPage($request))
         );
+    }
+
+    /**
+     * POST /hierarchy-nodes/{hierarchy_node}/master-products
+     *
+     * Weist ein Produkt diesem Master-Hierarchie-Knoten zu (setzt master_hierarchy_node_id).
+     */
+    public function assignMasterProduct(Request $request, HierarchyNode $hierarchyNode): JsonResponse
+    {
+        $this->authorize('update', $hierarchyNode);
+
+        $request->validate([
+            'product_id' => 'required|uuid|exists:products,id',
+        ]);
+
+        $product = Product::findOrFail($request->input('product_id'));
+        $product->update(['master_hierarchy_node_id' => $hierarchyNode->id]);
+
+        return (new ProductResource($product->fresh()))
+            ->response()
+            ->setStatusCode(200);
+    }
+
+    /**
+     * DELETE /hierarchy-nodes/{hierarchy_node}/master-products/{product}
+     *
+     * Entfernt die Zuordnung eines Produkts von diesem Master-Knoten (setzt master_hierarchy_node_id = null).
+     */
+    public function removeMasterProduct(HierarchyNode $hierarchyNode, Product $product): JsonResponse
+    {
+        $this->authorize('update', $hierarchyNode);
+
+        if ($product->master_hierarchy_node_id === $hierarchyNode->id) {
+            $product->update(['master_hierarchy_node_id' => null]);
+        }
+
+        return response()->json(null, 204);
     }
 
     /**

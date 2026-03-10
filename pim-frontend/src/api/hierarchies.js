@@ -116,4 +116,13 @@ export default {
   sortOutputProducts(nodeId, items) {
     return client.put(`/hierarchy-nodes/${nodeId}/output-products/sort`, { items })
   },
+
+  // Master hierarchy product assignments
+  assignMasterProduct(nodeId, data) {
+    return client.post(`/hierarchy-nodes/${nodeId}/master-products`, data)
+  },
+
+  removeMasterProduct(nodeId, productId) {
+    return client.delete(`/hierarchy-nodes/${nodeId}/master-products/${productId}`)
+  },
 }
