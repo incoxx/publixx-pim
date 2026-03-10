@@ -7,7 +7,8 @@ import { useAttributeStore } from '@/stores/attributes'
 import { useAuthStore } from '@/stores/auth'
 import { useFilters } from '@/composables/useFilters'
 import { useLocaleStore } from '@/stores/locale'
-import { Plus, Languages, Upload, Download, X, GitCompareArrows, Star, Pencil, FileSpreadsheet, ListFilter, Settings } from 'lucide-vue-next'
+import { Plus, Languages, Upload, Download, X, GitCompareArrows, Star, Pencil, FileSpreadsheet, ListFilter, Settings, Package } from 'lucide-vue-next'
+import mediaApi from '@/api/media'
 import PimTable from '@/components/shared/PimTable.vue'
 import ColumnConfigPopover from '@/components/shared/ColumnConfigPopover.vue'
 import { useColumnConfig } from '@/composables/useColumnConfig'
@@ -40,6 +41,7 @@ const defaultColumns = [
 ]
 
 const extraColumns = [
+  { key: 'thumbnail', label: 'Bild', width: '52px' },
   { key: 'ean', label: 'EAN', mono: true },
   { key: 'master_hierarchy_node.name_de', label: 'Hierarchie-Knoten' },
   { key: 'created_at', label: 'Erstellt', sortable: true },
@@ -290,6 +292,9 @@ function fetchWithAttributes() {
     .map(k => k.replace('attributes.', ''))
   const options = attrColumnIds.length > 0 ? { attribute_columns: attrColumnIds, language: 'de' } : {}
   options.include = 'productType,masterHierarchyNode'
+  if (visibleKeys.value.includes('thumbnail')) {
+    options.include_thumbnail = true
+  }
   store.fetchList(options)
 }
 
@@ -456,6 +461,18 @@ onMounted(async () => {
       @select="handleSelect"
       @quick-lookup-change="onQuickLookupChange"
     >
+      <template #cell-thumbnail="{ row }">
+        <div class="w-8 h-8 rounded bg-[var(--color-bg)] overflow-hidden flex items-center justify-center border border-[var(--color-border)]">
+          <img
+            v-if="row.thumbnail_url"
+            :src="row.thumbnail_url"
+            class="w-full h-full object-cover"
+            loading="lazy"
+            alt=""
+          />
+          <Package v-else class="w-3.5 h-3.5 text-[var(--color-text-tertiary)]/30" :stroke-width="1.5" />
+        </div>
+      </template>
       <template #cell-sku="{ row, value }">
         <div class="flex items-center gap-2">
           <button

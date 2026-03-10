@@ -5,7 +5,7 @@ import { useProductStore } from '@/stores/products'
 import { useAuthStore } from '@/stores/auth'
 import { useLocaleStore } from '@/stores/locale'
 import { useI18n } from 'vue-i18n'
-import { ArrowLeft, Save, Plus, Trash2, Image, Star, X, Search, Download, Languages, Copy, Sparkles, Tags } from 'lucide-vue-next'
+import { ArrowLeft, Save, Plus, Trash2, Image, Star, X, Search, Download, Languages, Copy, Sparkles, Tags, LayoutGrid, List } from 'lucide-vue-next'
 import productsApi from '@/api/products'
 import mediaApi from '@/api/media'
 import { mediaUsageTypes } from '@/api/mediaUsageTypes'
@@ -663,6 +663,8 @@ const availableMedia = ref([])
 const mediaPickerLoading = ref(false)
 const usageTypesList = ref([])
 const selectedUsageTypeId = ref(null)
+const mediaViewMode = ref('grid') // 'grid' | 'list'
+const mediaFilter = ref('')
 
 async function loadMedia() {
   if (mediaLoaded.value || !product.value) return
@@ -691,6 +693,17 @@ async function openMediaPicker() {
 
 const assignedMediaIds = computed(() => {
   return mediaItems.value.map(m => m.media_id || m.media?.id || m.id).filter(Boolean)
+})
+
+const filteredMediaItems = computed(() => {
+  if (!mediaFilter.value.trim()) return mediaItems.value
+  const q = mediaFilter.value.toLowerCase()
+  return mediaItems.value.filter(m => {
+    const fname = (m.file_name || m.media?.file_name || '').toLowerCase()
+    const usageType = (m.usage_type?.name_de || m.usage_type?.technical_name || '').toLowerCase()
+    const mime = (m.mime_type || m.media?.mime_type || '').toLowerCase()
+    return fname.includes(q) || usageType.includes(q) || mime.includes(q)
+  })
 })
 
 async function attachMedia(mediaItem) {
@@ -1993,18 +2006,53 @@ watch(() => route.params.id, async (newId, oldId) => {
 
     <!-- ═══ Media Tab ═══ -->
     <div v-else-if="activeTab === 'media' && product" class="space-y-3">
-      <div class="flex items-center justify-between">
-        <h3 class="text-sm font-medium text-[var(--color-text-primary)]">Medien</h3>
+      <!-- Header with search, view toggle and add button -->
+      <div class="flex items-center gap-2">
+        <h3 class="text-sm font-medium text-[var(--color-text-primary)] shrink-0">Medien</h3>
+        <span v-if="mediaItems.length > 0" class="text-[11px] text-[var(--color-text-tertiary)] shrink-0">({{ filteredMediaItems.length }}<template v-if="mediaFilter"> / {{ mediaItems.length }}</template>)</span>
+        <div class="flex-1" />
+        <!-- Quick filter -->
+        <div v-if="mediaItems.length > 5" class="relative">
+          <Search class="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-[var(--color-text-tertiary)]" :stroke-width="2" />
+          <input
+            v-model="mediaFilter"
+            type="text"
+            class="pim-input text-xs pl-7 w-44"
+            placeholder="Filtern…"
+          />
+        </div>
+        <!-- View toggle -->
+        <div class="flex items-center border border-[var(--color-border)] rounded-md overflow-hidden">
+          <button
+            class="p-1.5 transition-colors"
+            :class="mediaViewMode === 'grid' ? 'bg-[var(--color-accent)] text-white' : 'bg-[var(--color-surface)] text-[var(--color-text-tertiary)] hover:bg-[var(--color-bg)]'"
+            @click="mediaViewMode = 'grid'"
+            title="Kachelansicht"
+          >
+            <LayoutGrid class="w-3.5 h-3.5" :stroke-width="2" />
+          </button>
+          <button
+            class="p-1.5 transition-colors"
+            :class="mediaViewMode === 'list' ? 'bg-[var(--color-accent)] text-white' : 'bg-[var(--color-surface)] text-[var(--color-text-tertiary)] hover:bg-[var(--color-bg)]'"
+            @click="mediaViewMode = 'list'"
+            title="Listenansicht"
+          >
+            <List class="w-3.5 h-3.5" :stroke-width="2" />
+          </button>
+        </div>
         <button class="pim-btn pim-btn-primary text-xs" @click="openMediaPicker">
-          <Plus class="w-3.5 h-3.5" :stroke-width="2" /> Medium zuordnen
+          <Plus class="w-3.5 h-3.5" :stroke-width="2" /> Zuordnen
         </button>
       </div>
 
+      <!-- Loading -->
       <div v-if="mediaLoading" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
         <div v-for="i in 4" :key="i" class="pim-skeleton aspect-square rounded-lg" />
       </div>
-      <div v-else-if="mediaItems.length > 0" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-        <div v-for="m in mediaItems" :key="m.id" class="pim-card overflow-hidden group relative">
+
+      <!-- Grid view -->
+      <div v-else-if="filteredMediaItems.length > 0 && mediaViewMode === 'grid'" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+        <div v-for="m in filteredMediaItems" :key="m.id" class="pim-card overflow-hidden group relative">
           <div class="aspect-square bg-[var(--color-bg)] flex items-center justify-center overflow-hidden">
             <img :src="getMediaUrl(m)" class="w-full h-full object-cover" loading="lazy" alt="" />
           </div>
@@ -2019,9 +2067,58 @@ watch(() => route.params.id, async (newId, oldId) => {
           </div>
         </div>
       </div>
-      <div v-else class="pim-card p-12 text-center">
+
+      <!-- List view -->
+      <div v-else-if="filteredMediaItems.length > 0 && mediaViewMode === 'list'" class="pim-card overflow-hidden">
+        <table class="w-full text-xs">
+          <thead>
+            <tr class="border-b border-[var(--color-border)] bg-[var(--color-bg)]">
+              <th class="px-3 py-2 text-left text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)] font-medium" style="width:44px">Bild</th>
+              <th class="px-3 py-2 text-left text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)] font-medium">Dateiname</th>
+              <th class="px-3 py-2 text-left text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)] font-medium">Bildtyp</th>
+              <th class="px-3 py-2 text-left text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)] font-medium">MIME</th>
+              <th class="px-3 py-2 text-right text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)] font-medium" style="width:40px"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="m in filteredMediaItems"
+              :key="m.id"
+              class="border-b border-[var(--color-border)] last:border-0 hover:bg-[var(--color-bg)] transition-colors"
+            >
+              <td class="px-3 py-1.5">
+                <div class="w-8 h-8 rounded bg-[var(--color-bg)] overflow-hidden border border-[var(--color-border)]">
+                  <img :src="getMediaUrl(m)" class="w-full h-full object-cover" loading="lazy" alt="" />
+                </div>
+              </td>
+              <td class="px-3 py-1.5">
+                <span class="text-[var(--color-text-primary)] font-mono text-[11px]">{{ m.file_name || m.media?.file_name || '—' }}</span>
+              </td>
+              <td class="px-3 py-1.5">
+                <span class="text-[var(--color-text-tertiary)]">{{ m.usage_type?.name_de || m.usage_type?.technical_name || '—' }}</span>
+              </td>
+              <td class="px-3 py-1.5">
+                <span class="text-[var(--color-text-tertiary)]">{{ m.mime_type || m.media?.mime_type || '—' }}</span>
+              </td>
+              <td class="px-3 py-1.5 text-right">
+                <button class="p-1 rounded hover:bg-[var(--color-error-light)] text-[var(--color-text-tertiary)] hover:text-[var(--color-error)] transition-colors" @click="detachMedia(m)">
+                  <X class="w-3.5 h-3.5" :stroke-width="2" />
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Empty state -->
+      <div v-else-if="!mediaLoading && mediaItems.length === 0" class="pim-card p-12 text-center">
         <Image class="w-8 h-8 mx-auto mb-2 text-[var(--color-text-tertiary)]" :stroke-width="1.5" />
         <p class="text-sm text-[var(--color-text-tertiary)]">Keine Medien zugeordnet</p>
+      </div>
+
+      <!-- Filter empty state -->
+      <div v-else-if="!mediaLoading && filteredMediaItems.length === 0" class="pim-card p-8 text-center">
+        <p class="text-sm text-[var(--color-text-tertiary)]">Keine Medien für „{{ mediaFilter }}" gefunden</p>
       </div>
 
       <!-- Media picker dialog -->
