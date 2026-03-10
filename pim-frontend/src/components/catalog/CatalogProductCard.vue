@@ -18,6 +18,7 @@ const inWishlist = computed(() => store.isInWishlist(props.product.id))
 
 const showCategory = computed(() => store.themeSettings.card_show_category !== false)
 const showSku = computed(() => store.themeSettings.card_show_sku === true)
+const showPrice = computed(() => store.themeSettings.card_show_price !== false)
 const imageRatio = computed(() => store.themeSettings.card_image_ratio || '4/3')
 
 function toggleWishlist(e) {
@@ -29,7 +30,7 @@ const formattedPrice = computed(() => {
   if (!props.product.price) return null
   return new Intl.NumberFormat(store.locale === 'de' ? 'de-DE' : 'en-US', {
     style: 'currency',
-    currency: 'EUR',
+    currency: props.product.currency || 'EUR',
   }).format(props.product.price)
 })
 
@@ -107,7 +108,7 @@ const staggerDelay = computed(() => `${Math.min(props.index * 50, 400)}ms`)
       </div>
 
       <!-- Price -->
-      <div class="flex justify-between items-end mt-2">
+      <div v-if="showPrice" class="flex justify-between items-end mt-2">
         <span
           v-if="formattedPrice"
           class="text-lg font-bold text-primary"

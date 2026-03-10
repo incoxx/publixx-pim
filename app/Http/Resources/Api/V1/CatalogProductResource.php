@@ -11,7 +11,7 @@ class CatalogProductResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
-        $lang = $this->additional['lang'] ?? $request->query('lang', 'de');
+        $lang = $request->query('lang', 'de');
 
         $name = $lang === 'en' && $this->name_en ? $this->name_en : $this->name_de;
         $description = $this->description_de;
@@ -21,7 +21,10 @@ class CatalogProductResource extends JsonResource
             $imageUrl = url('api/v1/catalog/media/' . rawurlencode($this->primary_image));
         }
 
-        $cardAttributes = $this->additional['card_attributes'][$this->id] ?? [];
+        // Use resolved price if available (from configured price type), fallback to list_price
+        $resolvedPrice = $this->resolved_price ?? null;
+        $price = $resolvedPrice ? $resolvedPrice['amount'] : $this->list_price;
+        $currency = $resolvedPrice ? $resolvedPrice['currency'] : 'EUR';
 
         return [
             'id' => $this->id,
@@ -31,9 +34,10 @@ class CatalogProductResource extends JsonResource
             'description' => $description,
             'category_path' => $this->hierarchy_path,
             'image_url' => $imageUrl,
-            'price' => $this->list_price,
+            'price' => $price,
+            'currency' => $currency,
             'product_type' => $this->product_type,
-            'card_attributes' => $cardAttributes,
+            'card_attributes' => $this->card_attributes ?? [],
         ];
     }
 }
