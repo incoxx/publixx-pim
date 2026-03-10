@@ -103,7 +103,8 @@ class BmecatFormatExporter
 
         // Produkte in Chunks verarbeiten um Memory-Verbrauch zu begrenzen
         $categoryMappings = [];
-        $this->buildProductQuery()->chunk(500, function (Collection $products) use ($xml, $hierarchy, &$categoryMappings) {
+        $output = '';
+        $this->buildProductQuery()->chunk(500, function (Collection $products) use ($xml, $hierarchy, &$categoryMappings, &$output) {
             foreach ($products as $product) {
                 $this->writeProduct($xml, $product);
             }
@@ -114,8 +115,8 @@ class BmecatFormatExporter
                 array_push($categoryMappings, ...$chunkMappings);
             }
 
-            // Memory nach jedem Chunk freigeben
-            $xml->flush();
+            // Buffer auslesen und leeren um Memory freizugeben
+            $output .= $xml->flush();
         });
 
         // PRODUCT_TO_CATALOGGROUP_MAP (standalone)
@@ -127,7 +128,7 @@ class BmecatFormatExporter
         $xml->endElement(); // BMECAT
         $xml->endDocument();
 
-        return $xml->outputMemory();
+        return $output . $xml->outputMemory();
     }
 
     // =========================================================================
