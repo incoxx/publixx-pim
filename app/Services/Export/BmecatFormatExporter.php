@@ -439,7 +439,7 @@ class BmecatFormatExporter
             $xml->writeElement('MIME_TYPE', $medium->mime_type ?? 'image/jpeg');
             $xml->writeElement('MIME_SOURCE', $medium->file_name ?? $medium->path ?? '');
 
-            $purpose = $medium->pivot->usage_type ?? 'normal';
+            $purpose = $medium->pivot->usage_type_id ?? 'normal';
             $xml->writeElement('MIME_PURPOSE', $this->mapMimePurpose($purpose));
             $xml->writeElement('MIME_ORDER', (string) $order);
             $order++;
@@ -464,7 +464,7 @@ class BmecatFormatExporter
             }
 
             $xml->startElement($el['product_reference']);
-            $xml->writeAttribute('type', $relation->relationType->technical_name ?? 'similar');
+            $xml->writeAttribute('type', $relation->relationType?->technical_name ?? 'similar');
             $xml->writeElement($el['prod_id_to'], $relation->targetProduct->sku);
             $xml->endElement();
         }
