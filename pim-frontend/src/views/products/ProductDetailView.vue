@@ -20,6 +20,7 @@ import PimConfirmDialog from '@/components/shared/PimConfirmDialog.vue'
 import PimDeleteConfirmDialog from '@/components/shared/PimDeleteConfirmDialog.vue'
 import PimCompositeModal from '@/components/shared/PimCompositeModal.vue'
 import ProductVersionsTab from '@/components/products/ProductVersionsTab.vue'
+import MediaPickerDialog from '@/components/shared/MediaPickerDialog.vue'
 import { formatCompositeSummary } from '@/utils/formatting'
 
 const route = useRoute()
@@ -676,21 +677,21 @@ async function loadMedia() {
 
 async function openMediaPicker() {
   showMediaPicker.value = true
-  mediaPickerLoading.value = true
-  try {
-    const [mediaRes, typesRes] = await Promise.all([
-      mediaApi.list({ perPage: 100 }),
-      mediaUsageTypes.list(),
-    ])
-    availableMedia.value = mediaRes.data.data || mediaRes.data
-    const types = typesRes.data.data || typesRes.data
-    usageTypesList.value = types
-    if (types.length > 0 && !selectedUsageTypeId.value) {
-      selectedUsageTypeId.value = types[0].id
-    }
-  } catch (e) { console.error('Failed to load available media:', e.message) }
-  finally { mediaPickerLoading.value = false }
+  if (usageTypesList.value.length === 0) {
+    try {
+      const { data } = await mediaUsageTypes.list()
+      const types = data.data || data
+      usageTypesList.value = types
+      if (types.length > 0 && !selectedUsageTypeId.value) {
+        selectedUsageTypeId.value = types[0].id
+      }
+    } catch (e) { console.error('Failed to load usage types:', e.message) }
+  }
 }
+
+const assignedMediaIds = computed(() => {
+  return mediaItems.value.map(m => m.media_id || m.media?.id || m.id).filter(Boolean)
+})
 
 async function attachMedia(mediaItem) {
   try {
@@ -2023,44 +2024,15 @@ watch(() => route.params.id, async (newId, oldId) => {
         <p class="text-sm text-[var(--color-text-tertiary)]">Keine Medien zugeordnet</p>
       </div>
 
-      <!-- Media picker modal -->
-      <Teleport to="body">
-        <transition name="fade">
-          <div v-if="showMediaPicker" class="fixed inset-0 z-50 flex items-center justify-center">
-            <div class="absolute inset-0 bg-black/30 backdrop-blur-sm" @click="showMediaPicker = false" />
-            <div class="relative w-full max-w-[600px] max-h-[80vh] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl shadow-xl mx-4 overflow-hidden flex flex-col">
-              <div class="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)]">
-                <span class="text-sm font-semibold">Medium auswählen</span>
-                <button class="p-1 rounded hover:bg-[var(--color-bg)]" @click="showMediaPicker = false">
-                  <X class="w-4 h-4" :stroke-width="2" />
-                </button>
-              </div>
-              <div class="flex-1 overflow-y-auto p-4">
-                <!-- Usage type selector -->
-                <div v-if="usageTypesList.length > 0" class="mb-3">
-                  <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Bildtyp</label>
-                  <select class="pim-input" v-model="selectedUsageTypeId">
-                    <option v-for="ut in usageTypesList" :key="ut.id" :value="ut.id">{{ ut.name_de || ut.technical_name }}</option>
-                  </select>
-                </div>
-                <div v-if="mediaPickerLoading" class="grid grid-cols-3 gap-2">
-                  <div v-for="i in 6" :key="i" class="pim-skeleton aspect-square rounded" />
-                </div>
-                <div v-else class="grid grid-cols-3 gap-2">
-                  <div
-                    v-for="m in availableMedia"
-                    :key="m.id"
-                    class="aspect-square bg-[var(--color-bg)] rounded overflow-hidden cursor-pointer hover:ring-2 hover:ring-[var(--color-accent)] transition-all"
-                    @click="attachMedia(m)"
-                  >
-                    <img :src="mediaApi.fileUrl(m.file_name)" class="w-full h-full object-cover" loading="lazy" alt="" />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </transition>
-      </Teleport>
+      <!-- Media picker dialog -->
+      <MediaPickerDialog
+        v-model="showMediaPicker"
+        :usage-types="usageTypesList"
+        :selected-usage-type-id="selectedUsageTypeId"
+        :exclude-media-ids="assignedMediaIds"
+        @update:selected-usage-type-id="selectedUsageTypeId = $event"
+        @select="attachMedia($event)"
+      />
     </div>
 
     <!-- ═══ Prices Tab ═══ -->
