@@ -11,7 +11,7 @@ class CatalogProductResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
-        $lang = $this->additional['lang'] ?? $request->query('lang', 'de');
+        $lang = $request->query('lang', 'de');
 
         $name = $lang === 'en' && $this->name_en ? $this->name_en : $this->name_de;
         $description = $this->description_de;
@@ -20,8 +20,6 @@ class CatalogProductResource extends JsonResource
         if ($this->primary_image) {
             $imageUrl = url('api/v1/catalog/media/' . rawurlencode($this->primary_image));
         }
-
-        $cardAttributes = $this->additional['card_attributes'][$this->id] ?? [];
 
         return [
             'id' => $this->id,
@@ -33,7 +31,7 @@ class CatalogProductResource extends JsonResource
             'image_url' => $imageUrl,
             'price' => $this->list_price,
             'product_type' => $this->product_type,
-            'card_attributes' => $cardAttributes,
+            'card_attributes' => $this->card_attributes ?? [],
         ];
     }
 }

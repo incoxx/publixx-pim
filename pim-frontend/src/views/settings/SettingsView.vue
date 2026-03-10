@@ -131,6 +131,7 @@ const themeForm = ref({
   card_attribute_ids: [],
   card_show_sku: false,
   card_show_category: true,
+  card_show_price: true,
   card_image_ratio: '4/3',
 })
 const themeLogoPreview = ref(null)
@@ -178,6 +179,7 @@ async function loadThemeSettings() {
         card_attribute_ids: d.card_attribute_ids || [],
         card_show_sku: d.card_show_sku ?? false,
         card_show_category: d.card_show_category ?? true,
+        card_show_price: d.card_show_price ?? true,
         card_image_ratio: d.card_image_ratio || '4/3',
       }
       themeLogoPreview.value = d.logo_url || null
@@ -193,17 +195,30 @@ async function saveThemeSettings() {
   themeError.value = null
   try {
     const payload = { ...themeForm.value }
-    // Convert empty strings to null for optional fields
+    // Convert empty strings to null for optional text fields
     for (const key of ['impressum_url', 'kontakt_url', 'impressum_text', 'kontakt_text', 'footer_text', 'catalog_title', 'seo_title', 'seo_description', 'color_header_bg', 'color_header_text', 'color_mobile_menu_bg', 'color_mobile_menu_text']) {
       if (!payload[key]) payload[key] = null
     }
     if (!payload.hierarchy_id) payload.hierarchy_id = null
     if (!payload.attribute_view_ids || payload.attribute_view_ids.length === 0) payload.attribute_view_ids = []
+    if (!payload.facet_attribute_ids || payload.facet_attribute_ids.length === 0) payload.facet_attribute_ids = []
+    if (!payload.card_attribute_ids || payload.card_attribute_ids.length === 0) payload.card_attribute_ids = []
+    // Ensure booleans are actual booleans (not strings)
+    payload.card_show_sku = !!payload.card_show_sku
+    payload.card_show_category = !!payload.card_show_category
+    payload.card_show_price = !!payload.card_show_price
     await adminApi.updateCatalogTheme(payload)
     themeSaved.value = true
     setTimeout(() => { themeSaved.value = false }, 3000)
   } catch (e) {
-    themeError.value = e.response?.data?.message || e.message
+    // Laravel validation errors come in e.response.data.errors (object with field → messages[])
+    const respData = e.response?.data
+    if (respData?.errors) {
+      const msgs = Object.values(respData.errors).flat()
+      themeError.value = msgs.join('; ')
+    } else {
+      themeError.value = respData?.message || e.message || 'Speichern fehlgeschlagen'
+    }
   } finally { themeSaving.value = false }
 }
 
@@ -540,6 +555,10 @@ onMounted(() => {
               <label class="flex items-center gap-2 text-xs cursor-pointer min-h-[44px]">
                 <input type="checkbox" v-model="themeForm.card_show_sku" class="rounded border-[var(--color-border-strong)] text-[var(--color-accent)]" />
                 Artikelnummer (SKU) anzeigen
+              </label>
+              <label class="flex items-center gap-2 text-xs cursor-pointer min-h-[44px]">
+                <input type="checkbox" v-model="themeForm.card_show_price" class="rounded border-[var(--color-border-strong)] text-[var(--color-accent)]" />
+                Preis anzeigen
               </label>
             </div>
           </div>

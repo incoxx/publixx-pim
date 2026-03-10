@@ -193,8 +193,13 @@ class CatalogController extends BaseController
             }
         }
 
+        // Attach card attributes directly to each item (additional() does NOT propagate to individual resources)
+        foreach ($paginated->items() as $item) {
+            $item->card_attributes = $cardAttributeMap[$item->id] ?? [];
+        }
+
         $data = CatalogProductResource::collection($paginated->items())
-            ->additional(['lang' => $lang, 'card_attributes' => $cardAttributeMap])
+            ->additional(['lang' => $lang])
             ->resolve();
 
         return response()->json($data, 200, [

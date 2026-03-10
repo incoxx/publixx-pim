@@ -21,6 +21,8 @@ function toggleWishlist(e) {
   store.toggleWishlist(props.product.id)
 }
 
+const showPrice = computed(() => store.themeSettings.card_show_price !== false)
+
 const formattedPrice = computed(() => {
   if (!props.product.price) return null
   return new Intl.NumberFormat(store.locale === 'de' ? 'de-DE' : 'en-US', {
@@ -76,7 +78,7 @@ const staggerDelay = computed(() => `${Math.min(props.index * 30, 300)}ms`)
         </div>
 
         <div class="flex items-center gap-2 flex-none">
-          <span v-if="formattedPrice" class="text-base font-bold text-primary whitespace-nowrap">
+          <span v-if="showPrice && formattedPrice" class="text-base font-bold text-primary whitespace-nowrap">
             {{ formattedPrice }}
           </span>
           <button
