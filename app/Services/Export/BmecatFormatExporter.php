@@ -6,6 +6,7 @@ namespace App\Services\Export;
 
 use App\Models\Hierarchy;
 use App\Models\HierarchyNode;
+use App\Models\MediaUsageType;
 use App\Models\OutputHierarchyProductAssignment;
 use App\Models\Product;
 use App\Models\ProductAttributeValue;
@@ -29,6 +30,9 @@ class BmecatFormatExporter
     private array $attributeIds = [];
     private array $priceTypeIds = [];
     private array $relationTypeIds = [];
+
+    /** @var array<string, string> usage_type_id → technical_name */
+    private array $usageTypeMap = [];
 
     /** @var string[] Attribute technical_names die als PRODUCT_DETAILS-Felder gemappt werden */
     private const DETAIL_ATTRIBUTES = [
@@ -74,6 +78,9 @@ class BmecatFormatExporter
     {
         $this->elementMap = BmecatElementMap::forVersion($this->version);
         $isV12 = BmecatElementMap::isVersion12($this->version);
+
+        // UsageType-Map einmalig laden (ID → technical_name)
+        $this->usageTypeMap = MediaUsageType::pluck('technical_name', 'id')->toArray();
 
         $xml = new \XMLWriter();
         $xml->openMemory();
@@ -439,7 +446,8 @@ class BmecatFormatExporter
             $xml->writeElement('MIME_TYPE', $medium->mime_type ?? 'image/jpeg');
             $xml->writeElement('MIME_SOURCE', $medium->file_name ?? $medium->path ?? '');
 
-            $purpose = $medium->pivot->usage_type_id ?? 'normal';
+            $usageTypeId = $medium->pivot->usage_type_id;
+            $purpose = $usageTypeId ? ($this->usageTypeMap[$usageTypeId] ?? 'normal') : 'normal';
             $xml->writeElement('MIME_PURPOSE', $this->mapMimePurpose($purpose));
             $xml->writeElement('MIME_ORDER', (string) $order);
             $order++;
