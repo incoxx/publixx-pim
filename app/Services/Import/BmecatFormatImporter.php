@@ -163,12 +163,13 @@ class BmecatFormatImporter
                 $errors[] = "Transaktionstyp {$transactionType} wird aktuell nicht unterstützt. Nur T_NEW_CATALOG ist verfügbar.";
             }
 
-            // Produkte zählen
-            $parsed = $this->parseXml($xml, $elementMap, $version);
-            $productCount = count($parsed['products'] ?? []);
+            // Produkte zählen (Lightweight: nur Elemente zählen, nicht voll parsen)
+            $productElement = $elementMap['product'];
+            $productCount = substr_count(strtoupper($xml), "<{$productElement} ") + substr_count(strtoupper($xml), "<{$productElement}>");
 
             // HEADER prüfen
-            if (empty($parsed['header'])) {
+            $headerChildren = $ns ? $doc->children($ns)->HEADER : $doc->HEADER;
+            if ($headerChildren === null || count($headerChildren) === 0) {
                 $errors[] = 'HEADER-Element fehlt oder ist leer';
             }
         }
@@ -289,11 +290,11 @@ class BmecatFormatImporter
         $catalog = $this->child($el, 'CATALOG', $ns);
 
         $header = [
-            'language' => $this->text($catalog, 'LANGUAGE', $ns),
-            'catalog_id' => $this->text($catalog, 'CATALOG_ID', $ns),
-            'catalog_version' => $this->text($catalog, 'CATALOG_VERSION', $ns),
-            'catalog_name' => $this->text($catalog, 'CATALOG_NAME', $ns),
-            'currency' => $this->text($catalog, 'CURRENCY', $ns) ?: 'EUR',
+            'language' => $catalog ? $this->text($catalog, 'LANGUAGE', $ns) : null,
+            'catalog_id' => $catalog ? $this->text($catalog, 'CATALOG_ID', $ns) : null,
+            'catalog_version' => $catalog ? $this->text($catalog, 'CATALOG_VERSION', $ns) : null,
+            'catalog_name' => $catalog ? $this->text($catalog, 'CATALOG_NAME', $ns) : null,
+            'currency' => ($catalog ? $this->text($catalog, 'CURRENCY', $ns) : null) ?: 'EUR',
         ];
 
         $supplier = $this->child($el, 'SUPPLIER', $ns);
@@ -704,6 +705,7 @@ class BmecatFormatImporter
                 $parsed['products'],
                 $catalogGroupTree,
                 $hierarchyTechName,
+                $parsed['product_to_group_maps'],
             );
             if (!empty($hierarchyAttributes)) {
                 $sheets['07_Hierarchie_Attribute'] = $hierarchyAttributes;
@@ -856,11 +858,12 @@ class BmecatFormatImporter
             if ($value === '') {
                 continue;
             }
-            if (in_array(strtolower($value), ['true', 'false', 'ja', 'nein', 'yes', 'no', '0', '1'])) {
-                return 'Flag';
-            }
+            // Numerische Werte zuerst prüfen (vor Flag, da '0'/'1' auch numerisch sind)
             if (is_numeric($value)) {
                 return str_contains($value, '.') || str_contains($value, ',') ? 'Float' : 'Number';
+            }
+            if (in_array(strtolower($value), ['true', 'false', 'ja', 'nein', 'yes', 'no'])) {
+                return 'Flag';
             }
         }
 
@@ -981,13 +984,24 @@ class BmecatFormatImporter
         array $products,
         array $tree,
         string $hierarchyTechName,
+        array $standaloneMaps = [],
     ): array {
+        // Baue ein SKU→GroupIDs-Index aus inline + standalone Maps
+        $skuToGroupIds = [];
+        foreach ($products as $product) {
+            foreach ($product['catalog_group_maps'] as $map) {
+                $skuToGroupIds[$product['sku']][$map['group_id']] = true;
+            }
+        }
+        foreach ($standaloneMaps as $map) {
+            $skuToGroupIds[$map['prod_id']][$map['group_id']] = true;
+        }
+
         // Sammle welche Attribute in welchen Knoten vorkommen
         $nodeAttributes = []; // group_id → [attribute_tech_name => true]
 
         foreach ($products as $product) {
-            // Finde die Knoten, denen das Produkt zugeordnet ist
-            $productGroupIds = array_map(fn ($m) => $m['group_id'], $product['catalog_group_maps']);
+            $productGroupIds = array_keys($skuToGroupIds[$product['sku']] ?? []);
 
             foreach ($product['features'] as $feature) {
                 $techName = $this->sanitizeTechnicalName($feature['fname']);
@@ -995,7 +1009,6 @@ class BmecatFormatImporter
                     continue;
                 }
 
-                // Attribute dem Knoten zuordnen
                 foreach ($productGroupIds as $groupId) {
                     if (!isset($nodeAttributes[$groupId])) {
                         $nodeAttributes[$groupId] = [];
@@ -1044,17 +1057,23 @@ class BmecatFormatImporter
         }
 
         $rows = [];
+        $seen = []; // Deduplizierung: "sku|node_path"
 
         // Inline-Maps (aus Produkten)
         foreach ($products as $product) {
             foreach ($product['catalog_group_maps'] as $map) {
                 $path = $this->resolveNodePath($map['group_id'], $tree);
                 if (!empty($path)) {
-                    $rows[] = [
-                        'sku' => $product['sku'],
-                        'hierarchy' => $hierarchyTechName,
-                        'node_path' => implode('/', $path),
-                    ];
+                    $nodePath = implode('/', $path);
+                    $key = $product['sku'] . '|' . $nodePath;
+                    if (!isset($seen[$key])) {
+                        $seen[$key] = true;
+                        $rows[] = [
+                            'sku' => $product['sku'],
+                            'hierarchy' => $hierarchyTechName,
+                            'node_path' => $nodePath,
+                        ];
+                    }
                 }
             }
         }
@@ -1063,11 +1082,16 @@ class BmecatFormatImporter
         foreach ($standaloneMaps as $map) {
             $path = $this->resolveNodePath($map['group_id'], $tree);
             if (!empty($path)) {
-                $rows[] = [
-                    'sku' => $map['prod_id'],
-                    'hierarchy' => $hierarchyTechName,
-                    'node_path' => implode('/', $path),
-                ];
+                $nodePath = implode('/', $path);
+                $key = $map['prod_id'] . '|' . $nodePath;
+                if (!isset($seen[$key])) {
+                    $seen[$key] = true;
+                    $rows[] = [
+                        'sku' => $map['prod_id'],
+                        'hierarchy' => $hierarchyTechName,
+                        'node_path' => $nodePath,
+                    ];
+                }
             }
         }
 

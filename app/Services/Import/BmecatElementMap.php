@@ -142,7 +142,7 @@ class BmecatElementMap
      */
     public static function isVersion12(string $version): bool
     {
-        return str_starts_with($version, '1.2') || $version === '1.2';
+        return str_starts_with($version, '1.2');
     }
 
     /**
