@@ -9,13 +9,18 @@ use App\Http\Requests\Api\V1\UpdateMediaRequest;
 use App\Http\Resources\Api\V1\MediaResource;
 use App\Http\Traits\ChecksDeletionConstraints;
 use App\Models\Media;
+use App\Models\Product;
+use App\Models\ProductMediaAssignment;
+use App\Models\MediaUsageType;
 use App\Services\ThumbnailService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class MediaController extends Controller
@@ -23,6 +28,8 @@ class MediaController extends Controller
     use ChecksDeletionConstraints;
 
     private const ALLOWED_FILTERS = ['media_type', 'mime_type', 'asset_folder_id', 'usage_purpose'];
+    private const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'tiff', 'tif', 'pdf', 'eps', 'ai'];
+    private const MAX_BULK_IMPORT_ROWS = 500;
 
     public function index(Request $request): AnonymousResourceCollection
     {
@@ -296,6 +303,354 @@ class MediaController extends Controller
     }
 
     /**
+     * POST /media/import-url — download an image from a URL and create a media record.
+     */
+    public function importFromUrl(Request $request): JsonResponse
+    {
+        $this->authorize('create', Media::class);
+
+        $validated = $request->validate([
+            'url' => 'required|url|max:2000',
+            'usage_type_id' => 'nullable|uuid|exists:media_usage_types,id',
+            'asset_folder_id' => 'nullable|uuid|exists:hierarchy_nodes,id',
+            'usage_purpose' => 'nullable|in:print,web,both',
+        ]);
+
+        // SSRF protection: reject internal/private URLs
+        if ($this->isInternalUrl($validated['url'])) {
+            return response()->json(['message' => 'Interne oder private URLs sind nicht erlaubt.'], 422);
+        }
+
+        try {
+            $response = Http::timeout(30)->get($validated['url']);
+            if (!$response->successful()) {
+                return response()->json(['message' => 'URL konnte nicht geladen werden (HTTP ' . $response->status() . ').'], 422);
+            }
+
+            $contentType = $response->header('Content-Type', 'application/octet-stream');
+            $contentType = explode(';', $contentType)[0]; // strip charset
+
+            // Extract filename from URL
+            $urlPath = parse_url($validated['url'], PHP_URL_PATH);
+            $originalName = $urlPath ? basename($urlPath) : 'download';
+            if (!pathinfo($originalName, PATHINFO_EXTENSION)) {
+                $ext = match (true) {
+                    str_contains($contentType, 'jpeg'), str_contains($contentType, 'jpg') => 'jpg',
+                    str_contains($contentType, 'png') => 'png',
+                    str_contains($contentType, 'gif') => 'gif',
+                    str_contains($contentType, 'webp') => 'webp',
+                    str_contains($contentType, 'svg') => 'svg',
+                    str_contains($contentType, 'pdf') => 'pdf',
+                    default => 'bin',
+                };
+                $originalName .= '.' . $ext;
+            }
+
+            // Validate extension
+            $extension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION) ?: 'bin');
+            if (!$this->validateExtension($extension)) {
+                return response()->json(['message' => 'Dateityp "' . $extension . '" ist nicht erlaubt.'], 422);
+            }
+
+            $safeFilename = $this->generateSafeFilenameFromString($originalName);
+            $storedPath = Storage::disk('public')->path('media/' . $safeFilename);
+            Storage::disk('public')->put('media/' . $safeFilename, $response->body());
+
+            // Detect actual MIME type from file content (don't trust remote server)
+            $actualMime = $this->detectMimeFromFile($storedPath) ?? $contentType;
+
+            // Fix EXIF orientation for JPEGs
+            if (in_array($actualMime, ['image/jpeg', 'image/jpg']) && function_exists('exif_read_data')) {
+                $this->fixExifOrientation($storedPath);
+            }
+
+            // Detect dimensions
+            $width = null;
+            $height = null;
+            if (str_starts_with($actualMime, 'image/')) {
+                $dimensions = @getimagesize($storedPath);
+                if ($dimensions) {
+                    $width = $dimensions[0];
+                    $height = $dimensions[1];
+                }
+            }
+
+            $media = Media::create([
+                'file_name' => $safeFilename,
+                'file_path' => 'media/' . $safeFilename,
+                'mime_type' => $actualMime,
+                'file_size' => strlen($response->body()),
+                'media_type' => $this->detectMediaType($actualMime),
+                'title_de' => pathinfo($originalName, PATHINFO_FILENAME),
+                'width' => $width,
+                'height' => $height,
+                'asset_folder_id' => $validated['asset_folder_id'] ?? null,
+                'usage_purpose' => $validated['usage_purpose'] ?? 'both',
+            ]);
+
+            return (new MediaResource($media))
+                ->response()
+                ->setStatusCode(201);
+        } catch (\Illuminate\Http\Client\ConnectionException $e) {
+            \Log::error('Media URL import connection failed', ['url' => $validated['url'], 'error' => $e->getMessage()]);
+            return response()->json(['message' => 'Verbindung zur URL fehlgeschlagen.'], 422);
+        }
+    }
+
+    /**
+     * POST /media/bulk-import-urls — upload an Excel file with URLs and import them.
+     * Expected Excel columns: url, usage_type (optional)
+     */
+    public function bulkImportFromUrls(Request $request): JsonResponse
+    {
+        $this->authorize('create', Media::class);
+
+        $request->validate([
+            'file' => 'required|file|mimes:xlsx,xls,csv|max:10240',
+            'usage_type_id' => 'nullable|uuid|exists:media_usage_types,id',
+            'asset_folder_id' => 'nullable|uuid|exists:hierarchy_nodes,id',
+            'usage_purpose' => 'nullable|in:print,web,both',
+        ]);
+
+        $spreadsheet = IOFactory::load($request->file('file')->getPathname());
+        $sheet = $spreadsheet->getActiveSheet();
+        $rows = $sheet->toArray(null, true, true, true);
+
+        // Find header row
+        $headerRow = array_shift($rows);
+        if (!$headerRow) {
+            return response()->json(['message' => 'Excel-Datei ist leer.'], 422);
+        }
+
+        // Normalize headers
+        $headers = array_map(fn ($h) => mb_strtolower(trim((string) ($h ?? ''))), $headerRow);
+        $urlCol = array_search('url', $headers);
+        if ($urlCol === false) {
+            // Try alternative header names
+            foreach ($headers as $col => $h) {
+                if (in_array($h, ['url', 'bild-url', 'bild_url', 'bildurl', 'image_url', 'image-url', 'link'])) {
+                    $urlCol = $col;
+                    break;
+                }
+            }
+        }
+        if ($urlCol === false) {
+            return response()->json(['message' => 'Spalte "URL" nicht gefunden. Erwartet: url, bild-url, image_url oder link.'], 422);
+        }
+
+        $defaultUsageTypeId = $request->input('usage_type_id');
+        $defaultFolderId = $request->input('asset_folder_id');
+        $defaultUsagePurpose = $request->input('usage_purpose', 'both');
+
+        // Enforce row limit to prevent DoS
+        if (count($rows) > self::MAX_BULK_IMPORT_ROWS) {
+            return response()->json([
+                'message' => 'Maximal ' . self::MAX_BULK_IMPORT_ROWS . ' Zeilen erlaubt. Die Datei enthält ' . count($rows) . ' Zeilen.',
+            ], 422);
+        }
+
+        $results = ['imported' => 0, 'failed' => 0, 'skipped' => 0, 'errors' => []];
+
+        foreach ($rows as $rowIdx => $row) {
+            $url = trim((string) ($row[$urlCol] ?? ''));
+            if (empty($url) || !filter_var($url, FILTER_VALIDATE_URL)) {
+                continue;
+            }
+
+            // SSRF protection
+            if ($this->isInternalUrl($url)) {
+                $results['skipped']++;
+                if (count($results['errors']) < 50) {
+                    $results['errors'][] = "Zeile {$rowIdx}: Interne URL übersprungen.";
+                }
+                continue;
+            }
+
+            try {
+                $response = Http::timeout(30)->get($url);
+                if (!$response->successful()) {
+                    $results['failed']++;
+                    if (count($results['errors']) < 50) {
+                        $results['errors'][] = "Zeile {$rowIdx}: HTTP {$response->status()}";
+                    }
+                    continue;
+                }
+
+                $contentType = explode(';', $response->header('Content-Type', 'application/octet-stream'))[0];
+                $urlPath = parse_url($url, PHP_URL_PATH);
+                $originalName = $urlPath ? basename($urlPath) : 'download';
+                if (!pathinfo($originalName, PATHINFO_EXTENSION)) {
+                    $ext = match (true) {
+                        str_contains($contentType, 'jpeg'), str_contains($contentType, 'jpg') => 'jpg',
+                        str_contains($contentType, 'png') => 'png',
+                        str_contains($contentType, 'gif') => 'gif',
+                        str_contains($contentType, 'webp') => 'webp',
+                        default => 'bin',
+                    };
+                    $originalName .= '.' . $ext;
+                }
+
+                // Validate extension
+                $extension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION) ?: 'bin');
+                if (!$this->validateExtension($extension)) {
+                    $results['skipped']++;
+                    if (count($results['errors']) < 50) {
+                        $results['errors'][] = "Zeile {$rowIdx}: Dateityp \"{$extension}\" nicht erlaubt.";
+                    }
+                    continue;
+                }
+
+                $safeFilename = $this->generateSafeFilenameFromString($originalName);
+                Storage::disk('public')->put('media/' . $safeFilename, $response->body());
+                $storedPath = Storage::disk('public')->path('media/' . $safeFilename);
+
+                // Detect actual MIME type from file content
+                $actualMime = $this->detectMimeFromFile($storedPath) ?? $contentType;
+
+                if (in_array($actualMime, ['image/jpeg', 'image/jpg']) && function_exists('exif_read_data')) {
+                    $this->fixExifOrientation($storedPath);
+                }
+
+                $width = null;
+                $height = null;
+                if (str_starts_with($actualMime, 'image/')) {
+                    $dimensions = @getimagesize($storedPath);
+                    if ($dimensions) {
+                        $width = $dimensions[0];
+                        $height = $dimensions[1];
+                    }
+                }
+
+                Media::create([
+                    'file_name' => $safeFilename,
+                    'file_path' => 'media/' . $safeFilename,
+                    'mime_type' => $actualMime,
+                    'file_size' => strlen($response->body()),
+                    'media_type' => $this->detectMediaType($actualMime),
+                    'title_de' => pathinfo($originalName, PATHINFO_FILENAME),
+                    'width' => $width,
+                    'height' => $height,
+                    'asset_folder_id' => $defaultFolderId,
+                    'usage_purpose' => $defaultUsagePurpose,
+                ]);
+
+                $results['imported']++;
+            } catch (\Throwable $e) {
+                $results['failed']++;
+                \Log::error('Bulk import row failed', ['row' => $rowIdx, 'error' => $e->getMessage()]);
+                if (count($results['errors']) < 50) {
+                    $results['errors'][] = "Zeile {$rowIdx}: Import fehlgeschlagen.";
+                }
+            }
+        }
+
+        return response()->json($results);
+    }
+
+    /**
+     * POST /media/auto-match — match media filenames to product SKUs via regex
+     * and create product_media_assignments.
+     */
+    public function autoMatch(Request $request): JsonResponse
+    {
+        $this->authorize('create', Media::class);
+
+        $validated = $request->validate([
+            'pattern' => 'required|string|max:500',
+            'usage_type_id' => 'nullable|uuid|exists:media_usage_types,id',
+            'dry_run' => 'nullable|boolean',
+        ]);
+
+        // Validate regex
+        $pattern = $validated['pattern'];
+        if (@preg_match($pattern, '') === false) {
+            return response()->json(['message' => 'Ungültiger regulärer Ausdruck: ' . preg_last_error_msg()], 422);
+        }
+
+        $dryRun = $validated['dry_run'] ?? true;
+        $usageTypeId = $validated['usage_type_id'] ?? null;
+
+        // Pre-load SKU→ID map (lightweight)
+        $products = Product::where('product_type_ref', 'product')
+            ->pluck('id', 'sku')
+            ->toArray();
+
+        $matches = [];
+        $noMatch = [];
+        $totalMedia = 0;
+
+        // Set backtrack limit to prevent ReDoS from user-supplied patterns
+        $previousLimit = ini_get('pcre.backtrack_limit');
+        ini_set('pcre.backtrack_limit', '10000');
+
+        // Process media in chunks to avoid memory exhaustion
+        Media::select('id', 'file_name')->chunk(500, function ($mediaChunk) use ($pattern, $products, $usageTypeId, $dryRun, &$matches, &$noMatch, &$totalMedia) {
+            foreach ($mediaChunk as $media) {
+                $totalMedia++;
+                $filename = pathinfo($media->file_name, PATHINFO_FILENAME);
+
+                $result = @preg_match($pattern, $filename, $m);
+                if ($result === false) {
+                    continue; // Pattern caused error (e.g., backtrack limit hit)
+                }
+                if ($result === 0) {
+                    continue;
+                }
+
+                // Use first capture group as SKU, or full match if no groups
+                $sku = $m[1] ?? $m[0];
+                $sku = trim($sku);
+
+                if (isset($products[$sku])) {
+                    $productId = $products[$sku];
+                    $exists = ProductMediaAssignment::where('product_id', $productId)
+                        ->where('media_id', $media->id)
+                        ->exists();
+
+                    if (!$exists) {
+                        $matches[] = [
+                            'media_id' => $media->id,
+                            'file_name' => $media->file_name,
+                            'sku' => $sku,
+                            'product_id' => $productId,
+                        ];
+
+                        if (!$dryRun) {
+                            $existingCount = ProductMediaAssignment::where('product_id', $productId)->count();
+                            $maxSort = ProductMediaAssignment::where('product_id', $productId)->max('sort_order') ?? 0;
+                            ProductMediaAssignment::create([
+                                'product_id' => $productId,
+                                'media_id' => $media->id,
+                                'usage_type_id' => $usageTypeId,
+                                'sort_order' => $maxSort + 1,
+                                'is_primary' => $existingCount === 0,
+                            ]);
+                        }
+                    }
+                } else {
+                    $noMatch[] = [
+                        'file_name' => $media->file_name,
+                        'extracted_sku' => $sku,
+                        'reason' => 'SKU nicht gefunden',
+                    ];
+                }
+            }
+        });
+
+        // Restore original backtrack limit
+        ini_set('pcre.backtrack_limit', $previousLimit);
+
+        return response()->json([
+            'dry_run' => $dryRun,
+            'matched' => count($matches),
+            'no_match' => count($noMatch),
+            'total_media' => $totalMedia,
+            'matches' => array_slice($matches, 0, 100),
+            'unmatched' => array_slice($noMatch, 0, 50),
+        ]);
+    }
+
+    /**
      * Generate a safe, readable filename with collision handling.
      * "Mein Bild (1).jpg" → "mein-bild-1.jpg", with _1, _2 suffixes on collision.
      */
@@ -368,6 +723,37 @@ class MediaController extends Controller
         }
     }
 
+    /**
+     * Generate a safe filename from a plain string (for URL imports).
+     */
+    private function generateSafeFilenameFromString(string $originalName): string
+    {
+        $extension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION) ?: 'bin');
+        $baseName = pathinfo($originalName, PATHINFO_FILENAME);
+
+        $safe = Str::ascii($baseName);
+        $safe = preg_replace('/[^a-zA-Z0-9._-]/', '-', $safe);
+        $safe = preg_replace('/-{2,}/', '-', $safe);
+        $safe = trim($safe, '-');
+        $safe = mb_strtolower($safe) ?: 'datei';
+
+        $disk = Storage::disk('public');
+        $candidate = "{$safe}.{$extension}";
+        $counter = 1;
+        $maxAttempts = 1000;
+
+        while ($disk->exists("media/{$candidate}")) {
+            if ($counter >= $maxAttempts) {
+                $candidate = "{$safe}_" . Str::random(8) . ".{$extension}";
+                break;
+            }
+            $candidate = "{$safe}_{$counter}.{$extension}";
+            $counter++;
+        }
+
+        return $candidate;
+    }
+
     private function detectMediaType(string $mimeType): string
     {
         return match (true) {
@@ -376,5 +762,49 @@ class MediaController extends Controller
             in_array($mimeType, ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']) => 'document',
             default => 'other',
         };
+    }
+
+    /**
+     * Validate that a URL does not point to internal/private networks (SSRF protection).
+     */
+    private function isInternalUrl(string $url): bool
+    {
+        $parsed = parse_url($url);
+        if (!$parsed || !isset($parsed['host'])) {
+            return true;
+        }
+
+        $host = $parsed['host'];
+        $scheme = strtolower($parsed['scheme'] ?? '');
+        if (!in_array($scheme, ['http', 'https'])) {
+            return true;
+        }
+
+        $ip = gethostbyname($host);
+        if ($ip === $host && !filter_var($host, FILTER_VALIDATE_IP)) {
+            return true; // DNS resolution failed
+        }
+
+        return filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false;
+    }
+
+    /**
+     * Validate file extension against allowlist.
+     */
+    private function validateExtension(string $extension): bool
+    {
+        return in_array(strtolower($extension), self::ALLOWED_EXTENSIONS);
+    }
+
+    /**
+     * Detect actual MIME type from file content instead of trusting remote headers.
+     */
+    private function detectMimeFromFile(string $filePath): ?string
+    {
+        if (!file_exists($filePath)) {
+            return null;
+        }
+        $finfo = new \finfo(FILEINFO_MIME_TYPE);
+        return $finfo->file($filePath) ?: null;
     }
 }

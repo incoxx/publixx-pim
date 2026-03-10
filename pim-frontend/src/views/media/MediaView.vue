@@ -1,7 +1,8 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
-import { Upload, Image, Grid, List, Trash2, FolderOpen, FolderPlus, Search, X, Plus, MoveRight, CheckSquare } from 'lucide-vue-next'
+import { Upload, Image, Grid, List, Trash2, FolderOpen, FolderPlus, Search, X, Plus, MoveRight, CheckSquare, Link, FileSpreadsheet, Wand2, Loader2 } from 'lucide-vue-next'
 import mediaApi from '@/api/media'
+import { mediaUsageTypes as mediaUsageTypesApi } from '@/api/mediaUsageTypes'
 import hierarchiesApi from '@/api/hierarchies'
 import { useAuthStore } from '@/stores/auth'
 import PimDeleteConfirmDialog from '@/components/shared/PimDeleteConfirmDialog.vue'
@@ -355,6 +356,109 @@ function contextDeleteFolder() {
   closeContextMenu()
 }
 
+// ─── Usage Types ────────────────────────
+const usageTypes = ref([])
+async function fetchUsageTypes() {
+  try {
+    const { data } = await mediaUsageTypesApi.list()
+    usageTypes.value = data.data || data || []
+  } catch (e) { console.warn('Failed to load usage types:', e.message) }
+}
+
+// ─── URL Import ────────────────────────
+const showUrlImport = ref(false)
+const urlImportForm = ref({ url: '', usage_type_id: null, usage_purpose: 'both' })
+const urlImporting = ref(false)
+const urlImportError = ref(null)
+
+async function importFromUrl() {
+  if (!urlImportForm.value.url) return
+  urlImporting.value = true
+  urlImportError.value = null
+  try {
+    await mediaApi.importFromUrl(urlImportForm.value.url, {
+      usage_type_id: urlImportForm.value.usage_type_id || undefined,
+      usage_purpose: urlImportForm.value.usage_purpose,
+      asset_folder_id: selectedFolderId.value || undefined,
+    })
+    showUrlImport.value = false
+    urlImportForm.value = { url: '', usage_type_id: null, usage_purpose: 'both' }
+    await fetchMedia()
+  } catch (e) {
+    urlImportError.value = e.response?.data?.message || e.message
+  } finally { urlImporting.value = false }
+}
+
+// ─── Bulk URL Import ────────────────────────
+const showBulkImport = ref(false)
+const bulkImportFile = ref(null)
+const bulkImportForm = ref({ usage_type_id: null, usage_purpose: 'both' })
+const bulkImporting = ref(false)
+const bulkImportResult = ref(null)
+const bulkImportError = ref(null)
+
+function handleBulkFile(e) {
+  bulkImportFile.value = e.target.files?.[0] || null
+}
+
+async function executeBulkImport() {
+  if (!bulkImportFile.value) return
+  bulkImporting.value = true
+  bulkImportResult.value = null
+  bulkImportError.value = null
+  try {
+    const { data } = await mediaApi.bulkImportFromUrls(bulkImportFile.value, {
+      usage_type_id: bulkImportForm.value.usage_type_id || undefined,
+      usage_purpose: bulkImportForm.value.usage_purpose,
+      asset_folder_id: selectedFolderId.value || undefined,
+    })
+    bulkImportResult.value = data
+    await fetchMedia()
+  } catch (e) {
+    bulkImportError.value = e.response?.data?.message || e.message
+  } finally { bulkImporting.value = false }
+}
+
+function closeBulkImport() {
+  showBulkImport.value = false
+  bulkImportFile.value = null
+  bulkImportResult.value = null
+  bulkImportError.value = null
+}
+
+// ─── Auto-Match ────────────────────────
+const showAutoMatch = ref(false)
+const autoMatchForm = ref({ pattern: '/^(.+?)(?:_\\d+)?$/', usage_type_id: null, dry_run: true })
+const autoMatching = ref(false)
+const autoMatchResult = ref(null)
+const autoMatchError = ref(null)
+
+async function executeAutoMatch() {
+  if (!autoMatchForm.value.pattern) return
+  autoMatching.value = true
+  autoMatchResult.value = null
+  autoMatchError.value = null
+  try {
+    const { data } = await mediaApi.autoMatch(autoMatchForm.value.pattern, {
+      usage_type_id: autoMatchForm.value.usage_type_id || undefined,
+      dry_run: autoMatchForm.value.dry_run,
+    })
+    autoMatchResult.value = data
+    if (!autoMatchForm.value.dry_run && data.matched > 0) {
+      await fetchMedia()
+    }
+  } catch (e) {
+    autoMatchError.value = e.response?.data?.message || e.message
+  } finally { autoMatching.value = false }
+}
+
+function closeAutoMatch() {
+  showAutoMatch.value = false
+  autoMatchResult.value = null
+  autoMatchError.value = null
+  autoMatchForm.value = { pattern: '/^(.+?)(?:_\\d+)?$/', usage_type_id: null, dry_run: true }
+}
+
 let debounceTimer = null
 watch(searchTerm, () => {
   clearTimeout(debounceTimer)
@@ -370,6 +474,7 @@ watch(selectedFolderId, () => { clearSelection(); fetchMedia() })
 onMounted(() => {
   fetchMedia()
   fetchFolders()
+  fetchUsageTypes()
   document.addEventListener('click', handleDocClick, true)
 })
 </script>
@@ -472,6 +577,15 @@ onMounted(() => {
           <button :class="['pim-btn pim-btn-ghost p-1.5', viewMode==='grid'?'bg-[var(--color-bg)]':'']" @click="viewMode='grid'"><Grid class="w-4 h-4" :stroke-width="1.75" /></button>
           <button :class="['pim-btn pim-btn-ghost p-1.5', viewMode==='list'?'bg-[var(--color-bg)]':'']" @click="viewMode='list'"><List class="w-4 h-4" :stroke-width="1.75" /></button>
           <template v-if="authStore.hasPermission('media.create')">
+            <button class="pim-btn pim-btn-ghost text-xs" @click="showAutoMatch = true" title="Auto-Match: Dateinamen → SKU">
+              <Wand2 class="w-4 h-4" :stroke-width="2" /> Auto-Match
+            </button>
+            <button class="pim-btn pim-btn-ghost text-xs" @click="showBulkImport = true" title="Bulk-Import über Excel">
+              <FileSpreadsheet class="w-4 h-4" :stroke-width="2" /> Bulk-Import
+            </button>
+            <button class="pim-btn pim-btn-ghost text-xs" @click="showUrlImport = true" title="Import über URL">
+              <Link class="w-4 h-4" :stroke-width="2" /> URL-Import
+            </button>
             <input type="file" accept="image/*,application/pdf,.doc,.docx,.xlsx" multiple class="hidden" id="media-upload" @change="handleUpload" />
             <label for="media-upload" class="pim-btn pim-btn-primary text-sm cursor-pointer"><Upload class="w-4 h-4" :stroke-width="2" /> Hochladen</label>
           </template>
@@ -689,6 +803,182 @@ onMounted(() => {
               <button class="pim-btn pim-btn-primary text-xs flex items-center gap-1.5" :disabled="moving" @click="moveSelectedToFolder">
                 <MoveRight v-if="!moving" class="w-3.5 h-3.5" :stroke-width="2" />
                 {{ moving ? 'Verschiebe…' : 'Verschieben' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- URL Import Dialog -->
+    <Teleport to="body">
+      <Transition name="fade">
+        <div v-if="showUrlImport" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" @click.self="showUrlImport = false">
+          <div class="bg-[var(--color-surface)] rounded-xl shadow-xl w-full max-w-md p-5 space-y-4">
+            <h3 class="text-sm font-semibold text-[var(--color-text-primary)] flex items-center gap-2">
+              <Link class="w-4 h-4 text-[var(--color-accent)]" :stroke-width="2" />
+              Bild über URL importieren
+            </h3>
+            <div class="space-y-3">
+              <div>
+                <label class="text-[10px] font-medium text-[var(--color-text-secondary)] uppercase block mb-1">Bild-URL</label>
+                <input v-model="urlImportForm.url" class="pim-input text-xs w-full" placeholder="https://example.com/bild.jpg" @keyup.enter="importFromUrl" />
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="text-[10px] font-medium text-[var(--color-text-secondary)] uppercase block mb-1">Bildtyp</label>
+                  <select v-model="urlImportForm.usage_type_id" class="pim-select text-xs w-full">
+                    <option :value="null">— Kein Typ —</option>
+                    <option v-for="ut in usageTypes" :key="ut.id" :value="ut.id">{{ ut.name_de || ut.technical_name }}</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="text-[10px] font-medium text-[var(--color-text-secondary)] uppercase block mb-1">Verwendung</label>
+                  <select v-model="urlImportForm.usage_purpose" class="pim-select text-xs w-full">
+                    <option value="both">Print & Web</option>
+                    <option value="print">Print</option>
+                    <option value="web">Web</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div v-if="urlImportError" class="text-xs text-[var(--color-error)] bg-red-50 dark:bg-red-950/30 rounded p-2">{{ urlImportError }}</div>
+            <div class="flex justify-end gap-2">
+              <button class="pim-btn pim-btn-ghost text-xs" @click="showUrlImport = false">Abbrechen</button>
+              <button class="pim-btn pim-btn-primary text-xs flex items-center gap-1.5" :disabled="urlImporting || !urlImportForm.url" @click="importFromUrl">
+                <Loader2 v-if="urlImporting" class="w-3.5 h-3.5 animate-spin" />
+                <Link v-else class="w-3.5 h-3.5" :stroke-width="2" />
+                {{ urlImporting ? 'Importiere…' : 'Importieren' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- Bulk Import Dialog -->
+    <Teleport to="body">
+      <Transition name="fade">
+        <div v-if="showBulkImport" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" @click.self="closeBulkImport">
+          <div class="bg-[var(--color-surface)] rounded-xl shadow-xl w-full max-w-lg p-5 space-y-4">
+            <h3 class="text-sm font-semibold text-[var(--color-text-primary)] flex items-center gap-2">
+              <FileSpreadsheet class="w-4 h-4 text-[var(--color-accent)]" :stroke-width="2" />
+              Bulk-Import über Excel
+            </h3>
+            <p class="text-[11px] text-[var(--color-text-tertiary)]">
+              Excel-Datei (.xlsx) mit einer Spalte <strong>"url"</strong> hochladen. Alle Bilder werden heruntergeladen und importiert.
+            </p>
+            <div class="space-y-3">
+              <div>
+                <label class="text-[10px] font-medium text-[var(--color-text-secondary)] uppercase block mb-1">Excel-Datei</label>
+                <input type="file" accept=".xlsx,.xls,.csv" class="pim-input text-xs w-full" @change="handleBulkFile" />
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="text-[10px] font-medium text-[var(--color-text-secondary)] uppercase block mb-1">Bildtyp</label>
+                  <select v-model="bulkImportForm.usage_type_id" class="pim-select text-xs w-full">
+                    <option :value="null">— Kein Typ —</option>
+                    <option v-for="ut in usageTypes" :key="ut.id" :value="ut.id">{{ ut.name_de || ut.technical_name }}</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="text-[10px] font-medium text-[var(--color-text-secondary)] uppercase block mb-1">Verwendung</label>
+                  <select v-model="bulkImportForm.usage_purpose" class="pim-select text-xs w-full">
+                    <option value="both">Print & Web</option>
+                    <option value="print">Print</option>
+                    <option value="web">Web</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <!-- Result -->
+            <div v-if="bulkImportResult" class="text-xs rounded p-3 space-y-1" :class="bulkImportResult.failed > 0 ? 'bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200' : 'bg-green-50 dark:bg-green-950/30 border border-green-200'">
+              <p class="font-medium">{{ bulkImportResult.imported }} importiert, {{ bulkImportResult.failed }} fehlgeschlagen</p>
+              <div v-if="bulkImportResult.errors?.length" class="mt-1 space-y-0.5 max-h-32 overflow-y-auto">
+                <p v-for="(err, i) in bulkImportResult.errors" :key="i" class="text-[var(--color-error)]">{{ err }}</p>
+              </div>
+            </div>
+            <div v-if="bulkImportError" class="text-xs text-[var(--color-error)] bg-red-50 dark:bg-red-950/30 rounded p-2">{{ bulkImportError }}</div>
+            <div class="flex justify-end gap-2">
+              <button class="pim-btn pim-btn-ghost text-xs" @click="closeBulkImport">Schließen</button>
+              <button class="pim-btn pim-btn-primary text-xs flex items-center gap-1.5" :disabled="bulkImporting || !bulkImportFile" @click="executeBulkImport">
+                <Loader2 v-if="bulkImporting" class="w-3.5 h-3.5 animate-spin" />
+                <FileSpreadsheet v-else class="w-3.5 h-3.5" :stroke-width="2" />
+                {{ bulkImporting ? 'Importiere…' : 'Importieren' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- Auto-Match Dialog -->
+    <Teleport to="body">
+      <Transition name="fade">
+        <div v-if="showAutoMatch" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" @click.self="closeAutoMatch">
+          <div class="bg-[var(--color-surface)] rounded-xl shadow-xl w-full max-w-xl p-5 space-y-4">
+            <h3 class="text-sm font-semibold text-[var(--color-text-primary)] flex items-center gap-2">
+              <Wand2 class="w-4 h-4 text-[var(--color-accent)]" :stroke-width="2" />
+              Auto-Match: Dateinamen → SKU
+            </h3>
+            <p class="text-[11px] text-[var(--color-text-tertiary)]">
+              Ordnet Medien automatisch Produkten zu, wenn der Dateiname per Regex zur SKU passt.
+              Die erste Capture-Group <code>(…)</code> wird als SKU verwendet.
+            </p>
+            <div class="space-y-3">
+              <div>
+                <label class="text-[10px] font-medium text-[var(--color-text-secondary)] uppercase block mb-1">Regex-Muster</label>
+                <input v-model="autoMatchForm.pattern" class="pim-input text-xs w-full font-mono" placeholder="/^(.+?)(?:_\d+)?$/" />
+                <p class="text-[10px] text-[var(--color-text-tertiary)] mt-0.5">Beispiel: <code>/^(.+?)(?:_\d+)?$/</code> extrahiert "ABC123" aus "ABC123_1.jpg"</p>
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="text-[10px] font-medium text-[var(--color-text-secondary)] uppercase block mb-1">Bildtyp</label>
+                  <select v-model="autoMatchForm.usage_type_id" class="pim-select text-xs w-full">
+                    <option :value="null">— Kein Typ —</option>
+                    <option v-for="ut in usageTypes" :key="ut.id" :value="ut.id">{{ ut.name_de || ut.technical_name }}</option>
+                  </select>
+                </div>
+                <div class="flex items-end">
+                  <label class="flex items-center gap-2 text-xs cursor-pointer">
+                    <input type="checkbox" v-model="autoMatchForm.dry_run" class="rounded border-[var(--color-border-strong)] text-[var(--color-accent)]" />
+                    Nur Vorschau (Dry Run)
+                  </label>
+                </div>
+              </div>
+            </div>
+            <!-- Result -->
+            <div v-if="autoMatchResult" class="text-xs rounded p-3 space-y-2 bg-[var(--color-bg)] border border-[var(--color-border)] max-h-64 overflow-y-auto">
+              <div class="flex gap-4 font-medium">
+                <span class="text-green-600">{{ autoMatchResult.matched }} Treffer</span>
+                <span class="text-yellow-600">{{ autoMatchResult.no_match }} ohne SKU</span>
+                <span class="text-[var(--color-text-tertiary)]">{{ autoMatchResult.total_media }} Medien gesamt</span>
+                <span v-if="autoMatchResult.dry_run" class="text-blue-500 ml-auto">Vorschau</span>
+                <span v-else class="text-green-600 ml-auto">Ausgeführt</span>
+              </div>
+              <div v-if="autoMatchResult.matches?.length" class="space-y-0.5 mt-2">
+                <p class="font-medium text-[var(--color-text-secondary)]">Zuordnungen:</p>
+                <div v-for="m in autoMatchResult.matches" :key="m.media_id" class="flex gap-2">
+                  <span class="text-[var(--color-text-tertiary)] truncate flex-1">{{ m.file_name }}</span>
+                  <span class="text-[var(--color-text-secondary)]">→</span>
+                  <span class="font-mono text-[var(--color-accent)]">{{ m.sku }}</span>
+                </div>
+              </div>
+              <div v-if="autoMatchResult.unmatched?.length" class="space-y-0.5 mt-2">
+                <p class="font-medium text-yellow-600">Nicht zugeordnet:</p>
+                <div v-for="u in autoMatchResult.unmatched.slice(0, 10)" :key="u.file_name" class="flex gap-2">
+                  <span class="text-[var(--color-text-tertiary)] truncate flex-1">{{ u.file_name }}</span>
+                  <span class="text-yellow-600 text-[10px]">{{ u.extracted_sku }} — {{ u.reason }}</span>
+                </div>
+              </div>
+            </div>
+            <div v-if="autoMatchError" class="text-xs text-[var(--color-error)] bg-red-50 dark:bg-red-950/30 rounded p-2">{{ autoMatchError }}</div>
+            <div class="flex justify-end gap-2">
+              <button class="pim-btn pim-btn-ghost text-xs" @click="closeAutoMatch">Schließen</button>
+              <button class="pim-btn pim-btn-primary text-xs flex items-center gap-1.5" :disabled="autoMatching || !autoMatchForm.pattern" @click="executeAutoMatch">
+                <Loader2 v-if="autoMatching" class="w-3.5 h-3.5 animate-spin" />
+                <Wand2 v-else class="w-3.5 h-3.5" :stroke-width="2" />
+                {{ autoMatching ? 'Matching…' : (autoMatchForm.dry_run ? 'Vorschau' : 'Ausführen') }}
               </button>
             </div>
           </div>
