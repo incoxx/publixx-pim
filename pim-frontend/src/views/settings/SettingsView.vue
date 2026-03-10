@@ -1,9 +1,9 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useLocaleStore } from '@/stores/locale'
 import { useAuthStore } from '@/stores/auth'
-import { Globe, Palette, AlertTriangle, Server, RotateCcw, CheckCircle, XCircle, Loader2, GitBranch, Database, Upload, Trash2, Save, Filter, LayoutGrid, Columns3, Image, Settings2, Paintbrush, BookOpen } from 'lucide-vue-next'
+import { Globe, Palette, AlertTriangle, Server, RotateCcw, CheckCircle, XCircle, Loader2, GitBranch, Database, Upload, Trash2, Save, Filter, LayoutGrid, Columns3, Image, Settings2, Paintbrush, BookOpen, GripVertical, Plus, X } from 'lucide-vue-next'
 import adminApi from '@/api/admin'
 import catalogApi from '@/api/catalog'
 import mediaApi from '@/api/media'
@@ -101,6 +101,48 @@ async function loadPriceTypes() {
   } catch (e) {
     console.warn('Failed to load price types:', e.message)
   }
+}
+
+// ── Card attribute ordering (drag & drop) ──
+const cardDragIdx = ref(null)
+
+const selectedCardAttributes = computed(() => {
+  return (themeForm.value.card_attribute_ids || [])
+    .map(id => allAttributes.value.find(a => a.id === id))
+    .filter(Boolean)
+})
+
+const unselectedCardAttributes = computed(() => {
+  const selected = new Set(themeForm.value.card_attribute_ids || [])
+  return allAttributes.value.filter(a => !selected.has(a.id))
+})
+
+function addCardAttribute(attr) {
+  if (!themeForm.value.card_attribute_ids.includes(attr.id)) {
+    themeForm.value.card_attribute_ids.push(attr.id)
+  }
+}
+
+function removeCardAttribute(attrId) {
+  themeForm.value.card_attribute_ids = themeForm.value.card_attribute_ids.filter(id => id !== attrId)
+}
+
+function onCardDragStart(idx) {
+  cardDragIdx.value = idx
+}
+
+function onCardDragOver(e, idx) {
+  e.preventDefault()
+  if (cardDragIdx.value === null || cardDragIdx.value === idx) return
+  const ids = [...themeForm.value.card_attribute_ids]
+  const [moved] = ids.splice(cardDragIdx.value, 1)
+  ids.splice(idx, 0, moved)
+  themeForm.value.card_attribute_ids = ids
+  cardDragIdx.value = idx
+}
+
+function onCardDragEnd() {
+  cardDragIdx.value = null
 }
 
 function applyPreset(preset) {
@@ -787,29 +829,58 @@ onMounted(() => {
           <div>
             <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">
               Attribute auf Karten
-              <span class="text-[var(--color-text-tertiary)] font-normal">(max. 3 werden angezeigt)</span>
+              <span class="text-[var(--color-text-tertiary)] font-normal">(max. 3 werden angezeigt – Reihenfolge per Drag &amp; Drop)</span>
             </label>
             <div v-if="allAttributes.length === 0" class="text-xs text-[var(--color-text-tertiary)]">Keine Attribute vorhanden</div>
-            <div v-else class="grid grid-cols-1 sm:grid-cols-2 gap-1.5 mt-1 max-h-48 overflow-y-auto">
-              <label
-                v-for="attr in allAttributes"
-                :key="attr.id"
-                class="flex items-center gap-2 px-2.5 py-2 rounded-md cursor-pointer hover:bg-[var(--color-bg)] transition-colors min-h-[44px]"
-              >
-                <input
-                  type="checkbox"
-                  :value="attr.id"
-                  :checked="themeForm.card_attribute_ids.includes(attr.id)"
-                  @change="
-                    $event.target.checked
-                      ? themeForm.card_attribute_ids.push(attr.id)
-                      : themeForm.card_attribute_ids = themeForm.card_attribute_ids.filter(id => id !== attr.id)
-                  "
-                  class="rounded border-[var(--color-border-strong)] text-[var(--color-accent)] shrink-0"
-                />
-                <span class="text-xs text-[var(--color-text-primary)] truncate">{{ attr.name_de || attr.name }}</span>
-                <span class="text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-bg)] text-[var(--color-text-tertiary)] shrink-0">{{ attr.data_type }}</span>
-              </label>
+            <div v-else class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-1">
+              <!-- Selected attributes (draggable, ordered) -->
+              <div>
+                <p class="text-[10px] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wide mb-1">Ausgewählt (Reihenfolge ziehen)</p>
+                <div v-if="selectedCardAttributes.length === 0" class="text-xs text-[var(--color-text-tertiary)] italic py-3 px-2 border border-dashed border-[var(--color-border)] rounded-md text-center">
+                  Keine Attribute ausgewählt
+                </div>
+                <div class="space-y-1">
+                  <div
+                    v-for="(attr, idx) in selectedCardAttributes"
+                    :key="attr.id"
+                    draggable="true"
+                    @dragstart="onCardDragStart(idx)"
+                    @dragover="onCardDragOver($event, idx)"
+                    @dragend="onCardDragEnd"
+                    class="flex items-center gap-1.5 px-2 py-1.5 rounded-md border border-[var(--color-border)] bg-[var(--color-bg-elevated,var(--color-bg))] cursor-grab active:cursor-grabbing hover:border-[var(--color-accent)] transition-colors group"
+                    :class="{ 'opacity-50': cardDragIdx === idx }"
+                  >
+                    <GripVertical class="w-3.5 h-3.5 text-[var(--color-text-tertiary)] shrink-0" :stroke-width="2" />
+                    <span class="text-[11px] font-medium text-[var(--color-accent)] w-4 shrink-0">{{ idx + 1 }}</span>
+                    <span class="text-xs text-[var(--color-text-primary)] truncate flex-1">{{ attr.name_de || attr.name }}</span>
+                    <span class="text-[10px] px-1 py-0.5 rounded bg-[var(--color-bg)] text-[var(--color-text-tertiary)] shrink-0">{{ attr.data_type }}</span>
+                    <button
+                      type="button"
+                      class="p-0.5 rounded hover:bg-red-100 text-[var(--color-text-tertiary)] hover:text-red-500 transition-colors shrink-0"
+                      @click="removeCardAttribute(attr.id)"
+                      title="Entfernen"
+                    >
+                      <X class="w-3.5 h-3.5" :stroke-width="2" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <!-- Available attributes -->
+              <div>
+                <p class="text-[10px] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wide mb-1">Verfügbar</p>
+                <div class="space-y-1 max-h-48 overflow-y-auto">
+                  <div
+                    v-for="attr in unselectedCardAttributes"
+                    :key="attr.id"
+                    class="flex items-center gap-1.5 px-2 py-1.5 rounded-md border border-transparent hover:border-[var(--color-border)] hover:bg-[var(--color-bg)] cursor-pointer transition-colors"
+                    @click="addCardAttribute(attr)"
+                  >
+                    <Plus class="w-3.5 h-3.5 text-[var(--color-accent)] shrink-0" :stroke-width="2" />
+                    <span class="text-xs text-[var(--color-text-primary)] truncate flex-1">{{ attr.name_de || attr.name }}</span>
+                    <span class="text-[10px] px-1 py-0.5 rounded bg-[var(--color-bg)] text-[var(--color-text-tertiary)] shrink-0">{{ attr.data_type }}</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
