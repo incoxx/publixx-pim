@@ -30,6 +30,11 @@ class ProductResource extends JsonResource
             'parent_product' => new ProductResource($this->whenLoaded('parentProduct')),
             'master_hierarchy_node' => new HierarchyNodeResource($this->whenLoaded('masterHierarchyNode')),
             'attributes' => $this->when(isset($this->resource->getAttributes()['attributes']), $this->attributes),
+            'primary_image' => $this->when(isset($this->resource->getAttributes()['primary_image']), fn () => $this->primary_image),
+            'thumbnail_url' => $this->when(
+                isset($this->resource->getAttributes()['primary_image']) && $this->primary_image,
+                fn () => url('api/v1/media/file/' . rawurlencode($this->primary_image))
+            ),
             'created_by' => $this->created_by,
             'updated_by' => $this->updated_by,
             'created_at' => $this->created_at,

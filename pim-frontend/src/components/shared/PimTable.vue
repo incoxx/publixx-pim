@@ -109,9 +109,9 @@ function getCellValue(row, col) {
               :class="[
                 'px-3 py-2.5 text-left font-medium text-[11px] uppercase tracking-wider text-[var(--color-text-tertiary)]',
                 col.sortable ? 'cursor-pointer select-none hover:text-[var(--color-text-secondary)]' : '',
-                col.width ? `w-[${col.width}]` : '',
                 col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : '',
               ]"
+              :style="col.width ? { width: col.width, minWidth: col.width, maxWidth: col.width } : {}"
               @click="handleSort(col)"
             >
               <div class="flex items-center gap-1" :class="col.align === 'right' ? 'justify-end' : ''">
@@ -208,6 +208,7 @@ function getCellValue(row, col) {
                 col.mono ? 'font-mono text-xs text-[var(--color-text-secondary)]' : '',
                 col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : '',
               ]"
+              :style="col.width ? { width: col.width, minWidth: col.width, maxWidth: col.width } : {}"
             >
               <slot :name="'cell-' + col.key" :row="row" :value="getCellValue(row, col)">
                 {{ getCellValue(row, col) }}

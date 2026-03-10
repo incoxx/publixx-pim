@@ -50,6 +50,12 @@ class ProductController extends Controller
         $query = Product::query()
             ->with($this->parseIncludes($request, self::ALLOWED_INCLUDES));
 
+        // Optionally join primary_image from search index for thumbnail display
+        if ($request->boolean('include_thumbnail')) {
+            $query->leftJoin('products_search_index', 'products.id', '=', 'products_search_index.product_id')
+                ->addSelect('products.*', 'products_search_index.primary_image');
+        }
+
         // If attributeValues are included, filter by language
         if (in_array('attributeValues', $this->parseIncludes($request, self::ALLOWED_INCLUDES))) {
             $this->constrainAttributeValuesForLanguages($query, $languages);
