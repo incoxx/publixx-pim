@@ -59,6 +59,11 @@ const IMAGE_RATIO_OPTIONS = [
   { value: '16/9', label: 'Breit (16:9)' },
 ]
 
+const PDF_DISPLAY_MODE_OPTIONS = [
+  { value: 'link', label: 'Link', desc: 'PDFs als klickbare Links anzeigen' },
+  { value: 'embedded', label: 'Eingebettete Vorschau', desc: 'PDFs inline im Browser-Viewer anzeigen' },
+]
+
 // ── Hierarchies, Attribute Views & Attributes for catalog config ──
 const availableHierarchies = ref([])
 const availableAttributeViews = ref([])
@@ -264,6 +269,7 @@ const themeForm = ref({
   card_image_ratio: '4/3',
   thumbnail_usage_type_id: null,
   description_attributes: [],
+  pdf_display_mode: 'link',
 })
 const activeThemeTab = ref('general')
 const themeLogoPreview = ref(null)
@@ -318,6 +324,7 @@ async function loadThemeSettings() {
         card_image_ratio: d.card_image_ratio || '4/3',
         thumbnail_usage_type_id: d.thumbnail_usage_type_id || null,
         description_attributes: d.description_attributes || [],
+        pdf_display_mode: d.pdf_display_mode || 'link',
       }
       themeLogoPreview.value = d.logo_url || null
     }
@@ -832,6 +839,15 @@ onMounted(() => {
               </div>
             </button>
           </div>
+        </div>
+
+        <!-- PDF-Anzeigemodus -->
+        <div class="space-y-2">
+          <label class="block text-[12px] font-medium text-[var(--color-text-secondary)]">PDF-Anzeigemodus</label>
+          <p class="text-[11px] text-[var(--color-text-tertiary)]">Wie PDF-Link-Attribute in der Katalog-Detailansicht dargestellt werden.</p>
+          <select class="pim-input text-xs" v-model="themeForm.pdf_display_mode">
+            <option v-for="o in PDF_DISPLAY_MODE_OPTIONS" :key="o.value" :value="o.value">{{ o.label }} — {{ o.desc }}</option>
+          </select>
         </div>
 
         <!-- Beschreibung (Produktdetail) -->

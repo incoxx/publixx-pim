@@ -56,6 +56,17 @@ const groupedLinks = computed(() => {
 
 const linkGroupLabels = { ImageLink: 'Bilder', VideoLink: 'Videos', PdfLink: 'PDFs', Hyperlink: 'Links' }
 
+const pdfDisplayMode = computed(() => store.themeSettings.pdf_display_mode || 'link')
+
+function getVideoEmbedUrl(url) {
+  if (!url) return null
+  const yt = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([\w-]+)/)
+  if (yt) return `https://www.youtube.com/embed/${yt[1]}`
+  const vim = url.match(/vimeo\.com\/(\d+)/)
+  if (vim) return `https://player.vimeo.com/video/${vim[1]}`
+  return null
+}
+
 function formatPrice(price) {
   if (!price?.amount) return '--'
   return new Intl.NumberFormat(store.locale === 'de' ? 'de-DE' : 'en-US', {
@@ -222,18 +233,30 @@ onMounted(() => {
               <template v-for="(items, dtype) in groupedLinks" :key="dtype">
                 <div v-if="items.length">
                   <h4 class="font-semibold text-sm text-base-content mb-2">{{ linkGroupLabels[dtype] }}</h4>
+                  <!-- Images -->
                   <div v-if="dtype === 'ImageLink'" class="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     <a v-for="(attr, idx) in items" :key="idx" :href="attr.link_data.url" target="_blank" rel="noopener noreferrer" class="group block rounded-lg overflow-hidden border border-base-300 hover:border-primary transition-colors">
                       <img :src="attr.link_data.url" :alt="attr.link_data.alt_text || attr.link_data.title || attr.label" class="w-full h-32 object-cover" loading="lazy" />
                       <div class="p-2 text-xs text-base-content/70">{{ attr.link_data.title || attr.label }}</div>
                     </a>
                   </div>
+                  <!-- PDFs -->
+                  <div v-else-if="dtype === 'PdfLink'" class="space-y-3">
+                    <div v-for="(attr, idx) in items" :key="idx" class="rounded-lg border border-base-300 p-3">
+                      <a :href="attr.link_data.url" :target="attr.link_data.target || '_blank'" rel="noopener noreferrer" class="link link-primary text-sm font-medium">{{ attr.link_data.title || attr.link_data.url }}</a>
+                      <iframe v-if="pdfDisplayMode === 'embedded'" :src="attr.link_data.url" class="w-full h-96 rounded border border-base-300 mt-2" loading="lazy"></iframe>
+                    </div>
+                  </div>
+                  <!-- Videos -->
                   <div v-else-if="dtype === 'VideoLink'" class="space-y-3">
                     <div v-for="(attr, idx) in items" :key="idx" class="rounded-lg border border-base-300 p-3">
-                      <a :href="attr.link_data.url" target="_blank" rel="noopener noreferrer" class="link link-primary text-sm font-medium">{{ attr.link_data.title || attr.label }}</a>
+                      <p class="text-sm font-medium text-base-content mb-2">{{ attr.link_data.title || attr.label }}</p>
+                      <iframe v-if="getVideoEmbedUrl(attr.link_data.url)" :src="getVideoEmbedUrl(attr.link_data.url)" class="w-full aspect-video rounded" allowfullscreen loading="lazy"></iframe>
+                      <video v-else :src="attr.link_data.url" controls class="w-full rounded"></video>
                       <div v-if="attr.link_data.width && attr.link_data.height" class="text-xs text-base-content/50 mt-1">{{ attr.link_data.width }} × {{ attr.link_data.height }} px</div>
                     </div>
                   </div>
+                  <!-- Hyperlinks -->
                   <div v-else class="space-y-2">
                     <div v-for="(attr, idx) in items" :key="idx" class="flex items-center gap-2 text-sm">
                       <a :href="attr.link_data.url" :target="attr.link_data.target || '_blank'" rel="noopener noreferrer" class="link link-primary">{{ attr.link_data.title || attr.link_data.url }}</a>
@@ -323,11 +346,28 @@ onMounted(() => {
               <template v-for="(items, dtype) in groupedLinks" :key="dtype">
                 <div v-if="items.length">
                   <h4 class="text-xs font-semibold text-base-content/60 mb-1.5">{{ linkGroupLabels[dtype] }}</h4>
+                  <!-- Images -->
                   <div v-if="dtype === 'ImageLink'" class="flex flex-wrap gap-2">
                     <a v-for="(attr, idx) in items" :key="idx" :href="attr.link_data.url" target="_blank" rel="noopener noreferrer" class="block w-20 h-20 rounded border border-base-300 overflow-hidden hover:border-primary transition-colors">
                       <img :src="attr.link_data.url" :alt="attr.link_data.alt_text || attr.label" class="w-full h-full object-cover" loading="lazy" />
                     </a>
                   </div>
+                  <!-- PDFs -->
+                  <div v-else-if="dtype === 'PdfLink'" class="space-y-2">
+                    <div v-for="(attr, idx) in items" :key="idx">
+                      <a :href="attr.link_data.url" :target="attr.link_data.target || '_blank'" rel="noopener noreferrer" class="link link-primary text-sm">{{ attr.link_data.title || attr.link_data.url }}</a>
+                      <iframe v-if="pdfDisplayMode === 'embedded'" :src="attr.link_data.url" class="w-full h-64 rounded border border-base-300 mt-1" loading="lazy"></iframe>
+                    </div>
+                  </div>
+                  <!-- Videos -->
+                  <div v-else-if="dtype === 'VideoLink'" class="space-y-2">
+                    <div v-for="(attr, idx) in items" :key="idx">
+                      <p class="text-sm font-medium text-base-content mb-1">{{ attr.link_data.title || attr.label }}</p>
+                      <iframe v-if="getVideoEmbedUrl(attr.link_data.url)" :src="getVideoEmbedUrl(attr.link_data.url)" class="w-full aspect-video rounded" allowfullscreen loading="lazy"></iframe>
+                      <video v-else :src="attr.link_data.url" controls class="w-full rounded"></video>
+                    </div>
+                  </div>
+                  <!-- Hyperlinks -->
                   <div v-else class="space-y-1">
                     <a v-for="(attr, idx) in items" :key="idx" :href="attr.link_data.url" :target="attr.link_data.target || '_blank'" rel="noopener noreferrer" class="block link link-primary text-sm">{{ attr.link_data.title || attr.link_data.url }}</a>
                   </div>

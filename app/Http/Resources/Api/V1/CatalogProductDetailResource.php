@@ -52,7 +52,21 @@ class CatalogProductDetailResource extends JsonResource
                 }
 
                 $label = $lang === 'en' && $attr->name_en ? $attr->name_en : $attr->name_de;
+                $isLinkType = in_array($attr->data_type, ['Hyperlink', 'ImageLink', 'PdfLink', 'VideoLink']);
                 $displayValue = $this->resolveAttributeDisplayValue($attrValue, $attr, $lang);
+
+                // For link types: try to build link_data even if displayValue is empty
+                $linkData = null;
+                if ($isLinkType && $attrValue->value_string) {
+                    $linkData = json_decode($attrValue->value_string, true);
+                    if (!is_array($linkData) || empty($linkData['url'])) {
+                        $linkData = null;
+                    }
+                    // Ensure displayValue has a fallback from link_data
+                    if (($displayValue === null || $displayValue === '') && $linkData) {
+                        $displayValue = $linkData['title'] ?? $linkData['url'] ?? null;
+                    }
+                }
 
                 if ($displayValue === null || $displayValue === '') {
                     return null;
@@ -70,9 +84,8 @@ class CatalogProductDetailResource extends JsonResource
                     'composite_format' => $attr->data_type === 'Composite' ? $attr->composite_format : null,
                 ];
 
-                // Include structured link data for link types
-                if (in_array($attr->data_type, ['Hyperlink', 'ImageLink', 'PdfLink', 'VideoLink']) && $attrValue->value_string) {
-                    $entry['link_data'] = json_decode($attrValue->value_string, true) ?: null;
+                if ($linkData) {
+                    $entry['link_data'] = $linkData;
                 }
 
                 return $entry;
