@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
-import { Upload, Image, Grid, List, Trash2, FolderOpen, FolderPlus, Search, X, Plus, MoveRight, CheckSquare, Link, FileSpreadsheet, Wand2, Loader2, ChevronLeft, ChevronRight } from 'lucide-vue-next'
+import { Upload, Image, Grid, List, Trash2, FolderOpen, FolderPlus, Search, X, Plus, MoveRight, CheckSquare, Link, FileSpreadsheet, Wand2, Loader2, ChevronLeft, ChevronRight, Download, Copy } from 'lucide-vue-next'
 import mediaApi from '@/api/media'
 import { mediaUsageTypes as mediaUsageTypesApi } from '@/api/mediaUsageTypes'
 import hierarchiesApi from '@/api/hierarchies'
@@ -14,6 +14,7 @@ const authStore = useAuthStore()
 
 const items = ref([])
 const loading = ref(false)
+const sidebarOpen = ref(false)
 const viewMode = ref('grid')
 const deleteTarget = ref(null)
 const deleting = ref(false)
@@ -100,14 +101,33 @@ async function fetchFolders() {
   }
 }
 
+const uploading = ref(false)
+const uploadError = ref('')
+
 async function handleUpload(e) {
-  for (const file of e.target.files) {
-    const metadata = {}
-    if (selectedFolderId.value) metadata.asset_folder_id = selectedFolderId.value
-    await mediaApi.upload(file, metadata)
+  const files = Array.from(e.target.files || [])
+  if (!files.length) return
+
+  uploading.value = true
+  uploadError.value = ''
+  let successCount = 0
+
+  for (const file of files) {
+    try {
+      const metadata = {}
+      if (selectedFolderId.value) metadata.asset_folder_id = selectedFolderId.value
+      await mediaApi.upload(file, metadata)
+      successCount++
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message || 'Unbekannter Fehler'
+      uploadError.value = `Fehler bei "${file.name}": ${msg}`
+      console.error('Upload failed:', file.name, err)
+    }
   }
-  e.target.value = ''
-  await fetchMedia()
+
+  if (e.target?.value !== undefined) e.target.value = ''
+  uploading.value = false
+  if (successCount > 0) await fetchMedia()
 }
 
 function handleDrop(e) {
@@ -134,6 +154,26 @@ function isItemPdf(item) {
 function getFileUrl(item) {
   if (item.file_name) return mediaApi.fileUrl(item.file_name)
   return item.url || ''
+}
+
+const copiedUrl = ref(false)
+async function copyAssetUrl(item) {
+  const url = new URL(getFileUrl(item), window.location.origin).href
+  try {
+    await navigator.clipboard.writeText(url)
+    copiedUrl.value = true
+    setTimeout(() => { copiedUrl.value = false }, 2000)
+  } catch {
+    // Fallback
+    const ta = document.createElement('textarea')
+    ta.value = url
+    document.body.appendChild(ta)
+    ta.select()
+    document.execCommand('copy')
+    document.body.removeChild(ta)
+    copiedUrl.value = true
+    setTimeout(() => { copiedUrl.value = false }, 2000)
+  }
 }
 
 function handleImgError(e) {
@@ -171,6 +211,7 @@ async function confirmDeleteFolder({ force } = {}) {
 // ─── PimTree event handlers ─────────────────────────
 function handleTreeSelect(node) {
   selectedFolderId.value = selectedFolderId.value === node.id ? null : node.id
+  sidebarOpen.value = false
 }
 
 function handleTreeToggle(nodeId) {
@@ -509,9 +550,21 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="flex gap-4 h-full">
+  <div class="flex gap-4 h-full relative">
+    <!-- Mobile sidebar toggle -->
+    <button class="lg:hidden fixed bottom-4 left-4 z-40 pim-btn pim-btn-primary rounded-full w-12 h-12 shadow-lg flex items-center justify-center" @click="sidebarOpen = !sidebarOpen">
+      <FolderOpen class="w-5 h-5" />
+    </button>
+
+    <!-- Sidebar backdrop (mobile) -->
+    <div v-if="sidebarOpen" class="lg:hidden fixed inset-0 z-40 bg-black/40" @click="sidebarOpen = false" />
+
     <!-- Folder Sidebar -->
-    <div class="w-56 flex-none pim-card p-3 space-y-2 self-start">
+    <div
+      class="w-56 flex-none pim-card p-3 space-y-2 self-start transition-transform duration-200
+             max-lg:fixed max-lg:inset-y-0 max-lg:left-0 max-lg:z-50 max-lg:w-64 max-lg:rounded-none max-lg:shadow-xl max-lg:overflow-y-auto"
+      :class="sidebarOpen ? 'max-lg:translate-x-0' : 'max-lg:-translate-x-full'"
+    >
       <div class="flex items-center justify-between">
         <h3 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wider">Ordner</h3>
         <button
@@ -539,7 +592,7 @@ onMounted(() => {
       <button
         class="w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors"
         :class="!selectedFolderId ? 'bg-[var(--color-primary-light)] text-[var(--color-primary)]' : 'hover:bg-[var(--color-bg)]'"
-        @click="selectedFolderId = null"
+        @click="selectedFolderId = null; sidebarOpen = false"
       >
         <FolderOpen class="w-3.5 h-3.5" :stroke-width="1.75" />
         <span>Alle Medien</span>
@@ -582,21 +635,21 @@ onMounted(() => {
     <!-- Main content -->
     <div class="flex-1 space-y-4" @dragover.prevent @drop="handleDrop">
       <!-- Header -->
-      <div class="flex items-center justify-between gap-3">
+      <div class="flex flex-wrap items-center justify-between gap-2 sm:gap-3">
         <h2 class="text-lg font-semibold text-[var(--color-text-primary)]">Medien</h2>
-        <div class="flex items-center gap-2">
+        <div class="flex flex-wrap items-center gap-2">
           <!-- Search -->
           <div class="relative">
             <Search class="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--color-text-tertiary)] z-10 pointer-events-none" />
             <input
               v-model="searchTerm"
-              class="pim-input text-xs pl-7 w-48"
+              class="pim-input text-xs pl-7 w-36 sm:w-48"
               placeholder="Suchen…"
             />
           </div>
 
           <!-- Usage filter -->
-          <select v-model="usagePurposeFilter" class="pim-select text-xs">
+          <select v-model="usagePurposeFilter" class="pim-select text-xs max-sm:hidden">
             <option value="">Alle</option>
             <option value="print">Print</option>
             <option value="web">Web</option>
@@ -606,19 +659,29 @@ onMounted(() => {
           <button :class="['pim-btn pim-btn-ghost p-1.5', viewMode==='grid'?'bg-[var(--color-bg)]':'']" @click="viewMode='grid'"><Grid class="w-4 h-4" :stroke-width="1.75" /></button>
           <button :class="['pim-btn pim-btn-ghost p-1.5', viewMode==='list'?'bg-[var(--color-bg)]':'']" @click="viewMode='list'"><List class="w-4 h-4" :stroke-width="1.75" /></button>
           <template v-if="authStore.hasPermission('media.create')">
-            <button class="pim-btn pim-btn-ghost text-xs" @click="showAutoMatch = true" title="Auto-Match: Dateinamen → SKU">
-              <Wand2 class="w-4 h-4" :stroke-width="2" /> Auto-Match
+            <button class="pim-btn pim-btn-ghost text-xs max-sm:hidden" @click="showAutoMatch = true" title="Auto-Match: Dateinamen → SKU">
+              <Wand2 class="w-4 h-4" :stroke-width="2" /> <span class="max-md:hidden">Auto-Match</span>
             </button>
-            <button class="pim-btn pim-btn-ghost text-xs" @click="showBulkImport = true" title="Bulk-Import über Excel">
-              <FileSpreadsheet class="w-4 h-4" :stroke-width="2" /> Bulk-Import
+            <button class="pim-btn pim-btn-ghost text-xs max-sm:hidden" @click="showBulkImport = true" title="Bulk-Import über Excel">
+              <FileSpreadsheet class="w-4 h-4" :stroke-width="2" /> <span class="max-md:hidden">Bulk-Import</span>
             </button>
-            <button class="pim-btn pim-btn-ghost text-xs" @click="showUrlImport = true" title="Import über URL">
-              <Link class="w-4 h-4" :stroke-width="2" /> URL-Import
+            <button class="pim-btn pim-btn-ghost text-xs max-sm:hidden" @click="showUrlImport = true" title="Import über URL">
+              <Link class="w-4 h-4" :stroke-width="2" /> <span class="max-md:hidden">URL-Import</span>
             </button>
-            <input type="file" accept="image/*,application/pdf,.doc,.docx,.xlsx" multiple class="hidden" id="media-upload" @change="handleUpload" />
-            <label for="media-upload" class="pim-btn pim-btn-primary text-sm cursor-pointer"><Upload class="w-4 h-4" :stroke-width="2" /> Hochladen</label>
+            <input type="file" accept="image/*,application/pdf,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv" multiple class="hidden" id="media-upload" @change="handleUpload" />
+            <label for="media-upload" class="pim-btn pim-btn-primary text-sm cursor-pointer" :class="{ 'opacity-50 pointer-events-none': uploading }">
+              <Loader2 v-if="uploading" class="w-4 h-4 animate-spin" :stroke-width="2" />
+              <Upload v-else class="w-4 h-4" :stroke-width="2" />
+              <span class="max-sm:hidden">{{ uploading ? 'Wird hochgeladen...' : 'Hochladen' }}</span>
+            </label>
           </template>
         </div>
+      </div>
+
+      <!-- Upload error -->
+      <div v-if="uploadError" class="flex items-center gap-2 px-3 py-2 rounded-lg bg-[var(--color-error-light,#fef2f2)] border border-[var(--color-error,#ef4444)]/20 text-sm text-[var(--color-error,#ef4444)]">
+        <span class="flex-1">{{ uploadError }}</span>
+        <button class="p-0.5 hover:opacity-70" @click="uploadError = ''"><X class="w-4 h-4" /></button>
       </div>
 
       <!-- Selection toolbar -->
@@ -764,9 +827,13 @@ onMounted(() => {
       </div>
     </div>
 
+    <!-- Detail backdrop (mobile) -->
+    <div v-if="detailOpen && detailItem" class="lg:hidden fixed inset-0 z-40 bg-black/40" @click="closeDetail" />
+
     <!-- Detail Slide-over -->
     <Transition name="slide">
-      <div v-if="detailOpen && detailItem" class="w-80 flex-none border-l border-[var(--color-border)] bg-[var(--color-surface)] p-4 space-y-4 overflow-y-auto">
+      <div v-if="detailOpen && detailItem" class="w-80 flex-none border-l border-[var(--color-border)] bg-[var(--color-surface)] p-4 space-y-4 overflow-y-auto
+               max-lg:fixed max-lg:inset-y-0 max-lg:right-0 max-lg:z-50 max-lg:w-[85vw] max-lg:max-w-sm max-lg:shadow-xl max-lg:border-l">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-semibold text-[var(--color-text-primary)]">Details</h3>
           <button class="pim-btn pim-btn-ghost p-1" @click="closeDetail"><X class="w-4 h-4" /></button>
@@ -777,6 +844,16 @@ onMounted(() => {
           <img v-if="detailItem.media_type === 'image'" :src="getImageUrl(detailItem)" class="w-full h-full object-contain" />
           <PdfPreview v-else-if="isItemPdf(detailItem)" :url="getFileUrl(detailItem)" :title="detailItem.file_name || 'PDF'" max-height="100%" />
           <Image v-else class="w-12 h-12 text-[var(--color-text-tertiary)]" />
+        </div>
+
+        <!-- Download / Copy URL -->
+        <div class="flex gap-2">
+          <a :href="getFileUrl(detailItem)" :download="detailItem.file_name" class="pim-btn pim-btn-ghost text-xs flex-1 justify-center">
+            <Download class="w-3.5 h-3.5" :stroke-width="2" /> Download
+          </a>
+          <button class="pim-btn pim-btn-ghost text-xs flex-1 justify-center" @click="copyAssetUrl(detailItem)">
+            <Copy v-if="!copiedUrl" class="w-3.5 h-3.5" :stroke-width="2" /> {{ copiedUrl ? 'Kopiert!' : 'URL kopieren' }}
+          </button>
         </div>
 
         <!-- Editable fields -->
