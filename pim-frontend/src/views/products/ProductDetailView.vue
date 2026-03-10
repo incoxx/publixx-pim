@@ -734,6 +734,13 @@ function getMediaUrl(item) {
   return item.url || ''
 }
 
+function isMediaPdf(item) {
+  const mime = item.mime_type || item.media?.mime_type || ''
+  if (mime.includes('pdf')) return true
+  const fname = item.file_name || item.media?.file_name || ''
+  return fname.toLowerCase().endsWith('.pdf')
+}
+
 // ─── Prices ───────────────────────────────────────────
 const prices = ref([])
 const pricesLoaded = ref(false)
@@ -2065,7 +2072,8 @@ watch(() => route.params.id, async (newId, oldId) => {
       <div v-else-if="filteredMediaItems.length > 0 && mediaViewMode === 'grid'" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
         <div v-for="m in filteredMediaItems" :key="m.id" class="pim-card overflow-hidden group relative">
           <div class="aspect-square bg-[var(--color-bg)] flex items-center justify-center overflow-hidden">
-            <img :src="getMediaUrl(m)" class="w-full h-full object-cover" loading="lazy" alt="" />
+            <PdfPreview v-if="isMediaPdf(m)" :url="getMediaUrl(m)" :title="m.file_name || ''" max-height="100%" />
+            <img v-else :src="getMediaUrl(m)" class="w-full h-full object-cover" loading="lazy" alt="" />
           </div>
           <div class="p-2">
             <div class="flex items-center justify-between">
@@ -2099,7 +2107,8 @@ watch(() => route.params.id, async (newId, oldId) => {
             >
               <td class="px-3 py-1.5">
                 <div class="w-8 h-8 rounded bg-[var(--color-bg)] overflow-hidden border border-[var(--color-border)]">
-                  <img :src="getMediaUrl(m)" class="w-full h-full object-cover" loading="lazy" alt="" />
+                  <PdfPreview v-if="isMediaPdf(m)" :url="getMediaUrl(m)" :title="''" max-height="2rem" />
+                  <img v-else :src="getMediaUrl(m)" class="w-full h-full object-cover" loading="lazy" alt="" />
                 </div>
               </td>
               <td class="px-3 py-1.5">

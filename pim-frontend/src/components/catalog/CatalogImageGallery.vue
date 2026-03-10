@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue'
-import { Package, ChevronLeft, ChevronRight } from 'lucide-vue-next'
+import { Package, ChevronLeft, ChevronRight, FileText } from 'lucide-vue-next'
+import PdfPreview from '@/components/shared/PdfPreview.vue'
 
 const props = defineProps({
   media: { type: Array, default: () => [] },
@@ -8,25 +9,36 @@ const props = defineProps({
 
 const selectedIndex = ref(0)
 
-const images = computed(() => props.media.filter((m) => m.media_type === 'image' || !m.media_type))
-const current = computed(() => images.value[selectedIndex.value])
+function isPdf(m) {
+  return m.media_type === 'document' && (m.mime_type || '').includes('pdf')
+}
+
+const galleryItems = computed(() =>
+  props.media.filter((m) => m.media_type === 'image' || !m.media_type || isPdf(m))
+)
+const current = computed(() => galleryItems.value[selectedIndex.value])
 
 function prev() {
-  selectedIndex.value = selectedIndex.value > 0 ? selectedIndex.value - 1 : images.value.length - 1
+  selectedIndex.value = selectedIndex.value > 0 ? selectedIndex.value - 1 : galleryItems.value.length - 1
 }
 
 function next() {
-  selectedIndex.value = selectedIndex.value < images.value.length - 1 ? selectedIndex.value + 1 : 0
+  selectedIndex.value = selectedIndex.value < galleryItems.value.length - 1 ? selectedIndex.value + 1 : 0
 }
 </script>
 
 <template>
   <div>
-    <!-- Main image -->
+    <!-- Main display -->
     <div class="relative aspect-square bg-base-200 rounded-xl overflow-hidden mb-3">
       <Transition name="img-fade" mode="out-in">
+        <!-- PDF -->
+        <div v-if="current && isPdf(current)" :key="current.url + '-pdf'" class="w-full h-full flex items-center justify-center p-4">
+          <PdfPreview :url="current.url" :title="current.file_name || current.alt || 'PDF'" max-height="100%" />
+        </div>
+        <!-- Image -->
         <img
-          v-if="current"
+          v-else-if="current"
           :key="current.url"
           :src="current.url"
           :alt="current.alt || ''"
@@ -38,7 +50,7 @@ function next() {
       </Transition>
 
       <!-- Nav arrows -->
-      <template v-if="images.length > 1">
+      <template v-if="galleryItems.length > 1">
         <button
           class="btn btn-circle btn-sm btn-ghost bg-base-100/70 backdrop-blur-sm absolute left-2 top-1/2 -translate-y-1/2"
           @click="prev"
@@ -55,15 +67,20 @@ function next() {
     </div>
 
     <!-- Thumbnails -->
-    <div v-if="images.length > 1" class="flex gap-2 overflow-x-auto pb-1">
+    <div v-if="galleryItems.length > 1" class="flex gap-2 overflow-x-auto pb-1">
       <button
-        v-for="(img, idx) in images"
-        :key="img.url"
+        v-for="(item, idx) in galleryItems"
+        :key="item.url"
         class="flex-none w-16 h-16 rounded-lg overflow-hidden border-2 transition-all duration-200"
         :class="idx === selectedIndex ? 'border-primary shadow-sm' : 'border-transparent opacity-60 hover:opacity-100'"
         @click="selectedIndex = idx"
       >
-        <img :src="img.url" :alt="img.alt || ''" class="object-contain w-full h-full p-1" />
+        <!-- PDF thumbnail -->
+        <div v-if="isPdf(item)" class="flex items-center justify-center w-full h-full bg-base-200">
+          <FileText class="w-6 h-6 text-error/60" />
+        </div>
+        <!-- Image thumbnail -->
+        <img v-else :src="item.url" :alt="item.alt || ''" class="object-contain w-full h-full p-1" />
       </button>
     </div>
   </div>
