@@ -1,6 +1,6 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
-import { Upload, Image, Grid, List, Trash2, FolderOpen, FolderPlus, Search, X, Plus, MoveRight, CheckSquare, Link, FileSpreadsheet, Wand2, Loader2, ChevronLeft, ChevronRight, Download, Copy } from 'lucide-vue-next'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { Upload, Image, Grid, List, Trash2, FolderOpen, FolderPlus, Search, X, Plus, MoveRight, CheckSquare, Link, FileSpreadsheet, FileText, Wand2, Loader2, ChevronLeft, ChevronRight, Download, Copy } from 'lucide-vue-next'
 import mediaApi from '@/api/media'
 import { mediaUsageTypes as mediaUsageTypesApi } from '@/api/mediaUsageTypes'
 import hierarchiesApi from '@/api/hierarchies'
@@ -111,6 +111,7 @@ async function handleUpload(e) {
   uploading.value = true
   uploadError.value = ''
   let successCount = 0
+  const errors = []
 
   for (const file of files) {
     try {
@@ -120,9 +121,13 @@ async function handleUpload(e) {
       successCount++
     } catch (err) {
       const msg = err.response?.data?.message || err.message || 'Unbekannter Fehler'
-      uploadError.value = `Fehler bei "${file.name}": ${msg}`
+      errors.push(`"${file.name}": ${msg}`)
       console.error('Upload failed:', file.name, err)
     }
+  }
+
+  if (errors.length) {
+    uploadError.value = `Upload fehlgeschlagen: ${errors.join('; ')}`
   }
 
   if (e.target?.value !== undefined) e.target.value = ''
@@ -312,6 +317,8 @@ async function saveAssetAttributeValues() {
 function openDetail(item) {
   detailItem.value = item
   detailOpen.value = true
+  copiedUrl.value = false
+  saveError.value = ''
   loadAssetAttributes(item)
 }
 
@@ -322,27 +329,39 @@ function closeDetail() {
   assetAttributeValues.value = {}
 }
 
+const saveError = ref('')
+
 async function saveDetail() {
   if (!detailItem.value) return
-  await mediaApi.update(detailItem.value.id, {
-    title_de: detailItem.value.title_de,
-    title_en: detailItem.value.title_en,
-    description_de: detailItem.value.description_de,
-    alt_text_de: detailItem.value.alt_text_de,
-    usage_purpose: detailItem.value.usage_purpose,
-    asset_folder_id: detailItem.value.asset_folder_id,
-  })
-  await saveAssetAttributeValues()
-  closeDetail()
-  await fetchMedia()
+  saveError.value = ''
+  try {
+    await mediaApi.update(detailItem.value.id, {
+      title_de: detailItem.value.title_de,
+      title_en: detailItem.value.title_en,
+      description_de: detailItem.value.description_de,
+      alt_text_de: detailItem.value.alt_text_de,
+      usage_purpose: detailItem.value.usage_purpose,
+      asset_folder_id: detailItem.value.asset_folder_id,
+    })
+    await saveAssetAttributeValues()
+    closeDetail()
+    await fetchMedia()
+  } catch (err) {
+    saveError.value = err.response?.data?.message || err.message || 'Speichern fehlgeschlagen'
+  }
 }
+
+const deleteError = ref('')
 
 async function confirmDelete({ force } = {}) {
   deleting.value = true
+  deleteError.value = ''
   try {
     await mediaApi.delete(deleteTarget.value.id, { force })
     deleteTarget.value = null
     await fetchMedia()
+  } catch (err) {
+    deleteError.value = err.response?.data?.message || err.message || 'Löschen fehlgeschlagen'
   } finally { deleting.value = false }
 }
 
@@ -721,7 +740,10 @@ onMounted(() => {
               @click.stop="toggleSelect(item.id)"
             />
             <img v-if="item.media_type === 'image'" :src="getImageUrl(item)" :data-fallback="item.url || mediaApi.fileUrl(item.file_name)" class="w-full h-full object-cover" loading="lazy" alt="" @error="handleImgError" />
-            <PdfPreview v-else-if="isItemPdf(item)" :url="getFileUrl(item)" :title="''" max-height="100%" />
+            <div v-else-if="isItemPdf(item)" class="flex flex-col items-center gap-1 text-[var(--color-error)]/60">
+              <FileText class="w-10 h-10" :stroke-width="1.25" />
+              <span class="text-[9px] text-[var(--color-text-tertiary)]">PDF</span>
+            </div>
             <Image v-else class="w-8 h-8 text-[var(--color-text-tertiary)]" :stroke-width="1.5" />
           </div>
           <div class="p-2 flex items-center justify-between">
@@ -770,7 +792,7 @@ onMounted(() => {
           />
           <div class="w-10 h-10 flex-none rounded bg-[var(--color-bg)] overflow-hidden flex items-center justify-center">
             <img v-if="item.media_type === 'image'" :src="getImageUrl(item)" :data-fallback="item.url || mediaApi.fileUrl(item.file_name)" class="w-full h-full object-cover" loading="lazy" alt="" @error="handleImgError" />
-            <PdfPreview v-else-if="isItemPdf(item)" :url="getFileUrl(item)" :title="''" max-height="2.5rem" />
+            <FileText v-else-if="isItemPdf(item)" class="w-5 h-5 text-[var(--color-error)]/60" :stroke-width="1.5" />
             <Image v-else class="w-5 h-5 text-[var(--color-text-tertiary)]" :stroke-width="1.5" />
           </div>
           <div class="flex-1 min-w-0">
@@ -911,6 +933,7 @@ onMounted(() => {
           </div>
         </div>
 
+        <p v-if="saveError" class="text-[11px] text-[var(--color-error,#ef4444)]">{{ saveError }}</p>
         <div class="flex gap-2">
           <button v-if="authStore.hasPermission('media.edit')" class="pim-btn pim-btn-primary text-xs flex-1" @click="saveDetail">Speichern</button>
           <button v-if="authStore.hasPermission('media.delete')" class="pim-btn pim-btn-ghost text-xs" @click="deleteTarget = detailItem; closeDetail()">
@@ -926,7 +949,7 @@ onMounted(() => {
         <div v-if="showMoveDialog" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" @click.self="showMoveDialog = false">
           <div class="bg-[var(--color-surface)] rounded-xl shadow-xl w-full max-w-sm p-5 space-y-4">
             <h3 class="text-sm font-semibold text-[var(--color-text-primary)]">
-              {{ selectedIds.size }} Medium{{ selectedIds.size > 1 ? ' Assets' : '' }} verschieben
+              {{ selectedIds.size }} {{ selectedIds.size === 1 ? 'Medium' : 'Medien' }} verschieben
             </h3>
             <div>
               <label class="text-[10px] font-medium text-[var(--color-text-secondary)] uppercase block mb-1">Zielordner</label>
