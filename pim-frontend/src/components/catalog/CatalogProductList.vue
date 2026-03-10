@@ -245,7 +245,7 @@ function toggleWishlist(e, productId) {
                 <p v-if="product.category_path" class="text-[10px] text-base-content/35 truncate max-w-[200px]">
                   {{ product.category_path }}
                 </p>
-                <p class="text-sm font-medium line-clamp-1">{{ product.name || '—' }}</p>
+                <p class="text-sm font-medium line-clamp-1">{{ product.primary_attribute_value || product.name || '—' }}</p>
               </div>
             </td>
             <!-- SKU -->

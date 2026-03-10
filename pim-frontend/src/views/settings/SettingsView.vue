@@ -114,7 +114,7 @@ const selectedCardAttributes = computed(() => {
 
 const unselectedCardAttributes = computed(() => {
   const selected = new Set(themeForm.value.card_attribute_ids || [])
-  return allAttributes.value.filter(a => !selected.has(a.id))
+  return allAttributes.value.filter(a => !selected.has(a.id) && !a.is_internal)
 })
 
 function addCardAttribute(attr) {
@@ -846,6 +846,7 @@ onMounted(() => {
                     draggable="true"
                     @dragstart="onCardDragStart(idx)"
                     @dragover="onCardDragOver($event, idx)"
+                    @drop.prevent
                     @dragend="onCardDragEnd"
                     class="flex items-center gap-1.5 px-2 py-1.5 rounded-md border border-[var(--color-border)] bg-[var(--color-bg-elevated,var(--color-bg))] cursor-grab active:cursor-grabbing hover:border-[var(--color-accent)] transition-colors group"
                     :class="{ 'opacity-50': cardDragIdx === idx }"
