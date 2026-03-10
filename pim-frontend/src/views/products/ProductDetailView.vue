@@ -18,6 +18,7 @@ import PimAttributeInput from '@/components/shared/PimAttributeInput.vue'
 import PimTable from '@/components/shared/PimTable.vue'
 import PimConfirmDialog from '@/components/shared/PimConfirmDialog.vue'
 import PimDeleteConfirmDialog from '@/components/shared/PimDeleteConfirmDialog.vue'
+import PdfPreview from '@/components/shared/PdfPreview.vue'
 import PimCompositeModal from '@/components/shared/PimCompositeModal.vue'
 import ProductVersionsTab from '@/components/products/ProductVersionsTab.vue'
 import MediaPickerDialog from '@/components/shared/MediaPickerDialog.vue'
@@ -2625,6 +2626,8 @@ watch(() => route.params.id, async (newId, oldId) => {
                       <img v-if="attr.data_type === 'ImageLink'" :src="attr.link_data.url"
                            :alt="attr.link_data.alt_text || attr.label"
                            class="mt-1.5 max-h-20 rounded border border-[var(--color-border)]" loading="lazy" />
+                      <!-- PDF preview -->
+                      <PdfPreview v-else-if="attr.data_type === 'PdfLink'" :url="attr.link_data.url" :title="''" max-height="12rem" />
                       <!-- Video embed -->
                       <template v-else-if="attr.data_type === 'VideoLink'">
                         <iframe v-if="getPreviewVideoEmbedUrl(attr.link_data.url)"
