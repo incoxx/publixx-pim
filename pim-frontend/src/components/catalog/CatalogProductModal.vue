@@ -87,7 +87,7 @@ const pdfDisplayMode = computed(() => store.themeSettings.pdf_display_mode || 'l
 
 function getVideoEmbedUrl(url) {
   if (!url) return null
-  const yt = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([\w-]+)/)
+  const yt = url.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([\w-]+)/)
   if (yt) return `https://www.youtube.com/embed/${yt[1]}`
   const vim = url.match(/vimeo\.com\/(\d+)/)
   if (vim) return `https://player.vimeo.com/video/${vim[1]}`

@@ -46,13 +46,13 @@ class CatalogProductDetailResource extends JsonResource
                     return null;
                 }
 
-                // Filter by attribute view if configured
-                if ($allowedAttributeIds !== null && !in_array($attr->id, $allowedAttributeIds)) {
+                // Filter by attribute view if configured — but always include link types
+                $isLinkType = in_array($attr->data_type, ['Hyperlink', 'ImageLink', 'PdfLink', 'VideoLink']);
+                if ($allowedAttributeIds !== null && !in_array($attr->id, $allowedAttributeIds) && !$isLinkType) {
                     return null;
                 }
 
                 $label = $lang === 'en' && $attr->name_en ? $attr->name_en : $attr->name_de;
-                $isLinkType = in_array($attr->data_type, ['Hyperlink', 'ImageLink', 'PdfLink', 'VideoLink']);
                 $displayValue = $this->resolveAttributeDisplayValue($attrValue, $attr, $lang);
 
                 // For link types: try to build link_data even if displayValue is empty

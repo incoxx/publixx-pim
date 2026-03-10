@@ -1115,6 +1115,17 @@ async function confirmDeleteOutputHierarchyAssignment() {
 }
 
 // ─── Preview (Generic) ───────────────────────────────
+const PREVIEW_LINK_DATA_TYPES = ['Hyperlink', 'ImageLink', 'PdfLink', 'VideoLink']
+
+function getPreviewVideoEmbedUrl(url) {
+  if (!url) return null
+  const yt = url.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([\w-]+)/)
+  if (yt) return `https://www.youtube.com/embed/${yt[1]}`
+  const vim = url.match(/vimeo\.com\/(\d+)/)
+  if (vim) return `https://player.vimeo.com/video/${vim[1]}`
+  return null
+}
+
 const previewData = ref(null)
 const previewLoading = ref(false)
 const completenessData = ref(null)
@@ -2594,19 +2605,43 @@ watch(() => route.params.id, async (newId, oldId) => {
                 </div>
                 <!-- Normal attribute -->
                 <div v-else :class="[
-                  'grid grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_24px] gap-x-3 px-2 py-2 border-b border-[var(--color-border)] last:border-0 items-center',
-                  !attr.display_value ? 'bg-red-50/60' : ''
+                  'grid grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_24px] gap-x-3 px-2 py-2 border-b border-[var(--color-border)] last:border-0',
+                  !(attr.display_value || attr.link_data) ? 'bg-red-50/60' : '',
+                  attr.link_data ? 'items-start' : 'items-center'
                 ]">
                   <span class="text-[12px] font-medium text-[var(--color-text-secondary)]">
                     {{ attr.label }}
                     <span v-if="attr.is_mandatory" class="text-[var(--color-error)]">*</span>
                     <span v-if="attr.language" class="text-[10px] text-[var(--color-text-tertiary)] ml-1">[{{ attr.language }}]</span>
                   </span>
-                  <span class="text-[12px] text-[var(--color-text-primary)]">
-                    {{ attr.display_value || '—' }}
-                    <span v-if="attr.unit" class="text-[var(--color-text-tertiary)]"> {{ attr.unit }}</span>
-                  </span>
-                  <span :class="['inline-block w-2 h-2 rounded-full mx-auto', attr.display_value ? 'bg-[var(--color-success)]' : 'border-2 border-[var(--color-text-tertiary)]']" />
+                  <div class="text-[12px] text-[var(--color-text-primary)]">
+                    <!-- Link-type attributes -->
+                    <template v-if="attr.link_data">
+                      <a :href="attr.link_data.url" target="_blank" rel="noopener noreferrer"
+                         class="text-[var(--color-accent)] hover:underline break-all">
+                        {{ attr.link_data.title || attr.link_data.url }}
+                      </a>
+                      <!-- Image preview -->
+                      <img v-if="attr.data_type === 'ImageLink'" :src="attr.link_data.url"
+                           :alt="attr.link_data.alt_text || attr.label"
+                           class="mt-1.5 max-h-20 rounded border border-[var(--color-border)]" loading="lazy" />
+                      <!-- Video embed -->
+                      <template v-else-if="attr.data_type === 'VideoLink'">
+                        <iframe v-if="getPreviewVideoEmbedUrl(attr.link_data.url)"
+                                :src="getPreviewVideoEmbedUrl(attr.link_data.url)"
+                                class="mt-1.5 w-full aspect-video max-h-40 rounded border border-[var(--color-border)]"
+                                allowfullscreen loading="lazy" />
+                        <video v-else :src="attr.link_data.url" controls
+                               class="mt-1.5 w-full max-h-40 rounded border border-[var(--color-border)]" />
+                      </template>
+                    </template>
+                    <!-- Normal value -->
+                    <template v-else>
+                      {{ attr.display_value || '—' }}
+                      <span v-if="attr.unit" class="text-[var(--color-text-tertiary)]"> {{ attr.unit }}</span>
+                    </template>
+                  </div>
+                  <span :class="['inline-block w-2 h-2 rounded-full mx-auto mt-1', (attr.display_value || attr.link_data) ? 'bg-[var(--color-success)]' : 'border-2 border-[var(--color-text-tertiary)]']" />
                 </div>
               </template>
             </template>

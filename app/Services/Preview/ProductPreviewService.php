@@ -177,6 +177,71 @@ class ProductPreviewService
             }
         }
 
+        // Include link-type attributes that have values but weren't in the hierarchy assignments
+        $processedAttrIds = collect($effectiveAttributes)->pluck('attribute_id')->toArray();
+        $linkDataTypes = ['Hyperlink', 'ImageLink', 'PdfLink', 'VideoLink'];
+
+        foreach ($existingValues as $attrId => $attrValueGroup) {
+            if (in_array($attrId, $processedAttrIds)) {
+                continue;
+            }
+
+            $firstValue = $attrValueGroup->first();
+            $attr = $firstValue?->attribute;
+            if (!$attr || $attr->is_internal || !in_array($attr->data_type, $linkDataTypes)) {
+                continue;
+            }
+
+            $sectionName = $lang === 'en' ? 'Media & Links' : 'Medien & Links';
+            if (!isset($sectionMap[$sectionName])) {
+                $sectionMap[$sectionName] = count($sections);
+                $sections[] = [
+                    'section_name' => $sectionName,
+                    'section_sort' => 9999,
+                    'attributes' => [],
+                ];
+            }
+            $sectionIndex = $sectionMap[$sectionName];
+
+            $label = $lang === 'en' && $attr->name_en ? $attr->name_en : $attr->name_de;
+
+            foreach ($attrValueGroup as $attrValue) {
+                $displayValue = $this->resolveDisplayValue($attrValue, $lang);
+                $unit = $attrValue->unit?->abbreviation;
+
+                $linkData = null;
+                if ($attrValue->value_string) {
+                    $linkData = json_decode($attrValue->value_string, true);
+                    if (!is_array($linkData) || empty($linkData['url'])) {
+                        $linkData = null;
+                    }
+                    if (($displayValue === null || $displayValue === '') && $linkData) {
+                        $displayValue = $linkData['title'] ?? $linkData['url'] ?? null;
+                    }
+                }
+
+                $attrEntry = [
+                    'attribute_id' => $attr->id,
+                    'technical_name' => $attr->technical_name,
+                    'label' => $label,
+                    'value' => $this->resolveRawValue($attrValue),
+                    'display_value' => $displayValue,
+                    'unit' => $unit,
+                    'data_type' => $attr->data_type,
+                    'is_mandatory' => false,
+                    'language' => $attrValue->language,
+                    'parent_attribute_id' => $attr->parent_attribute_id,
+                    'composite_format' => null,
+                ];
+
+                if ($linkData) {
+                    $attrEntry['link_data'] = $linkData;
+                }
+
+                $sections[$sectionIndex]['attributes'][] = $attrEntry;
+            }
+        }
+
         // Sort sections by section_sort
         usort($sections, fn ($a, $b) => $a['section_sort'] <=> $b['section_sort']);
 
