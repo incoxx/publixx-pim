@@ -187,6 +187,8 @@ class CatalogController extends BaseController
                     }
                     $unit = $cv->unit?->abbreviation;
                     $cardAttributeMap[$cv->product_id][] = [
+                        'attribute_id' => $attr->id,
+                        'technical_name' => $attr->technical_name,
                         'label' => $label,
                         'value' => $unit ? $value . ' ' . $unit : $value,
                     ];
@@ -231,11 +233,42 @@ class CatalogController extends BaseController
             }
         }
 
-        // Attach card attributes + resolved price to each item
+        // Resolve hierarchy_path UUIDs to human-readable names
+        $allPaths = collect($paginated->items())
+            ->pluck('hierarchy_path')
+            ->filter()
+            ->unique();
+        $ancestorNodeIds = collect();
+        foreach ($allPaths as $path) {
+            $ids = array_filter(explode('/', $path));
+            $ancestorNodeIds = $ancestorNodeIds->merge($ids);
+        }
+        // Also add master_hierarchy_node_id for the leaf name
+        $leafNodeIds = collect($paginated->items())->pluck('product_id')->toArray();
+        $leafNodes = DB::table('products')
+            ->whereIn('id', $leafNodeIds)
+            ->whereNotNull('master_hierarchy_node_id')
+            ->pluck('master_hierarchy_node_id');
+        $ancestorNodeIds = $ancestorNodeIds->merge($leafNodes)->unique()->filter();
+        $nodeNameMap = [];
+        if ($ancestorNodeIds->isNotEmpty()) {
+            $nodeNameMap = HierarchyNode::whereIn('id', $ancestorNodeIds)
+                ->get()
+                ->mapWithKeys(fn ($n) => [$n->id => $lang === 'en' && $n->name_en ? $n->name_en : $n->name_de])
+                ->toArray();
+        }
+
+        // Attach card attributes, resolved price, and resolved category path to each item
         foreach ($paginated->items() as $item) {
             $item->card_attributes = $cardAttributeMap[$item->id] ?? [];
             if (!empty($priceMap) && isset($priceMap[$item->id])) {
                 $item->resolved_price = $priceMap[$item->id];
+            }
+            // Resolve hierarchy_path to readable names
+            if ($item->hierarchy_path) {
+                $pathIds = array_filter(explode('/', $item->hierarchy_path));
+                $pathNames = array_filter(array_map(fn ($id) => $nodeNameMap[$id] ?? null, $pathIds));
+                $item->hierarchy_path = implode(' / ', $pathNames);
             }
         }
 
