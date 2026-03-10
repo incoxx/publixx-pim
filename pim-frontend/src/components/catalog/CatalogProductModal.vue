@@ -5,6 +5,7 @@ import { useCatalogStore } from '@/stores/catalog'
 import { X, Heart, Braces } from 'lucide-vue-next'
 import CatalogImageGallery from './CatalogImageGallery.vue'
 import CatalogProductDescription from './CatalogProductDescription.vue'
+import PdfPreview from '@/components/shared/PdfPreview.vue'
 import { formatCompositeSummary } from '@/utils/formatting'
 
 const props = defineProps({
@@ -203,8 +204,8 @@ function formatPrice(price) {
                     <!-- PDFs -->
                     <div v-else-if="dtype === 'PdfLink'" class="space-y-2">
                       <div v-for="(attr, idx) in items" :key="idx">
-                        <a :href="attr.link_data.url" :target="attr.link_data.target || '_blank'" rel="noopener noreferrer" class="link link-primary text-sm">{{ attr.link_data.title || attr.link_data.url }}</a>
-                        <iframe v-if="pdfDisplayMode === 'embedded'" :src="attr.link_data.url" class="w-full h-64 rounded border border-base-300 mt-1" loading="lazy"></iframe>
+                        <PdfPreview v-if="pdfDisplayMode === 'embedded'" :url="attr.link_data.url" :title="attr.link_data.title || attr.link_data.url" max-height="16rem" />
+                        <a v-else :href="attr.link_data.url" :target="attr.link_data.target || '_blank'" rel="noopener noreferrer" class="link link-primary text-sm">{{ attr.link_data.title || attr.link_data.url }}</a>
                       </div>
                     </div>
                     <!-- Videos -->
@@ -372,8 +373,8 @@ function formatPrice(price) {
                     <!-- PDFs -->
                     <div v-else-if="dtype === 'PdfLink'" class="space-y-3">
                       <div v-for="(attr, idx) in items" :key="idx" class="rounded-lg border border-base-300 p-3">
-                        <a :href="attr.link_data.url" :target="attr.link_data.target || '_blank'" rel="noopener noreferrer" class="link link-primary text-sm font-medium">{{ attr.link_data.title || attr.link_data.url }}</a>
-                        <iframe v-if="pdfDisplayMode === 'embedded'" :src="attr.link_data.url" class="w-full h-96 rounded border border-base-300 mt-2" loading="lazy"></iframe>
+                        <PdfPreview v-if="pdfDisplayMode === 'embedded'" :url="attr.link_data.url" :title="attr.link_data.title || attr.link_data.url" max-height="24rem" />
+                        <a v-else :href="attr.link_data.url" :target="attr.link_data.target || '_blank'" rel="noopener noreferrer" class="link link-primary text-sm font-medium">{{ attr.link_data.title || attr.link_data.url }}</a>
                       </div>
                     </div>
                     <!-- Videos -->
@@ -538,8 +539,8 @@ function formatPrice(price) {
                       <!-- PDFs -->
                       <div v-else-if="dtype === 'PdfLink'" class="space-y-2">
                         <div v-for="(attr, idx) in items" :key="idx">
-                          <a :href="attr.link_data.url" :target="attr.link_data.target || '_blank'" rel="noopener noreferrer" class="link link-primary text-sm">{{ attr.link_data.title || attr.link_data.url }}</a>
-                          <iframe v-if="pdfDisplayMode === 'embedded'" :src="attr.link_data.url" class="w-full h-64 rounded border border-base-300 mt-1" loading="lazy"></iframe>
+                          <PdfPreview v-if="pdfDisplayMode === 'embedded'" :url="attr.link_data.url" :title="attr.link_data.title || attr.link_data.url" max-height="16rem" />
+                          <a v-else :href="attr.link_data.url" :target="attr.link_data.target || '_blank'" rel="noopener noreferrer" class="link link-primary text-sm">{{ attr.link_data.title || attr.link_data.url }}</a>
                         </div>
                       </div>
                       <!-- Videos -->
