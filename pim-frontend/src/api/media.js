@@ -34,6 +34,25 @@ export default {
     return client.delete(`/media/${id}`, { params: force ? { force: true } : {} })
   },
 
+  importFromUrl(url, options = {}) {
+    return client.post('/media/import-url', { url, ...options })
+  },
+
+  bulkImportFromUrls(file, options = {}) {
+    const formData = new FormData()
+    formData.append('file', file)
+    for (const [key, val] of Object.entries(options)) {
+      if (val != null) formData.append(key, val)
+    }
+    return client.post('/media/bulk-import-urls', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
+
+  autoMatch(pattern, options = {}) {
+    return client.post('/media/auto-match', { pattern, ...options })
+  },
+
   bulkMove(mediaIds, assetFolderId) {
     return client.post('/media/bulk-move', {
       media_ids: mediaIds,

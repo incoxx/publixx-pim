@@ -9,13 +9,18 @@ use App\Http\Requests\Api\V1\UpdateMediaRequest;
 use App\Http\Resources\Api\V1\MediaResource;
 use App\Http\Traits\ChecksDeletionConstraints;
 use App\Models\Media;
+use App\Models\Product;
+use App\Models\ProductMediaAssignment;
+use App\Models\MediaUsageType;
 use App\Services\ThumbnailService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class MediaController extends Controller
@@ -296,6 +301,288 @@ class MediaController extends Controller
     }
 
     /**
+     * POST /media/import-url — download an image from a URL and create a media record.
+     */
+    public function importFromUrl(Request $request): JsonResponse
+    {
+        $this->authorize('create', Media::class);
+
+        $validated = $request->validate([
+            'url' => 'required|url|max:2000',
+            'usage_type_id' => 'nullable|uuid|exists:media_usage_types,id',
+            'asset_folder_id' => 'nullable|uuid|exists:hierarchy_nodes,id',
+            'usage_purpose' => 'nullable|in:print,web,both',
+        ]);
+
+        try {
+            $response = Http::timeout(30)->withOptions(['verify' => false])->get($validated['url']);
+            if (!$response->successful()) {
+                return response()->json(['message' => 'URL konnte nicht geladen werden (HTTP ' . $response->status() . ').'], 422);
+            }
+
+            $contentType = $response->header('Content-Type', 'application/octet-stream');
+            $contentType = explode(';', $contentType)[0]; // strip charset
+
+            // Extract filename from URL
+            $urlPath = parse_url($validated['url'], PHP_URL_PATH);
+            $originalName = $urlPath ? basename($urlPath) : 'download';
+            if (!pathinfo($originalName, PATHINFO_EXTENSION)) {
+                $ext = match (true) {
+                    str_contains($contentType, 'jpeg'), str_contains($contentType, 'jpg') => 'jpg',
+                    str_contains($contentType, 'png') => 'png',
+                    str_contains($contentType, 'gif') => 'gif',
+                    str_contains($contentType, 'webp') => 'webp',
+                    str_contains($contentType, 'svg') => 'svg',
+                    str_contains($contentType, 'pdf') => 'pdf',
+                    default => 'bin',
+                };
+                $originalName .= '.' . $ext;
+            }
+
+            $safeFilename = $this->generateSafeFilenameFromString($originalName);
+            $storedPath = Storage::disk('public')->path('media/' . $safeFilename);
+            Storage::disk('public')->put('media/' . $safeFilename, $response->body());
+
+            // Fix EXIF orientation for JPEGs
+            if (in_array($contentType, ['image/jpeg', 'image/jpg']) && function_exists('exif_read_data')) {
+                $this->fixExifOrientation($storedPath);
+            }
+
+            // Detect dimensions
+            $width = null;
+            $height = null;
+            if (str_starts_with($contentType, 'image/')) {
+                $dimensions = @getimagesize($storedPath);
+                if ($dimensions) {
+                    $width = $dimensions[0];
+                    $height = $dimensions[1];
+                }
+            }
+
+            $media = Media::create([
+                'file_name' => $safeFilename,
+                'file_path' => 'media/' . $safeFilename,
+                'mime_type' => $contentType,
+                'file_size' => strlen($response->body()),
+                'media_type' => $this->detectMediaType($contentType),
+                'title_de' => pathinfo($originalName, PATHINFO_FILENAME),
+                'width' => $width,
+                'height' => $height,
+                'asset_folder_id' => $validated['asset_folder_id'] ?? null,
+                'usage_purpose' => $validated['usage_purpose'] ?? 'both',
+            ]);
+
+            return (new MediaResource($media))
+                ->response()
+                ->setStatusCode(201);
+        } catch (\Illuminate\Http\Client\ConnectionException $e) {
+            return response()->json(['message' => 'Verbindung fehlgeschlagen: ' . $e->getMessage()], 422);
+        }
+    }
+
+    /**
+     * POST /media/bulk-import-urls — upload an Excel file with URLs and import them.
+     * Expected Excel columns: url, usage_type (optional)
+     */
+    public function bulkImportFromUrls(Request $request): JsonResponse
+    {
+        $this->authorize('create', Media::class);
+
+        $request->validate([
+            'file' => 'required|file|mimes:xlsx,xls,csv|max:10240',
+            'usage_type_id' => 'nullable|uuid|exists:media_usage_types,id',
+            'asset_folder_id' => 'nullable|uuid|exists:hierarchy_nodes,id',
+            'usage_purpose' => 'nullable|in:print,web,both',
+        ]);
+
+        $spreadsheet = IOFactory::load($request->file('file')->getPathname());
+        $sheet = $spreadsheet->getActiveSheet();
+        $rows = $sheet->toArray(null, true, true, true);
+
+        // Find header row
+        $headerRow = array_shift($rows);
+        if (!$headerRow) {
+            return response()->json(['message' => 'Excel-Datei ist leer.'], 422);
+        }
+
+        // Normalize headers
+        $headers = array_map(fn ($h) => mb_strtolower(trim((string) ($h ?? ''))), $headerRow);
+        $urlCol = array_search('url', $headers);
+        if ($urlCol === false) {
+            // Try alternative header names
+            foreach ($headers as $col => $h) {
+                if (in_array($h, ['url', 'bild-url', 'bild_url', 'bildurl', 'image_url', 'image-url', 'link'])) {
+                    $urlCol = $col;
+                    break;
+                }
+            }
+        }
+        if ($urlCol === false) {
+            return response()->json(['message' => 'Spalte "URL" nicht gefunden. Erwartet: url, bild-url, image_url oder link.'], 422);
+        }
+
+        $defaultUsageTypeId = $request->input('usage_type_id');
+        $defaultFolderId = $request->input('asset_folder_id');
+        $defaultUsagePurpose = $request->input('usage_purpose', 'both');
+
+        $results = ['imported' => 0, 'failed' => 0, 'errors' => []];
+
+        foreach ($rows as $rowIdx => $row) {
+            $url = trim((string) ($row[$urlCol] ?? ''));
+            if (empty($url) || !filter_var($url, FILTER_VALIDATE_URL)) {
+                continue;
+            }
+
+            try {
+                $response = Http::timeout(30)->withOptions(['verify' => false])->get($url);
+                if (!$response->successful()) {
+                    $results['failed']++;
+                    $results['errors'][] = "Zeile {$rowIdx}: HTTP {$response->status()} für {$url}";
+                    continue;
+                }
+
+                $contentType = explode(';', $response->header('Content-Type', 'application/octet-stream'))[0];
+                $urlPath = parse_url($url, PHP_URL_PATH);
+                $originalName = $urlPath ? basename($urlPath) : 'download';
+                if (!pathinfo($originalName, PATHINFO_EXTENSION)) {
+                    $ext = match (true) {
+                        str_contains($contentType, 'jpeg'), str_contains($contentType, 'jpg') => 'jpg',
+                        str_contains($contentType, 'png') => 'png',
+                        str_contains($contentType, 'gif') => 'gif',
+                        str_contains($contentType, 'webp') => 'webp',
+                        default => 'bin',
+                    };
+                    $originalName .= '.' . $ext;
+                }
+
+                $safeFilename = $this->generateSafeFilenameFromString($originalName);
+                Storage::disk('public')->put('media/' . $safeFilename, $response->body());
+                $storedPath = Storage::disk('public')->path('media/' . $safeFilename);
+
+                if (in_array($contentType, ['image/jpeg', 'image/jpg']) && function_exists('exif_read_data')) {
+                    $this->fixExifOrientation($storedPath);
+                }
+
+                $width = null;
+                $height = null;
+                if (str_starts_with($contentType, 'image/')) {
+                    $dimensions = @getimagesize($storedPath);
+                    if ($dimensions) {
+                        $width = $dimensions[0];
+                        $height = $dimensions[1];
+                    }
+                }
+
+                Media::create([
+                    'file_name' => $safeFilename,
+                    'file_path' => 'media/' . $safeFilename,
+                    'mime_type' => $contentType,
+                    'file_size' => strlen($response->body()),
+                    'media_type' => $this->detectMediaType($contentType),
+                    'title_de' => pathinfo($originalName, PATHINFO_FILENAME),
+                    'width' => $width,
+                    'height' => $height,
+                    'asset_folder_id' => $defaultFolderId,
+                    'usage_purpose' => $defaultUsagePurpose,
+                ]);
+
+                $results['imported']++;
+            } catch (\Throwable $e) {
+                $results['failed']++;
+                $results['errors'][] = "Zeile {$rowIdx}: " . Str::limit($e->getMessage(), 100);
+            }
+        }
+
+        return response()->json($results);
+    }
+
+    /**
+     * POST /media/auto-match — match media filenames to product SKUs via regex
+     * and create product_media_assignments.
+     */
+    public function autoMatch(Request $request): JsonResponse
+    {
+        $this->authorize('create', Media::class);
+
+        $validated = $request->validate([
+            'pattern' => 'required|string|max:500',
+            'usage_type_id' => 'nullable|uuid|exists:media_usage_types,id',
+            'dry_run' => 'nullable|boolean',
+        ]);
+
+        // Validate regex
+        $pattern = $validated['pattern'];
+        if (@preg_match($pattern, '') === false) {
+            return response()->json(['message' => 'Ungültiger regulärer Ausdruck: ' . preg_last_error_msg()], 422);
+        }
+
+        $dryRun = $validated['dry_run'] ?? true;
+        $usageTypeId = $validated['usage_type_id'] ?? null;
+
+        // Load all unassigned media (or all media)
+        $mediaItems = Media::all();
+        $products = Product::where('product_type_ref', 'product')
+            ->pluck('id', 'sku')
+            ->toArray();
+
+        $matches = [];
+        $noMatch = [];
+
+        foreach ($mediaItems as $media) {
+            $filename = pathinfo($media->file_name, PATHINFO_FILENAME);
+
+            if (preg_match($pattern, $filename, $m)) {
+                // Use first capture group as SKU, or full match if no groups
+                $sku = $m[1] ?? $m[0];
+                $sku = trim($sku);
+
+                if (isset($products[$sku])) {
+                    $productId = $products[$sku];
+                    // Check if already assigned
+                    $exists = ProductMediaAssignment::where('product_id', $productId)
+                        ->where('media_id', $media->id)
+                        ->exists();
+
+                    if (!$exists) {
+                        $matches[] = [
+                            'media_id' => $media->id,
+                            'file_name' => $media->file_name,
+                            'sku' => $sku,
+                            'product_id' => $productId,
+                        ];
+
+                        if (!$dryRun) {
+                            $maxSort = ProductMediaAssignment::where('product_id', $productId)->max('sort_order') ?? 0;
+                            ProductMediaAssignment::create([
+                                'product_id' => $productId,
+                                'media_id' => $media->id,
+                                'usage_type_id' => $usageTypeId,
+                                'sort_order' => $maxSort + 1,
+                                'is_primary' => $maxSort === 0,
+                            ]);
+                        }
+                    }
+                } else {
+                    $noMatch[] = [
+                        'file_name' => $media->file_name,
+                        'extracted_sku' => $sku,
+                        'reason' => 'SKU nicht gefunden',
+                    ];
+                }
+            }
+        }
+
+        return response()->json([
+            'dry_run' => $dryRun,
+            'matched' => count($matches),
+            'no_match' => count($noMatch),
+            'total_media' => $mediaItems->count(),
+            'matches' => array_slice($matches, 0, 100),
+            'unmatched' => array_slice($noMatch, 0, 50),
+        ]);
+    }
+
+    /**
      * Generate a safe, readable filename with collision handling.
      * "Mein Bild (1).jpg" → "mein-bild-1.jpg", with _1, _2 suffixes on collision.
      */
@@ -366,6 +653,37 @@ class MediaController extends Controller
         } catch (\Throwable) {
             // Silently ignore — image remains as-is
         }
+    }
+
+    /**
+     * Generate a safe filename from a plain string (for URL imports).
+     */
+    private function generateSafeFilenameFromString(string $originalName): string
+    {
+        $extension = pathinfo($originalName, PATHINFO_EXTENSION) ?: 'bin';
+        $baseName = pathinfo($originalName, PATHINFO_FILENAME);
+
+        $safe = Str::ascii($baseName);
+        $safe = preg_replace('/[^a-zA-Z0-9._-]/', '-', $safe);
+        $safe = preg_replace('/-{2,}/', '-', $safe);
+        $safe = trim($safe, '-');
+        $safe = mb_strtolower($safe) ?: 'datei';
+
+        $disk = Storage::disk('public');
+        $candidate = "{$safe}.{$extension}";
+        $counter = 1;
+        $maxAttempts = 1000;
+
+        while ($disk->exists("media/{$candidate}")) {
+            if ($counter >= $maxAttempts) {
+                $candidate = "{$safe}_" . Str::random(8) . ".{$extension}";
+                break;
+            }
+            $candidate = "{$safe}_{$counter}.{$extension}";
+            $counter++;
+        }
+
+        return $candidate;
     }
 
     private function detectMediaType(string $mimeType): string
