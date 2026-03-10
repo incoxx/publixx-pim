@@ -8,6 +8,7 @@ import { useAuthStore } from '@/stores/auth'
 import PimDeleteConfirmDialog from '@/components/shared/PimDeleteConfirmDialog.vue'
 import PimTree from '@/components/shared/PimTree.vue'
 import PimAttributeInput from '@/components/shared/PimAttributeInput.vue'
+import PdfPreview from '@/components/shared/PdfPreview.vue'
 
 const authStore = useAuthStore()
 
@@ -120,6 +121,17 @@ function handleDrop(e) {
 
 function getImageUrl(item) {
   if (item.thumb_url) return item.thumb_url
+  if (item.file_name) return mediaApi.fileUrl(item.file_name)
+  return item.url || ''
+}
+
+function isItemPdf(item) {
+  const mime = item.mime_type || ''
+  if (mime.includes('pdf')) return true
+  return (item.file_name || '').toLowerCase().endsWith('.pdf')
+}
+
+function getFileUrl(item) {
   if (item.file_name) return mediaApi.fileUrl(item.file_name)
   return item.url || ''
 }
@@ -646,6 +658,7 @@ onMounted(() => {
               @click.stop="toggleSelect(item.id)"
             />
             <img v-if="item.media_type === 'image'" :src="getImageUrl(item)" :data-fallback="item.url || mediaApi.fileUrl(item.file_name)" class="w-full h-full object-cover" loading="lazy" alt="" @error="handleImgError" />
+            <PdfPreview v-else-if="isItemPdf(item)" :url="getFileUrl(item)" :title="''" max-height="100%" />
             <Image v-else class="w-8 h-8 text-[var(--color-text-tertiary)]" :stroke-width="1.5" />
           </div>
           <div class="p-2 flex items-center justify-between">
@@ -694,6 +707,7 @@ onMounted(() => {
           />
           <div class="w-10 h-10 flex-none rounded bg-[var(--color-bg)] overflow-hidden flex items-center justify-center">
             <img v-if="item.media_type === 'image'" :src="getImageUrl(item)" :data-fallback="item.url || mediaApi.fileUrl(item.file_name)" class="w-full h-full object-cover" loading="lazy" alt="" @error="handleImgError" />
+            <PdfPreview v-else-if="isItemPdf(item)" :url="getFileUrl(item)" :title="''" max-height="2.5rem" />
             <Image v-else class="w-5 h-5 text-[var(--color-text-tertiary)]" :stroke-width="1.5" />
           </div>
           <div class="flex-1 min-w-0">
@@ -761,6 +775,7 @@ onMounted(() => {
         <!-- Preview -->
         <div class="aspect-square rounded-lg bg-[var(--color-bg)] overflow-hidden flex items-center justify-center">
           <img v-if="detailItem.media_type === 'image'" :src="getImageUrl(detailItem)" class="w-full h-full object-contain" />
+          <PdfPreview v-else-if="isItemPdf(detailItem)" :url="getFileUrl(detailItem)" :title="detailItem.file_name || 'PDF'" max-height="100%" />
           <Image v-else class="w-12 h-12 text-[var(--color-text-tertiary)]" />
         </div>
 
