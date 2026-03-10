@@ -165,7 +165,9 @@ class CatalogController extends BaseController
         // Load card attributes if configured
         $themePayload = Setting::getPayload('catalog_theme') ?? [];
         $cardAttributeIds = $themePayload['card_attribute_ids'] ?? [];
+        $primaryCardAttributeId = $themePayload['primary_card_attribute_id'] ?? null;
         $cardAttributeMap = [];
+        $primaryAttributeMap = [];
 
         if (!empty($cardAttributeIds)) {
             $productIds = collect($paginated->items())->pluck('id')->toArray();
@@ -192,6 +194,26 @@ class CatalogController extends BaseController
                         'label' => $label,
                         'value' => $unit ? $value . ' ' . $unit : $value,
                     ];
+                }
+            }
+        }
+
+        // Load primary attribute if configured
+        if ($primaryCardAttributeId) {
+            $productIds = $productIds ?? collect($paginated->items())->pluck('id')->toArray();
+            if (!empty($productIds)) {
+                $primaryValues = ProductAttributeValue::whereIn('product_id', $productIds)
+                    ->where('attribute_id', $primaryCardAttributeId)
+                    ->with(['attribute', 'valueListEntry', 'unit'])
+                    ->get();
+
+                foreach ($primaryValues as $pv) {
+                    $attr = $pv->attribute;
+                    if (!$attr) continue;
+                    $value = $this->resolveExportAttributeValue($pv, $attr, $lang);
+                    if ($value === null || $value === '') continue;
+                    $unit = $pv->unit?->abbreviation;
+                    $primaryAttributeMap[$pv->product_id] = $unit ? $value . ' ' . $unit : $value;
                 }
             }
         }
@@ -258,9 +280,10 @@ class CatalogController extends BaseController
                 ->toArray();
         }
 
-        // Attach card attributes, resolved price, and resolved category path to each item
+        // Attach card attributes, primary attribute, resolved price, and resolved category path to each item
         foreach ($paginated->items() as $item) {
             $item->card_attributes = $cardAttributeMap[$item->id] ?? [];
+            $item->primary_attribute_value = $primaryAttributeMap[$item->id] ?? null;
             if (!empty($priceMap) && isset($priceMap[$item->id])) {
                 $item->resolved_price = $priceMap[$item->id];
             }

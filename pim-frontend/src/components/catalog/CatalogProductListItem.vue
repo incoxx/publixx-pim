@@ -60,7 +60,7 @@ const staggerDelay = computed(() => `${Math.min(props.index * 30, 300)}ms`)
           <p v-if="product.category_path" class="text-[11px] text-base-content/40 truncate">
             {{ product.category_path }}
           </p>
-          <h3 class="text-sm font-semibold line-clamp-1">{{ product.name }}</h3>
+          <h3 class="text-sm font-semibold line-clamp-1">{{ product.primary_attribute_value || product.name }}</h3>
           <p class="text-xs text-base-content/50 font-mono mt-0.5">{{ product.sku }}</p>
           <p v-if="product.description" class="text-xs text-base-content/60 line-clamp-1 mt-1 hidden sm:block">
             {{ product.description }}
@@ -72,7 +72,7 @@ const staggerDelay = computed(() => `${Math.min(props.index * 30, 300)}ms`)
               :key="idx"
               class="text-[11px] text-base-content/60"
             >
-              <span class="text-base-content/40">{{ attr.label }}:</span> {{ attr.value }}
+              {{ attr.value }}
             </span>
           </div>
         </div>

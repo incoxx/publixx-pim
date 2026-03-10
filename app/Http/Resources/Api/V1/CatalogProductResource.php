@@ -37,6 +37,7 @@ class CatalogProductResource extends JsonResource
             'price' => $price,
             'currency' => $currency,
             'product_type' => $this->product_type,
+            'primary_attribute_value' => $this->primary_attribute_value ?? null,
             'card_attributes' => $this->card_attributes ?? [],
         ];
     }

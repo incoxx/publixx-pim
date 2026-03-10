@@ -140,6 +140,7 @@ const themeForm = ref({
   facet_attribute_ids: [],
   detail_layout: 'classic',
   card_attribute_ids: [],
+  primary_card_attribute_id: null,
   card_show_sku: false,
   card_show_category: true,
   card_show_price: true,
@@ -191,6 +192,7 @@ async function loadThemeSettings() {
         facet_attribute_ids: d.facet_attribute_ids || [],
         detail_layout: d.detail_layout || 'classic',
         card_attribute_ids: d.card_attribute_ids || [],
+        primary_card_attribute_id: d.primary_card_attribute_id || null,
         card_show_sku: d.card_show_sku ?? false,
         card_show_category: d.card_show_category ?? true,
         card_show_price: d.card_show_price ?? true,
@@ -223,6 +225,7 @@ async function saveThemeSettings() {
     payload.card_show_sku = !!payload.card_show_sku
     payload.card_show_category = !!payload.card_show_category
     payload.card_show_price = !!payload.card_show_price
+    if (!payload.primary_card_attribute_id) payload.primary_card_attribute_id = null
     if (!payload.card_price_type_id) payload.card_price_type_id = null
     if (!payload.card_price_country) payload.card_price_country = null
     await adminApi.updateCatalogTheme(payload)
@@ -764,6 +767,22 @@ onMounted(() => {
               />
               <p class="text-[10px] text-[var(--color-text-tertiary)] mt-0.5">Länderspezifischer Preis (optional, 2-stelliger ISO-Code).</p>
             </div>
+          </div>
+          <div>
+            <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">
+              Primärattribut auf Karten
+              <span class="text-[var(--color-text-tertiary)] font-normal">(wird prominent als Titel angezeigt)</span>
+            </label>
+            <select
+              v-model="themeForm.primary_card_attribute_id"
+              class="pim-input text-xs w-full sm:w-1/2"
+            >
+              <option :value="null">– Produktname verwenden –</option>
+              <option v-for="attr in allAttributes" :key="attr.id" :value="attr.id">
+                {{ attr.name_de || attr.name }} ({{ attr.data_type }})
+              </option>
+            </select>
+            <p class="text-[10px] text-[var(--color-text-tertiary)] mt-0.5">Wird anstelle des Produktnamens als Hauptfeld auf der Kachel angezeigt.</p>
           </div>
           <div>
             <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">
