@@ -48,8 +48,8 @@ export const useHierarchyStore = defineStore('hierarchies', () => {
     return resp.data || resp
   }
 
-  async function deleteHierarchy(id) {
-    await hierarchiesApi.delete(id)
+  async function deleteHierarchy(id, { force = false } = {}) {
+    await hierarchiesApi.delete(id, { force })
   }
 
   async function createNode(hierarchyId, nodeData) {
