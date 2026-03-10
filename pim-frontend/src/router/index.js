@@ -121,6 +121,12 @@ const routes = [
     meta: { title: 'JSON Export/Import' },
   },
   {
+    path: '/bmecat-import-export',
+    name: 'bmecat-import-export',
+    component: () => import('@/views/imports/BmecatImportExportView.vue'),
+    meta: { title: 'BMEcat Import/Export' },
+  },
+  {
     path: '/export-jobs',
     name: 'export-jobs',
     component: () => import('@/views/exports/ExportJobView.vue'),

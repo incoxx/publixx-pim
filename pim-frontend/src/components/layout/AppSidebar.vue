@@ -7,7 +7,7 @@ import {
   Search, Package, GitBranch, Sliders, Database, Layers, FolderTree,
   Upload, Download, Image, Tags, DollarSign, Users, Settings,
   HelpCircle, PanelLeftClose, PanelLeft, Star, LayoutGrid, Ruler,
-  FileJson, PlayCircle, FileBarChart, BookOpen, Link2, Zap, Languages,
+  FileJson, FileCode, PlayCircle, FileBarChart, BookOpen, Link2, Zap, Languages,
   ChevronDown, ChevronRight, GripVertical,
 } from 'lucide-vue-next'
 import AnyPimLogo from '@/components/shared/AnyPimLogo.vue'
@@ -58,6 +58,7 @@ const sections = computed(() => {
         { icon: Upload, label: () => t('nav.imports'), to: '/imports' },
         { icon: Download, label: () => t('nav.exports'), to: '/exports' },
         { icon: FileJson, label: () => 'JSON Export/Import', to: '/json-export-import' },
+        { icon: FileCode, label: () => 'BMEcat Import/Export', to: '/bmecat-import-export' },
         { icon: PlayCircle, label: () => 'Export-Jobs', to: '/export-jobs' },
         { icon: Settings, label: () => t('nav.settings'), to: '/settings', permission: 'users.view' },
         { icon: Users, label: () => t('nav.users'), to: '/users', permission: 'users.view' },
