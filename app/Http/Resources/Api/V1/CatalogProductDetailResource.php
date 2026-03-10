@@ -60,7 +60,7 @@ class CatalogProductDetailResource extends JsonResource
 
                 $unit = $attrValue->unit?->abbreviation;
 
-                return [
+                $entry = [
                     'attribute_id' => $attr->id,
                     'label' => $label,
                     'value' => $displayValue,
@@ -69,6 +69,13 @@ class CatalogProductDetailResource extends JsonResource
                     'parent_attribute_id' => $attr->parent_attribute_id,
                     'composite_format' => $attr->data_type === 'Composite' ? $attr->composite_format : null,
                 ];
+
+                // Include structured link data for link types
+                if (in_array($attr->data_type, ['Hyperlink', 'ImageLink', 'PdfLink', 'VideoLink']) && $attrValue->value_string) {
+                    $entry['link_data'] = json_decode($attrValue->value_string, true) ?: null;
+                }
+
+                return $entry;
             })
             ->filter()
             ->values();
@@ -213,6 +220,7 @@ class CatalogProductDetailResource extends JsonResource
             'Date' => $attrValue->value_date?->format('Y-m-d'),
             'Flag' => $attrValue->value_flag !== null ? ($attrValue->value_flag ? ($lang === 'en' ? 'Yes' : 'Ja') : ($lang === 'en' ? 'No' : 'Nein')) : null,
             'Selection', 'Dictionary' => $this->resolveSelectionValue($attrValue, $lang),
+            'Hyperlink', 'ImageLink', 'PdfLink', 'VideoLink' => $this->resolveLinkDisplayValue($attrValue->value_string),
             default => $attrValue->value_string,
         };
     }
@@ -227,5 +235,19 @@ class CatalogProductDetailResource extends JsonResource
         return $lang === 'en' && $entry->display_value_en
             ? $entry->display_value_en
             : $entry->display_value_de;
+    }
+
+    private function resolveLinkDisplayValue(?string $json): ?string
+    {
+        if ($json === null || $json === '') {
+            return null;
+        }
+
+        $data = json_decode($json, true);
+        if (!is_array($data)) {
+            return $json;
+        }
+
+        return $data['title'] ?? $data['url'] ?? null;
     }
 }

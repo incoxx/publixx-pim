@@ -444,6 +444,16 @@ async function changeLanguage(lang) {
                       {{ entry.display_value_de || entry.code }}
                     </option>
                   </select>
+                  <!-- Link types (Hyperlink, ImageLink, PdfLink, VideoLink) -->
+                  <input
+                    v-else-if="['Hyperlink', 'ImageLink', 'PdfLink', 'VideoLink'].includes(attr.data_type)"
+                    type="text"
+                    class="pim-input text-xs w-full"
+                    :value="(() => { try { return JSON.parse(getCellValue(product.id, attr.id) || '{}').url || '' } catch { return getCellValue(product.id, attr.id) || '' } })()"
+                    placeholder="URL"
+                    @input="(() => { let d = {}; try { d = JSON.parse(getCellValue(product.id, attr.id) || '{}') } catch {}; d.url = $event.target.value; setCellValue(product.id, attr.id, JSON.stringify(d)) })()"
+                    @dblclick="resetCell(product.id, attr.id)"
+                  />
                   <!-- Fallback: text -->
                   <input
                     v-else

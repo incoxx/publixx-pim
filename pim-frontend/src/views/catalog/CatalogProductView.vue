@@ -25,16 +25,36 @@ const tabs = computed(() => {
   if (product.value?.attributes?.length) {
     list.push({ id: 'attributes', label: t('catalog.attributes') || 'Merkmale' })
   }
+  if (linkAttributes.value.length) {
+    list.push({ id: 'media-links', label: 'Medien & Links' })
+  }
   if (product.value?.variants?.length) {
     list.push({ id: 'variants', label: 'Varianten' })
   }
   return list
 })
 
+const LINK_DATA_TYPES = ['Hyperlink', 'ImageLink', 'PdfLink', 'VideoLink']
+
 const parentAttributes = computed(() => {
   if (!product.value?.attributes) return []
-  return product.value.attributes.filter(a => !a.parent_attribute_id)
+  return product.value.attributes.filter(a => !a.parent_attribute_id && !LINK_DATA_TYPES.includes(a.data_type))
 })
+
+const linkAttributes = computed(() => {
+  if (!product.value?.attributes) return []
+  return product.value.attributes.filter(a => LINK_DATA_TYPES.includes(a.data_type) && a.link_data)
+})
+
+const groupedLinks = computed(() => {
+  const groups = { ImageLink: [], VideoLink: [], PdfLink: [], Hyperlink: [] }
+  for (const attr of linkAttributes.value) {
+    if (groups[attr.data_type]) groups[attr.data_type].push(attr)
+  }
+  return groups
+})
+
+const linkGroupLabels = { ImageLink: 'Bilder', VideoLink: 'Videos', PdfLink: 'PDFs', Hyperlink: 'Links' }
 
 function formatPrice(price) {
   if (!price?.amount) return '--'
@@ -198,6 +218,31 @@ onMounted(() => {
                 </tbody>
               </table>
             </div>
+            <div v-if="activeTab === 'media-links'" class="space-y-4">
+              <template v-for="(items, dtype) in groupedLinks" :key="dtype">
+                <div v-if="items.length">
+                  <h4 class="font-semibold text-sm text-base-content mb-2">{{ linkGroupLabels[dtype] }}</h4>
+                  <div v-if="dtype === 'ImageLink'" class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    <a v-for="(attr, idx) in items" :key="idx" :href="attr.link_data.url" target="_blank" rel="noopener noreferrer" class="group block rounded-lg overflow-hidden border border-base-300 hover:border-primary transition-colors">
+                      <img :src="attr.link_data.url" :alt="attr.link_data.alt_text || attr.link_data.title || attr.label" class="w-full h-32 object-cover" loading="lazy" />
+                      <div class="p-2 text-xs text-base-content/70">{{ attr.link_data.title || attr.label }}</div>
+                    </a>
+                  </div>
+                  <div v-else-if="dtype === 'VideoLink'" class="space-y-3">
+                    <div v-for="(attr, idx) in items" :key="idx" class="rounded-lg border border-base-300 p-3">
+                      <a :href="attr.link_data.url" target="_blank" rel="noopener noreferrer" class="link link-primary text-sm font-medium">{{ attr.link_data.title || attr.label }}</a>
+                      <div v-if="attr.link_data.width && attr.link_data.height" class="text-xs text-base-content/50 mt-1">{{ attr.link_data.width }} × {{ attr.link_data.height }} px</div>
+                    </div>
+                  </div>
+                  <div v-else class="space-y-2">
+                    <div v-for="(attr, idx) in items" :key="idx" class="flex items-center gap-2 text-sm">
+                      <a :href="attr.link_data.url" :target="attr.link_data.target || '_blank'" rel="noopener noreferrer" class="link link-primary">{{ attr.link_data.title || attr.link_data.url }}</a>
+                      <span class="text-xs text-base-content/40">{{ attr.label }}</span>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </div>
             <div v-if="activeTab === 'variants'" class="text-sm overflow-x-auto">
               <table class="table table-xs table-zebra w-full">
                 <thead>
@@ -271,6 +316,24 @@ onMounted(() => {
                 </tr>
               </tbody>
             </table>
+          </div>
+          <div v-if="linkAttributes.length" class="bg-base-200/30 rounded-xl p-4">
+            <h3 class="font-semibold text-base-content mb-3 text-sm">Medien & Links</h3>
+            <div class="space-y-3">
+              <template v-for="(items, dtype) in groupedLinks" :key="dtype">
+                <div v-if="items.length">
+                  <h4 class="text-xs font-semibold text-base-content/60 mb-1.5">{{ linkGroupLabels[dtype] }}</h4>
+                  <div v-if="dtype === 'ImageLink'" class="flex flex-wrap gap-2">
+                    <a v-for="(attr, idx) in items" :key="idx" :href="attr.link_data.url" target="_blank" rel="noopener noreferrer" class="block w-20 h-20 rounded border border-base-300 overflow-hidden hover:border-primary transition-colors">
+                      <img :src="attr.link_data.url" :alt="attr.link_data.alt_text || attr.label" class="w-full h-full object-cover" loading="lazy" />
+                    </a>
+                  </div>
+                  <div v-else class="space-y-1">
+                    <a v-for="(attr, idx) in items" :key="idx" :href="attr.link_data.url" :target="attr.link_data.target || '_blank'" rel="noopener noreferrer" class="block link link-primary text-sm">{{ attr.link_data.title || attr.link_data.url }}</a>
+                  </div>
+                </div>
+              </template>
+            </div>
           </div>
           <div v-if="product.variants?.length" class="bg-base-200/30 rounded-xl p-4">
             <h3 class="font-semibold text-base-content mb-3 text-sm">Varianten</h3>

@@ -562,7 +562,7 @@ class BulkUpdateController extends Controller
         ];
 
         return match ($attribute->data_type) {
-            'String', 'RichText' => array_merge($columns, ['value_string' => $value !== null ? (string) $value : null]),
+            'String', 'RichText', 'Hyperlink', 'ImageLink', 'PdfLink', 'VideoLink' => array_merge($columns, ['value_string' => $value !== null ? (string) $value : null]),
             'Number', 'Float' => array_merge($columns, ['value_number' => $value !== null ? (float) $value : null]),
             'Date' => array_merge($columns, ['value_date' => $value]),
             'Flag' => array_merge($columns, ['value_flag' => $value !== null ? (bool) $value : null]),

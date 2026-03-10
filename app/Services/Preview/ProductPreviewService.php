@@ -141,7 +141,7 @@ class ProductPreviewService
                     $displayValue = $this->resolveDisplayValue($attrValue, $lang);
                     $unit = $attrValue->unit?->abbreviation;
 
-                    $sections[$sectionIndex]['attributes'][] = [
+                    $attrEntry = [
                         'attribute_id' => $assignment->attribute_id,
                         'technical_name' => $assignment->attribute_technical_name,
                         'label' => $label,
@@ -154,6 +154,12 @@ class ProductPreviewService
                         'parent_attribute_id' => $assignment->parent_attribute_id ?? null,
                         'composite_format' => $assignment->composite_format ?? null,
                     ];
+
+                    if (in_array($assignment->data_type, ['Hyperlink', 'ImageLink', 'PdfLink', 'VideoLink']) && $attrValue->value_string) {
+                        $attrEntry['link_data'] = json_decode($attrValue->value_string, true) ?: null;
+                    }
+
+                    $sections[$sectionIndex]['attributes'][] = $attrEntry;
                 }
             }
         }
@@ -340,8 +346,23 @@ class ProductPreviewService
                 ? ($attrValue->value_flag ? ($lang === 'en' ? 'Yes' : 'Ja') : ($lang === 'en' ? 'No' : 'Nein'))
                 : null,
             'Selection', 'Dictionary' => $this->resolveSelectionValue($attrValue, $lang),
+            'Hyperlink', 'ImageLink', 'PdfLink', 'VideoLink' => $this->resolveLinkDisplayValue($attrValue->value_string),
             default => $attrValue->value_string,
         };
+    }
+
+    private function resolveLinkDisplayValue(?string $json): ?string
+    {
+        if ($json === null || $json === '') {
+            return null;
+        }
+
+        $data = json_decode($json, true);
+        if (!is_array($data)) {
+            return $json;
+        }
+
+        return $data['title'] ?? $data['url'] ?? null;
     }
 
     private function resolveSelectionValue(ProductAttributeValue $attrValue, string $lang): ?string

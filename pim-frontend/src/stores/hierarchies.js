@@ -48,8 +48,8 @@ export const useHierarchyStore = defineStore('hierarchies', () => {
     return resp.data || resp
   }
 
-  async function deleteHierarchy(id) {
-    await hierarchiesApi.delete(id)
+  async function deleteHierarchy(id, { force = false } = {}) {
+    await hierarchiesApi.delete(id, { force })
   }
 
   async function createNode(hierarchyId, nodeData) {
@@ -62,8 +62,8 @@ export const useHierarchyStore = defineStore('hierarchies', () => {
     return data.data || data
   }
 
-  async function deleteNode(nodeId) {
-    await hierarchiesApi.deleteNode(nodeId)
+  async function deleteNode(nodeId, { force = false } = {}) {
+    await hierarchiesApi.deleteNode(nodeId, { force })
   }
 
   async function moveNode(nodeId, targetParentId, sortOrder) {

@@ -189,6 +189,7 @@ function mapDataTypeToInput(dataType) {
   return {
     String: 'text', Number: 'number', Float: 'decimal', Date: 'date',
     Flag: 'boolean', Selection: 'select', Dictionary: 'dictionary', RichText: 'richtext',
+    Hyperlink: 'hyperlink', ImageLink: 'imagelink', PdfLink: 'pdflink', VideoLink: 'videolink',
   }[dataType] || 'text'
 }
 

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, defineAsyncComponent } from 'vue'
+import { ref, computed, watch, defineAsyncComponent } from 'vue'
 import { Check, X } from 'lucide-vue-next'
 
 const PimRichTextEditor = defineAsyncComponent(() => import('./PimRichTextEditor.vue'))
@@ -84,6 +84,25 @@ function mcRemove(val) {
 
 function update(value) {
   emit('update:modelValue', value)
+}
+
+// ─── Link data type helpers ───────────────────────────
+const LINK_TYPES = ['hyperlink', 'imagelink', 'pdflink', 'videolink']
+
+function parseLinkValue(val) {
+  if (!val) return {}
+  if (typeof val === 'object') return { ...val }
+  try { return JSON.parse(val) } catch { return {} }
+}
+
+const linkData = ref(parseLinkValue(props.modelValue))
+
+watch(() => props.modelValue, (val) => {
+  linkData.value = parseLinkValue(val)
+})
+
+function emitLink() {
+  emit('update:modelValue', JSON.stringify(linkData.value))
 }
 </script>
 
@@ -304,6 +323,47 @@ function update(value) {
       <div class="px-3 py-2 text-[12px] text-[var(--color-text-tertiary)]">
         Keine Einträge gefunden
       </div>
+    </div>
+  </div>
+
+  <!-- Hyperlink -->
+  <div v-else-if="type === 'hyperlink'" class="space-y-1.5">
+    <input :class="inputClass" :value="linkData.url" :disabled="disabled" placeholder="URL" @input="linkData.url = $event.target.value; emitLink()" />
+    <input :class="inputClass" :value="linkData.title" :disabled="disabled" placeholder="Titel" @input="linkData.title = $event.target.value; emitLink()" />
+    <select :class="inputClass" :value="linkData.target || '_blank'" :disabled="disabled" @change="linkData.target = $event.target.value; emitLink()">
+      <option value="_blank">Neues Fenster (_blank)</option>
+      <option value="_self">Gleiches Fenster (_self)</option>
+    </select>
+  </div>
+
+  <!-- ImageLink -->
+  <div v-else-if="type === 'imagelink'" class="space-y-1.5">
+    <input :class="inputClass" :value="linkData.url" :disabled="disabled" placeholder="Bild-URL" @input="linkData.url = $event.target.value; emitLink()" />
+    <input :class="inputClass" :value="linkData.title" :disabled="disabled" placeholder="Titel" @input="linkData.title = $event.target.value; emitLink()" />
+    <input :class="inputClass" :value="linkData.alt_text" :disabled="disabled" placeholder="Alt-Text" @input="linkData.alt_text = $event.target.value; emitLink()" />
+    <div class="flex gap-2">
+      <input :class="inputClass" type="number" :value="linkData.width" :disabled="disabled" placeholder="Breite (px)" @input="linkData.width = parseInt($event.target.value) || null; emitLink()" />
+      <input :class="inputClass" type="number" :value="linkData.height" :disabled="disabled" placeholder="Höhe (px)" @input="linkData.height = parseInt($event.target.value) || null; emitLink()" />
+    </div>
+  </div>
+
+  <!-- PdfLink -->
+  <div v-else-if="type === 'pdflink'" class="space-y-1.5">
+    <input :class="inputClass" :value="linkData.url" :disabled="disabled" placeholder="PDF-URL" @input="linkData.url = $event.target.value; emitLink()" />
+    <input :class="inputClass" :value="linkData.title" :disabled="disabled" placeholder="Titel" @input="linkData.title = $event.target.value; emitLink()" />
+    <select :class="inputClass" :value="linkData.target || '_blank'" :disabled="disabled" @change="linkData.target = $event.target.value; emitLink()">
+      <option value="_blank">Neues Fenster (_blank)</option>
+      <option value="_self">Gleiches Fenster (_self)</option>
+    </select>
+  </div>
+
+  <!-- VideoLink -->
+  <div v-else-if="type === 'videolink'" class="space-y-1.5">
+    <input :class="inputClass" :value="linkData.url" :disabled="disabled" placeholder="Video-URL" @input="linkData.url = $event.target.value; emitLink()" />
+    <input :class="inputClass" :value="linkData.title" :disabled="disabled" placeholder="Titel" @input="linkData.title = $event.target.value; emitLink()" />
+    <div class="flex gap-2">
+      <input :class="inputClass" type="number" :value="linkData.width" :disabled="disabled" placeholder="Breite (px)" @input="linkData.width = parseInt($event.target.value) || null; emitLink()" />
+      <input :class="inputClass" type="number" :value="linkData.height" :disabled="disabled" placeholder="Höhe (px)" @input="linkData.height = parseInt($event.target.value) || null; emitLink()" />
     </div>
   </div>
 
