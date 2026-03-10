@@ -14,7 +14,7 @@ use App\Services\Import\BmecatElementMap;
 use Illuminate\Support\Collection;
 
 /**
- * Exportiert PIM-Daten als BMEcat-XML (1.2 oder 2005).
+ * Exportiert PIM-Daten als BMEcat-XML (Version 1.2 oder 2005).
  *
  * Unterstützt T_NEW_CATALOG und erlaubt Filterung nach Hierarchie,
  * Produkttypen, Attributen, Preistypen und Beziehungstypen.
