@@ -37,10 +37,29 @@ class MediaController extends Controller
 
         $query = Media::query();
 
+        $filters = $request->query('filter', []);
+
         $this->applyFilters($query, array_intersect_key(
-            $request->query('filter', []),
+            $filters,
             array_flip(self::ALLOWED_FILTERS)
         ));
+
+        // Filter by file extensions (e.g. ?filter[extensions]=jpg,png,pdf)
+        if (!empty($filters['extensions'])) {
+            $extList = array_map(
+                fn ($e) => preg_replace('/[^a-z0-9]/', '', strtolower(trim($e))),
+                explode(',', $filters['extensions'])
+            );
+            $extList = array_filter($extList);
+            if (!empty($extList)) {
+                $query->where(function ($q) use ($extList) {
+                    foreach ($extList as $ext) {
+                        $q->orWhere('file_name', 'LIKE', '%.' . $ext);
+                    }
+                });
+            }
+        }
+
         $this->applySearch($query, $request, ['file_name', 'title_de', 'title_en']);
         $this->applySorting($query, $request, 'created_at', 'desc');
 

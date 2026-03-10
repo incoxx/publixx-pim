@@ -20,6 +20,7 @@ class MediaUsageType extends Model
         'name_en',
         'name_json',
         'sort_order',
+        'allowed_extensions',
     ];
 
     protected function casts(): array
@@ -27,6 +28,7 @@ class MediaUsageType extends Model
         return [
             'name_json' => 'array',
             'sort_order' => 'integer',
+            'allowed_extensions' => 'array',
         ];
     }
 

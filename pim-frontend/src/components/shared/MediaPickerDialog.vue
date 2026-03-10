@@ -1,6 +1,6 @@
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
-import { X, Search, LayoutGrid, List, ChevronLeft, ChevronRight, Image } from 'lucide-vue-next'
+import { ref, computed, watch } from 'vue'
+import { X, Search, LayoutGrid, List, ChevronLeft, ChevronRight, Image, FileText } from 'lucide-vue-next'
 import mediaApi from '@/api/media'
 
 const props = defineProps({
@@ -8,6 +8,7 @@ const props = defineProps({
   usageTypes: { type: Array, default: () => [] },
   selectedUsageTypeId: { type: String, default: null },
   excludeMediaIds: { type: Array, default: () => [] },
+  allowedExtensions: { type: Array, default: null },
 })
 
 const emit = defineEmits(['update:modelValue', 'select', 'update:selectedUsageTypeId'])
@@ -30,7 +31,10 @@ async function loadMedia(page = 1) {
     if (searchQuery.value.trim()) {
       params.search = searchQuery.value.trim()
     }
-    params.filters = { media_type: 'image' }
+    // Filter by allowed extensions if configured, otherwise show all
+    if (props.allowedExtensions && props.allowedExtensions.length > 0) {
+      params.filters = { extensions: props.allowedExtensions.join(',') }
+    }
     const { data } = await mediaApi.list(params)
     const items = data.data || data
     media.value = items
@@ -65,6 +69,14 @@ watch(searchQuery, () => {
   }, 300)
 })
 
+// Reload when allowed extensions change (user switches usage type)
+watch(() => props.allowedExtensions, () => {
+  if (props.modelValue) {
+    currentPage.value = 1
+    loadMedia(1)
+  }
+})
+
 function close() {
   emit('update:modelValue', false)
 }
@@ -78,8 +90,12 @@ function goToPage(page) {
   loadMedia(page)
 }
 
+function isImage(item) {
+  return item.media_type === 'image'
+}
+
 function getThumbUrl(item) {
-  if (item.file_name) return mediaApi.thumbUrl(item.id, 200, 200)
+  if (item.file_name && isImage(item)) return mediaApi.thumbUrl(item.id, 200, 200)
   return ''
 }
 
@@ -88,6 +104,11 @@ function formatFileSize(bytes) {
   if (bytes < 1024) return bytes + ' B'
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
+}
+
+function getExtension(fileName) {
+  if (!fileName) return ''
+  return fileName.split('.').pop()?.toUpperCase() || ''
 }
 </script>
 
@@ -175,11 +196,16 @@ function formatFileSize(bytes) {
                 @click="selectMedia(m)"
               >
                 <img
+                  v-if="isImage(m)"
                   :src="getThumbUrl(m)"
                   class="w-full h-full object-cover"
                   loading="lazy"
                   alt=""
                 />
+                <div v-else class="w-full h-full flex flex-col items-center justify-center gap-1">
+                  <FileText class="w-8 h-8 text-[var(--color-text-tertiary)]" :stroke-width="1.25" />
+                  <span class="text-[9px] text-[var(--color-text-tertiary)] font-medium">{{ getExtension(m.file_name) }}</span>
+                </div>
                 <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                   <span class="text-[10px] text-white truncate block">{{ m.file_name }}</span>
                 </div>
@@ -194,8 +220,9 @@ function formatFileSize(bytes) {
                 class="flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer hover:bg-[var(--color-bg)] border border-transparent hover:border-[var(--color-border)] transition-all"
                 @click="selectMedia(m)"
               >
-                <div class="w-10 h-10 bg-[var(--color-bg)] rounded overflow-hidden flex-shrink-0 border border-[var(--color-border)]">
-                  <img :src="getThumbUrl(m)" class="w-full h-full object-cover" loading="lazy" alt="" />
+                <div class="w-10 h-10 bg-[var(--color-bg)] rounded overflow-hidden flex-shrink-0 border border-[var(--color-border)] flex items-center justify-center">
+                  <img v-if="isImage(m)" :src="getThumbUrl(m)" class="w-full h-full object-cover" loading="lazy" alt="" />
+                  <FileText v-else class="w-5 h-5 text-[var(--color-text-tertiary)]" :stroke-width="1.5" />
                 </div>
                 <div class="flex-1 min-w-0">
                   <p class="text-xs font-medium text-[var(--color-text-primary)] truncate">{{ m.file_name }}</p>
