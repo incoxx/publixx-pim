@@ -86,9 +86,9 @@ const staggerDelay = computed(() => `${Math.min(props.index * 50, 400)}ms`)
         {{ product.category_path }}
       </p>
 
-      <!-- Product name -->
+      <!-- Product name / primary attribute -->
       <h3 class="text-sm font-semibold line-clamp-2 leading-tight min-h-[2.5rem]">
-        {{ product.name || product.sku || '–' }}
+        {{ product.primary_attribute_value || product.name || product.sku || '–' }}
       </h3>
 
       <!-- SKU -->
@@ -103,7 +103,7 @@ const staggerDelay = computed(() => `${Math.min(props.index * 50, 400)}ms`)
           :key="idx"
           class="text-[11px] text-base-content/60 truncate"
         >
-          <span class="text-base-content/40">{{ attr.label }}:</span> {{ attr.value }}
+          {{ attr.value }}
         </div>
       </div>
 
