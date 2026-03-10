@@ -456,6 +456,7 @@ function closeAutoMatch() {
   showAutoMatch.value = false
   autoMatchResult.value = null
   autoMatchError.value = null
+  autoMatchForm.value = { pattern: '/^(.+?)(?:_\\d+)?$/', usage_type_id: null, dry_run: true }
 }
 
 let debounceTimer = null

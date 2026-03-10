@@ -28,6 +28,8 @@ class MediaController extends Controller
     use ChecksDeletionConstraints;
 
     private const ALLOWED_FILTERS = ['media_type', 'mime_type', 'asset_folder_id', 'usage_purpose'];
+    private const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'tiff', 'tif', 'pdf', 'eps', 'ai'];
+    private const MAX_BULK_IMPORT_ROWS = 500;
 
     public function index(Request $request): AnonymousResourceCollection
     {
@@ -314,8 +316,13 @@ class MediaController extends Controller
             'usage_purpose' => 'nullable|in:print,web,both',
         ]);
 
+        // SSRF protection: reject internal/private URLs
+        if ($this->isInternalUrl($validated['url'])) {
+            return response()->json(['message' => 'Interne oder private URLs sind nicht erlaubt.'], 422);
+        }
+
         try {
-            $response = Http::timeout(30)->withOptions(['verify' => false])->get($validated['url']);
+            $response = Http::timeout(30)->get($validated['url']);
             if (!$response->successful()) {
                 return response()->json(['message' => 'URL konnte nicht geladen werden (HTTP ' . $response->status() . ').'], 422);
             }
@@ -339,19 +346,28 @@ class MediaController extends Controller
                 $originalName .= '.' . $ext;
             }
 
+            // Validate extension
+            $extension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION) ?: 'bin');
+            if (!$this->validateExtension($extension)) {
+                return response()->json(['message' => 'Dateityp "' . $extension . '" ist nicht erlaubt.'], 422);
+            }
+
             $safeFilename = $this->generateSafeFilenameFromString($originalName);
             $storedPath = Storage::disk('public')->path('media/' . $safeFilename);
             Storage::disk('public')->put('media/' . $safeFilename, $response->body());
 
+            // Detect actual MIME type from file content (don't trust remote server)
+            $actualMime = $this->detectMimeFromFile($storedPath) ?? $contentType;
+
             // Fix EXIF orientation for JPEGs
-            if (in_array($contentType, ['image/jpeg', 'image/jpg']) && function_exists('exif_read_data')) {
+            if (in_array($actualMime, ['image/jpeg', 'image/jpg']) && function_exists('exif_read_data')) {
                 $this->fixExifOrientation($storedPath);
             }
 
             // Detect dimensions
             $width = null;
             $height = null;
-            if (str_starts_with($contentType, 'image/')) {
+            if (str_starts_with($actualMime, 'image/')) {
                 $dimensions = @getimagesize($storedPath);
                 if ($dimensions) {
                     $width = $dimensions[0];
@@ -362,9 +378,9 @@ class MediaController extends Controller
             $media = Media::create([
                 'file_name' => $safeFilename,
                 'file_path' => 'media/' . $safeFilename,
-                'mime_type' => $contentType,
+                'mime_type' => $actualMime,
                 'file_size' => strlen($response->body()),
-                'media_type' => $this->detectMediaType($contentType),
+                'media_type' => $this->detectMediaType($actualMime),
                 'title_de' => pathinfo($originalName, PATHINFO_FILENAME),
                 'width' => $width,
                 'height' => $height,
@@ -376,7 +392,8 @@ class MediaController extends Controller
                 ->response()
                 ->setStatusCode(201);
         } catch (\Illuminate\Http\Client\ConnectionException $e) {
-            return response()->json(['message' => 'Verbindung fehlgeschlagen: ' . $e->getMessage()], 422);
+            \Log::error('Media URL import connection failed', ['url' => $validated['url'], 'error' => $e->getMessage()]);
+            return response()->json(['message' => 'Verbindung zur URL fehlgeschlagen.'], 422);
         }
     }
 
@@ -425,7 +442,14 @@ class MediaController extends Controller
         $defaultFolderId = $request->input('asset_folder_id');
         $defaultUsagePurpose = $request->input('usage_purpose', 'both');
 
-        $results = ['imported' => 0, 'failed' => 0, 'errors' => []];
+        // Enforce row limit to prevent DoS
+        if (count($rows) > self::MAX_BULK_IMPORT_ROWS) {
+            return response()->json([
+                'message' => 'Maximal ' . self::MAX_BULK_IMPORT_ROWS . ' Zeilen erlaubt. Die Datei enthält ' . count($rows) . ' Zeilen.',
+            ], 422);
+        }
+
+        $results = ['imported' => 0, 'failed' => 0, 'skipped' => 0, 'errors' => []];
 
         foreach ($rows as $rowIdx => $row) {
             $url = trim((string) ($row[$urlCol] ?? ''));
@@ -433,11 +457,22 @@ class MediaController extends Controller
                 continue;
             }
 
+            // SSRF protection
+            if ($this->isInternalUrl($url)) {
+                $results['skipped']++;
+                if (count($results['errors']) < 50) {
+                    $results['errors'][] = "Zeile {$rowIdx}: Interne URL übersprungen.";
+                }
+                continue;
+            }
+
             try {
-                $response = Http::timeout(30)->withOptions(['verify' => false])->get($url);
+                $response = Http::timeout(30)->get($url);
                 if (!$response->successful()) {
                     $results['failed']++;
-                    $results['errors'][] = "Zeile {$rowIdx}: HTTP {$response->status()} für {$url}";
+                    if (count($results['errors']) < 50) {
+                        $results['errors'][] = "Zeile {$rowIdx}: HTTP {$response->status()}";
+                    }
                     continue;
                 }
 
@@ -455,17 +490,30 @@ class MediaController extends Controller
                     $originalName .= '.' . $ext;
                 }
 
+                // Validate extension
+                $extension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION) ?: 'bin');
+                if (!$this->validateExtension($extension)) {
+                    $results['skipped']++;
+                    if (count($results['errors']) < 50) {
+                        $results['errors'][] = "Zeile {$rowIdx}: Dateityp \"{$extension}\" nicht erlaubt.";
+                    }
+                    continue;
+                }
+
                 $safeFilename = $this->generateSafeFilenameFromString($originalName);
                 Storage::disk('public')->put('media/' . $safeFilename, $response->body());
                 $storedPath = Storage::disk('public')->path('media/' . $safeFilename);
 
-                if (in_array($contentType, ['image/jpeg', 'image/jpg']) && function_exists('exif_read_data')) {
+                // Detect actual MIME type from file content
+                $actualMime = $this->detectMimeFromFile($storedPath) ?? $contentType;
+
+                if (in_array($actualMime, ['image/jpeg', 'image/jpg']) && function_exists('exif_read_data')) {
                     $this->fixExifOrientation($storedPath);
                 }
 
                 $width = null;
                 $height = null;
-                if (str_starts_with($contentType, 'image/')) {
+                if (str_starts_with($actualMime, 'image/')) {
                     $dimensions = @getimagesize($storedPath);
                     if ($dimensions) {
                         $width = $dimensions[0];
@@ -476,9 +524,9 @@ class MediaController extends Controller
                 Media::create([
                     'file_name' => $safeFilename,
                     'file_path' => 'media/' . $safeFilename,
-                    'mime_type' => $contentType,
+                    'mime_type' => $actualMime,
                     'file_size' => strlen($response->body()),
-                    'media_type' => $this->detectMediaType($contentType),
+                    'media_type' => $this->detectMediaType($actualMime),
                     'title_de' => pathinfo($originalName, PATHINFO_FILENAME),
                     'width' => $width,
                     'height' => $height,
@@ -489,7 +537,10 @@ class MediaController extends Controller
                 $results['imported']++;
             } catch (\Throwable $e) {
                 $results['failed']++;
-                $results['errors'][] = "Zeile {$rowIdx}: " . Str::limit($e->getMessage(), 100);
+                \Log::error('Bulk import row failed', ['row' => $rowIdx, 'error' => $e->getMessage()]);
+                if (count($results['errors']) < 50) {
+                    $results['errors'][] = "Zeile {$rowIdx}: Import fehlgeschlagen.";
+                }
             }
         }
 
@@ -519,26 +570,39 @@ class MediaController extends Controller
         $dryRun = $validated['dry_run'] ?? true;
         $usageTypeId = $validated['usage_type_id'] ?? null;
 
-        // Load all unassigned media (or all media)
-        $mediaItems = Media::all();
+        // Pre-load SKU→ID map (lightweight)
         $products = Product::where('product_type_ref', 'product')
             ->pluck('id', 'sku')
             ->toArray();
 
         $matches = [];
         $noMatch = [];
+        $totalMedia = 0;
 
-        foreach ($mediaItems as $media) {
-            $filename = pathinfo($media->file_name, PATHINFO_FILENAME);
+        // Set backtrack limit to prevent ReDoS from user-supplied patterns
+        $previousLimit = ini_get('pcre.backtrack_limit');
+        ini_set('pcre.backtrack_limit', '10000');
 
-            if (preg_match($pattern, $filename, $m)) {
+        // Process media in chunks to avoid memory exhaustion
+        Media::select('id', 'file_name')->chunk(500, function ($mediaChunk) use ($pattern, $products, $usageTypeId, $dryRun, &$matches, &$noMatch, &$totalMedia) {
+            foreach ($mediaChunk as $media) {
+                $totalMedia++;
+                $filename = pathinfo($media->file_name, PATHINFO_FILENAME);
+
+                $result = @preg_match($pattern, $filename, $m);
+                if ($result === false) {
+                    continue; // Pattern caused error (e.g., backtrack limit hit)
+                }
+                if ($result === 0) {
+                    continue;
+                }
+
                 // Use first capture group as SKU, or full match if no groups
                 $sku = $m[1] ?? $m[0];
                 $sku = trim($sku);
 
                 if (isset($products[$sku])) {
                     $productId = $products[$sku];
-                    // Check if already assigned
                     $exists = ProductMediaAssignment::where('product_id', $productId)
                         ->where('media_id', $media->id)
                         ->exists();
@@ -552,13 +616,14 @@ class MediaController extends Controller
                         ];
 
                         if (!$dryRun) {
+                            $existingCount = ProductMediaAssignment::where('product_id', $productId)->count();
                             $maxSort = ProductMediaAssignment::where('product_id', $productId)->max('sort_order') ?? 0;
                             ProductMediaAssignment::create([
                                 'product_id' => $productId,
                                 'media_id' => $media->id,
                                 'usage_type_id' => $usageTypeId,
                                 'sort_order' => $maxSort + 1,
-                                'is_primary' => $maxSort === 0,
+                                'is_primary' => $existingCount === 0,
                             ]);
                         }
                     }
@@ -570,13 +635,16 @@ class MediaController extends Controller
                     ];
                 }
             }
-        }
+        });
+
+        // Restore original backtrack limit
+        ini_set('pcre.backtrack_limit', $previousLimit);
 
         return response()->json([
             'dry_run' => $dryRun,
             'matched' => count($matches),
             'no_match' => count($noMatch),
-            'total_media' => $mediaItems->count(),
+            'total_media' => $totalMedia,
             'matches' => array_slice($matches, 0, 100),
             'unmatched' => array_slice($noMatch, 0, 50),
         ]);
@@ -660,7 +728,7 @@ class MediaController extends Controller
      */
     private function generateSafeFilenameFromString(string $originalName): string
     {
-        $extension = pathinfo($originalName, PATHINFO_EXTENSION) ?: 'bin';
+        $extension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION) ?: 'bin');
         $baseName = pathinfo($originalName, PATHINFO_FILENAME);
 
         $safe = Str::ascii($baseName);
@@ -694,5 +762,49 @@ class MediaController extends Controller
             in_array($mimeType, ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']) => 'document',
             default => 'other',
         };
+    }
+
+    /**
+     * Validate that a URL does not point to internal/private networks (SSRF protection).
+     */
+    private function isInternalUrl(string $url): bool
+    {
+        $parsed = parse_url($url);
+        if (!$parsed || !isset($parsed['host'])) {
+            return true;
+        }
+
+        $host = $parsed['host'];
+        $scheme = strtolower($parsed['scheme'] ?? '');
+        if (!in_array($scheme, ['http', 'https'])) {
+            return true;
+        }
+
+        $ip = gethostbyname($host);
+        if ($ip === $host && !filter_var($host, FILTER_VALIDATE_IP)) {
+            return true; // DNS resolution failed
+        }
+
+        return filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false;
+    }
+
+    /**
+     * Validate file extension against allowlist.
+     */
+    private function validateExtension(string $extension): bool
+    {
+        return in_array(strtolower($extension), self::ALLOWED_EXTENSIONS);
+    }
+
+    /**
+     * Detect actual MIME type from file content instead of trusting remote headers.
+     */
+    private function detectMimeFromFile(string $filePath): ?string
+    {
+        if (!file_exists($filePath)) {
+            return null;
+        }
+        $finfo = new \finfo(FILEINFO_MIME_TYPE);
+        return $finfo->file($filePath) ?: null;
     }
 }
