@@ -26,6 +26,7 @@ class UpdateProductRequest extends FormRequest
             'name' => 'sometimes|string|max:500',
             'status' => 'in:draft,active,inactive,discontinued',
             'master_hierarchy_node_id' => 'nullable|uuid|exists:hierarchy_nodes,id',
+            'manufacturer_id' => 'nullable|uuid|exists:manufacturers,id',
         ];
     }
 }

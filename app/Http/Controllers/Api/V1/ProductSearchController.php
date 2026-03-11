@@ -42,6 +42,8 @@ class ProductSearchController extends Controller
             'status' => 'nullable|string|in:active,draft,inactive,discontinued',
             'product_type_ids' => 'nullable|array',
             'product_type_ids.*' => 'string|uuid',
+            'manufacturer_ids' => 'nullable|array',
+            'manufacturer_ids.*' => 'string|uuid',
             'attribute_columns' => 'nullable|array',
             'attribute_columns.*' => 'string|uuid',
             'attribute_filters' => 'nullable|array',
@@ -69,7 +71,7 @@ class ProductSearchController extends Controller
         $language = $validated['language'] ?? 'de';
 
         $query = Product::query()
-            ->with('productType')
+            ->with(['productType', 'manufacturer'])
             ->where('product_type_ref', 'product');
 
         // ── Status filter ──
@@ -81,6 +83,12 @@ class ProductSearchController extends Controller
         $productTypeIds = $validated['product_type_ids'] ?? [];
         if (!empty($productTypeIds)) {
             $query->whereIn('product_type_id', $productTypeIds);
+        }
+
+        // ── Manufacturer filter ──
+        $manufacturerIds = $validated['manufacturer_ids'] ?? [];
+        if (!empty($manufacturerIds)) {
+            $query->whereIn('manufacturer_id', $manufacturerIds);
         }
 
         // ── Text search with multiple modes ──

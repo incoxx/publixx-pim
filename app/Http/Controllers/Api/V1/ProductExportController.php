@@ -39,6 +39,8 @@ class ProductExportController extends Controller
             'include_descendants' => 'nullable|boolean',
             'hierarchy_type' => 'nullable|string|in:master,output',
             'status' => 'nullable|string|in:active,draft,inactive,discontinued',
+            'manufacturer_ids' => 'nullable|array',
+            'manufacturer_ids.*' => 'string|uuid',
             'attribute_filters' => 'nullable|array',
             'language' => 'nullable|string|max:5',
         ]);
@@ -47,7 +49,7 @@ class ProductExportController extends Controller
         $language = $validated['language'] ?? 'de';
 
         // Whitelist: only allow known base columns and attr: prefix
-        $allowedBaseColumns = ['sku', 'name', 'status', 'ean', 'product_type', 'product_type.name_de', 'updated_at', 'created_at'];
+        $allowedBaseColumns = ['sku', 'name', 'status', 'ean', 'product_type', 'product_type.name_de', 'manufacturer.name', 'updated_at', 'created_at'];
         $columns = array_filter($columns, function ($col) use ($allowedBaseColumns) {
             return in_array($col, $allowedBaseColumns) || str_starts_with($col, 'attr:');
         });
@@ -58,7 +60,7 @@ class ProductExportController extends Controller
 
         // Build product query
         $query = Product::query()
-            ->with('productType')
+            ->with(['productType', 'manufacturer'])
             ->where('product_type_ref', 'product');
 
         if (!empty($validated['product_ids'])) {
@@ -69,6 +71,9 @@ class ProductExportController extends Controller
             }
             if (!empty($validated['search'])) {
                 $this->applyTextSearch($query, $validated['search'], $validated['search_mode'] ?? 'like');
+            }
+            if (!empty($validated['manufacturer_ids'])) {
+                $query->whereIn('manufacturer_id', $validated['manufacturer_ids']);
             }
             if (!empty($validated['category_ids'])) {
                 $this->applyCategoryFilter($query, $validated['category_ids'], $validated['include_descendants'] ?? true, $validated['hierarchy_type'] ?? 'master');
@@ -128,6 +133,7 @@ class ProductExportController extends Controller
             'status' => 'Status',
             'ean' => 'EAN',
             'product_type.name_de' => 'Produkttyp',
+            'manufacturer.name' => 'Hersteller',
             'updated_at' => 'Geändert',
             'created_at' => 'Erstellt',
         ];
@@ -204,6 +210,7 @@ class ProductExportController extends Controller
             'status' => $product->status ?? '',
             'ean' => $product->ean ?? '',
             'product_type.name_de' => $product->productType?->name_de ?? '',
+            'manufacturer.name' => $product->manufacturer?->name ?? '',
             'updated_at' => $product->updated_at?->format('d.m.Y H:i') ?? '',
             'created_at' => $product->created_at?->format('d.m.Y H:i') ?? '',
             default => '',
