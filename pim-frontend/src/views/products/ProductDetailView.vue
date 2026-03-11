@@ -2863,7 +2863,7 @@ watch(() => route.params.id, async (newId, oldId) => {
           <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 pt-3">
             <div v-for="m in previewData.media" :key="m.id" class="pim-card overflow-hidden">
               <div class="aspect-square bg-[var(--color-bg)] flex items-center justify-center overflow-hidden">
-                <img :src="m.url" class="w-full h-full object-cover" loading="lazy" :alt="m.alt || ''" />
+                <img :src="mediaApi.fileUrl(m.file_name)" class="w-full h-full object-cover" loading="lazy" :alt="m.alt || ''" />
               </div>
               <div class="p-2">
                 <span class="text-[11px] text-[var(--color-text-primary)] truncate block">{{ m.file_name || '—' }}</span>
