@@ -270,6 +270,7 @@ const themeForm = ref({
   thumbnail_usage_type_id: null,
   description_attributes: [],
   pdf_display_mode: 'link',
+  catalog_access_mode: 'public',
 })
 const activeThemeTab = ref('general')
 const themeLogoPreview = ref(null)
@@ -325,6 +326,7 @@ async function loadThemeSettings() {
         thumbnail_usage_type_id: d.thumbnail_usage_type_id || null,
         description_attributes: d.description_attributes || [],
         pdf_display_mode: d.pdf_display_mode || 'link',
+        catalog_access_mode: d.catalog_access_mode || 'public',
       }
       themeLogoPreview.value = d.logo_url || null
     }
@@ -597,6 +599,13 @@ onMounted(() => {
               <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Produkt-Popup Breite</label>
               <select class="pim-input text-xs" v-model="themeForm.popup_max_width">
                 <option v-for="o in POPUP_SIZE_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Katalog-Zugriff</label>
+              <select class="pim-input text-xs" v-model="themeForm.catalog_access_mode">
+                <option value="public">Öffentlich (ohne Login)</option>
+                <option value="login">Login erforderlich</option>
               </select>
             </div>
           </div>
