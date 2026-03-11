@@ -308,7 +308,8 @@ class AttributeValueResolver
     ): ?ProductAttributeValue {
         $query = ProductAttributeValue::where('product_id', $product->id)
             ->where('attribute_id', $attribute->id)
-            ->where('is_inherited', false);
+            ->where('is_inherited', false)
+            ->whereNull('output_hierarchy_id');
 
         if ($attribute->is_translatable && $language !== null) {
             // For translatable attributes: look for exact language match
@@ -394,6 +395,7 @@ class AttributeValueResolver
             ->where('attribute_id', $attribute->id)
             ->where('is_inherited', true)
             ->whereNotNull('inherited_from_node_id')
+            ->whereNull('output_hierarchy_id')
             ->when($attribute->is_translatable && $language !== null, function ($q) use ($language) {
                 $q->where('language', $language);
             })

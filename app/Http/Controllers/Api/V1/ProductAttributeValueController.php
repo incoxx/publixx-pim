@@ -33,6 +33,7 @@ class ProductAttributeValueController extends Controller
 
         $query = $product->attributeValues()
             ->with(['attribute', 'attribute.unitGroup', 'unit', 'valueListEntry'])
+            ->whereNull('output_hierarchy_id')
             ->where(function ($q) use ($languages) {
                 $q->whereNull('language')
                     ->orWhereIn('language', $languages);
@@ -78,9 +79,10 @@ class ProductAttributeValueController extends Controller
             $effectiveAttributes = $hierarchyService->getProductAttributes($product);
         }
 
-        // Load existing attribute values for this product
+        // Load existing master attribute values for this product (exclude channel-specific)
         $existingValues = $product->attributeValues()
             ->with('attribute')
+            ->whereNull('output_hierarchy_id')
             ->where(function ($q) use ($language) {
                 $q->whereNull('language')->orWhere('language', $language);
             })
@@ -122,9 +124,10 @@ class ProductAttributeValueController extends Controller
                     'attribute_view_name_de' => $parent->attribute_view_name_de ?? null,
                 ]);
 
-                // Also load existing values for these children
+                // Also load existing values for these children (master context only)
                 $childValues = $product->attributeValues()
                     ->where('attribute_id', $child->id)
+                    ->whereNull('output_hierarchy_id')
                     ->where(function ($q) use ($language) {
                         $q->whereNull('language')->orWhere('language', $language);
                     })
