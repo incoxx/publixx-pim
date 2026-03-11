@@ -49,6 +49,7 @@ export const useCatalogStore = defineStore('catalog', () => {
     kontakt_text: null,
     footer_text: null,
     catalog_access_mode: 'public',
+    catalog_linked_products_only: false,
   })
 
   async function fetchThemeSettings() {

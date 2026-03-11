@@ -19,6 +19,7 @@ use App\Models\ProductAttributeValue;
 use App\Models\ProductPrice;
 use App\Models\Setting;
 use App\Models\ValueListEntry;
+use App\Services\Inheritance\HierarchyInheritanceService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller as BaseController;
@@ -69,6 +70,27 @@ class CatalogController extends BaseController
                     $query->whereIn('products_search_index.product_id', $productIds);
                 } else {
                     $query->whereIn('products.master_hierarchy_node_id', $descendantIds);
+                }
+            }
+        }
+
+        // "Nur verknüpfte Produkte" – restrict to products in the configured hierarchy
+        if (!$categoryId) {
+            $themePayload = Setting::getPayload('catalog_theme') ?? [];
+            $linkedOnly = !empty($themePayload['catalog_linked_products_only']);
+            $settingsHierarchyId = $themePayload['hierarchy_id'] ?? null;
+
+            if ($linkedOnly && $settingsHierarchyId) {
+                $hierarchy = Hierarchy::find($settingsHierarchyId);
+                if ($hierarchy) {
+                    $allNodeIds = HierarchyNode::where('hierarchy_id', $hierarchy->id)->pluck('id');
+                    if ($hierarchy->hierarchy_type === 'output') {
+                        $linkedProductIds = OutputHierarchyProductAssignment::whereIn('hierarchy_node_id', $allNodeIds)
+                            ->pluck('product_id');
+                        $query->whereIn('products_search_index.product_id', $linkedProductIds);
+                    } else {
+                        $query->whereIn('products.master_hierarchy_node_id', $allNodeIds);
+                    }
                 }
             }
         }
@@ -419,6 +441,9 @@ class CatalogController extends BaseController
             $descriptionAttrData = $ordered;
         }
 
+        // Merge output hierarchy attribute values when an output hierarchy is configured
+        $this->mergeOutputHierarchyValues($product, $themePayload);
+
         return response()->json([
             'data' => (new CatalogProductDetailResource($product))
                 ->additional([
@@ -531,6 +556,9 @@ class CatalogController extends BaseController
             }
             $descriptionAttrData = $ordered;
         }
+
+        // Merge output hierarchy attribute values when an output hierarchy is configured
+        $this->mergeOutputHierarchyValues($product, $themePayload);
 
         return response()->json(
             (new CatalogProductDetailResource($product))
@@ -977,5 +1005,44 @@ class CatalogController extends BaseController
         }
 
         return $counts;
+    }
+
+    /**
+     * When an output hierarchy is configured in settings, merge channel-specific
+     * attribute values into the product's attributeValues relation.
+     * Output values override master values for the same attribute+language+index.
+     */
+    private function mergeOutputHierarchyValues(Product $product, array $themePayload): void
+    {
+        $settingsHierarchyId = $themePayload['hierarchy_id'] ?? null;
+        if (!$settingsHierarchyId) {
+            return;
+        }
+
+        $hierarchy = Hierarchy::find($settingsHierarchyId);
+        if (!$hierarchy || $hierarchy->hierarchy_type !== 'output') {
+            return;
+        }
+
+        $channelValues = ProductAttributeValue::where('product_id', $product->id)
+            ->where('output_hierarchy_id', $settingsHierarchyId)
+            ->with(['attribute', 'valueListEntry', 'unit'])
+            ->get();
+
+        if ($channelValues->isEmpty()) {
+            return;
+        }
+
+        $mergeKey = fn ($v) => $v->attribute_id . '|' . ($v->language ?? '') . '|' . ($v->multiplied_index ?? 0);
+
+        $merged = $product->attributeValues
+            ->filter(fn ($v) => $v->output_hierarchy_id === null)
+            ->keyBy($mergeKey);
+
+        foreach ($channelValues as $cv) {
+            $merged->put($mergeKey($cv), $cv);
+        }
+
+        $product->setRelation('attributeValues', $merged->values());
     }
 }

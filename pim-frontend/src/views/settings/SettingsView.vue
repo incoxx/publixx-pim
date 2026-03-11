@@ -271,6 +271,7 @@ const themeForm = ref({
   description_attributes: [],
   pdf_display_mode: 'link',
   catalog_access_mode: 'public',
+  catalog_linked_products_only: false,
 })
 const activeThemeTab = ref('general')
 const themeLogoPreview = ref(null)
@@ -327,6 +328,7 @@ async function loadThemeSettings() {
         description_attributes: d.description_attributes || [],
         pdf_display_mode: d.pdf_display_mode || 'link',
         catalog_access_mode: d.catalog_access_mode || 'public',
+        catalog_linked_products_only: !!d.catalog_linked_products_only,
       }
       themeLogoPreview.value = d.logo_url || null
     }
@@ -517,7 +519,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="space-y-6 max-w-2xl">
+  <div class="space-y-6 max-w-5xl">
     <h2 class="text-lg font-semibold text-[var(--color-text-primary)]">{{ t('settings.title') }}</h2>
 
     <!-- Sprache -->
@@ -578,7 +580,7 @@ onMounted(() => {
         <!-- Katalog-Konfiguration -->
         <div class="space-y-3">
           <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">Katalog-Konfiguration</h4>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             <div>
               <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Hierarchie</label>
               <select class="pim-input text-xs" v-model="themeForm.hierarchy_id">
@@ -609,6 +611,11 @@ onMounted(() => {
               </select>
             </div>
           </div>
+          <label v-if="themeForm.hierarchy_id" class="flex items-center gap-2 text-xs cursor-pointer">
+            <input type="checkbox" v-model="themeForm.catalog_linked_products_only"
+                   class="rounded border-[var(--color-border-strong)] text-[var(--color-accent)]" />
+            Nur verknüpfte Produkte darstellen
+          </label>
           <div>
             <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">
               Attribut-Views
@@ -677,7 +684,7 @@ onMounted(() => {
         <!-- Legal -->
         <div class="space-y-3">
           <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">Impressum & Kontakt</h4>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             <div>
               <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Impressum-URL</label>
               <input class="pim-input text-xs" v-model="themeForm.impressum_url" placeholder="https://..." />
@@ -756,7 +763,7 @@ onMounted(() => {
         <!-- Farben -->
         <div class="space-y-3">
           <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">Farben</h4>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             <div v-for="c in [
               { key: 'color_primary', label: 'Primär / Überschriften' },
               { key: 'color_accent', label: 'Akzentfarbe' },
@@ -933,7 +940,7 @@ onMounted(() => {
             <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">Produktkarten</h4>
           </div>
           <p class="text-[11px] text-[var(--color-text-tertiary)]">Darstellung und Inhalte der Produktkarten im Katalog.</p>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             <div>
               <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">
                 <Image class="w-3 h-3 inline-block mr-1" :stroke-width="2" />
@@ -957,7 +964,7 @@ onMounted(() => {
               <p class="text-[10px] text-[var(--color-text-tertiary)] mt-0.5">Welcher Bildtyp als Thumbnail in den Produktkacheln verwendet wird.</p>
             </div>
           </div>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             <div class="flex flex-col justify-end gap-2">
               <label class="flex items-center gap-2 text-xs cursor-pointer min-h-[44px]">
                 <input type="checkbox" v-model="themeForm.card_show_category" class="rounded border-[var(--color-border-strong)] text-[var(--color-accent)]" />
@@ -974,7 +981,7 @@ onMounted(() => {
             </div>
           </div>
           <!-- Price type & country config (only shown when price is enabled) -->
-          <div v-if="themeForm.card_show_price" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div v-if="themeForm.card_show_price" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             <div>
               <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Preistyp</label>
               <select class="pim-input text-xs" v-model="themeForm.card_price_type_id">

@@ -87,8 +87,9 @@ class ProductPreviewService
     {
         $effectiveAttributes = $this->hierarchyService->getProductAttributes($product);
 
-        // Index existing values by attribute_id (+ language)
+        // Index existing master values (output_hierarchy_id IS NULL) by attribute_id
         $existingValues = $product->attributeValues
+            ->whereNull('output_hierarchy_id')
             ->groupBy('attribute_id');
 
         $sections = [];
@@ -179,8 +180,121 @@ class ProductPreviewService
             }
         }
 
+        // ── Output hierarchy attributes ──────────────────────────────────
+        $outputHierarchyData = $this->hierarchyService->getProductOutputHierarchyAttributes($product);
+        $processedOutputAttrIds = [];
+
+        foreach ($outputHierarchyData as $hierarchyId => $data) {
+            $hierarchy = $data['hierarchy'];
+            $outputAttributes = $data['attributes'];
+
+            $hierarchyName = $lang === 'en' && $hierarchy->name_en
+                ? $hierarchy->name_en
+                : $hierarchy->name_de;
+
+            // Load channel-specific values for this hierarchy
+            $channelValues = ProductAttributeValue::where('product_id', $product->id)
+                ->where('output_hierarchy_id', $hierarchyId)
+                ->with(['attribute', 'valueListEntry', 'unit'])
+                ->get()
+                ->groupBy('attribute_id');
+
+            foreach ($outputAttributes as $assignment) {
+                if (!empty($assignment->is_internal)) {
+                    continue;
+                }
+
+                $processedOutputAttrIds[] = $assignment->attribute_id;
+
+                // Section name: hierarchy name + optional collection name
+                $collectionPart = $assignment->collection_name ?? $assignment->attribute_view_name_de ?? null;
+                $sectionName = $collectionPart
+                    ? "{$hierarchyName} › {$collectionPart}"
+                    : $hierarchyName;
+                $sectionSort = 5000 + ($assignment->collection_sort ?? 0);
+
+                if (!isset($sectionMap[$sectionName])) {
+                    $sectionMap[$sectionName] = count($sections);
+                    $sections[] = [
+                        'section_name' => $sectionName,
+                        'section_sort' => $sectionSort,
+                        'attributes' => [],
+                    ];
+                }
+
+                $sectionIndex = $sectionMap[$sectionName];
+                $label = $lang === 'en' && $assignment->attribute_name_en
+                    ? $assignment->attribute_name_en
+                    : $assignment->attribute_name_de;
+
+                // Prefer channel-specific value, fall back to master value
+                $attrValues = $channelValues->get($assignment->attribute_id, collect());
+                if ($attrValues->isEmpty()) {
+                    $attrValues = $existingValues->get($assignment->attribute_id, collect());
+                }
+
+                if ($attrValues->isEmpty()) {
+                    $sections[$sectionIndex]['attributes'][] = [
+                        'attribute_id' => $assignment->attribute_id,
+                        'technical_name' => $assignment->attribute_technical_name,
+                        'label' => $label,
+                        'value' => null,
+                        'display_value' => null,
+                        'unit' => null,
+                        'data_type' => $assignment->data_type,
+                        'is_mandatory' => (bool) ($assignment->is_mandatory || !empty($assignment->is_required)),
+                        'language' => null,
+                        'parent_attribute_id' => $assignment->parent_attribute_id ?? null,
+                        'composite_format' => $assignment->composite_format ?? null,
+                        'composite_expression' => $assignment->composite_expression ?? null,
+                    ];
+                } else {
+                    foreach ($attrValues as $attrValue) {
+                        $displayValue = $this->resolveDisplayValue($attrValue, $lang);
+                        $unit = $attrValue->unit?->abbreviation;
+                        $isLinkType = in_array($assignment->data_type, ['Hyperlink', 'ImageLink', 'PdfLink', 'VideoLink']);
+                        $linkData = null;
+
+                        if ($isLinkType && $attrValue->value_string) {
+                            $linkData = json_decode($attrValue->value_string, true);
+                            if (!is_array($linkData) || empty($linkData['url'])) {
+                                $linkData = null;
+                            }
+                            if (($displayValue === null || $displayValue === '') && $linkData) {
+                                $displayValue = $linkData['title'] ?? $linkData['url'] ?? null;
+                            }
+                        }
+
+                        $attrEntry = [
+                            'attribute_id' => $assignment->attribute_id,
+                            'technical_name' => $assignment->attribute_technical_name,
+                            'label' => $label,
+                            'value' => $this->resolveRawValue($attrValue),
+                            'display_value' => $displayValue,
+                            'unit' => $unit,
+                            'data_type' => $assignment->data_type,
+                            'is_mandatory' => (bool) ($assignment->is_mandatory || !empty($assignment->is_required)),
+                            'language' => $attrValue->language,
+                            'parent_attribute_id' => $assignment->parent_attribute_id ?? null,
+                            'composite_format' => $assignment->composite_format ?? null,
+                            'composite_expression' => $assignment->composite_expression ?? null,
+                        ];
+
+                        if ($linkData) {
+                            $attrEntry['link_data'] = $linkData;
+                        }
+
+                        $sections[$sectionIndex]['attributes'][] = $attrEntry;
+                    }
+                }
+            }
+        }
+
         // Include link-type attributes that have values but weren't in the hierarchy assignments
-        $processedAttrIds = collect($effectiveAttributes)->pluck('attribute_id')->toArray();
+        $processedAttrIds = array_merge(
+            collect($effectiveAttributes)->pluck('attribute_id')->toArray(),
+            $processedOutputAttrIds,
+        );
         $linkDataTypes = ['Hyperlink', 'ImageLink', 'PdfLink', 'VideoLink'];
 
         foreach ($existingValues as $attrId => $attrValueGroup) {
