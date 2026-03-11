@@ -8,7 +8,7 @@ import {
   Upload, Download, Image, Tags, DollarSign, Users, Settings,
   HelpCircle, PanelLeftClose, PanelLeft, Star, LayoutGrid, Ruler,
   FileJson, FileCode, PlayCircle, FileBarChart, BookOpen, Link2, Zap, Languages,
-  ChevronDown, ChevronRight, GripVertical,
+  ChevronDown, ChevronRight, GripVertical, Factory,
 } from 'lucide-vue-next'
 import AnyPimLogo from '@/components/shared/AnyPimLogo.vue'
 
@@ -39,6 +39,7 @@ const sections = computed(() => {
       key: 'config',
       label: 'Konfiguration',
       items: [
+        { icon: Factory, label: () => t('nav.manufacturers'), to: '/manufacturers' },
         { icon: Layers, label: () => t('nav.productTypes'), to: '/product-types' },
         { icon: Link2, label: () => t('nav.relationTypes'), to: '/relation-types' },
         { icon: LayoutGrid, label: () => t('nav.attributeViews'), to: '/attribute-views' },

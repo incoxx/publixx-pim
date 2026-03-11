@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\CatalogAccessControl;
 use App\Http\Middleware\RateLimitMiddleware;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
@@ -18,6 +19,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // Agent 2: Rate Limit alias
         $middleware->alias([
             'throttle.pim' => RateLimitMiddleware::class,
+            'catalog.access' => CatalogAccessControl::class,
         ]);
 
         // Agent 2: Sanctum stateful middleware for API

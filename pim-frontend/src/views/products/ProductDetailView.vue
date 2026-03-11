@@ -13,6 +13,7 @@ import { priceTypes, relationTypes } from '@/api/prices'
 import attributesApiDefault, { productTypes, valueLists, attributeViews, attributeTypes } from '@/api/attributes'
 import dictionaryApi from '@/api/dictionary'
 import hierarchiesApi from '@/api/hierarchies'
+import manufacturersApi from '@/api/manufacturers'
 import PimCollectionGroup from '@/components/shared/PimCollectionGroup.vue'
 import PimAttributeInput from '@/components/shared/PimAttributeInput.vue'
 import PimTable from '@/components/shared/PimTable.vue'
@@ -39,6 +40,16 @@ const activeDataLang = ref(localeStore.activeDataLocales[0] || 'de')
 const hierarchies = ref([])
 const hierarchyNodes = ref([])
 const selectedHierarchyId = ref(null)
+
+// Manufacturer assignment
+const manufacturers = ref([])
+
+async function loadManufacturers() {
+  try {
+    const { data } = await manufacturersApi.list({ perPage: 500 })
+    manufacturers.value = data.data || data
+  } catch { /* silently fail */ }
+}
 
 const tabs = [
   { key: 'base-data', label: 'Grunddaten' },
@@ -1350,6 +1361,7 @@ onMounted(async () => {
   await store.fetchOne(route.params.id)
   loadAttributeData()
   loadHierarchies()
+  loadManufacturers()
   // If variant, load parent's inheritance rules
   if (product.value?.product_type_ref === 'variant' && product.value?.parent_product_id) {
     loadInheritanceRules()
@@ -1564,6 +1576,13 @@ watch(() => route.params.id, async (newId, oldId) => {
               </select>
             </div>
             <p v-if="masterNodePath" class="text-[11px] text-[var(--color-text-tertiary)] mt-1 font-mono">{{ masterNodePath }}</p>
+          </div>
+          <div>
+            <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Hersteller</label>
+            <select class="pim-input text-xs" :value="product.manufacturer_id || ''" @change="product.manufacturer_id = $event.target.value || null">
+              <option value="">— Kein Hersteller —</option>
+              <option v-for="m in manufacturers" :key="m.id" :value="m.id">{{ m.name }}</option>
+            </select>
           </div>
         </div>
       </PimCollectionGroup>

@@ -50,6 +50,7 @@ class SettingController extends Controller
         'card_image_ratio' => '4/3',
         'description_attributes' => [],
         'pdf_display_mode' => 'link',
+        'catalog_access_mode' => 'public',
     ];
 
     /**
@@ -127,6 +128,7 @@ class SettingController extends Controller
             'description_attributes.*.attribute_id' => 'required|uuid|exists:attributes,id',
             'description_attributes.*.typography' => 'required|string|in:xs,sm,base,lg,xl,2xl,3xl',
             'pdf_display_mode' => 'nullable|string|in:link,embedded',
+            'catalog_access_mode' => 'nullable|string|in:public,login',
         ]);
 
         // Merge with existing payload so that unsent keys are preserved
