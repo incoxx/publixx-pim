@@ -61,6 +61,12 @@ const routes = [
     meta: { title: 'Attribute' },
   },
   {
+    path: '/manufacturers',
+    name: 'manufacturers',
+    component: () => import('@/views/manufacturers/ManufacturerView.vue'),
+    meta: { title: 'Hersteller' },
+  },
+  {
     path: '/product-types',
     name: 'product-types',
     component: () => import('@/views/productTypes/ProductTypeView.vue'),

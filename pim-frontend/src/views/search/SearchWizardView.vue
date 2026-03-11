@@ -14,6 +14,7 @@ import productsApi from '@/api/products'
 import hierarchiesApi from '@/api/hierarchies'
 import mediaApi from '@/api/media'
 import attributesApiDefault from '@/api/attributes'
+import manufacturersApi from '@/api/manufacturers'
 import PimTable from '@/components/shared/PimTable.vue'
 import ProfileSelector from '@/components/shared/ProfileSelector.vue'
 import ColumnConfigPopover from '@/components/shared/ColumnConfigPopover.vue'
@@ -123,6 +124,7 @@ const defaultSearchColumns = [
 ]
 const extraSearchColumns = [
   { key: 'ean', label: 'EAN', mono: true },
+  { key: 'manufacturer.name', label: 'Hersteller' },
   { key: 'created_at', label: 'Erstellt', sortable: true },
 ]
 
@@ -208,6 +210,8 @@ const attributeFilters = ref({})
 const showAttributeFilters = ref(false)
 const statusFilter = ref('')
 const selectedProductTypes = ref([])
+const selectedManufacturers = ref([])
+const manufacturerList = ref([])
 
 // Quick Lookup
 const showQuickLookup = ref(false)
@@ -260,11 +264,16 @@ const productTypeOptions = computed(() =>
   attrStore.prodTypes.map(pt => ({ value: pt.name_de || pt.technical_name, label: pt.name_de || pt.technical_name }))
 )
 
+const manufacturerQuickOptions = computed(() =>
+  manufacturerList.value.map(m => ({ value: m.name, label: m.name }))
+)
+
 const quickLookupConfig = computed(() => {
   const config = {
     sku: { type: 'text', placeholder: 'SKU...' },
     name: { type: 'text', placeholder: 'Name...' },
     'product_type.name_de': { type: 'select', options: productTypeOptions.value },
+    'manufacturer.name': { type: 'select', options: manufacturerQuickOptions.value },
     status: { type: 'select', options: statusOptions },
     ean: { type: 'text', placeholder: 'EAN...' },
   }
@@ -319,7 +328,7 @@ function onQuickLookupChange(filters) {
 
 // --- Computed ---
 const activeFilterCount = computed(() => {
-  let count = selectedCategories.value.length + selectedProductTypes.value.length
+  let count = selectedCategories.value.length + selectedProductTypes.value.length + selectedManufacturers.value.length
   if (statusFilter.value) count++
   for (const val of Object.values(attributeFilters.value)) {
     if (val !== '' && val !== null && val !== undefined) count++
@@ -399,6 +408,12 @@ onMounted(async () => {
   // Load product types for filter
   attrStore.fetchProductTypes()
 
+  // Load manufacturers for filter
+  try {
+    const { data } = await manufacturersApi.list({ perPage: 500 })
+    manufacturerList.value = data.data || data
+  } catch (e) { /* ignore */ }
+
   // Load search profiles
   loadProfiles()
 })
@@ -417,6 +432,19 @@ function isProductTypeSelected(id) {
   return selectedProductTypes.value.includes(id)
 }
 
+function toggleManufacturer(id) {
+  const idx = selectedManufacturers.value.indexOf(id)
+  if (idx === -1) {
+    selectedManufacturers.value.push(id)
+  } else {
+    selectedManufacturers.value.splice(idx, 1)
+  }
+}
+
+function isManufacturerSelected(id) {
+  return selectedManufacturers.value.includes(id)
+}
+
 function toggleCategory(categoryId) {
   const idx = selectedCategories.value.indexOf(categoryId)
   if (idx === -1) {
@@ -433,6 +461,7 @@ function isCategorySelected(id) {
 function clearAllFilters() {
   selectedCategories.value = []
   selectedProductTypes.value = []
+  selectedManufacturers.value = []
   attributeFilters.value = {}
   statusFilter.value = ''
   searchInput.value = ''
@@ -491,6 +520,10 @@ async function doProductSearch(page) {
 
   if (selectedProductTypes.value.length > 0) {
     params.product_type_ids = selectedProductTypes.value
+  }
+
+  if (selectedManufacturers.value.length > 0) {
+    params.manufacturer_ids = selectedManufacturers.value
   }
 
   if (statusFilter.value) {
@@ -689,6 +722,10 @@ const apiCallDisplay = computed(() => {
 
   if (selectedProductTypes.value.length > 0) {
     params.product_type_ids = selectedProductTypes.value
+  }
+
+  if (selectedManufacturers.value.length > 0) {
+    params.manufacturer_ids = selectedManufacturers.value
   }
 
   if (selectedCategories.value.length > 0) {
@@ -899,6 +936,31 @@ const apiCallDisplay = computed(() => {
                 class="rounded border-[var(--color-border)]"
               />
               <span class="text-[var(--color-text-primary)]">{{ pt.name_de || pt.technical_name }}</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Manufacturer filter -->
+        <div v-if="manufacturerList.length > 0">
+          <p class="text-[12px] font-medium text-[var(--color-text-secondary)] mb-2">
+            Hersteller
+            <span v-if="selectedManufacturers.length > 0" class="pim-badge bg-[var(--color-accent-light)] text-[var(--color-accent)] text-[10px] px-1.5 ml-1">
+              {{ selectedManufacturers.length }}
+            </span>
+          </p>
+          <div class="max-h-36 overflow-y-auto border border-[var(--color-border)] rounded-lg p-2 space-y-0.5">
+            <label
+              v-for="m in manufacturerList"
+              :key="m.id"
+              class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[var(--color-bg)] cursor-pointer text-xs"
+            >
+              <input
+                type="checkbox"
+                :checked="isManufacturerSelected(m.id)"
+                @change="toggleManufacturer(m.id)"
+                class="rounded border-[var(--color-border)]"
+              />
+              <span class="text-[var(--color-text-primary)]">{{ m.name }}</span>
             </label>
           </div>
         </div>

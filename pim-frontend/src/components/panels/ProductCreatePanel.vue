@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { useProductStore } from '@/stores/products'
 import { useAuthStore } from '@/stores/auth'
 import hierarchiesApi from '@/api/hierarchies'
+import manufacturersApi from '@/api/manufacturers'
 import PimForm from '@/components/shared/PimForm.vue'
 
 const props = defineProps({
@@ -16,6 +17,7 @@ const authStore = useAuthStore()
 const loading = ref(false)
 const errors = ref({})
 const hierarchyNodes = ref([])
+const manufacturerOptions = ref([])
 
 const formData = ref({
   sku: '',
@@ -24,6 +26,7 @@ const formData = ref({
   ean: '',
   status: 'draft',
   master_hierarchy_node_id: '',
+  manufacturer_id: '',
 })
 
 async function loadHierarchyNodes() {
@@ -37,6 +40,14 @@ async function loadHierarchyNodes() {
         flattenTree(tree, '')
       } catch { /* silently fail */ }
     }
+  } catch { /* silently fail */ }
+}
+
+async function loadManufacturers() {
+  try {
+    const { data } = await manufacturersApi.list({ perPage: 500 })
+    const items = data.data || data
+    manufacturerOptions.value = items.map(m => ({ value: m.id, label: m.name }))
   } catch { /* silently fail */ }
 }
 
@@ -71,6 +82,10 @@ const fields = computed(() => [
     key: 'master_hierarchy_node_id', label: 'Master-Hierarchie-Knoten', type: 'select',
     options: [{ value: '', label: '— Kein Knoten —' }, ...hierarchyNodes.value],
   },
+  {
+    key: 'manufacturer_id', label: 'Hersteller', type: 'select',
+    options: [{ value: '', label: '— Kein Hersteller —' }, ...manufacturerOptions.value],
+  },
 ])
 
 async function handleSubmit(data) {
@@ -78,6 +93,7 @@ async function handleSubmit(data) {
   errors.value = {}
   const payload = { ...data }
   if (!payload.master_hierarchy_node_id) delete payload.master_hierarchy_node_id
+  if (!payload.manufacturer_id) delete payload.manufacturer_id
   try {
     const result = await store.create(payload)
     authStore.closePanel()
@@ -96,7 +112,10 @@ async function handleSubmit(data) {
   }
 }
 
-onMounted(() => loadHierarchyNodes())
+onMounted(() => {
+  loadHierarchyNodes()
+  loadManufacturers()
+})
 </script>
 
 <template>

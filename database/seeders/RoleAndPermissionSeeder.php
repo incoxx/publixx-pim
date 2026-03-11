@@ -43,6 +43,8 @@ class RoleAndPermissionSeeder extends Seeder
             'price-types.view', 'price-types.create', 'price-types.edit', 'price-types.delete',
             // Medien-Bildtypen
             'media-usage-types.view', 'media-usage-types.create', 'media-usage-types.edit', 'media-usage-types.delete',
+            // Hersteller
+            'manufacturers.view', 'manufacturers.create', 'manufacturers.edit', 'manufacturers.delete',
             // Relationstypen
             'relation-types.view', 'relation-types.create', 'relation-types.edit', 'relation-types.delete',
             // Import
@@ -86,6 +88,7 @@ class RoleAndPermissionSeeder extends Seeder
             'value-lists.view', 'value-lists.create', 'value-lists.edit', 'value-lists.delete',
             'attribute-views.view', 'attribute-views.create', 'attribute-views.edit', 'attribute-views.delete',
             'relation-types.view', 'relation-types.create', 'relation-types.edit', 'relation-types.delete',
+            'manufacturers.view', 'manufacturers.create', 'manufacturers.edit', 'manufacturers.delete',
             'price-types.view', 'price-types.create', 'price-types.edit', 'price-types.delete',
             'media-usage-types.view', 'media-usage-types.create', 'media-usage-types.edit', 'media-usage-types.delete',
             'products.view',
@@ -112,6 +115,7 @@ class RoleAndPermissionSeeder extends Seeder
             'value-lists.view',
             'attribute-views.view',
             'relation-types.view',
+            'manufacturers.view',
             'media-usage-types.view',
             'imports.view', 'imports.create', 'imports.execute',
         ]);

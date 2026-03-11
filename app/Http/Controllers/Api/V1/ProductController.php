@@ -34,11 +34,12 @@ class ProductController extends Controller
     private const ALLOWED_INCLUDES = [
         'productType', 'attributeValues', 'variants', 'media',
         'prices', 'relations', 'parentProduct', 'masterHierarchyNode',
+        'manufacturer',
     ];
 
     private const ALLOWED_FILTERS = [
         'status', 'product_type_id', 'product_type_ref',
-        'master_hierarchy_node_id',
+        'master_hierarchy_node_id', 'manufacturer_id',
     ];
 
     public function index(Request $request): AnonymousResourceCollection
