@@ -22,10 +22,12 @@ const importing = ref(false)
 const validating = ref(false)
 const validationResult = ref(null)
 const importResult = ref(null)
+const importProgress = ref(null) // { phase, message, current, total, percent }
 const dragOver = ref(false)
 
 // --- Export ---
 const exporting = ref(false)
+const exportProgress = ref(null) // { loaded, total, percent }
 const exportVersion = ref('2005')
 const exportHierarchyId = ref('')
 const exportProductTypeIds = ref([])
@@ -104,15 +106,24 @@ async function runImport() {
   importing.value = true
   error.value = ''
   importResult.value = null
+  importProgress.value = { phase: 'upload', message: 'Datei wird hochgeladen...', current: 0, total: 0, percent: 0 }
   try {
-    const { data } = await bmecatApi.importFile(
+    const result = await bmecatApi.importFileWithProgress(
       importFile.value,
       importMode.value,
       importProductType.value || null,
+      (progress) => {
+        importProgress.value = {
+          ...progress,
+          percent: progress.total > 0 ? Math.round((progress.current / progress.total) * 100) : 0,
+        }
+      },
     )
-    importResult.value = data.data || data
+    importResult.value = result
+    importProgress.value = null
   } catch (e) {
-    error.value = e.response?.data?.error || e.response?.data?.message || 'Import fehlgeschlagen'
+    error.value = e.message || 'Import fehlgeschlagen'
+    importProgress.value = null
   } finally {
     importing.value = false
   }
@@ -122,15 +133,21 @@ async function runImport() {
 async function runExport() {
   exporting.value = true
   error.value = ''
+  exportProgress.value = { loaded: 0, total: 0, percent: 0 }
   try {
-    const response = await bmecatApi.exportFile({
-      version: exportVersion.value,
-      hierarchy_id: exportHierarchyId.value || undefined,
-      product_type_ids: exportProductTypeIds.value.length > 0 ? exportProductTypeIds.value : undefined,
-      attribute_ids: exportAttributeIds.value.length > 0 ? exportAttributeIds.value : undefined,
-      price_type_ids: exportPriceTypeIds.value.length > 0 ? exportPriceTypeIds.value : undefined,
-      relation_type_ids: exportRelationTypeIds.value.length > 0 ? exportRelationTypeIds.value : undefined,
-    })
+    const response = await bmecatApi.exportFile(
+      {
+        version: exportVersion.value,
+        hierarchy_id: exportHierarchyId.value || undefined,
+        product_type_ids: exportProductTypeIds.value.length > 0 ? exportProductTypeIds.value : undefined,
+        attribute_ids: exportAttributeIds.value.length > 0 ? exportAttributeIds.value : undefined,
+        price_type_ids: exportPriceTypeIds.value.length > 0 ? exportPriceTypeIds.value : undefined,
+        relation_type_ids: exportRelationTypeIds.value.length > 0 ? exportRelationTypeIds.value : undefined,
+      },
+      (progress) => {
+        exportProgress.value = progress
+      },
+    )
 
     const blob = new Blob([response.data], { type: 'application/xml' })
     const url = URL.createObjectURL(blob)
@@ -153,6 +170,7 @@ async function runExport() {
     }
   } finally {
     exporting.value = false
+    exportProgress.value = null
   }
 }
 
@@ -310,6 +328,26 @@ const tabs = [
           <Upload v-else class="w-3.5 h-3.5" :stroke-width="1.75" />
           {{ importing ? 'Importiere...' : 'Import starten' }}
         </button>
+      </div>
+
+      <!-- Import Progress -->
+      <div v-if="importProgress" class="pim-card p-4 space-y-2">
+        <div class="flex items-center justify-between text-xs">
+          <span class="text-[var(--color-text-secondary)] flex items-center gap-2">
+            <Loader2 class="w-3.5 h-3.5 animate-spin text-[var(--color-accent)]" :stroke-width="2" />
+            {{ importProgress.message }}
+          </span>
+          <span v-if="importProgress.total > 0" class="text-[var(--color-text-tertiary)]">
+            {{ importProgress.current }} / {{ importProgress.total }}
+          </span>
+        </div>
+        <div class="w-full bg-[var(--color-bg)] rounded-full h-2 overflow-hidden">
+          <div
+            class="h-full rounded-full transition-all duration-300 ease-out"
+            :class="importProgress.total > 0 ? 'bg-[var(--color-accent)]' : 'bg-[var(--color-accent)] animate-pulse'"
+            :style="{ width: importProgress.total > 0 ? importProgress.percent + '%' : '100%' }"
+          />
+        </div>
       </div>
 
       <!-- Validation Result -->
@@ -512,6 +550,27 @@ const tabs = [
             <input type="checkbox" :checked="exportRelationTypeIds.includes(rt.id)" @change="toggleItem(exportRelationTypeIds, rt.id)" class="rounded" />
             {{ rt.name_de || rt.technical_name }}
           </label>
+        </div>
+      </div>
+
+      <!-- Export Progress -->
+      <div v-if="exportProgress" class="pim-card p-4 space-y-2">
+        <div class="flex items-center justify-between text-xs">
+          <span class="text-[var(--color-text-secondary)] flex items-center gap-2">
+            <Loader2 class="w-3.5 h-3.5 animate-spin text-[var(--color-accent)]" :stroke-width="2" />
+            Export wird generiert...
+          </span>
+          <span v-if="exportProgress.total > 0" class="text-[var(--color-text-tertiary)]">
+            {{ Math.round(exportProgress.loaded / 1024) }} KB
+            <template v-if="exportProgress.percent > 0"> ({{ exportProgress.percent }}%)</template>
+          </span>
+        </div>
+        <div class="w-full bg-[var(--color-bg)] rounded-full h-2 overflow-hidden">
+          <div
+            class="h-full rounded-full transition-all duration-300 ease-out"
+            :class="exportProgress.percent > 0 ? 'bg-[var(--color-accent)]' : 'bg-[var(--color-accent)] animate-pulse'"
+            :style="{ width: exportProgress.percent > 0 ? exportProgress.percent + '%' : '100%' }"
+          />
         </div>
       </div>
 

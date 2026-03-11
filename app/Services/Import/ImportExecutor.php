@@ -51,9 +51,22 @@ class ImportExecutor
     /** Import-Modus: 'update' (Upsert) oder 'delete_insert' (löschen + neu anlegen). */
     private string $mode = 'update';
 
+    /** Optional progress callback: fn(string $phase, int $current, int $total, array $stats) */
+    private $progressCallback = null;
+
     public function __construct(?ReferenceResolver $resolver = null)
     {
         $this->resolver = $resolver ?? new ReferenceResolver();
+    }
+
+    /**
+     * Setzt eine Callback-Funktion für Fortschrittsmeldungen.
+     *
+     * @param callable(string $phase, int $current, int $total, array $stats): void $callback
+     */
+    public function setProgressCallback(callable $callback): void
+    {
+        $this->progressCallback = $callback;
     }
 
     /**
@@ -129,6 +142,11 @@ class ImportExecutor
                 );
             }
 
+            // Count active sheets for progress reporting
+            $activeSheets = array_filter($sheetOrder, fn ($k) => $parseResult->hasSheet($k) && !empty($parseResult->getSheetData($k)));
+            $totalSheets = count($activeSheets);
+            $completedSheets = 0;
+
             foreach ($sheetOrder as $sheetKey) {
                 if (!$parseResult->hasSheet($sheetKey)) {
                     continue;
@@ -142,6 +160,10 @@ class ImportExecutor
                 $this->stats[$sheetKey] = ['created' => 0, 'updated' => 0, 'skipped' => 0, 'errors' => 0];
 
                 Log::channel('import')->info("Importiere Sheet: {$sheetKey}", ['rows' => count($rows)]);
+
+                if ($this->progressCallback) {
+                    ($this->progressCallback)($sheetKey, $completedSheets, $totalSheets, $this->stats);
+                }
 
                 // Nach Import bestimmter Sheets den Resolver-Cache leeren,
                 // damit nachfolgende Sheets die neuen Einträge finden.
@@ -170,6 +192,8 @@ class ImportExecutor
                 if ($method && method_exists($this, $method)) {
                     $this->{$method}($rows, $sheetKey);
                 }
+
+                $completedSheets++;
 
                 // Cache nach Stammdaten-Import leeren
                 if (in_array($sheetKey, [
