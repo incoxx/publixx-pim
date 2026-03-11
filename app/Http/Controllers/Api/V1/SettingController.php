@@ -51,6 +51,7 @@ class SettingController extends Controller
         'description_attributes' => [],
         'pdf_display_mode' => 'link',
         'catalog_access_mode' => 'public',
+        'catalog_linked_products_only' => false,
     ];
 
     /**
@@ -129,6 +130,7 @@ class SettingController extends Controller
             'description_attributes.*.typography' => 'required|string|in:xs,sm,base,lg,xl,2xl,3xl',
             'pdf_display_mode' => 'nullable|string|in:link,embedded',
             'catalog_access_mode' => 'nullable|string|in:public,login',
+            'catalog_linked_products_only' => 'nullable|boolean',
         ]);
 
         // Merge with existing payload so that unsent keys are preserved
