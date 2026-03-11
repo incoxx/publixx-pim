@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import catalogApi from '@/api/catalog'
 
 const routes = [
   {
@@ -266,11 +267,34 @@ const router = createRouter({
   routes,
 })
 
+// Cache catalog access mode to avoid fetching on every navigation
+let catalogAccessMode = null
+
 // Auth guard
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
 
-  if (to.meta.guest || to.meta.public) {
+  if (to.meta.guest) {
+    return next()
+  }
+
+  // For public catalog routes, check if login is required
+  if (to.meta.public && to.path.startsWith('/preview')) {
+    if (catalogAccessMode === null) {
+      try {
+        const { data } = await catalogApi.getSettings()
+        catalogAccessMode = data.data?.catalog_access_mode || 'public'
+      } catch {
+        catalogAccessMode = 'public'
+      }
+    }
+    if (catalogAccessMode === 'login' && !authStore.isAuthenticated) {
+      return next({ name: 'login', query: { redirect: to.fullPath } })
+    }
+    return next()
+  }
+
+  if (to.meta.public) {
     return next()
   }
 
@@ -279,6 +303,13 @@ router.beforeEach((to, from, next) => {
   }
 
   next()
+})
+
+// Reset cached access mode when settings might change (e.g., after login/logout)
+router.afterEach((to) => {
+  if (to.name === 'settings' || to.name === 'login') {
+    catalogAccessMode = null
+  }
 })
 
 // Document title

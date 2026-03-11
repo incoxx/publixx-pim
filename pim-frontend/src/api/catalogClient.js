@@ -9,6 +9,15 @@ const catalogClient = axios.create({
   timeout: 15000,
 })
 
+// Attach auth token when available (needed for login-protected catalog mode)
+catalogClient.interceptors.request.use((config) => {
+  const token = localStorage.getItem('pim_token')
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+})
+
 catalogClient.interceptors.response.use(
   (response) => response,
   (error) => {
