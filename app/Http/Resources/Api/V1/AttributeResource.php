@@ -42,6 +42,7 @@ class AttributeResource extends JsonResource
             'is_internal' => $this->is_internal,
             'parent_attribute_id' => $this->parent_attribute_id,
             'composite_format' => $this->composite_format,
+            'composite_expression' => $this->composite_expression,
             'children' => AttributeResource::collection($this->whenLoaded('children')),
             'dictionary_entries' => DictionaryEntryResource::collection($this->whenLoaded('dictionaryEntries')),
             'attribute_views' => AttributeViewResource::collection($this->whenLoaded('attributeViews')),

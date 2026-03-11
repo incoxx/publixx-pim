@@ -89,6 +89,7 @@ class SheetParser
                 'Q' => 'parent_attribute',
                 'R' => 'source_system',
                 'S' => 'views',
+                'T' => 'composite_expression',
             ],
             'required' => ['technical_name', 'name_de', 'data_type'],
             'identifier' => ['technical_name'],

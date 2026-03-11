@@ -91,6 +91,18 @@ class ElementRenderer
      */
     private function resolveCompositeDisplayValue(Product $product, Attribute $composite, string $language): string
     {
+        // If composite has an expression, show the computed value
+        if ($composite->composite_expression) {
+            $computedValue = $product->attributeValues
+                ->first(fn ($av) => $av->attribute_id === $composite->id);
+
+            if ($computedValue?->value_number !== null) {
+                return (string) (float) $computedValue->value_number;
+            }
+
+            return '';
+        }
+
         $children = $composite->childAttributes()->orderBy('position')->get();
 
         if ($children->isEmpty()) {

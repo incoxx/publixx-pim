@@ -135,6 +135,7 @@ class ProductPreviewService
                     'language' => null,
                     'parent_attribute_id' => $assignment->parent_attribute_id ?? null,
                     'composite_format' => $assignment->composite_format ?? null,
+                    'composite_expression' => $assignment->composite_expression ?? null,
                 ];
             } else {
                 foreach ($attrValues as $attrValue) {
@@ -166,6 +167,7 @@ class ProductPreviewService
                         'language' => $attrValue->language,
                         'parent_attribute_id' => $assignment->parent_attribute_id ?? null,
                         'composite_format' => $assignment->composite_format ?? null,
+                    'composite_expression' => $assignment->composite_expression ?? null,
                     ];
 
                     if ($linkData) {
@@ -232,6 +234,7 @@ class ProductPreviewService
                     'language' => $attrValue->language,
                     'parent_attribute_id' => $attr->parent_attribute_id,
                     'composite_format' => null,
+                    'composite_expression' => null,
                 ];
 
                 if ($linkData) {

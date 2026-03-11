@@ -11,6 +11,7 @@ use App\Events\ProductCreated;
 use App\Events\ProductDeleted;
 use App\Events\ProductUpdated;
 use App\Listeners\CascadeInvalidationListener;
+use App\Listeners\ComputeCompositeValuesListener;
 use App\Listeners\InvalidateHierarchyCacheListener;
 use App\Listeners\InvalidateProductCacheListener;
 use App\Listeners\UpdateSearchIndexListener;
@@ -66,6 +67,7 @@ class EventServiceProvider extends ServiceProvider
         // Attributwert-Änderungen (von Vererbungs-Agent oder API)
         AttributeValuesChanged::class => [
             CascadeInvalidationListener::class,
+            ComputeCompositeValuesListener::class,
         ],
 
         // Hierarchie-Verschiebung (von Vererbungs-Agent)
