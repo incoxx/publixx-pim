@@ -126,6 +126,16 @@ export default {
     return client.get(`/products/${id}/output-hierarchy-assignments`)
   },
 
+  // Output Hierarchy Resolved Attributes
+  getOutputHierarchyResolvedAttributes(id, hierarchyId = null) {
+    const params = hierarchyId ? { hierarchy_id: hierarchyId } : {}
+    return client.get(`/products/${id}/output-hierarchy-resolved-attributes`, { params })
+  },
+
+  saveOutputHierarchyAttributeValues(id, outputHierarchyId, values) {
+    return client.put(`/products/${id}/output-hierarchy-attribute-values`, { output_hierarchy_id: outputHierarchyId, values })
+  },
+
   // Preview
   getPreview(id) {
     return client.get(`/products/${id}/preview`)

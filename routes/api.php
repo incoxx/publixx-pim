@@ -116,8 +116,10 @@ Route::prefix('v1/asset-catalog')->middleware('throttle.pim')->group(function ()
 // Public Catalog API (no auth required)
 // =========================================================================
 Route::prefix('v1/catalog')->middleware('throttle.pim')->group(function () {
-    // Settings always public (frontend needs access_mode before login)
+    // Settings and media always public (frontend needs access_mode before login,
+    // media is loaded via <img> tags which cannot send Bearer tokens)
     Route::get('settings', [SettingController::class, 'catalogTheme']);
+    Route::get('media/{filename}', [CatalogController::class, 'media'])->name('catalog.media');
 
     // Data routes protected by catalog access control
     Route::middleware('catalog.access')->group(function () {
@@ -127,7 +129,6 @@ Route::prefix('v1/catalog')->middleware('throttle.pim')->group(function () {
         Route::get('products/{product}/json', [CatalogController::class, 'productJson']);
         Route::get('categories', [CatalogController::class, 'categories']);
         Route::get('facets', [CatalogController::class, 'facets']);
-        Route::get('media/{filename}', [CatalogController::class, 'media'])->name('catalog.media');
     });
 });
 

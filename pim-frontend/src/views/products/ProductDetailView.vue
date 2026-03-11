@@ -1144,6 +1144,65 @@ async function confirmDeleteOutputHierarchyAssignment() {
   finally { outputHierarchyDeleting.value = false }
 }
 
+// ─── Output Hierarchy Attributes (Channel Attributes) ──
+const outputHierarchyAttributes = ref([])  // Array of { hierarchy_id, hierarchy_name_de, attributes: [...] }
+const outputHierarchyAttrValues = ref({})  // { `${hierarchyId}_${attrId}`: value }
+const outputHierarchyTranslatedValues = ref({})  // { `${hierarchyId}_${attrId}_${lang}`: value }
+const outputHierarchyAttrLoaded = ref(false)
+const outputHierarchyAttrLoading = ref(false)
+
+async function loadOutputHierarchyAttributes() {
+  if (outputHierarchyAttrLoaded.value || !product.value) return
+  outputHierarchyAttrLoading.value = true
+  try {
+    const { data } = await productsApi.getOutputHierarchyResolvedAttributes(product.value.id)
+    const hierarchies = data.data || data
+    outputHierarchyAttributes.value = hierarchies
+    // Populate values
+    for (const h of hierarchies) {
+      for (const attr of (h.attributes || [])) {
+        if (attr.value !== null && attr.value !== undefined) {
+          if (attr.is_translatable) {
+            const lang = activeDataLang.value || 'de'
+            outputHierarchyTranslatedValues.value[`${h.hierarchy_id}_${attr.attribute_id}_${lang}`] = attr.value
+          } else {
+            outputHierarchyAttrValues.value[`${h.hierarchy_id}_${attr.attribute_id}`] = attr.value
+          }
+        }
+      }
+    }
+    outputHierarchyAttrLoaded.value = true
+  } catch (e) { console.error('Failed to load output hierarchy attributes:', e.message) }
+  finally { outputHierarchyAttrLoading.value = false }
+}
+
+async function saveOutputHierarchyAttributes() {
+  if (!product.value || outputHierarchyAttributes.value.length === 0) return
+  for (const h of outputHierarchyAttributes.value) {
+    const values = []
+    for (const attr of (h.attributes || [])) {
+      if (attr.is_translatable) {
+        for (const lang of localeStore.activeDataLocales) {
+          const key = `${h.hierarchy_id}_${attr.attribute_id}_${lang}`
+          const val = outputHierarchyTranslatedValues.value[key]
+          if (val !== undefined) {
+            values.push({ attribute_id: attr.attribute_id, value: val, language: lang })
+          }
+        }
+      } else {
+        const key = `${h.hierarchy_id}_${attr.attribute_id}`
+        const val = outputHierarchyAttrValues.value[key]
+        if (val !== undefined) {
+          values.push({ attribute_id: attr.attribute_id, value: val })
+        }
+      }
+    }
+    if (values.length > 0) {
+      await productsApi.saveOutputHierarchyAttributeValues(product.value.id, h.hierarchy_id, values)
+    }
+  }
+}
+
 // ─── Preview (Generic) ───────────────────────────────
 const PREVIEW_LINK_DATA_TYPES = ['Hyperlink', 'ImageLink', 'PdfLink', 'VideoLink']
 
@@ -1257,6 +1316,7 @@ async function save() {
       status: product.value.status,
       ean: product.value.ean,
       master_hierarchy_node_id: product.value.master_hierarchy_node_id || null,
+      manufacturer_id: product.value.manufacturer_id || null,
     })
 
     // Build attribute values payload with language support
@@ -1278,6 +1338,9 @@ async function save() {
     if (values.length > 0) {
       await store.saveAttributeValues(product.value.id, values)
     }
+
+    // Save output hierarchy (channel) attribute values
+    await saveOutputHierarchyAttributes()
   } finally {
     saving.value = false
   }
@@ -1347,7 +1410,7 @@ watch(() => product.value?.master_hierarchy_node_id, async (newNodeId, oldNodeId
 // ─── Tab lazy loading ─────────────────────────────────
 watch(activeTab, (tab) => {
   if (tab === 'base-data') loadAttributeData()
-  if (tab === 'attributes') { loadAttributeData(); loadFilterOptions() }
+  if (tab === 'attributes') { loadAttributeData(); loadFilterOptions(); loadOutputHierarchyAttributes() }
   if (tab === 'variant-attributes') loadAttributeData()
   if (tab === 'variants') { loadVariants(); loadAttributeData() }
   if (tab === 'media') loadMedia()
@@ -1379,11 +1442,15 @@ watch(() => route.params.id, async (newId, oldId) => {
   pricesLoaded.value = false
   relationsLoaded.value = false
   outputHierarchyLoaded.value = false
+  outputHierarchyAttrLoaded.value = false
 
   // Clear stale data
   schema.value = null
   attributeValues.value = {}
   translatedValues.value = {}
+  outputHierarchyAttributes.value = []
+  outputHierarchyAttrValues.value = {}
+  outputHierarchyTranslatedValues.value = {}
   variants.value = []
   variantAttributeDefs.value = []
   variantAttrValuesMap.value = {}
@@ -1699,6 +1766,44 @@ watch(() => route.params.id, async (newId, oldId) => {
             @update:modelValue="attributeValues[attr.id] = $event"
           />
         </div>
+      </div>
+
+      <!-- Output Hierarchy (Channel) Attributes -->
+      <template v-if="outputHierarchyAttributes.length > 0">
+        <div v-for="h in outputHierarchyAttributes" :key="h.hierarchy_id" class="pim-card p-4 space-y-4">
+          <div class="flex items-center gap-2 pb-2 border-b border-[var(--color-border)]">
+            <Tags class="w-4 h-4 text-[var(--color-accent)]" :stroke-width="1.75" />
+            <h4 class="text-sm font-semibold text-[var(--color-text-primary)]">{{ h.hierarchy_name_de || h.hierarchy_technical_name }}</h4>
+            <span class="text-[10px] text-[var(--color-text-tertiary)] bg-[var(--color-bg)] px-1.5 py-0.5 rounded">Ausgabehierarchie</span>
+          </div>
+          <div v-for="attr in (h.attributes || [])" :key="attr.attribute_id">
+            <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">
+              {{ attr.attribute_name_de || attr.attribute_technical_name }}
+              <span v-if="attr.is_mandatory" class="text-[var(--color-error)]">*</span>
+              <span v-if="attr.is_translatable" class="ml-1 text-[10px] text-[var(--color-accent)] font-normal">
+                <Languages class="inline w-3 h-3 -mt-0.5" :stroke-width="1.75" /> {{ activeDataLang.toUpperCase() }}
+              </span>
+              <span v-if="attr.is_inherited" class="ml-1 text-[10px] text-blue-500 font-normal">(Master-Fallback)</span>
+            </label>
+            <PimAttributeInput
+              v-if="attr.is_translatable"
+              :type="mapDataTypeToInput(attr.data_type)"
+              :modelValue="outputHierarchyTranslatedValues[`${h.hierarchy_id}_${attr.attribute_id}_${activeDataLang}`]"
+              :options="getSelectionOptions(attr)"
+              @update:modelValue="outputHierarchyTranslatedValues[`${h.hierarchy_id}_${attr.attribute_id}_${activeDataLang}`] = $event"
+            />
+            <PimAttributeInput
+              v-else
+              :type="mapDataTypeToInput(attr.data_type)"
+              :modelValue="outputHierarchyAttrValues[`${h.hierarchy_id}_${attr.attribute_id}`]"
+              :options="getSelectionOptions(attr)"
+              @update:modelValue="outputHierarchyAttrValues[`${h.hierarchy_id}_${attr.attribute_id}`] = $event"
+            />
+          </div>
+        </div>
+      </template>
+      <div v-else-if="outputHierarchyAttrLoading" class="pim-card p-4">
+        <div class="pim-skeleton h-8 rounded" />
       </div>
 
       <!-- Composite Modal -->
