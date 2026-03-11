@@ -26,6 +26,7 @@ class Product extends Model
         'product_type_ref',
         'parent_product_id',
         'master_hierarchy_node_id',
+        'manufacturer_id',
         'created_by',
         'updated_by',
     ];
@@ -56,6 +57,11 @@ class Product extends Model
     public function masterHierarchyNode(): BelongsTo
     {
         return $this->belongsTo(HierarchyNode::class, 'master_hierarchy_node_id');
+    }
+
+    public function manufacturer(): BelongsTo
+    {
+        return $this->belongsTo(Manufacturer::class);
     }
 
     public function createdBy(): BelongsTo

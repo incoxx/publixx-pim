@@ -33,6 +33,7 @@ use App\Http\Controllers\Api\V1\HierarchyNodeAttributeValueController;
 use App\Http\Controllers\Api\V1\HierarchyNodeController;
 use App\Http\Controllers\Api\V1\ImportController;
 use App\Http\Controllers\Api\V1\MediaAttributeValueController;
+use App\Http\Controllers\Api\V1\ManufacturerController;
 use App\Http\Controllers\Api\V1\MediaController;
 use App\Http\Controllers\Api\V1\MediaUsageTypeController;
 use App\Http\Controllers\Api\V1\NodeAttributeAssignmentController;
@@ -164,6 +165,12 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // =====================================================================
     Route::apiResource('attribute-types', AttributeTypeController::class);
     Route::get('attribute-types/{attribute_type}/dependencies', [AttributeTypeController::class, 'dependencies']);
+
+    // =====================================================================
+    // Manufacturers (Hersteller)
+    // =====================================================================
+    Route::apiResource('manufacturers', ManufacturerController::class);
+    Route::get('manufacturers/{manufacturer}/dependencies', [ManufacturerController::class, 'dependencies']);
 
     // =====================================================================
     // Agent 3: Unit Groups & Units

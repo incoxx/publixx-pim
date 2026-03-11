@@ -19,6 +19,7 @@ import ProductCreatePanel from '@/components/panels/ProductCreatePanel.vue'
 import productsApi from '@/api/products'
 import watchlistApi from '@/api/watchlist'
 import searchApi from '@/api/search'
+import manufacturersApi from '@/api/manufacturers'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -43,6 +44,7 @@ const defaultColumns = [
 const extraColumns = [
   { key: 'thumbnail', label: 'Bild', width: '52px' },
   { key: 'ean', label: 'EAN', mono: true },
+  { key: 'manufacturer.name', label: 'Hersteller' },
   { key: 'master_hierarchy_node.name_de', label: 'Hierarchie-Knoten' },
   { key: 'created_at', label: 'Erstellt', sortable: true },
 ]
@@ -75,10 +77,23 @@ const productTypeOptions = computed(() =>
   attrStore.prodTypes.map(pt => ({ value: pt.name_de || pt.technical_name, label: pt.name_de || pt.technical_name }))
 )
 
+const manufacturerList = ref([])
+const manufacturerOptions = computed(() =>
+  manufacturerList.value.map(m => ({ value: m.name, label: m.name }))
+)
+
+async function loadManufacturers() {
+  try {
+    const { data } = await manufacturersApi.list({ perPage: 500 })
+    manufacturerList.value = data.data || data
+  } catch { /* silently fail */ }
+}
+
 const quickLookupConfig = computed(() => ({
   sku: { type: 'text', placeholder: 'SKU...' },
   name: { type: 'text', placeholder: 'Name...' },
   'product_type.name_de': { type: 'select', options: productTypeOptions.value },
+  'manufacturer.name': { type: 'select', options: manufacturerOptions.value },
   status: { type: 'select', options: statusOptions },
   ean: { type: 'text', placeholder: 'EAN...' },
 }))
@@ -291,7 +306,7 @@ function fetchWithAttributes() {
     .filter(k => k.startsWith('attributes.'))
     .map(k => k.replace('attributes.', ''))
   const options = attrColumnIds.length > 0 ? { attribute_columns: attrColumnIds, language: 'de' } : {}
-  options.include = 'productType,masterHierarchyNode'
+  options.include = 'productType,masterHierarchyNode,manufacturer'
   if (visibleKeys.value.includes('thumbnail')) {
     options.include_thumbnail = true
   }
@@ -309,6 +324,7 @@ onMounted(async () => {
 
   fetchWithAttributes()
   attrStore.fetchProductTypes()
+  loadManufacturers()
   loadWatchlistIds()
 })
 </script>
