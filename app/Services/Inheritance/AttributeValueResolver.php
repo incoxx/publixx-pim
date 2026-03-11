@@ -109,6 +109,77 @@ class AttributeValueResolver
     }
 
     /**
+     * Resolve a single attribute value for a product in an output hierarchy context.
+     *
+     * Resolution cascade (3 stages):
+     * 1. Own channel-specific value (product_attribute_values WHERE output_hierarchy_id = X)
+     * 2. Master fallback (resolve via normal master cascade)
+     * 3. NULL (no value found)
+     */
+    public function resolveForOutputHierarchy(
+        Product $product,
+        Attribute $attribute,
+        string $outputHierarchyId,
+        ?string $language = null,
+    ): ?ResolvedValue {
+        $cacheKey = "resolved_value:{$product->id}:{$attribute->id}:{$language}:oh:{$outputHierarchyId}";
+
+        return Cache::tags(["product:{$product->id}"])->remember(
+            $cacheKey,
+            self::CACHE_TTL,
+            fn () => $this->doResolveForOutputHierarchy($product, $attribute, $outputHierarchyId, $language)
+        );
+    }
+
+    /**
+     * Resolve all attribute values for a product in a specific output hierarchy context.
+     *
+     * @return Collection<int, ResolvedValue>
+     */
+    public function resolveAllForOutputHierarchy(
+        Product $product,
+        string $outputHierarchyId,
+        ?string $language = null,
+    ): Collection {
+        $allOutputAttributes = $this->hierarchyService->getProductOutputHierarchyAttributes($product);
+        $hierarchyData = $allOutputAttributes->get($outputHierarchyId);
+
+        if (!$hierarchyData) {
+            return collect();
+        }
+
+        $hierarchyAttributes = $hierarchyData['attributes'];
+        $results = collect();
+
+        foreach ($hierarchyAttributes as $assignment) {
+            $attribute = Attribute::find($assignment->attribute_id);
+            if (!$attribute) {
+                continue;
+            }
+
+            $resolved = $this->resolveForOutputHierarchy($product, $attribute, $outputHierarchyId, $language);
+
+            $results->push($resolved ?? new ResolvedValue(
+                attributeId: $attribute->id,
+                attributeTechnicalName: $attribute->technical_name,
+                value: null,
+                source: 'none',
+                collectionName: $assignment->collection_name,
+                collectionSort: $assignment->collection_sort,
+                attributeSort: $assignment->attribute_sort,
+                accessProduct: $assignment->access_product ?? 'editable',
+                accessVariant: $assignment->access_variant ?? 'editable',
+                outputHierarchyId: $outputHierarchyId,
+            ));
+        }
+
+        return $results->sortBy([
+            ['collectionSort', 'asc'],
+            ['attributeSort', 'asc'],
+        ])->values();
+    }
+
+    /**
      * Resolve a value without caching (internal).
      */
     private function doResolve(
@@ -147,6 +218,87 @@ class AttributeValueResolver
     }
 
     /**
+     * Resolve a value in output hierarchy context without caching.
+     */
+    private function doResolveForOutputHierarchy(
+        Product $product,
+        Attribute $attribute,
+        string $outputHierarchyId,
+        ?string $language,
+    ): ?ResolvedValue {
+        // Stage 1: Own channel-specific value
+        $channelValue = $this->findOutputHierarchyValue($product, $attribute, $outputHierarchyId, $language);
+        if ($channelValue) {
+            return new ResolvedValue(
+                attributeId: $attribute->id,
+                attributeTechnicalName: $attribute->technical_name,
+                value: self::extractValueFromPav($channelValue),
+                source: 'own',
+                productAttributeValue: $channelValue,
+                outputHierarchyId: $outputHierarchyId,
+            );
+        }
+
+        // Stage 2: Fallback to master context value
+        $masterResolved = $this->doResolve($product, $attribute, $language);
+        if ($masterResolved && $masterResolved->hasValue()) {
+            return new ResolvedValue(
+                attributeId: $masterResolved->attributeId,
+                attributeTechnicalName: $masterResolved->attributeTechnicalName,
+                value: $masterResolved->value,
+                source: 'master_fallback',
+                inheritedFromProductId: $masterResolved->inheritedFromProductId,
+                inheritedFromNodeId: $masterResolved->inheritedFromNodeId,
+                collectionName: $masterResolved->collectionName,
+                collectionSort: $masterResolved->collectionSort,
+                attributeSort: $masterResolved->attributeSort,
+                accessProduct: $masterResolved->accessProduct,
+                accessVariant: $masterResolved->accessVariant,
+                productAttributeValue: $masterResolved->productAttributeValue,
+                outputHierarchyId: $outputHierarchyId,
+            );
+        }
+
+        // Stage 3: NULL
+        return null;
+    }
+
+    /**
+     * Find a channel-specific value for an attribute in a specific output hierarchy.
+     */
+    private function findOutputHierarchyValue(
+        Product $product,
+        Attribute $attribute,
+        string $outputHierarchyId,
+        ?string $language,
+    ): ?ProductAttributeValue {
+        $query = ProductAttributeValue::where('product_id', $product->id)
+            ->where('attribute_id', $attribute->id)
+            ->where('output_hierarchy_id', $outputHierarchyId);
+
+        if ($attribute->is_translatable && $language !== null) {
+            $query->where('language', $language);
+        } else {
+            $query->whereNull('language');
+        }
+
+        return $query->first();
+    }
+
+    /**
+     * Extract the typed value from a ProductAttributeValue.
+     */
+    private static function extractValueFromPav(ProductAttributeValue $pav): mixed
+    {
+        return $pav->value_string
+            ?? $pav->value_number
+            ?? $pav->value_date
+            ?? $pav->value_flag
+            ?? $pav->value_selection_id
+            ?? null;
+    }
+
+    /**
      * Find the product's own value for an attribute.
      */
     private function findOwnValue(
@@ -156,7 +308,8 @@ class AttributeValueResolver
     ): ?ProductAttributeValue {
         $query = ProductAttributeValue::where('product_id', $product->id)
             ->where('attribute_id', $attribute->id)
-            ->where('is_inherited', false);
+            ->where('is_inherited', false)
+            ->whereNull('output_hierarchy_id');
 
         if ($attribute->is_translatable && $language !== null) {
             // For translatable attributes: look for exact language match
@@ -242,6 +395,7 @@ class AttributeValueResolver
             ->where('attribute_id', $attribute->id)
             ->where('is_inherited', true)
             ->whereNotNull('inherited_from_node_id')
+            ->whereNull('output_hierarchy_id')
             ->when($attribute->is_translatable && $language !== null, function ($q) use ($language) {
                 $q->where('language', $language);
             })

@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Services\Inheritance;
 
+use App\Models\Hierarchy;
 use App\Models\HierarchyNode;
+use App\Models\OutputHierarchyProductAssignment;
 use App\Models\Product;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
@@ -63,6 +65,57 @@ class HierarchyInheritanceService
         }
 
         return $this->getEffectiveAttributes($node);
+    }
+
+    /**
+     * Get all output hierarchy attributes for a product, grouped by hierarchy.
+     *
+     * For each output hierarchy the product is assigned to, computes the effective
+     * attributes from the assigned node(s). If a product is assigned to multiple
+     * nodes within the same hierarchy, attributes are merged (deepest node wins).
+     *
+     * @return Collection<string, array{hierarchy: Hierarchy, attributes: Collection}>
+     *         Keyed by hierarchy ID
+     */
+    public function getProductOutputHierarchyAttributes(Product $product): Collection
+    {
+        $assignments = OutputHierarchyProductAssignment::where('product_id', $product->id)
+            ->with(['hierarchyNode.hierarchy'])
+            ->get();
+
+        if ($assignments->isEmpty()) {
+            return collect();
+        }
+
+        // Group assignments by hierarchy
+        $byHierarchy = $assignments->groupBy(fn ($a) => $a->hierarchyNode->hierarchy_id);
+
+        return $byHierarchy->map(function (Collection $hierarchyAssignments, string $hierarchyId) {
+            $hierarchy = $hierarchyAssignments->first()->hierarchyNode->hierarchy;
+
+            // Collect effective attributes from all assigned nodes within this hierarchy
+            $allAttributes = collect();
+            foreach ($hierarchyAssignments as $assignment) {
+                $nodeAttributes = $this->getEffectiveAttributes($assignment->hierarchyNode);
+                foreach ($nodeAttributes as $attr) {
+                    // Deepest node wins for same attribute_id
+                    $existing = $allAttributes->get($attr->attribute_id);
+                    if (!$existing || ($attr->node_depth ?? 0) >= ($existing->node_depth ?? 0)) {
+                        $allAttributes->put($attr->attribute_id, $attr);
+                    }
+                }
+            }
+
+            return [
+                'hierarchy' => $hierarchy,
+                'attributes' => $allAttributes->values()
+                    ->sortBy([
+                        ['collection_sort', 'asc'],
+                        ['attribute_sort', 'asc'],
+                    ])
+                    ->values(),
+            ];
+        });
     }
 
     /**

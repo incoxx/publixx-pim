@@ -312,6 +312,10 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::get('products/{product}/resolved-attributes', [ProductAttributeValueController::class, 'resolved']);
     Route::put('products/{product}/attribute-values', [ProductAttributeValueController::class, 'bulkUpdate']);
 
+    // Output Hierarchy (Channel) Attribute Values
+    Route::get('products/{product}/output-hierarchy-resolved-attributes', [ProductAttributeValueController::class, 'resolvedOutputHierarchy']);
+    Route::put('products/{product}/output-hierarchy-attribute-values', [ProductAttributeValueController::class, 'bulkUpdateOutputHierarchy']);
+
     // Translation XLIFF Export/Import
     Route::get('translations/xliff/export', [TranslationXliffController::class, 'export']);
     Route::post('translations/xliff/import', [TranslationXliffController::class, 'import']);
