@@ -46,6 +46,14 @@ class BmecatFormatImporter
     }
 
     /**
+     * Setzt eine Callback-Funktion für Fortschrittsmeldungen.
+     */
+    public function setProgressCallback(callable $callback): void
+    {
+        $this->executor->setProgressCallback($callback);
+    }
+
+    /**
      * Importiert Daten aus einer BMEcat-XML-Datei.
      */
     public function importFromFile(string $filePath, ?string $productType = null): JsonImportResult

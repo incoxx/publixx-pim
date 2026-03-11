@@ -1,8 +1,11 @@
 import client from './client'
+import { useAuthStore } from '@/stores/auth'
+
+const apiBaseURL = import.meta.env.VITE_API_BASE_URL || '/api/v1'
 
 export default {
   /**
-   * BMEcat-XML-Datei importieren.
+   * BMEcat-XML-Datei importieren (Standard JSON response).
    */
   importFile(file, mode = 'update', productType = null) {
     const formData = new FormData()
@@ -14,6 +17,112 @@ export default {
     return client.post('/bmecat-import', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
       timeout: 300000,
+    })
+  },
+
+  /**
+   * BMEcat-XML-Datei importieren mit SSE-Progress-Streaming.
+   *
+   * @param {File} file
+   * @param {string} mode
+   * @param {string|null} productType
+   * @param {(event: {phase: string, message: string, current: number, total: number, stats?: object}) => void} onProgress
+   * @returns {Promise<object>} Final import result
+   */
+  importFileWithProgress(file, mode = 'update', productType = null, onProgress = null) {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('mode', mode)
+    if (productType) {
+      formData.append('product_type', productType)
+    }
+
+    const auth = useAuthStore()
+    const token = auth.token
+
+    return new Promise((resolve, reject) => {
+      fetch(`${apiBaseURL}/bmecat-import`, {
+        method: 'POST',
+        headers: {
+          Accept: 'text/event-stream',
+          Authorization: token ? `Bearer ${token}` : '',
+        },
+        body: formData,
+      })
+        .then(async (response) => {
+          if (!response.ok) {
+            const text = await response.text()
+            try {
+              const json = JSON.parse(text)
+              reject(new Error(json.error || json.message || 'Import fehlgeschlagen'))
+            } catch {
+              reject(new Error('Import fehlgeschlagen'))
+            }
+            return
+          }
+
+          const contentType = response.headers.get('content-type') || ''
+
+          // Non-SSE response (validation error returned as JSON)
+          if (!contentType.includes('text/event-stream')) {
+            const json = await response.json()
+            if (json.error) {
+              reject(new Error(json.error))
+            } else {
+              resolve(json.data || json)
+            }
+            return
+          }
+
+          // Parse SSE stream
+          const reader = response.body.getReader()
+          const decoder = new TextDecoder()
+          let buffer = ''
+
+          const processLines = () => {
+            const lines = buffer.split('\n')
+            buffer = lines.pop() // Keep incomplete line in buffer
+
+            let currentEvent = null
+            for (const line of lines) {
+              if (line.startsWith('event: ')) {
+                currentEvent = line.slice(7).trim()
+              } else if (line.startsWith('data: ')) {
+                const data = line.slice(6)
+                try {
+                  const parsed = JSON.parse(data)
+                  if (currentEvent === 'progress' && onProgress) {
+                    onProgress(parsed)
+                  } else if (currentEvent === 'complete') {
+                    resolve(parsed.data || parsed)
+                  } else if (currentEvent === 'error') {
+                    reject(new Error(parsed.error || 'Import fehlgeschlagen'))
+                  }
+                } catch {
+                  // Skip malformed JSON
+                }
+                currentEvent = null
+              }
+            }
+          }
+
+          const read = async () => {
+            while (true) {
+              const { done, value } = await reader.read()
+              if (done) break
+              buffer += decoder.decode(value, { stream: true })
+              processLines()
+            }
+            // Process remaining buffer
+            if (buffer.trim()) {
+              buffer += '\n'
+              processLines()
+            }
+          }
+
+          read().catch(reject)
+        })
+        .catch(reject)
     })
   },
 
@@ -30,11 +139,21 @@ export default {
 
   /**
    * PIM-Daten als BMEcat-XML exportieren.
+   * @param {object} params
+   * @param {(progress: {loaded: number, total: number, percent: number}) => void} onProgress
    */
-  exportFile(params = {}) {
+  exportFile(params = {}, onProgress = null) {
     return client.post('/bmecat-export', params, {
       responseType: 'blob',
       timeout: 300000,
+      onDownloadProgress: onProgress
+        ? (progressEvent) => {
+            const total = progressEvent.total || 0
+            const loaded = progressEvent.loaded || 0
+            const percent = total > 0 ? Math.round((loaded / total) * 100) : 0
+            onProgress({ loaded, total, percent })
+          }
+        : undefined,
     })
   },
 }
