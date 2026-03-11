@@ -23,6 +23,7 @@ class HierarchyNodeResource extends JsonResource
             'sort_order' => $this->sort_order,
             'is_active' => $this->is_active,
             'children' => HierarchyNodeResource::collection($this->whenLoaded('children')),
+            'hierarchy' => new HierarchyResource($this->whenLoaded('hierarchy')),
             'parent' => new HierarchyNodeResource($this->whenLoaded('parent')),
             'attribute_assignments' => NodeAttributeAssignmentResource::collection($this->whenLoaded('attributeAssignments')),
             'attribute_values' => HierarchyNodeAttributeValueResource::collection($this->whenLoaded('attributeValues')),
