@@ -533,6 +533,10 @@ class ImportExecutor
                     }
                 }
 
+                if (!empty($row['composite_expression'])) {
+                    $data['composite_expression'] = $row['composite_expression'];
+                }
+
                 if ($existing) {
                     $existing->update($data);
                     $this->stats[$sheetKey]['updated']++;

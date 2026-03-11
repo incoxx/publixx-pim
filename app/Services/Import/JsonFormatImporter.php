@@ -260,6 +260,7 @@ class JsonFormatImporter
                 'parent_attribute' => $a['parent_attribute'] ?? null,
                 'source_system' => $a['source_system'] ?? null,
                 'views' => isset($a['views']) ? implode(',', $a['views']) : null,
+                'composite_expression' => $a['composite_expression'] ?? null,
             ], $data['attributes']);
         }
 

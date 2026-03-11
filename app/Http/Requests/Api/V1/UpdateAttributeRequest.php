@@ -47,6 +47,7 @@ class UpdateAttributeRequest extends FormRequest
             'is_internal' => 'boolean',
             'parent_attribute_id' => 'nullable|uuid|exists:attributes,id',
             'composite_format' => 'nullable|string|max:500',
+            'composite_expression' => 'nullable|string|max:500',
             'position' => 'nullable|integer',
             'source_system' => 'nullable|string|max:50',
             'source_attribute_name' => 'nullable|string|max:255',

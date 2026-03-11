@@ -44,6 +44,7 @@ class Attribute extends Model
         'is_internal',
         'parent_attribute_id',
         'composite_format',
+        'composite_expression',
         'position',
         'source_system',
         'source_attribute_name',

@@ -358,6 +358,19 @@ class MappingResolver
             $result['_formatted'] = trim($formatted);
         }
 
+        // Add computed value if composite_expression is defined
+        if ($attribute->composite_expression) {
+            $computedValue = ProductAttributeValue::where('product_id', $product->id)
+                ->where('attribute_id', $attribute->id)
+                ->whereNull('language')
+                ->where('multiplied_index', 0)
+                ->first();
+
+            $result['_computed'] = $computedValue?->value_number !== null
+                ? (float) $computedValue->value_number
+                : null;
+        }
+
         return !empty(array_filter($result, fn ($v) => $v !== null)) ? $result : null;
     }
 
