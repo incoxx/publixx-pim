@@ -140,6 +140,12 @@ const routes = [
     meta: { title: 'Export-Jobs' },
   },
   {
+    path: '/calendar',
+    name: 'calendar',
+    component: () => import('@/views/calendar/CalendarView.vue'),
+    meta: { title: 'Planungskalender' },
+  },
+  {
     path: '/reports',
     name: 'reports',
     component: () => import('@/views/reports/ReportListView.vue'),

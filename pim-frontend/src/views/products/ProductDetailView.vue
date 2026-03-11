@@ -22,6 +22,7 @@ import PimDeleteConfirmDialog from '@/components/shared/PimDeleteConfirmDialog.v
 import PdfPreview from '@/components/shared/PdfPreview.vue'
 import PimCompositeModal from '@/components/shared/PimCompositeModal.vue'
 import ProductVersionsTab from '@/components/products/ProductVersionsTab.vue'
+import ProductScheduledActionsTab from '@/components/products/ProductScheduledActionsTab.vue'
 import MediaPickerDialog from '@/components/shared/MediaPickerDialog.vue'
 import { formatCompositeSummary } from '@/utils/formatting'
 
@@ -62,6 +63,7 @@ const tabs = [
   { key: 'output-hierarchies', label: 'Ausgabehierarchien' },
   { key: 'preview', label: t('product.preview') },
   { key: 'versions', label: t('product.versions') },
+  { key: 'scheduled-actions', label: 'Planung' },
 ]
 
 // ─── Attribute Filters ──────────────────────────────────
@@ -2909,6 +2911,12 @@ watch(() => route.params.id, async (newId, oldId) => {
     <!-- ═══ Versions Tab ═══ -->
     <ProductVersionsTab
       v-else-if="activeTab === 'versions' && product"
+      :productId="product.id"
+    />
+
+    <!-- ═══ Scheduled Actions Tab ═══ -->
+    <ProductScheduledActionsTab
+      v-else-if="activeTab === 'scheduled-actions' && product"
       :productId="product.id"
     />
   </div>
