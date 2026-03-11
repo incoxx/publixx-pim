@@ -12,12 +12,14 @@ Die Medienbibliothek erreichen Sie über den Menüpunkt **Medien** in der Sideba
 
 ### Upload
 
-Dateien können auf zwei Wegen hochgeladen werden:
+Dateien können auf mehreren Wegen hochgeladen werden:
 
 1. **Upload-Schaltfläche** -- Klicken Sie auf **+ Medien hochladen** und wählen Sie eine oder mehrere Dateien aus dem Datei-Dialog.
 2. **Drag-and-Drop** -- Ziehen Sie Dateien direkt vom Desktop oder Dateimanager in den Upload-Bereich der Medienbibliothek.
+3. **URL-Import** -- Importieren Sie einzelne Medien direkt von einer URL. Das System lädt die Datei herunter, erkennt den MIME-Typ automatisch und erstellt den Medieneintrag. SSRF-Schutz verhindert den Zugriff auf interne Netzwerkadressen.
+4. **Bulk-Import per Excel** -- Laden Sie eine Excel- oder CSV-Datei mit URLs hoch, um viele Medien auf einmal zu importieren. Das System erkennt die URL-Spalte automatisch (unterstützte Spaltennamen: `url`, `bild-url`, `bild_url`, `image_url`, `link`). Maximal 500 URLs pro Import.
 
-Nach dem Upload werden Vorschaubilder (Thumbnails) automatisch generiert. Der Upload-Fortschritt wird pro Datei angezeigt.
+Nach dem Upload werden Vorschaubilder (Thumbnails) automatisch generiert. Der Upload-Fortschritt wird pro Datei angezeigt. Bei JPEG-Dateien wird die EXIF-Orientierung automatisch korrigiert.
 
 ::: tip Hinweis
 Große Dateien werden asynchron verarbeitet. Bei umfangreichen Uploads kann die Thumbnail-Generierung einige Sekunden dauern. Die Dateien sind jedoch sofort nach dem Upload verfügbar.
@@ -88,6 +90,50 @@ Der Verwendungstyp definiert den Kontext, in dem ein Medium eingesetzt wird:
 | **Sonstige** | Alle anderen Medientypen |
 
 Der Verwendungstyp wird bei der Zuordnung zum Produkt festgelegt und kann nachträglich geändert werden. Er dient beim Export als Filter, um z.B. nur Teaser-Bilder für einen Online-Shop zu exportieren.
+
+### Erlaubte Dateitypen pro Verwendungstyp
+
+Für jeden Verwendungstyp (Bildtyp) können die **erlaubten Dateitypen** konfiguriert werden. Standardmäßig sind alle Dateitypen erlaubt. Über die Bildtyp-Verwaltung (**Einstellungen** > **Bildtypen**) lässt sich pro Verwendungstyp festlegen, welche Dateiendungen zugelassen sind:
+
+- **Alle Dateitypen erlaubt** (Standard) -- Keine Einschränkung, jeder Medientyp kann zugeordnet werden.
+- **Eingeschränkte Dateitypen** -- Nur bestimmte Endungen sind erlaubt (z.B. nur `jpg`, `png`, `webp` für Teaser-Bilder oder nur `pdf` für Datenblätter).
+
+Die erlaubten Endungen sind in Gruppen organisiert:
+
+| Gruppe | Endungen |
+|---|---|
+| **Bilder** | jpg, jpeg, png, gif, webp, svg, bmp, tiff |
+| **Dokumente** | pdf, doc, docx, xls, xlsx, ppt, pptx, csv |
+| **Design** | eps, ai |
+
+Beim Zuweisen eines Mediums zu einem Produkt prüft das System automatisch, ob die Dateiendung zum gewählten Verwendungstyp passt. Der Medien-Auswahldialog filtert die verfügbaren Medien ebenfalls entsprechend.
+
+## PDF-Vorschau
+
+PDF-Dateien werden in der Medienbibliothek und in der Produktdetailansicht mit einer **Live-Vorschau** der ersten Seite angezeigt. Die Vorschau wird clientseitig mit PDF.js gerendert. Nicht-Bild-Medien (PDF, DOCX, etc.) zeigen in der Grid-Ansicht ein Dateityp-Symbol mit der Dateiendung.
+
+## Automatische SKU-Zuordnung (Auto-Match)
+
+Die Auto-Match-Funktion ordnet Medien automatisch Produkten zu, basierend auf dem Dateinamen. Sie definieren ein **reguläres Ausdrucksmuster** (Regex), das die SKU aus dem Dateinamen extrahiert:
+
+1. Navigieren Sie zur Auto-Match-Funktion in der Medienverwaltung.
+2. Geben Sie ein Regex-Muster ein (z.B. `^(\w+)_` um die SKU vor dem ersten Unterstrich zu extrahieren).
+3. Optional: Wählen Sie einen Verwendungstyp für die automatischen Zuordnungen.
+4. Starten Sie einen **Trockenlauf** (`dry_run`), um die Zuordnungen vorab zu prüfen.
+5. Bestätigen Sie die Zuordnung, um die Medien den passenden Produkten zuzuweisen.
+
+Das System verarbeitet die Medien in Blöcken und gibt eine Zusammenfassung zurück: Anzahl zugeordnet, nicht zugeordnet und Gesamtanzahl.
+
+## Asset-Ordner
+
+Medien können in **Asset-Ordnern** organisiert werden. Asset-Ordner sind als Baumstruktur aufgebaut (analog zu Hierarchien) und bieten:
+
+- **Ordnerstruktur** -- Verschachtelte Ordner zur logischen Organisation von Medien.
+- **Medienanzahl** -- Jeder Ordner zeigt die Anzahl der enthaltenen Medien an (inklusive Unterordner).
+- **Breadcrumb-Navigation** -- In der Einzelansicht eines Mediums wird der Ordnerpfad angezeigt.
+- **Bulk-Verschieben** -- Mehrere Medien können gleichzeitig in einen anderen Ordner verschoben werden.
+- **ZIP-Download** -- Ausgewählte Medien können als ZIP-Archiv heruntergeladen werden.
+- **Verwendungszweck** -- Medien können als `print`, `web` oder `both` klassifiziert werden.
 
 ## Medien bearbeiten und löschen
 

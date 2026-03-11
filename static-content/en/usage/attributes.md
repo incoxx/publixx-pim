@@ -22,7 +22,7 @@ Use the **+ New Attribute** button to open the form panel (AttributeFormPanel) f
 
 ## Data Types
 
-The anyPIM supports eight data types that determine the input field and validation:
+The anyPIM supports various data types that determine the input field and validation:
 
 <svg viewBox="0 0 800 440" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;margin:1.5rem 0;">
   <defs>
@@ -146,6 +146,38 @@ Structured key-value pairs as a JSON object. The system provides a JSON editor. 
 
 #### Collection
 JSON arrays with repeatable structures. Enables storing lists of similar records within a single attribute. Application example: Multiple certification entries, each with name, number, and validity date.
+
+### Link Data Types
+
+In addition to the base data types, the anyPIM provides four specialized **link data types** that store URLs with type validation:
+
+#### Hyperlink
+Stores a general URL (web link). The input field validates the URL structure. In the catalog view and export, the link is rendered as a clickable hyperlink.
+
+#### ImageLink
+Stores a URL to an external image. In the catalog and product preview, the referenced image is displayed directly. Suitable for product images hosted on an external CDN.
+
+#### PdfLink
+Stores a URL to a PDF document. In the catalog view, the link is rendered as a PDF download. Suitable for external data sheets, certificates, or manuals.
+
+#### VideoLink
+Stores a URL to a video. In the catalog view, the video can be embedded or displayed as a link. Suitable for product videos on YouTube, Vimeo, or own servers.
+
+### Composite (Compound Attribute)
+
+#### Composite
+A composite attribute combines multiple **child attributes** into a compound value. It defines a **display format** (`composite_format`) that determines how the individual values are combined into an overall value.
+
+**Configuration:**
+- **Child attributes** -- The composite attribute has subordinate attributes (children) that provide the individual values.
+- **Display format** -- A pattern with placeholders `{0}`, `{1}`, `{2}` etc., which are replaced by the values of the child attributes. Example: `{0} x {1} x {2} mm` for dimensions.
+
+**Example:**
+- Composite attribute: `dimensions` (display format: `{0} x {1} x {2} mm`)
+- Child attributes: `length` (Float), `width` (Float), `height` (Float)
+- Result: "120 x 80 x 45 mm"
+
+In the product detail view, clicking on the composite field opens an **editing dialog** where the individual child attributes can be maintained separately. The preview shows the compound value according to the display format.
 
 ## Attribute Properties
 

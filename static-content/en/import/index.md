@@ -143,6 +143,54 @@ The system uses intelligent matching to automatically detect typos in references
 
 If a similar but not exactly matching value is found, the system displays a correction suggestion in the validation preview.
 
+## BMEcat Import
+
+In addition to the Excel import, the anyPIM supports the import of product data in **BMEcat format** (versions 1.2 and 2005). BMEcat is a standardized XML format for the electronic exchange of product catalogs, widely used in B2B commerce.
+
+### Supported BMEcat Versions
+
+| Version | Standard | Description |
+|---|---|---|
+| **BMEcat 1.2** | Classic | Widely used, especially in German-speaking countries |
+| **BMEcat 2005** | Current | Extended structure with additional elements |
+
+### Import Modes
+
+The BMEcat import supports two modes:
+
+| Mode | Description |
+|---|---|
+| **Update** | Existing data is updated, new records are created (upsert) |
+| **Delete & Insert** | All existing data of the affected entities is deleted and re-imported |
+
+### Imported Data
+
+The following BMEcat elements are processed:
+
+- **Product types** and product master data (PRODUCT)
+- **Attributes** from FEATURE/FNAME elements
+- **Prices** from PRODUCT_PRICE_DETAILS
+- **Hierarchies** from CATALOG_GROUP_SYSTEM
+- **Hierarchy attribute assignments**
+- **Product-hierarchy assignments** (PRODUCT_TO_CATALOGGROUP_MAP)
+- **Product relationships** (PRODUCT_REFERENCE)
+- **Media references** (MIME_INFO)
+
+### Validation
+
+The BMEcat import offers a **validation mode** that checks the XML file without importing data:
+
+```
+POST /api/v1/bmecat-import/validate
+```
+
+The validation detects missing required fields, invalid references, and structural errors in the XML.
+
+### Technical Details
+
+- **Streaming processing** -- The XML file is parsed using XMLReader to efficiently process even large files with minimal memory usage.
+- **Transaction safety** -- The import is transaction-safe.
+
 ## Further Documentation
 
 - [Excel Format](/en/import/excel-format) -- Detailed column documentation for all 14 tabs

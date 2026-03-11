@@ -205,8 +205,15 @@ Beim Löschen eines Knotens haben Sie zwei Optionen:
 | **Nur diesen Knoten** | Der Knoten wird entfernt. Kindknoten werden eine Ebene nach oben verschoben. |
 | **Mit allen Kindknoten** | Der gesamte Teilbaum wird gelöscht. |
 
+#### Löschung mit Abhängigkeiten (Force Delete)
+
+Wenn ein Knoten Abhängigkeiten hat (z.B. zugeordnete Produkte, Kindknoten oder Attributzuordnungen), zeigt das System einen **Bestätigungsdialog** mit Details zu den betroffenen Abhängigkeiten an:
+
+- Anzahl und Art der Abhängigkeiten (Produkte, Kindknoten, Attributzuordnungen)
+- Option zur **erzwungenen Löschung** (`Force Delete`), die den Knoten trotz bestehender Abhängigkeiten entfernt
+
 ::: danger Achtung
-Produkte, die einem gelöschten Knoten zugeordnet sind, verlieren ihre Hierarchiezuordnung und damit möglicherweise Attributdefinitionen. Prüfen Sie vor dem Löschen, welche Produkte betroffen sind.
+Produkte, die einem gelöschten Knoten zugeordnet sind, verlieren ihre Hierarchiezuordnung und damit möglicherweise Attributdefinitionen. Prüfen Sie vor dem Löschen, welche Produkte betroffen sind. Die erzwungene Löschung kann nicht rückgängig gemacht werden.
 :::
 
 ## Attribute an Hierarchieknoten zuordnen
@@ -238,6 +245,35 @@ Collection Groups ermöglichen es, eine Attributgruppe als **wiederholbaren Bloc
 
 - Die Attributgruppe „Zertifizierung" enthält die Attribute `cert_name`, `cert_number`, `cert_valid_until`.
 - Wird sie als Collection Group zugeordnet, kann der Benutzer beim Produkt beliebig viele Zertifizierungseinträge anlegen.
+
+## Attributwerte an Hierarchieknoten
+
+Neben der Zuordnung von Attributgruppen können an Hierarchieknoten auch **konkrete Attributwerte** gepflegt werden. Diese Werte gelten für den Knoten selbst und können im Export oder in der Katalogausgabe verwendet werden.
+
+### Knotenattribute konfigurieren
+
+1. Wählen Sie einen Knoten in der Hierarchie.
+2. Öffnen Sie den Bereich **Knotenattribute**.
+3. Über **Attribut zuweisen** ordnen Sie einzelne Attribute dem Knoten zu. Dabei kann pro Attribut festgelegt werden, ob es als **Pflichtfeld** (`is_required`) gekennzeichnet wird.
+4. Pflegen Sie die Attributwerte direkt am Knoten.
+
+### Unterstützte Werttypen
+
+Knotenattribute unterstützen dieselben Werttypen wie Produktattribute:
+
+- **String** -- Textwerte, auch mehrsprachig (`language`-Feld)
+- **Number** -- Ganzzahlen
+- **Float** -- Fließkommazahlen mit optionaler Einheit
+- **Date** -- Datumswerte
+- **Flag** -- Ja/Nein-Werte
+- **Selection** -- Auswahl aus einer Werteliste
+
+### Anwendungsfälle
+
+- **Kategoriebeschreibungen** -- Texte, die in der Katalogausgabe als Kategoriebeschreibung erscheinen.
+- **Kategorie-Bilder** -- Referenz auf ein Medium für die Kategorie-Darstellung.
+- **SEO-Metadaten** -- Titel und Beschreibung für die Kategorieseite im Online-Shop.
+- **Sortimentseigenschaften** -- Attribute, die für alle Produkte einer Kategorie gelten.
 
 ## Produkte an Hierarchieknoten zuordnen
 

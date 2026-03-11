@@ -735,12 +735,14 @@ async function detachMedia(item) {
 }
 
 function getMediaUrl(item) {
-  // Use thumb_url from the media relation for grid display (faster, cached)
   const media = item.media || item
-  if (media.thumb_url) return media.thumb_url
+  const id = media.id || item.media_id
+  if (id && (media.media_type === 'image' || !media.media_type)) {
+    return mediaApi.thumbUrl(id, 300, 300)
+  }
   const fname = media.file_name || item.file_name
   if (fname) return mediaApi.fileUrl(fname)
-  return media.url || item.url || ''
+  return ''
 }
 
 function isMediaPdf(item) {
