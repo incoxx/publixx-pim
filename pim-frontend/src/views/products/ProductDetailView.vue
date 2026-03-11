@@ -1257,6 +1257,7 @@ async function save() {
       status: product.value.status,
       ean: product.value.ean,
       master_hierarchy_node_id: product.value.master_hierarchy_node_id || null,
+      manufacturer_id: product.value.manufacturer_id || null,
     })
 
     // Build attribute values payload with language support

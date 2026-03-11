@@ -173,6 +173,7 @@ class ProductController extends Controller
                 'product_type_id' => $product->product_type_id,
                 'product_type_ref' => 'product',
                 'master_hierarchy_node_id' => $product->master_hierarchy_node_id,
+                'manufacturer_id' => $product->manufacturer_id,
                 'created_by' => $request->user()?->id,
             ]);
 
