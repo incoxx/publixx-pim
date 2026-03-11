@@ -21,7 +21,26 @@ class AuthController extends Controller
     {
         $user = User::where('email', $request->validated('email'))->first();
 
-        if (! $user || ! Hash::check($request->validated('password'), $user->password)) {
+        if (! $user) {
+            return $this->problemResponse(
+                title: 'Authentication Failed',
+                detail: 'The provided credentials are incorrect.',
+                status: Response::HTTP_UNAUTHORIZED,
+                type: 'auth/invalid-credentials',
+            );
+        }
+
+        // SSO-only users must use the SSO login flow
+        if ($user->isSsoUser()) {
+            return $this->problemResponse(
+                title: 'SSO Required',
+                detail: 'Dieses Konto verwendet Single Sign-On. Bitte melden Sie sich über den SSO-Button an.',
+                status: Response::HTTP_FORBIDDEN,
+                type: 'auth/sso-required',
+            );
+        }
+
+        if (! Hash::check($request->validated('password'), $user->password ?? '')) {
             return $this->problemResponse(
                 title: 'Authentication Failed',
                 detail: 'The provided credentials are incorrect.',

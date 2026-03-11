@@ -26,6 +26,8 @@ class User extends Authenticatable
         'language',
         'is_active',
         'last_login_at',
+        'sso_provider',
+        'sso_id',
     ];
 
     protected $hidden = [
@@ -66,6 +68,11 @@ class User extends Authenticatable
     public function watchlistItems(): HasMany
     {
         return $this->hasMany(WatchlistItem::class);
+    }
+
+    public function isSsoUser(): bool
+    {
+        return $this->sso_provider !== null;
     }
 
     public function deletionConstraints(): array

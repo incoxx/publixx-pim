@@ -51,8 +51,11 @@ use App\Policies\UnitPolicy;
 use App\Policies\UserPolicy;
 use App\Policies\ValueListEntryPolicy;
 use App\Policies\ValueListPolicy;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
+use SocialiteProviders\Azure\AzureExtendSocialite;
+use SocialiteProviders\Manager\SocialiteWasCalled;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -63,6 +66,9 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // ─── SSO: Register Azure AD Socialite Driver ─────────────────
+        Event::listen(SocialiteWasCalled::class, AzureExtendSocialite::class.'@handle');
+
         // ─── Policy Registration ─────────────────────────────────────
         Gate::policy(Product::class, ProductPolicy::class);
         Gate::policy(Attribute::class, AttributePolicy::class);
