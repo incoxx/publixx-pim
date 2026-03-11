@@ -16,7 +16,7 @@ class ResolvedValue
         public readonly string $attributeId,
         public readonly string $attributeTechnicalName,
         public readonly mixed $value,
-        /** Source: 'own', 'variant_inheritance', 'hierarchy_inheritance', 'none' */
+        /** Source: 'own', 'variant_inheritance', 'hierarchy_inheritance', 'master_fallback', 'none' */
         public readonly string $source,
         public readonly ?string $inheritedFromProductId = null,
         public readonly ?string $inheritedFromNodeId = null,
@@ -26,6 +26,7 @@ class ResolvedValue
         public readonly string $accessProduct = 'editable',
         public readonly string $accessVariant = 'editable',
         public readonly ?ProductAttributeValue $productAttributeValue = null,
+        public readonly ?string $outputHierarchyId = null,
     ) {}
 
     /**
@@ -56,6 +57,11 @@ class ResolvedValue
         return $this->source !== 'own' && $this->source !== 'none';
     }
 
+    public function isMasterFallback(): bool
+    {
+        return $this->source === 'master_fallback';
+    }
+
     /**
      * Whether a value was found.
      */
@@ -82,6 +88,7 @@ class ResolvedValue
             'attribute_sort' => $this->attributeSort,
             'access_product' => $this->accessProduct,
             'access_variant' => $this->accessVariant,
+            'output_hierarchy_id' => $this->outputHierarchyId,
         ];
     }
 

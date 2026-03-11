@@ -20,11 +20,13 @@ class AttributeValuesChanged
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
     /**
-     * @param string   $productId    The product whose values changed
-     * @param string[] $attributeIds The attribute IDs that changed
+     * @param string      $productId         The product whose values changed
+     * @param string[]    $attributeIds      The attribute IDs that changed
+     * @param string|null $outputHierarchyId If set, changes are channel-specific (output hierarchy context)
      */
     public function __construct(
         public readonly string $productId,
         public readonly array $attributeIds,
+        public readonly ?string $outputHierarchyId = null,
     ) {}
 }

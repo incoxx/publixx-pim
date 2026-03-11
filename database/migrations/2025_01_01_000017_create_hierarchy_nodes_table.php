@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -26,7 +27,13 @@ return new class extends Migration
             $table->foreign('hierarchy_id')->references('id')->on('hierarchies')->onDelete('cascade');
             $table->foreign('parent_node_id')->references('id')->on('hierarchy_nodes')->onDelete('set null');
             $table->index(['hierarchy_id', 'parent_node_id']);
-            $table->rawIndex('`path`(768)', 'hierarchy_nodes_path_index');
+
+            // Prefix index on path — MySQL only (SQLite doesn't support prefix indexes)
+            if (DB::getDriverName() === 'mysql') {
+                $table->rawIndex('`path`(768)', 'hierarchy_nodes_path_index');
+            } else {
+                $table->index('path', 'hierarchy_nodes_path_index');
+            }
         });
     }
 

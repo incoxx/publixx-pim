@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Requests\Api\V1\BulkUpdateAttributeValuesRequest;
+use App\Http\Requests\Api\V1\BulkUpdateOutputHierarchyAttributeValuesRequest;
 use App\Http\Resources\Api\V1\ProductAttributeValueResource;
 use App\Models\Attribute;
 use App\Models\Product;
@@ -212,6 +213,7 @@ class ProductAttributeValueController extends Controller
                         'attribute_id' => $attribute->id,
                         'language' => $language,
                         'multiplied_index' => $multipliedIndex,
+                        'output_hierarchy_id' => null,
                     ],
                     array_merge($valueData, [
                         'unit_id' => $entry['unit_id'] ?? null,
@@ -230,6 +232,169 @@ class ProductAttributeValueController extends Controller
         event(new \App\Events\AttributeValuesChanged($product->id, array_unique($changedAttributeIds)));
 
         return response()->json(['message' => 'Attribute values updated.', 'count' => count($values)]);
+    }
+
+    /**
+     * GET /products/{product}/output-hierarchy-resolved-attributes
+     *
+     * Returns channel-specific attributes grouped by output hierarchy.
+     * Optional query param: ?hierarchy_id=UUID to filter to a single hierarchy.
+     */
+    public function resolvedOutputHierarchy(
+        Request $request,
+        Product $product,
+        HierarchyInheritanceService $hierarchyService,
+        AttributeValueResolver $resolver,
+    ): JsonResponse {
+        $this->authorize('view', $product);
+
+        $language = $this->getPrimaryLanguage($request);
+        $filterHierarchyId = $request->query('hierarchy_id');
+
+        $allOutputAttributes = $hierarchyService->getProductOutputHierarchyAttributes($product);
+
+        if ($allOutputAttributes->isEmpty()) {
+            return response()->json(['data' => []]);
+        }
+
+        // Optionally filter to a single hierarchy
+        if ($filterHierarchyId) {
+            $allOutputAttributes = $allOutputAttributes->only([$filterHierarchyId]);
+        }
+
+        $result = $allOutputAttributes->map(function (array $hierarchyData, string $hierarchyId) use ($product, $resolver, $language) {
+            $hierarchy = $hierarchyData['hierarchy'];
+            $attributes = $hierarchyData['attributes'];
+
+            // Load existing channel-specific values for this product + hierarchy
+            $existingValues = ProductAttributeValue::where('product_id', $product->id)
+                ->where('output_hierarchy_id', $hierarchyId)
+                ->with('attribute')
+                ->where(function ($q) use ($language) {
+                    $q->whereNull('language')->orWhere('language', $language);
+                })
+                ->get()
+                ->keyBy('attribute_id');
+
+            // Also load master values as fallback
+            $masterValues = ProductAttributeValue::where('product_id', $product->id)
+                ->whereNull('output_hierarchy_id')
+                ->with('attribute')
+                ->where(function ($q) use ($language) {
+                    $q->whereNull('language')->orWhere('language', $language);
+                })
+                ->get()
+                ->keyBy('attribute_id');
+
+            $attributeData = $attributes->map(function ($assignment) use ($existingValues, $masterValues, $hierarchyId) {
+                $channelPav = $existingValues->get($assignment->attribute_id);
+                $masterPav = $masterValues->get($assignment->attribute_id);
+                $value = null;
+                $source = 'none';
+
+                if ($channelPav) {
+                    $value = $channelPav->value_string ?? $channelPav->value_number ?? $channelPav->value_date ?? $channelPav->value_flag ?? $channelPav->value_selection_id;
+                    $source = 'own';
+                } elseif ($masterPav) {
+                    $value = $masterPav->value_string ?? $masterPav->value_number ?? $masterPav->value_date ?? $masterPav->value_flag ?? $masterPav->value_selection_id;
+                    $source = 'master_fallback';
+                }
+
+                return [
+                    'attribute_id' => $assignment->attribute_id,
+                    'attribute_technical_name' => $assignment->attribute_technical_name,
+                    'attribute_name_de' => $assignment->attribute_name_de,
+                    'attribute_name_en' => $assignment->attribute_name_en,
+                    'data_type' => $assignment->data_type,
+                    'value_list_id' => $assignment->value_list_id ?? null,
+                    'is_translatable' => (bool) $assignment->is_translatable,
+                    'is_mandatory' => (bool) ($assignment->is_mandatory || !empty($assignment->is_required)),
+                    'is_variant_attribute' => (bool) ($assignment->is_variant_attribute ?? false),
+                    'attribute_type_id' => $assignment->attribute_type_id ?? null,
+                    'parent_attribute_id' => $assignment->parent_attribute_id ?? null,
+                    'composite_format' => $assignment->composite_format ?? null,
+                    'collection_name' => $assignment->collection_name ?? $assignment->attribute_view_name_de ?? null,
+                    'collection_sort' => $assignment->collection_sort,
+                    'attribute_sort' => $assignment->attribute_sort,
+                    'access_product' => $assignment->access_product ?? 'editable',
+                    'access_variant' => $assignment->access_variant ?? 'editable',
+                    'value' => $value,
+                    'source' => $source,
+                    'is_inherited' => $source !== 'own' && $source !== 'none',
+                    'output_hierarchy_id' => $hierarchyId,
+                ];
+            });
+
+            return [
+                'hierarchy_id' => $hierarchyId,
+                'hierarchy_technical_name' => $hierarchy->technical_name,
+                'hierarchy_name_de' => $hierarchy->name_de,
+                'hierarchy_name_en' => $hierarchy->name_en ?? $hierarchy->name_de,
+                'attributes' => $attributeData->values(),
+            ];
+        });
+
+        return response()->json(['data' => $result->values()]);
+    }
+
+    /**
+     * PUT /products/{product}/output-hierarchy-attribute-values
+     *
+     * Bulk save channel-specific attribute values for a product in an output hierarchy context.
+     * Body: { "output_hierarchy_id": "...", "values": [ { "attribute_id": "...", "value": ..., "language": "de" }, ... ] }
+     */
+    public function bulkUpdateOutputHierarchy(BulkUpdateOutputHierarchyAttributeValuesRequest $request, Product $product): JsonResponse
+    {
+        $this->authorize('update', $product);
+
+        $outputHierarchyId = $request->validated('output_hierarchy_id');
+        $values = $request->validated('values');
+        $changedAttributeIds = [];
+
+        DB::transaction(function () use ($product, $outputHierarchyId, $values, &$changedAttributeIds) {
+            foreach ($values as $entry) {
+                $attribute = Attribute::findOrFail($entry['attribute_id']);
+
+                if ($attribute->data_type === 'Composite') {
+                    continue;
+                }
+
+                $language = $entry['language'] ?? null;
+                $multipliedIndex = $entry['multiplied_index'] ?? 0;
+
+                if ($attribute->is_translatable && $language === null) {
+                    abort(422, "Attribute '{$attribute->technical_name}' is translatable — 'language' is required.");
+                }
+                if (!$attribute->is_translatable && $language !== null) {
+                    abort(422, "Attribute '{$attribute->technical_name}' is not translatable — 'language' must be omitted.");
+                }
+
+                $valueData = $this->resolveValueColumns($attribute, $entry);
+
+                ProductAttributeValue::updateOrCreate(
+                    [
+                        'product_id' => $product->id,
+                        'attribute_id' => $attribute->id,
+                        'language' => $language,
+                        'multiplied_index' => $multipliedIndex,
+                        'output_hierarchy_id' => $outputHierarchyId,
+                    ],
+                    array_merge($valueData, [
+                        'unit_id' => $entry['unit_id'] ?? null,
+                        'comparison_operator_id' => $entry['comparison_operator_id'] ?? null,
+                        'is_inherited' => false,
+                        'inherited_from_node_id' => null,
+                        'inherited_from_product_id' => null,
+                    ])
+                );
+
+                $changedAttributeIds[] = $attribute->id;
+            }
+        });
+
+        event(new \App\Events\AttributeValuesChanged($product->id, array_unique($changedAttributeIds), $outputHierarchyId));
+
+        return response()->json(['message' => 'Output hierarchy attribute values updated.', 'count' => count($values)]);
     }
 
     /**

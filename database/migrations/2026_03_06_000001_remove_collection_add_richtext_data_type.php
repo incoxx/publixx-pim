@@ -15,15 +15,19 @@ return new class extends Migration
             ->update(['data_type' => 'String']);
 
         // Remove Collection, add RichText
-        DB::statement("ALTER TABLE attributes MODIFY COLUMN data_type ENUM(
-            'String','Number','Float','Date','Flag','Selection','Dictionary','Composite','RichText'
-        ) NOT NULL");
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement("ALTER TABLE attributes MODIFY COLUMN data_type ENUM(
+                'String','Number','Float','Date','Flag','Selection','Dictionary','Composite','RichText'
+            ) NOT NULL");
+        }
     }
 
     public function down(): void
     {
-        DB::statement("ALTER TABLE attributes MODIFY COLUMN data_type ENUM(
-            'String','Number','Float','Date','Flag','Selection','Dictionary','Collection','Composite','RichText'
-        ) NOT NULL");
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement("ALTER TABLE attributes MODIFY COLUMN data_type ENUM(
+                'String','Number','Float','Date','Flag','Selection','Dictionary','Collection','Composite','RichText'
+            ) NOT NULL");
+        }
     }
 };
