@@ -146,7 +146,9 @@ class BmecatFormatImporter
             }
 
             // Transaktionstyp ermitteln
-            $ns = BmecatElementMap::isVersion12($version) ? '' : self::NS_2005;
+            $isV12 = BmecatElementMap::isVersion12($version);
+            $hasNs = str_contains($xml, self::NS_2005);
+            $ns = ($isV12 || !$hasNs) ? '' : self::NS_2005;
             $children = $ns ? $doc->children($ns) : $doc->children();
 
             foreach ($children as $child) {
@@ -223,7 +225,9 @@ class BmecatFormatImporter
     private function parseXml(string $xml, array $elementMap, string $version): array
     {
         $isV12 = BmecatElementMap::isVersion12($version);
-        $ns = $isV12 ? null : self::NS_2005;
+        // BMEcat 2005 files may omit the namespace (e.g. DOCTYPE-based files)
+        $hasNs = str_contains($xml, self::NS_2005);
+        $ns = ($isV12 || !$hasNs) ? null : self::NS_2005;
 
         $parsed = [
             'header' => [],
@@ -1109,6 +1113,7 @@ class BmecatFormatImporter
             'net_customer' => 'Netto-Kundenpreis',
             'nrp' => 'Unverbindliche Preisempfehlung',
             'net_customer_exp' => 'Erwarteter Netto-Kundenpreis',
+            'udp_dummy' => 'Dummy-Preis (UDP)',
             default => $type,
         };
     }
