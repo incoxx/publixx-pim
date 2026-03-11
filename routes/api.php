@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\V1\AttributeTypeController;
 use App\Http\Controllers\Api\V1\AttributeViewController;
 use App\Http\Controllers\Api\V1\ApiTesterController;
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\SsoController;
 use App\Http\Controllers\Api\V1\BulkEditorController;
 use App\Http\Controllers\Api\V1\BulkUpdateController;
 use App\Http\Controllers\Api\V1\DatabaseViewerController;
@@ -81,6 +82,15 @@ use Illuminate\Support\Facades\Route;
 // =========================================================================
 Route::prefix('v1/auth')->middleware('throttle.pim:auth')->group(function () {
     Route::post('login', [AuthController::class, 'login']);
+});
+
+// =========================================================================
+// SSO (public — no auth required)
+// =========================================================================
+Route::prefix('v1/auth/sso')->middleware(['web', 'throttle.pim:auth'])->group(function () {
+    Route::get('config', [SsoController::class, 'config']);
+    Route::get('redirect', [SsoController::class, 'redirect']);
+    Route::get('callback', [SsoController::class, 'callback']);
 });
 
 // =========================================================================

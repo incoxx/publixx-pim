@@ -16,4 +16,8 @@ export default {
   refresh() {
     return client.post('/auth/refresh')
   },
+
+  ssoConfig() {
+    return client.get('/auth/sso/config')
+  },
 }

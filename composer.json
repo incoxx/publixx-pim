@@ -8,12 +8,14 @@
         "php": "^8.3",
         "barryvdh/laravel-dompdf": "*",
         "laravel/framework": "^11.0",
-        "league/flysystem-sftp-v3": "^3.0",
         "laravel/horizon": "^5.0",
         "laravel/sanctum": "^4.0",
+        "laravel/socialite": "*",
         "laravel/tinker": "^2.0",
+        "league/flysystem-sftp-v3": "^3.0",
         "phpoffice/phpspreadsheet": "^2.0",
         "phpoffice/phpword": "^1.4",
+        "socialiteproviders/microsoft-azure": "*",
         "spatie/laravel-permission": "^6.0"
     },
     "require-dev": {

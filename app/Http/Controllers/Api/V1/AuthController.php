@@ -21,12 +21,21 @@ class AuthController extends Controller
     {
         $user = User::where('email', $request->validated('email'))->first();
 
-        if (! $user || ! Hash::check($request->validated('password'), $user->password)) {
+        if (! $user || ! Hash::check($request->validated('password'), $user->password ?? '')) {
             return $this->problemResponse(
                 title: 'Authentication Failed',
                 detail: 'The provided credentials are incorrect.',
                 status: Response::HTTP_UNAUTHORIZED,
                 type: 'auth/invalid-credentials',
+            );
+        }
+
+        if ($user->isSsoUser() && $user->password === null) {
+            return $this->problemResponse(
+                title: 'SSO Required',
+                detail: 'Dieses Konto verwendet Single Sign-On. Bitte melden Sie sich über den SSO-Button an.',
+                status: Response::HTTP_FORBIDDEN,
+                type: 'auth/sso-required',
             );
         }
 
