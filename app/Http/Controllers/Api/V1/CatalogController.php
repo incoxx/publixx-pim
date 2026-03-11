@@ -442,26 +442,7 @@ class CatalogController extends BaseController
         }
 
         // Merge output hierarchy attribute values when an output hierarchy is configured
-        $settingsHierarchyId = $themePayload['hierarchy_id'] ?? null;
-        if ($settingsHierarchyId) {
-            $settingsHierarchy = Hierarchy::find($settingsHierarchyId);
-            if ($settingsHierarchy && $settingsHierarchy->hierarchy_type === 'output') {
-                $channelValues = ProductAttributeValue::where('product_id', $product->id)
-                    ->where('output_hierarchy_id', $settingsHierarchyId)
-                    ->with(['attribute', 'valueListEntry', 'unit'])
-                    ->get();
-
-                if ($channelValues->isNotEmpty()) {
-                    // Key existing master values, then overlay channel-specific values
-                    $merged = $product->attributeValues
-                        ->keyBy(fn ($v) => $v->attribute_id . ':' . ($v->language ?? ''));
-                    foreach ($channelValues as $cv) {
-                        $merged->put($cv->attribute_id . ':' . ($cv->language ?? ''), $cv);
-                    }
-                    $product->setRelation('attributeValues', $merged->values());
-                }
-            }
-        }
+        $this->mergeOutputHierarchyValues($product, $themePayload);
 
         return response()->json([
             'data' => (new CatalogProductDetailResource($product))
@@ -575,6 +556,9 @@ class CatalogController extends BaseController
             }
             $descriptionAttrData = $ordered;
         }
+
+        // Merge output hierarchy attribute values when an output hierarchy is configured
+        $this->mergeOutputHierarchyValues($product, $themePayload);
 
         return response()->json(
             (new CatalogProductDetailResource($product))
@@ -1021,5 +1005,44 @@ class CatalogController extends BaseController
         }
 
         return $counts;
+    }
+
+    /**
+     * When an output hierarchy is configured in settings, merge channel-specific
+     * attribute values into the product's attributeValues relation.
+     * Output values override master values for the same attribute+language+index.
+     */
+    private function mergeOutputHierarchyValues(Product $product, array $themePayload): void
+    {
+        $settingsHierarchyId = $themePayload['hierarchy_id'] ?? null;
+        if (!$settingsHierarchyId) {
+            return;
+        }
+
+        $hierarchy = Hierarchy::find($settingsHierarchyId);
+        if (!$hierarchy || $hierarchy->hierarchy_type !== 'output') {
+            return;
+        }
+
+        $channelValues = ProductAttributeValue::where('product_id', $product->id)
+            ->where('output_hierarchy_id', $settingsHierarchyId)
+            ->with(['attribute', 'valueListEntry', 'unit'])
+            ->get();
+
+        if ($channelValues->isEmpty()) {
+            return;
+        }
+
+        $mergeKey = fn ($v) => $v->attribute_id . '|' . ($v->language ?? '') . '|' . ($v->multiplied_index ?? 0);
+
+        $merged = $product->attributeValues
+            ->filter(fn ($v) => $v->output_hierarchy_id === null)
+            ->keyBy($mergeKey);
+
+        foreach ($channelValues as $cv) {
+            $merged->put($mergeKey($cv), $cv);
+        }
+
+        $product->setRelation('attributeValues', $merged->values());
     }
 }
