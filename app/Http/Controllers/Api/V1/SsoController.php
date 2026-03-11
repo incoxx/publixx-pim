@@ -4,13 +4,14 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
-use App\Http\Resources\Api\V1\UserResource;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Laravel\Socialite\Facades\Socialite;
+use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Response;
 
 class SsoController extends Controller
@@ -62,7 +63,7 @@ class SsoController extends Controller
      *
      * Handles the OIDC callback from Azure AD.
      */
-    public function callback(Request $request): RedirectResponse|JsonResponse
+    public function callback(Request $request): \Illuminate\Http\RedirectResponse|JsonResponse
     {
         if (! $this->isSsoEnabled()) {
             return $this->problemResponse(
@@ -166,7 +167,7 @@ class SsoController extends Controller
         $user = User::create([
             'name' => $azureUser->getName() ?: explode('@', $email)[0],
             'email' => $email,
-            'password' => null,
+            'password' => Hash::make(Str::random(64)),
             'sso_provider' => 'azure',
             'sso_id' => $azureId,
             'language' => 'de',
