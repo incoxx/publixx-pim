@@ -52,6 +52,12 @@ class SettingController extends Controller
         'pdf_display_mode' => 'link',
         'catalog_access_mode' => 'public',
         'catalog_linked_products_only' => false,
+        'catalog_pdf_enabled' => false,
+        'catalog_pdf_template_id' => null,
+        'catalog_compare_enabled' => false,
+        'catalog_compare_max_products' => 3,
+        'catalog_excel_export_enabled' => false,
+        'catalog_share_wishlist_enabled' => false,
     ];
 
     /**
@@ -131,6 +137,12 @@ class SettingController extends Controller
             'pdf_display_mode' => 'nullable|string|in:link,embedded',
             'catalog_access_mode' => 'nullable|string|in:public,login',
             'catalog_linked_products_only' => 'nullable|boolean',
+            'catalog_pdf_enabled' => 'nullable|boolean',
+            'catalog_pdf_template_id' => 'nullable|uuid|exists:pdf_templates,id',
+            'catalog_compare_enabled' => 'nullable|boolean',
+            'catalog_compare_max_products' => 'nullable|integer|in:2,3',
+            'catalog_excel_export_enabled' => 'nullable|boolean',
+            'catalog_share_wishlist_enabled' => 'nullable|boolean',
         ]);
 
         // Merge with existing payload so that unsent keys are preserved
