@@ -12,6 +12,7 @@ use PhpOffice\PhpWord\Style\Image as ImageStyle;
 class DocxPdfTemplateWriter
 {
     private const MM_TO_TWIP = 56.6929;
+    private const MM_TO_PT = 2.834645; // 72 / 25.4
     private const PT_TO_HALF_PT = 2;
 
     /**
@@ -92,13 +93,16 @@ class DocxPdfTemplateWriter
         $type = $element['type'] ?? 'text';
         $style = $element['style'] ?? [];
 
-        $x = (int) round(($element['x'] ?? 0) * self::MM_TO_TWIP);
-        $y = (int) round(($element['y'] ?? 0) * self::MM_TO_TWIP);
-        $width = (int) round(($element['width'] ?? 50) * self::MM_TO_TWIP);
-        $height = (int) round(($element['height'] ?? 10) * self::MM_TO_TWIP);
+        // TextBox uses points (Frame unit='pt'), images use twips for positioning
+        $xPt = round(($element['x'] ?? 0) * self::MM_TO_PT, 1);
+        $yPt = round(($element['y'] ?? 0) * self::MM_TO_PT, 1);
+        $widthPt = round(($element['width'] ?? 50) * self::MM_TO_PT, 1);
+        $heightPt = round(($element['height'] ?? 10) * self::MM_TO_PT, 1);
 
         if ($type === 'image') {
-            $this->renderImageElement($section, $element, $x, $y, $width, $height);
+            $xTwip = (int) round(($element['x'] ?? 0) * self::MM_TO_TWIP);
+            $yTwip = (int) round(($element['y'] ?? 0) * self::MM_TO_TWIP);
+            $this->renderImageElement($section, $element, $xTwip, $yTwip);
             return;
         }
 
@@ -107,19 +111,16 @@ class DocxPdfTemplateWriter
             $displayValue = '';
         }
 
-        // Use textBox for absolute positioning
+        // Use textBox with absolute positioning (Frame style, unit = pt)
         $textBox = $section->addTextBox([
-            'width' => $width,
-            'height' => $height,
-            'wrappingStyle' => 'infront',
-            'posHorizontal' => 'absolute',
+            'width' => $widthPt,
+            'height' => $heightPt,
+            'positioning' => 'absolute',
             'posHorizontalRel' => 'page',
-            'posVertical' => 'absolute',
             'posVerticalRel' => 'page',
-            'horzAnchor' => 'page',
-            'vertAnchor' => 'page',
-            'marginLeft' => $x,
-            'marginTop' => $y,
+            'marginLeft' => $xPt,
+            'marginTop' => $yPt,
+            'wrappingStyle' => 'infront',
             'borderSize' => isset($style['borderWidth']) && (int) $style['borderWidth'] > 0
                 ? (int) $style['borderWidth'] * self::PT_TO_HALF_PT
                 : 0,
@@ -137,7 +138,7 @@ class DocxPdfTemplateWriter
         }
     }
 
-    private function renderImageElement($section, array $element, int $x, int $y, int $width, int $height): void
+    private function renderImageElement($section, array $element, int $x, int $y): void
     {
         $images = $element['resolvedImages'] ?? [];
         if (empty($images)) {
@@ -150,23 +151,42 @@ class DocxPdfTemplateWriter
             }
 
             try {
+                // Calculate contain dimensions: fit image within element bounds preserving aspect ratio
+                $imgSize = @getimagesize($imgPath);
+                $boxW = max(1, ($element['width'] ?? 40) * (96 / 25.4));
+                $boxH = max(1, ($element['height'] ?? 40) * (96 / 25.4));
+
+                if ($imgSize && $imgSize[0] > 0 && $imgSize[1] > 0) {
+                    $imgAspect = $imgSize[0] / $imgSize[1];
+                    $boxAspect = $boxW / $boxH;
+
+                    if ($imgAspect > $boxAspect) {
+                        $renderW = $boxW;
+                        $renderH = $boxW / $imgAspect;
+                    } else {
+                        $renderH = $boxH;
+                        $renderW = $boxH * $imgAspect;
+                    }
+                } else {
+                    $renderW = $boxW;
+                    $renderH = $boxH;
+                }
+
                 $section->addImage($imgPath, [
-                    'width' => ($element['width'] ?? 40) * (96 / 25.4),
-                    'height' => ($element['height'] ?? 40) * (96 / 25.4),
+                    'width' => $renderW,
+                    'height' => $renderH,
                     'positioning' => 'absolute',
-                    'posHorizontal' => 'absolute',
                     'posHorizontalRel' => 'page',
-                    'posVertical' => 'absolute',
                     'posVerticalRel' => 'page',
                     'marginLeft' => $x,
                     'marginTop' => $y,
                     'wrappingStyle' => 'infront',
                 ]);
-            } catch (\Exception $e) {
-                // Skip images that can't be loaded
-            }
 
-            break; // Only render first image per element
+                break; // Only render first valid image per element
+            } catch (\Exception $e) {
+                \Log::warning('DOCX image render failed', ['path' => $imgPath, 'error' => $e->getMessage()]);
+            }
         }
     }
 

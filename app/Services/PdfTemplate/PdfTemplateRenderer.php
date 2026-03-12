@@ -102,7 +102,16 @@ class PdfTemplateRenderer
             }
         }
 
-        return array_merge($element, ['resolvedImages' => $images]);
+        // Build browser-accessible URLs for canvas preview
+        $imageUrls = [];
+        foreach ($images as $filePath) {
+            $publicPrefix = storage_path('app/public/');
+            if (str_starts_with($filePath, $publicPrefix)) {
+                $imageUrls[] = '/storage/' . substr($filePath, strlen($publicPrefix));
+            }
+        }
+
+        return array_merge($element, ['resolvedImages' => $images, 'imageUrls' => $imageUrls]);
     }
 
     private function resolveTextElement(array $element, Product $product, string $language): array

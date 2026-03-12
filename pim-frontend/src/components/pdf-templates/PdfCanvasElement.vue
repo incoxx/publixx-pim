@@ -65,10 +65,8 @@ const previewImageUrl = computed(() => {
   const el = props.element
   if (el.type !== 'image') return null
   const resolved = store.getResolvedElement(el.id)
-  if (resolved?.resolvedImages?.length > 0) {
-    // Return first image — backend returns file paths, but for canvas preview we'd need URLs
-    // For now, we show a placeholder indicating an image was found
-    return true
+  if (resolved?.imageUrls?.length > 0) {
+    return resolved.imageUrls[0]
   }
   return null
 })
@@ -167,9 +165,7 @@ function onResizeStart(e, handle) {
     <div class="w-full h-full overflow-hidden" :class="element.type === 'image' ? 'flex items-center justify-center' : ''">
       <template v-if="element.type === 'image'">
         <template v-if="previewImageUrl">
-          <div class="w-full h-full flex items-center justify-center bg-[var(--color-bg)] text-[var(--color-text-tertiary)] text-[10px]">
-            [Bild]
-          </div>
+          <img :src="previewImageUrl" class="w-full h-full" style="object-fit: contain;" />
         </template>
         <template v-else>
           <Image class="w-1/3 h-1/3 text-[var(--color-text-tertiary)] opacity-40" :stroke-width="1" />
