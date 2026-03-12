@@ -199,6 +199,7 @@ export const usePdfTemplateDesignerStore = defineStore('pdfTemplateDesigner', ()
         referenceProductId.value,
       )
       resolvedElements.value = data.data || data
+      autofitAllElements()
     } catch (e) {
       resolvedElements.value = []
     } finally {
@@ -219,6 +220,55 @@ export const usePdfTemplateDesignerStore = defineStore('pdfTemplateDesigner', ()
     return resolvedElements.value.find(e => e.id === elementId) || null
   }
 
+  /**
+   * Measure text content and return optimal height in mm.
+   * Uses an offscreen DOM element for accurate measurement.
+   */
+  function measureElementHeight(element, displayValue) {
+    if (!displayValue) return null
+    const s = element.style || {}
+    const pxPerMm = 96 / 25.4
+    const widthPx = (element.width || 50) * pxPerMm
+    const paddingPx = (s.padding || 0) * pxPerMm
+
+    const measure = document.createElement('div')
+    measure.style.cssText = `
+      position: absolute; left: -9999px; top: -9999px; visibility: hidden;
+      width: ${widthPx - paddingPx * 2}px;
+      padding: ${paddingPx}px;
+      font-family: ${s.fontFamily || 'DejaVu Sans'}, sans-serif;
+      font-size: ${s.fontSize || 10}pt;
+      font-weight: ${s.fontWeight || 'normal'};
+      font-style: ${s.fontStyle || 'normal'};
+      line-height: ${s.lineHeight || 'normal'};
+      word-wrap: break-word;
+      white-space: pre-wrap;
+    `
+    measure.textContent = displayValue
+    document.body.appendChild(measure)
+    const heightPx = measure.offsetHeight + paddingPx * 2
+    document.body.removeChild(measure)
+
+    return Math.max(5, Math.ceil(heightPx / pxPerMm))
+  }
+
+  /**
+   * Auto-fit heights of all text/field/attribute elements based on resolved content.
+   */
+  function autofitAllElements() {
+    if (!resolvedElements.value.length) return
+    for (const el of templateJson.value.elements) {
+      if (el.type === 'shape' || el.type === 'image') continue
+      const resolved = getResolvedElement(el.id)
+      if (!resolved?.displayValue) continue
+      const optimalHeight = measureElementHeight(el, resolved.displayValue)
+      if (optimalHeight !== null && optimalHeight !== el.height) {
+        el.height = optimalHeight
+        isDirty.value = true
+      }
+    }
+  }
+
   return {
     templates, loading, currentTemplate, templateJson,
     availableFields, fieldsLoading,
@@ -233,6 +283,7 @@ export const usePdfTemplateDesignerStore = defineStore('pdfTemplateDesigner', ()
     bringToFront, sendToBack,
     snapValue, getDefaultFontFamily,
     setReferenceProduct, loadPreview, togglePreviewMode, getResolvedElement,
+    measureElementHeight, autofitAllElements,
   }
 })
 

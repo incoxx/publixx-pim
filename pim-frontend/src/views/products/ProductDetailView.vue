@@ -1527,6 +1527,14 @@ watch(() => route.params.id, async (newId, oldId) => {
         </template>
       </div>
       <button
+        v-if="product"
+        class="pim-btn pim-btn-secondary text-xs"
+        @click="showPdfTemplatePicker = true"
+      >
+        <FileText class="w-4 h-4" :stroke-width="1.75" />
+        <span class="hidden sm:inline">PDF-Vorlage</span>
+      </button>
+      <button
         v-if="authStore.hasPermission('products.create') && product && product.product_type_ref !== 'variant'"
         class="pim-btn pim-btn-secondary text-xs"
         @click="showCopyDialog = true"
