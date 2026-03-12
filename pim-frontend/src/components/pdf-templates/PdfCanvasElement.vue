@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { usePdfTemplateDesignerStore } from '@/stores/pdfTemplateDesigner'
-import { Type, Hash, Tag, Image, Square } from 'lucide-vue-next'
+import { Type, Hash, Tag, Image, Square, Table2 } from 'lucide-vue-next'
 
 const props = defineProps({
   element: { type: Object, required: true },
@@ -60,6 +60,41 @@ const displayContent = computed(() => {
   return ''
 })
 
+const variantTableData = computed(() => {
+  const el = props.element
+  if (el.type !== 'variant_table') return null
+
+  // Preview mode: real data
+  if (store.previewMode && store.resolvedElements.length > 0) {
+    const resolved = store.getResolvedElement(el.id)
+    if (resolved?.variantTableData) return resolved.variantTableData
+  }
+
+  // Design mode: placeholder
+  const columns = el.columns || ['sku', 'name', 'variant_attributes']
+  const headers = []
+  if (columns.includes('sku')) headers.push('SKU')
+  if (columns.includes('name')) headers.push('Name')
+  if (columns.includes('variant_attributes')) {
+    headers.push('Attribut 1', 'Attribut 2')
+  }
+
+  const rows = [
+    headers.map((_, i) => {
+      if (i === 0 && columns.includes('sku')) return 'VAR-001'
+      if ((i === 0 && !columns.includes('sku')) || (i === 1 && columns.includes('sku'))) return 'Variante 1'
+      return 'Wert'
+    }),
+    headers.map((_, i) => {
+      if (i === 0 && columns.includes('sku')) return 'VAR-002'
+      if ((i === 0 && !columns.includes('sku')) || (i === 1 && columns.includes('sku'))) return 'Variante 2'
+      return 'Wert'
+    }),
+  ]
+
+  return { headers, rows }
+})
+
 const previewImageUrl = computed(() => {
   if (!store.previewMode || !store.resolvedElements.length) return null
   const el = props.element
@@ -72,7 +107,7 @@ const previewImageUrl = computed(() => {
 })
 
 const typeIcon = computed(() => {
-  const icons = { text: Type, field: Hash, attribute: Tag, image: Image, shape: Square }
+  const icons = { text: Type, field: Hash, attribute: Tag, image: Image, shape: Square, variant_table: Table2 }
   return icons[props.element.type] || Type
 })
 
@@ -171,6 +206,49 @@ function onResizeStart(e, handle) {
           <Image class="w-1/3 h-1/3 text-[var(--color-text-tertiary)] opacity-40" :stroke-width="1" />
         </template>
       </template>
+      <template v-else-if="element.type === 'variant_table' && variantTableData">
+        <table
+          :style="{
+            width: '100%',
+            borderCollapse: 'collapse',
+            fontSize: ((element.tableStyle?.fontSize || 8) * (25.4 / 72) * scale) + 'px',
+            tableLayout: 'auto',
+          }"
+        >
+          <thead>
+            <tr :style="{ background: element.tableStyle?.headerBg || '#f3f4f6', color: element.tableStyle?.headerColor || '#374151' }">
+              <th
+                v-for="(h, hi) in variantTableData.headers"
+                :key="hi"
+                :style="{
+                  border: '1px solid ' + (element.tableStyle?.borderColor || '#e5e7eb'),
+                  padding: (1 * scale) + 'px ' + (2 * scale) + 'px',
+                  textAlign: 'left',
+                  fontWeight: 'bold',
+                  fontSize: ((element.tableStyle?.headerFontSize || 8) * (25.4 / 72) * scale) + 'px',
+                  whiteSpace: 'nowrap',
+                }"
+              >{{ h }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="(row, ri) in variantTableData.rows"
+              :key="ri"
+              :style="{ background: ri % 2 === 1 ? (element.tableStyle?.alternateRowBg || '#f9fafb') : 'transparent' }"
+            >
+              <td
+                v-for="(cell, ci) in row"
+                :key="ci"
+                :style="{
+                  border: '1px solid ' + (element.tableStyle?.borderColor || '#e5e7eb'),
+                  padding: (1 * scale) + 'px ' + (2 * scale) + 'px',
+                }"
+              >{{ cell }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </template>
       <template v-else-if="element.type === 'shape'">
         <!-- Shape: purely visual box, content comes from background/border -->
       </template>
@@ -184,7 +262,7 @@ function onResizeStart(e, handle) {
       v-if="selected && !store.previewMode"
       class="absolute -top-4 left-0 text-[8px] font-medium px-1 py-0.5 rounded bg-[var(--color-accent)] text-white whitespace-nowrap"
     >
-      {{ { text: 'Text', field: 'Feld', attribute: 'Attribut', image: 'Bild', shape: 'Form' }[element.type] || element.type }}
+      {{ { text: 'Text', field: 'Feld', attribute: 'Attribut', image: 'Bild', shape: 'Form', variant_table: 'Varianten' }[element.type] || element.type }}
     </div>
 
     <!-- Resize handles (only when selected and not in preview mode) -->

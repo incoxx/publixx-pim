@@ -2,7 +2,7 @@
 import { ref, computed } from 'vue'
 import { usePdfTemplateDesignerStore } from '@/stores/pdfTemplateDesigner'
 import {
-  Type, Hash, Tag, Image, Square, GripVertical, Search,
+  Type, Hash, Tag, Image, Square, Table2, GripVertical, Search,
 } from 'lucide-vue-next'
 
 const store = usePdfTemplateDesignerStore()
@@ -31,7 +31,7 @@ const attributesByGroup = computed(() => {
 })
 
 function getIcon(type) {
-  const icons = { text: Type, image: Image, shape: Square }
+  const icons = { text: Type, image: Image, shape: Square, variant_table: Table2 }
   return icons[type] || Tag
 }
 

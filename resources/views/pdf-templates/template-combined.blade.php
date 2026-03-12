@@ -69,7 +69,27 @@
                 @endphp
 
                 <div class="element" style="{{ $css }}">
-                    @if (($el['type'] ?? '') === 'image' && !empty($el['resolvedImages']))
+                    @if (($el['type'] ?? '') === 'variant_table' && !empty($el['variantTableData']))
+                        @php $tStyle = $el['tableStyle'] ?? []; $tData = $el['variantTableData']; @endphp
+                        <table style="width:100%; border-collapse:collapse; font-size:{{ $tStyle['fontSize'] ?? 8 }}pt; font-family: inherit;">
+                            <thead>
+                                <tr style="background:{{ e($tStyle['headerBg'] ?? '#f3f4f6') }}; color:{{ e($tStyle['headerColor'] ?? '#374151') }};">
+                                    @foreach ($tData['headers'] as $h)
+                                        <th style="border:1px solid {{ e($tStyle['borderColor'] ?? '#e5e7eb') }}; padding:1mm 2mm; text-align:left; font-size:{{ $tStyle['headerFontSize'] ?? 8 }}pt;">{{ e($h) }}</th>
+                                    @endforeach
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach ($tData['rows'] as $ri => $row)
+                                    <tr @if ($ri % 2 === 1) style="background:{{ e($tStyle['alternateRowBg'] ?? '#f9fafb') }};" @endif>
+                                        @foreach ($row as $cell)
+                                            <td style="border:1px solid {{ e($tStyle['borderColor'] ?? '#e5e7eb') }}; padding:1mm 2mm;">{{ e($cell) }}</td>
+                                        @endforeach
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    @elseif (($el['type'] ?? '') === 'image' && !empty($el['resolvedImages']))
                         @foreach ($el['resolvedImages'] as $imgPath)
                             @if (file_exists($imgPath))
                                 <img src="{{ $imgPath }}" style="max-width: 100%; max-height: 100%; object-fit: contain;" />

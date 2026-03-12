@@ -148,6 +148,23 @@ function getElementDefaults(item) {
       style: { ...base.style, backgroundColor: '#f3f4f6', borderWidth: 1, borderColor: '#d1d5db', padding: 0 },
     }
   }
+  if (item.type === 'variant_table') {
+    return {
+      ...base,
+      width: 190,
+      height: 60,
+      columns: ['sku', 'name', 'variant_attributes'],
+      tableStyle: {
+        headerBg: '#f3f4f6',
+        headerColor: '#374151',
+        borderColor: '#e5e7eb',
+        alternateRowBg: '#f9fafb',
+        fontSize: 8,
+        headerFontSize: 8,
+      },
+      style: { ...base.style, padding: 0 },
+    }
+  }
   return base
 }
 
