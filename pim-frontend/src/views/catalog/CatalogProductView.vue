@@ -3,11 +3,13 @@ import { onMounted, computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useCatalogStore } from '@/stores/catalog'
-import { ArrowLeft, Heart, Package, Braces } from 'lucide-vue-next'
+import { ArrowLeft, Heart, Package, Braces, FileDown } from 'lucide-vue-next'
 import CatalogImageGallery from '@/components/catalog/CatalogImageGallery.vue'
 import CatalogProductDescription from '@/components/catalog/CatalogProductDescription.vue'
 import PdfPreview from '@/components/shared/PdfPreview.vue'
 import { formatCompositeSummary } from '@/utils/formatting'
+import catalogApi from '@/api/catalog'
+import { triggerDownload } from '@/utils/download'
 
 const route = useRoute()
 const router = useRouter()
@@ -83,6 +85,21 @@ function getCatalogCompositeSummary(compositeAttr) {
     children: product.value.attributes.filter(a => a.parent_attribute_id === compositeAttr.attribute_id),
     getValue: c => c.value,
   })
+}
+
+const pdfLoading = ref(false)
+
+async function downloadPdf() {
+  if (!product.value) return
+  pdfLoading.value = true
+  try {
+    const resp = await catalogApi.downloadProductPdf(product.value.id, { lang: store.locale })
+    triggerDownload(resp.data, `${product.value.sku || 'product'}.pdf`)
+  } catch (e) {
+    console.error('PDF download failed:', e)
+  } finally {
+    pdfLoading.value = false
+  }
 }
 
 function goBack() {
@@ -184,6 +201,7 @@ onMounted(() => {
               {{ inWishlist ? t('catalog.removeFromWishlist') : t('catalog.addToWishlist') }}
             </button>
             <a :href="store.productJsonUrl(product.id)" target="_blank" class="btn btn-ghost btn-outline gap-1" title="JSON"><Braces class="w-4 h-4" /> JSON</a>
+            <button v-if="store.themeSettings.catalog_pdf_enabled" class="btn btn-ghost btn-outline gap-1" :disabled="pdfLoading" @click="downloadPdf" title="PDF"><FileDown class="w-4 h-4" /> {{ pdfLoading ? '...' : 'PDF' }}</button>
           </div>
         </div>
       </div>
@@ -294,6 +312,7 @@ onMounted(() => {
               <Heart class="w-4 h-4" :class="{ 'fill-current': inWishlist }" /> {{ inWishlist ? t('catalog.removeFromWishlist') : t('catalog.addToWishlist') }}
             </button>
             <a :href="store.productJsonUrl(product.id)" target="_blank" class="btn btn-ghost btn-outline gap-1" title="JSON"><Braces class="w-4 h-4" /> JSON</a>
+            <button v-if="store.themeSettings.catalog_pdf_enabled" class="btn btn-ghost btn-outline gap-1" :disabled="pdfLoading" @click="downloadPdf" title="PDF"><FileDown class="w-4 h-4" /> {{ pdfLoading ? '...' : 'PDF' }}</button>
           </div>
         </div>
       </div>

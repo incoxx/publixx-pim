@@ -4,12 +4,20 @@ import { useCatalogStore } from '@/stores/catalog'
 import CatalogHeader from '@/components/catalog/CatalogHeader.vue'
 import CatalogSidebar from '@/components/catalog/CatalogSidebar.vue'
 import CatalogWishlistDrawer from '@/components/catalog/CatalogWishlistDrawer.vue'
+import CatalogCompareModal from '@/components/catalog/CatalogCompareModal.vue'
 import CatalogFooter from '@/components/catalog/CatalogFooter.vue'
 
 const store = useCatalogStore()
 const sidebarOpen = ref(false)
 const wishlistOpen = ref(false)
+const showCompare = ref(false)
+const compareProductIds = ref([])
 const themeRoot = ref(null)
+
+function handleOpenCompare(ids) {
+  compareProductIds.value = ids
+  showCompare.value = true
+}
 
 // Provide wishlist state to child components (Header, WishlistDrawer)
 provide('wishlistOpen', wishlistOpen)
@@ -149,6 +157,7 @@ watchEffect(() => {
 })
 
 onMounted(async () => {
+  store.importWishlistFromUrl()
   await store.fetchThemeSettings()
   store.fetchCategories()
 })
@@ -210,11 +219,18 @@ onUnmounted(() => {
         <div class="absolute inset-0 bg-black/40" @click="wishlistOpen = false"></div>
         <Transition name="wishlist-slide" appear>
           <div class="absolute inset-y-0 right-0 shadow-2xl">
-            <CatalogWishlistDrawer />
+            <CatalogWishlistDrawer @open-compare="handleOpenCompare" />
           </div>
         </Transition>
       </div>
     </Transition>
+
+    <!-- Compare modal -->
+    <CatalogCompareModal
+      :open="showCompare"
+      :product-ids="compareProductIds"
+      @update:open="showCompare = $event"
+    />
   </div>
 </template>
 

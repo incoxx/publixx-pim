@@ -133,6 +133,12 @@ Route::prefix('v1/catalog')->middleware('throttle.pim')->group(function () {
         Route::get('products/{product}/json', [CatalogController::class, 'productJson']);
         Route::get('categories', [CatalogController::class, 'categories']);
         Route::get('facets', [CatalogController::class, 'facets']);
+
+        // PDF, Excel & Compare
+        Route::get('products/{product}/pdf', [CatalogController::class, 'productPdf']);
+        Route::post('wishlist/pdf', [CatalogController::class, 'wishlistPdf']);
+        Route::post('wishlist/excel', [CatalogController::class, 'wishlistExcel']);
+        Route::post('products/compare', [CatalogController::class, 'compareProducts']);
     });
 });
 
