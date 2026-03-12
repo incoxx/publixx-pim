@@ -153,19 +153,17 @@ class DocxPdfTemplateWriter
             try {
                 // Calculate contain dimensions: fit image within element bounds preserving aspect ratio
                 $imgSize = @getimagesize($imgPath);
-                $boxW = ($element['width'] ?? 40) * (96 / 25.4);
-                $boxH = ($element['height'] ?? 40) * (96 / 25.4);
+                $boxW = max(1, ($element['width'] ?? 40) * (96 / 25.4));
+                $boxH = max(1, ($element['height'] ?? 40) * (96 / 25.4));
 
                 if ($imgSize && $imgSize[0] > 0 && $imgSize[1] > 0) {
                     $imgAspect = $imgSize[0] / $imgSize[1];
                     $boxAspect = $boxW / $boxH;
 
                     if ($imgAspect > $boxAspect) {
-                        // Image is wider — fit to width
                         $renderW = $boxW;
                         $renderH = $boxW / $imgAspect;
                     } else {
-                        // Image is taller — fit to height
                         $renderH = $boxH;
                         $renderW = $boxH * $imgAspect;
                     }
@@ -184,11 +182,11 @@ class DocxPdfTemplateWriter
                     'marginTop' => $y,
                     'wrappingStyle' => 'infront',
                 ]);
-            } catch (\Exception $e) {
-                // Skip images that can't be loaded
-            }
 
-            break; // Only render first image per element
+                break; // Only render first valid image per element
+            } catch (\Exception $e) {
+                \Log::warning('DOCX image render failed', ['path' => $imgPath, 'error' => $e->getMessage()]);
+            }
         }
     }
 
