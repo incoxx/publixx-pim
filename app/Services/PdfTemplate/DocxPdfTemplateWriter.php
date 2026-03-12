@@ -12,6 +12,7 @@ use PhpOffice\PhpWord\Style\Image as ImageStyle;
 class DocxPdfTemplateWriter
 {
     private const MM_TO_TWIP = 56.6929;
+    private const MM_TO_PT = 2.834645; // 72 / 25.4
     private const PT_TO_HALF_PT = 2;
 
     /**
@@ -92,13 +93,16 @@ class DocxPdfTemplateWriter
         $type = $element['type'] ?? 'text';
         $style = $element['style'] ?? [];
 
-        $x = (int) round(($element['x'] ?? 0) * self::MM_TO_TWIP);
-        $y = (int) round(($element['y'] ?? 0) * self::MM_TO_TWIP);
-        $width = (int) round(($element['width'] ?? 50) * self::MM_TO_TWIP);
-        $height = (int) round(($element['height'] ?? 10) * self::MM_TO_TWIP);
+        // TextBox uses points (Frame unit='pt'), images use twips for positioning
+        $xPt = round(($element['x'] ?? 0) * self::MM_TO_PT, 1);
+        $yPt = round(($element['y'] ?? 0) * self::MM_TO_PT, 1);
+        $widthPt = round(($element['width'] ?? 50) * self::MM_TO_PT, 1);
+        $heightPt = round(($element['height'] ?? 10) * self::MM_TO_PT, 1);
 
         if ($type === 'image') {
-            $this->renderImageElement($section, $element, $x, $y, $width, $height);
+            $xTwip = (int) round(($element['x'] ?? 0) * self::MM_TO_TWIP);
+            $yTwip = (int) round(($element['y'] ?? 0) * self::MM_TO_TWIP);
+            $this->renderImageElement($section, $element, $xTwip, $yTwip);
             return;
         }
 
@@ -107,16 +111,16 @@ class DocxPdfTemplateWriter
             $displayValue = '';
         }
 
-        // Use textBox with Frame-style absolute positioning
+        // Use textBox with absolute positioning (Frame style, unit = pt)
         $textBox = $section->addTextBox([
-            'width' => $width,
-            'height' => $height,
-            'pos' => 'absolute',
-            'left' => $x,
-            'top' => $y,
-            'hPosRelTo' => 'page',
-            'vPosRelTo' => 'page',
-            'wrap' => 'inFront',
+            'width' => $widthPt,
+            'height' => $heightPt,
+            'positioning' => 'absolute',
+            'posHorizontalRel' => 'page',
+            'posVerticalRel' => 'page',
+            'marginLeft' => $xPt,
+            'marginTop' => $yPt,
+            'wrappingStyle' => 'infront',
             'borderSize' => isset($style['borderWidth']) && (int) $style['borderWidth'] > 0
                 ? (int) $style['borderWidth'] * self::PT_TO_HALF_PT
                 : 0,
@@ -134,7 +138,7 @@ class DocxPdfTemplateWriter
         }
     }
 
-    private function renderImageElement($section, array $element, int $x, int $y, int $width, int $height): void
+    private function renderImageElement($section, array $element, int $x, int $y): void
     {
         $images = $element['resolvedImages'] ?? [];
         if (empty($images)) {
