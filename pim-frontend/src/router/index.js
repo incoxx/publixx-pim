@@ -200,6 +200,18 @@ const routes = [
     meta: { title: 'Benutzer' },
   },
   {
+    path: '/access-links',
+    name: 'access-links',
+    component: () => import('@/views/accessLinks/AccessLinkView.vue'),
+    meta: { title: 'Zugangslinks' },
+  },
+  {
+    path: '/access/:token',
+    name: 'access-redeem',
+    component: () => import('@/views/accessLinks/AccessLinkRedeemView.vue'),
+    meta: { guest: true, title: 'Zugang' },
+  },
+  {
     path: '/settings',
     name: 'settings',
     component: () => import('@/views/settings/SettingsView.vue'),

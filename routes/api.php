@@ -66,6 +66,7 @@ use App\Http\Controllers\Api\V1\SettingController;
 use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\UnitController;
 use App\Http\Controllers\Api\V1\UnitGroupController;
+use App\Http\Controllers\Api\V1\AccessLinkController;
 use App\Http\Controllers\Api\V1\UserController;
 use App\Http\Controllers\Api\V1\ValueListController;
 use App\Http\Controllers\Api\V1\ValueListEntryController;
@@ -150,6 +151,12 @@ Route::prefix('v1/debug')->middleware('throttle.pim')->group(function () {
 });
 
 // =========================================================================
+// Access Link Redeem (public — no auth required)
+// =========================================================================
+Route::post('v1/access-links/redeem/{token}', [AccessLinkController::class, 'redeem'])
+    ->middleware('throttle.pim');
+
+// =========================================================================
 // Agent 2: Auth (authenticated)
 // =========================================================================
 Route::prefix('v1/auth')->middleware(['auth:sanctum', 'throttle.pim'])->group(function () {
@@ -162,6 +169,12 @@ Route::prefix('v1/auth')->middleware(['auth:sanctum', 'throttle.pim'])->group(fu
 // All authenticated routes
 // =========================================================================
 Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(function () {
+
+    // =====================================================================
+    // Access Links (Zugangslink-Generator)
+    // =====================================================================
+    Route::get('access-links/report', [AccessLinkController::class, 'report']);
+    Route::apiResource('access-links', AccessLinkController::class)->except(['show', 'update']);
 
     // =====================================================================
     // Agent 2: User & Role Management
