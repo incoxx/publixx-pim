@@ -539,6 +539,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // =====================================================================
     Route::get('pdf-templates/fields', [PdfTemplateController::class, 'fields']);
     Route::apiResource('pdf-templates', PdfTemplateController::class);
+    Route::post('pdf-templates/{pdf_template}/resolve-preview', [PdfTemplateController::class, 'resolvePreview']);
     Route::post('pdf-templates/{pdf_template}/preview', [PdfTemplateController::class, 'preview']);
     Route::post('pdf-templates/{pdf_template}/execute', [PdfTemplateController::class, 'execute']);
 

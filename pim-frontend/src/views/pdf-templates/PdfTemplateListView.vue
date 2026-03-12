@@ -6,6 +6,7 @@ import {
 } from 'lucide-vue-next'
 import pdfTemplatesApi from '@/api/pdfTemplates'
 import { createEmptyTemplate } from '@/stores/pdfTemplateDesigner'
+import { fontFamilies, defaultFontFamily } from '@/components/pdf-templates/fontList'
 
 const router = useRouter()
 
@@ -14,6 +15,7 @@ const loading = ref(false)
 const error = ref('')
 const showCreate = ref(false)
 const newName = ref('')
+const newFont = ref(defaultFontFamily)
 
 onMounted(loadTemplates)
 
@@ -34,7 +36,7 @@ async function createTemplate() {
   try {
     const { data } = await pdfTemplatesApi.create({
       name: newName.value.trim(),
-      template_json: createEmptyTemplate(),
+      template_json: createEmptyTemplate(newFont.value),
     })
     const tmpl = data.data || data
     router.push(`/pdf-templates/${tmpl.id}`)
@@ -93,6 +95,12 @@ async function duplicateTemplate(tmpl) {
           @keyup.enter="createTemplate"
           autofocus
         />
+      </div>
+      <div class="w-44">
+        <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Standard-Schriftart</label>
+        <select v-model="newFont" class="pim-input text-xs w-full">
+          <option v-for="f in fontFamilies" :key="f.value" :value="f.value">{{ f.label }}</option>
+        </select>
       </div>
       <button class="pim-btn pim-btn-primary text-xs" @click="createTemplate" :disabled="!newName.trim()">
         Erstellen & Bearbeiten

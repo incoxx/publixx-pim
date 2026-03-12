@@ -3,6 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <style>
+        @font-face { font-family: 'Noto Sans'; src: url('{{ storage_path('fonts/NotoSans-Regular.ttf') }}') format('truetype'); font-weight: normal; font-style: normal; }
+        @font-face { font-family: 'Noto Sans'; src: url('{{ storage_path('fonts/NotoSans-Bold.ttf') }}') format('truetype'); font-weight: bold; font-style: normal; }
+        @font-face { font-family: 'Noto Sans'; src: url('{{ storage_path('fonts/NotoSans-Italic.ttf') }}') format('truetype'); font-weight: normal; font-style: italic; }
+        @font-face { font-family: 'Noto Sans'; src: url('{{ storage_path('fonts/NotoSans-BoldItalic.ttf') }}') format('truetype'); font-weight: bold; font-style: italic; }
+        @font-face { font-family: 'Noto Serif'; src: url('{{ storage_path('fonts/NotoSerif-Regular.ttf') }}') format('truetype'); font-weight: normal; font-style: normal; }
+        @font-face { font-family: 'Noto Serif'; src: url('{{ storage_path('fonts/NotoSerif-Bold.ttf') }}') format('truetype'); font-weight: bold; font-style: normal; }
+        @font-face { font-family: 'Noto Serif'; src: url('{{ storage_path('fonts/NotoSerif-Italic.ttf') }}') format('truetype'); font-weight: normal; font-style: italic; }
+        @font-face { font-family: 'Noto Serif'; src: url('{{ storage_path('fonts/NotoSerif-BoldItalic.ttf') }}') format('truetype'); font-weight: bold; font-style: italic; }
+        @font-face { font-family: 'Roboto'; src: url('{{ storage_path('fonts/Roboto-Regular.ttf') }}') format('truetype'); font-weight: normal; font-style: normal; }
+        @font-face { font-family: 'Open Sans'; src: url('{{ storage_path('fonts/OpenSans-Regular.ttf') }}') format('truetype'); font-weight: normal; font-style: normal; }
+        @font-face { font-family: 'Open Sans'; src: url('{{ storage_path('fonts/OpenSans-Italic.ttf') }}') format('truetype'); font-weight: normal; font-style: italic; }
+        @font-face { font-family: 'Lato'; src: url('{{ storage_path('fonts/Lato-Regular.ttf') }}') format('truetype'); font-weight: normal; font-style: normal; }
+        @font-face { font-family: 'Lato'; src: url('{{ storage_path('fonts/Lato-Bold.ttf') }}') format('truetype'); font-weight: bold; font-style: normal; }
+        @font-face { font-family: 'Lato'; src: url('{{ storage_path('fonts/Lato-Italic.ttf') }}') format('truetype'); font-weight: normal; font-style: italic; }
+        @font-face { font-family: 'Lato'; src: url('{{ storage_path('fonts/Lato-BoldItalic.ttf') }}') format('truetype'); font-weight: bold; font-style: italic; }
+        @font-face { font-family: 'Source Sans 3'; src: url('{{ storage_path('fonts/SourceSans3-Regular.ttf') }}') format('truetype'); font-weight: normal; font-style: normal; }
+        @font-face { font-family: 'Source Sans 3'; src: url('{{ storage_path('fonts/SourceSans3-Italic.ttf') }}') format('truetype'); font-weight: normal; font-style: italic; }
+
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: DejaVu Sans, sans-serif; }
         .page {
