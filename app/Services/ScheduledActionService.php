@@ -17,11 +17,23 @@ class ScheduledActionService
 {
     public function executeDueActions(): array
     {
+        // Atomic claim: only pick up actions still in 'pending' state to prevent double processing
         $actions = ScheduledAction::due()->get();
         $activated = 0;
         $failed = 0;
 
         foreach ($actions as $action) {
+            // Atomic status transition: only process if still pending (prevents race conditions)
+            $claimed = ScheduledAction::where('id', $action->id)
+                ->where('status', 'pending')
+                ->update(['status' => 'processing']);
+
+            if ($claimed === 0) {
+                continue; // Already claimed by another process
+            }
+
+            $action->refresh();
+
             try {
                 $this->executeAction($action);
                 $activated++;
@@ -39,7 +51,9 @@ class ScheduledActionService
 
     public function executeAction(ScheduledAction $action): void
     {
-        $action->update(['status' => 'processing']);
+        if ($action->status !== 'processing') {
+            $action->update(['status' => 'processing']);
+        }
 
         try {
             match ($action->action_type) {
@@ -53,7 +67,6 @@ class ScheduledActionService
             $action->update([
                 'status' => 'completed',
                 'executed_at' => now(),
-                'result_message' => 'Erfolgreich ausgeführt',
             ]);
         } catch (\Throwable $e) {
             $action->update([
@@ -133,9 +146,9 @@ class ScheduledActionService
                         [
                             'value_string' => $attrData['value_string'] ?? null,
                             'value_number' => $attrData['value_number'] ?? null,
-                            'value_boolean' => $attrData['value_boolean'] ?? null,
+                            'value_flag' => $attrData['value_flag'] ?? null,
                             'value_date' => $attrData['value_date'] ?? null,
-                            'value_list_entry_id' => $attrData['value_list_entry_id'] ?? null,
+                            'value_selection_id' => $attrData['value_selection_id'] ?? null,
                         ]
                     );
                 }

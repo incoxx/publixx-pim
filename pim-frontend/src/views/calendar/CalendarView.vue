@@ -3,6 +3,7 @@ import { ref, onMounted, watch } from 'vue'
 import { Plus, Calendar, CalendarDays, CalendarClock } from 'lucide-vue-next'
 import calendarApi from '@/api/calendar'
 import scheduledActionsApi from '@/api/scheduledActions'
+import exportJobsApi from '@/api/exportJobs'
 import PimCalendar from '@/components/calendar/PimCalendar.vue'
 import ScheduledActionDialog from '@/components/calendar/ScheduledActionDialog.vue'
 
@@ -61,7 +62,7 @@ async function loadEvents() {
 
 async function loadExportJobs() {
   try {
-    const { data } = await (await import('@/api/exportJobs')).default.list()
+    const { data } = await exportJobsApi.list()
     exportJobs.value = data.data || data || []
   } catch { /* ignore */ }
 }

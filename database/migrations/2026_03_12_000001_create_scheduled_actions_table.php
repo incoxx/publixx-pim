@@ -32,6 +32,7 @@ return new class extends Migration
             $table->index('action_type');
             $table->foreign('product_id')->references('id')->on('products')->nullOnDelete();
             $table->foreign('created_by')->references('id')->on('users')->nullOnDelete();
+            $table->foreign('updated_by')->references('id')->on('users')->nullOnDelete();
         });
     }
 

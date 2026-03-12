@@ -97,7 +97,7 @@ async function searchProducts() {
   clearTimeout(searchTimeout.value)
   searchTimeout.value = setTimeout(async () => {
     try {
-      const { data } = await productsApi.index({ search: productSearch.value, perPage: 10 })
+      const { data } = await productsApi.list({ search: productSearch.value, perPage: 10 })
       productResults.value = data.data || data || []
     } catch { productResults.value = [] }
   }, 300)
