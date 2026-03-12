@@ -1130,7 +1130,10 @@ class CatalogController extends BaseController
 
         $result = $pdfTemplateService->generateForProducts($template, $products, 'combined', $lang);
 
-        return response($result['content'], 200, [
+        $content = file_get_contents($result['path']);
+        @unlink($result['path']);
+
+        return response($content, 200, [
             'Content-Type' => 'application/pdf',
             'Content-Disposition' => 'attachment; filename="merkliste-' . now()->format('Y-m-d') . '.pdf"',
         ]);
@@ -1254,7 +1257,13 @@ class CatalogController extends BaseController
         }
 
         // Merge all attribute IDs
-        $allAttrIds = array_unique(array_merge(...array_map('array_keys', $productMaps)));
+        $allAttrKeys = [];
+        foreach ($productMaps as $map) {
+            foreach (array_keys($map) as $k) {
+                $allAttrKeys[$k] = true;
+            }
+        }
+        $allAttrIds = array_keys($allAttrKeys);
 
         $rows = [];
 
