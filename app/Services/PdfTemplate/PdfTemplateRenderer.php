@@ -131,7 +131,7 @@ class PdfTemplateRenderer
     private function getMediaPath($media): string
     {
         $disk = $media->disk ?? 'public';
-        $path = $media->path ?? '';
+        $path = $media->file_path ?? '';
 
         if ($disk === 'public') {
             return storage_path('app/public/' . $path);
