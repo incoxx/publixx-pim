@@ -35,32 +35,10 @@ function autofitHeight() {
   const resolved = store.getResolvedElement(sel.value.id)
   if (!resolved || !resolved.displayValue) return
 
-  const s = sel.value.style || {}
-  const pxPerMm = 96 / 25.4
-  const widthPx = (sel.value.width || 50) * pxPerMm
-  const paddingPx = (s.padding || 0) * pxPerMm
-
-  // Create an offscreen measurement element
-  const measure = document.createElement('div')
-  measure.style.cssText = `
-    position: absolute; left: -9999px; top: -9999px; visibility: hidden;
-    width: ${widthPx - paddingPx * 2}px;
-    padding: ${paddingPx}px;
-    font-family: ${s.fontFamily || 'DejaVu Sans'}, sans-serif;
-    font-size: ${s.fontSize || 10}pt;
-    font-weight: ${s.fontWeight || 'normal'};
-    font-style: ${s.fontStyle || 'normal'};
-    line-height: ${s.lineHeight || 'normal'};
-    word-wrap: break-word;
-    white-space: pre-wrap;
-  `
-  measure.textContent = resolved.displayValue
-  document.body.appendChild(measure)
-  const heightPx = measure.offsetHeight + paddingPx * 2
-  document.body.removeChild(measure)
-
-  const heightMm = Math.ceil(heightPx / pxPerMm)
-  updateNumber('height', Math.max(5, heightMm))
+  const heightMm = store.measureElementHeight(sel.value, resolved.displayValue)
+  if (heightMm !== null) {
+    updateNumber('height', heightMm)
+  }
 }
 
 const typeLabels = {
