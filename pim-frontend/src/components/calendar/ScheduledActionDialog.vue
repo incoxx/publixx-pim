@@ -41,7 +41,7 @@ const ACTION_TYPES = [
 ]
 
 const needsProduct = computed(() => {
-  return ['activate_product', 'deactivate_product', 'price_change', 'data_change'].includes(form.value.action_type)
+  return !props.initialProductId && ['activate_product', 'deactivate_product', 'price_change', 'data_change'].includes(form.value.action_type)
 })
 
 const isEdit = computed(() => !!props.editAction)
@@ -67,7 +67,7 @@ watch(() => props.visible, (val) => {
         scheduled_at: props.initialDate ? `${props.initialDate}T09:00` : '',
         product_id: props.initialProductId || null,
         product_ids: [],
-        payload: {},
+        payload: { target_status: 'active' },
         color: null,
       }
       selectedProductName.value = ''
@@ -143,8 +143,8 @@ async function save() {
 <template>
   <Teleport to="body">
     <div v-if="visible" class="fixed inset-0 z-50 flex items-center justify-center">
-      <div class="absolute inset-0 bg-black/40" @click="emit('close')"></div>
-      <div class="relative bg-[var(--color-bg-primary)] rounded-lg shadow-xl border border-[var(--color-border)] w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+      <div class="absolute inset-0 bg-black/40"></div>
+      <div class="relative bg-[var(--color-bg-primary,#ffffff)] rounded-lg shadow-xl border border-[var(--color-border)] w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
         <!-- Header -->
         <div class="flex items-center justify-between p-4 border-b border-[var(--color-border)]">
           <h3 class="text-sm font-semibold text-[var(--color-text-primary)]">{{ dialogTitle }}</h3>

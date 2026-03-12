@@ -49,7 +49,7 @@ class ScheduledActionController extends Controller
             'product_id' => 'sometimes|string|nullable|exists:products,id',
             'product_ids' => 'sometimes|array|nullable|max:100',
             'product_ids.*' => 'string|exists:products,id',
-            'payload' => 'required|array',
+            'payload' => 'present|array',
             'color' => 'sometimes|string|nullable|max:20',
             ...$this->payloadRules($request->input('action_type')),
         ]);
