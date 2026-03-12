@@ -25,7 +25,7 @@ const style = computed(() => {
     width: (el.width || 50) * props.scale + 'px',
     height: (el.height || 10) * props.scale + 'px',
     fontFamily: s.fontFamily || 'DejaVu Sans, sans-serif',
-    fontSize: ((s.fontSize || 10) * props.scale) + 'px',
+    fontSize: ((s.fontSize || 10) * (25.4 / 72) * props.scale) + 'px',
     color: s.color || '#000000',
     fontWeight: s.fontWeight || 'normal',
     fontStyle: s.fontStyle || 'normal',

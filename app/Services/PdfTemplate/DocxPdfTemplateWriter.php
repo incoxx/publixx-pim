@@ -111,6 +111,7 @@ class DocxPdfTemplateWriter
         $textBox = $section->addTextBox([
             'width' => $width,
             'height' => $height,
+            'wrappingStyle' => 'infront',
             'posHorizontal' => 'absolute',
             'posHorizontalRel' => 'page',
             'posVertical' => 'absolute',
