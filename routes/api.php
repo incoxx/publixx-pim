@@ -58,6 +58,7 @@ use App\Http\Controllers\Api\V1\ProductVariantController;
 use App\Http\Controllers\Api\V1\ProductVersionController;
 use App\Http\Controllers\Api\V1\PublixxDatasetController;
 use App\Http\Controllers\Api\V1\PxfTemplateController;
+use App\Http\Controllers\Api\V1\PdfTemplateController;
 use App\Http\Controllers\Api\V1\ReportTemplateController;
 use App\Http\Controllers\Api\V1\RelationTypeController;
 use App\Http\Controllers\Api\V1\ResetDataController;
@@ -437,6 +438,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
         Route::get('export/pdf', [WatchlistController::class, 'exportPdf']);
         Route::get('export/pdf-zip', [WatchlistController::class, 'exportPdfZip']);
         Route::get('export/xliff', [WatchlistController::class, 'exportXliff']);
+        Route::post('export/pdf-template', [WatchlistController::class, 'exportPdfTemplate']);
     });
 
     // =====================================================================
@@ -518,6 +520,14 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::post('report-templates/{report_template}/preview', [ReportTemplateController::class, 'preview']);
     Route::get('report-jobs/{report_job}', [ReportTemplateController::class, 'jobStatus']);
     Route::get('report-jobs/{report_job}/download', [ReportTemplateController::class, 'jobDownload']);
+
+    // =====================================================================
+    // PDF Template Designer
+    // =====================================================================
+    Route::get('pdf-templates/fields', [PdfTemplateController::class, 'fields']);
+    Route::apiResource('pdf-templates', PdfTemplateController::class);
+    Route::post('pdf-templates/{pdf_template}/preview', [PdfTemplateController::class, 'preview']);
+    Route::post('pdf-templates/{pdf_template}/execute', [PdfTemplateController::class, 'execute']);
 
     // =====================================================================
     // PXF Templates
