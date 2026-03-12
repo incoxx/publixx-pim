@@ -3,6 +3,17 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { usePdfTemplateDesignerStore } from '@/stores/pdfTemplateDesigner'
 import PdfCanvasElement from './PdfCanvasElement.vue'
 
+// Load Google Fonts for canvas preview (Roboto, Open Sans, Lato, Noto Sans/Serif, Source Sans 3)
+const googleFontFamilies = ['Roboto', 'Open+Sans', 'Lato', 'Noto+Sans', 'Noto+Serif', 'Source+Sans+3']
+const googleFontsHref = `https://fonts.googleapis.com/css2?${googleFontFamilies.map(f => `family=${f}:ital,wght@0,400;0,700;1,400;1,700`).join('&')}&display=swap`
+if (typeof document !== 'undefined' && !document.querySelector(`link[href*="fonts.googleapis.com"][data-pdf-tpl]`)) {
+  const link = document.createElement('link')
+  link.rel = 'stylesheet'
+  link.href = googleFontsHref
+  link.setAttribute('data-pdf-tpl', '1')
+  document.head.appendChild(link)
+}
+
 const store = usePdfTemplateDesignerStore()
 const canvasContainer = ref(null)
 const containerWidth = ref(600)

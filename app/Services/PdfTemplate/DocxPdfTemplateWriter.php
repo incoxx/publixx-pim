@@ -107,19 +107,16 @@ class DocxPdfTemplateWriter
             $displayValue = '';
         }
 
-        // Use textBox for absolute positioning
+        // Use textBox with Frame-style absolute positioning
         $textBox = $section->addTextBox([
             'width' => $width,
             'height' => $height,
-            'wrappingStyle' => 'infront',
-            'posHorizontal' => 'absolute',
-            'posHorizontalRel' => 'page',
-            'posVertical' => 'absolute',
-            'posVerticalRel' => 'page',
-            'horzAnchor' => 'page',
-            'vertAnchor' => 'page',
-            'marginLeft' => $x,
-            'marginTop' => $y,
+            'pos' => 'absolute',
+            'left' => $x,
+            'top' => $y,
+            'hPosRelTo' => 'page',
+            'vPosRelTo' => 'page',
+            'wrap' => 'inFront',
             'borderSize' => isset($style['borderWidth']) && (int) $style['borderWidth'] > 0
                 ? (int) $style['borderWidth'] * self::PT_TO_HALF_PT
                 : 0,
@@ -150,13 +147,34 @@ class DocxPdfTemplateWriter
             }
 
             try {
+                // Calculate contain dimensions: fit image within element bounds preserving aspect ratio
+                $imgSize = @getimagesize($imgPath);
+                $boxW = ($element['width'] ?? 40) * (96 / 25.4);
+                $boxH = ($element['height'] ?? 40) * (96 / 25.4);
+
+                if ($imgSize && $imgSize[0] > 0 && $imgSize[1] > 0) {
+                    $imgAspect = $imgSize[0] / $imgSize[1];
+                    $boxAspect = $boxW / $boxH;
+
+                    if ($imgAspect > $boxAspect) {
+                        // Image is wider — fit to width
+                        $renderW = $boxW;
+                        $renderH = $boxW / $imgAspect;
+                    } else {
+                        // Image is taller — fit to height
+                        $renderH = $boxH;
+                        $renderW = $boxH * $imgAspect;
+                    }
+                } else {
+                    $renderW = $boxW;
+                    $renderH = $boxH;
+                }
+
                 $section->addImage($imgPath, [
-                    'width' => ($element['width'] ?? 40) * (96 / 25.4),
-                    'height' => ($element['height'] ?? 40) * (96 / 25.4),
+                    'width' => $renderW,
+                    'height' => $renderH,
                     'positioning' => 'absolute',
-                    'posHorizontal' => 'absolute',
                     'posHorizontalRel' => 'page',
-                    'posVertical' => 'absolute',
                     'posVerticalRel' => 'page',
                     'marginLeft' => $x,
                     'marginTop' => $y,
