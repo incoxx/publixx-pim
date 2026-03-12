@@ -1,8 +1,10 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useCatalogStore } from '@/stores/catalog'
-import { Heart, Eye, Package } from 'lucide-vue-next'
+import { Heart, Eye, Package, FileDown } from 'lucide-vue-next'
+import catalogApi from '@/api/catalog'
+import { triggerDownload } from '@/utils/download'
 
 const props = defineProps({
   product: { type: Object, required: true },
@@ -21,9 +23,25 @@ const showSku = computed(() => store.themeSettings.card_show_sku === true)
 const showPrice = computed(() => store.themeSettings.card_show_price !== false)
 const imageRatio = computed(() => store.themeSettings.card_image_ratio || '4/3')
 
+const pdfLoading = ref(false)
+
 function toggleWishlist(e) {
   e.stopPropagation()
   store.toggleWishlist(props.product.id)
+}
+
+async function downloadPdf(e) {
+  e.stopPropagation()
+  if (pdfLoading.value) return
+  pdfLoading.value = true
+  try {
+    const resp = await catalogApi.downloadProductPdf(props.product.id, { lang: store.locale })
+    triggerDownload(resp.data, `${props.product.sku || 'product'}.pdf`)
+  } catch (err) {
+    console.error('PDF download failed:', err)
+  } finally {
+    pdfLoading.value = false
+  }
 }
 
 const formattedPrice = computed(() => {
@@ -55,6 +73,19 @@ const staggerDelay = computed(() => `${Math.min(props.index * 50, 400)}ms`)
       <div v-else class="flex items-center justify-center w-full h-full">
         <Package class="w-12 h-12 text-base-content/15" />
       </div>
+
+      <!-- PDF download button overlay -->
+      <button
+        v-if="store.themeSettings.catalog_pdf_enabled"
+        class="btn btn-circle btn-sm absolute top-2 left-2 bg-base-100/80 backdrop-blur-sm border-0 hover:bg-base-100 shadow-sm"
+        title="PDF"
+        @click="downloadPdf($event)"
+      >
+        <FileDown
+          class="w-4 h-4 transition-all duration-300"
+          :class="pdfLoading ? 'animate-pulse text-primary' : 'text-base-content/40'"
+        />
+      </button>
 
       <!-- Wishlist button overlay -->
       <button

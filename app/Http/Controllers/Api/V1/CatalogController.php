@@ -19,13 +19,21 @@ use App\Models\ProductAttributeValue;
 use App\Models\ProductPrice;
 use App\Models\Setting;
 use App\Models\ValueListEntry;
+use App\Models\PdfTemplate;
 use App\Services\Inheritance\HierarchyInheritanceService;
+use App\Services\PdfTemplate\PdfTemplateService;
+use App\Services\Preview\ProductPreviewService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller as BaseController;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class CatalogController extends BaseController
 {
@@ -1044,5 +1052,272 @@ class CatalogController extends BaseController
         }
 
         $product->setRelation('attributeValues', $merged->values());
+    }
+
+    // ── Catalog PDF / Export / Compare ──────────────────────────────────
+
+    /**
+     * GET /api/v1/catalog/products/{product}/pdf
+     *
+     * Generate a PDF for a single product using the configured template.
+     */
+    public function productPdf(string $productId, PdfTemplateService $pdfTemplateService): \Illuminate\Http\Response|JsonResponse
+    {
+        $themePayload = Setting::getPayload('catalog_theme') ?? [];
+
+        if (empty($themePayload['catalog_pdf_enabled'])) {
+            return response()->json(['message' => 'PDF-Download ist nicht aktiviert.'], 403);
+        }
+
+        $templateId = $themePayload['catalog_pdf_template_id'] ?? null;
+        if (!$templateId) {
+            return response()->json(['message' => 'Keine PDF-Vorlage konfiguriert.'], 422);
+        }
+
+        $template = PdfTemplate::find($templateId);
+        if (!$template) {
+            return response()->json(['message' => 'PDF-Vorlage nicht gefunden.'], 404);
+        }
+
+        $product = Product::where('status', 'active')->findOrFail($productId);
+        $lang = request()->query('lang', 'de');
+
+        $pdfContent = $pdfTemplateService->generateForProduct($template, $product, $lang);
+
+        return response($pdfContent, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="' . ($product->sku ?? $product->id) . '.pdf"',
+        ]);
+    }
+
+    /**
+     * POST /api/v1/catalog/wishlist/pdf
+     *
+     * Generate a combined PDF for multiple products (client-side wishlist).
+     */
+    public function wishlistPdf(Request $request, PdfTemplateService $pdfTemplateService): \Illuminate\Http\Response|JsonResponse
+    {
+        $themePayload = Setting::getPayload('catalog_theme') ?? [];
+
+        if (empty($themePayload['catalog_pdf_enabled'])) {
+            return response()->json(['message' => 'PDF-Download ist nicht aktiviert.'], 403);
+        }
+
+        $templateId = $themePayload['catalog_pdf_template_id'] ?? null;
+        if (!$templateId) {
+            return response()->json(['message' => 'Keine PDF-Vorlage konfiguriert.'], 422);
+        }
+
+        $validated = $request->validate([
+            'product_ids' => 'required|array|min:1|max:50',
+            'product_ids.*' => 'required|string',
+            'lang' => 'sometimes|string|max:5',
+        ]);
+
+        $template = PdfTemplate::find($templateId);
+        if (!$template) {
+            return response()->json(['message' => 'PDF-Vorlage nicht gefunden.'], 404);
+        }
+
+        $lang = $validated['lang'] ?? 'de';
+        $products = Product::where('status', 'active')
+            ->whereIn('id', $validated['product_ids'])
+            ->get();
+
+        if ($products->isEmpty()) {
+            return response()->json(['message' => 'Keine Produkte gefunden.'], 404);
+        }
+
+        $result = $pdfTemplateService->generateForProducts($template, $products, 'combined', $lang);
+
+        return response($result['content'], 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="merkliste-' . now()->format('Y-m-d') . '.pdf"',
+        ]);
+    }
+
+    /**
+     * POST /api/v1/catalog/wishlist/excel
+     *
+     * Generate an Excel export for multiple products (client-side wishlist).
+     */
+    public function wishlistExcel(Request $request): StreamedResponse|JsonResponse
+    {
+        $themePayload = Setting::getPayload('catalog_theme') ?? [];
+
+        if (empty($themePayload['catalog_excel_export_enabled'])) {
+            return response()->json(['message' => 'Excel-Export ist nicht aktiviert.'], 403);
+        }
+
+        $validated = $request->validate([
+            'product_ids' => 'required|array|min:1|max:50',
+            'product_ids.*' => 'required|string',
+        ]);
+
+        $products = Product::where('status', 'active')
+            ->with('productType')
+            ->whereIn('id', $validated['product_ids'])
+            ->get();
+
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Merkliste');
+
+        $headerStyle = [
+            'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '2563EB']],
+        ];
+
+        $sheet->setCellValue('A1', 'SKU');
+        $sheet->setCellValue('B1', 'Name');
+        $sheet->setCellValue('C1', 'Status');
+        $sheet->setCellValue('D1', 'Produkttyp');
+        $sheet->setCellValue('E1', 'EAN');
+        $sheet->getStyle('A1:E1')->applyFromArray($headerStyle);
+
+        $row = 2;
+        foreach ($products as $p) {
+            $sheet->setCellValue("A{$row}", $p->sku ?? '-');
+            $sheet->setCellValue("B{$row}", $p->name ?? '-');
+            $sheet->setCellValue("C{$row}", $p->status ?? '-');
+            $sheet->setCellValue("D{$row}", $p->productType?->name_de ?? '-');
+            $sheet->setCellValue("E{$row}", $p->ean ?? '-');
+            $row++;
+        }
+
+        foreach (['A', 'B', 'C', 'D', 'E'] as $col) {
+            $sheet->getColumnDimension($col)->setAutoSize(true);
+        }
+
+        return response()->streamDownload(function () use ($spreadsheet) {
+            $writer = new Xlsx($spreadsheet);
+            $writer->save('php://output');
+        }, 'merkliste-' . now()->format('Y-m-d') . '.xlsx', [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
+    }
+
+    /**
+     * POST /api/v1/catalog/products/compare
+     *
+     * Compare 2-3 products across all attributes.
+     */
+    public function compareProducts(Request $request): JsonResponse
+    {
+        $themePayload = Setting::getPayload('catalog_theme') ?? [];
+
+        if (empty($themePayload['catalog_compare_enabled'])) {
+            return response()->json(['message' => 'Produktvergleich ist nicht aktiviert.'], 403);
+        }
+
+        $maxProducts = (int) ($themePayload['catalog_compare_max_products'] ?? 3);
+
+        $validated = $request->validate([
+            'product_ids' => "required|array|min:2|max:{$maxProducts}",
+            'product_ids.*' => 'required|string',
+            'lang' => 'sometimes|string|max:5',
+        ]);
+
+        $lang = $validated['lang'] ?? 'de';
+        $ids = $validated['product_ids'];
+
+        $products = Product::where('status', 'active')
+            ->with('productType')
+            ->whereIn('id', $ids)
+            ->get();
+
+        if ($products->count() < 2) {
+            return response()->json(['message' => 'Mindestens 2 aktive Produkte benötigt.'], 404);
+        }
+
+        // Load attribute values for all products
+        $productMaps = [];
+        foreach ($products as $product) {
+            $vals = $product->attributeValues()
+                ->with('attribute')
+                ->where(function ($q) use ($lang) {
+                    $q->whereNull('language')->orWhere('language', $lang);
+                })
+                ->get();
+
+            $map = [];
+            foreach ($vals as $v) {
+                $value = $v->value_string ?? $v->value_number ?? $v->value_date ?? $v->value_flag ?? $v->value_selection_id;
+                $map[$v->attribute_id] = [
+                    'value' => $value,
+                    'attribute_name' => $v->attribute?->name_de ?? $v->attribute?->technical_name ?? 'Unknown',
+                    'technical_name' => $v->attribute?->technical_name ?? '',
+                    'data_type' => $v->attribute?->data_type ?? '',
+                ];
+            }
+            $productMaps[$product->id] = $map;
+        }
+
+        // Merge all attribute IDs
+        $allAttrIds = array_unique(array_merge(...array_map('array_keys', $productMaps)));
+
+        $rows = [];
+
+        // Base fields
+        $baseFields = [
+            ['field' => 'sku', 'label' => 'SKU'],
+            ['field' => 'name', 'label' => 'Name'],
+            ['field' => 'ean', 'label' => 'EAN'],
+            ['field' => 'status', 'label' => 'Status'],
+        ];
+
+        foreach ($baseFields as $bf) {
+            $values = $products->map(fn($p) => (string) ($p->{$bf['field']} ?? ''))->toArray();
+            $rows[] = [
+                'attribute_name' => $bf['label'],
+                'technical_name' => $bf['field'],
+                'data_type' => 'base',
+                'values' => $values,
+                'is_different' => count(array_unique($values)) > 1,
+            ];
+        }
+
+        // Attribute values
+        foreach ($allAttrIds as $attrId) {
+            $name = 'Unknown';
+            $techName = '';
+            $dataType = '';
+            $values = [];
+
+            foreach ($products as $product) {
+                $entry = $productMaps[$product->id][$attrId] ?? null;
+                if ($entry) {
+                    $name = $entry['attribute_name'];
+                    $techName = $entry['technical_name'];
+                    $dataType = $entry['data_type'];
+                }
+                $values[] = $entry['value'] ?? null;
+            }
+
+            $stringValues = array_map(fn($v) => (string) ($v ?? ''), $values);
+            $rows[] = [
+                'attribute_id' => $attrId,
+                'attribute_name' => $name,
+                'technical_name' => $techName,
+                'data_type' => $dataType,
+                'values' => $values,
+                'is_different' => count(array_unique($stringValues)) > 1,
+            ];
+        }
+
+        $productSummaries = $products->map(fn($p) => [
+            'id' => $p->id,
+            'sku' => $p->sku,
+            'name' => $p->name,
+        ])->values()->toArray();
+
+        return response()->json([
+            'data' => [
+                'products' => $productSummaries,
+                'rows' => $rows,
+                'total_differences' => collect($rows)->where('is_different', true)->count(),
+                'total_attributes' => count($rows),
+            ],
+        ]);
     }
 }

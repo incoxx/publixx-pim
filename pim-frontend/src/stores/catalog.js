@@ -50,6 +50,12 @@ export const useCatalogStore = defineStore('catalog', () => {
     footer_text: null,
     catalog_access_mode: 'public',
     catalog_linked_products_only: false,
+    catalog_pdf_enabled: false,
+    catalog_pdf_template_id: null,
+    catalog_compare_enabled: false,
+    catalog_compare_max_products: 3,
+    catalog_excel_export_enabled: false,
+    catalog_share_wishlist_enabled: false,
   })
 
   async function fetchThemeSettings() {
@@ -215,6 +221,27 @@ export const useCatalogStore = defineStore('catalog', () => {
     wishlistIds.value = []
   }
 
+  function importWishlistFromUrl() {
+    const params = new URLSearchParams(window.location.search)
+    const wishlistParam = params.get('wishlist')
+    if (!wishlistParam) return
+    const ids = wishlistParam.split(',').filter(Boolean)
+    if (ids.length === 0) return
+    // Merge into existing wishlist (avoid duplicates)
+    const existing = new Set(wishlistIds.value)
+    for (const id of ids) {
+      if (!existing.has(id)) {
+        wishlistIds.value.push(id)
+      }
+    }
+    // Clean the URL
+    params.delete('wishlist')
+    const newUrl = params.toString()
+      ? `${window.location.pathname}?${params.toString()}`
+      : window.location.pathname
+    window.history.replaceState({}, '', newUrl)
+  }
+
   // Navigation
   function setSearch(term) {
     search.value = term
@@ -308,6 +335,7 @@ export const useCatalogStore = defineStore('catalog', () => {
     fetchCategories,
     toggleWishlist,
     clearWishlist,
+    importWishlistFromUrl,
     setSearch,
     setCategory,
     clearCategory,

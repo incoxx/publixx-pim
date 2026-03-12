@@ -63,4 +63,31 @@ export default {
   getFacets(options = {}) {
     return catalogClient.get('/catalog/facets', { params: buildParams(options) })
   },
+
+  downloadProductPdf(id, options = {}) {
+    return catalogClient.get(`/catalog/products/${id}/pdf`, {
+      params: buildParams(options),
+      responseType: 'blob',
+    })
+  },
+
+  downloadWishlistPdf(productIds, lang) {
+    return catalogClient.post('/catalog/wishlist/pdf', {
+      product_ids: productIds,
+      lang,
+    }, { responseType: 'blob' })
+  },
+
+  downloadWishlistExcel(productIds) {
+    return catalogClient.post('/catalog/wishlist/excel', {
+      product_ids: productIds,
+    }, { responseType: 'blob' })
+  },
+
+  compareProducts(productIds, lang) {
+    return catalogClient.post('/catalog/products/compare', {
+      product_ids: productIds,
+      lang,
+    })
+  },
 }

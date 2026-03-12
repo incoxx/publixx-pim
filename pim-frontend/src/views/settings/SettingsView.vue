@@ -7,6 +7,7 @@ import { Globe, Palette, AlertTriangle, Server, RotateCcw, CheckCircle, XCircle,
 import adminApi from '@/api/admin'
 import catalogApi from '@/api/catalog'
 import mediaApi from '@/api/media'
+import pdfTemplatesApi from '@/api/pdfTemplates'
 import hierarchiesApi from '@/api/hierarchies'
 import attributesApi, { attributeViews as attributeViewsApi } from '@/api/attributes'
 import { priceTypes as priceTypesApi } from '@/api/prices'
@@ -270,6 +271,12 @@ const themeForm = ref({
   thumbnail_usage_type_id: null,
   description_attributes: [],
   pdf_display_mode: 'link',
+  catalog_pdf_enabled: false,
+  catalog_pdf_template_id: null,
+  catalog_compare_enabled: false,
+  catalog_compare_max_products: 3,
+  catalog_excel_export_enabled: false,
+  catalog_share_wishlist_enabled: false,
   catalog_access_mode: 'public',
   catalog_linked_products_only: false,
 })
@@ -327,6 +334,12 @@ async function loadThemeSettings() {
         thumbnail_usage_type_id: d.thumbnail_usage_type_id || null,
         description_attributes: d.description_attributes || [],
         pdf_display_mode: d.pdf_display_mode || 'link',
+        catalog_pdf_enabled: !!d.catalog_pdf_enabled,
+        catalog_pdf_template_id: d.catalog_pdf_template_id || null,
+        catalog_compare_enabled: !!d.catalog_compare_enabled,
+        catalog_compare_max_products: d.catalog_compare_max_products ?? 3,
+        catalog_excel_export_enabled: !!d.catalog_excel_export_enabled,
+        catalog_share_wishlist_enabled: !!d.catalog_share_wishlist_enabled,
         catalog_access_mode: d.catalog_access_mode || 'public',
         catalog_linked_products_only: !!d.catalog_linked_products_only,
       }
@@ -356,6 +369,12 @@ async function saveThemeSettings() {
     payload.card_show_sku = !!payload.card_show_sku
     payload.card_show_category = !!payload.card_show_category
     payload.card_show_price = !!payload.card_show_price
+    payload.catalog_pdf_enabled = !!payload.catalog_pdf_enabled
+    payload.catalog_compare_enabled = !!payload.catalog_compare_enabled
+    payload.catalog_excel_export_enabled = !!payload.catalog_excel_export_enabled
+    payload.catalog_share_wishlist_enabled = !!payload.catalog_share_wishlist_enabled
+    payload.catalog_compare_max_products = parseInt(payload.catalog_compare_max_products) || 3
+    if (!payload.catalog_pdf_template_id) payload.catalog_pdf_template_id = null
     if (!payload.primary_card_attribute_id) payload.primary_card_attribute_id = null
     if (!payload.card_price_type_id) payload.card_price_type_id = null
     if (!payload.card_price_country) payload.card_price_country = null
@@ -392,6 +411,17 @@ async function uploadLogo(event) {
 function removeLogo() {
   themeForm.value.logo_media_id = null
   themeLogoPreview.value = null
+}
+
+// ── PDF Templates for catalog ──
+const availablePdfTemplates = ref([])
+async function loadPdfTemplates() {
+  try {
+    const { data } = await pdfTemplatesApi.list()
+    availablePdfTemplates.value = data.data || data
+  } catch (e) {
+    console.warn('Failed to load PDF templates:', e.message)
+  }
 }
 
 // ── Reset State ──
@@ -514,6 +544,7 @@ onMounted(() => {
     loadAttributes()
     loadPriceTypes()
     loadUsageTypes()
+    loadPdfTemplates()
   }
 })
 </script>
@@ -864,6 +895,57 @@ onMounted(() => {
           <select class="pim-input text-xs" v-model="themeForm.pdf_display_mode">
             <option v-for="o in PDF_DISPLAY_MODE_OPTIONS" :key="o.value" :value="o.value">{{ o.label }} — {{ o.desc }}</option>
           </select>
+        </div>
+
+        <!-- PDF & Export im Katalog -->
+        <div class="space-y-3">
+          <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">PDF & Export</h4>
+          <p class="text-[11px] text-[var(--color-text-tertiary)]">PDF-Downloads und Exportfunktionen für den öffentlichen Katalog aktivieren.</p>
+          <label class="flex items-center gap-2 text-xs cursor-pointer">
+            <input type="checkbox" v-model="themeForm.catalog_pdf_enabled" class="rounded border-[var(--color-border-strong)] text-[var(--color-accent)]" />
+            PDF-Download im Katalog aktivieren
+          </label>
+          <div v-if="themeForm.catalog_pdf_enabled" class="ml-6 space-y-2">
+            <div>
+              <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Standard-PDF-Vorlage</label>
+              <select class="pim-input text-xs" v-model="themeForm.catalog_pdf_template_id">
+                <option :value="null">— Keine Vorlage gewählt —</option>
+                <option v-for="t in availablePdfTemplates" :key="t.id" :value="t.id">
+                  {{ t.name }}
+                </option>
+              </select>
+              <p class="text-[10px] text-[var(--color-text-tertiary)] mt-0.5">Wird für PDF-Downloads im Katalog verwendet.</p>
+            </div>
+          </div>
+          <label class="flex items-center gap-2 text-xs cursor-pointer">
+            <input type="checkbox" v-model="themeForm.catalog_excel_export_enabled" class="rounded border-[var(--color-border-strong)] text-[var(--color-accent)]" />
+            Excel-Export in Merkliste aktivieren
+          </label>
+        </div>
+
+        <!-- Produktvergleich -->
+        <div class="space-y-3">
+          <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">Produktvergleich</h4>
+          <label class="flex items-center gap-2 text-xs cursor-pointer">
+            <input type="checkbox" v-model="themeForm.catalog_compare_enabled" class="rounded border-[var(--color-border-strong)] text-[var(--color-accent)]" />
+            Produktvergleich im Katalog aktivieren
+          </label>
+          <div v-if="themeForm.catalog_compare_enabled" class="ml-6">
+            <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Max. Produkte im Vergleich</label>
+            <select class="pim-input text-xs w-24" v-model="themeForm.catalog_compare_max_products">
+              <option :value="2">2</option>
+              <option :value="3">3</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Merkliste teilen -->
+        <div class="space-y-2">
+          <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">Teilen</h4>
+          <label class="flex items-center gap-2 text-xs cursor-pointer">
+            <input type="checkbox" v-model="themeForm.catalog_share_wishlist_enabled" class="rounded border-[var(--color-border-strong)] text-[var(--color-accent)]" />
+            Merkliste teilen per Link aktivieren
+          </label>
         </div>
 
         <!-- Beschreibung (Produktdetail) -->

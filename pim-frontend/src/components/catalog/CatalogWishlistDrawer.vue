@@ -1,12 +1,19 @@
 <script setup>
-import { computed, inject } from 'vue'
+import { computed, inject, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useCatalogStore } from '@/stores/catalog'
-import { Heart, Trash2, X, Package } from 'lucide-vue-next'
+import { Heart, Trash2, X, Package, FileDown, Sheet, GitCompareArrows, Share2, Check } from 'lucide-vue-next'
+import catalogApi from '@/api/catalog'
+import { triggerDownload } from '@/utils/download'
+
+const emit = defineEmits(['open-compare'])
 
 const { t } = useI18n()
 const store = useCatalogStore()
 const wishlistOpen = inject('wishlistOpen')
+
+const exporting = ref(null) // 'pdf' | 'excel' | null
+const linkCopied = ref(false)
 
 // Find product data from loaded products
 const wishlistProducts = computed(() => {
@@ -19,6 +26,12 @@ const unloadedIds = computed(() => {
   return store.wishlistIds.filter((id) => !loadedIds.has(id))
 })
 
+const canCompare = computed(() =>
+  store.themeSettings.catalog_compare_enabled &&
+  store.wishlistCount >= 2 &&
+  store.wishlistCount <= (store.themeSettings.catalog_compare_max_products || 3)
+)
+
 function closeDrawer() {
   wishlistOpen.value = false
 }
@@ -29,6 +42,47 @@ function formatPrice(price) {
     style: 'currency',
     currency: 'EUR',
   }).format(price)
+}
+
+async function downloadWishlistPdf() {
+  if (exporting.value) return
+  exporting.value = 'pdf'
+  try {
+    const resp = await catalogApi.downloadWishlistPdf(store.wishlistIds, store.locale)
+    triggerDownload(resp.data, `merkliste-${new Date().toISOString().slice(0, 10)}.pdf`)
+  } catch (e) {
+    console.error('Wishlist PDF export failed:', e)
+  } finally {
+    exporting.value = null
+  }
+}
+
+async function downloadWishlistExcel() {
+  if (exporting.value) return
+  exporting.value = 'excel'
+  try {
+    const resp = await catalogApi.downloadWishlistExcel(store.wishlistIds)
+    triggerDownload(resp.data, `merkliste-${new Date().toISOString().slice(0, 10)}.xlsx`)
+  } catch (e) {
+    console.error('Wishlist Excel export failed:', e)
+  } finally {
+    exporting.value = null
+  }
+}
+
+function openCompare() {
+  emit('open-compare', [...store.wishlistIds])
+}
+
+async function shareWishlist() {
+  const url = `${window.location.origin}${window.location.pathname}?wishlist=${store.wishlistIds.join(',')}`
+  try {
+    await navigator.clipboard.writeText(url)
+    linkCopied.value = true
+    setTimeout(() => { linkCopied.value = false }, 2000)
+  } catch (e) {
+    console.error('Failed to copy to clipboard:', e)
+  }
 }
 </script>
 
@@ -108,7 +162,56 @@ function formatPrice(price) {
     </div>
 
     <!-- Footer -->
-    <div v-if="store.wishlistCount > 0" class="p-3 border-t border-base-300">
+    <div v-if="store.wishlistCount > 0" class="p-3 border-t border-base-300 space-y-1.5">
+      <!-- PDF Export -->
+      <button
+        v-if="store.themeSettings.catalog_pdf_enabled"
+        class="btn btn-primary btn-sm w-full gap-1"
+        :disabled="exporting !== null"
+        @click="downloadWishlistPdf"
+      >
+        <FileDown class="w-3.5 h-3.5" />
+        {{ exporting === 'pdf' ? 'Exportiere...' : 'Merkliste als PDF' }}
+      </button>
+
+      <!-- Excel Export -->
+      <button
+        v-if="store.themeSettings.catalog_excel_export_enabled"
+        class="btn btn-outline btn-sm w-full gap-1"
+        :disabled="exporting !== null"
+        @click="downloadWishlistExcel"
+      >
+        <Sheet class="w-3.5 h-3.5" />
+        {{ exporting === 'excel' ? 'Exportiere...' : 'Excel-Export' }}
+      </button>
+
+      <!-- Compare -->
+      <button
+        v-if="canCompare"
+        class="btn btn-outline btn-sm w-full gap-1"
+        @click="openCompare"
+      >
+        <GitCompareArrows class="w-3.5 h-3.5" />
+        Produkte vergleichen ({{ store.wishlistCount }})
+      </button>
+
+      <!-- Share -->
+      <button
+        v-if="store.themeSettings.catalog_share_wishlist_enabled"
+        class="btn btn-ghost btn-sm w-full gap-1"
+        @click="shareWishlist"
+      >
+        <template v-if="linkCopied">
+          <Check class="w-3.5 h-3.5 text-success" />
+          Link kopiert!
+        </template>
+        <template v-else>
+          <Share2 class="w-3.5 h-3.5" />
+          Merkliste teilen
+        </template>
+      </button>
+
+      <!-- Clear -->
       <button
         class="btn btn-outline btn-error btn-sm w-full gap-1"
         @click="store.clearWishlist()"
