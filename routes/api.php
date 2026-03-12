@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\Api\V1\AssetCatalogController;
+use App\Http\Controllers\Api\V1\CalendarController;
 use App\Http\Controllers\Api\V1\CatalogController;
 use App\Http\Controllers\Api\V1\AttributeController;
 use App\Http\Controllers\Api\V1\AttributeTypeController;
@@ -26,6 +27,7 @@ use App\Http\Controllers\Api\V1\BmecatExportController;
 use App\Http\Controllers\Api\V1\JsonExportImportController;
 use App\Http\Controllers\Api\V1\ImportProfileController;
 use App\Http\Controllers\Api\V1\LoadDemoDataController;
+use App\Http\Controllers\Api\V1\ScheduledActionController;
 use App\Http\Controllers\Api\V1\SearchProfileController;
 use App\Http\Controllers\Api\V1\HierarchyAttributeAssignmentController;
 use App\Http\Controllers\Api\V1\HierarchyController;
@@ -560,4 +562,11 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::get('admin/db/tables', [DatabaseViewerController::class, 'tables']);
     Route::get('admin/db/tables/{table}/columns', [DatabaseViewerController::class, 'columns']);
     Route::get('admin/db/tables/{table}/rows', [DatabaseViewerController::class, 'rows']);
+
+    // =====================================================================
+    // Scheduled Actions & Calendar
+    // =====================================================================
+    Route::apiResource('scheduled-actions', ScheduledActionController::class);
+    Route::get('products/{product}/scheduled-actions', [ScheduledActionController::class, 'forProduct']);
+    Route::get('calendar', [CalendarController::class, 'index']);
 });

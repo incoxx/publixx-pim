@@ -8,7 +8,7 @@ import {
   Upload, Download, Image, Tags, DollarSign, Users, Settings,
   HelpCircle, PanelLeftClose, PanelLeft, Star, LayoutGrid, Ruler,
   FileJson, FileCode, PlayCircle, FileBarChart, BookOpen, Link2, Zap, Languages,
-  ChevronDown, ChevronRight, GripVertical, Factory,
+  ChevronDown, ChevronRight, GripVertical, Factory, CalendarDays,
 } from 'lucide-vue-next'
 import AnyPimLogo from '@/components/shared/AnyPimLogo.vue'
 
@@ -33,6 +33,7 @@ const sections = computed(() => {
         { icon: Tags, label: () => t('nav.mediaUsageTypes'), to: '/media-usage-types' },
         { divider: true },
         { icon: FileBarChart, label: () => 'Berichte', to: '/reports' },
+        { icon: CalendarDays, label: () => 'Planungskalender', to: '/calendar' },
       ],
     },
     {
