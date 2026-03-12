@@ -31,6 +31,7 @@ const error = ref(null)
 const showExportPanel = ref(false)
 const showReportPicker = ref(false)
 const showPdfTemplatePicker = ref(false)
+const showPdfTemplatePickerSelected = ref(false)
 const exporting = ref(null) // 'excel' | 'pdf' | 'pdf-zip' | 'xliff' | null
 const xliffSourceLang = ref('de')
 const xliffTargetLang = ref('en')
@@ -487,6 +488,13 @@ onMounted(async () => {
         <span class="hidden sm:inline">Massendatenpflege</span>
       </button>
       <button
+        class="pim-btn pim-btn-secondary text-xs"
+        @click="showPdfTemplatePickerSelected = true"
+      >
+        <FileText class="w-3.5 h-3.5" :stroke-width="1.75" />
+        <span class="hidden sm:inline">PDF-Vorlage</span>
+      </button>
+      <button
         class="pim-btn pim-btn-danger text-xs"
         :disabled="bulkRemoving"
         @click="bulkRemoveSelected"
@@ -677,10 +685,16 @@ onMounted(async () => {
       :productIds="watchlistProductIds"
     />
 
-    <!-- PDF Template Picker -->
+    <!-- PDF Template Picker (whole watchlist) -->
     <PdfTemplatePickerModal
       v-model:open="showPdfTemplatePicker"
       :productIds="watchlistProductIds"
+    />
+
+    <!-- PDF Template Picker (selected only) -->
+    <PdfTemplatePickerModal
+      v-model:open="showPdfTemplatePickerSelected"
+      :productIds="selectedProductIds"
     />
   </div>
 </template>

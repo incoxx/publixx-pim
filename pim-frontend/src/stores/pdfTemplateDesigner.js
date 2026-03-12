@@ -26,6 +26,13 @@ export const usePdfTemplateDesignerStore = defineStore('pdfTemplateDesigner', ()
   // Dirty tracking
   const isDirty = ref(false)
 
+  // Reference product & preview mode
+  const referenceProductId = ref(null)
+  const referenceProductLabel = ref('')
+  const previewMode = ref(false)
+  const resolvedElements = ref([])
+  const previewLoading = ref(false)
+
   // --- Template List ---
   async function loadTemplates() {
     loading.value = true
@@ -68,10 +75,10 @@ export const usePdfTemplateDesignerStore = defineStore('pdfTemplateDesigner', ()
     isDirty.value = false
   }
 
-  async function createTemplate(name) {
+  async function createTemplate(name, defaultFontFamily = 'DejaVu Sans') {
     const payload = {
       name,
-      template_json: createEmptyTemplate(),
+      template_json: createEmptyTemplate(defaultFontFamily),
     }
     const { data } = await pdfTemplatesApi.create(payload)
     const tmpl = data.data || data
@@ -169,24 +176,69 @@ export const usePdfTemplateDesignerStore = defineStore('pdfTemplateDesigner', ()
     return Math.round(value / gridSize.value) * gridSize.value
   }
 
+  // --- Default font helper ---
+  function getDefaultFontFamily() {
+    return templateJson.value.style?.defaultFontFamily || 'DejaVu Sans'
+  }
+
+  // --- Reference product & preview ---
+  async function setReferenceProduct(productId, label = '') {
+    referenceProductId.value = productId
+    referenceProductLabel.value = label
+    if (productId && previewMode.value) {
+      await loadPreview()
+    }
+  }
+
+  async function loadPreview() {
+    if (!referenceProductId.value || !currentTemplate.value) return
+    previewLoading.value = true
+    try {
+      const { data } = await pdfTemplatesApi.resolvePreview(
+        currentTemplate.value.id,
+        referenceProductId.value,
+      )
+      resolvedElements.value = data.data || data
+    } catch (e) {
+      resolvedElements.value = []
+    } finally {
+      previewLoading.value = false
+    }
+  }
+
+  async function togglePreviewMode() {
+    previewMode.value = !previewMode.value
+    if (previewMode.value && referenceProductId.value) {
+      // Save first if dirty so preview uses latest template
+      if (isDirty.value) await saveTemplate()
+      await loadPreview()
+    }
+  }
+
+  function getResolvedElement(elementId) {
+    return resolvedElements.value.find(e => e.id === elementId) || null
+  }
+
   return {
     templates, loading, currentTemplate, templateJson,
     availableFields, fieldsLoading,
     selectedElementId, selectedElement,
     gridSize, showGrid, snapToGrid,
     isDirty,
+    referenceProductId, referenceProductLabel, previewMode, resolvedElements, previewLoading,
     loadTemplates, loadTemplate, saveTemplate, createTemplate, deleteTemplate,
     loadFields,
     addElement, removeElement, updateElement, duplicateElement,
     selectElement, clearSelection,
     bringToFront, sendToBack,
-    snapValue,
+    snapValue, getDefaultFontFamily,
+    setReferenceProduct, loadPreview, togglePreviewMode, getResolvedElement,
   }
 })
 
 // --- Helpers ---
 
-export function createEmptyTemplate() {
+export function createEmptyTemplate(defaultFontFamily = 'DejaVu Sans') {
   return {
     version: 1,
     pageWidth: 210,   // mm (A4)
@@ -194,6 +246,7 @@ export function createEmptyTemplate() {
     elements: [],
     style: {
       backgroundColor: '#ffffff',
+      defaultFontFamily,
     },
   }
 }

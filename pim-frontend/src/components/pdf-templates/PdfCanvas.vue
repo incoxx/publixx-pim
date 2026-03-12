@@ -68,6 +68,7 @@ function onCanvasClick(e) {
 
 function onDrop(e) {
   e.preventDefault()
+  if (store.previewMode) return
   const jsonStr = e.dataTransfer.getData('application/json')
   if (!jsonStr) return
 
@@ -103,7 +104,7 @@ function getElementDefaults(item) {
     width: 60,
     height: 8,
     style: {
-      fontFamily: 'DejaVu Sans',
+      fontFamily: store.getDefaultFontFamily(),
       fontSize: 10,
       fontWeight: 'normal',
       fontStyle: 'normal',
@@ -140,7 +141,7 @@ function getElementDefaults(item) {
 }
 
 function onKeyDown(e) {
-  if (!store.selectedElementId) return
+  if (!store.selectedElementId || store.previewMode) return
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return
 
   if (e.key === 'Delete' || e.key === 'Backspace') {

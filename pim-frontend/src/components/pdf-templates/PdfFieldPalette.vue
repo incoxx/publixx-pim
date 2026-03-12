@@ -55,7 +55,7 @@ function onDoubleClick(item) {
     width: 60,
     height: 10,
     style: {
-      fontFamily: 'DejaVu Sans',
+      fontFamily: store.getDefaultFontFamily(),
       fontSize: 10,
       fontWeight: 'normal',
       fontStyle: 'normal',

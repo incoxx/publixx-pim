@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, onMounted } from 'vue'
+import { ref, watch } from 'vue'
 import { X, FileText, Download } from 'lucide-vue-next'
 import pdfTemplatesApi from '@/api/pdfTemplates'
 import watchlistApi from '@/api/watchlist'
@@ -16,6 +16,7 @@ const templates = ref([])
 const loading = ref(false)
 const selectedTemplateId = ref(null)
 const mode = ref('combined')
+const format = ref('pdf')
 const exporting = ref(false)
 const error = ref('')
 
@@ -40,23 +41,21 @@ async function loadTemplates() {
   }
 }
 
-async function exportPdf() {
+async function doExport() {
   if (!selectedTemplateId.value) return
   exporting.value = true
   error.value = ''
   try {
     let response
     if (props.productIds?.length > 0) {
-      // Direct product IDs (e.g. from selection)
       response = await pdfTemplatesApi.execute(selectedTemplateId.value, {
         product_ids: props.productIds,
         mode: mode.value,
-      })
+      }, format.value)
     } else {
-      // Watchlist export
       response = await watchlistApi.exportPdfTemplate(selectedTemplateId.value, mode.value)
     }
-    const ext = mode.value === 'zip' ? 'zip' : 'pdf'
+    const ext = mode.value === 'zip' ? 'zip' : format.value
     const tmpl = templates.value.find(t => t.id === selectedTemplateId.value)
     triggerDownload(response.data, `${tmpl?.name || 'export'}.${ext}`)
     close()
@@ -112,6 +111,31 @@ function close() {
                 </select>
               </div>
 
+              <!-- Format selection -->
+              <div>
+                <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Format</label>
+                <div class="flex gap-2">
+                  <button
+                    class="flex-1 px-3 py-2 rounded text-xs font-medium border transition-colors"
+                    :class="format === 'pdf'
+                      ? 'bg-[var(--color-accent)] text-white border-[var(--color-accent)]'
+                      : 'bg-[var(--color-surface)] text-[var(--color-text-secondary)] border-[var(--color-border)] hover:border-[var(--color-accent)]'"
+                    @click="format = 'pdf'"
+                  >
+                    PDF
+                  </button>
+                  <button
+                    class="flex-1 px-3 py-2 rounded text-xs font-medium border transition-colors"
+                    :class="format === 'docx'
+                      ? 'bg-[var(--color-accent)] text-white border-[var(--color-accent)]'
+                      : 'bg-[var(--color-surface)] text-[var(--color-text-secondary)] border-[var(--color-border)] hover:border-[var(--color-accent)]'"
+                    @click="format = 'docx'"
+                  >
+                    DOCX (Word)
+                  </button>
+                </div>
+              </div>
+
               <!-- Mode selection -->
               <div>
                 <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Ausgabemodus</label>
@@ -123,7 +147,7 @@ function close() {
                       : 'bg-[var(--color-surface)] text-[var(--color-text-secondary)] border-[var(--color-border)] hover:border-[var(--color-accent)]'"
                     @click="mode = 'combined'"
                   >
-                    Ein PDF (alle Seiten)
+                    {{ format === 'pdf' ? 'Ein PDF (alle Seiten)' : 'Ein Dokument (alle Seiten)' }}
                   </button>
                   <button
                     class="flex-1 px-3 py-2 rounded text-xs font-medium border transition-colors"
@@ -132,7 +156,7 @@ function close() {
                       : 'bg-[var(--color-surface)] text-[var(--color-text-secondary)] border-[var(--color-border)] hover:border-[var(--color-accent)]'"
                     @click="mode = 'zip'"
                   >
-                    Einzelne PDFs (ZIP)
+                    Einzelne Dateien (ZIP)
                   </button>
                 </div>
               </div>
@@ -145,7 +169,7 @@ function close() {
             <button
               class="pim-btn pim-btn-primary text-xs"
               :disabled="!selectedTemplateId || exporting"
-              @click="exportPdf"
+              @click="doExport"
             >
               <Download class="w-3.5 h-3.5" :stroke-width="2" />
               {{ exporting ? 'Exportiere...' : 'Exportieren' }}

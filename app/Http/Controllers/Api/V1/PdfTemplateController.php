@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Models\Attribute;
 use App\Models\PdfTemplate;
 use App\Models\Product;
+use App\Services\PdfTemplate\PdfTemplateRenderer;
 use App\Services\PdfTemplate\PdfTemplateService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -132,6 +133,29 @@ class PdfTemplateController extends Controller
     }
 
     /**
+     * POST /api/v1/pdf-templates/{id}/resolve-preview — Resolve elements for canvas preview.
+     */
+    public function resolvePreview(Request $request, string $id): JsonResponse
+    {
+        $template = PdfTemplate::findOrFail($id);
+        $this->authorizeAccess($request, $template);
+
+        $validated = $request->validate([
+            'product_id' => 'required|string|exists:products,id',
+            'language' => 'sometimes|string|max:5',
+        ]);
+
+        $language = $validated['language'] ?? 'de';
+        $product = Product::findOrFail($validated['product_id']);
+        $product->loadMissing($this->pdfTemplateService->getRelations($template->template_json));
+
+        $renderer = app(PdfTemplateRenderer::class);
+        $elements = $renderer->resolveElements($template->template_json, $product, $language);
+
+        return response()->json(['data' => $elements]);
+    }
+
+    /**
      * POST /api/v1/pdf-templates/{id}/preview — Preview with a single product.
      */
     public function preview(Request $request, string $id)
@@ -174,18 +198,22 @@ class PdfTemplateController extends Controller
             'product_ids' => 'required|array|min:1',
             'product_ids.*' => 'string|exists:products,id',
             'mode' => 'sometimes|string|in:combined,zip',
+            'format' => 'sometimes|string|in:pdf,docx',
             'language' => 'sometimes|string|max:5',
         ]);
 
         $language = $validated['language'] ?? 'de';
         $mode = $validated['mode'] ?? 'combined';
+        $format = $validated['format'] ?? 'pdf';
         $products = Product::whereIn('id', $validated['product_ids'])->get();
 
         if ($products->isEmpty()) {
             return response()->json(['error' => 'Keine Produkte gefunden.'], 404);
         }
 
-        $result = $this->pdfTemplateService->generateForProducts($template, $products, $mode, $language);
+        $result = $format === 'docx'
+            ? $this->pdfTemplateService->generateDocxForProducts($template, $products, $mode, $language)
+            : $this->pdfTemplateService->generateForProducts($template, $products, $mode, $language);
 
         return response()->streamDownload(function () use ($result) {
             readfile($result['path']);

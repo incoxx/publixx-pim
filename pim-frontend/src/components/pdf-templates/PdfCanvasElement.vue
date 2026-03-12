@@ -44,11 +44,33 @@ const displayContent = computed(() => {
   const el = props.element
   const type = el.type || 'text'
 
+  // In preview mode, show resolved data
+  if (store.previewMode && store.resolvedElements.length > 0) {
+    const resolved = store.getResolvedElement(el.id)
+    if (resolved) {
+      if (type === 'shape') return ''
+      return resolved.displayValue ?? ''
+    }
+  }
+
   if (type === 'text') return el.content || 'Text hier eingeben'
   if (type === 'field') return el.label || `{${el.field || 'feld'}}`
   if (type === 'attribute') return el.label || '{Attribut}'
   if (type === 'shape') return ''
   return ''
+})
+
+const previewImageUrl = computed(() => {
+  if (!store.previewMode || !store.resolvedElements.length) return null
+  const el = props.element
+  if (el.type !== 'image') return null
+  const resolved = store.getResolvedElement(el.id)
+  if (resolved?.resolvedImages?.length > 0) {
+    // Return first image — backend returns file paths, but for canvas preview we'd need URLs
+    // For now, we show a placeholder indicating an image was found
+    return true
+  }
+  return null
 })
 
 const typeIcon = computed(() => {
@@ -57,7 +79,7 @@ const typeIcon = computed(() => {
 })
 
 function onMouseDown(e) {
-  if (resizing.value) return
+  if (resizing.value || store.previewMode) return
   e.stopPropagation()
   emit('select')
 
@@ -92,6 +114,7 @@ function onMouseDown(e) {
 }
 
 function onResizeStart(e, handle) {
+  if (store.previewMode) return
   e.stopPropagation()
   e.preventDefault()
   resizing.value = true
@@ -137,32 +160,39 @@ function onResizeStart(e, handle) {
   <div
     class="absolute select-none group"
     :style="style"
-    :class="{ 'z-10': selected }"
+    :class="{ 'z-10': selected, 'cursor-default': store.previewMode }"
     @mousedown="onMouseDown"
   >
     <!-- Content -->
     <div class="w-full h-full overflow-hidden" :class="element.type === 'image' ? 'flex items-center justify-center' : ''">
       <template v-if="element.type === 'image'">
-        <Image class="w-1/3 h-1/3 text-[var(--color-text-tertiary)] opacity-40" :stroke-width="1" />
+        <template v-if="previewImageUrl">
+          <div class="w-full h-full flex items-center justify-center bg-[var(--color-bg)] text-[var(--color-text-tertiary)] text-[10px]">
+            [Bild]
+          </div>
+        </template>
+        <template v-else>
+          <Image class="w-1/3 h-1/3 text-[var(--color-text-tertiary)] opacity-40" :stroke-width="1" />
+        </template>
       </template>
       <template v-else-if="element.type === 'shape'">
         <!-- Shape: purely visual box, content comes from background/border -->
       </template>
       <template v-else>
-        <span class="block w-full" :class="{ 'opacity-50': element.type !== 'text' }">{{ displayContent }}</span>
+        <span class="block w-full" :class="{ 'opacity-50': !store.previewMode && element.type !== 'text' }">{{ displayContent }}</span>
       </template>
     </div>
 
     <!-- Type badge (on hover or selected) -->
     <div
-      v-if="selected || false"
+      v-if="selected && !store.previewMode"
       class="absolute -top-4 left-0 text-[8px] font-medium px-1 py-0.5 rounded bg-[var(--color-accent)] text-white whitespace-nowrap"
     >
       {{ { text: 'Text', field: 'Feld', attribute: 'Attribut', image: 'Bild', shape: 'Form' }[element.type] || element.type }}
     </div>
 
-    <!-- Resize handles (only when selected) -->
-    <template v-if="selected">
+    <!-- Resize handles (only when selected and not in preview mode) -->
+    <template v-if="selected && !store.previewMode">
       <div
         v-for="handle in ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w']"
         :key="handle"

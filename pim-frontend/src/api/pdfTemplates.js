@@ -29,7 +29,11 @@ export default {
     return client.post(`/pdf-templates/${id}/preview`, params, { responseType: 'blob' })
   },
 
-  execute(id, params = {}) {
-    return client.post(`/pdf-templates/${id}/execute`, params, { responseType: 'blob' })
+  execute(id, params = {}, format = 'pdf') {
+    return client.post(`/pdf-templates/${id}/execute`, { ...params, format }, { responseType: 'blob' })
+  },
+
+  resolvePreview(id, productId, language = 'de') {
+    return client.post(`/pdf-templates/${id}/resolve-preview`, { product_id: productId, language })
   },
 }

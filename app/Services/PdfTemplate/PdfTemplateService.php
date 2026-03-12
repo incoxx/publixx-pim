@@ -14,6 +14,7 @@ class PdfTemplateService
 {
     public function __construct(
         private readonly PdfTemplateRenderer $renderer,
+        private readonly DocxPdfTemplateWriter $docxWriter,
     ) {}
 
     /**
@@ -116,6 +117,101 @@ class PdfTemplateService
             'filename' => $template->name . '.zip',
             'temp_dir' => $tempDir,
         ];
+    }
+
+    /**
+     * Generate a DOCX for a single product.
+     */
+    public function generateDocxForProduct(PdfTemplate $template, Product $product, string $language = 'de'): string
+    {
+        $product->loadMissing($this->determineRelations($template->template_json));
+        $elements = $this->renderer->resolveElements($template->template_json, $product, $language);
+
+        $tempPath = storage_path('app/temp/pdf-template-' . uniqid() . '.docx');
+        $dir = dirname($tempPath);
+        if (!is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
+        $this->docxWriter->write($elements, $template->template_json, [
+            'page_orientation' => $template->page_orientation ?? 'portrait',
+        ], $tempPath);
+
+        return $tempPath;
+    }
+
+    /**
+     * Generate DOCX(es) for multiple products.
+     */
+    public function generateDocxForProducts(PdfTemplate $template, Collection $products, string $mode = 'combined', string $language = 'de'): array
+    {
+        $relations = $this->determineRelations($template->template_json);
+        $products->loadMissing($relations);
+
+        if ($mode === 'zip') {
+            return $this->generateDocxZip($template, $products, $language);
+        }
+
+        return $this->generateDocxCombined($template, $products, $language);
+    }
+
+    private function generateDocxCombined(PdfTemplate $template, Collection $products, string $language): array
+    {
+        $allElements = [];
+        foreach ($products as $product) {
+            $allElements[] = $this->renderer->resolveElements($template->template_json, $product, $language);
+        }
+
+        $tempPath = storage_path('app/temp/pdf-template-' . uniqid() . '.docx');
+        $dir = dirname($tempPath);
+        if (!is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
+        $this->docxWriter->writeCombined($allElements, $template->template_json, [
+            'page_orientation' => $template->page_orientation ?? 'portrait',
+        ], $tempPath);
+
+        return [
+            'path' => $tempPath,
+            'content_type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'filename' => $template->name . '.docx',
+        ];
+    }
+
+    private function generateDocxZip(PdfTemplate $template, Collection $products, string $language): array
+    {
+        $tempDir = storage_path('app/temp/pdf-template-zip-' . uniqid());
+        if (!is_dir($tempDir)) {
+            mkdir($tempDir, 0755, true);
+        }
+
+        $zipPath = $tempDir . '/templates.zip';
+        $zip = new ZipArchive();
+        $zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+
+        foreach ($products as $product) {
+            $docxPath = $this->generateDocxForProduct($template, $product, $language);
+            $filename = ($product->sku ?? $product->id) . '.docx';
+            $zip->addFile($docxPath, $filename);
+        }
+
+        $zip->close();
+
+        return [
+            'path' => $zipPath,
+            'content_type' => 'application/zip',
+            'filename' => $template->name . '.zip',
+            'temp_dir' => $tempDir,
+        ];
+    }
+
+    /**
+     * Get the relations needed for a template (public accessor).
+     */
+    public function getRelations(array $templateJson): array
+    {
+        return $this->determineRelations($templateJson);
     }
 
     /**

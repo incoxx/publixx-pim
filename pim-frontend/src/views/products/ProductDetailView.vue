@@ -5,7 +5,7 @@ import { useProductStore } from '@/stores/products'
 import { useAuthStore } from '@/stores/auth'
 import { useLocaleStore } from '@/stores/locale'
 import { useI18n } from 'vue-i18n'
-import { ArrowLeft, Save, Plus, Trash2, Image, Star, X, Search, Download, Languages, Copy, Sparkles, Tags, LayoutGrid, List } from 'lucide-vue-next'
+import { ArrowLeft, Save, Plus, Trash2, Image, Star, X, Search, Download, Languages, Copy, Sparkles, Tags, LayoutGrid, List, FileText } from 'lucide-vue-next'
 import productsApi from '@/api/products'
 import mediaApi from '@/api/media'
 import { mediaUsageTypes } from '@/api/mediaUsageTypes'
@@ -25,6 +25,7 @@ import ProductVersionsTab from '@/components/products/ProductVersionsTab.vue'
 import ProductScheduledActionsTab from '@/components/products/ProductScheduledActionsTab.vue'
 import MediaPickerDialog from '@/components/shared/MediaPickerDialog.vue'
 import { formatCompositeSummary } from '@/utils/formatting'
+import PdfTemplatePickerModal from '@/components/pdf-templates/PdfTemplatePickerModal.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -1266,6 +1267,7 @@ const previewVariantRows = computed(() => {
 const excelLoading = ref(false)
 const pdfLoading = ref(false)
 const downloadError = ref(null)
+const showPdfTemplatePicker = ref(false)
 
 function triggerBlobDownload(blob, filename) {
   const url = URL.createObjectURL(blob)
@@ -2626,6 +2628,10 @@ watch(() => route.params.id, async (newId, oldId) => {
             <span v-else class="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin inline-block" />
             PDF
           </button>
+          <button class="pim-btn pim-btn-secondary text-xs" @click="showPdfTemplatePicker = true">
+            <FileText class="w-3.5 h-3.5" :stroke-width="1.75" />
+            PDF-Vorlage
+          </button>
         </div>
       </div>
       <div v-if="downloadError" class="text-xs text-[var(--color-error)] bg-[var(--color-error-light)] px-3 py-2 rounded">
@@ -2918,6 +2924,12 @@ watch(() => route.params.id, async (newId, oldId) => {
     <ProductScheduledActionsTab
       v-else-if="activeTab === 'scheduled-actions' && product"
       :productId="product.id"
+    />
+
+    <!-- PDF Template Picker Modal -->
+    <PdfTemplatePickerModal
+      v-model:open="showPdfTemplatePicker"
+      :productIds="product ? [product.id] : []"
     />
   </div>
 </template>

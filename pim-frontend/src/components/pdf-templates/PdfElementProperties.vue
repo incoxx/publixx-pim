@@ -1,7 +1,8 @@
 <script setup>
 import { computed } from 'vue'
 import { usePdfTemplateDesignerStore } from '@/stores/pdfTemplateDesigner'
-import { Settings, Trash2, Copy, ArrowUpToLine, ArrowDownToLine } from 'lucide-vue-next'
+import { Settings, Trash2, Copy, ArrowUpToLine, ArrowDownToLine, RulerDimensionLine } from 'lucide-vue-next'
+import { fontFamilies } from './fontList'
 
 const store = usePdfTemplateDesignerStore()
 
@@ -22,11 +23,45 @@ function updateNumber(key, value) {
   updateElement(key, parseFloat(value) || 0)
 }
 
-const fontFamilies = [
-  { value: 'DejaVu Sans', label: 'DejaVu Sans' },
-  { value: 'DejaVu Serif', label: 'DejaVu Serif' },
-  { value: 'DejaVu Sans Mono', label: 'DejaVu Sans Mono' },
-]
+// fontFamilies imported from fontList.js
+
+const canAutofit = computed(() => {
+  if (!sel.value || sel.value.type === 'shape' || sel.value.type === 'image') return false
+  return !!store.referenceProductId && store.resolvedElements.length > 0
+})
+
+function autofitHeight() {
+  if (!sel.value || !canAutofit.value) return
+  const resolved = store.getResolvedElement(sel.value.id)
+  if (!resolved || !resolved.displayValue) return
+
+  const s = sel.value.style || {}
+  const pxPerMm = 96 / 25.4
+  const widthPx = (sel.value.width || 50) * pxPerMm
+  const paddingPx = (s.padding || 0) * pxPerMm
+
+  // Create an offscreen measurement element
+  const measure = document.createElement('div')
+  measure.style.cssText = `
+    position: absolute; left: -9999px; top: -9999px; visibility: hidden;
+    width: ${widthPx - paddingPx * 2}px;
+    padding: ${paddingPx}px;
+    font-family: ${s.fontFamily || 'DejaVu Sans'}, sans-serif;
+    font-size: ${s.fontSize || 10}pt;
+    font-weight: ${s.fontWeight || 'normal'};
+    font-style: ${s.fontStyle || 'normal'};
+    line-height: ${s.lineHeight || 'normal'};
+    word-wrap: break-word;
+    white-space: pre-wrap;
+  `
+  measure.textContent = resolved.displayValue
+  document.body.appendChild(measure)
+  const heightPx = measure.offsetHeight + paddingPx * 2
+  document.body.removeChild(measure)
+
+  const heightMm = Math.ceil(heightPx / pxPerMm)
+  updateNumber('height', Math.max(5, heightMm))
+}
 
 const typeLabels = {
   text: 'Statischer Text',
@@ -57,7 +92,17 @@ const typeLabels = {
 
       <!-- Position & Size -->
       <div class="border-b border-[var(--color-border)] pb-3">
-        <div class="text-[10px] font-semibold text-[var(--color-text-tertiary)] mb-2">Position & Größe (mm)</div>
+        <div class="flex items-center justify-between mb-2">
+          <div class="text-[10px] font-semibold text-[var(--color-text-tertiary)]">Position & Größe (mm)</div>
+          <button
+            v-if="canAutofit"
+            class="pim-btn pim-btn-secondary text-[9px] px-1.5 py-0.5"
+            @click="autofitHeight"
+            title="Höhe automatisch an Inhalt anpassen"
+          >
+            Autofit Höhe
+          </button>
+        </div>
         <div class="grid grid-cols-2 gap-2">
           <div>
             <label class="block text-[9px] text-[var(--color-text-tertiary)] mb-0.5">X</label>
