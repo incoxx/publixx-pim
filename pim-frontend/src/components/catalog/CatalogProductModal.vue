@@ -2,11 +2,13 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useCatalogStore } from '@/stores/catalog'
-import { X, Heart, Braces } from 'lucide-vue-next'
+import { X, Heart, Braces, FileDown } from 'lucide-vue-next'
 import CatalogImageGallery from './CatalogImageGallery.vue'
 import CatalogProductDescription from './CatalogProductDescription.vue'
 import PdfPreview from '@/components/shared/PdfPreview.vue'
 import { formatCompositeSummary } from '@/utils/formatting'
+import catalogApi from '@/api/catalog'
+import { triggerDownload } from '@/utils/download'
 
 const props = defineProps({
   productId: { type: String, default: null },
@@ -93,6 +95,21 @@ function getVideoEmbedUrl(url) {
   const vim = url.match(/vimeo\.com\/(\d+)/)
   if (vim) return `https://player.vimeo.com/video/${vim[1]}`
   return null
+}
+
+const pdfLoading = ref(false)
+
+async function downloadPdf() {
+  if (!product.value) return
+  pdfLoading.value = true
+  try {
+    const resp = await catalogApi.downloadProductPdf(product.value.id, { lang: store.locale })
+    triggerDownload(resp.data, `${product.value.sku || 'product'}.pdf`)
+  } catch (e) {
+    console.error('PDF download failed:', e)
+  } finally {
+    pdfLoading.value = false
+  }
 }
 
 function formatPrice(price) {
@@ -281,6 +298,9 @@ function formatPrice(price) {
                 <Braces class="w-4 h-4" />
                 JSON
               </a>
+              <button v-if="store.themeSettings.catalog_pdf_enabled" class="btn btn-ghost btn-outline gap-1" :disabled="pdfLoading" @click="downloadPdf" title="PDF">
+                <FileDown class="w-4 h-4" /> {{ pdfLoading ? '...' : 'PDF' }}
+              </button>
             </div>
           </div>
         </div>
@@ -453,6 +473,9 @@ function formatPrice(price) {
                 <Braces class="w-4 h-4" />
                 JSON
               </a>
+              <button v-if="store.themeSettings.catalog_pdf_enabled" class="btn btn-ghost btn-outline gap-1" :disabled="pdfLoading" @click="downloadPdf" title="PDF">
+                <FileDown class="w-4 h-4" /> {{ pdfLoading ? '...' : 'PDF' }}
+              </button>
             </div>
           </div>
         </div>
@@ -611,6 +634,9 @@ function formatPrice(price) {
                 <Braces class="w-4 h-4" />
                 JSON
               </a>
+              <button v-if="store.themeSettings.catalog_pdf_enabled" class="btn btn-ghost btn-outline gap-1" :disabled="pdfLoading" @click="downloadPdf" title="PDF">
+                <FileDown class="w-4 h-4" /> {{ pdfLoading ? '...' : 'PDF' }}
+              </button>
             </div>
           </div>
         </div>
