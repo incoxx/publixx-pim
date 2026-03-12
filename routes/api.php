@@ -153,7 +153,7 @@ Route::prefix('v1/debug')->middleware('throttle.pim')->group(function () {
 // =========================================================================
 // Access Link Redeem (public — no auth required)
 // =========================================================================
-Route::get('v1/access-links/redeem/{token}', [AccessLinkController::class, 'redeem'])
+Route::post('v1/access-links/redeem/{token}', [AccessLinkController::class, 'redeem'])
     ->middleware('throttle.pim');
 
 // =========================================================================

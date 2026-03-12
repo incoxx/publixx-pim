@@ -105,8 +105,9 @@ class AccessLinkController extends Controller
     }
 
     /**
-     * GET /api/v1/access-links/redeem/{token}
+     * POST /api/v1/access-links/redeem/{token}
      * Public route — no auth required.
+     * POST (not GET) to prevent link-preview bots (LinkedIn, Slack) from consuming the token.
      */
     public function redeem(Request $request, string $token): JsonResponse
     {

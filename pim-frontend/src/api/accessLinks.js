@@ -20,6 +20,6 @@ export default {
   },
 
   redeem(token) {
-    return client.get(`/access-links/redeem/${token}`)
+    return client.post(`/access-links/redeem/${token}`)
   },
 }
