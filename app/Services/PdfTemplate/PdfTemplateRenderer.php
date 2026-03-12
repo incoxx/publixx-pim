@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\PdfTemplate;
 
+use App\Models\Attribute;
 use App\Models\Product;
 use App\Services\Report\ElementRenderer;
 
@@ -39,6 +40,7 @@ class PdfTemplateRenderer
             'attribute' => $this->resolveAttributeElement($element, $product, $language),
             'image' => $this->resolveImageElement($element, $product),
             'text' => $this->resolveTextElement($element, $product, $language),
+            'variant_table' => $this->resolveVariantTableElement($element, $product, $language),
             'shape' => $element,
             default => $element,
         };
@@ -126,6 +128,72 @@ class PdfTemplateRenderer
         ]);
 
         return array_merge($element, ['displayValue' => $content]);
+    }
+
+    private function resolveVariantTableElement(array $element, Product $product, string $language): array
+    {
+        $columns = $element['columns'] ?? ['sku', 'name', 'variant_attributes'];
+        $variants = $product->variants ?? collect();
+
+        if ($variants->isEmpty()) {
+            return array_merge($element, ['variantTableData' => ['headers' => [], 'rows' => []]]);
+        }
+
+        // Load variant attributes definition
+        $variantAttributes = collect();
+        $includeVariantAttrs = in_array('variant_attributes', $columns);
+
+        if ($includeVariantAttrs) {
+            $variantAttributes = Attribute::where('is_variant_attribute', true)
+                ->where('is_internal', false)
+                ->where('status', 'active')
+                ->orderBy('position')
+                ->get();
+        }
+
+        // Build headers
+        $headers = [];
+        foreach ($columns as $col) {
+            if ($col === 'sku') {
+                $headers[] = 'SKU';
+            } elseif ($col === 'name') {
+                $headers[] = 'Name';
+            } elseif ($col === 'variant_attributes') {
+                foreach ($variantAttributes as $attr) {
+                    $headers[] = $attr->{"name_{$language}"} ?? $attr->name_de ?? $attr->technical_name;
+                }
+            }
+        }
+
+        // Build rows — variants have attributeValues eager-loaded
+        $rows = [];
+        foreach ($variants->sortBy('sku') as $variant) {
+            $row = [];
+
+            foreach ($columns as $col) {
+                if ($col === 'sku') {
+                    $row[] = $variant->sku ?? '';
+                } elseif ($col === 'name') {
+                    $row[] = $variant->name ?? '';
+                } elseif ($col === 'variant_attributes') {
+                    foreach ($variantAttributes as $attr) {
+                        $resolved = $this->elementRenderer->resolveAttributeValue($variant, $attr->id, $language);
+                        $parts = [];
+                        if ($resolved['value'] !== '') {
+                            $parts[] = $resolved['value'];
+                        }
+                        if ($resolved['unit'] !== '') {
+                            $parts[] = $resolved['unit'];
+                        }
+                        $row[] = implode(' ', $parts);
+                    }
+                }
+            }
+
+            $rows[] = $row;
+        }
+
+        return array_merge($element, ['variantTableData' => ['headers' => $headers, 'rows' => $rows]]);
     }
 
     private function getMediaPath($media): string

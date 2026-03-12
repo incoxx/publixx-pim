@@ -222,6 +222,7 @@ class PdfTemplateService
         $relations = ['productType', 'masterHierarchyNode'];
         $hasAttributes = false;
         $hasImages = false;
+        $hasVariantTable = false;
 
         foreach ($templateJson['elements'] ?? [] as $element) {
             if (($element['type'] ?? '') === 'attribute') {
@@ -229,6 +230,9 @@ class PdfTemplateService
             }
             if (($element['type'] ?? '') === 'image') {
                 $hasImages = true;
+            }
+            if (($element['type'] ?? '') === 'variant_table') {
+                $hasVariantTable = true;
             }
         }
 
@@ -241,6 +245,13 @@ class PdfTemplateService
         if ($hasImages) {
             $relations[] = 'mediaAssignments.media';
             $relations[] = 'mediaAssignments.usageType';
+        }
+
+        if ($hasVariantTable) {
+            $relations[] = 'variants';
+            $relations[] = 'variants.attributeValues.attribute';
+            $relations[] = 'variants.attributeValues.unit';
+            $relations[] = 'variants.attributeValues.valueListEntry';
         }
 
         return $relations;

@@ -93,6 +93,11 @@ class DocxPdfTemplateWriter
         $type = $element['type'] ?? 'text';
         $style = $element['style'] ?? [];
 
+        if ($type === 'variant_table') {
+            $this->renderVariantTableElement($section, $element);
+            return;
+        }
+
         // TextBox uses points (Frame unit='pt'), images use twips for positioning
         $xPt = round(($element['x'] ?? 0) * self::MM_TO_PT, 1);
         $yPt = round(($element['y'] ?? 0) * self::MM_TO_PT, 1);
@@ -186,6 +191,75 @@ class DocxPdfTemplateWriter
                 break; // Only render first valid image per element
             } catch (\Exception $e) {
                 \Log::warning('DOCX image render failed', ['path' => $imgPath, 'error' => $e->getMessage()]);
+            }
+        }
+    }
+
+    private function renderVariantTableElement($section, array $element): void
+    {
+        $tableData = $element['variantTableData'] ?? [];
+        $headers = $tableData['headers'] ?? [];
+        $rows = $tableData['rows'] ?? [];
+
+        if (empty($headers)) {
+            return;
+        }
+
+        $tStyle = $element['tableStyle'] ?? [];
+        $borderColor = ltrim($tStyle['borderColor'] ?? '#e5e7eb', '#');
+        $headerBg = ltrim($tStyle['headerBg'] ?? '#f3f4f6', '#');
+        $headerColor = ltrim($tStyle['headerColor'] ?? '#374151', '#');
+        $alternateRowBg = ltrim($tStyle['alternateRowBg'] ?? '#f9fafb', '#');
+        $fontSize = (int) ($tStyle['fontSize'] ?? 8);
+        $headerFontSize = (int) ($tStyle['headerFontSize'] ?? 8);
+
+        // Add vertical spacing to approximate Y position
+        $yMm = $element['y'] ?? 0;
+        if ($yMm > 0) {
+            $spacingTwip = (int) round($yMm * self::MM_TO_TWIP);
+            $section->addText('', [], ['spaceBefore' => $spacingTwip, 'spaceAfter' => 0]);
+        }
+
+        // Calculate total table width from element width
+        $tableWidthTwip = (int) round(($element['width'] ?? 190) * self::MM_TO_TWIP);
+        $colCount = count($headers);
+        $colWidthTwip = $colCount > 0 ? (int) round($tableWidthTwip / $colCount) : $tableWidthTwip;
+
+        $tableStyle = [
+            'borderSize' => 4,
+            'borderColor' => $borderColor,
+            'cellMargin' => 40,
+        ];
+
+        // Left indent to approximate X position
+        $xMm = $element['x'] ?? 0;
+        if ($xMm > 0) {
+            $tableStyle['indent'] = new \PhpOffice\PhpWord\ComplexType\TblWidth((int) round($xMm * self::MM_TO_TWIP), 'dxa');
+        }
+
+        $table = $section->addTable($tableStyle);
+
+        // Header row
+        $table->addRow();
+        foreach ($headers as $h) {
+            $table->addCell($colWidthTwip, ['bgColor' => $headerBg])->addText(
+                htmlspecialchars((string) $h, ENT_XML1, 'UTF-8'),
+                ['bold' => true, 'size' => $headerFontSize, 'color' => $headerColor],
+                ['spaceAfter' => 0]
+            );
+        }
+
+        // Data rows
+        foreach ($rows as $rowIndex => $row) {
+            $table->addRow();
+            $rowBg = ($rowIndex % 2 === 1) ? $alternateRowBg : null;
+            foreach ($row as $cell) {
+                $cellStyle = $rowBg ? ['bgColor' => $rowBg] : [];
+                $table->addCell($colWidthTwip, $cellStyle)->addText(
+                    htmlspecialchars((string) $cell, ENT_XML1, 'UTF-8'),
+                    ['size' => $fontSize],
+                    ['spaceAfter' => 0]
+                );
             }
         }
     }
