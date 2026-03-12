@@ -11,6 +11,7 @@ use Cron\CronExpression;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class CalendarController extends Controller
@@ -100,7 +101,12 @@ class CalendarController extends Controller
 
                     $next = Carbon::instance($cron->getNextRunDate($next->toDateTime()));
                 }
-            } catch (\Throwable) {
+            } catch (\Throwable $e) {
+                Log::warning('Invalid cron expression for export job', [
+                    'export_job_id' => $job->id,
+                    'cron_expression' => $job->cron_expression,
+                    'error' => $e->getMessage(),
+                ]);
                 continue;
             }
         }
