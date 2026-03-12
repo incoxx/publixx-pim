@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { Plus, Trash2, Edit3, Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-vue-next'
 import scheduledActionsApi from '@/api/scheduledActions'
+import exportJobsApi from '@/api/exportJobs'
 import ScheduledActionDialog from '@/components/calendar/ScheduledActionDialog.vue'
 
 const props = defineProps({
@@ -12,6 +13,7 @@ const actions = ref([])
 const loading = ref(false)
 const showDialog = ref(false)
 const editAction = ref(null)
+const exportJobs = ref([])
 
 const ACTION_TYPE_LABELS = {
   activate_product: 'Aktivierung',
@@ -77,7 +79,17 @@ function formatDateTime(dt) {
   return new Date(dt).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
-onMounted(() => loadActions())
+async function loadExportJobs() {
+  try {
+    const { data } = await exportJobsApi.list()
+    exportJobs.value = data.data || data || []
+  } catch { /* ignore */ }
+}
+
+onMounted(() => {
+  loadActions()
+  loadExportJobs()
+})
 </script>
 
 <template>
@@ -144,6 +156,7 @@ onMounted(() => loadActions())
       :visible="showDialog"
       :initial-product-id="productId"
       :edit-action="editAction"
+      :export-jobs="exportJobs"
       @close="showDialog = false"
       @saved="onSaved"
     />

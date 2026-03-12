@@ -231,7 +231,7 @@ async function save() {
         <!-- Footer -->
         <div class="flex items-center justify-end gap-2 p-4 border-t border-[var(--color-border)]">
           <button class="pim-btn pim-btn-ghost text-xs" @click="emit('close')">Abbrechen</button>
-          <button class="pim-btn pim-btn-primary text-xs" @click="save" :disabled="saving || !form.title || !form.scheduled_at">
+          <button class="pim-btn pim-btn-primary text-xs" @click="save" :disabled="saving || !form.title || !form.scheduled_at || (needsProduct && !form.product_id && (!form.product_ids || form.product_ids.length === 0))">
             {{ saving ? 'Speichern...' : (isEdit ? 'Aktualisieren' : 'Planen') }}
           </button>
         </div>

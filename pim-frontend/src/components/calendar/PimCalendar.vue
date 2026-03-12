@@ -99,11 +99,28 @@ function isSameDay(a, b) {
   return a.getDate() === b.getDate() && a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear()
 }
 
+// Pre-group events by date key for O(1) lookup instead of O(n) per cell
+const eventsByDate = computed(() => {
+  const map = {}
+  for (const e of props.events) {
+    const d = new Date(e.scheduled_at)
+    const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
+    if (!map[key]) map[key] = []
+    map[key].push(e)
+  }
+  return map
+})
+
+function dateKey(date) {
+  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
+}
+
 function getEventsForDate(date) {
-  return props.events.filter(e => {
-    const eDate = new Date(e.scheduled_at)
-    return isSameDay(eDate, date)
-  })
+  return eventsByDate.value[dateKey(date)] || []
+}
+
+function eventColor(event) {
+  return event.color || '#6b7280'
 }
 
 function getEventHour(event) {
@@ -203,7 +220,7 @@ watch(() => props.view, () => emitRange(), { immediate: true })
       <div class="grid grid-cols-7">
         <div
           v-for="(day, idx) in calendarDays"
-          :key="idx"
+          :key="day.date.toISOString()"
           class="calendar-day-cell border-b border-r border-[var(--color-border)] min-h-[90px] p-1 cursor-pointer hover:bg-[var(--color-bg-hover)] transition-colors"
           :class="{
             'bg-[var(--color-bg-secondary)]': !day.isCurrentMonth,
@@ -224,7 +241,7 @@ watch(() => props.view, () => emitRange(), { immediate: true })
               v-for="event in getEventsForDate(day.date).slice(0, 3)"
               :key="event.id"
               class="calendar-event text-[10px] leading-tight px-1.5 py-0.5 rounded truncate cursor-pointer"
-              :style="{ backgroundColor: event.color + '20', color: event.color, borderLeft: `3px solid ${event.color}` }"
+              :style="{ backgroundColor: eventColor(event) + '20', color: eventColor(event), borderLeft: `3px solid ${eventColor(event)}` }"
               @click.stop="onEventClick(event)"
             >
               <span v-if="statusIcon(event.status)" class="mr-0.5">{{ statusIcon(event.status) }}</span>
@@ -271,7 +288,7 @@ watch(() => props.view, () => emitRange(), { immediate: true })
               v-for="event in getEventsForDate(day.date).filter(e => getEventHour(e) === hour)"
               :key="event.id"
               class="absolute inset-x-0.5 text-[9px] px-1 py-0.5 rounded truncate cursor-pointer"
-              :style="{ backgroundColor: event.color + '30', color: event.color, borderLeft: `2px solid ${event.color}` }"
+              :style="{ backgroundColor: eventColor(event) + '30', color: eventColor(event), borderLeft: `2px solid ${eventColor(event)}` }"
               @click.stop="onEventClick(event)"
             >
               {{ event.title }}
@@ -296,7 +313,7 @@ watch(() => props.view, () => emitRange(), { immediate: true })
               v-for="event in dayEvents.filter(e => getEventHour(e) === hour)"
               :key="event.id"
               class="flex items-center gap-2 text-xs px-2 py-1 rounded cursor-pointer mb-0.5"
-              :style="{ backgroundColor: event.color + '15', color: event.color, borderLeft: `3px solid ${event.color}` }"
+              :style="{ backgroundColor: eventColor(event) + '15', color: eventColor(event), borderLeft: `3px solid ${eventColor(event)}` }"
               @click.stop="onEventClick(event)"
             >
               <span v-if="statusIcon(event.status)" class="font-bold">{{ statusIcon(event.status) }}</span>

@@ -78,14 +78,16 @@ function onDateClick(date) {
   showDialog.value = true
 }
 
-function onEventClick(event) {
+async function onEventClick(event) {
   if (event.source === 'scheduled_action' && event.editable) {
-    // Load full action for editing
-    scheduledActionsApi.show(event.source_id).then(({ data }) => {
+    try {
+      const { data } = await scheduledActionsApi.show(event.source_id)
       editAction.value = { ...data.data, product_name: event.product_name }
       dialogDate.value = null
       showDialog.value = true
-    })
+    } catch (e) {
+      console.error('Failed to load scheduled action:', e)
+    }
   }
 }
 
