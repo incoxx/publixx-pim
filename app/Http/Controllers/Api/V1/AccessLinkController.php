@@ -12,6 +12,7 @@ use App\Models\Role;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -22,6 +23,8 @@ class AccessLinkController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', AccessLink::class);
+
         $perPage = max(1, min((int) $request->query('per_page', '25'), 100));
 
         $links = AccessLink::with(['role', 'creator', 'createdUser'])
@@ -55,6 +58,8 @@ class AccessLinkController extends Controller
      */
     public function store(StoreAccessLinkRequest $request): JsonResponse
     {
+        $this->authorize('create', AccessLink::class);
+
         $validated = $request->validated();
         $expiresInDays = $validated['expires_in_days'] ?? 7;
 
@@ -79,6 +84,8 @@ class AccessLinkController extends Controller
      */
     public function destroy(AccessLink $accessLink): JsonResponse
     {
+        $this->authorize('delete', AccessLink::class);
+
         $accessLink->delete();
 
         return response()->json(null, Response::HTTP_NO_CONTENT);
@@ -89,6 +96,8 @@ class AccessLinkController extends Controller
      */
     public function report(): JsonResponse
     {
+        $this->authorize('viewAny', AccessLink::class);
+
         $total = AccessLink::count();
         $used = AccessLink::used()->count();
         $open = AccessLink::open()->count();
@@ -159,51 +168,71 @@ class AccessLinkController extends Controller
             ]);
         }
 
-        // Generate credentials
-        $slug = Str::slug($link->name, '.');
-        $randomSuffix = Str::lower(Str::random(4));
-        $email = "{$slug}.{$randomSuffix}@access.anypim.local";
-        $plainPassword = Str::random(12);
+        // Use transaction + lockForUpdate to prevent race conditions (double-redeem)
+        return DB::transaction(function () use ($request, $link, $role) {
+            // Re-fetch with pessimistic lock
+            $link = AccessLink::where('id', $link->id)->lockForUpdate()->first();
 
-        // Create user
-        $user = User::create([
-            'id' => Str::uuid()->toString(),
-            'name' => $link->name,
-            'email' => $email,
-            'password' => $plainPassword,
-            'language' => 'de',
-            'is_active' => true,
-        ]);
+            if ($link->isUsed()) {
+                return response()->json([
+                    'type' => 'https://anypim.local/problems/access-links/already-used',
+                    'title' => 'Link Already Used',
+                    'detail' => 'Dieser Zugangslink wurde bereits verwendet.',
+                    'status' => Response::HTTP_GONE,
+                ], Response::HTTP_GONE, [
+                    'Content-Type' => 'application/problem+json',
+                ]);
+            }
 
-        $user->assignRole($role);
+            // Generate credentials with unique email
+            $slug = Str::slug($link->name, '.');
+            do {
+                $randomSuffix = Str::lower(Str::random(4));
+                $email = "{$slug}.{$randomSuffix}@access.anypim.local";
+            } while (User::where('email', $email)->exists());
 
-        // Mark link as used
-        $link->update([
-            'used_at' => now(),
-            'user_id' => $user->id,
-            'ip_address' => $request->ip(),
-            'user_agent' => Str::limit($request->userAgent() ?? '', 500),
-        ]);
+            $plainPassword = Str::random(12);
 
-        // Create auth token for auto-login
-        $sanctumToken = $user->createToken(
-            name: 'pim-api',
-            expiresAt: now()->addHours((int) config('sanctum.expiration_hours', 24)),
-        );
+            // Create user
+            $user = User::create([
+                'id' => Str::uuid()->toString(),
+                'name' => $link->name,
+                'email' => $email,
+                'password' => $plainPassword,
+                'language' => 'de',
+                'is_active' => true,
+            ]);
 
-        $user->load('roles.permissions');
+            $user->assignRole($role);
 
-        return response()->json([
-            'data' => [
-                'token' => $sanctumToken->plainTextToken,
-                'token_type' => 'Bearer',
-                'expires_at' => $sanctumToken->accessToken->expires_at?->toIso8601String(),
-                'user' => new UserResource($user),
-                'credentials' => [
-                    'email' => $email,
-                    'password' => $plainPassword,
+            // Mark link as used
+            $link->update([
+                'used_at' => now(),
+                'user_id' => $user->id,
+                'ip_address' => $request->ip(),
+                'user_agent' => Str::limit($request->userAgent() ?? '', 500),
+            ]);
+
+            // Create auth token for auto-login
+            $sanctumToken = $user->createToken(
+                name: 'pim-api',
+                expiresAt: now()->addHours((int) config('sanctum.expiration_hours', 24)),
+            );
+
+            $user->load('roles.permissions');
+
+            return response()->json([
+                'data' => [
+                    'token' => $sanctumToken->plainTextToken,
+                    'token_type' => 'Bearer',
+                    'expires_at' => $sanctumToken->accessToken->expires_at?->toIso8601String(),
+                    'user' => new UserResource($user),
+                    'credentials' => [
+                        'email' => $email,
+                        'password' => $plainPassword,
+                    ],
                 ],
-            ],
-        ]);
+            ]);
+        });
     }
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Models\AccessLink;
 use App\Models\Attribute;
 use App\Models\AttributeType;
 use App\Models\AttributeView;
@@ -27,6 +28,7 @@ use App\Models\SearchProfile;
 use App\Models\DictionaryEntry;
 use App\Models\ValueList;
 use App\Models\ValueListEntry;
+use App\Policies\AccessLinkPolicy;
 use App\Policies\AttributePolicy;
 use App\Policies\AttributeTypePolicy;
 use App\Policies\AttributeViewPolicy;
@@ -70,6 +72,7 @@ class AppServiceProvider extends ServiceProvider
         Event::listen(SocialiteWasCalled::class, AzureExtendSocialite::class.'@handle');
 
         // ─── Policy Registration ─────────────────────────────────────
+        Gate::policy(AccessLink::class, AccessLinkPolicy::class);
         Gate::policy(Product::class, ProductPolicy::class);
         Gate::policy(Attribute::class, AttributePolicy::class);
         Gate::policy(AttributeType::class, AttributeTypePolicy::class);
