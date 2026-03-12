@@ -17,6 +17,7 @@ import { useColumnConfig } from '@/composables/useColumnConfig'
 import { triggerDownload } from '@/utils/download'
 import PimConfirmDialog from '@/components/shared/PimConfirmDialog.vue'
 import ReportTemplatePickerModal from '@/components/reports/ReportTemplatePickerModal.vue'
+import PdfTemplatePickerModal from '@/components/pdf-templates/PdfTemplatePickerModal.vue'
 
 const router = useRouter()
 const localeStore = useLocaleStore()
@@ -29,6 +30,7 @@ const error = ref(null)
 // Export state
 const showExportPanel = ref(false)
 const showReportPicker = ref(false)
+const showPdfTemplatePicker = ref(false)
 const exporting = ref(null) // 'excel' | 'pdf' | 'pdf-zip' | 'xliff' | null
 const xliffSourceLang = ref('de')
 const xliffTargetLang = ref('en')
@@ -426,6 +428,16 @@ onMounted(async () => {
           Report
         </button>
 
+        <!-- PDF Template -->
+        <button
+          class="pim-btn pim-btn-secondary text-xs"
+          :disabled="exporting !== null"
+          @click="showPdfTemplatePicker = true"
+        >
+          <FileText class="w-3.5 h-3.5" :stroke-width="1.75" />
+          PDF-Vorlage
+        </button>
+
         <div class="border-l border-[var(--color-border)] h-8 hidden sm:block" />
 
         <!-- XLIFF -->
@@ -662,6 +674,12 @@ onMounted(async () => {
     <!-- Report Template Picker -->
     <ReportTemplatePickerModal
       v-model:open="showReportPicker"
+      :productIds="watchlistProductIds"
+    />
+
+    <!-- PDF Template Picker -->
+    <PdfTemplatePickerModal
+      v-model:open="showPdfTemplatePicker"
       :productIds="watchlistProductIds"
     />
   </div>

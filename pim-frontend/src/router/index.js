@@ -158,6 +158,18 @@ const routes = [
     meta: { title: 'Bericht-Designer' },
   },
   {
+    path: '/pdf-templates',
+    name: 'pdf-templates',
+    component: () => import('@/views/pdf-templates/PdfTemplateListView.vue'),
+    meta: { title: 'PDF-Vorlagen' },
+  },
+  {
+    path: '/pdf-templates/:id',
+    name: 'pdf-template-designer',
+    component: () => import('@/views/pdf-templates/PdfTemplateDesignerView.vue'),
+    meta: { title: 'PDF-Vorlage Designer' },
+  },
+  {
     path: '/media',
     name: 'media',
     component: () => import('@/views/media/MediaView.vue'),

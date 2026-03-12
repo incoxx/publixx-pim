@@ -51,4 +51,12 @@ export default {
       responseType: 'blob',
     })
   },
+
+  exportPdfTemplate(pdfTemplateId, mode = 'combined', lang = 'de') {
+    return client.post('/watchlist/export/pdf-template', {
+      pdf_template_id: pdfTemplateId,
+      mode,
+      lang,
+    }, { responseType: 'blob' })
+  },
 }

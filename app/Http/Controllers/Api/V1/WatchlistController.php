@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Models\PdfTemplate;
 use App\Models\Product;
 use App\Models\ProductAttributeValue;
 use App\Models\WatchlistItem;
+use App\Services\PdfTemplate\PdfTemplateService;
 use App\Services\Preview\ProductPreviewService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
@@ -357,6 +359,47 @@ class WatchlistController extends Controller
             rmdir($tempDir);
         }, 'merkliste-' . now()->format('Y-m-d') . '.zip', [
             'Content-Type' => 'application/zip',
+        ]);
+    }
+
+    /**
+     * POST /api/v1/watchlist/export/pdf-template
+     *
+     * Export watchlist products using a PDF template.
+     */
+    public function exportPdfTemplate(Request $request, PdfTemplateService $pdfTemplateService): StreamedResponse
+    {
+        $validated = $request->validate([
+            'pdf_template_id' => 'required|string|exists:pdf_templates,id',
+            'mode' => 'sometimes|string|in:combined,zip',
+            'lang' => 'sometimes|string|max:5',
+        ]);
+
+        $template = PdfTemplate::findOrFail($validated['pdf_template_id']);
+        $mode = $validated['mode'] ?? 'combined';
+        $lang = $validated['lang'] ?? 'de';
+
+        $items = WatchlistItem::where('user_id', $request->user()->id)
+            ->with('product')
+            ->get();
+
+        $products = $items->map(fn ($item) => $item->product)->filter()->values();
+
+        if ($products->isEmpty()) {
+            abort(404, 'Keine Produkte auf der Merkliste.');
+        }
+
+        $result = $pdfTemplateService->generateForProducts($template, $products, $mode, $lang);
+
+        return response()->streamDownload(function () use ($result) {
+            readfile($result['path']);
+            @unlink($result['path']);
+            if (!empty($result['temp_dir'])) {
+                @array_map('unlink', glob($result['temp_dir'] . '/*'));
+                @rmdir($result['temp_dir']);
+            }
+        }, $result['filename'], [
+            'Content-Type' => $result['content_type'],
         ]);
     }
 
