@@ -41,7 +41,7 @@ function toggleColumn(col) {
 // fontFamilies imported from fontList.js
 
 const canAutofit = computed(() => {
-  if (!sel.value || sel.value.type === 'shape' || sel.value.type === 'image') return false
+  if (!sel.value || sel.value.type === 'shape' || sel.value.type === 'image' || sel.value.type === 'variant_table') return false
   return !!store.referenceProductId && store.resolvedElements.length > 0
 })
 

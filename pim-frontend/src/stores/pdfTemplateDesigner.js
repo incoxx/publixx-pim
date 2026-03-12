@@ -258,7 +258,7 @@ export const usePdfTemplateDesignerStore = defineStore('pdfTemplateDesigner', ()
   function autofitAllElements() {
     if (!resolvedElements.value.length) return
     for (const el of templateJson.value.elements) {
-      if (el.type === 'shape' || el.type === 'image') continue
+      if (el.type === 'shape' || el.type === 'image' || el.type === 'variant_table') continue
       const resolved = getResolvedElement(el.id)
       if (!resolved?.displayValue) continue
       const optimalHeight = measureElementHeight(el, resolved.displayValue)
