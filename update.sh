@@ -253,7 +253,7 @@ elif [ -d "$FRONTEND_DIR" ]; then
     cd "$FRONTEND_DIR"
 
     info "Installiere Frontend-Abhaengigkeiten..."
-    npm ci --production=false 2>&1
+    npm ci 2>&1
 
     # Bekannte Sicherheitsluecken automatisch patchen
     npm audit fix 2>/dev/null || true
@@ -305,7 +305,7 @@ elif [ -d "$DOCS_DIR" ] && [ -f "${DOCS_DIR}/package.json" ]; then
     cd "$DOCS_DIR"
 
     info "Installiere Dokumentations-Abhaengigkeiten..."
-    npm ci --production=false 2>&1
+    npm ci 2>&1
 
     info "Baue Dokumentation (VitePress)..."
     npm run build 2>&1
@@ -486,8 +486,11 @@ UPDATE_END=$(date +%s)
 UPDATE_DURATION=$(( UPDATE_END - UPDATE_START ))
 
 echo ""
+DURATION_TEXT="Update abgeschlossen in ${UPDATE_DURATION} Sekunden"
+PAD_LEN=$(( 56 - ${#DURATION_TEXT} ))
+PADDING=$(printf '%*s' "$PAD_LEN" '')
 echo -e "${BOLD}${GREEN}  ╔══════════════════════════════════════════════════════════╗${NC}"
-echo -e "${BOLD}${GREEN}  ║   Update abgeschlossen in ${UPDATE_DURATION} Sekunden                      ║${NC}"
+echo -e "${BOLD}${GREEN}  ║   ${DURATION_TEXT}${PADDING}║${NC}"
 echo -e "${BOLD}${GREEN}  ╚══════════════════════════════════════════════════════════╝${NC}"
 echo ""
 echo -e "  Stand:     ${CYAN}$(git log --oneline -1)${NC}"
