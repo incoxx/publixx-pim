@@ -85,8 +85,25 @@ class BmecatFormatImporter
 
         $this->executor->setMode($this->mode);
 
-        $parsed = $this->parseXml($xml, $elementMap, $version);
-        $parseResult = $this->buildParseResult($parsed, $productType);
+        try {
+            $parsed = $this->parseXml($xml, $elementMap, $version);
+        } catch (\Throwable $e) {
+            Log::channel('import')->error('BMEcat-XML konnte nicht geparst werden', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            throw new \RuntimeException('BMEcat-XML konnte nicht geparst werden: ' . $e->getMessage(), 0, $e);
+        }
+
+        try {
+            $parseResult = $this->buildParseResult($parsed, $productType);
+        } catch (\Throwable $e) {
+            Log::channel('import')->error('Import-Daten konnten nicht aufbereitet werden', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            throw new \RuntimeException('Import-Daten konnten nicht aufbereitet werden: ' . $e->getMessage(), 0, $e);
+        }
 
         $result = $this->executor->execute($parseResult);
 
@@ -296,6 +313,7 @@ class BmecatFormatImporter
         $outerXml = $reader->readOuterXml();
         $el = $this->loadElement($outerXml, $ns);
         if ($el === null) {
+            Log::channel('import')->error('HEADER-Element konnte nicht geparst werden');
             return [];
         }
 
@@ -332,6 +350,7 @@ class BmecatFormatImporter
         $el = $this->loadElement($outerXml, $ns);
 
         if ($el === null) {
+            Log::channel('import')->error('CATALOG_GROUP_SYSTEM konnte nicht geparst werden');
             $this->skipToEndElement($reader, 'CATALOG_GROUP_SYSTEM');
             return [];
         }
@@ -342,7 +361,7 @@ class BmecatFormatImporter
 
         if ($catalogStructures !== null) {
             foreach ($catalogStructures as $structure) {
-                $type = (string) ($structure['type'] ?? 'node');
+                $type = $this->attr($structure, 'type') ?? 'node';
                 $structures[] = [
                     'group_id' => $this->text($structure, 'GROUP_ID', $ns) ?? '',
                     'group_name' => $this->text($structure, 'GROUP_NAME', $ns) ?? '',
@@ -368,12 +387,14 @@ class BmecatFormatImporter
         $el = $this->loadElement($outerXml, $ns);
 
         if ($el === null) {
+            Log::channel('import')->error('Produkt übersprungen: XML-Fragment konnte nicht geparst werden');
             $this->skipToEndElement($reader, $elementMap['product']);
             return null;
         }
 
         $sku = $this->text($el, $elementMap['supplier_pid'], $ns);
         if (empty($sku)) {
+            Log::channel('import')->warning('Produkt übersprungen: Keine SKU (SUPPLIER_PID/SUPPLIER_AID) gefunden');
             $this->skipToEndElement($reader, $elementMap['product']);
             return null;
         }
@@ -458,7 +479,7 @@ class BmecatFormatImporter
 
                 if ($datetimes !== null) {
                     foreach ($datetimes as $dt) {
-                        $dtType = (string) ($dt['type'] ?? '');
+                        $dtType = $this->attr($dt, 'type') ?? '';
                         $dtValue = trim((string) $dt);
                         if ($dtType === 'valid_start_date') {
                             $validFrom = $dtValue;
@@ -475,7 +496,7 @@ class BmecatFormatImporter
 
                 if ($prices !== null) {
                     foreach ($prices as $price) {
-                        $priceType = (string) ($price['price_type'] ?? 'net_list');
+                        $priceType = $this->attr($price, 'price_type') ?? $this->attr($price, 'type') ?? 'net_list';
                         $territories = $this->texts($price, 'TERRITORY', $ns);
 
                         $product['prices'][] = [
@@ -500,7 +521,7 @@ class BmecatFormatImporter
 
         if ($references !== null) {
             foreach ($references as $ref) {
-                $refType = (string) ($ref['type'] ?? 'similar');
+                $refType = $this->attr($ref, 'type') ?? 'similar';
                 $targetId = $this->text($ref, $elementMap['prod_id_to'], $ns);
                 if (!empty($targetId)) {
                     $product['references'][] = [
@@ -573,6 +594,7 @@ class BmecatFormatImporter
         $el = $this->loadElement($outerXml, $ns);
 
         if ($el === null) {
+            Log::channel('import')->warning('PRODUCT_TO_CATALOGGROUP_MAP übersprungen: XML konnte nicht geparst werden');
             $this->skipToEndElement($reader, $elementMap['product_to_cataloggroup_map']);
             return null;
         }
@@ -904,11 +926,16 @@ class BmecatFormatImporter
      */
     public function sanitizeTechnicalName(string $name): string
     {
-        // Umlaute und Sonderzeichen transliterieren
-        $name = transliterator_transliterate('Any-Latin; Latin-ASCII; Lower()', $name);
-        if ($name === false) {
-            $name = mb_strtolower($name);
-        }
+        // Deutsche Umlaute explizit ersetzen (vor Transliteration)
+        $name = str_replace(
+            ['Ä', 'ä', 'Ö', 'ö', 'Ü', 'ü', 'ß'],
+            ['Ae', 'ae', 'Oe', 'oe', 'Ue', 'ue', 'ss'],
+            $name,
+        );
+
+        // Restliche Sonderzeichen transliterieren
+        $transliterated = transliterator_transliterate('Any-Latin; Latin-ASCII; Lower()', $name);
+        $name = $transliterated !== false ? $transliterated : mb_strtolower($name);
 
         // Nicht-alphanumerische Zeichen durch Unterstriche ersetzen
         $name = (string) preg_replace('/[^a-z0-9_]/', '_', $name);
@@ -999,8 +1026,10 @@ class BmecatFormatImporter
      *
      * @return string[] Pfad-Komponenten von Root abwärts (ohne Root selbst)
      */
-    private function resolveNodePath(string $groupId, array $tree): array
+    private function resolveNodePath(string|int $groupId, array $tree): array
     {
+        $groupId = (string) $groupId;
+
         if (!isset($tree[$groupId])) {
             return [];
         }
@@ -1347,8 +1376,8 @@ class BmecatFormatImporter
      */
     private function udxNamespaceToGroupName(string $namespace): string
     {
-        // Kurze Kürzel (z.B. EDXF, ETIM) bleiben uppercase
-        if (strlen($namespace) <= 4 && strtoupper($namespace) === $namespace) {
+        // Sehr kurze Kürzel (z.B. SAP, IBM) bleiben uppercase
+        if (strlen($namespace) <= 3 && strtoupper($namespace) === $namespace) {
             return 'UDX – ' . $namespace;
         }
 
@@ -1375,6 +1404,14 @@ class BmecatFormatImporter
     {
         libxml_use_internal_errors(true);
         $el = simplexml_load_string($outerXml);
+
+        if ($el === false) {
+            $errors = libxml_get_errors();
+            foreach ($errors as $error) {
+                Log::channel('import')->warning("XML-Parsing-Fehler: " . trim($error->message) . " (Zeile {$error->line})");
+            }
+        }
+
         libxml_clear_errors();
         libxml_use_internal_errors(false);
 
@@ -1421,6 +1458,20 @@ class BmecatFormatImporter
         }
 
         return $values;
+    }
+
+    /**
+     * Liest ein XML-Attribut namespace-sicher aus.
+     *
+     * SimpleXML hat einen Quirk: Wenn ein Element über children($ns) geholt wurde,
+     * sind unqualifizierte Attribute nicht über $element['attr'] zugänglich.
+     * Über $element->attributes()['attr'] funktioniert es dagegen immer.
+     */
+    private function attr(\SimpleXMLElement $element, string $attrName): ?string
+    {
+        $value = (string) ($element->attributes()[$attrName] ?? '');
+
+        return $value !== '' ? $value : null;
     }
 
     /**
