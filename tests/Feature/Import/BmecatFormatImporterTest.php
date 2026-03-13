@@ -901,4 +901,83 @@ class BmecatFormatImporterTest extends TestCase
         $result = $this->importer->importFromString($xml);
         $this->assertDatabaseHas('products', ['sku' => 'AID-001']);
     }
+
+    // =========================================================================
+    // FLEX BMEcat — plain lang="DE" attribute (not xml:lang)
+    // =========================================================================
+
+    public function test_flex_lang_attribute_imports_multilang_descriptions(): void
+    {
+        $xml = file_get_contents(__DIR__ . '/../../fixtures/bmecat_2005_flex_lang_sample.xml');
+        $this->importer->importFromString($xml);
+
+        $product = Product::where('sku', '521620')->first();
+        $this->assertNotNull($product);
+
+        $attr = Attribute::where('technical_name', 'description_short')->first();
+        $this->assertNotNull($attr);
+        $this->assertTrue($attr->is_translatable);
+
+        // Deutsch (lang="DE" → mapped to "de")
+        $de = ProductAttributeValue::where('product_id', $product->id)
+            ->where('attribute_id', $attr->id)
+            ->where('language', 'de')
+            ->first();
+        $this->assertNotNull($de);
+        $this->assertStringContainsString('BO-ST D60', $de->value_string);
+
+        // Englisch (lang="EN" → mapped to "en")
+        $en = ProductAttributeValue::where('product_id', $product->id)
+            ->where('attribute_id', $attr->id)
+            ->where('language', 'en')
+            ->first();
+        $this->assertNotNull($en);
+        $this->assertStringContainsString('BO-ST D60', $en->value_string);
+    }
+
+    public function test_flex_lang_attribute_imports_multilang_long_description(): void
+    {
+        $xml = file_get_contents(__DIR__ . '/../../fixtures/bmecat_2005_flex_lang_sample.xml');
+        $this->importer->importFromString($xml);
+
+        $product = Product::where('sku', '521620')->first();
+        $this->assertNotNull($product);
+
+        $attr = Attribute::where('technical_name', 'description_long')->first();
+        $this->assertNotNull($attr);
+        $this->assertTrue($attr->is_translatable);
+
+        // Deutsch (lang="DE" → "de")
+        $de = ProductAttributeValue::where('product_id', $product->id)
+            ->where('attribute_id', $attr->id)
+            ->where('language', 'de')
+            ->first();
+        $this->assertNotNull($de);
+        $this->assertStringContainsString('Stützteller', $de->value_string);
+
+        // Englisch (lang="EN" → "en")
+        $en = ProductAttributeValue::where('product_id', $product->id)
+            ->where('attribute_id', $attr->id)
+            ->where('language', 'en')
+            ->first();
+        $this->assertNotNull($en);
+        $this->assertStringContainsString('Backing pad', $en->value_string);
+    }
+
+    public function test_flex_lang_validate_with_generator_info(): void
+    {
+        $xml = file_get_contents(__DIR__ . '/../../fixtures/bmecat_2005_flex_lang_sample.xml');
+        $result = $this->importer->validate($xml);
+
+        $this->assertTrue($result['valid']);
+    }
+
+    public function test_flex_lang_catalog_group_with_special_chars(): void
+    {
+        $xml = file_get_contents(__DIR__ . '/../../fixtures/bmecat_2005_flex_lang_sample.xml');
+        $this->importer->importFromString($xml);
+
+        // Categories with $ prefix in GROUP_ID should be imported by GROUP_NAME
+        $this->assertDatabaseHas('hierarchy_nodes', ['name_de' => 'Trennschleifen']);
+    }
 }

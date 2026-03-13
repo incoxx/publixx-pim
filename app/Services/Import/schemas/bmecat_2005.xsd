@@ -26,23 +26,30 @@
   <!-- HEADER -->
   <xs:element name="HEADER">
     <xs:complexType>
-      <xs:all>
-        <xs:element ref="bmecat:CATALOG" minOccurs="0"/>
-        <xs:element ref="bmecat:SUPPLIER" minOccurs="0"/>
-        <xs:element ref="bmecat:BUYER" minOccurs="0"/>
-        <xs:element ref="bmecat:AGREEMENT" minOccurs="0"/>
-        <xs:element ref="bmecat:USER_DEFINED_EXTENSIONS" minOccurs="0"/>
-      </xs:all>
+      <xs:sequence>
+        <xs:element name="GENERATOR_INFO" type="xs:string" minOccurs="0"/>
+        <xs:choice minOccurs="0" maxOccurs="unbounded">
+          <xs:element ref="bmecat:CATALOG"/>
+          <xs:element ref="bmecat:SUPPLIER"/>
+          <xs:element ref="bmecat:BUYER"/>
+          <xs:element ref="bmecat:AGREEMENT"/>
+          <xs:element ref="bmecat:USER_DEFINED_EXTENSIONS"/>
+        </xs:choice>
+      </xs:sequence>
     </xs:complexType>
   </xs:element>
 
   <xs:element name="CATALOG">
     <xs:complexType>
       <xs:sequence>
-        <xs:element name="LANGUAGE" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+        <xs:element name="LANGUAGE" minOccurs="0" maxOccurs="unbounded">
+          <xs:complexType mixed="true">
+            <xs:attribute name="default" type="xs:string"/>
+          </xs:complexType>
+        </xs:element>
         <xs:element name="CATALOG_ID" type="xs:string" minOccurs="0"/>
         <xs:element name="CATALOG_VERSION" type="xs:string" minOccurs="0"/>
-        <xs:element name="CATALOG_NAME" type="xs:string" minOccurs="0"/>
+        <xs:element name="CATALOG_NAME" type="bmecat:multilingualText" minOccurs="0"/>
         <xs:element ref="bmecat:DATETIME" minOccurs="0" maxOccurs="unbounded"/>
         <xs:element name="CURRENCY" type="xs:string" minOccurs="0"/>
         <xs:element name="MIME_ROOT" type="xs:string" minOccurs="0"/>
@@ -109,10 +116,18 @@
   <xs:element name="T_NEW_CATALOG">
     <xs:complexType>
       <xs:sequence>
+        <xs:element ref="bmecat:CLASSIFICATION_SYSTEM" minOccurs="0" maxOccurs="unbounded"/>
         <xs:element ref="bmecat:CATALOG_GROUP_SYSTEM" minOccurs="0"/>
         <xs:element ref="bmecat:PRODUCT" minOccurs="0" maxOccurs="unbounded"/>
         <xs:element ref="bmecat:PRODUCT_TO_CATALOGGROUP_MAP" minOccurs="0" maxOccurs="unbounded"/>
       </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- CLASSIFICATION_SYSTEM (lax — beliebiger Inhalt akzeptiert) -->
+  <xs:element name="CLASSIFICATION_SYSTEM">
+    <xs:complexType>
+      <xs:sequence><xs:any processContents="lax" minOccurs="0" maxOccurs="unbounded"/></xs:sequence>
     </xs:complexType>
   </xs:element>
   <xs:element name="T_UPDATE_PRODUCTS">
@@ -277,6 +292,7 @@
         <xs:element name="PROD_ID" type="xs:string"/>
         <xs:element name="CATALOG_GROUP_ID" type="xs:string"/>
         <xs:element name="PRODUCT_ORDER" type="xs:string" minOccurs="0"/>
+        <xs:element name="PRODUCT_TO_CATALOGGROUP_MAP_ORDER" type="xs:string" minOccurs="0"/>
       </xs:all>
     </xs:complexType>
   </xs:element>
@@ -290,14 +306,14 @@
 
   <xs:element name="MIME">
     <xs:complexType>
-      <xs:all>
+      <xs:sequence>
         <xs:element name="MIME_TYPE" type="xs:string" minOccurs="0"/>
-        <xs:element name="MIME_SOURCE" type="xs:string" minOccurs="0"/>
-        <xs:element name="MIME_DESCR" type="xs:string" minOccurs="0"/>
-        <xs:element name="MIME_ALT" type="xs:string" minOccurs="0"/>
+        <xs:element name="MIME_SOURCE" type="bmecat:multilingualText" minOccurs="0" maxOccurs="unbounded"/>
+        <xs:element name="MIME_DESCR" type="bmecat:multilingualText" minOccurs="0"/>
+        <xs:element name="MIME_ALT" type="bmecat:multilingualText" minOccurs="0"/>
         <xs:element name="MIME_PURPOSE" type="xs:string" minOccurs="0"/>
         <xs:element name="MIME_ORDER" type="xs:string" minOccurs="0"/>
-      </xs:all>
+      </xs:sequence>
     </xs:complexType>
   </xs:element>
 
