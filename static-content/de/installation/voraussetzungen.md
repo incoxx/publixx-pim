@@ -73,7 +73,7 @@ redis-server --version
 
 Empfohlene Redis-Konfiguration:
 
-```conf
+```ini
 maxmemory 512mb
 maxmemory-policy allkeys-lru
 ```

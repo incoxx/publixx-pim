@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import { usePdfTemplateDesignerStore } from '@/stores/pdfTemplateDesigner'
-import { Settings, Trash2, Copy, ArrowUpToLine, ArrowDownToLine, RulerDimensionLine } from 'lucide-vue-next'
+import { Settings, Trash2, Copy, ArrowUpToLine, ArrowDownToLine } from 'lucide-vue-next'
 import { fontFamilies } from './fontList'
 
 const store = usePdfTemplateDesignerStore()

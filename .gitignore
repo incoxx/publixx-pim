@@ -36,4 +36,27 @@ yarn-error.log
 !/storage/framework/sessions/.gitkeep
 !/storage/framework/views/.gitkeep
 !/storage/logs/.gitkeep
+# Generierte Font-Caches (dompdf)
+/storage/fonts/*.ufm
+/storage/fonts/*.ufm.json
+/storage/fonts/installed-fonts.json
+/storage/fonts/*_normal_*.ttf
+/storage/fonts/*_bold_*.ttf
+/storage/fonts/*_italic_*.ttf
+/storage/fonts/*_bold_italic_*.ttf
+
+# Storage Unterverzeichnisse (Runtime-Daten)
+/storage/app/exports
+/storage/app/temp
+/storage/app/reports
+/storage/app/private/imports
+
+# TMS
+/tms/vendor
+/tms/composer.lock
+/tms/bootstrap/cache
+
+# Vendor Assets (Laravel publiziert)
+/public/vendor
+
 publixx_pim

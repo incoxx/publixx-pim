@@ -143,7 +143,7 @@ sudo apt install -y redis-server
 
 Bearbeiten Sie `/etc/redis/redis.conf`:
 
-```conf
+```ini
 maxmemory 512mb
 maxmemory-policy allkeys-lru
 supervised systemd
@@ -291,7 +291,7 @@ Der Laravel Scheduler führt wiederkehrende Aufgaben aus (Cache-Bereinigung, gep
 sudo crontab -u www-data -e
 ```
 
-```cron
+```bash
 * * * * * cd /var/www/publixx-pim && php artisan schedule:run >> /dev/null 2>&1
 ```
 
@@ -465,7 +465,7 @@ mysqldump -u pim_user -p publixx_pim | gzip > /backup/pim_$(date +%Y%m%d_%H%M%S)
 
 Automatisieren Sie dies per Cron:
 
-```cron
+```bash
 0 2 * * * mysqldump -u pim_user -p'passwort' publixx_pim | gzip > /backup/pim_$(date +\%Y\%m\%d).sql.gz
 ```
 
