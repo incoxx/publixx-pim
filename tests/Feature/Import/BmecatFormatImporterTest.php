@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Tests\Feature\Import;
 
 use App\Models\Attribute;
+use App\Models\AttributeType;
 use App\Models\Hierarchy;
 use App\Models\HierarchyNode;
 use App\Models\PriceType;
 use App\Models\Product;
+use App\Models\ProductAttributeValue;
 use App\Models\ProductPrice;
 use App\Models\ProductRelation;
 use App\Models\ProductRelationType;
@@ -401,5 +403,147 @@ class BmecatFormatImporterTest extends TestCase
         $xml = file_get_contents(__DIR__ . '/../../fixtures/bmecat_2005_sample.xml');
         $result = $this->importer->importFromString($xml);
         $this->assertNotNull($result);
+    }
+
+    // =========================================================================
+    // UDX (USER_DEFINED_EXTENSIONS) Import
+    // =========================================================================
+
+    public function test_udx_fields_create_attribute_group(): void
+    {
+        $xml = file_get_contents(__DIR__ . '/../../fixtures/bmecat_2005_udx_sample.xml');
+        $this->importer->importFromString($xml);
+
+        // UDX-Attributgruppe "udx_doka" mit Label "UDX – Doka" angelegt
+        $this->assertDatabaseHas('attribute_types', [
+            'technical_name' => 'udx_doka',
+            'name_de' => 'UDX – Doka',
+        ]);
+    }
+
+    public function test_udx_fields_create_attributes_in_own_group(): void
+    {
+        $xml = file_get_contents(__DIR__ . '/../../fixtures/bmecat_2005_udx_sample.xml');
+        $this->importer->importFromString($xml);
+
+        $group = AttributeType::where('technical_name', 'udx_doka')->first();
+        $this->assertNotNull($group);
+
+        // UDX-Attribute in der richtigen Gruppe
+        $udxAttrs = Attribute::where('attribute_type_id', $group->id)->get();
+        $techNames = $udxAttrs->pluck('technical_name')->toArray();
+
+        $this->assertContains('udx_doka_schalungsteil_typ', $techNames);
+        $this->assertContains('udx_doka_element_breite', $techNames);
+        $this->assertContains('udx_doka_element_hoehe', $techNames);
+        $this->assertContains('udx_doka_ksp_zeitersparnis', $techNames);
+        $this->assertContains('udx_doka_ksp_kein_rippling', $techNames);
+        $this->assertContains('udx_doka_mietfaehig', $techNames);
+    }
+
+    public function test_udx_fields_separated_from_features(): void
+    {
+        $xml = file_get_contents(__DIR__ . '/../../fixtures/bmecat_2005_udx_sample.xml');
+        $this->importer->importFromString($xml);
+
+        // Feature-Attribute (Gewicht, Material) haben KEINE UDX-Gruppe
+        $gewicht = Attribute::where('technical_name', 'gewicht')->first();
+        $this->assertNotNull($gewicht);
+
+        $udxGroup = AttributeType::where('technical_name', 'udx_doka')->first();
+        $this->assertNotEquals($udxGroup?->id, $gewicht->attribute_type_id);
+    }
+
+    public function test_udx_product_values_assigned(): void
+    {
+        $xml = file_get_contents(__DIR__ . '/../../fixtures/bmecat_2005_udx_sample.xml');
+        $this->importer->importFromString($xml);
+
+        $product = Product::where('sku', 'DOKA-FX-270-90')->first();
+        $this->assertNotNull($product);
+
+        $breitAttr = Attribute::where('technical_name', 'udx_doka_element_breite')->first();
+        $this->assertNotNull($breitAttr);
+
+        $value = ProductAttributeValue::where('product_id', $product->id)
+            ->where('attribute_id', $breitAttr->id)
+            ->first();
+        $this->assertNotNull($value);
+    }
+
+    public function test_udx_data_type_auto_detection(): void
+    {
+        $xml = file_get_contents(__DIR__ . '/../../fixtures/bmecat_2005_udx_sample.xml');
+        $this->importer->importFromString($xml);
+
+        // String-Typ
+        $typ = Attribute::where('technical_name', 'udx_doka_schalungsteil_typ')->first();
+        $this->assertEquals('String', $typ->data_type);
+
+        // Float-Typ (0.90)
+        $breite = Attribute::where('technical_name', 'udx_doka_element_breite')->first();
+        $this->assertEquals('Float', $breite->data_type);
+
+        // Flag-Typ (true/false)
+        $rippling = Attribute::where('technical_name', 'udx_doka_ksp_kein_rippling')->first();
+        $this->assertEquals('Flag', $rippling->data_type);
+    }
+
+    public function test_udx_source_attribute_key_stored(): void
+    {
+        $xml = file_get_contents(__DIR__ . '/../../fixtures/bmecat_2005_udx_sample.xml');
+        $this->importer->importFromString($xml);
+
+        $attr = Attribute::where('technical_name', 'udx_doka_schalungsteil_typ')->first();
+        $this->assertNotNull($attr);
+        $this->assertEquals('UDX.DOKA.SCHALUNGSTEIL_TYP', $attr->source_attribute_key);
+        $this->assertEquals('bmecat_udx', $attr->source_system);
+    }
+
+    public function test_udx_header_fields_ignored(): void
+    {
+        $xml = file_get_contents(__DIR__ . '/../../fixtures/bmecat_2005_udx_sample.xml');
+        $this->importer->importFromString($xml);
+
+        // Header-UDX-Felder (PRODUKTFAMILIE, SYSTEM) sollten NICHT als Attribute angelegt werden
+        // sofern sie nicht auch auf Produktebene vorkommen
+        $this->assertDatabaseMissing('attributes', ['technical_name' => 'udx_doka_produktfamilie']);
+        $this->assertDatabaseMissing('attributes', ['technical_name' => 'udx_doka_system']);
+    }
+
+    public function test_udx_invalid_field_names_logged_not_aborted(): void
+    {
+        $xml = '<?xml version="1.0" encoding="UTF-8"?>
+<BMECAT version="2005" xmlns="http://www.bmecat.org/bmecat/2005">
+  <HEADER>
+    <CATALOG>
+      <LANGUAGE>deu</LANGUAGE>
+      <CATALOG_ID>TEST-UDX</CATALOG_ID>
+      <CATALOG_VERSION>001</CATALOG_VERSION>
+      <CURRENCY>EUR</CURRENCY>
+    </CATALOG>
+    <SUPPLIER><SUPPLIER_NAME>Test</SUPPLIER_NAME></SUPPLIER>
+  </HEADER>
+  <T_NEW_CATALOG>
+    <PRODUCT mode="new">
+      <SUPPLIER_PID>UDX-TEST-001</SUPPLIER_PID>
+      <PRODUCT_DETAILS>
+        <DESCRIPTION_SHORT>UDX Test Product</DESCRIPTION_SHORT>
+      </PRODUCT_DETAILS>
+      <USER_DEFINED_EXTENSIONS>
+        <UDX.VALID.FIELD>works</UDX.VALID.FIELD>
+        <INVALID_UDX_FIELD>should be skipped</INVALID_UDX_FIELD>
+      </USER_DEFINED_EXTENSIONS>
+    </PRODUCT>
+  </T_NEW_CATALOG>
+</BMECAT>';
+
+        $result = $this->importer->importFromString($xml);
+
+        // Import soll erfolgreich sein (nicht abbrechen)
+        $this->assertDatabaseHas('products', ['sku' => 'UDX-TEST-001']);
+
+        // Gültiges UDX-Feld soll angelegt sein
+        $this->assertDatabaseHas('attributes', ['technical_name' => 'udx_valid_field']);
     }
 }
