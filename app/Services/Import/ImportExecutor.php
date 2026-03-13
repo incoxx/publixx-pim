@@ -858,7 +858,7 @@ class ImportExecutor
 
                     $isUpdate = isset($existingSkus[$row['sku']]);
                     $upsertData[] = [
-                        'id' => $isUpdate ? null : Str::uuid()->toString(),
+                        'id' => Str::uuid()->toString(),
                         'sku' => $row['sku'],
                         'name' => $row['name'],
                         'product_type_id' => $typeResult->id,
@@ -888,36 +888,11 @@ class ImportExecutor
             }
 
             if (!empty($upsertData)) {
-                // id nicht updaten bei existierenden Zeilen
-                $updateColumns = ['name', 'product_type_id', 'ean', 'status', 'product_type_ref', 'updated_at'];
-                // Zeilen ohne id (updates) — id wird bei Insert auto-gesetzt, bei Update ignoriert
-                foreach ($upsertData as &$d) {
-                    if ($d['id'] === null) {
-                        unset($d['id']);
-                    }
-                }
-                unset($d);
-
-                // Upsert benötigt konsistente Spalten — alle Zeilen müssen gleiche Keys haben
-                // Teile in Insert- und Update-Batches auf
-                $inserts = array_filter($upsertData, fn($d) => isset($d['id']));
-                $updateSkus = array_filter($upsertData, fn($d) => !isset($d['id']));
-
-                if (!empty($inserts)) {
-                    Product::insert(array_values($inserts));
-                }
-                if (!empty($updateSkus)) {
-                    foreach ($updateSkus as $d) {
-                        Product::where('sku', $d['sku'])->update([
-                            'name' => $d['name'],
-                            'product_type_id' => $d['product_type_id'],
-                            'ean' => $d['ean'],
-                            'status' => $d['status'],
-                            'product_type_ref' => $d['product_type_ref'],
-                            'updated_at' => $d['updated_at'],
-                        ]);
-                    }
-                }
+                Product::upsert(
+                    $upsertData,
+                    ['sku'],
+                    ['name', 'product_type_id', 'ean', 'status', 'product_type_ref', 'updated_at']
+                );
             }
         }
 
@@ -1491,8 +1466,8 @@ class ImportExecutor
     }
 
     /**
-     * Bulk-Import für Preise: Batch-Insert für neue, Einzel-Update für bestehende.
-     * Kein upsert() wegen fehlendem Unique-Index mit nullable valid_from.
+     * Bulk-Import für Preise: upsert() in Chunks für Zeilen mit valid_from,
+     * Fallback auf Einzel-Insert/Update für Zeilen ohne valid_from (NULL in UNIQUE-Index).
      */
     private function importPricesBulk(array $rows, string $sheetKey): void
     {
@@ -1528,18 +1503,21 @@ class ImportExecutor
                 }
             }
 
-            // Bestehende Preise für diese Produkte laden
+            $upsertData = [];
+            $nullValidFromRows = [];
             $productIds = array_values($productIdMap);
-            $existingPrices = [];
+
+            // Bestehende Preise laden für Fallback und Stats
+            $existingPricesMap = [];
             if (!empty($productIds)) {
-                $existing = ProductPrice::whereIn('product_id', $productIds)->get();
-                foreach ($existing as $ep) {
-                    $key = $ep->product_id . '|' . $ep->price_type_id . '|' . $ep->currency . '|' . ($ep->valid_from ?? '');
-                    $existingPrices[$key] = $ep;
+                $allExisting = ProductPrice::whereIn('product_id', $productIds)->get();
+                foreach ($allExisting as $ep) {
+                    $key = $ep->product_id . '|' . $ep->price_type_id . '|' . $ep->currency
+                        . '|' . ($ep->valid_from ?? '') . '|' . ($ep->scale_from ?? '');
+                    $existingPricesMap[$key] = $ep;
                 }
             }
 
-            $insertData = [];
             foreach ($chunk as $row) {
                 try {
                     $productId = $productIdMap[$row['sku']] ?? null;
@@ -1569,18 +1547,36 @@ class ImportExecutor
                         'scale_to' => !empty($row['scale_to']) ? (int) $row['scale_to'] : null,
                     ];
 
-                    $key = $productId . '|' . $priceTypeId . '|' . $currency . '|' . ($validFrom ?? '');
-                    $existingPrice = $existingPrices[$key] ?? null;
+                    $scaleFrom = !empty($row['scale_from']) ? (int) $row['scale_from'] : null;
+                    $lookupKey = $productId . '|' . $priceTypeId . '|' . $currency
+                        . '|' . ($validFrom ?? '') . '|' . ($scaleFrom ?? '');
+                    $isExisting = isset($existingPricesMap[$lookupKey]);
 
-                    if ($existingPrice) {
-                        $existingPrice->update($data);
-                        $this->stats[$sheetKey]['updated']++;
+                    if ($validFrom === null || $scaleFrom === null) {
+                        // NULL in unique-key Spalten: Fallback auf Einzel-Insert/Update
+                        $existingPrice = $existingPricesMap[$lookupKey] ?? null;
+                        if ($existingPrice) {
+                            $existingPrice->update($data);
+                            $this->stats[$sheetKey]['updated']++;
+                        } else {
+                            $data['id'] = Str::uuid()->toString();
+                            $data['updated_at'] = $now;
+                            $data['created_at'] = $now;
+                            ProductPrice::create($data);
+                            $this->stats[$sheetKey]['created']++;
+                        }
                     } else {
+                        // Alle unique-key Spalten non-null: sammeln für Batch-Upsert
                         $data['id'] = Str::uuid()->toString();
                         $data['updated_at'] = $now;
                         $data['created_at'] = $now;
-                        $insertData[] = $data;
-                        $this->stats[$sheetKey]['created']++;
+                        $upsertData[] = $data;
+
+                        if ($isExisting) {
+                            $this->stats[$sheetKey]['updated']++;
+                        } else {
+                            $this->stats[$sheetKey]['created']++;
+                        }
                     }
 
                     $this->affectedProductIds[] = $productId;
@@ -1589,9 +1585,13 @@ class ImportExecutor
                 }
             }
 
-            // Neue Preise als Batch einfügen
-            if (!empty($insertData)) {
-                ProductPrice::insert($insertData);
+            // Preise mit valid_from als Batch-Upsert
+            if (!empty($upsertData)) {
+                ProductPrice::upsert(
+                    $upsertData,
+                    ['product_id', 'price_type_id', 'currency', 'valid_from', 'scale_from'],
+                    ['amount', 'valid_to', 'country', 'scale_to', 'updated_at']
+                );
             }
         }
     }
