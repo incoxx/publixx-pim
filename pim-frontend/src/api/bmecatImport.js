@@ -54,9 +54,18 @@ export default {
             const text = await response.text()
             try {
               const json = JSON.parse(text)
-              reject(new Error(json.error || json.message || 'Import fehlgeschlagen'))
+              reject(
+                new Error(
+                  json.error ||
+                    json.message ||
+                    (json.details ? JSON.stringify(json.details) : null) ||
+                    `Import fehlgeschlagen (HTTP ${response.status})`,
+                ),
+              )
             } catch {
-              reject(new Error('Import fehlgeschlagen'))
+              // Non-JSON response (e.g. HTML error page) — include status
+              const snippet = text.length > 200 ? text.slice(0, 200) + '…' : text
+              reject(new Error(`Import fehlgeschlagen (HTTP ${response.status}): ${snippet}`))
             }
             return
           }
@@ -78,6 +87,19 @@ export default {
           const reader = response.body.getReader()
           const decoder = new TextDecoder()
           let buffer = ''
+          let settled = false
+          const settledResolve = (v) => {
+            if (!settled) {
+              settled = true
+              resolve(v)
+            }
+          }
+          const settledReject = (e) => {
+            if (!settled) {
+              settled = true
+              reject(e)
+            }
+          }
 
           const processLines = () => {
             const lines = buffer.split('\n')
@@ -94,9 +116,11 @@ export default {
                   if (currentEvent === 'progress' && onProgress) {
                     onProgress(parsed)
                   } else if (currentEvent === 'complete') {
-                    resolve(parsed.data || parsed)
+                    settledResolve(parsed.data || parsed)
                   } else if (currentEvent === 'error') {
-                    reject(new Error(parsed.error || 'Import fehlgeschlagen'))
+                    settledReject(
+                      new Error(parsed.error || parsed.message || 'Import fehlgeschlagen'),
+                    )
                   }
                 } catch {
                   // Skip malformed JSON
@@ -118,9 +142,17 @@ export default {
               buffer += '\n'
               processLines()
             }
+            // Stream ended without complete/error event
+            if (!settled) {
+              settledReject(
+                new Error(
+                  'Import-Verbindung wurde unerwartet beendet. Bitte Import-Log prüfen.',
+                ),
+              )
+            }
           }
 
-          read().catch(reject)
+          read().catch(settledReject)
         })
         .catch(reject)
     })

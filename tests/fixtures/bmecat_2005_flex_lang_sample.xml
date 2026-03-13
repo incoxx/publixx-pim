@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<BMECAT version="2005" xmlns="http://www.bmecat.org/bmecat/2005">
+  <HEADER>
+    <GENERATOR_INFO>Created by crossbase XML-Generator</GENERATOR_INFO>
+    <CATALOG>
+      <LANGUAGE default="true">DE</LANGUAGE>
+      <LANGUAGE default="false">EN</LANGUAGE>
+      <CATALOG_ID>FLEX-TEST-2025</CATALOG_ID>
+      <CATALOG_VERSION>001.000</CATALOG_VERSION>
+      <CATALOG_NAME lang="DE">FLEX Testkatalog</CATALOG_NAME>
+      <CURRENCY>EUR</CURRENCY>
+    </CATALOG>
+    <SUPPLIER>
+      <SUPPLIER_NAME>FLEX-Elektrowerkzeuge GmbH</SUPPLIER_NAME>
+    </SUPPLIER>
+  </HEADER>
+
+  <T_NEW_CATALOG>
+    <CATALOG_GROUP_SYSTEM>
+      <GROUP_SYSTEM_ID>flex-groups</GROUP_SYSTEM_ID>
+      <GROUP_SYSTEM_NAME>FLEX Kategorien</GROUP_SYSTEM_NAME>
+      <CATALOG_STRUCTURE type="root">
+        <GROUP_ID>$PT-ROOT</GROUP_ID>
+        <GROUP_NAME>Produkte</GROUP_NAME>
+        <PARENT_ID>0</PARENT_ID>
+      </CATALOG_STRUCTURE>
+      <CATALOG_STRUCTURE type="leaf">
+        <GROUP_ID>$PT-T</GROUP_ID>
+        <GROUP_NAME>Trennschleifen</GROUP_NAME>
+        <PARENT_ID>$PT-ROOT</PARENT_ID>
+      </CATALOG_STRUCTURE>
+    </CATALOG_GROUP_SYSTEM>
+
+    <PRODUCT mode="new">
+      <SUPPLIER_PID>521620</SUPPLIER_PID>
+      <PRODUCT_DETAILS>
+        <DESCRIPTION_SHORT lang="DE">BO-ST D60 0,3/W M14</DESCRIPTION_SHORT>
+        <DESCRIPTION_SHORT lang="EN">BO-ST D60 0.3/W M14</DESCRIPTION_SHORT>
+        <DESCRIPTION_LONG lang="DE">Stützteller mit Kletthaftung für Polierschwämme und -hauben, D60, M14</DESCRIPTION_LONG>
+        <DESCRIPTION_LONG lang="EN">Backing pad with hook-and-loop for polishing sponges, D60, M14</DESCRIPTION_LONG>
+        <EAN>4030293217928</EAN>
+        <MANUFACTURER_NAME>FLEX</MANUFACTURER_NAME>
+        <MANUFACTURER_PID>521620</MANUFACTURER_PID>
+        <KEYWORD lang="DE">Stützteller</KEYWORD>
+        <KEYWORD lang="DE">Polieren</KEYWORD>
+        <KEYWORD lang="EN">Backing pad</KEYWORD>
+        <KEYWORD lang="EN">Polishing</KEYWORD>
+      </PRODUCT_DETAILS>
+
+      <PRODUCT_FEATURES>
+        <FEATURE>
+          <FNAME>Durchmesser</FNAME>
+          <FVALUE>60</FVALUE>
+          <FUNIT>mm</FUNIT>
+        </FEATURE>
+        <FEATURE>
+          <FNAME>Gewinde</FNAME>
+          <FVALUE>M14</FVALUE>
+        </FEATURE>
+      </PRODUCT_FEATURES>
+
+      <MIME_INFO>
+        <MIME>
+          <MIME_TYPE>image/webp</MIME_TYPE>
+          <MIME_SOURCE lang="DE">PRO_PHO_MAI_521620_DE.webp</MIME_SOURCE>
+          <MIME_SOURCE lang="EN">PRO_PHO_MAI_521620_EN.webp</MIME_SOURCE>
+          <MIME_PURPOSE>normal</MIME_PURPOSE>
+        </MIME>
+      </MIME_INFO>
+
+      <PRODUCT_PRICE_DETAILS>
+        <PRODUCT_PRICE price_type="net_list">
+          <PRICE_AMOUNT>24.50</PRICE_AMOUNT>
+          <PRICE_CURRENCY>EUR</PRICE_CURRENCY>
+          <TAX>0.19</TAX>
+        </PRODUCT_PRICE>
+      </PRODUCT_PRICE_DETAILS>
+    </PRODUCT>
+
+    <PRODUCT_TO_CATALOGGROUP_MAP>
+      <PROD_ID>521620</PROD_ID>
+      <CATALOG_GROUP_ID>$PT-T</CATALOG_GROUP_ID>
+      <PRODUCT_TO_CATALOGGROUP_MAP_ORDER>1</PRODUCT_TO_CATALOGGROUP_MAP_ORDER>
+    </PRODUCT_TO_CATALOGGROUP_MAP>
+  </T_NEW_CATALOG>
+</BMECAT>

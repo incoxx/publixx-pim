@@ -1834,11 +1834,19 @@ class BmecatFormatImporter
      * Liest das xml:lang-Attribut eines Elements und mapped es auf PIM-Sprachcode.
      *
      * BMEcat verwendet ISO 639-2 (deu, eng, fra), PIM nutzt ISO 639-1 (de, en, fr).
-     * Gibt null zurück wenn kein xml:lang gesetzt ist.
+     * Unterstützt sowohl xml:lang="deu" als auch plain lang="DE" (z.B. FLEX-Kataloge).
+     * Gibt null zurück wenn kein lang-Attribut gesetzt ist.
      */
     private function xmlLang(\SimpleXMLElement $element): ?string
     {
+        // Zuerst xml:lang prüfen (Standard BMEcat 2005)
         $lang = (string) ($element->attributes('xml', true)['lang'] ?? '');
+
+        // Fallback: plain lang-Attribut (z.B. FLEX-Kataloge mit lang="DE")
+        if ($lang === '') {
+            $lang = (string) ($element->attributes()['lang'] ?? '');
+        }
+
         if ($lang === '') {
             return null;
         }

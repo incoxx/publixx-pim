@@ -24,13 +24,16 @@
   <!-- HEADER -->
   <xs:element name="HEADER">
     <xs:complexType>
-      <xs:all>
-        <xs:element ref="CATALOG" minOccurs="0"/>
-        <xs:element ref="SUPPLIER" minOccurs="0"/>
-        <xs:element ref="BUYER" minOccurs="0"/>
-        <xs:element ref="AGREEMENT" minOccurs="0"/>
-        <xs:element ref="USER_DEFINED_EXTENSIONS" minOccurs="0"/>
-      </xs:all>
+      <xs:sequence>
+        <xs:element name="GENERATOR_INFO" type="xs:string" minOccurs="0"/>
+        <xs:choice minOccurs="0" maxOccurs="unbounded">
+          <xs:element ref="CATALOG"/>
+          <xs:element ref="SUPPLIER"/>
+          <xs:element ref="BUYER"/>
+          <xs:element ref="AGREEMENT"/>
+          <xs:element ref="USER_DEFINED_EXTENSIONS"/>
+        </xs:choice>
+      </xs:sequence>
     </xs:complexType>
   </xs:element>
 
