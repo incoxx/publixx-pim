@@ -35,8 +35,8 @@ export const useJournalStore = defineStore('journal', () => {
     }
   }
 
-  async function exportLogs(format = 'csv') {
-    const params = { format }
+  async function exportLogs() {
+    const params = {}
     if (search.value) params.search = search.value
     for (const [key, value] of Object.entries(filters.value)) {
       if (value) params[`filter[${key}]`] = value

@@ -70,7 +70,12 @@ class AuditLogController extends Controller
         $filters = $request->query('filter', []);
 
         if (!empty($filters['date_before'])) {
-            AuditLog::where('created_at', '<', $filters['date_before'])->delete();
+            try {
+                $dateBefore = \Carbon\Carbon::parse($filters['date_before']);
+            } catch (\Throwable) {
+                abort(422, 'Ungültiges Datumsformat für date_before.');
+            }
+            AuditLog::where('created_at', '<', $dateBefore)->delete();
         } else {
             AuditLog::query()->delete();
         }
@@ -113,13 +118,15 @@ class AuditLogController extends Controller
         // SKU search: join products table
         $search = $request->query('search');
         if ($search) {
-            $productIds = Product::where('sku', 'LIKE', "%{$search}%")
-                ->orWhere('name', 'LIKE', "%{$search}%")
+            $escaped = addcslashes($search, '%_');
+
+            $productIds = Product::where('sku', 'LIKE', "%{$escaped}%")
+                ->orWhere('name', 'LIKE', "%{$escaped}%")
                 ->pluck('id');
 
-            $query->where(function ($q) use ($productIds, $search) {
+            $query->where(function ($q) use ($productIds, $escaped) {
                 $q->whereIn('auditable_id', $productIds)
-                    ->orWhere('auditable_id', 'LIKE', "%{$search}%");
+                    ->orWhere('auditable_id', 'LIKE', "%{$escaped}%");
             });
         }
     }

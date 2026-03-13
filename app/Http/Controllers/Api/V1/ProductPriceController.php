@@ -61,12 +61,14 @@ class ProductPriceController extends Controller
     {
         $this->authorize('update', $productPrice->product);
 
-        $oldValues = $productPrice->only(['amount', 'currency', 'valid_from', 'valid_to']);
         $productPrice->update($request->validated());
         $newValues = $productPrice->getChanges();
         unset($newValues['updated_at']);
 
         if (!empty($newValues)) {
+            $oldValues = collect($productPrice->getOriginal())
+                ->only(array_keys($newValues))
+                ->toArray();
             $this->audit('price_updated', 'Product', $productPrice->product_id, $oldValues, $newValues);
         }
 

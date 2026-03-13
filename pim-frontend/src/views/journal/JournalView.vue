@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { Download, Trash2, ChevronDown, ChevronRight } from 'lucide-vue-next'
 import { useJournalStore } from '@/stores/journal'
 import { useAuthStore } from '@/stores/auth'
@@ -40,6 +40,7 @@ function onSearchInput(val) {
     store.fetchList()
   }, 400)
 }
+onUnmounted(() => clearTimeout(searchDebounce))
 
 function applyFilters() {
   const f = {}
@@ -108,7 +109,7 @@ function truncate(str, max = 60) {
 }
 
 async function handleExport() {
-  await store.exportLogs('csv')
+  await store.exportLogs()
 }
 
 async function confirmDelete() {
