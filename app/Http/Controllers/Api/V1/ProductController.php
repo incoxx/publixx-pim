@@ -293,7 +293,20 @@ class ProductController extends Controller
     {
         $this->authorize('delete', $product);
 
-        return $this->destroyWithConstraintCheck($request, $product);
+        $snapshot = $product->only(['id', 'sku', 'name', 'ean', 'status', 'product_type_id', 'product_type_ref']);
+
+        $response = $this->destroyWithConstraintCheck($request, $product);
+
+        // Only dispatch event if deletion was successful (204)
+        if ($response->getStatusCode() === 204) {
+            try {
+                event(new \App\Events\ProductDeleted($product->id, $snapshot));
+            } catch (\Throwable $e) {
+                Log::warning('ProductDeleted event failed', ['product_id' => $product->id, 'error' => $e->getMessage()]);
+            }
+        }
+
+        return $response;
     }
 
     /**

@@ -236,6 +236,12 @@ const routes = [
     meta: { title: 'Datenbank' },
   },
   {
+    path: '/journal',
+    name: 'journal',
+    component: () => import('@/views/journal/JournalView.vue'),
+    meta: { title: 'Änderungsprotokoll' },
+  },
+  {
     path: '/help',
     name: 'help',
     component: () => import('@/views/HelpView.vue'),

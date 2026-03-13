@@ -10,6 +10,7 @@ use App\Events\ImportCompleted;
 use App\Events\ProductCreated;
 use App\Events\ProductDeleted;
 use App\Events\ProductUpdated;
+use App\Listeners\AuditLogListener;
 use App\Listeners\CascadeInvalidationListener;
 use App\Listeners\ComputeCompositeValuesListener;
 use App\Listeners\InvalidateHierarchyCacheListener;
@@ -52,22 +53,25 @@ class EventServiceProvider extends ServiceProvider
         // Produkt-Lifecycle-Events
         ProductCreated::class => [
             UpdateSearchIndexListener::class,
+            AuditLogListener::class,
         ],
 
         ProductUpdated::class => [
             InvalidateProductCacheListener::class,
             UpdateSearchIndexListener::class,
+            AuditLogListener::class,
         ],
 
         ProductDeleted::class => [
             InvalidateProductCacheListener::class,
-            // RemoveSearchIndex wird via InvalidateProductCacheListener dispatcht
+            AuditLogListener::class,
         ],
 
         // Attributwert-Änderungen (von Vererbungs-Agent oder API)
         AttributeValuesChanged::class => [
             CascadeInvalidationListener::class,
             ComputeCompositeValuesListener::class,
+            AuditLogListener::class,
         ],
 
         // Hierarchie-Verschiebung (von Vererbungs-Agent)
