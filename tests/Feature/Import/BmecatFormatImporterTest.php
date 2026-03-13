@@ -546,4 +546,187 @@ class BmecatFormatImporterTest extends TestCase
         // Gültiges UDX-Feld soll angelegt sein
         $this->assertDatabaseHas('attributes', ['technical_name' => 'udx_valid_field']);
     }
+
+    // =========================================================================
+    // Multilingual Import (xml:lang)
+    // =========================================================================
+
+    public function test_multilang_description_short_creates_translatable_attribute(): void
+    {
+        $xml = file_get_contents(__DIR__ . '/../../fixtures/bmecat_2005_multilang_sample.xml');
+        $this->importer->importFromString($xml);
+
+        // description_short als übersetzbar angelegt
+        $attr = Attribute::where('technical_name', 'description_short')->first();
+        $this->assertNotNull($attr);
+        $this->assertTrue($attr->is_translatable);
+        $this->assertEquals('Kurzbeschreibung', $attr->name_de);
+    }
+
+    public function test_multilang_description_values_per_language(): void
+    {
+        $xml = file_get_contents(__DIR__ . '/../../fixtures/bmecat_2005_multilang_sample.xml');
+        $this->importer->importFromString($xml);
+
+        $product = Product::where('sku', 'ML-DRILL-001')->first();
+        $this->assertNotNull($product);
+
+        $attr = Attribute::where('technical_name', 'description_short')->first();
+        $this->assertNotNull($attr);
+
+        // Deutsch
+        $de = ProductAttributeValue::where('product_id', $product->id)
+            ->where('attribute_id', $attr->id)
+            ->where('language', 'de')
+            ->first();
+        $this->assertNotNull($de);
+        $this->assertEquals('Bohrmaschine Professional', $de->value_string);
+
+        // Englisch
+        $en = ProductAttributeValue::where('product_id', $product->id)
+            ->where('attribute_id', $attr->id)
+            ->where('language', 'en')
+            ->first();
+        $this->assertNotNull($en);
+        $this->assertEquals('Professional Drill Machine', $en->value_string);
+
+        // Französisch
+        $fr = ProductAttributeValue::where('product_id', $product->id)
+            ->where('attribute_id', $attr->id)
+            ->where('language', 'fr')
+            ->first();
+        $this->assertNotNull($fr);
+        $this->assertEquals('Perceuse Professionnelle', $fr->value_string);
+    }
+
+    public function test_multilang_feature_values_per_language(): void
+    {
+        $xml = file_get_contents(__DIR__ . '/../../fixtures/bmecat_2005_multilang_sample.xml');
+        $this->importer->importFromString($xml);
+
+        $product = Product::where('sku', 'ML-DRILL-001')->first();
+        $this->assertNotNull($product);
+
+        // Material-Attribut ist übersetzbar
+        $materialAttr = Attribute::where('technical_name', 'material')->first();
+        $this->assertNotNull($materialAttr);
+        $this->assertTrue($materialAttr->is_translatable);
+
+        // Deutsche Variante
+        $de = ProductAttributeValue::where('product_id', $product->id)
+            ->where('attribute_id', $materialAttr->id)
+            ->where('language', 'de')
+            ->first();
+        $this->assertNotNull($de);
+        $this->assertStringContainsString('Aluminium', $de->value_string);
+
+        // Englische Variante
+        $en = ProductAttributeValue::where('product_id', $product->id)
+            ->where('attribute_id', $materialAttr->id)
+            ->where('language', 'en')
+            ->first();
+        $this->assertNotNull($en);
+        $this->assertStringContainsString('aluminium', $en->value_string);
+    }
+
+    public function test_multilang_non_translatable_feature_remains_null_language(): void
+    {
+        $xml = file_get_contents(__DIR__ . '/../../fixtures/bmecat_2005_multilang_sample.xml');
+        $this->importer->importFromString($xml);
+
+        $product = Product::where('sku', 'ML-DRILL-001')->first();
+
+        // Leistung hat kein xml:lang → language = null
+        $leistungAttr = Attribute::where('technical_name', 'leistung')->first();
+        $this->assertNotNull($leistungAttr);
+        $this->assertFalse($leistungAttr->is_translatable);
+
+        $val = ProductAttributeValue::where('product_id', $product->id)
+            ->where('attribute_id', $leistungAttr->id)
+            ->first();
+        $this->assertNotNull($val);
+        $this->assertNull($val->language);
+    }
+
+    public function test_multilang_udx_fields_with_xml_lang(): void
+    {
+        $xml = file_get_contents(__DIR__ . '/../../fixtures/bmecat_2005_multilang_sample.xml');
+        $this->importer->importFromString($xml);
+
+        $product = Product::where('sku', 'ML-DRILL-001')->first();
+
+        // UDX BEZEICHNUNG ist übersetzbar (hat xml:lang)
+        $bezeichnungAttr = Attribute::where('technical_name', 'udx_test_bezeichnung')->first();
+        $this->assertNotNull($bezeichnungAttr);
+        $this->assertTrue($bezeichnungAttr->is_translatable);
+
+        // Deutsche und englische UDX-Werte
+        $de = ProductAttributeValue::where('product_id', $product->id)
+            ->where('attribute_id', $bezeichnungAttr->id)
+            ->where('language', 'de')
+            ->first();
+        $this->assertNotNull($de);
+        $this->assertEquals('Profi-Bohrer', $de->value_string);
+
+        $en = ProductAttributeValue::where('product_id', $product->id)
+            ->where('attribute_id', $bezeichnungAttr->id)
+            ->where('language', 'en')
+            ->first();
+        $this->assertNotNull($en);
+        $this->assertEquals('Pro Drill', $en->value_string);
+    }
+
+    public function test_multilang_udx_field_without_lang_stays_null(): void
+    {
+        $xml = file_get_contents(__DIR__ . '/../../fixtures/bmecat_2005_multilang_sample.xml');
+        $this->importer->importFromString($xml);
+
+        $product = Product::where('sku', 'ML-DRILL-001')->first();
+
+        // UDX GEWICHT hat kein xml:lang → language = null
+        $gewichtAttr = Attribute::where('technical_name', 'udx_test_gewicht')->first();
+        $this->assertNotNull($gewichtAttr);
+        $this->assertFalse($gewichtAttr->is_translatable);
+
+        $val = ProductAttributeValue::where('product_id', $product->id)
+            ->where('attribute_id', $gewichtAttr->id)
+            ->first();
+        $this->assertNotNull($val);
+        $this->assertNull($val->language);
+    }
+
+    public function test_multilang_product_without_xml_lang_backward_compatible(): void
+    {
+        $xml = file_get_contents(__DIR__ . '/../../fixtures/bmecat_2005_multilang_sample.xml');
+        $this->importer->importFromString($xml);
+
+        // Produkt ohne xml:lang wird normal importiert
+        $product = Product::where('sku', 'ML-BIT-002')->first();
+        $this->assertNotNull($product);
+        $this->assertEquals('Bohrer-Set 10-teilig', $product->name);
+    }
+
+    public function test_multilang_language_code_mapping(): void
+    {
+        $xml = file_get_contents(__DIR__ . '/../../fixtures/bmecat_2005_multilang_sample.xml');
+        $this->importer->importFromString($xml);
+
+        $product = Product::where('sku', 'ML-DRILL-001')->first();
+        $attr = Attribute::where('technical_name', 'description_short')->first();
+
+        // ISO 639-2 'deu' → ISO 639-1 'de'
+        $this->assertNotNull(ProductAttributeValue::where('product_id', $product->id)
+            ->where('attribute_id', $attr->id)
+            ->where('language', 'de')->first());
+
+        // ISO 639-2 'eng' → ISO 639-1 'en'
+        $this->assertNotNull(ProductAttributeValue::where('product_id', $product->id)
+            ->where('attribute_id', $attr->id)
+            ->where('language', 'en')->first());
+
+        // ISO 639-2 'fra' → ISO 639-1 'fr'
+        $this->assertNotNull(ProductAttributeValue::where('product_id', $product->id)
+            ->where('attribute_id', $attr->id)
+            ->where('language', 'fr')->first());
+    }
 }

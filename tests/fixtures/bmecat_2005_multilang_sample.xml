@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<BMECAT version="2005" xmlns="http://www.bmecat.org/bmecat/2005">
+  <HEADER>
+    <CATALOG>
+      <LANGUAGE>deu</LANGUAGE>
+      <LANGUAGE>eng</LANGUAGE>
+      <CATALOG_ID>MULTI-LANG-TEST</CATALOG_ID>
+      <CATALOG_VERSION>001.000</CATALOG_VERSION>
+      <CATALOG_NAME>Mehrsprachiger Testkatalog</CATALOG_NAME>
+      <CURRENCY>EUR</CURRENCY>
+    </CATALOG>
+    <SUPPLIER>
+      <SUPPLIER_NAME>Test GmbH</SUPPLIER_NAME>
+    </SUPPLIER>
+  </HEADER>
+
+  <T_NEW_CATALOG>
+    <CATALOG_GROUP_SYSTEM>
+      <GROUP_SYSTEM_ID>multilang-test</GROUP_SYSTEM_ID>
+      <GROUP_SYSTEM_NAME>Test</GROUP_SYSTEM_NAME>
+      <CATALOG_STRUCTURE type="root">
+        <GROUP_ID>root</GROUP_ID>
+        <GROUP_NAME>Produkte</GROUP_NAME>
+        <PARENT_ID>0</PARENT_ID>
+      </CATALOG_STRUCTURE>
+      <CATALOG_STRUCTURE type="leaf">
+        <GROUP_ID>cat-tools</GROUP_ID>
+        <GROUP_NAME>Werkzeuge</GROUP_NAME>
+        <PARENT_ID>root</PARENT_ID>
+      </CATALOG_STRUCTURE>
+    </CATALOG_GROUP_SYSTEM>
+
+    <!-- Produkt mit mehrsprachigen Beschreibungen und Features -->
+    <PRODUCT mode="new">
+      <SUPPLIER_PID>ML-DRILL-001</SUPPLIER_PID>
+      <PRODUCT_DETAILS>
+        <DESCRIPTION_SHORT xml:lang="deu">Bohrmaschine Professional</DESCRIPTION_SHORT>
+        <DESCRIPTION_SHORT xml:lang="eng">Professional Drill Machine</DESCRIPTION_SHORT>
+        <DESCRIPTION_SHORT xml:lang="fra">Perceuse Professionnelle</DESCRIPTION_SHORT>
+        <DESCRIPTION_LONG xml:lang="deu">Hochleistungs-Bohrmaschine für den professionellen Einsatz mit 800W Motor.</DESCRIPTION_LONG>
+        <DESCRIPTION_LONG xml:lang="eng">High-performance drill machine for professional use with 800W motor.</DESCRIPTION_LONG>
+        <EAN>4006381999901</EAN>
+        <MANUFACTURER_NAME>TestWerk</MANUFACTURER_NAME>
+        <KEYWORD xml:lang="deu">Bohrmaschine</KEYWORD>
+        <KEYWORD xml:lang="eng">drill</KEYWORD>
+      </PRODUCT_DETAILS>
+
+      <PRODUCT_FEATURES>
+        <!-- Feature ohne Sprache (nicht-übersetzbar) -->
+        <FEATURE>
+          <FNAME>Leistung</FNAME>
+          <FVALUE>800</FVALUE>
+          <FUNIT>W</FUNIT>
+        </FEATURE>
+        <!-- Feature mit mehrsprachigen Werten -->
+        <FEATURE>
+          <FNAME>Material</FNAME>
+          <FVALUE xml:lang="deu">Aluminium-Druckguss</FVALUE>
+          <FVALUE xml:lang="eng">Die-cast aluminium</FVALUE>
+        </FEATURE>
+      </PRODUCT_FEATURES>
+
+      <USER_DEFINED_EXTENSIONS>
+        <UDX.TEST.BEZEICHNUNG xml:lang="deu">Profi-Bohrer</UDX.TEST.BEZEICHNUNG>
+        <UDX.TEST.BEZEICHNUNG xml:lang="eng">Pro Drill</UDX.TEST.BEZEICHNUNG>
+        <UDX.TEST.GEWICHT>2.5</UDX.TEST.GEWICHT>
+      </USER_DEFINED_EXTENSIONS>
+
+      <PRODUCT_PRICE_DETAILS>
+        <PRODUCT_PRICE price_type="net_list">
+          <PRICE_AMOUNT>199.90</PRICE_AMOUNT>
+          <PRICE_CURRENCY>EUR</PRICE_CURRENCY>
+        </PRODUCT_PRICE>
+      </PRODUCT_PRICE_DETAILS>
+    </PRODUCT>
+
+    <!-- Produkt ohne Mehrsprachigkeit (Rückwärtskompatibilität) -->
+    <PRODUCT mode="new">
+      <SUPPLIER_PID>ML-BIT-002</SUPPLIER_PID>
+      <PRODUCT_DETAILS>
+        <DESCRIPTION_SHORT>Bohrer-Set 10-teilig</DESCRIPTION_SHORT>
+        <DESCRIPTION_LONG>Universelles Bohrer-Set mit 10 verschiedenen Größen.</DESCRIPTION_LONG>
+        <MANUFACTURER_NAME>TestWerk</MANUFACTURER_NAME>
+      </PRODUCT_DETAILS>
+
+      <PRODUCT_FEATURES>
+        <FEATURE>
+          <FNAME>Anzahl</FNAME>
+          <FVALUE>10</FVALUE>
+        </FEATURE>
+      </PRODUCT_FEATURES>
+    </PRODUCT>
+
+    <PRODUCT_TO_CATALOGGROUP_MAP>
+      <PROD_ID>ML-DRILL-001</PROD_ID>
+      <CATALOG_GROUP_ID>cat-tools</CATALOG_GROUP_ID>
+      <PRODUCT_ORDER>1</PRODUCT_ORDER>
+    </PRODUCT_TO_CATALOGGROUP_MAP>
+  </T_NEW_CATALOG>
+</BMECAT>
