@@ -22,32 +22,56 @@ const formData = ref(
         name_de: props.productType.name_de || '',
         name_en: props.productType.name_en || '',
         description: props.productType.description || '',
+        icon: props.productType.icon || '',
+        color: props.productType.color || '',
+        sort_order: props.productType.sort_order ?? 0,
+        is_active: props.productType.is_active ?? true,
         has_variants: props.productType.has_variants ?? false,
         has_ean: props.productType.has_ean ?? true,
         has_prices: props.productType.has_prices ?? true,
         has_media: props.productType.has_media ?? true,
+        has_stock: props.productType.has_stock ?? false,
+        has_physical_dimensions: props.productType.has_physical_dimensions ?? false,
+        workflow_enabled: props.productType.workflow_enabled ?? false,
       }
     : {
         technical_name: '',
         name_de: '',
         name_en: '',
         description: '',
+        icon: '',
+        color: '',
+        sort_order: 0,
+        is_active: true,
         has_variants: false,
         has_ean: true,
         has_prices: true,
         has_media: true,
+        has_stock: false,
+        has_physical_dimensions: false,
+        workflow_enabled: false,
       }
 )
 
 const fields = computed(() => [
+  // Grunddaten
   { key: 'technical_name', label: 'Technischer Name', type: 'text', required: true, disabled: isEdit.value },
   { key: 'name_de', label: 'Name (DE)', type: 'text', required: true },
   { key: 'name_en', label: 'Name (EN)', type: 'text' },
   { key: 'description', label: 'Beschreibung', type: 'textarea' },
+  // Darstellung
+  { key: 'icon', label: 'Icon (Lucide Name)', type: 'text' },
+  { key: 'color', label: 'Farbe (Hex)', type: 'text', placeholder: '#FF5733' },
+  { key: 'sort_order', label: 'Sortierung', type: 'number' },
+  { key: 'is_active', label: 'Aktiv', type: 'boolean' },
+  // Feature-Flags
   { key: 'has_variants', label: 'Varianten', type: 'boolean' },
   { key: 'has_ean', label: 'EAN', type: 'boolean' },
   { key: 'has_prices', label: 'Preise', type: 'boolean' },
   { key: 'has_media', label: 'Medien', type: 'boolean' },
+  { key: 'has_stock', label: 'Lagerbestand', type: 'boolean' },
+  { key: 'has_physical_dimensions', label: 'Physische Maße', type: 'boolean' },
+  { key: 'workflow_enabled', label: 'Workflow aktivieren', type: 'boolean' },
 ])
 
 async function handleSubmit(data) {

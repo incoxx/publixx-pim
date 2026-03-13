@@ -33,6 +33,7 @@ class ProductType extends Model
         'validation_rules',
         'sort_order',
         'is_active',
+        'workflow_enabled',
     ];
 
     protected function casts(): array
@@ -50,6 +51,7 @@ class ProductType extends Model
             'validation_rules' => 'array',
             'sort_order' => 'integer',
             'is_active' => 'boolean',
+            'workflow_enabled' => 'boolean',
         ];
     }
 

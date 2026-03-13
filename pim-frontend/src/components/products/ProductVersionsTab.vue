@@ -10,6 +10,7 @@ const props = defineProps({
   productId: { type: String, required: true },
 })
 
+const emit = defineEmits(['reverted'])
 const { t } = useI18n()
 
 // State
@@ -129,6 +130,7 @@ async function revertVersion() {
     await productVersionsApi.revert(props.productId, revertTarget.value.id)
     revertTarget.value = null
     await loadVersions()
+    emit('reverted')
   } catch { /* silently fail */ }
   finally { reverting.value = false }
 }

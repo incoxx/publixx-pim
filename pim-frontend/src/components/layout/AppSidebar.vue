@@ -8,7 +8,7 @@ import {
   Upload, Download, Image, Tags, DollarSign, Users, Settings,
   HelpCircle, PanelLeftClose, PanelLeft, Star, LayoutGrid, Ruler,
   FileJson, FileCode, PlayCircle, FileBarChart, FileText, BookOpen, Link2, Zap, Languages,
-  ChevronDown, ChevronRight, GripVertical, Factory, CalendarDays,
+  ChevronDown, ChevronRight, GripVertical, Factory, CalendarDays, ScrollText,
 } from 'lucide-vue-next'
 import AnyPimLogo from '@/components/shared/AnyPimLogo.vue'
 
@@ -68,6 +68,7 @@ const sections = computed(() => {
         { icon: Link2, label: () => 'Zugangslinks', to: '/access-links', permission: 'access-links.manage' },
         { icon: Zap, label: () => 'API Tester', to: '/api-tester', permission: 'users.view' },
         { icon: Database, label: () => 'Datenbank', to: '/db', permission: 'users.view' },
+        { icon: ScrollText, label: () => 'Journal', to: '/journal', permission: 'users.view' },
       ],
     },
     {

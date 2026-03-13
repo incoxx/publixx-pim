@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Requests\Api\V1\BulkUpdateRelationAttributeValuesRequest;
 use App\Http\Resources\Api\V1\ProductRelationAttributeValueResource;
+use App\Http\Traits\AuditsChanges;
 use App\Models\ProductRelation;
 use App\Models\ProductRelationAttributeValue;
 use Illuminate\Http\JsonResponse;
@@ -14,6 +15,7 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class ProductRelationAttributeValueController extends Controller
 {
+    use AuditsChanges;
     /**
      * GET /product-relations/{product_relation}/attribute-values
      */
@@ -64,6 +66,11 @@ class ProductRelationAttributeValueController extends Controller
             ProductRelationAttributeValue::updateOrCreate($key, $data);
         }
 
+        $this->audit('relation_attributes_updated', 'Product', $productRelation->source_product_id, null, [
+            'relation_id' => $productRelation->id,
+            'attribute_ids' => array_column($values, 'attribute_id'),
+        ]);
+
         return ProductRelationAttributeValueResource::collection(
             $productRelation->attributeValues()
                 ->with(['attribute', 'valueListEntry', 'unit'])
@@ -78,7 +85,15 @@ class ProductRelationAttributeValueController extends Controller
     {
         $this->authorize('update', $productRelationAttributeValue->productRelation->sourceProduct);
 
+        $productId = $productRelationAttributeValue->productRelation->source_product_id;
+        $snapshot = [
+            'relation_id' => $productRelationAttributeValue->product_relation_id,
+            'attribute_id' => $productRelationAttributeValue->attribute_id,
+        ];
+
         $productRelationAttributeValue->delete();
+
+        $this->audit('relation_attribute_removed', 'Product', $productId, $snapshot);
 
         return response()->json(null, 204);
     }

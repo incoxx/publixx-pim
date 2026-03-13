@@ -67,6 +67,7 @@ use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\UnitController;
 use App\Http\Controllers\Api\V1\UnitGroupController;
 use App\Http\Controllers\Api\V1\AccessLinkController;
+use App\Http\Controllers\Api\V1\AuditLogController;
 use App\Http\Controllers\Api\V1\UserController;
 use App\Http\Controllers\Api\V1\ValueListController;
 use App\Http\Controllers\Api\V1\ValueListEntryController;
@@ -189,6 +190,13 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::get('users/{user}/dependencies', [UserController::class, 'dependencies']);
     Route::apiResource('roles', RoleController::class);
     Route::put('roles/{role}/permissions', [RoleController::class, 'syncPermissions']);
+
+    // =====================================================================
+    // Audit Log (Änderungsprotokoll)
+    // =====================================================================
+    Route::get('audit-logs', [AuditLogController::class, 'index']);
+    Route::get('audit-logs/export', [AuditLogController::class, 'export']);
+    Route::delete('audit-logs', [AuditLogController::class, 'destroy']);
 
     // =====================================================================
     // Agent 3: Attributes
