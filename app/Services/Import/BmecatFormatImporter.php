@@ -156,16 +156,24 @@ class BmecatFormatImporter
     /**
      * Validiert die BMEcat-XML-Struktur ohne zu importieren.
      *
-     * @return array{valid: bool, version: string|null, transaction_type: string|null, product_count: int, errors: string[]}
+     * Führt folgende Prüfungen durch:
+     * 1. XML-Wohlgeformtheit (Syntax)
+     * 2. Versionserkennung
+     * 3. XSD-Schema-Validierung (Schema-Fehler → warnings, nicht errors)
+     * 4. Strukturprüfung (HEADER, Transaktionstyp, Produkte)
+     * 5. Erkennung gemischter 1.2/2005-Elemente
+     *
+     * @return array{valid: bool, version: string|null, transaction_type: string|null, product_count: int, errors: string[], warnings: string[]}
      */
     public function validate(string $xml): array
     {
         $errors = [];
+        $warnings = [];
         $version = null;
         $transactionType = null;
         $productCount = 0;
 
-        // XML-Grundvalidierung
+        // 1. XML-Grundvalidierung (Wohlgeformtheit)
         libxml_use_internal_errors(true);
         $doc = simplexml_load_string($xml);
         if ($doc === false) {
@@ -182,56 +190,89 @@ class BmecatFormatImporter
                 'transaction_type' => null,
                 'product_count' => 0,
                 'errors' => $errors,
+                'warnings' => [],
             ];
         }
         libxml_use_internal_errors(false);
 
-        // Version erkennen
+        // 2. Version erkennen
         try {
             $version = $this->detectVersion($xml);
         } catch (\RuntimeException $e) {
             $errors[] = $e->getMessage();
         }
 
-        if ($version !== null) {
-            $elementMap = BmecatElementMap::forVersion($version);
+        if ($version === null) {
+            return [
+                'valid' => false,
+                'version' => null,
+                'transaction_type' => null,
+                'product_count' => 0,
+                'errors' => $errors,
+                'warnings' => [],
+            ];
+        }
 
-            // Root-Element prüfen
-            $rootName = $doc->getName();
-            if (strtoupper($rootName) !== 'BMECAT') {
-                $errors[] = "Root-Element muss BMECAT sein, gefunden: {$rootName}";
-            }
+        $elementMap = BmecatElementMap::forVersion($version);
+        $isV12 = BmecatElementMap::isVersion12($version);
 
-            // Transaktionstyp ermitteln
-            $isV12 = BmecatElementMap::isVersion12($version);
-            $hasNs = str_contains($xml, self::NS_2005);
-            $ns = ($isV12 || !$hasNs) ? '' : self::NS_2005;
-            $children = $ns ? $doc->children($ns) : $doc->children();
+        // Root-Element prüfen
+        $rootName = $doc->getName();
+        if (strtoupper($rootName) !== 'BMECAT') {
+            $errors[] = "Root-Element muss BMECAT sein, gefunden: {$rootName}";
+        }
 
-            foreach ($children as $child) {
-                $name = strtoupper($child->getName());
-                if (in_array($name, ['T_NEW_CATALOG', 'T_UPDATE_PRODUCTS', 'T_UPDATE_PRICES'])) {
-                    $transactionType = $name;
-                    break;
-                }
-            }
+        // 3. XSD-Schema-Validierung (Fehler → warnings, blockieren den Import nicht)
+        $schemaWarnings = $this->validateAgainstSchema($xml, $version);
+        if (!empty($schemaWarnings)) {
+            $warnings = array_merge($warnings, $schemaWarnings);
+        }
 
-            if ($transactionType === null) {
-                $errors[] = 'Kein Transaktionstyp gefunden (T_NEW_CATALOG, T_UPDATE_PRODUCTS, T_UPDATE_PRICES)';
-            } elseif ($transactionType !== 'T_NEW_CATALOG') {
-                $errors[] = "Transaktionstyp {$transactionType} wird aktuell nicht unterstützt. Nur T_NEW_CATALOG ist verfügbar.";
-            }
+        // 4. Strukturprüfung
+        $hasNs = str_contains($xml, self::NS_2005);
+        $ns = ($isV12 || !$hasNs) ? '' : self::NS_2005;
+        $children = $ns ? $doc->children($ns) : $doc->children();
 
-            // Produkte zählen (Lightweight: nur Elemente zählen, nicht voll parsen)
-            $productElement = $elementMap['product'];
-            $productCount = substr_count(strtoupper($xml), "<{$productElement} ") + substr_count(strtoupper($xml), "<{$productElement}>");
-
-            // HEADER prüfen
-            $headerChildren = $ns ? $doc->children($ns)->HEADER : $doc->HEADER;
-            if ($headerChildren === null || count($headerChildren) === 0) {
-                $errors[] = 'HEADER-Element fehlt oder ist leer';
+        // Transaktionstyp
+        foreach ($children as $child) {
+            $name = strtoupper($child->getName());
+            if (in_array($name, ['T_NEW_CATALOG', 'T_UPDATE_PRODUCTS', 'T_UPDATE_PRICES'])) {
+                $transactionType = $name;
+                break;
             }
         }
+
+        if ($transactionType === null) {
+            $errors[] = 'Kein Transaktionstyp gefunden (T_NEW_CATALOG, T_UPDATE_PRODUCTS, T_UPDATE_PRICES)';
+        } elseif ($transactionType !== 'T_NEW_CATALOG') {
+            $errors[] = "Transaktionstyp {$transactionType} wird aktuell nicht unterstützt. Nur T_NEW_CATALOG ist verfügbar.";
+        }
+
+        // Produkte zählen (beide Varianten: PRODUCT und ARTICLE)
+        $xmlUpper = strtoupper($xml);
+        $productElement = $elementMap['product'];
+        $productCount = substr_count($xmlUpper, "<{$productElement} ") + substr_count($xmlUpper, "<{$productElement}>");
+
+        // Auch alternative Elementnamen zählen (gemischte Dokumente)
+        $altProductElement = $isV12 ? 'PRODUCT' : 'ARTICLE';
+        $altCount = substr_count($xmlUpper, "<{$altProductElement} ") + substr_count($xmlUpper, "<{$altProductElement}>");
+        if ($altCount > 0 && $productCount === 0) {
+            $productCount = $altCount;
+        }
+
+        // HEADER prüfen
+        $headerChildren = $ns ? $doc->children($ns)->HEADER : $doc->HEADER;
+        if ($headerChildren === null || count($headerChildren) === 0) {
+            $errors[] = 'HEADER-Element fehlt oder ist leer';
+        }
+
+        if ($productCount === 0) {
+            $warnings[] = 'Keine Produkte gefunden. Die Datei enthält möglicherweise keine Produktdaten.';
+        }
+
+        // 5. Gemischte Elementnamen erkennen (1.2-Elemente in 2005-Dokument oder umgekehrt)
+        $mixedWarnings = $this->detectMixedElementNames($xml, $version);
+        $warnings = array_merge($warnings, $mixedWarnings);
 
         return [
             'valid' => empty($errors),
@@ -239,7 +280,97 @@ class BmecatFormatImporter
             'transaction_type' => $transactionType,
             'product_count' => $productCount,
             'errors' => $errors,
+            'warnings' => $warnings,
         ];
+    }
+
+    /**
+     * Validiert XML gegen das passende XSD-Schema.
+     *
+     * @return string[] Schema-Validierungswarnungen (leeres Array = alles OK)
+     */
+    private function validateAgainstSchema(string $xml, string $version): array
+    {
+        $isV12 = BmecatElementMap::isVersion12($version);
+        $schemaFile = $isV12 ? 'bmecat_12.xsd' : 'bmecat_2005.xsd';
+        $schemaPath = __DIR__ . '/schemas/' . $schemaFile;
+
+        if (!file_exists($schemaPath)) {
+            return ["Schema-Datei nicht gefunden: {$schemaFile}"];
+        }
+
+        libxml_use_internal_errors(true);
+        $dom = new \DOMDocument();
+        $dom->loadXML($xml);
+
+        $warnings = [];
+        if (!$dom->schemaValidate($schemaPath)) {
+            $xmlErrors = libxml_get_errors();
+            foreach ($xmlErrors as $error) {
+                $msg = trim($error->message);
+                // Elementnamen aus der Schema-Fehlermeldung extrahieren für lesbarere Meldungen
+                $warnings[] = "Schema-Warnung Zeile {$error->line}: {$msg}";
+            }
+            libxml_clear_errors();
+        }
+        libxml_use_internal_errors(false);
+
+        return $warnings;
+    }
+
+    /**
+     * Erkennt gemischte 1.2/2005-Elementnamen in einem BMEcat-Dokument.
+     *
+     * @return string[] Warnungen über falsche Elementnamen
+     */
+    private function detectMixedElementNames(string $xml, string $version): array
+    {
+        $warnings = [];
+        $isV12 = BmecatElementMap::isVersion12($version);
+
+        // BMEcat 2005 Dokument mit 1.2-Elementen?
+        if (!$isV12) {
+            $v12Elements = [
+                'ARTICLE_TO_CATALOGGROUP_MAP' => 'PRODUCT_TO_CATALOGGROUP_MAP',
+                'ARTICLE_DETAILS' => 'PRODUCT_DETAILS',
+                'ARTICLE_FEATURES' => 'PRODUCT_FEATURES',
+                'ARTICLE_PRICE_DETAILS' => 'PRODUCT_PRICE_DETAILS',
+                'ARTICLE_PRICE' => 'PRODUCT_PRICE',
+                'ARTICLE_REFERENCE' => 'PRODUCT_REFERENCE',
+                'ARTICLE_ORDER_DETAILS' => 'PRODUCT_ORDER_DETAILS',
+                'SUPPLIER_AID' => 'SUPPLIER_PID',
+                'ART_ID' => 'PROD_ID',
+                'ART_ID_TO' => 'PROD_ID_TO',
+                'MANUFACTURER_AID' => 'MANUFACTURER_PID',
+            ];
+
+            foreach ($v12Elements as $oldName => $newName) {
+                if (preg_match("/<{$oldName}[\s>]/", $xml)) {
+                    $warnings[] = "BMEcat 1.2-Element <{$oldName}> gefunden — in BMEcat 2005 heißt es <{$newName}>. Der Import versucht es trotzdem zu verarbeiten.";
+                }
+            }
+        }
+
+        // BMEcat 1.2 Dokument mit 2005-Elementen?
+        if ($isV12) {
+            $v2005Elements = [
+                'PRODUCT_TO_CATALOGGROUP_MAP' => 'ARTICLE_TO_CATALOGGROUP_MAP',
+                'PRODUCT_DETAILS' => 'ARTICLE_DETAILS',
+                'PRODUCT_FEATURES' => 'ARTICLE_FEATURES',
+                'PRODUCT_PRICE_DETAILS' => 'ARTICLE_PRICE_DETAILS',
+                'PRODUCT_PRICE' => 'ARTICLE_PRICE',
+                'SUPPLIER_PID' => 'SUPPLIER_AID',
+                'PROD_ID' => 'ART_ID',
+            ];
+
+            foreach ($v2005Elements as $newName => $oldName) {
+                if (preg_match("/<{$newName}[\s>]/", $xml)) {
+                    $warnings[] = "BMEcat 2005-Element <{$newName}> gefunden — in BMEcat 1.2 heißt es <{$oldName}>. Der Import versucht es trotzdem zu verarbeiten.";
+                }
+            }
+        }
+
+        return $warnings;
     }
 
     /**
@@ -278,6 +409,8 @@ class BmecatFormatImporter
 
     /**
      * Parst das BMEcat-XML in eine intermediäre Datenstruktur.
+     *
+     * Tolerant: Akzeptiert auch gemischte 1.2/2005-Elementnamen.
      */
     private function parseXml(string $xml, array $elementMap, string $version): array
     {
@@ -285,6 +418,10 @@ class BmecatFormatImporter
         // BMEcat 2005 files may omit the namespace (e.g. DOCTYPE-based files)
         $hasNs = str_contains($xml, self::NS_2005);
         $ns = ($isV12 || !$hasNs) ? null : self::NS_2005;
+
+        // Fallback-ElementMap für gemischte Dokumente:
+        // BMEcat 2005 akzeptiert auch 1.2-Namen und umgekehrt
+        $altElementMap = BmecatElementMap::forVersion($isV12 ? '2005' : '1.2');
 
         $parsed = [
             'header' => [],
@@ -299,6 +436,12 @@ class BmecatFormatImporter
         $reader = new \XMLReader();
         $reader->XML($xml, 'UTF-8', LIBXML_NONET | LIBXML_NOCDATA);
 
+        // Erwartete und alternative Elementnamen für den Switch
+        $productName = strtoupper($elementMap['product']);
+        $altProductName = strtoupper($altElementMap['product']);
+        $mapName = strtoupper($elementMap['product_to_cataloggroup_map']);
+        $altMapName = strtoupper($altElementMap['product_to_cataloggroup_map']);
+
         while ($reader->read()) {
             if ($reader->nodeType !== \XMLReader::ELEMENT) {
                 continue;
@@ -306,34 +449,29 @@ class BmecatFormatImporter
 
             $localName = strtoupper($reader->localName);
 
-            switch ($localName) {
-                case 'HEADER':
-                    $parsed['header'] = $this->parseHeader($reader, $ns);
-                    $parsed['default_currency'] = $parsed['header']['currency'] ?? 'EUR';
-                    $parsed['catalog_id'] = $parsed['header']['catalog_id'] ?? '';
-                    // Katalogsprache als Default für Inhalte ohne xml:lang
-                    if (!empty($parsed['header']['language'])) {
-                        $parsed['default_language'] = $this->mapLanguageCode($parsed['header']['language']);
-                    }
-                    break;
-
-                case 'CATALOG_GROUP_SYSTEM':
-                    $parsed['catalog_structures'] = $this->parseCatalogGroupSystem($reader, $ns);
-                    break;
-
-                case $elementMap['product']:
-                    $product = $this->parseProduct($reader, $elementMap, $ns, $parsed['default_currency'], $parsed['default_language']);
-                    if ($product !== null) {
-                        $parsed['products'][] = $product;
-                    }
-                    break;
-
-                case $elementMap['product_to_cataloggroup_map']:
-                    $map = $this->parseCatalogGroupMap($reader, $elementMap, $ns);
-                    if ($map !== null) {
-                        $parsed['product_to_group_maps'][] = $map;
-                    }
-                    break;
+            if ($localName === 'HEADER') {
+                $parsed['header'] = $this->parseHeader($reader, $ns);
+                $parsed['default_currency'] = $parsed['header']['currency'] ?? 'EUR';
+                $parsed['catalog_id'] = $parsed['header']['catalog_id'] ?? '';
+                if (!empty($parsed['header']['language'])) {
+                    $parsed['default_language'] = $this->mapLanguageCode($parsed['header']['language']);
+                }
+            } elseif ($localName === 'CATALOG_GROUP_SYSTEM') {
+                $parsed['catalog_structures'] = $this->parseCatalogGroupSystem($reader, $ns);
+            } elseif ($localName === $productName || $localName === $altProductName) {
+                // Tolerant: Akzeptiert PRODUCT und ARTICLE in beiden Versionen
+                $actualElementName = $reader->localName;
+                $product = $this->parseProduct($reader, $elementMap, $altElementMap, $ns, $parsed['default_currency'], $parsed['default_language'], $actualElementName);
+                if ($product !== null) {
+                    $parsed['products'][] = $product;
+                }
+            } elseif ($localName === $mapName || $localName === $altMapName) {
+                // Tolerant: Akzeptiert PRODUCT_TO_CATALOGGROUP_MAP und ARTICLE_TO_CATALOGGROUP_MAP
+                $actualElementName = $reader->localName;
+                $map = $this->parseCatalogGroupMap($reader, $elementMap, $altElementMap, $ns, $actualElementName);
+                if ($map !== null) {
+                    $parsed['product_to_group_maps'][] = $map;
+                }
             }
         }
 
@@ -417,22 +555,27 @@ class BmecatFormatImporter
 
     /**
      * Parst ein einzelnes PRODUCT/ARTICLE-Element.
+     *
+     * Tolerant: Versucht beide Element-Map-Varianten (primär + alternativ).
      */
-    private function parseProduct(\XMLReader $reader, array $elementMap, ?string $ns, string $defaultCurrency, ?string $defaultLang = null): ?array
+    private function parseProduct(\XMLReader $reader, array $elementMap, array $altElementMap, ?string $ns, string $defaultCurrency, ?string $defaultLang = null, ?string $actualElementName = null): ?array
     {
+        $skipName = $actualElementName ?? $elementMap['product'];
         $outerXml = $reader->readOuterXml();
         $el = $this->loadElement($outerXml, $ns);
 
         if ($el === null) {
             Log::channel('import')->error('Produkt übersprungen: XML-Fragment konnte nicht geparst werden');
-            $this->skipToEndElement($reader, $elementMap['product']);
+            $this->skipToEndElement($reader, $skipName);
             return null;
         }
 
-        $sku = $this->text($el, $elementMap['supplier_pid'], $ns);
+        // Tolerant: Versuche erst primäre, dann alternative SKU-Elementnamen
+        $sku = $this->text($el, $elementMap['supplier_pid'], $ns)
+            ?? $this->text($el, $altElementMap['supplier_pid'], $ns);
         if (empty($sku)) {
             Log::channel('import')->warning('Produkt übersprungen: Keine SKU (SUPPLIER_PID/SUPPLIER_AID) gefunden');
-            $this->skipToEndElement($reader, $elementMap['product']);
+            $this->skipToEndElement($reader, $skipName);
             return null;
         }
 
@@ -447,8 +590,9 @@ class BmecatFormatImporter
             'catalog_group_maps' => [],
         ];
 
-        // Details (mit Mehrsprachigkeit)
-        $details = $this->child($el, $elementMap['product_details'], $ns);
+        // Details (mit Mehrsprachigkeit) — tolerant: beide Elementnamen
+        $details = $this->child($el, $elementMap['product_details'], $ns)
+            ?? $this->child($el, $altElementMap['product_details'], $ns);
         if ($details !== null) {
             // Mehrsprachige Texte: {lang → text} — kein defaultLang,
             // damit einsprachige Inhalte nicht fälschlich als übersetzbar erkannt werden
@@ -466,17 +610,24 @@ class BmecatFormatImporter
                 'description_long_i18n' => $longTexts,
                 'ean' => $this->text($details, 'EAN', $ns),
                 'manufacturer_name' => $this->text($details, 'MANUFACTURER_NAME', $ns),
-                'manufacturer_pid' => $this->text($details, 'MANUFACTURER_PID', $ns),
+                'manufacturer_pid' => $this->text($details, 'MANUFACTURER_PID', $ns)
+                    ?? $this->text($details, 'MANUFACTURER_AID', $ns),
                 'delivery_time' => $this->text($details, 'DELIVERY_TIME', $ns),
                 'keywords' => $this->texts($details, 'KEYWORD', $ns),
                 'keywords_i18n' => $keywordTexts,
             ];
         }
 
-        // Features (kann mehrere PRODUCT_FEATURES-Blöcke haben)
+        // Features (kann mehrere PRODUCT_FEATURES-Blöcke haben) — tolerant
         $featureBlocks = $ns
             ? $el->children($ns)->{$elementMap['product_features']}
             : $el->{$elementMap['product_features']};
+        // Fallback: alternative Elementnamen
+        if (($featureBlocks === null || count($featureBlocks) === 0) && $elementMap['product_features'] !== $altElementMap['product_features']) {
+            $featureBlocks = $ns
+                ? $el->children($ns)->{$altElementMap['product_features']}
+                : $el->{$altElementMap['product_features']};
+        }
 
         if ($featureBlocks !== null) {
             foreach ($featureBlocks as $featureBlock) {
@@ -514,10 +665,15 @@ class BmecatFormatImporter
             }
         }
 
-        // Price Details
+        // Price Details — tolerant
         $priceDetails = $ns
             ? $el->children($ns)->{$elementMap['product_price_details']}
             : $el->{$elementMap['product_price_details']};
+        if (($priceDetails === null || count($priceDetails) === 0) && $elementMap['product_price_details'] !== $altElementMap['product_price_details']) {
+            $priceDetails = $ns
+                ? $el->children($ns)->{$altElementMap['product_price_details']}
+                : $el->{$altElementMap['product_price_details']};
+        }
 
         if ($priceDetails !== null) {
             foreach ($priceDetails as $priceDetail) {
@@ -540,10 +696,15 @@ class BmecatFormatImporter
                     }
                 }
 
-                // Einzelne Preise
+                // Einzelne Preise — tolerant
                 $prices = $ns
                     ? $priceDetail->children($ns)->{$elementMap['product_price']}
                     : $priceDetail->{$elementMap['product_price']};
+                if (($prices === null || count($prices) === 0) && $elementMap['product_price'] !== $altElementMap['product_price']) {
+                    $prices = $ns
+                        ? $priceDetail->children($ns)->{$altElementMap['product_price']}
+                        : $priceDetail->{$altElementMap['product_price']};
+                }
 
                 if ($prices !== null) {
                     foreach ($prices as $price) {
@@ -565,15 +726,21 @@ class BmecatFormatImporter
             }
         }
 
-        // References
+        // References — tolerant
         $references = $ns
             ? $el->children($ns)->{$elementMap['product_reference']}
             : $el->{$elementMap['product_reference']};
+        if (($references === null || count($references) === 0) && $elementMap['product_reference'] !== $altElementMap['product_reference']) {
+            $references = $ns
+                ? $el->children($ns)->{$altElementMap['product_reference']}
+                : $el->{$altElementMap['product_reference']};
+        }
 
         if ($references !== null) {
             foreach ($references as $ref) {
                 $refType = $this->attr($ref, 'type') ?? 'similar';
-                $targetId = $this->text($ref, $elementMap['prod_id_to'], $ns);
+                $targetId = $this->text($ref, $elementMap['prod_id_to'], $ns)
+                    ?? $this->text($ref, $altElementMap['prod_id_to'], $ns);
                 if (!empty($targetId)) {
                     $product['references'][] = [
                         'type' => $refType,
@@ -613,10 +780,15 @@ class BmecatFormatImporter
             $product['udx_fields'] = $this->parseUdxFields($udxBlock, $ns);
         }
 
-        // Inline PRODUCT_TO_CATALOGGROUP_MAP
+        // Inline PRODUCT_TO_CATALOGGROUP_MAP — tolerant
         $inlineMaps = $ns
             ? $el->children($ns)->{$elementMap['product_to_cataloggroup_map']}
             : $el->{$elementMap['product_to_cataloggroup_map']};
+        if (($inlineMaps === null || count($inlineMaps) === 0) && $elementMap['product_to_cataloggroup_map'] !== $altElementMap['product_to_cataloggroup_map']) {
+            $inlineMaps = $ns
+                ? $el->children($ns)->{$altElementMap['product_to_cataloggroup_map']}
+                : $el->{$altElementMap['product_to_cataloggroup_map']};
+        }
 
         if ($inlineMaps !== null) {
             foreach ($inlineMaps as $map) {
@@ -631,29 +803,34 @@ class BmecatFormatImporter
             }
         }
 
-        $this->skipToEndElement($reader, $elementMap['product']);
+        $this->skipToEndElement($reader, $skipName);
 
         return $product;
     }
 
     /**
      * Parst ein standalone PRODUCT_TO_CATALOGGROUP_MAP / ARTICLE_TO_CATALOGGROUP_MAP.
+     *
+     * Tolerant: Versucht beide Element-Map-Varianten (primär + alternativ).
      */
-    private function parseCatalogGroupMap(\XMLReader $reader, array $elementMap, ?string $ns): ?array
+    private function parseCatalogGroupMap(\XMLReader $reader, array $elementMap, array $altElementMap, ?string $ns, ?string $actualElementName = null): ?array
     {
+        $skipName = $actualElementName ?? $elementMap['product_to_cataloggroup_map'];
         $outerXml = $reader->readOuterXml();
         $el = $this->loadElement($outerXml, $ns);
 
         if ($el === null) {
             Log::channel('import')->warning('PRODUCT_TO_CATALOGGROUP_MAP übersprungen: XML konnte nicht geparst werden');
-            $this->skipToEndElement($reader, $elementMap['product_to_cataloggroup_map']);
+            $this->skipToEndElement($reader, $skipName);
             return null;
         }
 
-        $prodId = $this->text($el, $elementMap['prod_id'], $ns);
+        // Tolerant: Versuche beide Varianten für PROD_ID/ART_ID
+        $prodId = $this->text($el, $elementMap['prod_id'], $ns)
+            ?? $this->text($el, $altElementMap['prod_id'], $ns);
         $groupId = $this->text($el, 'CATALOG_GROUP_ID', $ns);
 
-        $this->skipToEndElement($reader, $elementMap['product_to_cataloggroup_map']);
+        $this->skipToEndElement($reader, $skipName);
 
         if (empty($prodId) || empty($groupId)) {
             return null;
@@ -662,7 +839,9 @@ class BmecatFormatImporter
         return [
             'prod_id' => $prodId,
             'group_id' => $groupId,
-            'order' => (int) ($this->text($el, $elementMap['product_order'], $ns) ?? 0),
+            'order' => (int) ($this->text($el, $elementMap['product_order'], $ns)
+                ?? $this->text($el, $altElementMap['product_order'], $ns)
+                ?? 0),
         ];
     }
 

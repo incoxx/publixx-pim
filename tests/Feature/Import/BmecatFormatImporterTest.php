@@ -729,4 +729,176 @@ class BmecatFormatImporterTest extends TestCase
             ->where('attribute_id', $attr->id)
             ->where('language', 'fr')->first());
     }
+
+    // =========================================================================
+    // XSD Schema Validation
+    // =========================================================================
+
+    public function test_validate_returns_warnings_field(): void
+    {
+        $xml = file_get_contents(__DIR__ . '/../../fixtures/bmecat_2005_sample.xml');
+        $result = $this->importer->validate($xml);
+
+        $this->assertArrayHasKey('warnings', $result);
+        $this->assertIsArray($result['warnings']);
+    }
+
+    public function test_validate_xsd_detects_invalid_schema(): void
+    {
+        // BMEcat 2005 mit 1.2-Elementen → Schema-Warnungen
+        $xml = '<?xml version="1.0" encoding="UTF-8"?>
+<BMECAT version="2005" xmlns="http://www.bmecat.org/bmecat/2005">
+  <HEADER>
+    <CATALOG>
+      <LANGUAGE>deu</LANGUAGE>
+      <CATALOG_ID>MIXED</CATALOG_ID>
+      <CATALOG_VERSION>001</CATALOG_VERSION>
+      <CURRENCY>EUR</CURRENCY>
+    </CATALOG>
+    <SUPPLIER><SUPPLIER_NAME>Test</SUPPLIER_NAME></SUPPLIER>
+  </HEADER>
+  <T_NEW_CATALOG>
+    <PRODUCT mode="new">
+      <SUPPLIER_PID>TEST-001</SUPPLIER_PID>
+      <PRODUCT_DETAILS><DESCRIPTION_SHORT>Test</DESCRIPTION_SHORT></PRODUCT_DETAILS>
+    </PRODUCT>
+    <ARTICLE_TO_CATALOGGROUP_MAP>
+      <ART_ID>TEST-001</ART_ID>
+      <CATALOG_GROUP_ID>grp1</CATALOG_GROUP_ID>
+    </ARTICLE_TO_CATALOGGROUP_MAP>
+  </T_NEW_CATALOG>
+</BMECAT>';
+
+        $result = $this->importer->validate($xml);
+
+        // Valid weil Grundstruktur OK, aber Warnungen wegen gemischter Elemente
+        $this->assertTrue($result['valid']);
+        $this->assertNotEmpty($result['warnings']);
+
+        // Schema-Warnung für ARTICLE_TO_CATALOGGROUP_MAP
+        $hasSchemaWarning = false;
+        foreach ($result['warnings'] as $w) {
+            if (str_contains($w, 'ARTICLE_TO_CATALOGGROUP_MAP')) {
+                $hasSchemaWarning = true;
+                break;
+            }
+        }
+        $this->assertTrue($hasSchemaWarning, 'Should warn about ARTICLE_TO_CATALOGGROUP_MAP');
+    }
+
+    public function test_validate_detects_mixed_element_names(): void
+    {
+        $xml = '<?xml version="1.0" encoding="UTF-8"?>
+<BMECAT version="2005" xmlns="http://www.bmecat.org/bmecat/2005">
+  <HEADER>
+    <CATALOG><LANGUAGE>deu</LANGUAGE><CATALOG_ID>MIX</CATALOG_ID><CATALOG_VERSION>001</CATALOG_VERSION><CURRENCY>EUR</CURRENCY></CATALOG>
+    <SUPPLIER><SUPPLIER_NAME>Test</SUPPLIER_NAME></SUPPLIER>
+  </HEADER>
+  <T_NEW_CATALOG>
+    <PRODUCT mode="new">
+      <SUPPLIER_PID>T1</SUPPLIER_PID>
+      <PRODUCT_DETAILS><DESCRIPTION_SHORT>Test</DESCRIPTION_SHORT><MANUFACTURER_AID>X</MANUFACTURER_AID></PRODUCT_DETAILS>
+    </PRODUCT>
+  </T_NEW_CATALOG>
+</BMECAT>';
+
+        $result = $this->importer->validate($xml);
+        $this->assertTrue($result['valid']);
+
+        // Warnung über MANUFACTURER_AID (1.2-Element in 2005-Dokument)
+        $hasMixedWarning = false;
+        foreach ($result['warnings'] as $w) {
+            if (str_contains($w, 'MANUFACTURER_AID')) {
+                $hasMixedWarning = true;
+                break;
+            }
+        }
+        $this->assertTrue($hasMixedWarning, 'Should warn about MANUFACTURER_AID in BMEcat 2005');
+    }
+
+    // =========================================================================
+    // Tolerant Parsing (mixed 1.2/2005 elements)
+    // =========================================================================
+
+    public function test_import_mixed_2005_with_article_to_cataloggroup_map(): void
+    {
+        // BMEcat 2005 Dokument mit 1.2-Stil ARTICLE_TO_CATALOGGROUP_MAP
+        $xml = '<?xml version="1.0" encoding="UTF-8"?>
+<BMECAT version="2005" xmlns="http://www.bmecat.org/bmecat/2005">
+  <HEADER>
+    <CATALOG>
+      <LANGUAGE>deu</LANGUAGE>
+      <CATALOG_ID>MIXED-TEST</CATALOG_ID>
+      <CATALOG_VERSION>001</CATALOG_VERSION>
+      <CURRENCY>EUR</CURRENCY>
+    </CATALOG>
+    <SUPPLIER><SUPPLIER_NAME>Tolerant GmbH</SUPPLIER_NAME></SUPPLIER>
+  </HEADER>
+  <T_NEW_CATALOG>
+    <CATALOG_GROUP_SYSTEM>
+      <GROUP_SYSTEM_ID>mixed</GROUP_SYSTEM_ID>
+      <GROUP_SYSTEM_NAME>Mixed</GROUP_SYSTEM_NAME>
+      <CATALOG_STRUCTURE type="root">
+        <GROUP_ID>root</GROUP_ID>
+        <GROUP_NAME>Root</GROUP_NAME>
+        <PARENT_ID>0</PARENT_ID>
+      </CATALOG_STRUCTURE>
+      <CATALOG_STRUCTURE type="leaf">
+        <GROUP_ID>leaf1</GROUP_ID>
+        <GROUP_NAME>Leaf</GROUP_NAME>
+        <PARENT_ID>root</PARENT_ID>
+      </CATALOG_STRUCTURE>
+    </CATALOG_GROUP_SYSTEM>
+    <PRODUCT mode="new">
+      <SUPPLIER_PID>MIX-001</SUPPLIER_PID>
+      <PRODUCT_DETAILS>
+        <DESCRIPTION_SHORT>Mixed Element Test</DESCRIPTION_SHORT>
+      </PRODUCT_DETAILS>
+      <PRODUCT_PRICE_DETAILS>
+        <PRODUCT_PRICE price_type="net_list">
+          <PRICE_AMOUNT>99.00</PRICE_AMOUNT>
+        </PRODUCT_PRICE>
+      </PRODUCT_PRICE_DETAILS>
+    </PRODUCT>
+    <ARTICLE_TO_CATALOGGROUP_MAP>
+      <ART_ID>MIX-001</ART_ID>
+      <CATALOG_GROUP_ID>leaf1</CATALOG_GROUP_ID>
+    </ARTICLE_TO_CATALOGGROUP_MAP>
+  </T_NEW_CATALOG>
+</BMECAT>';
+
+        $result = $this->importer->importFromString($xml);
+
+        // Produkt wurde importiert
+        $this->assertDatabaseHas('products', ['sku' => 'MIX-001']);
+        $this->assertArrayHasKey('08_Produkte', $result->stats);
+        $this->assertEquals(1, $result->stats['08_Produkte']['created'] ?? 0);
+
+        // Hierarchie-Zuordnung funktionierte trotz gemischter Elementnamen
+        $this->assertDatabaseHas('hierarchies', ['technical_name' => 'bmecat_mixed_test']);
+    }
+
+    public function test_import_product_with_manufacturer_aid_fallback(): void
+    {
+        $xml = '<?xml version="1.0" encoding="UTF-8"?>
+<BMECAT version="2005" xmlns="http://www.bmecat.org/bmecat/2005">
+  <HEADER>
+    <CATALOG><LANGUAGE>deu</LANGUAGE><CATALOG_ID>AID</CATALOG_ID><CATALOG_VERSION>001</CATALOG_VERSION><CURRENCY>EUR</CURRENCY></CATALOG>
+    <SUPPLIER><SUPPLIER_NAME>Test</SUPPLIER_NAME></SUPPLIER>
+  </HEADER>
+  <T_NEW_CATALOG>
+    <PRODUCT mode="new">
+      <SUPPLIER_PID>AID-001</SUPPLIER_PID>
+      <PRODUCT_DETAILS>
+        <DESCRIPTION_SHORT>AID Test</DESCRIPTION_SHORT>
+        <MANUFACTURER_NAME>TestMfr</MANUFACTURER_NAME>
+        <MANUFACTURER_AID>MFR-X-123</MANUFACTURER_AID>
+      </PRODUCT_DETAILS>
+    </PRODUCT>
+  </T_NEW_CATALOG>
+</BMECAT>';
+
+        $result = $this->importer->importFromString($xml);
+        $this->assertDatabaseHas('products', ['sku' => 'AID-001']);
+    }
 }
