@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Export;
 
+use App\Models\AttributeType;
 use App\Models\Hierarchy;
 use App\Models\HierarchyNode;
 use App\Models\MediaUsageType;
@@ -30,6 +31,9 @@ class BmecatFormatExporter
     private array $attributeIds = [];
     private array $priceTypeIds = [];
     private array $relationTypeIds = [];
+
+    /** @var string[] UDX-Attributgruppen-IDs die als USER_DEFINED_EXTENSIONS exportiert werden */
+    private array $udxAttributeTypeIds = [];
 
     /** @var array<string, string> usage_type_id → technical_name */
     private array $usageTypeMap = [];
@@ -81,6 +85,11 @@ class BmecatFormatExporter
 
         // UsageType-Map einmalig laden (ID → technical_name)
         $this->usageTypeMap = MediaUsageType::pluck('technical_name', 'id')->toArray();
+
+        // UDX-Attributgruppen automatisch erkennen (technical_name beginnt mit "udx_")
+        $this->udxAttributeTypeIds = AttributeType::where('technical_name', 'like', 'udx_%')
+            ->pluck('id')
+            ->toArray();
 
         $xml = new \XMLWriter();
         $xml->openMemory();
@@ -289,6 +298,9 @@ class BmecatFormatExporter
         // MIME_INFO
         $this->writeMimeInfo($xml, $product);
 
+        // USER_DEFINED_EXTENSIONS (UDX)
+        $this->writeUserDefinedExtensions($xml, $product);
+
         // PRODUCT_REFERENCE / ARTICLE_REFERENCE
         $this->writeProductReferences($xml, $product);
 
@@ -340,7 +352,19 @@ class BmecatFormatExporter
     private function writeProductFeatures(\XMLWriter $xml, Product $product): void
     {
         $values = $product->attributeValues->filter(function ($av) {
-            return $av->attribute && !in_array($av->attribute->technical_name, self::DETAIL_ATTRIBUTES);
+            if (!$av->attribute) {
+                return false;
+            }
+            // Detail-Attribute ausschließen
+            if (in_array($av->attribute->technical_name, self::DETAIL_ATTRIBUTES)) {
+                return false;
+            }
+            // UDX-Attribute ausschließen — diese werden in USER_DEFINED_EXTENSIONS serialisiert
+            if (!empty($this->udxAttributeTypeIds) && $av->attribute->attribute_type_id
+                && in_array($av->attribute->attribute_type_id, $this->udxAttributeTypeIds)) {
+                return false;
+            }
+            return true;
         });
 
         if ($values->isEmpty()) {
@@ -476,6 +500,69 @@ class BmecatFormatExporter
             $xml->writeElement($el['prod_id_to'], $relation->targetProduct->sku);
             $xml->endElement();
         }
+    }
+
+    // =========================================================================
+    // USER_DEFINED_EXTENSIONS (UDX)
+    // =========================================================================
+
+    private function writeUserDefinedExtensions(\XMLWriter $xml, Product $product): void
+    {
+        if (empty($this->udxAttributeTypeIds)) {
+            return;
+        }
+
+        $udxValues = $product->attributeValues->filter(function ($av) {
+            return $av->attribute
+                && $av->attribute->attribute_type_id
+                && in_array($av->attribute->attribute_type_id, $this->udxAttributeTypeIds);
+        });
+
+        if ($udxValues->isEmpty()) {
+            return;
+        }
+
+        $xml->startElement('USER_DEFINED_EXTENSIONS');
+
+        foreach ($udxValues as $av) {
+            // Elementname aus source_attribute_key rekonstruieren (z.B. UDX.DOKA.FELDNAME)
+            $elementName = $av->attribute->source_attribute_key;
+            if (empty($elementName)) {
+                // Fallback: aus technical_name ableiten (udx_doka_feldname → UDX.DOKA.FELDNAME)
+                $elementName = $this->technicalNameToUdxKey($av->attribute->technical_name);
+            }
+            if (empty($elementName)) {
+                continue;
+            }
+
+            $value = $this->resolveAttributeValue($av);
+            if ($value !== null) {
+                $xml->writeElement($elementName, $value);
+            }
+        }
+
+        $xml->endElement(); // USER_DEFINED_EXTENSIONS
+    }
+
+    /**
+     * Versucht aus einem technical_name den UDX-Elementnamen zu rekonstruieren.
+     *
+     * Beispiel: "udx_doka_ksp_zeitersparnis" → "UDX.DOKA.KSP_ZEITERSPARNIS"
+     * Funktioniert nur zuverlässig wenn source_attribute_key nicht gesetzt ist.
+     */
+    private function technicalNameToUdxKey(string $technicalName): ?string
+    {
+        if (!str_starts_with($technicalName, 'udx_')) {
+            return null;
+        }
+
+        // "udx_doka_feldname" → ["udx", "doka", "feldname"]
+        $parts = explode('_', $technicalName, 3);
+        if (count($parts) < 3) {
+            return null;
+        }
+
+        return 'UDX.' . strtoupper($parts[1]) . '.' . strtoupper($parts[2]);
     }
 
     // =========================================================================

@@ -509,6 +509,7 @@ class ImportExecutor
                     'is_searchable' => $this->toBool($row['is_searchable'] ?? true),
                     'is_inheritable' => $this->toBool($row['is_inheritable'] ?? true),
                     'source_system' => $row['source_system'] ?? null,
+                    'source_attribute_key' => $row['source_attribute_key'] ?? null,
                 ];
 
                 // Referenzen auflösen

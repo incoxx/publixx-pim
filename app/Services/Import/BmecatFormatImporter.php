@@ -382,6 +382,7 @@ class BmecatFormatImporter
             'sku' => $sku,
             'details' => [],
             'features' => [],
+            'udx_fields' => [],
             'prices' => [],
             'references' => [],
             'media' => [],
@@ -532,6 +533,12 @@ class BmecatFormatImporter
                     }
                 }
             }
+        }
+
+        // USER_DEFINED_EXTENSIONS (UDX) — nur auf Produkt-Ebene
+        $udxBlock = $this->child($el, 'USER_DEFINED_EXTENSIONS', $ns);
+        if ($udxBlock !== null) {
+            $product['udx_fields'] = $this->parseUdxFields($udxBlock, $ns);
         }
 
         // Inline PRODUCT_TO_CATALOGGROUP_MAP
@@ -693,6 +700,78 @@ class BmecatFormatImporter
                         'is_bidirectional' => in_array($refType, ['similar']),
                     ];
                 }
+            }
+        }
+
+        // UDX-Felder → eigene Attributgruppen + Attribute + Produktwerte
+        $udxGroupMap = [];     // namespace → group row
+        $udxAttributeMap = []; // key → attribute row
+        foreach ($parsed['products'] as $product) {
+            foreach ($product['udx_fields'] as $udxField) {
+                $ns = $udxField['namespace'];
+                $key = $udxField['key'];
+
+                // Attributgruppe pro Namespace deduplizieren
+                $groupTechName = $this->udxNamespaceToGroupTechName($ns);
+                if (!isset($udxGroupMap[$ns])) {
+                    $udxGroupMap[$ns] = [
+                        'technical_name' => $groupTechName,
+                        'name_de' => $this->udxNamespaceToGroupName($ns),
+                        'name_en' => null,
+                        'description' => "Automatisch erstellt aus UDX-Namespace {$ns}",
+                        'sort_order' => 900,
+                    ];
+                }
+
+                // Attribut deduplizieren (technical_name = voller UDX-Key als snake_case)
+                $attrTechName = $this->sanitizeTechnicalName($key);
+                if (!isset($udxAttributeMap[$attrTechName])) {
+                    $dataType = $this->inferDataType([$udxField['value']], null);
+                    $udxAttributeMap[$attrTechName] = [
+                        'technical_name' => $attrTechName,
+                        'name_de' => $udxField['fieldname'],
+                        'name_en' => null,
+                        'description' => null,
+                        'data_type' => $dataType,
+                        'attribute_group' => $groupTechName,
+                        'value_list' => null,
+                        'unit_group' => null,
+                        'default_unit' => null,
+                        'is_multipliable' => false,
+                        'max_multiplied' => null,
+                        'is_translatable' => false,
+                        'is_mandatory' => false,
+                        'is_unique' => false,
+                        'is_searchable' => true,
+                        'is_inheritable' => true,
+                        'parent_attribute' => null,
+                        'source_system' => 'bmecat_udx',
+                        'source_attribute_key' => $key,
+                        'views' => null,
+                    ];
+                }
+
+                // Produktwert
+                $productValues[] = [
+                    'sku' => $product['sku'],
+                    'attribute' => $attrTechName,
+                    'value' => $udxField['value'],
+                    'unit' => null,
+                    'language' => null,
+                    'index' => 0,
+                ];
+            }
+        }
+
+        // UDX-Attributgruppen in Sheet 02_Attributgruppen einspeisen
+        if (!empty($udxGroupMap)) {
+            $sheets['02_Attributgruppen'] = array_values($udxGroupMap);
+        }
+
+        // UDX-Attribute in die Attribut-Map einfügen (nach regulären Features)
+        foreach ($udxAttributeMap as $techName => $udxAttr) {
+            if (!isset($attributeMap[$techName])) {
+                $attributeMap[$techName] = $udxAttr;
             }
         }
 
@@ -1182,6 +1261,107 @@ class BmecatFormatImporter
             'logo' => 'teaser',
             default => 'gallery',
         };
+    }
+
+    // =========================================================================
+    // UDX-Hilfsmethoden
+    // =========================================================================
+
+    /**
+     * Parst alle Kind-Elemente eines USER_DEFINED_EXTENSIONS-Blocks.
+     *
+     * Erwartet Elementnamen im Format UDX.{NAMESPACE}.{FELDNAME}.
+     * Elemente ohne gültiges UDX-Muster werden geloggt und übersprungen.
+     *
+     * @return array<array{key: string, namespace: string, fieldname: string, value: string}>
+     */
+    private function parseUdxFields(\SimpleXMLElement $udxBlock, ?string $ns): array
+    {
+        $fields = [];
+
+        // Kind-Elemente iterieren (mit oder ohne Namespace)
+        $children = $ns ? $udxBlock->children($ns) : $udxBlock->children();
+
+        foreach ($children as $child) {
+            $elementName = $child->getName();
+            // UDX-Elementnamen können Punkte enthalten — wir erwarten UDX.{NS}.{FELD}
+            if (!preg_match('/^UDX\.([^.]+)\.(.+)$/', $elementName, $matches)) {
+                Log::channel('import')->warning("UDX-Element mit ungültigem Namensformat übersprungen: {$elementName}");
+                continue;
+            }
+
+            $value = trim((string) $child);
+            if ($value === '') {
+                continue;
+            }
+
+            $fields[] = [
+                'key' => $elementName,
+                'namespace' => $matches[1],
+                'fieldname' => $matches[2],
+                'value' => $value,
+            ];
+        }
+
+        // Fallback: Auch nicht-namespace-qualifizierte Kinder prüfen, wenn mit NS geparst
+        if ($ns) {
+            foreach ($udxBlock->children() as $child) {
+                $elementName = $child->getName();
+                if (!preg_match('/^UDX\.([^.]+)\.(.+)$/', $elementName, $matches)) {
+                    continue;
+                }
+
+                $value = trim((string) $child);
+                if ($value === '') {
+                    continue;
+                }
+
+                // Nur hinzufügen wenn nicht bereits per NS gefunden
+                $alreadyFound = false;
+                foreach ($fields as $f) {
+                    if ($f['key'] === $elementName) {
+                        $alreadyFound = true;
+                        break;
+                    }
+                }
+                if (!$alreadyFound) {
+                    $fields[] = [
+                        'key' => $elementName,
+                        'namespace' => $matches[1],
+                        'fieldname' => $matches[2],
+                        'value' => $value,
+                    ];
+                }
+            }
+        }
+
+        return $fields;
+    }
+
+    /**
+     * Leitet den Attributgruppen-Namen aus einem UDX-Namespace ab.
+     *
+     * Konvention: "UDX – {Namespace}" wobei der Namespace mit Großbuchstabe
+     * am Anfang und Rest lowercase geschrieben wird, außer bei reinen
+     * Großbuchstaben-Kürzeln (≤ 4 Zeichen), die unverändert bleiben.
+     */
+    private function udxNamespaceToGroupName(string $namespace): string
+    {
+        // Kurze Kürzel (z.B. EDXF, ETIM) bleiben uppercase
+        if (strlen($namespace) <= 4 && strtoupper($namespace) === $namespace) {
+            return 'UDX – ' . $namespace;
+        }
+
+        // Sonst: Ucfirst-Lowercase (z.B. DOKA → Doka, BOSCH → Bosch)
+        return 'UDX – ' . ucfirst(strtolower($namespace));
+    }
+
+    /**
+     * Leitet den technischen Namen einer UDX-Attributgruppe ab.
+     */
+    private function udxNamespaceToGroupTechName(string $namespace): string
+    {
+        return 'udx_' . strtolower($namespace);
     }
 
     // =========================================================================
