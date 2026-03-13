@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue'
 import {
   FileCode, Download, Upload, CheckCircle, XCircle, Loader2,
-  AlertTriangle, X, FileUp, Info,
+  AlertTriangle, X, FileUp, Info, ChevronRight,
 } from 'lucide-vue-next'
 import bmecatApi from '@/api/bmecatImport'
 import hierarchiesApi from '@/api/hierarchies'
@@ -13,6 +13,7 @@ import { priceTypes, relationTypes } from '@/api/prices'
 // --- State ---
 const activeTab = ref('import') // 'import' | 'export'
 const error = ref('')
+const errorExpanded = ref(false)
 
 // --- Import ---
 const importFile = ref(null)
@@ -224,9 +225,18 @@ const tabs = [
     </div>
 
     <!-- Error -->
-    <div v-if="error" class="p-3 rounded-lg bg-red-50 text-red-600 text-xs flex items-center justify-between">
-      <span>{{ error }}</span>
-      <button @click="error = ''" class="text-red-400 hover:text-red-600"><X class="w-3.5 h-3.5" /></button>
+    <div v-if="error" class="p-3 rounded-lg bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 text-xs">
+      <div class="flex items-center justify-between">
+        <button
+          class="flex items-center gap-1 font-medium hover:underline text-left"
+          @click="errorExpanded = !errorExpanded"
+        >
+          <ChevronRight class="w-3 h-3 transition-transform" :class="errorExpanded ? 'rotate-90' : ''" :stroke-width="2" />
+          {{ errorExpanded ? 'Fehlerdetails' : (error.length > 120 ? error.slice(0, 120) + '…' : error) }}
+        </button>
+        <button @click="error = ''; errorExpanded = false" class="text-red-400 hover:text-red-600 flex-shrink-0 ml-2"><X class="w-3.5 h-3.5" /></button>
+      </div>
+      <pre v-if="errorExpanded" class="mt-2 whitespace-pre-wrap break-all text-[11px] leading-relaxed max-h-64 overflow-y-auto">{{ error }}</pre>
     </div>
 
     <!-- ═══════ IMPORT TAB ═══════ -->

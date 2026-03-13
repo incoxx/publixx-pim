@@ -40,13 +40,21 @@ export default {
     const auth = useAuthStore()
     const token = auth.token
 
+    // CSRF-Token aus Cookie lesen (Sanctum stateful requests)
+    const xsrfToken = document.cookie
+      .split('; ')
+      .find((c) => c.startsWith('XSRF-TOKEN='))
+      ?.split('=')[1]
+
     return new Promise((resolve, reject) => {
       fetch(`${apiBaseURL}/bmecat-import`, {
         method: 'POST',
         headers: {
           Accept: 'text/event-stream',
           Authorization: token ? `Bearer ${token}` : '',
+          ...(xsrfToken ? { 'X-XSRF-TOKEN': decodeURIComponent(xsrfToken) } : {}),
         },
+        credentials: 'same-origin',
         body: formData,
       })
         .then(async (response) => {
