@@ -54,6 +54,9 @@ class ImportExecutor
     /** Optional progress callback: fn(string $phase, int $current, int $total, array $stats) */
     private $progressCallback = null;
 
+    /** Optional heartbeat callback: wird regelmäßig aufgerufen um SSE-Verbindung offen zu halten */
+    private $heartbeatCallback = null;
+
     public function __construct(?ReferenceResolver $resolver = null)
     {
         $this->resolver = $resolver ?? new ReferenceResolver();
@@ -67,6 +70,25 @@ class ImportExecutor
     public function setProgressCallback(callable $callback): void
     {
         $this->progressCallback = $callback;
+    }
+
+    /**
+     * Setzt eine Heartbeat-Funktion die regelmäßig aufgerufen wird (z.B. alle 50 Zeilen).
+     * Verhindert Verbindungs-Timeouts bei lang laufenden Imports.
+     */
+    public function setHeartbeatCallback(callable $callback): void
+    {
+        $this->heartbeatCallback = $callback;
+    }
+
+    /**
+     * Heartbeat senden (zeitbasiert, nicht bei jedem Aufruf).
+     */
+    private function heartbeat(): void
+    {
+        if ($this->heartbeatCallback) {
+            ($this->heartbeatCallback)();
+        }
     }
 
     /**
@@ -713,7 +735,11 @@ class ImportExecutor
         // Resolve the 'name' attribute once for English name storage
         $nameAttribute = Attribute::where('technical_name', 'name')->first();
 
+        $rowCount = 0;
         foreach ($rows as $row) {
+            if (++$rowCount % 50 === 0) {
+                $this->heartbeat();
+            }
             try {
             $existing = Product::where('sku', $row['sku'])->first();
 
@@ -768,7 +794,11 @@ class ImportExecutor
 
     private function importProductValues(array $rows, string $sheetKey): void
     {
+        $rowCount = 0;
         foreach ($rows as $row) {
+            if (++$rowCount % 50 === 0) {
+                $this->heartbeat();
+            }
             try {
             $productResult = $this->resolver->resolveProduct($row['sku']);
             if (!$productResult->resolved()) {
@@ -889,7 +919,11 @@ class ImportExecutor
 
     private function importProductHierarchies(array $rows, string $sheetKey): void
     {
+        $rowCount = 0;
         foreach ($rows as $row) {
+            if (++$rowCount % 50 === 0) {
+                $this->heartbeat();
+            }
             try {
             $productResult = $this->resolver->resolveProduct($row['sku']);
             if (!$productResult->resolved()) {
@@ -1034,7 +1068,11 @@ class ImportExecutor
 
     private function importPrices(array $rows, string $sheetKey): void
     {
+        $rowCount = 0;
         foreach ($rows as $row) {
+            if (++$rowCount % 50 === 0) {
+                $this->heartbeat();
+            }
             try {
             $productResult = $this->resolver->resolveProduct($row['sku']);
             if (!$productResult->resolved()) {

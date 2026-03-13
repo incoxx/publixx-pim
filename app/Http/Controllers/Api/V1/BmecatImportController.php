@@ -72,6 +72,9 @@ class BmecatImportController extends Controller
      */
     private function importJson(string $xml, ?string $productType): JsonResponse
     {
+        set_time_limit(0);
+        ini_set('max_execution_time', '0');
+
         try {
             $result = $this->importer->importFromString($xml, $productType);
         } catch (\Throwable $e) {
@@ -102,15 +105,36 @@ class BmecatImportController extends Controller
     private function importStreamed(string $xml, ?string $productType): StreamedResponse
     {
         return new StreamedResponse(function () use ($xml, $productType) {
+            // Timeouts für lang laufende Imports aufheben
+            set_time_limit(0);
+            ini_set('max_execution_time', '0');
+            if (function_exists('fastcgi_finish_request')) {
+                // FPM: Verbindung offen halten
+                ignore_user_abort(true);
+            }
+
             // Disable output buffering for real-time streaming
             while (ob_get_level() > 0) {
                 ob_end_flush();
             }
 
-            $sendEvent = function (string $event, array $data) {
+            $lastEventTime = microtime(true);
+
+            $sendEvent = function (string $event, array $data) use (&$lastEventTime) {
                 echo "event: {$event}\n";
                 echo 'data: ' . json_encode($data, JSON_UNESCAPED_UNICODE) . "\n\n";
                 flush();
+                $lastEventTime = microtime(true);
+            };
+
+            // SSE-Heartbeat: Hält die Verbindung offen wenn lange kein Event kommt
+            // (verhindert nginx proxy_read_timeout)
+            $sendHeartbeat = function () use (&$lastEventTime) {
+                if ((microtime(true) - $lastEventTime) > 15) {
+                    echo ": heartbeat\n\n";
+                    flush();
+                    $lastEventTime = microtime(true);
+                }
             };
 
             $sendEvent('progress', [
@@ -131,6 +155,9 @@ class BmecatImportController extends Controller
                     ]);
                 }
             );
+
+            // Heartbeat alle 15s senden um nginx proxy_read_timeout zu vermeiden
+            $this->importer->setHeartbeatCallback($sendHeartbeat);
 
             try {
                 $result = $this->importer->importFromString($xml, $productType);

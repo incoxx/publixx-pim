@@ -86,6 +86,14 @@ class BmecatFormatImporter
     }
 
     /**
+     * Setzt eine Heartbeat-Funktion die regelmäßig aufgerufen wird.
+     */
+    public function setHeartbeatCallback(callable $callback): void
+    {
+        $this->executor->setHeartbeatCallback($callback);
+    }
+
+    /**
      * Importiert Daten aus einer BMEcat-XML-Datei.
      */
     public function importFromFile(string $filePath, ?string $productType = null): JsonImportResult
