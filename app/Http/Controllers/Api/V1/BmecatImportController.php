@@ -54,6 +54,7 @@ class BmecatImportController extends Controller
             return response()->json([
                 'error' => 'Validierungsfehler',
                 'details' => $validation['errors'],
+                'warnings' => $validation['warnings'] ?? [],
             ], 422);
         }
 
@@ -76,10 +77,14 @@ class BmecatImportController extends Controller
         } catch (\Throwable $e) {
             Log::channel('import')->error('BMEcat-Import via REST fehlgeschlagen', [
                 'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
             ]);
 
+            // Detaillierte Fehlermeldung statt generischem "Import fehlgeschlagen"
+            $errorMessage = $this->formatImportError($e);
+
             return response()->json([
-                'error' => 'Import fehlgeschlagen: ' . $e->getMessage(),
+                'error' => $errorMessage,
             ], 500);
         }
 
@@ -139,10 +144,11 @@ class BmecatImportController extends Controller
             } catch (\Throwable $e) {
                 Log::channel('import')->error('BMEcat-Import via REST fehlgeschlagen', [
                     'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
                 ]);
 
                 $sendEvent('error', [
-                    'error' => 'Import fehlgeschlagen: ' . $e->getMessage(),
+                    'error' => $this->formatImportError($e),
                 ]);
             }
         }, 200, [
@@ -151,6 +157,57 @@ class BmecatImportController extends Controller
             'Connection' => 'keep-alive',
             'X-Accel-Buffering' => 'no', // Disable nginx buffering
         ]);
+    }
+
+    /**
+     * Formatiert Import-Fehler für eine verständliche Rückmeldung an den Benutzer.
+     */
+    private function formatImportError(\Throwable $e): string
+    {
+        $message = $e->getMessage();
+
+        // Bekannte Fehlertypen mit verständlichen Meldungen
+        if (str_contains($message, 'konnte nicht geparst werden')) {
+            return "XML-Parsing-Fehler: {$message}";
+        }
+
+        if (str_contains($message, 'Import-Daten konnten nicht aufbereitet werden')) {
+            return "Datenaufbereitung fehlgeschlagen: {$message}";
+        }
+
+        if ($e instanceof \Illuminate\Database\QueryException) {
+            return 'Datenbankfehler beim Import: ' . $this->simplifyDbError($message);
+        }
+
+        if (str_contains($message, 'SQLSTATE')) {
+            return 'Datenbankfehler beim Import: ' . $this->simplifyDbError($message);
+        }
+
+        // Allgemeiner Fehler — Nachricht weitergeben statt generischem Text
+        return "Import fehlgeschlagen: {$message}";
+    }
+
+    /**
+     * Vereinfacht Datenbank-Fehlermeldungen.
+     */
+    private function simplifyDbError(string $message): string
+    {
+        // NOT NULL Constraint
+        if (preg_match('/NOT NULL constraint.*?\.(\w+)/i', $message, $m)) {
+            return "Pflichtfeld \"{$m[1]}\" ist leer. Bitte prüfen Sie die BMEcat-Daten.";
+        }
+
+        // Unique Constraint
+        if (preg_match('/UNIQUE constraint/i', $message)) {
+            return 'Duplikat-Eintrag. Ein Datensatz mit diesem Schlüssel existiert bereits.';
+        }
+
+        // Truncation
+        if (preg_match('/Data too long for column.*?\'(\w+)\'/i', $message, $m)) {
+            return "Feld \"{$m[1]}\" enthält zu lange Daten. Bitte kürzen.";
+        }
+
+        return $message;
     }
 
     /**

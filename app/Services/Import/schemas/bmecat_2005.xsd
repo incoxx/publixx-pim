@@ -1,0 +1,311 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  BMEcat 2005 XSD Schema (abgeleitet aus der offiziellen DTD/Spec).
+  Dieses Schema wird für die Validierung vor dem Import verwendet.
+-->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:bmecat="http://www.bmecat.org/bmecat/2005"
+           targetNamespace="http://www.bmecat.org/bmecat/2005"
+           elementFormDefault="qualified">
+
+  <!-- Root -->
+  <xs:element name="BMECAT">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element ref="bmecat:HEADER"/>
+        <xs:choice>
+          <xs:element ref="bmecat:T_NEW_CATALOG"/>
+          <xs:element ref="bmecat:T_UPDATE_PRODUCTS" minOccurs="0"/>
+          <xs:element ref="bmecat:T_UPDATE_PRICES" minOccurs="0"/>
+        </xs:choice>
+      </xs:sequence>
+      <xs:attribute name="version" type="xs:string"/>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- HEADER -->
+  <xs:element name="HEADER">
+    <xs:complexType>
+      <xs:all>
+        <xs:element ref="bmecat:CATALOG" minOccurs="0"/>
+        <xs:element ref="bmecat:SUPPLIER" minOccurs="0"/>
+        <xs:element ref="bmecat:BUYER" minOccurs="0"/>
+        <xs:element ref="bmecat:AGREEMENT" minOccurs="0"/>
+        <xs:element ref="bmecat:USER_DEFINED_EXTENSIONS" minOccurs="0"/>
+      </xs:all>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="CATALOG">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="LANGUAGE" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+        <xs:element name="CATALOG_ID" type="xs:string" minOccurs="0"/>
+        <xs:element name="CATALOG_VERSION" type="xs:string" minOccurs="0"/>
+        <xs:element name="CATALOG_NAME" type="xs:string" minOccurs="0"/>
+        <xs:element ref="bmecat:DATETIME" minOccurs="0" maxOccurs="unbounded"/>
+        <xs:element name="CURRENCY" type="xs:string" minOccurs="0"/>
+        <xs:element name="MIME_ROOT" type="xs:string" minOccurs="0"/>
+        <xs:element name="TERRITORY" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="SUPPLIER">
+    <xs:complexType>
+      <xs:all>
+        <xs:element name="SUPPLIER_ID" minOccurs="0">
+          <xs:complexType mixed="true">
+            <xs:attribute name="type" type="xs:string"/>
+          </xs:complexType>
+        </xs:element>
+        <xs:element name="SUPPLIER_NAME" type="xs:string" minOccurs="0"/>
+        <xs:element ref="bmecat:ADDRESS" minOccurs="0"/>
+      </xs:all>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="BUYER">
+    <xs:complexType><xs:sequence><xs:any processContents="lax" minOccurs="0" maxOccurs="unbounded"/></xs:sequence></xs:complexType>
+  </xs:element>
+  <xs:element name="AGREEMENT">
+    <xs:complexType><xs:sequence><xs:any processContents="lax" minOccurs="0" maxOccurs="unbounded"/></xs:sequence></xs:complexType>
+  </xs:element>
+
+  <xs:element name="ADDRESS">
+    <xs:complexType>
+      <xs:all>
+        <xs:element name="NAME" type="xs:string" minOccurs="0"/>
+        <xs:element name="NAME2" type="xs:string" minOccurs="0"/>
+        <xs:element name="NAME3" type="xs:string" minOccurs="0"/>
+        <xs:element name="STREET" type="xs:string" minOccurs="0"/>
+        <xs:element name="ZIP" type="xs:string" minOccurs="0"/>
+        <xs:element name="CITY" type="xs:string" minOccurs="0"/>
+        <xs:element name="STATE" type="xs:string" minOccurs="0"/>
+        <xs:element name="COUNTRY" type="xs:string" minOccurs="0"/>
+        <xs:element name="PHONE" type="xs:string" minOccurs="0"/>
+        <xs:element name="FAX" type="xs:string" minOccurs="0"/>
+        <xs:element name="EMAIL" type="xs:string" minOccurs="0"/>
+        <xs:element name="URL" type="xs:string" minOccurs="0"/>
+        <xs:element name="CONTACT" type="xs:string" minOccurs="0"/>
+      </xs:all>
+      <xs:attribute name="type" type="xs:string"/>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- DATETIME -->
+  <xs:element name="DATETIME">
+    <xs:complexType mixed="true">
+      <xs:all>
+        <xs:element name="DATE" type="xs:string" minOccurs="0"/>
+        <xs:element name="TIME" type="xs:string" minOccurs="0"/>
+        <xs:element name="TIMEZONE" type="xs:string" minOccurs="0"/>
+      </xs:all>
+      <xs:attribute name="type" type="xs:string"/>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- T_NEW_CATALOG -->
+  <xs:element name="T_NEW_CATALOG">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element ref="bmecat:CATALOG_GROUP_SYSTEM" minOccurs="0"/>
+        <xs:element ref="bmecat:PRODUCT" minOccurs="0" maxOccurs="unbounded"/>
+        <xs:element ref="bmecat:PRODUCT_TO_CATALOGGROUP_MAP" minOccurs="0" maxOccurs="unbounded"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+  <xs:element name="T_UPDATE_PRODUCTS">
+    <xs:complexType><xs:sequence><xs:any processContents="lax" minOccurs="0" maxOccurs="unbounded"/></xs:sequence></xs:complexType>
+  </xs:element>
+  <xs:element name="T_UPDATE_PRICES">
+    <xs:complexType><xs:sequence><xs:any processContents="lax" minOccurs="0" maxOccurs="unbounded"/></xs:sequence></xs:complexType>
+  </xs:element>
+
+  <!-- CATALOG_GROUP_SYSTEM -->
+  <xs:element name="CATALOG_GROUP_SYSTEM">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="GROUP_SYSTEM_ID" type="xs:string" minOccurs="0"/>
+        <xs:element name="GROUP_SYSTEM_NAME" type="xs:string" minOccurs="0"/>
+        <xs:element name="GROUP_SYSTEM_DESCRIPTION" type="xs:string" minOccurs="0"/>
+        <xs:element ref="bmecat:CATALOG_STRUCTURE" minOccurs="0" maxOccurs="unbounded"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="CATALOG_STRUCTURE">
+    <xs:complexType>
+      <xs:all>
+        <xs:element name="GROUP_ID" type="xs:string"/>
+        <xs:element name="GROUP_NAME" type="xs:string" minOccurs="0"/>
+        <xs:element name="GROUP_DESCRIPTION" type="xs:string" minOccurs="0"/>
+        <xs:element name="PARENT_ID" type="xs:string" minOccurs="0"/>
+        <xs:element name="GROUP_ORDER" type="xs:string" minOccurs="0"/>
+        <xs:element ref="bmecat:USER_DEFINED_EXTENSIONS" minOccurs="0"/>
+        <xs:element ref="bmecat:MIME_INFO" minOccurs="0"/>
+      </xs:all>
+      <xs:attribute name="type" type="xs:string"/>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- PRODUCT (BMEcat 2005) -->
+  <!-- PRODUCT: Sequenz mit flexiblen Blöcken nach SUPPLIER_PID -->
+  <xs:element name="PRODUCT">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="SUPPLIER_PID" type="xs:string"/>
+        <xs:choice minOccurs="0" maxOccurs="unbounded">
+          <xs:element ref="bmecat:PRODUCT_DETAILS"/>
+          <xs:element ref="bmecat:PRODUCT_FEATURES"/>
+          <xs:element ref="bmecat:PRODUCT_ORDER_DETAILS"/>
+          <xs:element ref="bmecat:PRODUCT_PRICE_DETAILS"/>
+          <xs:element ref="bmecat:MIME_INFO"/>
+          <xs:element ref="bmecat:PRODUCT_REFERENCE"/>
+          <xs:element ref="bmecat:USER_DEFINED_EXTENSIONS"/>
+          <xs:element ref="bmecat:PRODUCT_TO_CATALOGGROUP_MAP"/>
+        </xs:choice>
+      </xs:sequence>
+      <xs:attribute name="mode" type="xs:string"/>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- Text-Typ mit optionalem xml:lang -->
+  <xs:complexType name="multilingualText" mixed="true">
+    <xs:anyAttribute processContents="lax"/>
+  </xs:complexType>
+
+  <xs:element name="PRODUCT_DETAILS">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="DESCRIPTION_SHORT" type="bmecat:multilingualText" minOccurs="0" maxOccurs="unbounded"/>
+        <xs:element name="DESCRIPTION_LONG" type="bmecat:multilingualText" minOccurs="0" maxOccurs="unbounded"/>
+        <xs:element name="EAN" type="xs:string" minOccurs="0"/>
+        <xs:element name="SUPPLIER_ALT_PID" type="xs:string" minOccurs="0"/>
+        <xs:element name="BUYER_PID" minOccurs="0">
+          <xs:complexType mixed="true"><xs:attribute name="type" type="xs:string"/></xs:complexType>
+        </xs:element>
+        <xs:element name="MANUFACTURER_NAME" type="xs:string" minOccurs="0"/>
+        <xs:element name="MANUFACTURER_PID" type="xs:string" minOccurs="0"/>
+        <xs:element name="DELIVERY_TIME" type="xs:string" minOccurs="0"/>
+        <xs:element name="KEYWORD" type="bmecat:multilingualText" minOccurs="0" maxOccurs="unbounded"/>
+        <xs:element name="SPECIAL_TREATMENT_CLASS" minOccurs="0">
+          <xs:complexType mixed="true"><xs:attribute name="type" type="xs:string"/></xs:complexType>
+        </xs:element>
+        <xs:element name="PRODUCT_STATUS" minOccurs="0">
+          <xs:complexType mixed="true"><xs:attribute name="type" type="xs:string"/></xs:complexType>
+        </xs:element>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- Features -->
+  <xs:element name="PRODUCT_FEATURES">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="REFERENCE_FEATURE_SYSTEM_NAME" type="xs:string" minOccurs="0"/>
+        <xs:element name="REFERENCE_FEATURE_GROUP_ID" type="xs:string" minOccurs="0"/>
+        <xs:element name="REFERENCE_FEATURE_GROUP_NAME" type="xs:string" minOccurs="0"/>
+        <xs:element ref="bmecat:FEATURE" minOccurs="0" maxOccurs="unbounded"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="FEATURE">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="FNAME" type="xs:string"/>
+        <xs:element name="FVALUE" type="bmecat:multilingualText" minOccurs="0" maxOccurs="unbounded"/>
+        <xs:element name="FUNIT" type="xs:string" minOccurs="0"/>
+        <xs:element name="FORDER" type="xs:string" minOccurs="0"/>
+        <xs:element name="FDESCR" type="xs:string" minOccurs="0"/>
+        <xs:element name="FVALUE_TYPE" type="xs:string" minOccurs="0"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- Order Details -->
+  <xs:element name="PRODUCT_ORDER_DETAILS">
+    <xs:complexType>
+      <xs:all>
+        <xs:element name="ORDER_UNIT" type="xs:string" minOccurs="0"/>
+        <xs:element name="CONTENT_UNIT" type="xs:string" minOccurs="0"/>
+        <xs:element name="NO_CU_PER_OU" type="xs:string" minOccurs="0"/>
+        <xs:element name="PRICE_QUANTITY" type="xs:string" minOccurs="0"/>
+        <xs:element name="QUANTITY_MIN" type="xs:string" minOccurs="0"/>
+        <xs:element name="QUANTITY_INTERVAL" type="xs:string" minOccurs="0"/>
+      </xs:all>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- Price Details -->
+  <xs:element name="PRODUCT_PRICE_DETAILS">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element ref="bmecat:DATETIME" minOccurs="0" maxOccurs="unbounded"/>
+        <xs:element ref="bmecat:PRODUCT_PRICE" minOccurs="0" maxOccurs="unbounded"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="PRODUCT_PRICE">
+    <xs:complexType>
+      <xs:all>
+        <xs:element name="PRICE_AMOUNT" type="xs:string"/>
+        <xs:element name="PRICE_CURRENCY" type="xs:string" minOccurs="0"/>
+        <xs:element name="TAX" type="xs:string" minOccurs="0"/>
+        <xs:element name="PRICE_FACTOR" type="xs:string" minOccurs="0"/>
+        <xs:element name="LOWER_BOUND" type="xs:string" minOccurs="0"/>
+        <xs:element name="TERRITORY" type="xs:string" minOccurs="0"/>
+        <xs:element name="DAILY_PRICE" type="xs:string" minOccurs="0"/>
+      </xs:all>
+      <xs:attribute name="price_type" type="xs:string"/>
+      <xs:attribute name="type" type="xs:string"/>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="PRODUCT_REFERENCE">
+    <xs:complexType>
+      <xs:all><xs:element name="PROD_ID_TO" type="xs:string"/></xs:all>
+      <xs:attribute name="type" type="xs:string"/>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="PRODUCT_TO_CATALOGGROUP_MAP">
+    <xs:complexType>
+      <xs:all>
+        <xs:element name="PROD_ID" type="xs:string"/>
+        <xs:element name="CATALOG_GROUP_ID" type="xs:string"/>
+        <xs:element name="PRODUCT_ORDER" type="xs:string" minOccurs="0"/>
+      </xs:all>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- MIME_INFO -->
+  <xs:element name="MIME_INFO">
+    <xs:complexType>
+      <xs:sequence><xs:element ref="bmecat:MIME" minOccurs="0" maxOccurs="unbounded"/></xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="MIME">
+    <xs:complexType>
+      <xs:all>
+        <xs:element name="MIME_TYPE" type="xs:string" minOccurs="0"/>
+        <xs:element name="MIME_SOURCE" type="xs:string" minOccurs="0"/>
+        <xs:element name="MIME_DESCR" type="xs:string" minOccurs="0"/>
+        <xs:element name="MIME_ALT" type="xs:string" minOccurs="0"/>
+        <xs:element name="MIME_PURPOSE" type="xs:string" minOccurs="0"/>
+        <xs:element name="MIME_ORDER" type="xs:string" minOccurs="0"/>
+      </xs:all>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- USER_DEFINED_EXTENSIONS -->
+  <xs:element name="USER_DEFINED_EXTENSIONS">
+    <xs:complexType>
+      <xs:sequence><xs:any processContents="lax" minOccurs="0" maxOccurs="unbounded"/></xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+</xs:schema>

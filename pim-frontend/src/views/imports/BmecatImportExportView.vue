@@ -379,8 +379,18 @@ const tabs = [
           <p class="text-[11px] text-red-500 mb-1">Fehler:</p>
           <ul class="space-y-0.5">
             <li v-for="(err, i) in validationResult.errors" :key="i" class="text-[11px] text-red-600 flex items-start gap-1">
-              <AlertTriangle class="w-3 h-3 mt-0.5 shrink-0" :stroke-width="2" />
+              <XCircle class="w-3 h-3 mt-0.5 shrink-0" :stroke-width="2" />
               {{ err }}
+            </li>
+          </ul>
+        </div>
+
+        <div v-if="validationResult.warnings?.length">
+          <p class="text-[11px] text-yellow-600 mb-1">Warnungen:</p>
+          <ul class="space-y-0.5">
+            <li v-for="(warn, i) in validationResult.warnings" :key="'w'+i" class="text-[11px] text-yellow-700 flex items-start gap-1">
+              <AlertTriangle class="w-3 h-3 mt-0.5 shrink-0" :stroke-width="2" />
+              {{ warn }}
             </li>
           </ul>
         </div>
