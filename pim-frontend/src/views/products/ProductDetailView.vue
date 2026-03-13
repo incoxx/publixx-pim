@@ -120,38 +120,42 @@ async function loadWorkflowUsers() {
   } catch { /* ignore */ }
 }
 
+const workflowError = ref(null)
+
 async function setWorkflowStatus(status, assigneeId = undefined) {
   if (!product.value) return
   workflowSaving.value = true
+  workflowError.value = null
   try {
     const payload = { workflow_status: status }
     if (assigneeId !== undefined) payload.workflow_assignee_id = assigneeId
     await store.update(product.value.id, payload)
     await store.fetchOne(product.value.id)
+  } catch (e) {
+    workflowError.value = e.response?.data?.message || 'Workflow-Aktion fehlgeschlagen'
   } finally {
     workflowSaving.value = false
   }
 }
 
-function startWorkflow() {
-  setWorkflowStatus('editing')
+async function startWorkflow() {
+  await setWorkflowStatus('editing')
 }
 
-function submitForReview() {
-  loadWorkflowUsers()
-  setWorkflowStatus('review')
+async function submitForReview() {
+  await setWorkflowStatus('review')
 }
 
-function requestChanges() {
-  setWorkflowStatus('editing')
+async function requestChanges() {
+  await setWorkflowStatus('editing')
 }
 
-function approveWorkflow() {
-  setWorkflowStatus('approved')
+async function approveWorkflow() {
+  await setWorkflowStatus('approved')
 }
 
-function cancelWorkflow() {
-  setWorkflowStatus(null, null)
+async function cancelWorkflow() {
+  await setWorkflowStatus(null, null)
 }
 
 const masterNodePath = computed(() => {
@@ -1495,6 +1499,7 @@ onMounted(async () => {
   loadAttributeData()
   loadHierarchies()
   loadManufacturers()
+  if (workflowEnabled.value) loadWorkflowUsers()
   // If variant, load parent's inheritance rules
   if (product.value?.product_type_ref === 'variant' && product.value?.parent_product_id) {
     loadInheritanceRules()
@@ -1642,7 +1647,7 @@ watch(() => route.params.id, async (newId, oldId) => {
         <select
           class="pim-input text-xs w-40"
           :value="product.workflow_assignee_id || ''"
-          @focus="loadWorkflowUsers"
+          :disabled="workflowSaving"
           @change="setWorkflowStatus('editing', $event.target.value || null)"
         >
           <option value="">— Zuweisen —</option>
@@ -1695,6 +1700,8 @@ watch(() => route.params.id, async (newId, oldId) => {
           </button>
         </div>
       </template>
+
+      <p v-if="workflowError" class="w-full text-xs text-[var(--color-error)] mt-1">{{ workflowError }}</p>
     </div>
 
     <!-- Copy Dialog -->
