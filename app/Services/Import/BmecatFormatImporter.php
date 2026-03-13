@@ -36,6 +36,38 @@ class BmecatFormatImporter
     /** BMEcat 2005 Namespace. */
     private const NS_2005 = 'http://www.bmecat.org/bmecat/2005';
 
+    /** ISO 639-2/B → ISO 639-1 Sprachcode-Mapping. */
+    private const LANG_MAP = [
+        'deu' => 'de', 'ger' => 'de',
+        'eng' => 'en',
+        'fra' => 'fr', 'fre' => 'fr',
+        'ita' => 'it',
+        'spa' => 'es',
+        'por' => 'pt',
+        'nld' => 'nl', 'dut' => 'nl',
+        'pol' => 'pl',
+        'ces' => 'cs', 'cze' => 'cs',
+        'hun' => 'hu',
+        'ron' => 'ro', 'rum' => 'ro',
+        'slk' => 'sk', 'slo' => 'sk',
+        'slv' => 'sl',
+        'hrv' => 'hr',
+        'srp' => 'sr',
+        'bul' => 'bg',
+        'dan' => 'da',
+        'fin' => 'fi',
+        'swe' => 'sv',
+        'nor' => 'no', 'nob' => 'nb', 'nno' => 'nn',
+        'ell' => 'el', 'gre' => 'el',
+        'tur' => 'tr',
+        'rus' => 'ru',
+        'ukr' => 'uk',
+        'zho' => 'zh', 'chi' => 'zh',
+        'jpn' => 'ja',
+        'kor' => 'ko',
+        'ara' => 'ar',
+    ];
+
     public function __construct(
         private readonly ImportExecutor $executor,
     ) {}
@@ -257,6 +289,7 @@ class BmecatFormatImporter
         $parsed = [
             'header' => [],
             'default_currency' => 'EUR',
+            'default_language' => null,
             'catalog_id' => '',
             'catalog_structures' => [],
             'products' => [],
@@ -278,6 +311,10 @@ class BmecatFormatImporter
                     $parsed['header'] = $this->parseHeader($reader, $ns);
                     $parsed['default_currency'] = $parsed['header']['currency'] ?? 'EUR';
                     $parsed['catalog_id'] = $parsed['header']['catalog_id'] ?? '';
+                    // Katalogsprache als Default für Inhalte ohne xml:lang
+                    if (!empty($parsed['header']['language'])) {
+                        $parsed['default_language'] = $this->mapLanguageCode($parsed['header']['language']);
+                    }
                     break;
 
                 case 'CATALOG_GROUP_SYSTEM':
@@ -285,7 +322,7 @@ class BmecatFormatImporter
                     break;
 
                 case $elementMap['product']:
-                    $product = $this->parseProduct($reader, $elementMap, $ns, $parsed['default_currency']);
+                    $product = $this->parseProduct($reader, $elementMap, $ns, $parsed['default_currency'], $parsed['default_language']);
                     if ($product !== null) {
                         $parsed['products'][] = $product;
                     }
@@ -381,7 +418,7 @@ class BmecatFormatImporter
     /**
      * Parst ein einzelnes PRODUCT/ARTICLE-Element.
      */
-    private function parseProduct(\XMLReader $reader, array $elementMap, ?string $ns, string $defaultCurrency): ?array
+    private function parseProduct(\XMLReader $reader, array $elementMap, ?string $ns, string $defaultCurrency, ?string $defaultLang = null): ?array
     {
         $outerXml = $reader->readOuterXml();
         $el = $this->loadElement($outerXml, $ns);
@@ -410,17 +447,29 @@ class BmecatFormatImporter
             'catalog_group_maps' => [],
         ];
 
-        // Details
+        // Details (mit Mehrsprachigkeit)
         $details = $this->child($el, $elementMap['product_details'], $ns);
         if ($details !== null) {
+            // Mehrsprachige Texte: {lang → text} — kein defaultLang,
+            // damit einsprachige Inhalte nicht fälschlich als übersetzbar erkannt werden
+            $shortTexts = $this->textsMultilang($details, 'DESCRIPTION_SHORT', $ns);
+            $longTexts = $this->textsMultilang($details, 'DESCRIPTION_LONG', $ns);
+            $keywordTexts = $this->textsMultilang($details, 'KEYWORD', $ns);
+
+            // Erste Sprache oder Default für den Produktnamen
+            $descShort = reset($shortTexts) ?: '';
+
             $product['details'] = [
-                'description_short' => $this->text($details, 'DESCRIPTION_SHORT', $ns) ?? '',
-                'description_long' => $this->text($details, 'DESCRIPTION_LONG', $ns),
+                'description_short' => $descShort,
+                'description_short_i18n' => $shortTexts,
+                'description_long' => reset($longTexts) ?: null,
+                'description_long_i18n' => $longTexts,
                 'ean' => $this->text($details, 'EAN', $ns),
                 'manufacturer_name' => $this->text($details, 'MANUFACTURER_NAME', $ns),
                 'manufacturer_pid' => $this->text($details, 'MANUFACTURER_PID', $ns),
                 'delivery_time' => $this->text($details, 'DELIVERY_TIME', $ns),
                 'keywords' => $this->texts($details, 'KEYWORD', $ns),
+                'keywords_i18n' => $keywordTexts,
             ];
         }
 
@@ -445,12 +494,14 @@ class BmecatFormatImporter
                             continue;
                         }
 
-                        // Mehrere FVALUE-Elemente sammeln
+                        // Mehrere FVALUE-Elemente sammeln (mit optionalem xml:lang)
                         $values = $this->texts($feature, 'FVALUE', $ns);
+                        $valuesI18n = $this->textsMultilang($feature, 'FVALUE', $ns);
 
                         $product['features'][] = [
                             'fname' => $fname,
                             'values' => $values,
+                            'values_i18n' => $valuesI18n,
                             'funit' => $this->text($feature, 'FUNIT', $ns),
                             'forder' => (int) ($this->text($feature, 'FORDER', $ns) ?? 0),
                             'fdescr' => $this->text($feature, 'FDESCR', $ns),
@@ -660,6 +711,11 @@ class BmecatFormatImporter
                     continue;
                 }
 
+                // Mehrsprachigkeit erkennen: mindestens ein Wert mit explizitem xml:lang
+                $valuesI18n = $feature['values_i18n'] ?? [];
+                $hasExplicitLang = $this->hasExplicitLanguage($valuesI18n);
+                $hasMultipleLangs = $hasExplicitLang;
+
                 // Attribut deduplizieren
                 if (!isset($attributeMap[$techName])) {
                     $dataType = $this->inferDataType($feature['values'], $feature['fvalue_type'] ?? null);
@@ -675,7 +731,66 @@ class BmecatFormatImporter
                         'default_unit' => null,
                         'is_multipliable' => count($feature['values']) > 1,
                         'max_multiplied' => count($feature['values']) > 1 ? 10 : null,
-                        'is_translatable' => false,
+                        'is_translatable' => $hasMultipleLangs,
+                        'is_mandatory' => false,
+                        'is_unique' => false,
+                        'is_searchable' => true,
+                        'is_inheritable' => true,
+                        'parent_attribute' => null,
+                        'source_system' => 'bmecat',
+                        'views' => null,
+                    ];
+                } elseif ($hasMultipleLangs && !$attributeMap[$techName]['is_translatable']) {
+                    // Wenn ein späteres Produkt Mehrsprachigkeit zeigt, Attribut upgraden
+                    $attributeMap[$techName]['is_translatable'] = true;
+                }
+
+                // Produktwerte: mehrsprachig oder einsprachig
+                if ($hasMultipleLangs) {
+                    foreach ($valuesI18n as $lang => $value) {
+                        $productValues[] = [
+                            'sku' => $sku,
+                            'attribute' => $techName,
+                            'value' => $value,
+                            'unit' => $feature['funit'],
+                            'language' => $lang,
+                            'index' => 0,
+                        ];
+                    }
+                } else {
+                    foreach ($feature['values'] as $idx => $value) {
+                        $productValues[] = [
+                            'sku' => $sku,
+                            'attribute' => $techName,
+                            'value' => $value,
+                            'unit' => $feature['funit'],
+                            'language' => null,
+                            'index' => count($feature['values']) > 1 ? $idx : 0,
+                        ];
+                    }
+                }
+            }
+
+            // Mehrsprachige Beschreibungen als translatable Attribute importieren
+            $descShortI18n = $product['details']['description_short_i18n'] ?? [];
+            $descLongI18n = $product['details']['description_long_i18n'] ?? [];
+
+            if ($this->hasExplicitLanguage($descShortI18n)) {
+                $techName = 'description_short';
+                if (!isset($attributeMap[$techName])) {
+                    $attributeMap[$techName] = [
+                        'technical_name' => $techName,
+                        'name_de' => 'Kurzbeschreibung',
+                        'name_en' => 'Short Description',
+                        'description' => null,
+                        'data_type' => 'String',
+                        'attribute_group' => null,
+                        'value_list' => null,
+                        'unit_group' => null,
+                        'default_unit' => null,
+                        'is_multipliable' => false,
+                        'max_multiplied' => null,
+                        'is_translatable' => true,
                         'is_mandatory' => false,
                         'is_unique' => false,
                         'is_searchable' => true,
@@ -685,16 +800,51 @@ class BmecatFormatImporter
                         'views' => null,
                     ];
                 }
-
-                // Produktwerte (pro FVALUE ein Eintrag, bei Mehrfachwerten mit Index)
-                foreach ($feature['values'] as $idx => $value) {
+                foreach ($descShortI18n as $lang => $value) {
                     $productValues[] = [
                         'sku' => $sku,
                         'attribute' => $techName,
                         'value' => $value,
-                        'unit' => $feature['funit'],
-                        'language' => null,
-                        'index' => count($feature['values']) > 1 ? $idx : 0,
+                        'unit' => null,
+                        'language' => $lang,
+                        'index' => 0,
+                    ];
+                }
+            }
+
+            if ($this->hasExplicitLanguage($descLongI18n)) {
+                $techName = 'description_long';
+                if (!isset($attributeMap[$techName])) {
+                    $attributeMap[$techName] = [
+                        'technical_name' => $techName,
+                        'name_de' => 'Langbeschreibung',
+                        'name_en' => 'Long Description',
+                        'description' => null,
+                        'data_type' => 'String',
+                        'attribute_group' => null,
+                        'value_list' => null,
+                        'unit_group' => null,
+                        'default_unit' => null,
+                        'is_multipliable' => false,
+                        'max_multiplied' => null,
+                        'is_translatable' => true,
+                        'is_mandatory' => false,
+                        'is_unique' => false,
+                        'is_searchable' => true,
+                        'is_inheritable' => true,
+                        'parent_attribute' => null,
+                        'source_system' => 'bmecat',
+                        'views' => null,
+                    ];
+                }
+                foreach ($descLongI18n as $lang => $value) {
+                    $productValues[] = [
+                        'sku' => $sku,
+                        'attribute' => $techName,
+                        'value' => $value,
+                        'unit' => null,
+                        'language' => $lang,
+                        'index' => 0,
                     ];
                 }
             }
@@ -747,6 +897,8 @@ class BmecatFormatImporter
 
                 // Attribut deduplizieren (technical_name = voller UDX-Key als snake_case)
                 $attrTechName = $this->sanitizeTechnicalName($key);
+                $udxLang = $udxField['language'] ?? null;
+
                 if (!isset($udxAttributeMap[$attrTechName])) {
                     $dataType = $this->inferDataType([$udxField['value']], null);
                     $udxAttributeMap[$attrTechName] = [
@@ -761,7 +913,7 @@ class BmecatFormatImporter
                         'default_unit' => null,
                         'is_multipliable' => false,
                         'max_multiplied' => null,
-                        'is_translatable' => false,
+                        'is_translatable' => $udxLang !== null,
                         'is_mandatory' => false,
                         'is_unique' => false,
                         'is_searchable' => true,
@@ -771,6 +923,8 @@ class BmecatFormatImporter
                         'source_attribute_key' => $key,
                         'views' => null,
                     ];
+                } elseif ($udxLang !== null && !$udxAttributeMap[$attrTechName]['is_translatable']) {
+                    $udxAttributeMap[$attrTechName]['is_translatable'] = true;
                 }
 
                 // Produktwert
@@ -779,7 +933,7 @@ class BmecatFormatImporter
                     'attribute' => $attrTechName,
                     'value' => $udxField['value'],
                     'unit' => null,
-                    'language' => null,
+                    'language' => $udxLang,
                     'index' => 0,
                 ];
             }
@@ -1324,11 +1478,14 @@ class BmecatFormatImporter
                 continue;
             }
 
+            $lang = $this->xmlLang($child);
+
             $fields[] = [
                 'key' => $elementName,
                 'namespace' => $matches[1],
                 'fieldname' => $matches[2],
                 'value' => $value,
+                'language' => $lang,
             ];
         }
 
@@ -1354,11 +1511,14 @@ class BmecatFormatImporter
                     }
                 }
                 if (!$alreadyFound) {
+                    $lang = $this->xmlLang($child);
+
                     $fields[] = [
                         'key' => $elementName,
                         'namespace' => $matches[1],
                         'fieldname' => $matches[2],
                         'value' => $value,
+                        'language' => $lang,
                     ];
                 }
             }
@@ -1461,6 +1621,23 @@ class BmecatFormatImporter
     }
 
     /**
+     * Prüft ob ein i18n-Array mindestens einen expliziten Sprachschlüssel enthält.
+     *
+     * @param array<string|null, string> $i18nMap
+     */
+    private function hasExplicitLanguage(array $i18nMap): bool
+    {
+        foreach (array_keys($i18nMap) as $k) {
+            // PHP wandelt null-Keys zu "" um, daher auch leere Strings ignorieren
+            if ($k !== null && $k !== '') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Liest ein XML-Attribut namespace-sicher aus.
      *
      * SimpleXML hat einen Quirk: Wenn ein Element über children($ns) geholt wurde,
@@ -1472,6 +1649,70 @@ class BmecatFormatImporter
         $value = (string) ($element->attributes()[$attrName] ?? '');
 
         return $value !== '' ? $value : null;
+    }
+
+    /**
+     * Liest das xml:lang-Attribut eines Elements und mapped es auf PIM-Sprachcode.
+     *
+     * BMEcat verwendet ISO 639-2 (deu, eng, fra), PIM nutzt ISO 639-1 (de, en, fr).
+     * Gibt null zurück wenn kein xml:lang gesetzt ist.
+     */
+    private function xmlLang(\SimpleXMLElement $element): ?string
+    {
+        $lang = (string) ($element->attributes('xml', true)['lang'] ?? '');
+        if ($lang === '') {
+            return null;
+        }
+
+        return $this->mapLanguageCode($lang);
+    }
+
+    /**
+     * Mapped einen BMEcat-Sprachcode (ISO 639-2/B oder ISO 639-1) auf PIM-Sprachcode (ISO 639-1).
+     */
+    private function mapLanguageCode(string $code): string
+    {
+        $lower = mb_strtolower(trim($code));
+
+        // Bereits ISO 639-1 (2 Zeichen)?
+        if (strlen($lower) === 2) {
+            return $lower;
+        }
+
+        return self::LANG_MAP[$lower] ?? $lower;
+    }
+
+    /**
+     * Liest mehrsprachige Textinhalte eines Kind-Elements.
+     *
+     * Gibt ein Array mit ['language' => 'text', ...] zurück.
+     * Elemente ohne xml:lang nutzen $defaultLang als Key (null = kein Sprachkey).
+     *
+     * @return array<string|null, string> language → text
+     */
+    private function textsMultilang(\SimpleXMLElement $parent, string $childName, ?string $ns, ?string $defaultLang = null): array
+    {
+        $result = [];
+
+        $children = $ns
+            ? $parent->children($ns)->{$childName}
+            : $parent->{$childName};
+
+        if ($children === null) {
+            return $result;
+        }
+
+        foreach ($children as $child) {
+            $value = trim((string) $child);
+            if ($value === '') {
+                continue;
+            }
+
+            $lang = $this->xmlLang($child) ?? $defaultLang;
+            $result[$lang] = $value;
+        }
+
+        return $result;
     }
 
     /**
