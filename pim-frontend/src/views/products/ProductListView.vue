@@ -44,6 +44,7 @@ const defaultColumns = [
 const extraColumns = [
   { key: 'thumbnail', label: 'Bild', width: '52px' },
   { key: 'ean', label: 'EAN', mono: true },
+  { key: 'workflow_status', label: 'Workflow' },
   { key: 'manufacturer.name', label: 'Hersteller' },
   { key: 'master_hierarchy_node.name_de', label: 'Hierarchie-Knoten' },
   { key: 'created_at', label: 'Erstellt', sortable: true },
@@ -95,6 +96,11 @@ const quickLookupConfig = computed(() => ({
   'product_type.name_de': { type: 'select', options: productTypeOptions.value },
   'manufacturer.name': { type: 'select', options: manufacturerOptions.value },
   status: { type: 'select', options: statusOptions },
+  workflow_status: { type: 'select', options: [
+    { value: 'editing', label: 'In Bearbeitung' },
+    { value: 'review', label: 'Zur Prüfung' },
+    { value: 'approved', label: 'Freigegeben' },
+  ] },
   ean: { type: 'text', placeholder: 'EAN...' },
 }))
 
@@ -516,6 +522,22 @@ onMounted(async () => {
         >
           {{ value === 'active' ? 'Aktiv' : value === 'draft' ? 'Entwurf' : value === 'inactive' ? 'Inaktiv' : 'Auslaufend' }}
         </span>
+      </template>
+
+      <template #cell-workflow_status="{ value }">
+        <span
+          v-if="value"
+          :class="[
+            'pim-badge text-[10px] px-1.5 py-0.5 rounded-full font-medium',
+            value === 'editing' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
+            value === 'review' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
+            value === 'approved' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' :
+            'bg-gray-100 text-gray-600'
+          ]"
+        >
+          {{ value === 'editing' ? 'In Bearbeitung' : value === 'review' ? 'Zur Prüfung' : value === 'approved' ? 'Freigegeben' : value }}
+        </span>
+        <span v-else class="text-[var(--color-text-tertiary)] text-xs">—</span>
       </template>
 
       <template #cell-updated_at="{ value }">

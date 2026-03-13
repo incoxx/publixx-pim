@@ -31,6 +31,7 @@ class ProductTypeResource extends JsonResource
             'validation_rules' => $this->validation_rules,
             'sort_order' => $this->sort_order,
             'is_active' => $this->is_active,
+            'workflow_enabled' => $this->workflow_enabled,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

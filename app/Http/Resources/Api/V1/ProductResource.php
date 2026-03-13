@@ -18,6 +18,12 @@ class ProductResource extends JsonResource
             'ean' => $this->ean,
             'name' => $this->name,
             'status' => $this->status,
+            'workflow_status' => $this->workflow_status,
+            'workflow_assignee_id' => $this->workflow_assignee_id,
+            'workflow_assignee' => $this->whenLoaded('workflowAssignee', fn () => [
+                'id' => $this->workflowAssignee->id,
+                'name' => $this->workflowAssignee->name,
+            ]),
             'product_type_ref' => $this->product_type_ref,
             'parent_product_id' => $this->parent_product_id,
             'master_hierarchy_node_id' => $this->master_hierarchy_node_id,

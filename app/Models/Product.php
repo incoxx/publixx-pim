@@ -29,6 +29,8 @@ class Product extends Model
         'manufacturer_id',
         'created_by',
         'updated_by',
+        'workflow_status',
+        'workflow_assignee_id',
     ];
 
     protected function casts(): array
@@ -72,6 +74,16 @@ class Product extends Model
     public function updatedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'updated_by');
+    }
+
+    public function workflowAssignee(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'workflow_assignee_id');
+    }
+
+    public function hasActiveWorkflow(): bool
+    {
+        return $this->workflow_status !== null;
     }
 
     public function attributeValues(): HasMany

@@ -34,12 +34,12 @@ class ProductController extends Controller
     private const ALLOWED_INCLUDES = [
         'productType', 'attributeValues', 'variants', 'media',
         'prices', 'relations', 'parentProduct', 'masterHierarchyNode',
-        'manufacturer',
+        'manufacturer', 'workflowAssignee',
     ];
 
     private const ALLOWED_FILTERS = [
         'status', 'product_type_id', 'product_type_ref',
-        'master_hierarchy_node_id', 'manufacturer_id',
+        'master_hierarchy_node_id', 'manufacturer_id', 'workflow_status',
     ];
 
     public function index(Request $request): AnonymousResourceCollection
@@ -270,6 +270,13 @@ class ProductController extends Controller
 
         $data = $request->validated();
         $data['updated_by'] = $request->user()?->id;
+
+        // Auto-publish: when workflow is approved on a draft product, activate it and clear workflow
+        if (($data['workflow_status'] ?? null) === 'approved' && $product->status === 'draft') {
+            $data['status'] = 'active';
+            $data['workflow_status'] = null;
+            $data['workflow_assignee_id'] = null;
+        }
 
         $product->update($data);
 

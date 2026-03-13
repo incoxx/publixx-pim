@@ -5,8 +5,9 @@ import { useProductStore } from '@/stores/products'
 import { useAuthStore } from '@/stores/auth'
 import { useLocaleStore } from '@/stores/locale'
 import { useI18n } from 'vue-i18n'
-import { ArrowLeft, Save, Plus, Trash2, Image, Star, X, Search, Download, Languages, Copy, Sparkles, Tags, LayoutGrid, List, FileText } from 'lucide-vue-next'
+import { ArrowLeft, Save, Plus, Trash2, Image, Star, X, Search, Download, Languages, Copy, Sparkles, Tags, LayoutGrid, List, FileText, GitBranch, CheckCircle2, Eye, RotateCcw } from 'lucide-vue-next'
 import productsApi from '@/api/products'
+import usersApi from '@/api/users'
 import mediaApi from '@/api/media'
 import { mediaUsageTypes } from '@/api/mediaUsageTypes'
 import { priceTypes, relationTypes } from '@/api/prices'
@@ -92,6 +93,66 @@ async function loadFilterOptions() {
 }
 
 const product = computed(() => store.current)
+
+// ─── Workflow ─────────────────────────────────────────
+const workflowUsers = ref([])
+const workflowSaving = ref(false)
+
+const workflowEnabled = computed(() => product.value?.product_type?.workflow_enabled ?? false)
+
+const workflowLabels = {
+  editing: 'In Bearbeitung',
+  review: 'Zur Prüfung',
+  approved: 'Freigegeben',
+}
+
+const workflowColors = {
+  editing: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+  review: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+  approved: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+}
+
+async function loadWorkflowUsers() {
+  if (workflowUsers.value.length) return
+  try {
+    const { data } = await usersApi.list({ perPage: 200 })
+    workflowUsers.value = data.data || data
+  } catch { /* ignore */ }
+}
+
+async function setWorkflowStatus(status, assigneeId = undefined) {
+  if (!product.value) return
+  workflowSaving.value = true
+  try {
+    const payload = { workflow_status: status }
+    if (assigneeId !== undefined) payload.workflow_assignee_id = assigneeId
+    await store.update(product.value.id, payload)
+    await store.fetchOne(product.value.id)
+  } finally {
+    workflowSaving.value = false
+  }
+}
+
+function startWorkflow() {
+  setWorkflowStatus('editing')
+}
+
+function submitForReview() {
+  loadWorkflowUsers()
+  setWorkflowStatus('review')
+}
+
+function requestChanges() {
+  setWorkflowStatus('editing')
+}
+
+function approveWorkflow() {
+  setWorkflowStatus('approved')
+}
+
+function cancelWorkflow() {
+  setWorkflowStatus(null, null)
+}
 
 const masterNodePath = computed(() => {
   const nodeId = product.value?.master_hierarchy_node_id
@@ -1315,13 +1376,18 @@ async function save() {
   saving.value = true
   try {
     // Save base product fields
-    await store.update(product.value.id, {
+    const updateData = {
       name: product.value.name,
       status: product.value.status,
       ean: product.value.ean,
       master_hierarchy_node_id: product.value.master_hierarchy_node_id || null,
       manufacturer_id: product.value.manufacturer_id || null,
-    })
+    }
+    if (workflowEnabled.value) {
+      updateData.workflow_status = product.value.workflow_status || null
+      updateData.workflow_assignee_id = product.value.workflow_assignee_id || null
+    }
+    await store.update(product.value.id, updateData)
 
     // Build attribute values payload with language support
     const values = []
@@ -1513,6 +1579,13 @@ watch(() => route.params.id, async (newId, oldId) => {
             <span v-if="product.product_type_ref === 'variant'" class="pim-badge bg-purple-100 text-purple-700 text-[10px] px-1.5 py-0.5 rounded">
               Variante
             </span>
+            <span
+              v-if="product.workflow_status"
+              class="pim-badge text-[10px] px-1.5 py-0.5 rounded"
+              :class="workflowColors[product.workflow_status]"
+            >
+              {{ workflowLabels[product.workflow_status] }}
+            </span>
           </div>
           <p class="text-xs text-[var(--color-text-tertiary)] font-mono">
             {{ product.sku }}
@@ -1546,6 +1619,82 @@ watch(() => route.params.id, async (newId, oldId) => {
         <Save class="w-4 h-4" :stroke-width="1.75" />
         {{ saving ? 'Speichern…' : t('common.save') }}
       </button>
+    </div>
+
+    <!-- Workflow Bar -->
+    <div
+      v-if="workflowEnabled && product && authStore.hasPermission('products.edit')"
+      class="flex flex-wrap items-center gap-3 px-4 py-2.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]"
+    >
+      <GitBranch class="w-4 h-4 text-[var(--color-text-tertiary)] shrink-0" :stroke-width="2" />
+
+      <!-- No workflow active -->
+      <template v-if="!product.workflow_status">
+        <span class="text-xs text-[var(--color-text-secondary)]">Kein Workflow aktiv</span>
+        <button class="pim-btn pim-btn-secondary text-xs ml-auto" :disabled="workflowSaving" @click="startWorkflow">
+          Workflow starten
+        </button>
+      </template>
+
+      <!-- Editing -->
+      <template v-else-if="product.workflow_status === 'editing'">
+        <span class="pim-badge text-[11px] px-2 py-0.5 rounded-full font-medium" :class="workflowColors.editing">In Bearbeitung</span>
+        <select
+          class="pim-input text-xs w-40"
+          :value="product.workflow_assignee_id || ''"
+          @focus="loadWorkflowUsers"
+          @change="setWorkflowStatus('editing', $event.target.value || null)"
+        >
+          <option value="">— Zuweisen —</option>
+          <option v-for="u in workflowUsers" :key="u.id" :value="u.id">{{ u.name }}</option>
+        </select>
+        <div class="flex items-center gap-2 ml-auto">
+          <button class="pim-btn pim-btn-primary text-xs" :disabled="workflowSaving" @click="submitForReview">
+            <Eye class="w-3.5 h-3.5" :stroke-width="2" /> Zur Prüfung
+          </button>
+          <button class="pim-btn pim-btn-ghost text-xs" :disabled="workflowSaving" @click="cancelWorkflow">Abbrechen</button>
+        </div>
+      </template>
+
+      <!-- Review -->
+      <template v-else-if="product.workflow_status === 'review'">
+        <span class="pim-badge text-[11px] px-2 py-0.5 rounded-full font-medium" :class="workflowColors.review">Zur Prüfung</span>
+        <span v-if="product.workflow_assignee" class="text-xs text-[var(--color-text-secondary)]">
+          Zugewiesen: {{ product.workflow_assignee.name }}
+        </span>
+        <div class="flex items-center gap-2 ml-auto">
+          <button class="pim-btn pim-btn-primary text-xs" :disabled="workflowSaving" @click="approveWorkflow">
+            <CheckCircle2 class="w-3.5 h-3.5" :stroke-width="2" /> Freigeben
+          </button>
+          <button class="pim-btn pim-btn-secondary text-xs" :disabled="workflowSaving" @click="requestChanges">
+            <RotateCcw class="w-3.5 h-3.5" :stroke-width="2" /> Änderung anfordern
+          </button>
+          <button class="pim-btn pim-btn-ghost text-xs" :disabled="workflowSaving" @click="cancelWorkflow">Abbrechen</button>
+        </div>
+      </template>
+
+      <!-- Approved -->
+      <template v-else-if="product.workflow_status === 'approved'">
+        <span class="pim-badge text-[11px] px-2 py-0.5 rounded-full font-medium" :class="workflowColors.approved">Freigegeben</span>
+        <div class="flex items-center gap-2 ml-auto">
+          <button
+            v-if="product.status === 'draft'"
+            class="pim-btn pim-btn-primary text-xs"
+            :disabled="workflowSaving"
+            @click="setWorkflowStatus('approved')"
+          >
+            <CheckCircle2 class="w-3.5 h-3.5" :stroke-width="2" /> Veröffentlichen
+          </button>
+          <button
+            v-else
+            class="pim-btn pim-btn-primary text-xs"
+            :disabled="workflowSaving"
+            @click="cancelWorkflow"
+          >
+            <CheckCircle2 class="w-3.5 h-3.5" :stroke-width="2" /> Abschließen
+          </button>
+        </div>
+      </template>
     </div>
 
     <!-- Copy Dialog -->
