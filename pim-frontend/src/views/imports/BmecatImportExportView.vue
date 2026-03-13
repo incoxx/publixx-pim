@@ -384,6 +384,16 @@ const tabs = [
             </li>
           </ul>
         </div>
+
+        <div v-if="validationResult.warnings?.length">
+          <p class="text-[11px] text-yellow-600 mb-1">Hinweise:</p>
+          <ul class="space-y-0.5">
+            <li v-for="(warn, i) in validationResult.warnings" :key="i" class="text-[11px] text-yellow-700 flex items-start gap-1">
+              <AlertTriangle class="w-3 h-3 mt-0.5 shrink-0" :stroke-width="2" />
+              {{ warn }}
+            </li>
+          </ul>
+        </div>
       </div>
 
       <!-- Import Result -->

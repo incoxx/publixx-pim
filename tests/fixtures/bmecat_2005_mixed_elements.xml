@@ -1,0 +1,61 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<BMECAT xmlns="http://www.bmecat.org/bmecat/2005" version="2005">
+  <HEADER>
+    <CATALOG>
+      <LANGUAGE>deu</LANGUAGE>
+      <CATALOG_ID>MIXED-TEST-2026</CATALOG_ID>
+      <CATALOG_VERSION>001.000</CATALOG_VERSION>
+      <CATALOG_NAME>Mixed Element Names Test</CATALOG_NAME>
+      <CURRENCY>EUR</CURRENCY>
+    </CATALOG>
+    <SUPPLIER>
+      <SUPPLIER_NAME>Test GmbH</SUPPLIER_NAME>
+    </SUPPLIER>
+  </HEADER>
+  <T_NEW_CATALOG>
+    <CATALOG_GROUP_SYSTEM>
+      <GROUP_SYSTEM_ID>mixed-test</GROUP_SYSTEM_ID>
+      <GROUP_SYSTEM_NAME>Mixed Test</GROUP_SYSTEM_NAME>
+      <CATALOG_STRUCTURE type="root">
+        <GROUP_ID>grp-root</GROUP_ID>
+        <GROUP_NAME>Root</GROUP_NAME>
+        <PARENT_ID>0</PARENT_ID>
+        <GROUP_ORDER>10</GROUP_ORDER>
+      </CATALOG_STRUCTURE>
+      <CATALOG_STRUCTURE type="leaf">
+        <GROUP_ID>grp-leaf</GROUP_ID>
+        <GROUP_NAME>Leaf</GROUP_NAME>
+        <PARENT_ID>grp-root</PARENT_ID>
+        <GROUP_ORDER>10</GROUP_ORDER>
+      </CATALOG_STRUCTURE>
+    </CATALOG_GROUP_SYSTEM>
+    <!-- BMEcat 2005 Namespace, aber BMEcat 1.2 Elementnamen für Product Details -->
+    <PRODUCT mode="new">
+      <SUPPLIER_PID>MIXED-001</SUPPLIER_PID>
+      <PRODUCT_DETAILS>
+        <DESCRIPTION_SHORT>Mixed Test Product</DESCRIPTION_SHORT>
+        <DESCRIPTION_LONG>A product using 2005 namespace but 1.2-style catalog group map</DESCRIPTION_LONG>
+        <MANUFACTURER_NAME>Test GmbH</MANUFACTURER_NAME>
+        <MANUFACTURER_AID>MFR-MIXED-001</MANUFACTURER_AID>
+      </PRODUCT_DETAILS>
+      <PRODUCT_FEATURES>
+        <FEATURE>
+          <FNAME>Farbe</FNAME>
+          <FVALUE>blau</FVALUE>
+        </FEATURE>
+      </PRODUCT_FEATURES>
+      <PRODUCT_PRICE_DETAILS>
+        <PRODUCT_PRICE type="net_list">
+          <PRICE_AMOUNT>99.00</PRICE_AMOUNT>
+          <PRICE_CURRENCY>EUR</PRICE_CURRENCY>
+          <TAX>0.19</TAX>
+        </PRODUCT_PRICE>
+      </PRODUCT_PRICE_DETAILS>
+    </PRODUCT>
+    <!-- BMEcat 1.2-Style Catalog Group Map in 2005-Namespace-Dokument -->
+    <ARTICLE_TO_CATALOGGROUP_MAP>
+      <ART_ID>MIXED-001</ART_ID>
+      <CATALOG_GROUP_ID>grp-leaf</CATALOG_GROUP_ID>
+    </ARTICLE_TO_CATALOGGROUP_MAP>
+  </T_NEW_CATALOG>
+</BMECAT>

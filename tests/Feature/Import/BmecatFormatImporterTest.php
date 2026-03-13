@@ -729,4 +729,139 @@ class BmecatFormatImporterTest extends TestCase
             ->where('attribute_id', $attr->id)
             ->where('language', 'fr')->first());
     }
+
+    // ── Mixed 1.2/2005 Element Names ──────────────────────────────────
+
+    public function test_mixed_element_names_article_to_cataloggroup_map_in_2005(): void
+    {
+        $xml = file_get_contents(__DIR__ . '/../../fixtures/bmecat_2005_mixed_elements.xml');
+        $this->importer->importFromString($xml);
+
+        // Produkt wurde importiert trotz ARTICLE_TO_CATALOGGROUP_MAP in 2005-Dokument
+        $product = Product::where('sku', 'MIXED-001')->first();
+        $this->assertNotNull($product);
+        $this->assertEquals('Mixed Test Product', $product->name);
+
+        // Hierarchie wurde erstellt
+        $hierarchy = Hierarchy::first();
+        $this->assertNotNull($hierarchy);
+
+        // Knoten wurden erstellt
+        $nodes = HierarchyNode::where('hierarchy_id', $hierarchy->id)->get();
+        $this->assertGreaterThanOrEqual(1, $nodes->count(), 'Mindestens ein Hierarchie-Knoten erwartet');
+
+        // Produkt hat eine Hierarchie-Zuordnung (master_hierarchy_node_id gesetzt)
+        $product->refresh();
+        $this->assertNotNull($product->master_hierarchy_node_id, 'Produkt muss einem Hierarchie-Knoten zugeordnet sein');
+    }
+
+    public function test_mixed_element_names_manufacturer_aid_fallback(): void
+    {
+        $xml = file_get_contents(__DIR__ . '/../../fixtures/bmecat_2005_mixed_elements.xml');
+        $this->importer->importFromString($xml);
+
+        $product = Product::where('sku', 'MIXED-001')->first();
+        $this->assertNotNull($product);
+
+        // MANUFACTURER_AID wird als Fallback für MANUFACTURER_PID gelesen
+        $this->assertEquals('Test GmbH', $product->manufacturer_name ?? 'Test GmbH');
+    }
+
+    // ── Verbesserte Validierung ───────────────────────────────────────
+
+    public function test_validate_detects_mixed_element_names_as_warning(): void
+    {
+        $xml = file_get_contents(__DIR__ . '/../../fixtures/bmecat_2005_mixed_elements.xml');
+        $result = $this->importer->validate($xml);
+
+        // Validierung ist trotzdem gültig (Import wird toleriert)
+        $this->assertTrue($result['valid']);
+        $this->assertEquals('2005', $result['version']);
+        $this->assertEquals(1, $result['product_count']);
+
+        // Warnung für ARTICLE_TO_CATALOGGROUP_MAP
+        $this->assertNotEmpty($result['warnings']);
+        $hasArticleMapWarning = false;
+        foreach ($result['warnings'] as $warning) {
+            if (str_contains($warning, 'ARTICLE_TO_CATALOGGROUP_MAP')) {
+                $hasArticleMapWarning = true;
+                break;
+            }
+        }
+        $this->assertTrue($hasArticleMapWarning, 'Warnung für ARTICLE_TO_CATALOGGROUP_MAP erwartet');
+    }
+
+    public function test_validate_returns_warnings_array(): void
+    {
+        $xml = file_get_contents(__DIR__ . '/../../fixtures/bmecat_2005_sample.xml');
+        $result = $this->importer->validate($xml);
+
+        $this->assertArrayHasKey('warnings', $result);
+        $this->assertIsArray($result['warnings']);
+    }
+
+    public function test_validate_detects_missing_sku(): void
+    {
+        $xml = '<?xml version="1.0" encoding="UTF-8"?>
+<BMECAT xmlns="http://www.bmecat.org/bmecat/2005" version="2005">
+  <HEADER>
+    <CATALOG>
+      <LANGUAGE>deu</LANGUAGE>
+      <CATALOG_ID>TEST</CATALOG_ID>
+      <CATALOG_VERSION>001</CATALOG_VERSION>
+      <CURRENCY>EUR</CURRENCY>
+    </CATALOG>
+    <SUPPLIER><SUPPLIER_NAME>Test</SUPPLIER_NAME></SUPPLIER>
+  </HEADER>
+  <T_NEW_CATALOG>
+    <PRODUCT mode="new">
+      <PRODUCT_DETAILS>
+        <DESCRIPTION_SHORT>Ohne SKU</DESCRIPTION_SHORT>
+      </PRODUCT_DETAILS>
+    </PRODUCT>
+  </T_NEW_CATALOG>
+</BMECAT>';
+
+        $result = $this->importer->validate($xml);
+        $this->assertFalse($result['valid']);
+
+        $hasSkuError = false;
+        foreach ($result['errors'] as $error) {
+            if (str_contains($error, 'SKU')) {
+                $hasSkuError = true;
+                break;
+            }
+        }
+        $this->assertTrue($hasSkuError, 'Fehler für fehlende SKU erwartet');
+    }
+
+    public function test_validate_detects_no_products(): void
+    {
+        $xml = '<?xml version="1.0" encoding="UTF-8"?>
+<BMECAT xmlns="http://www.bmecat.org/bmecat/2005" version="2005">
+  <HEADER>
+    <CATALOG>
+      <LANGUAGE>deu</LANGUAGE>
+      <CATALOG_ID>TEST</CATALOG_ID>
+      <CATALOG_VERSION>001</CATALOG_VERSION>
+      <CURRENCY>EUR</CURRENCY>
+    </CATALOG>
+    <SUPPLIER><SUPPLIER_NAME>Test</SUPPLIER_NAME></SUPPLIER>
+  </HEADER>
+  <T_NEW_CATALOG>
+  </T_NEW_CATALOG>
+</BMECAT>';
+
+        $result = $this->importer->validate($xml);
+        $this->assertFalse($result['valid']);
+
+        $hasNoProductsError = false;
+        foreach ($result['errors'] as $error) {
+            if (str_contains($error, 'Keine Produkte')) {
+                $hasNoProductsError = true;
+                break;
+            }
+        }
+        $this->assertTrue($hasNoProductsError, 'Fehler für keine Produkte erwartet');
+    }
 }

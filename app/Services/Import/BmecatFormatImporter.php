@@ -156,16 +156,26 @@ class BmecatFormatImporter
     /**
      * Validiert die BMEcat-XML-Struktur ohne zu importieren.
      *
-     * @return array{valid: bool, version: string|null, transaction_type: string|null, product_count: int, errors: string[]}
+     * Führt eine gründliche Strukturprüfung durch:
+     * - XML-Grundvalidierung
+     * - Version und Namespace
+     * - Transaktionstyp
+     * - HEADER und CATALOG Pflichtfelder
+     * - Produkt-Struktur (SUPPLIER_PID, PRODUCT_DETAILS, Preise)
+     * - Catalog-Group-Maps (ARTICLE_TO_CATALOGGROUP_MAP vs PRODUCT_TO_CATALOGGROUP_MAP)
+     * - Probelauf des Parsers (Trockentest)
+     *
+     * @return array{valid: bool, version: string|null, transaction_type: string|null, product_count: int, errors: string[], warnings: string[]}
      */
     public function validate(string $xml): array
     {
         $errors = [];
+        $warnings = [];
         $version = null;
         $transactionType = null;
         $productCount = 0;
 
-        // XML-Grundvalidierung
+        // 1. XML-Grundvalidierung
         libxml_use_internal_errors(true);
         $doc = simplexml_load_string($xml);
         if ($doc === false) {
@@ -182,54 +192,193 @@ class BmecatFormatImporter
                 'transaction_type' => null,
                 'product_count' => 0,
                 'errors' => $errors,
+                'warnings' => [],
             ];
         }
         libxml_use_internal_errors(false);
 
-        // Version erkennen
+        // 2. Version erkennen
         try {
             $version = $this->detectVersion($xml);
         } catch (\RuntimeException $e) {
             $errors[] = $e->getMessage();
         }
 
-        if ($version !== null) {
-            $elementMap = BmecatElementMap::forVersion($version);
+        if ($version === null) {
+            return [
+                'valid' => false,
+                'version' => null,
+                'transaction_type' => null,
+                'product_count' => 0,
+                'errors' => $errors,
+                'warnings' => [],
+            ];
+        }
 
-            // Root-Element prüfen
-            $rootName = $doc->getName();
-            if (strtoupper($rootName) !== 'BMECAT') {
-                $errors[] = "Root-Element muss BMECAT sein, gefunden: {$rootName}";
+        $elementMap = BmecatElementMap::forVersion($version);
+        $isV12 = BmecatElementMap::isVersion12($version);
+        $hasNs = str_contains($xml, self::NS_2005);
+        $ns = ($isV12 || !$hasNs) ? '' : self::NS_2005;
+
+        // 3. Root-Element prüfen
+        $rootName = $doc->getName();
+        if (strtoupper($rootName) !== 'BMECAT') {
+            $errors[] = "Root-Element muss BMECAT sein, gefunden: {$rootName}";
+        }
+
+        // 4. Transaktionstyp ermitteln
+        $children = $ns ? $doc->children($ns) : $doc->children();
+        foreach ($children as $child) {
+            $name = strtoupper($child->getName());
+            if (in_array($name, ['T_NEW_CATALOG', 'T_UPDATE_PRODUCTS', 'T_UPDATE_PRICES'])) {
+                $transactionType = $name;
+                break;
             }
+        }
 
-            // Transaktionstyp ermitteln
-            $isV12 = BmecatElementMap::isVersion12($version);
-            $hasNs = str_contains($xml, self::NS_2005);
-            $ns = ($isV12 || !$hasNs) ? '' : self::NS_2005;
-            $children = $ns ? $doc->children($ns) : $doc->children();
+        if ($transactionType === null) {
+            $errors[] = 'Kein Transaktionstyp gefunden (T_NEW_CATALOG, T_UPDATE_PRODUCTS, T_UPDATE_PRICES)';
+        } elseif ($transactionType !== 'T_NEW_CATALOG') {
+            $errors[] = "Transaktionstyp {$transactionType} wird aktuell nicht unterstützt. Nur T_NEW_CATALOG ist verfügbar.";
+        }
 
-            foreach ($children as $child) {
-                $name = strtoupper($child->getName());
-                if (in_array($name, ['T_NEW_CATALOG', 'T_UPDATE_PRODUCTS', 'T_UPDATE_PRICES'])) {
-                    $transactionType = $name;
-                    break;
+        // 5. HEADER prüfen
+        $header = $ns ? $doc->children($ns)->HEADER : $doc->HEADER;
+        if ($header === null || count($header) === 0) {
+            $errors[] = 'HEADER-Element fehlt oder ist leer';
+        } else {
+            $catalog = $ns
+                ? $header->children($ns)->CATALOG
+                : $header->CATALOG;
+            if ($catalog === null || count($catalog) === 0) {
+                $errors[] = 'HEADER/CATALOG-Element fehlt';
+            } else {
+                $catalogNode = $catalog[0];
+                $catalogId = $ns
+                    ? (string) $catalogNode->children($ns)->CATALOG_ID
+                    : (string) $catalogNode->CATALOG_ID;
+                if (empty($catalogId)) {
+                    $warnings[] = 'HEADER/CATALOG/CATALOG_ID fehlt oder ist leer';
                 }
             }
+        }
 
-            if ($transactionType === null) {
-                $errors[] = 'Kein Transaktionstyp gefunden (T_NEW_CATALOG, T_UPDATE_PRODUCTS, T_UPDATE_PRICES)';
-            } elseif ($transactionType !== 'T_NEW_CATALOG') {
-                $errors[] = "Transaktionstyp {$transactionType} wird aktuell nicht unterstützt. Nur T_NEW_CATALOG ist verfügbar.";
+        // 6. Produkte und Strukturprüfung via XMLReader (schnelles Streaming)
+        $productSkus = [];
+        $catalogGroupMapIds = [];
+        $hasCatalogGroupSystem = false;
+        $mixedElementWarnings = [];
+
+        $reader = new \XMLReader();
+        $reader->XML($xml, 'UTF-8', LIBXML_NONET | LIBXML_NOCDATA);
+
+        while ($reader->read()) {
+            if ($reader->nodeType !== \XMLReader::ELEMENT) {
+                continue;
             }
 
-            // Produkte zählen (Lightweight: nur Elemente zählen, nicht voll parsen)
-            $productElement = $elementMap['product'];
-            $productCount = substr_count(strtoupper($xml), "<{$productElement} ") + substr_count(strtoupper($xml), "<{$productElement}>");
+            $localName = strtoupper($reader->localName);
 
-            // HEADER prüfen
-            $headerChildren = $ns ? $doc->children($ns)->HEADER : $doc->HEADER;
-            if ($headerChildren === null || count($headerChildren) === 0) {
-                $errors[] = 'HEADER-Element fehlt oder ist leer';
+            // Gemischte Elementnamen erkennen (1.2-Namen in 2005-Dokument)
+            if (!$isV12 && in_array($localName, ['ARTICLE', 'ARTICLE_DETAILS', 'ARTICLE_FEATURES',
+                'ARTICLE_PRICE_DETAILS', 'ARTICLE_PRICE', 'ARTICLE_REFERENCE',
+                'ARTICLE_TO_CATALOGGROUP_MAP', 'ARTICLE_ORDER_DETAILS'])) {
+                $expected2005 = str_replace('ARTICLE', 'PRODUCT', $localName);
+                if ($localName === 'ARTICLE_TO_CATALOGGROUP_MAP') {
+                    $expected2005 = 'PRODUCT_TO_CATALOGGROUP_MAP';
+                }
+                $mixedElementWarnings[$localName] = "BMEcat 1.2 Element <{$localName}> in 2005-Dokument gefunden (erwartet: <{$expected2005}>) — wird toleriert";
+            }
+
+            switch ($localName) {
+                case 'CATALOG_GROUP_SYSTEM':
+                    $hasCatalogGroupSystem = true;
+                    break;
+
+                case 'PRODUCT':
+                case 'ARTICLE':
+                    $outerXml = $reader->readOuterXml();
+                    $el = $this->loadElement($outerXml, $ns ?: null);
+                    if ($el === null) {
+                        $errors[] = "Produkt-Element konnte nicht geparst werden (Position nach Produkt #{$productCount})";
+                    } else {
+                        $productCount++;
+                        // SKU prüfen
+                        $sku = $this->text($el, $elementMap['supplier_pid'], $ns ?: null)
+                            ?? $this->text($el, 'SUPPLIER_AID', $ns ?: null)
+                            ?? $this->text($el, 'SUPPLIER_PID', $ns ?: null);
+                        if (empty($sku)) {
+                            $errors[] = "Produkt #{$productCount}: Keine SKU (SUPPLIER_PID/SUPPLIER_AID) gefunden";
+                        } else {
+                            if (in_array($sku, $productSkus)) {
+                                $warnings[] = "Doppelte SKU: {$sku}";
+                            }
+                            $productSkus[] = $sku;
+
+                            // PRODUCT_DETAILS prüfen
+                            $details = $this->child($el, $elementMap['product_details'], $ns ?: null)
+                                ?? $this->child($el, 'ARTICLE_DETAILS', $ns ?: null)
+                                ?? $this->child($el, 'PRODUCT_DETAILS', $ns ?: null);
+                            if ($details === null) {
+                                $warnings[] = "Produkt {$sku}: Keine Produktdetails (DESCRIPTION_SHORT etc.)";
+                            } else {
+                                $descShort = $this->text($details, 'DESCRIPTION_SHORT', $ns ?: null);
+                                if (empty($descShort)) {
+                                    $warnings[] = "Produkt {$sku}: DESCRIPTION_SHORT fehlt oder ist leer";
+                                }
+                            }
+                        }
+                    }
+                    break;
+
+                case 'PRODUCT_TO_CATALOGGROUP_MAP':
+                case 'ARTICLE_TO_CATALOGGROUP_MAP':
+                    $outerXml = $reader->readOuterXml();
+                    $mapEl = $this->loadElement($outerXml, $ns ?: null);
+                    if ($mapEl !== null) {
+                        $mapProdId = $this->text($mapEl, $elementMap['prod_id'], $ns ?: null)
+                            ?? $this->text($mapEl, 'ART_ID', $ns ?: null)
+                            ?? $this->text($mapEl, 'PROD_ID', $ns ?: null);
+                        $mapGroupId = $this->text($mapEl, 'CATALOG_GROUP_ID', $ns ?: null);
+                        if (empty($mapProdId)) {
+                            $warnings[] = "{$localName}: Keine Produkt-ID (PROD_ID/ART_ID) gefunden";
+                        }
+                        if (empty($mapGroupId)) {
+                            $warnings[] = "{$localName}: Keine CATALOG_GROUP_ID gefunden";
+                        }
+                        if (!empty($mapProdId)) {
+                            $catalogGroupMapIds[] = $mapProdId;
+                        }
+                    }
+                    break;
+            }
+        }
+        $reader->close();
+
+        // Warnungen für gemischte Elementnamen sammeln
+        foreach ($mixedElementWarnings as $warning) {
+            $warnings[] = $warning;
+        }
+
+        // 7. Keine Produkte gefunden?
+        if ($productCount === 0) {
+            $errors[] = 'Keine Produkte gefunden (weder PRODUCT noch ARTICLE Elemente)';
+        }
+
+        // 8. Catalog-Group-Map Referenzen prüfen
+        foreach ($catalogGroupMapIds as $mapProdId) {
+            if (!in_array($mapProdId, $productSkus)) {
+                $warnings[] = "Kataloggruppen-Zuordnung für unbekanntes Produkt: {$mapProdId}";
+            }
+        }
+
+        // 9. Probelauf des Parsers — fängt Fehler ab, die nur beim echten Parsen auftreten
+        if (empty($errors)) {
+            try {
+                $elementMapForParse = BmecatElementMap::forVersion($version);
+                $this->parseXml($xml, $elementMapForParse, $version);
+            } catch (\Throwable $e) {
+                $errors[] = 'Parser-Fehler beim Probelauf: ' . $e->getMessage();
             }
         }
 
@@ -239,6 +388,7 @@ class BmecatFormatImporter
             'transaction_type' => $transactionType,
             'product_count' => $productCount,
             'errors' => $errors,
+            'warnings' => $warnings,
         ];
     }
 
@@ -321,15 +471,20 @@ class BmecatFormatImporter
                     $parsed['catalog_structures'] = $this->parseCatalogGroupSystem($reader, $ns);
                     break;
 
-                case $elementMap['product']:
+                // Akzeptiere sowohl PRODUCT (2005) als auch ARTICLE (1.2) —
+                // viele Exporter mischen die Namenskonventionen
+                case 'PRODUCT':
+                case 'ARTICLE':
                     $product = $this->parseProduct($reader, $elementMap, $ns, $parsed['default_currency'], $parsed['default_language']);
                     if ($product !== null) {
                         $parsed['products'][] = $product;
                     }
                     break;
 
-                case $elementMap['product_to_cataloggroup_map']:
-                    $map = $this->parseCatalogGroupMap($reader, $elementMap, $ns);
+                // Akzeptiere sowohl PRODUCT_TO_CATALOGGROUP_MAP als auch ARTICLE_TO_CATALOGGROUP_MAP
+                case 'PRODUCT_TO_CATALOGGROUP_MAP':
+                case 'ARTICLE_TO_CATALOGGROUP_MAP':
+                    $map = $this->parseCatalogGroupMap($reader, $localName, $elementMap, $ns);
                     if ($map !== null) {
                         $parsed['product_to_group_maps'][] = $map;
                     }
@@ -420,19 +575,25 @@ class BmecatFormatImporter
      */
     private function parseProduct(\XMLReader $reader, array $elementMap, ?string $ns, string $defaultCurrency, ?string $defaultLang = null): ?array
     {
+        // Tatsächlichen Elementnamen merken (PRODUCT oder ARTICLE)
+        $actualElementName = strtoupper($reader->localName);
+
         $outerXml = $reader->readOuterXml();
         $el = $this->loadElement($outerXml, $ns);
 
         if ($el === null) {
             Log::channel('import')->error('Produkt übersprungen: XML-Fragment konnte nicht geparst werden');
-            $this->skipToEndElement($reader, $elementMap['product']);
+            $this->skipToEndElement($reader, $actualElementName);
             return null;
         }
 
-        $sku = $this->text($el, $elementMap['supplier_pid'], $ns);
+        // Akzeptiere sowohl SUPPLIER_PID (2005) als auch SUPPLIER_AID (1.2)
+        $sku = $this->text($el, $elementMap['supplier_pid'], $ns)
+            ?? $this->text($el, 'SUPPLIER_AID', $ns)
+            ?? $this->text($el, 'SUPPLIER_PID', $ns);
         if (empty($sku)) {
             Log::channel('import')->warning('Produkt übersprungen: Keine SKU (SUPPLIER_PID/SUPPLIER_AID) gefunden');
-            $this->skipToEndElement($reader, $elementMap['product']);
+            $this->skipToEndElement($reader, $actualElementName);
             return null;
         }
 
@@ -447,8 +608,10 @@ class BmecatFormatImporter
             'catalog_group_maps' => [],
         ];
 
-        // Details (mit Mehrsprachigkeit)
-        $details = $this->child($el, $elementMap['product_details'], $ns);
+        // Details (mit Mehrsprachigkeit) — Fallback: ARTICLE_DETAILS / PRODUCT_DETAILS
+        $details = $this->child($el, $elementMap['product_details'], $ns)
+            ?? $this->child($el, 'ARTICLE_DETAILS', $ns)
+            ?? $this->child($el, 'PRODUCT_DETAILS', $ns);
         if ($details !== null) {
             // Mehrsprachige Texte: {lang → text} — kein defaultLang,
             // damit einsprachige Inhalte nicht fälschlich als übersetzbar erkannt werden
@@ -466,17 +629,18 @@ class BmecatFormatImporter
                 'description_long_i18n' => $longTexts,
                 'ean' => $this->text($details, 'EAN', $ns),
                 'manufacturer_name' => $this->text($details, 'MANUFACTURER_NAME', $ns),
-                'manufacturer_pid' => $this->text($details, 'MANUFACTURER_PID', $ns),
+                'manufacturer_pid' => $this->text($details, 'MANUFACTURER_PID', $ns)
+                    ?? $this->text($details, 'MANUFACTURER_AID', $ns),
                 'delivery_time' => $this->text($details, 'DELIVERY_TIME', $ns),
                 'keywords' => $this->texts($details, 'KEYWORD', $ns),
                 'keywords_i18n' => $keywordTexts,
             ];
         }
 
-        // Features (kann mehrere PRODUCT_FEATURES-Blöcke haben)
+        // Features (kann mehrere PRODUCT_FEATURES / ARTICLE_FEATURES-Blöcke haben)
         $featureBlocks = $ns
-            ? $el->children($ns)->{$elementMap['product_features']}
-            : $el->{$elementMap['product_features']};
+            ? ($el->children($ns)->{$elementMap['product_features']} ?? $el->children($ns)->ARTICLE_FEATURES ?? $el->children($ns)->PRODUCT_FEATURES)
+            : ($el->{$elementMap['product_features']} ?? $el->ARTICLE_FEATURES ?? $el->PRODUCT_FEATURES);
 
         if ($featureBlocks !== null) {
             foreach ($featureBlocks as $featureBlock) {
@@ -514,10 +678,10 @@ class BmecatFormatImporter
             }
         }
 
-        // Price Details
+        // Price Details (PRODUCT_PRICE_DETAILS / ARTICLE_PRICE_DETAILS)
         $priceDetails = $ns
-            ? $el->children($ns)->{$elementMap['product_price_details']}
-            : $el->{$elementMap['product_price_details']};
+            ? ($el->children($ns)->{$elementMap['product_price_details']} ?? $el->children($ns)->ARTICLE_PRICE_DETAILS ?? $el->children($ns)->PRODUCT_PRICE_DETAILS)
+            : ($el->{$elementMap['product_price_details']} ?? $el->ARTICLE_PRICE_DETAILS ?? $el->PRODUCT_PRICE_DETAILS);
 
         if ($priceDetails !== null) {
             foreach ($priceDetails as $priceDetail) {
@@ -540,10 +704,10 @@ class BmecatFormatImporter
                     }
                 }
 
-                // Einzelne Preise
+                // Einzelne Preise (PRODUCT_PRICE / ARTICLE_PRICE)
                 $prices = $ns
-                    ? $priceDetail->children($ns)->{$elementMap['product_price']}
-                    : $priceDetail->{$elementMap['product_price']};
+                    ? ($priceDetail->children($ns)->{$elementMap['product_price']} ?? $priceDetail->children($ns)->ARTICLE_PRICE ?? $priceDetail->children($ns)->PRODUCT_PRICE)
+                    : ($priceDetail->{$elementMap['product_price']} ?? $priceDetail->ARTICLE_PRICE ?? $priceDetail->PRODUCT_PRICE);
 
                 if ($prices !== null) {
                     foreach ($prices as $price) {
@@ -565,15 +729,17 @@ class BmecatFormatImporter
             }
         }
 
-        // References
+        // References (PRODUCT_REFERENCE / ARTICLE_REFERENCE)
         $references = $ns
-            ? $el->children($ns)->{$elementMap['product_reference']}
-            : $el->{$elementMap['product_reference']};
+            ? ($el->children($ns)->{$elementMap['product_reference']} ?? $el->children($ns)->ARTICLE_REFERENCE ?? $el->children($ns)->PRODUCT_REFERENCE)
+            : ($el->{$elementMap['product_reference']} ?? $el->ARTICLE_REFERENCE ?? $el->PRODUCT_REFERENCE);
 
         if ($references !== null) {
             foreach ($references as $ref) {
                 $refType = $this->attr($ref, 'type') ?? 'similar';
-                $targetId = $this->text($ref, $elementMap['prod_id_to'], $ns);
+                $targetId = $this->text($ref, $elementMap['prod_id_to'], $ns)
+                    ?? $this->text($ref, 'ART_ID_TO', $ns)
+                    ?? $this->text($ref, 'PROD_ID_TO', $ns);
                 if (!empty($targetId)) {
                     $product['references'][] = [
                         'type' => $refType,
@@ -613,25 +779,29 @@ class BmecatFormatImporter
             $product['udx_fields'] = $this->parseUdxFields($udxBlock, $ns);
         }
 
-        // Inline PRODUCT_TO_CATALOGGROUP_MAP
-        $inlineMaps = $ns
-            ? $el->children($ns)->{$elementMap['product_to_cataloggroup_map']}
-            : $el->{$elementMap['product_to_cataloggroup_map']};
+        // Inline PRODUCT_TO_CATALOGGROUP_MAP / ARTICLE_TO_CATALOGGROUP_MAP
+        foreach (['PRODUCT_TO_CATALOGGROUP_MAP', 'ARTICLE_TO_CATALOGGROUP_MAP'] as $mapElName) {
+            $inlineMaps = $ns
+                ? $el->children($ns)->{$mapElName}
+                : $el->{$mapElName};
 
-        if ($inlineMaps !== null) {
-            foreach ($inlineMaps as $map) {
-                $groupId = $this->text($map, 'CATALOG_GROUP_ID', $ns);
-                if (!empty($groupId)) {
-                    $product['catalog_group_maps'][] = [
-                        'prod_id' => $sku,
-                        'group_id' => $groupId,
-                        'order' => (int) ($this->text($map, $elementMap['product_order'], $ns) ?? 0),
-                    ];
+            if ($inlineMaps !== null) {
+                foreach ($inlineMaps as $map) {
+                    $groupId = $this->text($map, 'CATALOG_GROUP_ID', $ns);
+                    if (!empty($groupId)) {
+                        $product['catalog_group_maps'][] = [
+                            'prod_id' => $sku,
+                            'group_id' => $groupId,
+                            'order' => (int) ($this->text($map, 'PRODUCT_ORDER', $ns)
+                                ?? $this->text($map, 'ARTICLE_TO_CATALOGGROUP_MAP_ORDER', $ns)
+                                ?? 0),
+                        ];
+                    }
                 }
             }
         }
 
-        $this->skipToEndElement($reader, $elementMap['product']);
+        $this->skipToEndElement($reader, $actualElementName);
 
         return $product;
     }
@@ -639,30 +809,38 @@ class BmecatFormatImporter
     /**
      * Parst ein standalone PRODUCT_TO_CATALOGGROUP_MAP / ARTICLE_TO_CATALOGGROUP_MAP.
      */
-    private function parseCatalogGroupMap(\XMLReader $reader, array $elementMap, ?string $ns): ?array
+    private function parseCatalogGroupMap(\XMLReader $reader, string $actualElementName, array $elementMap, ?string $ns): ?array
     {
         $outerXml = $reader->readOuterXml();
         $el = $this->loadElement($outerXml, $ns);
 
         if ($el === null) {
-            Log::channel('import')->warning('PRODUCT_TO_CATALOGGROUP_MAP übersprungen: XML konnte nicht geparst werden');
-            $this->skipToEndElement($reader, $elementMap['product_to_cataloggroup_map']);
+            Log::channel('import')->warning("{$actualElementName} übersprungen: XML konnte nicht geparst werden");
+            $this->skipToEndElement($reader, $actualElementName);
             return null;
         }
 
-        $prodId = $this->text($el, $elementMap['prod_id'], $ns);
+        // Akzeptiere sowohl PROD_ID (2005) als auch ART_ID (1.2)
+        $prodId = $this->text($el, $elementMap['prod_id'], $ns)
+            ?? $this->text($el, 'ART_ID', $ns)
+            ?? $this->text($el, 'PROD_ID', $ns);
         $groupId = $this->text($el, 'CATALOG_GROUP_ID', $ns);
 
-        $this->skipToEndElement($reader, $elementMap['product_to_cataloggroup_map']);
+        $this->skipToEndElement($reader, $actualElementName);
 
         if (empty($prodId) || empty($groupId)) {
             return null;
         }
 
+        // Akzeptiere sowohl PRODUCT_ORDER (2005) als auch ARTICLE_TO_CATALOGGROUP_MAP_ORDER (1.2)
+        $order = $this->text($el, $elementMap['product_order'], $ns)
+            ?? $this->text($el, 'ARTICLE_TO_CATALOGGROUP_MAP_ORDER', $ns)
+            ?? $this->text($el, 'PRODUCT_ORDER', $ns);
+
         return [
             'prod_id' => $prodId,
             'group_id' => $groupId,
-            'order' => (int) ($this->text($el, $elementMap['product_order'], $ns) ?? 0),
+            'order' => (int) ($order ?? 0),
         ];
     }
 
