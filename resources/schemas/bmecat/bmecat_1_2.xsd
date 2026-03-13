@@ -1,0 +1,563 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  BMEcat 1.2 XML Schema
+  Konvertiert aus der offiziellen DTD bmecat_new_catalog_1_2.dtd (Rev. A, 2003-05-09)
+  Abdeckung: T_NEW_CATALOG Transaktionstyp
+
+  Original-Autoren DTD: Volker Schmitz (Uni Essen), Claus Huempel / Thorsten Pastoors (Fraunhofer IAO),
+                         Sascha Schroeder / Dr. Juergen Waesch (e-pro solutions GmbH)
+  Copyright DTD: 1998-2003 Fraunhofer IAO, Uni Essen BLI, e-pro solutions GmbH
+-->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           elementFormDefault="qualified">
+
+  <!-- ================================================================== -->
+  <!-- Einfache Typen                                                      -->
+  <!-- ================================================================== -->
+  <xs:simpleType name="dtSTRING">
+    <xs:restriction base="xs:string"/>
+  </xs:simpleType>
+
+  <xs:simpleType name="dtINTEGER">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[0-9]*"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="dtFLOAT">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[0-9]*\.?[0-9]*"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="dtBOOLEAN">
+    <xs:restriction base="xs:string"/>
+  </xs:simpleType>
+
+  <xs:simpleType name="dtCATALOG_STRUCTURE_TYPE">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="root"/>
+      <xs:enumeration value="node"/>
+      <xs:enumeration value="leaf"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="dtADDRESS_TYPE">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="buyer"/>
+      <xs:enumeration value="supplier"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="dtDATETIME_TYPE">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="generation_date"/>
+      <xs:enumeration value="agreement_start_date"/>
+      <xs:enumeration value="agreement_end_date"/>
+      <xs:enumeration value="valid_start_date"/>
+      <xs:enumeration value="valid_end_date"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="dtARTICLE_MODE">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="new"/>
+      <xs:enumeration value="update"/>
+      <xs:enumeration value="delete"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="dtREFERENCE_TYPE">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="sparepart"/>
+      <xs:enumeration value="similar"/>
+      <xs:enumeration value="followup"/>
+      <xs:enumeration value="mandatory"/>
+      <xs:enumeration value="select"/>
+      <xs:enumeration value="others"/>
+      <xs:enumeration value="accessories"/>
+      <xs:enumeration value="diff_orderunit"/>
+      <xs:enumeration value="consists_of"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="dtARTICLE_STATUS_TYPE">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="bargain"/>
+      <xs:enumeration value="new_article"/>
+      <xs:enumeration value="old_article"/>
+      <xs:enumeration value="new"/>
+      <xs:enumeration value="used"/>
+      <xs:enumeration value="refurbished"/>
+      <xs:enumeration value="core_article"/>
+      <xs:enumeration value="others"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="dtPRICE_FLAG_TYPE">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="incl_freight"/>
+      <xs:enumeration value="incl_packing"/>
+      <xs:enumeration value="incl_assurance"/>
+      <xs:enumeration value="incl_duty"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- ================================================================== -->
+  <!-- Root-Element: BMECAT                                                -->
+  <!-- ================================================================== -->
+  <xs:element name="BMECAT">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element ref="HEADER"/>
+        <xs:element ref="T_NEW_CATALOG"/>
+      </xs:sequence>
+      <xs:attribute name="version" type="xs:string" fixed="1.2"/>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- ================================================================== -->
+  <!-- T_NEW_CATALOG                                                       -->
+  <!-- ================================================================== -->
+  <xs:element name="T_NEW_CATALOG">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element ref="FEATURE_SYSTEM" minOccurs="0" maxOccurs="unbounded"/>
+        <xs:element ref="CLASSIFICATION_SYSTEM" minOccurs="0" maxOccurs="unbounded"/>
+        <xs:element ref="CATALOG_GROUP_SYSTEM" minOccurs="0"/>
+        <xs:element ref="ARTICLE" minOccurs="0" maxOccurs="unbounded"/>
+        <xs:element ref="ARTICLE_TO_CATALOGGROUP_MAP" minOccurs="0" maxOccurs="unbounded"/>
+      </xs:sequence>
+      <xs:attribute name="prev_version" type="xs:string"/>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- ================================================================== -->
+  <!-- HEADER                                                              -->
+  <!-- ================================================================== -->
+  <xs:element name="HEADER">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="GENERATOR_INFO" type="dtSTRING" minOccurs="0"/>
+        <xs:element ref="CATALOG"/>
+        <xs:element ref="BUYER" minOccurs="0"/>
+        <xs:element ref="AGREEMENT" minOccurs="0" maxOccurs="unbounded"/>
+        <xs:element ref="SUPPLIER"/>
+        <xs:element name="USER_DEFINED_EXTENSIONS" minOccurs="0">
+          <xs:complexType mixed="true">
+            <xs:sequence>
+              <xs:any processContents="lax" minOccurs="0" maxOccurs="unbounded"/>
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="CATALOG">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="LANGUAGE" type="dtSTRING"/>
+        <xs:element name="CATALOG_ID" type="dtSTRING"/>
+        <xs:element name="CATALOG_VERSION" type="dtSTRING"/>
+        <xs:element name="CATALOG_NAME" type="dtSTRING" minOccurs="0"/>
+        <xs:element ref="DATETIME" minOccurs="0"/>
+        <xs:element name="TERRITORY" type="dtSTRING" minOccurs="0" maxOccurs="unbounded"/>
+        <xs:element name="CURRENCY" type="dtSTRING" minOccurs="0"/>
+        <xs:element name="MIME_ROOT" type="dtSTRING" minOccurs="0"/>
+        <xs:element ref="PRICE_FLAG" minOccurs="0" maxOccurs="unbounded"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="BUYER">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element ref="BUYER_ID" minOccurs="0"/>
+        <xs:element name="BUYER_NAME" type="dtSTRING"/>
+        <xs:element ref="ADDRESS" minOccurs="0"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="BUYER_ID">
+    <xs:complexType mixed="true">
+      <xs:attribute name="type" type="xs:string"/>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="AGREEMENT">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="AGREEMENT_ID" type="dtSTRING"/>
+        <xs:element ref="DATETIME" minOccurs="0" maxOccurs="unbounded"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="SUPPLIER">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element ref="SUPPLIER_ID" minOccurs="0" maxOccurs="unbounded"/>
+        <xs:element name="SUPPLIER_NAME" type="dtSTRING"/>
+        <xs:element ref="ADDRESS" minOccurs="0"/>
+        <xs:element ref="MIME_INFO" minOccurs="0"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="SUPPLIER_ID">
+    <xs:complexType mixed="true">
+      <xs:attribute name="type" type="xs:string" use="required"/>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- ================================================================== -->
+  <!-- ARTICLE (Produkt)                                                   -->
+  <!-- ================================================================== -->
+  <xs:element name="ARTICLE">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="SUPPLIER_AID" type="dtSTRING"/>
+        <xs:element ref="ARTICLE_DETAILS"/>
+        <xs:element ref="ARTICLE_FEATURES" minOccurs="0" maxOccurs="unbounded"/>
+        <xs:element ref="ARTICLE_ORDER_DETAILS"/>
+        <xs:element ref="ARTICLE_PRICE_DETAILS" maxOccurs="unbounded"/>
+        <xs:element ref="MIME_INFO" minOccurs="0"/>
+        <xs:element name="USER_DEFINED_EXTENSIONS" minOccurs="0">
+          <xs:complexType mixed="true">
+            <xs:sequence>
+              <xs:any processContents="lax" minOccurs="0" maxOccurs="unbounded"/>
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+        <xs:element ref="ARTICLE_REFERENCE" minOccurs="0" maxOccurs="unbounded"/>
+      </xs:sequence>
+      <xs:attribute name="mode" type="dtARTICLE_MODE"/>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="ARTICLE_DETAILS">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="DESCRIPTION_SHORT" type="dtSTRING"/>
+        <xs:element name="DESCRIPTION_LONG" type="dtSTRING" minOccurs="0"/>
+        <xs:element name="EAN" type="dtSTRING" minOccurs="0"/>
+        <xs:element name="SUPPLIER_ALT_AID" type="dtSTRING" minOccurs="0"/>
+        <xs:element ref="BUYER_AID" minOccurs="0" maxOccurs="unbounded"/>
+        <xs:element name="MANUFACTURER_NAME" type="dtSTRING" minOccurs="0"/>
+        <xs:element name="MANUFACTURER_AID" type="dtSTRING" minOccurs="0"/>
+        <xs:element name="MANUFACTURER_TYPE_DESCR" type="dtSTRING" minOccurs="0"/>
+        <xs:element name="ERP_GROUP_BUYER" type="dtSTRING" minOccurs="0"/>
+        <xs:element name="ERP_GROUP_SUPPLIER" type="dtSTRING" minOccurs="0"/>
+        <xs:element name="DELIVERY_TIME" type="dtSTRING" minOccurs="0"/>
+        <xs:element ref="SPECIAL_TREATMENT_CLASS" minOccurs="0" maxOccurs="unbounded"/>
+        <xs:element name="KEYWORD" type="dtSTRING" minOccurs="0" maxOccurs="unbounded"/>
+        <xs:element name="REMARKS" type="dtSTRING" minOccurs="0"/>
+        <xs:element name="SEGMENT" type="dtSTRING" minOccurs="0"/>
+        <xs:element name="ARTICLE_ORDER" type="dtSTRING" minOccurs="0"/>
+        <xs:element ref="ARTICLE_STATUS" minOccurs="0" maxOccurs="unbounded"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="BUYER_AID">
+    <xs:complexType mixed="true">
+      <xs:attribute name="type" type="xs:string" use="required"/>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="SPECIAL_TREATMENT_CLASS">
+    <xs:complexType mixed="true">
+      <xs:attribute name="type" type="xs:string" use="required"/>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="ARTICLE_STATUS">
+    <xs:complexType mixed="true">
+      <xs:attribute name="type" type="dtARTICLE_STATUS_TYPE" use="required"/>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- ================================================================== -->
+  <!-- ARTICLE_FEATURES                                                    -->
+  <!-- ================================================================== -->
+  <xs:element name="ARTICLE_FEATURES">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="REFERENCE_FEATURE_SYSTEM_NAME" type="dtSTRING" minOccurs="0"/>
+        <xs:choice minOccurs="0">
+          <xs:element name="REFERENCE_FEATURE_GROUP_ID" type="dtSTRING"/>
+          <xs:element name="REFERENCE_FEATURE_GROUP_NAME" type="dtSTRING"/>
+        </xs:choice>
+        <xs:element ref="FEATURE" minOccurs="0" maxOccurs="unbounded"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="FEATURE">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="FNAME" type="dtSTRING"/>
+        <xs:choice>
+          <xs:element ref="VARIANTS"/>
+          <xs:element name="FVALUE" type="dtSTRING" maxOccurs="unbounded"/>
+        </xs:choice>
+        <xs:element name="FUNIT" type="dtSTRING" minOccurs="0"/>
+        <xs:element name="FORDER" type="dtSTRING" minOccurs="0"/>
+        <xs:element name="FDESCR" type="dtSTRING" minOccurs="0"/>
+        <xs:element name="FVALUE_DETAILS" type="dtSTRING" minOccurs="0"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="VARIANTS">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element ref="VARIANT" maxOccurs="unbounded"/>
+        <xs:element name="VORDER" type="dtSTRING"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="VARIANT">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="FVALUE" type="dtSTRING"/>
+        <xs:element name="SUPPLIER_AID_SUPPLEMENT" type="dtSTRING"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- ================================================================== -->
+  <!-- ARTICLE_ORDER_DETAILS                                               -->
+  <!-- ================================================================== -->
+  <xs:element name="ARTICLE_ORDER_DETAILS">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="ORDER_UNIT" type="dtSTRING"/>
+        <xs:element name="CONTENT_UNIT" type="dtSTRING" minOccurs="0"/>
+        <xs:element name="NO_CU_PER_OU" type="dtSTRING" minOccurs="0"/>
+        <xs:element name="PRICE_QUANTITY" type="dtSTRING" minOccurs="0"/>
+        <xs:element name="QUANTITY_MIN" type="dtSTRING" minOccurs="0"/>
+        <xs:element name="QUANTITY_INTERVAL" type="dtSTRING" minOccurs="0"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- ================================================================== -->
+  <!-- ARTICLE_PRICE_DETAILS                                               -->
+  <!-- ================================================================== -->
+  <xs:element name="ARTICLE_PRICE_DETAILS">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element ref="DATETIME" minOccurs="0" maxOccurs="unbounded"/>
+        <xs:element name="DAILY_PRICE" type="dtSTRING" minOccurs="0"/>
+        <xs:element ref="ARTICLE_PRICE" maxOccurs="unbounded"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="ARTICLE_PRICE">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="PRICE_AMOUNT" type="dtSTRING"/>
+        <xs:element name="PRICE_CURRENCY" type="dtSTRING" minOccurs="0"/>
+        <xs:element name="TAX" type="dtSTRING" minOccurs="0"/>
+        <xs:element name="PRICE_FACTOR" type="dtSTRING" minOccurs="0"/>
+        <xs:element name="LOWER_BOUND" type="dtSTRING" minOccurs="0"/>
+        <xs:element name="TERRITORY" type="dtSTRING" minOccurs="0" maxOccurs="unbounded"/>
+      </xs:sequence>
+      <xs:attribute name="price_type" type="xs:string" use="required"/>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- ================================================================== -->
+  <!-- ARTICLE_REFERENCE                                                   -->
+  <!-- ================================================================== -->
+  <xs:element name="ARTICLE_REFERENCE">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="ART_ID_TO" type="dtSTRING"/>
+        <xs:element name="CATALOG_ID" type="dtSTRING" minOccurs="0"/>
+        <xs:element name="CATALOG_VERSION" type="dtSTRING" minOccurs="0"/>
+      </xs:sequence>
+      <xs:attribute name="type" type="dtREFERENCE_TYPE" use="required"/>
+      <xs:attribute name="quantity" type="xs:string"/>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- ================================================================== -->
+  <!-- ARTICLE_TO_CATALOGGROUP_MAP                                         -->
+  <!-- ================================================================== -->
+  <xs:element name="ARTICLE_TO_CATALOGGROUP_MAP">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="ART_ID" type="dtSTRING"/>
+        <xs:element name="CATALOG_GROUP_ID" type="dtSTRING"/>
+        <xs:element name="ARTICLE_TO_CATALOGGROUP_MAP_ORDER" type="dtSTRING" minOccurs="0"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- ================================================================== -->
+  <!-- CATALOG_GROUP_SYSTEM (Hierarchie)                                   -->
+  <!-- ================================================================== -->
+  <xs:element name="CATALOG_GROUP_SYSTEM">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="GROUP_SYSTEM_ID" type="dtSTRING" minOccurs="0"/>
+        <xs:element name="GROUP_SYSTEM_NAME" type="dtSTRING" minOccurs="0"/>
+        <xs:element ref="CATALOG_STRUCTURE" maxOccurs="unbounded"/>
+        <xs:element name="GROUP_SYSTEM_DESCRIPTION" type="dtSTRING" minOccurs="0"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="CATALOG_STRUCTURE">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="GROUP_ID" type="dtSTRING"/>
+        <xs:element name="GROUP_NAME" type="dtSTRING"/>
+        <xs:element name="GROUP_DESCRIPTION" type="dtSTRING" minOccurs="0"/>
+        <xs:element name="PARENT_ID" type="dtSTRING"/>
+        <xs:element name="GROUP_ORDER" type="dtSTRING" minOccurs="0"/>
+        <xs:element ref="MIME_INFO" minOccurs="0"/>
+        <xs:element name="USER_DEFINED_EXTENSIONS" minOccurs="0">
+          <xs:complexType mixed="true">
+            <xs:sequence>
+              <xs:any processContents="lax" minOccurs="0" maxOccurs="unbounded"/>
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+        <xs:element name="KEYWORD" type="dtSTRING" minOccurs="0" maxOccurs="unbounded"/>
+      </xs:sequence>
+      <xs:attribute name="type" type="dtCATALOG_STRUCTURE_TYPE" use="required"/>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- ================================================================== -->
+  <!-- MIME_INFO                                                           -->
+  <!-- ================================================================== -->
+  <xs:element name="MIME_INFO">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element ref="MIME" maxOccurs="unbounded"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="MIME">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="MIME_TYPE" type="dtSTRING" minOccurs="0"/>
+        <xs:element name="MIME_SOURCE" type="dtSTRING"/>
+        <xs:element name="MIME_DESCR" type="dtSTRING" minOccurs="0"/>
+        <xs:element name="MIME_ALT" type="dtSTRING" minOccurs="0"/>
+        <xs:element name="MIME_PURPOSE" type="dtSTRING" minOccurs="0"/>
+        <xs:element name="MIME_ORDER" type="dtSTRING" minOccurs="0"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- ================================================================== -->
+  <!-- DATETIME                                                            -->
+  <!-- ================================================================== -->
+  <xs:element name="DATETIME">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="DATE" type="dtSTRING"/>
+        <xs:element name="TIME" type="dtSTRING" minOccurs="0"/>
+        <xs:element name="TIMEZONE" type="dtSTRING" minOccurs="0"/>
+      </xs:sequence>
+      <xs:attribute name="type" type="dtDATETIME_TYPE" use="required"/>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- ================================================================== -->
+  <!-- ADDRESS                                                             -->
+  <!-- ================================================================== -->
+  <xs:element name="ADDRESS">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="NAME" type="dtSTRING" minOccurs="0"/>
+        <xs:element name="NAME2" type="dtSTRING" minOccurs="0"/>
+        <xs:element name="NAME3" type="dtSTRING" minOccurs="0"/>
+        <xs:element name="CONTACT" type="dtSTRING" minOccurs="0"/>
+        <xs:element name="STREET" type="dtSTRING" minOccurs="0"/>
+        <xs:element name="ZIP" type="dtSTRING" minOccurs="0"/>
+        <xs:element name="BOXNO" type="dtSTRING" minOccurs="0"/>
+        <xs:element name="ZIPBOX" type="dtSTRING" minOccurs="0"/>
+        <xs:element name="CITY" type="dtSTRING" minOccurs="0"/>
+        <xs:element name="STATE" type="dtSTRING" minOccurs="0"/>
+        <xs:element name="COUNTRY" type="dtSTRING" minOccurs="0"/>
+        <xs:element name="PHONE" type="dtSTRING" minOccurs="0"/>
+        <xs:element name="FAX" type="dtSTRING" minOccurs="0"/>
+        <xs:element name="EMAIL" type="dtSTRING" minOccurs="0"/>
+        <xs:element ref="PUBLIC_KEY" minOccurs="0" maxOccurs="unbounded"/>
+        <xs:element name="URL" type="dtSTRING" minOccurs="0"/>
+        <xs:element name="ADDRESS_REMARKS" type="dtSTRING" minOccurs="0"/>
+      </xs:sequence>
+      <xs:attribute name="type" type="dtADDRESS_TYPE" use="required"/>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="PUBLIC_KEY">
+    <xs:complexType mixed="true">
+      <xs:attribute name="type" type="xs:string" use="required"/>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="PRICE_FLAG">
+    <xs:complexType mixed="true">
+      <xs:attribute name="type" type="dtPRICE_FLAG_TYPE" use="required"/>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- ================================================================== -->
+  <!-- FEATURE_SYSTEM (optional, wird vom Parser nicht aktiv genutzt)      -->
+  <!-- ================================================================== -->
+  <xs:element name="FEATURE_SYSTEM">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="FEATURE_SYSTEM_NAME" type="dtSTRING"/>
+        <xs:element name="FEATURE_SYSTEM_DESCR" type="dtSTRING" minOccurs="0"/>
+        <xs:element ref="FEATURE_GROUP" maxOccurs="unbounded"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="FEATURE_GROUP">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="FEATURE_GROUP_ID" type="dtSTRING"/>
+        <xs:element name="FEATURE_GROUP_NAME" type="dtSTRING"/>
+        <xs:element ref="FEATURE_TEMPLATE" minOccurs="0" maxOccurs="unbounded"/>
+        <xs:element name="FEATURE_GROUP_DESCR" type="dtSTRING" minOccurs="0"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="FEATURE_TEMPLATE">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="FT_NAME" type="dtSTRING"/>
+        <xs:element name="FT_UNIT" type="dtSTRING" minOccurs="0"/>
+        <xs:element name="FT_ORDER" type="dtSTRING" minOccurs="0"/>
+      </xs:sequence>
+      <xs:attribute name="type" type="xs:string" default="free_entry"/>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- ================================================================== -->
+  <!-- CLASSIFICATION_SYSTEM (optional, wird vom Parser nicht aktiv genutzt) -->
+  <!-- ================================================================== -->
+  <xs:element name="CLASSIFICATION_SYSTEM">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:any processContents="lax" minOccurs="0" maxOccurs="unbounded"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+</xs:schema>

@@ -220,7 +220,13 @@ class BmecatFormatImporter
         $hasNs = str_contains($xml, self::NS_2005);
         $ns = ($isV12 || !$hasNs) ? '' : self::NS_2005;
 
-        // 3. Root-Element prüfen
+        // 3. XSD-Schema-Validierung (Warnungen, kein Blocker)
+        $schemaWarnings = $this->validateAgainstSchema($xml, $version);
+        foreach ($schemaWarnings as $w) {
+            $warnings[] = $w;
+        }
+
+        // 4. Root-Element prüfen
         $rootName = $doc->getName();
         if (strtoupper($rootName) !== 'BMECAT') {
             $errors[] = "Root-Element muss BMECAT sein, gefunden: {$rootName}";
@@ -390,6 +396,45 @@ class BmecatFormatImporter
             'errors' => $errors,
             'warnings' => $warnings,
         ];
+    }
+
+    /**
+     * Validiert das XML gegen das passende BMEcat-XSD-Schema.
+     *
+     * @return string[] Schema-Validierungswarnungen (leeres Array wenn valide)
+     */
+    private function validateAgainstSchema(string $xml, string $version): array
+    {
+        $isV12 = BmecatElementMap::isVersion12($version);
+        $schemaFile = $isV12
+            ? resource_path('schemas/bmecat/bmecat_1_2.xsd')
+            : resource_path('schemas/bmecat/bmecat_2005.xsd');
+
+        if (!file_exists($schemaFile)) {
+            return ["Schema-Datei nicht gefunden: {$schemaFile}"];
+        }
+
+        libxml_use_internal_errors(true);
+
+        $doc = new \DOMDocument();
+        $doc->loadXML($xml);
+
+        $valid = $doc->schemaValidate($schemaFile);
+        $warnings = [];
+
+        if (!$valid) {
+            foreach (libxml_get_errors() as $error) {
+                $msg = trim($error->message);
+                // Namespace-Präfixe aus Fehlermeldungen entfernen für Lesbarkeit
+                $msg = preg_replace('/\{[^}]+\}/', '', $msg);
+                $warnings[] = "Schema Zeile {$error->line}: {$msg}";
+            }
+        }
+
+        libxml_clear_errors();
+        libxml_use_internal_errors(false);
+
+        return $warnings;
     }
 
     /**
