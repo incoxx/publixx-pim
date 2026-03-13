@@ -10,6 +10,7 @@ use App\Models\ProductVersion;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class ProductVersioningService
 {
@@ -19,6 +20,9 @@ class ProductVersioningService
         'ean',
         'status',
         'master_hierarchy_node_id',
+        'manufacturer_id',
+        'workflow_status',
+        'workflow_assignee_id',
     ];
 
     public function createVersion(Product $product, ?string $reason = null, ?string $userId = null): ProductVersion
@@ -46,7 +50,12 @@ class ProductVersioningService
 
             // Apply snapshot to the product
             $product = $version->product;
-            $product->update($version->snapshot);
+            $snapshot = $version->snapshot;
+            $baseFields = array_intersect_key($snapshot, array_flip(self::VERSIONED_FIELDS));
+            $product->update($baseFields);
+
+            // Restore attribute values from raw snapshot data
+            $this->restoreAttributeValues($product, $snapshot);
 
             // Mark this version as active
             $version->update([
@@ -217,11 +226,86 @@ class ProductVersioningService
             $attrs[$attrKey] = [
                 'label' => $av->attribute?->name_de ?? $key,
                 'value' => $value,
+                'raw' => [
+                    'attribute_id' => $av->attribute_id,
+                    'value_string' => $av->value_string,
+                    'value_number' => $av->value_number !== null ? (string) $av->value_number : null,
+                    'value_date' => $av->value_date?->format('Y-m-d'),
+                    'value_flag' => $av->value_flag,
+                    'value_selection_id' => $av->value_selection_id,
+                    'unit_id' => $av->unit_id,
+                    'comparison_operator_id' => $av->comparison_operator_id,
+                    'language' => $av->language,
+                    'multiplied_index' => $av->multiplied_index ?? 0,
+                    'output_hierarchy_id' => $av->output_hierarchy_id,
+                ],
             ];
         }
         $snapshot['attributes'] = $attrs;
 
         return $snapshot;
+    }
+
+    private function restoreAttributeValues(Product $product, array $snapshot): void
+    {
+        $attributes = $snapshot['attributes'] ?? [];
+
+        // Check if at least one entry has raw data (new format)
+        $hasRawData = collect($attributes)->contains(fn ($attr) => isset($attr['raw']));
+        if (! $hasRawData) {
+            return; // Old snapshot without raw data — skip attribute restore
+        }
+
+        // Delete current attribute values (master + channel-specific)
+        ProductAttributeValue::where('product_id', $product->id)->delete();
+
+        // Rebuild attribute values from raw snapshot data
+        $rows = [];
+        $changedAttributeIds = [];
+
+        foreach ($attributes as $attr) {
+            if (! isset($attr['raw'])) {
+                continue;
+            }
+
+            $raw = $attr['raw'];
+            $changedAttributeIds[] = $raw['attribute_id'];
+
+            $rows[] = [
+                'id' => (string) Str::uuid(),
+                'product_id' => $product->id,
+                'attribute_id' => $raw['attribute_id'],
+                'value_string' => $raw['value_string'],
+                'value_number' => $raw['value_number'],
+                'value_date' => $raw['value_date'],
+                'value_flag' => $raw['value_flag'],
+                'value_selection_id' => $raw['value_selection_id'],
+                'unit_id' => $raw['unit_id'],
+                'comparison_operator_id' => $raw['comparison_operator_id'],
+                'language' => $raw['language'],
+                'multiplied_index' => $raw['multiplied_index'] ?? 0,
+                'is_inherited' => false,
+                'inherited_from_node_id' => null,
+                'inherited_from_product_id' => null,
+                'output_hierarchy_id' => $raw['output_hierarchy_id'] ?? null,
+            ];
+        }
+
+        // Bulk insert in chunks
+        foreach (array_chunk($rows, 500) as $chunk) {
+            ProductAttributeValue::insert($chunk);
+        }
+
+        // Fire event so search index / cache gets updated
+        try {
+            $uniqueIds = array_unique($changedAttributeIds);
+            event(new \App\Events\AttributeValuesChanged($product->id, $uniqueIds));
+        } catch (\Throwable $e) {
+            Log::warning('AttributeValuesChanged event failed during version restore', [
+                'product_id' => $product->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     private function extractAttributeValue(ProductAttributeValue $av): mixed

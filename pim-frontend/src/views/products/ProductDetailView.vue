@@ -3082,6 +3082,7 @@ watch(() => route.params.id, async (newId, oldId) => {
     <ProductVersionsTab
       v-else-if="activeTab === 'versions' && product"
       :productId="product.id"
+      @reverted="store.fetchOne(product.id)"
     />
 
     <!-- ═══ Scheduled Actions Tab ═══ -->
