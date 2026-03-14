@@ -107,6 +107,10 @@ class InDesignJsxWriter
         $readme = $this->buildReadme($templateJson, count($processedPages), count($imageMap));
         $zip->addFromString('README.txt', $readme);
 
+        // Build mapping.json (field-to-element mapping backup)
+        $mappingJson = $this->buildMappingJson($templateJson);
+        $zip->addFromString('mapping.json', json_encode($mappingJson, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+
         $zip->close();
     }
 
@@ -146,16 +150,20 @@ class InDesignJsxWriter
 
     private function convertTextElement(array $base, array $element, array $style): array
     {
+        $fontSize = (float) ($style['fontSize'] ?? 10);
+
         return array_merge($base, [
             'type' => 'text',
             'content' => $element['displayValue'] ?? '',
-            'fontSize' => $this->mmToPt((float) ($style['fontSize'] ?? 10)),
+            'fontSize' => $fontSize,
             'fontFamily' => $style['fontFamily'] ?? 'Arial',
             'fontWeight' => $this->fontWeightToNumber($style['fontWeight'] ?? 'normal'),
             'fontStyle' => $style['fontStyle'] ?? 'normal',
             'color' => $style['color'] ?? null,
             'textAlign' => $style['textAlign'] ?? 'left',
-            'lineHeight' => !empty($style['lineHeight']) ? $this->mmToPt((float) $style['lineHeight']) : null,
+            'lineHeight' => !empty($style['lineHeight'])
+                ? round($fontSize * (float) $style['lineHeight'], 2)
+                : null,
             'backgroundColor' => $this->normalizeColor($style['backgroundColor'] ?? null),
             'padding' => !empty($style['padding']) ? $this->mmToPt((float) $style['padding']) : 0,
         ]);
@@ -202,7 +210,7 @@ class InDesignJsxWriter
                 'headerRows' => $headerRows,
                 'rows' => $rows,
             ],
-            'fontSize' => $this->mmToPt((float) ($tStyle['fontSize'] ?? $style['fontSize'] ?? 8)),
+            'fontSize' => (float) ($tStyle['fontSize'] ?? $style['fontSize'] ?? 8),
             'fontFamily' => $tStyle['fontFamily'] ?? $style['fontFamily'] ?? 'Arial',
             'headerBg' => $tStyle['headerBg'] ?? '#f3f4f6',
             'headerColor' => $tStyle['headerColor'] ?? '#374151',
@@ -222,9 +230,9 @@ class InDesignJsxWriter
         return array_merge($base, [
             'type' => 'rect',
             'backgroundColor' => $this->normalizeColor($style['backgroundColor'] ?? null),
-            'borderWidth' => isset($style['borderWidth']) ? $this->mmToPt((float) $style['borderWidth']) : 0,
+            'borderWidth' => (float) ($style['borderWidth'] ?? 0),
             'borderColor' => $style['borderColor'] ?? null,
-            'borderRadius' => isset($style['borderRadius']) ? $this->mmToPt((float) $style['borderRadius']) : 0,
+            'borderRadius' => isset($style['borderRadius']) ? round((float) $style['borderRadius'] * 0.75, 2) : 0,
         ]);
     }
 
@@ -1116,6 +1124,7 @@ ENTHALTENE DATEIEN
 
 publixx-import.jsx  — InDesign Import-Script (ExtendScript)
 data.json           — Layout-Daten (Elemente, Farben, Schriften)
+mapping.json        — Feld-Zuordnung (Backup/Referenz)
 assets/             — Heruntergeladene Produktbilder
 README.txt          — Diese Datei
 
@@ -1128,6 +1137,43 @@ Generiert mit Publixx PIM — https://publixx.de
 ================================================================================
 
 README;
+    }
+
+    /**
+     * Build mapping.json — field-to-element mapping for reference/backup.
+     */
+    private function buildMappingJson(array $templateJson): array
+    {
+        $mapping = [];
+
+        foreach ($templateJson['elements'] ?? [] as $index => $element) {
+            $type = $element['type'] ?? 'unknown';
+            $entry = [
+                'index' => $index,
+                'type' => $type,
+                'label' => $element['label'] ?? null,
+            ];
+
+            if ($type === 'field') {
+                $entry['field'] = $element['field'] ?? null;
+            } elseif ($type === 'attribute') {
+                $entry['attributeId'] = $element['attributeId'] ?? null;
+                $entry['technicalName'] = $element['technical_name'] ?? null;
+            } elseif ($type === 'image') {
+                $entry['source'] = $element['source'] ?? 'primary';
+            } elseif ($type === 'variant_table') {
+                $entry['columns'] = $element['columns'] ?? [];
+            }
+
+            $mapping[] = $entry;
+        }
+
+        return [
+            'generator' => 'Publixx PIM',
+            'exported' => now()->toIso8601String(),
+            'templateName' => $templateJson['name'] ?? null,
+            'elements' => $mapping,
+        ];
     }
 
     private function now(): string
