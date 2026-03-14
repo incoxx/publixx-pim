@@ -1093,8 +1093,6 @@ class ImportExecutor
                         }
                     }
 
-                    // NULL-language-Zeilen können bei SQLite-Tests Probleme mit upsert machen
-                    // Separate Behandlung nicht nötig da wir hier immer language haben (BMEcat)
                     $upsertData[] = $data;
                     $affectedIds[] = $productResult->id;
                 } catch (\Throwable $e) {
@@ -1123,11 +1121,34 @@ class ImportExecutor
                 }
                 unset($d);
 
-                ProductAttributeValue::upsert(
-                    $upsertData,
-                    ['product_id', 'attribute_id', 'language', 'multiplied_index'],
-                    ['value_string', 'value_number', 'value_date', 'value_flag', 'value_selection_id', 'unit_id', 'updated_at']
-                );
+                // MySQL UNIQUE-Index behandelt NULL als jeweils unterschiedlich (NULL ≠ NULL),
+                // daher funktioniert upsert() nicht für Zeilen mit language=NULL.
+                // Lösung: NULL-Language-Zeilen separat per updateOrCreate verarbeiten.
+                $nullLangRows = array_filter($upsertData, fn ($d) => $d['language'] === null);
+                $nonNullLangRows = array_values(array_filter($upsertData, fn ($d) => $d['language'] !== null));
+
+                if (!empty($nonNullLangRows)) {
+                    ProductAttributeValue::upsert(
+                        $nonNullLangRows,
+                        ['product_id', 'attribute_id', 'language', 'multiplied_index'],
+                        ['value_string', 'value_number', 'value_date', 'value_flag', 'value_selection_id', 'unit_id', 'updated_at']
+                    );
+                }
+
+                $updateColumns = ['value_string', 'value_number', 'value_date', 'value_flag', 'value_selection_id', 'unit_id', 'updated_at'];
+                foreach ($nullLangRows as $row) {
+                    $existing = ProductAttributeValue::where('product_id', $row['product_id'])
+                        ->where('attribute_id', $row['attribute_id'])
+                        ->whereNull('language')
+                        ->where('multiplied_index', $row['multiplied_index'])
+                        ->first();
+
+                    if ($existing) {
+                        $existing->update(array_intersect_key($row, array_flip($updateColumns)));
+                    } else {
+                        ProductAttributeValue::create($row);
+                    }
+                }
 
                 $countAfter = ProductAttributeValue::whereIn('product_id', $productIds)->count();
                 $created = $countAfter - $countBefore;
