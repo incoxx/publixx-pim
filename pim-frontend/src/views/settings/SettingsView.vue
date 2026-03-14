@@ -80,7 +80,7 @@ const POPUP_SIZE_OPTIONS = [
   { value: 'full', label: 'Vollbild' },
 ]
 
-const FACET_DATA_TYPES = ['ValueList', 'Selection', 'Dictionary', 'Boolean', 'Flag', 'Decimal', 'Integer', 'Number', 'Float', 'String']
+const FACET_DATA_TYPES = ['Selection', 'Dictionary', 'Flag', 'Number', 'Float', 'String']
 
 const DETAIL_LAYOUT_OPTIONS = [
   { value: 'classic', label: 'Klassisch', desc: 'Bild links, Info rechts' },
@@ -784,7 +784,7 @@ onMounted(async () => {
                   type="radio"
                   name="attr_view_mode"
                   :checked="themeForm.attribute_view_ids.length > 0"
-                  @change="if (themeForm.attribute_view_ids.length === 0 && availableAttributeViews.length > 0) themeForm.attribute_view_ids.push(availableAttributeViews[0].id)"
+                  @change="() => { if (themeForm.attribute_view_ids.length === 0 && availableAttributeViews.length > 0) themeForm.attribute_view_ids.push(availableAttributeViews[0].id) }"
                   class="radio radio-xs border-[var(--color-border-strong)] text-[var(--color-accent)]"
                 />
                 Nur bestimmte Attribut-Sichten

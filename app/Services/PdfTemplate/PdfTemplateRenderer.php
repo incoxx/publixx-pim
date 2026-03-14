@@ -224,6 +224,17 @@ class PdfTemplateRenderer
                 ->get() ?? collect();
         }
 
+        // Determine which target product attributes to show
+        $productAttributeIds = $element['productAttributeIds'] ?? [];
+        $productAttributes = collect();
+        if (in_array('product_attributes', $columns) && !empty($productAttributeIds)) {
+            $attrs = Attribute::whereIn('id', $productAttributeIds)->get();
+            // Preserve the order from productAttributeIds
+            $productAttributes = collect($productAttributeIds)
+                ->map(fn($id) => $attrs->firstWhere('id', $id))
+                ->filter();
+        }
+
         // Build headers
         $headers = [];
         foreach ($columns as $col) {
@@ -235,6 +246,10 @@ class PdfTemplateRenderer
                 $headers[] = 'EAN';
             } elseif ($col === 'relation_attributes') {
                 foreach ($relationAttributes as $attr) {
+                    $headers[] = $attr->{"name_{$language}"} ?? $attr->name_de ?? $attr->technical_name;
+                }
+            } elseif ($col === 'product_attributes') {
+                foreach ($productAttributes as $attr) {
                     $headers[] = $attr->{"name_{$language}"} ?? $attr->name_de ?? $attr->technical_name;
                 }
             }
@@ -290,6 +305,18 @@ class PdfTemplateRenderer
                         } else {
                             $row[] = '';
                         }
+                    }
+                } elseif ($col === 'product_attributes') {
+                    foreach ($productAttributes as $attr) {
+                        $resolved = $this->elementRenderer->resolveAttributeValue($target, $attr->id, $language);
+                        $parts = [];
+                        if ($resolved['value'] !== '') {
+                            $parts[] = $resolved['value'];
+                        }
+                        if ($resolved['unit'] !== '') {
+                            $parts[] = $resolved['unit'];
+                        }
+                        $row[] = implode(' ', $parts);
                     }
                 }
             }

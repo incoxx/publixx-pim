@@ -49,7 +49,7 @@ const tabs = computed(() => {
   if (product.value?.attributes?.length) {
     list.push({ id: 'attributes', label: t('catalog.attributes') || 'Merkmale' })
   }
-  if (linkAttributes.value.length) {
+  if (linkAttributes.value.length || pdfMedia.value.length) {
     list.push({ id: 'media-links', label: 'Medien & Links' })
   }
   if (product.value?.variants?.length) {
@@ -85,6 +85,16 @@ const groupedLinks = computed(() => {
 })
 
 const linkGroupLabels = { ImageLink: 'Bilder', VideoLink: 'Videos', PdfLink: 'PDFs', Hyperlink: 'Links' }
+
+function isPdfMedia(m) {
+  const mt = (m.media_type || '').toLowerCase()
+  return mt === 'pdf' || (m.mime_type || '').includes('pdf')
+}
+
+const pdfMedia = computed(() => {
+  if (!product.value?.media) return []
+  return product.value.media.filter(m => isPdfMedia(m))
+})
 
 const pdfDisplayMode = computed(() => store.themeSettings.pdf_display_mode || 'link')
 
@@ -219,9 +229,23 @@ function formatPrice(price) {
             </div>
 
             <!-- Media & Links -->
-            <div v-if="linkAttributes.length" class="text-sm">
+            <div v-if="linkAttributes.length || pdfMedia.length" class="text-sm">
               <h4 class="font-semibold text-base-content mb-2">Medien & Links</h4>
               <div class="space-y-3">
+                <!-- Product PDF media files -->
+                <div v-if="pdfMedia.length">
+                  <h5 class="text-xs font-semibold text-base-content/60 mb-1">Dokumente</h5>
+                  <div class="space-y-3">
+                    <div v-for="(m, idx) in pdfMedia" :key="'pdf-' + idx" class="border border-base-300 rounded-lg overflow-hidden">
+                      <PdfPreview :url="m.url" :title="m.file_name || m.alt || 'PDF'" max-height="16rem" />
+                      <div class="px-3 py-2 bg-base-200/50">
+                        <p class="text-xs font-medium text-base-content">{{ m.file_name || 'PDF' }}</p>
+                        <p v-if="m.description" class="text-xs text-base-content/60 mt-0.5">{{ m.description }}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <!-- Link attributes -->
                 <template v-for="(items, dtype) in groupedLinks" :key="dtype">
                   <div v-if="items.length">
                     <h5 class="text-xs font-semibold text-base-content/60 mb-1">{{ linkGroupLabels[dtype] }}</h5>
@@ -399,6 +423,20 @@ function formatPrice(price) {
 
               <!-- Media & Links tab -->
               <div v-if="activeTab === 'media-links'" class="space-y-4">
+                <!-- Product PDF media files -->
+                <div v-if="pdfMedia.length">
+                  <h4 class="font-semibold text-sm text-base-content mb-2">Dokumente</h4>
+                  <div class="space-y-3">
+                    <div v-for="(m, idx) in pdfMedia" :key="'pdf-' + idx" class="rounded-lg border border-base-300 overflow-hidden">
+                      <PdfPreview :url="m.url" :title="m.file_name || m.alt || 'PDF'" max-height="24rem" />
+                      <div class="px-3 py-2 bg-base-200/50">
+                        <p class="text-sm font-medium text-base-content">{{ m.file_name || 'PDF' }}</p>
+                        <p v-if="m.description" class="text-xs text-base-content/60 mt-0.5">{{ m.description }}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <!-- Link attributes -->
                 <template v-for="(items, dtype) in groupedLinks" :key="dtype">
                   <div v-if="items.length">
                     <h4 class="font-semibold text-sm text-base-content mb-2">{{ linkGroupLabels[dtype] }}</h4>
@@ -572,9 +610,23 @@ function formatPrice(price) {
               </div>
 
               <!-- Media & Links -->
-              <div v-if="linkAttributes.length" class="bg-base-200/30 rounded-xl p-4">
+              <div v-if="linkAttributes.length || pdfMedia.length" class="bg-base-200/30 rounded-xl p-4">
                 <h4 class="font-semibold text-base-content mb-3 text-sm">Medien & Links</h4>
                 <div class="space-y-3">
+                  <!-- Product PDF media files -->
+                  <div v-if="pdfMedia.length">
+                    <h5 class="text-xs font-semibold text-base-content/60 mb-1.5">Dokumente</h5>
+                    <div class="space-y-3">
+                      <div v-for="(m, idx) in pdfMedia" :key="'pdf-' + idx" class="border border-base-300 rounded-lg overflow-hidden">
+                        <PdfPreview :url="m.url" :title="m.file_name || m.alt || 'PDF'" max-height="16rem" />
+                        <div class="px-3 py-2 bg-base-200/50">
+                          <p class="text-xs font-medium text-base-content">{{ m.file_name || 'PDF' }}</p>
+                          <p v-if="m.description" class="text-xs text-base-content/60 mt-0.5">{{ m.description }}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <!-- Link attributes -->
                   <template v-for="(items, dtype) in groupedLinks" :key="dtype">
                     <div v-if="items.length">
                       <h5 class="text-xs font-semibold text-base-content/60 mb-1.5">{{ linkGroupLabels[dtype] }}</h5>
