@@ -1,7 +1,6 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
-import { Package, ChevronLeft, ChevronRight, FileText } from 'lucide-vue-next'
-import PdfPreview from '@/components/shared/PdfPreview.vue'
+import { Package, ChevronLeft, ChevronRight } from 'lucide-vue-next'
 
 const props = defineProps({
   media: { type: Array, default: () => [] },
@@ -9,15 +8,8 @@ const props = defineProps({
 
 const selectedIndex = ref(0)
 
-function isPdf(m) {
-  const mt = (m.media_type || '').toLowerCase()
-  if (mt === 'pdf') return true
-  if ((m.mime_type || '').includes('pdf')) return true
-  return false
-}
-
 const galleryItems = computed(() =>
-  props.media.filter((m) => m.media_type === 'image' || isPdf(m))
+  props.media.filter((m) => m.media_type === 'image')
 )
 const current = computed(() => galleryItems.value[selectedIndex.value])
 
@@ -42,13 +34,8 @@ function next() {
     <!-- Main display -->
     <div class="relative aspect-square bg-base-200 rounded-xl overflow-hidden mb-3">
       <Transition name="img-fade" mode="out-in">
-        <!-- PDF -->
-        <div v-if="current && isPdf(current)" :key="current.url + '-pdf'" class="w-full h-full flex items-center justify-center p-4">
-          <PdfPreview :url="current.url" :title="current.file_name || current.alt || 'PDF'" max-height="100%" />
-        </div>
-        <!-- Image -->
         <img
-          v-else-if="current"
+          v-if="current"
           :key="current.url"
           :src="current.url"
           :alt="current.alt || ''"
@@ -76,30 +63,17 @@ function next() {
       </template>
     </div>
 
-    <!-- Description of current item -->
-    <p v-if="current?.description" class="text-xs text-base-content/60 text-center mb-2 px-2">{{ current.description }}</p>
-
     <!-- Thumbnails -->
     <div v-if="galleryItems.length > 1" class="flex gap-2 overflow-x-auto pb-1">
-      <div
+      <button
         v-for="(item, idx) in galleryItems"
         :key="item.url"
-        class="flex-none text-center"
+        class="flex-none w-16 h-16 rounded-lg overflow-hidden border-2 transition-all duration-200"
+        :class="idx === selectedIndex ? 'border-primary shadow-sm' : 'border-transparent opacity-60 hover:opacity-100'"
+        @click="selectedIndex = idx"
       >
-        <button
-          class="w-16 h-16 rounded-lg overflow-hidden border-2 transition-all duration-200"
-          :class="idx === selectedIndex ? 'border-primary shadow-sm' : 'border-transparent opacity-60 hover:opacity-100'"
-          @click="selectedIndex = idx"
-        >
-          <!-- PDF thumbnail -->
-          <div v-if="isPdf(item)" class="flex items-center justify-center w-full h-full bg-base-200">
-            <FileText class="w-6 h-6 text-error/60" />
-          </div>
-          <!-- Image thumbnail -->
-          <img v-else :src="item.url" :alt="item.alt || ''" class="object-contain w-full h-full p-1" />
-        </button>
-        <p v-if="item.description" class="text-[10px] text-base-content/50 mt-0.5 w-16 truncate" :title="item.description">{{ item.description }}</p>
-      </div>
+        <img :src="item.url" :alt="item.alt || ''" class="object-contain w-full h-full p-1" />
+      </button>
     </div>
   </div>
 </template>
