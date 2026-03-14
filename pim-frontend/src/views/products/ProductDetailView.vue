@@ -55,6 +55,16 @@ async function loadManufacturers() {
   } catch { /* silently fail */ }
 }
 
+// Product type assignment
+const productTypesList = ref([])
+
+async function loadProductTypes() {
+  try {
+    const { data } = await productTypes.list()
+    productTypesList.value = data.data || data
+  } catch { /* silently fail */ }
+}
+
 const tabs = [
   { key: 'base-data', label: 'Grunddaten' },
   { key: 'attributes', label: t('product.attributes') },
@@ -1390,6 +1400,7 @@ async function save() {
       ean: product.value.ean,
       master_hierarchy_node_id: product.value.master_hierarchy_node_id || null,
       manufacturer_id: product.value.manufacturer_id || null,
+      product_type_id: product.value.product_type_id || null,
     }
     if (workflowEnabled.value) {
       updateData.workflow_status = product.value.workflow_status || null
@@ -1503,6 +1514,7 @@ onMounted(async () => {
   loadAttributeData()
   loadHierarchies()
   loadManufacturers()
+  loadProductTypes()
   if (workflowEnabled.value) loadWorkflowUsers()
   // If variant, load parent's inheritance rules
   if (product.value?.product_type_ref === 'variant' && product.value?.parent_product_id) {
@@ -1802,6 +1814,12 @@ watch(() => route.params.id, async (newId, oldId) => {
               v-model="product.status"
               :options="[{ value: 'active', label: 'Aktiv' }, { value: 'draft', label: 'Entwurf' }, { value: 'inactive', label: 'Inaktiv' }, { value: 'discontinued', label: 'Auslaufend' }]"
             />
+          </div>
+          <div>
+            <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Produkttyp</label>
+            <select class="pim-input text-xs" :value="product.product_type_id || ''" @change="product.product_type_id = $event.target.value || null">
+              <option v-for="pt in productTypesList" :key="pt.id" :value="pt.id">{{ pt.name_de || pt.technical_name }}</option>
+            </select>
           </div>
           <div v-if="product.product_type_ref !== 'variant'">
             <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Master-Hierarchie-Knoten</label>

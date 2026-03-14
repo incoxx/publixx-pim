@@ -11,6 +11,7 @@ use App\Http\Resources\Api\V1\HierarchyNodeResource;
 use App\Http\Traits\ChecksDeletionConstraints;
 use App\Models\Hierarchy;
 use App\Models\HierarchyNode;
+use App\Models\Product;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -165,7 +166,37 @@ class HierarchyNodeController extends Controller
     {
         $this->authorize('delete', $hierarchyNode);
 
-        return $this->destroyWithConstraintCheck($request, $hierarchyNode);
+        if (!$request->boolean('force')) {
+            return $this->destroyWithConstraintCheck($request, $hierarchyNode);
+        }
+
+        DB::transaction(function () use ($hierarchyNode) {
+            $this->cascadeDeleteNode($hierarchyNode);
+        });
+
+        return response()->json(null, 204);
+    }
+
+    private function cascadeDeleteNode(HierarchyNode $node): void
+    {
+        // Recursively delete children first (depth-first)
+        foreach ($node->children as $child) {
+            $this->cascadeDeleteNode($child);
+        }
+
+        // Nullify products' master_hierarchy_node_id
+        Product::where('master_hierarchy_node_id', $node->id)
+            ->update(['master_hierarchy_node_id' => null]);
+
+        // Delete attribute assignments and values
+        $node->attributeAssignments()->delete();
+        $node->attributeValues()->delete();
+
+        // Delete output product assignments
+        $node->outputProductAssignments()->delete();
+
+        // Delete the node itself
+        $node->delete();
     }
 
     /**

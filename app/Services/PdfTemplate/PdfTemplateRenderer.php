@@ -106,10 +106,12 @@ class PdfTemplateRenderer
 
         // Build browser-accessible URLs for canvas preview
         $imageUrls = [];
+        $appUrl = rtrim(config('app.url'), '/');
+        $basePath = parse_url($appUrl, PHP_URL_PATH) ?: '';
         foreach ($images as $filePath) {
             $publicPrefix = storage_path('app/public/');
             if (str_starts_with($filePath, $publicPrefix)) {
-                $imageUrls[] = '/storage/' . substr($filePath, strlen($publicPrefix));
+                $imageUrls[] = $basePath . '/storage/' . substr($filePath, strlen($publicPrefix));
             }
         }
 

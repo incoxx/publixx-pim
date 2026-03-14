@@ -98,15 +98,13 @@ class DocxPdfTemplateWriter
             return;
         }
 
-        // TextBox uses points (Frame unit='pt'), images use twips for positioning
-        $xPt = round(($element['x'] ?? 0) * self::MM_TO_PT, 1);
-        $yPt = round(($element['y'] ?? 0) * self::MM_TO_PT, 1);
+        // TextBox positioning uses twips, width/height use points
+        $xTwip = (int) round(($element['x'] ?? 0) * self::MM_TO_TWIP);
+        $yTwip = (int) round(($element['y'] ?? 0) * self::MM_TO_TWIP);
         $widthPt = round(($element['width'] ?? 50) * self::MM_TO_PT, 1);
         $heightPt = round(($element['height'] ?? 10) * self::MM_TO_PT, 1);
 
         if ($type === 'image') {
-            $xTwip = (int) round(($element['x'] ?? 0) * self::MM_TO_TWIP);
-            $yTwip = (int) round(($element['y'] ?? 0) * self::MM_TO_TWIP);
             $this->renderImageElement($section, $element, $xTwip, $yTwip);
             return;
         }
@@ -123,8 +121,8 @@ class DocxPdfTemplateWriter
             'positioning' => 'absolute',
             'posHorizontalRel' => 'page',
             'posVerticalRel' => 'page',
-            'marginLeft' => $xPt,
-            'marginTop' => $yPt,
+            'marginLeft' => $xTwip,
+            'marginTop' => $yTwip,
             'wrappingStyle' => 'infront',
             'borderSize' => isset($style['borderWidth']) && (int) $style['borderWidth'] > 0
                 ? (int) $style['borderWidth'] * self::PT_TO_HALF_PT
