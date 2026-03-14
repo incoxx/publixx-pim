@@ -1,8 +1,16 @@
 import client from './client'
 
 export default {
-  resetData(confirmation) {
-    return client.post('/admin/reset-data', { confirmation })
+  getResetCategories() {
+    return client.get('/admin/reset-categories')
+  },
+
+  resetData(confirmation, categories = null) {
+    const payload = { confirmation }
+    if (categories && categories.length > 0) {
+      payload.categories = categories
+    }
+    return client.post('/admin/reset-data', payload)
   },
 
   loadDemoData() {

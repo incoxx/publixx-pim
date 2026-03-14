@@ -14,4 +14,16 @@ return [
     'maintenance' => [
         'driver' => 'file',
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Deploy User
+    |--------------------------------------------------------------------------
+    |
+    | System-User für Deployment-Befehle (git, composer, npm).
+    | Wenn gesetzt, werden Befehle mit "sudo -u {deploy_user}" ausgeführt.
+    | Nur nötig, wenn PHP (www-data) nicht der Datei-Eigentümer ist.
+    |
+    */
+    'deploy_user' => env('DEPLOY_USER'),
 ];

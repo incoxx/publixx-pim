@@ -12,13 +12,132 @@ use Illuminate\Support\Facades\Log;
 class ResetDataController extends Controller
 {
     /**
-     * Reset all PIM data (products, hierarchies, attributes and related tables).
+     * Categories mapped to the tables they require to be truncated.
      *
-     * Admin-only. Requires confirmation phrase in the request body.
+     * Order inside each group does NOT matter because we disable FK checks.
+     */
+    private const CATEGORY_TABLES = [
+        'products' => [
+            'product_attribute_values',
+            'variant_inheritance_rules',
+            'product_relations',
+            'product_relation_attribute_values',
+            'product_media_assignments',
+            'product_prices',
+            'output_hierarchy_product_assignments',
+            'products_search_index',
+            'watchlist_items',
+            'products',
+        ],
+        'hierarchies' => [
+            'hierarchy_node_attribute_assignments',
+            'hierarchy_node_attribute_values',
+            'hierarchy_nodes',
+            'output_hierarchy_product_assignments',
+            'hierarchies',
+        ],
+        'attributes' => [
+            'product_attribute_values',
+            'hierarchy_node_attribute_assignments',
+            'hierarchy_node_attribute_values',
+            'attribute_view_assignments',
+            'attributes',
+            'attribute_types',
+            'attribute_views',
+        ],
+        'units' => [
+            'units',
+            'unit_groups',
+        ],
+        'value_lists' => [
+            'value_list_entries',
+            'value_lists',
+        ],
+        'price_types' => [
+            'product_prices',
+            'price_types',
+        ],
+        'product_types' => [
+            'product_types',
+        ],
+        'relation_types' => [
+            'product_relations',
+            'product_relation_attribute_values',
+            'product_relation_types',
+        ],
+        'comparison_operators' => [
+            'comparison_operators',
+            'comparison_operator_groups',
+        ],
+        'media' => [
+            'product_media_assignments',
+            'media',
+        ],
+        'import_export' => [
+            'import_job_errors',
+            'import_jobs',
+            'publixx_export_mappings',
+        ],
+        'audit_logs' => [
+            'audit_logs',
+        ],
+    ];
+
+    /**
+     * All available category keys.
+     */
+    public static function availableCategories(): array
+    {
+        return array_keys(self::CATEGORY_TABLES);
+    }
+
+    /**
+     * GET /api/v1/admin/reset-categories
+     *
+     * Returns available reset categories with labels.
+     */
+    public function categories(Request $request): JsonResponse
+    {
+        if (! $request->user()->hasRole('Admin')) {
+            return $this->errorResponse('forbidden', 'Forbidden', 403, 'Only administrators may access this.');
+        }
+
+        $labels = [
+            'products'             => 'Produkte',
+            'hierarchies'          => 'Hierarchien',
+            'attributes'           => 'Attribute & Attributgruppen',
+            'units'                => 'Einheiten',
+            'value_lists'          => 'Wertelisten',
+            'price_types'          => 'Preistypen',
+            'product_types'        => 'Produkttypen',
+            'relation_types'       => 'Beziehungstypen',
+            'comparison_operators' => 'Vergleichsoperatoren',
+            'media'                => 'Medien',
+            'import_export'        => 'Import-/Export-Daten',
+            'audit_logs'           => 'Audit-Logs',
+        ];
+
+        $categories = [];
+        foreach ($labels as $key => $label) {
+            $categories[] = [
+                'key'    => $key,
+                'label'  => $label,
+                'tables' => self::CATEGORY_TABLES[$key],
+            ];
+        }
+
+        return $this->successResponse($categories);
+    }
+
+    /**
+     * POST /api/v1/admin/reset-data
+     *
+     * Reset selected PIM data categories.
+     * Requires confirmation phrase and selected categories.
+     * If no categories are provided, resets ALL data-model tables (legacy behaviour).
      */
     public function __invoke(Request $request): JsonResponse
     {
-        // Only Admin role may call this endpoint
         if (! $request->user()->hasRole('Admin')) {
             return $this->errorResponse(
                 'forbidden',
@@ -30,60 +149,33 @@ class ResetDataController extends Controller
 
         $request->validate([
             'confirmation' => ['required', 'string', 'in:RESET'],
+            'categories'   => ['sometimes', 'array'],
+            'categories.*' => ['string', 'in:' . implode(',', self::availableCategories())],
         ]);
 
+        $selectedCategories = $request->input('categories', self::availableCategories());
+
+        if (empty($selectedCategories)) {
+            return $this->errorResponse(
+                'validation',
+                'No categories selected',
+                422,
+                'Bitte wählen Sie mindestens eine Kategorie zum Zurücksetzen aus.'
+            );
+        }
+
         try {
-            DB::transaction(function () {
-                // Disable FK checks for clean truncation
+            // Collect all tables from selected categories (deduplicated)
+            $tables = [];
+            foreach ($selectedCategories as $category) {
+                foreach (self::CATEGORY_TABLES[$category] as $table) {
+                    $tables[$table] = true;
+                }
+            }
+            $tables = array_keys($tables);
+
+            DB::transaction(function () use ($tables) {
                 DB::statement('SET FOREIGN_KEY_CHECKS=0');
-
-                $tables = [
-                    // Tier 6 — deepest dependents
-                    'import_job_errors',
-
-                    // Tier 5
-                    'product_relation_attribute_values',
-                    'publixx_export_mappings',
-                    'import_jobs',
-
-                    // Tier 4 — product dependents
-                    'product_attribute_values',
-                    'variant_inheritance_rules',
-                    'product_relations',
-                    'product_media_assignments',
-                    'product_prices',
-                    'output_hierarchy_product_assignments',
-                    'products_search_index',
-                    'audit_logs',
-                    'watchlist_items',
-
-                    // Tier 3
-                    'products',
-                    'hierarchy_node_attribute_assignments',
-                    'hierarchy_node_attribute_values',
-
-                    // Tier 2
-                    'attributes',
-                    'hierarchy_nodes',
-                    'attribute_view_assignments',
-
-                    // Tier 1 — reference data
-                    'units',
-                    'value_list_entries',
-                    'comparison_operators',
-
-                    // Tier 0 — root reference tables (data-model only)
-                    'attribute_types',
-                    'unit_groups',
-                    'value_lists',
-                    'comparison_operator_groups',
-                    'product_types',
-                    'price_types',
-                    'product_relation_types',
-                    'hierarchies',
-                    'attribute_views',
-                    'media',
-                ];
 
                 foreach ($tables as $table) {
                     DB::table($table)->truncate();
@@ -92,25 +184,30 @@ class ResetDataController extends Controller
                 DB::statement('SET FOREIGN_KEY_CHECKS=1');
             });
 
-            Log::info('Data model reset by admin', [
-                'user_id' => $request->user()->id,
+            Log::info('Selective data model reset by admin', [
+                'user_id'    => $request->user()->id,
                 'user_email' => $request->user()->email,
+                'categories' => $selectedCategories,
+                'tables'     => $tables,
             ]);
 
             return $this->successResponse([
-                'message' => 'Data model has been reset successfully.',
+                'message'    => 'Ausgewählte Daten wurden erfolgreich zurückgesetzt.',
+                'categories' => $selectedCategories,
+                'tables'     => $tables,
             ]);
         } catch (\Throwable $e) {
             Log::error('Data model reset failed', [
-                'user_id' => $request->user()->id,
-                'error' => $e->getMessage(),
+                'user_id'    => $request->user()->id,
+                'error'      => $e->getMessage(),
+                'categories' => $selectedCategories,
             ]);
 
             return $this->errorResponse(
                 'server_error',
                 'Reset failed',
                 500,
-                'An error occurred while resetting the data model: ' . $e->getMessage()
+                'Fehler beim Zurücksetzen: ' . $e->getMessage()
             );
         }
     }
