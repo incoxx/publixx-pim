@@ -246,6 +246,22 @@ function toggleWishlist(e, productId) {
                   {{ product.category_path }}
                 </p>
                 <p class="text-sm font-medium line-clamp-1">{{ product.primary_attribute_value || product.name || '—' }}</p>
+                <div v-if="product.match_sources?.length" class="flex flex-wrap gap-0.5 mt-0.5">
+                  <span
+                    v-for="(source, i) in product.match_sources.slice(0, 3)"
+                    :key="i"
+                    class="badge badge-xs"
+                    :class="{
+                      'badge-primary': source.type === 'name',
+                      'badge-secondary': source.type === 'sku' || source.type === 'ean',
+                      'badge-accent': source.type === 'attribute',
+                      'badge-info': source.type === 'media' || source.type === 'description',
+                      'badge-warning': source.type === 'phonetic',
+                    }"
+                  >
+                    {{ source.label }}
+                  </span>
+                </div>
               </div>
             </td>
             <!-- SKU -->

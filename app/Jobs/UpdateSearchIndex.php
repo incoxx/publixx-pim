@@ -113,6 +113,9 @@ class UpdateSearchIndex implements ShouldQueue, ShouldBeUnique
         $nameEn = $this->getAttributeValue($product->id, 'productName', 'en');
         $descriptionDe = $this->getAttributeValue($product->id, 'description', 'de');
 
+        $searchableText = $this->getSearchableText($product->id);
+        $mediaText = $this->getMediaText($product->id);
+
         $indexData = [
             'sku' => $product->sku,
             'ean' => $product->ean,
@@ -127,6 +130,11 @@ class UpdateSearchIndex implements ShouldQueue, ShouldBeUnique
             'attribute_completeness' => $this->calculateCompleteness($product),
             'phonetic_name_de' => $nameDe
                 ? mb_substr(KoelnerPhonetik::encode($nameDe), 0, 100)
+                : null,
+            'searchable_text' => $searchableText ?: null,
+            'media_text' => $mediaText ?: null,
+            'phonetic_text' => $searchableText
+                ? mb_substr(KoelnerPhonetik::encode($searchableText), 0, 5000)
                 : null,
             'updated_at' => now(),
         ];
@@ -249,6 +257,108 @@ class UpdateSearchIndex implements ShouldQueue, ShouldBeUnique
             ->value('product_prices.amount');
 
         return $price ? (float) $price : null;
+    }
+
+    /**
+     * Alle durchsuchbaren Attributwerte eines Produkts als Text zusammenfassen.
+     */
+    private function getSearchableText(string $productId): string
+    {
+        $values = [];
+
+        // String/RichText/Hyperlink etc. — value_string
+        $stringValues = ProductAttributeValue::query()
+            ->join('attributes', 'attributes.id', '=', 'product_attribute_values.attribute_id')
+            ->where('product_attribute_values.product_id', $productId)
+            ->where('attributes.is_searchable', true)
+            ->whereNotNull('product_attribute_values.value_string')
+            ->where('product_attribute_values.value_string', '!=', '')
+            ->pluck('product_attribute_values.value_string');
+
+        foreach ($stringValues as $v) {
+            // Strip HTML tags from RichText values
+            $clean = strip_tags((string) $v);
+            if ($clean !== '') {
+                $values[] = $clean;
+            }
+        }
+
+        // Number/Float — value_number
+        $numberValues = ProductAttributeValue::query()
+            ->join('attributes', 'attributes.id', '=', 'product_attribute_values.attribute_id')
+            ->where('product_attribute_values.product_id', $productId)
+            ->where('attributes.is_searchable', true)
+            ->whereNotNull('product_attribute_values.value_number')
+            ->pluck('product_attribute_values.value_number');
+
+        foreach ($numberValues as $v) {
+            $values[] = (string) $v;
+        }
+
+        // Selection/Dictionary — resolve display values from value_list_entries
+        $selectionValues = ProductAttributeValue::query()
+            ->join('attributes', 'attributes.id', '=', 'product_attribute_values.attribute_id')
+            ->join('value_list_entries', 'value_list_entries.id', '=', 'product_attribute_values.value_selection_id')
+            ->where('product_attribute_values.product_id', $productId)
+            ->where('attributes.is_searchable', true)
+            ->whereNotNull('product_attribute_values.value_selection_id')
+            ->select('value_list_entries.display_value_de', 'value_list_entries.display_value_en')
+            ->get();
+
+        foreach ($selectionValues as $entry) {
+            if ($entry->display_value_de) {
+                $values[] = $entry->display_value_de;
+            }
+            if ($entry->display_value_en && $entry->display_value_en !== $entry->display_value_de) {
+                $values[] = $entry->display_value_en;
+            }
+        }
+
+        return implode(' | ', $values);
+    }
+
+    /**
+     * PDF/Dokument-Informationen eines Produkts als Text zusammenfassen.
+     */
+    private function getMediaText(string $productId): string
+    {
+        $mediaItems = ProductMediaAssignment::query()
+            ->join('media', 'media.id', '=', 'product_media_assignments.media_id')
+            ->where('product_media_assignments.product_id', $productId)
+            ->where(function ($q) {
+                $q->where('media.media_type', 'document')
+                  ->orWhere('media.mime_type', 'like', 'application/pdf%');
+            })
+            ->select(
+                'media.file_name',
+                'media.title_de',
+                'media.title_en',
+                'media.description_de',
+                'media.description_en',
+            )
+            ->get();
+
+        $values = [];
+        foreach ($mediaItems as $m) {
+            if ($m->file_name) {
+                // Remove extension for cleaner search
+                $values[] = pathinfo($m->file_name, PATHINFO_FILENAME);
+            }
+            if ($m->title_de) {
+                $values[] = $m->title_de;
+            }
+            if ($m->title_en && $m->title_en !== $m->title_de) {
+                $values[] = $m->title_en;
+            }
+            if ($m->description_de) {
+                $values[] = $m->description_de;
+            }
+            if ($m->description_en && $m->description_en !== $m->description_de) {
+                $values[] = $m->description_en;
+            }
+        }
+
+        return implode(' | ', $values);
     }
 
     /**

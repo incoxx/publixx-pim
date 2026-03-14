@@ -81,6 +81,7 @@ export const useCatalogStore = defineStore('catalog', () => {
   // --- Computed ---
   const isEmpty = computed(() => products.value.length === 0 && !loading.value)
   const wishlistCount = computed(() => wishlistIds.value.length)
+  const searchActive = computed(() => search.value && search.value.trim().length > 0)
 
   function isInWishlist(productId) {
     return wishlistIds.value.includes(productId)
@@ -101,14 +102,22 @@ export const useCatalogStore = defineStore('catalog', () => {
     loading.value = true
     error.value = null
     try {
-      const filtersPayload = Object.keys(activeFilters).length > 0 ? { ...activeFilters } : undefined
+      // Search overrides all other filters (category + facets)
+      const isSearching = search.value && search.value.trim().length > 0
+      const filtersPayload = isSearching
+        ? undefined
+        : (Object.keys(activeFilters).length > 0 ? { ...activeFilters } : undefined)
+      const categoryPayload = isSearching
+        ? undefined
+        : (selectedCategoryId.value || undefined)
+
       const resp = await catalogApi.getProducts({
         page: meta.value.current_page,
         perPage: meta.value.per_page,
         sort: sort.value.field,
         order: sort.value.order,
         search: search.value || undefined,
-        category: selectedCategoryId.value || undefined,
+        category: categoryPayload,
         hierarchyType: hierarchyType.value,
         lang: locale.value,
         filters: filtersPayload,
@@ -305,6 +314,7 @@ export const useCatalogStore = defineStore('catalog', () => {
     wishlistCount,
     isEmpty,
     isInWishlist,
+    searchActive,
     fetchProducts,
     fetchProduct,
     fetchCategories,
