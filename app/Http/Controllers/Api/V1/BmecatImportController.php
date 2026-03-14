@@ -36,7 +36,9 @@ class BmecatImportController extends Controller
 
         // XML aus Datei-Upload oder Request-Body
         if ($request->hasFile('file')) {
-            $request->validate(['file' => 'required|file|mimetypes:application/xml,text/xml,text/plain']);
+            $request->validate([
+                'file' => 'required|file|max:204800|mimetypes:application/xml,text/xml,text/plain',
+            ]);
             $xml = file_get_contents($request->file('file')->getRealPath());
         } else {
             $xml = $request->getContent();
@@ -74,6 +76,7 @@ class BmecatImportController extends Controller
     {
         set_time_limit(0);
         ini_set('max_execution_time', '0');
+        ini_set('memory_limit', '512M');
 
         try {
             $result = $this->importer->importFromString($xml, $productType);
@@ -105,9 +108,10 @@ class BmecatImportController extends Controller
     private function importStreamed(string $xml, ?string $productType): StreamedResponse
     {
         return new StreamedResponse(function () use ($xml, $productType) {
-            // Timeouts für lang laufende Imports aufheben
+            // Timeouts und Memory für lang laufende Imports aufheben
             set_time_limit(0);
             ini_set('max_execution_time', '0');
+            ini_set('memory_limit', '512M');
             if (function_exists('fastcgi_finish_request')) {
                 // FPM: Verbindung offen halten
                 ignore_user_abort(true);
@@ -243,7 +247,9 @@ class BmecatImportController extends Controller
     public function validate(Request $request): JsonResponse
     {
         if ($request->hasFile('file')) {
-            $request->validate(['file' => 'required|file|mimetypes:application/xml,text/xml,text/plain']);
+            $request->validate([
+                'file' => 'required|file|max:204800|mimetypes:application/xml,text/xml,text/plain',
+            ]);
             $xml = file_get_contents($request->file('file')->getRealPath());
         } else {
             $xml = $request->getContent();
