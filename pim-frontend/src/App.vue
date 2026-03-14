@@ -2,12 +2,14 @@
 import { onMounted, onUnmounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useLicenseStore } from '@/stores/license'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import PimCommandPalette from '@/components/shared/PimCommandPalette.vue'
 
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
+const licenseStore = useLicenseStore()
 
 const isCatalogRoute = computed(() => route.matched.some((r) => r.meta.public))
 
@@ -45,6 +47,7 @@ function handleKeydown(e) {
 onMounted(() => {
   document.addEventListener('keydown', handleKeydown)
   authStore.checkAuth()
+  licenseStore.fetchLicense()
 })
 
 onUnmounted(() => {

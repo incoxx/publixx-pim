@@ -3,7 +3,8 @@ import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useLocaleStore } from '@/stores/locale'
 import { useAuthStore } from '@/stores/auth'
-import { Globe, Palette, AlertTriangle, Server, RotateCcw, CheckCircle, XCircle, Loader2, GitBranch, Database, Upload, Trash2, Save, Filter, LayoutGrid, Columns3, Image, Settings2, Paintbrush, BookOpen, GripVertical, Plus, X } from 'lucide-vue-next'
+import { Globe, Palette, AlertTriangle, Server, RotateCcw, CheckCircle, XCircle, Loader2, GitBranch, Database, Upload, Trash2, Save, Filter, LayoutGrid, Columns3, Image, Settings2, Paintbrush, BookOpen, GripVertical, Plus, X, Shield, Key } from 'lucide-vue-next'
+import { useLicenseStore } from '@/stores/license'
 import adminApi from '@/api/admin'
 import catalogApi from '@/api/catalog'
 import mediaApi from '@/api/media'
@@ -19,6 +20,40 @@ const localeStore = useLocaleStore()
 const authStore = useAuthStore()
 
 const isAdmin = authStore.hasPermission('*') || authStore.userRole === 'Admin'
+const licenseStore = useLicenseStore()
+
+// ── License State ──
+const licenseKeyInput = ref('')
+const licenseActivating = ref(false)
+const licenseError = ref(null)
+const licenseSuccess = ref(false)
+
+async function activateLicense() {
+  licenseActivating.value = true
+  licenseError.value = null
+  licenseSuccess.value = false
+  try {
+    await licenseStore.activateLicense(licenseKeyInput.value)
+    licenseSuccess.value = true
+    licenseKeyInput.value = ''
+    setTimeout(() => { licenseSuccess.value = false }, 3000)
+  } catch (e) {
+    licenseError.value = e.response?.data?.detail || 'Ungültiger Lizenzschlüssel'
+  } finally {
+    licenseActivating.value = false
+  }
+}
+
+async function clearLicense() {
+  licenseActivating.value = true
+  try {
+    await licenseStore.activateLicense('')
+    licenseSuccess.value = true
+    setTimeout(() => { licenseSuccess.value = false }, 3000)
+  } finally {
+    licenseActivating.value = false
+  }
+}
 
 // ── Catalog Theme State ──
 const FONT_OPTIONS = [
@@ -1430,6 +1465,97 @@ onMounted(() => {
             <template v-else>Rollback</template>
           </button>
         </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- Lizenz                                                              -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <div v-if="isAdmin" class="pim-card p-6 space-y-4">
+      <div class="flex items-center gap-3 mb-2">
+        <Key class="w-5 h-5 text-[var(--color-accent)]" :stroke-width="1.75" />
+        <h3 class="text-sm font-semibold">Lizenz</h3>
+        <span
+          class="pim-badge text-[10px]"
+          :class="licenseStore.isEnterprise ? 'bg-[var(--color-success)]/10 text-[var(--color-success)]' : 'bg-[var(--color-bg)] text-[var(--color-text-tertiary)]'"
+        >
+          {{ licenseStore.isEnterprise ? 'Enterprise' : 'Community' }}
+        </span>
+      </div>
+
+      <!-- License info -->
+      <div v-if="licenseStore.isEnterprise" class="space-y-3">
+        <div class="grid grid-cols-2 gap-3 text-xs">
+          <div>
+            <span class="text-[var(--color-text-tertiary)]">Kunde</span>
+            <p class="font-medium text-[var(--color-text-primary)]">{{ licenseStore.customer }}</p>
+          </div>
+          <div>
+            <span class="text-[var(--color-text-tertiary)]">Ablaufdatum</span>
+            <p class="font-medium" :class="licenseStore.daysRemaining !== null && licenseStore.daysRemaining < 30 ? 'text-[var(--color-warning)]' : 'text-[var(--color-text-primary)]'">
+              {{ licenseStore.expiresAt ? new Date(licenseStore.expiresAt).toLocaleDateString('de-DE') : 'Unbegrenzt' }}
+              <span v-if="licenseStore.daysRemaining !== null" class="text-[var(--color-text-tertiary)]">({{ licenseStore.daysRemaining }} Tage)</span>
+            </p>
+          </div>
+          <div>
+            <span class="text-[var(--color-text-tertiary)]">Benutzer</span>
+            <p class="font-medium text-[var(--color-text-primary)]">
+              {{ licenseStore.currentUsers }} / {{ licenseStore.maxUsers || '∞' }}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Module overview -->
+      <div class="space-y-2">
+        <p class="text-xs font-medium text-[var(--color-text-secondary)]">Module</p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div
+            v-for="(mod, key) in licenseStore.modules"
+            :key="key"
+            class="flex items-center gap-2 px-3 py-2 rounded-lg border text-xs"
+            :class="mod.licensed
+              ? 'border-[var(--color-success)]/30 bg-[var(--color-success)]/5'
+              : 'border-[var(--color-border)] bg-[var(--color-bg)]'"
+          >
+            <Shield class="w-3.5 h-3.5 shrink-0" :class="mod.licensed ? 'text-[var(--color-success)]' : 'text-[var(--color-text-tertiary)]'" :stroke-width="2" />
+            <div class="min-w-0">
+              <p class="font-medium truncate" :class="mod.licensed ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-tertiary)]'">{{ mod.name }}</p>
+              <p class="text-[10px] text-[var(--color-text-tertiary)] truncate">{{ mod.description }}</p>
+            </div>
+            <span v-if="mod.licensed" class="ml-auto text-[10px] text-[var(--color-success)] font-medium shrink-0">Aktiv</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- License key input -->
+      <div class="pt-3 border-t border-[var(--color-border)] space-y-2">
+        <label class="block text-[12px] font-medium text-[var(--color-text-secondary)]">Lizenzschlüssel</label>
+        <div class="flex gap-2">
+          <input
+            v-model="licenseKeyInput"
+            type="text"
+            class="pim-input flex-1 text-xs font-mono"
+            placeholder="ANYPIM-..."
+          />
+          <button
+            class="pim-btn pim-btn-primary text-xs"
+            :disabled="!licenseKeyInput.trim() || licenseActivating"
+            @click="activateLicense"
+          >
+            {{ licenseActivating ? 'Prüfe...' : 'Aktivieren' }}
+          </button>
+          <button
+            v-if="licenseStore.isEnterprise"
+            class="pim-btn pim-btn-secondary text-xs"
+            :disabled="licenseActivating"
+            @click="clearLicense"
+          >
+            Entfernen
+          </button>
+        </div>
+        <p v-if="licenseError" class="text-xs text-[var(--color-error)]">{{ licenseError }}</p>
+        <p v-if="licenseSuccess" class="text-xs text-[var(--color-success)]">Lizenz erfolgreich aktualisiert.</p>
       </div>
     </div>
   </div>
