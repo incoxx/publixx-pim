@@ -648,17 +648,25 @@ class BmecatFormatImporter
 
                 if ($features !== null) {
                     foreach ($features as $feature) {
+                        // FNAME kann mehrsprachig sein: xml:lang="deu" / xml:lang="eng"
+                        $fnameI18n = $this->textsMultilang($feature, 'FNAME', $ns);
                         $fname = $this->text($feature, 'FNAME', $ns);
                         if (empty($fname)) {
                             continue;
                         }
+
+                        // Englischen FNAME extrahieren (falls vorhanden)
+                        $fnameEn = $fnameI18n['en'] ?? null;
+                        // Falls der erste FNAME deutsch ist, fname_de verwenden; sonst fname als fallback
+                        $fnameDe = $fnameI18n['de'] ?? $fname;
 
                         // Mehrere FVALUE-Elemente sammeln (mit optionalem xml:lang)
                         $values = $this->texts($feature, 'FVALUE', $ns);
                         $valuesI18n = $this->textsMultilang($feature, 'FVALUE', $ns);
 
                         $product['features'][] = [
-                            'fname' => $fname,
+                            'fname' => $fnameDe,
+                            'fname_en' => $fnameEn,
                             'values' => $values,
                             'values_i18n' => $valuesI18n,
                             'funit' => $this->text($feature, 'FUNIT', $ns),
@@ -909,7 +917,7 @@ class BmecatFormatImporter
                     $attributeMap[$techName] = [
                         'technical_name' => $techName,
                         'name_de' => $feature['fname'],
-                        'name_en' => null,
+                        'name_en' => $feature['fname_en'] ?? null,
                         'description' => $feature['fdescr'],
                         'data_type' => $dataType,
                         'attribute_group' => null,
@@ -927,9 +935,15 @@ class BmecatFormatImporter
                         'source_system' => 'bmecat',
                         'views' => null,
                     ];
-                } elseif ($hasMultipleLangs && !$attributeMap[$techName]['is_translatable']) {
+                } else {
                     // Wenn ein späteres Produkt Mehrsprachigkeit zeigt, Attribut upgraden
-                    $attributeMap[$techName]['is_translatable'] = true;
+                    if ($hasMultipleLangs && !$attributeMap[$techName]['is_translatable']) {
+                        $attributeMap[$techName]['is_translatable'] = true;
+                    }
+                    // name_en nachtragen falls bisher nicht gesetzt
+                    if (!empty($feature['fname_en']) && empty($attributeMap[$techName]['name_en'])) {
+                        $attributeMap[$techName]['name_en'] = $feature['fname_en'];
+                    }
                 }
 
                 // Produktwerte: mehrsprachig oder einsprachig
@@ -958,12 +972,13 @@ class BmecatFormatImporter
                 }
             }
 
-            // Mehrsprachige Beschreibungen als translatable Attribute importieren
+            // Beschreibungen immer als eigenständige Attribute importieren
             $descShortI18n = $product['details']['description_short_i18n'] ?? [];
             $descLongI18n = $product['details']['description_long_i18n'] ?? [];
 
-            if ($this->hasExplicitLanguage($descShortI18n)) {
+            if (!empty($descShortI18n)) {
                 $techName = 'description_short';
+                $hasMultiLang = $this->hasExplicitLanguage($descShortI18n);
                 if (!isset($attributeMap[$techName])) {
                     $attributeMap[$techName] = [
                         'technical_name' => $techName,
@@ -977,7 +992,7 @@ class BmecatFormatImporter
                         'default_unit' => null,
                         'is_multipliable' => false,
                         'max_multiplied' => null,
-                        'is_translatable' => true,
+                        'is_translatable' => $hasMultiLang,
                         'is_mandatory' => false,
                         'is_unique' => false,
                         'is_searchable' => true,
@@ -986,21 +1001,35 @@ class BmecatFormatImporter
                         'source_system' => 'bmecat',
                         'views' => null,
                     ];
+                } elseif ($hasMultiLang && !$attributeMap[$techName]['is_translatable']) {
+                    $attributeMap[$techName]['is_translatable'] = true;
                 }
-                foreach ($descShortI18n as $lang => $value) {
+                if ($hasMultiLang) {
+                    foreach ($descShortI18n as $lang => $value) {
+                        $productValues[] = [
+                            'sku' => $sku,
+                            'attribute' => $techName,
+                            'value' => $value,
+                            'unit' => null,
+                            'language' => $lang,
+                            'index' => 0,
+                        ];
+                    }
+                } else {
                     $productValues[] = [
                         'sku' => $sku,
                         'attribute' => $techName,
-                        'value' => $value,
+                        'value' => reset($descShortI18n),
                         'unit' => null,
-                        'language' => $lang,
+                        'language' => null,
                         'index' => 0,
                     ];
                 }
             }
 
-            if ($this->hasExplicitLanguage($descLongI18n)) {
+            if (!empty($descLongI18n)) {
                 $techName = 'description_long';
+                $hasMultiLang = $this->hasExplicitLanguage($descLongI18n);
                 if (!isset($attributeMap[$techName])) {
                     $attributeMap[$techName] = [
                         'technical_name' => $techName,
@@ -1014,7 +1043,7 @@ class BmecatFormatImporter
                         'default_unit' => null,
                         'is_multipliable' => false,
                         'max_multiplied' => null,
-                        'is_translatable' => true,
+                        'is_translatable' => $hasMultiLang,
                         'is_mandatory' => false,
                         'is_unique' => false,
                         'is_searchable' => true,
@@ -1023,14 +1052,27 @@ class BmecatFormatImporter
                         'source_system' => 'bmecat',
                         'views' => null,
                     ];
+                } elseif ($hasMultiLang && !$attributeMap[$techName]['is_translatable']) {
+                    $attributeMap[$techName]['is_translatable'] = true;
                 }
-                foreach ($descLongI18n as $lang => $value) {
+                if ($hasMultiLang) {
+                    foreach ($descLongI18n as $lang => $value) {
+                        $productValues[] = [
+                            'sku' => $sku,
+                            'attribute' => $techName,
+                            'value' => $value,
+                            'unit' => null,
+                            'language' => $lang,
+                            'index' => 0,
+                        ];
+                    }
+                } else {
                     $productValues[] = [
                         'sku' => $sku,
                         'attribute' => $techName,
-                        'value' => $value,
+                        'value' => reset($descLongI18n),
                         'unit' => null,
-                        'language' => $lang,
+                        'language' => null,
                         'index' => 0,
                     ];
                 }
@@ -1463,7 +1505,11 @@ class BmecatFormatImporter
 
         foreach ($products as $product) {
             $productGroupIds = array_keys($skuToGroupIds[$product['sku']] ?? []);
+            if (empty($productGroupIds)) {
+                continue;
+            }
 
+            // Feature-Attribute sammeln
             foreach ($product['features'] as $feature) {
                 $techName = $this->sanitizeTechnicalName($feature['fname']);
                 if (empty($techName)) {
@@ -1471,10 +1517,33 @@ class BmecatFormatImporter
                 }
 
                 foreach ($productGroupIds as $groupId) {
-                    if (!isset($nodeAttributes[$groupId])) {
-                        $nodeAttributes[$groupId] = [];
-                    }
                     $nodeAttributes[$groupId][$techName] = true;
+                }
+            }
+
+            // UDX-Attribute sammeln (gleiche Hierarchie-Zuordnung wie Features)
+            foreach ($product['udx_fields'] as $udxField) {
+                $techName = $this->sanitizeTechnicalName($udxField['key']);
+                if (empty($techName)) {
+                    continue;
+                }
+
+                foreach ($productGroupIds as $groupId) {
+                    $nodeAttributes[$groupId][$techName] = true;
+                }
+            }
+
+            // Beschreibungs-Attribute sammeln (description_short, description_long)
+            $descShortI18n = $product['details']['description_short_i18n'] ?? [];
+            $descLongI18n = $product['details']['description_long_i18n'] ?? [];
+            if (!empty($descShortI18n)) {
+                foreach ($productGroupIds as $groupId) {
+                    $nodeAttributes[$groupId]['description_short'] = true;
+                }
+            }
+            if (!empty($descLongI18n)) {
+                foreach ($productGroupIds as $groupId) {
+                    $nodeAttributes[$groupId]['description_long'] = true;
                 }
             }
         }
