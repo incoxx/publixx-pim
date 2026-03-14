@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use App\Http\Controllers\Api\V1\AssetCatalogController;
 use App\Http\Controllers\Api\V1\CalendarController;
+use App\Http\Controllers\Api\V1\DashboardController;
+use App\Http\Controllers\Api\V1\WorkflowTaskController;
 use App\Http\Controllers\Api\V1\CatalogController;
 use App\Http\Controllers\Api\V1\AttributeController;
 use App\Http\Controllers\Api\V1\AttributeTypeController;
@@ -630,4 +632,14 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::apiResource('scheduled-actions', ScheduledActionController::class);
     Route::get('products/{product}/scheduled-actions', [ScheduledActionController::class, 'forProduct']);
     Route::get('calendar', [CalendarController::class, 'index']);
+
+    // =====================================================================
+    // Workflow Tasks
+    // =====================================================================
+    Route::apiResource('workflow-tasks', WorkflowTaskController::class);
+
+    // =====================================================================
+    // Dashboard
+    // =====================================================================
+    Route::get('dashboard', [DashboardController::class, 'index']);
 });
