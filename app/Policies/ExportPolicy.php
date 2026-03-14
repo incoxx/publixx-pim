@@ -44,14 +44,4 @@ class ExportPolicy
             'publixx-mappings.delete',
         ]);
     }
-
-    public function managePxfTemplates(User $user): bool
-    {
-        return $user->hasAnyPermission([
-            'pxf-templates.view',
-            'pxf-templates.create',
-            'pxf-templates.edit',
-            'pxf-templates.delete',
-        ]);
-    }
 }

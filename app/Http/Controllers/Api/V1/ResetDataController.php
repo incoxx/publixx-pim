@@ -40,7 +40,6 @@ class ResetDataController extends Controller
                 $tables = [
                     // Tier 6 — deepest dependents
                     'import_job_errors',
-                    'pxf_templates',
 
                     // Tier 5
                     'product_relation_attribute_values',

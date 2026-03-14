@@ -39,7 +39,6 @@ return new class extends Migration
             'imports.view', 'imports.create', 'imports.execute', 'imports.delete',
             'export.view', 'export.execute', 'export.mappings.edit',
             'publixx-mappings.view', 'publixx-mappings.create', 'publixx-mappings.edit', 'publixx-mappings.delete',
-            'pxf-templates.view', 'pxf-templates.create', 'pxf-templates.edit', 'pxf-templates.delete',
             'users.view', 'users.create', 'users.edit', 'users.delete',
             'roles.view', 'roles.create', 'roles.edit', 'roles.delete',
         ];
@@ -119,7 +118,6 @@ return new class extends Migration
             $exportManager->syncPermissions([
                 'export.view', 'export.execute', 'export.mappings.edit',
                 'publixx-mappings.view', 'publixx-mappings.create', 'publixx-mappings.edit', 'publixx-mappings.delete',
-                'pxf-templates.view', 'pxf-templates.create', 'pxf-templates.edit', 'pxf-templates.delete',
                 'products.view',
                 'product-types.view',
                 'attributes.view',

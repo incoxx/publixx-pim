@@ -39,7 +39,6 @@ const entityLabels = {
   'imports': 'Import',
   'export': 'Export',
   'publixx-mappings': 'Publixx-Mappings',
-  'pxf-templates': 'PXF-Vorlagen',
   'users': 'Benutzer',
   'roles': 'Rollen',
   'access-links': 'Zugangslinks',

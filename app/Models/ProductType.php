@@ -60,16 +60,10 @@ class ProductType extends Model
         return $this->hasMany(Product::class);
     }
 
-    public function pxfTemplates(): HasMany
-    {
-        return $this->hasMany(PxfTemplate::class);
-    }
-
     public function deletionConstraints(): array
     {
         return [
             'products'     => 'Produkte',
-            'pxfTemplates' => 'PXF-Templates',
         ];
     }
 }

@@ -46,7 +46,6 @@ return new class extends Migration
             'prices.view', 'prices.create', 'prices.edit', 'prices.delete',
             'export.view', 'export.execute', 'export.mappings.edit',
             'publixx-mappings.view', 'publixx-mappings.create', 'publixx-mappings.edit', 'publixx-mappings.delete',
-            'pxf-templates.view', 'pxf-templates.create', 'pxf-templates.edit', 'pxf-templates.delete',
             'users.view', 'users.create', 'users.edit', 'users.delete',
             'roles.edit',
         ];
@@ -85,7 +84,6 @@ return new class extends Migration
             'Export Manager' => [
                 'export.view', 'export.execute', 'export.mappings.edit',
                 'publixx-mappings.view', 'publixx-mappings.create', 'publixx-mappings.edit', 'publixx-mappings.delete',
-                'pxf-templates.view', 'pxf-templates.create', 'pxf-templates.edit', 'pxf-templates.delete',
                 'products.view', 'attributes.view', 'hierarchies.view', 'prices.view',
             ],
         ];
