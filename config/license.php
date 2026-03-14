@@ -16,6 +16,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | License Key (Environment Fallback)
+    |--------------------------------------------------------------------------
+    |
+    | Optional fallback license key read from .env.
+    | Used when no key is stored in the database (e.g. after migrate:fresh).
+    | The database-stored key always takes precedence.
+    |
+    */
+
+    'key' => env('ANYPIM_LICENSE_KEY', ''),
+
+    /*
+    |--------------------------------------------------------------------------
     | Enterprise Modules
     |--------------------------------------------------------------------------
     |
