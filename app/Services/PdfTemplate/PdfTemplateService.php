@@ -15,6 +15,7 @@ class PdfTemplateService
     public function __construct(
         private readonly PdfTemplateRenderer $renderer,
         private readonly DocxPdfTemplateWriter $docxWriter,
+        private readonly InDesignJsxWriter $inDesignWriter,
     ) {}
 
     /**
@@ -202,6 +203,38 @@ class PdfTemplateService
             'path' => $zipPath,
             'content_type' => 'application/zip',
             'filename' => $template->name . '.zip',
+            'temp_dir' => $tempDir,
+        ];
+    }
+
+    /**
+     * Generate an InDesign JSX export ZIP for multiple products.
+     */
+    public function generateInDesignForProducts(PdfTemplate $template, Collection $products, string $language = 'de'): array
+    {
+        $relations = $this->determineRelations($template->template_json);
+        $products->loadMissing($relations);
+
+        $allElements = [];
+        foreach ($products as $product) {
+            $allElements[] = $this->renderer->resolveElements($template->template_json, $product, $language);
+        }
+
+        $tempDir = storage_path('app/temp/pdf-template-zip-' . uniqid());
+        if (!is_dir($tempDir)) {
+            mkdir($tempDir, 0755, true);
+        }
+
+        $zipPath = $tempDir . '/indesign-export.zip';
+
+        $this->inDesignWriter->writeCombined($allElements, $template->template_json, [
+            'page_orientation' => $template->page_orientation ?? 'portrait',
+        ], $zipPath);
+
+        return [
+            'path' => $zipPath,
+            'content_type' => 'application/zip',
+            'filename' => $template->name . '_indesign.zip',
             'temp_dir' => $tempDir,
         ];
     }
