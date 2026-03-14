@@ -95,6 +95,34 @@ const variantTableData = computed(() => {
   return { headers, rows }
 })
 
+const relationTableData = computed(() => {
+  const el = props.element
+  if (el.type !== 'relation_table') return null
+
+  // Preview mode: real data
+  if (store.previewMode && store.resolvedElements.length > 0) {
+    const resolved = store.getResolvedElement(el.id)
+    if (resolved?.variantTableData) return resolved.variantTableData
+  }
+
+  // Design mode: placeholder
+  const columns = el.columns || ['sku', 'name']
+  const headers = []
+  if (columns.includes('sku')) headers.push('SKU')
+  if (columns.includes('name')) headers.push('Name')
+  if (columns.includes('ean')) headers.push('EAN')
+  if (columns.includes('relation_attributes')) {
+    headers.push('Attr 1', 'Attr 2')
+  }
+
+  const rows = [
+    headers.map((_, i) => i === 0 ? 'REL-001' : 'Beispiel'),
+    headers.map((_, i) => i === 0 ? 'REL-002' : 'Beispiel'),
+  ]
+
+  return { headers, rows }
+})
+
 const previewImageUrl = computed(() => {
   if (!store.previewMode || !store.resolvedElements.length) return null
   const el = props.element
@@ -249,6 +277,49 @@ function onResizeStart(e, handle) {
           </tbody>
         </table>
       </template>
+      <template v-else-if="element.type === 'relation_table' && relationTableData">
+        <table
+          :style="{
+            width: '100%',
+            borderCollapse: 'collapse',
+            fontSize: ((element.tableStyle?.fontSize || 8) * (25.4 / 72) * scale) + 'px',
+            tableLayout: 'auto',
+          }"
+        >
+          <thead>
+            <tr :style="{ background: element.tableStyle?.headerBg || '#f3f4f6', color: element.tableStyle?.headerColor || '#374151' }">
+              <th
+                v-for="(h, hi) in relationTableData.headers"
+                :key="hi"
+                :style="{
+                  border: '1px solid ' + (element.tableStyle?.borderColor || '#e5e7eb'),
+                  padding: (1 * scale) + 'px ' + (2 * scale) + 'px',
+                  textAlign: 'left',
+                  fontWeight: 'bold',
+                  fontSize: ((element.tableStyle?.headerFontSize || 8) * (25.4 / 72) * scale) + 'px',
+                  whiteSpace: 'nowrap',
+                }"
+              >{{ h }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="(row, ri) in relationTableData.rows"
+              :key="ri"
+              :style="{ background: ri % 2 === 1 ? (element.tableStyle?.alternateRowBg || '#f9fafb') : 'transparent' }"
+            >
+              <td
+                v-for="(cell, ci) in row"
+                :key="ci"
+                :style="{
+                  border: '1px solid ' + (element.tableStyle?.borderColor || '#e5e7eb'),
+                  padding: (1 * scale) + 'px ' + (2 * scale) + 'px',
+                }"
+              >{{ cell }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </template>
       <template v-else-if="element.type === 'shape'">
         <!-- Shape: purely visual box, content comes from background/border -->
       </template>
@@ -262,7 +333,7 @@ function onResizeStart(e, handle) {
       v-if="selected && !store.previewMode"
       class="absolute -top-4 left-0 text-[8px] font-medium px-1 py-0.5 rounded bg-[var(--color-accent)] text-white whitespace-nowrap"
     >
-      {{ { text: 'Text', field: 'Feld', attribute: 'Attribut', image: 'Bild', shape: 'Form', variant_table: 'Varianten' }[element.type] || element.type }}
+      {{ { text: 'Text', field: 'Feld', attribute: 'Attribut', image: 'Bild', shape: 'Form', variant_table: 'Varianten', relation_table: 'Beziehungen' }[element.type] || element.type }}
     </div>
 
     <!-- Resize handles (only when selected and not in preview mode) -->

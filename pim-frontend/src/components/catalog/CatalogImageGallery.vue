@@ -10,7 +10,10 @@ const props = defineProps({
 const selectedIndex = ref(0)
 
 function isPdf(m) {
-  return m.media_type === 'document' && (m.mime_type || '').includes('pdf')
+  const mt = (m.media_type || '').toLowerCase()
+  if (mt === 'pdf') return true
+  if ((m.mime_type || '').includes('pdf')) return true
+  return false
 }
 
 const galleryItems = computed(() =>
@@ -73,22 +76,30 @@ function next() {
       </template>
     </div>
 
+    <!-- Description of current item -->
+    <p v-if="current?.description" class="text-xs text-base-content/60 text-center mb-2 px-2">{{ current.description }}</p>
+
     <!-- Thumbnails -->
     <div v-if="galleryItems.length > 1" class="flex gap-2 overflow-x-auto pb-1">
-      <button
+      <div
         v-for="(item, idx) in galleryItems"
         :key="item.url"
-        class="flex-none w-16 h-16 rounded-lg overflow-hidden border-2 transition-all duration-200"
-        :class="idx === selectedIndex ? 'border-primary shadow-sm' : 'border-transparent opacity-60 hover:opacity-100'"
-        @click="selectedIndex = idx"
+        class="flex-none text-center"
       >
-        <!-- PDF thumbnail -->
-        <div v-if="isPdf(item)" class="flex items-center justify-center w-full h-full bg-base-200">
-          <FileText class="w-6 h-6 text-error/60" />
-        </div>
-        <!-- Image thumbnail -->
-        <img v-else :src="item.url" :alt="item.alt || ''" class="object-contain w-full h-full p-1" />
-      </button>
+        <button
+          class="w-16 h-16 rounded-lg overflow-hidden border-2 transition-all duration-200"
+          :class="idx === selectedIndex ? 'border-primary shadow-sm' : 'border-transparent opacity-60 hover:opacity-100'"
+          @click="selectedIndex = idx"
+        >
+          <!-- PDF thumbnail -->
+          <div v-if="isPdf(item)" class="flex items-center justify-center w-full h-full bg-base-200">
+            <FileText class="w-6 h-6 text-error/60" />
+          </div>
+          <!-- Image thumbnail -->
+          <img v-else :src="item.url" :alt="item.alt || ''" class="object-contain w-full h-full p-1" />
+        </button>
+        <p v-if="item.description" class="text-[10px] text-base-content/50 mt-0.5 w-16 truncate" :title="item.description">{{ item.description }}</p>
+      </div>
     </div>
   </div>
 </template>

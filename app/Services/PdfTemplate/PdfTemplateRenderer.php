@@ -6,6 +6,7 @@ namespace App\Services\PdfTemplate;
 
 use App\Models\Attribute;
 use App\Models\Product;
+use App\Models\ProductRelationType;
 use App\Services\Report\ElementRenderer;
 
 class PdfTemplateRenderer
@@ -41,6 +42,7 @@ class PdfTemplateRenderer
             'image' => $this->resolveImageElement($element, $product),
             'text' => $this->resolveTextElement($element, $product, $language),
             'variant_table' => $this->resolveVariantTableElement($element, $product, $language),
+            'relation_table' => $this->resolveRelationTableElement($element, $product, $language),
             'shape' => $element,
             default => $element,
         };
@@ -188,6 +190,106 @@ class PdfTemplateRenderer
                             $parts[] = $resolved['unit'];
                         }
                         $row[] = implode(' ', $parts);
+                    }
+                }
+            }
+
+            $rows[] = $row;
+        }
+
+        return array_merge($element, ['variantTableData' => ['headers' => $headers, 'rows' => $rows]]);
+    }
+
+    private function resolveRelationTableElement(array $element, Product $product, string $language): array
+    {
+        $relationTypeId = $element['relationTypeId'] ?? null;
+        $columns = $element['columns'] ?? ['sku', 'name'];
+
+        $relations = $product->outgoingRelations ?? collect();
+        if ($relationTypeId) {
+            $relations = $relations->where('relation_type_id', $relationTypeId);
+        }
+
+        if ($relations->isEmpty()) {
+            return array_merge($element, ['variantTableData' => ['headers' => [], 'rows' => []]]);
+        }
+
+        // Determine which relation attributes to show
+        $relationAttributes = collect();
+        if (in_array('relation_attributes', $columns) && $relationTypeId) {
+            $relationAttributes = ProductRelationType::find($relationTypeId)
+                ?->defaultAttributes()
+                ->where('is_internal', false)
+                ->orderBy('position')
+                ->get() ?? collect();
+        }
+
+        // Build headers
+        $headers = [];
+        foreach ($columns as $col) {
+            if ($col === 'sku') {
+                $headers[] = 'SKU';
+            } elseif ($col === 'name') {
+                $headers[] = 'Name';
+            } elseif ($col === 'ean') {
+                $headers[] = 'EAN';
+            } elseif ($col === 'relation_attributes') {
+                foreach ($relationAttributes as $attr) {
+                    $headers[] = $attr->{"name_{$language}"} ?? $attr->name_de ?? $attr->technical_name;
+                }
+            }
+        }
+
+        // Build rows
+        $rows = [];
+        foreach ($relations->sortBy('sort_order') as $relation) {
+            $target = $relation->targetProduct;
+            if (!$target) {
+                continue;
+            }
+
+            $row = [];
+            foreach ($columns as $col) {
+                if ($col === 'sku') {
+                    $row[] = $target->sku ?? '';
+                } elseif ($col === 'name') {
+                    $row[] = $target->name ?? '';
+                } elseif ($col === 'ean') {
+                    $row[] = $target->ean ?? '';
+                } elseif ($col === 'relation_attributes') {
+                    foreach ($relationAttributes as $attr) {
+                        $attrVal = $relation->attributeValues
+                            ->where('attribute_id', $attr->id)
+                            ->first();
+
+                        if ($attrVal) {
+                            $parts = [];
+                            $displayValue = match ($attr->data_type) {
+                                'String' => $attrVal->value_string,
+                                'Number', 'Float', 'Decimal', 'Integer' => $attrVal->value_number !== null
+                                    ? rtrim(rtrim((string) $attrVal->value_number, '0'), '.')
+                                    : null,
+                                'Flag', 'Boolean' => $attrVal->value_flag !== null
+                                    ? ($attrVal->value_flag ? 'Ja' : 'Nein')
+                                    : null,
+                                'Selection', 'Dictionary', 'ValueList' => $attrVal->valueListEntry
+                                    ? ($language === 'en' && $attrVal->valueListEntry->display_value_en
+                                        ? $attrVal->valueListEntry->display_value_en
+                                        : $attrVal->valueListEntry->display_value_de)
+                                    : null,
+                                default => $attrVal->value_string,
+                            };
+
+                            if ($displayValue !== null && $displayValue !== '') {
+                                $parts[] = $displayValue;
+                            }
+                            if ($attrVal->unit?->abbreviation) {
+                                $parts[] = $attrVal->unit->abbreviation;
+                            }
+                            $row[] = implode(' ', $parts);
+                        } else {
+                            $row[] = '';
+                        }
                     }
                 }
             }

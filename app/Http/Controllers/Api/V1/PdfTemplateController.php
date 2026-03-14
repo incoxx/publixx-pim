@@ -122,6 +122,7 @@ class PdfTemplateController extends Controller
             ['type' => 'image', 'label_de' => 'Produktbild', 'label_en' => 'Product Image', 'category' => 'layout'],
             ['type' => 'shape', 'label_de' => 'Form / Rahmen', 'label_en' => 'Shape / Box', 'category' => 'layout'],
             ['type' => 'variant_table', 'label_de' => 'Variantentabelle', 'label_en' => 'Variant Table', 'category' => 'layout'],
+            ['type' => 'relation_table', 'label_de' => 'Beziehungstabelle', 'label_en' => 'Relations Table', 'category' => 'layout'],
         ];
 
         return response()->json([

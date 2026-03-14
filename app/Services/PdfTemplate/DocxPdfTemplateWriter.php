@@ -93,7 +93,7 @@ class DocxPdfTemplateWriter
         $type = $element['type'] ?? 'text';
         $style = $element['style'] ?? [];
 
-        if ($type === 'variant_table') {
+        if ($type === 'variant_table' || $type === 'relation_table') {
             $this->renderVariantTableElement($section, $element);
             return;
         }

@@ -340,9 +340,11 @@ async function saveDetail() {
       title_de: detailItem.value.title_de,
       title_en: detailItem.value.title_en,
       description_de: detailItem.value.description_de,
+      description_en: detailItem.value.description_en,
       alt_text_de: detailItem.value.alt_text_de,
       usage_purpose: detailItem.value.usage_purpose,
       asset_folder_id: detailItem.value.asset_folder_id,
+      media_type: detailItem.value.media_type,
     })
     await saveAssetAttributeValues()
     closeDetail()
@@ -887,6 +889,16 @@ onMounted(() => {
             <p class="text-xs font-mono text-[var(--color-text-primary)]">{{ detailItem.file_name }}</p>
           </div>
           <div>
+            <label class="text-[10px] font-medium text-[var(--color-text-secondary)] uppercase">Medientyp</label>
+            <select v-model="detailItem.media_type" class="pim-select text-xs w-full">
+              <option value="image">image</option>
+              <option value="document">document</option>
+              <option value="video">video</option>
+              <option value="PDF">PDF</option>
+              <option value="other">other</option>
+            </select>
+          </div>
+          <div>
             <label class="text-[10px] font-medium text-[var(--color-text-secondary)] uppercase">Titel (DE)</label>
             <input v-model="detailItem.title_de" class="pim-input text-xs w-full" />
           </div>
@@ -895,8 +907,12 @@ onMounted(() => {
             <input v-model="detailItem.title_en" class="pim-input text-xs w-full" />
           </div>
           <div>
-            <label class="text-[10px] font-medium text-[var(--color-text-secondary)] uppercase">Beschreibung</label>
+            <label class="text-[10px] font-medium text-[var(--color-text-secondary)] uppercase">Beschreibung (DE)</label>
             <textarea v-model="detailItem.description_de" rows="2" class="pim-input text-xs w-full"></textarea>
+          </div>
+          <div>
+            <label class="text-[10px] font-medium text-[var(--color-text-secondary)] uppercase">Beschreibung (EN)</label>
+            <textarea v-model="detailItem.description_en" rows="2" class="pim-input text-xs w-full"></textarea>
           </div>
           <div>
             <label class="text-[10px] font-medium text-[var(--color-text-secondary)] uppercase">Alt-Text</label>

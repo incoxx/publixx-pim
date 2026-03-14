@@ -256,6 +256,7 @@ class PdfTemplateService
         $hasAttributes = false;
         $hasImages = false;
         $hasVariantTable = false;
+        $hasRelationTable = false;
 
         foreach ($templateJson['elements'] ?? [] as $element) {
             if (($element['type'] ?? '') === 'attribute') {
@@ -266,6 +267,9 @@ class PdfTemplateService
             }
             if (($element['type'] ?? '') === 'variant_table') {
                 $hasVariantTable = true;
+            }
+            if (($element['type'] ?? '') === 'relation_table') {
+                $hasRelationTable = true;
             }
         }
 
@@ -285,6 +289,14 @@ class PdfTemplateService
             $relations[] = 'variants.attributeValues.attribute';
             $relations[] = 'variants.attributeValues.unit';
             $relations[] = 'variants.attributeValues.valueListEntry';
+        }
+
+        if ($hasRelationTable) {
+            $relations[] = 'outgoingRelations.targetProduct';
+            $relations[] = 'outgoingRelations.relationType';
+            $relations[] = 'outgoingRelations.attributeValues.attribute';
+            $relations[] = 'outgoingRelations.attributeValues.unit';
+            $relations[] = 'outgoingRelations.attributeValues.valueListEntry';
         }
 
         return $relations;
