@@ -199,7 +199,7 @@ class PdfTemplateController extends Controller
             'product_ids' => 'required|array|min:1',
             'product_ids.*' => 'string|exists:products,id',
             'mode' => 'sometimes|string|in:combined,zip',
-            'format' => 'sometimes|string|in:pdf,docx',
+            'format' => 'sometimes|string|in:pdf,docx,indesign',
             'language' => 'sometimes|string|max:5',
         ]);
 
@@ -212,9 +212,13 @@ class PdfTemplateController extends Controller
             return response()->json(['error' => 'Keine Produkte gefunden.'], 404);
         }
 
-        $result = $format === 'docx'
-            ? $this->pdfTemplateService->generateDocxForProducts($template, $products, $mode, $language)
-            : $this->pdfTemplateService->generateForProducts($template, $products, $mode, $language);
+        if ($format === 'indesign') {
+            $result = $this->pdfTemplateService->generateInDesignForProducts($template, $products, $language);
+        } elseif ($format === 'docx') {
+            $result = $this->pdfTemplateService->generateDocxForProducts($template, $products, $mode, $language);
+        } else {
+            $result = $this->pdfTemplateService->generateForProducts($template, $products, $mode, $language);
+        }
 
         return response()->streamDownload(function () use ($result) {
             readfile($result['path']);

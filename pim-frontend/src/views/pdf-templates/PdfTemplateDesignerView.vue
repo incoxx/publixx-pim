@@ -3,7 +3,7 @@ import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { usePdfTemplateDesignerStore } from '@/stores/pdfTemplateDesigner'
 import {
-  ArrowLeft, Save, Eye, Pencil, Grid3x3, Magnet, Users, Search, FileDown,
+  ArrowLeft, Save, Eye, Pencil, Grid3x3, Magnet, Users, Search, FileDown, ChevronDown,
 } from 'lucide-vue-next'
 import { fontFamilies } from '@/components/pdf-templates/fontList'
 import pdfTemplatesApi from '@/api/pdfTemplates'
@@ -18,6 +18,8 @@ const store = usePdfTemplateDesignerStore()
 
 const saving = ref(false)
 const previewing = ref(false)
+const exporting = ref(false)
+const showExportMenu = ref(false)
 const error = ref('')
 const loadError = ref(false)
 
@@ -49,7 +51,17 @@ function beforeUnload(e) {
   }
 }
 window.addEventListener('beforeunload', beforeUnload)
-onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload))
+onBeforeUnmount(() => {
+  window.removeEventListener('beforeunload', beforeUnload)
+  document.removeEventListener('click', closeExportMenu)
+})
+
+function closeExportMenu(e) {
+  if (showExportMenu.value && !e.target.closest('.relative')) {
+    showExportMenu.value = false
+  }
+}
+document.addEventListener('click', closeExportMenu)
 
 onBeforeRouteLeave(() => {
   if (store.isDirty && !confirm('Es gibt ungespeicherte Änderungen. Seite wirklich verlassen?')) {
@@ -137,6 +149,41 @@ async function togglePreview() {
     await store.togglePreviewMode()
   } catch (e) {
     error.value = 'Vorschau konnte nicht geladen werden'
+  }
+}
+
+async function exportAs(format) {
+  showExportMenu.value = false
+  if (!store.referenceProductId) {
+    error.value = 'Bitte zuerst ein Referenz-Produkt auswählen.'
+    return
+  }
+  exporting.value = true
+  error.value = ''
+  try {
+    if (store.isDirty) await store.saveTemplate()
+    const response = await pdfTemplatesApi.execute(
+      store.currentTemplate.id,
+      { product_ids: [store.referenceProductId], language: 'de' },
+      format,
+    )
+    const mimeTypes = {
+      pdf: 'application/pdf',
+      docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      indesign: 'application/zip',
+    }
+    const extensions = { pdf: '.pdf', docx: '.docx', indesign: '_indesign.zip' }
+    const blob = new Blob([response.data], { type: mimeTypes[format] || 'application/octet-stream' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = (store.currentTemplate.name || 'export') + (extensions[format] || '')
+    link.click()
+    URL.revokeObjectURL(url)
+  } catch (e) {
+    error.value = 'Export fehlgeschlagen'
+  } finally {
+    exporting.value = false
   }
 }
 </script>
@@ -241,6 +288,36 @@ async function togglePreview() {
         <Eye class="w-3.5 h-3.5" :stroke-width="2" />
         {{ previewing ? 'Laden...' : 'Vorschau' }}
       </button>
+
+      <!-- Export Dropdown -->
+      <div class="relative">
+        <button
+          class="pim-btn pim-btn-secondary text-xs"
+          @click="showExportMenu = !showExportMenu"
+          :disabled="exporting"
+        >
+          <FileDown class="w-3.5 h-3.5" :stroke-width="2" />
+          {{ exporting ? 'Exportiere...' : 'Export' }}
+          <ChevronDown class="w-3 h-3 ml-0.5" :stroke-width="2" />
+        </button>
+        <div
+          v-if="showExportMenu"
+          class="absolute right-0 top-full mt-1 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg shadow-lg z-50 min-w-[160px] py-1"
+        >
+          <button
+            class="w-full text-left px-3 py-1.5 text-[11px] hover:bg-[var(--color-bg)] text-[var(--color-text-primary)]"
+            @click="exportAs('pdf')"
+          >PDF exportieren</button>
+          <button
+            class="w-full text-left px-3 py-1.5 text-[11px] hover:bg-[var(--color-bg)] text-[var(--color-text-primary)]"
+            @click="exportAs('docx')"
+          >Word exportieren</button>
+          <button
+            class="w-full text-left px-3 py-1.5 text-[11px] hover:bg-[var(--color-bg)] text-[var(--color-text-primary)]"
+            @click="exportAs('indesign')"
+          >InDesign exportieren</button>
+        </div>
+      </div>
     </div>
 
     <!-- Toolbar Row 2: Reference Product -->
