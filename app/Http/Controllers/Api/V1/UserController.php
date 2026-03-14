@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Requests\Api\V1\User\StoreUserRequest;
 use App\Http\Requests\Api\V1\User\UpdateUserRequest;
 use App\Http\Resources\Api\V1\UserResource;
+use App\Http\Traits\AuditsChanges;
 use App\Http\Traits\ChecksDeletionConstraints;
 use App\Models\Role;
 use App\Models\User;
@@ -18,6 +19,7 @@ use Symfony\Component\HttpFoundation\Response;
 class UserController extends Controller
 {
     use ChecksDeletionConstraints;
+    use AuditsChanges;
 
     /**
      * GET /api/v1/users
@@ -79,6 +81,14 @@ class UserController extends Controller
 
         $user->load('roles.permissions');
 
+        $this->audit('created', User::class, $user->id, null, [
+            'name' => $user->name,
+            'email' => $user->email,
+            'language' => $user->language,
+            'is_active' => $user->is_active,
+            'roles' => $user->roles->pluck('name')->toArray(),
+        ]);
+
         return response()->json([
             'data' => new UserResource($user),
         ], Response::HTTP_CREATED);
@@ -107,6 +117,14 @@ class UserController extends Controller
 
         $validated = $request->validated();
 
+        $oldValues = [
+            'name' => $user->name,
+            'email' => $user->email,
+            'language' => $user->language,
+            'is_active' => $user->is_active,
+            'roles' => $user->roles->pluck('name')->toArray(),
+        ];
+
         $updateData = collect($validated)
             ->only(['name', 'email', 'language', 'is_active'])
             ->filter(fn ($value) => $value !== null)
@@ -123,6 +141,20 @@ class UserController extends Controller
         }
 
         $user->load('roles.permissions');
+
+        $newValues = [
+            'name' => $user->name,
+            'email' => $user->email,
+            'language' => $user->language,
+            'is_active' => $user->is_active,
+            'roles' => $user->roles->pluck('name')->toArray(),
+        ];
+
+        if (! empty($validated['password'])) {
+            $newValues['password_changed'] = true;
+        }
+
+        $this->audit('updated', User::class, $user->id, $oldValues, $newValues);
 
         return response()->json([
             'data' => new UserResource($user),
@@ -154,6 +186,18 @@ class UserController extends Controller
             ]);
         }
 
-        return $this->destroyWithConstraintCheck($request, $user);
+        $snapshot = [
+            'name' => $user->name,
+            'email' => $user->email,
+            'roles' => $user->roles->pluck('name')->toArray(),
+        ];
+
+        $response = $this->destroyWithConstraintCheck($request, $user);
+
+        if ($response->getStatusCode() === Response::HTTP_NO_CONTENT) {
+            $this->audit('deleted', User::class, $user->id, $snapshot, null);
+        }
+
+        return $response;
     }
 }

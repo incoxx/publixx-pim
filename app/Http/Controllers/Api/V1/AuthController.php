@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Requests\Api\V1\Auth\LoginRequest;
 use App\Http\Resources\Api\V1\UserResource;
+use App\Jobs\WriteAuditLog;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -67,6 +68,17 @@ class AuthController extends Controller
         );
 
         $user->update(['last_login_at' => now()]);
+
+        WriteAuditLog::dispatch(
+            auditableType: User::class,
+            auditableId: $user->id,
+            action: 'logged_in',
+            oldValues: null,
+            newValues: ['method' => 'credentials'],
+            userId: $user->id,
+            ipAddress: $request->ip(),
+            userAgent: $request->userAgent(),
+        )->afterCommit();
 
         return response()->json([
             'data' => [
