@@ -15,7 +15,7 @@ class DeploymentController extends Controller
      * POST /api/v1/admin/deploy
      *
      * Zieht den main Branch von GitHub und führt alle
-     * notwendigen Deployment-Schritte durch — analog zu update.sh.
+     * notwendigen Deployment-Schritte durch — 1:1 analog zu update.sh.
      * Nur für Admins.
      */
     public function deploy(Request $request): JsonResponse
@@ -55,10 +55,10 @@ class DeploymentController extends Controller
             }
         }
 
-        // Schritt 1: Wartungsmodus aktivieren
+        // ── 1. Wartungsmodus aktivieren ──
         $log[] = $this->runStep('maintenance_on', 'php artisan down --retry=60 2>/dev/null || true', $basePath, deployUser: $deployUser);
 
-        // Schritt 2: Backup — aktuellen Commit-Hash merken
+        // ── 2. Git: Stash → Fetch → Pull → Stash Pop ──
         $backupStep = $this->runStep('backup', 'git rev-parse HEAD', $basePath, deployUser: $deployUser);
         $log[] = $backupStep;
         $backupHash = null;
@@ -68,20 +68,34 @@ class DeploymentController extends Controller
             $log[count($log) - 1]['output'] = "Backup-Punkt: {$backupHash}";
         }
 
-        // Schritt 3: Git fetch + pull main
+        // Lokale Änderungen sichern (wie update.sh)
+        $stashResult = $this->runStep(
+            'git_stash',
+            'if ! git diff --quiet HEAD 2>/dev/null || [ -n "$(git ls-files --others --exclude-standard)" ]; then git stash push -m "deploy auto-stash $(date +%Y%m%d-%H%M%S)" && echo "STASHED"; else echo "CLEAN"; fi',
+            $basePath,
+            deployUser: $deployUser,
+        );
+        $log[] = $stashResult;
+        $wasStashed = str_contains($stashResult['output'] ?? '', 'STASHED');
+
         $log[] = $this->runStep('git_fetch', 'git fetch origin main', $basePath, deployUser: $deployUser);
         $log[] = $this->runStep('git_pull', 'git pull origin main', $basePath, timeout: 120, deployUser: $deployUser);
 
-        // Schritt 4: Composer install (ohne Dev)
+        // Lokale Änderungen wiederherstellen
+        if ($wasStashed) {
+            $log[] = $this->runStep('git_stash_pop', 'git stash pop 2>/dev/null || echo "Stash pop fehlgeschlagen — manuell: git stash pop"', $basePath, deployUser: $deployUser);
+        }
+
+        // ── 3. Composer install ──
         $log[] = $this->runStep(
             'composer_install',
-            'composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist',
+            'php -d memory_limit=-1 composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist',
             $basePath,
             timeout: 300,
             deployUser: $deployUser,
         );
 
-        // Schritt 5: Migrationen
+        // ── 4. Migrationen ──
         $log[] = $this->runStep(
             'migrate',
             'php artisan migrate --force',
@@ -90,24 +104,74 @@ class DeploymentController extends Controller
             deployUser: $deployUser,
         );
 
-        // Schritt 6: Frontend bauen (npm ci + build, wie update.sh)
+        // ── 5. Frontend bauen (npm ci + build, wie update.sh) ──
         $frontendPath = $basePath . '/pim-frontend';
-        // npm-Cache in ein Verzeichnis legen, auf das www-data Zugriff hat
         $npmCacheDir = $basePath . '/storage/.npm-cache';
+
         $log[] = $this->runStep('npm_ci', "npm ci --cache {$npmCacheDir}", $frontendPath, timeout: 180, deployUser: $deployUser);
+        $log[] = $this->runStep('npm_audit_fix', 'npm audit fix 2>/dev/null || true', $frontendPath, timeout: 60, deployUser: $deployUser);
 
         // VITE_BASE_PATH aus APP_URL ermitteln (Subdirectory-Support)
         $viteEnv = $this->resolveViteEnv();
         $buildCmd = $viteEnv . 'npm run build';
         $log[] = $this->runStep('npm_build', $buildCmd, $frontendPath, timeout: 180, deployUser: $deployUser);
 
-        // Schritt 6b: Build nach public/ kopieren
-        $copyCmd = 'rm -rf public/pim-assets'
-            . ' && cp -r pim-frontend/dist/pim-assets public/pim-assets'
-            . ' && cp pim-frontend/dist/index.html public/spa.html';
+        // Build nach public/ kopieren (inkl. Favicon und Root-Dateien, wie update.sh)
+        $copyCmd = 'rm -rf ' . $basePath . '/public/pim-assets'
+            . ' && cp ' . $frontendPath . '/dist/index.html ' . $basePath . '/public/spa.html'
+            . ' && if [ -d ' . $frontendPath . '/dist/pim-assets ]; then cp -r ' . $frontendPath . '/dist/pim-assets ' . $basePath . '/public/; fi'
+            . ' && find ' . $frontendPath . '/dist -maxdepth 1 -type f ! -name "index.html" -exec cp {} ' . $basePath . '/public/ \\;';
         $log[] = $this->runStep('copy_frontend', $copyCmd, $basePath, deployUser: $deployUser);
 
-        // Schritt 7: Storage-Link sicherstellen
+        // ── 6. Dokumentation bauen (VitePress, falls vorhanden) ──
+        $docsDir = $basePath . '/static-content';
+        if (is_dir($docsDir) && file_exists($docsDir . '/package.json')) {
+            $log[] = $this->runStep('docs_npm_ci', "npm ci --cache {$npmCacheDir}", $docsDir, timeout: 180, deployUser: $deployUser);
+            $log[] = $this->runStep('docs_build', 'npm run build', $docsDir, timeout: 120, deployUser: $deployUser);
+        }
+
+        // ── 7. TMS (Translation Memory Service, falls aktiviert) ──
+        $tmsDir = $basePath . '/tms';
+        $tmsEnabled = config('services.tms.enabled', env('TMS_ENABLED', false));
+
+        if ($tmsEnabled && is_dir($tmsDir) && file_exists($tmsDir . '/artisan')) {
+            // TMS .env erstellen falls nicht vorhanden
+            if (! file_exists($tmsDir . '/.env') && file_exists($tmsDir . '/.env.example')) {
+                copy($tmsDir . '/.env.example', $tmsDir . '/.env');
+                $log[] = ['step' => 'tms_env', 'success' => true, 'output' => 'TMS .env aus .env.example erstellt', 'exit_code' => 0];
+            }
+
+            $log[] = $this->runStep(
+                'tms_composer',
+                'php -d memory_limit=-1 composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist',
+                $tmsDir,
+                timeout: 300,
+                deployUser: $deployUser,
+            );
+            $log[] = $this->runStep('tms_migrate', 'php artisan migrate --force', $tmsDir, timeout: 120, deployUser: $deployUser);
+            $log[] = $this->runStep('tms_cache', 'php artisan config:cache 2>/dev/null || true; php artisan route:cache 2>/dev/null || true', $tmsDir, deployUser: $deployUser);
+
+            // TMS Storage-Verzeichnisse
+            $log[] = $this->runStep(
+                'tms_storage',
+                'mkdir -p storage/{app,framework/{cache,sessions,views},logs}'
+                . ' && chown -R ' . ($webUser ?: 'www-data') . ':' . ($webUser ?: 'www-data') . ' storage bootstrap'
+                . ' && chmod -R 775 storage',
+                $tmsDir,
+            );
+
+            // TMS Queue Worker neu starten
+            $log[] = $this->runStep(
+                'tms_queue_worker',
+                'pkill -f "tms/artisan queue:work" 2>/dev/null || true'
+                . ' && nohup php artisan queue:work --queue=tms,default --sleep=3 --tries=3 >> storage/logs/queue-worker.log 2>&1 &'
+                . ' && echo "TMS Queue Worker gestartet"',
+                $tmsDir,
+                deployUser: $deployUser,
+            );
+        }
+
+        // ── 8. Storage-Link sicherstellen ──
         $log[] = $this->runStep(
             'storage_link',
             'php artisan storage:link 2>/dev/null || true; mkdir -p storage/app/public/media',
@@ -115,7 +179,7 @@ class DeploymentController extends Controller
             deployUser: $deployUser,
         );
 
-        // Schritt 8: Berechtigungen korrigieren (wie update.sh)
+        // ── 9. Berechtigungen korrigieren (wie update.sh Schritt 9) ──
         $log[] = $this->runStep(
             'fix_permissions',
             $this->buildPermissionFixCommand($basePath, $webUser),
@@ -123,19 +187,38 @@ class DeploymentController extends Controller
             timeout: 120,
         );
 
-        // Schritt 9: Caches neu bauen
+        // ── 10. Caches neu bauen (inkl. event:cache) ──
         $log[] = $this->runStep('config_cache', 'php artisan config:cache', $basePath, deployUser: $deployUser);
         $log[] = $this->runStep('route_cache', 'php artisan route:cache', $basePath, deployUser: $deployUser);
         $log[] = $this->runStep('view_cache', 'php artisan view:cache', $basePath, deployUser: $deployUser);
+        $log[] = $this->runStep('event_cache', 'php artisan event:cache 2>/dev/null || true', $basePath, deployUser: $deployUser);
 
-        // Schritt 10: Horizon restarten
-        $log[] = $this->runStep('horizon_terminate', 'php artisan horizon:terminate', $basePath, deployUser: $deployUser);
+        // ── 11. Horizon / Queue Worker neu starten ──
+        $log[] = $this->runStep('horizon_terminate', 'php artisan horizon:terminate 2>/dev/null || true', $basePath, deployUser: $deployUser);
+        $log[] = $this->runStep(
+            'queue_worker_restart',
+            'pkill -f "' . $basePath . '/artisan queue:work" 2>/dev/null || true'
+            . ' && nohup php artisan queue:work --queue=indexing,default --sleep=3 --tries=3 >> storage/logs/queue-worker.log 2>&1 &'
+            . ' && echo "Queue Worker gestartet"',
+            $basePath,
+            deployUser: $deployUser,
+        );
 
-        // Schritt 11: Apache neu laden
+        // ── 12. Apache neu laden ──
         $log[] = $this->runStep('reload_apache', 'systemctl reload apache2 2>/dev/null || true', $basePath);
 
-        // Schritt 12: Wartungsmodus deaktivieren
+        // ── 13. Wartungsmodus deaktivieren ──
         $log[] = $this->runStep('maintenance_off', 'php artisan up', $basePath, deployUser: $deployUser);
+
+        // ── 14. Healthcheck ──
+        $appUrl = config('app.url', '');
+        if (! empty($appUrl)) {
+            $log[] = $this->runStep(
+                'healthcheck',
+                'sleep 1 && curl -s -o /dev/null -w "%{http_code}" --max-time 10 "' . $appUrl . '/api/v1/health" 2>/dev/null || echo "000"',
+                $basePath,
+            );
+        }
 
         $duration = round(microtime(true) - $startTime, 2);
         $allSuccessful = collect($log)->every(fn (array $step) => $step['success']);
@@ -246,13 +329,12 @@ class DeploymentController extends Controller
         $log[] = $this->runStep('checkout', "git checkout {$hash}", $basePath, deployUser: $deployUser);
         $log[] = $this->runStep(
             'composer_install',
-            'composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist',
+            'php -d memory_limit=-1 composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist',
             $basePath,
             timeout: 300,
             deployUser: $deployUser,
         );
 
-        // Berechtigungen korrigieren
         $log[] = $this->runStep(
             'fix_permissions',
             $this->buildPermissionFixCommand($basePath, $webUser),
@@ -262,7 +344,8 @@ class DeploymentController extends Controller
 
         $log[] = $this->runStep('config_cache', 'php artisan config:cache', $basePath, deployUser: $deployUser);
         $log[] = $this->runStep('route_cache', 'php artisan route:cache', $basePath, deployUser: $deployUser);
-        $log[] = $this->runStep('horizon_terminate', 'php artisan horizon:terminate', $basePath, deployUser: $deployUser);
+        $log[] = $this->runStep('horizon_terminate', 'php artisan horizon:terminate 2>/dev/null || true', $basePath, deployUser: $deployUser);
+        $log[] = $this->runStep('reload_apache', 'systemctl reload apache2 2>/dev/null || true', $basePath);
         $log[] = $this->runStep('maintenance_off', 'php artisan up', $basePath, deployUser: $deployUser);
 
         $allSuccessful = collect($log)->every(fn (array $step) => $step['success']);
@@ -280,9 +363,12 @@ class DeploymentController extends Controller
         ], $allSuccessful ? 200 : 207);
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    //  Hilfsmethoden
+    // ─────────────────────────────────────────────────────────────────────────
+
     /**
      * Ermittelt VITE_BASE_PATH und VITE_API_BASE_URL aus APP_URL.
-     * Gibt einen Shell-Export-Prefix zurück für den npm build Befehl.
      */
     private function resolveViteEnv(): string
     {
@@ -299,12 +385,15 @@ class DeploymentController extends Controller
 
     /**
      * Baut den Berechtigungs-Befehl (wie update.sh Schritt 9).
+     * chown -R auf das gesamte Projektverzeichnis + korrekte Datei-/Ordner-Rechte.
      */
     private function buildPermissionFixCommand(string $basePath, ?string $webUser): string
     {
-        $user = $webUser ?: 'www-data';
+        $u = $webUser ?: 'www-data';
 
-        return "chown -R {$user}:{$user} {$basePath}/storage {$basePath}/bootstrap/cache"
+        return "chown -R {$u}:{$u} {$basePath}"
+            . " && find {$basePath} -type f -exec chmod 644 {} \\;"
+            . " && find {$basePath} -type d -exec chmod 755 {} \\;"
             . " && chmod -R 775 {$basePath}/storage"
             . " && chmod -R 775 {$basePath}/bootstrap/cache";
     }
@@ -409,7 +498,7 @@ class DeploymentController extends Controller
     }
 
     /**
-     * Führt einen Befehl aus und gibt den Output zurück.
+     * Führt einen Befehl aus und gibt den Output zurück (für Status-Abfragen).
      */
     private function runCommand(string $command, string $cwd): string
     {
