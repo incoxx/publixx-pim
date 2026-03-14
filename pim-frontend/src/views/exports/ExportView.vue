@@ -28,6 +28,7 @@ const filters = ref({
   category_ids: [],
   attribute_filters: {},
   include_descendants: true,
+  price_region_id: '',
 })
 const productCount = ref(null)
 const countLoading = ref(false)
@@ -80,6 +81,7 @@ async function countProducts() {
       }
     }
     if (attrFilters.length) params.attribute_filters = attrFilters
+    if (filters.value.price_region_id) params.price_region_id = filters.value.price_region_id
     const { data } = await searchApi.search(params)
     productCount.value = data.meta?.total ?? 0
   } catch (e) {

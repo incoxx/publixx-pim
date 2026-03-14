@@ -188,6 +188,12 @@ const routes = [
     meta: { title: 'Preise' },
   },
   {
+    path: '/price-regions',
+    name: 'price-regions',
+    component: () => import('@/views/priceRegions/PriceRegionView.vue'),
+    meta: { title: 'Preisregionen' },
+  },
+  {
     path: '/translations',
     name: 'translations',
     component: () => import('@/views/translations/TranslationView.vue'),

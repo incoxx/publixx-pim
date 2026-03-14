@@ -42,6 +42,7 @@ class ProductExportController extends Controller
             'manufacturer_ids' => 'nullable|array',
             'manufacturer_ids.*' => 'string|uuid',
             'attribute_filters' => 'nullable|array',
+            'price_region_id' => 'nullable|string|uuid',
             'language' => 'nullable|string|max:5',
         ]);
 
@@ -80,6 +81,9 @@ class ProductExportController extends Controller
             }
             foreach ($validated['attribute_filters'] ?? [] as $idx => $filter) {
                 $this->applyAttributeFilter($query, $filter, $idx, $language);
+            }
+            if (!empty($validated['price_region_id'])) {
+                $this->applyPriceRegionFilter($query, $validated['price_region_id']);
             }
         }
 

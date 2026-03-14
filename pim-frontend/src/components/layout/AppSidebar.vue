@@ -9,7 +9,7 @@ import {
   Upload, Download, Image, Tags, DollarSign, Users, Settings, Shield,
   HelpCircle, PanelLeftClose, PanelLeft, Star, LayoutGrid, Ruler,
   FileJson, FileCode, PlayCircle, FileBarChart, FileText, BookOpen, Link2, Zap, Languages,
-  ChevronDown, ChevronRight, GripVertical, Factory, CalendarDays, ScrollText,
+  ChevronDown, ChevronRight, GripVertical, Factory, CalendarDays, ScrollText, Globe,
 } from 'lucide-vue-next'
 import AnyPimLogo from '@/components/shared/AnyPimLogo.vue'
 
@@ -53,6 +53,7 @@ const sections = computed(() => {
         { icon: BookOpen, label: () => t('nav.dictionary'), to: '/dictionary' },
         { icon: Ruler, label: () => 'Einheiten', to: '/units' },
         { icon: DollarSign, label: () => t('nav.prices'), to: '/prices' },
+        { icon: Globe, label: () => t('nav.priceRegions'), to: '/price-regions' },
         { icon: Languages, label: () => t('nav.translations'), to: '/translations' },
       ],
     },

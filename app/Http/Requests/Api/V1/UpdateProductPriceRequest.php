@@ -21,7 +21,7 @@ class UpdateProductPriceRequest extends FormRequest
             'currency' => 'sometimes|string|size:3',
             'valid_from' => 'sometimes|date',
             'valid_to' => 'nullable|date|after_or_equal:valid_from',
-            'country' => 'nullable|string|size:2',
+            'price_region_id' => 'nullable|uuid|exists:price_regions,id',
             'scale_from' => 'nullable|integer|min:1',
             'scale_to' => 'nullable|integer|min:1',
         ];

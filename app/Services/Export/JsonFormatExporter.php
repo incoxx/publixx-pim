@@ -648,7 +648,7 @@ class JsonFormatExporter
                     'currency' => $p->currency,
                     'valid_from' => $p->valid_from?->format('Y-m-d'),
                     'valid_to' => $p->valid_to?->format('Y-m-d'),
-                    'country' => $p->country,
+                    'price_region' => $p->priceRegion?->code,
                     'scale_from' => $p->scale_from,
                     'scale_to' => $p->scale_to,
                 ], fn ($v) => $v !== null);

@@ -654,7 +654,7 @@ class ImportFormatExporter
     /**
      * 13_Preise: ProductPrice →
      *   product.sku, priceType.technical_name, amount, currency,
-     *   valid_from, valid_to, country, scale_from, scale_to
+     *   valid_from, valid_to, price_region, scale_from, scale_to
      */
     private function exportPreise(Worksheet $sheet): void
     {
@@ -664,6 +664,7 @@ class ImportFormatExporter
             ->with([
                 'product',
                 'priceType',
+                'priceRegion',
             ])
             ->chunk(500, function ($prices) use ($sheet, &$row) {
                 foreach ($prices as $price) {
@@ -677,7 +678,7 @@ class ImportFormatExporter
                     $sheet->setCellValue("D{$row}", $price->currency);
                     $sheet->setCellValue("E{$row}", $price->valid_from?->format('Y-m-d'));
                     $sheet->setCellValue("F{$row}", $price->valid_to?->format('Y-m-d'));
-                    $sheet->setCellValue("G{$row}", $price->country);
+                    $sheet->setCellValue("G{$row}", $price->priceRegion?->code);
                     $sheet->setCellValue("H{$row}", $price->scale_from);
                     $sheet->setCellValue("I{$row}", $price->scale_to);
                     $row++;

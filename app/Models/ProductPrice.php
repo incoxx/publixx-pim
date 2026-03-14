@@ -20,7 +20,7 @@ class ProductPrice extends Model
         'currency',
         'valid_from',
         'valid_to',
-        'country',
+        'price_region_id',
         'scale_from',
         'scale_to',
     ];
@@ -44,5 +44,10 @@ class ProductPrice extends Model
     public function priceType(): BelongsTo
     {
         return $this->belongsTo(PriceType::class);
+    }
+
+    public function priceRegion(): BelongsTo
+    {
+        return $this->belongsTo(PriceRegion::class);
     }
 }

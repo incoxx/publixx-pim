@@ -1444,7 +1444,7 @@ class ImportExecutor
                 'currency' => $currency,
                 'valid_from' => $validFrom,
                 'valid_to' => $row['valid_to'] ?? null,
-                'country' => !empty($row['country']) ? strtoupper((string) $row['country']) : null,
+                'price_region_id' => !empty($row['country']) ? $this->resolvePriceRegionId(strtoupper((string) $row['country'])) : null,
                 'scale_from' => !empty($row['scale_from']) ? (int) $row['scale_from'] : null,
                 'scale_to' => !empty($row['scale_to']) ? (int) $row['scale_to'] : null,
             ];
@@ -1903,5 +1903,15 @@ class ImportExecutor
                 $this->logRowError($sheetKey, $row, $e);
             }
         }
+    }
+
+    private function resolvePriceRegionId(string $code): ?string
+    {
+        $region = \App\Models\PriceRegion::firstOrCreate(
+            ['code' => $code],
+            ['name' => $code, 'type' => 'country']
+        );
+
+        return $region->id;
     }
 }

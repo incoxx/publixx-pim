@@ -25,7 +25,7 @@ class ProductPriceController extends Controller
         $this->authorize('view', $product);
 
         $query = $product->prices()
-            ->with('priceType')
+            ->with(['priceType', 'priceRegion'])
             ->orderBy('valid_from', 'desc');
 
         return ProductPriceResource::collection(
@@ -49,7 +49,7 @@ class ProductPriceController extends Controller
             'currency' => $price->currency,
         ]);
 
-        return (new ProductPriceResource($price->load('priceType')))
+        return (new ProductPriceResource($price->load(['priceType', 'priceRegion'])))
             ->response()
             ->setStatusCode(201);
     }
@@ -72,7 +72,7 @@ class ProductPriceController extends Controller
             $this->audit('price_updated', 'Product', $productPrice->product_id, $oldValues, $newValues);
         }
 
-        return new ProductPriceResource($productPrice->fresh()->load('priceType'));
+        return new ProductPriceResource($productPrice->fresh()->load(['priceType', 'priceRegion']));
     }
 
     /**
