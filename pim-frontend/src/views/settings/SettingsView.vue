@@ -80,7 +80,7 @@ const POPUP_SIZE_OPTIONS = [
   { value: 'full', label: 'Vollbild' },
 ]
 
-const FACET_DATA_TYPES = ['ValueList', 'Boolean', 'Decimal', 'Integer', 'String']
+const FACET_DATA_TYPES = ['ValueList', 'Selection', 'Dictionary', 'Boolean', 'Flag', 'Decimal', 'Integer', 'Number', 'Float', 'String']
 
 const DETAIL_LAYOUT_OPTIONS = [
   { value: 'classic', label: 'Klassisch', desc: 'Bild links, Info rechts' },
