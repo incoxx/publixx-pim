@@ -15,7 +15,7 @@ class DeploymentController extends Controller
      * POST /api/v1/admin/deploy
      *
      * Zieht den main Branch von GitHub und führt alle
-     * notwendigen Deployment-Schritte durch.
+     * notwendigen Deployment-Schritte durch — analog zu update.sh.
      * Nur für Admins.
      */
     public function deploy(Request $request): JsonResponse
@@ -35,6 +35,7 @@ class DeploymentController extends Controller
         $log = [];
         $startTime = microtime(true);
         $deployUser = $this->resolveDeployUser($basePath);
+        $webUser = $this->resolveWebUser();
 
         // Pre-check: Kann sudo verwendet werden?
         if ($deployUser !== null) {
@@ -46,16 +47,18 @@ class DeploymentController extends Controller
                     'output'      => $sudoCheck['output'],
                 ]);
                 $log[] = array_merge($sudoCheck, [
-                    'output' => "sudo -u {$deployUser} nicht möglich. Bitte sudoers konfigurieren oder DEPLOY_USER in .env setzen. "
-                        . "Fahre ohne sudo fort (als aktueller PHP-User).",
+                    'output' => "sudo -u {$deployUser} nicht möglich. Fahre ohne sudo fort.",
                 ]);
-                $deployUser = null; // Fallback: ohne sudo
+                $deployUser = null;
             } else {
                 $log[] = $sudoCheck;
             }
         }
 
-        // Schritt 1: Backup — aktuellen Commit-Hash merken
+        // Schritt 1: Wartungsmodus aktivieren
+        $log[] = $this->runStep('maintenance_on', 'php artisan down --retry=60 2>/dev/null || true', $basePath, deployUser: $deployUser);
+
+        // Schritt 2: Backup — aktuellen Commit-Hash merken
         $backupStep = $this->runStep('backup', 'git rev-parse HEAD', $basePath, deployUser: $deployUser);
         $log[] = $backupStep;
         $backupHash = null;
@@ -65,29 +68,16 @@ class DeploymentController extends Controller
             $log[count($log) - 1]['output'] = "Backup-Punkt: {$backupHash}";
         }
 
-        // Schritt 2: Git fetch + pull main
+        // Schritt 3: Git fetch + pull main
         $log[] = $this->runStep('git_fetch', 'git fetch origin main', $basePath, deployUser: $deployUser);
         $log[] = $this->runStep('git_pull', 'git pull origin main', $basePath, timeout: 120, deployUser: $deployUser);
 
-        // Schritt 3: Composer install (ohne Dev)
+        // Schritt 4: Composer install (ohne Dev)
         $log[] = $this->runStep(
             'composer_install',
-            'composer install --no-dev --optimize-autoloader --no-interaction',
+            'composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist',
             $basePath,
             timeout: 300,
-            deployUser: $deployUser,
-        );
-
-        // Schritt 4: Frontend bauen (npm)
-        $frontendPath = $basePath . '/pim-frontend';
-        $log[] = $this->runStep('npm_install', 'npm install', $frontendPath, timeout: 180, deployUser: $deployUser);
-        $log[] = $this->runStep('npm_build', 'npm run build', $frontendPath, timeout: 120, deployUser: $deployUser);
-
-        // Schritt 4b: Build nach public/ kopieren
-        $log[] = $this->runStep(
-            'copy_frontend',
-            'rm -rf public/pim-assets && cp -r pim-frontend/dist/pim-assets public/pim-assets && cp pim-frontend/dist/index.html public/spa.html',
-            $basePath,
             deployUser: $deployUser,
         );
 
@@ -100,28 +90,50 @@ class DeploymentController extends Controller
             deployUser: $deployUser,
         );
 
-        // Schritt 5b: Storage-Link sicherstellen
-        $log[] = $this->runStep('storage_link', 'php artisan storage:link 2>/dev/null; mkdir -p storage/app/public/media', $basePath, deployUser: $deployUser);
+        // Schritt 6: Frontend bauen (npm ci + build, wie update.sh)
+        $frontendPath = $basePath . '/pim-frontend';
+        $log[] = $this->runStep('npm_ci', 'npm ci', $frontendPath, timeout: 180, deployUser: $deployUser);
 
-        // Schritt 5c: Berechtigungen korrigieren — www-data muss lesen/schreiben können
-        $webUser = $this->resolveWebUser();
-        if ($deployUser !== null && $webUser !== null && $deployUser !== $webUser) {
-            // Sicherstellen, dass der Webserver-User die Dateien lesen kann
-            $log[] = $this->runStep(
-                'fix_permissions',
-                "chgrp -R {$webUser} storage bootstrap/cache && chmod -R g+rw storage bootstrap/cache",
-                $basePath,
-                deployUser: $deployUser,
-            );
-        }
+        // VITE_BASE_PATH aus APP_URL ermitteln (Subdirectory-Support)
+        $viteEnv = $this->resolveViteEnv();
+        $buildCmd = $viteEnv . 'npm run build';
+        $log[] = $this->runStep('npm_build', $buildCmd, $frontendPath, timeout: 180, deployUser: $deployUser);
 
-        // Schritt 6: Caches neu bauen
+        // Schritt 6b: Build nach public/ kopieren
+        $copyCmd = 'rm -rf public/pim-assets'
+            . ' && cp -r pim-frontend/dist/pim-assets public/pim-assets'
+            . ' && cp pim-frontend/dist/index.html public/spa.html';
+        $log[] = $this->runStep('copy_frontend', $copyCmd, $basePath, deployUser: $deployUser);
+
+        // Schritt 7: Storage-Link sicherstellen
+        $log[] = $this->runStep(
+            'storage_link',
+            'php artisan storage:link 2>/dev/null || true; mkdir -p storage/app/public/media',
+            $basePath,
+            deployUser: $deployUser,
+        );
+
+        // Schritt 8: Berechtigungen korrigieren (wie update.sh)
+        $log[] = $this->runStep(
+            'fix_permissions',
+            $this->buildPermissionFixCommand($basePath, $webUser),
+            $basePath,
+            timeout: 120,
+        );
+
+        // Schritt 9: Caches neu bauen
         $log[] = $this->runStep('config_cache', 'php artisan config:cache', $basePath, deployUser: $deployUser);
         $log[] = $this->runStep('route_cache', 'php artisan route:cache', $basePath, deployUser: $deployUser);
         $log[] = $this->runStep('view_cache', 'php artisan view:cache', $basePath, deployUser: $deployUser);
 
-        // Schritt 7: Horizon restarten
+        // Schritt 10: Horizon restarten
         $log[] = $this->runStep('horizon_terminate', 'php artisan horizon:terminate', $basePath, deployUser: $deployUser);
+
+        // Schritt 11: Apache neu laden
+        $log[] = $this->runStep('reload_apache', 'systemctl reload apache2 2>/dev/null || true', $basePath);
+
+        // Schritt 12: Wartungsmodus deaktivieren
+        $log[] = $this->runStep('maintenance_off', 'php artisan up', $basePath, deployUser: $deployUser);
 
         $duration = round(microtime(true) - $startTime, 2);
         $allSuccessful = collect($log)->every(fn (array $step) => $step['success']);
@@ -131,14 +143,14 @@ class DeploymentController extends Controller
         $newHash = trim($newHashResult['output']);
 
         $result = [
-            'success'         => $allSuccessful,
+            'success'          => $allSuccessful,
             'duration_seconds' => $duration,
-            'deployed_by'     => $user->name,
-            'commit'          => $newHash,
-            'backup_hash'     => $backupHash,
-            'deploy_user'     => $deployUser,
-            'web_user'        => $webUser,
-            'steps'           => $log,
+            'deployed_by'      => $user->name,
+            'commit'           => $newHash,
+            'backup_hash'      => $backupHash,
+            'deploy_user'      => $deployUser,
+            'web_user'         => $webUser,
+            'steps'            => $log,
         ];
 
         Log::channel('single')->info('Deployment triggered', [
@@ -155,8 +167,6 @@ class DeploymentController extends Controller
 
     /**
      * GET /api/v1/admin/deploy/status
-     *
-     * Gibt den aktuellen Git-Status und den letzten Commit zurück.
      */
     public function status(Request $request): JsonResponse
     {
@@ -180,7 +190,6 @@ class DeploymentController extends Controller
         $commitDate = trim($this->runCommand('git log -1 --pretty=%ci', $basePath));
         $branch = trim($this->runCommand('git rev-parse --abbrev-ref HEAD', $basePath));
 
-        // Prüfe ob sudo funktioniert (wenn nötig)
         $sudoAvailable = true;
         if ($deployUser !== null) {
             $check = $this->runCommand("sudo -n -u {$deployUser} whoami 2>&1", $basePath);
@@ -202,8 +211,6 @@ class DeploymentController extends Controller
 
     /**
      * POST /api/v1/admin/deploy/rollback
-     *
-     * Rollt auf einen gegebenen Commit-Hash zurück.
      */
     public function rollback(Request $request): JsonResponse
     {
@@ -231,30 +238,30 @@ class DeploymentController extends Controller
         $basePath = base_path();
         $log = [];
         $deployUser = $this->resolveDeployUser($basePath);
+        $webUser = $this->resolveWebUser();
 
+        $log[] = $this->runStep('maintenance_on', 'php artisan down --retry=60 2>/dev/null || true', $basePath, deployUser: $deployUser);
         $log[] = $this->runStep('checkout', "git checkout {$hash}", $basePath, deployUser: $deployUser);
         $log[] = $this->runStep(
             'composer_install',
-            'composer install --no-dev --optimize-autoloader --no-interaction',
+            'composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist',
             $basePath,
             timeout: 300,
             deployUser: $deployUser,
         );
 
         // Berechtigungen korrigieren
-        $webUser = $this->resolveWebUser();
-        if ($deployUser !== null && $webUser !== null && $deployUser !== $webUser) {
-            $log[] = $this->runStep(
-                'fix_permissions',
-                "chgrp -R {$webUser} storage bootstrap/cache && chmod -R g+rw storage bootstrap/cache",
-                $basePath,
-                deployUser: $deployUser,
-            );
-        }
+        $log[] = $this->runStep(
+            'fix_permissions',
+            $this->buildPermissionFixCommand($basePath, $webUser),
+            $basePath,
+            timeout: 120,
+        );
 
         $log[] = $this->runStep('config_cache', 'php artisan config:cache', $basePath, deployUser: $deployUser);
         $log[] = $this->runStep('route_cache', 'php artisan route:cache', $basePath, deployUser: $deployUser);
         $log[] = $this->runStep('horizon_terminate', 'php artisan horizon:terminate', $basePath, deployUser: $deployUser);
+        $log[] = $this->runStep('maintenance_off', 'php artisan up', $basePath, deployUser: $deployUser);
 
         $allSuccessful = collect($log)->every(fn (array $step) => $step['success']);
 
@@ -272,31 +279,53 @@ class DeploymentController extends Controller
     }
 
     /**
-     * Ermittelt den System-User, unter dem Deployment-Befehle laufen sollen.
-     *
-     * Reihenfolge:
-     * 1. DEPLOY_USER aus .env / config
-     * 2. Besitzer des Projektverzeichnisses (wenn verschieden vom aktuellen User)
-     * 3. null → kein sudo, Befehle laufen als aktueller User
+     * Ermittelt VITE_BASE_PATH und VITE_API_BASE_URL aus APP_URL.
+     * Gibt einen Shell-Export-Prefix zurück für den npm build Befehl.
+     */
+    private function resolveViteEnv(): string
+    {
+        $appUrl = config('app.url', '');
+        $parsed = parse_url($appUrl);
+        $webPath = rtrim($parsed['path'] ?? '', '/');
+
+        if (empty($webPath)) {
+            return '';
+        }
+
+        return "VITE_BASE_PATH=\"{$webPath}/\" VITE_API_BASE_URL=\"{$webPath}/api/v1\" ";
+    }
+
+    /**
+     * Baut den Berechtigungs-Befehl (wie update.sh Schritt 9).
+     */
+    private function buildPermissionFixCommand(string $basePath, ?string $webUser): string
+    {
+        $user = $webUser ?: 'www-data';
+
+        return "chown -R {$user}:{$user} {$basePath}/storage {$basePath}/bootstrap/cache"
+            . " && chmod -R 775 {$basePath}/storage"
+            . " && chmod -R 775 {$basePath}/bootstrap/cache";
+    }
+
+    /**
+     * Ermittelt den System-User für Deployment-Befehle.
      */
     private function resolveDeployUser(string $basePath): ?string
     {
-        // Explizit konfiguriert? (config() funktioniert auch mit cached config)
         $envUser = config('app.deploy_user', env('DEPLOY_USER'));
         if (! empty($envUser)) {
             return $envUser;
         }
 
-        // Automatisch: Besitzer des Projektverzeichnisses ermitteln
         if (! function_exists('posix_getpwuid') || ! function_exists('posix_geteuid')) {
-            return null; // posix extension nicht verfügbar
+            return null;
         }
 
         $ownerUid = (int) fileowner($basePath);
         $currentUid = posix_geteuid();
 
         if ($ownerUid === $currentUid) {
-            return null; // Gleicher User, kein sudo nötig
+            return null;
         }
 
         $ownerInfo = posix_getpwuid($ownerUid);
@@ -344,7 +373,6 @@ class DeploymentController extends Controller
             'PATH' => getenv('PATH') ?: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
         ];
 
-        // HOME passend zum deploy user setzen
         if ($deployUser && function_exists('posix_getpwnam')) {
             $userInfo = posix_getpwnam($deployUser);
             $env['HOME'] = $userInfo['dir'] ?? "/home/{$deployUser}";
