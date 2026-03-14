@@ -45,6 +45,9 @@ class BulkUpdateRequest extends FormRequest
             // Master hierarchy node
             'operations.master_hierarchy_node_id' => 'nullable|string|uuid|exists:hierarchy_nodes,id',
 
+            // Manufacturer
+            'operations.manufacturer_id' => 'nullable|string|uuid|exists:manufacturers,id',
+
             // Media
             'operations.media' => 'nullable|array',
             'operations.media.*.media_id' => 'required_with:operations.media|string|uuid|exists:media,id',

@@ -1,10 +1,22 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { usePdfTemplateDesignerStore } from '@/stores/pdfTemplateDesigner'
 import { Settings, Trash2, Copy, ArrowUpToLine, ArrowDownToLine } from 'lucide-vue-next'
 import { fontFamilies } from './fontList'
+import client from '@/api/client'
 
 const store = usePdfTemplateDesignerStore()
+
+const relationTypes = ref([])
+
+onMounted(async () => {
+  try {
+    const { data } = await client.get('/relation-types', { params: { per_page: 100 } })
+    relationTypes.value = data.data || data || []
+  } catch (e) {
+    console.warn('Failed to load relation types:', e.message)
+  }
+})
 
 const sel = computed(() => store.selectedElement)
 
@@ -41,7 +53,7 @@ function toggleColumn(col) {
 // fontFamilies imported from fontList.js
 
 const canAutofit = computed(() => {
-  if (!sel.value || sel.value.type === 'shape' || sel.value.type === 'image' || sel.value.type === 'variant_table') return false
+  if (!sel.value || sel.value.type === 'shape' || sel.value.type === 'image' || sel.value.type === 'variant_table' || sel.value.type === 'relation_table') return false
   return !!store.referenceProductId && store.resolvedElements.length > 0
 })
 
@@ -63,6 +75,7 @@ const typeLabels = {
   image: 'Produktbild',
   shape: 'Form / Rahmen',
   variant_table: 'Variantentabelle',
+  relation_table: 'Beziehungstabelle',
 }
 </script>
 
@@ -222,6 +235,69 @@ const typeLabels = {
             <label class="flex items-center gap-2 text-[11px] cursor-pointer text-[var(--color-text-secondary)]">
               <input type="checkbox" :checked="(sel.columns || []).includes('variant_attributes')" class="rounded" @change="toggleColumn('variant_attributes')" />
               Variantenattribute
+            </label>
+          </div>
+        </div>
+        <div class="border-t border-[var(--color-border)] pt-3">
+          <div class="text-[10px] font-semibold text-[var(--color-text-tertiary)] mb-2">Tabellen-Styling</div>
+          <div class="space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] text-[var(--color-text-secondary)]">Header-Hintergrund</span>
+              <input type="color" :value="sel.tableStyle?.headerBg || '#f3f4f6'" class="w-6 h-5 rounded border border-[var(--color-border)] cursor-pointer" @input="updateTableStyle('headerBg', $event.target.value)" />
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] text-[var(--color-text-secondary)]">Header-Textfarbe</span>
+              <input type="color" :value="sel.tableStyle?.headerColor || '#374151'" class="w-6 h-5 rounded border border-[var(--color-border)] cursor-pointer" @input="updateTableStyle('headerColor', $event.target.value)" />
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] text-[var(--color-text-secondary)]">Rahmenfarbe</span>
+              <input type="color" :value="sel.tableStyle?.borderColor || '#e5e7eb'" class="w-6 h-5 rounded border border-[var(--color-border)] cursor-pointer" @input="updateTableStyle('borderColor', $event.target.value)" />
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] text-[var(--color-text-secondary)]">Alternierende Zeilen</span>
+              <input type="color" :value="sel.tableStyle?.alternateRowBg || '#f9fafb'" class="w-6 h-5 rounded border border-[var(--color-border)] cursor-pointer" @input="updateTableStyle('alternateRowBg', $event.target.value)" />
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-[9px] text-[var(--color-text-tertiary)] mb-0.5">Schriftgröße (pt)</label>
+                <input type="number" :value="sel.tableStyle?.fontSize || 8" class="pim-input text-xs w-full" min="6" max="14" @input="updateTableStyle('fontSize', parseInt($event.target.value) || 8)" />
+              </div>
+              <div>
+                <label class="block text-[9px] text-[var(--color-text-tertiary)] mb-0.5">Header-Größe (pt)</label>
+                <input type="number" :value="sel.tableStyle?.headerFontSize || 8" class="pim-input text-xs w-full" min="6" max="14" @input="updateTableStyle('headerFontSize', parseInt($event.target.value) || 8)" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <!-- RELATION TABLE -->
+      <template v-if="sel.type === 'relation_table'">
+        <div>
+          <label class="block text-[10px] font-medium text-[var(--color-text-tertiary)] mb-0.5">Beziehungstyp</label>
+          <select :value="sel.relationTypeId || ''" class="pim-input text-xs w-full" @change="updateElement('relationTypeId', $event.target.value || null)">
+            <option value="">Alle Beziehungen</option>
+            <option v-for="rt in relationTypes" :key="rt.id" :value="rt.id">{{ rt.name_de || rt.technical_name }}</option>
+          </select>
+        </div>
+        <div>
+          <div class="text-[10px] font-semibold text-[var(--color-text-tertiary)] mb-2">Spalten</div>
+          <div class="space-y-1">
+            <label class="flex items-center gap-2 text-[11px] cursor-pointer text-[var(--color-text-secondary)]">
+              <input type="checkbox" :checked="(sel.columns || []).includes('sku')" class="rounded" @change="toggleColumn('sku')" />
+              SKU
+            </label>
+            <label class="flex items-center gap-2 text-[11px] cursor-pointer text-[var(--color-text-secondary)]">
+              <input type="checkbox" :checked="(sel.columns || []).includes('name')" class="rounded" @change="toggleColumn('name')" />
+              Name
+            </label>
+            <label class="flex items-center gap-2 text-[11px] cursor-pointer text-[var(--color-text-secondary)]">
+              <input type="checkbox" :checked="(sel.columns || []).includes('ean')" class="rounded" @change="toggleColumn('ean')" />
+              EAN
+            </label>
+            <label class="flex items-center gap-2 text-[11px] cursor-pointer text-[var(--color-text-secondary)]">
+              <input type="checkbox" :checked="(sel.columns || []).includes('relation_attributes')" class="rounded" @change="toggleColumn('relation_attributes')" />
+              Beziehungsattribute
             </label>
           </div>
         </div>

@@ -112,6 +112,13 @@ async function downloadPdf() {
   }
 }
 
+async function switchLang(loc) {
+  store.setLocale(loc)
+  if (product.value?.id) {
+    await store.fetchProduct(product.value.id)
+  }
+}
+
 function formatPrice(price) {
   if (!price?.amount) return '--'
   return new Intl.NumberFormat(store.locale === 'de' ? 'de-DE' : 'en-US', {
@@ -180,7 +187,13 @@ function formatPrice(price) {
 
             <!-- Attributes -->
             <div v-if="parentAttributes.length" class="text-sm">
-              <h4 class="font-semibold text-base-content mb-2">{{ t('catalog.attributes') }}</h4>
+              <div class="flex items-center justify-between mb-2">
+                <h4 class="font-semibold text-base-content">{{ t('catalog.attributes') }}</h4>
+                <div class="flex gap-1">
+                  <button @click="switchLang('de')" class="btn btn-xs" :class="store.locale === 'de' ? 'btn-primary' : 'btn-ghost'">DE</button>
+                  <button @click="switchLang('en')" class="btn btn-xs" :class="store.locale === 'en' ? 'btn-primary' : 'btn-ghost'">EN</button>
+                </div>
+              </div>
               <table class="table table-xs table-zebra w-full">
                 <tbody>
                   <tr v-for="(attr, idx) in parentAttributes" :key="idx">
@@ -357,6 +370,12 @@ function formatPrice(price) {
 
               <!-- Attributes tab -->
               <div v-if="activeTab === 'attributes'" class="text-sm">
+                <div class="flex justify-end mb-2">
+                  <div class="flex gap-1">
+                    <button @click="switchLang('de')" class="btn btn-xs" :class="store.locale === 'de' ? 'btn-primary' : 'btn-ghost'">DE</button>
+                    <button @click="switchLang('en')" class="btn btn-xs" :class="store.locale === 'en' ? 'btn-primary' : 'btn-ghost'">EN</button>
+                  </div>
+                </div>
                 <table class="table table-xs table-zebra w-full">
                   <tbody>
                     <tr v-for="(attr, idx) in parentAttributes" :key="idx">
@@ -524,7 +543,13 @@ function formatPrice(price) {
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <!-- Attributes -->
               <div v-if="parentAttributes.length" class="bg-base-200/30 rounded-xl p-4">
-                <h4 class="font-semibold text-base-content mb-3 text-sm">{{ t('catalog.attributes') }}</h4>
+                <div class="flex items-center justify-between mb-3">
+                  <h4 class="font-semibold text-base-content text-sm">{{ t('catalog.attributes') }}</h4>
+                  <div class="flex gap-1">
+                    <button @click="switchLang('de')" class="btn btn-xs" :class="store.locale === 'de' ? 'btn-primary' : 'btn-ghost'">DE</button>
+                    <button @click="switchLang('en')" class="btn btn-xs" :class="store.locale === 'en' ? 'btn-primary' : 'btn-ghost'">EN</button>
+                  </div>
+                </div>
                 <table class="table table-xs table-zebra w-full">
                   <tbody>
                     <tr v-for="(attr, idx) in parentAttributes" :key="idx">

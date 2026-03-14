@@ -364,6 +364,11 @@ class CatalogController extends BaseController
                 },
                 'searchIndex',
                 'masterHierarchyNode',
+                'attributeValues' => function ($q) use ($lang) {
+                    $q->where(function ($q2) use ($lang) {
+                        $q2->whereNull('language')->orWhere('language', $lang);
+                    });
+                },
                 'attributeValues.attribute',
                 'attributeValues.valueListEntry',
                 'attributeValues.unit',

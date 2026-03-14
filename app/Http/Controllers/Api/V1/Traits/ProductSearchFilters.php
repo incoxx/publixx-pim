@@ -60,7 +60,8 @@ trait ProductSearchFilters
                 $descendantPrefix = $node->path === '/'
                     ? "/{$node->id}/"
                     : "{$node->path}{$node->id}/";
-                $descendantIds = HierarchyNode::where('path', 'like', $descendantPrefix . '%')
+                $descendantIds = HierarchyNode::where('hierarchy_id', $node->hierarchy_id)
+                    ->where('path', 'like', $descendantPrefix . '%')
                     ->pluck('id');
                 $nodeIds = $nodeIds->merge($descendantIds);
             }

@@ -124,6 +124,10 @@ class BulkUpdateController extends Controller
             $summary['master_hierarchy'] = $this->processMasterHierarchy($productIds, $operations['master_hierarchy_node_id'], false);
         }
 
+        if (array_key_exists('manufacturer_id', $operations)) {
+            $summary['manufacturer'] = $this->processManufacturer($productIds, $operations['manufacturer_id'], false);
+        }
+
         if (!empty($operations['media'])) {
             $summary['media'] = $this->processMedia($productIds, $operations['media'], false);
         }
@@ -159,6 +163,10 @@ class BulkUpdateController extends Controller
 
             if (array_key_exists('master_hierarchy_node_id', $operations)) {
                 $results['master_hierarchy'] = $this->processMasterHierarchy($productIds, $operations['master_hierarchy_node_id'], true);
+            }
+
+            if (array_key_exists('manufacturer_id', $operations)) {
+                $results['manufacturer'] = $this->processManufacturer($productIds, $operations['manufacturer_id'], true);
             }
 
             if (!empty($operations['media'])) {
@@ -468,6 +476,39 @@ class BulkUpdateController extends Controller
                           ->orWhereNull('master_hierarchy_node_id');
                     })
                     ->update(['master_hierarchy_node_id' => $nodeId]);
+            }
+        }
+
+        return [
+            'would_change' => $wouldChange,
+            'already_target' => $alreadyTarget,
+        ];
+    }
+
+    // ── Manufacturer ───────────────────────────────────────
+
+    private function processManufacturer(array $productIds, ?string $manufacturerId, bool $persist): array
+    {
+        if ($manufacturerId === null) {
+            $alreadyTarget = Product::whereIn('id', $productIds)->whereNull('manufacturer_id')->count();
+            $wouldChange = count($productIds) - $alreadyTarget;
+
+            if ($persist && $wouldChange > 0) {
+                Product::whereIn('id', $productIds)
+                    ->whereNotNull('manufacturer_id')
+                    ->update(['manufacturer_id' => null]);
+            }
+        } else {
+            $alreadyTarget = Product::whereIn('id', $productIds)->where('manufacturer_id', $manufacturerId)->count();
+            $wouldChange = count($productIds) - $alreadyTarget;
+
+            if ($persist && $wouldChange > 0) {
+                Product::whereIn('id', $productIds)
+                    ->where(function ($q) use ($manufacturerId) {
+                        $q->where('manufacturer_id', '!=', $manufacturerId)
+                          ->orWhereNull('manufacturer_id');
+                    })
+                    ->update(['manufacturer_id' => $manufacturerId]);
             }
         }
 

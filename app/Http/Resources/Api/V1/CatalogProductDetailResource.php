@@ -26,6 +26,9 @@ class CatalogProductDetailResource extends JsonResource
                 'alt' => $lang === 'en' && $m->alt_text_en ? $m->alt_text_en : $m->alt_text_de,
                 'is_primary' => (bool) $m->pivot->is_primary,
                 'media_type' => $m->media_type,
+                'mime_type' => $m->mime_type,
+                'file_name' => $m->file_name,
+                'description' => $lang === 'en' && $m->description_en ? $m->description_en : ($m->description_de ?? ''),
             ];
         })->values();
 

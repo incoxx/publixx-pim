@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useDebounceFn } from '@vueuse/core'
 import {
   ArrowLeft, Plus, Trash2, Search, Check, AlertTriangle,
-  X, Package, Settings, Link2, FolderTree, Image,
+  X, Package, Settings, Link2, FolderTree, Image, Building2,
 } from 'lucide-vue-next'
 import bulkUpdateApi from '@/api/bulkUpdate'
 import attributesApi from '@/api/attributes'
@@ -16,6 +16,7 @@ import { mediaUsageTypes } from '@/api/mediaUsageTypes'
 import PimAttributeInput from '@/components/shared/PimAttributeInput.vue'
 import PimTree from '@/components/shared/PimTree.vue'
 import PimConfirmDialog from '@/components/shared/PimConfirmDialog.vue'
+import manufacturersApi from '@/api/manufacturers'
 
 const route = useRoute()
 const router = useRouter()
@@ -34,6 +35,7 @@ const tabs = [
   { key: 'output_hierarchy', label: 'Ausgabehierarchie', icon: FolderTree },
   { key: 'status', label: 'Status', icon: Package },
   { key: 'master_hierarchy', label: 'Master-Hierarchie', icon: FolderTree },
+  { key: 'manufacturer', label: 'Hersteller', icon: Building2 },
   { key: 'media', label: 'Medien', icon: Image },
 ]
 const activeTab = ref('attributes')
@@ -330,6 +332,18 @@ function removeMediaOp(index) {
   mediaOps.value.splice(index, 1)
 }
 
+// ── Tab 7: Manufacturer ────────────────────────────
+const manufacturerList = ref([])
+const selectedManufacturerId = ref(null)
+const manufacturerChanged = ref(false)
+
+async function loadManufacturers() {
+  try {
+    const { data } = await manufacturersApi.list({ perPage: 500 })
+    manufacturerList.value = data.data || data
+  } catch { manufacturerList.value = [] }
+}
+
 // ── Operations Summary ──────────────────────────────
 const operationCount = computed(() => {
   let count = 0
@@ -338,6 +352,7 @@ const operationCount = computed(() => {
   if (hierarchyOps.value.filter(h => h.node).length > 0) count += hierarchyOps.value.filter(h => h.node).length
   if (statusOperation.value) count++
   if (masterHierarchyChanged.value) count++
+  if (manufacturerChanged.value) count++
   if (mediaOps.value.filter(m => m.media).length > 0) count += mediaOps.value.filter(m => m.media).length
   return count
 })
@@ -377,6 +392,10 @@ function buildOperations() {
 
   if (masterHierarchyChanged.value) {
     ops.master_hierarchy_node_id = masterHierarchyNodeId.value
+  }
+
+  if (manufacturerChanged.value) {
+    ops.manufacturer_id = selectedManufacturerId.value
   }
 
   const validMedia = mediaOps.value.filter(m => m.media)
@@ -455,6 +474,7 @@ onMounted(() => {
   loadRelationTypes()
   loadHierarchies()
   loadMasterHierarchy()
+  loadManufacturers()
   loadUsageTypes()
 })
 </script>
@@ -501,6 +521,10 @@ onMounted(() => {
           <p class="text-xs text-[var(--color-text-tertiary)]">Master-Hierarchie</p>
           <p class="font-medium">{{ executeResult.master_hierarchy.would_change }} geändert</p>
         </div>
+        <div v-if="executeResult.manufacturer" class="p-3 bg-[var(--color-bg)] rounded-lg">
+          <p class="text-xs text-[var(--color-text-tertiary)]">Hersteller</p>
+          <p class="font-medium">{{ executeResult.manufacturer.would_change }} geändert</p>
+        </div>
         <div v-if="executeResult.media" class="p-3 bg-[var(--color-bg)] rounded-lg">
           <p class="text-xs text-[var(--color-text-tertiary)]">Medien</p>
           <p class="font-medium">{{ executeResult.media.assigned }} zugeordnet, {{ executeResult.media.removed }} entfernt</p>
@@ -546,6 +570,10 @@ onMounted(() => {
             />
             <span
               v-if="tab.key === 'master_hierarchy' && masterHierarchyChanged"
+              class="ml-1 w-2 h-2 rounded-full bg-[var(--color-accent)]"
+            />
+            <span
+              v-if="tab.key === 'manufacturer' && manufacturerChanged"
               class="ml-1 w-2 h-2 rounded-full bg-[var(--color-accent)]"
             />
             <span
@@ -850,6 +878,22 @@ onMounted(() => {
               />
             </div>
             <p v-else class="text-xs text-[var(--color-text-tertiary)]">Keine Master-Hierarchie gefunden.</p>
+          </div>
+
+          <!-- ═══ Tab: Hersteller ═══ -->
+          <div v-else-if="activeTab === 'manufacturer'" class="space-y-3">
+            <p class="text-sm text-[var(--color-text-secondary)]">Hersteller für alle markierten Produkte ändern</p>
+            <div class="max-w-xs">
+              <label class="text-[11px] text-[var(--color-text-tertiary)] block mb-1">Neuer Hersteller</label>
+              <select
+                :value="selectedManufacturerId || ''"
+                class="pim-input text-xs w-full"
+                @change="selectedManufacturerId = $event.target.value || null; manufacturerChanged = true"
+              >
+                <option value="">— Kein Hersteller —</option>
+                <option v-for="m in manufacturerList" :key="m.id" :value="m.id">{{ m.name }}</option>
+              </select>
+            </div>
           </div>
 
           <!-- ═══ Tab: Medien ═══ -->

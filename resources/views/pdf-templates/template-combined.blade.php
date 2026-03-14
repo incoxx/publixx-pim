@@ -69,7 +69,7 @@
                 @endphp
 
                 <div class="element" style="{{ $css }}">
-                    @if (($el['type'] ?? '') === 'variant_table' && !empty($el['variantTableData']))
+                    @if (in_array($el['type'] ?? '', ['variant_table', 'relation_table']) && !empty($el['variantTableData']))
                         @php $tStyle = $el['tableStyle'] ?? []; $tData = $el['variantTableData']; @endphp
                         <table style="width:100%; border-collapse:collapse; font-size:{{ $tStyle['fontSize'] ?? 8 }}pt; font-family: inherit;">
                             <thead>
