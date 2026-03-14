@@ -767,26 +767,47 @@ onMounted(async () => {
             Nur verknüpfte Produkte darstellen
           </label>
           <div>
-            <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">
-              Attribut-Views
-              <span class="text-[var(--color-text-tertiary)] font-normal">(Nicht gewählt: alle Attribute werden angezeigt)</span>
-            </label>
-            <div v-if="availableAttributeViews.length === 0" class="text-xs text-[var(--color-text-tertiary)]">Keine Attribut-Views vorhanden</div>
-            <div v-else class="flex flex-wrap gap-x-4 gap-y-1.5 mt-1">
-              <label v-for="av in availableAttributeViews" :key="av.id" class="flex items-center gap-1.5 text-xs cursor-pointer">
+            <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Angezeigte Attribute</label>
+            <div class="flex gap-3 mt-1.5 mb-2">
+              <label class="flex items-center gap-1.5 text-xs cursor-pointer">
                 <input
-                  type="checkbox"
-                  :value="av.id"
-                  :checked="themeForm.attribute_view_ids.includes(av.id)"
-                  @change="
-                    $event.target.checked
-                      ? themeForm.attribute_view_ids.push(av.id)
-                      : themeForm.attribute_view_ids = themeForm.attribute_view_ids.filter(id => id !== av.id)
-                  "
-                  class="rounded border-[var(--color-border-strong)] text-[var(--color-accent)]"
+                  type="radio"
+                  name="attr_view_mode"
+                  :checked="themeForm.attribute_view_ids.length === 0"
+                  @change="themeForm.attribute_view_ids = []"
+                  class="radio radio-xs border-[var(--color-border-strong)] text-[var(--color-accent)]"
                 />
-                {{ av.name_de || av.name }}
+                Alle Attribute anzeigen
               </label>
+              <label class="flex items-center gap-1.5 text-xs cursor-pointer">
+                <input
+                  type="radio"
+                  name="attr_view_mode"
+                  :checked="themeForm.attribute_view_ids.length > 0"
+                  @change="if (themeForm.attribute_view_ids.length === 0 && availableAttributeViews.length > 0) themeForm.attribute_view_ids.push(availableAttributeViews[0].id)"
+                  class="radio radio-xs border-[var(--color-border-strong)] text-[var(--color-accent)]"
+                />
+                Nur bestimmte Attribut-Sichten
+              </label>
+            </div>
+            <div v-if="themeForm.attribute_view_ids.length > 0 || availableAttributeViews.length === 0">
+              <div v-if="availableAttributeViews.length === 0" class="text-xs text-[var(--color-text-tertiary)]">Keine Attribut-Views vorhanden</div>
+              <div v-else class="flex flex-wrap gap-x-4 gap-y-1.5 pl-1 border-l-2 border-[var(--color-accent)]/30 ml-1">
+                <label v-for="av in availableAttributeViews" :key="av.id" class="flex items-center gap-1.5 text-xs cursor-pointer">
+                  <input
+                    type="checkbox"
+                    :value="av.id"
+                    :checked="themeForm.attribute_view_ids.includes(av.id)"
+                    @change="
+                      $event.target.checked
+                        ? themeForm.attribute_view_ids.push(av.id)
+                        : themeForm.attribute_view_ids = themeForm.attribute_view_ids.filter(id => id !== av.id)
+                    "
+                    class="rounded border-[var(--color-border-strong)] text-[var(--color-accent)]"
+                  />
+                  {{ av.name_de || av.name }}
+                </label>
+              </div>
             </div>
           </div>
         </div>
