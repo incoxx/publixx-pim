@@ -57,11 +57,10 @@ trait ProductSearchFilters
             $selectedNodes = HierarchyNode::whereIn('id', $categoryIds)->get();
 
             foreach ($selectedNodes as $node) {
-                $descendantPrefix = $node->path === '/'
-                    ? "/{$node->id}/"
-                    : "{$node->path}{$node->id}/";
+                // Node path already includes its own ID, so LIKE 'path%' matches all descendants
                 $descendantIds = HierarchyNode::where('hierarchy_id', $node->hierarchy_id)
-                    ->where('path', 'like', $descendantPrefix . '%')
+                    ->where('path', 'like', $node->path . '%')
+                    ->where('id', '!=', $node->id)
                     ->pluck('id');
                 $nodeIds = $nodeIds->merge($descendantIds);
             }
