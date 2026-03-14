@@ -112,7 +112,13 @@ const relationTableData = computed(() => {
   if (columns.includes('name')) headers.push('Name')
   if (columns.includes('ean')) headers.push('EAN')
   if (columns.includes('relation_attributes')) {
-    headers.push('Attr 1', 'Attr 2')
+    headers.push('Bez.-Attr. 1', 'Bez.-Attr. 2')
+  }
+  if (columns.includes('product_attributes')) {
+    const ids = el.productAttributeIds || []
+    for (let i = 0; i < Math.max(ids.length, 1); i++) {
+      headers.push('Prod.-Attr. ' + (i + 1))
+    }
   }
 
   const rows = [
@@ -240,7 +246,7 @@ function onResizeStart(e, handle) {
             width: '100%',
             borderCollapse: 'collapse',
             fontSize: ((element.tableStyle?.fontSize || 8) * (25.4 / 72) * scale) + 'px',
-            tableLayout: 'auto',
+            tableLayout: element.columnWidths?.length ? 'fixed' : 'auto',
           }"
         >
           <thead>
@@ -255,6 +261,7 @@ function onResizeStart(e, handle) {
                   fontWeight: 'bold',
                   fontSize: ((element.tableStyle?.headerFontSize || 8) * (25.4 / 72) * scale) + 'px',
                   whiteSpace: 'nowrap',
+                  width: (element.columnWidths || [])[hi] ? (element.columnWidths[hi] + '%') : undefined,
                 }"
               >{{ h }}</th>
             </tr>
@@ -283,7 +290,7 @@ function onResizeStart(e, handle) {
             width: '100%',
             borderCollapse: 'collapse',
             fontSize: ((element.tableStyle?.fontSize || 8) * (25.4 / 72) * scale) + 'px',
-            tableLayout: 'auto',
+            tableLayout: element.columnWidths?.length ? 'fixed' : 'auto',
           }"
         >
           <thead>
@@ -298,6 +305,7 @@ function onResizeStart(e, handle) {
                   fontWeight: 'bold',
                   fontSize: ((element.tableStyle?.headerFontSize || 8) * (25.4 / 72) * scale) + 'px',
                   whiteSpace: 'nowrap',
+                  width: (element.columnWidths || [])[hi] ? (element.columnWidths[hi] + '%') : undefined,
                 }"
               >{{ h }}</th>
             </tr>

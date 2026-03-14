@@ -784,7 +784,7 @@ onMounted(async () => {
                   type="radio"
                   name="attr_view_mode"
                   :checked="themeForm.attribute_view_ids.length > 0"
-                  @change="if (themeForm.attribute_view_ids.length === 0 && availableAttributeViews.length > 0) themeForm.attribute_view_ids.push(availableAttributeViews[0].id)"
+                  @change="() => { if (themeForm.attribute_view_ids.length === 0 && availableAttributeViews.length > 0) themeForm.attribute_view_ids.push(availableAttributeViews[0].id) }"
                   class="radio radio-xs border-[var(--color-border-strong)] text-[var(--color-accent)]"
                 />
                 Nur bestimmte Attribut-Sichten

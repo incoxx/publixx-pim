@@ -221,7 +221,18 @@ class DocxPdfTemplateWriter
         // Calculate total table width from element width
         $tableWidthTwip = (int) round(($element['width'] ?? 190) * self::MM_TO_TWIP);
         $colCount = count($headers);
-        $colWidthTwip = $colCount > 0 ? (int) round($tableWidthTwip / $colCount) : $tableWidthTwip;
+        $columnWidths = $element['columnWidths'] ?? [];
+
+        // Calculate per-column widths in twips
+        $colWidthsTwip = [];
+        if (!empty($columnWidths) && count($columnWidths) === $colCount) {
+            foreach ($columnWidths as $pct) {
+                $colWidthsTwip[] = (int) round($tableWidthTwip * (int) $pct / 100);
+            }
+        } else {
+            $defaultWidth = $colCount > 0 ? (int) round($tableWidthTwip / $colCount) : $tableWidthTwip;
+            $colWidthsTwip = array_fill(0, $colCount, $defaultWidth);
+        }
 
         $tableStyle = [
             'borderSize' => 4,
@@ -239,8 +250,8 @@ class DocxPdfTemplateWriter
 
         // Header row
         $table->addRow();
-        foreach ($headers as $h) {
-            $table->addCell($colWidthTwip, ['bgColor' => $headerBg])->addText(
+        foreach ($headers as $hi => $h) {
+            $table->addCell($colWidthsTwip[$hi] ?? $colWidthsTwip[0], ['bgColor' => $headerBg])->addText(
                 htmlspecialchars((string) $h, ENT_XML1, 'UTF-8'),
                 ['bold' => true, 'size' => $headerFontSize, 'color' => $headerColor],
                 ['spaceAfter' => 0]
@@ -251,9 +262,9 @@ class DocxPdfTemplateWriter
         foreach ($rows as $rowIndex => $row) {
             $table->addRow();
             $rowBg = ($rowIndex % 2 === 1) ? $alternateRowBg : null;
-            foreach ($row as $cell) {
+            foreach ($row as $ci => $cell) {
                 $cellStyle = $rowBg ? ['bgColor' => $rowBg] : [];
-                $table->addCell($colWidthTwip, $cellStyle)->addText(
+                $table->addCell($colWidthsTwip[$ci] ?? $colWidthsTwip[0], $cellStyle)->addText(
                     htmlspecialchars((string) $cell, ENT_XML1, 'UTF-8'),
                     ['size' => $fontSize],
                     ['spaceAfter' => 0]

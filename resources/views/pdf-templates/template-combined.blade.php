@@ -70,12 +70,12 @@
 
                 <div class="element" style="{{ $css }}">
                     @if (in_array($el['type'] ?? '', ['variant_table', 'relation_table']) && !empty($el['variantTableData']))
-                        @php $tStyle = $el['tableStyle'] ?? []; $tData = $el['variantTableData']; @endphp
-                        <table style="width:100%; border-collapse:collapse; font-size:{{ $tStyle['fontSize'] ?? 8 }}pt; font-family: inherit;">
+                        @php $tStyle = $el['tableStyle'] ?? []; $tData = $el['variantTableData']; $colWidths = $el['columnWidths'] ?? []; @endphp
+                        <table style="width:100%; border-collapse:collapse; font-size:{{ $tStyle['fontSize'] ?? 8 }}pt; font-family: inherit; table-layout: {{ !empty($colWidths) ? 'fixed' : 'auto' }};">
                             <thead>
                                 <tr style="background:{{ e($tStyle['headerBg'] ?? '#f3f4f6') }}; color:{{ e($tStyle['headerColor'] ?? '#374151') }};">
-                                    @foreach ($tData['headers'] as $h)
-                                        <th style="border:1px solid {{ e($tStyle['borderColor'] ?? '#e5e7eb') }}; padding:1mm 2mm; text-align:left; font-size:{{ $tStyle['headerFontSize'] ?? 8 }}pt;">{{ e($h) }}</th>
+                                    @foreach ($tData['headers'] as $hi => $h)
+                                        <th style="border:1px solid {{ e($tStyle['borderColor'] ?? '#e5e7eb') }}; padding:1mm 2mm; text-align:left; font-size:{{ $tStyle['headerFontSize'] ?? 8 }}pt;{{ isset($colWidths[$hi]) ? ' width:' . (int)$colWidths[$hi] . '%;' : '' }}">{{ e($h) }}</th>
                                     @endforeach
                                 </tr>
                             </thead>

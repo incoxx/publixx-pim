@@ -8,17 +8,57 @@ import client from '@/api/client'
 const store = usePdfTemplateDesignerStore()
 
 const relationTypes = ref([])
+const allAttributes = ref([])
+const attrSearchQuery = ref('')
 
 onMounted(async () => {
   try {
-    const { data } = await client.get('/relation-types', { params: { per_page: 100 } })
-    relationTypes.value = data.data || data || []
+    const [rtRes, attrRes] = await Promise.allSettled([
+      client.get('/relation-types', { params: { per_page: 100 } }),
+      client.get('/attributes', { params: { per_page: 500 } }),
+    ])
+    if (rtRes.status === 'fulfilled') relationTypes.value = rtRes.value.data.data || rtRes.value.data || []
+    if (attrRes.status === 'fulfilled') {
+      const attrs = attrRes.value.data.data || attrRes.value.data || []
+      allAttributes.value = attrs.filter(a => a.data_type !== 'Composite')
+    }
   } catch (e) {
-    console.warn('Failed to load relation types:', e.message)
+    console.warn('Failed to load data:', e.message)
   }
 })
 
 const sel = computed(() => store.selectedElement)
+
+const filteredProductAttributes = computed(() => {
+  const q = attrSearchQuery.value.toLowerCase()
+  if (!q) return allAttributes.value
+  return allAttributes.value.filter(a =>
+    (a.name_de || '').toLowerCase().includes(q) ||
+    (a.technical_name || '').toLowerCase().includes(q)
+  )
+})
+
+// Compute current table headers for column width UI
+const currentTableHeaders = computed(() => {
+  if (!sel.value) return []
+  const cols = sel.value.columns || []
+  const headers = []
+  for (const col of cols) {
+    if (col === 'sku') headers.push('SKU')
+    else if (col === 'name') headers.push('Name')
+    else if (col === 'ean') headers.push('EAN')
+    else if (col === 'variant_attributes') headers.push('Var.-Attr.')
+    else if (col === 'relation_attributes') headers.push('Bez.-Attr.')
+    else if (col === 'product_attributes') {
+      const ids = sel.value.productAttributeIds || []
+      for (const id of ids) {
+        const attr = allAttributes.value.find(a => a.id === id)
+        headers.push(attr?.name_de || attr?.technical_name || 'Attribut')
+      }
+    }
+  }
+  return headers
+})
 
 function updateElement(key, value) {
   if (!sel.value) return
@@ -48,6 +88,24 @@ function toggleColumn(col) {
   if (idx >= 0) cols.splice(idx, 1)
   else cols.push(col)
   store.updateElement(sel.value.id, { columns: cols })
+}
+
+function toggleProductAttribute(attrId) {
+  if (!sel.value) return
+  const ids = [...(sel.value.productAttributeIds || [])]
+  const idx = ids.indexOf(attrId)
+  if (idx >= 0) ids.splice(idx, 1)
+  else ids.push(attrId)
+  store.updateElement(sel.value.id, { productAttributeIds: ids })
+}
+
+function updateColumnWidth(index, value) {
+  if (!sel.value) return
+  const widths = [...(sel.value.columnWidths || [])]
+  // Ensure array is long enough
+  while (widths.length < currentTableHeaders.value.length) widths.push(0)
+  widths[index] = parseInt(value) || 0
+  store.updateElement(sel.value.id, { columnWidths: widths })
 }
 
 // fontFamilies imported from fontList.js
@@ -238,6 +296,17 @@ const typeLabels = {
             </label>
           </div>
         </div>
+        <!-- Column Widths -->
+        <div v-if="currentTableHeaders.length > 0" class="border-t border-[var(--color-border)] pt-3">
+          <div class="text-[10px] font-semibold text-[var(--color-text-tertiary)] mb-2">Spaltenbreiten (%)</div>
+          <div class="space-y-1">
+            <div v-for="(header, hi) in currentTableHeaders" :key="hi" class="flex items-center gap-2">
+              <span class="text-[10px] text-[var(--color-text-secondary)] w-20 truncate" :title="header">{{ header }}</span>
+              <input type="number" :value="(sel.columnWidths || [])[hi] || ''" class="pim-input text-xs w-16" min="0" max="100" placeholder="auto" @input="updateColumnWidth(hi, $event.target.value)" />
+              <span class="text-[9px] text-[var(--color-text-tertiary)]">%</span>
+            </div>
+          </div>
+        </div>
         <div class="border-t border-[var(--color-border)] pt-3">
           <div class="text-[10px] font-semibold text-[var(--color-text-tertiary)] mb-2">Tabellen-Styling</div>
           <div class="space-y-2">
@@ -299,6 +368,39 @@ const typeLabels = {
               <input type="checkbox" :checked="(sel.columns || []).includes('relation_attributes')" class="rounded" @change="toggleColumn('relation_attributes')" />
               Beziehungsattribute
             </label>
+            <label class="flex items-center gap-2 text-[11px] cursor-pointer text-[var(--color-text-secondary)]">
+              <input type="checkbox" :checked="(sel.columns || []).includes('product_attributes')" class="rounded" @change="toggleColumn('product_attributes')" />
+              Produktattribute (Zielprodukt)
+            </label>
+          </div>
+        </div>
+        <!-- Product Attribute Selection -->
+        <div v-if="(sel.columns || []).includes('product_attributes')">
+          <div class="text-[10px] font-semibold text-[var(--color-text-tertiary)] mb-1">Produktattribute auswählen</div>
+          <input v-model="attrSearchQuery" class="pim-input text-[10px] w-full mb-1.5" placeholder="Attribute suchen..." />
+          <div class="max-h-32 overflow-y-auto space-y-0.5 border border-[var(--color-border)] rounded p-1.5">
+            <label
+              v-for="attr in filteredProductAttributes"
+              :key="attr.id"
+              class="flex items-center gap-1.5 text-[10px] cursor-pointer text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+            >
+              <input type="checkbox" :checked="(sel.productAttributeIds || []).includes(attr.id)" class="rounded" style="width: 12px; height: 12px;" @change="toggleProductAttribute(attr.id)" />
+              <span class="truncate">{{ attr.name_de || attr.technical_name }}</span>
+            </label>
+          </div>
+          <div v-if="(sel.productAttributeIds || []).length > 0" class="mt-1">
+            <div class="text-[9px] text-[var(--color-text-tertiary)]">{{ (sel.productAttributeIds || []).length }} Attribute ausgewählt</div>
+          </div>
+        </div>
+        <!-- Column Widths -->
+        <div v-if="currentTableHeaders.length > 0" class="border-t border-[var(--color-border)] pt-3">
+          <div class="text-[10px] font-semibold text-[var(--color-text-tertiary)] mb-2">Spaltenbreiten (%)</div>
+          <div class="space-y-1">
+            <div v-for="(header, hi) in currentTableHeaders" :key="hi" class="flex items-center gap-2">
+              <span class="text-[10px] text-[var(--color-text-secondary)] w-20 truncate" :title="header">{{ header }}</span>
+              <input type="number" :value="(sel.columnWidths || [])[hi] || ''" class="pim-input text-xs w-16" min="0" max="100" placeholder="auto" @input="updateColumnWidth(hi, $event.target.value)" />
+              <span class="text-[9px] text-[var(--color-text-tertiary)]">%</span>
+            </div>
           </div>
         </div>
         <div class="border-t border-[var(--color-border)] pt-3">

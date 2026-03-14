@@ -120,8 +120,8 @@ function onDoubleClick(item) {
           :key="el.type"
           class="flex items-center gap-2 px-2 py-1 rounded text-[11px] hover:bg-[var(--color-bg)] text-[var(--color-text-secondary)] cursor-grab"
           draggable="true"
-          @dragstart="onDragStart($event, { type: el.type, ...(el.type === 'text' ? { content: 'Text hier eingeben' } : {}), ...(el.type === 'image' ? { source: 'primary' } : {}), ...(el.type === 'relation_table' ? { columns: ['sku', 'name'], relationTypeId: null } : {}) })"
-          @dblclick="onDoubleClick({ type: el.type, ...(el.type === 'text' ? { content: 'Text hier eingeben' } : {}), ...(el.type === 'image' ? { source: 'primary' } : {}), ...(el.type === 'relation_table' ? { columns: ['sku', 'name'], relationTypeId: null } : {}) })"
+          @dragstart="onDragStart($event, { type: el.type, ...(el.type === 'text' ? { content: 'Text hier eingeben' } : {}), ...(el.type === 'image' ? { source: 'primary' } : {}), ...(el.type === 'relation_table' ? { columns: ['sku', 'name'], relationTypeId: null, productAttributeIds: [] } : {}) })"
+          @dblclick="onDoubleClick({ type: el.type, ...(el.type === 'text' ? { content: 'Text hier eingeben' } : {}), ...(el.type === 'image' ? { source: 'primary' } : {}), ...(el.type === 'relation_table' ? { columns: ['sku', 'name'], relationTypeId: null, productAttributeIds: [] } : {}) })"
         >
           <GripVertical class="w-3 h-3 text-[var(--color-text-tertiary)]" :stroke-width="1.5" />
           <component :is="getIcon(el.type)" class="w-3 h-3 text-[var(--color-accent)]" :stroke-width="2" />

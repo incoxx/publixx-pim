@@ -292,7 +292,9 @@ class PdfTemplateService
         }
 
         if ($hasRelationTable) {
-            $relations[] = 'outgoingRelations.targetProduct';
+            $relations[] = 'outgoingRelations.targetProduct.attributeValues.attribute';
+            $relations[] = 'outgoingRelations.targetProduct.attributeValues.unit';
+            $relations[] = 'outgoingRelations.targetProduct.attributeValues.valueListEntry';
             $relations[] = 'outgoingRelations.relationType';
             $relations[] = 'outgoingRelations.attributeValues.attribute';
             $relations[] = 'outgoingRelations.attributeValues.unit';
