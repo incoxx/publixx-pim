@@ -208,6 +208,7 @@ async function confirmDeleteFolder({ force } = {}) {
     await fetchMedia()
   } catch (e) {
     console.error('Failed to delete folder:', e)
+    uploadError.value = e.response?.data?.title || e.response?.data?.message || 'Ordner konnte nicht gelöscht werden'
   } finally {
     deletingFolder.value = false
   }
@@ -378,6 +379,7 @@ async function createFolder() {
     await fetchFolders()
   } catch (e) {
     console.error('Failed to create folder:', e)
+    uploadError.value = e.response?.data?.message || 'Ordner konnte nicht erstellt werden'
   }
 }
 

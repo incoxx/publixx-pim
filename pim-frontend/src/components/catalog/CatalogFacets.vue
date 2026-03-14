@@ -79,12 +79,53 @@ function toggleBoolean(attributeId) {
   store.fetchProducts()
 }
 
-// Range (Decimal / Integer)
+// Range (Decimal / Integer) with slider support
+const rangeLocal = ref({})
+let rangeDebounceTimers = {}
+
 function getRangeValue(attributeId) {
   const raw = store.activeFilters[attributeId]
   if (!raw) return { min: '', max: '' }
   const parts = String(raw).split(':')
   return { min: parts[0] || '', max: parts[1] || '' }
+}
+
+function getSliderMin(facet) {
+  const local = rangeLocal.value[facet.attribute_id]
+  if (local?.min !== undefined) return local.min
+  const active = getRangeValue(facet.attribute_id)
+  return active.min !== '' ? Number(active.min) : (facet.min ?? 0)
+}
+
+function getSliderMax(facet) {
+  const local = rangeLocal.value[facet.attribute_id]
+  if (local?.max !== undefined) return local.max
+  const active = getRangeValue(facet.attribute_id)
+  return active.max !== '' ? Number(active.max) : (facet.max ?? 100)
+}
+
+function onSliderMinInput(facet, val) {
+  const num = Number(val)
+  const maxVal = getSliderMax(facet)
+  const clamped = Math.min(num, maxVal)
+  rangeLocal.value[facet.attribute_id] = { ...rangeLocal.value[facet.attribute_id], min: clamped }
+  debouncedApplyRange(facet.attribute_id, clamped, maxVal)
+}
+
+function onSliderMaxInput(facet, val) {
+  const num = Number(val)
+  const minVal = getSliderMin(facet)
+  const clamped = Math.max(num, minVal)
+  rangeLocal.value[facet.attribute_id] = { ...rangeLocal.value[facet.attribute_id], max: clamped }
+  debouncedApplyRange(facet.attribute_id, minVal, clamped)
+}
+
+function debouncedApplyRange(attributeId, min, max) {
+  clearTimeout(rangeDebounceTimers[attributeId])
+  rangeDebounceTimers[attributeId] = setTimeout(() => {
+    applyRange(attributeId, { min: String(min), max: String(max) })
+    delete rangeLocal.value[attributeId]
+  }, 400)
 }
 
 function setRangeMin(attributeId, val) {
@@ -106,6 +147,20 @@ function applyRange(attributeId, range) {
     store.setFilter(attributeId, `${range.min}:${range.max}`)
   }
   store.fetchProducts()
+}
+
+function rangeStep(facet) {
+  if (facet.data_type === 'Integer') return 1
+  const span = (facet.max ?? 100) - (facet.min ?? 0)
+  if (span <= 1) return 0.01
+  if (span <= 10) return 0.1
+  if (span <= 100) return 1
+  return Math.pow(10, Math.floor(Math.log10(span)) - 2)
+}
+
+function sliderPercent(val, min, max) {
+  if (max === min) return 0
+  return ((val - min) / (max - min)) * 100
 }
 
 // Filtered values for search
@@ -237,8 +292,46 @@ function facetFilterCount(attributeId) {
             </label>
           </template>
 
-          <!-- Decimal / Integer: range inputs -->
+          <!-- Decimal / Integer: dual range slider + inputs -->
           <template v-else-if="facet.data_type === 'Decimal' || facet.data_type === 'Integer'">
+            <!-- Dual range slider -->
+            <div v-if="facet.min != null && facet.max != null && facet.min !== facet.max" class="mb-3">
+              <div class="relative h-6 flex items-center">
+                <!-- Track background -->
+                <div class="absolute inset-x-0 h-1.5 rounded-full bg-base-300"></div>
+                <!-- Active track -->
+                <div
+                  class="absolute h-1.5 rounded-full bg-primary"
+                  :style="{
+                    left: sliderPercent(getSliderMin(facet), facet.min, facet.max) + '%',
+                    right: (100 - sliderPercent(getSliderMax(facet), facet.min, facet.max)) + '%',
+                  }"
+                ></div>
+                <!-- Min slider -->
+                <input
+                  type="range"
+                  class="absolute inset-x-0 w-full h-6 appearance-none bg-transparent pointer-events-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:cursor-pointer [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-primary [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:shadow-md [&::-moz-range-thumb]:cursor-pointer"
+                  :min="facet.min"
+                  :max="facet.max"
+                  :step="rangeStep(facet)"
+                  :value="getSliderMin(facet)"
+                  @input="onSliderMinInput(facet, $event.target.value)"
+                  style="z-index: 2"
+                />
+                <!-- Max slider -->
+                <input
+                  type="range"
+                  class="absolute inset-x-0 w-full h-6 appearance-none bg-transparent pointer-events-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:cursor-pointer [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-primary [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:shadow-md [&::-moz-range-thumb]:cursor-pointer"
+                  :min="facet.min"
+                  :max="facet.max"
+                  :step="rangeStep(facet)"
+                  :value="getSliderMax(facet)"
+                  @input="onSliderMaxInput(facet, $event.target.value)"
+                  style="z-index: 3"
+                />
+              </div>
+            </div>
+            <!-- Number inputs -->
             <div class="flex items-center gap-2">
               <div class="flex-1">
                 <label class="text-[10px] text-base-content/50 mb-0.5 block">{{ t('catalog.from') }}</label>

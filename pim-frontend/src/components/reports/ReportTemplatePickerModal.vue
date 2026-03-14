@@ -80,7 +80,7 @@ function close() {
         <div class="absolute inset-0 bg-black/30 backdrop-blur-sm" @click="close" />
 
         <!-- Panel -->
-        <div class="relative w-full max-w-[500px] bg-[var(--color-surface)] rounded-xl shadow-xl border border-[var(--color-border)] overflow-hidden mx-4">
+        <div class="relative z-10 w-full max-w-[500px] bg-[var(--color-surface)] rounded-xl shadow-xl border border-[var(--color-border)] overflow-hidden mx-4">
           <!-- Header -->
           <div class="flex items-center justify-between px-5 py-3.5 border-b border-[var(--color-border)]">
             <div>

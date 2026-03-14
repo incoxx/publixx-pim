@@ -47,7 +47,7 @@ function toggleWishlist() {
       <div v-if="open" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
         <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="emit('close')"></div>
 
-        <div class="relative bg-base-100 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+        <div class="relative z-10 bg-base-100 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
           <!-- Header -->
           <div class="flex items-center justify-between p-3 md:p-4 border-b border-base-300 gap-2">
             <h2 class="text-sm md:text-lg font-semibold truncate min-w-0">

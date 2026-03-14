@@ -394,16 +394,9 @@ class CatalogController extends BaseController
             ];
         }
 
-        // Load attribute view filter from settings
+        // Load attribute view filter from settings (includes hierarchy-assigned attributes)
         $themePayload = Setting::getPayload('catalog_theme') ?? [];
-        $attributeViewIds = $themePayload['attribute_view_ids'] ?? [];
-        $allowedAttributeIds = null;
-        if (!empty($attributeViewIds)) {
-            $allowedAttributeIds = AttributeViewAssignment::whereIn('attribute_view_id', $attributeViewIds)
-                ->pluck('attribute_id')
-                ->unique()
-                ->toArray();
-        }
+        $allowedAttributeIds = $this->buildAllowedAttributeIds($product, $themePayload);
 
         // Load description attributes configuration
         $descriptionAttributes = $themePayload['description_attributes'] ?? [];
@@ -511,16 +504,9 @@ class CatalogController extends BaseController
             ];
         }
 
-        // Load attribute view filter from settings
+        // Load attribute view filter from settings (includes hierarchy-assigned attributes)
         $themePayload = Setting::getPayload('catalog_theme') ?? [];
-        $attributeViewIds = $themePayload['attribute_view_ids'] ?? [];
-        $allowedAttributeIds = null;
-        if (!empty($attributeViewIds)) {
-            $allowedAttributeIds = AttributeViewAssignment::whereIn('attribute_view_id', $attributeViewIds)
-                ->pluck('attribute_id')
-                ->unique()
-                ->toArray();
-        }
+        $allowedAttributeIds = $this->buildAllowedAttributeIds($product, $themePayload);
 
         // Load description attributes configuration
         $descriptionAttributes = $themePayload['description_attributes'] ?? [];
@@ -1018,6 +1004,34 @@ class CatalogController extends BaseController
     /**
      * When an output hierarchy is configured in settings, merge channel-specific
      * attribute values into the product's attributeValues relation.
+     * Build allowed attribute IDs from attribute views + hierarchy node assignments.
+     */
+    private function buildAllowedAttributeIds(Product $product, array $themePayload): ?array
+    {
+        $attributeViewIds = $themePayload['attribute_view_ids'] ?? [];
+
+        if (empty($attributeViewIds)) {
+            return null;
+        }
+
+        $viewAttributeIds = AttributeViewAssignment::whereIn('attribute_view_id', $attributeViewIds)
+            ->pluck('attribute_id')
+            ->unique();
+
+        // Also include hierarchy-assigned attributes (UDX, BMEcat, etc.)
+        $hierarchyAttributeIds = collect();
+        if ($product->masterHierarchyNode) {
+            $hierarchyService = app(HierarchyInheritanceService::class);
+            $hierarchyAttributeIds = $hierarchyService->getEffectiveAttributes($product->masterHierarchyNode)
+                ->pluck('attribute_id');
+        }
+
+        return $viewAttributeIds->merge($hierarchyAttributeIds)
+            ->unique()
+            ->toArray();
+    }
+
+    /**
      * Output values override master values for the same attribute+language+index.
      */
     private function mergeOutputHierarchyValues(Product $product, array $themePayload): void

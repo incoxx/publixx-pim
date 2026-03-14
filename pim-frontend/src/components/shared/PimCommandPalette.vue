@@ -98,7 +98,7 @@ const sectionLabels = { navigation: 'Navigation', actions: 'Aktionen' }
       >
         <div class="absolute inset-0 bg-black/30 backdrop-blur-sm" @click="close" />
         <div
-          class="relative w-full max-w-[540px] bg-[var(--color-surface)] rounded-xl shadow-xl border border-[var(--color-border)] overflow-hidden"
+          class="relative z-10 w-full max-w-[540px] bg-[var(--color-surface)] rounded-xl shadow-xl border border-[var(--color-border)] overflow-hidden"
           @keydown="handleKeydown"
         >
           <div class="flex items-center gap-3 px-4 py-3 border-b border-[var(--color-border)]">
