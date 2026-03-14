@@ -10,6 +10,7 @@ import {
   HelpCircle, PanelLeftClose, PanelLeft, Star, LayoutGrid, Ruler,
   FileJson, FileCode, PlayCircle, FileBarChart, FileText, BookOpen, Link2, Zap, Languages,
   ChevronDown, ChevronRight, GripVertical, Factory, CalendarDays, ScrollText, Globe,
+  LayoutDashboard, ClipboardList,
 } from 'lucide-vue-next'
 import AnyPimLogo from '@/components/shared/AnyPimLogo.vue'
 
@@ -26,9 +27,11 @@ const sections = computed(() => {
       key: 'daily',
       label: null, // no header for the top section
       items: [
+        { icon: LayoutDashboard, label: () => 'Dashboard', to: '/dashboard' },
         { icon: Search, label: () => t('nav.search'), to: '/search' },
         { icon: Package, label: () => t('nav.products'), to: '/products' },
         { icon: Star, label: () => 'Merkliste', to: '/watchlist' },
+        { icon: ClipboardList, label: () => 'Workflow', to: '/workflow' },
         { icon: GitBranch, label: () => t('nav.hierarchies'), to: '/hierarchies' },
         { divider: true },
         { icon: Image, label: () => t('nav.media'), to: '/media' },

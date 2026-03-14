@@ -72,6 +72,8 @@ class RoleAndPermissionSeeder extends Seeder
             'translations.view', 'translations.edit',
             // Journal
             'journal.view',
+            // Workflow
+            'workflow.view',
             // Einstellungen
             'settings.view', 'settings.edit',
             // Merkliste
@@ -122,6 +124,7 @@ class RoleAndPermissionSeeder extends Seeder
             'products.view',
             'prices.view',
             'imports.view', 'imports.create', 'imports.execute', 'imports.delete',
+            'workflow.view',
         ]);
 
         // ─── 3. Product Manager (Datenpflege) ────────────────────────
@@ -147,6 +150,7 @@ class RoleAndPermissionSeeder extends Seeder
             'manufacturers.view',
             'media-usage-types.view',
             'imports.view', 'imports.create', 'imports.execute',
+            'workflow.view',
         ]);
 
         // ─── 4. Viewer (Nur Lesen, ohne Benutzerverwaltung) ─────────

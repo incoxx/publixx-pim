@@ -11,7 +11,7 @@ const routes = [
   },
   {
     path: '/',
-    redirect: '/products',
+    redirect: '/dashboard',
   },
   {
     path: '/dashboard',
@@ -258,6 +258,12 @@ const routes = [
     name: 'journal',
     component: () => import('@/views/journal/JournalView.vue'),
     meta: { title: 'Änderungsprotokoll' },
+  },
+  {
+    path: '/workflow',
+    name: 'workflow',
+    component: () => import('@/views/workflow/WorkflowTaskView.vue'),
+    meta: { title: 'Workflow-Aufgaben' },
   },
   {
     path: '/help',

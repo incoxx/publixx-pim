@@ -12,6 +12,7 @@ use App\Models\Product;
 use App\Models\ProductAttributeValue;
 use App\Services\Preview\ProductCompletenessService;
 use App\Services\Preview\ProductPreviewService;
+use App\Models\WorkflowTask;
 use App\Services\ProductVersioningService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
@@ -276,6 +277,31 @@ class ProductController extends Controller
             $data['status'] = 'active';
             $data['workflow_status'] = null;
             $data['workflow_assignee_id'] = null;
+        }
+
+        // Auto-create workflow task when workflow_status changes
+        $oldWorkflowStatus = $product->workflow_status;
+        $newWorkflowStatus = $data['workflow_status'] ?? $oldWorkflowStatus;
+        if ($newWorkflowStatus !== $oldWorkflowStatus && $newWorkflowStatus !== null) {
+            $taskTitles = [
+                'editing' => 'Bearbeitung',
+                'review' => 'Review',
+                'approved' => 'Freigabe',
+            ];
+            WorkflowTask::create([
+                'product_id' => $product->id,
+                'title' => $taskTitles[$newWorkflowStatus] ?? $newWorkflowStatus,
+                'status' => 'open',
+                'assigned_to' => $data['workflow_assignee_id'] ?? $product->workflow_assignee_id,
+                'created_by' => $request->user()?->id,
+            ]);
+        }
+
+        // Close open tasks when workflow is approved/cleared
+        if ($newWorkflowStatus !== $oldWorkflowStatus && ($newWorkflowStatus === 'approved' || $newWorkflowStatus === null)) {
+            WorkflowTask::where('product_id', $product->id)
+                ->whereIn('status', ['open', 'in_progress'])
+                ->update(['status' => 'closed', 'closed_at' => now()]);
         }
 
         $product->update($data);
