@@ -212,6 +212,7 @@ const messages = {
       to: 'Bis',
       searchValues: 'Suchen…',
       activeFilters: 'Aktive Filter',
+      searchOverridesFilters: 'Suche übersteuert Filter',
     },
     assetCatalog: {
       title: 'Asset-Katalog',
@@ -468,6 +469,7 @@ const messages = {
       to: 'To',
       searchValues: 'Search…',
       activeFilters: 'Active filters',
+      searchOverridesFilters: 'Search overrides filters',
     },
     assetCatalog: {
       title: 'Asset Catalog',

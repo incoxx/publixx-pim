@@ -127,6 +127,24 @@ const staggerDelay = computed(() => `${Math.min(props.index * 50, 400)}ms`)
         {{ product.sku }}
       </p>
 
+      <!-- Match sources (search hit badges) -->
+      <div v-if="product.match_sources?.length" class="flex flex-wrap gap-1 mt-1">
+        <span
+          v-for="(source, i) in product.match_sources.slice(0, 3)"
+          :key="i"
+          class="badge badge-xs"
+          :class="{
+            'badge-primary': source.type === 'name',
+            'badge-secondary': source.type === 'sku' || source.type === 'ean',
+            'badge-accent': source.type === 'attribute',
+            'badge-info': source.type === 'media' || source.type === 'description',
+            'badge-warning': source.type === 'phonetic',
+          }"
+        >
+          {{ source.label }}
+        </span>
+      </div>
+
       <!-- Card attributes -->
       <div v-if="product.card_attributes?.length" class="mt-1 space-y-0.5">
         <div

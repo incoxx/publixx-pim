@@ -1,7 +1,7 @@
 <script setup>
 import { useI18n } from 'vue-i18n'
 import { useCatalogStore } from '@/stores/catalog'
-import { LayoutGrid, List, X } from 'lucide-vue-next'
+import { LayoutGrid, List, X, SearchX } from 'lucide-vue-next'
 
 const { t } = useI18n()
 const store = useCatalogStore()
@@ -34,6 +34,11 @@ function clearCategory() {
         <button @click="store.setSearch(''); store.fetchProducts()" class="hover:text-error">
           <X class="w-3 h-3" />
         </button>
+      </div>
+      <!-- Search overrides filters hint -->
+      <div v-if="store.searchActive && (store.selectedCategoryId || store.activeFilterCount > 0)" class="badge badge-warning badge-outline gap-1 text-[10px]">
+        <SearchX class="w-3 h-3" />
+        {{ t('catalog.searchOverridesFilters') }}
       </div>
       <span class="text-sm text-base-content/50">
         {{ store.meta.total }} {{ t('catalog.results') }}

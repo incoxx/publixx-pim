@@ -47,7 +47,10 @@ function selectAll() {
     </div>
 
     <!-- Category tree -->
-    <div class="flex-1 overflow-y-auto px-2 py-2">
+    <div
+      class="flex-1 overflow-y-auto px-2 py-2 transition-opacity duration-200"
+      :class="{ 'opacity-40 pointer-events-none': store.searchActive }"
+    >
       <div v-if="store.categoriesLoading" class="space-y-2 px-3">
         <div v-for="i in 6" :key="i" class="skeleton h-6 w-full rounded"></div>
       </div>
@@ -58,7 +61,7 @@ function selectAll() {
       />
     </div>
 
-    <!-- Facet filters -->
-    <CatalogFacets />
+    <!-- Facet filters (hidden when search is active) -->
+    <CatalogFacets v-if="!store.searchActive" />
   </aside>
 </template>

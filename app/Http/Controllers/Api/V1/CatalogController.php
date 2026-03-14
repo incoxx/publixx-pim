@@ -23,6 +23,7 @@ use App\Models\PdfTemplate;
 use App\Services\Inheritance\HierarchyInheritanceService;
 use App\Services\PdfTemplate\PdfTemplateService;
 use App\Services\Preview\ProductPreviewService;
+use App\Support\KoelnerPhonetik;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -57,124 +58,151 @@ class CatalogController extends BaseController
             ->where('products.status', 'active')
             ->where('products.product_type_ref', 'product');
 
-        // Category filter
-        if ($categoryId) {
-            $node = HierarchyNode::find($categoryId);
-            if ($node) {
-                // Get descendant node IDs + the node itself via materialized path
-                // Node path already includes its own ID (e.g. "/rootId/childId/"),
-                // so LIKE 'path%' matches the node itself and all descendants.
-                $descendantIds = HierarchyNode::where('hierarchy_id', $node->hierarchy_id)
-                    ->where('path', 'like', $node->path . '%')
-                    ->pluck('id')
-                    ->toArray();
+        $isSearchActive = $search && trim($search) !== '';
 
-                if ($hierarchyType === 'output') {
-                    $productIds = OutputHierarchyProductAssignment::whereIn('hierarchy_node_id', $descendantIds)
-                        ->pluck('product_id');
-                    $query->whereIn('products_search_index.product_id', $productIds);
-                } else {
-                    $query->whereIn('products.master_hierarchy_node_id', $descendantIds);
-                }
-            }
-        }
-
-        // "Nur verknüpfte Produkte" – restrict to products in the configured hierarchy
-        if (!$categoryId) {
-            $themePayload = Setting::getPayload('catalog_theme') ?? [];
-            $linkedOnly = !empty($themePayload['catalog_linked_products_only']);
-            $settingsHierarchyId = $themePayload['hierarchy_id'] ?? null;
-
-            if ($linkedOnly && $settingsHierarchyId) {
-                $hierarchy = Hierarchy::find($settingsHierarchyId);
-                if ($hierarchy) {
-                    $allNodeIds = HierarchyNode::where('hierarchy_id', $hierarchy->id)->pluck('id');
-                    if ($hierarchy->hierarchy_type === 'output') {
-                        $linkedProductIds = OutputHierarchyProductAssignment::whereIn('hierarchy_node_id', $allNodeIds)
-                            ->pluck('product_id');
-                        $query->whereIn('products_search_index.product_id', $linkedProductIds);
-                    } else {
-                        $query->whereIn('products.master_hierarchy_node_id', $allNodeIds);
-                    }
-                }
-            }
-        }
-
-        // Search
-        if ($search && trim($search) !== '') {
+        // Search overrides all other filters (category + facets)
+        if ($isSearchActive) {
             $term = trim($search);
+            $likeTerm = '%' . $term . '%';
+
             if (DB::getDriverName() === 'mysql') {
-                $query->where(function ($q) use ($term) {
+                // FULLTEXT relevance scoring
+                $query->selectRaw(
+                    '(MATCH(products_search_index.name_de, products_search_index.name_en) AGAINST(? IN BOOLEAN MODE)) * 10 as name_score',
+                    [$term . '*']
+                );
+                $query->selectRaw(
+                    'IF(products_search_index.searchable_text IS NOT NULL, (MATCH(products_search_index.searchable_text, products_search_index.media_text) AGAINST(? IN BOOLEAN MODE)) * 3, 0) as attr_score',
+                    [$term . '*']
+                );
+
+                $phoneticTerm = KoelnerPhonetik::encode($term);
+
+                $query->where(function ($q) use ($term, $likeTerm, $phoneticTerm) {
                     $q->whereRaw(
                         'MATCH(products_search_index.name_de, products_search_index.name_en) AGAINST(? IN BOOLEAN MODE)',
                         [$term . '*']
                     )
-                    ->orWhere('products_search_index.sku', 'like', '%' . $term . '%')
-                    ->orWhere('products_search_index.ean', 'like', '%' . $term . '%')
-                    ->orWhere('products_search_index.description_de', 'like', '%' . $term . '%');
+                    ->orWhere('products_search_index.sku', 'like', $likeTerm)
+                    ->orWhere('products_search_index.ean', 'like', $likeTerm)
+                    ->orWhere('products_search_index.description_de', 'like', $likeTerm)
+                    ->orWhereRaw(
+                        'products_search_index.searchable_text IS NOT NULL AND MATCH(products_search_index.searchable_text, products_search_index.media_text) AGAINST(? IN BOOLEAN MODE)',
+                        [$term . '*']
+                    )
+                    // Phonetic fallback for typo tolerance
+                    ->orWhere('products_search_index.phonetic_name_de', 'like', '%' . $phoneticTerm . '%')
+                    ->orWhere('products_search_index.phonetic_text', 'like', '%' . $phoneticTerm . '%');
                 });
+
+                // Sort by relevance when searching
+                $query->orderByRaw('(name_score + attr_score) DESC');
             } else {
-                $likeTerm = '%' . $term . '%';
+                // SQLite fallback
                 $query->where(function ($q) use ($likeTerm) {
                     $q->where('products_search_index.name_de', 'like', $likeTerm)
                       ->orWhere('products_search_index.name_en', 'like', $likeTerm)
                       ->orWhere('products_search_index.sku', 'like', $likeTerm)
                       ->orWhere('products_search_index.ean', 'like', $likeTerm)
-                      ->orWhere('products_search_index.description_de', 'like', $likeTerm);
+                      ->orWhere('products_search_index.description_de', 'like', $likeTerm)
+                      ->orWhere('products_search_index.searchable_text', 'like', $likeTerm)
+                      ->orWhere('products_search_index.media_text', 'like', $likeTerm);
                 });
             }
-        }
+        } else {
+            // No search active — apply category + facet filters normally
 
-        // Facet filters
-        $filters = $request->query('filters', []);
-        if (is_array($filters)) {
-            $filterIdx = 0;
-            foreach ($filters as $attrId => $filterValue) {
-                if (!is_string($attrId) || empty($filterValue)) {
-                    continue;
-                }
-                $alias = "pav_f{$filterIdx}";
-                $filterIdx++;
+            // Category filter
+            if ($categoryId) {
+                $node = HierarchyNode::find($categoryId);
+                if ($node) {
+                    $descendantIds = HierarchyNode::where('hierarchy_id', $node->hierarchy_id)
+                        ->where('path', 'like', $node->path . '%')
+                        ->pluck('id')
+                        ->toArray();
 
-                $query->join("product_attribute_values as {$alias}", function ($join) use ($alias, $attrId) {
-                    $join->on("{$alias}.product_id", '=', 'products.id')
-                         ->where("{$alias}.attribute_id", '=', $attrId);
-                });
-
-                if (str_contains($filterValue, ':')) {
-                    // Range filter (min:max)
-                    [$min, $max] = explode(':', $filterValue, 2);
-                    if ($min !== '') {
-                        $query->where("{$alias}.value_number", '>=', (float) $min);
-                    }
-                    if ($max !== '') {
-                        $query->where("{$alias}.value_number", '<=', (float) $max);
-                    }
-                } elseif ($filterValue === '0' || $filterValue === '1') {
-                    $query->where("{$alias}.value_flag", '=', $filterValue === '1');
-                } else {
-                    // Value list or text — comma-separated IDs or values
-                    $values = array_filter(explode(',', $filterValue));
-                    if (!empty($values)) {
-                        $query->where(function ($q) use ($alias, $values) {
-                            $q->whereIn("{$alias}.value_selection_id", $values)
-                              ->orWhereIn("{$alias}.value_string", $values);
-                        });
+                    if ($hierarchyType === 'output') {
+                        $productIds = OutputHierarchyProductAssignment::whereIn('hierarchy_node_id', $descendantIds)
+                            ->pluck('product_id');
+                        $query->whereIn('products_search_index.product_id', $productIds);
+                    } else {
+                        $query->whereIn('products.master_hierarchy_node_id', $descendantIds);
                     }
                 }
             }
+
+            // "Nur verknüpfte Produkte" – restrict to products in the configured hierarchy
+            if (!$categoryId) {
+                $themePayload = Setting::getPayload('catalog_theme') ?? [];
+                $linkedOnly = !empty($themePayload['catalog_linked_products_only']);
+                $settingsHierarchyId = $themePayload['hierarchy_id'] ?? null;
+
+                if ($linkedOnly && $settingsHierarchyId) {
+                    $hierarchy = Hierarchy::find($settingsHierarchyId);
+                    if ($hierarchy) {
+                        $allNodeIds = HierarchyNode::where('hierarchy_id', $hierarchy->id)->pluck('id');
+                        if ($hierarchy->hierarchy_type === 'output') {
+                            $linkedProductIds = OutputHierarchyProductAssignment::whereIn('hierarchy_node_id', $allNodeIds)
+                                ->pluck('product_id');
+                            $query->whereIn('products_search_index.product_id', $linkedProductIds);
+                        } else {
+                            $query->whereIn('products.master_hierarchy_node_id', $allNodeIds);
+                        }
+                    }
+                }
+            }
+
+            // Facet filters
+            $filters = $request->query('filters', []);
+            if (is_array($filters)) {
+                $filterIdx = 0;
+                foreach ($filters as $attrId => $filterValue) {
+                    if (!is_string($attrId) || empty($filterValue)) {
+                        continue;
+                    }
+                    $alias = "pav_f{$filterIdx}";
+                    $filterIdx++;
+
+                    $query->join("product_attribute_values as {$alias}", function ($join) use ($alias, $attrId) {
+                        $join->on("{$alias}.product_id", '=', 'products.id')
+                             ->where("{$alias}.attribute_id", '=', $attrId);
+                    });
+
+                    if (str_contains($filterValue, ':')) {
+                        [$min, $max] = explode(':', $filterValue, 2);
+                        if ($min !== '') {
+                            $query->where("{$alias}.value_number", '>=', (float) $min);
+                        }
+                        if ($max !== '') {
+                            $query->where("{$alias}.value_number", '<=', (float) $max);
+                        }
+                    } elseif ($filterValue === '0' || $filterValue === '1') {
+                        $query->where("{$alias}.value_flag", '=', $filterValue === '1');
+                    } else {
+                        $values = array_filter(explode(',', $filterValue));
+                        if (!empty($values)) {
+                            $query->where(function ($q) use ($alias, $values) {
+                                $q->whereIn("{$alias}.value_selection_id", $values)
+                                  ->orWhereIn("{$alias}.value_string", $values);
+                            });
+                        }
+                    }
+                }
+            }
         }
 
-        // Sorting
-        $sortColumn = match ($sortField) {
-            'price' => 'products_search_index.list_price',
-            'sku' => 'products_search_index.sku',
-            'updated_at' => 'products_search_index.updated_at',
-            default => $lang === 'en' ? 'products_search_index.name_en' : 'products_search_index.name_de',
-        };
-        $query->orderBy($sortColumn, $sortOrder);
+        // Sorting — skip normal sort when search uses relevance ordering
+        if (!$isSearchActive || DB::getDriverName() === 'sqlite') {
+            $sortColumn = match ($sortField) {
+                'price' => 'products_search_index.list_price',
+                'sku' => 'products_search_index.sku',
+                'updated_at' => 'products_search_index.updated_at',
+                default => $lang === 'en' ? 'products_search_index.name_en' : 'products_search_index.name_de',
+            };
+            $query->orderBy($sortColumn, $sortOrder);
+        }
 
-        $query->select([
+        $selectColumns = [
             'products.id',
             'products_search_index.sku',
             'products_search_index.ean',
@@ -185,7 +213,15 @@ class CatalogController extends BaseController
             'products_search_index.primary_image',
             'products_search_index.list_price',
             'products_search_index.product_type',
-        ]);
+        ];
+
+        // Include searchable_text and media_text for match_sources when searching
+        if ($isSearchActive) {
+            $selectColumns[] = 'products_search_index.searchable_text';
+            $selectColumns[] = 'products_search_index.media_text';
+        }
+
+        $query->select($selectColumns);
 
         $paginated = $query->paginate($perPage);
 
@@ -312,6 +348,42 @@ class CatalogController extends BaseController
                 ->get()
                 ->mapWithKeys(fn ($n) => [$n->id => $lang === 'en' && $n->name_en ? $n->name_en : $n->name_de])
                 ->toArray();
+        }
+
+        // Compute match_sources for search results (only for current page)
+        if ($isSearchActive) {
+            $term = mb_strtolower(trim($search));
+            $productIdsForMatch = collect($paginated->items())->pluck('id')->toArray();
+
+            // Batch-load attribute match sources for all products on this page
+            $attrMatchMap = $this->findAttributeMatchSourcesBatch($productIdsForMatch, $term, $lang);
+
+            foreach ($paginated->items() as $item) {
+                $sources = [];
+                if (str_contains(mb_strtolower($item->name_de ?? ''), $term) ||
+                    str_contains(mb_strtolower($item->name_en ?? ''), $term)) {
+                    $sources[] = ['type' => 'name', 'label' => $lang === 'en' ? 'Product name' : 'Produktname'];
+                }
+                if (str_contains(mb_strtolower($item->sku ?? ''), $term)) {
+                    $sources[] = ['type' => 'sku', 'label' => 'SKU'];
+                }
+                if (str_contains(mb_strtolower($item->ean ?? ''), $term)) {
+                    $sources[] = ['type' => 'ean', 'label' => 'EAN'];
+                }
+                if (str_contains(mb_strtolower($item->description_de ?? ''), $term)) {
+                    $sources[] = ['type' => 'description', 'label' => $lang === 'en' ? 'Description' : 'Beschreibung'];
+                }
+                if (str_contains(mb_strtolower($item->searchable_text ?? ''), $term)) {
+                    $sources = array_merge($sources, $attrMatchMap[$item->id] ?? []);
+                }
+                if (str_contains(mb_strtolower($item->media_text ?? ''), $term)) {
+                    $sources[] = ['type' => 'media', 'label' => $lang === 'en' ? 'Document' : 'Dokument'];
+                }
+                if (empty($sources)) {
+                    $sources[] = ['type' => 'phonetic', 'label' => $lang === 'en' ? 'Sounds similar' : 'Ähnlich klingend'];
+                }
+                $item->match_sources = $sources;
+            }
         }
 
         // Attach card attributes, primary attribute, resolved price, and resolved category path to each item
@@ -682,6 +754,74 @@ class CatalogController extends BaseController
             'X-Limit' => (string) $limit,
             'X-Count' => (string) $flatProducts->count(),
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+    }
+
+    /**
+     * Batch-find which searchable attributes matched for a set of product IDs.
+     * Single query for all products on the page for performance.
+     */
+    private function findAttributeMatchSourcesBatch(array $productIds, string $term, string $lang): array
+    {
+        if (empty($productIds)) {
+            return [];
+        }
+
+        $likeTerm = '%' . $term . '%';
+
+        // Find matching attributes via value_string (String, RichText, etc.)
+        $stringMatches = ProductAttributeValue::query()
+            ->join('attributes', 'attributes.id', '=', 'product_attribute_values.attribute_id')
+            ->whereIn('product_attribute_values.product_id', $productIds)
+            ->where('attributes.is_searchable', true)
+            ->where('product_attribute_values.value_string', 'like', $likeTerm)
+            ->select(
+                'product_attribute_values.product_id',
+                'attributes.name_de',
+                'attributes.name_en',
+                'attributes.technical_name',
+            )
+            ->get();
+
+        // Find matching attributes via value_list_entries (Selection/Dictionary)
+        $selectionMatches = ProductAttributeValue::query()
+            ->join('attributes', 'attributes.id', '=', 'product_attribute_values.attribute_id')
+            ->join('value_list_entries', 'value_list_entries.id', '=', 'product_attribute_values.value_selection_id')
+            ->whereIn('product_attribute_values.product_id', $productIds)
+            ->where('attributes.is_searchable', true)
+            ->where(function ($q) use ($likeTerm) {
+                $q->where('value_list_entries.display_value_de', 'like', $likeTerm)
+                  ->orWhere('value_list_entries.display_value_en', 'like', $likeTerm);
+            })
+            ->select(
+                'product_attribute_values.product_id',
+                'attributes.name_de',
+                'attributes.name_en',
+                'attributes.technical_name',
+            )
+            ->get();
+
+        $map = [];
+        $allMatches = $stringMatches->merge($selectionMatches);
+
+        foreach ($allMatches as $match) {
+            $pid = $match->product_id;
+            $techName = $match->technical_name;
+
+            // Deduplicate per product+attribute and limit to 3
+            if (!isset($map[$pid])) {
+                $map[$pid] = [];
+            }
+            $existing = array_column($map[$pid], 'technical_name');
+            if (count($map[$pid]) < 3 && !in_array($techName, $existing, true)) {
+                $map[$pid][] = [
+                    'type' => 'attribute',
+                    'label' => $lang === 'en' && $match->name_en ? $match->name_en : $match->name_de,
+                    'technical_name' => $techName,
+                ];
+            }
+        }
+
+        return $map;
     }
 
     /**
