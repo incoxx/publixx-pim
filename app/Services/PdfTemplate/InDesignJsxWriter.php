@@ -1088,7 +1088,7 @@ JSX;
         $templateName = $templateJson['name'] ?? 'Publixx Template';
         $elementCount = count($templateJson['elements'] ?? []);
 
-        return <<<README
+        return <<<READMETXT
 ================================================================================
 PUBLIXX PIM — INDESIGN LAYOUT IMPORT
 ================================================================================
@@ -1136,7 +1136,7 @@ Generiert mit Publixx PIM — https://publixx.de
 
 ================================================================================
 
-README;
+READMETXT;
     }
 
     /**
