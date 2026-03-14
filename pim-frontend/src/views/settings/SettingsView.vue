@@ -3,7 +3,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useLocaleStore } from '@/stores/locale'
 import { useAuthStore } from '@/stores/auth'
-import { Globe, Palette, AlertTriangle, Server, RotateCcw, CheckCircle, XCircle, Loader2, GitBranch, Database, Upload, Trash2, Save, Filter, LayoutGrid, Columns3, Image, Settings2, Paintbrush, BookOpen, GripVertical, Plus, X, Shield, Key } from 'lucide-vue-next'
+import { Globe, Palette, AlertTriangle, Server, RotateCcw, CheckCircle, XCircle, Loader2, GitBranch, Database, Upload, Trash2, Save, Filter, LayoutGrid, Columns3, Image, Settings2, Paintbrush, BookOpen, GripVertical, Plus, X, Shield, Key, Eye, Monitor } from 'lucide-vue-next'
 import { useLicenseStore } from '@/stores/license'
 import adminApi from '@/api/admin'
 import catalogApi from '@/api/catalog'
@@ -321,7 +321,9 @@ const themeForm = ref({
   catalog_access_mode: 'public',
   catalog_linked_products_only: false,
 })
+const activeMainTab = ref('general')
 const activeThemeTab = ref('general')
+const previewPage = ref('overview')
 const themeLogoPreview = ref(null)
 const themeSaving = ref(false)
 const themeSaved = ref(false)
@@ -639,6 +641,31 @@ onMounted(async () => {
   <div class="space-y-6 max-w-5xl">
     <h2 class="text-lg font-semibold text-[var(--color-text-primary)]">{{ t('settings.title') }}</h2>
 
+    <!-- ═══ TOP-LEVEL TABS ═══ -->
+    <div class="flex gap-1 border-b border-[var(--color-border)]">
+      <button
+        v-for="tab in [
+          { key: 'general', label: 'Generell', icon: Settings2 },
+          ...(isAdmin ? [{ key: 'catalog', label: 'Preview Katalog', icon: Eye }] : []),
+          ...(isAdmin ? [{ key: 'license', label: 'Lizenz', icon: Key }] : []),
+        ]"
+        :key="tab.key"
+        class="flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors"
+        :class="activeMainTab === tab.key
+          ? 'border-[var(--color-accent)] text-[var(--color-accent)]'
+          : 'border-transparent text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'"
+        @click="activeMainTab = tab.key"
+      >
+        <component :is="tab.icon" class="w-4 h-4" :stroke-width="2" />
+        {{ tab.label }}
+      </button>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- TAB: GENERELL                                                      -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <template v-if="activeMainTab === 'general'">
+
     <!-- Sprache -->
     <div class="pim-card p-6 space-y-4">
       <div class="flex items-center gap-3 mb-2"><Globe class="w-5 h-5 text-[var(--color-accent)]" :stroke-width="1.75" /><h3 class="text-sm font-semibold">{{ t('settings.language') }}</h3></div>
@@ -659,8 +686,14 @@ onMounted(async () => {
       </div>
     </div>
 
-    <!-- Darstellung / Katalog-Theme -->
-    <div v-if="isAdmin" class="pim-card p-6 space-y-5">
+    </template><!-- end TAB: Generell -->
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- TAB: PREVIEW KATALOG                                               -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <template v-if="activeMainTab === 'catalog' && isAdmin">
+
+    <div class="pim-card p-6 space-y-5">
       <div class="flex items-center gap-3 mb-2">
         <Palette class="w-5 h-5 text-[var(--color-accent)]" :stroke-width="1.75" />
         <h3 class="text-sm font-semibold">Katalog-Darstellung</h3>
@@ -671,7 +704,7 @@ onMounted(async () => {
       </div>
 
       <template v-else>
-        <!-- Tab Navigation -->
+        <!-- Sub-Tab Navigation -->
         <div class="flex gap-1 border-b border-[var(--color-border)] -mx-6 px-6">
           <button
             v-for="tab in [
@@ -1295,6 +1328,135 @@ onMounted(async () => {
       </template>
     </div>
 
+    <!-- SVG Live Preview -->
+    <div class="pim-card p-6 space-y-4">
+      <div class="flex items-center gap-3 mb-2">
+        <Monitor class="w-5 h-5 text-[var(--color-accent)]" :stroke-width="1.75" />
+        <h3 class="text-sm font-semibold">Vorschau</h3>
+        <div class="flex gap-1 ml-auto">
+          <button
+            class="px-2.5 py-1 text-[11px] font-medium rounded transition-colors"
+            :class="previewPage === 'overview'
+              ? 'bg-[var(--color-accent)]/10 text-[var(--color-accent)]'
+              : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'"
+            @click="previewPage = 'overview'"
+          >Übersicht</button>
+          <button
+            class="px-2.5 py-1 text-[11px] font-medium rounded transition-colors"
+            :class="previewPage === 'detail'
+              ? 'bg-[var(--color-accent)]/10 text-[var(--color-accent)]'
+              : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'"
+            @click="previewPage = 'detail'"
+          >Detailseite</button>
+        </div>
+      </div>
+
+      <!-- Overview Page Preview -->
+      <div v-if="previewPage === 'overview'" class="rounded-lg border border-[var(--color-border)] overflow-hidden">
+        <svg viewBox="0 0 800 500" class="w-full" xmlns="http://www.w3.org/2000/svg">
+          <!-- Header -->
+          <rect width="800" height="48" :fill="themeForm.color_header_bg || themeForm.color_primary" />
+          <rect x="20" y="14" width="80" height="20" rx="3" fill="white" opacity="0.9" />
+          <rect x="300" y="16" width="200" height="16" rx="8" fill="white" opacity="0.15" />
+          <circle cx="760" cy="24" r="12" :fill="themeForm.color_accent" opacity="0.8" />
+          <!-- Nav bar -->
+          <rect y="48" width="800" height="32" :fill="themeForm.color_table_bg || '#F5F5F5'" />
+          <rect x="120" y="58" width="60" height="8" rx="2" :fill="themeForm.color_body_text || '#333'" opacity="0.5" />
+          <rect x="200" y="58" width="80" height="8" rx="2" :fill="themeForm.color_body_text || '#333'" opacity="0.5" />
+          <rect x="300" y="58" width="70" height="8" rx="2" :fill="themeForm.color_body_text || '#333'" opacity="0.5" />
+          <rect x="390" y="58" width="75" height="8" rx="2" :fill="themeForm.color_body_text || '#333'" opacity="0.5" />
+          <!-- Body background -->
+          <rect y="80" width="800" height="420" :fill="themeForm.color_table_bg || '#F5F5F5'" />
+          <!-- Sidebar -->
+          <rect x="0" y="80" width="180" height="420" :fill="themeForm.color_mobile_menu_bg || '#FFFFFF'" />
+          <line x1="180" y1="80" x2="180" y2="500" stroke="#E0E0E0" stroke-width="1" />
+          <!-- Sidebar items -->
+          <rect x="16" y="100" width="100" height="8" rx="2" :fill="themeForm.color_sidebar || themeForm.color_primary" opacity="0.8" />
+          <rect x="24" y="120" width="85" height="6" rx="2" :fill="themeForm.color_mobile_menu_text || '#333'" opacity="0.45" />
+          <rect x="24" y="134" width="75" height="6" rx="2" :fill="themeForm.color_mobile_menu_text || '#333'" opacity="0.45" />
+          <rect x="24" y="148" width="90" height="6" rx="2" :fill="themeForm.color_mobile_menu_text || '#333'" opacity="0.45" />
+          <rect x="24" y="162" width="70" height="6" rx="2" :fill="themeForm.color_mobile_menu_text || '#333'" opacity="0.45" />
+          <rect x="16" y="184" width="95" height="8" rx="2" :fill="themeForm.color_sidebar || themeForm.color_primary" opacity="0.8" />
+          <rect x="24" y="204" width="80" height="6" rx="2" :fill="themeForm.color_mobile_menu_text || '#333'" opacity="0.45" />
+          <rect x="24" y="218" width="85" height="6" rx="2" :fill="themeForm.color_mobile_menu_text || '#333'" opacity="0.45" />
+          <!-- Product cards row 1 -->
+          <g v-for="col in 3" :key="'r1-'+col">
+            <rect :x="196 + (col-1)*204" y="100" width="190" height="170" rx="6" fill="white" stroke="#E5E7EB" stroke-width="1" />
+            <rect :x="210 + (col-1)*204" y="112" width="162" height="90" rx="3" :fill="themeForm.color_table_stripe || '#F0F0F0'" />
+            <rect :x="210 + (col-1)*204" y="214" width="100" height="8" rx="2" :fill="themeForm.color_body_text || '#333'" opacity="0.7" />
+            <rect :x="210 + (col-1)*204" y="228" width="130" height="6" rx="2" :fill="themeForm.color_body_text || '#333'" opacity="0.35" />
+            <rect :x="210 + (col-1)*204" y="240" width="80" height="6" rx="2" :fill="themeForm.color_body_text || '#333'" opacity="0.25" />
+            <rect :x="310 + (col-1)*204" y="252" width="60" height="10" rx="3" :fill="themeForm.color_button || themeForm.color_accent" opacity="0.15" />
+          </g>
+          <!-- Product cards row 2 -->
+          <g v-for="col in 3" :key="'r2-'+col">
+            <rect :x="196 + (col-1)*204" y="284" width="190" height="170" rx="6" fill="white" stroke="#E5E7EB" stroke-width="1" />
+            <rect :x="210 + (col-1)*204" y="296" width="162" height="90" rx="3" :fill="themeForm.color_table_stripe || '#F0F0F0'" />
+            <rect :x="210 + (col-1)*204" y="398" width="110" height="8" rx="2" :fill="themeForm.color_body_text || '#333'" opacity="0.7" />
+            <rect :x="210 + (col-1)*204" y="412" width="90" height="6" rx="2" :fill="themeForm.color_body_text || '#333'" opacity="0.35" />
+            <rect :x="210 + (col-1)*204" y="424" width="70" height="6" rx="2" :fill="themeForm.color_body_text || '#333'" opacity="0.25" />
+            <rect :x="310 + (col-1)*204" y="436" width="60" height="10" rx="3" :fill="themeForm.color_button || themeForm.color_accent" opacity="0.15" />
+          </g>
+        </svg>
+      </div>
+
+      <!-- Detail Page Preview -->
+      <div v-if="previewPage === 'detail'" class="rounded-lg border border-[var(--color-border)] overflow-hidden">
+        <svg viewBox="0 0 800 500" class="w-full" xmlns="http://www.w3.org/2000/svg">
+          <!-- Header -->
+          <rect width="800" height="48" :fill="themeForm.color_header_bg || themeForm.color_primary" />
+          <rect x="20" y="14" width="80" height="20" rx="3" fill="white" opacity="0.9" />
+          <rect x="300" y="16" width="200" height="16" rx="8" fill="white" opacity="0.15" />
+          <circle cx="760" cy="24" r="12" :fill="themeForm.color_accent" opacity="0.8" />
+          <!-- Breadcrumb -->
+          <rect y="48" width="800" height="28" :fill="themeForm.color_table_bg || '#F5F5F5'" />
+          <rect x="30" y="57" width="50" height="6" rx="2" :fill="themeForm.color_body_text || '#333'" opacity="0.3" />
+          <text x="86" y="63" font-size="8" :fill="themeForm.color_body_text || '#333'" opacity="0.3">›</text>
+          <rect x="96" y="57" width="70" height="6" rx="2" :fill="themeForm.color_body_text || '#333'" opacity="0.3" />
+          <text x="172" y="63" font-size="8" :fill="themeForm.color_body_text || '#333'" opacity="0.3">›</text>
+          <rect x="182" y="57" width="90" height="6" rx="2" :fill="themeForm.color_accent" opacity="0.5" />
+          <!-- Body -->
+          <rect y="76" width="800" height="424" :fill="themeForm.color_table_bg || '#F5F5F5'" />
+          <!-- Product image -->
+          <rect x="30" y="96" width="300" height="280" rx="6" fill="white" stroke="#E5E7EB" stroke-width="1" />
+          <rect x="50" y="116" width="260" height="240" rx="3" :fill="themeForm.color_table_stripe || '#F0F0F0'" />
+          <!-- Image placeholder icon -->
+          <rect x="150" y="210" width="60" height="40" rx="4" :fill="themeForm.color_body_text || '#333'" opacity="0.08" />
+          <!-- Product info -->
+          <rect x="360" y="96" width="320" height="18" rx="3" :fill="themeForm.color_primary" opacity="0.85" />
+          <rect x="360" y="124" width="120" height="8" rx="2" :fill="themeForm.color_body_text || '#333'" opacity="0.35" />
+          <rect x="360" y="148" width="380" height="6" rx="2" :fill="themeForm.color_body_text || '#333'" opacity="0.4" />
+          <rect x="360" y="162" width="350" height="6" rx="2" :fill="themeForm.color_body_text || '#333'" opacity="0.4" />
+          <rect x="360" y="176" width="280" height="6" rx="2" :fill="themeForm.color_body_text || '#333'" opacity="0.4" />
+          <!-- More info link -->
+          <rect x="360" y="200" width="120" height="8" rx="2" :fill="themeForm.color_primary" opacity="0.6" />
+          <!-- Separator -->
+          <line x1="360" y1="224" x2="740" y2="224" stroke="#E5E7EB" stroke-width="1" />
+          <!-- Attributes table -->
+          <rect x="360" y="236" width="380" height="24" rx="3" :fill="themeForm.color_table_stripe || '#F0F0F0'" />
+          <rect x="370" y="243" width="80" height="6" rx="2" :fill="themeForm.color_body_text || '#333'" opacity="0.4" />
+          <rect x="560" y="243" width="100" height="6" rx="2" :fill="themeForm.color_body_text || '#333'" opacity="0.5" />
+          <rect x="370" y="270" width="70" height="6" rx="2" :fill="themeForm.color_body_text || '#333'" opacity="0.4" />
+          <rect x="560" y="270" width="80" height="6" rx="2" :fill="themeForm.color_body_text || '#333'" opacity="0.5" />
+          <rect x="360" y="288" width="380" height="24" rx="3" :fill="themeForm.color_table_stripe || '#F0F0F0'" />
+          <rect x="370" y="295" width="90" height="6" rx="2" :fill="themeForm.color_body_text || '#333'" opacity="0.4" />
+          <rect x="560" y="295" width="110" height="6" rx="2" :fill="themeForm.color_body_text || '#333'" opacity="0.5" />
+          <rect x="370" y="322" width="60" height="6" rx="2" :fill="themeForm.color_body_text || '#333'" opacity="0.4" />
+          <rect x="560" y="322" width="70" height="6" rx="2" :fill="themeForm.color_body_text || '#333'" opacity="0.5" />
+          <!-- CTA Button -->
+          <rect x="360" y="352" width="160" height="32" rx="5" :fill="themeForm.color_button || themeForm.color_accent" />
+          <rect x="390" y="364" width="100" height="8" rx="2" fill="white" opacity="0.9" />
+        </svg>
+      </div>
+    </div>
+
+    </template><!-- end TAB: Preview Katalog -->
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- TAB: GENERELL (continued — admin sections)                         -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <template v-if="activeMainTab === 'general' && isAdmin">
+
     <!-- Admin: Demo-Daten laden -->
     <div v-if="isAdmin" class="pim-card border border-blue-300 dark:border-blue-800 p-6 space-y-4">
       <div class="flex items-center gap-3 mb-2">
@@ -1574,10 +1736,14 @@ onMounted(async () => {
       </div>
     </div>
 
+    </template><!-- end TAB: Generell (continued) -->
+
     <!-- ═══════════════════════════════════════════════════════════════════ -->
-    <!-- Lizenz                                                              -->
+    <!-- TAB: LIZENZ                                                        -->
     <!-- ═══════════════════════════════════════════════════════════════════ -->
-    <div v-if="isAdmin" class="pim-card p-6 space-y-4">
+    <template v-if="activeMainTab === 'license' && isAdmin">
+
+    <div class="pim-card p-6 space-y-4">
       <div class="flex items-center gap-3 mb-2">
         <Key class="w-5 h-5 text-[var(--color-accent)]" :stroke-width="1.75" />
         <h3 class="text-sm font-semibold">Lizenz</h3>
@@ -1664,5 +1830,8 @@ onMounted(async () => {
         <p v-if="licenseSuccess" class="text-xs text-[var(--color-success)]">Lizenz erfolgreich aktualisiert.</p>
       </div>
     </div>
+
+    </template><!-- end TAB: Lizenz -->
+
   </div>
 </template>
