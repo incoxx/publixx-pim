@@ -41,6 +41,7 @@ use App\Http\Controllers\Api\V1\MediaController;
 use App\Http\Controllers\Api\V1\MediaUsageTypeController;
 use App\Http\Controllers\Api\V1\NodeAttributeAssignmentController;
 use App\Http\Controllers\Api\V1\PqlController;
+use App\Http\Controllers\Api\V1\PriceRegionController;
 use App\Http\Controllers\Api\V1\PriceTypeController;
 use App\Http\Controllers\Api\V1\ProductTypeController;
 use App\Http\Controllers\Api\V1\ProductAttributeValueController;
@@ -394,6 +395,8 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // =====================================================================
     Route::apiResource('price-types', PriceTypeController::class);
     Route::get('price-types/{price_type}/dependencies', [PriceTypeController::class, 'dependencies']);
+    Route::apiResource('price-regions', PriceRegionController::class);
+    Route::get('price-regions/{price_region}/dependencies', [PriceRegionController::class, 'dependencies']);
     Route::get('products/{product}/prices', [ProductPriceController::class, 'index']);
     Route::post('products/{product}/prices', [ProductPriceController::class, 'store']);
     Route::put('product-prices/{product_price}', [ProductPriceController::class, 'update']);

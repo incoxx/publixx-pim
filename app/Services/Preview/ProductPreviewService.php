@@ -407,7 +407,8 @@ class ProductPreviewService
                 'currency' => $price->currency,
                 'valid_from' => $price->valid_from?->format('Y-m-d'),
                 'valid_to' => $price->valid_to?->format('Y-m-d'),
-                'country' => $price->country,
+                'price_region' => $price->priceRegion?->code,
+                'price_region_name' => $price->priceRegion?->name,
                 'scale_from' => $price->scale_from,
                 'scale_to' => $price->scale_to,
             ];

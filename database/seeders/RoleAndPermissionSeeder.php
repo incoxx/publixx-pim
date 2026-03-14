@@ -41,6 +41,8 @@ class RoleAndPermissionSeeder extends Seeder
             // Preise & Preistypen
             'prices.view', 'prices.create', 'prices.edit', 'prices.delete',
             'price-types.view', 'price-types.create', 'price-types.edit', 'price-types.delete',
+            // Preisregionen
+            'price-regions.view', 'price-regions.create', 'price-regions.edit', 'price-regions.delete',
             // Medien-Bildtypen
             'media-usage-types.view', 'media-usage-types.create', 'media-usage-types.edit', 'media-usage-types.delete',
             // Hersteller
@@ -90,6 +92,7 @@ class RoleAndPermissionSeeder extends Seeder
             'relation-types.view', 'relation-types.create', 'relation-types.edit', 'relation-types.delete',
             'manufacturers.view', 'manufacturers.create', 'manufacturers.edit', 'manufacturers.delete',
             'price-types.view', 'price-types.create', 'price-types.edit', 'price-types.delete',
+            'price-regions.view', 'price-regions.create', 'price-regions.edit', 'price-regions.delete',
             'media-usage-types.view', 'media-usage-types.create', 'media-usage-types.edit', 'media-usage-types.delete',
             'products.view',
             'prices.view',
@@ -106,6 +109,7 @@ class RoleAndPermissionSeeder extends Seeder
             'media.view', 'media.create', 'media.edit', 'media.delete',
             'prices.view', 'prices.create', 'prices.edit',
             'price-types.view',
+            'price-regions.view',
             'attributes.view',
             'attribute-types.view',
             'hierarchies.view',
@@ -146,6 +150,7 @@ class RoleAndPermissionSeeder extends Seeder
             'hierarchy-nodes.view',
             'prices.view',
             'price-types.view',
+            'price-regions.view',
             'relation-types.view',
             'units.view',
             'unit-groups.view',
