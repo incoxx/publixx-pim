@@ -3,9 +3,10 @@ import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
+import { useLicenseStore } from '@/stores/license'
 import {
   Search, Package, GitBranch, Sliders, Database, Layers, FolderTree,
-  Upload, Download, Image, Tags, DollarSign, Users, Settings,
+  Upload, Download, Image, Tags, DollarSign, Users, Settings, Shield,
   HelpCircle, PanelLeftClose, PanelLeft, Star, LayoutGrid, Ruler,
   FileJson, FileCode, PlayCircle, FileBarChart, FileText, BookOpen, Link2, Zap, Languages,
   ChevronDown, ChevronRight, GripVertical, Factory, CalendarDays, ScrollText, Globe,
@@ -16,6 +17,7 @@ const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
 const authStore = useAuthStore()
+const licenseStore = useLicenseStore()
 
 // ─── Menu sections ──────────────────────────────────────
 const sections = computed(() => {
@@ -32,8 +34,8 @@ const sections = computed(() => {
         { icon: Image, label: () => t('nav.media'), to: '/media' },
         { icon: Tags, label: () => t('nav.mediaUsageTypes'), to: '/media-usage-types' },
         { divider: true },
-        { icon: FileBarChart, label: () => 'Berichte', to: '/reports' },
-        { icon: FileText, label: () => 'PDF-Vorlagen', to: '/pdf-templates' },
+        { icon: FileBarChart, label: () => 'Berichte', to: '/reports', module: 'reports' },
+        { icon: FileText, label: () => 'PDF-Vorlagen', to: '/pdf-templates', module: 'pdf_templates' },
         { icon: CalendarDays, label: () => 'Planungskalender', to: '/calendar' },
       ],
     },
@@ -62,10 +64,11 @@ const sections = computed(() => {
         { icon: Upload, label: () => t('nav.imports'), to: '/imports' },
         { icon: Download, label: () => t('nav.exports'), to: '/exports' },
         { icon: FileJson, label: () => 'JSON Export/Import', to: '/json-export-import' },
-        { icon: FileCode, label: () => 'BMEcat Import/Export', to: '/bmecat-import-export' },
-        { icon: PlayCircle, label: () => 'Export-Jobs', to: '/export-jobs' },
+        { icon: FileCode, label: () => 'BMEcat Import/Export', to: '/bmecat-import-export', module: 'bmecat' },
+        { icon: PlayCircle, label: () => 'Export-Jobs', to: '/export-jobs', module: 'advanced_export' },
         { icon: Settings, label: () => t('nav.settings'), to: '/settings', permission: 'users.view' },
         { icon: Users, label: () => t('nav.users'), to: '/users', permission: 'users.view' },
+        { icon: Shield, label: () => 'Rollen', to: '/roles', permission: 'roles.view' },
         { icon: Link2, label: () => 'Zugangslinks', to: '/access-links', permission: 'access-links.manage' },
         { icon: Zap, label: () => 'API Tester', to: '/api-tester', permission: 'users.view' },
         { icon: Database, label: () => 'Datenbank', to: '/db', permission: 'users.view' },
@@ -81,10 +84,14 @@ const sections = computed(() => {
     },
   ]
 
-  // Filter by permissions
+  // Filter by permissions and module license
   return all.map(section => ({
     ...section,
-    items: section.items.filter(item => item.divider || !item.permission || authStore.hasPermission(item.permission)),
+    items: section.items.filter(item =>
+      item.divider
+      || ((!item.permission || authStore.hasPermission(item.permission))
+        && (!item.module || licenseStore.isModuleActive(item.module)))
+    ),
   }))
 })
 

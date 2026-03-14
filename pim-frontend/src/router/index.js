@@ -206,6 +206,12 @@ const routes = [
     meta: { title: 'Benutzer' },
   },
   {
+    path: '/roles',
+    name: 'roles',
+    component: () => import('@/views/roles/RoleView.vue'),
+    meta: { title: 'Rollen' },
+  },
+  {
     path: '/access-links',
     name: 'access-links',
     component: () => import('@/views/accessLinks/AccessLinkView.vue'),

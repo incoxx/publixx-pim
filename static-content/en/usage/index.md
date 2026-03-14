@@ -58,7 +58,7 @@ The sidebar includes a **Help** link that opens this documentation in the user's
 
 ## License
 
-anyPIM is released under the **AGPL-3.0-only** license. See the `LICENSE` file in the project root for the full license text. A list of all third-party components and their licenses can be found in the `THIRD-PARTY-NOTICES` file.
+anyPIM is released under the **GPL-3.0-only** license. See the `LICENSE` file in the project root for the full license text. A list of all third-party components and their licenses can be found in the `THIRD-PARTY-NOTICES` file.
 
 ::: tip
 The German documentation is more comprehensive. For detailed instructions, see the [German usage guide](/de/bedienung/).

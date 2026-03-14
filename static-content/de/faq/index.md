@@ -264,7 +264,7 @@ Das anyPIM ist primär für den nativen Betrieb auf einem Linux-Server konzipier
 
 ### Unter welcher Lizenz steht das anyPIM?
 
-Das anyPIM ist unter der **AGPL-3.0-only** Lizenz veröffentlicht. Diese erlaubt die freie Nutzung, Veränderung und Weitergabe der Software. Wenn Sie die Software (auch verändert) über ein Netzwerk bereitstellen, müssen Sie den Quellcode unter derselben Lizenz verfügbar machen. Alle verwendeten Drittanbieter-Komponenten und deren Lizenzen finden Sie in der Datei `THIRD-PARTY-NOTICES` im Projektverzeichnis.
+Das anyPIM ist unter der **GPL-3.0-only** Lizenz veröffentlicht. Diese erlaubt die freie Nutzung, Veränderung und Weitergabe der Software. Wenn Sie die Software (auch verändert) weitergeben, müssen Sie den Quellcode unter derselben Lizenz verfügbar machen. Alle verwendeten Drittanbieter-Komponenten und deren Lizenzen finden Sie in der Datei `THIRD-PARTY-NOTICES` im Projektverzeichnis.
 
 ## Weitere Fragen?
 

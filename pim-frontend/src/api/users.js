@@ -42,4 +42,12 @@ export const roles = {
   setPermissions(id, permissions) {
     return client.put(`/roles/${id}/permissions`, { permissions })
   },
+
+  listPermissions() {
+    return client.get('/permissions')
+  },
+
+  bulkSyncPermissions(data) {
+    return client.put('/roles/bulk-permissions', data)
+  },
 }

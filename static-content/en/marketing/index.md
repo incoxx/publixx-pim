@@ -114,7 +114,7 @@ hero:
 
 <div class="marketing-usp-card">
 <h3>Open Source. Period.</h3>
-<p>AGPL-3.0 licensed. No license fees, no user limits, no hidden costs. Full source code, full control.</p>
+<p>GPL-3.0 licensed. No license fees, no user limits, no hidden costs. Full source code, full control.</p>
 </div>
 
 <div class="marketing-usp-card">

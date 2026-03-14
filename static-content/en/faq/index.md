@@ -264,7 +264,7 @@ anyPIM is primarily designed and documented for native operation on a Linux serv
 
 ### Under what license is anyPIM released?
 
-anyPIM is released under the **AGPL-3.0-only** license. This permits the free use, modification, and distribution of the software. If you make the software available (including modified versions) over a network, you must make the source code available under the same license. All third-party components used and their licenses can be found in the `THIRD-PARTY-NOTICES` file in the project directory.
+anyPIM is released under the **GPL-3.0-only** license. This permits the free use, modification, and distribution of the software. If you distribute modified versions, you must make the source code available under the same license. All third-party components used and their licenses can be found in the `THIRD-PARTY-NOTICES` file in the project directory.
 
 ## More Questions?
 

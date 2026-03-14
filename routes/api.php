@@ -64,6 +64,8 @@ use App\Http\Controllers\Api\V1\ReportTemplateController;
 use App\Http\Controllers\Api\V1\RelationTypeController;
 use App\Http\Controllers\Api\V1\ResetDataController;
 use App\Http\Controllers\Api\V1\SettingController;
+use App\Http\Controllers\Api\V1\LicenseController;
+use App\Http\Controllers\Api\V1\PermissionController;
 use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\UnitController;
 use App\Http\Controllers\Api\V1\UnitGroupController;
@@ -92,9 +94,9 @@ Route::prefix('v1/auth')->middleware('throttle.pim:auth')->group(function () {
 });
 
 // =========================================================================
-// SSO (public — no auth required)
+// SSO (public — no auth required, Enterprise: sso)
 // =========================================================================
-Route::prefix('v1/auth/sso')->middleware(['web', 'throttle.pim:auth'])->group(function () {
+Route::prefix('v1/auth/sso')->middleware(['web', 'throttle.pim:auth', 'module:sso'])->group(function () {
     Route::get('config', [SsoController::class, 'config']);
     Route::get('redirect', [SsoController::class, 'redirect']);
     Route::get('callback', [SsoController::class, 'callback']);
@@ -189,8 +191,16 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // =====================================================================
     Route::apiResource('users', UserController::class);
     Route::get('users/{user}/dependencies', [UserController::class, 'dependencies']);
+    Route::get('permissions', [PermissionController::class, 'index']);
+    Route::put('roles/bulk-permissions', [RoleController::class, 'bulkSyncPermissions']);
     Route::apiResource('roles', RoleController::class);
     Route::put('roles/{role}/permissions', [RoleController::class, 'syncPermissions']);
+
+    // =====================================================================
+    // License Management
+    // =====================================================================
+    Route::get('license', [LicenseController::class, 'show']);
+    Route::put('license', [LicenseController::class, 'update']);
 
     // =====================================================================
     // Audit Log (Änderungsprotokoll)
@@ -504,33 +514,40 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
         Route::post('/', [JsonExportImportController::class, 'import']);
         Route::post('validate', [JsonExportImportController::class, 'validate']);
     });
-    Route::prefix('bmecat-import')->group(function () {
-        Route::post('/', [BmecatImportController::class, 'import']);
-        Route::post('validate', [BmecatImportController::class, 'validate']);
+    // Enterprise: BMEcat Import/Export
+    Route::middleware('module:bmecat')->group(function () {
+        Route::prefix('bmecat-import')->group(function () {
+            Route::post('/', [BmecatImportController::class, 'import']);
+            Route::post('validate', [BmecatImportController::class, 'validate']);
+        });
+        Route::post('bmecat-export', [BmecatExportController::class, 'export']);
     });
-    Route::post('bmecat-export', [BmecatExportController::class, 'export']);
 
     // =====================================================================
-    // Export-Job-Steuerung
+    // Export-Job-Steuerung (Enterprise: advanced_export)
     // =====================================================================
-    Route::apiResource('export-jobs', ExportJobController::class);
-    Route::post('export-jobs/{export_job}/execute', [ExportJobController::class, 'execute']);
-    Route::get('export-jobs/{export_job}/download', [ExportJobController::class, 'download']);
-    Route::get('export-jobs/{export_job}/logs', [ExportJobController::class, 'logs']);
-    Route::get('export-jobs/{export_job}/stream', [ExportJobController::class, 'stream']);
+    Route::middleware('module:advanced_export')->group(function () {
+        Route::apiResource('export-jobs', ExportJobController::class);
+        Route::post('export-jobs/{export_job}/execute', [ExportJobController::class, 'execute']);
+        Route::get('export-jobs/{export_job}/download', [ExportJobController::class, 'download']);
+        Route::get('export-jobs/{export_job}/logs', [ExportJobController::class, 'logs']);
+        Route::get('export-jobs/{export_job}/stream', [ExportJobController::class, 'stream']);
 
-    // Export-Dateien (Filesystem Viewer)
-    Route::get('export-files', [ExportFileController::class, 'index']);
-    Route::delete('export-files/{name}', [ExportFileController::class, 'destroy']);
+        // Export-Dateien (Filesystem Viewer)
+        Route::get('export-files', [ExportFileController::class, 'index']);
+        Route::delete('export-files/{name}', [ExportFileController::class, 'destroy']);
+    });
 
     // =====================================================================
-    // Agent 7: Publixx Live-API
+    // Agent 7: Publixx Live-API (Enterprise: publixx)
     // =====================================================================
-    Route::prefix('publixx')->group(function () {
-        Route::get('datasets/{mapping_id}', [PublixxDatasetController::class, 'index']);
-        Route::get('datasets/{mapping_id}/{product_id}', [PublixxDatasetController::class, 'show']);
-        Route::post('datasets/{mapping_id}/pql', [PublixxDatasetController::class, 'pql']);
-        Route::post('webhook', [PublixxDatasetController::class, 'webhook']);
+    Route::middleware('module:publixx')->group(function () {
+        Route::prefix('publixx')->group(function () {
+            Route::get('datasets/{mapping_id}', [PublixxDatasetController::class, 'index']);
+            Route::get('datasets/{mapping_id}/{product_id}', [PublixxDatasetController::class, 'show']);
+            Route::post('datasets/{mapping_id}/pql', [PublixxDatasetController::class, 'pql']);
+            Route::post('webhook', [PublixxDatasetController::class, 'webhook']);
+        });
     });
 
     // =====================================================================
@@ -541,32 +558,38 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::put('settings/catalog-theme', [SettingController::class, 'updateCatalogTheme']);
 
     // =====================================================================
-    // Report Designer
+    // Report Designer (Enterprise: reports)
     // =====================================================================
-    Route::get('report-templates/fields', [ReportTemplateController::class, 'fields']);
-    Route::apiResource('report-templates', ReportTemplateController::class);
-    Route::get('report-templates/{report_template}/dependencies', [ReportTemplateController::class, 'dependencies']);
-    Route::post('report-templates/{report_template}/execute', [ReportTemplateController::class, 'execute']);
-    Route::post('report-templates/{report_template}/preview', [ReportTemplateController::class, 'preview']);
-    Route::get('report-jobs/{report_job}', [ReportTemplateController::class, 'jobStatus']);
-    Route::get('report-jobs/{report_job}/download', [ReportTemplateController::class, 'jobDownload']);
+    Route::middleware('module:reports')->group(function () {
+        Route::get('report-templates/fields', [ReportTemplateController::class, 'fields']);
+        Route::apiResource('report-templates', ReportTemplateController::class);
+        Route::get('report-templates/{report_template}/dependencies', [ReportTemplateController::class, 'dependencies']);
+        Route::post('report-templates/{report_template}/execute', [ReportTemplateController::class, 'execute']);
+        Route::post('report-templates/{report_template}/preview', [ReportTemplateController::class, 'preview']);
+        Route::get('report-jobs/{report_job}', [ReportTemplateController::class, 'jobStatus']);
+        Route::get('report-jobs/{report_job}/download', [ReportTemplateController::class, 'jobDownload']);
+    });
 
     // =====================================================================
-    // PDF Template Designer
+    // PDF Template Designer (Enterprise: pdf_templates)
     // =====================================================================
-    Route::get('pdf-templates/fields', [PdfTemplateController::class, 'fields']);
-    Route::apiResource('pdf-templates', PdfTemplateController::class);
-    Route::post('pdf-templates/{pdf_template}/resolve-preview', [PdfTemplateController::class, 'resolvePreview']);
-    Route::post('pdf-templates/{pdf_template}/preview', [PdfTemplateController::class, 'preview']);
-    Route::post('pdf-templates/{pdf_template}/execute', [PdfTemplateController::class, 'execute']);
+    Route::middleware('module:pdf_templates')->group(function () {
+        Route::get('pdf-templates/fields', [PdfTemplateController::class, 'fields']);
+        Route::apiResource('pdf-templates', PdfTemplateController::class);
+        Route::post('pdf-templates/{pdf_template}/resolve-preview', [PdfTemplateController::class, 'resolvePreview']);
+        Route::post('pdf-templates/{pdf_template}/preview', [PdfTemplateController::class, 'preview']);
+        Route::post('pdf-templates/{pdf_template}/execute', [PdfTemplateController::class, 'execute']);
+    });
 
     // =====================================================================
-    // PXF Templates
+    // PXF Templates (Enterprise: publixx)
     // =====================================================================
-    Route::post('pxf-templates/import', [PxfTemplateController::class, 'import']);
-    Route::apiResource('pxf-templates', PxfTemplateController::class);
-    Route::get('pxf-templates/{pxf_template}/dependencies', [PxfTemplateController::class, 'dependencies']);
-    Route::get('pxf-templates/{pxf_template}/preview/{product}', [PxfTemplateController::class, 'preview']);
+    Route::middleware('module:publixx')->group(function () {
+        Route::post('pxf-templates/import', [PxfTemplateController::class, 'import']);
+        Route::apiResource('pxf-templates', PxfTemplateController::class);
+        Route::get('pxf-templates/{pxf_template}/dependencies', [PxfTemplateController::class, 'dependencies']);
+        Route::get('pxf-templates/{pxf_template}/preview/{product}', [PxfTemplateController::class, 'preview']);
+    });
 
     // =====================================================================
     // TMS: Translation Management
