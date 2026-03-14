@@ -57,6 +57,11 @@ export default {
     return client.post(`/hierarchy-nodes/${nodeId}/duplicate`)
   },
 
+  // All unique attributes across all nodes of a hierarchy
+  allNodeAttributes(hierarchyId) {
+    return client.get(`/hierarchies/${hierarchyId}/all-node-attributes`)
+  },
+
   // Hierarchy-level attribute assignments
   getHierarchyAttributes(hierarchyId, options = {}) {
     return client.get(`/hierarchies/${hierarchyId}/attributes`, { params: buildParams(options) })

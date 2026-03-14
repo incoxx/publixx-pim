@@ -11,6 +11,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\DB;
 
 class HierarchyAttributeAssignmentController extends Controller
 {
@@ -62,6 +63,34 @@ class HierarchyAttributeAssignmentController extends Controller
         return (new JsonResource($assignment))
             ->response()
             ->setStatusCode(201);
+    }
+
+    /**
+     * GET /hierarchies/{hierarchy}/all-node-attributes
+     *
+     * Returns all unique attributes assigned to any node within this hierarchy,
+     * plus hierarchy-level attribute assignments.
+     */
+    public function allNodeAttributes(Hierarchy $hierarchy): JsonResponse
+    {
+        $nodeIds = $hierarchy->nodes()->pluck('id');
+
+        $nodeAttributeIds = DB::table('hierarchy_node_attribute_assignments')
+            ->whereIn('hierarchy_node_id', $nodeIds)
+            ->distinct()
+            ->pluck('attribute_id');
+
+        $hierarchyAttributeIds = $hierarchy->attributeAssignments()
+            ->pluck('attribute_id');
+
+        $allAttributeIds = $nodeAttributeIds->merge($hierarchyAttributeIds)->unique();
+
+        $attributes = Attribute::whereIn('id', $allAttributeIds)
+            ->where('is_internal', false)
+            ->orderBy('name_de')
+            ->get();
+
+        return response()->json(['data' => $attributes]);
     }
 
     /**

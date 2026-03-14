@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useLocaleStore } from '@/stores/locale'
 import { useAuthStore } from '@/stores/auth'
@@ -126,10 +126,16 @@ async function loadAttributeViews() {
   }
 }
 
-async function loadAttributes() {
+async function loadAttributes(hierarchyId = null) {
   try {
-    const { data } = await attributesApi.list({ per_page: 500 })
-    const all = data.data || data || []
+    let all
+    if (hierarchyId) {
+      const { data } = await hierarchiesApi.allNodeAttributes(hierarchyId)
+      all = data.data || data || []
+    } else {
+      const { data } = await attributesApi.list({ per_page: 500 })
+      all = data.data || data || []
+    }
     allAttributes.value = all.filter(a => a.data_type !== 'Composite')
     availableAttributes.value = all.filter(a => FACET_DATA_TYPES.includes(a.data_type))
   } catch (e) {
@@ -608,13 +614,20 @@ async function triggerRollback() {
   }
 }
 
-onMounted(() => {
+// Reload attributes when hierarchy selection changes
+watch(() => themeForm.value.hierarchy_id, (newId, oldId) => {
+  if (newId !== oldId) {
+    loadAttributes(newId || null)
+  }
+})
+
+onMounted(async () => {
   loadStatus()
   if (isAdmin) {
-    loadThemeSettings()
+    await loadThemeSettings()
     loadHierarchies()
     loadAttributeViews()
-    loadAttributes()
+    loadAttributes(themeForm.value.hierarchy_id || null)
     loadPriceTypes()
     loadUsageTypes()
     loadPdfTemplates()

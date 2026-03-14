@@ -280,6 +280,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
 
     // Hierarchy-level attribute assignments
     Route::get('hierarchies/{hierarchy}/attributes', [HierarchyAttributeAssignmentController::class, 'index']);
+    Route::get('hierarchies/{hierarchy}/all-node-attributes', [HierarchyAttributeAssignmentController::class, 'allNodeAttributes']);
     Route::post('hierarchies/{hierarchy}/attributes', [HierarchyAttributeAssignmentController::class, 'store']);
     Route::delete('hierarchy-attribute-assignments/{hierarchy_attribute_assignment}', [HierarchyAttributeAssignmentController::class, 'destroy']);
 
