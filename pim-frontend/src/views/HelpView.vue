@@ -253,7 +253,7 @@ const shortcuts = [
     </div>
 
     <p class="text-[11px] text-[var(--color-text-tertiary)]">
-      anyPIM ist lizenziert unter AGPL-3.0.
+      anyPIM ist lizenziert unter GPL-3.0.
     </p>
   </div>
 </template>

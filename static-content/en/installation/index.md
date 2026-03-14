@@ -37,10 +37,10 @@ Guide for production deployment on an Ubuntu server with Nginx, PHP-FPM, SSL cer
 
 ## License
 
-anyPIM is released under the **AGPL-3.0-only** license. This means:
+anyPIM is released under the **GPL-3.0-only** license. This means:
 
 - You may freely use, modify, and distribute the software.
-- Modifications to the software provided over a network must also be published under AGPL-3.0.
+- Modifications must be published under GPL-3.0 when distributed.
 - The full license can be found in the `LICENSE` file in the project directory.
 
 ## Recommended Installation Path

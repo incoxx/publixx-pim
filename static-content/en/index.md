@@ -4,7 +4,7 @@ title: anyPIM Documentation
 hero:
   name: anyPIM
   text: Product Information Management
-  tagline: Flexible, powerful product data management with EAV architecture, inheritance, PQL query language, and seamless integration. Open Source (AGPL-3.0).
+  tagline: Flexible, powerful product data management with EAV architecture, inheritance, PQL query language, and seamless integration. Open Source (GPL-3.0).
   actions:
     - theme: brand
       text: Quick Start

@@ -23,7 +23,7 @@
   <img src="https://img.shields.io/badge/Laravel-11-FF2D20?style=flat-square&logo=laravel" alt="Laravel 11" />
   <img src="https://img.shields.io/badge/Vue.js-3-4FC08D?style=flat-square&logo=vuedotjs" alt="Vue 3" />
   <img src="https://img.shields.io/badge/Tailwind_CSS-3-06B6D4?style=flat-square&logo=tailwindcss" alt="Tailwind CSS" />
-  <img src="https://img.shields.io/badge/License-AGPL--3.0-blue?style=flat-square" alt="AGPL-3.0" />
+  <img src="https://img.shields.io/badge/License-GPL--3.0-blue?style=flat-square" alt="GPL-3.0" />
 </p>
 
 ---
@@ -267,7 +267,7 @@ Full documentation is available as a VitePress site in both German and English:
 | [INSTALL.md](INSTALL.md) | Detailed installation guide (`setup.sh`) |
 | [UPDATE.md](UPDATE.md) | Update procedures (`update.sh`) |
 | [API.md](API.md) | Complete REST API reference (188 endpoints) |
-| [LICENSE](LICENSE) | AGPL-3.0 license text |
+| [LICENSE](LICENSE) | GPL-3.0 license text |
 
 ---
 
@@ -299,9 +299,9 @@ Full documentation is available as a VitePress site in both German and English:
 
 ## License
 
-**AGPL-3.0-only** — see [LICENSE](LICENSE) for the full text.
+**GPL-3.0-only** — see [LICENSE](LICENSE) for the full text.
 
-This means you can freely use, modify, and distribute anyPIM, but any modifications to the source code must also be made available under the AGPL-3.0 license when the software is deployed as a network service.
+This means you can freely use, modify, and distribute anyPIM, but any modifications must also be made available under the GPL-3.0 license when distributed.
 
 ---
 

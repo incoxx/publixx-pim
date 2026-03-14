@@ -39,10 +39,10 @@ Das anyPIM basiert auf folgenden Kerntechnologien:
 
 ## Lizenz
 
-Das anyPIM ist unter der **AGPL-3.0-only** Lizenz veröffentlicht. Das bedeutet:
+Das anyPIM ist unter der **GPL-3.0-only** Lizenz veröffentlicht. Das bedeutet:
 
 - Sie dürfen die Software frei nutzen, verändern und verteilen.
-- Änderungen an der Software, die über ein Netzwerk bereitgestellt werden, müssen ebenfalls unter der AGPL-3.0 veröffentlicht werden.
+- Änderungen müssen bei Weitergabe ebenfalls unter der GPL-3.0 veröffentlicht werden.
 - Die vollständige Lizenz finden Sie in der Datei `LICENSE` im Projektverzeichnis.
 
 Eine Auflistung aller verwendeten Open-Source-Komponenten und deren Lizenzen finden Sie in der Datei `THIRD-PARTY-NOTICES`.
