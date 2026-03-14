@@ -378,7 +378,7 @@ loadVersions()
       <transition name="fade">
         <div v-if="showCreateDialog" class="fixed inset-0 z-50 flex items-center justify-center">
           <div class="absolute inset-0 bg-black/30 backdrop-blur-sm" @click="showCreateDialog = false" />
-          <div class="relative w-full max-w-[440px] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl shadow-xl mx-4 p-5">
+          <div class="relative z-10 w-full max-w-[440px] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl shadow-xl mx-4 p-5">
             <h3 class="text-sm font-semibold text-[var(--color-text-primary)] mb-3">{{ t('product.version.create') }}</h3>
             <div>
               <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">
@@ -408,7 +408,7 @@ loadVersions()
       <transition name="fade">
         <div v-if="showScheduleDialog" class="fixed inset-0 z-50 flex items-center justify-center">
           <div class="absolute inset-0 bg-black/30 backdrop-blur-sm" @click="showScheduleDialog = false" />
-          <div class="relative w-full max-w-[440px] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl shadow-xl mx-4 p-5">
+          <div class="relative z-10 w-full max-w-[440px] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl shadow-xl mx-4 p-5">
             <h3 class="text-sm font-semibold text-[var(--color-text-primary)] mb-3">{{ t('product.version.schedule') }}</h3>
             <div>
               <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">

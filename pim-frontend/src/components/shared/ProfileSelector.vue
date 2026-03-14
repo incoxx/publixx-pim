@@ -113,7 +113,7 @@ function deleteProfile() {
       <transition name="fade">
         <div v-if="showSaveDialog" class="fixed inset-0 z-50 flex items-center justify-center">
           <div class="absolute inset-0 bg-black/30 backdrop-blur-sm" @click="showSaveDialog = false" />
-          <div class="relative bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl shadow-xl p-5 w-80 space-y-4">
+          <div class="relative z-10 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl shadow-xl p-5 w-80 space-y-4">
             <h3 class="text-sm font-semibold text-[var(--color-text-primary)]">
               {{ saveMode === 'update' ? `${label} aktualisieren` : `${label} speichern` }}
             </h3>

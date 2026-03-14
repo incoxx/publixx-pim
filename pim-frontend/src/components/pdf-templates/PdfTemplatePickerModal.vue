@@ -76,7 +76,7 @@ function close() {
     <transition name="fade">
       <div v-if="open" class="fixed inset-0 z-50 flex items-center justify-center">
         <div class="absolute inset-0 bg-black/30 backdrop-blur-sm" @click="close" />
-        <div class="relative w-full max-w-lg bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl shadow-xl mx-4 overflow-hidden">
+        <div class="relative z-10 w-full max-w-lg bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl shadow-xl mx-4 overflow-hidden">
           <!-- Header -->
           <div class="flex items-center justify-between px-5 py-3 border-b border-[var(--color-border)]">
             <div class="flex items-center gap-2">

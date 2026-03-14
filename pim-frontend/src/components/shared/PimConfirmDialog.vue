@@ -17,7 +17,7 @@ const emit = defineEmits(['confirm', 'cancel'])
     <transition name="fade">
       <div v-if="open" class="fixed inset-0 z-50 flex items-center justify-center">
         <div class="absolute inset-0 bg-black/30 backdrop-blur-sm" @click="$emit('cancel')" />
-        <div class="relative w-full max-w-[400px] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-6 space-y-4 shadow-xl mx-4">
+        <div class="relative z-10 w-full max-w-[400px] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-6 space-y-4 shadow-xl mx-4">
           <h3 class="text-sm font-semibold text-[var(--color-text-primary)]">{{ title }}</h3>
           <p class="text-xs text-[var(--color-text-tertiary)] leading-relaxed">{{ message }}</p>
           <div class="flex justify-end gap-2 pt-2">

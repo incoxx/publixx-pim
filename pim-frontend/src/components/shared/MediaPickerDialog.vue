@@ -117,7 +117,7 @@ function getExtension(fileName) {
     <transition name="fade">
       <div v-if="modelValue" class="fixed inset-0 z-50 flex items-center justify-center">
         <div class="absolute inset-0 bg-black/30 backdrop-blur-sm" @click="close" />
-        <div class="relative w-full max-w-[800px] max-h-[85vh] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl shadow-xl mx-4 overflow-hidden flex flex-col">
+        <div class="relative z-10 w-full max-w-[800px] max-h-[85vh] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl shadow-xl mx-4 overflow-hidden flex flex-col">
           <!-- Header -->
           <div class="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)]">
             <span class="text-sm font-semibold text-[var(--color-text-primary)]">Medium auswählen</span>

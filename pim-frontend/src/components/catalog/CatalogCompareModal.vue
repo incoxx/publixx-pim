@@ -49,7 +49,7 @@ function close() {
   <transition name="fade">
     <div v-if="open" class="fixed inset-0 z-50 flex items-center justify-center">
       <div class="absolute inset-0 bg-black/30 backdrop-blur-sm" @click="close" />
-      <div class="relative w-full max-w-6xl max-h-[90vh] bg-base-100 border border-base-300 rounded-xl shadow-xl mx-4 overflow-hidden flex flex-col">
+      <div class="relative z-10 w-full max-w-6xl max-h-[90vh] bg-base-100 border border-base-300 rounded-xl shadow-xl mx-4 overflow-hidden flex flex-col">
         <!-- Header -->
         <div class="flex items-center justify-between px-5 py-3 border-b border-base-300 shrink-0">
           <div class="flex items-center gap-3">
