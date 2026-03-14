@@ -376,9 +376,21 @@ class CatalogController extends BaseController
             foreach ($paginated->items() as $item) {
                 $sources = [];
 
-                // Check name match (substring in name_de or name_en)
-                if (str_contains(mb_strtolower($item->name_de ?? ''), $term) ||
-                    str_contains(mb_strtolower($item->name_en ?? ''), $term)) {
+                // Check name match — also check primary_attribute_value (displayed name, loaded from EAV)
+                // since name_de/name_en in search index may be stale until reindex
+                $nameTexts = array_filter([
+                    $item->name_de ?? '',
+                    $item->name_en ?? '',
+                    $primaryAttributeMap[$item->id] ?? '',
+                ]);
+                $nameMatch = false;
+                foreach ($nameTexts as $nameText) {
+                    if ($nameText !== '' && str_contains(mb_strtolower($nameText), $term)) {
+                        $nameMatch = true;
+                        break;
+                    }
+                }
+                if ($nameMatch) {
                     $sources[] = ['type' => 'name', 'label' => $lang === 'en' ? 'Product name' : 'Produktname'];
                 }
                 if (str_contains(mb_strtolower($item->sku ?? ''), $term)) {
