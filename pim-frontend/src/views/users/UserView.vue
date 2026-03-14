@@ -18,6 +18,7 @@ const columns = [
   { key: 'name', label: 'Name', sortable: true },
   { key: 'email', label: 'E-Mail', sortable: true, mono: true },
   { key: 'roles', label: 'Rolle' },
+  { key: 'last_login_at', label: 'Letzter Login', sortable: true },
   { key: 'created_at', label: 'Erstellt', sortable: true },
 ]
 
@@ -88,6 +89,11 @@ onMounted(async () => {
       <template #cell-roles="{ row }">
         <span class="pim-badge bg-[var(--color-info-light)] text-[var(--color-info)]">
           <Shield class="w-3 h-3" :stroke-width="2" /> {{ row.roles?.[0]?.name || 'Keine' }}
+        </span>
+      </template>
+      <template #cell-last_login_at="{ value }">
+        <span class="text-xs text-[var(--color-text-tertiary)]">
+          {{ value ? new Date(value).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' }) : 'Nie' }}
         </span>
       </template>
       <template #cell-created_at="{ value }">

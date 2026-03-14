@@ -200,6 +200,12 @@ const routes = [
     meta: { title: 'Übersetzungen' },
   },
   {
+    path: '/users/audit',
+    name: 'user-audit',
+    component: () => import('@/views/users/UserAuditView.vue'),
+    meta: { title: 'Benutzer-Audit-Trail' },
+  },
+  {
     path: '/users',
     name: 'users',
     component: () => import('@/views/users/UserView.vue'),
