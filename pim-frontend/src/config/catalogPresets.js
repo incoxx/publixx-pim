@@ -162,6 +162,23 @@ export default [
     },
   },
   {
+    name: 'Austrian Sun',
+    description: 'Kraeftiges Marineblau mit warmem Gold-Akzent',
+    colors: {
+      color_primary: '#002B5C',
+      color_accent: '#E8A800',
+      color_sidebar: '#002B5C',
+      color_button: '#E8A800',
+      color_table_bg: '#FFFFFF',
+      color_table_stripe: '#F5F7FA',
+      color_body_text: '#1A1A2E',
+      color_header_bg: '#002B5C',
+      color_header_text: '#FFFFFF',
+      color_mobile_menu_bg: '#002B5C',
+      color_mobile_menu_text: '#FFFFFF',
+    },
+  },
+  {
     name: 'Midnight',
     description: 'Dunkler Modus mit Neon-Akzent',
     colors: {
