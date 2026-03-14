@@ -168,17 +168,15 @@ class UpdateSearchIndex implements ShouldQueue, ShouldBeUnique
             ->where('product_attribute_values.product_id', $productId)
             ->where('attributes.technical_name', $technicalName)
             ->where('product_attribute_values.multiplied_index', 0)
-            ->whereIn('product_attribute_values.language', [$language, 'en', 'de', null])
-            ->select('product_attribute_values.value_string');
-
-        if (DB::getDriverName() === 'sqlite') {
-            $query->orderByRaw(
+            ->where(function ($q) use ($language) {
+                $q->whereIn('product_attribute_values.language', [$language, 'en', 'de'])
+                  ->orWhereNull('product_attribute_values.language');
+            })
+            ->select('product_attribute_values.value_string')
+            ->orderByRaw(
                 "CASE product_attribute_values.language WHEN ? THEN 1 WHEN 'en' THEN 2 WHEN 'de' THEN 3 ELSE 4 END",
                 [$language]
             );
-        } else {
-            $query->orderByRaw("FIELD(product_attribute_values.language, ?, 'en', 'de', NULL)", [$language]);
-        }
 
         return $query->first()?->value_string;
     }
