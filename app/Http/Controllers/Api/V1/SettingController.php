@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Jobs\UpdateSearchIndex;
 use App\Models\Media;
+use App\Models\Product;
 use App\Models\Setting;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -152,5 +154,33 @@ class SettingController extends Controller
         Setting::setPayload('catalog_theme', $merged);
 
         return response()->json(['message' => 'Catalog theme updated.']);
+    }
+
+    /**
+     * POST /api/v1/admin/search-reindex
+     *
+     * Trigger a full search index rebuild for all active products.
+     */
+    public function reindexSearch(Request $request): JsonResponse
+    {
+        if (!$request->user()?->hasRole('Admin')) {
+            return response()->json(['message' => 'Forbidden'], 403);
+        }
+
+        $count = 0;
+        Product::where('status', 'active')
+            ->where('product_type_ref', 'product')
+            ->select('id')
+            ->chunkById(500, function ($products) use (&$count) {
+                foreach ($products as $product) {
+                    UpdateSearchIndex::dispatch($product->id);
+                    $count++;
+                }
+            });
+
+        return response()->json([
+            'message' => "Reindex gestartet für {$count} Produkte.",
+            'count' => $count,
+        ]);
     }
 }

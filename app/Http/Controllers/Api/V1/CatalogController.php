@@ -66,16 +66,6 @@ class CatalogController extends BaseController
             $likeTerm = '%' . $term . '%';
 
             if (DB::getDriverName() === 'mysql') {
-                // FULLTEXT relevance scoring
-                $query->selectRaw(
-                    '(MATCH(products_search_index.name_de, products_search_index.name_en) AGAINST(? IN BOOLEAN MODE)) * 10 as name_score',
-                    [$term . '*']
-                );
-                $query->selectRaw(
-                    'IF(products_search_index.searchable_text IS NOT NULL, (MATCH(products_search_index.searchable_text, products_search_index.media_text) AGAINST(? IN BOOLEAN MODE)) * 3, 0) as attr_score',
-                    [$term . '*']
-                );
-
                 $phoneticTerm = KoelnerPhonetik::encode($term);
 
                 $query->where(function ($q) use ($term, $likeTerm, $phoneticTerm) {
@@ -95,8 +85,7 @@ class CatalogController extends BaseController
                     ->orWhere('products_search_index.phonetic_text', 'like', '%' . $phoneticTerm . '%');
                 });
 
-                // Sort by relevance when searching
-                $query->orderByRaw('(name_score + attr_score) DESC');
+                // Relevance sorting is applied later via addSelect + orderByDesc
             } else {
                 // SQLite fallback
                 $query->where(function ($q) use ($likeTerm) {
@@ -191,17 +180,6 @@ class CatalogController extends BaseController
             }
         }
 
-        // Sorting — skip normal sort when search uses relevance ordering
-        if (!$isSearchActive || DB::getDriverName() === 'sqlite') {
-            $sortColumn = match ($sortField) {
-                'price' => 'products_search_index.list_price',
-                'sku' => 'products_search_index.sku',
-                'updated_at' => 'products_search_index.updated_at',
-                default => $lang === 'en' ? 'products_search_index.name_en' : 'products_search_index.name_de',
-            };
-            $query->orderBy($sortColumn, $sortOrder);
-        }
-
         $selectColumns = [
             'products.id',
             'products_search_index.sku',
@@ -222,6 +200,34 @@ class CatalogController extends BaseController
         }
 
         $query->select($selectColumns);
+
+        // Relevance scoring + sorting — addSelect AFTER select() to avoid overwrite
+        if ($isSearchActive && DB::getDriverName() === 'mysql') {
+            $term = trim($search);
+            $query->addSelect(DB::raw(
+                '(MATCH(products_search_index.name_de, products_search_index.name_en) AGAINST(' . DB::getPdo()->quote($term . '*') . ' IN BOOLEAN MODE)) * 10 '
+                . '+ IF(products_search_index.searchable_text IS NOT NULL, (MATCH(products_search_index.searchable_text, products_search_index.media_text) AGAINST(' . DB::getPdo()->quote($term . '*') . ' IN BOOLEAN MODE)) * 3, 0) '
+                . 'as relevance_score'
+            ));
+            $query->orderByDesc('relevance_score');
+        } elseif (!$isSearchActive) {
+            $sortColumn = match ($sortField) {
+                'price' => 'products_search_index.list_price',
+                'sku' => 'products_search_index.sku',
+                'updated_at' => 'products_search_index.updated_at',
+                default => $lang === 'en' ? 'products_search_index.name_en' : 'products_search_index.name_de',
+            };
+            $query->orderBy($sortColumn, $sortOrder);
+        } else {
+            // SQLite search — no relevance scoring, use default sort
+            $sortColumn = match ($sortField) {
+                'price' => 'products_search_index.list_price',
+                'sku' => 'products_search_index.sku',
+                'updated_at' => 'products_search_index.updated_at',
+                default => $lang === 'en' ? 'products_search_index.name_en' : 'products_search_index.name_de',
+            };
+            $query->orderBy($sortColumn, $sortOrder);
+        }
 
         $paginated = $query->paginate($perPage);
 

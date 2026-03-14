@@ -32,4 +32,8 @@ export default {
   updateCatalogTheme(payload) {
     return client.put('/settings/catalog-theme', payload)
   },
+
+  reindexSearch() {
+    return client.post('/admin/search-reindex', {}, { timeout: 300000 })
+  },
 }
