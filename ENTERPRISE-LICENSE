@@ -1,0 +1,178 @@
+anyPIM Enterprise License Agreement
+=====================================
+
+Version 1.0, March 2026
+
+Copyright (c) 2026 Publixx GmbH. All rights reserved.
+
+This Enterprise License Agreement ("Agreement") governs the use of anyPIM
+Enterprise Modules ("Enterprise Software") provided by Publixx GmbH
+("Licensor"). By installing, activating, or using the Enterprise Software,
+you ("Licensee") agree to the terms of this Agreement.
+
+This Agreement applies exclusively to Enterprise Modules. The anyPIM core
+application is separately licensed under the GNU General Public License
+version 3.0 (GPL-3.0).
+
+
+1. DEFINITIONS
+
+   "Enterprise Modules" means the proprietary software components of anyPIM
+   that require a valid License Key for activation, including but not limited
+   to: BMEcat Import/Export, Advanced Exports, Publixx Integration, Reports,
+   PDF Templates, and Single Sign-On (SSO).
+
+   "License Key" means the unique cryptographic key provided by Licensor to
+   Licensee upon purchase, which activates one or more Enterprise Modules.
+
+   "Licensed Instance" means a single installation of anyPIM on which the
+   License Key is activated.
+
+   "SaaS Offering" means any service that provides access to the functionality
+   of the Enterprise Software to third parties over a network, whether for a
+   fee or free of charge.
+
+
+2. GRANT OF LICENSE
+
+   Subject to the terms of this Agreement and upon valid activation with a
+   License Key, Licensor grants Licensee a non-exclusive, non-transferable,
+   non-sublicensable, limited license to:
+
+   a) Install and use the Enterprise Modules activated by the License Key
+      on the Licensed Instance(s) specified in the License Key;
+
+   b) Use the Enterprise Modules for Licensee's own internal business
+      purposes or for providing services to Licensee's direct clients;
+
+   c) Make backup copies of the Enterprise Software solely for archival
+      and disaster recovery purposes.
+
+
+3. RESTRICTIONS
+
+   Licensee shall NOT:
+
+   a) Redistribute, sublicense, sell, lease, rent, or otherwise transfer
+      the Enterprise Software or License Key to any third party;
+
+   b) Modify, adapt, translate, reverse engineer, decompile, disassemble,
+      or create derivative works based on the Enterprise Software, except
+      to the extent expressly permitted by applicable law;
+
+   c) Remove, alter, or obscure any proprietary notices, labels, or marks
+      on the Enterprise Software;
+
+   d) Use a single License Key on more instances than permitted by the
+      License Key parameters;
+
+   e) Circumvent, disable, or interfere with the license verification
+      mechanisms of the Enterprise Software;
+
+   f) Share, publish, or disclose License Keys to any unauthorized party.
+
+
+4. SaaS RESTRICTION
+
+   Licensee shall NOT use the Enterprise Software, in whole or in part, to
+   operate, offer, or enable a SaaS Offering that competes with or substitutes
+   for products or services offered by Licensor, without prior written consent
+   from Licensor.
+
+   This restriction includes, but is not limited to:
+
+   a) Offering the Enterprise Modules as part of a hosted or managed PIM
+      service to third parties;
+
+   b) Embedding or integrating the Enterprise Modules into a multi-tenant
+      platform that provides PIM functionality to third parties;
+
+   c) Reselling access to the Enterprise Modules through any cloud-based
+      or network-accessible service.
+
+   Licensee MAY use the Enterprise Software to provide services to its own
+   clients, provided that the clients do not receive direct access to the
+   Enterprise Software's user interface or API as a standalone service.
+
+
+5. LICENSE KEY AND ACTIVATION
+
+   a) The License Key specifies the licensed modules, maximum number of
+      users, and expiration date;
+
+   b) The Enterprise Software validates the License Key locally without
+      requiring network connectivity to a license server;
+
+   c) Upon expiration of the License Key, access to Enterprise Modules
+      will be deactivated. Licensee's data remains accessible through the
+      anyPIM core application;
+
+   d) Licensor will provide renewal terms prior to expiration.
+
+
+6. TERM AND TERMINATION
+
+   a) This Agreement is effective upon activation of the License Key and
+      continues until the expiration date specified in the License Key,
+      unless terminated earlier;
+
+   b) Licensor may terminate this Agreement immediately upon written notice
+      if Licensee breaches any term of this Agreement;
+
+   c) Upon termination, Licensee must cease all use of the Enterprise
+      Modules and destroy all copies in Licensee's possession;
+
+   d) Sections 3, 4, 7, 8, and 9 survive termination.
+
+
+7. INTELLECTUAL PROPERTY
+
+   The Enterprise Software is and remains the exclusive property of Licensor.
+   This Agreement does not convey any ownership rights to Licensee. All rights
+   not expressly granted herein are reserved by Licensor.
+
+
+8. DISCLAIMER OF WARRANTIES
+
+   THE ENTERPRISE SOFTWARE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND,
+   EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT.
+   LICENSOR DOES NOT WARRANT THAT THE ENTERPRISE SOFTWARE WILL BE ERROR-FREE
+   OR UNINTERRUPTED.
+
+
+9. LIMITATION OF LIABILITY
+
+   TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, IN NO EVENT SHALL
+   LICENSOR BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL,
+   OR PUNITIVE DAMAGES, OR ANY LOSS OF PROFITS, REVENUE, DATA, OR USE,
+   ARISING OUT OF OR RELATED TO THIS AGREEMENT OR THE USE OF THE ENTERPRISE
+   SOFTWARE, REGARDLESS OF THE THEORY OF LIABILITY.
+
+   LICENSOR'S TOTAL AGGREGATE LIABILITY UNDER THIS AGREEMENT SHALL NOT EXCEED
+   THE AMOUNT PAID BY LICENSEE FOR THE LICENSE KEY DURING THE TWELVE (12)
+   MONTHS PRECEDING THE CLAIM.
+
+
+10. GOVERNING LAW
+
+    This Agreement shall be governed by and construed in accordance with the
+    laws of the Federal Republic of Germany, without regard to its conflict of
+    law provisions. The courts of Germany shall have exclusive jurisdiction
+    over any disputes arising under this Agreement.
+
+
+11. ENTIRE AGREEMENT
+
+    This Agreement constitutes the entire agreement between the parties with
+    respect to the Enterprise Software and supersedes all prior or
+    contemporaneous communications, whether written or oral.
+
+
+12. CONTACT
+
+    For licensing inquiries, renewals, or permissions:
+
+    Publixx GmbH
+    E-Mail: license@anypim.io
+    Web: https://anypim.io
