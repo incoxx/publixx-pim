@@ -7,10 +7,12 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Requests\Api\V1\StoreRoleRequest;
 use App\Http\Requests\Api\V1\UpdateRoleRequest;
 use App\Http\Resources\Api\V1\RoleResource;
+use App\Models\Permission;
 use App\Models\Role;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Spatie\Permission\PermissionRegistrar;
 use Symfony\Component\HttpFoundation\Response;
 
 class RoleController extends Controller
@@ -22,7 +24,7 @@ class RoleController extends Controller
     {
         $this->authorize('viewAny', Role::class);
 
-        $query = Role::query();
+        $query = Role::withCount('users');
 
         if ($request->query('include') === 'permissions') {
             $query->with('permissions');
@@ -120,6 +122,42 @@ class RoleController extends Controller
         $role->delete();
 
         return response()->json(null, Response::HTTP_NO_CONTENT);
+    }
+
+    /**
+     * PUT /api/v1/roles/bulk-permissions
+     */
+    public function bulkSyncPermissions(Request $request): JsonResponse
+    {
+        $this->authorize('update', Role::class);
+
+        $validated = $request->validate([
+            'role_ids' => ['required', 'array', 'min:1'],
+            'role_ids.*' => ['string', 'exists:roles,id'],
+            'add_permissions' => ['array'],
+            'add_permissions.*' => ['string', 'exists:permissions,name'],
+            'remove_permissions' => ['array'],
+            'remove_permissions.*' => ['string', 'exists:permissions,name'],
+        ]);
+
+        $roles = Role::whereIn('id', $validated['role_ids'])->get();
+
+        foreach ($roles as $role) {
+            if (! empty($validated['add_permissions'])) {
+                $role->givePermissionTo($validated['add_permissions']);
+            }
+            if (! empty($validated['remove_permissions'])) {
+                $role->revokePermissionTo($validated['remove_permissions']);
+            }
+        }
+
+        app()[PermissionRegistrar::class]->forgetCachedPermissions();
+
+        $roles->load('permissions');
+
+        return response()->json([
+            'data' => RoleResource::collection($roles),
+        ]);
     }
 
     /**

@@ -58,6 +58,33 @@ class RoleAndPermissionSeeder extends Seeder
             // Benutzerverwaltung
             'users.view', 'users.create', 'users.edit', 'users.delete',
             'roles.view', 'roles.create', 'roles.edit', 'roles.delete',
+            // Zugangslinks
+            'access-links.view', 'access-links.create', 'access-links.delete',
+            // Berichte
+            'reports.view', 'reports.create', 'reports.edit', 'reports.delete',
+            // PDF-Vorlagen
+            'pdf-templates.view', 'pdf-templates.create', 'pdf-templates.edit', 'pdf-templates.delete',
+            // Planungskalender
+            'calendar.view', 'calendar.create', 'calendar.edit', 'calendar.delete',
+            // Wörterbuch
+            'dictionary.view', 'dictionary.create', 'dictionary.edit', 'dictionary.delete',
+            // Übersetzungen
+            'translations.view', 'translations.edit',
+            // Journal
+            'journal.view',
+            // Einstellungen
+            'settings.view', 'settings.edit',
+            // Merkliste
+            'watchlist.view', 'watchlist.edit',
+            // Suche
+            'search.view',
+            // JSON Export/Import
+            'json-export-import.view', 'json-export-import.execute',
+            // BMEcat Import/Export
+            'bmecat.view', 'bmecat.execute',
+            // Export-Jobs
+            'export-jobs.view', 'export-jobs.create', 'export-jobs.delete',
+            // Hersteller (manufacturers already included above)
         ];
 
         foreach ($permissions as $permissionName) {

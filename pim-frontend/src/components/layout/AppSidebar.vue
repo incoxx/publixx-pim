@@ -5,7 +5,7 @@ import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import {
   Search, Package, GitBranch, Sliders, Database, Layers, FolderTree,
-  Upload, Download, Image, Tags, DollarSign, Users, Settings,
+  Upload, Download, Image, Tags, DollarSign, Users, Settings, Shield,
   HelpCircle, PanelLeftClose, PanelLeft, Star, LayoutGrid, Ruler,
   FileJson, FileCode, PlayCircle, FileBarChart, FileText, BookOpen, Link2, Zap, Languages,
   ChevronDown, ChevronRight, GripVertical, Factory, CalendarDays, ScrollText,
@@ -65,6 +65,7 @@ const sections = computed(() => {
         { icon: PlayCircle, label: () => 'Export-Jobs', to: '/export-jobs' },
         { icon: Settings, label: () => t('nav.settings'), to: '/settings', permission: 'users.view' },
         { icon: Users, label: () => t('nav.users'), to: '/users', permission: 'users.view' },
+        { icon: Shield, label: () => 'Rollen', to: '/roles', permission: 'roles.view' },
         { icon: Link2, label: () => 'Zugangslinks', to: '/access-links', permission: 'access-links.manage' },
         { icon: Zap, label: () => 'API Tester', to: '/api-tester', permission: 'users.view' },
         { icon: Database, label: () => 'Datenbank', to: '/db', permission: 'users.view' },

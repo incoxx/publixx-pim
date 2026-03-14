@@ -1,0 +1,368 @@
+<script setup>
+import { ref, computed, onMounted } from 'vue'
+import { useAuthStore } from '@/stores/auth'
+import { roles } from '@/api/users'
+import { Check, Minus } from 'lucide-vue-next'
+
+const props = defineProps({
+  role: { type: Object, default: null },
+  onSaved: { type: Function, default: null },
+})
+
+const authStore = useAuthStore()
+const loading = ref(false)
+const saving = ref(false)
+const errors = ref({})
+const roleName = ref(props.role?.name || '')
+const selectedPermissions = ref(new Set(
+  props.role?.permissions?.map(p => p.name) || []
+))
+const availablePermissions = ref({})
+
+const isEdit = computed(() => !!props.role)
+
+// Entity labels for display
+const entityLabels = {
+  'products': 'Produkte',
+  'product-types': 'Produkttypen',
+  'attributes': 'Attribute',
+  'attribute-types': 'Attributgruppen',
+  'attribute-views': 'Attribut-Sichten',
+  'hierarchies': 'Hierarchien',
+  'hierarchy-nodes': 'Hierarchie-Knoten',
+  'unit-groups': 'Einheitengruppen',
+  'units': 'Einheiten',
+  'value-lists': 'Wertelisten',
+  'media': 'Medien',
+  'media-usage-types': 'Bildtypen',
+  'prices': 'Preise',
+  'price-types': 'Preistypen',
+  'manufacturers': 'Hersteller',
+  'relation-types': 'Produktbeziehungen',
+  'imports': 'Import',
+  'export': 'Export',
+  'publixx-mappings': 'Publixx-Mappings',
+  'pxf-templates': 'PXF-Vorlagen',
+  'users': 'Benutzer',
+  'roles': 'Rollen',
+  'access-links': 'Zugangslinks',
+  'reports': 'Berichte',
+  'pdf-templates': 'PDF-Vorlagen',
+  'calendar': 'Planungskalender',
+  'dictionary': 'Wörterbuch',
+  'translations': 'Übersetzungen',
+  'journal': 'Journal',
+  'settings': 'Einstellungen',
+  'watchlist': 'Merkliste',
+  'search': 'Suche',
+  'json-export-import': 'JSON Export/Import',
+  'bmecat': 'BMEcat',
+  'export-jobs': 'Export-Jobs',
+}
+
+// Category grouping
+const categoryGroups = [
+  {
+    label: 'Tagesgeschäft',
+    entities: ['products', 'hierarchies', 'hierarchy-nodes', 'media', 'media-usage-types', 'prices', 'price-types', 'search', 'watchlist', 'reports', 'pdf-templates', 'calendar'],
+  },
+  {
+    label: 'Konfiguration',
+    entities: ['manufacturers', 'product-types', 'relation-types', 'attribute-views', 'attribute-types', 'attributes', 'value-lists', 'dictionary', 'units', 'unit-groups', 'translations'],
+  },
+  {
+    label: 'Administration',
+    entities: ['imports', 'export', 'json-export-import', 'bmecat', 'export-jobs', 'publixx-mappings', 'pxf-templates', 'settings', 'users', 'roles', 'access-links', 'journal'],
+  },
+]
+
+// Standard action columns
+const standardActions = ['view', 'create', 'edit', 'delete']
+
+// All unique actions across all entities
+const allActions = computed(() => {
+  const actions = new Set(standardActions)
+  for (const entityActions of Object.values(availablePermissions.value)) {
+    for (const action of entityActions) {
+      actions.add(action)
+    }
+  }
+  return [...actions]
+})
+
+// Action labels
+const actionLabels = {
+  'view': 'Lesen',
+  'create': 'Erstellen',
+  'edit': 'Bearbeiten',
+  'delete': 'Löschen',
+  'execute': 'Ausführen',
+  'move': 'Verschieben',
+  'mappings.edit': 'Mappings',
+  'manage': 'Verwalten',
+}
+
+// Grouped entities with their permissions
+const groupedPermissions = computed(() => {
+  const perms = availablePermissions.value
+  const assignedEntities = new Set()
+
+  const groups = categoryGroups.map(group => {
+    const entities = group.entities
+      .filter(e => perms[e])
+      .map(e => {
+        assignedEntities.add(e)
+        return { key: e, label: entityLabels[e] || e, actions: perms[e] }
+      })
+    return { label: group.label, entities }
+  }).filter(g => g.entities.length > 0)
+
+  // Add ungrouped entities
+  const ungrouped = Object.keys(perms)
+    .filter(e => !assignedEntities.has(e))
+    .map(e => ({ key: e, label: entityLabels[e] || e, actions: perms[e] }))
+
+  if (ungrouped.length > 0) {
+    groups.push({ label: 'Sonstige', entities: ungrouped })
+  }
+
+  return groups
+})
+
+function hasPermission(entity, action) {
+  return selectedPermissions.value.has(`${entity}.${action}`)
+}
+
+function togglePermission(entity, action) {
+  const perm = `${entity}.${action}`
+  if (selectedPermissions.value.has(perm)) {
+    selectedPermissions.value.delete(perm)
+  } else {
+    selectedPermissions.value.add(perm)
+  }
+  // Trigger reactivity
+  selectedPermissions.value = new Set(selectedPermissions.value)
+}
+
+function isRowAllSelected(entity, actions) {
+  return actions.every(a => selectedPermissions.value.has(`${entity}.${a}`))
+}
+
+function isRowPartialSelected(entity, actions) {
+  const selected = actions.filter(a => selectedPermissions.value.has(`${entity}.${a}`))
+  return selected.length > 0 && selected.length < actions.length
+}
+
+function toggleRow(entity, actions) {
+  const allSelected = isRowAllSelected(entity, actions)
+  for (const action of actions) {
+    const perm = `${entity}.${action}`
+    if (allSelected) {
+      selectedPermissions.value.delete(perm)
+    } else {
+      selectedPermissions.value.add(perm)
+    }
+  }
+  selectedPermissions.value = new Set(selectedPermissions.value)
+}
+
+function isColumnAllSelected(action) {
+  const entities = Object.keys(availablePermissions.value).filter(e =>
+    availablePermissions.value[e].includes(action)
+  )
+  return entities.length > 0 && entities.every(e => selectedPermissions.value.has(`${e}.${action}`))
+}
+
+function isColumnPartialSelected(action) {
+  const entities = Object.keys(availablePermissions.value).filter(e =>
+    availablePermissions.value[e].includes(action)
+  )
+  const selected = entities.filter(e => selectedPermissions.value.has(`${e}.${action}`))
+  return selected.length > 0 && selected.length < entities.length
+}
+
+function toggleColumn(action) {
+  const entities = Object.keys(availablePermissions.value).filter(e =>
+    availablePermissions.value[e].includes(action)
+  )
+  const allSelected = isColumnAllSelected(action)
+  for (const entity of entities) {
+    const perm = `${entity}.${action}`
+    if (allSelected) {
+      selectedPermissions.value.delete(perm)
+    } else {
+      selectedPermissions.value.add(perm)
+    }
+  }
+  selectedPermissions.value = new Set(selectedPermissions.value)
+}
+
+function selectAll() {
+  for (const [entity, actions] of Object.entries(availablePermissions.value)) {
+    for (const action of actions) {
+      selectedPermissions.value.add(`${entity}.${action}`)
+    }
+  }
+  selectedPermissions.value = new Set(selectedPermissions.value)
+}
+
+function deselectAll() {
+  selectedPermissions.value = new Set()
+}
+
+const isAllSelected = computed(() => {
+  for (const [entity, actions] of Object.entries(availablePermissions.value)) {
+    for (const action of actions) {
+      if (!selectedPermissions.value.has(`${entity}.${action}`)) return false
+    }
+  }
+  return Object.keys(availablePermissions.value).length > 0
+})
+
+const isPartialSelected = computed(() => {
+  return selectedPermissions.value.size > 0 && !isAllSelected.value
+})
+
+async function handleSubmit() {
+  if (!roleName.value.trim()) {
+    errors.value = { name: 'Name ist erforderlich' }
+    return
+  }
+
+  saving.value = true
+  errors.value = {}
+
+  const payload = {
+    name: roleName.value.trim(),
+    permissions: [...selectedPermissions.value],
+  }
+
+  try {
+    if (isEdit.value) {
+      await roles.update(props.role.id, payload)
+    } else {
+      await roles.create(payload)
+    }
+    authStore.closePanel()
+    if (props.onSaved) props.onSaved()
+  } catch (e) {
+    if (e.response?.status === 422) {
+      const serverErrors = e.response.data.errors || {}
+      for (const [key, val] of Object.entries(serverErrors)) {
+        errors.value[key] = Array.isArray(val) ? val[0] : val
+      }
+    }
+  } finally {
+    saving.value = false
+  }
+}
+
+onMounted(async () => {
+  loading.value = true
+  try {
+    const { data } = await roles.listPermissions()
+    availablePermissions.value = data.data || data
+  } catch {
+    // Permissions might not load
+  } finally {
+    loading.value = false
+  }
+})
+</script>
+
+<template>
+  <div class="p-4 flex flex-col h-full">
+    <h3 class="text-sm font-semibold text-[var(--color-text-primary)] mb-4">
+      {{ isEdit ? 'Rolle bearbeiten' : 'Neue Rolle' }}
+    </h3>
+
+    <!-- Role name -->
+    <div class="mb-4">
+      <label class="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">Name</label>
+      <input
+        v-model="roleName"
+        type="text"
+        class="pim-input w-full text-sm"
+        placeholder="Rollenname"
+      />
+      <p v-if="errors.name" class="text-xs text-[var(--color-error)] mt-1">{{ errors.name }}</p>
+    </div>
+
+    <!-- Loading state -->
+    <div v-if="loading" class="flex-1 flex items-center justify-center">
+      <span class="text-xs text-[var(--color-text-tertiary)]">Berechtigungen werden geladen...</span>
+    </div>
+
+    <!-- Permission matrix -->
+    <div v-else class="flex-1 overflow-y-auto -mx-4 px-4">
+      <!-- Header with select all -->
+      <div class="flex items-center justify-between mb-3">
+        <span class="text-xs font-medium text-[var(--color-text-secondary)]">
+          Berechtigungen ({{ selectedPermissions.size }})
+        </span>
+        <button
+          class="text-[11px] text-[var(--color-accent)] hover:underline cursor-pointer"
+          @click="isAllSelected ? deselectAll() : selectAll()"
+        >
+          {{ isAllSelected ? 'Keine auswählen' : 'Alle auswählen' }}
+        </button>
+      </div>
+
+      <!-- Groups -->
+      <div v-for="group in groupedPermissions" :key="group.label" class="mb-4">
+        <div class="text-[10px] uppercase tracking-wider font-semibold text-[var(--color-text-tertiary)] mb-1.5">
+          {{ group.label }}
+        </div>
+
+        <!-- Entity rows -->
+        <div v-for="entity in group.entities" :key="entity.key" class="mb-1">
+          <!-- Entity header row -->
+          <div class="flex items-center gap-1 py-1">
+            <!-- Row select-all checkbox -->
+            <button
+              class="w-4 h-4 rounded border flex items-center justify-center shrink-0 cursor-pointer transition-colors"
+              :class="isRowAllSelected(entity.key, entity.actions)
+                ? 'bg-[var(--color-accent)] border-[var(--color-accent)]'
+                : isRowPartialSelected(entity.key, entity.actions)
+                  ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/20'
+                  : 'border-[var(--color-border-strong)]'"
+              @click="toggleRow(entity.key, entity.actions)"
+            >
+              <Check v-if="isRowAllSelected(entity.key, entity.actions)" class="w-3 h-3 text-white" :stroke-width="3" />
+              <Minus v-else-if="isRowPartialSelected(entity.key, entity.actions)" class="w-3 h-3 text-[var(--color-accent)]" :stroke-width="3" />
+            </button>
+            <span class="text-xs font-medium text-[var(--color-text-primary)] ml-1">{{ entity.label }}</span>
+          </div>
+
+          <!-- Action checkboxes -->
+          <div class="flex flex-wrap gap-1 ml-5 mb-1">
+            <button
+              v-for="action in entity.actions"
+              :key="action"
+              class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] cursor-pointer transition-colors border"
+              :class="hasPermission(entity.key, action)
+                ? 'bg-[var(--color-accent)]/10 border-[var(--color-accent)]/30 text-[var(--color-accent)]'
+                : 'bg-[var(--color-bg)] border-[var(--color-border)] text-[var(--color-text-tertiary)] hover:border-[var(--color-border-strong)]'"
+              @click="togglePermission(entity.key, action)"
+            >
+              <Check v-if="hasPermission(entity.key, action)" class="w-3 h-3" :stroke-width="2.5" />
+              <span>{{ actionLabels[action] || action }}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="flex items-center justify-end gap-2 pt-3 mt-3 border-t border-[var(--color-border)] -mx-4 px-4">
+      <button class="pim-btn pim-btn-secondary text-xs" @click="authStore.closePanel()">Abbrechen</button>
+      <button
+        class="pim-btn pim-btn-primary text-xs"
+        :disabled="saving || !roleName.trim()"
+        @click="handleSubmit"
+      >
+        {{ saving ? 'Wird gespeichert...' : 'Speichern' }}
+      </button>
+    </div>
+  </div>
+</template>

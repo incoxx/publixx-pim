@@ -63,6 +63,7 @@ use App\Http\Controllers\Api\V1\ReportTemplateController;
 use App\Http\Controllers\Api\V1\RelationTypeController;
 use App\Http\Controllers\Api\V1\ResetDataController;
 use App\Http\Controllers\Api\V1\SettingController;
+use App\Http\Controllers\Api\V1\PermissionController;
 use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\UnitController;
 use App\Http\Controllers\Api\V1\UnitGroupController;
@@ -188,6 +189,8 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // =====================================================================
     Route::apiResource('users', UserController::class);
     Route::get('users/{user}/dependencies', [UserController::class, 'dependencies']);
+    Route::get('permissions', [PermissionController::class, 'index']);
+    Route::put('roles/bulk-permissions', [RoleController::class, 'bulkSyncPermissions']);
     Route::apiResource('roles', RoleController::class);
     Route::put('roles/{role}/permissions', [RoleController::class, 'syncPermissions']);
 
