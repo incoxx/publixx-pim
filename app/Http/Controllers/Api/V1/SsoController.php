@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Jobs\WriteAuditLog;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
@@ -106,6 +107,17 @@ class SsoController extends Controller
         );
 
         $user->update(['last_login_at' => now()]);
+
+        WriteAuditLog::dispatch(
+            auditableType: User::class,
+            auditableId: $user->id,
+            action: 'logged_in',
+            oldValues: null,
+            newValues: ['method' => 'sso'],
+            userId: $user->id,
+            ipAddress: $request->ip(),
+            userAgent: $request->userAgent(),
+        )->afterCommit();
 
         // Redirect to frontend with token
         $frontendUrl = config('app.frontend_url', config('app.url'));

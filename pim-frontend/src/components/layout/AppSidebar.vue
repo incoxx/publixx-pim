@@ -68,6 +68,7 @@ const sections = computed(() => {
         { icon: PlayCircle, label: () => 'Export-Jobs', to: '/export-jobs', module: 'advanced_export' },
         { icon: Settings, label: () => t('nav.settings'), to: '/settings', permission: 'users.view' },
         { icon: Users, label: () => t('nav.users'), to: '/users', permission: 'users.view' },
+        { icon: ScrollText, label: () => 'Benutzer-Audit', to: '/users/audit', permission: 'users.view' },
         { icon: Shield, label: () => 'Rollen', to: '/roles', permission: 'roles.view' },
         { icon: Link2, label: () => 'Zugangslinks', to: '/access-links', permission: 'access-links.manage' },
         { icon: Zap, label: () => 'API Tester', to: '/api-tester', permission: 'users.view' },
