@@ -504,18 +504,13 @@ class GenerateTestCatalog extends Command
 
     private function publixxIntegration(): array
     {
-        $b = 'Publixx Integration & PXF-Templates';
+        $b = 'Publixx Integration';
         return [
             [$b, 'Publixx Export-Mapping anlegen', 'Attribute und Produkte existieren', 'Mapping zwischen PIM-Attributen und Publixx-Feldern wird erstellt'],
             [$b, 'Publixx Dataset abrufen (alle Produkte)', 'Mapping existiert', 'Alle Produkte werden im Publixx-Format zurückgegeben'],
             [$b, 'Publixx Dataset abrufen (einzelnes Produkt)', 'Mapping und Produkt existieren', 'Einzelnes Produkt wird im Publixx-Format zurückgegeben'],
             [$b, 'Publixx Dataset mit PQL filtern', 'Mapping existiert', 'Nur PQL-gefilterte Produkte werden zurückgegeben'],
             [$b, 'Publixx Webhook empfangen', 'Webhook-Endpunkt konfiguriert', 'Webhook wird verarbeitet, entsprechende Aktion ausgelöst'],
-            [$b, 'PXF-Template anlegen', 'Benutzer ist eingeloggt', 'PXF-Template wird mit Layout und Feldern erstellt'],
-            [$b, 'PXF-Template importieren', 'PXF-Datei vorhanden', 'Template wird aus Datei importiert'],
-            [$b, 'PXF-Template bearbeiten', 'Template existiert', 'Layout und Felder werden aktualisiert'],
-            [$b, 'PXF-Template löschen', 'Template existiert', 'Template wird gelöscht'],
-            [$b, 'PXF-Template Preview mit Produkt', 'Template und Produkt existieren', 'Vorschau des Templates mit Produktdaten wird generiert'],
         ];
     }
 
@@ -526,8 +521,7 @@ class GenerateTestCatalog extends Command
             [$b, 'Produkt-Preview anzeigen', 'Produkt mit Attributwerten existiert', 'Vollständige Produktvorschau mit allen Daten wird angezeigt'],
             [$b, 'Produkt-Preview als Excel exportieren', 'Produkt existiert', 'XLSX mit allen Produktdaten wird heruntergeladen'],
             [$b, 'Produkt-Preview als PDF exportieren', 'Produkt existiert', 'PDF-Datenblatt des Produkts wird generiert'],
-            [$b, 'PXF-Template Preview', 'PXF-Template und Produkt existieren', 'Produkt wird in PXF-Template-Darstellung angezeigt'],
-            [$b, 'Produkt im Publixx-Dataset-Format anzeigen', 'Export-Mapping existiert', 'Produkt wird im PXF-Dataset-Format dargestellt'],
+            [$b, 'Produkt im Publixx-Dataset-Format anzeigen', 'Export-Mapping existiert', 'Produkt wird im Publixx-Dataset-Format dargestellt'],
         ];
     }
 

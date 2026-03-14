@@ -36,7 +36,7 @@ return [
         ],
         'publixx' => [
             'name' => 'Publixx-Integration',
-            'description' => 'Publixx-Mappings und PXF-Vorlagen',
+            'description' => 'Publixx-Mappings',
         ],
         'reports' => [
             'name' => 'Berichte',

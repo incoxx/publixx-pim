@@ -55,8 +55,6 @@ class RoleAndPermissionSeeder extends Seeder
             'export.view', 'export.execute', 'export.mappings.edit',
             // Publixx-Mappings
             'publixx-mappings.view', 'publixx-mappings.create', 'publixx-mappings.edit', 'publixx-mappings.delete',
-            // PXF-Templates
-            'pxf-templates.view', 'pxf-templates.create', 'pxf-templates.edit', 'pxf-templates.delete',
             // Benutzerverwaltung
             'users.view', 'users.create', 'users.edit', 'users.delete',
             'roles.view', 'roles.create', 'roles.edit', 'roles.delete',
@@ -168,7 +166,6 @@ class RoleAndPermissionSeeder extends Seeder
         $exportManager->syncPermissions([
             'export.view', 'export.execute', 'export.mappings.edit',
             'publixx-mappings.view', 'publixx-mappings.create', 'publixx-mappings.edit', 'publixx-mappings.delete',
-            'pxf-templates.view', 'pxf-templates.create', 'pxf-templates.edit', 'pxf-templates.delete',
             'products.view',
             'product-types.view',
             'attributes.view',

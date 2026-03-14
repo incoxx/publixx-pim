@@ -58,7 +58,6 @@ use App\Http\Controllers\Api\V1\ProductRelationController;
 use App\Http\Controllers\Api\V1\ProductVariantController;
 use App\Http\Controllers\Api\V1\ProductVersionController;
 use App\Http\Controllers\Api\V1\PublixxDatasetController;
-use App\Http\Controllers\Api\V1\PxfTemplateController;
 use App\Http\Controllers\Api\V1\PdfTemplateController;
 use App\Http\Controllers\Api\V1\ReportTemplateController;
 use App\Http\Controllers\Api\V1\RelationTypeController;
@@ -343,7 +342,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::apiResource('products', ProductController::class);
     Route::get('products/{product}/dependencies', [ProductController::class, 'dependencies']);
 
-    // Product Preview (generic, no PXF)
+    // Product Preview
     Route::get('products/{product}/preview', [ProductController::class, 'preview']);
     Route::get('products/{product}/preview/export.xlsx', [ProductController::class, 'previewExportExcel']);
     Route::get('products/{product}/preview/export.pdf', [ProductController::class, 'previewExportPdf']);
@@ -579,16 +578,6 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
         Route::post('pdf-templates/{pdf_template}/resolve-preview', [PdfTemplateController::class, 'resolvePreview']);
         Route::post('pdf-templates/{pdf_template}/preview', [PdfTemplateController::class, 'preview']);
         Route::post('pdf-templates/{pdf_template}/execute', [PdfTemplateController::class, 'execute']);
-    });
-
-    // =====================================================================
-    // PXF Templates (Enterprise: publixx)
-    // =====================================================================
-    Route::middleware('module:publixx')->group(function () {
-        Route::post('pxf-templates/import', [PxfTemplateController::class, 'import']);
-        Route::apiResource('pxf-templates', PxfTemplateController::class);
-        Route::get('pxf-templates/{pxf_template}/dependencies', [PxfTemplateController::class, 'dependencies']);
-        Route::get('pxf-templates/{pxf_template}/preview/{product}', [PxfTemplateController::class, 'preview']);
     });
 
     // =====================================================================

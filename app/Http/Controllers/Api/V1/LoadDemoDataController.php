@@ -45,7 +45,6 @@ class LoadDemoDataController extends Controller
 
                 $tables = [
                     'import_job_errors',
-                    'pxf_templates',
                     'product_relation_attribute_values',
                     'publixx_export_mappings',
                     'import_jobs',

@@ -8,7 +8,6 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class PublixxExportMapping extends Model
 {
@@ -49,8 +48,4 @@ class PublixxExportMapping extends Model
         return $this->belongsTo(Hierarchy::class, 'output_hierarchy_id');
     }
 
-    public function pxfTemplates(): HasMany
-    {
-        return $this->hasMany(PxfTemplate::class, 'export_mapping_id');
-    }
 }

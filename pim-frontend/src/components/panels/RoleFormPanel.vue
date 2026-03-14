@@ -42,7 +42,6 @@ const entityLabels = {
   'imports': 'Import',
   'export': 'Export',
   'publixx-mappings': 'Publixx-Mappings',
-  'pxf-templates': 'PXF-Vorlagen',
   'users': 'Benutzer',
   'roles': 'Rollen',
   'access-links': 'Zugangslinks',
@@ -72,7 +71,7 @@ const categoryGroups = [
   },
   {
     label: 'Administration',
-    entities: ['imports', 'export', 'json-export-import', 'bmecat', 'export-jobs', 'publixx-mappings', 'pxf-templates', 'settings', 'users', 'roles', 'access-links', 'journal'],
+    entities: ['imports', 'export', 'json-export-import', 'bmecat', 'export-jobs', 'publixx-mappings', 'settings', 'users', 'roles', 'access-links', 'journal'],
   },
 ]
 
