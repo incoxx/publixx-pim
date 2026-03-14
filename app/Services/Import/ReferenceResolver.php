@@ -26,6 +26,9 @@ class ReferenceResolver
     /** @var array<string, Collection> Cache: entity-type → Collection */
     private array $cache = [];
 
+    /** @var array<string, array<string, string>> Indexierter Cache für O(1) Lookups: cacheKey → [lowercase_value → id] */
+    private array $indexedCache = [];
+
     private readonly FuzzyMatcher $fuzzyMatcher;
 
     public function __construct(?FuzzyMatcher $fuzzyMatcher = null)
@@ -135,12 +138,21 @@ class ReferenceResolver
 
         $nodes = $this->cache[$cacheKey];
 
-        // Suche nach exaktem Pfad-Match
-        $normalizedPath = '/' . trim($path, '/') . '/';
-        $node = $nodes->first(fn($n) => $n->path === $normalizedPath);
+        // Indexierten Cache für Pfad-Lookups aufbauen
+        if (!isset($this->indexedCache[$cacheKey])) {
+            $indexed = [];
+            foreach ($nodes as $n) {
+                if ($n->path) {
+                    $indexed[$n->path] = $n->id;
+                }
+            }
+            $this->indexedCache[$cacheKey] = $indexed;
+        }
 
-        if ($node) {
-            return new ResolveResult($node->id, true, null);
+        // O(1) Suche nach exaktem Pfad-Match
+        $normalizedPath = '/' . trim($path, '/') . '/';
+        if (isset($this->indexedCache[$cacheKey][$normalizedPath])) {
+            return new ResolveResult($this->indexedCache[$cacheKey][$normalizedPath], true, null);
         }
 
         return new ResolveResult(null, false, null);
@@ -170,9 +182,10 @@ class ReferenceResolver
     public function clearCache(?string $entityType = null): void
     {
         if ($entityType) {
-            unset($this->cache[$entityType]);
+            unset($this->cache[$entityType], $this->indexedCache[$entityType]);
         } else {
             $this->cache = [];
+            $this->indexedCache = [];
         }
     }
 
@@ -183,6 +196,8 @@ class ReferenceResolver
     {
         if (isset($this->cache[$entityType])) {
             $this->cache[$entityType]->push($entity);
+            // Indexierten Cache invalidieren, damit er beim nächsten resolve() neu aufgebaut wird
+            unset($this->indexedCache[$entityType]);
         }
     }
 
@@ -208,27 +223,36 @@ class ReferenceResolver
     ): ResolveResult {
         if (!isset($this->cache[$cacheKey])) {
             $this->cache[$cacheKey] = $loader();
+            // Indexierten Cache aufbauen für O(1) Lookups
+            unset($this->indexedCache[$cacheKey]);
         }
 
         $entities = $this->cache[$cacheKey];
         $trimmedInput = trim($input);
+        $lowerInput = mb_strtolower($trimmedInput);
 
-        // 1. Exakter Match auf Primärfeld
-        $exact = $entities->first(
-            fn($e) => mb_strtolower($e->{$primaryField} ?? '') === mb_strtolower($trimmedInput)
-        );
-        if ($exact) {
-            return new ResolveResult($exact->id, true, null);
+        // Indexierten Cache aufbauen (einmalig pro Entity-Typ)
+        if (!isset($this->indexedCache[$cacheKey])) {
+            $indexed = [];
+            $allFields = array_merge([$primaryField], $fallbackFields);
+            foreach ($entities as $entity) {
+                foreach ($allFields as $field) {
+                    $value = $entity->{$field} ?? null;
+                    if ($value !== null && $value !== '') {
+                        $key = mb_strtolower($value);
+                        // Erstes Match gewinnt (primaryField kommt zuerst)
+                        if (!isset($indexed[$key])) {
+                            $indexed[$key] = $entity->id;
+                        }
+                    }
+                }
+            }
+            $this->indexedCache[$cacheKey] = $indexed;
         }
 
-        // 2. Exakter Match auf Fallback-Felder (Anzeigenamen)
-        foreach ($fallbackFields as $field) {
-            $exact = $entities->first(
-                fn($e) => mb_strtolower($e->{$field} ?? '') === mb_strtolower($trimmedInput)
-            );
-            if ($exact) {
-                return new ResolveResult($exact->id, true, null);
-            }
+        // 1+2. O(1) exakter Match auf Primary- und Fallback-Felder
+        if (isset($this->indexedCache[$cacheKey][$lowerInput])) {
+            return new ResolveResult($this->indexedCache[$cacheKey][$lowerInput], true, null);
         }
 
         // 3. Fuzzy-Match auf allen Feldern

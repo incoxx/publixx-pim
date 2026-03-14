@@ -51,6 +51,9 @@ class ImportExecutor
     /** Import-Modus: 'update' (Upsert) oder 'delete_insert' (löschen + neu anlegen). */
     private string $mode = 'update';
 
+    /** Ab dieser Zeilenanzahl pro Sheet wird Bulk-Import genutzt. */
+    private const BULK_THRESHOLD = 500;
+
     /** Optional progress callback: fn(string $phase, int $current, int $total, array $stats) */
     private $progressCallback = null;
 
@@ -136,16 +139,22 @@ class ImportExecutor
             '14_Medien',
         ];
 
-        DB::beginTransaction();
-
-        try {
-            // Bei delete_insert: betroffene Daten vorher löschen, dann importieren
-            if ($this->mode === 'delete_insert') {
+        // Bei delete_insert: betroffene Daten vorher löschen
+        if ($this->mode === 'delete_insert') {
+            DB::beginTransaction();
+            try {
                 $this->deleteExistingData($parseResult);
+                DB::commit();
+            } catch (\Throwable $e) {
+                DB::rollBack();
+                throw $e;
             }
+        }
 
-            // Bei delete: nur löschen, kein Import
-            if ($this->mode === 'delete') {
+        // Bei delete: nur löschen, kein Import
+        if ($this->mode === 'delete') {
+            DB::beginTransaction();
+            try {
                 $deleteStats = $this->deleteExistingData($parseResult);
                 $this->stats['_delete'] = [
                     'created' => 0,
@@ -154,83 +163,113 @@ class ImportExecutor
                     'errors' => 0,
                     'deleted' => $deleteStats,
                 ];
-
                 DB::commit();
-
-                return new ImportExecutionResult(
-                    stats: $this->stats,
-                    affectedProductIds: $this->affectedProductIds,
-                    skippedDetails: $this->skippedDetails,
-                );
+            } catch (\Throwable $e) {
+                DB::rollBack();
+                throw $e;
             }
 
-            // Count active sheets for progress reporting
-            $activeSheets = array_filter($sheetOrder, fn ($k) => $parseResult->hasSheet($k) && !empty($parseResult->getSheetData($k)));
-            $totalSheets = count($activeSheets);
-            $completedSheets = 0;
+            return new ImportExecutionResult(
+                stats: $this->stats,
+                affectedProductIds: $this->affectedProductIds,
+                skippedDetails: $this->skippedDetails,
+            );
+        }
 
-            foreach ($sheetOrder as $sheetKey) {
-                if (!$parseResult->hasSheet($sheetKey)) {
-                    continue;
-                }
+        // Count active sheets for progress reporting
+        $activeSheets = array_filter($sheetOrder, fn ($k) => $parseResult->hasSheet($k) && !empty($parseResult->getSheetData($k)));
+        $totalSheets = count($activeSheets);
+        $completedSheets = 0;
 
-                $rows = $parseResult->getSheetData($sheetKey);
-                if (empty($rows)) {
-                    continue;
-                }
+        // Gesamtanzahl aller Zeilen berechnen für Bulk-Weiche
+        $totalRows = 0;
+        foreach ($sheetOrder as $sk) {
+            if ($parseResult->hasSheet($sk)) {
+                $totalRows += count($parseResult->getSheetData($sk));
+            }
+        }
+        $useBulk = $totalRows >= self::BULK_THRESHOLD;
 
-                $this->stats[$sheetKey] = ['created' => 0, 'updated' => 0, 'skipped' => 0, 'errors' => 0];
+        if ($useBulk) {
+            Log::channel('import')->info("Bulk-Import-Modus aktiviert ({$totalRows} Zeilen gesamt)");
+        }
 
-                Log::channel('import')->info("Importiere Sheet: {$sheetKey}", ['rows' => count($rows)]);
+        foreach ($sheetOrder as $sheetKey) {
+            if (!$parseResult->hasSheet($sheetKey)) {
+                continue;
+            }
 
-                if ($this->progressCallback) {
-                    ($this->progressCallback)($sheetKey, $completedSheets, $totalSheets, $this->stats);
-                }
+            $rows = $parseResult->getSheetData($sheetKey);
+            if (empty($rows)) {
+                continue;
+            }
 
-                // Nach Import bestimmter Sheets den Resolver-Cache leeren,
-                // damit nachfolgende Sheets die neuen Einträge finden.
-                $method = match ($sheetKey) {
-                    '01_Produkttypen' => 'importProductTypes',
-                    '02_Attributgruppen' => 'importAttributeTypes',
-                    '03_Einheiten' => 'importUnits',
-                    '04_Wertelisten' => 'importValueLists',
-                    '05_Attribute' => 'importAttributes',
-                    '06_Hierarchien' => 'importHierarchies',
-                    '07_Hierarchie_Attribute' => 'importHierarchyAttributes',
-                    '07b_Hierarchie_Ebene_Attribute' => 'importHierarchyLevelAttributes',
-                    '08_Produkte' => 'importProducts',
-                    '09_Produktwerte' => 'importProductValues',
-                    '10_Varianten' => 'importVariants',
-                    '11_Produkt_Hierarchien' => 'importProductHierarchies',
-                    '12_Produktbeziehungen' => 'importProductRelations',
-                    '13_Preise' => 'importPrices',
-                    '14_Medien' => 'importMedia',
-                    '15_Attribut_Sichten' => 'importAttributeViews',
-                    '16_Preistypen' => 'importPriceTypes',
-                    '17_Beziehungstypen' => 'importRelationTypes',
-                    default => null,
-                };
+            $this->stats[$sheetKey] = ['created' => 0, 'updated' => 0, 'skipped' => 0, 'errors' => 0];
 
-                if ($method && method_exists($this, $method)) {
-                    $this->{$method}($rows, $sheetKey);
-                }
+            Log::channel('import')->info("Importiere Sheet: {$sheetKey}", ['rows' => count($rows), 'bulk' => $useBulk]);
 
-                $completedSheets++;
+            if ($this->progressCallback) {
+                ($this->progressCallback)($sheetKey, $completedSheets, $totalSheets, $this->stats);
+            }
 
-                // Cache nach Stammdaten-Import leeren
-                if (in_array($sheetKey, [
-                    '01_Produkttypen', '02_Attributgruppen', '03_Einheiten',
-                    '04_Wertelisten', '05_Attribute', '06_Hierarchien', '08_Produkte',
-                    '15_Attribut_Sichten', '16_Preistypen', '17_Beziehungstypen',
-                ])) {
-                    $this->resolver->clearCache();
+            $method = match ($sheetKey) {
+                '01_Produkttypen' => 'importProductTypes',
+                '02_Attributgruppen' => 'importAttributeTypes',
+                '03_Einheiten' => 'importUnits',
+                '04_Wertelisten' => 'importValueLists',
+                '05_Attribute' => 'importAttributes',
+                '06_Hierarchien' => 'importHierarchies',
+                '07_Hierarchie_Attribute' => 'importHierarchyAttributes',
+                '07b_Hierarchie_Ebene_Attribute' => 'importHierarchyLevelAttributes',
+                '08_Produkte' => 'importProducts',
+                '09_Produktwerte' => 'importProductValues',
+                '10_Varianten' => 'importVariants',
+                '11_Produkt_Hierarchien' => 'importProductHierarchies',
+                '12_Produktbeziehungen' => 'importProductRelations',
+                '13_Preise' => 'importPrices',
+                '14_Medien' => 'importMedia',
+                '15_Attribut_Sichten' => 'importAttributeViews',
+                '16_Preistypen' => 'importPriceTypes',
+                '17_Beziehungstypen' => 'importRelationTypes',
+                default => null,
+            };
+
+            // Bulk-Varianten für große Imports (Weiche)
+            $bulkMethod = match ($sheetKey) {
+                '08_Produkte' => 'importProductsBulk',
+                '09_Produktwerte' => 'importProductValuesBulk',
+                '11_Produkt_Hierarchien' => 'importProductHierarchiesBulk',
+                '13_Preise' => 'importPricesBulk',
+                default => null,
+            };
+
+            $chosenMethod = ($useBulk && $bulkMethod) ? $bulkMethod : $method;
+
+            // Per-Sheet Transaktion
+            if ($chosenMethod && method_exists($this, $chosenMethod)) {
+                DB::beginTransaction();
+                try {
+                    $this->{$chosenMethod}($rows, $sheetKey);
+                    DB::commit();
+                } catch (\Throwable $e) {
+                    DB::rollBack();
+                    Log::channel('import')->error("Sheet {$sheetKey} fehlgeschlagen, übersprungen", [
+                        'error' => $e->getMessage(),
+                    ]);
+                    $this->stats[$sheetKey]['errors'] = count($rows);
                 }
             }
 
-            DB::commit();
-        } catch (\Throwable $e) {
-            DB::rollBack();
-            throw $e;
+            $completedSheets++;
+
+            // Cache nach Stammdaten-Import leeren
+            if (in_array($sheetKey, [
+                '01_Produkttypen', '02_Attributgruppen', '03_Einheiten',
+                '04_Wertelisten', '05_Attribute', '06_Hierarchien', '08_Produkte',
+                '15_Attribut_Sichten', '16_Preistypen', '17_Beziehungstypen',
+            ])) {
+                $this->resolver->clearCache();
+            }
         }
 
         return new ImportExecutionResult(
@@ -792,6 +831,106 @@ class ImportExecutor
         }
     }
 
+    /**
+     * Bulk-Import für Produkte: upsert() in Chunks statt Zeile-für-Zeile.
+     */
+    private function importProductsBulk(array $rows, string $sheetKey): void
+    {
+        $nameAttribute = Attribute::where('technical_name', 'name')->first();
+        $now = now();
+        $englishNameRows = [];
+
+        foreach (array_chunk($rows, 500) as $chunk) {
+            $this->heartbeat();
+
+            // Bestehende SKUs in diesem Chunk ermitteln für Stats
+            $skusInChunk = array_column($chunk, 'sku');
+            $existingSkus = Product::whereIn('sku', $skusInChunk)->pluck('sku')->flip()->all();
+
+            $upsertData = [];
+            foreach ($chunk as $row) {
+                try {
+                    $typeResult = $this->resolver->resolveProductType($row['product_type']);
+                    if (!$typeResult->resolved()) {
+                        $this->logSkipped($sheetKey, $row, "Produkttyp nicht gefunden: '{$row['product_type']}'");
+                        continue;
+                    }
+
+                    $isUpdate = isset($existingSkus[$row['sku']]);
+                    $upsertData[] = [
+                        'id' => Str::uuid()->toString(),
+                        'sku' => $row['sku'],
+                        'name' => $row['name'],
+                        'product_type_id' => $typeResult->id,
+                        'ean' => $row['ean'] ?? null,
+                        'status' => mb_strtolower($row['status'] ?? 'draft'),
+                        'product_type_ref' => 'product',
+                        'updated_at' => $now,
+                        'created_at' => $now,
+                    ];
+
+                    if ($isUpdate) {
+                        $this->stats[$sheetKey]['updated']++;
+                    } else {
+                        $this->stats[$sheetKey]['created']++;
+                    }
+
+                    // English name für spätere Batch-Verarbeitung sammeln
+                    if ($nameAttribute && !empty($row['name_en'])) {
+                        $englishNameRows[] = [
+                            'sku' => $row['sku'],
+                            'name_en' => $row['name_en'],
+                        ];
+                    }
+                } catch (\Throwable $e) {
+                    $this->logRowError($sheetKey, $row, $e);
+                }
+            }
+
+            if (!empty($upsertData)) {
+                Product::upsert(
+                    $upsertData,
+                    ['sku'],
+                    ['name', 'product_type_id', 'ean', 'status', 'product_type_ref', 'updated_at']
+                );
+            }
+        }
+
+        // Produkt-IDs sammeln (für Event + English Names)
+        $allSkus = array_column($rows, 'sku');
+        $productIdMap = Product::whereIn('sku', $allSkus)->pluck('id', 'sku')->all();
+        $this->affectedProductIds = array_merge($this->affectedProductIds, array_values($productIdMap));
+
+        // English names batch-verarbeiten
+        if ($nameAttribute && !empty($englishNameRows)) {
+            $pavData = [];
+            foreach ($englishNameRows as $enRow) {
+                $productId = $productIdMap[$enRow['sku']] ?? null;
+                if ($productId) {
+                    $pavData[] = [
+                        'id' => Str::uuid()->toString(),
+                        'product_id' => $productId,
+                        'attribute_id' => $nameAttribute->id,
+                        'language' => 'en',
+                        'multiplied_index' => 0,
+                        'value_string' => $enRow['name_en'],
+                        'updated_at' => $now,
+                        'created_at' => $now,
+                    ];
+                }
+            }
+            if (!empty($pavData)) {
+                foreach (array_chunk($pavData, 500) as $pavChunk) {
+                    ProductAttributeValue::upsert(
+                        $pavChunk,
+                        ['product_id', 'attribute_id', 'language', 'multiplied_index'],
+                        ['value_string', 'updated_at']
+                    );
+                }
+            }
+        }
+    }
+
     private function importProductValues(array $rows, string $sheetKey): void
     {
         $rowCount = 0;
@@ -873,6 +1012,131 @@ class ImportExecutor
             } catch (\Throwable $e) {
                 $this->logRowError($sheetKey, $row, $e);
             }
+        }
+    }
+
+    /**
+     * Bulk-Import für Produktwerte: Caches vorwärmen + upsert() in Chunks.
+     */
+    private function importProductValuesBulk(array $rows, string $sheetKey): void
+    {
+        $now = now();
+
+        // Attribut-Cache vorwärmen: alle Attribute laden (vermeidet Attribute::find() pro Zeile)
+        $attributeById = Attribute::all()->keyBy('id');
+
+        // ValueListEntry-Cache vorwärmen
+        $valueListIds = $attributeById->whereNotNull('value_list_id')->pluck('value_list_id')->unique()->all();
+        $valueListEntries = [];
+        if (!empty($valueListIds)) {
+            $entries = ValueListEntry::whereIn('value_list_id', $valueListIds)->get();
+            foreach ($entries as $entry) {
+                $valueListEntries[$entry->value_list_id][$entry->technical_name] = $entry;
+                if ($entry->display_value_de) {
+                    $valueListEntries[$entry->value_list_id]['_display_' . $entry->display_value_de] = $entry;
+                }
+            }
+        }
+
+        foreach (array_chunk($rows, 500) as $chunk) {
+            $this->heartbeat();
+
+            $upsertData = [];
+            $affectedIds = [];
+
+            foreach ($chunk as $row) {
+                try {
+                    $productResult = $this->resolver->resolveProduct($row['sku']);
+                    if (!$productResult->resolved()) {
+                        $this->logSkipped($sheetKey, $row, "Produkt nicht gefunden: SKU '{$row['sku']}'");
+                        continue;
+                    }
+
+                    $attrResult = $this->resolver->resolveAttribute($row['attribute']);
+                    if (!$attrResult->resolved()) {
+                        $this->logSkipped($sheetKey, $row, "Attribut nicht gefunden: '{$row['attribute']}'");
+                        continue;
+                    }
+
+                    $language = !empty($row['language']) ? mb_strtolower((string) $row['language']) : null;
+                    $index = (int) ($row['index'] ?? 0);
+
+                    // Attribut aus vorgewärmtem Cache laden
+                    $attribute = $attributeById->get($attrResult->id);
+                    $valueData = $this->mapValueToColumns($row['value'], $attribute?->data_type ?? 'String');
+
+                    $data = array_merge([
+                        'id' => Str::uuid()->toString(),
+                        'product_id' => $productResult->id,
+                        'attribute_id' => $attrResult->id,
+                        'language' => $language,
+                        'multiplied_index' => $index,
+                        'updated_at' => $now,
+                        'created_at' => $now,
+                    ], $valueData);
+
+                    // Selection-Werte aus vorgewärmtem Cache auflösen
+                    if ($attribute && $attribute->data_type === 'Selection' && $attribute->value_list_id) {
+                        $vlEntries = $valueListEntries[$attribute->value_list_id] ?? [];
+                        $entry = $vlEntries[(string) $row['value']] ?? $vlEntries['_display_' . (string) $row['value']] ?? null;
+                        if ($entry) {
+                            $data['value_selection_id'] = $entry->id;
+                            $data['value_string'] = $entry->technical_name;
+                        }
+                    }
+
+                    // Einheit auflösen (Resolver hat O(1)-Cache)
+                    if (!empty($row['unit'])) {
+                        $unitResult = $this->resolver->resolveUnit($row['unit']);
+                        if ($unitResult->resolved()) {
+                            $data['unit_id'] = $unitResult->id;
+                        }
+                    }
+
+                    // NULL-language-Zeilen können bei SQLite-Tests Probleme mit upsert machen
+                    // Separate Behandlung nicht nötig da wir hier immer language haben (BMEcat)
+                    $upsertData[] = $data;
+                    $affectedIds[] = $productResult->id;
+                } catch (\Throwable $e) {
+                    $this->logRowError($sheetKey, $row, $e);
+                }
+            }
+
+            if (!empty($upsertData)) {
+                // Bestehende Einträge zählen für Stats
+                $countBefore = 0;
+                $productIds = array_unique(array_column($upsertData, 'product_id'));
+                if (!empty($productIds)) {
+                    $countBefore = ProductAttributeValue::whereIn('product_id', $productIds)->count();
+                }
+
+                // Alle Spalten konsistent machen für upsert
+                $allKeys = ['id', 'product_id', 'attribute_id', 'language', 'multiplied_index',
+                    'value_string', 'value_number', 'value_date', 'value_flag',
+                    'value_selection_id', 'unit_id', 'updated_at', 'created_at'];
+                foreach ($upsertData as &$d) {
+                    foreach ($allKeys as $key) {
+                        if (!array_key_exists($key, $d)) {
+                            $d[$key] = null;
+                        }
+                    }
+                }
+                unset($d);
+
+                ProductAttributeValue::upsert(
+                    $upsertData,
+                    ['product_id', 'attribute_id', 'language', 'multiplied_index'],
+                    ['value_string', 'value_number', 'value_date', 'value_flag', 'value_selection_id', 'unit_id', 'updated_at']
+                );
+
+                $countAfter = ProductAttributeValue::whereIn('product_id', $productIds)->count();
+                $created = $countAfter - $countBefore;
+                $updated = count($upsertData) - $created;
+                $this->stats[$sheetKey]['created'] += max(0, $created);
+                $this->stats[$sheetKey]['updated'] += max(0, $updated);
+            }
+
+            $this->affectedProductIds = array_merge($this->affectedProductIds, $affectedIds);
         }
     }
 
@@ -969,6 +1233,73 @@ class ImportExecutor
             } catch (\Throwable $e) {
                 $this->logRowError($sheetKey, $row, $e);
             }
+        }
+    }
+
+    /**
+     * Bulk-Import für Produkt-Hierarchien: upsert() für Output-Hierarchien.
+     */
+    private function importProductHierarchiesBulk(array $rows, string $sheetKey): void
+    {
+        $now = now();
+        $masterUpdates = []; // nodeId → [productIds]
+        $outputUpsertData = [];
+
+        foreach (array_chunk($rows, 500) as $chunk) {
+            $this->heartbeat();
+
+            foreach ($chunk as $row) {
+                try {
+                    $productResult = $this->resolver->resolveProduct($row['sku']);
+                    if (!$productResult->resolved()) {
+                        $this->logSkipped($sheetKey, $row, "Produkt nicht gefunden: SKU '{$row['sku']}'");
+                        continue;
+                    }
+
+                    $nodeResult = $this->resolver->resolveHierarchyNode($row['hierarchy'], $row['node_path']);
+                    if (!$nodeResult->resolved()) {
+                        $this->logSkipped($sheetKey, $row, "Hierarchieknoten nicht gefunden: '{$row['hierarchy']}' Pfad '{$row['node_path']}'");
+                        continue;
+                    }
+
+                    $hierarchy = Hierarchy::where('technical_name', $row['hierarchy'])->first();
+
+                    if ($hierarchy && $hierarchy->hierarchy_type === 'master') {
+                        $masterUpdates[$nodeResult->id][] = $productResult->id;
+                    } else {
+                        $outputUpsertData[] = [
+                            'id' => Str::uuid()->toString(),
+                            'hierarchy_node_id' => $nodeResult->id,
+                            'product_id' => $productResult->id,
+                            'sort_order' => 0,
+                            'updated_at' => $now,
+                            'created_at' => $now,
+                        ];
+                    }
+
+                    $this->affectedProductIds[] = $productResult->id;
+                } catch (\Throwable $e) {
+                    $this->logRowError($sheetKey, $row, $e);
+                }
+            }
+        }
+
+        // Master-Hierarchien batch-update
+        foreach ($masterUpdates as $nodeId => $productIds) {
+            Product::whereIn('id', $productIds)->update(['master_hierarchy_node_id' => $nodeId]);
+            $this->stats[$sheetKey]['updated'] += count($productIds);
+        }
+
+        // Output-Hierarchien upsert
+        if (!empty($outputUpsertData)) {
+            foreach (array_chunk($outputUpsertData, 500) as $chunk) {
+                OutputHierarchyProductAssignment::upsert(
+                    $chunk,
+                    ['hierarchy_node_id', 'product_id'],
+                    ['sort_order', 'updated_at']
+                );
+            }
+            $this->stats[$sheetKey]['created'] += count($outputUpsertData);
         }
     }
 
@@ -1130,6 +1461,137 @@ class ImportExecutor
             $this->affectedProductIds[] = $productResult->id;
             } catch (\Throwable $e) {
                 $this->logRowError($sheetKey, $row, $e);
+            }
+        }
+    }
+
+    /**
+     * Bulk-Import für Preise: upsert() in Chunks für Zeilen mit valid_from,
+     * Fallback auf Einzel-Insert/Update für Zeilen ohne valid_from (NULL in UNIQUE-Index).
+     */
+    private function importPricesBulk(array $rows, string $sheetKey): void
+    {
+        $now = now();
+
+        // Preistypen vorab auflösen und bei Bedarf anlegen
+        $priceTypeNames = array_unique(array_column($rows, 'price_type'));
+        $priceTypeMap = [];
+        foreach ($priceTypeNames as $ptName) {
+            $ptResult = $this->resolver->resolvePriceType($ptName);
+            if ($ptResult->resolved()) {
+                $priceTypeMap[$ptName] = $ptResult->id;
+            } else {
+                $priceType = PriceType::firstOrCreate(
+                    ['technical_name' => $ptName],
+                    ['id' => Str::uuid()->toString(), 'name_de' => $ptName]
+                );
+                $priceTypeMap[$ptName] = $priceType->id;
+            }
+        }
+        $this->resolver->clearCache('price_type');
+
+        foreach (array_chunk($rows, 500) as $chunk) {
+            $this->heartbeat();
+
+            // Alle Produkt-IDs im Chunk sammeln
+            $skusInChunk = array_unique(array_column($chunk, 'sku'));
+            $productIdMap = [];
+            foreach ($skusInChunk as $sku) {
+                $r = $this->resolver->resolveProduct($sku);
+                if ($r->resolved()) {
+                    $productIdMap[$sku] = $r->id;
+                }
+            }
+
+            $upsertData = [];
+            $nullValidFromRows = [];
+            $productIds = array_values($productIdMap);
+
+            // Bestehende Preise laden für Fallback und Stats
+            $existingPricesMap = [];
+            if (!empty($productIds)) {
+                $allExisting = ProductPrice::whereIn('product_id', $productIds)->get();
+                foreach ($allExisting as $ep) {
+                    $key = $ep->product_id . '|' . $ep->price_type_id . '|' . $ep->currency
+                        . '|' . ($ep->valid_from ?? '') . '|' . ($ep->scale_from ?? '');
+                    $existingPricesMap[$key] = $ep;
+                }
+            }
+
+            foreach ($chunk as $row) {
+                try {
+                    $productId = $productIdMap[$row['sku']] ?? null;
+                    if (!$productId) {
+                        $this->logSkipped($sheetKey, $row, "Produkt nicht gefunden: SKU '{$row['sku']}'");
+                        continue;
+                    }
+
+                    $priceTypeId = $priceTypeMap[$row['price_type']] ?? null;
+                    if (!$priceTypeId) {
+                        $this->logSkipped($sheetKey, $row, "Preistyp nicht gefunden: '{$row['price_type']}'");
+                        continue;
+                    }
+
+                    $currency = strtoupper((string) ($row['currency'] ?? 'EUR'));
+                    $validFrom = $row['valid_from'] ?? null;
+
+                    $data = [
+                        'product_id' => $productId,
+                        'price_type_id' => $priceTypeId,
+                        'amount' => (float) $row['amount'],
+                        'currency' => $currency,
+                        'valid_from' => $validFrom,
+                        'valid_to' => $row['valid_to'] ?? null,
+                        'country' => !empty($row['country']) ? strtoupper((string) $row['country']) : null,
+                        'scale_from' => !empty($row['scale_from']) ? (int) $row['scale_from'] : null,
+                        'scale_to' => !empty($row['scale_to']) ? (int) $row['scale_to'] : null,
+                    ];
+
+                    $scaleFrom = !empty($row['scale_from']) ? (int) $row['scale_from'] : null;
+                    $lookupKey = $productId . '|' . $priceTypeId . '|' . $currency
+                        . '|' . ($validFrom ?? '') . '|' . ($scaleFrom ?? '');
+                    $isExisting = isset($existingPricesMap[$lookupKey]);
+
+                    if ($validFrom === null || $scaleFrom === null) {
+                        // NULL in unique-key Spalten: Fallback auf Einzel-Insert/Update
+                        $existingPrice = $existingPricesMap[$lookupKey] ?? null;
+                        if ($existingPrice) {
+                            $existingPrice->update($data);
+                            $this->stats[$sheetKey]['updated']++;
+                        } else {
+                            $data['id'] = Str::uuid()->toString();
+                            $data['updated_at'] = $now;
+                            $data['created_at'] = $now;
+                            ProductPrice::create($data);
+                            $this->stats[$sheetKey]['created']++;
+                        }
+                    } else {
+                        // Alle unique-key Spalten non-null: sammeln für Batch-Upsert
+                        $data['id'] = Str::uuid()->toString();
+                        $data['updated_at'] = $now;
+                        $data['created_at'] = $now;
+                        $upsertData[] = $data;
+
+                        if ($isExisting) {
+                            $this->stats[$sheetKey]['updated']++;
+                        } else {
+                            $this->stats[$sheetKey]['created']++;
+                        }
+                    }
+
+                    $this->affectedProductIds[] = $productId;
+                } catch (\Throwable $e) {
+                    $this->logRowError($sheetKey, $row, $e);
+                }
+            }
+
+            // Preise mit valid_from als Batch-Upsert
+            if (!empty($upsertData)) {
+                ProductPrice::upsert(
+                    $upsertData,
+                    ['product_id', 'price_type_id', 'currency', 'valid_from', 'scale_from'],
+                    ['amount', 'valid_to', 'country', 'scale_to', 'updated_at']
+                );
             }
         }
     }
