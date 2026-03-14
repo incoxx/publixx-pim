@@ -445,8 +445,8 @@ class BmecatFormatExporter
                 $xml->writeElement('LOWER_BOUND', (string) $price->scale_from);
             }
 
-            if ($price->country) {
-                $xml->writeElement('TERRITORY', $price->country);
+            if ($price->priceRegion) {
+                $xml->writeElement('TERRITORY', $price->priceRegion->code);
             }
 
             $xml->endElement(); // PRODUCT_PRICE

@@ -11,6 +11,7 @@ import usersApi from '@/api/users'
 import mediaApi from '@/api/media'
 import { mediaUsageTypes } from '@/api/mediaUsageTypes'
 import { priceTypes, relationTypes } from '@/api/prices'
+import { priceRegions } from '@/api/priceRegions'
 import attributesApiDefault, { productTypes, valueLists, attributeViews, attributeTypes } from '@/api/attributes'
 import dictionaryApi from '@/api/dictionary'
 import hierarchiesApi from '@/api/hierarchies'
@@ -836,8 +837,9 @@ const prices = ref([])
 const pricesLoaded = ref(false)
 const pricesLoading = ref(false)
 const priceTypesList = ref([])
+const priceRegionsList = ref([])
 const showPriceForm = ref(false)
-const priceForm = ref({ price_type_id: '', amount: '', currency: 'EUR', valid_from: '', valid_to: '', country: '', scale_from: '', scale_to: '' })
+const priceForm = ref({ price_type_id: '', amount: '', currency: 'EUR', valid_from: '', valid_to: '', price_region_id: '', scale_from: '', scale_to: '' })
 const priceErrors = ref({})
 const priceSaving = ref(false)
 const priceEditId = ref(null)
@@ -850,19 +852,21 @@ const priceColumns = [
   { key: 'currency', label: 'Währung' },
   { key: 'valid_from', label: 'Gültig ab' },
   { key: 'valid_to', label: 'Gültig bis' },
-  { key: 'country', label: 'Land' },
+  { key: 'price_region.name', label: 'Preisregion' },
 ]
 
 async function loadPrices() {
   if (pricesLoaded.value || !product.value) return
   pricesLoading.value = true
   try {
-    const [pricesResp, typesResp] = await Promise.all([
+    const [pricesResp, typesResp, regionsResp] = await Promise.all([
       productsApi.getPrices(product.value.id),
       priceTypesList.value.length ? Promise.resolve(null) : priceTypes.list(),
+      priceRegionsList.value.length ? Promise.resolve(null) : priceRegions.list(),
     ])
     prices.value = pricesResp.data.data || pricesResp.data
     if (typesResp) priceTypesList.value = typesResp.data.data || typesResp.data
+    if (regionsResp) priceRegionsList.value = regionsResp.data.data || regionsResp.data
     pricesLoaded.value = true
   } catch (e) { console.error('Failed to load prices:', e.message) }
   finally { pricesLoading.value = false }
@@ -877,13 +881,13 @@ function openPriceForm(price = null) {
       currency: price.currency || 'EUR',
       valid_from: price.valid_from ? price.valid_from.substring(0, 10) : '',
       valid_to: price.valid_to ? price.valid_to.substring(0, 10) : '',
-      country: price.country || '',
+      price_region_id: price.price_region_id || '',
       scale_from: price.scale_from || '',
       scale_to: price.scale_to || '',
     }
   } else {
     priceEditId.value = null
-    priceForm.value = { price_type_id: '', amount: '', currency: 'EUR', valid_from: '', valid_to: '', country: '', scale_from: '', scale_to: '' }
+    priceForm.value = { price_type_id: '', amount: '', currency: 'EUR', valid_from: '', valid_to: '', price_region_id: '', scale_from: '', scale_to: '' }
   }
   priceErrors.value = {}
   showPriceForm.value = true
@@ -894,7 +898,7 @@ async function savePrice() {
   priceErrors.value = {}
   const payload = { ...priceForm.value }
   if (!payload.valid_to) delete payload.valid_to
-  if (!payload.country) delete payload.country
+  if (!payload.price_region_id) delete payload.price_region_id
   if (!payload.scale_from) delete payload.scale_from
   if (!payload.scale_to) delete payload.scale_to
   try {
@@ -2483,8 +2487,11 @@ watch(() => route.params.id, async (newId, oldId) => {
             <PimAttributeInput type="select" v-model="priceForm.currency" :options="[{ value: 'EUR', label: 'EUR' }, { value: 'USD', label: 'USD' }, { value: 'CHF', label: 'CHF' }, { value: 'GBP', label: 'GBP' }]" />
           </div>
           <div>
-            <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Land</label>
-            <input class="pim-input" v-model="priceForm.country" placeholder="z.B. DE" maxlength="2" />
+            <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Preisregion</label>
+            <select class="pim-input" v-model="priceForm.price_region_id">
+              <option value="">— Keine —</option>
+              <option v-for="region in priceRegionsList" :key="region.id" :value="region.id">{{ region.name }} ({{ region.code }})</option>
+            </select>
           </div>
           <div>
             <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Gültig ab <span class="text-[var(--color-error)]">*</span></label>

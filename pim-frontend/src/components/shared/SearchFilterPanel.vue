@@ -3,6 +3,7 @@ import { ref, onMounted, computed, watch } from 'vue'
 import { ChevronDown, ChevronRight, X } from 'lucide-vue-next'
 import searchApi from '@/api/search'
 import hierarchiesApi from '@/api/hierarchies'
+import { priceRegions } from '@/api/priceRegions'
 
 const props = defineProps({
   modelValue: {
@@ -12,6 +13,7 @@ const props = defineProps({
       category_ids: [],
       attribute_filters: {},
       include_descendants: true,
+      price_region_id: '',
     }),
   },
 })
@@ -23,6 +25,7 @@ const hierarchyTrees = ref({})
 const selectedHierarchyId = ref(null)
 const searchableAttributes = ref([])
 const showCategoryPicker = ref(false)
+const priceRegionsList = ref([])
 
 onMounted(async () => {
   try {
@@ -42,6 +45,11 @@ onMounted(async () => {
   try {
     const { data } = await searchApi.searchableAttributes()
     searchableAttributes.value = data.data || data
+  } catch (e) { /* ignore */ }
+
+  try {
+    const { data } = await priceRegions.list()
+    priceRegionsList.value = data.data || data
   } catch (e) { /* ignore */ }
 })
 
@@ -76,6 +84,7 @@ watch(selectedHierarchyId, () => {
 const activeFilterCount = computed(() => {
   let count = (props.modelValue.category_ids || []).length
   if (props.modelValue.status) count++
+  if (props.modelValue.price_region_id) count++
   for (const val of Object.values(props.modelValue.attribute_filters || {})) {
     if (val !== '' && val !== null && val !== undefined) count++
   }
@@ -110,6 +119,7 @@ function clearAll() {
     category_ids: [],
     attribute_filters: {},
     include_descendants: true,
+    price_region_id: '',
   })
 }
 
@@ -144,6 +154,15 @@ function getFilterInputType(dataType) {
         <option value="draft">Entwurf</option>
         <option value="inactive">Inaktiv</option>
         <option value="discontinued">Auslaufend</option>
+      </select>
+    </div>
+
+    <!-- Price Region -->
+    <div v-if="priceRegionsList.length > 0">
+      <p class="text-[12px] font-medium text-[var(--color-text-secondary)] mb-2">Preisregion</p>
+      <select class="pim-input text-xs w-48" :value="modelValue.price_region_id" @change="update('price_region_id', $event.target.value)">
+        <option value="">— Alle —</option>
+        <option v-for="region in priceRegionsList" :key="region.id" :value="region.id">{{ region.name }} ({{ region.code }})</option>
       </select>
     </div>
 

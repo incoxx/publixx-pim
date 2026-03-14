@@ -370,7 +370,7 @@ class JsonFormatImporter
                 'currency' => $p['currency'] ?? 'EUR',
                 'valid_from' => $p['valid_from'] ?? null,
                 'valid_to' => $p['valid_to'] ?? null,
-                'country' => $p['country'] ?? null,
+                'country' => $p['price_region'] ?? $p['country'] ?? null,
                 'scale_from' => $p['scale_from'] ?? null,
                 'scale_to' => $p['scale_to'] ?? null,
             ], $data['prices']);

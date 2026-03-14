@@ -139,6 +139,13 @@ trait ProductSearchFilters
         });
     }
 
+    protected function applyPriceRegionFilter($query, string $priceRegionId): void
+    {
+        $query->whereHas('prices', function ($q) use ($priceRegionId) {
+            $q->where('price_region_id', $priceRegionId);
+        });
+    }
+
     protected function getValueColumn(string $dataType): string
     {
         return match ($dataType) {

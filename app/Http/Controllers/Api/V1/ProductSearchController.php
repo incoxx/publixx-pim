@@ -55,6 +55,7 @@ class ProductSearchController extends Controller
             'per_page' => 'nullable|integer|min:1|max:200',
             'page' => 'nullable|integer|min:1',
             'language' => 'nullable|string|max:5',
+            'price_region_id' => 'nullable|string|uuid',
         ]);
 
         $searchTerm = $validated['search'] ?? null;
@@ -99,6 +100,12 @@ class ProductSearchController extends Controller
         // ── Category filter (with descendants via materialized path) ──
         if (!empty($categoryIds)) {
             $this->applyCategoryFilter($query, $categoryIds, $includeDescendants, $hierarchyType);
+        }
+
+        // ── Price region filter ──
+        $priceRegionId = $validated['price_region_id'] ?? null;
+        if ($priceRegionId) {
+            $this->applyPriceRegionFilter($query, $priceRegionId);
         }
 
         // ── Attribute filters (subquery-based) ──
