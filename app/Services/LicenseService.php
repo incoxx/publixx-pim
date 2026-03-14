@@ -190,10 +190,15 @@ class LicenseService
             $settings = Setting::getPayload('license');
         } catch (\Throwable) {
             // Database might not be available during migrations
-            return null;
+            $settings = null;
         }
 
         $key = $settings['key'] ?? null;
+
+        // Fallback to .env-based license key (survives migrate:fresh, DB resets, etc.)
+        if (empty($key)) {
+            $key = config('license.key');
+        }
 
         if (empty($key)) {
             return null;
