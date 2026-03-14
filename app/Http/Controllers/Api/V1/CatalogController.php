@@ -61,16 +61,13 @@ class CatalogController extends BaseController
         if ($categoryId) {
             $node = HierarchyNode::find($categoryId);
             if ($node) {
-                // Build descendant path prefix that includes this node's own ID
-                $descendantPrefix = $node->path === '/'
-                    ? "/{$node->id}/"
-                    : "{$node->path}{$node->id}/";
-
-                // Get descendant node IDs + the node itself
-                $descendantIds = HierarchyNode::where('path', 'like', $descendantPrefix . '%')
+                // Get descendant node IDs + the node itself via materialized path
+                // Node path already includes its own ID (e.g. "/rootId/childId/"),
+                // so LIKE 'path%' matches the node itself and all descendants.
+                $descendantIds = HierarchyNode::where('hierarchy_id', $node->hierarchy_id)
+                    ->where('path', 'like', $node->path . '%')
                     ->pluck('id')
                     ->toArray();
-                $descendantIds[] = $node->id;
 
                 if ($hierarchyType === 'output') {
                     $productIds = OutputHierarchyProductAssignment::whereIn('hierarchy_node_id', $descendantIds)

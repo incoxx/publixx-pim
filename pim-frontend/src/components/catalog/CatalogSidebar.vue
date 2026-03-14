@@ -26,7 +26,7 @@ function selectAll() {
     <div class="p-4 border-b border-base-300">
       <h2 class="font-semibold text-sm text-base-content/80 flex items-center gap-2">
         <FolderTree class="w-4 h-4" />
-        {{ store.hierarchyInfo?.hierarchy_name || t('catalog.categories') }}
+        {{ t('catalog.categories') }}
       </h2>
     </div>
 

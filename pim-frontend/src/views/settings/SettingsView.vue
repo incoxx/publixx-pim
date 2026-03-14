@@ -138,6 +138,10 @@ async function loadAttributes(hierarchyId = null) {
     }
     allAttributes.value = all.filter(a => a.data_type !== 'Composite')
     availableAttributes.value = all.filter(a => FACET_DATA_TYPES.includes(a.data_type))
+
+    // Remove stale facet IDs that are no longer in the available attributes
+    const availableIds = new Set(availableAttributes.value.map(a => a.id))
+    themeForm.value.facet_attribute_ids = themeForm.value.facet_attribute_ids.filter(id => availableIds.has(id))
   } catch (e) {
     console.warn('Failed to load attributes:', e.message)
   }
