@@ -67,6 +67,10 @@ class KoelnerPhonetik
         // Sonderzeichen entfernen (nur Buchstaben behalten)
         $word = preg_replace('/[^a-z]/', '', $word);
 
+        // Doppelte Buchstaben normalisieren (z.B. "framaxx" → "framax")
+        // Phonetisch irrelevant im Deutschen
+        $word = preg_replace('/(.)\1+/', '$1', $word);
+
         if ($word === '' || $word === null) {
             return '';
         }

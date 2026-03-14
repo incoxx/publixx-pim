@@ -73,6 +73,9 @@ class CatalogController extends BaseController
                         'MATCH(products_search_index.name_de, products_search_index.name_en) AGAINST(? IN BOOLEAN MODE)',
                         [$term . '*']
                     )
+                    // LIKE fallback for name (catches cases FULLTEXT misses)
+                    ->orWhere('products_search_index.name_de', 'like', $likeTerm)
+                    ->orWhere('products_search_index.name_en', 'like', $likeTerm)
                     ->orWhere('products_search_index.sku', 'like', $likeTerm)
                     ->orWhere('products_search_index.ean', 'like', $likeTerm)
                     ->orWhere('products_search_index.description_de', 'like', $likeTerm)
@@ -80,6 +83,8 @@ class CatalogController extends BaseController
                         'products_search_index.searchable_text IS NOT NULL AND MATCH(products_search_index.searchable_text, products_search_index.media_text) AGAINST(? IN BOOLEAN MODE)',
                         [$term . '*']
                     )
+                    ->orWhere('products_search_index.searchable_text', 'like', $likeTerm)
+                    ->orWhere('products_search_index.media_text', 'like', $likeTerm)
                     // Phonetic fallback for typo tolerance
                     ->orWhere('products_search_index.phonetic_name_de', 'like', '%' . $phoneticTerm . '%')
                     ->orWhere('products_search_index.phonetic_text', 'like', '%' . $phoneticTerm . '%');
@@ -193,10 +198,12 @@ class CatalogController extends BaseController
             'products_search_index.product_type',
         ];
 
-        // Include searchable_text and media_text for match_sources when searching
+        // Include search-related columns for match_sources when searching
         if ($isSearchActive) {
             $selectColumns[] = 'products_search_index.searchable_text';
             $selectColumns[] = 'products_search_index.media_text';
+            $selectColumns[] = 'products_search_index.phonetic_name_de';
+            $selectColumns[] = 'products_search_index.phonetic_text';
         }
 
         $query->select($selectColumns);
@@ -364,8 +371,12 @@ class CatalogController extends BaseController
             // Batch-load attribute match sources for all products on this page
             $attrMatchMap = $this->findAttributeMatchSourcesBatch($productIdsForMatch, $term, $lang);
 
+            $phoneticTerm = KoelnerPhonetik::encode($term);
+
             foreach ($paginated->items() as $item) {
                 $sources = [];
+
+                // Check name match (substring in name_de or name_en)
                 if (str_contains(mb_strtolower($item->name_de ?? ''), $term) ||
                     str_contains(mb_strtolower($item->name_en ?? ''), $term)) {
                     $sources[] = ['type' => 'name', 'label' => $lang === 'en' ? 'Product name' : 'Produktname'];
@@ -385,9 +396,21 @@ class CatalogController extends BaseController
                 if (str_contains(mb_strtolower($item->media_text ?? ''), $term)) {
                     $sources[] = ['type' => 'media', 'label' => $lang === 'en' ? 'Document' : 'Dokument'];
                 }
-                if (empty($sources)) {
-                    $sources[] = ['type' => 'phonetic', 'label' => $lang === 'en' ? 'Sounds similar' : 'Ähnlich klingend'];
+
+                // Explicit phonetic check — only show "Ähnlich klingend" when actually matched phonetically
+                if (empty($sources) && $phoneticTerm !== '') {
+                    $isPhoneticMatch = str_contains($item->phonetic_name_de ?? '', $phoneticTerm)
+                        || str_contains($item->phonetic_text ?? '', $phoneticTerm);
+                    if ($isPhoneticMatch) {
+                        $sources[] = ['type' => 'phonetic', 'label' => $lang === 'en' ? 'Sounds similar' : 'Ähnlich klingend'];
+                    }
                 }
+
+                // Fallback: product was found but we couldn't determine the exact source
+                if (empty($sources)) {
+                    $sources[] = ['type' => 'name', 'label' => $lang === 'en' ? 'Product name' : 'Produktname'];
+                }
+
                 $item->match_sources = $sources;
             }
         }
