@@ -36,12 +36,33 @@ class DeploymentController extends Controller
         $startTime = microtime(true);
         $deployUser = $this->resolveDeployUser($basePath);
 
-        // Schritt 1: Backup — aktuellen Commit-Hash merken
-        $log[] = $this->runStep('backup', 'git rev-parse HEAD', $basePath, deployUser: $deployUser);
+        // Pre-check: Kann sudo verwendet werden?
+        if ($deployUser !== null) {
+            $sudoCheck = $this->runStep('sudo_check', "sudo -n -u {$deployUser} whoami", $basePath);
+            if (! $sudoCheck['success']) {
+                Log::warning('Deployment: sudo check failed', [
+                    'user'        => $user->email,
+                    'deploy_user' => $deployUser,
+                    'output'      => $sudoCheck['output'],
+                ]);
+                $log[] = array_merge($sudoCheck, [
+                    'output' => "sudo -u {$deployUser} nicht möglich. Bitte sudoers konfigurieren oder DEPLOY_USER in .env setzen. "
+                        . "Fahre ohne sudo fort (als aktueller PHP-User).",
+                ]);
+                $deployUser = null; // Fallback: ohne sudo
+            } else {
+                $log[] = $sudoCheck;
+            }
+        }
 
-        if ($log[0]['success']) {
-            $backupHash = trim($log[0]['output']);
-            $log[0]['output'] = "Backup-Punkt: {$backupHash}";
+        // Schritt 1: Backup — aktuellen Commit-Hash merken
+        $backupStep = $this->runStep('backup', 'git rev-parse HEAD', $basePath, deployUser: $deployUser);
+        $log[] = $backupStep;
+        $backupHash = null;
+
+        if ($backupStep['success']) {
+            $backupHash = trim($backupStep['output']);
+            $log[count($log) - 1]['output'] = "Backup-Punkt: {$backupHash}";
         }
 
         // Schritt 2: Git fetch + pull main
@@ -82,6 +103,18 @@ class DeploymentController extends Controller
         // Schritt 5b: Storage-Link sicherstellen
         $log[] = $this->runStep('storage_link', 'php artisan storage:link 2>/dev/null; mkdir -p storage/app/public/media', $basePath, deployUser: $deployUser);
 
+        // Schritt 5c: Berechtigungen korrigieren — www-data muss lesen/schreiben können
+        $webUser = $this->resolveWebUser();
+        if ($deployUser !== null && $webUser !== null && $deployUser !== $webUser) {
+            // Sicherstellen, dass der Webserver-User die Dateien lesen kann
+            $log[] = $this->runStep(
+                'fix_permissions',
+                "chgrp -R {$webUser} storage bootstrap/cache && chmod -R g+rw storage bootstrap/cache",
+                $basePath,
+                deployUser: $deployUser,
+            );
+        }
+
         // Schritt 6: Caches neu bauen
         $log[] = $this->runStep('config_cache', 'php artisan config:cache', $basePath, deployUser: $deployUser);
         $log[] = $this->runStep('route_cache', 'php artisan route:cache', $basePath, deployUser: $deployUser);
@@ -98,21 +131,23 @@ class DeploymentController extends Controller
         $newHash = trim($newHashResult['output']);
 
         $result = [
-            'success' => $allSuccessful,
+            'success'         => $allSuccessful,
             'duration_seconds' => $duration,
-            'deployed_by' => $user->name,
-            'commit' => $newHash,
-            'backup_hash' => $backupHash ?? null,
-            'deploy_user' => $deployUser,
-            'steps' => $log,
+            'deployed_by'     => $user->name,
+            'commit'          => $newHash,
+            'backup_hash'     => $backupHash,
+            'deploy_user'     => $deployUser,
+            'web_user'        => $webUser,
+            'steps'           => $log,
         ];
 
         Log::channel('single')->info('Deployment triggered', [
-            'user' => $user->email,
-            'success' => $allSuccessful,
-            'commit' => $newHash,
-            'duration' => $duration,
+            'user'        => $user->email,
+            'success'     => $allSuccessful,
+            'commit'      => $newHash,
+            'duration'    => $duration,
             'deploy_user' => $deployUser,
+            'web_user'    => $webUser,
         ]);
 
         return $this->successResponse($result, $allSuccessful ? 200 : 207);
@@ -137,19 +172,31 @@ class DeploymentController extends Controller
         }
 
         $basePath = base_path();
+        $deployUser = $this->resolveDeployUser($basePath);
+        $webUser = $this->resolveWebUser();
 
         $commitHash = trim($this->runCommand('git rev-parse --short HEAD', $basePath));
         $commitMessage = trim($this->runCommand('git log -1 --pretty=%s', $basePath));
         $commitDate = trim($this->runCommand('git log -1 --pretty=%ci', $basePath));
         $branch = trim($this->runCommand('git rev-parse --abbrev-ref HEAD', $basePath));
 
+        // Prüfe ob sudo funktioniert (wenn nötig)
+        $sudoAvailable = true;
+        if ($deployUser !== null) {
+            $check = $this->runCommand("sudo -n -u {$deployUser} whoami 2>&1", $basePath);
+            $sudoAvailable = trim($check) === $deployUser;
+        }
+
         return $this->successResponse([
-            'branch' => $branch,
-            'commit' => $commitHash,
-            'message' => $commitMessage,
-            'date' => $commitDate,
+            'branch'          => $branch,
+            'commit'          => $commitHash,
+            'message'         => $commitMessage,
+            'date'            => $commitDate,
             'laravel_version' => app()->version(),
-            'php_version' => PHP_VERSION,
+            'php_version'     => PHP_VERSION,
+            'deploy_user'     => $deployUser,
+            'web_user'        => $webUser,
+            'sudo_available'  => $sudoAvailable,
         ]);
     }
 
@@ -193,6 +240,18 @@ class DeploymentController extends Controller
             timeout: 300,
             deployUser: $deployUser,
         );
+
+        // Berechtigungen korrigieren
+        $webUser = $this->resolveWebUser();
+        if ($deployUser !== null && $webUser !== null && $deployUser !== $webUser) {
+            $log[] = $this->runStep(
+                'fix_permissions',
+                "chgrp -R {$webUser} storage bootstrap/cache && chmod -R g+rw storage bootstrap/cache",
+                $basePath,
+                deployUser: $deployUser,
+            );
+        }
+
         $log[] = $this->runStep('config_cache', 'php artisan config:cache', $basePath, deployUser: $deployUser);
         $log[] = $this->runStep('route_cache', 'php artisan route:cache', $basePath, deployUser: $deployUser);
         $log[] = $this->runStep('horizon_terminate', 'php artisan horizon:terminate', $basePath, deployUser: $deployUser);
@@ -200,15 +259,15 @@ class DeploymentController extends Controller
         $allSuccessful = collect($log)->every(fn (array $step) => $step['success']);
 
         Log::channel('single')->warning('Rollback triggered', [
-            'user' => $user->email,
+            'user'        => $user->email,
             'target_hash' => $hash,
-            'success' => $allSuccessful,
+            'success'     => $allSuccessful,
         ]);
 
         return $this->successResponse([
-            'success' => $allSuccessful,
+            'success'        => $allSuccessful,
             'rolled_back_to' => $hash,
-            'steps' => $log,
+            'steps'          => $log,
         ], $allSuccessful ? 200 : 207);
     }
 
@@ -216,27 +275,47 @@ class DeploymentController extends Controller
      * Ermittelt den System-User, unter dem Deployment-Befehle laufen sollen.
      *
      * Reihenfolge:
-     * 1. DEPLOY_USER aus .env
-     * 2. Besitzer des Projektverzeichnisses (stat)
+     * 1. DEPLOY_USER aus .env / config
+     * 2. Besitzer des Projektverzeichnisses (wenn verschieden vom aktuellen User)
      * 3. null → kein sudo, Befehle laufen als aktueller User
      */
     private function resolveDeployUser(string $basePath): ?string
     {
-        // Explizit konfiguriert?
-        $envUser = env('DEPLOY_USER');
+        // Explizit konfiguriert? (config() funktioniert auch mit cached config)
+        $envUser = config('app.deploy_user', env('DEPLOY_USER'));
         if (! empty($envUser)) {
             return $envUser;
         }
 
         // Automatisch: Besitzer des Projektverzeichnisses ermitteln
-        $ownerInfo = posix_getpwuid((int) fileowner($basePath));
-        $currentInfo = posix_getpwuid(posix_geteuid());
-
-        if ($ownerInfo && $currentInfo && $ownerInfo['name'] !== $currentInfo['name']) {
-            return $ownerInfo['name'];
+        if (! function_exists('posix_getpwuid') || ! function_exists('posix_geteuid')) {
+            return null; // posix extension nicht verfügbar
         }
 
-        return null; // Gleicher User, kein sudo nötig
+        $ownerUid = (int) fileowner($basePath);
+        $currentUid = posix_geteuid();
+
+        if ($ownerUid === $currentUid) {
+            return null; // Gleicher User, kein sudo nötig
+        }
+
+        $ownerInfo = posix_getpwuid($ownerUid);
+
+        return $ownerInfo ? $ownerInfo['name'] : null;
+    }
+
+    /**
+     * Ermittelt den Webserver-User (normalerweise www-data).
+     */
+    private function resolveWebUser(): ?string
+    {
+        if (! function_exists('posix_getpwuid') || ! function_exists('posix_geteuid')) {
+            return null;
+        }
+
+        $info = posix_getpwuid(posix_geteuid());
+
+        return $info ? $info['name'] : null;
     }
 
     /**
@@ -250,7 +329,7 @@ class DeploymentController extends Controller
 
         $escapedCommand = str_replace("'", "'\\''", $command);
 
-        return "sudo -u {$deployUser} bash -c '{$escapedCommand}'";
+        return "sudo -n -u {$deployUser} bash -c '{$escapedCommand}'";
     }
 
     /**
@@ -262,15 +341,15 @@ class DeploymentController extends Controller
 
         $env = [
             'COMPOSER_ALLOW_SUPERUSER' => '1',
-            'PATH' => env('PATH', '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'),
+            'PATH' => getenv('PATH') ?: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
         ];
 
         // HOME passend zum deploy user setzen
-        if ($deployUser) {
-            $ownerInfo = posix_getpwuid(posix_getpwnam($deployUser)['uid'] ?? 0);
-            $env['HOME'] = $ownerInfo['dir'] ?? "/home/{$deployUser}";
+        if ($deployUser && function_exists('posix_getpwnam')) {
+            $userInfo = posix_getpwnam($deployUser);
+            $env['HOME'] = $userInfo['dir'] ?? "/home/{$deployUser}";
         } else {
-            $env['HOME'] = env('HOME', '/root');
+            $env['HOME'] = getenv('HOME') ?: '/root';
         }
 
         $process = Process::fromShellCommandline($actualCommand, $cwd, $env);
@@ -280,16 +359,16 @@ class DeploymentController extends Controller
             $process->run();
 
             return [
-                'step' => $name,
-                'success' => $process->isSuccessful(),
-                'output' => trim($process->getOutput() ?: $process->getErrorOutput()),
+                'step'      => $name,
+                'success'   => $process->isSuccessful(),
+                'output'    => trim($process->getOutput() ?: $process->getErrorOutput()),
                 'exit_code' => $process->getExitCode(),
             ];
         } catch (\Throwable $e) {
             return [
-                'step' => $name,
-                'success' => false,
-                'output' => $e->getMessage(),
+                'step'      => $name,
+                'success'   => false,
+                'output'    => $e->getMessage(),
                 'exit_code' => -1,
             ];
         }
@@ -302,8 +381,8 @@ class DeploymentController extends Controller
     {
         $process = Process::fromShellCommandline($command, $cwd, [
             'COMPOSER_ALLOW_SUPERUSER' => '1',
-            'HOME' => env('HOME', '/root'),
-            'PATH' => env('PATH', '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'),
+            'HOME' => getenv('HOME') ?: '/root',
+            'PATH' => getenv('PATH') ?: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
         ]);
         $process->setTimeout(15);
         $process->run();

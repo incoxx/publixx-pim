@@ -552,6 +552,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // =====================================================================
     // Admin: Reset Data Model
     // =====================================================================
+    Route::get('admin/reset-categories', [ResetDataController::class, 'categories']);
     Route::post('admin/reset-data', ResetDataController::class);
     Route::post('admin/load-demo-data', LoadDemoDataController::class);
     Route::put('settings/catalog-theme', [SettingController::class, 'updateCatalogTheme']);

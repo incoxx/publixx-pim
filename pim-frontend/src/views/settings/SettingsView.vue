@@ -471,6 +471,7 @@ function openConfirmDialog() {
   resultMessage.value = ''
   resultError.value = false
   showConfirm.value = true
+  loadResetCategories()
 }
 
 function cancelReset() {
@@ -480,12 +481,13 @@ function cancelReset() {
 
 async function executeReset() {
   if (confirmText.value !== 'RESET') return
+  if (selectedResetCategories.value.length === 0) return
   resetting.value = true
   resultMessage.value = ''
   resultError.value = false
   try {
-    await adminApi.resetData('RESET')
-    resultMessage.value = t('settings.resetSuccess')
+    const { data } = await adminApi.resetData('RESET', selectedResetCategories.value)
+    resultMessage.value = `Erfolgreich zurückgesetzt: ${selectedResetCategories.value.length} Kategorie(n), ${data.tables?.length || 0} Tabelle(n).`
     resultError.value = false
     showConfirm.value = false
     confirmText.value = ''
@@ -516,6 +518,42 @@ async function triggerLoadDemo() {
   } finally {
     loadingDemo.value = false
   }
+}
+
+// ── Reset Categories State ──
+const resetCategories = ref([])
+const selectedResetCategories = ref([])
+const loadingCategories = ref(false)
+
+async function loadResetCategories() {
+  if (resetCategories.value.length > 0) return
+  loadingCategories.value = true
+  try {
+    const { data } = await adminApi.getResetCategories()
+    resetCategories.value = data
+    selectedResetCategories.value = data.map(c => c.key)
+  } catch (e) {
+    // fallback
+  } finally {
+    loadingCategories.value = false
+  }
+}
+
+function toggleResetCategory(key) {
+  const idx = selectedResetCategories.value.indexOf(key)
+  if (idx >= 0) {
+    selectedResetCategories.value.splice(idx, 1)
+  } else {
+    selectedResetCategories.value.push(key)
+  }
+}
+
+function selectAllResetCategories() {
+  selectedResetCategories.value = resetCategories.value.map(c => c.key)
+}
+
+function deselectAllResetCategories() {
+  selectedResetCategories.value = []
 }
 
 // ── Deployment State ──
@@ -1252,8 +1290,9 @@ onMounted(() => {
       </div>
 
       <p class="text-xs text-[var(--color-text-tertiary)]">
-        Alle bestehenden Daten werden geloescht und durch ein vollstaendiges Demo-Sortiment ersetzt
+        Alle Produktdaten werden gelöscht und durch ein vollständiges Demo-Sortiment ersetzt
         (Produkttypen, Attribute, Hierarchien, Produkte, Preise, Medien, Beziehungen).
+        Benutzer, Rollen und Berechtigungen bleiben erhalten.
       </p>
 
       <!-- Demo Result -->
@@ -1312,39 +1351,81 @@ onMounted(() => {
 
       <div>
         <h4 class="text-sm font-medium text-[var(--color-text-primary)] mb-1">{{ t('settings.resetTitle') }}</h4>
-        <p class="text-xs text-[var(--color-text-tertiary)] mb-3">{{ t('settings.resetDescription') }}</p>
+        <p class="text-xs text-[var(--color-text-tertiary)] mb-3">
+          Löscht ausgewählte Daten unwiderruflich. Benutzer, Rollen, Berechtigungen und Zugangslinks bleiben immer erhalten.
+        </p>
 
         <!-- Result message -->
         <div v-if="resultMessage" class="mb-3 text-xs px-3 py-2 rounded" :class="resultError ? 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400' : 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400'">
           {{ resultMessage }}
         </div>
 
-        <!-- Confirmation dialog -->
-        <div v-if="showConfirm" class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 space-y-3">
-          <p class="text-xs text-red-700 dark:text-red-300 font-medium">{{ t('settings.resetConfirmPrompt') }}</p>
-          <input
-            v-model="confirmText"
-            type="text"
-            class="pim-input max-w-xs text-sm"
-            placeholder="RESET"
-            :disabled="resetting"
-          />
-          <div class="flex gap-2">
-            <button
-              class="px-3 py-1.5 text-xs font-medium rounded-md text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              :disabled="confirmText !== 'RESET' || resetting"
-              @click="executeReset"
-            >
-              <span v-if="resetting">{{ t('common.loading') }}</span>
-              <span v-else>{{ t('settings.resetExecute') }}</span>
-            </button>
-            <button
-              class="px-3 py-1.5 text-xs font-medium rounded-md text-[var(--color-text-secondary)] bg-[var(--color-bg-secondary)] hover:bg-[var(--color-bg-tertiary)] transition-colors"
+        <!-- Confirmation dialog with category checkboxes -->
+        <div v-if="showConfirm" class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 space-y-4">
+
+          <!-- Category selection -->
+          <div v-if="resetCategories.length > 0" class="space-y-3">
+            <div class="flex items-center justify-between">
+              <p class="text-xs text-red-700 dark:text-red-300 font-medium">Welche Daten sollen zurückgesetzt werden?</p>
+              <div class="flex gap-2">
+                <button @click="selectAllResetCategories" class="text-[10px] text-red-600 dark:text-red-400 hover:underline">Alle</button>
+                <span class="text-[10px] text-red-300 dark:text-red-600">|</span>
+                <button @click="deselectAllResetCategories" class="text-[10px] text-red-600 dark:text-red-400 hover:underline">Keine</button>
+              </div>
+            </div>
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              <label
+                v-for="cat in resetCategories"
+                :key="cat.key"
+                class="flex items-center gap-2 px-3 py-2 rounded-md text-xs cursor-pointer transition-colors"
+                :class="selectedResetCategories.includes(cat.key)
+                  ? 'bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-300 border border-red-300 dark:border-red-700'
+                  : 'bg-white dark:bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)] border border-[var(--color-border)] hover:border-red-300 dark:hover:border-red-700'"
+              >
+                <input
+                  type="checkbox"
+                  :checked="selectedResetCategories.includes(cat.key)"
+                  @change="toggleResetCategory(cat.key)"
+                  class="accent-red-600 w-3.5 h-3.5"
+                />
+                {{ cat.label }}
+              </label>
+            </div>
+            <p class="text-[10px] text-red-500 dark:text-red-400">
+              {{ selectedResetCategories.length }} von {{ resetCategories.length }} Kategorien ausgewählt
+            </p>
+          </div>
+          <div v-else-if="loadingCategories" class="flex items-center gap-2 text-xs text-[var(--color-text-secondary)]">
+            <Loader2 class="w-4 h-4 animate-spin" /> Kategorien werden geladen...
+          </div>
+
+          <!-- RESET confirmation -->
+          <div class="space-y-3 pt-2 border-t border-red-200 dark:border-red-700">
+            <p class="text-xs text-red-700 dark:text-red-300 font-medium">{{ t('settings.resetConfirmPrompt') }}</p>
+            <input
+              v-model="confirmText"
+              type="text"
+              class="pim-input max-w-xs text-sm"
+              placeholder="RESET"
               :disabled="resetting"
-              @click="cancelReset"
-            >
-              {{ t('common.cancel') }}
-            </button>
+            />
+            <div class="flex gap-2">
+              <button
+                class="px-3 py-1.5 text-xs font-medium rounded-md text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                :disabled="confirmText !== 'RESET' || resetting || selectedResetCategories.length === 0"
+                @click="executeReset"
+              >
+                <span v-if="resetting">{{ t('common.loading') }}</span>
+                <span v-else>{{ t('settings.resetExecute') }}</span>
+              </button>
+              <button
+                class="px-3 py-1.5 text-xs font-medium rounded-md text-[var(--color-text-secondary)] bg-[var(--color-bg-secondary)] hover:bg-[var(--color-bg-tertiary)] transition-colors"
+                :disabled="resetting"
+                @click="cancelReset"
+              >
+                {{ t('common.cancel') }}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -1378,6 +1459,18 @@ onMounted(() => {
         <p class="text-[11px] text-[var(--color-text-tertiary)]">
           {{ serverStatus.date }} &middot; Laravel {{ serverStatus.laravel_version }} &middot; PHP {{ serverStatus.php_version }}
         </p>
+        <div class="flex items-center gap-3 text-[11px] text-[var(--color-text-tertiary)] pt-1 border-t border-[var(--color-border)]">
+          <span>Web-User: <span class="font-mono">{{ serverStatus.web_user || '–' }}</span></span>
+          <span v-if="serverStatus.deploy_user">Deploy-User: <span class="font-mono">{{ serverStatus.deploy_user }}</span></span>
+          <span v-if="serverStatus.deploy_user" :class="serverStatus.sudo_available ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'">
+            sudo: {{ serverStatus.sudo_available ? 'OK' : 'Nicht verfügbar' }}
+          </span>
+        </div>
+        <div v-if="serverStatus.deploy_user && !serverStatus.sudo_available" class="bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800 rounded p-2 text-[11px] text-yellow-700 dark:text-yellow-400">
+          <strong>Hinweis:</strong> sudo ist nicht konfiguriert. Bitte in <code>/etc/sudoers.d/</code> konfigurieren:
+          <code class="block mt-1 bg-yellow-100 dark:bg-yellow-900/30 p-1 rounded font-mono">{{ serverStatus.web_user }} ALL=({{ serverStatus.deploy_user }}) NOPASSWD: ALL</code>
+          Oder <code>DEPLOY_USER</code> in <code>.env</code> entfernen, wenn PHP als Datei-Eigentümer läuft.
+        </div>
       </div>
 
       <!-- Deploy-Button -->
