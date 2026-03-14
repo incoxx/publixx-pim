@@ -92,7 +92,9 @@ class DeploymentController extends Controller
 
         // Schritt 6: Frontend bauen (npm ci + build, wie update.sh)
         $frontendPath = $basePath . '/pim-frontend';
-        $log[] = $this->runStep('npm_ci', 'npm ci', $frontendPath, timeout: 180, deployUser: $deployUser);
+        // npm-Cache in ein Verzeichnis legen, auf das www-data Zugriff hat
+        $npmCacheDir = $basePath . '/storage/.npm-cache';
+        $log[] = $this->runStep('npm_ci', "npm ci --cache {$npmCacheDir}", $frontendPath, timeout: 180, deployUser: $deployUser);
 
         // VITE_BASE_PATH aus APP_URL ermitteln (Subdirectory-Support)
         $viteEnv = $this->resolveViteEnv();
@@ -373,11 +375,15 @@ class DeploymentController extends Controller
             'PATH' => getenv('PATH') ?: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
         ];
 
+        // HOME korrekt setzen — www-data hat KEIN Zugriff auf /root
         if ($deployUser && function_exists('posix_getpwnam')) {
             $userInfo = posix_getpwnam($deployUser);
             $env['HOME'] = $userInfo['dir'] ?? "/home/{$deployUser}";
+        } elseif (function_exists('posix_getpwuid') && function_exists('posix_geteuid')) {
+            $currentUser = posix_getpwuid(posix_geteuid());
+            $env['HOME'] = $currentUser['dir'] ?? '/tmp';
         } else {
-            $env['HOME'] = getenv('HOME') ?: '/root';
+            $env['HOME'] = '/tmp';
         }
 
         $process = Process::fromShellCommandline($actualCommand, $cwd, $env);
@@ -407,9 +413,15 @@ class DeploymentController extends Controller
      */
     private function runCommand(string $command, string $cwd): string
     {
+        $homeDir = '/tmp';
+        if (function_exists('posix_getpwuid') && function_exists('posix_geteuid')) {
+            $currentUser = posix_getpwuid(posix_geteuid());
+            $homeDir = $currentUser['dir'] ?? '/tmp';
+        }
+
         $process = Process::fromShellCommandline($command, $cwd, [
             'COMPOSER_ALLOW_SUPERUSER' => '1',
-            'HOME' => getenv('HOME') ?: '/root',
+            'HOME' => $homeDir,
             'PATH' => getenv('PATH') ?: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
         ]);
         $process->setTimeout(15);
