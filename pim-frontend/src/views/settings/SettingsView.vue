@@ -3,7 +3,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useLocaleStore } from '@/stores/locale'
 import { useAuthStore } from '@/stores/auth'
-import { Globe, Palette, AlertTriangle, Server, RotateCcw, CheckCircle, XCircle, Loader2, GitBranch, Database, Upload, Trash2, Save, Filter, LayoutGrid, Columns3, Image, Settings2, Paintbrush, BookOpen, GripVertical, Plus, X, Shield, Key, Eye, Monitor } from 'lucide-vue-next'
+import { Globe, Palette, AlertTriangle, Server, RotateCcw, CheckCircle, XCircle, Loader2, GitBranch, Database, Upload, Trash2, Save, Filter, LayoutGrid, Columns3, Image, Settings2, Paintbrush, BookOpen, GripVertical, Plus, X, Shield, Key, Eye, Monitor, RefreshCw } from 'lucide-vue-next'
 import { useLicenseStore } from '@/stores/license'
 import adminApi from '@/api/admin'
 import catalogApi from '@/api/catalog'
@@ -576,6 +576,25 @@ const deployError = ref(null)
 const rollbackHash = ref('')
 const rollingBack = ref(false)
 const showConfirmDeploy = ref(false)
+
+// Search reindex
+const reindexing = ref(false)
+const reindexResult = ref(null)
+const reindexError = ref(null)
+
+async function triggerReindex() {
+  reindexing.value = true
+  reindexResult.value = null
+  reindexError.value = null
+  try {
+    const { data } = await adminApi.reindexSearch()
+    reindexResult.value = data
+  } catch (e) {
+    reindexError.value = e.response?.data?.message || e.message
+  } finally {
+    reindexing.value = false
+  }
+}
 
 async function loadStatus() {
   if (!isAdmin) return
@@ -1637,6 +1656,45 @@ onMounted(async () => {
         >
           {{ t('settings.resetButton') }}
         </button>
+      </div>
+    </div>
+
+    <!-- Admin: Search Reindex -->
+    <div v-if="isAdmin" class="pim-card p-6 space-y-4">
+      <div class="flex items-center gap-3 mb-2">
+        <RefreshCw class="w-5 h-5 text-[var(--color-accent)]" :stroke-width="1.75" />
+        <h3 class="text-sm font-semibold">Suchindex</h3>
+      </div>
+
+      <p class="text-xs text-[var(--color-text-secondary)]">
+        Baut den Suchindex für den Vorschaukatalog neu auf. Durchsucht alle Attribute, SKU, Produktnamen und PDF-Dokumente.
+        Empfohlen nach Massenänderungen oder dem initialen Setup.
+      </p>
+
+      <div class="flex items-center gap-3">
+        <button
+          @click="triggerReindex"
+          :disabled="reindexing"
+          class="pim-btn-primary flex items-center gap-2 text-sm"
+        >
+          <Loader2 v-if="reindexing" class="w-4 h-4 animate-spin" />
+          <RefreshCw v-else class="w-4 h-4" :stroke-width="1.75" />
+          Suchindex neu aufbauen
+        </button>
+      </div>
+
+      <div v-if="reindexResult" class="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg p-3">
+        <div class="flex items-center gap-2 text-green-700 dark:text-green-400 text-sm font-medium">
+          <CheckCircle class="w-4 h-4" />
+          {{ reindexResult.message }}
+        </div>
+      </div>
+
+      <div v-if="reindexError" class="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg p-3">
+        <div class="flex items-center gap-2 text-red-700 dark:text-red-400 text-sm font-medium">
+          <XCircle class="w-4 h-4" />
+          {{ reindexError }}
+        </div>
       </div>
     </div>
 

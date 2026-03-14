@@ -563,6 +563,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::post('admin/reset-data', ResetDataController::class);
     Route::post('admin/load-demo-data', LoadDemoDataController::class);
     Route::put('settings/catalog-theme', [SettingController::class, 'updateCatalogTheme']);
+    Route::post('admin/search-reindex', [SettingController::class, 'reindexSearch']);
 
     // =====================================================================
     // Report Designer (Enterprise: reports)
