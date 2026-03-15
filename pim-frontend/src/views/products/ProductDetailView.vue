@@ -134,6 +134,24 @@ const workflowSaving = ref(false)
 const availableTransitions = ref([])
 
 const workflowEnabled = computed(() => !!product.value?.workflow_id)
+const productTypeHasWorkflow = computed(() => !!product.value?.product_type?.workflow_id)
+
+async function startWorkflow() {
+  if (!product.value?.product_type?.workflow_id) return
+  workflowSaving.value = true
+  workflowError.value = null
+  try {
+    await store.update(product.value.id, { workflow_id: product.value.product_type.workflow_id })
+    await store.fetchOne(product.value.id)
+    await loadAvailableTransitions()
+    loadWorkflowUsers()
+    loadWorkflowTeams()
+  } catch (e) {
+    workflowError.value = e.response?.data?.message || 'Workflow konnte nicht gestartet werden'
+  } finally {
+    workflowSaving.value = false
+  }
+}
 
 async function loadWorkflowUsers() {
   if (workflowUsers.value.length) return
@@ -1716,6 +1734,25 @@ watch(() => route.params.id, async (newId, oldId) => {
         <Save class="w-4 h-4" :stroke-width="1.75" />
         {{ saving ? 'Speichern…' : t('common.save') }}
       </button>
+    </div>
+
+    <!-- Start Workflow Bar (product has no workflow but ProductType has one) -->
+    <div
+      v-if="!workflowEnabled && productTypeHasWorkflow && product && authStore.hasPermission('products.edit')"
+      class="flex items-center gap-3 px-4 py-2.5 rounded-lg border border-dashed border-[var(--color-border)] bg-[var(--color-surface)]"
+    >
+      <GitBranch class="w-4 h-4 text-[var(--color-text-tertiary)] shrink-0" :stroke-width="2" />
+      <span class="text-xs text-[var(--color-text-secondary)]">
+        Der Produkttyp <strong>{{ product.product_type?.name_de || product.product_type?.technical_name }}</strong> hat einen zugeordneten Workflow.
+      </span>
+      <button
+        class="pim-btn pim-btn-sm text-xs font-medium px-3 py-1.5 rounded-md bg-[var(--color-accent)] text-white ml-auto"
+        :disabled="workflowSaving"
+        @click="startWorkflow"
+      >
+        Workflow starten
+      </button>
+      <p v-if="workflowError" class="w-full text-xs text-[var(--color-error)] mt-1">{{ workflowError }}</p>
     </div>
 
     <!-- Workflow Bar (dynamic FK-based) -->

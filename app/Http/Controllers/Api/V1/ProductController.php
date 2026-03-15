@@ -125,6 +125,14 @@ class ProductController extends Controller
         $data = $request->validated();
         $data['created_by'] = $request->user()?->id;
 
+        // Auto-assign workflow from ProductType
+        if (!empty($data['product_type_id'])) {
+            $productType = \App\Models\ProductType::find($data['product_type_id']);
+            if ($productType?->workflow_id) {
+                $data['workflow_id'] = $productType->workflow_id;
+            }
+        }
+
         $product = Product::create($data);
 
         try {
