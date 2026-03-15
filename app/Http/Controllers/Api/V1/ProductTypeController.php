@@ -16,7 +16,7 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 class ProductTypeController extends Controller
 {
     use ChecksDeletionConstraints;
-    private const ALLOWED_INCLUDES = ['products'];
+    private const ALLOWED_INCLUDES = ['products', 'workflow'];
 
     public function index(Request $request): AnonymousResourceCollection
     {

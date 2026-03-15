@@ -13,6 +13,7 @@ use App\Models\ProductAttributeValue;
 use App\Services\Preview\ProductCompletenessService;
 use App\Services\Preview\ProductPreviewService;
 use App\Models\WorkflowTask;
+use App\Models\WorkflowTransition;
 use App\Services\ProductVersioningService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
@@ -35,12 +36,12 @@ class ProductController extends Controller
     private const ALLOWED_INCLUDES = [
         'productType', 'attributeValues', 'variants', 'media',
         'prices', 'relations', 'parentProduct', 'masterHierarchyNode',
-        'manufacturer', 'workflowAssignee',
+        'manufacturer', 'workflow', 'currentWorkflowStatus', 'workflowAssignee', 'workflowTeam',
     ];
 
     private const ALLOWED_FILTERS = [
         'status', 'product_type_id', 'product_type_ref',
-        'master_hierarchy_node_id', 'manufacturer_id', 'workflow_status',
+        'master_hierarchy_node_id', 'manufacturer_id', 'current_workflow_status_id',
     ];
 
     public function index(Request $request): AnonymousResourceCollection
@@ -272,33 +273,39 @@ class ProductController extends Controller
         $data = $request->validated();
         $data['updated_by'] = $request->user()?->id;
 
-        // Auto-publish: when workflow is approved on a draft product, activate it and clear workflow
-        if (($data['workflow_status'] ?? null) === 'approved' && $product->status === 'draft') {
-            $data['status'] = 'active';
-            $data['workflow_status'] = null;
-            $data['workflow_assignee_id'] = null;
-        }
+        // Workflow status transition handling (new FK-based system)
+        $oldStatusId = $product->current_workflow_status_id;
+        $newStatusId = $data['current_workflow_status_id'] ?? $oldStatusId;
 
-        // Auto-create workflow task when workflow_status changes
-        $oldWorkflowStatus = $product->workflow_status;
-        $newWorkflowStatus = $data['workflow_status'] ?? $oldWorkflowStatus;
-        if ($newWorkflowStatus !== $oldWorkflowStatus && $newWorkflowStatus !== null) {
-            $taskTitles = [
-                'editing' => 'Bearbeitung',
-                'review' => 'Review',
-                'approved' => 'Freigabe',
-            ];
+        if ($newStatusId !== $oldStatusId && $newStatusId !== null) {
+            // Load the new status to get its name for the task
+            $newStatus = \App\Models\WorkflowStatus::find($newStatusId);
+
+            // Auto-publish: when reaching the workflow's end status on a draft product
+            if ($product->workflow_id && $product->status === 'draft') {
+                $workflow = \App\Models\Workflow::find($product->workflow_id);
+                if ($workflow && $workflow->end_status_id === $newStatusId) {
+                    $data['status'] = 'active';
+                    $data['current_workflow_status_id'] = null;
+                    $data['workflow_assignee_id'] = null;
+                    $data['workflow_team_id'] = null;
+                }
+            }
+
+            // Auto-create workflow task for the transition
             WorkflowTask::create([
                 'product_id' => $product->id,
-                'title' => $taskTitles[$newWorkflowStatus] ?? $newWorkflowStatus,
+                'title' => $newStatus?->name ?? 'Workflow-Übergang',
                 'status' => 'open',
+                'workflow_status_id' => $newStatusId,
                 'assigned_to' => $data['workflow_assignee_id'] ?? $product->workflow_assignee_id,
+                'team_id' => $data['workflow_team_id'] ?? $product->workflow_team_id,
                 'created_by' => $request->user()?->id,
             ]);
         }
 
-        // Close open tasks when workflow is approved/cleared
-        if ($newWorkflowStatus !== $oldWorkflowStatus && ($newWorkflowStatus === 'approved' || $newWorkflowStatus === null)) {
+        // Close open tasks when workflow is cleared
+        if ($newStatusId !== $oldStatusId && $newStatusId === null) {
             WorkflowTask::where('product_id', $product->id)
                 ->whereIn('status', ['open', 'in_progress'])
                 ->update(['status' => 'closed', 'closed_at' => now()]);
@@ -690,5 +697,59 @@ class ProductController extends Controller
         $data = $completenessService->calculateCompleteness($product, $lang);
 
         return response()->json(['data' => $data]);
+    }
+
+    /**
+     * GET /products/{product}/available-transitions
+     *
+     * Returns the allowed next workflow statuses based on the product's
+     * current workflow and status.
+     */
+    public function availableTransitions(Product $product): JsonResponse
+    {
+        $this->authorize('view', $product);
+
+        if (!$product->workflow_id) {
+            return response()->json(['data' => []]);
+        }
+
+        $query = WorkflowTransition::where('workflow_id', $product->workflow_id)
+            ->with('toStatus');
+
+        if ($product->current_workflow_status_id) {
+            $query->where('from_status_id', $product->current_workflow_status_id);
+        } else {
+            // No current status → show transitions from the workflow's start status
+            $workflow = $product->workflow;
+            if ($workflow?->start_status_id) {
+                // Return the start status itself as the first available transition
+                $startStatus = \App\Models\WorkflowStatus::find($workflow->start_status_id);
+                return response()->json([
+                    'data' => $startStatus ? [[
+                        'to_status_id' => $startStatus->id,
+                        'to_status' => [
+                            'id' => $startStatus->id,
+                            'name' => $startStatus->name,
+                            'color' => $startStatus->color,
+                        ],
+                        'name' => $startStatus->name,
+                    ]] : [],
+                ]);
+            }
+            return response()->json(['data' => []]);
+        }
+
+        $transitions = $query->get()->map(fn (WorkflowTransition $t) => [
+            'id' => $t->id,
+            'to_status_id' => $t->to_status_id,
+            'to_status' => $t->toStatus ? [
+                'id' => $t->toStatus->id,
+                'name' => $t->toStatus->name,
+                'color' => $t->toStatus->color,
+            ] : null,
+            'name' => $t->name ?? $t->toStatus?->name,
+        ]);
+
+        return response()->json(['data' => $transitions]);
     }
 }

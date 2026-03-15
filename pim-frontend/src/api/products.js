@@ -145,6 +145,10 @@ export default {
     return client.get(`/products/${id}/completeness`)
   },
 
+  getAvailableTransitions(id) {
+    return client.get(`/products/${id}/available-transitions`)
+  },
+
   downloadPreviewExcel(id) {
     return client.get(`/products/${id}/preview/export.xlsx`, { responseType: 'blob' })
   },

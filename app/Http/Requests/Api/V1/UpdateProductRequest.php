@@ -27,8 +27,10 @@ class UpdateProductRequest extends FormRequest
             'status' => 'in:draft,active,inactive,discontinued',
             'master_hierarchy_node_id' => 'nullable|uuid|exists:hierarchy_nodes,id',
             'manufacturer_id' => 'nullable|uuid|exists:manufacturers,id',
-            'workflow_status' => 'nullable|in:editing,review,approved',
+            'workflow_id' => 'nullable|uuid|exists:workflows,id',
+            'current_workflow_status_id' => 'nullable|uuid|exists:workflow_statuses,id',
             'workflow_assignee_id' => 'nullable|uuid|exists:users,id',
+            'workflow_team_id' => 'nullable|uuid|exists:teams,id',
         ];
     }
 }

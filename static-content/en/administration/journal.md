@@ -124,4 +124,4 @@ Shortening the retention period will delete older entries. This action cannot be
 
 - Use the [User Audit](./user-audit) to monitor login events and security-relevant actions.
 - Learn more about [Roles & Permissions](./roles) to control who can modify data.
-- Return to the [overview](../bedienung/index) to explore other functional areas.
+- Return to the [overview](../usage/index) to explore other functional areas.

@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Models\ExportJob;
 use App\Models\ProductVersion;
+use App\Models\Project;
 use App\Models\ScheduledAction;
 use Cron\CronExpression;
 use Illuminate\Http\JsonResponse;
@@ -25,6 +26,7 @@ class CalendarController extends Controller
         'export' => '#14b8a6',
         'import' => '#6366f1',
         'version_publish' => '#8b5cf6',
+        'project_deadline' => '#ec4899',
     ];
 
     public function index(Request $request): JsonResponse
@@ -47,6 +49,9 @@ class CalendarController extends Controller
 
         // 3. Geplante Produktversionen
         $events = $events->merge($this->getProductVersionEvents($from, $to));
+
+        // 4. Projekt-Deadlines (Enterprise: Workflow)
+        $events = $events->merge($this->getProjectDeadlineEvents($from, $to));
 
         return response()->json([
             'data' => $events->sortBy('scheduled_at')->values(),
@@ -135,5 +140,51 @@ class CalendarController extends Controller
             'product_name' => $v->product?->name,
             'editable' => false,
         ])->all();
+    }
+
+    private function getProjectDeadlineEvents(Carbon $from, Carbon $to): array
+    {
+        $projects = Project::whereNotNull('end_date')
+            ->whereBetween('end_date', [$from, $to])
+            ->whereIn('status', ['planning', 'active'])
+            ->with('manager:id,name')
+            ->get();
+
+        $events = [];
+
+        foreach ($projects as $project) {
+            $events[] = [
+                'id' => 'project-' . $project->id,
+                'source' => 'project',
+                'source_id' => $project->id,
+                'title' => 'Projekt-Deadline: ' . $project->name,
+                'action_type' => 'project_deadline',
+                'scheduled_at' => $project->end_date->toIso8601String(),
+                'status' => $project->status,
+                'color' => self::ACTION_COLORS['project_deadline'],
+                'product_id' => null,
+                'product_name' => null,
+                'editable' => false,
+            ];
+
+            // Also show project start date if in range
+            if ($project->start_date && $project->start_date->between($from, $to)) {
+                $events[] = [
+                    'id' => 'project-start-' . $project->id,
+                    'source' => 'project',
+                    'source_id' => $project->id,
+                    'title' => 'Projekt-Start: ' . $project->name,
+                    'action_type' => 'project_deadline',
+                    'scheduled_at' => $project->start_date->toIso8601String(),
+                    'status' => $project->status,
+                    'color' => self::ACTION_COLORS['project_deadline'],
+                    'product_id' => null,
+                    'product_name' => null,
+                    'editable' => false,
+                ];
+            }
+        }
+
+        return $events;
     }
 }

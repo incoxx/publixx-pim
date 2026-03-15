@@ -121,5 +121,5 @@ The request history is stored in browser storage and is lost when the browser is
 ## Next Steps
 
 - Read the full [API documentation](../api/index) to learn about all available endpoints in detail.
-- Learn more about [API authentication](../api/authentifizierung) for integrating external systems.
-- Return to the [overview](../bedienung/index) to explore other functional areas.
+- Learn more about [API authentication](../api/authentication) for integrating external systems.
+- Return to the [overview](../usage/index) to explore other functional areas.
