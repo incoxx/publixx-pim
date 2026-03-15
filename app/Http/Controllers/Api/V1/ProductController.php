@@ -42,6 +42,7 @@ class ProductController extends Controller
     private const ALLOWED_FILTERS = [
         'status', 'product_type_id', 'product_type_ref',
         'master_hierarchy_node_id', 'manufacturer_id', 'current_workflow_status_id',
+        'project_id',
     ];
 
     public function index(Request $request): AnonymousResourceCollection
@@ -72,6 +73,15 @@ class ProductController extends Controller
         // By default, exclude variants from the main product listing
         if (!isset($filters['product_type_ref'])) {
             $query->where('product_type_ref', 'product');
+        }
+
+        // Handle project_id filter via pivot table
+        if (!empty($filters['project_id'])) {
+            $projectIds = str_contains($filters['project_id'], ',')
+                ? explode(',', $filters['project_id'])
+                : [$filters['project_id']];
+            $query->whereHas('projects', fn ($q) => $q->whereIn('projects.id', $projectIds));
+            unset($filters['project_id']);
         }
 
         $this->applyFilters($query, $filters);
@@ -286,6 +296,33 @@ class ProductController extends Controller
         $newStatusId = $data['current_workflow_status_id'] ?? $oldStatusId;
 
         if ($newStatusId !== $oldStatusId && $newStatusId !== null) {
+            // Validate that the transition is allowed
+            if ($product->workflow_id) {
+                if ($oldStatusId) {
+                    // Must be a defined transition
+                    $transitionExists = WorkflowTransition::where('workflow_id', $product->workflow_id)
+                        ->where('from_status_id', $oldStatusId)
+                        ->where('to_status_id', $newStatusId)
+                        ->exists();
+
+                    if (!$transitionExists) {
+                        return response()->json([
+                            'message' => 'Dieser Workflow-Übergang ist nicht erlaubt.',
+                            'errors' => ['current_workflow_status_id' => ['Der Übergang von dem aktuellen Status zu dem gewählten Status ist nicht definiert.']],
+                        ], 422);
+                    }
+                } else {
+                    // No current status → only the workflow's start_status is allowed
+                    $workflow = \App\Models\Workflow::find($product->workflow_id);
+                    if ($workflow && $workflow->start_status_id !== $newStatusId) {
+                        return response()->json([
+                            'message' => 'Dieser Workflow-Übergang ist nicht erlaubt.',
+                            'errors' => ['current_workflow_status_id' => ['Der Workflow muss mit dem Start-Status beginnen.']],
+                        ], 422);
+                    }
+                }
+            }
+
             // Load the new status to get its name for the task
             $newStatus = \App\Models\WorkflowStatus::find($newStatusId);
 

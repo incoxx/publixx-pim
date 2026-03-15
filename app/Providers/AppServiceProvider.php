@@ -63,6 +63,8 @@ use App\Policies\ProjectPolicy;
 use App\Policies\TeamPolicy;
 use App\Policies\WorkflowPolicy;
 use App\Policies\WorkflowStatusPolicy;
+use App\Policies\WorkflowTaskPolicy;
+use App\Models\WorkflowTask;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
@@ -111,6 +113,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(Team::class, TeamPolicy::class);
         Gate::policy(Workflow::class, WorkflowPolicy::class);
         Gate::policy(WorkflowStatus::class, WorkflowStatusPolicy::class);
+        Gate::policy(WorkflowTask::class, WorkflowTaskPolicy::class);
 
         // ExportPolicy — no model, registered as Gates
         Gate::define('export.view', [ExportPolicy::class, 'viewAny']);

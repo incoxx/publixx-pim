@@ -16,6 +16,8 @@ class WorkflowTaskController extends Controller
 {
     public function index(Request $request): AnonymousResourceCollection
     {
+        $this->authorize('viewAny', WorkflowTask::class);
+
         $user = $request->user();
         $query = WorkflowTask::query()->with([
             'product:id,sku,name',
@@ -65,6 +67,8 @@ class WorkflowTaskController extends Controller
 
     public function store(StoreWorkflowTaskRequest $request): JsonResponse
     {
+        $this->authorize('create', WorkflowTask::class);
+
         $data = $request->validated();
         $data['created_by'] = $request->user()->id;
 
@@ -78,6 +82,8 @@ class WorkflowTaskController extends Controller
 
     public function show(WorkflowTask $workflowTask): WorkflowTaskResource
     {
+        $this->authorize('view', $workflowTask);
+
         $workflowTask->load(['product:id,sku,name', 'assignee:id,name', 'creator:id,name']);
 
         return new WorkflowTaskResource($workflowTask);
@@ -85,6 +91,8 @@ class WorkflowTaskController extends Controller
 
     public function update(UpdateWorkflowTaskRequest $request, WorkflowTask $workflowTask): WorkflowTaskResource
     {
+        $this->authorize('update', $workflowTask);
+
         $data = $request->validated();
 
         // Auto-set closed_at when status changes to closed
@@ -105,6 +113,8 @@ class WorkflowTaskController extends Controller
 
     public function destroy(WorkflowTask $workflowTask): JsonResponse
     {
+        $this->authorize('delete', $workflowTask);
+
         $workflowTask->delete();
 
         return response()->json(null, 204);
