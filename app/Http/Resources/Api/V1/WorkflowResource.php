@@ -22,6 +22,7 @@ class WorkflowResource extends JsonResource
             'end_status' => $this->whenLoaded('endStatus', fn () => new WorkflowStatusResource($this->endStatus)),
             'statuses' => WorkflowStatusResource::collection($this->whenLoaded('statuses')),
             'transitions' => WorkflowTransitionResource::collection($this->whenLoaded('transitions')),
+            'product_types' => ProductTypeResource::collection($this->whenLoaded('productTypes')),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

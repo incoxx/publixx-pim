@@ -30,6 +30,11 @@ class Team extends Model
         return $this->belongsToMany(Project::class, 'project_team')->withTimestamps();
     }
 
+    public function workflowTasks(): HasMany
+    {
+        return $this->hasMany(WorkflowTask::class, 'team_id');
+    }
+
     public function deletionConstraints(): array
     {
         return [

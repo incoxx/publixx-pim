@@ -98,6 +98,11 @@ class Product extends Model
         return $this->belongsTo(Team::class, 'workflow_team_id');
     }
 
+    public function projects(): BelongsToMany
+    {
+        return $this->belongsToMany(Project::class, 'project_product');
+    }
+
     public function hasActiveWorkflow(): bool
     {
         return $this->workflow_id !== null;

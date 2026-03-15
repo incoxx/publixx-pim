@@ -28,6 +28,8 @@ class StoreWorkflowRequest extends FormRequest
             'transitions.*.to_status_id' => 'required|uuid|exists:workflow_statuses,id',
             'transitions.*.duration_hours' => 'nullable|integer|min:0',
             'transitions.*.name' => 'nullable|string|max:255',
+            'product_type_ids' => 'nullable|array',
+            'product_type_ids.*' => 'uuid|exists:product_types,id',
         ];
     }
 }

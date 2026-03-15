@@ -31,6 +31,8 @@ class UpdateProductRequest extends FormRequest
             'current_workflow_status_id' => 'nullable|uuid|exists:workflow_statuses,id',
             'workflow_assignee_id' => 'nullable|uuid|exists:users,id',
             'workflow_team_id' => 'nullable|uuid|exists:teams,id',
+            'project_ids' => 'nullable|array',
+            'project_ids.*' => 'uuid|exists:projects,id',
         ];
     }
 }
