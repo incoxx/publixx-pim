@@ -1,78 +1,78 @@
-# anyPIM — Datenmodell
+# anyPIM — Data Model
 
-> **Zweck:** Vollständiges Entity-Relationship-Modell. Verwende diesen Skill beim Erstellen von Migrations, Models, Seedern, API-Resources oder bei Fragen zum Schema.
+> **Purpose:** Complete entity-relationship model. Use this skill when creating migrations, models, seeders, API resources, or when answering questions about the schema.
 
 ---
 
-## Stack-Kontext
+## Stack Context
 
-- **DB:** MySQL 8.0+ (InnoDB, JSON-Spalten, CTEs, FULLTEXT)
+- **DB:** MySQL 8.0+ (InnoDB, JSON columns, CTEs, FULLTEXT)
 - **Backend:** PHP 8.3, Laravel 11
-- **PKs:** UUID (CHAR(36)) überall
-- **Timestamps:** created_at / updated_at auf jeder Entität
+- **PKs:** UUID (CHAR(36)) everywhere
+- **Timestamps:** created_at / updated_at on every entity
 
 ---
 
-## Entitäten-Übersicht (35 Tabellen)
+## Entity Overview (35 Tables)
 
-| Bereich | Entitäten |
-|---------|-----------|
-| Attributmodell (10) | Attribute, AttributeType, UnitGroup, Unit, ValueList, ValueListEntry, AttributeView, AttributeViewAssignment, ComparisonOperatorGroup, ComparisonOperator |
-| Produktmodell (6) | Product, ProductType, ProductAttributeValue, VariantInheritanceRule, ProductRelationType, ProductRelation |
-| Hierarchiemodell (4) | Hierarchy, HierarchyNode, HierarchyNodeAttributeAssignment, OutputHierarchyProductAssignment |
-| Medienmodell (2) | Media, ProductMediaAssignment |
-| Preismodell (2) | PriceType, ProductPrice |
+| Area | Entities |
+|------|----------|
+| Attribute Model (10) | Attribute, AttributeType, UnitGroup, Unit, ValueList, ValueListEntry, AttributeView, AttributeViewAssignment, ComparisonOperatorGroup, ComparisonOperator |
+| Product Model (6) | Product, ProductType, ProductAttributeValue, VariantInheritanceRule, ProductRelationType, ProductRelation |
+| Hierarchy Model (4) | Hierarchy, HierarchyNode, HierarchyNodeAttributeAssignment, OutputHierarchyProductAssignment |
+| Media Model (2) | Media, ProductMediaAssignment |
+| Price Model (2) | PriceType, ProductPrice |
 | Export & PXF (2) | PublixxExportMapping, PxfTemplate |
 | Import (2) | ImportJob, ImportJobError |
-| Benutzerverwaltung (5) | User, Role, Permission, RolePermission, UserRole |
+| User Management (5) | User, Role, Permission, RolePermission, UserRole |
 | Performance (1) | products_search_index |
 | System (1) | AuditLog |
 
 ---
 
-## Attributmodell
+## Attribute Model
 
 ### attributes
 
-| Feld | Typ | Nullable | Beschreibung |
-|------|-----|----------|--------------|
-| id | CHAR(36) PK | Nein | UUID |
-| technical_name | VARCHAR(100) UNIQUE | Nein | z.B. `product-weight-num` |
-| name_de | VARCHAR(255) | Nein | Anzeigename deutsch |
-| name_en | VARCHAR(255) | Ja | Anzeigename englisch |
-| name_json | JSON | Ja | Weitere Sprachen `{"fr":"Poids"}` |
-| description_de | TEXT | Ja | Beschreibung |
-| description_en | TEXT | Ja | |
-| data_type | ENUM('String','Number','Float','Date','Flag','Selection','Dictionary','Collection') | Nein | |
-| attribute_type_id | FK → attribute_types.id | Ja | Attributgruppe |
-| value_list_id | FK → value_lists.id | Ja | Bei Selection/Dictionary |
-| unit_group_id | FK → unit_groups.id | Ja | Für numerische Attribute |
-| default_unit_id | FK → units.id | Ja | Standard-Einheit |
-| comparison_operator_group_id | FK → comparison_operator_groups.id | Ja | |
-| is_translatable | BOOLEAN | Nein | Werte benötigen Übersetzung |
-| is_multipliable | BOOLEAN | Nein | Vermehrbar |
-| max_multiplied | INT | Ja | Max. Vermehrungen |
-| max_pre_decimal | INT | Ja | Vorkommastellen |
-| max_post_decimal | INT | Ja | Nachkommastellen |
-| max_characters | INT | Ja | Max. Zeichenlänge |
-| is_searchable | BOOLEAN DEFAULT true | Nein | In Suche enthalten |
-| is_mandatory | BOOLEAN DEFAULT false | Nein | Pflichtfeld |
-| is_unique | BOOLEAN DEFAULT false | Nein | Systemweit eindeutiger Wert |
-| is_country_specific | BOOLEAN DEFAULT false | Nein | Länderspezifisch |
-| is_inheritable | BOOLEAN DEFAULT true | Nein | Über Hierarchie vererbbar |
-| parent_attribute_id | FK → attributes.id | Ja | Hierarchisches Attribut (Eltern) |
-| position | INT | Ja | Sortierung |
-| source_system | VARCHAR(50) | Ja | PIM / SAP ERP / Other |
-| source_attribute_name | VARCHAR(255) | Ja | Name im Quellsystem |
-| source_attribute_key | VARCHAR(255) | Ja | Key im Quellsystem |
-| status | ENUM('active','inactive') DEFAULT 'active' | Nein | |
+| Field | Type | Nullable | Description |
+|-------|------|----------|-------------|
+| id | CHAR(36) PK | No | UUID |
+| technical_name | VARCHAR(100) UNIQUE | No | e.g. `product-weight-num` |
+| name_de | VARCHAR(255) | No | Display name German |
+| name_en | VARCHAR(255) | Yes | Display name English |
+| name_json | JSON | Yes | Additional languages `{"fr":"Poids"}` |
+| description_de | TEXT | Yes | Description |
+| description_en | TEXT | Yes | |
+| data_type | ENUM('String','Number','Float','Date','Flag','Selection','Dictionary','Collection') | No | |
+| attribute_type_id | FK → attribute_types.id | Yes | Attribute group |
+| value_list_id | FK → value_lists.id | Yes | For Selection/Dictionary |
+| unit_group_id | FK → unit_groups.id | Yes | For numeric attributes |
+| default_unit_id | FK → units.id | Yes | Default unit |
+| comparison_operator_group_id | FK → comparison_operator_groups.id | Yes | |
+| is_translatable | BOOLEAN | No | Values require translation |
+| is_multipliable | BOOLEAN | No | Multipliable |
+| max_multiplied | INT | Yes | Max. multiplications |
+| max_pre_decimal | INT | Yes | Pre-decimal digits |
+| max_post_decimal | INT | Yes | Post-decimal digits |
+| max_characters | INT | Yes | Max. character length |
+| is_searchable | BOOLEAN DEFAULT true | No | Included in search |
+| is_mandatory | BOOLEAN DEFAULT false | No | Required field |
+| is_unique | BOOLEAN DEFAULT false | No | System-wide unique value |
+| is_country_specific | BOOLEAN DEFAULT false | No | Country-specific |
+| is_inheritable | BOOLEAN DEFAULT true | No | Inheritable via hierarchy |
+| parent_attribute_id | FK → attributes.id | Yes | Hierarchical attribute (parent) |
+| position | INT | Yes | Sorting |
+| source_system | VARCHAR(50) | Yes | PIM / SAP ERP / Other |
+| source_attribute_name | VARCHAR(255) | Yes | Name in source system |
+| source_attribute_key | VARCHAR(255) | Yes | Key in source system |
+| status | ENUM('active','inactive') DEFAULT 'active' | No | |
 
 ### attribute_types
 
-| Feld | Typ | Beschreibung |
-|------|-----|--------------|
+| Field | Type | Description |
+|-------|------|-------------|
 | id | CHAR(36) PK | |
-| technical_name | VARCHAR(100) UNIQUE | z.B. `technical_attributes` |
+| technical_name | VARCHAR(100) UNIQUE | e.g. `technical_attributes` |
 | name_de | VARCHAR(255) | |
 | name_en | VARCHAR(255) nullable | |
 | name_json | JSON nullable | |
@@ -81,10 +81,10 @@
 
 ### unit_groups
 
-| Feld | Typ | Beschreibung |
-|------|-----|--------------|
+| Field | Type | Description |
+|-------|------|-------------|
 | id | CHAR(36) PK | |
-| technical_name | VARCHAR(100) UNIQUE | z.B. `weight`, `length` |
+| technical_name | VARCHAR(100) UNIQUE | e.g. `weight`, `length` |
 | name_de | VARCHAR(255) | |
 | name_en | VARCHAR(255) nullable | |
 | name_json | JSON nullable | |
@@ -92,21 +92,21 @@
 
 ### units
 
-| Feld | Typ | Beschreibung |
-|------|-----|--------------|
+| Field | Type | Description |
+|-------|------|-------------|
 | id | CHAR(36) PK | |
 | unit_group_id | FK → unit_groups.id | |
-| technical_name | VARCHAR(100) | z.B. `kilogram` |
-| abbreviation | VARCHAR(20) | z.B. `kg` |
-| abbreviation_json | JSON nullable | Übersetzung: `{"de":"Stk.","en":"pcs."}` |
-| conversion_factor | DECIMAL(20,10) DEFAULT 1 | Faktor zur Basiseinheit |
+| technical_name | VARCHAR(100) | e.g. `kilogram` |
+| abbreviation | VARCHAR(20) | e.g. `kg` |
+| abbreviation_json | JSON nullable | Translation: `{"de":"Stk.","en":"pcs."}` |
+| conversion_factor | DECIMAL(20,10) DEFAULT 1 | Factor to base unit |
 | is_base_unit | BOOLEAN | |
-| is_translatable | BOOLEAN | Kürzel benötigt Übersetzung |
+| is_translatable | BOOLEAN | Abbreviation requires translation |
 
 ### value_lists
 
-| Feld | Typ | Beschreibung |
-|------|-----|--------------|
+| Field | Type | Description |
+|-------|------|-------------|
 | id | CHAR(36) PK | |
 | technical_name | VARCHAR(100) UNIQUE | |
 | name_de | VARCHAR(255) | |
@@ -114,18 +114,18 @@
 | name_json | JSON nullable | |
 | description | TEXT nullable | |
 | value_data_type | ENUM('String','Number') DEFAULT 'String' | |
-| max_depth | INT DEFAULT 1 | Max. Verschachtelungstiefe |
+| max_depth | INT DEFAULT 1 | Max. nesting depth |
 
 ### value_list_entries
 
-| Feld | Typ | Beschreibung |
-|------|-----|--------------|
+| Field | Type | Description |
+|-------|------|-------------|
 | id | CHAR(36) PK | |
 | value_list_id | FK → value_lists.id | |
-| parent_entry_id | FK → value_list_entries.id nullable | Hierarchisch |
-| technical_name | VARCHAR(100) | z.B. `red` |
-| display_value_de | VARCHAR(255) | z.B. `Rot` |
-| display_value_en | VARCHAR(255) nullable | z.B. `Red` |
+| parent_entry_id | FK → value_list_entries.id nullable | Hierarchical |
+| technical_name | VARCHAR(100) | e.g. `red` |
+| display_value_de | VARCHAR(255) | e.g. `Rot` |
+| display_value_en | VARCHAR(255) nullable | e.g. `Red` |
 | display_value_json | JSON nullable | `{"fr":"Rouge"}` |
 | sort_order | INT | |
 | is_active | BOOLEAN DEFAULT true | |
@@ -133,10 +133,10 @@
 
 ### attribute_views
 
-| Feld | Typ | Beschreibung |
-|------|-----|--------------|
+| Field | Type | Description |
+|-------|------|-------------|
 | id | CHAR(36) PK | |
-| technical_name | VARCHAR(100) UNIQUE | z.B. `eshop_view` |
+| technical_name | VARCHAR(100) UNIQUE | e.g. `eshop_view` |
 | name_de | VARCHAR(255) | |
 | name_en | VARCHAR(255) nullable | |
 | name_json | JSON nullable | |
@@ -146,8 +146,8 @@
 
 ### attribute_view_assignments
 
-| Feld | Typ | Beschreibung |
-|------|-----|--------------|
+| Field | Type | Description |
+|-------|------|-------------|
 | id | CHAR(36) PK | |
 | attribute_id | FK → attributes.id | |
 | attribute_view_id | FK → attribute_views.id | |
@@ -162,12 +162,12 @@ comparison_operators: id, group_id (FK), technical_name, symbol, description_de
 
 ---
 
-## Produktmodell
+## Product Model
 
 ### product_types
 
-| Feld | Typ | Beschreibung |
-|------|-----|--------------|
+| Field | Type | Description |
+|-------|------|-------------|
 | id | CHAR(36) PK | |
 | technical_name | VARCHAR(100) UNIQUE | `physical_product`, `training`, `service`, `software`, `bundle`, `digital_asset` |
 | name_de | VARCHAR(255) | |
@@ -182,7 +182,7 @@ comparison_operators: id, group_id (FK), technical_name, symbol, description_de
 | has_media | BOOLEAN | |
 | has_stock | BOOLEAN | |
 | has_physical_dimensions | BOOLEAN | |
-| default_attribute_groups | JSON nullable | Auto-zugeordnete Gruppen |
+| default_attribute_groups | JSON nullable | Auto-assigned groups |
 | allowed_relation_types | JSON nullable | |
 | validation_rules | JSON nullable | |
 | sort_order | INT | |
@@ -190,40 +190,40 @@ comparison_operators: id, group_id (FK), technical_name, symbol, description_de
 
 ### products
 
-| Feld | Typ | Beschreibung |
-|------|-----|--------------|
+| Field | Type | Description |
+|-------|------|-------------|
 | id | CHAR(36) PK | |
 | product_type_id | FK → product_types.id NOT NULL | |
-| sku | VARCHAR(100) UNIQUE | Artikelnummer |
+| sku | VARCHAR(100) UNIQUE | Article number |
 | ean | VARCHAR(20) nullable | EAN / GTIN |
-| name | VARCHAR(500) | Produktname (Hauptsprache) |
+| name | VARCHAR(500) | Product name (primary language) |
 | status | ENUM('draft','active','inactive','discontinued') DEFAULT 'draft' | |
-| product_type_ref | ENUM('product','variant') DEFAULT 'product' | Produkt oder Variante |
-| parent_product_id | FK → products.id nullable | Bei Varianten: Elternprodukt |
-| master_hierarchy_node_id | FK → hierarchy_nodes.id nullable | Einmalzuordnung Master |
+| product_type_ref | ENUM('product','variant') DEFAULT 'product' | Product or variant |
+| parent_product_id | FK → products.id nullable | For variants: parent product |
+| master_hierarchy_node_id | FK → hierarchy_nodes.id nullable | Single assignment master |
 | created_by | FK → users.id nullable | |
 | updated_by | FK → users.id nullable | |
 | INDEX(status), INDEX(sku), INDEX(ean), INDEX(master_hierarchy_node_id), FULLTEXT(name) | | |
 
 ### product_attribute_values
 
-| Feld | Typ | Beschreibung |
-|------|-----|--------------|
+| Field | Type | Description |
+|-------|------|-------------|
 | id | CHAR(36) PK | |
 | product_id | FK → products.id | |
 | attribute_id | FK → attributes.id | |
-| value_string | TEXT nullable | Bei String/Selection |
-| value_number | DECIMAL(20,6) nullable | Bei Number/Float |
-| value_date | DATE nullable | Bei Date |
-| value_flag | BOOLEAN nullable | Bei Flag |
-| value_selection_id | FK → value_list_entries.id nullable | Bei Selection/Dictionary |
-| unit_id | FK → units.id nullable | Gewählte Einheit |
+| value_string | TEXT nullable | For String/Selection |
+| value_number | DECIMAL(20,6) nullable | For Number/Float |
+| value_date | DATE nullable | For Date |
+| value_flag | BOOLEAN nullable | For Flag |
+| value_selection_id | FK → value_list_entries.id nullable | For Selection/Dictionary |
+| unit_id | FK → units.id nullable | Selected unit |
 | comparison_operator_id | FK → comparison_operators.id nullable | |
-| language | VARCHAR(5) nullable | NULL=sprachunabhängig, 'de'/'en'/etc. bei übersetzten Werten |
-| multiplied_index | INT DEFAULT 0 | Bei vermehrbaren Attributen: 0,1,2,... |
-| is_inherited | BOOLEAN DEFAULT false | Wert kommt aus Hierarchie |
+| language | VARCHAR(5) nullable | NULL=language-independent, 'de'/'en'/etc. for translated values |
+| multiplied_index | INT DEFAULT 0 | For multipliable attributes: 0,1,2,... |
+| is_inherited | BOOLEAN DEFAULT false | Value comes from hierarchy |
 | inherited_from_node_id | FK → hierarchy_nodes.id nullable | |
-| inherited_from_product_id | FK → products.id nullable | Bei Varianten |
+| inherited_from_product_id | FK → products.id nullable | For variants |
 | UNIQUE(product_id, attribute_id, language, multiplied_index) | | |
 | INDEX(product_id, attribute_id) | | |
 | INDEX(attribute_id, value_string(100)) | | |
@@ -251,7 +251,7 @@ UNIQUE(source_product_id, target_product_id, relation_type_id)
 
 ---
 
-## Hierarchiemodell
+## Hierarchy Model
 
 ### hierarchies
 
@@ -262,8 +262,8 @@ hierarchy_type ENUM('master','output'), description
 
 ### hierarchy_nodes
 
-| Feld | Typ | Beschreibung |
-|------|-----|--------------|
+| Field | Type | Description |
+|-------|------|-------------|
 | id | CHAR(36) PK | |
 | hierarchy_id | FK → hierarchies.id | |
 | parent_node_id | FK → hierarchy_nodes.id nullable | |
@@ -271,7 +271,7 @@ hierarchy_type ENUM('master','output'), description
 | name_en | VARCHAR(255) nullable | |
 | name_json | JSON nullable | |
 | path | VARCHAR(1000) | Materialized Path: `/node-1/node-2/` |
-| depth | INT | Tiefe im Baum (0 = Root) |
+| depth | INT | Depth in tree (0 = Root) |
 | sort_order | INT | |
 | is_active | BOOLEAN DEFAULT true | |
 | INDEX(hierarchy_id, parent_node_id) | | |
@@ -279,15 +279,15 @@ hierarchy_type ENUM('master','output'), description
 
 ### hierarchy_node_attribute_assignments
 
-| Feld | Typ | Beschreibung |
-|------|-----|--------------|
+| Field | Type | Description |
+|-------|------|-------------|
 | id | CHAR(36) PK | |
 | hierarchy_node_id | FK → hierarchy_nodes.id | |
 | attribute_id | FK → attributes.id | |
-| collection_name | VARCHAR(255) nullable | Gruppenüberschrift in UI |
-| collection_sort | INT DEFAULT 0 | Reihenfolge der Collection (10,20,30) |
-| attribute_sort | INT DEFAULT 0 | Reihenfolge innerhalb Collection |
-| dont_inherit | BOOLEAN DEFAULT false | Vererbung an Kinder unterdrücken |
+| collection_name | VARCHAR(255) nullable | Group heading in UI |
+| collection_sort | INT DEFAULT 0 | Order of collection (10,20,30) |
+| attribute_sort | INT DEFAULT 0 | Order within collection |
+| dont_inherit | BOOLEAN DEFAULT false | Suppress inheritance to children |
 | access_hierarchy | ENUM('hidden','visible','editable') DEFAULT 'visible' | |
 | access_product | ENUM('hidden','visible','editable') DEFAULT 'editable' | |
 | access_variant | ENUM('hidden','visible','editable') DEFAULT 'editable' | |
@@ -301,7 +301,7 @@ UNIQUE(hierarchy_node_id, product_id)
 
 ---
 
-## Medienmodell
+## Media Model
 
 ### media
 
@@ -322,7 +322,7 @@ sort_order, is_primary BOOLEAN DEFAULT false
 
 ---
 
-## Preismodell
+## Price Model
 
 ### price_types
 
@@ -384,7 +384,7 @@ field VARCHAR(100), value TEXT, error TEXT, suggestion TEXT nullable
 
 ---
 
-## Benutzerverwaltung (Spatie Permission)
+## User Management (Spatie Permission)
 
 ### users
 
@@ -395,7 +395,7 @@ is_active BOOLEAN DEFAULT true, last_login_at DATETIME nullable, created_at, upd
 
 ### roles, permissions, role_has_permissions, model_has_roles
 
-Standard Spatie Permission Schema.
+Standard Spatie Permission schema.
 
 ---
 
@@ -429,16 +429,16 @@ INDEX(auditable_type, auditable_id), INDEX(user_id), INDEX(created_at)
 
 ---
 
-## Vererbungskonzept
+## Inheritance Concept
 
-### Hierarchie-Vererbung (Reihenfolge)
-1. Attribute werden vom Wurzelknoten über Zwischenknoten bis zum Blatt vererbt
-2. `dont_inherit = true` unterbricht die Vererbungskette
-3. Sortierung: `collection_sort` (Gruppen in 10er-Schritten) → `attribute_sort` (innerhalb Gruppe)
-4. Ein Produkt erbt alle Attribute seines `master_hierarchy_node_id` und aller Vorfahren
+### Hierarchy Inheritance (Order)
+1. Attributes are inherited from the root node through intermediate nodes down to the leaf
+2. `dont_inherit = true` breaks the inheritance chain
+3. Sorting: `collection_sort` (groups in steps of 10) → `attribute_sort` (within group)
+4. A product inherits all attributes from its `master_hierarchy_node_id` and all ancestors
 
-### Varianten-Vererbung (Auflösungsreihenfolge)
-1. Eigener Wert am Produkt (override)
-2. Wert vom Elternprodukt (inherit, gesteuert über `variant_inheritance_rules`)
-3. Wert aus Hierarchie
-4. Leer
+### Variant Inheritance (Resolution Order)
+1. Own value on the product (override)
+2. Value from the parent product (inherit, controlled via `variant_inheritance_rules`)
+3. Value from hierarchy
+4. Empty
