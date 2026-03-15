@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Models\Product;
 use App\Models\Project;
+use App\Models\Team;
 use App\Models\WorkflowTask;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -142,6 +143,35 @@ class DashboardController extends Controller
                 : 100,
         ];
 
+        // Team workload: open tasks per team
+        $teamWorkload = Team::withCount([
+                'workflowTasks as open_tasks_count' => function ($q) {
+                    $q->whereIn('status', ['open', 'in_progress']);
+                },
+            ])
+            ->get()
+            ->map(fn ($team) => [
+                'id' => $team->id,
+                'name' => $team->name,
+                'open_tasks' => $team->open_tasks_count,
+            ])
+            ->sortByDesc('open_tasks')
+            ->values();
+
+        // Project timeline: all non-completed projects with dates
+        $projectTimeline = Project::whereIn('status', ['planning', 'active', 'on_hold'])
+            ->withCount(['products'])
+            ->orderBy('start_date')
+            ->get()
+            ->map(fn ($p) => [
+                'id' => $p->id,
+                'name' => $p->name,
+                'status' => $p->status,
+                'start_date' => $p->start_date?->toDateString(),
+                'end_date' => $p->end_date?->toDateString(),
+                'products_count' => $p->products_count,
+            ]);
+
         return response()->json([
             'data' => [
                 'stats' => $stats,
@@ -150,6 +180,8 @@ class DashboardController extends Controller
                 'workflow_summary' => $workflowSummary,
                 'active_projects' => $activeProjects,
                 'completeness_summary' => $completenessSummary,
+                'team_workload' => $teamWorkload,
+                'project_timeline' => $projectTimeline,
             ],
         ]);
     }
