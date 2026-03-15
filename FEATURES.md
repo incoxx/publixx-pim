@@ -1,136 +1,136 @@
-# anyPIM — Feature-Übersicht
+# anyPIM — Feature Overview
 
-> Komplettes Product Information Management für Teams, die Produktdaten zentral pflegen, anreichern und verteilen.
-
----
-
-## Tägliche Arbeit
-
-| Feature | Beschreibung | Nutzen |
-|---------|-------------|--------|
-| **Berichte** (Reports) | Konfigurierbarer Report-Designer mit Drag-and-Drop-Feldern, Filtern und Gruppierungen. | Datenqualität und Vollständigkeit auf einen Blick erkennen — ohne Export in Excel. |
-| **Bildtypen** (Media Usage Types) | Definition von Bildverwendungsarten (Teaser, Galerie, Technische Zeichnung, Dokument). | Medien werden nicht nur hochgeladen, sondern kanalspezifisch klassifiziert — Shop, Print und Katalog erhalten automatisch die richtigen Assets. |
-| **Dashboard** | Persönliches Dashboard mit Widgets: offene Workflow-Aufgaben, zuletzt bearbeitete Produkte, Datenqualitäts-KPIs. | Sofortiger Überblick über den eigenen Arbeitsbereich beim Login — kein Suchen nach dem Einstiegspunkt. |
-| **Hierarchien** (Hierarchies) | Master- und Ausgabe-Hierarchien mit Materialized-Path-Algorithmus, Drag-and-Drop-Sortierung und Attribut-Zuweisung pro Knoten. | Produkte lassen sich in beliebig tiefe Kategoriebäume einordnen. Ausgabe-Hierarchien ermöglichen kanalspezifische Strukturen (Shop, Print, Marktplatz) ohne Daten zu duplizieren. |
-| **Medien** (Media) | Upload, automatische Thumbnail-Generierung, Vorschau, Metadaten-Pflege. Unterstützt Bilder, PDFs, Videos und sonstige Dateien. | Alle Produkt-Assets an einem Ort — kein Dateichaos auf Netzlaufwerken. Thumbnails und Vorschau direkt im PIM. |
-| **Merkliste** (Watchlist) | Produkte auf eine persönliche Merkliste setzen und schnell wieder aufrufen. | Häufig benötigte oder in Bearbeitung befindliche Produkte sind mit einem Klick erreichbar — spart Suchzeit im Alltag. |
-| **PDF-Vorlagen** (PDF Templates) | Visueller Template-Designer für Produktdatenblätter mit Platzhaltern für Attribute, Medien und Preise. | Produktdatenblätter werden automatisch aus PIM-Daten generiert — kein manuelles Layout in InDesign oder Word mehr nötig. |
-| **Planungskalender** (Planning Calendar) | Kalenderansicht für geplante Produktlaunches, Saisonwechsel und Meilensteine. | Redaktionelle Planung direkt im PIM — alle Beteiligten sehen, wann welche Produkte live gehen. |
-| **Produkte** (Products) | Produktliste mit Inline-Filtern, Spaltenanpassung, Massenauswahl. Detailansicht mit Tabs für Attribute, Medien, Preise, Relationen und Varianten. | Zentrale Datenpflege mit allen Informationen auf einer Seite. Varianten erben Attribute automatisch — nur Abweichungen müssen gepflegt werden. |
-| **Suche** (Search) | Google-ähnliche Volltextsuche über Produktnamen, SKU, EAN und Attributwerte. Unterstützt PQL (Product Query Language) für komplexe Abfragen. | Jedes Produkt ist in Sekunden gefunden — auch bei Tippfehlern dank phonetischer Suche und Fuzzy-Matching. |
-| **Workflow** | Aufgabenverwaltung mit Status-Tracking, Zuweisung an Benutzer und Verlaufshistorie. | Datenpflege wird steuerbar: Wer muss was bis wann erledigen? Aufgaben gehen nicht mehr in E-Mails unter. |
+> Complete Product Information Management for teams that need to centralize, enrich, and distribute product data.
 
 ---
 
-## Konfiguration
+## Daily Work
 
-| Feature | Beschreibung | Nutzen |
-|---------|-------------|--------|
-| **Attribute** | Verwaltung aller Produktattribute mit 12 Datentypen: String, Number, Float, Date, Flag, Selection, Dictionary, Composite, RichText, Hyperlink, ImageLink, PdfLink, VideoLink. | Jede Produkteigenschaft lässt sich ohne Datenbankänderung abbilden — von einfachen Texten über strukturierte Links bis zu wiederholbaren Datengruppen (Collections). |
-| **Attributgruppen** (Attribute Types) | Logische Gruppierung von Attributen (z. B. „Technische Daten", „Marketing", „Logistik"). | Übersichtliche Strukturierung auch bei hunderten von Attributen — Anwender sehen nur die für sie relevante Gruppe. |
-| **Attribut-Sichten** (Attribute Views) | Definierbare Teilmengen von Attributen für verschiedene Anwendungsfälle und Abteilungen. | Marketing sieht Marketing-Attribute, Logistik sieht Logistik-Attribute — ohne sich gegenseitig in die Quere zu kommen. |
-| **Einheiten** (Units) | Einheitengruppen und Einheiten mit Umrechnungsfaktoren (z. B. mm → cm → m). | Werte werden einheitlich gespeichert und bei Bedarf automatisch umgerechnet — keine manuellen Konvertierungen mehr. |
-| **Hersteller** (Manufacturers) | Herstellerstammdaten mit Logo, Kontaktdaten und Zuordnung zu Produkten. | Herstellerinformationen werden zentral gepflegt und stehen allen Produkten konsistent zur Verfügung. |
-| **Preise** (Prices) | Preistypen (UVP, EK, VK, Aktionspreis) mit Staffelpreisen und Währungsunterstützung. | Flexible Preisstrukturen für unterschiedliche Vertriebskanäle und Kundengruppen — alles am Produkt gepflegt. |
-| **Preisregionen** (Price Regions) | Regionale Preiszuordnung für unterschiedliche Märkte und Länder. | Internationale Preisgestaltung direkt im PIM — ohne separate Tabellen pro Land pflegen zu müssen. |
-| **Produktbeziehungen** (Relation Types) | Definierbare Beziehungstypen zwischen Produkten (Zubehör, Ersatzteile, Cross-Selling, Up-Selling) mit beziehungsspezifischen Attributen. | Produktempfehlungen und Zubehörlisten werden im PIM gepflegt und automatisch an alle Kanäle ausgespielt. |
-| **Produkttypen** (Product Types) | Vordefinierte Typen (Physisches Produkt, Schulung, Service, Software, Bundle, Digitales Asset) plus eigene Typen. | Unterschiedliche Produktarten erhalten unterschiedliche Pflichtfelder und Validierungsregeln — ein Bundle hat andere Anforderungen als eine Software. |
-| **Übersetzungen** (Translations) | Mehrsprachige Verwaltung aller Texte mit XLIFF-Export für Übersetzungsbüros. | Übersetzungsworkflow direkt im PIM — Export an Übersetzer, Re-Import der Ergebnisse. Kein Hin- und Herschicken von Excel-Dateien. |
-| **Wertelisten** (Value Lists) | Hierarchische Auswahllisten mit mehrsprachigen Anzeigewerten und Verschachtelung. | Einheitliche Dropdown-Werte über alle Produkte hinweg — „Rot" heißt überall „Rot", nicht mal „rot", mal „ROT", mal „Red". |
-| **Wörterbuch** (Dictionary) | Nachschlagetabelle für Fachbegriffe, Abkürzungen und Übersetzungen. | Konsistente Terminologie im gesamten Produktsortiment — wichtig für SEO und Markenkonsistenz. |
+| Feature | Description | Benefit |
+|---------|------------|---------|
+| **Dashboard** | Personal dashboard with widgets: open workflow tasks, recently edited products, data quality KPIs. | Instant overview of your workspace on login — no searching for the starting point. |
+| **Hierarchies** | Master and output hierarchies with materialized path algorithm, drag-and-drop sorting, and per-node attribute assignments. | Products can be organized into arbitrarily deep category trees. Output hierarchies enable channel-specific structures (shop, print, marketplace) without duplicating data. |
+| **Media** | Upload, automatic thumbnail generation, preview, metadata management. Supports images, PDFs, videos, and other files. | All product assets in one place — no file chaos on network drives. Thumbnails and previews directly in the PIM. |
+| **Media Usage Types** | Define media usage categories (teaser, gallery, technical drawing, document). | Media is not just uploaded but classified per channel — shop, print, and catalog automatically receive the correct assets. |
+| **PDF Templates** | Visual template designer for product data sheets with placeholders for attributes, media, and prices. | Product data sheets are generated automatically from PIM data — no more manual layout in InDesign or Word. |
+| **Planning Calendar** | Calendar view for planned product launches, seasonal changes, and milestones. | Editorial planning directly in the PIM — all stakeholders see when products go live. |
+| **Products** | Product list with inline filters, column customization, and bulk selection. Detail view with tabs for attributes, media, prices, relations, and variants. | Central data management with all information on one page. Variants inherit attributes automatically — only deviations need manual maintenance. |
+| **Reports** | Configurable report designer with drag-and-drop fields, filters, and groupings. | Spot data quality and completeness at a glance — without exporting to Excel. |
+| **Search** | Google-like full-text search across product names, SKU, EAN, and attribute values. Supports PQL (Product Query Language) for complex queries. | Any product found in seconds — even with typos, thanks to phonetic search and fuzzy matching. |
+| **Watchlist** | Add products to a personal watchlist for quick access. Compare products side by side. | Frequently needed or in-progress products are one click away — saves search time in daily work. |
+| **Workflow** | Task management with status tracking, user assignment, and history. | Data maintenance becomes manageable: who needs to do what by when? Tasks no longer get lost in emails. |
+
+---
+
+## Configuration
+
+| Feature | Description | Benefit |
+|---------|------------|---------|
+| **Attributes** | Manage all product attributes with 12 data types: String, Number, Float, Date, Flag, Selection, Dictionary, Composite, RichText, Hyperlink, ImageLink, PdfLink, VideoLink. | Any product property can be modeled without database changes — from simple text to structured links to repeatable data groups (collections). |
+| **Attribute Groups** | Logical grouping of attributes (e.g., "Technical Data", "Marketing", "Logistics"). | Clear structure even with hundreds of attributes — users see only the group relevant to them. |
+| **Attribute Views** | Definable subsets of attributes for different use cases and departments. | Marketing sees marketing attributes, logistics sees logistics attributes — without getting in each other's way. |
+| **Dictionary** | Lookup table for technical terms, abbreviations, and translations. | Consistent terminology across the entire product range — important for SEO and brand consistency. |
+| **Manufacturers** | Manufacturer master data with logo, contact details, and product assignments. | Manufacturer information is maintained centrally and available consistently across all products. |
+| **Prices** | Price types (MSRP, purchase, retail, promotional) with tiered pricing and currency support. | Flexible pricing structures for different sales channels and customer groups — all managed at the product level. |
+| **Price Regions** | Regional price assignments for different markets and countries. | International pricing directly in the PIM — without maintaining separate tables per country. |
+| **Product Types** | Predefined types (physical product, training, service, software, bundle, digital asset) plus custom types. | Different product categories get different required fields and validation rules — a bundle has different requirements than software. |
+| **Relation Types** | Definable relationship types between products (accessories, spare parts, cross-selling, up-selling) with relation-specific attributes. | Product recommendations and accessory lists are maintained in the PIM and automatically distributed to all channels. |
+| **Translations** | Multi-language management of all texts with XLIFF export for translation agencies. | Translation workflow directly in the PIM — export to translators, re-import results. No more back-and-forth with Excel files. |
+| **Units** | Unit groups and units with conversion factors (e.g., mm → cm → m). | Values are stored uniformly and converted automatically when needed — no more manual conversions. |
+| **Value Lists** | Hierarchical pick lists with multi-language display values and nesting. | Uniform dropdown values across all products — "Red" is always "Red", not sometimes "red", "RED", or "Rot". |
 
 ---
 
 ## Administration
 
-| Feature | Beschreibung | Nutzen |
-|---------|-------------|--------|
-| **API Tester** | Integrierter API-Tester zum direkten Aufruf aller 188 REST-Endpoints mit Authentifizierung. | Schnittstellen können direkt im PIM getestet werden — ohne Postman oder externe Tools. |
-| **Benutzer** (Users) | Benutzerverwaltung mit Sanctum-Authentifizierung, Passwort-Richtlinien und Profilpflege. | Vollständige Benutzerkontrolle ohne externes Identity Management — sofort einsatzbereit. |
-| **Benutzer-Audit** (User Audit Trail) | Lückenlose Protokollierung aller Benutzeraktionen mit Zeitstempel, Benutzer und geänderten Feldern. | Nachvollziehbarkeit: Wer hat wann was geändert? Wichtig für Qualitätssicherung und Compliance. |
-| **BMEcat Import/Export** | Branchenstandard-Format für B2B-Produktdatenaustausch — bidirektional. | Nahtloser Datenaustausch mit Lieferanten und Kunden, die BMEcat nutzen — ohne manuelle Konvertierung. |
-| **Datenbank** (Database) | Direkter Einblick in die Datenbankstruktur und Tabelleninhalte für Administratoren. | Schnelle Fehleranalyse und Datenprüfung ohne Kommandozeilen-Zugang zum Server. |
-| **Einstellungen** (Settings) | Systemweite Konfiguration: Sprachen, Module, Lizenzierung, Suchindex-Neuaufbau. | Zentrale Systemsteuerung — alle Einstellungen an einem Ort, nicht verstreut in Config-Dateien. |
-| **Export** | Gefilterte Produktexporte in konfigurierbaren Formaten mit Mapping-Templates (PXF). | Jeder Kanal bekommt die Daten im gewünschten Format — Shop, Marktplatz und Print aus einer Quelle. |
-| **Export-Jobs** | Benannte, wiederverwendbare Export-Konfigurationen mit Zeitplanung (Cron). | Regelmäßige Exporte laufen automatisch — z. B. jeden Morgen aktualisierte Produktdaten an den Shop. |
-| **Import** | Excel-Import mit 14-Tab-Struktur, dreistufiger Validierung (Parse → Validate → Execute) und Fuzzy-Matching bei Tippfehlern. | Große Datenmengen können per Excel eingespielt werden — mit automatischer Fehlererkennung und Korrekturvorschlägen statt stummem Abbruch. |
-| **Journal** (Change Log) | Systemweites Änderungsprotokoll aller Datenänderungen. | Vollständige Datenhistorie — jede Änderung ist nachvollziehbar und bei Bedarf umkehrbar. |
-| **JSON Export/Import** | Vollständiger Datenexport/-import in 18 abhängigkeitsgeordneten Sektionen. Unterstützt Filter nach Status, Produkttyp und Hierarchie. | Komplette PIM-Instanzen können gesichert, migriert oder zwischen Umgebungen übertragen werden — inklusive aller Beziehungen und Abhängigkeiten. |
-| **Rollen** (Roles) | Feingranulares Berechtigungssystem mit vordefinierten Rollen (Admin, Data Steward, Product Manager, Viewer, Export Manager) und individueller Anpassung. | Jeder Benutzer sieht und darf genau das, was er braucht — bis auf Attribut- und Hierarchieknoten-Ebene einschränkbar. |
-| **Zugangslinks** (Access Links) | Temporäre, tokenbasierte Links für externen Zugriff auf den Produktkatalog ohne Benutzeraccount. | Externe Partner, Agenturen oder Kunden können Produktdaten einsehen — ohne Benutzeranlage und mit automatischem Ablaufdatum. |
+| Feature | Description | Benefit |
+|---------|------------|---------|
+| **Access Links** | Temporary, token-based links for external catalog access without a user account. | External partners, agencies, or customers can view product data — without user creation and with automatic expiration. |
+| **API Tester** | Built-in API tester for directly calling all ~285 REST endpoints with authentication. | Interfaces can be tested directly in the PIM — without Postman or external tools. |
+| **BMEcat Import/Export** | Industry-standard format for B2B product data exchange — bidirectional. | Seamless data exchange with suppliers and customers using BMEcat — without manual conversion. |
+| **Database** | Direct view of the database structure and table contents for administrators. | Quick error analysis and data verification without command-line access to the server. |
+| **Export** | Filtered product exports in configurable formats with mapping templates (PXF). | Each channel gets data in the desired format — shop, marketplace, and print from a single source. |
+| **Export Jobs** | Named, reusable export configurations with scheduling (cron) and delivery via filesystem, SFTP, or webhook. | Regular exports run automatically — e.g., updated product data to the shop every morning. |
+| **Import** | Excel import with 14-tab structure, three-phase validation (parse → validate → execute), and fuzzy matching for typos. | Large data volumes can be loaded via Excel — with automatic error detection and correction suggestions instead of silent failures. |
+| **Journal** | System-wide change log of all data modifications. | Complete data history — every change is traceable and reversible if needed. |
+| **JSON Export/Import** | Full data export/import in 18 dependency-ordered sections. Supports filtering by status, product type, and hierarchy. | Complete PIM instances can be backed up, migrated, or transferred between environments — including all relationships and dependencies. |
+| **Roles** | Fine-grained permission system with predefined roles (Admin, Data Steward, Product Manager, Viewer, Export Manager) and custom configuration. | Each user sees and can do exactly what they need — restrictable down to attribute and hierarchy node level. |
+| **Settings** | System-wide configuration: languages, modules, licensing, search index rebuild. | Central system control — all settings in one place, not scattered across config files. |
+| **User Audit Trail** | Complete logging of all user actions with timestamp, user, and changed fields. | Traceability: who changed what and when? Important for quality assurance and compliance. |
+| **Users** | User management with Sanctum authentication, password policies, and profile management. SSO support via Azure AD. | Full user control without external identity management — ready to use immediately. |
 
 ---
 
-## Öffentliche Bereiche (ohne Login)
+## Public Areas (no login required)
 
-| Feature | Beschreibung | Nutzen |
-|---------|-------------|--------|
-| **Asset-Katalog** (Asset Catalog) | Öffentlich zugänglicher Medien-Katalog mit Ordnerstruktur und Download-Funktion. | Agenturen und Partner können sich Produktbilder und Dokumente selbst herunterladen — ohne Nachfragen per E-Mail. |
-| **Produktkatalog** (Catalog Preview) | Öffentlicher Produktkatalog mit Kategorie-Navigation, Facetten-Filtern, Produktdetailseiten und Kontaktformular. | Sofort einsatzbereiter Online-Katalog direkt aus dem PIM — als Zwischenlösung bis zum Shop oder als dauerhafter B2B-Katalog. |
-
----
-
-## Zusätzliche Produktfunktionen
-
-| Feature | Beschreibung | Nutzen |
-|---------|-------------|--------|
-| **Bulk-Editor** | Tabellarische Massenbearbeitung von Attributwerten über mehrere Produkte gleichzeitig. | Hunderte von Produkten in Minuten statt Stunden aktualisieren — wie in Excel, aber direkt im PIM. |
-| **Massendatenpflege** (Bulk Update) | Gleichen Wert auf eine Auswahl von Produkten in einem Schritt anwenden. | „Setze bei allen 500 Sommerprodukten den Status auf aktiv" — ein Klick statt 500. |
-| **Produktversionierung** (Versioning) | Versionshistorie mit Zeitplanung (Publish-Datum) und One-Click-Rollback. | Produktänderungen können vorbereitet und terminiert werden — mit Sicherheitsnetz durch sofortige Rücknahme. |
-| **Varianten-Vererbung** (Variant Inheritance) | Pro Attribut steuerbar: erben oder überschreiben. Änderungen am Stammprodukt propagieren automatisch. | Varianten pflegen sich praktisch von selbst — nur echte Abweichungen (Farbe, Größe) müssen manuell gesetzt werden. |
+| Feature | Description | Benefit |
+|---------|------------|---------|
+| **Asset Catalog** | Public media catalog with folder structure and download functionality. | Agencies and partners can download product images and documents themselves — without email requests. |
+| **Product Catalog** | Public product catalog with category navigation, faceted filters, product detail pages, and contact form. | Ready-to-use online catalog directly from the PIM — as an interim solution until the shop launches or as a permanent B2B catalog. |
 
 ---
 
-## Technische Alleinstellungsmerkmale
+## Additional Product Features
+
+| Feature | Description | Benefit |
+|---------|------------|---------|
+| **Bulk Editor** | Spreadsheet-style mass editing of attribute values across multiple products simultaneously. | Update hundreds of products in minutes instead of hours — like Excel, but directly in the PIM. |
+| **Bulk Update** | Apply the same value to a selection of products in a single step. | "Set status to active for all 500 summer products" — one click instead of 500. |
+| **Product Versioning** | Version history with scheduling (publish date) and one-click rollback. | Product changes can be prepared and scheduled — with a safety net through instant rollback. |
+| **Variant Inheritance** | Per-attribute control: inherit or override. Changes to the master product propagate automatically. | Variants practically maintain themselves — only actual deviations (color, size) need to be set manually. |
+
+---
+
+## Technical Differentiators
 
 ### PQL — Product Query Language
-Eigene Abfragesprache mit SQL-ähnlicher Syntax für komplexe Produktsuchen:
-- Vergleichsoperatoren: `=`, `!=`, `>`, `<`, `>=`, `<=`
-- Muster: `LIKE`, `NOT LIKE` (Volltext-indiziert)
-- Listen: `IN`, `NOT IN`
-- Bereiche: `BETWEEN`, `NOT BETWEEN`
-- Existenz: `EXISTS`, `NOT EXISTS`
-- **Fuzzy-Suche:** `FUZZY 'text' [threshold]` — Levenshtein + Trigramm (60%+40% gewichtet)
-- **Phonetische Suche:** `SOUNDS_LIKE 'text'` — Kölner Phonetik (Deutsch) + Soundex (Englisch)
-- **Gewichtete Feldsuche:** `SEARCH_FIELDS(field^weight, ...)`
-- **Relevanz-Ranking:** `ORDER BY SCORE DESC`
+Custom query language with SQL-like syntax for complex product searches:
+- Comparison operators: `=`, `!=`, `>`, `<`, `>=`, `<=`
+- Pattern matching: `LIKE`, `NOT LIKE` (full-text indexed)
+- Lists: `IN`, `NOT IN`
+- Ranges: `BETWEEN`, `NOT BETWEEN`
+- Existence: `EXISTS`, `NOT EXISTS`
+- **Fuzzy search:** `FUZZY 'text' [threshold]` — Levenshtein + trigram (60%+40% weighted)
+- **Phonetic search:** `SOUNDS_LIKE 'text'` — Kölner Phonetik (German) + Soundex (English)
+- **Weighted field search:** `SEARCH_FIELDS(field^weight, ...)`
+- **Relevance ranking:** `ORDER BY SCORE DESC`
 
-**Nutzen:** Produktmanager finden auch bei unscharfen Anfragen die richtigen Produkte — Tippfehler, Dialektschreibweisen und Synonyme werden erkannt.
+**Benefit:** Product managers find the right products even with imprecise queries — typos, dialect spellings, and synonyms are recognized.
 
-### Zweistufiges Vererbungssystem
-1. **Hierarchie-Vererbung:** Produkte erben Attribute vom zugewiesenen Knoten und allen Vorfahren
-2. **Varianten-Vererbung:** Per-Attribut-Steuerung (erben vs. überschreiben)
+### Two-Level Inheritance System
+1. **Hierarchy inheritance:** Products inherit attributes from their assigned node and all ancestors
+2. **Variant inheritance:** Per-attribute control (inherit vs. override)
 
-**Nutzen:** Drastische Reduzierung des Pflegeaufwands — gemeinsame Daten werden nur einmal gepflegt und automatisch propagiert.
+**Benefit:** Dramatic reduction in maintenance effort — shared data is maintained only once and automatically propagated.
 
-### EAV-Architektur mit materialisiertem Suchindex
-- Entity-Attribute-Value-Modell für unbegrenzte Attributflexibilität
-- Denormalisierte Suchindextabelle für Volltextsuche mit Phonetik-Feld
-- Automatische Invalidierung bei Datenänderungen
+### EAV Architecture with Materialized Search Index
+- Entity-Attribute-Value model for unlimited attribute flexibility
+- Denormalized search index table for full-text search with phonetic field
+- Automatic invalidation on data changes
 
-**Nutzen:** Neue Attribute werden über die Oberfläche angelegt — ohne Datenbankmigrationen, Deployments oder Entwickler.
+**Benefit:** New attributes are created through the UI — without database migrations, deployments, or developers.
 
-### REST-API mit 188 Endpoints
-Vollständige API-Abdeckung aller Funktionen mit Sanctum-Authentifizierung (Bearer Token + SPA Cookie).
+### REST API with ~285 Endpoints
+Full API coverage of all features with Sanctum authentication (Bearer Token + SPA Cookie).
 
-**Nutzen:** Jedes Drittsystem (Shop, ERP, POS, Marktplatz) kann Produktdaten lesen und schreiben — das PIM wird zur zentralen Datendrehscheibe.
+**Benefit:** Any third-party system (shop, ERP, POS, marketplace) can read and write product data — the PIM becomes the central data hub.
 
 ---
 
-## Technische Eckdaten
+## Technical Specifications
 
-| Eigenschaft | Wert |
-|------------|------|
+| Property | Value |
+|----------|-------|
 | **Backend** | PHP 8.4 / Laravel 11 |
-| **Frontend** | Vue 3 / Vite / Tailwind CSS |
-| **Datenbank** | MySQL 8+ |
+| **Frontend** | Vue 3 / Vite / Tailwind CSS 4 / DaisyUI 5 |
+| **Database** | MySQL 8+ |
 | **Cache & Queue** | Redis / Laravel Horizon |
-| **Authentifizierung** | Laravel Sanctum |
-| **API-Endpoints** | 188 RESTful |
-| **Datentypen** | 12 |
-| **Eloquent-Modelle** | 48 |
-| **Vue-Komponenten** | 116+ |
-| **Migrationen** | 63 |
-| **Sprachen (UI)** | Deutsch, Englisch |
-| **Lizenz** | GPL-3.0 (Open Source) |
-| **Installation** | Ein Befehl (`setup.sh`) auf Ubuntu 24.04 |
+| **Authentication** | Laravel Sanctum + SSO (Azure AD) |
+| **API Endpoints** | ~285 RESTful |
+| **Data Types** | 12 |
+| **Eloquent Models** | 55 |
+| **Vue Components** | 116+ |
+| **Migrations** | 88 |
+| **UI Languages** | German, English |
+| **License** | GPL-3.0 (Open Source) |
+| **Installation** | Single command (`setup.sh`) on Ubuntu 24.04 |

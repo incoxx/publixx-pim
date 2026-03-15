@@ -1,11 +1,11 @@
-# anyPIM — API Referenz
+# anyPIM — API Reference
 
-Base-URL: `/api/v1`
-Authentifizierung: Laravel Sanctum (Bearer Token)
+Base URL: `/api/v1`
+Authentication: Laravel Sanctum (Bearer Token)
 
-## Authentifizierung
+## Authentication
 
-Alle Endpoints (ausser Auth/Login, Catalog, Health und Debug) erfordern einen Bearer Token:
+All endpoints (except Auth/Login, Catalog, Health, and Debug) require a Bearer Token:
 
 ```
 Authorization: Bearer <token>
@@ -13,30 +13,38 @@ Authorization: Bearer <token>
 
 ### Auth
 
-| Methode | Pfad | Beschreibung |
+| Method | Path | Description |
 |---|---|---|
 | POST | `/auth/login` | Login (public) |
 | POST | `/auth/logout` | Logout |
-| POST | `/auth/refresh` | Token erneuern |
-| GET | `/auth/me` | Aktueller Benutzer |
+| POST | `/auth/refresh` | Refresh token |
+| GET | `/auth/me` | Current user |
 
-**Login-Request:**
+**Login Request:**
 ```json
 { "email": "admin@example.com", "password": "password" }
 ```
 
-**Login-Response:**
+**Login Response:**
 ```json
 { "token": "1|abc123...", "user": { "id": "...", "email": "..." } }
 ```
+
+### SSO (Enterprise: sso module)
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/auth/sso/config` | SSO configuration |
+| GET | `/auth/sso/redirect` | Redirect to identity provider |
+| GET | `/auth/sso/callback` | Handle SSO callback |
 
 ---
 
 ## Health (public)
 
-| Methode | Pfad | Beschreibung |
+| Method | Path | Description |
 |---|---|---|
-| GET | `/health` | Systemstatus aller Services |
+| GET | `/health` | System status of all services |
 
 **Response (200 = healthy, 503 = degraded):**
 ```json
@@ -56,253 +64,344 @@ Authorization: Bearer <token>
 
 ---
 
-## Produkte
+## Products
 
-| Methode | Pfad | Beschreibung |
+| Method | Path | Description |
 |---|---|---|
-| GET | `/products` | Produktliste (paginiert) |
-| POST | `/products` | Produkt erstellen |
-| GET | `/products/{id}` | Produkt anzeigen |
-| PUT | `/products/{id}` | Produkt aktualisieren |
-| DELETE | `/products/{id}` | Produkt loeschen |
-| GET | `/products/{id}/preview` | Produkt-Vorschau (alle Daten) |
-| GET | `/products/{id}/completeness` | Vollstaendigkeits-Analyse |
-| GET | `/products/{id}/preview/export.xlsx` | Excel-Export |
-| GET | `/products/{id}/preview/export.pdf` | PDF-Export |
+| GET | `/products` | Product list (paginated) |
+| POST | `/products` | Create product |
+| GET | `/products/{id}` | Show product |
+| PUT | `/products/{id}` | Update product |
+| DELETE | `/products/{id}` | Delete product |
+| POST | `/products/{id}/duplicate` | Duplicate product |
+| GET | `/products/{id}/preview` | Product preview (all data) |
+| GET | `/products/{id}/completeness` | Completeness analysis |
+| GET | `/products/{id}/preview/export.xlsx` | Excel export |
+| GET | `/products/{id}/preview/export.pdf` | PDF export |
 
-### Produkt-Attributwerte
+### Product Search
 
-| Methode | Pfad | Beschreibung |
+| Method | Path | Description |
 |---|---|---|
-| GET | `/products/{id}/attribute-values` | Attributwerte lesen |
-| GET | `/products/{id}/resolved-attributes` | Attribute mit Hierarchie-Vererbung |
-| PUT | `/products/{id}/attribute-values` | Attributwerte speichern (Bulk) |
+| POST | `/products/search` | Search products (full-text + filters) |
+| GET | `/products/compare` | Compare products side by side |
+| POST | `/products/export/excel` | Bulk Excel export |
 
-`resolved-attributes` akzeptiert optionalen Query-Parameter `?hierarchy_node_id=UUID` fuer Live-Preview.
+### Product Attribute Values
 
-**Attributwerte speichern:**
+| Method | Path | Description |
+|---|---|---|
+| GET | `/products/{id}/attribute-values` | Read attribute values |
+| GET | `/products/{id}/resolved-attributes` | Attributes with hierarchy inheritance |
+| PUT | `/products/{id}/attribute-values` | Save attribute values (bulk) |
+
+`resolved-attributes` accepts optional query parameter `?hierarchy_node_id=UUID` for live preview.
+
+**Save attribute values:**
 ```json
 {
   "values": [
-    { "attribute_id": "uuid", "value": "Wert", "language": "de" },
+    { "attribute_id": "uuid", "value": "Value", "language": "en" },
     { "attribute_id": "uuid", "value": 18.0 }
   ]
 }
 ```
 
-### Varianten
+### Output Hierarchy Assignments
 
-| Methode | Pfad | Beschreibung |
+| Method | Path | Description |
 |---|---|---|
-| GET | `/products/{id}/variants` | Varianten auflisten |
-| POST | `/products/{id}/variants` | Variante erstellen |
-| GET | `/products/{id}/variant-rules` | Vererbungsregeln lesen |
-| PUT | `/products/{id}/variant-rules` | Vererbungsregeln setzen |
+| GET | `/products/{id}/output-hierarchy-assignments` | Read assignments |
+| POST | `/products/{id}/output-hierarchy-assignments` | Assign to output hierarchy node |
+| DELETE | `/output-hierarchy-assignments/{id}` | Remove assignment |
+| GET | `/products/{id}/output-hierarchy-attribute-values` | Read output hierarchy attribute values |
+| PUT | `/products/{id}/output-hierarchy-attribute-values` | Save output hierarchy attribute values |
 
-### Versionen
+### Variants
 
-| Methode | Pfad | Beschreibung |
+| Method | Path | Description |
 |---|---|---|
-| GET | `/products/{id}/versions` | Versionen auflisten |
-| POST | `/products/{id}/versions` | Version erstellen |
-| GET | `/products/{id}/versions/{v}` | Version anzeigen |
-| POST | `/products/{id}/versions/{v}/activate` | Version aktivieren |
-| POST | `/products/{id}/versions/{v}/schedule` | Version terminieren |
-| POST | `/products/{id}/versions/{v}/cancel-schedule` | Terminierung abbrechen |
-| POST | `/products/{id}/versions/{v}/revert` | Auf Version zuruecksetzen |
-| GET | `/products/{id}/versions/compare` | Versionen vergleichen |
+| GET | `/products/{id}/variants` | List variants |
+| POST | `/products/{id}/variants` | Create variant |
+| POST | `/products/{id}/variants/generate` | Generate variants from rules |
+| GET | `/products/{id}/variant-rules` | Read inheritance rules |
+| PUT | `/products/{id}/variant-rules` | Set inheritance rules |
+
+### Versions
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/products/{id}/versions` | List versions |
+| POST | `/products/{id}/versions` | Create version |
+| GET | `/products/{id}/versions/{v}` | Show version |
+| POST | `/products/{id}/versions/{v}/activate` | Activate version |
+| POST | `/products/{id}/versions/{v}/schedule` | Schedule version |
+| POST | `/products/{id}/versions/{v}/cancel-schedule` | Cancel schedule |
+| POST | `/products/{id}/versions/{v}/revert` | Revert to version |
+| GET | `/products/{id}/versions/compare` | Compare versions |
+
+### Translation Export/Import
+
+| Method | Path | Description |
+|---|---|---|
+| POST | `/products/{id}/translations/xliff/export` | Export translations as XLIFF |
+| POST | `/products/{id}/translations/xliff/import` | Import translations from XLIFF |
 
 ---
 
-## Hierarchien
+## Bulk Operations
 
-| Methode | Pfad | Beschreibung |
+### Bulk Editor
+
+| Method | Path | Description |
 |---|---|---|
-| GET | `/hierarchies` | Alle Hierarchien |
-| POST | `/hierarchies` | Hierarchie erstellen |
-| GET | `/hierarchies/{id}` | Hierarchie anzeigen |
-| PUT | `/hierarchies/{id}` | Hierarchie aktualisieren |
-| DELETE | `/hierarchies/{id}` | Hierarchie loeschen |
-| GET | `/hierarchies/{id}/tree` | Baumstruktur |
+| POST | `/products/bulk-edit` | Get products for bulk editing |
+| PUT | `/products/bulk-edit` | Save bulk-edited attribute values |
 
-### Knoten
+### Bulk Update (Mass Data Maintenance)
 
-| Methode | Pfad | Beschreibung |
+| Method | Path | Description |
 |---|---|---|
-| GET | `/hierarchies/{id}/nodes` | Knoten auflisten |
-| POST | `/hierarchies/{id}/nodes` | Knoten erstellen |
-| GET | `/hierarchy-nodes/{id}` | Knoten anzeigen |
-| PUT | `/hierarchy-nodes/{id}` | Knoten aktualisieren |
-| DELETE | `/hierarchy-nodes/{id}` | Knoten loeschen |
-| PUT | `/hierarchy-nodes/{id}/move` | Knoten verschieben |
-| POST | `/hierarchy-nodes/{id}/duplicate` | Knoten duplizieren |
+| POST | `/products/bulk-update/preview` | Preview bulk update changes |
+| POST | `/products/bulk-update/execute` | Execute bulk update |
 
-### Knoten-Attributzuweisungen
-
-| Methode | Pfad | Beschreibung |
-|---|---|---|
-| GET | `/hierarchy-nodes/{id}/attributes` | Zugewiesene Attribute (+ `?inherited=true`) |
-| POST | `/hierarchy-nodes/{id}/attributes` | Attribut zuweisen |
-| PUT | `/node-attribute-assignments/{id}` | Zuweisung aktualisieren |
-| DELETE | `/node-attribute-assignments/{id}` | Zuweisung entfernen |
-| PUT | `/node-attribute-assignments/bulk-sort` | Sortierung aktualisieren |
-
-### Knoten-Attributwerte
-
-| Methode | Pfad | Beschreibung |
-|---|---|---|
-| GET | `/hierarchy-nodes/{id}/attribute-values` | Werte lesen |
-| PUT | `/hierarchy-nodes/{id}/attribute-values` | Werte speichern (Bulk) |
+Supported operations: attribute values (replace/append/remove), relations, output hierarchy assignments, master hierarchy, manufacturer, media, status changes.
 
 ---
 
-## Attribute
+## Hierarchies
 
-| Methode | Pfad | Beschreibung |
+| Method | Path | Description |
 |---|---|---|
-| GET | `/attributes` | Alle Attribute |
-| POST | `/attributes` | Attribut erstellen |
-| GET | `/attributes/{id}` | Attribut anzeigen |
-| PUT | `/attributes/{id}` | Attribut aktualisieren |
-| DELETE | `/attributes/{id}` | Attribut loeschen |
+| GET | `/hierarchies` | All hierarchies |
+| POST | `/hierarchies` | Create hierarchy |
+| GET | `/hierarchies/{id}` | Show hierarchy |
+| PUT | `/hierarchies/{id}` | Update hierarchy |
+| DELETE | `/hierarchies/{id}` | Delete hierarchy |
+| GET | `/hierarchies/{id}/tree` | Tree structure |
 
-**Datentypen:** `String`, `Number`, `Float`, `Date`, `Flag`, `Selection`, `Collection`, `Composite`, `Dictionary`
+### Hierarchy Nodes
 
-### Attributtypen (Gruppen)
-
-| Methode | Pfad | Beschreibung |
+| Method | Path | Description |
 |---|---|---|
-| GET | `/attribute-types` | Alle Typen |
-| POST | `/attribute-types` | Typ erstellen |
+| GET | `/hierarchies/{id}/nodes` | List nodes |
+| POST | `/hierarchies/{id}/nodes` | Create node |
+| GET | `/hierarchy-nodes/{id}` | Show node |
+| PUT | `/hierarchy-nodes/{id}` | Update node |
+| DELETE | `/hierarchy-nodes/{id}` | Delete node |
+| PUT | `/hierarchy-nodes/{id}/move` | Move node |
+| POST | `/hierarchy-nodes/{id}/duplicate` | Duplicate node |
+
+### Hierarchy Attribute Assignments
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/hierarchies/{id}/attribute-assignments` | Read hierarchy-level attribute assignments |
+| POST | `/hierarchies/{id}/attribute-assignments` | Create assignment |
+| PUT | `/hierarchy-attribute-assignments/{id}` | Update assignment |
+| DELETE | `/hierarchy-attribute-assignments/{id}` | Remove assignment |
+
+### Node Attribute Assignments
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/hierarchy-nodes/{id}/attributes` | Assigned attributes (+ `?inherited=true`) |
+| POST | `/hierarchy-nodes/{id}/attributes` | Assign attribute |
+| PUT | `/node-attribute-assignments/{id}` | Update assignment |
+| DELETE | `/node-attribute-assignments/{id}` | Remove assignment |
+| PUT | `/node-attribute-assignments/bulk-sort` | Update sort order |
+
+### Node Attribute Values
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/hierarchy-nodes/{id}/attribute-values` | Read values |
+| PUT | `/hierarchy-nodes/{id}/attribute-values` | Save values (bulk) |
+
+---
+
+## Attributes
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/attributes` | All attributes |
+| POST | `/attributes` | Create attribute |
+| GET | `/attributes/{id}` | Show attribute |
+| PUT | `/attributes/{id}` | Update attribute |
+| DELETE | `/attributes/{id}` | Delete attribute |
+| GET | `/attributes/{id}/dependencies` | Show dependencies |
+| POST | `/attributes/bulk-update` | Bulk update attributes |
+| POST | `/attributes/{id}/copy` | Copy attribute |
+
+**Data types:** `String`, `Number`, `Float`, `Date`, `Flag`, `Selection`, `Dictionary`, `Composite`, `RichText`, `Hyperlink`, `ImageLink`, `PdfLink`, `VideoLink`
+
+### Attribute Types (Groups)
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/attribute-types` | All types |
+| POST | `/attribute-types` | Create type |
 | GET/PUT/DELETE | `/attribute-types/{id}` | CRUD |
+| GET | `/attribute-types/{id}/dependencies` | Show dependencies |
 
-### Attribut-Views
+### Attribute Views
 
-| Methode | Pfad | Beschreibung |
+| Method | Path | Description |
 |---|---|---|
-| GET | `/attribute-views` | Alle Views |
-| POST | `/attribute-views` | View erstellen |
+| GET | `/attribute-views` | All views |
+| POST | `/attribute-views` | Create view |
 | GET/PUT/DELETE | `/attribute-views/{id}` | CRUD |
-| POST | `/attribute-views/{id}/attributes` | Attribut zuweisen |
-| DELETE | `/attribute-views/{id}/attributes/{attr_id}` | Attribut entfernen |
+| GET | `/attribute-views/{id}/dependencies` | Show dependencies |
+| POST | `/attribute-views/{id}/attributes` | Assign attribute |
+| DELETE | `/attribute-views/{id}/attributes/{attr_id}` | Remove attribute |
 
 ---
 
-## Einheiten
+## Units
 
-| Methode | Pfad | Beschreibung |
+| Method | Path | Description |
 |---|---|---|
-| GET | `/unit-groups` | Einheitengruppen |
-| POST | `/unit-groups` | Gruppe erstellen |
+| GET | `/unit-groups` | Unit groups |
+| POST | `/unit-groups` | Create group |
 | GET/PUT/DELETE | `/unit-groups/{id}` | CRUD |
-| GET | `/unit-groups/{id}/units` | Einheiten der Gruppe |
-| POST | `/unit-groups/{id}/units` | Einheit erstellen |
+| GET | `/unit-groups/{id}/dependencies` | Show dependencies |
+| GET | `/unit-groups/{id}/units` | Units in group |
+| POST | `/unit-groups/{id}/units` | Create unit |
 | GET/PUT/DELETE | `/units/{id}` | CRUD |
 
 ---
 
-## Wertelisten
+## Value Lists
 
-| Methode | Pfad | Beschreibung |
+| Method | Path | Description |
 |---|---|---|
-| GET | `/value-lists` | Alle Wertelisten |
-| POST | `/value-lists` | Liste erstellen |
+| GET | `/value-lists` | All value lists |
+| POST | `/value-lists` | Create list |
 | GET/PUT/DELETE | `/value-lists/{id}` | CRUD |
-| GET | `/value-lists/{id}/entries` | Eintraege |
-| POST | `/value-lists/{id}/entries` | Eintrag erstellen |
+| GET | `/value-lists/{id}/dependencies` | Show dependencies |
+| GET | `/value-lists/{id}/entries` | Entries |
+| POST | `/value-lists/{id}/entries` | Create entry |
 | GET/PUT/DELETE | `/value-list-entries/{id}` | CRUD |
 
 ---
 
-## Medien
+## Dictionary
 
-| Methode | Pfad | Beschreibung |
+| Method | Path | Description |
 |---|---|---|
-| GET | `/media` | Medienliste |
-| POST | `/media` | Medium hochladen (multipart/form-data) |
-| GET | `/media/{id}` | Medium anzeigen |
-| PUT | `/media/{id}` | Medium aktualisieren |
-| DELETE | `/media/{id}` | Medium loeschen |
-| GET | `/media/file/{filename}` | Datei ausliefern (public) |
+| GET | `/dictionary-entries` | All dictionary entries |
+| POST | `/dictionary-entries` | Create entry |
+| GET/PUT/DELETE | `/dictionary-entries/{id}` | CRUD |
+| GET | `/dictionary-entries/{id}/dependencies` | Show dependencies |
+
+---
+
+## Manufacturers
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/manufacturers` | All manufacturers |
+| POST | `/manufacturers` | Create manufacturer |
+| GET/PUT/DELETE | `/manufacturers/{id}` | CRUD |
+| GET | `/manufacturers/{id}/dependencies` | Show dependencies |
+
+---
+
+## Media
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/media` | Media list |
+| POST | `/media` | Upload media (multipart/form-data) |
+| GET | `/media/{id}` | Show media |
+| PUT | `/media/{id}` | Update media |
+| DELETE | `/media/{id}` | Delete media |
+| GET | `/media/file/{filename}` | Serve file (public) |
 | GET | `/media/thumb/{id}` | Thumbnail (public) |
-| GET | `/media/diagnostics` | Speicherdiagnose |
+| GET | `/media/diagnostics` | Storage diagnostics |
+| POST | `/media/bulk-move` | Move media in bulk |
+| POST | `/media/import-urls` | Import media from URLs |
+| POST | `/media/auto-match` | Auto-match media to products |
 
-### Medien-Attributwerte
+### Media Attribute Values
 
-| Methode | Pfad | Beschreibung |
+| Method | Path | Description |
 |---|---|---|
-| GET | `/media/{id}/attribute-values` | Attributwerte |
-| PUT | `/media/{id}/attribute-values` | Attributwerte speichern |
+| GET | `/media/{id}/attribute-values` | Attribute values |
+| PUT | `/media/{id}/attribute-values` | Save attribute values |
 
-### Produkt-Medien
+### Product Media
 
-| Methode | Pfad | Beschreibung |
+| Method | Path | Description |
 |---|---|---|
-| GET | `/products/{id}/media` | Zugewiesene Medien |
-| POST | `/products/{id}/media` | Medium zuweisen |
-| DELETE | `/product-media/{id}` | Zuweisung entfernen |
+| GET | `/products/{id}/media` | Assigned media |
+| POST | `/products/{id}/media` | Assign media |
+| DELETE | `/product-media/{id}` | Remove assignment |
 
-### Medien-Verwendungstypen
+### Media Usage Types
 
-| Methode | Pfad | Beschreibung |
+| Method | Path | Description |
 |---|---|---|
-| GET | `/media-usage-types` | Alle Verwendungstypen |
+| GET | `/media-usage-types` | All usage types |
 | POST/GET/PUT/DELETE | `/media-usage-types/{id}` | CRUD |
 
 ---
 
-## Preise
+## Prices
 
-| Methode | Pfad | Beschreibung |
+| Method | Path | Description |
 |---|---|---|
-| GET | `/price-types` | Preistypen |
+| GET | `/price-types` | Price types |
 | POST/GET/PUT/DELETE | `/price-types/{id}` | CRUD |
-| GET | `/products/{id}/prices` | Produktpreise |
-| POST | `/products/{id}/prices` | Preis erstellen |
-| PUT | `/product-prices/{id}` | Preis aktualisieren |
-| DELETE | `/product-prices/{id}` | Preis loeschen |
+| GET | `/price-regions` | Price regions |
+| POST/GET/PUT/DELETE | `/price-regions/{id}` | CRUD |
+| GET | `/products/{id}/prices` | Product prices |
+| POST | `/products/{id}/prices` | Create price |
+| PUT | `/product-prices/{id}` | Update price |
+| DELETE | `/product-prices/{id}` | Delete price |
 
 ---
 
-## Relationen
+## Relations
 
-| Methode | Pfad | Beschreibung |
+| Method | Path | Description |
 |---|---|---|
-| GET | `/relation-types` | Beziehungstypen |
+| GET | `/relation-types` | Relation types |
 | POST/GET/PUT/DELETE | `/relation-types/{id}` | CRUD |
-| GET | `/products/{id}/relations` | Produktbeziehungen |
-| POST | `/products/{id}/relations` | Beziehung erstellen |
-| DELETE | `/product-relations/{id}` | Beziehung loeschen |
+| GET | `/relation-types/{id}/default-attributes` | Default attributes for type |
+| GET | `/products/{id}/relations` | Product relations |
+| POST | `/products/{id}/relations` | Create relation |
+| DELETE | `/product-relations/{id}` | Delete relation |
 
-### Relation-Attributwerte
+### Relation Attribute Values
 
-| Methode | Pfad | Beschreibung |
+| Method | Path | Description |
 |---|---|---|
-| GET | `/product-relations/{id}/attribute-values` | Werte lesen |
-| PUT | `/product-relations/{id}/attribute-values` | Werte speichern |
+| GET | `/product-relations/{id}/attribute-values` | Read values |
+| PUT | `/product-relations/{id}/attribute-values` | Save values |
 
 ---
 
-## Produkttypen
+## Product Types
 
-| Methode | Pfad | Beschreibung |
+| Method | Path | Description |
 |---|---|---|
-| GET | `/product-types` | Alle Produkttypen |
+| GET | `/product-types` | All product types |
 | POST/GET/PUT/DELETE | `/product-types/{id}` | CRUD |
-| GET | `/product-types/{id}/schema` | Attribut-Schema |
+| GET | `/product-types/{id}/schema` | Attribute schema |
 
 ---
 
 ## PQL (Product Query Language)
 
-| Methode | Pfad | Beschreibung |
+| Method | Path | Description |
 |---|---|---|
-| POST | `/pql/query` | PQL-Abfrage ausfuehren |
-| POST | `/pql/query/count` | Treffer zaehlen |
-| POST | `/pql/query/validate` | Syntax validieren |
-| POST | `/pql/query/explain` | Abfrageplan anzeigen |
+| POST | `/pql/query` | Execute PQL query |
+| POST | `/pql/query/count` | Count results |
+| POST | `/pql/query/validate` | Validate syntax |
+| POST | `/pql/query/explain` | Show query plan |
 
-**Beispiel:**
+**Example:**
 ```json
 { "query": "sku = 'PD-18V-001' AND status = 'active'" }
 ```
@@ -311,130 +410,337 @@ Authorization: Bearer <token>
 
 ## Import
 
-| Methode | Pfad | Beschreibung |
+| Method | Path | Description |
 |---|---|---|
-| GET | `/imports/templates/{type}` | Import-Template herunterladen |
-| GET | `/imports/export-format` | Format-Beschreibung |
-| POST | `/imports` | Import starten (multipart) |
-| GET | `/imports/{id}` | Import-Status |
-| GET | `/imports/{id}/preview` | Vorschau |
-| POST | `/imports/{id}/execute` | Import ausfuehren |
-| GET | `/imports/{id}/result` | Ergebnis |
-| DELETE | `/imports/{id}` | Import loeschen |
+| GET | `/imports/templates/{type}` | Download import template |
+| GET | `/imports/export-format` | Format description |
+| POST | `/imports` | Start import (multipart) |
+| GET | `/imports/{id}` | Import status |
+| GET | `/imports/{id}/preview` | Preview |
+| POST | `/imports/{id}/execute` | Execute import |
+| GET | `/imports/{id}/result` | Result |
+| GET | `/imports/{id}/logs` | Import logs |
+| DELETE | `/imports/{id}` | Delete import |
+
+### Import Profiles
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/import-profiles` | All import profiles |
+| POST/GET/PUT/DELETE | `/import-profiles/{id}` | CRUD |
+
+### Search Profiles
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/search-profiles` | All search profiles |
+| POST/GET/PUT/DELETE | `/search-profiles/{id}` | CRUD |
+
+### Export Profiles
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/export-profiles` | All export profiles |
+| POST/GET/PUT/DELETE | `/export-profiles/{id}` | CRUD |
 
 ---
 
 ## Export
 
-| Methode | Pfad | Beschreibung |
+| Method | Path | Description |
 |---|---|---|
-| GET | `/export/products` | Exportierbare Produkte |
-| GET | `/export/products/{id}` | Einzelprodukt-Export |
-| POST | `/export/products/bulk` | Massenexport |
-| GET | `/export/products/{id}/publixx` | Publixx-Format |
-| POST | `/export/query` | Export per PQL-Abfrage |
+| GET | `/export/products` | Exportable products |
+| GET | `/export/products/{id}` | Single product export |
+| POST | `/export/products/bulk` | Bulk export |
+| GET | `/export/products/{id}/publixx` | Publixx format |
+| POST | `/export/query` | Export via PQL query |
 
 ---
 
-## Publixx Live-API
+## JSON Export/Import
 
-| Methode | Pfad | Beschreibung |
+| Method | Path | Description |
 |---|---|---|
-| GET | `/publixx/datasets/{mapping}` | Datensaetze (nach Mapping) |
-| GET | `/publixx/datasets/{mapping}/{product}` | Einzelner Datensatz |
-| POST | `/publixx/datasets/{mapping}/pql` | PQL-Abfrage |
-| POST | `/publixx/webhook` | Webhook empfangen |
+| POST | `/json-export` | Export all data as JSON (18 sections) |
+| POST | `/json-import` | Import data from JSON |
 
 ---
 
-## PXF-Templates
+## BMEcat (Enterprise: bmecat module)
 
-| Methode | Pfad | Beschreibung |
+| Method | Path | Description |
 |---|---|---|
-| GET | `/pxf-templates` | Alle Templates |
-| POST | `/pxf-templates` | Template erstellen |
-| POST | `/pxf-templates/import` | Template importieren |
+| POST | `/bmecat-import` | Import BMEcat file |
+| GET | `/bmecat-import/{id}` | Import status |
+| POST | `/bmecat-import/{id}/execute` | Execute import |
+| GET | `/bmecat-import/{id}/preview` | Preview |
+| POST | `/bmecat-export` | Export as BMEcat |
+
+---
+
+## Export Jobs (Enterprise: advanced_export module)
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/export-jobs` | All export jobs |
+| POST | `/export-jobs` | Create job |
+| GET/PUT/DELETE | `/export-jobs/{id}` | CRUD |
+| POST | `/export-jobs/{id}/execute` | Execute job |
+| GET | `/export-jobs/{id}/logs` | Job logs |
+| GET | `/export-files` | List export files |
+| GET | `/export-files/{path}` | Download export file |
+
+---
+
+## Publixx Live API (Enterprise: publixx module)
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/publixx/datasets/{mapping}` | Datasets (by mapping) |
+| GET | `/publixx/datasets/{mapping}/{product}` | Single dataset |
+| POST | `/publixx/datasets/{mapping}/pql` | PQL query |
+| POST | `/publixx/webhook` | Receive webhook |
+
+---
+
+## PXF Templates
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/pxf-templates` | All templates |
+| POST | `/pxf-templates` | Create template |
+| POST | `/pxf-templates/import` | Import template |
 | GET/PUT/DELETE | `/pxf-templates/{id}` | CRUD |
-| GET | `/pxf-templates/{id}/preview/{product}` | Vorschau fuer Produkt |
+| GET | `/pxf-templates/{id}/preview/{product}` | Preview for product |
 
 ---
 
-## Benutzer & Rollen
+## Reports (Enterprise: reports module)
 
-### Benutzer
-
-| Methode | Pfad | Beschreibung |
+| Method | Path | Description |
 |---|---|---|
-| GET | `/users` | Alle Benutzer |
-| POST | `/users` | Benutzer erstellen |
+| GET | `/report-templates` | All report templates |
+| POST | `/report-templates` | Create template |
+| GET/PUT/DELETE | `/report-templates/{id}` | CRUD |
+| POST | `/report-templates/{id}/execute` | Execute report |
+| POST | `/report-templates/{id}/preview` | Preview report |
+| GET | `/report-templates/{id}/status` | Job status |
+| GET | `/report-templates/{id}/download` | Download result |
+
+---
+
+## PDF Templates (Enterprise: pdf_templates module)
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/pdf-templates` | All PDF templates |
+| POST | `/pdf-templates` | Create template |
+| GET/PUT/DELETE | `/pdf-templates/{id}` | CRUD |
+| POST | `/pdf-templates/{id}/preview` | Preview template |
+| POST | `/pdf-templates/{id}/execute` | Generate PDF |
+
+---
+
+## Workflow Tasks
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/workflow-tasks` | All tasks |
+| POST | `/workflow-tasks` | Create task |
+| GET/PUT/DELETE | `/workflow-tasks/{id}` | CRUD |
+
+---
+
+## Scheduled Actions & Calendar
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/scheduled-actions` | All scheduled actions |
+| POST | `/scheduled-actions` | Create action |
+| GET/PUT/DELETE | `/scheduled-actions/{id}` | CRUD |
+| GET | `/calendar` | Calendar events |
+
+---
+
+## Watchlist
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/watchlist` | Watchlist items |
+| POST | `/watchlist` | Add product |
+| DELETE | `/watchlist/{id}` | Remove product |
+| POST | `/watchlist/export/excel` | Export as Excel |
+| POST | `/watchlist/export/pdf` | Export as PDF |
+| POST | `/watchlist/export/pdf-zip` | Export as PDF zip |
+| POST | `/watchlist/export/xliff` | Export as XLIFF |
+
+---
+
+## Dashboard
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/dashboard` | Dashboard data (widgets) |
+
+---
+
+## Users & Roles
+
+### Users
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/users` | All users |
+| POST | `/users` | Create user |
 | GET/PUT/DELETE | `/users/{id}` | CRUD |
+| GET | `/users/{id}/dependencies` | User dependencies |
 
-### Rollen
+### Roles
 
-| Methode | Pfad | Beschreibung |
+| Method | Path | Description |
 |---|---|---|
-| GET | `/roles` | Alle Rollen |
-| POST | `/roles` | Rolle erstellen |
+| GET | `/roles` | All roles |
+| POST | `/roles` | Create role |
 | GET/PUT/DELETE | `/roles/{id}` | CRUD |
-| PUT | `/roles/{id}/permissions` | Berechtigungen setzen |
+| PUT | `/roles/{id}/permissions` | Set permissions |
+| GET | `/roles/{id}/dependencies` | Role dependencies |
+
+### Permissions
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/permissions` | All available permissions |
 
 ---
 
-## Katalog (public)
+## Access Links
 
-Oeffentliche Endpoints ohne Authentifizierung:
-
-| Methode | Pfad | Beschreibung |
+| Method | Path | Description |
 |---|---|---|
-| GET | `/catalog/products` | Produktliste |
-| GET | `/catalog/products/{id}` | Produkt |
-| GET | `/catalog/products/{id}/json` | Produkt als JSON |
-| GET | `/catalog/products/export.json` | Alle Produkte als JSON |
-| GET | `/catalog/categories` | Kategorien |
+| GET | `/access-links` | All access links |
+| POST | `/access-links` | Create access link |
+| DELETE | `/access-links/{id}` | Delete access link |
+| GET | `/access-links/report` | Access link report |
+| POST | `/access-links/redeem/{token}` | Redeem access link (public) |
 
 ---
 
-## Asset-Katalog (public)
+## License
 
-| Methode | Pfad | Beschreibung |
+| Method | Path | Description |
 |---|---|---|
-| GET | `/asset-catalog/assets` | Assets durchsuchen |
-| GET | `/asset-catalog/assets/{id}` | Einzelnes Asset |
-| GET | `/asset-catalog/folders` | Ordnerstruktur |
-| POST | `/asset-catalog/download` | Download-Paket erstellen |
+| GET | `/license` | Current license info |
+| PUT | `/license` | Update license |
 
 ---
 
-## Debug (nur Test-Server)
+## Audit Logs
 
-| Methode | Pfad | Beschreibung |
+| Method | Path | Description |
 |---|---|---|
-| GET | `/debug/logs` | Laravel-Log anzeigen (`?channel=laravel&lines=500`) |
-| GET | `/debug/logs/clear` | Log leeren |
+| GET | `/audit-logs` | System audit logs |
+| POST | `/audit-logs/export` | Export audit logs |
+| DELETE | `/audit-logs` | Delete audit logs |
+| GET | `/user-audit-logs` | User audit trail |
+| POST | `/user-audit-logs/export` | Export user audit logs |
+| DELETE | `/user-audit-logs` | Delete user audit logs |
+
+---
+
+## TMS (Translation Management)
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/tms/units` | Translation units |
+| GET | `/tms/translations` | All translations |
+| GET | `/tms/stats` | Translation statistics |
+| GET | `/tms/missing` | Missing translations |
+| POST | `/tms/retranslate` | Retranslate entries |
+| POST | `/tms/ingest` | Ingest new terms |
+| POST | `/tms/sync` | Sync with external TMS |
+
+---
+
+## Catalog (public)
+
+Public endpoints — no authentication required (or access link token):
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/catalog/settings` | Catalog settings & theme |
+| GET | `/catalog/products` | Product list |
+| GET | `/catalog/products/{id}` | Product detail |
+| GET | `/catalog/products/{id}/json` | Product as JSON |
+| GET | `/catalog/products/export.json` | All products as JSON |
+| GET | `/catalog/products/{id}/pdf` | Product PDF |
+| GET | `/catalog/categories` | Categories |
+| GET | `/catalog/facets` | Faceted filters |
+| GET | `/catalog/media/{filename}` | Serve media file |
+| POST | `/catalog/products/compare` | Compare products |
+| POST | `/catalog/wishlist/pdf` | Wishlist as PDF |
+| POST | `/catalog/wishlist/excel` | Wishlist as Excel |
+
+---
+
+## Asset Catalog (public)
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/asset-catalog/assets` | Browse assets |
+| GET | `/asset-catalog/assets/{id}` | Single asset |
+| GET | `/asset-catalog/folders` | Folder structure |
+| POST | `/asset-catalog/download` | Create download package |
 
 ---
 
 ## Admin
 
-| Methode | Pfad | Beschreibung |
+| Method | Path | Description |
 |---|---|---|
-| POST | `/admin/reset-data` | Alle Daten zuruecksetzen |
-| POST | `/admin/load-demo-data` | Demo-Daten laden |
-| GET | `/admin/deploy/status` | Deployment-Status |
-| POST | `/admin/deploy` | Deployment starten |
-| POST | `/admin/deploy/rollback` | Rollback |
+| GET | `/admin/reset-categories` | Reset category cache |
+| POST | `/admin/reset-data` | Reset all data |
+| POST | `/admin/load-demo-data` | Load demo data |
+| POST | `/admin/search-reindex` | Rebuild search index |
+| PUT | `/settings/catalog-theme` | Update catalog theme |
+| GET | `/admin/deploy/status` | Deployment status |
+| POST | `/admin/deploy` | Start deployment |
+| POST | `/admin/deploy/rollback` | Rollback deployment |
+
+### API Tester
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api-tester/routes` | List all available routes |
+
+### Database Viewer
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/db/tables` | List all tables |
+| GET | `/db/tables/{table}` | Table structure |
+| GET | `/db/tables/{table}/rows` | Browse table rows |
 
 ---
 
-## Allgemeine Query-Parameter
+## Debug (test server only)
 
-Die meisten Listen-Endpoints unterstuetzen:
-
-| Parameter | Beschreibung | Beispiel |
+| Method | Path | Description |
 |---|---|---|
-| `page` | Seitennummer | `?page=2` |
-| `perPage` | Eintraege pro Seite | `?perPage=50` |
-| `sort` | Sortierung | `?sort=-created_at` |
-| `filter[field]` | Filterung | `?filter[status]=active` |
-| `include` | Relations einbinden | `?include=attributes,media` |
-| `lang` | Sprachfilter | `?lang=de,en` |
+| GET | `/debug/logs` | Show Laravel log (`?channel=laravel&lines=500`) |
+| GET | `/debug/logs/clear` | Clear log |
+| DELETE | `/debug/logs` | Delete log file |
+
+---
+
+## Common Query Parameters
+
+Most list endpoints support:
+
+| Parameter | Description | Example |
+|---|---|---|
+| `page` | Page number | `?page=2` |
+| `perPage` | Items per page | `?perPage=50` |
+| `sort` | Sort order | `?sort=-created_at` |
+| `filter[field]` | Filter | `?filter[status]=active` |
+| `include` | Include relations | `?include=attributes,media` |
+| `lang` | Language filter | `?lang=de,en` |

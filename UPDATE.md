@@ -1,98 +1,102 @@
-# anyPIM — Update-Anleitung
+# anyPIM — Update Guide
 
-## Schnell-Update
+## Quick Update
 
 ```bash
 cd /var/www/publixx-pim
 sudo bash update.sh
 ```
 
-Das Script macht alles automatisch: Wartungsmodus, Git Pull, Composer, Migrationen, Frontend-Build, Caches, Service-Neustart, Healthcheck.
+The script handles everything automatically: maintenance mode, git pull, Composer, migrations, frontend build, documentation build, caches, service restart, healthcheck.
 
-## Optionen
+## Options
 
 ```bash
-sudo bash update.sh [optionen]
+sudo bash update.sh [options]
 ```
 
-| Option | Beschreibung |
+| Option | Description |
 |---|---|
-| `--branch=NAME` | Anderen Branch als `main` verwenden |
-| `--skip-frontend` | Frontend-Build ueberspringen (spart Zeit wenn nur Backend-Aenderungen) |
-| `--skip-composer` | Composer Install ueberspringen |
-| `--seed` | Nach Migrationen auch Seeders ausfuehren |
-| `--force` | Keine Bestaetigung vor dem Update |
+| `--branch=NAME` | Use a different branch instead of `main` |
+| `--skip-frontend` | Skip frontend build (saves time for backend-only changes) |
+| `--skip-docs` | Skip documentation site rebuild (VitePress) |
+| `--skip-tms` | Skip TMS (Translation Management System) setup |
+| `--skip-composer` | Skip Composer install |
+| `--seed` | Run seeders after migrations |
+| `--force` | No confirmation before update |
 
-### Beispiele
+### Examples
 
 ```bash
-# Standard-Update von main
+# Standard update from main
 sudo bash update.sh
 
-# Schnelles Backend-Update (kein Frontend-Build)
+# Quick backend update (no frontend build)
 sudo bash update.sh --skip-frontend
 
-# Feature-Branch testen
+# Test a feature branch
 sudo bash update.sh --branch=feature/new-import
 
-# Vollautomatisch (z.B. in Cron/CI)
+# Fully automated (e.g., in cron/CI)
 sudo bash update.sh --force
 
-# Nach Schema-Aenderungen mit neuen Testdaten
+# After schema changes with new test data
 sudo bash update.sh --seed
 ```
 
-## Was update.sh macht (8 Schritte)
+## What update.sh Does (10 Steps)
 
-| Schritt | Beschreibung |
+| Step | Description |
 |---|---|
-| 1/8 | Wartungsmodus aktivieren (`artisan down`) |
-| 2/8 | Git Pull vom angegebenen Branch |
-| 3/8 | Composer Install (--no-dev, optimized) |
-| 4/8 | Datenbank-Migrationen |
-| 5/8 | Frontend-Build (Subdirectory-aware, alte Assets entfernen) |
-| 6/8 | Laravel-Caches neu erstellen (config, route, view, event) |
-| 7/8 | Dateiberechtigungen + Horizon + Apache neu starten |
-| 8/8 | Wartungsmodus deaktivieren + Healthcheck |
+| 1/10 | Activate maintenance mode (`artisan down`) |
+| 2/10 | Git pull from the specified branch |
+| 3/10 | Composer install (--no-dev, optimized autoloader) |
+| 4/10 | Database migrations (`artisan migrate --force`) |
+| 5/10 | Frontend build (npm ci + build, subdirectory-aware) |
+| 6/10 | Documentation build (VitePress) |
+| 7/10 | TMS setup (if applicable) |
+| 8/10 | Recreate Laravel caches (config, route, view, event) |
+| 9/10 | File permissions + Horizon/queue worker + Apache restart |
+| 10/10 | Deactivate maintenance mode + healthcheck |
 
-## Subdirectory-Modus
+## Subdirectory Mode
 
-Das Update-Script erkennt automatisch den Subdirectory-Modus aus der `.env`:
+The update script automatically detects subdirectory mode from the `.env`:
 
 ```
-APP_URL=https://smartentities.de/web
+APP_URL=https://example.com/web
 ```
 
-Beim Frontend-Build werden `VITE_BASE_PATH` und `VITE_API_BASE_URL` automatisch gesetzt.
+During frontend build, `VITE_BASE_PATH` and `VITE_API_BASE_URL` are set automatically.
 
-## Fehler-Handling
+## Error Handling
 
-- Bei jedem Fehler wird der Wartungsmodus automatisch deaktiviert
-- Am Ende laeuft ein Healthcheck gegen `/api/v1/health`
-- Die Aenderungen seit dem letzten Stand werden angezeigt
+- On any error, maintenance mode is **automatically deactivated** (trap)
+- A **healthcheck** runs at the end against `/api/v1/health`
+- Changes since the last state are displayed
 
-## Manuelles Update (ohne Script)
+## Manual Update (without script)
 
-Falls das Script nicht verwendet werden soll:
+If you prefer not to use the script:
 
 ```bash
 cd /var/www/publixx-pim
 
-# 1. Wartungsmodus
+# 1. Maintenance mode
 php artisan down --retry=60
 
-# 2. Code holen
+# 2. Pull code
 git pull origin main
 
-# 3. PHP-Abhaengigkeiten
+# 3. PHP dependencies
 COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --optimize-autoloader
 
-# 4. Migrationen
+# 4. Migrations
 php artisan migrate --force
 
-# 5. Frontend bauen
+# 5. Build frontend
 cd pim-frontend
-# Bei Subdirectory: export VITE_BASE_PATH="/web/"
+# For subdirectory: export VITE_BASE_PATH="/web/"
 npm ci --production=false
 npm run build
 cd ..
@@ -100,28 +104,34 @@ rm -rf public/pim-assets
 cp pim-frontend/dist/index.html public/spa.html
 cp -r pim-frontend/dist/pim-assets public/
 
-# 6. Caches
+# 6. Build documentation
+cd static-content
+npm ci
+npm run build
+cd ..
+
+# 7. Caches
 php artisan config:cache
 php artisan route:cache
 php artisan view:cache
 
-# 7. Berechtigungen
+# 8. Permissions
 chown -R www-data:www-data .
 chmod -R 775 storage bootstrap/cache
 
-# 8. Services
+# 9. Services
 supervisorctl restart horizon
 systemctl reload apache2
 php artisan up
 ```
 
-## Healthcheck nach Update
+## Healthcheck After Update
 
 ```bash
-# Automatisch (im Script integriert)
-# Oder manuell:
+# Automatic (integrated in script)
+# Or manually:
 bash healthcheck.sh
 
-# Nur URL-Check
+# URL check only
 curl -s https://example.com/api/v1/health | python3 -m json.tool
 ```

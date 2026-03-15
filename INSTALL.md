@@ -1,113 +1,113 @@
-# anyPIM — Installations-Anleitung
+# anyPIM — Installation Guide
 
-## Voraussetzungen
+## Prerequisites
 
 | Software | Version |
 |---|---|
-| Ubuntu / Debian | 22.04+ / 24.04 empfohlen |
-| PHP | 8.2+ (mit Extensions: mysql, redis, mbstring, xml, zip, gd, bcmath, curl, intl) |
+| Ubuntu / Debian | 22.04+ / 24.04 recommended |
+| PHP | 8.3+ (extensions: mysql, redis, mbstring, xml, zip, gd, bcmath, curl, intl) |
 | MySQL | 8.0+ |
 | Redis | 6+ |
-| Node.js | 18+ (mit npm) |
+| Node.js | 20 LTS (with npm) |
 | Composer | 2.x |
-| Apache | 2.4 (mit mod_rewrite, mod_headers, mod_alias) |
-| Supervisor | fuer Laravel Horizon (Queue Worker) |
-| Git | fuer Deployment und Updates |
+| Apache | 2.4 (with mod_rewrite, mod_headers, mod_alias) |
+| Supervisor | For Laravel Horizon (queue worker) |
+| Git | For deployment and updates |
 
-## Installation mit setup.sh
+## Installation with setup.sh
 
-Das interaktive Setup-Script installiert alles automatisch:
+The interactive setup script installs everything automatically:
 
 ```bash
-# Repository klonen
+# Clone repository
 git clone <repository-url> /var/www/publixx-pim
 cd /var/www/publixx-pim
 
-# Setup starten (als root)
+# Start setup (as root)
 sudo bash setup.sh
 ```
 
-### Interaktive Abfragen
+### Interactive Prompts
 
-Das Script fragt folgende Informationen ab:
+The script asks for the following information:
 
-1. **Server-Domain** — z.B. `smartentities.de`
-2. **Web-Pfad** — leer fuer Root (`/`) oder z.B. `/web` fuer Subdirectory
-3. **HTTPS** — Ja/Nein (mit optionalem Let's Encrypt)
-4. **Port** — Standard 80/443 oder benutzerdefiniert
-5. **MySQL-Zugangsdaten** — Host, Port, Datenbankname, Benutzer, Passwort
-6. **Redis-Host** — Standard 127.0.0.1
-7. **Admin-Account** — E-Mail und Passwort fuer den ersten Benutzer
+1. **Server domain** — e.g., `pim.example.com`
+2. **Web path** — empty for root (`/`) or e.g., `/web` for subdirectory
+3. **HTTPS** — yes/no (with optional Let's Encrypt)
+4. **Port** — default 80/443 or custom
+5. **MySQL credentials** — host, port, database name, user, password
+6. **Redis host** — default 127.0.0.1
+7. **Admin account** — email and password for the first user
 
-### Was setup.sh macht (10 Schritte)
+### What setup.sh Does (10 Steps)
 
-| Schritt | Beschreibung |
+| Step | Description |
 |---|---|
-| 1/10 | Systempakete installieren (PHP, MySQL-Client, Redis, Node.js, Composer) |
-| 2/10 | PHP-Extensions pruefen und installieren |
-| 3/10 | Composer Install (PHP-Abhaengigkeiten) |
-| 4/10 | .env-Datei generieren + APP_KEY |
-| 5/10 | Datenbank erstellen und Migrationen ausfuehren |
-| 6/10 | Admin-Benutzer anlegen |
-| 7/10 | Demo-Daten laden (optional) |
-| 8/10 | Supervisor/Horizon konfigurieren |
-| 9/10 | Frontend bauen (npm ci + npm run build) |
-| 10/10 | Apache konfigurieren + Berechtigungen setzen |
+| 1/10 | Install system packages (PHP, MySQL client, Redis, Node.js, Composer) |
+| 2/10 | Check and install PHP extensions |
+| 3/10 | Composer install (PHP dependencies) |
+| 4/10 | Generate .env file + APP_KEY |
+| 5/10 | Create database and run migrations |
+| 6/10 | Create admin user |
+| 7/10 | Load demo data (optional) |
+| 8/10 | Configure Supervisor/Horizon |
+| 9/10 | Build frontend (npm ci + npm run build) |
+| 10/10 | Configure Apache + set permissions |
 
-## Deployment-Modi
+## Deployment Modes
 
-### Root-Modus (PIM = einzige App)
+### Root Mode (PIM = only app)
 
-- Eigener Apache VHost auf Port 80 (+ 443 mit SSL)
-- Optionale Let's Encrypt Einrichtung
+- Dedicated Apache VHost on port 80 (+ 443 with SSL)
+- Optional Let's Encrypt setup
 - `APP_URL=https://example.com`
 
-### Subdirectory-Modus (PIM unter /pfad)
+### Subdirectory Mode (PIM under /path)
 
-- Apache-Alias wird in den bestehenden VHost eingebunden
-- SSL wird vom bestehenden VHost gehandhabt
+- Apache Alias is injected into the existing VHost
+- SSL is handled by the existing VHost
 - `APP_URL=https://example.com/web`
-- Frontend wird automatisch mit korrektem Base-Path gebaut
+- Frontend is automatically built with the correct base path
 
 ```bash
-# Beispiel: PIM unter /web
-#   Domain: smartentities.de
-#   Web-Pfad: /web
-#   → APP_URL=https://smartentities.de/web
-#   → Frontend Base-Path: /web/
-#   → API: https://smartentities.de/web/api/v1/...
+# Example: PIM under /web
+#   Domain: example.com
+#   Web path: /web
+#   → APP_URL=https://example.com/web
+#   → Frontend base path: /web/
+#   → API: https://example.com/web/api/v1/...
 ```
 
 ## SSL / Let's Encrypt
 
-### Neues Zertifikat einrichten (Root-Modus)
+### New Certificate (Root Mode)
 
-Das Setup bietet automatisch Let's Encrypt an, wenn HTTPS gewaehlt wird.
+The setup automatically offers Let's Encrypt when HTTPS is selected.
 
-### Bestehendes Zertifikat
+### Existing Certificate
 
-Wenn bereits ein Let's Encrypt-Zertifikat fuer die Domain existiert, erkennt das Script dies und fragt, ob es beibehalten oder erneuert werden soll.
+If a Let's Encrypt certificate already exists for the domain, the script detects this and asks whether to keep or renew it.
 
-### Subdirectory-Modus
+### Subdirectory Mode
 
-Kein SSL-Setup noetig — der bestehende VHost handhabt SSL.
+No SSL setup needed — the existing VHost handles SSL.
 
-## Nach der Installation
+## Post-Installation
 
 ### Healthcheck
 
 ```bash
-# Lokal (prueft alle Services)
+# Local (checks all services)
 bash healthcheck.sh
 
-# Per URL
+# URL only
 bash healthcheck.sh --url-only
 
-# Oder direkt im Browser
+# Or directly in the browser
 curl https://example.com/api/v1/health
 ```
 
-### Demo-Daten laden
+### Load Demo Data
 
 ```bash
 cd /var/www/publixx-pim
@@ -116,13 +116,13 @@ php artisan db:seed --class=DemoHierarchySeeder
 php artisan db:seed --class=DemoProductSeeder
 ```
 
-### Manuell einloggen
+### Log In
 
-Oeffen die APP_URL im Browser. Login mit den bei der Installation angegebenen Admin-Zugangsdaten.
+Open the APP_URL in your browser. Log in with the admin credentials created during installation.
 
-## Fehlerbehebung
+## Troubleshooting
 
-### "Permission denied" Fehler
+### "Permission denied" Errors
 
 ```bash
 sudo chown -R www-data:www-data /var/www/publixx-pim
@@ -130,20 +130,20 @@ sudo chmod -R 775 /var/www/publixx-pim/storage
 sudo chmod -R 775 /var/www/publixx-pim/bootstrap/cache
 ```
 
-### Apache-Konfiguration pruefen
+### Check Apache Configuration
 
 ```bash
 sudo apache2ctl configtest
 sudo systemctl status apache2
 ```
 
-### Laravel-Logs
+### Laravel Logs
 
 ```bash
-# Per API
+# Via API
 curl https://example.com/api/v1/debug/logs
 
-# Oder direkt
+# Or directly
 tail -100 /var/www/publixx-pim/storage/logs/laravel.log
 ```
 
