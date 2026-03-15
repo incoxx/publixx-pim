@@ -100,7 +100,8 @@ class Product extends Model
 
     public function projects(): BelongsToMany
     {
-        return $this->belongsToMany(Project::class, 'project_product');
+        return $this->belongsToMany(Project::class, 'project_product')
+            ->using(UuidPivot::class);
     }
 
     public function hasActiveWorkflow(): bool
