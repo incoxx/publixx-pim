@@ -17,7 +17,10 @@ class UpdateWorkflowTaskRequest extends FormRequest
     {
         return [
             'status' => ['sometimes', 'in:open,in_progress,closed'],
+            'workflow_status_id' => ['nullable', 'uuid', 'exists:workflow_statuses,id'],
             'assigned_to' => ['nullable', 'uuid', 'exists:users,id'],
+            'team_id' => ['nullable', 'uuid', 'exists:teams,id'],
+            'project_id' => ['nullable', 'uuid', 'exists:projects,id'],
             'note' => ['nullable', 'string', 'max:5000'],
             'title' => ['sometimes', 'string', 'max:255'],
         ];

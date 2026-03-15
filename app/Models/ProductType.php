@@ -8,6 +8,7 @@ use App\Models\Concerns\HasDeletionConstraints;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ProductType extends Model
@@ -33,7 +34,7 @@ class ProductType extends Model
         'validation_rules',
         'sort_order',
         'is_active',
-        'workflow_enabled',
+        'workflow_id',
     ];
 
     protected function casts(): array
@@ -51,8 +52,12 @@ class ProductType extends Model
             'validation_rules' => 'array',
             'sort_order' => 'integer',
             'is_active' => 'boolean',
-            'workflow_enabled' => 'boolean',
         ];
+    }
+
+    public function workflow(): BelongsTo
+    {
+        return $this->belongsTo(Workflow::class);
     }
 
     public function products(): HasMany

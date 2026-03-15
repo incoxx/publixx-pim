@@ -43,6 +43,16 @@ const sections = computed(() => {
       ],
     },
     {
+      key: 'project',
+      label: 'Projektmanagement',
+      items: [
+        { icon: GitBranch, label: () => 'Workflows', to: '/workflows' },
+        { icon: Zap, label: () => 'Workflow-Status', to: '/workflow-statuses' },
+        { icon: Users, label: () => 'Teams', to: '/teams' },
+        { icon: FolderTree, label: () => 'Projekte', to: '/projects' },
+      ],
+    },
+    {
       key: 'config',
       label: 'Konfiguration',
       items: [

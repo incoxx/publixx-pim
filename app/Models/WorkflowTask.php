@@ -17,7 +17,10 @@ class WorkflowTask extends Model
         'product_id',
         'title',
         'status',
+        'workflow_status_id',
         'assigned_to',
+        'team_id',
+        'project_id',
         'created_by',
         'closed_at',
         'note',
@@ -45,6 +48,21 @@ class WorkflowTask extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function workflowStatus(): BelongsTo
+    {
+        return $this->belongsTo(WorkflowStatus::class);
+    }
+
+    public function team(): BelongsTo
+    {
+        return $this->belongsTo(Team::class);
+    }
+
+    public function project(): BelongsTo
+    {
+        return $this->belongsTo(Project::class);
     }
 
     // --- Scopes ---

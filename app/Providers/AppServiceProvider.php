@@ -29,6 +29,10 @@ use App\Models\SearchProfile;
 use App\Models\DictionaryEntry;
 use App\Models\ValueList;
 use App\Models\ValueListEntry;
+use App\Models\Project;
+use App\Models\Team;
+use App\Models\Workflow;
+use App\Models\WorkflowStatus;
 use App\Policies\AccessLinkPolicy;
 use App\Policies\AttributePolicy;
 use App\Policies\AttributeTypePolicy;
@@ -55,6 +59,10 @@ use App\Policies\UnitPolicy;
 use App\Policies\UserPolicy;
 use App\Policies\ValueListEntryPolicy;
 use App\Policies\ValueListPolicy;
+use App\Policies\ProjectPolicy;
+use App\Policies\TeamPolicy;
+use App\Policies\WorkflowPolicy;
+use App\Policies\WorkflowStatusPolicy;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
@@ -99,6 +107,10 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(SearchProfile::class, SearchProfilePolicy::class);
         Gate::policy(ExportProfile::class, ExportProfilePolicy::class);
         Gate::policy(ImportProfile::class, ImportProfilePolicy::class);
+        Gate::policy(Project::class, ProjectPolicy::class);
+        Gate::policy(Team::class, TeamPolicy::class);
+        Gate::policy(Workflow::class, WorkflowPolicy::class);
+        Gate::policy(WorkflowStatus::class, WorkflowStatusPolicy::class);
 
         // ExportPolicy — no model, registered as Gates
         Gate::define('export.view', [ExportPolicy::class, 'viewAny']);

@@ -17,7 +17,14 @@ class WorkflowTaskController extends Controller
     public function index(Request $request): AnonymousResourceCollection
     {
         $user = $request->user();
-        $query = WorkflowTask::query()->with(['product:id,sku,name', 'assignee:id,name', 'creator:id,name']);
+        $query = WorkflowTask::query()->with([
+            'product:id,sku,name',
+            'assignee:id,name',
+            'creator:id,name',
+            'workflowStatus:id,name,color',
+            'team:id,name',
+            'project:id,name',
+        ]);
 
         // Admin sees all, normal users see only their own tasks
         if (!$user->hasRole('Admin')) {
