@@ -266,6 +266,30 @@ const routes = [
     meta: { title: 'Workflow-Aufgaben' },
   },
   {
+    path: '/workflow-statuses',
+    name: 'workflow-statuses',
+    component: () => import('@/views/workflow/WorkflowStatusView.vue'),
+    meta: { title: 'Workflow-Status' },
+  },
+  {
+    path: '/workflows',
+    name: 'workflows',
+    component: () => import('@/views/workflow/WorkflowListView.vue'),
+    meta: { title: 'Workflows' },
+  },
+  {
+    path: '/teams',
+    name: 'teams',
+    component: () => import('@/views/teams/TeamView.vue'),
+    meta: { title: 'Teams' },
+  },
+  {
+    path: '/projects',
+    name: 'projects',
+    component: () => import('@/views/projects/ProjectView.vue'),
+    meta: { title: 'Projekte' },
+  },
+  {
     path: '/help',
     name: 'help',
     component: () => import('@/views/HelpView.vue'),

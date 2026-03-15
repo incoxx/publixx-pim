@@ -5,6 +5,10 @@ declare(strict_types=1);
 use App\Http\Controllers\Api\V1\AssetCatalogController;
 use App\Http\Controllers\Api\V1\CalendarController;
 use App\Http\Controllers\Api\V1\DashboardController;
+use App\Http\Controllers\Api\V1\ProjectController;
+use App\Http\Controllers\Api\V1\TeamController;
+use App\Http\Controllers\Api\V1\WorkflowController;
+use App\Http\Controllers\Api\V1\WorkflowStatusController;
 use App\Http\Controllers\Api\V1\WorkflowTaskController;
 use App\Http\Controllers\Api\V1\CatalogController;
 use App\Http\Controllers\Api\V1\AttributeController;
@@ -633,6 +637,30 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::apiResource('scheduled-actions', ScheduledActionController::class);
     Route::get('products/{product}/scheduled-actions', [ScheduledActionController::class, 'forProduct']);
     Route::get('calendar', [CalendarController::class, 'index']);
+
+    // =====================================================================
+    // Teams
+    // =====================================================================
+    Route::apiResource('teams', TeamController::class);
+    Route::get('teams/{team}/dependencies', [TeamController::class, 'dependencies']);
+
+    // =====================================================================
+    // Projects
+    // =====================================================================
+    Route::apiResource('projects', ProjectController::class);
+    Route::get('projects/{project}/dependencies', [ProjectController::class, 'dependencies']);
+
+    // =====================================================================
+    // Workflow Statuses
+    // =====================================================================
+    Route::apiResource('workflow-statuses', WorkflowStatusController::class);
+    Route::get('workflow-statuses/{workflow_status}/dependencies', [WorkflowStatusController::class, 'dependencies']);
+
+    // =====================================================================
+    // Workflows
+    // =====================================================================
+    Route::apiResource('workflows', WorkflowController::class);
+    Route::get('workflows/{workflow}/dependencies', [WorkflowController::class, 'dependencies']);
 
     // =====================================================================
     // Workflow Tasks

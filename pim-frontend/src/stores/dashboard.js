@@ -8,6 +8,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
   const recentlyEdited = ref([])
   const workflowSummary = ref(null)
   const completenessSummary = ref(null)
+  const activeProjects = ref([])
   const loading = ref(false)
   const error = ref(null)
 
@@ -22,6 +23,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
       recentlyEdited.value = d.recently_edited || []
       workflowSummary.value = d.workflow_summary
       completenessSummary.value = d.completeness_summary
+      activeProjects.value = d.active_projects || []
     } catch (e) {
       error.value = e.response?.data?.message || 'Fehler beim Laden'
     } finally {
@@ -30,7 +32,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
   }
 
   return {
-    stats, myTasks, recentlyEdited, workflowSummary, completenessSummary,
+    stats, myTasks, recentlyEdited, workflowSummary, completenessSummary, activeProjects,
     loading, error, fetchDashboard,
   }
 })

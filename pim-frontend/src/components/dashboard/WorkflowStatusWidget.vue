@@ -8,19 +8,36 @@ import DashboardWidgetWrapper from './DashboardWidgetWrapper.vue'
 ChartJS.register(ArcElement, Tooltip, Legend)
 
 const props = defineProps({
-  summary: { type: Object, default: null },
+  summary: { type: [Array, Object], default: null },
 })
 
+// Support both old object format and new array format
+const items = computed(() => {
+  if (!props.summary) return []
+  if (Array.isArray(props.summary)) {
+    return props.summary.map(s => ({
+      label: s.status_name,
+      count: s.count,
+      color: s.color || '#6b7280',
+    }))
+  }
+  // Legacy fallback
+  return [
+    { label: 'Bearbeitung', count: props.summary.editing || 0, color: '#3b82f6' },
+    { label: 'Review', count: props.summary.review || 0, color: '#f59e0b' },
+    { label: 'Freigegeben', count: props.summary.approved || 0, color: '#22c55e' },
+  ]
+})
+
+const total = computed(() => items.value.reduce((sum, i) => sum + (i.count || 0), 0))
+
 const chartData = computed(() => {
-  if (!props.summary) return null
-  const { editing, review, approved } = props.summary
-  const total = editing + review + approved
-  if (total === 0) return null
+  if (total.value === 0) return null
   return {
-    labels: ['Bearbeitung', 'Review', 'Freigegeben'],
+    labels: items.value.map(i => i.label),
     datasets: [{
-      data: [editing, review, approved],
-      backgroundColor: ['#3b82f6', '#f59e0b', '#22c55e'],
+      data: items.value.map(i => i.count),
+      backgroundColor: items.value.map(i => i.color),
       borderWidth: 0,
       hoverOffset: 4,
     }],
@@ -42,21 +59,6 @@ const chartOptions = {
     },
   },
 }
-
-const items = computed(() => {
-  if (!props.summary) return []
-  return [
-    { label: 'Bearbeitung', count: props.summary.editing, color: '#3b82f6' },
-    { label: 'Review', count: props.summary.review, color: '#f59e0b' },
-    { label: 'Freigegeben', count: props.summary.approved, color: '#22c55e' },
-    { label: 'Nicht zugewiesen', count: props.summary.unassigned, color: '#9ca3af' },
-  ]
-})
-
-const total = computed(() => {
-  if (!props.summary) return 0
-  return props.summary.editing + props.summary.review + props.summary.approved
-})
 </script>
 
 <template>

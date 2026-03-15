@@ -29,8 +29,10 @@ class Product extends Model
         'manufacturer_id',
         'created_by',
         'updated_by',
-        'workflow_status',
+        'workflow_id',
+        'current_workflow_status_id',
         'workflow_assignee_id',
+        'workflow_team_id',
     ];
 
     protected function casts(): array
@@ -76,14 +78,29 @@ class Product extends Model
         return $this->belongsTo(User::class, 'updated_by');
     }
 
+    public function workflow(): BelongsTo
+    {
+        return $this->belongsTo(Workflow::class);
+    }
+
+    public function currentWorkflowStatus(): BelongsTo
+    {
+        return $this->belongsTo(WorkflowStatus::class, 'current_workflow_status_id');
+    }
+
     public function workflowAssignee(): BelongsTo
     {
         return $this->belongsTo(User::class, 'workflow_assignee_id');
     }
 
+    public function workflowTeam(): BelongsTo
+    {
+        return $this->belongsTo(Team::class, 'workflow_team_id');
+    }
+
     public function hasActiveWorkflow(): bool
     {
-        return $this->workflow_status !== null;
+        return $this->workflow_id !== null;
     }
 
     public function attributeValues(): HasMany

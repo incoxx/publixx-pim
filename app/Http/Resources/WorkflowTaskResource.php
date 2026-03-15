@@ -16,7 +16,10 @@ class WorkflowTaskResource extends JsonResource
             'product_id' => $this->product_id,
             'title' => $this->title,
             'status' => $this->status,
+            'workflow_status_id' => $this->workflow_status_id,
             'assigned_to' => $this->assigned_to,
+            'team_id' => $this->team_id,
+            'project_id' => $this->project_id,
             'created_by' => $this->created_by,
             'closed_at' => $this->closed_at?->toIso8601String(),
             'note' => $this->note,
@@ -34,6 +37,19 @@ class WorkflowTaskResource extends JsonResource
             'creator' => $this->whenLoaded('creator', fn () => [
                 'id' => $this->creator->id,
                 'name' => $this->creator->name,
+            ]),
+            'workflow_status' => $this->whenLoaded('workflowStatus', fn () => [
+                'id' => $this->workflowStatus->id,
+                'name' => $this->workflowStatus->name,
+                'color' => $this->workflowStatus->color,
+            ]),
+            'team' => $this->whenLoaded('team', fn () => [
+                'id' => $this->team->id,
+                'name' => $this->team->name,
+            ]),
+            'project' => $this->whenLoaded('project', fn () => [
+                'id' => $this->project->id,
+                'name' => $this->project->name,
             ]),
         ];
     }

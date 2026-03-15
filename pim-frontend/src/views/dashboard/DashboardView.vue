@@ -7,6 +7,7 @@ import MyTasksWidget from '@/components/dashboard/MyTasksWidget.vue'
 import RecentlyEditedWidget from '@/components/dashboard/RecentlyEditedWidget.vue'
 import WorkflowStatusWidget from '@/components/dashboard/WorkflowStatusWidget.vue'
 import CompletenessWidget from '@/components/dashboard/CompletenessWidget.vue'
+import ActiveProjectsWidget from '@/components/dashboard/ActiveProjectsWidget.vue'
 
 const store = useDashboardStore()
 
@@ -19,6 +20,7 @@ const defaultWidgets = [
   { id: 'workflow', label: 'Workflow-Status', visible: true },
   { id: 'recent', label: 'Zuletzt bearbeitet', visible: true },
   { id: 'completeness', label: 'Produkt-Füllstand', visible: true },
+  { id: 'projects', label: 'Aktive Projekte', visible: true },
 ]
 
 function loadWidgetConfig() {
@@ -178,6 +180,11 @@ onMounted(() => {
           </div>
           <div v-else-if="wid === 'completeness'">
             <CompletenessWidget :summary="store.completenessSummary" />
+          </div>
+
+          <!-- Full width widgets -->
+          <div v-else-if="wid === 'projects'" class="lg:col-span-3">
+            <ActiveProjectsWidget :projects="store.activeProjects" />
           </div>
         </template>
       </div>
