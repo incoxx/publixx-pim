@@ -73,7 +73,9 @@ class User extends Authenticatable
 
     public function teams(): BelongsToMany
     {
-        return $this->belongsToMany(Team::class, 'team_user')->withTimestamps();
+        return $this->belongsToMany(Team::class, 'team_user')
+            ->using(UuidPivot::class)
+            ->withTimestamps();
     }
 
     public function isSsoUser(): bool

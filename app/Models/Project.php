@@ -51,12 +51,16 @@ class Project extends Model
 
     public function teams(): BelongsToMany
     {
-        return $this->belongsToMany(Team::class, 'project_team')->withTimestamps();
+        return $this->belongsToMany(Team::class, 'project_team')
+            ->using(UuidPivot::class)
+            ->withTimestamps();
     }
 
     public function products(): BelongsToMany
     {
-        return $this->belongsToMany(Product::class, 'project_product')->withTimestamps();
+        return $this->belongsToMany(Product::class, 'project_product')
+            ->using(UuidPivot::class)
+            ->withTimestamps();
     }
 
     public function deletionConstraints(): array
