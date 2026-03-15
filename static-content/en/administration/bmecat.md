@@ -165,4 +165,4 @@ The export result includes:
 
 - Learn about the [JSON Export](../export/json-export) to provide product data via the REST API.
 - Explore the [import features](../import/index) to import data from other formats.
-- Return to the [overview](../bedienung/index) to explore other functional areas.
+- Return to the [overview](../usage/index) to explore other functional areas.

@@ -133,6 +133,6 @@ Exports are limited to a maximum of 10,000 rows. For larger datasets, use filter
 
 ## Next Steps
 
-- Learn more about the [data model](../architektur/datenmodell) to understand the relationships between tables.
+- Learn more about the [data model](../architecture/data-model) to understand the relationships between tables.
 - Use the [API Tester](./api-tester) for structured data access through the REST API.
-- Return to the [overview](../bedienung/index) to explore other functional areas.
+- Return to the [overview](../usage/index) to explore other functional areas.

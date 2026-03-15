@@ -106,4 +106,4 @@ Links that are no longer needed can be deleted from the detail view. The access 
 
 - Learn more about [Roles & Permissions](./roles) to manage internal access control.
 - Use the [User Audit](./user-audit) to track access to the system.
-- Return to the [overview](../bedienung/index) to explore other functional areas.
+- Return to the [overview](../usage/index) to explore other functional areas.

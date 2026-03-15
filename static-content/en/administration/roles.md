@@ -137,6 +137,6 @@ Do not remove the Admin role from yourself if you are the only administrator. Th
 
 ## Next Steps
 
-- Learn how to [manage user accounts](../bedienung/benutzer).
+- Learn how to [manage user accounts](../usage/users).
 - Explore the [User Audit](./user-audit) to track user activities.
-- Return to the [overview](../bedienung/index) to explore other functional areas.
+- Return to the [overview](../usage/index) to explore other functional areas.

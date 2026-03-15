@@ -125,4 +125,4 @@ Audit entries are retained for **365 days** by default. After this period, entri
 
 - Learn more about [Roles & Permissions](./roles) to control feature access.
 - Use the [Journal](./journal) to track changes to product data.
-- Return to the [overview](../bedienung/index) to explore other functional areas.
+- Return to the [overview](../usage/index) to explore other functional areas.
