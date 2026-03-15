@@ -290,6 +290,12 @@ const routes = [
     meta: { title: 'Projekte' },
   },
   {
+    path: '/project-dashboard',
+    name: 'project-dashboard',
+    component: () => import('@/views/projects/ProjectDashboardView.vue'),
+    meta: { title: 'Projekt-Dashboard' },
+  },
+  {
     path: '/help',
     name: 'help',
     component: () => import('@/views/HelpView.vue'),

@@ -46,6 +46,7 @@ const sections = computed(() => {
       key: 'project',
       label: 'Projektmanagement',
       items: [
+        { icon: LayoutDashboard, label: () => 'Projekt-Dashboard', to: '/project-dashboard' },
         { icon: GitBranch, label: () => 'Workflows', to: '/workflows' },
         { icon: Zap, label: () => 'Workflow-Status', to: '/workflow-statuses' },
         { icon: Users, label: () => 'Teams', to: '/teams' },

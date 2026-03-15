@@ -7,9 +7,6 @@ import MyTasksWidget from '@/components/dashboard/MyTasksWidget.vue'
 import RecentlyEditedWidget from '@/components/dashboard/RecentlyEditedWidget.vue'
 import WorkflowStatusWidget from '@/components/dashboard/WorkflowStatusWidget.vue'
 import CompletenessWidget from '@/components/dashboard/CompletenessWidget.vue'
-import ActiveProjectsWidget from '@/components/dashboard/ActiveProjectsWidget.vue'
-import TeamWorkloadWidget from '@/components/dashboard/TeamWorkloadWidget.vue'
-import ProjectTimelineWidget from '@/components/dashboard/ProjectTimelineWidget.vue'
 
 const store = useDashboardStore()
 
@@ -22,9 +19,6 @@ const defaultWidgets = [
   { id: 'workflow', label: 'Workflow-Status', visible: true },
   { id: 'recent', label: 'Zuletzt bearbeitet', visible: true },
   { id: 'completeness', label: 'Produkt-Füllstand', visible: true },
-  { id: 'projects', label: 'Aktive Projekte', visible: true },
-  { id: 'team-workload', label: 'Team-Auslastung', visible: true },
-  { id: 'timeline', label: 'Projekt-Timeline', visible: true },
 ]
 
 function loadWidgetConfig() {
@@ -184,17 +178,6 @@ onMounted(() => {
           </div>
           <div v-else-if="wid === 'completeness'">
             <CompletenessWidget :summary="store.completenessSummary" />
-          </div>
-          <div v-else-if="wid === 'team-workload'">
-            <TeamWorkloadWidget :workload="store.teamWorkload" />
-          </div>
-
-          <!-- Full width widgets -->
-          <div v-else-if="wid === 'projects'" class="lg:col-span-3">
-            <ActiveProjectsWidget :projects="store.activeProjects" />
-          </div>
-          <div v-else-if="wid === 'timeline'" class="lg:col-span-3">
-            <ProjectTimelineWidget :projects="store.projectTimeline" />
           </div>
         </template>
       </div>
