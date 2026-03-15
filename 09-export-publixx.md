@@ -1,60 +1,60 @@
-# anyPIM — Export & Publixx-Integration
+# anyPIM — Export & Publixx Integration
 
-> **Zweck:** JSON-Export und Publixx-Anbindung. Verwende diesen Skill beim Implementieren der Export-Engine, Mapping-Konfiguration und Live-API-Endpunkte für Publixx.
-
----
-
-## Konzept
-
-Das PIM exportiert Produktdaten als JSON-Datasets, die direkt als Publixx-Datasets verwendbar sind. Ein konfigurierbares Mapping übersetzt PIM-Attribute in Publixx-JSON-Felder.
+> **Purpose:** JSON export and Publixx integration. Use this skill when implementing the export engine, mapping configuration, and live API endpoints for Publixx.
 
 ---
 
-## Export-Endpunkte
+## Concept
+
+The PIM exports product data as JSON datasets that are directly usable as Publixx datasets. A configurable mapping translates PIM attributes into Publixx JSON fields.
+
+---
+
+## Export Endpoints
 
 ```
-GET  /api/v1/export/products                           Filter → JSON-Array
-GET  /api/v1/export/products/{id}                      Einzelprodukt
-POST /api/v1/export/products/bulk                      Bulk nach Filter
-GET  /api/v1/export/products/{id}/publixx              PXF-Dataset-Format
-POST /api/v1/export/query                              PQL-Filter
+GET  /api/v1/export/products                           Filter → JSON array
+GET  /api/v1/export/products/{id}                      Single product
+POST /api/v1/export/products/bulk                      Bulk by filter
+GET  /api/v1/export/products/{id}/publixx              PXF dataset format
+POST /api/v1/export/query                              PQL filter
 ```
 
-### Publixx Live-API
+### Publixx Live API
 
 ```
-GET  /api/v1/publixx/datasets/{mapping_id}             Alle Produkte des Mappings
-GET  /api/v1/publixx/datasets/{mapping_id}/{product_id} Einzelnes Dataset
-POST /api/v1/publixx/datasets/{mapping_id}/pql          PQL-gefiltert
-POST /api/v1/publixx/webhook                            Webhook von Publixx
+GET  /api/v1/publixx/datasets/{mapping_id}             All products of the mapping
+GET  /api/v1/publixx/datasets/{mapping_id}/{product_id} Single dataset
+POST /api/v1/publixx/datasets/{mapping_id}/pql          PQL-filtered
+POST /api/v1/publixx/webhook                            Webhook from Publixx
 ```
 
 ---
 
-## Filter-Parameter
+## Filter Parameters
 
-| Parameter | Beispiel | Beschreibung |
-|-----------|---------|--------------|
-| filter[status] | active | Produktstatus |
-| filter[hierarchy_node] | uuid | Alle Produkte unter Knoten |
-| filter[hierarchy_path] | Elektro/Akkubohr | Per Pfad |
-| filter[attribute.gewicht][gte] | 5 | Attributwert numerisch |
-| filter[attribute.farbe] | rot | Attributwert exakt |
-| filter[attribute.name][contains] | Bohr | Teilstring |
-| filter[view] | eshop_view | Nur Attribute einer Sicht |
-| filter[output_hierarchy] | uuid | Ausgabehierarchie |
-| filter[updated_after] | 2025-01-01T00:00:00Z | Delta-Export |
-| include_media | true | Medien-URLs |
-| include_prices | true | Preise |
-| include_relations | true | Beziehungen |
-| lang | de,en | Sprachen |
+| Parameter | Example | Description |
+|-----------|---------|-------------|
+| filter[status] | active | Product status |
+| filter[hierarchy_node] | uuid | All products under node |
+| filter[hierarchy_path] | Elektro/Akkubohr | By path |
+| filter[attribute.gewicht][gte] | 5 | Attribute value numeric |
+| filter[attribute.farbe] | rot | Attribute value exact |
+| filter[attribute.name][contains] | Bohr | Substring |
+| filter[view] | eshop_view | Only attributes of a view |
+| filter[output_hierarchy] | uuid | Output hierarchy |
+| filter[updated_after] | 2025-01-01T00:00:00Z | Delta export |
+| include_media | true | Media URLs |
+| include_prices | true | Prices |
+| include_relations | true | Relations |
+| lang | de,en | Languages |
 | format | publixx | flat / nested / publixx |
 
 ---
 
-## Export-Mapping (publixx_export_mappings)
+## Export Mapping (publixx_export_mappings)
 
-### Entität
+### Entity
 
 ```
 id, name, attribute_view_id (FK nullable), output_hierarchy_id (FK nullable),
@@ -62,7 +62,7 @@ mapping_rules (JSON), include_media, include_prices, include_variants,
 include_relations, languages (JSON), flatten_mode ENUM('flat','nested','publixx')
 ```
 
-### Mapping-Regeln
+### Mapping Rules
 
 ```json
 {
@@ -79,10 +79,10 @@ include_relations, languages (JSON), flatten_mode ENUM('flat','nested','publixx'
 }
 ```
 
-### Mapping-Typen
+### Mapping Types
 
-| type | source | Ergebnis |
-|------|--------|---------|
+| type | source | Result |
+|------|--------|--------|
 | text | attribute:tech_name | `"productName": "Wert"` |
 | unit_value | attribute:tech_name | `"specs.weight": { "value": 1.8, "unit": "kg" }` |
 | media_url | media:usage_type | `"productImage": "https://..."` |
@@ -90,11 +90,11 @@ include_relations, languages (JSON), flatten_mode ENUM('flat','nested','publixx'
 | price | prices:price_type | `"preis.listenpreis": 189.99` |
 | variant_array | variants | `"varianten": [{ "sku": "...", ... }]` |
 | relation_array | relations:rel_type | `"zubehoer": [{ "sku": "...", ... }]` |
-| group | collection:name | Gruppiert Attribute als Objekt |
+| group | collection:name | Groups attributes as object |
 
 ---
 
-## Beispiel: Exportiertes Dataset (format=publixx)
+## Example: Exported Dataset (format=publixx)
 
 ```json
 {
@@ -137,21 +137,21 @@ include_relations, languages (JSON), flatten_mode ENUM('flat','nested','publixx'
 
 ---
 
-## Publixx Element-Binding
+## Publixx Element Binding
 
-| Publixx Element | bind | PIM-Quelle |
+| Publixx Element | bind | PIM Source |
 |-----------------|------|-----------|
-| text (Name) | `"productName"` | Attribut |
-| image (Hauptbild) | `"productImage"` | Media teaser |
-| text (Gewicht Wert) | `"specs.weight.value"` | Attribut (Wert) |
-| text (Gewicht Einheit) | `"specs.weight.unit"` | Attribut (Einheit) |
-| smartTable | `"varianten"` | Varianten |
+| text (Name) | `"productName"` | Attribute |
+| image (Main image) | `"productImage"` | Media teaser |
+| text (Weight value) | `"specs.weight.value"` | Attribute (value) |
+| text (Weight unit) | `"specs.weight.unit"` | Attribute (unit) |
+| smartTable | `"varianten"` | Variants |
 | group/repeater | `"zubehoer"` | Relations |
-| barcode | `"ean"` | Grunddatum |
+| barcode | `"ean"` | Base data |
 
 ---
 
-## PQL auf exportierten Datasets (in Publixx)
+## PQL on Exported Datasets (in Publixx)
 
 ```sql
 SELECT * WHERE status = 'active' AND productImage EXISTS
@@ -162,13 +162,13 @@ SELECT * WHERE hierarchy LIKE 'Elektrowerkzeuge%'
 
 ---
 
-## Laravel-Klassen
+## Laravel Classes
 
 ```php
-App\Services\Export\ExportService           // Orchestrierung
-App\Services\Export\MappingResolver         // Mapping-Regeln → JSON
-App\Services\Export\DatasetBuilder          // Produkt → Dataset
-App\Services\Export\PublixxDatasetService   // Publixx-spezifische Endpunkte
+App\Services\Export\ExportService           // Orchestration
+App\Services\Export\MappingResolver         // Mapping rules → JSON
+App\Services\Export\DatasetBuilder          // Product → dataset
+App\Services\Export\PublixxDatasetService   // Publixx-specific endpoints
 App\Http\Controllers\Api\V1\ExportController
 App\Http\Controllers\Api\V1\PublixxDatasetController
 ```

@@ -1,127 +1,127 @@
-# anyPIM — Excel-Import
+# anyPIM — Excel Import
 
-> **Zweck:** Excel-basierter Datenimport. Verwende diesen Skill beim Implementieren der Import-Engine, Validierung, Template-Generierung und Import-UI.
-
----
-
-## Prinzip
-
-Daten kommen aus Fachbereichen ohne JSON-Kenntnisse. Excel ist das universelle Austauschformat. Ein zentrales Template mit 14 Reitern — nicht alle müssen befüllt werden, jeder Reiter kann einzeln importiert werden.
+> **Purpose:** Excel-based data import. Use this skill when implementing the import engine, validation, template generation, and import UI.
 
 ---
 
-## Template: 14 Reiter
+## Principle
 
-| Nr | Reiter | Zweck | Abhängig von | Quelle |
-|----|--------|-------|-------------|--------|
-| 01 | Produkttypen | Typen definieren | - | PIM-Team |
-| 02 | Attributgruppen | Attributtypen | - | Data Steward |
-| 03 | Einheiten | Gruppen + Einheiten | - | Data Steward |
-| 04 | Wertelisten | Listen + Werte | - | Data Steward |
-| 05 | Attribute | Attributdefinitionen | 02, 03, 04 | Data Steward |
-| 06 | Hierarchien | Baumstrukturen | - | Data Steward |
-| 07 | Hierarchie_Attribute | Attribut → Knoten | 05, 06 | Data Steward |
-| 08 | Produkte | Produkte anlegen | 01 | PM |
-| 09 | Produktwerte | Attributwerte | 05, 08 | PM |
-| 10 | Varianten | Varianten | 08 | PM |
-| 11 | Produkt_Hierarchien | Produkt → Knoten | 06, 08 | PM |
-| 12 | Produktbeziehungen | Zubehör etc. | 08 | PM |
-| 13 | Preise | Preise | 08 | Vertrieb |
-| 14 | Medien | Medien-Zuordnung | 08 | Marketing |
+Data comes from departments without JSON expertise. Excel is the universal exchange format. One central template with 14 sheets — not all need to be filled in, each sheet can be imported individually.
 
 ---
 
-## Sheet-Spezifikationen (Spalten)
+## Template: 14 Sheets
 
-### 05_Attribute (Kern-Reiter)
+| No | Sheet | Purpose | Depends on | Source |
+|----|-------|---------|------------|--------|
+| 01 | Produkttypen | Define types | - | PIM Team |
+| 02 | Attributgruppen | Attribute types | - | Data Steward |
+| 03 | Einheiten | Groups + units | - | Data Steward |
+| 04 | Wertelisten | Lists + values | - | Data Steward |
+| 05 | Attribute | Attribute definitions | 02, 03, 04 | Data Steward |
+| 06 | Hierarchien | Tree structures | - | Data Steward |
+| 07 | Hierarchie_Attribute | Attribute → node | 05, 06 | Data Steward |
+| 08 | Produkte | Create products | 01 | PM |
+| 09 | Produktwerte | Attribute values | 05, 08 | PM |
+| 10 | Varianten | Variants | 08 | PM |
+| 11 | Produkt_Hierarchien | Product → node | 06, 08 | PM |
+| 12 | Produktbeziehungen | Accessories etc. | 08 | PM |
+| 13 | Preise | Prices | 08 | Sales |
+| 14 | Medien | Media assignment | 08 | Marketing |
 
-| Spalte | Header | Pflicht | Typ | Beschreibung |
-|--------|--------|---------|-----|--------------|
-| A | Technischer Name* | Ja | String | Eindeutig |
-| B | Name (Deutsch)* | Ja | String | Anzeigename |
-| C | Name (Englisch) | Nein | String | |
-| D | Beschreibung | Nein | Text | |
-| E | Datentyp* | Ja | Enum | String/Number/Float/Date/Flag/Selection/Dictionary/Collection |
-| F | Attributgruppe | Nein | String | Techn. Name aus Reiter 02 |
-| G | Werteliste | Nein | String | Techn. Name aus Reiter 04 |
-| H | Einheitengruppe | Nein | String | Techn. Name aus Reiter 03 |
-| I | Standard-Einheit | Nein | String | Kürzel (z.B. kg) |
-| J | Vermehrbar | Nein | Ja/Nein | |
-| K | Max. Vermehrungen | Nein | Zahl | |
-| L | Übersetzbar | Nein | Ja/Nein | |
-| M | Pflicht | Nein | Optional/Pflicht | |
-| N | Eindeutig | Nein | Ja/Nein | |
-| O | Suchbar | Nein | Ja/Nein | |
-| P | Vererbbar | Nein | Ja/Nein | |
-| Q | Übergeordnetes Attribut | Nein | String | Techn. Name Eltern-Attribut |
-| R | Quellsystem | Nein | String | PIM/SAP ERP/Other |
-| S | Sichten | Nein | String | Kommasepariert |
+---
+
+## Sheet Specifications (Columns)
+
+### 05_Attribute (Core sheet)
+
+| Column | Header | Required | Type | Description |
+|--------|--------|----------|------|-------------|
+| A | Technischer Name* | Yes | String | Unique |
+| B | Name (Deutsch)* | Yes | String | Display name |
+| C | Name (Englisch) | No | String | |
+| D | Beschreibung | No | Text | |
+| E | Datentyp* | Yes | Enum | String/Number/Float/Date/Flag/Selection/Dictionary/Collection |
+| F | Attributgruppe | No | String | Technical name from sheet 02 |
+| G | Werteliste | No | String | Technical name from sheet 04 |
+| H | Einheitengruppe | No | String | Technical name from sheet 03 |
+| I | Standard-Einheit | No | String | Abbreviation (e.g. kg) |
+| J | Vermehrbar | No | Yes/No | |
+| K | Max. Vermehrungen | No | Number | |
+| L | Übersetzbar | No | Yes/No | |
+| M | Pflicht | No | Optional/Required | |
+| N | Eindeutig | No | Yes/No | |
+| O | Suchbar | No | Yes/No | |
+| P | Vererbbar | No | Yes/No | |
+| Q | Übergeordnetes Attribut | No | String | Technical name of parent attribute |
+| R | Quellsystem | No | String | PIM/SAP ERP/Other |
+| S | Sichten | No | String | Comma-separated |
 
 ### 06_Hierarchien
 
-| Spalte | Header | Beschreibung |
-|--------|--------|--------------|
-| A | Hierarchie* | Technischer Name |
+| Column | Header | Description |
+|--------|--------|-------------|
+| A | Hierarchie* | Technical name |
 | B | Typ* | master / output |
-| C-H | Ebene 1-6 | Tiefste befüllte Spalte = der Knoten |
+| C-H | Ebene 1-6 | Deepest populated column = the node |
 
 ### 08_Produkte
 
-| Spalte | Header | Pflicht | Beschreibung |
-|--------|--------|---------|--------------|
-| A | SKU* | Ja | Artikelnummer (Identifier) |
-| B | Produktname* | Ja | |
-| C | Produktname (EN) | Nein | |
-| D | Produkttyp* | Ja | Techn. Name |
-| E | EAN | Nein | Nur bei physischen Produkten |
-| F | Status | Nein | draft/active/inactive |
+| Column | Header | Required | Description |
+|--------|--------|----------|-------------|
+| A | SKU* | Yes | Article number (identifier) |
+| B | Produktname* | Yes | |
+| C | Produktname (EN) | No | |
+| D | Produkttyp* | Yes | Technical name |
+| E | EAN | No | Only for physical products |
+| F | Status | No | draft/active/inactive |
 
 ### 09_Produktwerte
 
-| Spalte | Header | Pflicht | Beschreibung |
-|--------|--------|---------|--------------|
-| A | SKU* | Ja | Produktreferenz |
-| B | Attribut* | Ja | Techn. Name ODER Anzeigename |
-| C | Wert* | Ja | Passend zum Datentyp |
-| D | Einheit | Nein | Kürzel (nur numerisch) |
-| E | Sprache | Nein | ISO-Code (nur übersetzbar) |
-| F | Index | Nein | Bei vermehrbaren Attributen |
+| Column | Header | Required | Description |
+|--------|--------|----------|-------------|
+| A | SKU* | Yes | Product reference |
+| B | Attribut* | Yes | Technical name OR display name |
+| C | Wert* | Yes | Matching the data type |
+| D | Einheit | No | Abbreviation (numeric only) |
+| E | Sprache | No | ISO code (translatable only) |
+| F | Index | No | For multiplied attributes |
 
 ---
 
-## Import-Ablauf (3 Phasen)
+## Import Workflow (3 Phases)
 
 ### Phase 1: Upload
 ```
 POST /api/v1/imports (multipart/form-data: file)
-→ Datei speichern
-→ Sheets erkennen
+→ Save file
+→ Detect sheets
 → Status: "uploaded"
 ```
 
-### Phase 2: Validierung
+### Phase 2: Validation
 ```
-GET /api/v1/imports/{id} (automatisch nach Upload)
-→ Schema-Prüfung (Pflichtfelder, Datentypen, Enums)
-→ Referenz-Auflösung (techn. Namen → UUIDs)
-→ Abhängigkeits-Check (existieren referenzierte Entitäten?)
-→ Duplikat-Erkennung (Create vs. Update)
-→ Fuzzy-Matching bei Nicht-Auflösung
+GET /api/v1/imports/{id} (automatically after upload)
+→ Schema check (required fields, data types, enums)
+→ Reference resolution (technical names → UUIDs)
+→ Dependency check (do referenced entities exist?)
+→ Duplicate detection (create vs. update)
+→ Fuzzy matching on non-resolution
 → Status: "validated"
 ```
 
-### Phase 3: Ausführung
+### Phase 3: Execution
 ```
-GET /api/v1/imports/{id}/preview → Diff-Vorschau
-POST /api/v1/imports/{id}/execute → Bestätigen
-→ Async via Laravel Queue (bei > 100 Zeilen)
+GET /api/v1/imports/{id}/preview → Diff preview
+POST /api/v1/imports/{id}/execute → Confirm
+→ Async via Laravel Queue (for > 100 rows)
 → Status: "executing" → "completed"
 GET /api/v1/imports/{id}/result → Report
 ```
 
 ---
 
-## Validierungs-Response
+## Validation Response
 
 ```json
 {
@@ -136,13 +136,13 @@ GET /api/v1/imports/{id}/result → Report
     {
       "sheet": "05_Attribute", "row": 45, "column": "E", "field": "Datentyp",
       "value": "Texxt",
-      "error": "Ungültiger Datentyp. Erlaubt: String, Number, Float, ...",
+      "error": "Invalid data type. Allowed: String, Number, Float, ...",
       "suggestion": null
     },
     {
       "sheet": "09_Produktwerte", "row": 8401, "column": "B", "field": "Attribut",
       "value": "Gwicht",
-      "error": "Attribut nicht gefunden.",
+      "error": "Attribute not found.",
       "suggestion": "Gewicht"
     }
   ]
@@ -151,39 +151,39 @@ GET /api/v1/imports/{id}/result → Report
 
 ---
 
-## Smart-Matching (Fuzzy-Auflösung)
+## Smart Matching (Fuzzy Resolution)
 
-- Levenshtein-Distanz (Threshold: 85% Ähnlichkeit)
+- Levenshtein distance (threshold: 85% similarity)
 - Case-insensitive: "gewicht" = "Gewicht" = "GEWICHT"
-- Trim + Normalisierung (Leerzeichen)
-- Vorschläge: "Meinten Sie: ...?"
-- Strict-Mode deaktiviert Fuzzy
+- Trim + normalization (whitespace)
+- Suggestions: "Did you mean: ...?"
+- Strict mode disables fuzzy
 
 ---
 
-## Update-Logik (Upsert)
+## Update Logic (Upsert)
 
-| Entität | Identifikation über | Bei Existenz |
-|---------|-------------------|-------------|
+| Entity | Identified by | On existence |
+|--------|--------------|-------------|
 | Produkttyp | technical_name | Update |
 | Attribut | technical_name | Update |
 | Einheitengruppe | technical_name | Update |
 | Werteliste | technical_name | Update |
-| Hierarchieknoten | Pfad (Ebenen) | Skip |
+| Hierarchieknoten | Path (levels) | Skip |
 | Produkt | SKU | Update |
 | Produktwert | SKU + Attribut + Sprache + Index | Update |
 | Preis | SKU + Preisart + Währung + Gültigkeit | Update |
 
 ---
 
-## Laravel-Klassen
+## Laravel Classes
 
 ```php
-App\Services\Import\ImportService          // Orchestrierung
-App\Services\Import\SheetParser            // Excel → strukturierte Daten
-App\Services\Import\SheetValidator         // Validierung + Fehler
-App\Services\Import\ReferenceResolver      // Techn. Namen → UUIDs
-App\Services\Import\FuzzyMatcher           // Tippfehler-Erkennung
-App\Services\Import\ImportExecutor         // Daten schreiben (Queue-Job)
-App\Services\Import\TemplateGenerator      // Leeres Template erzeugen
+App\Services\Import\ImportService          // Orchestration
+App\Services\Import\SheetParser            // Excel → structured data
+App\Services\Import\SheetValidator         // Validation + errors
+App\Services\Import\ReferenceResolver      // Technical names → UUIDs
+App\Services\Import\FuzzyMatcher           // Typo detection
+App\Services\Import\ImportExecutor         // Write data (queue job)
+App\Services\Import\TemplateGenerator      // Generate empty template
 ```

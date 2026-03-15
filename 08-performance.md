@@ -1,65 +1,65 @@
-# anyPIM — Performance-Architektur
+# anyPIM — Performance Architecture
 
-> **Zweck:** Das System muss rasend schnell sein. Verwende diesen Skill bei Optimierung, Caching, Indizierung und Infrastruktur-Entscheidungen.
-
----
-
-## Latenz-Budgets
-
-| Operation | Ziel | Strategie |
-|-----------|------|-----------|
-| Produktliste (50 Produkte) | < 100ms | Redis Cache, Sparse Fields, Paginierung |
-| Produktdetail (alle Werte) | < 200ms | Eager Loading, Cache, Denormalisierung |
-| PQL-Query (einfach) | < 50ms | FULLTEXT Index, Redis Query-Cache |
-| PQL-Query (FUZZY) | < 200ms | FULLTEXT Vorfilter + PHP Fuzzy auf Subset |
-| Hierarchie-Baum (komplett) | < 150ms | Materialized Path, Redis Baum-Cache |
-| Hierarchie-Knoten öffnen | < 50ms | Lazy-Load Kinder |
-| Attributwerte speichern | < 300ms | Bulk-Upsert, Async Cache-Invalidierung |
-| Export (1000 Produkte) | < 5s | Streaming JSON, Queue |
-| PXF Preview | < 500ms | Client-Side Rendering, Daten vorgeladen |
+> **Purpose:** The system must be blazingly fast. Use this skill when optimizing, caching, indexing, and making infrastructure decisions.
 
 ---
 
-## Redis-Cache
+## Latency Budgets
 
-### Cache-Schichten
+| Operation | Target | Strategy |
+|-----------|--------|----------|
+| Product list (50 products) | < 100ms | Redis cache, sparse fields, pagination |
+| Product detail (all values) | < 200ms | Eager loading, cache, denormalization |
+| PQL query (simple) | < 50ms | FULLTEXT index, Redis query cache |
+| PQL query (FUZZY) | < 200ms | FULLTEXT pre-filter + PHP fuzzy on subset |
+| Hierarchy tree (complete) | < 150ms | Materialized path, Redis tree cache |
+| Hierarchy node open | < 50ms | Lazy-load children |
+| Save attribute values | < 300ms | Bulk upsert, async cache invalidation |
+| Export (1000 products) | < 5s | Streaming JSON, queue |
+| PXF Preview | < 500ms | Client-side rendering, data preloaded |
 
-| Key-Pattern | TTL | Invalidierung | Inhalt |
-|------------|-----|---------------|--------|
-| `product:{id}:full` | 1h | Produktänderung | Produkt + alle Werte |
-| `product:{id}:lang:{lang}` | 1h | Wertänderung | Sprachspezifisch |
-| `hierarchy:{id}:tree` | 6h | Baumänderung | Vollständiger Baum JSON |
-| `hierarchy:{id}:node:{nid}:attrs` | 6h | Zuordnungsänderung | Attribute inkl. vererbte |
-| `pql:hash:{sha256}` | 15min | TTL-basiert | PQL-Query-Ergebnis |
-| `products:list:hash:{params}` | 5min | TTL-basiert | Produktliste mit Filtern |
-| `attributes:all` | 1h | Attributänderung | Alle Definitionen |
-| `export:mapping:{id}:product:{pid}` | 30min | Produkt-/Mappingänderung | Export-Dataset |
+---
 
-### Invalidierung
+## Redis Cache
+
+### Cache Layers
+
+| Key Pattern | TTL | Invalidation | Content |
+|------------|-----|--------------|---------|
+| `product:{id}:full` | 1h | Product change | Product + all values |
+| `product:{id}:lang:{lang}` | 1h | Value change | Language-specific |
+| `hierarchy:{id}:tree` | 6h | Tree change | Complete tree JSON |
+| `hierarchy:{id}:node:{nid}:attrs` | 6h | Assignment change | Attributes incl. inherited |
+| `pql:hash:{sha256}` | 15min | TTL-based | PQL query result |
+| `products:list:hash:{params}` | 5min | TTL-based | Product list with filters |
+| `attributes:all` | 1h | Attribute change | All definitions |
+| `export:mapping:{id}:product:{pid}` | 30min | Product/mapping change | Export dataset |
+
+### Invalidation
 
 ```php
-// Event-basiert via Model Observer
+// Event-based via Model Observer
 class ProductObserver {
     public function updated(Product $product) {
         Cache::tags(['product:' . $product->id])->flush();
-        // Async: Search-Index aktualisieren
+        // Async: update search index
         dispatch(new UpdateSearchIndex($product->id));
     }
 }
 
-// Tag-basiert: selektiv
-Cache::tags(['product:uuid-123'])->flush();   // Nur dieses Produkt
-Cache::tags(['hierarchy:uuid-456'])->flush(); // Nur dieser Baum
+// Tag-based: selective
+Cache::tags(['product:uuid-123'])->flush();   // Only this product
+Cache::tags(['hierarchy:uuid-456'])->flush(); // Only this tree
 
-// Queue-basiert nach Massenoperationen (Import)
+// Queue-based after bulk operations (import)
 dispatch(new WarmupCache($importedProductIds))->afterCommit();
 ```
 
 ---
 
-## Datenbank-Optimierung
+## Database Optimization
 
-### Denormalisierter Suchindex
+### Denormalized Search Index
 
 ```sql
 CREATE TABLE products_search_index (
@@ -73,7 +73,7 @@ CREATE TABLE products_search_index (
   primary_image VARCHAR(500),
   list_price DECIMAL(12,2),
   attribute_completeness TINYINT,
-  phonetic_name_de VARCHAR(100),       -- Kölner Phonetik für SOUNDS_LIKE
+  phonetic_name_de VARCHAR(100),       -- Cologne phonetics for SOUNDS_LIKE
   updated_at TIMESTAMP,
   FULLTEXT idx_ft_name (name_de, name_en),
   FULLTEXT idx_ft_desc (description_de),
@@ -84,23 +84,23 @@ CREATE TABLE products_search_index (
 );
 ```
 
-PQL-Queries laufen primär gegen diese Tabelle statt gegen die EAV-Tabellen. Wird über Events automatisch aktualisiert.
+PQL queries run primarily against this table instead of the EAV tables. Updated automatically via events.
 
-### Materialized Path (Hierarchien)
+### Materialized Path (Hierarchies)
 
 ```sql
--- Spalten auf hierarchy_nodes:
-path VARCHAR(1000)    -- z.B. "/node-1/node-2/node-3/"
-depth INT             -- 0 = Root
+-- Columns on hierarchy_nodes:
+path VARCHAR(1000)    -- e.g. "/node-1/node-2/node-3/"
+depth INT             -- 0 = root
 
--- Alle Kinder (beliebige Tiefe): O(1)!
+-- All children (any depth): O(1)!
 SELECT * FROM hierarchy_nodes WHERE path LIKE '/node-1/node-2/%' ORDER BY path;
 
--- Alle Vorfahren:
+-- All ancestors:
 SELECT * FROM hierarchy_nodes WHERE '/node-1/node-2/node-3/' LIKE CONCAT(path, '%');
 ```
 
-### Indizes (EAV-Tabelle)
+### Indexes (EAV Table)
 
 ```sql
 -- product_attribute_values
@@ -117,53 +117,53 @@ INDEX (status)
 FULLTEXT (name)
 ```
 
-### MySQL-Konfiguration
+### MySQL Configuration
 
 ```ini
 innodb_buffer_pool_size = 70% RAM
 innodb_log_file_size = 256M
-innodb_flush_log_at_trx_commit = 2    # Performance > Durability für Dev
-query_cache_type = 0                   # Redis übernimmt
-ft_min_word_len = 2                    # Kurze Suchbegriffe erlauben
+innodb_flush_log_at_trx_commit = 2    # Performance > durability for dev
+query_cache_type = 0                   # Redis takes over
+ft_min_word_len = 2                    # Allow short search terms
 ```
 
 ---
 
-## Frontend-Performance
+## Frontend Performance
 
-| Pattern | Implementierung | Effekt |
-|---------|----------------|--------|
-| Virtuelles Scrolling | vue-virtual-scroller | 1000+ Zeilen, nur sichtbare rendern |
-| Lazy Loading | Hierarchie-Kinder bei Expand | Initial < 50 Knoten |
-| Debounce | 250ms auf Suche/Filter | Keine Calls pro Tastendruck |
-| Optimistic Updates | Sofort UI, API im Hintergrund | Gefühlt 0ms |
-| Skeleton Loading | Animierte Platzhalter | Gefühlt schneller |
-| SWR | Stale-While-Revalidate | Instant Navigation |
-| Code-Splitting | Vite Route-based Chunks | Initial < 200KB gzip |
-| Web Worker | Client-PQL-Filter | UI bleibt responsive |
-| PXF Client Rendering | Kein Server-Roundtrip | Layout sofort |
+| Pattern | Implementation | Effect |
+|---------|---------------|--------|
+| Virtual Scrolling | vue-virtual-scroller | 1000+ rows, only render visible |
+| Lazy Loading | Hierarchy children on expand | Initial < 50 nodes |
+| Debounce | 250ms on search/filter | No calls per keystroke |
+| Optimistic Updates | Immediate UI, API in background | Perceived 0ms |
+| Skeleton Loading | Animated placeholders | Perceived faster |
+| SWR | Stale-While-Revalidate | Instant navigation |
+| Code Splitting | Vite route-based chunks | Initial < 200KB gzip |
+| Web Worker | Client PQL filter | UI stays responsive |
+| PXF Client Rendering | No server roundtrip | Layout immediately |
 
 ---
 
-## Infrastruktur
+## Infrastructure
 
-| Komponente | Empfehlung | Skalierung |
-|-----------|-----------|-----------|
+| Component | Recommendation | Scaling |
+|-----------|---------------|---------|
 | PHP | 8.3 + OPcache + JIT | Horizontal (LB) |
-| MySQL | 8.0+ InnoDB, Buffer Pool = 70% RAM | Read-Replicas |
-| Redis | 7+ Cluster | Getrennt: Cache + Queue + Session |
-| Queue | Laravel Horizon, 4-8 Worker | Auto-Scale nach Queue-Länge |
-| Medien | S3-kompatibel + CDN | CloudFront / Bunny |
-| Frontend | Static Hosting | Global CDN |
+| MySQL | 8.0+ InnoDB, buffer pool = 70% RAM | Read replicas |
+| Redis | 7+ Cluster | Separated: cache + queue + session |
+| Queue | Laravel Horizon, 4-8 workers | Auto-scale by queue length |
+| Media | S3-compatible + CDN | CloudFront / Bunny |
+| Frontend | Static hosting | Global CDN |
 
 ---
 
 ## Monitoring
 
 ```
-- Response Time p50, p95, p99 pro Endpunkt
-- Redis Hit-Rate (Ziel: > 85%)
-- MySQL Slow Query Log (> 100ms)
-- Queue-Länge und Processing-Time
-- products_search_index Sync-Lag
+- Response time p50, p95, p99 per endpoint
+- Redis hit rate (target: > 85%)
+- MySQL slow query log (> 100ms)
+- Queue length and processing time
+- products_search_index sync lag
 ```
