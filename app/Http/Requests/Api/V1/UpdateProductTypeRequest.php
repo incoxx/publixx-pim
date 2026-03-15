@@ -38,7 +38,7 @@ class UpdateProductTypeRequest extends FormRequest
             'validation_rules' => 'nullable|array',
             'sort_order' => 'integer',
             'is_active' => 'boolean',
-            'workflow_enabled' => 'boolean',
+            'workflow_id' => 'nullable|uuid|exists:workflows,id',
         ];
     }
 }

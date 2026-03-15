@@ -29,6 +29,7 @@ const ACTION_TYPE_LABELS = {
   data_change: 'Datenänderung',
   export: 'Export',
   version_publish: 'Version',
+  project_deadline: 'Projekt',
 }
 
 const views = [
@@ -164,6 +165,7 @@ onMounted(() => {
       <div class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm" style="background: #f59e0b"></span> Datenänderung</div>
       <div class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm" style="background: #14b8a6"></span> Export</div>
       <div class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm" style="background: #8b5cf6"></span> Version</div>
+      <div class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm" style="background: #ec4899"></span> Projekt</div>
     </div>
 
     <!-- Dialog -->

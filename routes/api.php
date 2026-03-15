@@ -354,6 +354,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
 
     Route::apiResource('products', ProductController::class);
     Route::get('products/{product}/dependencies', [ProductController::class, 'dependencies']);
+    Route::get('products/{product}/available-transitions', [ProductController::class, 'availableTransitions']);
 
     // Product Preview
     Route::get('products/{product}/preview', [ProductController::class, 'preview']);

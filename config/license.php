@@ -63,6 +63,10 @@ return [
             'name' => 'Single Sign-On',
             'description' => 'Azure AD / OAuth SSO-Integration',
         ],
+        'workflow' => [
+            'name' => 'Workflow-Management',
+            'description' => 'Konfigurierbare Workflows, Teams und Projekte',
+        ],
     ],
 
 ];
