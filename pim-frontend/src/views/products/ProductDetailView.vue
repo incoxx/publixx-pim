@@ -65,19 +65,25 @@ async function loadProductTypes() {
   } catch { /* silently fail */ }
 }
 
-const tabs = [
-  { key: 'base-data', label: 'Grunddaten' },
-  { key: 'attributes', label: t('product.attributes') },
-  { key: 'variant-attributes', label: 'Varianten-Attribute' },
-  { key: 'variants', label: t('product.variants') },
-  { key: 'media', label: t('product.media') },
-  { key: 'prices', label: t('product.prices') },
-  { key: 'relations', label: t('product.relations') },
-  { key: 'output-hierarchies', label: 'Ausgabehierarchien' },
-  { key: 'preview', label: t('product.preview') },
-  { key: 'versions', label: t('product.versions') },
-  { key: 'scheduled-actions', label: 'Planung' },
-]
+const tabs = computed(() => {
+  const base = [
+    { key: 'base-data', label: 'Grunddaten' },
+    { key: 'attributes', label: t('product.attributes') },
+    { key: 'variant-attributes', label: 'Varianten-Attribute' },
+    { key: 'variants', label: t('product.variants') },
+    { key: 'media', label: t('product.media') },
+    { key: 'prices', label: t('product.prices') },
+    { key: 'relations', label: t('product.relations') },
+    { key: 'output-hierarchies', label: 'Ausgabehierarchien' },
+    { key: 'preview', label: t('product.preview') },
+    { key: 'versions', label: t('product.versions') },
+    { key: 'scheduled-actions', label: 'Planung' },
+  ]
+  if (workflowEnabled.value) {
+    base.push({ key: 'workflow-history', label: 'Workflow-Verlauf' })
+  }
+  return base
+})
 
 // ─── Attribute Filters ──────────────────────────────────
 const attrFilterSearch = ref('')
@@ -178,6 +184,21 @@ async function updateWorkflowTeam(teamId) {
     await store.fetchOne(product.value.id)
   } catch { /* ignore */ }
   finally { workflowSaving.value = false }
+}
+
+// ─── Workflow History ─────────────────────────────────
+const workflowHistory = ref([])
+const workflowHistoryLoaded = ref(false)
+
+async function loadWorkflowHistory() {
+  if (workflowHistoryLoaded.value || !product.value) return
+  try {
+    const { data } = await productsApi.getWorkflowHistory(product.value.id)
+    workflowHistory.value = data.data || []
+    workflowHistoryLoaded.value = true
+  } catch (e) {
+    console.error('Failed to load workflow history:', e)
+  }
 }
 
 async function cancelWorkflow() {
@@ -1539,6 +1560,7 @@ watch(activeTab, (tab) => {
   if (tab === 'relations') loadRelations()
   if (tab === 'output-hierarchies') loadOutputHierarchyAssignments()
   if (tab === 'preview') loadPreview()
+  if (tab === 'workflow-history') loadWorkflowHistory()
 })
 
 onMounted(async () => {
@@ -3140,6 +3162,90 @@ watch(() => route.params.id, async (newId, oldId) => {
       v-else-if="activeTab === 'scheduled-actions' && product"
       :productId="product.id"
     />
+
+    <!-- ═══ Workflow History Tab ═══ -->
+    <div v-else-if="activeTab === 'workflow-history' && product" class="space-y-4">
+      <div v-if="!workflowEnabled" class="text-center py-12 text-sm text-[var(--color-text-tertiary)]">
+        Kein Workflow für dieses Produkt konfiguriert.
+      </div>
+      <div v-else-if="!workflowHistoryLoaded" class="text-center py-12 text-sm text-[var(--color-text-tertiary)]">
+        Laden...
+      </div>
+      <div v-else-if="workflowHistory.length === 0" class="text-center py-12 text-sm text-[var(--color-text-tertiary)]">
+        Noch keine Workflow-Aktivitäten.
+      </div>
+      <div v-else class="relative pl-6">
+        <!-- Timeline line -->
+        <div class="absolute left-2.5 top-2 bottom-2 w-px bg-[var(--color-border)]" />
+
+        <div
+          v-for="entry in workflowHistory"
+          :key="entry.id"
+          class="relative pb-6 last:pb-0"
+        >
+          <!-- Timeline dot -->
+          <div
+            class="absolute -left-3.5 top-1 w-3 h-3 rounded-full border-2 border-[var(--color-surface)]"
+            :style="{ background: entry.workflow_status?.color || '#6b7280' }"
+          />
+
+          <div class="pim-card p-3">
+            <div class="flex items-center gap-2 flex-wrap">
+              <!-- Status badge -->
+              <span
+                v-if="entry.workflow_status"
+                class="pim-badge text-[10px] px-2 py-0.5 rounded-full font-medium"
+                :style="{
+                  background: (entry.workflow_status.color || '#6b7280') + '20',
+                  color: entry.workflow_status.color || '#6b7280',
+                }"
+              >
+                {{ entry.workflow_status.name }}
+              </span>
+              <span v-else class="text-xs font-medium text-[var(--color-text-primary)]">{{ entry.title }}</span>
+
+              <!-- Task status -->
+              <span
+                class="text-[10px] px-1.5 py-0.5 rounded font-medium"
+                :class="{
+                  'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400': entry.status === 'open',
+                  'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400': entry.status === 'in_progress',
+                  'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400': entry.status === 'closed',
+                }"
+              >
+                {{ entry.status === 'open' ? 'Offen' : entry.status === 'in_progress' ? 'In Bearbeitung' : 'Abgeschlossen' }}
+              </span>
+
+              <!-- Timestamp -->
+              <span class="text-[10px] text-[var(--color-text-tertiary)] ml-auto">
+                {{ new Date(entry.created_at).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) }}
+              </span>
+            </div>
+
+            <!-- Details row -->
+            <div class="flex items-center gap-3 mt-1.5 text-[11px] text-[var(--color-text-secondary)]">
+              <span v-if="entry.created_by">
+                Erstellt von: <strong>{{ entry.created_by.name }}</strong>
+              </span>
+              <span v-if="entry.assignee">
+                Zugewiesen: <strong>{{ entry.assignee.name }}</strong>
+              </span>
+              <span v-if="entry.team">
+                Team: <strong>{{ entry.team.name }}</strong>
+              </span>
+              <span v-if="entry.closed_at" class="text-[var(--color-text-tertiary)]">
+                Geschlossen: {{ new Date(entry.closed_at).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) }}
+              </span>
+            </div>
+
+            <!-- Note -->
+            <p v-if="entry.note" class="mt-1.5 text-xs text-[var(--color-text-secondary)] italic">
+              {{ entry.note }}
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- PDF Template Picker Modal -->
     <PdfTemplatePickerModal

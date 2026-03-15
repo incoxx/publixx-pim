@@ -700,6 +700,54 @@ class ProductController extends Controller
     }
 
     /**
+     * GET /products/{product}/workflow-history
+     *
+     * Returns all workflow tasks (status transitions) for this product,
+     * ordered chronologically.
+     */
+    public function workflowHistory(Product $product): JsonResponse
+    {
+        $this->authorize('view', $product);
+
+        $tasks = WorkflowTask::where('product_id', $product->id)
+            ->with([
+                'assignee:id,name',
+                'creator:id,name',
+                'workflowStatus:id,name,color',
+                'team:id,name',
+            ])
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->map(fn (WorkflowTask $task) => [
+                'id' => $task->id,
+                'title' => $task->title,
+                'status' => $task->status,
+                'note' => $task->note,
+                'workflow_status' => $task->workflowStatus ? [
+                    'id' => $task->workflowStatus->id,
+                    'name' => $task->workflowStatus->name,
+                    'color' => $task->workflowStatus->color,
+                ] : null,
+                'assignee' => $task->assignee ? [
+                    'id' => $task->assignee->id,
+                    'name' => $task->assignee->name,
+                ] : null,
+                'team' => $task->team ? [
+                    'id' => $task->team->id,
+                    'name' => $task->team->name,
+                ] : null,
+                'created_by' => $task->creator ? [
+                    'id' => $task->creator->id,
+                    'name' => $task->creator->name,
+                ] : null,
+                'created_at' => $task->created_at?->toIso8601String(),
+                'closed_at' => $task->closed_at?->toIso8601String(),
+            ]);
+
+        return response()->json(['data' => $tasks]);
+    }
+
+    /**
      * GET /products/{product}/available-transitions
      *
      * Returns the allowed next workflow statuses based on the product's
