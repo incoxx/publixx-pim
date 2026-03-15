@@ -1,13 +1,13 @@
 # anyPIM — Frontend (Vue.js)
 
-> **Zweck:** Vue.js 3 SPA-Architektur und UI. Verwende diesen Skill beim Bauen von Komponenten, Views, Stores, Composables und beim Styling.
+> **Purpose:** Vue.js 3 SPA architecture and UI. Use this skill when building components, views, stores, composables, and when styling.
 
 ---
 
 ## Stack
 
-| Paket | Version | Zweck |
-|-------|---------|-------|
+| Package | Version | Purpose |
+|---------|---------|---------|
 | Vue.js | 3.5+ | Composition API |
 | Vite | 6+ | Build, HMR |
 | Pinia | 2+ | State Management |
@@ -15,57 +15,57 @@
 | TailwindCSS | 4+ | Utility CSS |
 | Headless UI | 1+ | Accessible Dropdowns, Modals, Tabs |
 | @vueuse/core | 11+ | Composables |
-| axios | 1+ | HTTP-Client |
+| axios | 1+ | HTTP Client |
 | vue-draggable-plus | 0.5+ | Drag & Drop |
 | vue-i18n | 9+ | i18n |
-| Monaco Editor | 0.50+ | JSON/Code-Editor |
+| Monaco Editor | 0.50+ | JSON/Code Editor |
 
 ---
 
-## Design-System
+## Design System
 
-### Designsprache
+### Design Language
 
-Industrieller Minimalismus. Clean, hell, typographisch klar. Inspiriert von Linear.app, Notion, Figma. **Keine bunten Kugeln, keine Illustrationen, keine unnötigen Animationen.**
+Industrial minimalism. Clean, bright, typographically clear. Inspired by Linear.app, Notion, Figma. **No colorful orbs, no illustrations, no unnecessary animations.**
 
-### Farben
+### Colors
 
 ```css
---color-primary: #1B3A5C;         /* Tiefblau — Hauptfarbe */
---color-accent: #2E75B6;          /* Mittelblau — Aktiv, Links, Fokus */
---color-bg: #FAFBFC;              /* Fast-Weiß Hintergrund */
---color-surface: #FFFFFF;         /* Karten, Panels */
---color-border: #E5E7EB;         /* Subtle Borders */
---color-text-primary: #111827;    /* Fast-Schwarz */
---color-text-secondary: #6B7280;  /* Grau — Labels, Hints */
---color-success: #059669;         /* Grün */
+--color-primary: #1B3A5C;         /* Deep blue — primary color */
+--color-accent: #2E75B6;          /* Medium blue — active, links, focus */
+--color-bg: #FAFBFC;              /* Near-white background */
+--color-surface: #FFFFFF;         /* Cards, panels */
+--color-border: #E5E7EB;         /* Subtle borders */
+--color-text-primary: #111827;    /* Near-black */
+--color-text-secondary: #6B7280;  /* Gray — labels, hints */
+--color-success: #059669;         /* Green */
 --color-warning: #D97706;         /* Amber */
---color-error: #DC2626;           /* Rot */
+--color-error: #DC2626;           /* Red */
 ```
 
-### Typografie
+### Typography
 
 ```css
 --font-ui: 'Inter Variable', sans-serif;        /* 400, 500, 600 */
---font-mono: 'JetBrains Mono', monospace;       /* Technische Namen, JSON */
+--font-mono: 'JetBrains Mono', monospace;       /* Technical names, JSON */
 ```
 
 ### Spacing
 
-4px-Raster: 4, 8, 12, 16, 24, 32, 48, 64
+4px grid: 4, 8, 12, 16, 24, 32, 48, 64
 
 ### Border Radius
 
-6px (Buttons), 8px (Karten), 12px (Modals)
+6px (buttons), 8px (cards), 12px (modals)
 
 ---
 
-## Layout: Drei-Spalten
+## Layout: Three Columns
 
 ```
 ┌─────────┬───────────────────────────┬──────────┐
-│ Sidebar  │       Hauptbereich        │  Panel   │
-│ 240px    │       (flexibel)          │  360px   │
+│ Sidebar  │       Main area           │  Panel   │
+│ 240px    │       (flexible)          │  360px   │
 │ collaps. │                           │ on-demand│
 └─────────┴───────────────────────────┴──────────┘
 ```
@@ -76,64 +76,64 @@ Industrieller Minimalismus. Clean, hell, typographisch klar. Inspiriert von Line
 
 | Icon (Lucide) | Label | Route |
 |---------------|-------|-------|
-| Search | Suche | /search |
-| Package | Produkte | /products |
-| GitBranch | Hierarchien | /hierarchies |
-| Sliders | Attribute | /attributes |
-| Database | Wertelisten | /value-lists |
+| Search | Search | /search |
+| Package | Products | /products |
+| GitBranch | Hierarchies | /hierarchies |
+| Sliders | Attributes | /attributes |
+| Database | Value Lists | /value-lists |
 | Upload | Import | /imports |
 | Download | Export | /exports |
-| Image | Medien | /media |
-| DollarSign | Preise | /prices |
-| Users | Benutzer | /users |
-| Settings | Einstellungen | /settings |
+| Image | Media | /media |
+| DollarSign | Prices | /prices |
+| Users | Users | /users |
+| Settings | Settings | /settings |
 
 ---
 
-## Kernkomponenten
+## Core Components
 
-| Komponente | Beschreibung |
-|-----------|--------------|
-| PimTable | Generische Datentabelle: Sortierung, Filter, Spalten-Konfig, Inline-Edit, Keyboard-Nav, Virtuelles Scrolling |
-| PimTree | Rekursiver Baum: Lazy-Loading, Drag & Drop, Kontextmenü, Suche |
-| PimForm | Dynamisches Formular: Generiert aus Attribut-Schema, Validierung |
-| PimAttributeInput | Dynamisches Eingabefeld nach Datentyp: Text, Number, Select, Date, Toggle, Rich-Text |
-| PimCollectionGroup | Attributgruppe als Accordion: Drag & Drop Sortierung, Fortschrittsanzeige |
-| PimBreadcrumb | Klickbarer Pfad mit Trunkierung |
-| PimStatusBadge | Farbiger Punkt + Label (grün=aktiv, grau=draft, rot=inaktiv) |
-| PimInheritanceBadge | "Vererbt von: X" mit Tooltip und Link |
-| PimDropZone | Datei-Upload: Drag & Drop, Progress, Multi-Upload |
-| PimJsonPreview | JSON mit Syntax-Highlighting, Copy, Collapse |
-| PimFilterBar | Chips, Schnellsuche, Preset-Filter, Clear-All |
-| PimCommandPalette | Cmd+K: Globale Suche, Aktionen, Navigation |
-| PxfRenderer | PXF-Layout-Preview (rendert alle 15 Elementtypen) |
+| Component | Description |
+|-----------|-------------|
+| PimTable | Generic data table: sorting, filters, column config, inline edit, keyboard nav, virtual scrolling |
+| PimTree | Recursive tree: lazy loading, drag & drop, context menu, search |
+| PimForm | Dynamic form: generated from attribute schema, validation |
+| PimAttributeInput | Dynamic input field by data type: text, number, select, date, toggle, rich text |
+| PimCollectionGroup | Attribute group as accordion: drag & drop sorting, progress indicator |
+| PimBreadcrumb | Clickable path with truncation |
+| PimStatusBadge | Colored dot + label (green=active, gray=draft, red=inactive) |
+| PimInheritanceBadge | "Inherited from: X" with tooltip and link |
+| PimDropZone | File upload: drag & drop, progress, multi-upload |
+| PimJsonPreview | JSON with syntax highlighting, copy, collapse |
+| PimFilterBar | Chips, quick search, preset filters, clear all |
+| PimCommandPalette | Cmd+K: global search, actions, navigation |
+| PxfRenderer | PXF layout preview (renders all 15 element types) |
 
 ---
 
-## Keyboard-Shortcuts
+## Keyboard Shortcuts
 
-| Shortcut | Aktion | Kontext |
+| Shortcut | Action | Context |
 |----------|--------|---------|
 | Cmd+K | Command Palette | Global |
-| Cmd+S | Speichern | Formulare |
-| Cmd+N | Neues Element | Listen |
-| / | Suche fokussieren | Listen, Baum |
-| Escape | Schließen | Modals, Panels |
-| Enter | Öffnen / Bestätigen | Listen |
-| Space | Auswählen (Toggle) | Listen |
-| ↑ / ↓ | Navigation | Listen, Baum |
-| → / ← | Expand / Collapse | Baum |
-| Tab | Nächstes Feld | Formulare |
-| Cmd+Z | Undo | Formulare |
+| Cmd+S | Save | Forms |
+| Cmd+N | New element | Lists |
+| / | Focus search | Lists, tree |
+| Escape | Close | Modals, panels |
+| Enter | Open / confirm | Lists |
+| Space | Select (toggle) | Lists |
+| ↑ / ↓ | Navigation | Lists, tree |
+| → / ← | Expand / collapse | Tree |
+| Tab | Next field | Forms |
+| Cmd+Z | Undo | Forms |
 
 ---
 
-## Projektstruktur
+## Project Structure
 
 ```
 pim-frontend/
 ├── src/
-│   ├── api/                  # Axios-Wrapper pro Entität
+│   ├── api/                  # Axios wrapper per entity
 │   │   ├── attributes.js
 │   │   ├── products.js
 │   │   ├── hierarchies.js
@@ -187,15 +187,15 @@ pim-frontend/
 
 ---
 
-## Performance-Patterns
+## Performance Patterns
 
-| Pattern | Beschreibung |
-|---------|--------------|
-| Virtuelles Scrolling | vue-virtual-scroller für Listen > 100 Zeilen |
-| Lazy Loading | Hierarchie-Kinder laden bei Expand |
-| Debounce | 250ms auf Suche/Filter |
-| Optimistic Updates | UI zeigt Änderung sofort, API im Hintergrund |
-| Skeleton Loading | Statt Spinner |
-| SWR | Cached Daten zeigen, im Hintergrund aktualisieren |
-| Code-Splitting | Jede Route = eigener Chunk (< 200KB gzip initial) |
-| Web Worker | Client-seitige PQL-Filterung |
+| Pattern | Description |
+|---------|-------------|
+| Virtual Scrolling | vue-virtual-scroller for lists > 100 rows |
+| Lazy Loading | Load hierarchy children on expand |
+| Debounce | 250ms on search/filter |
+| Optimistic Updates | UI shows change immediately, API in background |
+| Skeleton Loading | Instead of spinner |
+| SWR | Show cached data, refresh in background |
+| Code Splitting | Each route = separate chunk (< 200KB gzip initial) |
+| Web Worker | Client-side PQL filtering |
