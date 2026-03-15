@@ -149,6 +149,10 @@ export default {
     return client.get(`/products/${id}/available-transitions`)
   },
 
+  getWorkflowHistory(id) {
+    return client.get(`/products/${id}/workflow-history`)
+  },
+
   downloadPreviewExcel(id) {
     return client.get(`/products/${id}/preview/export.xlsx`, { responseType: 'blob' })
   },
