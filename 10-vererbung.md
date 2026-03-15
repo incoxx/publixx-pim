@@ -1,62 +1,62 @@
-# anyPIM — Vererbungskonzept
+# anyPIM — Inheritance Concept
 
-> **Zweck:** Attributvererbung über Hierarchien und von Produkten auf Varianten. Verwende diesen Skill beim Implementieren der Vererbungs-Engine und der Datenpflege-Logik.
-
----
-
-## Zwei Vererbungsarten
-
-### 1. Hierarchie-Vererbung (Attribute an Produkte)
-
-Attribute werden von Hierarchieknoten an darunter liegende Produkte vererbt. Ein Produkt hat einen `master_hierarchy_node_id` und erbt alle Attribute dieses Knotens plus aller Vorfahren.
-
-```
-Elektrowerkzeuge (3 Attribute: Produktname, SKU, Gewicht)
-└── Akkubohrschrauber (+2: Drehmoment, Drehzahl → gesamt 5)
-    └── mit Akku (+2: Akkukapazität, Ladedauer → gesamt 7)
-        └── Produkt "ProDrill 18V" → erbt alle 7 Attribute
-```
-
-### 2. Varianten-Vererbung (Produkt → Variante)
-
-Attributwerte vererben sich vom Hauptprodukt auf seine Varianten. Die `variant_inheritance_rules` steuern pro Attribut: `inherit` (Wert kommt vom Elternprodukt) oder `override` (Variante hat eigenen Wert).
+> **Purpose:** Attribute inheritance across hierarchies and from products to variants. Use this skill when implementing the inheritance engine and data maintenance logic.
 
 ---
 
-## Hierarchie-Vererbung: Details
+## Two Types of Inheritance
 
-### Tabelle: hierarchy_node_attribute_assignments
+### 1. Hierarchy Inheritance (Attributes to Products)
+
+Attributes are inherited from hierarchy nodes to the products beneath them. A product has a `master_hierarchy_node_id` and inherits all attributes from that node plus all ancestors.
+
+```
+Power Tools (3 attributes: Product Name, SKU, Weight)
+└── Cordless Drill Drivers (+2: Torque, Speed → total 5)
+    └── With Battery (+2: Battery Capacity, Charging Time → total 7)
+        └── Product "ProDrill 18V" → inherits all 7 attributes
+```
+
+### 2. Variant Inheritance (Product → Variant)
+
+Attribute values are inherited from the main product to its variants. The `variant_inheritance_rules` control per attribute: `inherit` (value comes from the parent product) or `override` (variant has its own value).
+
+---
+
+## Hierarchy Inheritance: Details
+
+### Table: hierarchy_node_attribute_assignments
 
 ```
 hierarchy_node_id | attribute_id | collection_name | collection_sort | attribute_sort | dont_inherit
-node-elektro      | attr-name    | Stammdaten      | 10              | 10             | false
-node-elektro      | attr-sku     | Stammdaten      | 10              | 20             | false
-node-elektro      | attr-weight  | Technik         | 20              | 10             | false
-node-akku-bohr    | attr-torque  | Technik         | 20              | 20             | false
-node-akku-bohr    | attr-rpm     | Technik         | 20              | 30             | false
-node-mit-akku     | attr-cap     | Akku            | 30              | 10             | false
-node-mit-akku     | attr-charge  | Akku            | 30              | 20             | false
+node-elektro      | attr-name    | Master Data     | 10              | 10             | false
+node-elektro      | attr-sku     | Master Data     | 10              | 20             | false
+node-elektro      | attr-weight  | Technical       | 20              | 10             | false
+node-akku-bohr    | attr-torque  | Technical       | 20              | 20             | false
+node-akku-bohr    | attr-rpm     | Technical       | 20              | 30             | false
+node-mit-akku     | attr-cap     | Battery         | 30              | 10             | false
+node-mit-akku     | attr-charge  | Battery         | 30              | 20             | false
 ```
 
-### Auflösung: Effektive Attribute eines Knotens
+### Resolution: Effective Attributes of a Node
 
 ```php
 function getEffectiveAttributes(HierarchyNode $node): Collection {
-    // 1. Alle Vorfahren sammeln (über Materialized Path)
+    // 1. Collect all ancestors (via Materialized Path)
     $ancestors = HierarchyNode::where(function ($q) use ($node) {
-        // path des Knotens LIKE CONCAT(ancestor.path, '%')
+        // node's path LIKE CONCAT(ancestor.path, '%')
     })->orderBy('depth')->get();
-    
-    // 2. Attribute aller Knoten sammeln
+
+    // 2. Collect attributes from all nodes
     $attributes = collect();
     foreach ([$ancestors, $node] as $n) {
         $nodeAttrs = $n->attributeAssignments()
-            ->where('dont_inherit', false)  // Nur vererbbare
+            ->where('dont_inherit', false)  // Only inheritable
             ->get();
         $attributes = $attributes->merge($nodeAttrs);
     }
-    
-    // 3. Sortierung: collection_sort → attribute_sort
+
+    // 3. Sorting: collection_sort → attribute_sort
     return $attributes
         ->sortBy('collection_sort')
         ->sortBy('attribute_sort');
@@ -65,63 +65,63 @@ function getEffectiveAttributes(HierarchyNode $node): Collection {
 
 ### dont_inherit Flag
 
-Wenn `dont_inherit = true`:
-- Das Attribut wird am Knoten selbst angezeigt
-- Aber NICHT an Kindknoten weitervererbt
-- Use-Case: Ein Attribut nur auf einer bestimmten Ebene pflegen
+When `dont_inherit = true`:
+- The attribute is displayed on the node itself
+- But is NOT inherited to child nodes
+- Use case: Maintain an attribute only at a specific level
 
-### Sortierung
+### Sorting
 
-- `collection_sort`: Reihenfolge der Gruppen (10, 20, 30...)
-- `attribute_sort`: Reihenfolge innerhalb einer Gruppe (10, 20, 30...)
-- Zehnerschritte ermöglichen einfaches Einfügen
+- `collection_sort`: Order of groups (10, 20, 30...)
+- `attribute_sort`: Order within a group (10, 20, 30...)
+- Steps of ten allow easy insertion
 
 ---
 
-## Varianten-Vererbung: Details
+## Variant Inheritance: Details
 
-### Tabelle: variant_inheritance_rules
-
-```
-product_id (Variante!) | attribute_id | inheritance_mode
-variant-2ah             | attr-name    | override    → Variante hat eigenen Namen
-variant-2ah             | attr-price   | override    → Eigener Preis
-variant-2ah             | attr-weight  | inherit     → Gewicht vom Elternprodukt
-variant-2ah             | attr-torque  | inherit     → Drehmoment vom Elternprodukt
-```
-
-### Auflösungsreihenfolge (Attributwert eines Produkts)
+### Table: variant_inheritance_rules
 
 ```
-1. Eigener Wert am Produkt (product_attribute_values WHERE product_id = X)
-   → Wenn vorhanden: Diesen verwenden
-   
-2. Bei Varianten mit inheritance_mode = 'inherit':
-   → Wert vom parent_product_id laden
-   
-3. Hierarchie-Vererbung:
-   → Default-Wert vom Hierarchieknoten (falls definiert)
-   
-4. Leer (kein Wert gefunden)
+product_id (Variant!) | attribute_id | inheritance_mode
+variant-2ah             | attr-name    | override    → Variant has its own name
+variant-2ah             | attr-price   | override    → Own price
+variant-2ah             | attr-weight  | inherit     → Weight from parent product
+variant-2ah             | attr-torque  | inherit     → Torque from parent product
 ```
 
-### PHP: Wert auflösen
+### Resolution Order (Attribute Value of a Product)
+
+```
+1. Own value on the product (product_attribute_values WHERE product_id = X)
+   → If present: Use this value
+
+2. For variants with inheritance_mode = 'inherit':
+   → Load value from parent_product_id
+
+3. Hierarchy inheritance:
+   → Default value from hierarchy node (if defined)
+
+4. Empty (no value found)
+```
+
+### PHP: Resolve Value
 
 ```php
 function resolveAttributeValue(Product $product, Attribute $attribute, ?string $lang): mixed {
-    // 1. Eigener Wert
+    // 1. Own value
     $own = $product->attributeValues()
         ->where('attribute_id', $attribute->id)
         ->where('language', $lang)
         ->first();
     if ($own) return $own;
-    
-    // 2. Varianten-Vererbung
+
+    // 2. Variant inheritance
     if ($product->parent_product_id) {
         $rule = VariantInheritanceRule::where('product_id', $product->id)
             ->where('attribute_id', $attribute->id)
             ->first();
-        
+
         if (!$rule || $rule->inheritance_mode === 'inherit') {
             $parentValue = resolveAttributeValue(
                 $product->parentProduct, $attribute, $lang
@@ -129,36 +129,36 @@ function resolveAttributeValue(Product $product, Attribute $attribute, ?string $
             if ($parentValue) return $parentValue;
         }
     }
-    
-    // 3. Hierarchie (optional: Default-Werte auf Knotenebene)
+
+    // 3. Hierarchy (optional: default values at node level)
     // ...
-    
-    // 4. Leer
+
+    // 4. Empty
     return null;
 }
 ```
 
 ---
 
-## UI: Vererbung visualisieren
+## UI: Visualizing Inheritance
 
-| Situation | Darstellung |
-|-----------|-------------|
-| Wert selbst gepflegt | Normales Eingabefeld |
-| Wert vererbt (Hierarchie) | Grau/Read-Only + Badge: "Vererbt von: Elektrowerkzeuge" |
-| Wert vererbt (Produkt→Variante) | Grau/Read-Only + Badge: "Vererbt von: ProDrill 18V" |
-| Override möglich | Button "Eigenen Wert setzen" am vererbten Feld |
-| Override aktiv | Normales Feld + Badge: "Überschreibt Vererbung" + Button "Vererbung wiederherstellen" |
+| Situation | Display |
+|-----------|---------|
+| Value maintained by self | Normal input field |
+| Value inherited (hierarchy) | Gray/Read-Only + Badge: "Inherited from: Power Tools" |
+| Value inherited (product→variant) | Gray/Read-Only + Badge: "Inherited from: ProDrill 18V" |
+| Override possible | Button "Set own value" on the inherited field |
+| Override active | Normal field + Badge: "Overrides inheritance" + Button "Restore inheritance" |
 
 ---
 
-## Cache-Invalidierung bei Vererbung
+## Cache Invalidation on Inheritance
 
-Wenn sich ein Attributwert ändert, müssen alle Produkte invalidiert werden, die diesen Wert erben:
+When an attribute value changes, all products that inherit this value must be invalidated:
 
 ```php
-// Hierarchie-Vererbung: Wenn Knoten-Attribut sich ändert
-// → Alle Produkte unter diesem Knoten invalidieren
+// Hierarchy inheritance: When a node attribute changes
+// → Invalidate all products under this node
 $productIds = Product::where('master_hierarchy_node_id', function ($q) use ($node) {
     $q->select('id')->from('hierarchy_nodes')
       ->where('path', 'LIKE', $node->path . '%');
@@ -166,7 +166,7 @@ $productIds = Product::where('master_hierarchy_node_id', function ($q) use ($nod
 
 Cache::tags($productIds->map(fn($id) => "product:$id")->toArray())->flush();
 
-// Varianten-Vererbung: Wenn Elternprodukt sich ändert
-// → Alle Varianten invalidieren
+// Variant inheritance: When a parent product changes
+// → Invalidate all variants
 $variantIds = Product::where('parent_product_id', $parentId)->pluck('id');
 ```
