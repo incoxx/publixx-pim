@@ -10,14 +10,16 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('workflow_statuses', function (Blueprint $table) {
-            $table->char('id', 36)->primary();
-            $table->string('name', 255);
-            $table->text('description')->nullable();
-            $table->string('color', 7)->default('#6b7280');
-            $table->integer('sort_order')->default(0);
-            $table->timestamps();
-        });
+        if (!Schema::hasTable('workflow_statuses')) {
+            Schema::create('workflow_statuses', function (Blueprint $table) {
+                $table->char('id', 36)->primary();
+                $table->string('name', 255);
+                $table->text('description')->nullable();
+                $table->string('color', 7)->default('#6b7280');
+                $table->integer('sort_order')->default(0);
+                $table->timestamps();
+            });
+        }
     }
 
     public function down(): void
