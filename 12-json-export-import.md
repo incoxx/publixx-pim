@@ -1,18 +1,16 @@
-# 12 — JSON Export/Import & Export-Jobs
+# 12 — JSON Export/Import & Export Jobs
 
-## Übersicht / Overview
-
-Der JSON Export/Import ermöglicht den vollständigen Austausch aller PIM-Daten in einem strukturierten, gut lesbaren JSON-Format. Die Export-Job-Steuerung erlaubt das Anlegen benannter, wiederverwendbarer Export-Konfigurationen.
+## Overview
 
 The JSON Export/Import enables full exchange of all PIM data in a structured, human-readable JSON format. The Export Job management allows creating named, reusable export configurations.
 
 ---
 
-## JSON-Format / JSON Format
+## JSON Format
 
-### Metadaten / Metadata
+### Metadata
 
-Jede JSON-Exportdatei beginnt mit einem `_meta`-Block:
+Each JSON export file begins with a `_meta` block:
 
 ```json
 {
@@ -39,11 +37,11 @@ Jede JSON-Exportdatei beginnt mit einem `_meta`-Block:
 }
 ```
 
-### Sektionen in Abhängigkeitsreihenfolge / Sections in Dependency Order
+### Sections in Dependency Order
 
-Die Reihenfolge stellt sicher, dass beim Import Abhängigkeiten bereits vorhanden sind:
+The order ensures that dependencies already exist during import:
 
-| #  | Sektion / Section                | Abhängigkeit / Depends on          | Import |
+| #  | Section                          | Depends on                         | Import |
 |----|----------------------------------|------------------------------------|--------|
 | 1  | `unit_groups`                    | —                                  | ✓      |
 | 2  | `units`                          | unit_groups                        | ✓      |
@@ -66,7 +64,7 @@ Die Reihenfolge stellt sicher, dass beim Import Abhängigkeiten bereits vorhande
 
 ---
 
-## JSON Schema je Sektion / JSON Schema per Section
+## JSON Schema per Section
 
 ### `unit_groups`
 
@@ -82,11 +80,11 @@ Die Reihenfolge stellt sicher, dass beim Import Abhängigkeiten bereits vorhande
 }
 ```
 
-| Feld            | Typ    | Pflicht | Beschreibung                         |
-|-----------------|--------|---------|--------------------------------------|
-| technical_name  | string | ✓       | Eindeutiger technischer Name         |
-| name_de         | string | ✓       | Deutscher Anzeigename                |
-| name_en         | string |         | Englischer Anzeigename               |
+| Field           | Type   | Required | Description                          |
+|-----------------|--------|----------|--------------------------------------|
+| technical_name  | string | ✓        | Unique technical name                |
+| name_de         | string | ✓        | German display name                  |
+| name_en         | string |          | English display name                 |
 
 ### `units`
 
@@ -104,13 +102,13 @@ Die Reihenfolge stellt sicher, dass beim Import Abhängigkeiten bereits vorhande
 }
 ```
 
-| Feld              | Typ     | Pflicht | Beschreibung                       |
-|-------------------|---------|---------|------------------------------------|
-| technical_name    | string  | ✓       | Technischer Name der Einheit       |
-| abbreviation      | string  | ✓       | Abkürzung (z.B. "mm", "kg")       |
-| unit_group        | string  | ✓       | Referenz auf unit_groups.technical_name |
-| conversion_factor | number  |         | Umrechnungsfaktor (Standard: 1)    |
-| is_base_unit      | boolean |         | Basiseinheit der Gruppe?           |
+| Field             | Type    | Required | Description                        |
+|-------------------|---------|----------|------------------------------------|
+| technical_name    | string  | ✓        | Technical name of the unit         |
+| abbreviation      | string  | ✓        | Abbreviation (e.g. "mm", "kg")     |
+| unit_group        | string  | ✓        | Reference to unit_groups.technical_name |
+| conversion_factor | number  |          | Conversion factor (default: 1)     |
+| is_base_unit      | boolean |          | Base unit of the group?            |
 
 ### `attribute_views`
 
@@ -121,18 +119,18 @@ Die Reihenfolge stellt sicher, dass beim Import Abhängigkeiten bereits vorhande
       "technical_name": "marketing",
       "name_de": "Marketing-Sicht",
       "name_en": "Marketing View",
-      "description": "Attribute für Marketingzwecke"
+      "description": "Attributes for marketing purposes"
     }
   ]
 }
 ```
 
-| Feld           | Typ    | Pflicht | Beschreibung              |
-|----------------|--------|---------|---------------------------|
-| technical_name | string | ✓       | Technischer Name          |
-| name_de        | string | ✓       | Deutscher Name            |
-| name_en        | string |         | Englischer Name           |
-| description    | string |         | Beschreibung              |
+| Field          | Type   | Required | Description             |
+|----------------|--------|----------|-------------------------|
+| technical_name | string | ✓        | Technical name          |
+| name_de        | string | ✓        | German name             |
+| name_en        | string |          | English name            |
+| description    | string |          | Description             |
 
 ### `attribute_groups`
 
@@ -143,24 +141,24 @@ Die Reihenfolge stellt sicher, dass beim Import Abhängigkeiten bereits vorhande
       "technical_name": "dimensions",
       "name_de": "Abmessungen",
       "name_en": "Dimensions",
-      "description": "Maße und Gewicht",
+      "description": "Measurements and weight",
       "sort_order": 10
     }
   ]
 }
 ```
 
-| Feld           | Typ    | Pflicht | Beschreibung              |
-|----------------|--------|---------|---------------------------|
-| technical_name | string | ✓       | Technischer Name          |
-| name_de        | string | ✓       | Deutscher Name            |
-| name_en        | string |         | Englischer Name           |
-| description    | string |         | Beschreibung              |
-| sort_order     | int    |         | Sortierreihenfolge        |
+| Field          | Type   | Required | Description             |
+|----------------|--------|----------|-------------------------|
+| technical_name | string | ✓        | Technical name          |
+| name_de        | string | ✓        | German name             |
+| name_en        | string |          | English name            |
+| description    | string |          | Description             |
+| sort_order     | int    |          | Sort order              |
 
 ### `value_lists`
 
-Wertelisten mit verschachtelten Einträgen:
+Value lists with nested entries:
 
 ```json
 {
@@ -187,22 +185,22 @@ Wertelisten mit verschachtelten Einträgen:
 }
 ```
 
-**Werteliste:**
+**Value list:**
 
-| Feld           | Typ    | Pflicht | Beschreibung              |
-|----------------|--------|---------|---------------------------|
-| technical_name | string | ✓       | Technischer Name          |
-| name_de        | string | ✓       | Deutscher Name            |
-| entries        | array  |         | Listeneinträge            |
+| Field          | Type   | Required | Description             |
+|----------------|--------|----------|-------------------------|
+| technical_name | string | ✓        | Technical name          |
+| name_de        | string | ✓        | German name             |
+| entries        | array  |          | List entries            |
 
-**Eintrag (entry):**
+**Entry:**
 
-| Feld             | Typ    | Pflicht | Beschreibung              |
-|------------------|--------|---------|---------------------------|
-| technical_name   | string | ✓       | Technischer Name          |
-| display_value_de | string | ✓       | Deutscher Anzeigewert     |
-| display_value_en | string |         | Englischer Anzeigewert    |
-| sort_order       | int    |         | Sortierreihenfolge        |
+| Field            | Type   | Required | Description             |
+|------------------|--------|----------|-------------------------|
+| technical_name   | string | ✓        | Technical name          |
+| display_value_de | string | ✓        | German display value    |
+| display_value_en | string |          | English display value   |
+| sort_order       | int    |          | Sort order              |
 
 ### `attributes`
 
@@ -213,7 +211,7 @@ Wertelisten mit verschachtelten Einträgen:
       "technical_name": "weight",
       "name_de": "Gewicht",
       "name_en": "Weight",
-      "description": "Produktgewicht in der Verpackung",
+      "description": "Product weight including packaging",
       "data_type": "number",
       "attribute_group": "dimensions",
       "value_list": null,
@@ -234,26 +232,26 @@ Wertelisten mit verschachtelten Einträgen:
 }
 ```
 
-| Feld             | Typ      | Pflicht | Beschreibung                              |
-|------------------|----------|---------|-------------------------------------------|
-| technical_name   | string   | ✓       | Eindeutiger technischer Name              |
-| name_de          | string   | ✓       | Deutscher Name                            |
-| name_en          | string   |         | Englischer Name                           |
-| data_type        | string   | ✓       | text, number, date, boolean, select, multiselect, composite, html |
-| attribute_group  | string   |         | Referenz auf attribute_groups             |
-| value_list       | string   |         | Referenz auf value_lists (bei select)     |
-| unit_group       | string   |         | Referenz auf unit_groups                  |
-| default_unit     | string   |         | Standard-Einheit                          |
-| is_multipliable  | boolean  |         | Mehrfacherfassung möglich?                |
-| max_multiplied   | int/null |         | Maximale Anzahl Mehrfachwerte             |
-| is_translatable  | boolean  |         | Mehrsprachig?                             |
-| is_mandatory     | boolean  |         | Pflichtfeld?                              |
-| is_unique        | boolean  |         | Wert muss eindeutig sein?                 |
-| is_searchable    | boolean  |         | Durchsuchbar?                             |
-| is_inheritable   | boolean  |         | Vererbbar an Varianten?                   |
-| parent_attribute | string   |         | Übergeordnetes Attribut (Composite)       |
-| source_system    | string   |         | Quellsystem                               |
-| views            | array    |         | Zugeordnete Attribut-Sichten              |
+| Field            | Type     | Required | Description                               |
+|------------------|----------|----------|-------------------------------------------|
+| technical_name   | string   | ✓        | Unique technical name                     |
+| name_de          | string   | ✓        | German name                               |
+| name_en          | string   |          | English name                              |
+| data_type        | string   | ✓        | text, number, date, boolean, select, multiselect, composite, html |
+| attribute_group  | string   |          | Reference to attribute_groups             |
+| value_list       | string   |          | Reference to value_lists (for select)     |
+| unit_group       | string   |          | Reference to unit_groups                  |
+| default_unit     | string   |          | Default unit                              |
+| is_multipliable  | boolean  |          | Multiple values allowed?                  |
+| max_multiplied   | int/null |          | Maximum number of multiple values         |
+| is_translatable  | boolean  |          | Multilingual?                             |
+| is_mandatory     | boolean  |          | Required field?                           |
+| is_unique        | boolean  |          | Value must be unique?                     |
+| is_searchable    | boolean  |          | Searchable?                               |
+| is_inheritable   | boolean  |          | Inheritable to variants?                  |
+| parent_attribute | string   |          | Parent attribute (composite)              |
+| source_system    | string   |          | Source system                             |
+| views            | array    |          | Assigned attribute views                  |
 
 ### `product_types`
 
@@ -264,7 +262,7 @@ Wertelisten mit verschachtelten Einträgen:
       "technical_name": "power_tool",
       "name_de": "Elektrowerkzeug",
       "name_en": "Power Tool",
-      "description": "Elektrisch betriebene Werkzeuge",
+      "description": "Electrically powered tools",
       "has_variants": true,
       "has_ean": true,
       "has_prices": true,
@@ -274,16 +272,16 @@ Wertelisten mit verschachtelten Einträgen:
 }
 ```
 
-| Feld           | Typ     | Pflicht | Beschreibung              |
-|----------------|---------|---------|---------------------------|
-| technical_name | string  | ✓       | Technischer Name          |
-| name_de        | string  | ✓       | Deutscher Name            |
-| name_en        | string  |         | Englischer Name           |
-| description    | string  |         | Beschreibung              |
-| has_variants   | boolean |         | Varianten erlaubt?        |
-| has_ean        | boolean |         | EAN-Feld aktiv?           |
-| has_prices     | boolean |         | Preise zuordbar?          |
-| has_media      | boolean |         | Medien zuordbar?          |
+| Field          | Type    | Required | Description             |
+|----------------|---------|----------|-------------------------|
+| technical_name | string  | ✓        | Technical name          |
+| name_de        | string  | ✓        | German name             |
+| name_en        | string  |          | English name            |
+| description    | string  |          | Description             |
+| has_variants   | boolean |          | Variants allowed?       |
+| has_ean        | boolean |          | EAN field active?       |
+| has_prices     | boolean |          | Prices assignable?      |
+| has_media      | boolean |          | Media assignable?       |
 
 ### `price_types`
 
@@ -316,7 +314,7 @@ Wertelisten mit verschachtelten Einträgen:
 
 ### `hierarchies`
 
-Hierarchien mit verschachtelten Knoten (Materialized Path):
+Hierarchies with nested nodes (Materialized Path):
 
 ```json
 {
@@ -347,22 +345,22 @@ Hierarchien mit verschachtelten Knoten (Materialized Path):
 }
 ```
 
-**Hierarchie:**
+**Hierarchy:**
 
-| Feld           | Typ    | Pflicht | Beschreibung              |
-|----------------|--------|---------|---------------------------|
-| technical_name | string | ✓       | Technischer Name          |
-| name_de        | string | ✓       | Deutscher Name            |
-| hierarchy_type | string |         | master, sales, web, ...   |
-| nodes          | array  |         | Hierarchie-Knoten         |
+| Field          | Type   | Required | Description             |
+|----------------|--------|----------|-------------------------|
+| technical_name | string | ✓        | Technical name          |
+| name_de        | string | ✓        | German name             |
+| hierarchy_type | string |          | master, sales, web, ... |
+| nodes          | array  |          | Hierarchy nodes         |
 
-**Knoten (node):**
+**Node:**
 
-| Feld    | Typ    | Pflicht | Beschreibung                      |
-|---------|--------|---------|-----------------------------------|
-| path    | string | ✓       | Materialized Path (z.B. "A/B/C") |
-| name_de | string |         | Deutscher Name                    |
-| name_en | string |         | Englischer Name                   |
+| Field   | Type   | Required | Description                       |
+|---------|--------|----------|-----------------------------------|
+| path    | string | ✓        | Materialized Path (e.g. "A/B/C") |
+| name_de | string |          | German name                       |
+| name_en | string |          | English name                      |
 
 ### `hierarchy_attribute_assignments`
 
@@ -382,15 +380,15 @@ Hierarchien mit verschachtelten Knoten (Materialized Path):
 }
 ```
 
-| Feld            | Typ     | Pflicht | Beschreibung                          |
-|-----------------|---------|---------|---------------------------------------|
-| hierarchy       | string  | ✓       | Referenz auf hierarchies              |
-| node_path       | string  | ✓       | Pfad des Hierarchie-Knotens           |
-| attribute       | string  | ✓       | Referenz auf attributes               |
-| collection_name | string  |         | Name der Attributgruppe am Knoten     |
-| collection_sort | int     |         | Sortierung der Gruppe                 |
-| attribute_sort  | int     |         | Sortierung des Attributs in der Gruppe|
-| dont_inherit    | boolean |         | Vererbung an Unterknoten unterbinden? |
+| Field           | Type    | Required | Description                           |
+|-----------------|---------|----------|---------------------------------------|
+| hierarchy       | string  | ✓        | Reference to hierarchies              |
+| node_path       | string  | ✓        | Path of the hierarchy node            |
+| attribute       | string  | ✓        | Reference to attributes               |
+| collection_name | string  |          | Name of the attribute group at the node |
+| collection_sort | int     |          | Group sort order                      |
+| attribute_sort  | int     |          | Attribute sort order within the group |
+| dont_inherit    | boolean |          | Prevent inheritance to child nodes?   |
 
 ### `products`
 
@@ -409,14 +407,14 @@ Hierarchien mit verschachtelten Knoten (Materialized Path):
 }
 ```
 
-| Feld         | Typ    | Pflicht | Beschreibung                             |
-|--------------|--------|---------|------------------------------------------|
-| sku          | string | ✓       | Eindeutige Artikelnummer                 |
-| name         | string | ✓       | Produktname (de)                         |
-| name_en      | string |         | Englischer Produktname                   |
-| product_type | string | ✓       | Referenz auf product_types               |
-| ean          | string |         | EAN/GTIN                                 |
-| status       | string |         | draft, active, inactive (Standard: draft)|
+| Field        | Type   | Required | Description                              |
+|--------------|--------|----------|------------------------------------------|
+| sku          | string | ✓        | Unique article number                    |
+| name         | string | ✓        | Product name (de)                        |
+| name_en      | string |          | English product name                     |
+| product_type | string | ✓        | Reference to product_types               |
+| ean          | string |          | EAN/GTIN                                 |
+| status       | string |          | draft, active, inactive (default: draft) |
 
 ### `product_attribute_values`
 
@@ -443,14 +441,14 @@ Hierarchien mit verschachtelten Knoten (Materialized Path):
 }
 ```
 
-| Feld      | Typ         | Pflicht | Beschreibung                              |
-|-----------|-------------|---------|-------------------------------------------|
-| sku       | string      | ✓       | Referenz auf products.sku                 |
-| attribute | string      | ✓       | Referenz auf attributes.technical_name    |
-| value     | string/null | ✓       | Attributwert als String                   |
-| unit      | string      |         | Einheit (bei numerischen Attributen)      |
-| language  | string      |         | Sprachcode (de, en) bei übersetzbaren Attributen |
-| index     | int         |         | Index bei Mehrfachwerten (Standard: 0)    |
+| Field     | Type        | Required | Description                               |
+|-----------|-------------|----------|-------------------------------------------|
+| sku       | string      | ✓        | Reference to products.sku                 |
+| attribute | string      | ✓        | Reference to attributes.technical_name    |
+| value     | string/null | ✓        | Attribute value as string                 |
+| unit      | string      |          | Unit (for numeric attributes)             |
+| language  | string      |          | Language code (de, en) for translatable attributes |
+| index     | int         |          | Index for multiple values (default: 0)    |
 
 ### `variants`
 
@@ -469,14 +467,14 @@ Hierarchien mit verschachtelten Knoten (Materialized Path):
 }
 ```
 
-| Feld       | Typ    | Pflicht | Beschreibung                       |
-|------------|--------|---------|------------------------------------|
-| parent_sku | string | ✓       | SKU des Hauptprodukts              |
-| sku        | string | ✓       | Eindeutige Varianten-SKU           |
-| name       | string | ✓       | Variantenname (de)                 |
-| name_en    | string |         | Englischer Variantenname           |
-| ean        | string |         | EAN/GTIN der Variante              |
-| status     | string |         | draft, active, inactive            |
+| Field      | Type   | Required | Description                        |
+|------------|--------|----------|------------------------------------|
+| parent_sku | string | ✓        | SKU of the main product            |
+| sku        | string | ✓        | Unique variant SKU                 |
+| name       | string | ✓        | Variant name (de)                  |
+| name_en    | string |          | English variant name               |
+| ean        | string |          | EAN/GTIN of the variant            |
+| status     | string |          | draft, active, inactive            |
 
 ### `product_hierarchy_assignments`
 
@@ -492,11 +490,11 @@ Hierarchien mit verschachtelten Knoten (Materialized Path):
 }
 ```
 
-| Feld      | Typ    | Pflicht | Beschreibung                       |
-|-----------|--------|---------|------------------------------------|
-| sku       | string | ✓       | Referenz auf products.sku          |
-| hierarchy | string | ✓       | Referenz auf hierarchies           |
-| node_path | string | ✓       | Pfad des Hierarchie-Knotens        |
+| Field     | Type   | Required | Description                        |
+|-----------|--------|----------|------------------------------------|
+| sku       | string | ✓        | Reference to products.sku          |
+| hierarchy | string | ✓        | Reference to hierarchies           |
+| node_path | string | ✓        | Path of the hierarchy node         |
 
 ### `product_relations`
 
@@ -513,12 +511,12 @@ Hierarchien mit verschachtelten Knoten (Materialized Path):
 }
 ```
 
-| Feld          | Typ    | Pflicht | Beschreibung                       |
-|---------------|--------|---------|------------------------------------|
-| source_sku    | string | ✓       | Quellprodukt-SKU                   |
-| target_sku    | string | ✓       | Zielprodukt-SKU                    |
-| relation_type | string | ✓       | Referenz auf relation_types        |
-| sort_order    | int    |         | Sortierreihenfolge                 |
+| Field         | Type   | Required | Description                        |
+|---------------|--------|----------|------------------------------------|
+| source_sku    | string | ✓        | Source product SKU                  |
+| target_sku    | string | ✓        | Target product SKU                 |
+| relation_type | string | ✓        | Reference to relation_types        |
+| sort_order    | int    |          | Sort order                         |
 
 ### `prices`
 
@@ -540,17 +538,17 @@ Hierarchien mit verschachtelten Knoten (Materialized Path):
 }
 ```
 
-| Feld       | Typ         | Pflicht | Beschreibung                       |
-|------------|-------------|---------|------------------------------------|
-| sku        | string      | ✓       | Referenz auf products.sku          |
-| price_type | string      | ✓       | Referenz auf price_types           |
-| amount     | number      | ✓       | Preis (Dezimalzahl)                |
-| currency   | string      |         | Währung (Standard: EUR)            |
-| valid_from | date/null   |         | Gültig ab (Y-m-d)                  |
-| valid_to   | date/null   |         | Gültig bis (Y-m-d)                 |
-| country    | string/null |         | Länderkürzel (DE, AT, CH, ...)     |
-| scale_from | number/null |         | Mengenstaffel von                  |
-| scale_to   | number/null |         | Mengenstaffel bis                  |
+| Field      | Type        | Required | Description                        |
+|------------|-------------|----------|------------------------------------|
+| sku        | string      | ✓        | Reference to products.sku          |
+| price_type | string      | ✓        | Reference to price_types           |
+| amount     | number      | ✓        | Price (decimal number)             |
+| currency   | string      |          | Currency (default: EUR)            |
+| valid_from | date/null   |          | Valid from (Y-m-d)                 |
+| valid_to   | date/null   |          | Valid until (Y-m-d)                |
+| country    | string/null |          | Country code (DE, AT, CH, ...)     |
+| scale_from | number/null |          | Scale pricing from quantity        |
+| scale_to   | number/null |          | Scale pricing to quantity          |
 
 ### `media_assignments`
 
@@ -572,17 +570,17 @@ Hierarchien mit verschachtelten Knoten (Materialized Path):
 }
 ```
 
-| Feld        | Typ     | Pflicht | Beschreibung                       |
-|-------------|---------|---------|------------------------------------|
-| sku         | string  | ✓       | Referenz auf products.sku          |
-| file_name   | string  | ✓       | Dateiname des Mediums              |
-| media_type  | string  |         | image, document, video, ...        |
-| usage_type  | string  |         | gallery, datasheet, thumbnail, ... |
-| title_de    | string  |         | Deutscher Titel                    |
-| title_en    | string  |         | Englischer Titel                   |
-| alt_text_de | string  |         | Alt-Text (de)                      |
-| sort_order  | int     |         | Sortierreihenfolge                 |
-| is_primary  | boolean |         | Primärbild?                        |
+| Field       | Type    | Required | Description                        |
+|-------------|---------|----------|------------------------------------|
+| sku         | string  | ✓        | Reference to products.sku          |
+| file_name   | string  | ✓        | Filename of the media              |
+| media_type  | string  |          | image, document, video, ...        |
+| usage_type  | string  |          | gallery, datasheet, thumbnail, ... |
+| title_de    | string  |          | German title                       |
+| title_en    | string  |          | English title                      |
+| alt_text_de | string  |          | Alt text (de)                      |
+| sort_order  | int     |          | Sort order                         |
+| is_primary  | boolean |          | Primary image?                     |
 
 ---
 
@@ -591,9 +589,9 @@ Hierarchien mit verschachtelten Knoten (Materialized Path):
 ### JSON Export
 
 ```
-GET  /api/v1/json-export                Vollexport als JSON-Download
-POST /api/v1/json-export                Gefilterter Export
-GET  /api/v1/json-export/sections       Verfügbare Sektionen auflisten
+GET  /api/v1/json-export                Full export as JSON download
+POST /api/v1/json-export                Filtered export
+GET  /api/v1/json-export/sections       List available sections
 ```
 
 **POST /api/v1/json-export** — Body:
@@ -613,37 +611,37 @@ GET  /api/v1/json-export/sections       Verfügbare Sektionen auflisten
 }
 ```
 
-| Parameter       | Typ     | Beschreibung                                    |
-|-----------------|---------|-------------------------------------------------|
-| sections        | array   | Zu exportierende Sektionen (leer = alle)        |
-| filter.status   | string  | draft, active, inactive                         |
-| filter.product_type | string | Produkttyp-technical_name                   |
-| filter.search_text  | string | Freitext (SKU, Name, EAN)                   |
-| filter.updated_after | date  | Nur nach Datum aktualisierte Produkte       |
-| filter.skus     | array   | Nur bestimmte SKUs                              |
-| filter.category_ids | array | Hierarchie-Knoten-IDs                       |
-| inline          | boolean | true = JSON-Response statt Download             |
+| Parameter           | Type    | Description                                     |
+|---------------------|---------|-------------------------------------------------|
+| sections            | array   | Sections to export (empty = all)                |
+| filter.status       | string  | draft, active, inactive                         |
+| filter.product_type | string  | Product type technical_name                     |
+| filter.search_text  | string  | Free text (SKU, name, EAN)                      |
+| filter.updated_after | date   | Only products updated after this date           |
+| filter.skus         | array   | Only specific SKUs                              |
+| filter.category_ids | array   | Hierarchy node IDs                              |
+| inline              | boolean | true = JSON response instead of download        |
 
 ### JSON Import
 
 ```
-POST /api/v1/json-import                JSON-Datei oder Body importieren
-POST /api/v1/json-import/validate       Validierung ohne Import
+POST /api/v1/json-import                Import JSON file or body
+POST /api/v1/json-import/validate       Validate without importing
 ```
 
-**Import-Modi** (Query-Parameter `mode`):
-- `update` (Standard): Upsert — vorhandene Datensätze aktualisieren, neue anlegen
-- `delete_insert`: Alle betroffenen Daten löschen und neu einfügen
+**Import modes** (query parameter `mode`):
+- `update` (default): Upsert — update existing records, create new ones
+- `delete_insert`: Delete all affected data and re-insert
 
-**Datei-Upload:**
+**File upload:**
 ```
 POST /api/v1/json-import?mode=update
 Content-Type: multipart/form-data
 
-file: [JSON-Datei]
+file: [JSON file]
 ```
 
-**Raw JSON Body:**
+**Raw JSON body:**
 ```
 POST /api/v1/json-import?mode=update
 Content-Type: application/json
@@ -651,24 +649,24 @@ Content-Type: application/json
 { "_meta": {...}, "products": [...] }
 ```
 
-### Export-Jobs
+### Export Jobs
 
 ```
-GET    /api/v1/export-jobs              Alle Jobs auflisten
-POST   /api/v1/export-jobs              Neuen Job anlegen
-GET    /api/v1/export-jobs/{id}         Job-Details
-PUT    /api/v1/export-jobs/{id}         Job aktualisieren
-DELETE /api/v1/export-jobs/{id}         Job löschen
-POST   /api/v1/export-jobs/{id}/execute Job ausführen
-GET    /api/v1/export-jobs/{id}/download Letzte Datei herunterladen
+GET    /api/v1/export-jobs              List all jobs
+POST   /api/v1/export-jobs              Create new job
+GET    /api/v1/export-jobs/{id}         Job details
+PUT    /api/v1/export-jobs/{id}         Update job
+DELETE /api/v1/export-jobs/{id}         Delete job
+POST   /api/v1/export-jobs/{id}/execute Execute job
+GET    /api/v1/export-jobs/{id}/download Download latest file
 ```
 
 **POST /api/v1/export-jobs** — Body:
 
 ```json
 {
-  "name": "Elektrowerkzeuge Export aktiv",
-  "description": "Aktive Elektrowerkzeuge als JSON",
+  "name": "Power Tools Export active",
+  "description": "Active power tools as JSON",
   "format": "json",
   "sections": ["products", "product_attribute_values", "prices"],
   "filters": {
@@ -689,94 +687,94 @@ GET    /api/v1/export-jobs/{id}/download Letzte Datei herunterladen
 { "async": true }
 ```
 
-- `async: false` (Standard): Synchrone Ausführung, Ergebnis in Response
-- `async: true`: Job wird in die Queue eingereiht (Status 202)
+- `async: false` (default): Synchronous execution, result in response
+- `async: true`: Job is queued (status 202)
 
 ---
 
-## CLI-Befehle / CLI Commands
+## CLI Commands
 
 ### JSON Export
 
 ```bash
-# Vollexport
+# Full export
 php artisan pim:json-export
 
-# Bestimmte Sektionen
+# Specific sections
 php artisan pim:json-export --sections=products,prices,variants
 
-# Mit Filtern
+# With filters
 php artisan pim:json-export --status=active --product-type=power_tool
 
-# Freitextsuche
+# Free text search
 php artisan pim:json-export --search="Bohrmaschine"
 
-# Nur nach Datum aktualisierte Produkte
+# Only products updated after a date
 php artisan pim:json-export --updated-after=2026-01-01
 
-# Ausgabedatei festlegen
+# Specify output file
 php artisan pim:json-export --output=/tmp/export.json
 
-# Kompaktes JSON (ohne Pretty-Print)
+# Compact JSON (without pretty-print)
 php artisan pim:json-export --compact
 
-# Verfügbare Sektionen anzeigen
+# Show available sections
 php artisan pim:json-export --sections-list
 ```
 
 ### JSON Import
 
 ```bash
-# Import (Upsert)
-php artisan pim:json-import /pfad/zur/datei.json
+# Import (upsert)
+php artisan pim:json-import /path/to/file.json
 
-# Import mit Delete-Insert
-php artisan pim:json-import /pfad/zur/datei.json --mode=delete_insert
+# Import with delete-insert
+php artisan pim:json-import /path/to/file.json --mode=delete_insert
 
-# Nur validieren (kein Import)
-php artisan pim:json-import /pfad/zur/datei.json --validate
+# Validate only (no import)
+php artisan pim:json-import /path/to/file.json --validate
 ```
 
-### Export-Jobs
+### Export Jobs
 
 ```bash
-# Alle Jobs anzeigen
+# List all jobs
 php artisan pim:export-job --list
 
-# Job ausführen
+# Execute job
 php artisan pim:export-job {job-id}
 
-# Neuen Job anlegen
-php artisan pim:export-job --create --name="Mein Export" --format=json --filter-status=active
+# Create new job
+php artisan pim:export-job --create --name="My Export" --format=json --filter-status=active
 
-# Alle fälligen Jobs ausführen
+# Execute all scheduled jobs
 php artisan pim:export-job --run-scheduled
 
-# Mit Ausgabeverzeichnis
+# With output directory
 php artisan pim:export-job {job-id} --output-dir=/tmp/exports
 ```
 
 ---
 
-## Import-Hinweise / Import Notes
+## Import Notes
 
-### Validierung / Validation
+### Validation
 
-Vor dem Import wird die JSON-Struktur automatisch validiert:
-- `_meta`-Sektion muss vorhanden sein
-- Alle Sektionen müssen Arrays sein
-- Produkte benötigen: `sku`, `name`, `product_type`
-- Attribute benötigen: `technical_name`, `data_type`
+Before import, the JSON structure is automatically validated:
+- `_meta` section must be present
+- All sections must be arrays
+- Products require: `sku`, `name`, `product_type`
+- Attributes require: `technical_name`, `data_type`
 
-### Transaktionssicherheit / Transaction Safety
+### Transaction Safety
 
-Der Import läuft in einer Datenbank-Transaktion. Bei einem Fehler werden alle Änderungen zurückgerollt.
+The import runs within a database transaction. If an error occurs, all changes are rolled back.
 
 ---
 
 ## Logging
 
-- **Export**: `storage/logs/export-YYYY-MM-DD.log` (Channel: `export`, 30 Tage Rotation)
+- **Export**: `storage/logs/export-YYYY-MM-DD.log` (Channel: `export`, 30-day rotation)
 - **Import**: `storage/logs/import-YYYY-MM-DD.log` (Channel: `import`)
 
-Geloggt werden: Start/Ende, Dauer, Sektionen, Dateigrößen, Fehler.
+Logged: start/end, duration, sections, file sizes, errors.

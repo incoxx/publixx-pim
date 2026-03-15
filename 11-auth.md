@@ -52,7 +52,7 @@ Examples:
 products.view                    View products
 products.create                  Create
 products.edit                    Edit
-products.edit:eshop_view         Edit only E-Shop attributes
+products.edit:eshop_view         Edit only e-shop attributes
 products.edit:node-uuid-123      Edit only products under a hierarchy node
 products.delete                  Delete
 
