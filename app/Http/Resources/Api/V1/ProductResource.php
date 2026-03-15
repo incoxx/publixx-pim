@@ -43,6 +43,7 @@ class ProductResource extends JsonResource
             'media' => MediaResource::collection($this->whenLoaded('media')),
             'prices' => ProductPriceResource::collection($this->whenLoaded('prices')),
             'relations' => ProductRelationResource::collection($this->whenLoaded('relations')),
+            'projects' => ProjectResource::collection($this->whenLoaded('projects')),
             'parent_product' => new ProductResource($this->whenLoaded('parentProduct')),
             'master_hierarchy_node' => new HierarchyNodeResource($this->whenLoaded('masterHierarchyNode')),
             'attributes' => $this->when(isset($this->resource->getAttributes()['attributes']), $this->attributes),

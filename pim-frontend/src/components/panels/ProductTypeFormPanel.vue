@@ -36,7 +36,7 @@ const formData = ref(
         has_media: props.productType.has_media ?? true,
         has_stock: props.productType.has_stock ?? false,
         has_physical_dimensions: props.productType.has_physical_dimensions ?? false,
-        workflow_id: props.productType.workflow_id || null,
+        workflow_id: props.productType.workflow_id || '',
       }
     : {
         technical_name: '',
@@ -53,7 +53,7 @@ const formData = ref(
         has_media: true,
         has_stock: false,
         has_physical_dimensions: false,
-        workflow_id: null,
+        workflow_id: '',
       }
 )
 
@@ -87,7 +87,7 @@ const fields = computed(() => {
       label: 'Workflow',
       type: 'select',
       options: [
-        { value: null, label: 'Kein Workflow' },
+        { value: '', label: 'Kein Workflow' },
         ...workflows.value.map(w => ({ value: w.id, label: w.name })),
       ],
     })
@@ -111,11 +111,12 @@ onMounted(() => {
 async function handleSubmit(data) {
   loading.value = true
   errors.value = {}
+  const payload = { ...data, workflow_id: data.workflow_id || null }
   try {
     if (isEdit.value) {
-      await productTypes.update(props.productType.id, data)
+      await productTypes.update(props.productType.id, payload)
     } else {
-      await productTypes.create(data)
+      await productTypes.create(payload)
     }
     authStore.closePanel()
     if (props.onSaved) props.onSaved()

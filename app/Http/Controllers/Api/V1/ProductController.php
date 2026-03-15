@@ -36,7 +36,7 @@ class ProductController extends Controller
     private const ALLOWED_INCLUDES = [
         'productType', 'attributeValues', 'variants', 'media',
         'prices', 'relations', 'parentProduct', 'masterHierarchyNode',
-        'manufacturer', 'workflow', 'currentWorkflowStatus', 'workflowAssignee', 'workflowTeam',
+        'manufacturer', 'workflow', 'currentWorkflowStatus', 'workflowAssignee', 'workflowTeam', 'projects',
     ];
 
     private const ALLOWED_FILTERS = [
@@ -309,6 +309,12 @@ class ProductController extends Controller
             WorkflowTask::where('product_id', $product->id)
                 ->whereIn('status', ['open', 'in_progress'])
                 ->update(['status' => 'closed', 'closed_at' => now()]);
+        }
+
+        // Sync project assignments
+        if (array_key_exists('project_ids', $data)) {
+            $product->projects()->sync($data['project_ids'] ?? []);
+            unset($data['project_ids']);
         }
 
         $product->update($data);

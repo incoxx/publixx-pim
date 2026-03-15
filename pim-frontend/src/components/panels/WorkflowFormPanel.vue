@@ -3,8 +3,9 @@ import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import workflowsApi from '@/api/workflows'
 import workflowStatusesApi from '@/api/workflowStatuses'
+import { productTypes as productTypesApi } from '@/api/attributes'
 import PimForm from '@/components/shared/PimForm.vue'
-import { Plus, Trash2, ArrowRight } from 'lucide-vue-next'
+import { Plus, Trash2, ArrowRight, X } from 'lucide-vue-next'
 
 const props = defineProps({
   workflow: { type: Object, default: null },
@@ -15,6 +16,8 @@ const authStore = useAuthStore()
 const loading = ref(false)
 const errors = ref({})
 const availableStatuses = ref([])
+const availableProductTypes = ref([])
+const selectedProductTypeIds = ref([])
 const workflowDetail = ref(null)
 
 const isEdit = computed(() => !!props.workflow)
@@ -80,16 +83,30 @@ function removeTransition(index) {
   transitions.value.splice(index, 1)
 }
 
+function toggleProductType(id) {
+  const idx = selectedProductTypeIds.value.indexOf(id)
+  if (idx >= 0) {
+    selectedProductTypeIds.value.splice(idx, 1)
+  } else {
+    selectedProductTypeIds.value.push(id)
+  }
+}
+
 async function loadData() {
   try {
-    const { data } = await workflowStatusesApi.list({ per_page: 200 })
-    availableStatuses.value = data.data || data
+    const [statusRes, ptRes] = await Promise.all([
+      workflowStatusesApi.list({ per_page: 200 }),
+      productTypesApi.list(),
+    ])
+    availableStatuses.value = statusRes.data.data || statusRes.data
+    availableProductTypes.value = ptRes.data.data || ptRes.data
 
     if (isEdit.value) {
       const { data: detail } = await workflowsApi.get(props.workflow.id)
       const wf = detail.data || detail
       workflowDetail.value = wf
       selectedStatusIds.value = (wf.statuses || []).map(s => s.id)
+      selectedProductTypeIds.value = (wf.product_types || []).map(pt => pt.id)
       transitions.value = (wf.transitions || []).map(t => ({
         from_status_id: t.from_status_id,
         to_status_id: t.to_status_id,
@@ -109,6 +126,7 @@ async function handleSubmit(data) {
     ...data,
     status_ids: selectedStatusIds.value,
     transitions: transitions.value.filter(t => t.from_status_id && t.to_status_id),
+    product_type_ids: selectedProductTypeIds.value,
   }
   try {
     if (isEdit.value) {
@@ -169,6 +187,40 @@ onMounted(() => loadData())
         </button>
       </div>
       <p v-if="availableStatuses.length === 0" class="text-xs text-[var(--color-text-tertiary)]">Keine Workflow-Status vorhanden. Erstellen Sie zuerst Status.</p>
+    </div>
+
+    <!-- Zugeordnete Produkttypen -->
+    <div class="border-t border-[var(--color-border)] pt-4">
+      <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] mb-2">Zugeordnete Produkttypen</h4>
+
+      <div v-if="selectedProductTypeIds.length" class="flex flex-wrap gap-1.5 mb-3">
+        <span
+          v-for="ptId in selectedProductTypeIds"
+          :key="ptId"
+          class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-[color-mix(in_srgb,var(--color-accent)_10%,transparent)] text-[var(--color-accent)] border border-[var(--color-accent)]/20"
+        >
+          {{ availableProductTypes.find(pt => pt.id === ptId)?.name_de || availableProductTypes.find(pt => pt.id === ptId)?.technical_name || ptId }}
+          <button class="hover:text-[var(--color-error)]" @click="toggleProductType(ptId)">
+            <X class="w-3 h-3" :stroke-width="2" />
+          </button>
+        </span>
+      </div>
+
+      <div class="max-h-40 overflow-y-auto border border-[var(--color-border)] rounded">
+        <button
+          v-for="pt in availableProductTypes"
+          :key="pt.id"
+          :class="[
+            'w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-[var(--color-bg)] transition-colors cursor-pointer text-left',
+            selectedProductTypeIds.includes(pt.id) ? 'bg-[color-mix(in_srgb,var(--color-accent)_5%,transparent)]' : ''
+          ]"
+          @click="toggleProductType(pt.id)"
+        >
+          <input type="checkbox" :checked="selectedProductTypeIds.includes(pt.id)" class="pointer-events-none" />
+          <span class="text-[var(--color-text-primary)]">{{ pt.name_de || pt.technical_name }}</span>
+        </button>
+      </div>
+      <p v-if="availableProductTypes.length === 0" class="text-xs text-[var(--color-text-tertiary)] mt-1">Keine Produkttypen vorhanden.</p>
     </div>
 
     <!-- Übergänge -->

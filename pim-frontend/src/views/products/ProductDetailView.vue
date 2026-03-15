@@ -7,6 +7,7 @@ import { useLocaleStore } from '@/stores/locale'
 import { useI18n } from 'vue-i18n'
 import { ArrowLeft, Save, Plus, Trash2, Image, Star, X, Search, Download, Languages, Copy, Sparkles, Tags, LayoutGrid, List, FileText, GitBranch, CheckCircle2, Eye, RotateCcw } from 'lucide-vue-next'
 import productsApi from '@/api/products'
+import projectsApi from '@/api/projects'
 import usersApi from '@/api/users'
 import mediaApi from '@/api/media'
 import { mediaUsageTypes } from '@/api/mediaUsageTypes'
@@ -52,6 +53,21 @@ async function loadManufacturers() {
   try {
     const { data } = await manufacturersApi.list({ perPage: 500 })
     manufacturers.value = data.data || data
+  } catch { /* silently fail */ }
+}
+
+// Project assignment
+const availableProjects = ref([])
+const selectedProjectIds = ref([])
+
+async function loadProjects() {
+  try {
+    const { data } = await projectsApi.list({ perPage: 500 })
+    availableProjects.value = data.data || data
+    // Initialize selected projects from current product
+    if (product.value?.projects) {
+      selectedProjectIds.value = product.value.projects.map(p => p.id)
+    }
   } catch { /* silently fail */ }
 }
 
@@ -1459,6 +1475,7 @@ async function save() {
       updateData.workflow_assignee_id = product.value.workflow_assignee_id || null
       updateData.workflow_team_id = product.value.workflow_team_id || null
     }
+    updateData.project_ids = selectedProjectIds.value
     await store.update(product.value.id, updateData)
 
     // Build attribute values payload with language support
@@ -1569,6 +1586,7 @@ onMounted(async () => {
   loadHierarchies()
   loadManufacturers()
   loadProductTypes()
+  loadProjects()
   if (workflowEnabled.value) {
     loadWorkflowUsers()
     loadWorkflowTeams()
@@ -1897,6 +1915,39 @@ watch(() => route.params.id, async (newId, oldId) => {
             <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Kurzbeschreibung</label>
             <PimAttributeInput type="textarea" v-model="product.description_short" />
           </div>
+        </div>
+      </PimCollectionGroup>
+
+      <PimCollectionGroup title="Projekte" :filledCount="selectedProjectIds.length" :totalCount="availableProjects.length" :defaultOpen="false">
+        <div class="space-y-3 pt-3">
+          <div v-if="selectedProjectIds.length" class="flex flex-wrap gap-1.5">
+            <span
+              v-for="pid in selectedProjectIds"
+              :key="pid"
+              class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-[color-mix(in_srgb,var(--color-accent)_10%,transparent)] text-[var(--color-accent)] border border-[var(--color-accent)]/20"
+            >
+              {{ availableProjects.find(p => p.id === pid)?.name || pid }}
+              <button class="hover:text-[var(--color-error)]" @click="selectedProjectIds = selectedProjectIds.filter(id => id !== pid)">
+                <X class="w-3 h-3" :stroke-width="2" />
+              </button>
+            </span>
+          </div>
+          <div class="max-h-40 overflow-y-auto border border-[var(--color-border)] rounded">
+            <button
+              v-for="proj in availableProjects"
+              :key="proj.id"
+              :class="[
+                'w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-[var(--color-bg)] transition-colors cursor-pointer text-left',
+                selectedProjectIds.includes(proj.id) ? 'bg-[color-mix(in_srgb,var(--color-accent)_5%,transparent)]' : ''
+              ]"
+              @click="selectedProjectIds.includes(proj.id) ? selectedProjectIds = selectedProjectIds.filter(id => id !== proj.id) : selectedProjectIds = [...selectedProjectIds, proj.id]"
+            >
+              <input type="checkbox" :checked="selectedProjectIds.includes(proj.id)" class="pointer-events-none" />
+              <span class="text-[var(--color-text-primary)]">{{ proj.name }}</span>
+              <span v-if="proj.status" class="text-[var(--color-text-tertiary)]">({{ proj.status }})</span>
+            </button>
+          </div>
+          <p v-if="availableProjects.length === 0" class="text-xs text-[var(--color-text-tertiary)]">Keine Projekte vorhanden.</p>
         </div>
       </PimCollectionGroup>
     </div>
