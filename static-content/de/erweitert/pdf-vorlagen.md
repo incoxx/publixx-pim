@@ -40,7 +40,7 @@ Der PDF-Designer stellt eine WYSIWYG-Oberfläche bereit, auf der Sie Elemente fr
 | Element | Beschreibung |
 |---|---|
 | **Textfeld** | Statischer Text mit konfigurierbarer Schriftart, -grösse und -farbe |
-| **Platzhalter** | Dynamischer Wert aus einem Produktattribut (z.B. `{{product.name}}`) |
+| **Platzhalter** | Dynamischer Wert aus einem Produktattribut (z.B. <code v-pre>{{product.name}}</code>) |
 | **Bild-Platzhalter** | Platzhalter für ein Produktbild oder Herstellerlogo |
 | **Statisches Bild** | Fest eingebundenes Bild (z.B. Firmenlogo, Hintergrundbild) |
 | **Tabelle** | Tabellarische Darstellung mehrerer Attribute |
@@ -58,18 +58,18 @@ Verwenden Sie das Raster und die Hilfslinien des Editors, um Elemente präzise a
 
 ## Platzhalter
 
-Platzhalter sind dynamische Felder, die bei der PDF-Generierung durch die tatsächlichen Produktdaten ersetzt werden. Sie verwenden die Syntax `{{Bereich.Feldname}}`.
+Platzhalter sind dynamische Felder, die bei der PDF-Generierung durch die tatsächlichen Produktdaten ersetzt werden. Sie verwenden die Syntax <code v-pre>{{Bereich.Feldname}}</code>.
 
 ### Verfügbare Platzhalterbereiche
 
 | Bereich | Beispiele | Beschreibung |
 |---|---|---|
-| `product` | `{{product.sku}}`, `{{product.name}}` | Produktstammdaten |
-| `attribute` | `{{attribute.gewicht}}`, `{{attribute.farbe}}` | Produktattribute (technischer Name) |
-| `price` | `{{price.netto}}`, `{{price.brutto}}` | Preisdaten |
-| `manufacturer` | `{{manufacturer.name}}`, `{{manufacturer.logo}}` | Herstellerdaten |
-| `media` | `{{media.main_image}}`, `{{media.gallery}}` | Produktmedien |
-| `meta` | `{{meta.date}}`, `{{meta.page}}` | Metadaten (Datum, Seitenzahl) |
+| `product` | <code v-pre>{{product.sku}}</code>, <code v-pre>{{product.name}}</code> | Produktstammdaten |
+| `attribute` | <code v-pre>{{attribute.gewicht}}</code>, <code v-pre>{{attribute.farbe}}</code> | Produktattribute (technischer Name) |
+| `price` | <code v-pre>{{price.netto}}</code>, <code v-pre>{{price.brutto}}</code> | Preisdaten |
+| `manufacturer` | <code v-pre>{{manufacturer.name}}</code>, <code v-pre>{{manufacturer.logo}}</code> | Herstellerdaten |
+| `media` | <code v-pre>{{media.main_image}}</code>, <code v-pre>{{media.gallery}}</code> | Produktmedien |
+| `meta` | <code v-pre>{{meta.date}}</code>, <code v-pre>{{meta.page}}</code> | Metadaten (Datum, Seitenzahl) |
 
 ### Platzhalter formatieren
 

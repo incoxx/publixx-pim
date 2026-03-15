@@ -67,20 +67,20 @@ Each element type has specific properties. For example, a Text Block element off
 
 ## Placeholders
 
-Placeholders are the key mechanism for injecting product data into templates. They use a double-brace syntax: `{{ attribute_key }}`.
+Placeholders are the key mechanism for injecting product data into templates. They use a double-brace syntax: <code v-pre>{{ attribute_key }}</code>.
 
 ### Placeholder Syntax
 
 | Placeholder | Resolves To |
 |---|---|
-| `{{ sku }}` | The product's SKU |
-| `{{ name }}` | The product name in the current language |
-| `{{ status }}` | The product status |
-| `{{ product_type }}` | The name of the assigned product type |
-| `{{ attribute_key }}` | The value of any custom attribute (use the technical name) |
-| `{{ manufacturer.name }}` | The name of the assigned manufacturer |
-| `{{ manufacturer.logo }}` | The manufacturer's logo image |
-| `{{ price.default }}` | The default price value |
+| <code v-pre>{{ sku }}</code> | The product's SKU |
+| <code v-pre>{{ name }}</code> | The product name in the current language |
+| <code v-pre>{{ status }}</code> | The product status |
+| <code v-pre>{{ product_type }}</code> | The name of the assigned product type |
+| <code v-pre>{{ attribute_key }}</code> | The value of any custom attribute (use the technical name) |
+| <code v-pre>{{ manufacturer.name }}</code> | The name of the assigned manufacturer |
+| <code v-pre>{{ manufacturer.logo }}</code> | The manufacturer's logo image |
+| <code v-pre>{{ price.default }}</code> | The default price value |
 
 ::: tip Note
 Placeholder names correspond to the technical names of your attributes. You can browse available placeholders in the designer by clicking the **Insert Placeholder** button, which opens a searchable list of all attributes.
@@ -123,8 +123,8 @@ The header area appears at the top of each page. Typical content includes:
 
 The footer area appears at the bottom of each page. Typical content includes:
 
-- Page number (`{{ page_number }}` / `{{ total_pages }}`)
-- Generation date (`{{ generated_at }}`)
+- Page number (<code v-pre>{{ page_number }}</code> / <code v-pre>{{ total_pages }}</code>)
+- Generation date (<code v-pre>{{ generated_at }}</code>)
 - Disclaimer or confidentiality notice
 - Company address
 
