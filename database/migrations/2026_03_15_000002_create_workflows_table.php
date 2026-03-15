@@ -52,7 +52,7 @@ return new class extends Migration
                 $table->foreign('workflow_id')->references('id')->on('workflows')->cascadeOnDelete();
                 $table->foreign('from_status_id')->references('id')->on('workflow_statuses')->cascadeOnDelete();
                 $table->foreign('to_status_id')->references('id')->on('workflow_statuses')->cascadeOnDelete();
-                $table->unique(['workflow_id', 'from_status_id', 'to_status_id']);
+                $table->unique(['workflow_id', 'from_status_id', 'to_status_id'], 'wf_transitions_wf_from_to_unique');
             });
         }
     }
