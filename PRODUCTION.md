@@ -1,23 +1,23 @@
-# anyPIM — Production-Betrieb
+# anyPIM — Production Operations
 
-Vollstaendige Anleitung fuer Installation, Updates und Betrieb auf einem Production-Server.
+Complete guide for installation, updates, and operations on a production server.
 
 ---
 
-## Uebersicht
+## Overview
 
-anyPIM liefert zwei Scripts fuer den kompletten Server-Lifecycle:
+anyPIM provides two scripts for the complete server lifecycle:
 
-| Script | Zweck | Ausfuehrung |
+| Script | Purpose | Usage |
 |---|---|---|
-| `setup.sh` | Erstinstallation (einmalig) | `sudo bash setup.sh` |
-| `update.sh` | Updates einspielen (wiederholt) | `sudo bash update.sh` |
+| `setup.sh` | Initial installation (one-time) | `sudo bash setup.sh` |
+| `update.sh` | Apply updates (recurring) | `sudo bash update.sh` |
 
-Beide Scripts laufen interaktiv, koennen aber auch automatisiert werden (`--force`).
+Both scripts run interactively but can also be automated (`--force`).
 
 ---
 
-## Architektur
+## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -36,9 +36,9 @@ Beide Scripts laufen interaktiv, koennen aber auch automatisiert werden (`--forc
 │  ┌─────────────────┴───────────────────────┐             │
 │  │  Supervisor                             │             │
 │  │  └── Horizon (Queue Worker)             │             │
-│  │      ├── indexing   (Search-Index)      │             │
-│  │      ├── cache      (Cache-Invalidierung)│            │
-│  │      ├── warmup     (Cache-Warmup)      │             │
+│  │      ├── indexing   (Search index)      │             │
+│  │      ├── cache      (Cache invalidation)│             │
+│  │      ├── warmup     (Cache warmup)      │             │
 │  │      └── default    (Import/Export/etc.) │             │
 │  └─────────────────────────────────────────┘             │
 │                                                         │
@@ -51,145 +51,149 @@ Beide Scripts laufen interaktiv, koennen aber auch automatisiert werden (`--forc
 
 ---
 
-## 1. Erstinstallation mit setup.sh
+## 1. Initial Installation with setup.sh
 
-### Voraussetzungen
+### Prerequisites
 
-- Frisches **Ubuntu 24.04 LTS** (oder 22.04)
-- **Root-Zugang** (sudo)
-- Mindestens 2 GB RAM, 10 GB Speicher
-- Empfohlen: 4 vCPU, 8 GB RAM, 160 GB SSD
+- Fresh **Ubuntu 24.04 LTS** (or 22.04)
+- **Root access** (sudo)
+- Minimum 2 GB RAM, 10 GB storage
+- Recommended: 4 vCPU, 8 GB RAM, 160 GB SSD
 
-### Ausfuehrung
+### Execution
 
 ```bash
-# Repository klonen
+# Clone repository
 git clone <repository-url> /tmp/publixx-pim
 cd /tmp/publixx-pim
 
-# Setup starten
+# Start setup
 sudo bash setup.sh
 ```
 
-### Interaktive Abfragen
+### Interactive Prompts
 
-| Abfrage | Beispiel | Standard |
+| Prompt | Example | Default |
 |---|---|---|
-| Domain / IP | `pim.example.com` | — (Pflicht) |
-| Apache-Port | `80` | 80 |
-| SSL (Let's Encrypt) | `j/N` | Nein |
-| Web-Pfad | `/web` oder leer | `/` (Root) |
-| MySQL Datenbankname | `publixx_pim` | `publixx_pim` |
-| MySQL Benutzername | `pim` | `pim` |
-| MySQL Passwort | `*****` | — (Pflicht) |
-| Installationspfad | `/var/www/publixx-pim` | `/var/www/publixx-pim` |
-| Extra-Admin anlegen | `j/N` | Nein |
+| Domain / IP | `pim.example.com` | — (required) |
+| Apache port | `80` | 80 |
+| SSL (Let's Encrypt) | `y/N` | No |
+| Web path | `/web` or empty | `/` (root) |
+| MySQL database name | `publixx_pim` | `publixx_pim` |
+| MySQL username | `pim` | `pim` |
+| MySQL password | `*****` | — (required) |
+| Installation path | `/var/www/publixx-pim` | `/var/www/publixx-pim` |
+| Create extra admin | `y/N` | No |
 
-### Was setup.sh installiert und konfiguriert
+### What setup.sh Installs and Configures
 
 ```
-Schritt  1/10  System aktualisieren (apt update/upgrade)
-Schritt  2/10  PHP 8.4 + Extensions (mysql, redis, mbstring, xml, zip, gd, bcmath, curl, intl)
-Schritt  3/10  Apache + Module (rewrite, headers, ssl, alias)
-Schritt  4/10  MySQL 8 (Datenbank + Benutzer anlegen)
-Schritt  5/10  Redis (maxmemory 512mb, allkeys-lru)
-Schritt  6/10  Node.js 20 LTS
-Schritt  7/10  Composer 2
-Schritt  8/10  Laravel einrichten (.env, Composer Install, Migrationen, Seeder, Storage-Link)
-Schritt  9/10  Frontend bauen (npm ci + npm run build → public/)
-Schritt 10/10  Apache VHost, Supervisor/Horizon, Cron, Berechtigungen, Firewall
+Step  1/10  System update (apt update/upgrade)
+Step  2/10  PHP 8.4 + extensions (mysql, redis, mbstring, xml, zip, gd, bcmath, curl, intl)
+Step  3/10  Apache + modules (rewrite, headers, ssl, alias)
+Step  4/10  MySQL 8 (create database + user)
+Step  5/10  Redis (maxmemory 512mb, allkeys-lru)
+Step  6/10  Node.js 20 LTS
+Step  7/10  Composer 2
+Step  8/10  Laravel setup (.env, Composer install, migrations, seeder, storage link)
+Step  9/10  Build frontend (npm ci + npm run build → public/)
+Step 10/10  Apache VHost, Supervisor/Horizon, Cron, permissions, firewall
 ```
 
-### Nach der Installation laufen automatisch
+### Services Running After Installation
 
-| Dienst | Verwaltung | Autostart |
+| Service | Management | Autostart |
 |---|---|---|
-| **Apache** | `systemctl` | Ja (systemd) |
-| **MySQL** | `systemctl` | Ja (systemd) |
-| **Redis** | `systemctl` | Ja (systemd) |
-| **Supervisor** | `systemctl` | Ja (systemd) |
-| **Horizon** (Queue Worker) | `supervisorctl` | Ja (`autostart=true`) |
-| **Laravel Scheduler** | Cron (`www-data`) | Ja (`* * * * *`) |
+| **Apache** | `systemctl` | Yes (systemd) |
+| **MySQL** | `systemctl` | Yes (systemd) |
+| **Redis** | `systemctl` | Yes (systemd) |
+| **Supervisor** | `systemctl` | Yes (systemd) |
+| **Horizon** (queue worker) | `supervisorctl` | Yes (`autostart=true`) |
+| **Laravel Scheduler** | Cron (`www-data`) | Yes (`* * * * *`) |
 
 ---
 
-## 2. Updates mit update.sh
+## 2. Updates with update.sh
 
-### Ausfuehrung
+### Execution
 
 ```bash
 cd /var/www/publixx-pim
 sudo bash update.sh
 ```
 
-### Optionen
+### Options
 
 ```bash
-sudo bash update.sh [optionen]
+sudo bash update.sh [options]
 ```
 
-| Option | Beschreibung |
+| Option | Description |
 |---|---|
-| `--branch=NAME` | Anderen Branch als `main` verwenden |
-| `--skip-frontend` | Frontend-Build ueberspringen (nur Backend-Aenderungen) |
-| `--skip-composer` | Composer Install ueberspringen |
-| `--seed` | Nach Migrationen auch Seeders ausfuehren |
-| `--force` | Keine Bestaetigung, direkt ausfuehren |
+| `--branch=NAME` | Use a different branch instead of `main` |
+| `--skip-frontend` | Skip frontend build (backend-only changes) |
+| `--skip-docs` | Skip documentation site rebuild |
+| `--skip-tms` | Skip TMS setup |
+| `--skip-composer` | Skip Composer install |
+| `--seed` | Run seeders after migrations |
+| `--force` | No confirmation, execute immediately |
 
-### Beispiele
+### Examples
 
 ```bash
-# Standard-Update
+# Standard update
 sudo bash update.sh
 
-# Schnelles Backend-Update
+# Quick backend update
 sudo bash update.sh --skip-frontend
 
-# Feature-Branch testen
+# Test a feature branch
 sudo bash update.sh --branch=feature/new-import
 
-# Vollautomatisch (CI/CD)
+# Fully automated (CI/CD)
 sudo bash update.sh --force
 
-# Mit neuen Testdaten
+# With new test data
 sudo bash update.sh --seed
 ```
 
-### Ablauf (8 Schritte)
+### Process (10 Steps)
 
 ```
-Schritt 1/8  Wartungsmodus aktivieren (artisan down)
-Schritt 2/8  Git Pull vom Branch (zeigt Aenderungen an)
-Schritt 3/8  Composer Install (--no-dev, optimized autoloader)
-Schritt 4/8  Datenbank-Migrationen (artisan migrate --force)
-Schritt 5/8  Frontend-Build (npm ci + build, Subdirectory-aware)
-Schritt 6/8  Laravel-Caches neu erstellen (config, route, view, event)
-Schritt 7/8  Berechtigungen + Horizon/Queue Worker + Apache neu starten
-Schritt 8/8  Wartungsmodus deaktivieren + Healthcheck
+Step  1/10  Activate maintenance mode (artisan down)
+Step  2/10  Git pull from branch (shows changes)
+Step  3/10  Composer install (--no-dev, optimized autoloader)
+Step  4/10  Database migrations (artisan migrate --force)
+Step  5/10  Frontend build (npm ci + build, subdirectory-aware)
+Step  6/10  Documentation build (VitePress)
+Step  7/10  TMS setup (if applicable)
+Step  8/10  Recreate Laravel caches (config, route, view, event)
+Step  9/10  Permissions + Horizon/queue worker + Apache restart
+Step 10/10  Deactivate maintenance mode + healthcheck
 ```
 
-### Fehler-Handling
+### Error Handling
 
-- Bei jedem Fehler wird der **Wartungsmodus automatisch deaktiviert** (trap)
-- Am Ende laeuft ein **Healthcheck** gegen `/api/v1/health`
-- Falls Supervisor/Horizon nicht verfuegbar ist, startet das Script einen **Fallback Queue Worker** direkt
+- On any error, **maintenance mode is automatically deactivated** (trap)
+- A **healthcheck** runs at the end against `/api/v1/health`
+- If Supervisor/Horizon is unavailable, the script starts a **fallback queue worker** directly
 
 ---
 
-## 3. Queue-System (Horizon)
+## 3. Queue System (Horizon)
 
-### Queues und ihre Aufgaben
+### Queues and Their Tasks
 
-| Queue | Zweck | Prioritaet | Max Workers |
+| Queue | Purpose | Priority | Max Workers |
 |---|---|---|---|
-| `indexing` | Search-Index aktualisieren (produktkritisch) | Hoch | 4 |
-| `cache` | Cache-Invalidierung nach Aenderungen | Mittel | 2 |
-| `default` | Import, Export, allgemeine Jobs | Normal | 4 |
-| `warmup` | Cache-Warmup nach Imports | Niedrig | 2 |
+| `indexing` | Update search index (product-critical) | High | 4 |
+| `cache` | Cache invalidation after changes | Medium | 2 |
+| `default` | Import, export, general jobs | Normal | 4 |
+| `warmup` | Cache warmup after imports | Low | 2 |
 
-### Supervisor-Konfiguration
+### Supervisor Configuration
 
-Wird automatisch von `setup.sh` erstellt unter `/etc/supervisor/conf.d/horizon.conf`:
+Automatically created by `setup.sh` at `/etc/supervisor/conf.d/horizon.conf`:
 
 ```ini
 [program:horizon]
@@ -203,16 +207,16 @@ stdout_logfile=/var/www/publixx-pim/storage/logs/horizon.log
 stopwaitsecs=3600
 ```
 
-### Horizon-Konfiguration
+### Horizon Configuration
 
-Die Queue-Worker-Einstellungen fuer Production stehen in `config/horizon.php`:
+Queue worker settings for production are in `config/horizon.php`:
 
 ```php
 'environments' => [
     'production' => [
         'supervisor-indexing' => [
-            'maxProcesses' => 4,    // Bis zu 4 Worker fuer indexing
-            'minProcesses' => 1,    // Mindestens 1 Worker
+            'maxProcesses' => 4,    // Up to 4 workers for indexing
+            'minProcesses' => 1,    // Minimum 1 worker
         ],
         'supervisor-cache' => [
             'maxProcesses' => 2,
@@ -227,88 +231,88 @@ Die Queue-Worker-Einstellungen fuer Production stehen in `config/horizon.php`:
 ],
 ```
 
-### Horizon verwalten
+### Managing Horizon
 
 ```bash
-# Status pruefen
+# Check status
 sudo supervisorctl status horizon
 
-# Neu starten (nach Code-Aenderungen)
+# Restart (after code changes)
 sudo supervisorctl restart horizon
 
-# Stoppen
+# Stop
 sudo supervisorctl stop horizon
 
-# Horizon-Dashboard im Browser
+# Horizon dashboard in browser
 # https://example.com/horizon
-# (Erfordert Login als authentifizierter Benutzer)
+# (Requires login as authenticated user)
 
-# Queue-Status per CLI
+# Queue status via CLI
 php artisan horizon:status
 
-# Alle laufenden Jobs anzeigen
+# Show all running jobs
 php artisan queue:monitor indexing,default,cache,warmup
 ```
 
-### Fallback ohne Supervisor
+### Fallback Without Supervisor
 
-Falls Supervisor nicht installiert ist (z.B. Entwicklungsumgebung), startet `update.sh` automatisch einen einfachen Queue Worker:
+If Supervisor is not installed (e.g., development environment), `update.sh` automatically starts a simple queue worker:
 
 ```bash
-# Wird automatisch gestartet — oder manuell:
+# Started automatically — or manually:
 nohup php artisan queue:work --queue=indexing,default --sleep=3 --tries=3 \
     >> storage/logs/queue-worker.log 2>&1 &
 ```
 
-> **Hinweis:** Der nohup-Worker ueberlebt keinen Server-Neustart. Fuer Production immer Supervisor verwenden.
+> **Note:** The nohup worker does not survive a server restart. Always use Supervisor for production.
 
 ---
 
 ## 4. Laravel Scheduler (Cron)
 
-Der Scheduler fuehrt wiederkehrende Aufgaben aus (Cache-Bereinigung, geplante Exports etc.).
+The scheduler runs recurring tasks (cache cleanup, scheduled exports, etc.).
 
-Wird automatisch von `setup.sh` eingerichtet:
+Automatically set up by `setup.sh`:
 
 ```
 * * * * * cd /var/www/publixx-pim && php artisan schedule:run >> /dev/null 2>&1
 ```
 
-### Pruefen
+### Verify
 
 ```bash
-# Cron-Jobs von www-data anzeigen
+# Show www-data cron jobs
 sudo crontab -u www-data -l
 
-# Scheduler manuell ausfuehren (zum Testen)
+# Run scheduler manually (for testing)
 cd /var/www/publixx-pim
 php artisan schedule:run
 ```
 
 ---
 
-## 5. Monitoring und Logs
+## 5. Monitoring and Logs
 
-### Log-Dateien
+### Log Files
 
-| Datei | Inhalt |
+| File | Content |
 |---|---|
-| `storage/logs/laravel.log` | Anwendungs-Logs (Fehler, Warnungen) |
-| `storage/logs/horizon.log` | Horizon/Queue-Worker-Logs |
-| `storage/logs/queue-worker.log` | Fallback-Worker-Logs (nur ohne Supervisor) |
-| `/var/log/apache2/publixx-pim-error.log` | Apache-Fehler |
-| `/var/log/apache2/publixx-pim-access.log` | Apache-Zugriffe |
+| `storage/logs/laravel.log` | Application logs (errors, warnings) |
+| `storage/logs/horizon.log` | Horizon/queue worker logs |
+| `storage/logs/queue-worker.log` | Fallback worker logs (only without Supervisor) |
+| `/var/log/apache2/publixx-pim-error.log` | Apache errors |
+| `/var/log/apache2/publixx-pim-access.log` | Apache access logs |
 
 ### Healthcheck
 
 ```bash
-# Per Script (prueft alle Dienste lokal)
+# Via script (checks all services locally)
 bash healthcheck.sh
 
-# Per URL
+# Via URL
 curl -s https://example.com/api/v1/health
 
-# Dienste einzeln pruefen
+# Check individual services
 sudo systemctl status apache2
 sudo systemctl status mysql
 sudo systemctl status redis-server
@@ -316,65 +320,65 @@ sudo systemctl status supervisor
 sudo supervisorctl status horizon
 ```
 
-### Horizon-Dashboard
+### Horizon Dashboard
 
-Im Browser unter `https://example.com/horizon` erreichbar (Login erforderlich).
+Accessible in the browser at `https://example.com/horizon` (login required).
 
-Zeigt an:
-- Aktive/wartende/fehlgeschlagene Jobs
-- Queue-Durchsatz und Wartezeiten
-- Worker-Auslastung
-- Job-Details und Fehlermeldungen
+Shows:
+- Active/pending/failed jobs
+- Queue throughput and wait times
+- Worker utilization
+- Job details and error messages
 
 ---
 
-## 6. Subdirectory-Modus
+## 6. Subdirectory Mode
 
-PIM kann unter einem Unterverzeichnis laufen (z.B. `https://example.com/web`):
+PIM can run under a subdirectory (e.g., `https://example.com/web`):
 
 ```bash
-# setup.sh fragt: Web-Pfad (z.B. /web oder leer fuer Root)
+# setup.sh asks: Web path (e.g., /web or empty for root)
 # In .env:
 APP_URL=https://example.com/web
 ```
 
-### Automatische Anpassungen
+### Automatic Adjustments
 
-- **Apache:** Alias-Konfiguration statt eigener VHost (`/etc/apache2/conf-available/publixx-pim.conf`)
-- **Frontend-Build:** `VITE_BASE_PATH=/web/` und `VITE_API_BASE_URL=/web/api/v1` werden automatisch gesetzt
-- **Session-Cookie:** `SESSION_COOKIE_PATH=/web`
-- **update.sh:** Erkennt den Modus automatisch aus der `.env`
+- **Apache:** Alias configuration instead of dedicated VHost (`/etc/apache2/conf-available/publixx-pim.conf`)
+- **Frontend build:** `VITE_BASE_PATH=/web/` and `VITE_API_BASE_URL=/web/api/v1` are set automatically
+- **Session cookie:** `SESSION_COOKIE_PATH=/web`
+- **update.sh:** Detects the mode automatically from `.env`
 
 ---
 
 ## 7. SSL / HTTPS
 
-### Automatisch (setup.sh)
+### Automatic (setup.sh)
 
 ```bash
-# setup.sh fragt:
-# SSL mit Let's Encrypt einrichten? [j/N]
-# E-Mail fuer Let's Encrypt: admin@example.com
+# setup.sh asks:
+# Set up SSL with Let's Encrypt? [y/N]
+# Email for Let's Encrypt: admin@example.com
 ```
 
-### Manuell nachtraeglich
+### Manual Setup
 
 ```bash
-# Certbot installieren
+# Install Certbot
 sudo apt install certbot python3-certbot-apache
 
-# Zertifikat einrichten
+# Set up certificate
 sudo certbot --apache -d pim.example.com
 
-# Auto-Renewal pruefen
+# Verify auto-renewal
 sudo certbot renew --dry-run
 ```
 
 ---
 
-## 8. Fehlerbehebung
+## 8. Troubleshooting
 
-### Berechtigungsfehler
+### Permission Errors
 
 ```bash
 sudo chown -R www-data:www-data /var/www/publixx-pim
@@ -382,33 +386,33 @@ sudo chmod -R 775 /var/www/publixx-pim/storage
 sudo chmod -R 775 /var/www/publixx-pim/bootstrap/cache
 ```
 
-### Horizon laeuft nicht
+### Horizon Not Running
 
 ```bash
-# Status pruefen
+# Check status
 sudo supervisorctl status horizon
 
-# Falls FATAL:
+# If FATAL:
 sudo supervisorctl reread
 sudo supervisorctl update
 sudo supervisorctl start horizon
 
-# Logs pruefen
+# Check logs
 tail -50 /var/www/publixx-pim/storage/logs/horizon.log
 ```
 
-### Search-Index leer (Produktnamen fehlen)
+### Search Index Empty (product names missing)
 
-Der Search-Index wird asynchron ueber die `indexing`-Queue befuellt. Wenn Produktnamen im Katalog fehlen:
+The search index is populated asynchronously via the `indexing` queue. If product names are missing in the catalog:
 
 ```bash
-# 1. Pruefen ob Horizon/Queue Worker laeuft
+# 1. Check if Horizon/queue worker is running
 sudo supervisorctl status horizon
 
-# 2. Queue-Laenge pruefen
+# 2. Check queue length
 php artisan queue:monitor indexing
 
-# 3. Search-Index manuell fuer alle Produkte neu aufbauen
+# 3. Manually rebuild search index for all products
 php artisan tinker --execute="
     \App\Models\Product::where('status', 'active')
         ->pluck('id')
@@ -417,7 +421,7 @@ php artisan tinker --execute="
 "
 ```
 
-### Apache-Konfiguration fehlerhaft
+### Apache Configuration Error
 
 ```bash
 sudo apache2ctl configtest
@@ -425,26 +429,26 @@ sudo systemctl status apache2
 tail -20 /var/log/apache2/publixx-pim-error.log
 ```
 
-### Wartungsmodus haengt
+### Maintenance Mode Stuck
 
 ```bash
 cd /var/www/publixx-pim
 php artisan up
 
-# Falls das nicht funktioniert:
+# If that doesn't work:
 rm storage/framework/down
 ```
 
-### Redis-Verbindung fehlgeschlagen
+### Redis Connection Failed
 
 ```bash
-# Status pruefen
+# Check status
 sudo systemctl status redis-server
 
-# Verbindung testen
-redis-cli ping   # Erwartet: PONG
+# Test connection
+redis-cli ping   # Expected: PONG
 
-# Speicher pruefen
+# Check memory
 redis-cli INFO memory
 ```
 
@@ -452,27 +456,27 @@ redis-cli INFO memory
 
 ## 9. Backup
 
-### Datenbank
+### Database
 
 ```bash
-# Backup erstellen
+# Create backup
 mysqldump -u pim -p publixx_pim > backup_$(date +%Y%m%d_%H%M%S).sql
 
-# Backup zurueckspielen
+# Restore backup
 mysql -u pim -p publixx_pim < backup_20250305_120000.sql
 ```
 
-### Medien-Dateien
+### Media Files
 
 ```bash
-# Hochgeladene Dateien sichern
+# Back up uploaded files
 tar czf media_backup_$(date +%Y%m%d).tar.gz storage/app/public/media/
 ```
 
-### Vollstaendiges Backup
+### Full Backup
 
 ```bash
-# Datenbank + Medien + .env
+# Database + media + .env
 mysqldump -u pim -p publixx_pim > /tmp/db_backup.sql
 tar czf /tmp/pim_backup_$(date +%Y%m%d).tar.gz \
     /tmp/db_backup.sql \
@@ -483,43 +487,43 @@ rm /tmp/db_backup.sql
 
 ---
 
-## 10. Zusammenfassung: Typischer Betrieb
+## 10. Summary: Typical Operations
 
-### Erstinstallation (einmalig)
+### Initial Installation (one-time)
 
 ```bash
 git clone <repo> /tmp/publixx-pim
 cd /tmp/publixx-pim
 sudo bash setup.sh
-# → Interaktive Abfragen beantworten
-# → Fertig: PIM laeuft mit allen Diensten
+# → Answer interactive prompts
+# → Done: PIM is running with all services
 ```
 
-### Regelmaessige Updates
+### Regular Updates
 
 ```bash
 cd /var/www/publixx-pim
 sudo bash update.sh
-# → Zeigt Aenderungen, fragt Bestaetigung
-# → Wartungsmodus → Update → Neustart → Healthcheck
+# → Shows changes, asks for confirmation
+# → Maintenance mode → Update → Restart → Healthcheck
 ```
 
-### Schnelles Backend-Update
+### Quick Backend Update
 
 ```bash
 sudo bash update.sh --skip-frontend
 ```
 
-### Automatisiertes Update (CI/CD)
+### Automated Update (CI/CD)
 
 ```bash
 sudo bash update.sh --force
 ```
 
-### Status pruefen
+### Check Status
 
 ```bash
-sudo supervisorctl status horizon    # Queue Worker
+sudo supervisorctl status horizon    # Queue worker
 curl -s https://example.com/api/v1/health  # Healthcheck
-tail -20 storage/logs/laravel.log    # Anwendungs-Logs
+tail -20 storage/logs/laravel.log    # Application logs
 ```

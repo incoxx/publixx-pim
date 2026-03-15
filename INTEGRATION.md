@@ -1,147 +1,147 @@
-# anyPIM — Integrationsbericht
+# anyPIM — Integration Report
 
-> **Datum:** 19.02.2026 | **Phase:** 4 (Integration) | **Status:** ✅ Komplett
-
----
-
-## Merge-Reihenfolge
-
-| # | Agent | Dateien | Aktion |
-|---|-------|---------|--------|
-| 1 | DB-Agent | 35 Migrations, 30 Models, 7 Seeders, 23 Factories | Basis-Layer kopiert |
-| 2 | Auth-Agent | 3 Controller, 5 Policies, 1 Middleware, 2 Resources, 3 Requests, sanctum.php | Überschreibt Agent-1-RoleAndPermissionSeeder (vollständiger) |
-| 3 | API-Agent | 22 Controller, 3 Traits, 28+ FormRequests, 21 Resources, Handler.php, routes/api.php | Basis-Routen als Vorlage, Platzhalter aktiviert |
-| 4 | Vererbungs-Agent | 4 Services, 3 Events, 1 Provider, 3 Tests | Events als Shared Contract für alle Agenten |
-| 5 | PQL-Agent | 8 AST-Nodes, 6 Services, 1 Controller, 1 Request, 1 Provider, 3 Tests | Eigener ServiceProvider |
-| 6 | Import-Agent | 7 Services, 5 DTOs, 1 Job, 1 Event, 3 Tests | ImportCompleted-Event ergänzt Events/ |
-| 7 | Export-Agent | 4 Services, 2 Controller, 5 Requests, 1 Resource, 1 Provider, 2 Tests | Eigener ServiceProvider |
-| 9 | Performance-Agent | 4 Observers, 3 Jobs, 5 Listeners, 1 Provider, 1 Support, 2 Configs, 2 Tests | EventServiceProvider als Haupt-Provider |
-| 8 | Frontend-Agent | Vue.js SPA (74 Dateien) | Separat in pim-frontend/ |
+> **Date:** February 19, 2026 | **Phase:** 4 (Integration) | **Status:** Complete
 
 ---
 
-## Konflikte und Lösungen
+## Merge Order
 
-### 1. `routes/api.php` — Zentraler Merge
+| # | Agent | Files | Action |
+|---|-------|-------|--------|
+| 1 | DB Agent | 35 migrations, 30 models, 7 seeders, 23 factories | Base layer copied |
+| 2 | Auth Agent | 3 controllers, 5 policies, 1 middleware, 2 resources, 3 requests, sanctum.php | Overwrites Agent 1's RoleAndPermissionSeeder (more complete) |
+| 3 | API Agent | 22 controllers, 3 traits, 28+ form requests, 21 resources, Handler.php, routes/api.php | Base routes as template, placeholders activated |
+| 4 | Inheritance Agent | 4 services, 3 events, 1 provider, 3 tests | Events as shared contract for all agents |
+| 5 | PQL Agent | 8 AST nodes, 6 services, 1 controller, 1 request, 1 provider, 3 tests | Own ServiceProvider |
+| 6 | Import Agent | 7 services, 5 DTOs, 1 job, 1 event, 3 tests | ImportCompleted event added to Events/ |
+| 7 | Export Agent | 4 services, 2 controllers, 5 requests, 1 resource, 1 provider, 2 tests | Own ServiceProvider |
+| 9 | Performance Agent | 4 observers, 3 jobs, 5 listeners, 1 provider, 1 support, 2 configs, 2 tests | EventServiceProvider as main provider |
+| 8 | Frontend Agent | Vue.js SPA (74 files) | Separate in pim-frontend/ |
 
-**Problem:** Agent 3 liefert Hauptdatei mit Platzhaltern (Kommentaren) für Agent 2, 5, 7.
+---
 
-**Lösung:** Neue `routes/api.php` erstellt mit allen Routen aktiv:
-- **Agent 2 (Auth):** Login-Route ohne `auth:sanctum`, Logout/Refresh/Me mit Auth. Users + Roles als apiResource.
-- **Agent 3 (API):** Alle 83 Endpunkte unverändert übernommen.
-- **Agent 5 (PQL):** 4 PQL-Endpunkte unter `pql/` Prefix aktiviert.
-- **Agent 7 (Export):** 5 Export-Endpunkte + 4 Publixx-Endpunkte aktiviert.
-- **Keine Duplikate:** Alle Routen-URIs sind eindeutig.
+## Conflicts and Resolutions
 
-### 2. `RoleAndPermissionSeeder` — Duplikat
+### 1. `routes/api.php` — Central Merge
 
-**Problem:** Agent 1 und Agent 2 liefern beide einen `RoleAndPermissionSeeder`.
+**Problem:** Agent 3 delivers main file with placeholders (comments) for Agents 2, 5, 7.
 
-**Lösung:** Agent 2's Version überschreibt Agent 1's. Agent 2's Seeder ist vollständiger:
-- Verwendet `firstOrCreate` mit UUIDs (Agent 1 nutzte `create`)
-- Enthält zusätzliche Permissions: `export.mappings.edit`, `hierarchy-nodes.create/move`
-- Guard: `web` (korrekt für Spatie)
+**Resolution:** New `routes/api.php` created with all routes active:
+- **Agent 2 (Auth):** Login route without `auth:sanctum`, Logout/Refresh/Me with auth. Users + Roles as apiResource.
+- **Agent 3 (API):** All 83 endpoints adopted unchanged.
+- **Agent 5 (PQL):** 4 PQL endpoints under `pql/` prefix activated.
+- **Agent 7 (Export):** 5 export endpoints + 4 Publixx endpoints activated.
+- **No duplicates:** All route URIs are unique.
 
-### 3. `EventServiceProvider` — Merge dreier Quellen
+### 2. `RoleAndPermissionSeeder` — Duplicate
 
-**Problem:** Agent 4 (Vererbung), Agent 7 (Export) und Agent 9 (Performance) haben alle Event-Listener.
+**Problem:** Agent 1 and Agent 2 both deliver a `RoleAndPermissionSeeder`.
 
-**Lösung:**
-- **Agent 9's EventServiceProvider** wird als Haupt-Provider verwendet (definiert `$listen` Array und Observer-Registrierung)
-- **Agent 4** registriert seine Listener direkt im `InheritanceServiceProvider::boot()` (via `Event::listen()`) — kein Konflikt
-- **Agent 7** registriert seine Listener direkt im `ExportServiceProvider::boot()` (via `$events->listen()`) — kein Konflikt
-- Ergebnis: Drei Provider teilen sich die Event-Zuständigkeit ohne Überschneidung
+**Resolution:** Agent 2's version overwrites Agent 1's. Agent 2's seeder is more complete:
+- Uses `firstOrCreate` with UUIDs (Agent 1 used `create`)
+- Contains additional permissions: `export.mappings.edit`, `hierarchy-nodes.create/move`
+- Guard: `web` (correct for Spatie)
 
-### 4. `bootstrap/providers.php` — ServiceProvider-Registrierung
+### 3. `EventServiceProvider` — Merge of Three Sources
 
-**Problem:** Drei Agenten (4, 5, 7) liefern eigene ServiceProvider. Agent 9 liefert EventServiceProvider.
+**Problem:** Agent 4 (Inheritance), Agent 7 (Export), and Agent 9 (Performance) all have event listeners.
 
-**Lösung:** Alle in `bootstrap/providers.php` registriert:
+**Resolution:**
+- **Agent 9's EventServiceProvider** is used as the main provider (defines `$listen` array and observer registration)
+- **Agent 4** registers its listeners directly in `InheritanceServiceProvider::boot()` (via `Event::listen()`) — no conflict
+- **Agent 7** registers its listeners directly in `ExportServiceProvider::boot()` (via `$events->listen()`) — no conflict
+- Result: Three providers share event responsibility without overlap
+
+### 4. `bootstrap/providers.php` — ServiceProvider Registration
+
+**Problem:** Three agents (4, 5, 7) deliver their own ServiceProviders. Agent 9 delivers EventServiceProvider.
+
+**Resolution:** All registered in `bootstrap/providers.php`:
 ```php
 AppServiceProvider::class,          // Policies + Gates
 EventServiceProvider::class,        // Agent 9: Observers + $listen
-InheritanceServiceProvider::class,  // Agent 4: Singletons + Event-Listener
-PqlServiceProvider::class,          // Agent 5: PQL-Engine Singletons
-ExportServiceProvider::class,       // Agent 7: Export-Services + Event-Listener
+InheritanceServiceProvider::class,  // Agent 4: Singletons + event listeners
+PqlServiceProvider::class,          // Agent 5: PQL engine singletons
+ExportServiceProvider::class,       // Agent 7: Export services + event listeners
 ```
 
 ### 5. `bootstrap/app.php` — Middleware
 
-**Problem:** Agent 2 definiert `throttle.pim` Middleware-Alias und Sanctum-Frontend-Middleware.
+**Problem:** Agent 2 defines `throttle.pim` middleware alias and Sanctum frontend middleware.
 
-**Lösung:** In `withMiddleware()` konfiguriert:
+**Resolution:** Configured in `withMiddleware()`:
 - `throttle.pim` → `RateLimitMiddleware::class`
-- Sanctum `EnsureFrontendRequestsAreStateful` als API-Prepend
+- Sanctum `EnsureFrontendRequestsAreStateful` as API prepend
 
-### 6. `config/` — Mehrere Configs
+### 6. `config/` — Multiple Configs
 
-**Problem:** Agent 2 liefert `sanctum.php`, Agent 9 liefert `cache.php` und `horizon.php`.
+**Problem:** Agent 2 delivers `sanctum.php`, Agent 9 delivers `cache.php` and `horizon.php`.
 
-**Lösung:** Alle Configs übernommen. Zusätzlich erstellt:
-- `config/auth.php` mit sanctum als Default-Guard
-- `config/database.php` mit Agent 9's Redis-Instanzen (DB 1/2/3)
-- `config/permission.php` für Spatie mit UUID-Konfiguration
-- `config/cors.php` für Frontend-Zugriff
+**Resolution:** All configs adopted. Additionally created:
+- `config/auth.php` with sanctum as default guard
+- `config/database.php` with Agent 9's Redis instances (DB 1/2/3)
+- `config/permission.php` for Spatie with UUID configuration
+- `config/cors.php` for frontend access
 
-### 7. Events — Fehlende Klassen
+### 7. Events — Missing Classes
 
-**Problem:** Agent 3 (API) dispatcht `ProductCreated`, `ProductUpdated`, `ProductDeleted`, aber keine Event-Klassen geliefert. Agent 4 liefert nur `AttributeValuesChanged`, `HierarchyNodeMoved`, `HierarchyAttributeChanged`.
+**Problem:** Agent 3 (API) dispatches `ProductCreated`, `ProductUpdated`, `ProductDeleted`, but no event classes delivered. Agent 4 delivers only `AttributeValuesChanged`, `HierarchyNodeMoved`, `HierarchyAttributeChanged`.
 
-**Lösung:** Drei Events manuell erstellt:
+**Resolution:** Three events created manually:
 - `app/Events/ProductCreated.php` — Payload: `Product $product`
 - `app/Events/ProductUpdated.php` — Payload: `Product $product`
 - `app/Events/ProductDeleted.php` — Payload: `string $productId`
 
-### 8. `AppServiceProvider` — Policy-Registrierung
+### 8. `AppServiceProvider` — Policy Registration
 
-**Problem:** Agent 2's Policies müssen registriert werden. `ExportPolicy` hat kein Model.
+**Problem:** Agent 2's policies need to be registered. `ExportPolicy` has no model.
 
-**Lösung:** In `AppServiceProvider::boot()`:
-- `Gate::policy()` für Product, Attribute, Hierarchy, User
-- `Gate::define()` für Export-spezifische Gates (`export.view`, `export.execute`, `export.editMappings`)
+**Resolution:** In `AppServiceProvider::boot()`:
+- `Gate::policy()` for Product, Attribute, Hierarchy, User
+- `Gate::define()` for export-specific gates (`export.view`, `export.execute`, `export.editMappings`)
 
-### 9. `composer.json` — Pakete aller Agenten
+### 9. `composer.json` — Packages from All Agents
 
-Gesammelte Pakete:
-| Paket | Agent | Zweck |
-|-------|-------|-------|
-| `laravel/sanctum` | 1, 2 | API-Auth |
-| `spatie/laravel-permission` | 1, 2 | Rollen/Rechte |
-| `laravel/horizon` | 9 | Queue-Management |
-| `phpoffice/phpspreadsheet` | 6 | Excel-Import |
+Collected packages:
+| Package | Agent | Purpose |
+|---------|-------|---------|
+| `laravel/sanctum` | 1, 2 | API auth |
+| `spatie/laravel-permission` | 1, 2 | Roles/permissions |
+| `laravel/horizon` | 9 | Queue management |
+| `phpoffice/phpspreadsheet` | 6 | Excel import |
 
-### 10. Frontend (Agent 8) — Separate Struktur
+### 10. Frontend (Agent 8) — Separate Structure
 
-- In `pim-frontend/` belassen (Vue.js SPA, eigenständig)
-- `.env` verweist auf `VITE_API_BASE_URL=http://localhost:8000/api/v1`
-- Vite Proxy-Config leitet `/api` an Backend weiter
+- Kept in `pim-frontend/` (Vue.js SPA, standalone)
+- `.env` points to `VITE_API_BASE_URL=http://localhost:8000/api/v1`
+- Vite proxy config forwards `/api` to the backend
 
 ---
 
-## Verdrahtungs-Prüfung
+## Wiring Verification
 
-| Verbindung | Status | Details |
+| Connection | Status | Details |
 |------------|--------|---------|
-| Controller → Models (Agent 1) | ✅ | Alle Controller importieren `App\Models\*` |
-| Controller → `$this->authorize()` (Agent 2) | ✅ | Policies via `Gate::policy()` in AppServiceProvider |
-| ProductAttributeValueController → AttributeValueResolver (Agent 4) | ✅ | Via `app(AttributeValueResolver::class)` |
-| ExportService → AttributeValueResolver (Agent 4) | ✅ | Optional via `app()->bound()` Check |
-| PublixxDatasetController → PqlExecutor (Agent 5) | ✅ | Via DI (PqlServiceProvider) |
-| ImportController (Agent 3) → ImportService (Agent 6) | ✅ | Via Constructor Injection |
-| Events (Agent 4, 6) → Listeners (Agent 9) | ✅ | Über `$listen` in EventServiceProvider |
-| Events (Agent 4, 6) → ExportService (Agent 7) | ✅ | Über `$events->listen()` in ExportServiceProvider |
-| Events (Agent 4) → InheritanceService (Agent 4) | ✅ | Über `Event::listen()` in InheritanceServiceProvider |
+| Controllers → Models (Agent 1) | OK | All controllers import `App\Models\*` |
+| Controllers → `$this->authorize()` (Agent 2) | OK | Policies via `Gate::policy()` in AppServiceProvider |
+| ProductAttributeValueController → AttributeValueResolver (Agent 4) | OK | Via `app(AttributeValueResolver::class)` |
+| ExportService → AttributeValueResolver (Agent 4) | OK | Optional via `app()->bound()` check |
+| PublixxDatasetController → PqlExecutor (Agent 5) | OK | Via DI (PqlServiceProvider) |
+| ImportController (Agent 3) → ImportService (Agent 6) | OK | Via constructor injection |
+| Events (Agents 4, 6) → Listeners (Agent 9) | OK | Via `$listen` in EventServiceProvider |
+| Events (Agents 4, 6) → ExportService (Agent 7) | OK | Via `$events->listen()` in ExportServiceProvider |
+| Events (Agent 4) → InheritanceService (Agent 4) | OK | Via `Event::listen()` in InheritanceServiceProvider |
 
 ---
 
-## Datei-Statistik
+## File Statistics
 
-| Bereich | Anzahl |
-|---------|--------|
+| Area | Count |
+|------|-------|
 | Models | 30 (+5 Spatie) |
 | Migrations | 35 |
 | Controllers | 29 |
-| FormRequests | 33 |
+| Form Requests | 33 |
 | Resources | 24 |
 | Services | 21 |
 | Events | 7 |
@@ -150,6 +150,8 @@ Gesammelte Pakete:
 | Jobs | 4 |
 | Policies | 5 |
 | Providers | 5 |
-| Tests | 13 Test-Dateien |
-| Frontend-Dateien | 74 |
-| **Gesamt** | **~305 Backend + 74 Frontend** |
+| Tests | 13 test files |
+| Frontend files | 74 |
+| **Total** | **~305 backend + 74 frontend** |
+
+> **Note:** These are the initial integration numbers. The codebase has since grown significantly through iterative development to 55 models, 88 migrations, 75 controllers, 70 services, and 116+ Vue components.

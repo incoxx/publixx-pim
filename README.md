@@ -22,7 +22,7 @@
   <img src="https://img.shields.io/badge/PHP-8.4-8892BF?style=flat-square&logo=php" alt="PHP 8.4" />
   <img src="https://img.shields.io/badge/Laravel-11-FF2D20?style=flat-square&logo=laravel" alt="Laravel 11" />
   <img src="https://img.shields.io/badge/Vue.js-3-4FC08D?style=flat-square&logo=vuedotjs" alt="Vue 3" />
-  <img src="https://img.shields.io/badge/Tailwind_CSS-3-06B6D4?style=flat-square&logo=tailwindcss" alt="Tailwind CSS" />
+  <img src="https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?style=flat-square&logo=tailwindcss" alt="Tailwind CSS 4" />
   <img src="https://img.shields.io/badge/License-GPL--3.0-blue?style=flat-square" alt="GPL-3.0" />
 </p>
 
@@ -41,7 +41,7 @@ Built for teams that need to manage **hundreds to tens of thousands of products*
 ### Core
 
 - **Products & Variants** — Master data management with configurable attributes, variant generation, and attribute inheritance across hierarchies
-- **Flexible Attribute System** — 9 data types (String, Number, Float, Date, Flag, Selection, Dictionary, Composite, RichText), units of measurement, value lists, and attribute grouping
+- **Flexible Attribute System** — 12 data types (String, Number, Float, Date, Flag, Selection, Dictionary, Composite, RichText, Hyperlink, ImageLink, PdfLink, VideoLink), units of measurement, value lists, and attribute grouping
 - **Hierarchies** — Master and output hierarchies with materialized path, drag-and-drop sorting, and attribute inheritance across all levels
 - **Media Management** — Upload, thumbnails, asset catalog with media-specific attributes and automatic image processing
 - **Product Versioning** — Version history with scheduling (publish dates) and one-click rollback
@@ -55,16 +55,24 @@ Built for teams that need to manage **hundreds to tens of thousands of products*
 
 ### Data Management
 
-- **Import / Export** — Excel import with 14-tab structure, JSON export, and Publixx PXF template integration
-- **Bulk Operations** — Select multiple products or attributes and edit properties in bulk
-- **Prices & Relations** — Price types, product relationships with relation-specific attributes
+- **Import / Export** — Excel import with 14-tab structure, JSON export/import, BMEcat, and Publixx PXF template integration
+- **Bulk Operations** — Spreadsheet-style bulk editor and bulk update for mass data maintenance
+- **Prices & Relations** — Price types, price regions, product relationships with relation-specific attributes
 - **Attribute Views** — Define custom attribute views for different use cases and departments
+- **Workflow & Calendar** — Task management with assignments and a planning calendar for scheduled product actions
 
 ### Administration
 
 - **Roles & Permissions** — Fine-grained access control with 5 default roles (Admin, Data Steward, Product Manager, Viewer, Export Manager)
-- **User Management** — Full user administration with Sanctum-based authentication
-- **Audit Trail** — Track changes across the system
+- **User Management** — Full user administration with Sanctum-based authentication and SSO support
+- **Audit Trail** — Track changes across the system with user audit logs and journal
+- **Export Jobs** — Scheduled, reusable export configurations with SFTP and webhook delivery
+- **Access Links** — Temporary, token-based links for external catalog access without user accounts
+
+### Public Catalog
+
+- **Product Catalog** — Public-facing catalog with category navigation, faceted filters, and product detail pages
+- **Asset Catalog** — Public media catalog with folder structure and download functionality
 
 ### Frontend
 
@@ -72,6 +80,8 @@ Built for teams that need to manage **hundreds to tens of thousands of products*
 - **Dark Mode** — Full dark mode support with automatic system preference detection
 - **Internationalization** — Multi-language UI (German, English) with extensible i18n
 - **Keyboard Shortcuts** — Power-user friendly with keyboard navigation
+
+> See [FEATURES.md](FEATURES.md) for a detailed feature list with business benefits for each module.
 
 ---
 
@@ -134,15 +144,18 @@ The update script handles the full lifecycle automatically:
 3. Install PHP dependencies (Composer)
 4. Run database migrations
 5. Rebuild the frontend (Vue 3 + Vite)
-6. Recreate Laravel caches
-7. Restart services and fix permissions
-8. Run healthcheck and deactivate maintenance mode
+6. Rebuild documentation site (VitePress)
+7. Recreate Laravel caches
+8. Restart services and fix permissions
+9. Run healthcheck and deactivate maintenance mode
 
 **Options:**
 
 ```bash
 sudo bash update.sh --branch=develop     # Use a different branch
 sudo bash update.sh --skip-frontend      # Skip frontend rebuild
+sudo bash update.sh --skip-docs          # Skip documentation rebuild
+sudo bash update.sh --skip-tms           # Skip TMS setup
 sudo bash update.sh --skip-composer      # Skip Composer install
 sudo bash update.sh --seed               # Re-run database seeders
 sudo bash update.sh --force              # Skip confirmation prompt
@@ -155,7 +168,7 @@ sudo bash update.sh --force              # Skip confirmation prompt
 | Layer | Technology |
 |---|---|
 | **Backend** | PHP 8.4 / Laravel 11 |
-| **Frontend** | Vue 3, Vite, Tailwind CSS |
+| **Frontend** | Vue 3, Vite, Tailwind CSS 4, DaisyUI 5 |
 | **Database** | MySQL 8+ |
 | **Cache & Queue** | Redis |
 | **Queue Worker** | Laravel Horizon + Supervisor |
@@ -169,17 +182,17 @@ sudo bash update.sh --force              # Skip confirmation prompt
 ```
 anyPIM/
 ├── app/
-│   ├── Http/Controllers/     API controllers (V1)
-│   ├── Models/               48 Eloquent models
-│   └── Services/             Business logic (Inheritance, PQL, Export, Versioning)
+│   ├── Http/Controllers/     75 API controllers (V1)
+│   ├── Models/               55 Eloquent models
+│   └── Services/             70 service classes (Inheritance, PQL, Export, Import, Versioning)
 ├── pim-frontend/             Vue 3 SPA (standalone npm project)
-│   ├── src/components/       116 Vue components
+│   ├── src/components/       116+ Vue components
 │   ├── src/stores/           Pinia state management
-│   └── src/views/            Page-level views
+│   └── src/views/            35+ page-level views
 ├── database/
-│   ├── migrations/           63 migration files
+│   ├── migrations/           88 migration files
 │   └── seeders/              Demo data (products, attributes, hierarchies)
-├── routes/api.php            188 API routes (/api/v1/*)
+├── routes/api.php            ~285 API routes (/api/v1/*)
 ├── static-content/           VitePress documentation site
 ├── setup.sh                  One-command server setup
 ├── update.sh                 One-command update & rebuild
@@ -214,7 +227,7 @@ Both modes are configured automatically by `setup.sh`.
 
 All endpoints are available under `/api/v1/` with Laravel Sanctum authentication (Bearer Token).
 
-**188 RESTful endpoints** covering products, attributes, hierarchies, media, prices, relations, imports, exports, and more.
+**~285 RESTful endpoints** covering products, attributes, hierarchies, media, prices, relations, imports, exports, workflow, reports, PDF templates, and more.
 
 ```bash
 # Authenticate
@@ -255,7 +268,7 @@ Full documentation is available as a VitePress site in both German and English:
 | [Quick Start](https://smartentities.de/web/help/en/installation/quickstart) | Get anyPIM running in 10 minutes |
 | [User Guide](https://smartentities.de/web/help/en/usage/) | Full user manual for all modules |
 | [Architecture](https://smartentities.de/web/help/en/architecture/) | EAV data model, services, inheritance engine |
-| [API Reference](https://smartentities.de/web/help/en/api/) | 188 REST endpoints with examples |
+| [API Reference](https://smartentities.de/web/help/en/api/) | ~285 REST endpoints with examples |
 | [Import](https://smartentities.de/web/help/en/import/) | Excel import with 14-tab structure |
 | [Export](https://smartentities.de/web/help/en/export/) | JSON export and Publixx PXF integration |
 | [FAQ](https://smartentities.de/web/help/en/faq/) | Frequently asked questions |
@@ -264,9 +277,13 @@ Full documentation is available as a VitePress site in both German and English:
 
 | File | Description |
 |---|---|
+| [FEATURES.md](FEATURES.md) | Complete feature overview with business benefits |
+| [API.md](API.md) | REST API reference (~285 endpoints) |
+| [DATABASE.md](DATABASE.md) | Database schema documentation |
 | [INSTALL.md](INSTALL.md) | Detailed installation guide (`setup.sh`) |
 | [UPDATE.md](UPDATE.md) | Update procedures (`update.sh`) |
-| [API.md](API.md) | Complete REST API reference (188 endpoints) |
+| [DEPLOYMENT.md](DEPLOYMENT.md) | Manual server deployment guide |
+| [PRODUCTION.md](PRODUCTION.md) | Production operations guide |
 | [LICENSE](LICENSE) | GPL-3.0 license text |
 
 ---
@@ -286,7 +303,7 @@ Full documentation is available as a VitePress site in both German and English:
 | Component | Minimum |
 |---|---|
 | OS | Ubuntu 24.04 LTS (recommended) |
-| PHP | 8.4+ |
+| PHP | 8.3+ (8.4 recommended) |
 | MySQL | 8.0+ |
 | Redis | 6+ |
 | Node.js | 20 LTS |

@@ -1,24 +1,29 @@
-# anyPIM — Deployment-Anleitung
+# anyPIM — Deployment Guide
 
-Server: **IONOS Cloud VPS M** (4 vCPU, 8 GB RAM, 160 GB SSD, Ubuntu 24.04 LTS)
-Domain: `publixx-pim.incoxx.com`
+Manual deployment guide for production servers. For automated installation, use `setup.sh` instead (see [INSTALL.md](INSTALL.md)).
+
+Recommended server: **4 vCPU, 8 GB RAM, 160 GB SSD, Ubuntu 24.04 LTS**
 
 ---
 
-## 1. Server-Pakete installieren
+## 1. Install System Packages
 
 ```bash
 sudo apt update && sudo apt upgrade -y
 
 # PHP 8.4
 sudo add-apt-repository ppa:ondrej/php -y
-sudo apt install -y php8.4-fpm php8.4-cli php8.4-mysql php8.4-redis \
+sudo apt install -y php8.4 php8.4-cli php8.4-mysql php8.4-redis \
   php8.4-mbstring php8.4-xml php8.4-zip php8.4-gd php8.4-bcmath \
-  php8.4-curl php8.4-intl php8.4-readline
+  php8.4-curl php8.4-intl php8.4-readline libapache2-mod-php8.4
 
-# MySQL, Redis, Nginx, Supervisor
-sudo apt install -y mysql-server-8.0 redis-server nginx supervisor \
-  certbot python3-certbot-nginx git unzip curl
+# MySQL, Redis, Apache, Supervisor
+sudo apt install -y mysql-server-8.0 redis-server apache2 supervisor \
+  certbot python3-certbot-apache git unzip curl
+
+# Node.js 20 LTS
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt install -y nodejs
 
 # Composer
 curl -sS https://getcomposer.org/installer | php
@@ -27,12 +32,12 @@ sudo mv composer.phar /usr/local/bin/composer
 
 ---
 
-## 2. MySQL einrichten
+## 2. Set Up MySQL
 
 ```sql
 sudo mysql
 CREATE DATABASE publixx_pim CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER 'pim'@'localhost' IDENTIFIED BY '<SICHERES_PASSWORT>';
+CREATE USER 'pim'@'localhost' IDENTIFIED BY '<SECURE_PASSWORD>';
 GRANT ALL PRIVILEGES ON publixx_pim.* TO 'pim'@'localhost';
 FLUSH PRIVILEGES;
 EXIT;
@@ -40,13 +45,13 @@ EXIT;
 
 ---
 
-## 3. Redis konfigurieren
+## 3. Configure Redis
 
 ```bash
 sudo nano /etc/redis/redis.conf
 ```
 
-Setzen:
+Set:
 ```
 maxmemory 512mb
 maxmemory-policy allkeys-lru
@@ -58,18 +63,18 @@ sudo systemctl restart redis-server
 
 ---
 
-## 4. Anwendung deployen
+## 4. Deploy Application
 
 ```bash
-# Verzeichnis anlegen
+# Create directory
 sudo mkdir -p /var/www/publixx-pim
 sudo chown www-data:www-data /var/www/publixx-pim
 
-# Als www-data klonen
+# Clone as www-data
 sudo -u www-data git clone <REPO_URL> /var/www/publixx-pim
 cd /var/www/publixx-pim
 
-# Dependencies
+# Install dependencies
 sudo -u www-data composer install --no-dev --optimize-autoloader
 
 # Environment
@@ -77,24 +82,24 @@ sudo -u www-data cp .env.production.example .env
 sudo -u www-data php artisan key:generate
 ```
 
-Jetzt `.env` editieren und die echten Werte eintragen:
+Edit `.env` with your actual values:
 ```bash
 sudo -u www-data nano .env
 ```
 - `DB_USERNAME=pim`
-- `DB_PASSWORD=<DEIN_PASSWORT>`
-- `REDIS_PASSWORD=` (falls gesetzt)
-- Mail-Credentials (falls noetig)
+- `DB_PASSWORD=<YOUR_PASSWORD>`
+- `REDIS_PASSWORD=` (if set)
+- Mail credentials (if needed)
 
 ```bash
-# Datenbank migrieren + seeden
+# Migrate and seed database
 sudo -u www-data php artisan migrate --force
 sudo -u www-data php artisan db:seed
 
-# Storage-Link
+# Storage link
 sudo -u www-data php artisan storage:link
 
-# Caches optimieren
+# Optimize caches
 sudo -u www-data php artisan config:cache
 sudo -u www-data php artisan route:cache
 sudo -u www-data php artisan view:cache
@@ -102,90 +107,89 @@ sudo -u www-data php artisan view:cache
 
 ---
 
-## 5. Nginx konfigurieren
+## 5. Build Frontend
 
 ```bash
-sudo nano /etc/nginx/sites-available/publixx-pim
-```
+cd /var/www/publixx-pim/pim-frontend
+sudo -u www-data npm ci --production=false
+sudo -u www-data npm run build
+cd ..
 
-```nginx
-server {
-    listen 80;
-    listen [::]:80;
-    server_name publixx-pim.incoxx.com;
-    root /var/www/publixx-pim/public;
-
-    add_header X-Frame-Options "SAMEORIGIN";
-    add_header X-Content-Type-Options "nosniff";
-
-    index index.php;
-    charset utf-8;
-    client_max_body_size 64M;
-
-    location / {
-        try_files $uri $uri/ /index.php?$query_string;
-    }
-
-    location = /favicon.ico { access_log off; log_not_found off; }
-    location = /robots.txt  { access_log off; log_not_found off; }
-
-    error_page 404 /index.php;
-
-    location ~ \.php$ {
-        fastcgi_pass unix:/run/php/php8.4-fpm.sock;
-        fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
-        include fastcgi_params;
-    }
-
-    location ~ /\.(?!well-known).* {
-        deny all;
-    }
-}
-```
-
-```bash
-sudo ln -s /etc/nginx/sites-available/publixx-pim /etc/nginx/sites-enabled/
-sudo rm -f /etc/nginx/sites-enabled/default
-sudo nginx -t
-sudo systemctl reload nginx
+# Copy built assets to public directory
+sudo -u www-data cp pim-frontend/dist/index.html public/spa.html
+sudo -u www-data cp -r pim-frontend/dist/pim-assets public/
 ```
 
 ---
 
-## 6. SSL mit Let's Encrypt
+## 6. Configure Apache
 
 ```bash
-sudo certbot --nginx -d publixx-pim.incoxx.com
+sudo a2enmod rewrite headers ssl alias
+sudo nano /etc/apache2/sites-available/publixx-pim.conf
+```
+
+```apache
+<VirtualHost *:80>
+    ServerName pim.example.com
+    DocumentRoot /var/www/publixx-pim/public
+
+    <Directory /var/www/publixx-pim/public>
+        AllowOverride All
+        Require all granted
+        Options -Indexes +FollowSymLinks
+    </Directory>
+
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set X-Content-Type-Options "nosniff"
+
+    ErrorLog ${APACHE_LOG_DIR}/publixx-pim-error.log
+    CustomLog ${APACHE_LOG_DIR}/publixx-pim-access.log combined
+</VirtualHost>
+```
+
+```bash
+sudo a2ensite publixx-pim.conf
+sudo a2dissite 000-default.conf
+sudo apache2ctl configtest
+sudo systemctl reload apache2
 ```
 
 ---
 
-## 7. PHP-FPM tunen
+## 7. SSL with Let's Encrypt
 
 ```bash
-sudo nano /etc/php/8.4/fpm/pool.d/www.conf
+sudo certbot --apache -d pim.example.com
+```
+
+Verify auto-renewal:
+```bash
+sudo certbot renew --dry-run
+```
+
+---
+
+## 8. Tune PHP
+
+```bash
+sudo nano /etc/php/8.4/apache2/php.ini
 ```
 
 ```ini
-pm = dynamic
-pm.max_children = 16
-pm.start_servers = 4
-pm.min_spare_servers = 2
-pm.max_spare_servers = 8
-
-php_admin_value[memory_limit] = 256M
-php_admin_value[upload_max_filesize] = 64M
-php_admin_value[post_max_size] = 64M
-php_admin_value[max_execution_time] = 120
+memory_limit = 256M
+upload_max_filesize = 64M
+post_max_size = 64M
+max_execution_time = 120
 ```
 
 ```bash
-sudo systemctl restart php8.4-fpm
+sudo systemctl restart apache2
 ```
 
 ---
 
-## 8. Supervisor fuer Horizon
+## 9. Supervisor for Horizon
 
 ```bash
 sudo nano /etc/supervisor/conf.d/horizon.conf
@@ -211,48 +215,41 @@ sudo supervisorctl start horizon
 
 ---
 
-## 9. Cron fuer Laravel Scheduler
+## 10. Cron for Laravel Scheduler
 
 ```bash
 sudo crontab -u www-data -e
 ```
 
-Hinzufuegen:
+Add:
 ```
 * * * * * cd /var/www/publixx-pim && php artisan schedule:run >> /dev/null 2>&1
 ```
 
 ---
 
-## 10. Firewall
+## 11. Firewall
 
 ```bash
-sudo ufw allow 'Nginx Full'
+sudo ufw allow 'Apache Full'
 sudo ufw allow OpenSSH
 sudo ufw enable
 ```
 
 ---
 
-## Updates deployen
+## Deploying Updates
 
-### Per Script (empfohlen)
+### Via Script (recommended)
 
 ```bash
-# Vollstaendiges Deployment (Git pull, Composer, Migrate, Frontend-Build, Cache, Restart)
-sudo bash /var/www/publixx-pim/deploy.sh
-
-# Schnelles Update (nur Git pull, Cache neu bauen, Services restarten)
-sudo bash /var/www/publixx-pim/deploy.sh --quick
-
-# Nur Backend (ohne Frontend-Build)
-sudo bash /var/www/publixx-pim/deploy.sh --backend
-
-# Nur Frontend neu bauen
-sudo bash /var/www/publixx-pim/deploy.sh --frontend
+cd /var/www/publixx-pim
+sudo bash update.sh
 ```
 
-### Manuell
+See [UPDATE.md](UPDATE.md) for all options.
+
+### Manual
 
 ```bash
 cd /var/www/publixx-pim
@@ -270,7 +267,8 @@ sudo supervisorctl restart horizon
 
 ## Monitoring
 
-- **Horizon Dashboard:** `https://publixx-pim.incoxx.com/horizon`
+- **Horizon Dashboard:** `https://pim.example.com/horizon`
 - **Logs:** `storage/logs/laravel.log`, `storage/logs/horizon.log`
 - **Redis:** `redis-cli INFO memory`
-- **Queue-Status:** `php artisan horizon:status`
+- **Queue Status:** `php artisan horizon:status`
+- **Healthcheck:** `curl https://pim.example.com/api/v1/health`
