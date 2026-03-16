@@ -8,7 +8,8 @@ import {
 
 const { t } = useI18n()
 
-const docsBase = '/web/help/de'
+const basePath = (import.meta.env.VITE_BASE_PATH || '/').replace(/\/+$/, '')
+const docsBase = `${basePath}/help/de`
 
 const sections = [
   {
