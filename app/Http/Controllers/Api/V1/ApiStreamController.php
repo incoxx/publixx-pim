@@ -64,9 +64,13 @@ class ApiStreamController extends Controller
 
         if ($template->auth_type === 'api_key') {
             $key = $request->header('X-Api-Key');
-            if (!$key || hash('sha256', $key) !== $template->api_key) {
+            if (! $key) {
+                abort(401, 'X-Api-Key Header fehlt.');
+            }
+            if (hash('sha256', $key) !== $template->api_key) {
                 abort(401, 'Ungültiger API-Key.');
             }
+
             return;
         }
 

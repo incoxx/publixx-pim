@@ -55,8 +55,10 @@ async function deleteTemplate(id) {
   }
 }
 
+const apiBase = (import.meta.env.VITE_API_BASE_URL || '/api/v1').replace(/\/+$/, '')
+
 function getStreamUrl(tmpl) {
-  return `${window.location.origin}/api/v1/api-streams/${tmpl.slug}`
+  return `${window.location.origin}${apiBase}/api-streams/${tmpl.slug}`
 }
 
 function copyStreamUrl(tmpl) {

@@ -3,6 +3,7 @@ import { useApiDesignerStore } from '@/stores/apiDesigner'
 import { Plus, Trash2, ChevronDown, ChevronRight, GripVertical } from 'lucide-vue-next'
 import { ref } from 'vue'
 import ApiTreeSection from './ApiTreeSection.vue'
+import GroupFieldPicker from '@/components/reports/GroupFieldPicker.vue'
 
 const emit = defineEmits(['show-field-picker'])
 const store = useApiDesignerStore()
@@ -32,7 +33,11 @@ function getGroupFieldLabel(field) {
     status: 'Status',
     none: 'Keine Gruppierung',
   }
-  if (field?.startsWith('attribute:')) return 'Attribut-Gruppierung'
+  if (field?.startsWith('attribute:')) {
+    const attrId = field.replace('attribute:', '')
+    const attr = store.availableFields?.attributes?.find(a => a.attributeId === attrId)
+    return attr ? attr.label_de : 'Attribut-Gruppierung'
+  }
   return labels[field] || field || '—'
 }
 
@@ -120,15 +125,14 @@ function renderGroupTree(groups, depth = 0) {
           />
 
           <!-- Inline edit: Group field -->
-          <select
+          <GroupFieldPicker
             v-if="store.selectedGroupId === group.id"
-            :value="group.field"
-            class="pim-input text-[11px] w-28"
+            :model-value="group.field"
+            :group-fields="store.availableFields?.group_fields || []"
+            :attributes="store.availableFields?.attributes || []"
+            @update:model-value="store.updateGroup(group.id, { field: $event })"
             @click.stop
-            @change="store.updateGroup(group.id, { field: $event.target.value })"
-          >
-            <option v-for="gf in (store.availableFields?.group_fields || [])" :key="gf.field" :value="gf.field">{{ gf.label_de }}</option>
-          </select>
+          />
 
           <button
             v-if="canAddSubgroup(group.id)"
@@ -179,7 +183,15 @@ function renderGroupTree(groups, depth = 0) {
                       <ChevronRight v-else class="w-3 h-3 text-[var(--color-text-tertiary)]" :stroke-width="2" />
                     </button>
                     <span class="text-[11px] font-medium text-[var(--color-text-primary)] flex-1">{{ sub.label || 'Untergruppe' }}</span>
-                    <span class="text-[10px] text-[var(--color-text-tertiary)]">{{ getGroupFieldLabel(sub.field) }}</span>
+                    <span v-if="store.selectedGroupId !== sub.id" class="text-[10px] text-[var(--color-text-tertiary)]">{{ getGroupFieldLabel(sub.field) }}</span>
+                    <GroupFieldPicker
+                      v-if="store.selectedGroupId === sub.id"
+                      :model-value="sub.field"
+                      :group-fields="store.availableFields?.group_fields || []"
+                      :attributes="store.availableFields?.attributes || []"
+                      @update:model-value="store.updateGroup(sub.id, { field: $event })"
+                      @click.stop
+                    />
                     <button
                       v-if="canAddSubgroup(sub.id)"
                       class="text-[var(--color-text-tertiary)] hover:text-[var(--color-accent)]"

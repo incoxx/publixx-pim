@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useApiDesignerStore } from '@/stores/apiDesigner'
 import { X, Search, Hash, Tag, GripVertical } from 'lucide-vue-next'
 
@@ -29,7 +29,17 @@ const attributesByGroup = computed(() => {
   return groups
 })
 
+const isDragging = ref(false)
+
+function onDragEnd() {
+  isDragging.value = false
+}
+
+onMounted(() => document.addEventListener('dragend', onDragEnd))
+onBeforeUnmount(() => document.removeEventListener('dragend', onDragEnd))
+
 function onDragStart(event, item) {
+  isDragging.value = true
   event.dataTransfer.setData('application/json', JSON.stringify(item))
   event.dataTransfer.effectAllowed = 'copy'
 }
@@ -53,8 +63,8 @@ const hasFocus = computed(() => !!store.focusedSection.groupId)
 
 <template>
   <!-- Overlay -->
-  <div class="fixed inset-0 z-50 flex items-start justify-center pt-20" @click.self="emit('close')">
-    <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg shadow-xl w-80 max-h-[60vh] flex flex-col">
+  <div class="fixed inset-0 z-50 flex items-start justify-center pt-20" :class="isDragging ? 'pointer-events-none' : ''" @click.self="emit('close')">
+    <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg shadow-xl w-80 max-h-[60vh] flex flex-col" :class="isDragging ? 'pointer-events-auto' : ''">
       <!-- Header -->
       <div class="flex items-center justify-between px-3 py-2 border-b border-[var(--color-border)]">
         <span class="text-xs font-semibold text-[var(--color-text-primary)]">Felder hinzufügen</span>
