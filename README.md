@@ -1,3 +1,7 @@
+**⚠️ anyPIM is under active development and is not yet stable. Use at your own risk. Code, API, interfaces, and other components may change at any time without prior notice.**
+
+---
+
 <p align="center">
   <img src="pim-frontend/public/logo-dark.svg" alt="anyPIM Logo" width="200" />
 </p>
