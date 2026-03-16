@@ -222,21 +222,6 @@ watch(() => route.params.id, (newId) => {
               </table>
             </div>
           </div>
-          <div v-if="relations.length" class="text-sm">
-            <h3 class="font-semibold text-base-content mb-2">Beziehungen</h3>
-            <div v-for="(rels, typeName) in relationsByType" :key="typeName" class="mb-3">
-              <h4 class="text-xs font-semibold text-base-content/60 mb-1">{{ typeName }}</h4>
-              <table class="table table-xs table-zebra w-full">
-                <thead><tr><th class="text-base-content/60">SKU</th><th class="text-base-content/60">Name</th></tr></thead>
-                <tbody>
-                  <tr v-for="rel in rels" :key="rel.target_product_id" class="cursor-pointer hover:bg-primary/5" @click="goToProduct(rel.target_product_id)">
-                    <td class="font-mono text-base-content/70">{{ rel.sku }}</td>
-                    <td class="link link-primary">{{ rel.name }}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
           <div class="pt-4 border-t border-base-300 flex gap-2">
             <button class="btn gap-2" :class="inWishlist ? 'btn-outline btn-primary' : 'btn-primary'" @click="store.toggleWishlist(product.id)">
               <Heart class="w-4 h-4" :class="{ 'fill-current': inWishlist }" />
@@ -244,6 +229,24 @@ watch(() => route.params.id, (newId) => {
             </button>
             <a :href="store.productJsonUrl(product.id)" target="_blank" class="btn btn-ghost btn-outline gap-1" title="JSON"><Braces class="w-4 h-4" /> JSON</a>
             <button v-if="store.themeSettings.catalog_pdf_enabled" class="btn btn-ghost btn-outline gap-1" :disabled="pdfLoading" @click="downloadPdf" title="PDF"><FileDown class="w-4 h-4" /> {{ pdfLoading ? '...' : 'PDF' }}</button>
+          </div>
+        </div>
+      </div>
+      <!-- Relations tab (classic layout) -->
+      <div v-if="relations.length" class="border-t border-base-300 p-6">
+        <h3 class="font-semibold text-base-content mb-3 text-sm">Beziehungen</h3>
+        <div class="text-sm">
+          <div v-for="(rels, typeName) in relationsByType" :key="typeName" class="mb-3 last:mb-0">
+            <h4 class="text-xs font-semibold text-base-content/60 mb-1">{{ typeName }}</h4>
+            <table class="table table-xs table-zebra w-full">
+              <thead><tr><th class="text-base-content/60">SKU</th><th class="text-base-content/60">Name</th></tr></thead>
+              <tbody>
+                <tr v-for="rel in rels" :key="rel.target_product_id" class="cursor-pointer hover:bg-primary/5" @click="goToProduct(rel.target_product_id)">
+                  <td class="font-mono text-base-content/70">{{ rel.sku }}</td>
+                  <td class="link link-primary">{{ rel.name }}</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -472,8 +475,11 @@ watch(() => route.params.id, (newId) => {
               </table>
             </div>
           </div>
-          <div v-if="relations.length" class="bg-base-200/30 rounded-xl p-4">
-            <h3 class="font-semibold text-base-content mb-3 text-sm">Beziehungen</h3>
+        </div>
+        <!-- Relations section (hero layout) -->
+        <div v-if="relations.length" class="bg-base-200/30 rounded-xl p-4">
+          <h3 class="font-semibold text-base-content mb-3 text-sm">Beziehungen</h3>
+          <div class="text-sm">
             <div v-for="(rels, typeName) in relationsByType" :key="typeName" class="mb-3 last:mb-0">
               <h4 class="text-xs font-semibold text-base-content/60 mb-1">{{ typeName }}</h4>
               <table class="table table-xs table-zebra w-full">

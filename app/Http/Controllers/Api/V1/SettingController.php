@@ -60,6 +60,7 @@ class SettingController extends Controller
         'catalog_compare_max_products' => 3,
         'catalog_excel_export_enabled' => false,
         'catalog_share_wishlist_enabled' => false,
+        'catalog_relation_type_ids' => [],
     ];
 
     /**
@@ -145,6 +146,8 @@ class SettingController extends Controller
             'catalog_compare_max_products' => 'nullable|integer|in:2,3',
             'catalog_excel_export_enabled' => 'nullable|boolean',
             'catalog_share_wishlist_enabled' => 'nullable|boolean',
+            'catalog_relation_type_ids' => 'nullable|array',
+            'catalog_relation_type_ids.*' => 'uuid|exists:product_relation_types,id',
         ]);
 
         // Merge with existing payload so that unsent keys are preserved
