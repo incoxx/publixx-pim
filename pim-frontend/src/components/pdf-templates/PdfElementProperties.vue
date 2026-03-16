@@ -8,20 +8,24 @@ import client from '@/api/client'
 const store = usePdfTemplateDesignerStore()
 
 const relationTypes = ref([])
+const attributeTypes = ref([])
 const allAttributes = ref([])
 const attrSearchQuery = ref('')
+const attrTableSearchQuery = ref('')
 
 onMounted(async () => {
   try {
-    const [rtRes, attrRes] = await Promise.allSettled([
+    const [rtRes, attrRes, atRes] = await Promise.allSettled([
       client.get('/relation-types', { params: { per_page: 100 } }),
       client.get('/attributes', { params: { per_page: 500 } }),
+      client.get('/attribute-types', { params: { per_page: 100 } }),
     ])
     if (rtRes.status === 'fulfilled') relationTypes.value = rtRes.value.data.data || rtRes.value.data || []
     if (attrRes.status === 'fulfilled') {
       const attrs = attrRes.value.data.data || attrRes.value.data || []
       allAttributes.value = attrs.filter(a => a.data_type !== 'Composite')
     }
+    if (atRes.status === 'fulfilled') attributeTypes.value = atRes.value.data.data || atRes.value.data || []
   } catch (e) {
     console.warn('Failed to load data:', e.message)
   }
@@ -38,13 +42,23 @@ const filteredProductAttributes = computed(() => {
   )
 })
 
+const filteredAttrTableAttributes = computed(() => {
+  const q = attrTableSearchQuery.value.toLowerCase()
+  if (!q) return allAttributes.value
+  return allAttributes.value.filter(a =>
+    (a.name_de || '').toLowerCase().includes(q) ||
+    (a.technical_name || '').toLowerCase().includes(q)
+  )
+})
+
 // Compute current table headers for column width UI
 const currentTableHeaders = computed(() => {
   if (!sel.value) return []
   const cols = sel.value.columns || []
   const headers = []
   for (const col of cols) {
-    if (col === 'sku') headers.push('SKU')
+    if (col === 'relation_type') headers.push('Beziehungsart')
+    else if (col === 'sku') headers.push('SKU')
     else if (col === 'name') headers.push('Name')
     else if (col === 'ean') headers.push('EAN')
     else if (col === 'variant_attributes') headers.push('Var.-Attr.')
@@ -99,6 +113,15 @@ function toggleProductAttribute(attrId) {
   store.updateElement(sel.value.id, { productAttributeIds: ids })
 }
 
+function toggleAttrTableAttribute(attrId) {
+  if (!sel.value) return
+  const ids = [...(sel.value.attributeIds || [])]
+  const idx = ids.indexOf(attrId)
+  if (idx >= 0) ids.splice(idx, 1)
+  else ids.push(attrId)
+  store.updateElement(sel.value.id, { attributeIds: ids })
+}
+
 function updateColumnWidth(index, value) {
   if (!sel.value) return
   const widths = [...(sel.value.columnWidths || [])]
@@ -111,7 +134,7 @@ function updateColumnWidth(index, value) {
 // fontFamilies imported from fontList.js
 
 const canAutofit = computed(() => {
-  if (!sel.value || sel.value.type === 'shape' || sel.value.type === 'image' || sel.value.type === 'variant_table' || sel.value.type === 'relation_table') return false
+  if (!sel.value || sel.value.type === 'shape' || sel.value.type === 'image' || sel.value.type === 'variant_table' || sel.value.type === 'relation_table' || sel.value.type === 'attribute_table') return false
   return !!store.referenceProductId && store.resolvedElements.length > 0
 })
 
@@ -134,6 +157,7 @@ const typeLabels = {
   shape: 'Form / Rahmen',
   variant_table: 'Variantentabelle',
   relation_table: 'Beziehungstabelle',
+  attribute_table: 'Attribut-Tabelle',
 }
 </script>
 
@@ -365,6 +389,10 @@ const typeLabels = {
               EAN
             </label>
             <label class="flex items-center gap-2 text-[11px] cursor-pointer text-[var(--color-text-secondary)]">
+              <input type="checkbox" :checked="(sel.columns || []).includes('relation_type')" class="rounded" @change="toggleColumn('relation_type')" />
+              Beziehungsart
+            </label>
+            <label class="flex items-center gap-2 text-[11px] cursor-pointer text-[var(--color-text-secondary)]">
               <input type="checkbox" :checked="(sel.columns || []).includes('relation_attributes')" class="rounded" @change="toggleColumn('relation_attributes')" />
               Beziehungsattribute
             </label>
@@ -392,6 +420,28 @@ const typeLabels = {
             <div class="text-[9px] text-[var(--color-text-tertiary)]">{{ (sel.productAttributeIds || []).length }} Attribute ausgewählt</div>
           </div>
         </div>
+        <!-- Sorting -->
+        <div class="border-t border-[var(--color-border)] pt-3">
+          <div class="text-[10px] font-semibold text-[var(--color-text-tertiary)] mb-2">Sortierung</div>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-[9px] text-[var(--color-text-tertiary)] mb-0.5">Sortieren nach</label>
+              <select :value="sel.sortBy || ''" class="pim-input text-xs w-full" @change="updateElement('sortBy', $event.target.value || null)">
+                <option value="">Standard (Reihenfolge)</option>
+                <option value="relation_type">Beziehungsart</option>
+                <option value="name">Name</option>
+                <option value="sku">SKU</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-[9px] text-[var(--color-text-tertiary)] mb-0.5">Richtung</label>
+              <select :value="sel.sortDirection || 'asc'" class="pim-input text-xs w-full" @change="updateElement('sortDirection', $event.target.value)">
+                <option value="asc">Aufsteigend</option>
+                <option value="desc">Absteigend</option>
+              </select>
+            </div>
+          </div>
+        </div>
         <!-- Column Widths -->
         <div v-if="currentTableHeaders.length > 0" class="border-t border-[var(--color-border)] pt-3">
           <div class="text-[10px] font-semibold text-[var(--color-text-tertiary)] mb-2">Spaltenbreiten (%)</div>
@@ -403,6 +453,75 @@ const typeLabels = {
             </div>
           </div>
         </div>
+        <div class="border-t border-[var(--color-border)] pt-3">
+          <div class="text-[10px] font-semibold text-[var(--color-text-tertiary)] mb-2">Tabellen-Styling</div>
+          <div class="space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] text-[var(--color-text-secondary)]">Header-Hintergrund</span>
+              <input type="color" :value="sel.tableStyle?.headerBg || '#f3f4f6'" class="w-6 h-5 rounded border border-[var(--color-border)] cursor-pointer" @input="updateTableStyle('headerBg', $event.target.value)" />
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] text-[var(--color-text-secondary)]">Header-Textfarbe</span>
+              <input type="color" :value="sel.tableStyle?.headerColor || '#374151'" class="w-6 h-5 rounded border border-[var(--color-border)] cursor-pointer" @input="updateTableStyle('headerColor', $event.target.value)" />
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] text-[var(--color-text-secondary)]">Rahmenfarbe</span>
+              <input type="color" :value="sel.tableStyle?.borderColor || '#e5e7eb'" class="w-6 h-5 rounded border border-[var(--color-border)] cursor-pointer" @input="updateTableStyle('borderColor', $event.target.value)" />
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] text-[var(--color-text-secondary)]">Alternierende Zeilen</span>
+              <input type="color" :value="sel.tableStyle?.alternateRowBg || '#f9fafb'" class="w-6 h-5 rounded border border-[var(--color-border)] cursor-pointer" @input="updateTableStyle('alternateRowBg', $event.target.value)" />
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-[9px] text-[var(--color-text-tertiary)] mb-0.5">Schriftgröße (pt)</label>
+                <input type="number" :value="sel.tableStyle?.fontSize || 8" class="pim-input text-xs w-full" min="6" max="14" @input="updateTableStyle('fontSize', parseInt($event.target.value) || 8)" />
+              </div>
+              <div>
+                <label class="block text-[9px] text-[var(--color-text-tertiary)] mb-0.5">Header-Größe (pt)</label>
+                <input type="number" :value="sel.tableStyle?.headerFontSize || 8" class="pim-input text-xs w-full" min="6" max="14" @input="updateTableStyle('headerFontSize', parseInt($event.target.value) || 8)" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <!-- ATTRIBUTE TABLE -->
+      <template v-if="sel.type === 'attribute_table'">
+        <div>
+          <label class="block text-[10px] font-medium text-[var(--color-text-tertiary)] mb-0.5">Quelle</label>
+          <select :value="sel.sourceMode || 'group'" class="pim-input text-xs w-full" @change="updateElement('sourceMode', $event.target.value)">
+            <option value="group">Attributgruppe</option>
+            <option value="individual">Einzelne Attribute</option>
+          </select>
+        </div>
+        <!-- Group mode -->
+        <div v-if="(sel.sourceMode || 'group') === 'group'">
+          <label class="block text-[10px] font-medium text-[var(--color-text-tertiary)] mb-0.5">Attributgruppe</label>
+          <select :value="sel.attributeGroupId || ''" class="pim-input text-xs w-full" @change="updateElement('attributeGroupId', $event.target.value || null)">
+            <option value="">-- Bitte wählen --</option>
+            <option v-for="at in attributeTypes" :key="at.id" :value="at.id">{{ at.name_de || at.technical_name }}</option>
+          </select>
+        </div>
+        <!-- Individual mode -->
+        <div v-if="sel.sourceMode === 'individual'">
+          <div class="text-[10px] font-semibold text-[var(--color-text-tertiary)] mb-1">Attribute auswählen</div>
+          <input v-model="attrTableSearchQuery" class="pim-input text-[10px] w-full mb-1.5" placeholder="Attribute suchen..." />
+          <div class="max-h-40 overflow-y-auto space-y-0.5 border border-[var(--color-border)] rounded p-1.5">
+            <label
+              v-for="attr in filteredAttrTableAttributes"
+              :key="attr.id"
+              class="flex items-center gap-1.5 text-[10px] cursor-pointer text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+            >
+              <input type="checkbox" :checked="(sel.attributeIds || []).includes(attr.id)" class="rounded" style="width: 12px; height: 12px;" @change="toggleAttrTableAttribute(attr.id)" />
+              <span class="truncate">{{ attr.name_de || attr.technical_name }}</span>
+            </label>
+          </div>
+          <div v-if="(sel.attributeIds || []).length > 0" class="mt-1">
+            <div class="text-[9px] text-[var(--color-text-tertiary)]">{{ (sel.attributeIds || []).length }} Attribute ausgewählt</div>
+          </div>
+        </div>
+        <!-- Table Styling -->
         <div class="border-t border-[var(--color-border)] pt-3">
           <div class="text-[10px] font-semibold text-[var(--color-text-tertiary)] mb-2">Tabellen-Styling</div>
           <div class="space-y-2">

@@ -271,6 +271,9 @@ class PdfTemplateService
             if (($element['type'] ?? '') === 'relation_table') {
                 $hasRelationTable = true;
             }
+            if (($element['type'] ?? '') === 'attribute_table') {
+                $hasAttributes = true;
+            }
         }
 
         if ($hasAttributes) {
