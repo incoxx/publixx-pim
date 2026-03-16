@@ -274,6 +274,13 @@ if [ "$RUN_SEED" = true ]; then
     info "Seeders ausgefuehrt."
 fi
 
+# Typesense Collection sicherstellen (falls Typesense konfiguriert)
+TYPESENSE_KEY=$(grep '^TYPESENSE_API_KEY=' "${INSTALL_DIR}/.env" 2>/dev/null | cut -d'=' -f2- | tr -d '"' | tr -d "'")
+if [ -n "$TYPESENSE_KEY" ]; then
+    php artisan typesense:setup 2>/dev/null && info "Typesense Collection geprueft." \
+        || warn "Typesense Collection konnte nicht geprueft werden."
+fi
+
 # ═════════════════════════════════════════════════════════════════════════════
 #  5. FRONTEND BUILD
 # ═════════════════════════════════════════════════════════════════════════════

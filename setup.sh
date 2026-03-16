@@ -535,7 +535,25 @@ step "8/10 — anyPIM einrichten"
 apt-get install -y -qq supervisor
 
 # Weitere Pakete
-apt-get install -y -qq git unzip curl
+apt-get install -y -qq git unzip curl poppler-utils
+
+# Typesense installieren (Volltextsuche fuer PDF-Seiten)
+if ! command -v typesense-server &> /dev/null; then
+    info "Installiere Typesense..."
+    TYPESENSE_VERSION="27.1"
+    curl -sO "https://dl.typesense.org/releases/${TYPESENSE_VERSION}/typesense-server-${TYPESENSE_VERSION}-amd64.deb"
+    dpkg -i "typesense-server-${TYPESENSE_VERSION}-amd64.deb"
+    rm -f "typesense-server-${TYPESENSE_VERSION}-amd64.deb"
+    info "Typesense ${TYPESENSE_VERSION} installiert."
+else
+    info "Typesense bereits installiert: $(typesense-server --version 2>/dev/null || echo 'vorhanden')"
+fi
+
+# Typesense API-Key auslesen (wird vom DEB-Paket generiert)
+TYPESENSE_API_KEY=""
+if [ -f /etc/typesense/typesense-server.ini ]; then
+    TYPESENSE_API_KEY=$(grep '^api-key' /etc/typesense/typesense-server.ini | cut -d'=' -f2- | tr -d ' ')
+fi
 
 # Installationsverzeichnis vorbereiten
 if [ -d "$INSTALL_DIR" ] && [ "$INSTALL_DIR" != "$SCRIPT_DIR" ]; then
@@ -637,6 +655,12 @@ FILESYSTEM_DISK=local
 # ─── Mail ─────────────────────────────────────────────────────────────
 MAIL_MAILER=log
 
+# ─── Typesense (PDF-Volltextsuche) ──────────────────────────────────
+TYPESENSE_HOST=localhost
+TYPESENSE_PORT=8108
+TYPESENSE_PROTOCOL=http
+TYPESENSE_API_KEY=${TYPESENSE_API_KEY}
+
 # ─── Frontend (CORS) ────────────────────────────────────────────────
 FRONTEND_URL=${APP_URL}
 ENVFILE
@@ -719,6 +743,16 @@ if [ "$CUSTOM_ADMIN" = true ]; then
     " 2>&1
 
     info "Admin-Benutzer '${ADMIN_EMAIL}' angelegt."
+fi
+
+# --- Typesense Collection anlegen ---
+if [ -n "$TYPESENSE_API_KEY" ]; then
+    info "Erstelle Typesense Collection fuer PDF-Suche..."
+    php artisan typesense:setup 2>&1 && info "Typesense Collection angelegt." \
+        || warn "Typesense Collection konnte nicht angelegt werden — kann spaeter mit 'php artisan typesense:setup' nachgeholt werden."
+else
+    warn "Kein Typesense API-Key gefunden — PDF-Suche muss manuell eingerichtet werden."
+    warn "Siehe: php artisan typesense:setup"
 fi
 
 # --- Storage Link ---
@@ -1144,6 +1178,7 @@ echo -e "  Apache:        $(systemctl is-active apache2 2>/dev/null || echo 'unb
 echo -e "  MySQL:         $(systemctl is-active mysql 2>/dev/null || echo 'unbekannt')"
 echo -e "  Redis:         $(systemctl is-active redis-server 2>/dev/null || echo 'unbekannt')"
 echo -e "  Supervisor:    $(systemctl is-active supervisor 2>/dev/null || echo 'unbekannt')"
+echo -e "  Typesense:     $(systemctl is-active typesense-server 2>/dev/null || echo 'unbekannt') (Port 8108)"
 echo ""
 echo -e "${BOLD}Nuetzliche Befehle:${NC}"
 echo -e "  Horizon:       sudo supervisorctl status horizon"
