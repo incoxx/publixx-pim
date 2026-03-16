@@ -386,8 +386,8 @@ router.beforeEach(async (to, from, next) => {
     return next()
   }
 
-  // For public catalog routes, check if login is required
-  if (to.meta.public && to.path.startsWith('/preview')) {
+  // For public catalog/asset routes, check if login is required
+  if (to.meta.public && (to.path.startsWith('/preview') || to.path.startsWith('/assetpreview'))) {
     if (catalogAccessMode === null) {
       try {
         const { data } = await catalogApi.getSettings()

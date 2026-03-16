@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
 import assetCatalogApi from '@/api/assetCatalog'
+import catalogApi from '@/api/catalog'
 
 export const useAssetCatalogStore = defineStore('assetCatalog', () => {
   // --- State ---
@@ -12,6 +13,30 @@ export const useAssetCatalogStore = defineStore('assetCatalog', () => {
   const assetLoading = ref(false)
   const foldersLoading = ref(false)
   const error = ref(null)
+
+  // --- Theme Settings (shared with product catalog) ---
+  const themeSettings = ref({
+    font_family: 'Inter',
+    font_heading_size: '1.75rem',
+    font_body_size: '0.875rem',
+    color_primary: '#1B3A5C',
+    color_accent: '#0D9488',
+    color_table_bg: '#f8fafc',
+    color_body_text: '#111827',
+    logo_url: null,
+    catalog_title: 'Produktkatalog',
+    impressum_url: null,
+    kontakt_url: null,
+    impressum_text: null,
+    kontakt_text: null,
+    footer_text: null,
+    catalog_access_mode: 'public',
+  })
+
+  // --- "Verwendet von" (Used by) products ---
+  const assetProducts = ref([])
+  const assetProductsMeta = ref({ current_page: 1, last_page: 1, per_page: 10, total: 0 })
+  const assetProductsLoading = ref(false)
 
   const meta = ref({
     current_page: 1,
@@ -59,6 +84,40 @@ export const useAssetCatalogStore = defineStore('assetCatalog', () => {
   )
 
   // --- Actions ---
+
+  async function fetchThemeSettings() {
+    try {
+      const { data } = await catalogApi.getSettings()
+      if (data.data) {
+        themeSettings.value = { ...themeSettings.value, ...data.data }
+        if (!localStorage.getItem('asset_catalog_locale') && data.data.default_locale) {
+          locale.value = data.data.default_locale
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load catalog theme settings:', e.message)
+    }
+  }
+
+  async function fetchAssetProducts(assetId, page = 1) {
+    assetProductsLoading.value = true
+    try {
+      const { data } = await assetCatalogApi.getAssetProducts(assetId, {
+        page,
+        perPage: assetProductsMeta.value.per_page,
+        lang: locale.value,
+      })
+      assetProducts.value = data.data
+      if (data.meta) {
+        assetProductsMeta.value = { ...assetProductsMeta.value, ...data.meta }
+      }
+    } catch (e) {
+      console.error('Failed to load asset products:', e)
+      assetProducts.value = []
+    } finally {
+      assetProductsLoading.value = false
+    }
+  }
 
   async function fetchAssets() {
     loading.value = true
@@ -220,6 +279,12 @@ export const useAssetCatalogStore = defineStore('assetCatalog', () => {
     wishlistCount,
     isEmpty,
     isInWishlist,
+    themeSettings,
+    fetchThemeSettings,
+    assetProducts,
+    assetProductsMeta,
+    assetProductsLoading,
+    fetchAssetProducts,
     fetchAssets,
     fetchAsset,
     fetchFolders,

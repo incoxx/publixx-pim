@@ -80,6 +80,24 @@ const staggerDelay = computed(() => `${Math.min(props.index * 40, 400)}ms`)
     <div class="card-body p-3 gap-0.5">
       <h3 class="text-xs font-semibold line-clamp-1">{{ asset.title || asset.file_name }}</h3>
       <p class="text-[10px] text-base-content/50 truncate">{{ asset.file_name }}</p>
+
+      <!-- Match sources (search hit badges) -->
+      <div v-if="asset.match_sources?.length" class="flex flex-wrap gap-1 mt-1">
+        <span
+          v-for="(source, i) in asset.match_sources.slice(0, 3)"
+          :key="i"
+          class="badge badge-xs"
+          :class="{
+            'badge-primary': source.type === 'filename' || source.type === 'title',
+            'badge-accent': source.type === 'attribute',
+            'badge-info': source.type === 'description',
+            'badge-warning': source.type === 'phonetic',
+          }"
+        >
+          {{ source.label }}
+        </span>
+      </div>
+
       <div class="flex items-center justify-between mt-1">
         <span class="text-[10px] text-base-content/40">{{ formatFileSize(asset.file_size) }}</span>
         <span v-if="asset.width && asset.height" class="text-[10px] text-base-content/40">

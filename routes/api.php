@@ -122,9 +122,10 @@ Route::prefix('v1')->middleware('throttle.pim')->group(function () {
 // =========================================================================
 // Public Asset Catalog API (no auth required)
 // =========================================================================
-Route::prefix('v1/asset-catalog')->middleware('throttle.pim')->group(function () {
+Route::prefix('v1/asset-catalog')->middleware(['throttle.pim', 'catalog.access'])->group(function () {
     Route::get('assets', [AssetCatalogController::class, 'assets']);
     Route::get('assets/{medium}', [AssetCatalogController::class, 'asset']);
+    Route::get('assets/{medium}/products', [AssetCatalogController::class, 'assetProducts']);
     Route::get('folders', [AssetCatalogController::class, 'folders']);
     Route::post('download', [AssetCatalogController::class, 'download']);
 });
