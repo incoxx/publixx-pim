@@ -65,6 +65,7 @@ use App\Policies\WorkflowPolicy;
 use App\Policies\WorkflowStatusPolicy;
 use App\Policies\WorkflowTaskPolicy;
 use App\Models\WorkflowTask;
+use App\Observers\MediaObserver;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
@@ -76,10 +77,14 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->singleton(\App\Services\LicenseService::class);
+        $this->app->singleton(\App\Services\TypesenseService::class);
     }
 
     public function boot(): void
     {
+        // ─── Observers ─────────────────────────────────────────────────
+        Media::observe(MediaObserver::class);
+
         // ─── SSO: Register Azure AD Socialite Driver ─────────────────
         Event::listen(SocialiteWasCalled::class, AzureExtendSocialite::class.'@handle');
 
