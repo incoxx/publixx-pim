@@ -87,7 +87,32 @@ class AssetCatalogController extends BaseController
                 ->unique()
                 ->toArray();
 
-            $query->where(function ($q) use ($likeTerm, $mediaIdsFromAttributes) {
+            // Phonetic matching (Kölner Phonetik) — pre-query matching media IDs
+            $phoneticTerm = KoelnerPhonetik::encode($term);
+            $mediaIdsFromPhonetic = [];
+            if ($phoneticTerm !== '') {
+                $mediaIdsFromPhonetic = Media::select('id', 'file_name', 'title_de')
+                    ->where(function ($pq) use ($likeTerm) {
+                        $pq->where('file_name', 'like', '%')
+                            ->orWhere('title_de', 'like', '%');
+                    })
+                    ->get()
+                    ->filter(function ($m) use ($phoneticTerm) {
+                        if ($m->file_name) {
+                            $fp = KoelnerPhonetik::encode($m->file_name);
+                            if ($fp !== '' && str_contains($fp, $phoneticTerm)) return true;
+                        }
+                        if ($m->title_de) {
+                            $tp = KoelnerPhonetik::encode($m->title_de);
+                            if ($tp !== '' && str_contains($tp, $phoneticTerm)) return true;
+                        }
+                        return false;
+                    })
+                    ->pluck('id')
+                    ->toArray();
+            }
+
+            $query->where(function ($q) use ($likeTerm, $mediaIdsFromAttributes, $mediaIdsFromPhonetic) {
                 $q->where('file_name', 'like', $likeTerm)
                     ->orWhere('title_de', 'like', $likeTerm)
                     ->orWhere('title_en', 'like', $likeTerm)
@@ -98,19 +123,8 @@ class AssetCatalogController extends BaseController
                     $q->orWhereIn('id', $mediaIdsFromAttributes);
                 }
 
-                // Phonetic matching (Kölner Phonetik)
-                if (DB::getDriverName() === 'mysql') {
-                    $phoneticTerm = KoelnerPhonetik::encode($term);
-                    if ($phoneticTerm !== '') {
-                        $q->orWhereRaw(
-                            'SOUNDEX(file_name) = SOUNDEX(?)',
-                            [$term]
-                        )
-                        ->orWhereRaw(
-                            'SOUNDEX(title_de) = SOUNDEX(?)',
-                            [$term]
-                        );
-                    }
+                if (!empty($mediaIdsFromPhonetic)) {
+                    $q->orWhereIn('id', $mediaIdsFromPhonetic);
                 }
             });
         }

@@ -60,7 +60,7 @@ function openProduct(product) {
   productModalId.value = product.id
   productModalOpen.value = true
   // Ensure catalog store has theme settings for product modal
-  if (!catalogStore.themeSettings.font_family || catalogStore.themeSettings.font_family === 'Inter') {
+  if (!catalogStore._themeLoaded) {
     catalogStore.themeSettings = { ...catalogStore.themeSettings, ...store.themeSettings }
   }
 }

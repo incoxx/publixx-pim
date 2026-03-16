@@ -1,7 +1,7 @@
 <script setup>
 import { useI18n } from 'vue-i18n'
 import { useAssetCatalogStore } from '@/stores/assetCatalog'
-import { LayoutGrid, List, X, SearchX } from 'lucide-vue-next'
+import { LayoutGrid, List, X } from 'lucide-vue-next'
 
 const { t } = useI18n()
 const store = useAssetCatalogStore()
