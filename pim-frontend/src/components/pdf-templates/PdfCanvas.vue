@@ -165,6 +165,46 @@ function getElementDefaults(item) {
       style: { ...base.style, padding: 0 },
     }
   }
+  if (item.type === 'relation_table') {
+    return {
+      ...base,
+      width: 190,
+      height: 60,
+      columns: item.columns || ['sku', 'name'],
+      relationTypeId: item.relationTypeId || null,
+      productAttributeIds: item.productAttributeIds || [],
+      sortBy: null,
+      sortDirection: 'asc',
+      tableStyle: {
+        headerBg: '#f3f4f6',
+        headerColor: '#374151',
+        borderColor: '#e5e7eb',
+        alternateRowBg: '#f9fafb',
+        fontSize: 8,
+        headerFontSize: 8,
+      },
+      style: { ...base.style, padding: 0 },
+    }
+  }
+  if (item.type === 'attribute_table') {
+    return {
+      ...base,
+      width: 190,
+      height: 60,
+      sourceMode: item.sourceMode || 'group',
+      attributeGroupId: item.attributeGroupId || null,
+      attributeIds: item.attributeIds || [],
+      tableStyle: {
+        headerBg: '#f3f4f6',
+        headerColor: '#374151',
+        borderColor: '#e5e7eb',
+        alternateRowBg: '#f9fafb',
+        fontSize: 8,
+        headerFontSize: 8,
+      },
+      style: { ...base.style, padding: 0 },
+    }
+  }
   return base
 }
 

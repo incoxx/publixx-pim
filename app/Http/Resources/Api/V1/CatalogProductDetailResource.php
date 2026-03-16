@@ -102,6 +102,9 @@ class CatalogProductDetailResource extends JsonResource
         // Build variants with their variant attribute values
         $variants = $this->buildVariants($lang);
 
+        // Build relations (filtered by configured types)
+        $relations = $this->buildRelations($lang);
+
         $descriptionAttributes = $this->additional['description_attributes'] ?? [];
 
         return [
@@ -117,6 +120,7 @@ class CatalogProductDetailResource extends JsonResource
             'prices' => $prices,
             'attributes' => $attributes,
             'variants' => $variants,
+            'relations' => $relations,
         ];
     }
 
@@ -166,6 +170,36 @@ class CatalogProductDetailResource extends JsonResource
                 'variant_attributes' => $variantAttrsOutput,
             ];
         })->values()->toArray();
+    }
+
+    private function buildRelations(string $lang): array
+    {
+        $product = $this->resource;
+
+        if (!$product->relationLoaded('outgoingRelations') || $product->outgoingRelations->isEmpty()) {
+            return [];
+        }
+
+        return $product->outgoingRelations->map(function ($relation) use ($lang) {
+            $target = $relation->targetProduct;
+            if (!$target || $target->status !== 'active') {
+                return null;
+            }
+
+            $typeName = $relation->relationType
+                ? ($lang === 'en' && $relation->relationType->name_en
+                    ? $relation->relationType->name_en
+                    : $relation->relationType->name_de)
+                : null;
+
+            return [
+                'target_product_id' => $target->id,
+                'sku' => $target->sku,
+                'name' => $target->name,
+                'relation_type' => $typeName,
+                'relation_type_id' => $relation->relation_type_id,
+            ];
+        })->filter()->values()->toArray();
     }
 
     /**

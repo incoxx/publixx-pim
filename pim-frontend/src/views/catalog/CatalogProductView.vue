@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, computed, ref } from 'vue'
+import { onMounted, computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useCatalogStore } from '@/stores/catalog'
@@ -34,7 +34,22 @@ const tabs = computed(() => {
   if (product.value?.variants?.length) {
     list.push({ id: 'variants', label: 'Varianten' })
   }
+  if (relations.value.length) {
+    list.push({ id: 'relations', label: 'Beziehungen' })
+  }
   return list
+})
+
+const relations = computed(() => product.value?.relations || [])
+
+const relationsByType = computed(() => {
+  const groups = {}
+  for (const rel of relations.value) {
+    const type = rel.relation_type || 'Sonstige'
+    if (!groups[type]) groups[type] = []
+    groups[type].push(rel)
+  }
+  return groups
 })
 
 const LINK_DATA_TYPES = ['Hyperlink', 'ImageLink', 'PdfLink', 'VideoLink']
@@ -106,8 +121,20 @@ function goBack() {
   router.push({ name: 'catalog' })
 }
 
+function goToProduct(productId) {
+  router.push({ name: 'catalog-product', params: { id: productId } })
+}
+
 onMounted(() => {
   store.fetchProduct(route.params.id)
+})
+
+// Re-fetch when navigating between related products
+watch(() => route.params.id, (newId) => {
+  if (newId) {
+    activeTab.value = 'overview'
+    store.fetchProduct(newId)
+  }
 })
 </script>
 
@@ -190,6 +217,21 @@ onMounted(() => {
                     <td>{{ variant.name }}</td>
                     <td><span :class="['badge badge-sm', variant.status === 'active' ? 'badge-success' : 'badge-ghost']">{{ variant.status === 'active' ? 'Aktiv' : variant.status }}</span></td>
                     <td v-for="(va, idx) in (variant.variant_attributes || [])" :key="idx">{{ va.value || '—' }}<span v-if="va.unit" class="text-base-content/50 ml-1">{{ va.unit }}</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div v-if="relations.length" class="text-sm">
+            <h3 class="font-semibold text-base-content mb-2">Beziehungen</h3>
+            <div v-for="(rels, typeName) in relationsByType" :key="typeName" class="mb-3">
+              <h4 class="text-xs font-semibold text-base-content/60 mb-1">{{ typeName }}</h4>
+              <table class="table table-xs table-zebra w-full">
+                <thead><tr><th class="text-base-content/60">SKU</th><th class="text-base-content/60">Name</th></tr></thead>
+                <tbody>
+                  <tr v-for="rel in rels" :key="rel.target_product_id" class="cursor-pointer hover:bg-primary/5" @click="goToProduct(rel.target_product_id)">
+                    <td class="font-mono text-base-content/70">{{ rel.sku }}</td>
+                    <td class="link link-primary">{{ rel.name }}</td>
                   </tr>
                 </tbody>
               </table>
@@ -305,6 +347,20 @@ onMounted(() => {
                 </tbody>
               </table>
             </div>
+            <div v-if="activeTab === 'relations'" class="text-sm">
+              <div v-for="(rels, typeName) in relationsByType" :key="typeName" class="mb-3">
+                <h4 class="text-xs font-semibold text-base-content/60 mb-1">{{ typeName }}</h4>
+                <table class="table table-xs table-zebra w-full">
+                  <thead><tr><th class="text-base-content/60">SKU</th><th class="text-base-content/60">Name</th></tr></thead>
+                  <tbody>
+                    <tr v-for="rel in rels" :key="rel.target_product_id" class="cursor-pointer hover:bg-primary/5" @click="goToProduct(rel.target_product_id)">
+                      <td class="font-mono text-base-content/70">{{ rel.sku }}</td>
+                      <td class="link link-primary">{{ rel.name }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
           <!-- Actions -->
           <div class="pt-4 mt-4 border-t border-base-300 flex gap-2">
@@ -411,6 +467,21 @@ onMounted(() => {
                     <td class="font-mono text-base-content/70">{{ variant.sku }}</td>
                     <td>{{ variant.name }}</td>
                     <td v-for="(va, idx) in (variant.variant_attributes || [])" :key="idx">{{ va.value || '—' }}<span v-if="va.unit" class="text-base-content/50 ml-1">{{ va.unit }}</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div v-if="relations.length" class="bg-base-200/30 rounded-xl p-4">
+            <h3 class="font-semibold text-base-content mb-3 text-sm">Beziehungen</h3>
+            <div v-for="(rels, typeName) in relationsByType" :key="typeName" class="mb-3 last:mb-0">
+              <h4 class="text-xs font-semibold text-base-content/60 mb-1">{{ typeName }}</h4>
+              <table class="table table-xs table-zebra w-full">
+                <thead><tr><th class="text-base-content/60">SKU</th><th class="text-base-content/60">Name</th></tr></thead>
+                <tbody>
+                  <tr v-for="rel in rels" :key="rel.target_product_id" class="cursor-pointer hover:bg-primary/5" @click="goToProduct(rel.target_product_id)">
+                    <td class="font-mono text-base-content/70">{{ rel.sku }}</td>
+                    <td class="link link-primary">{{ rel.name }}</td>
                   </tr>
                 </tbody>
               </table>

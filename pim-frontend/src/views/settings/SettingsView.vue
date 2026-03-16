@@ -11,7 +11,7 @@ import mediaApi from '@/api/media'
 import pdfTemplatesApi from '@/api/pdfTemplates'
 import hierarchiesApi from '@/api/hierarchies'
 import attributesApi, { attributeViews as attributeViewsApi } from '@/api/attributes'
-import { priceTypes as priceTypesApi } from '@/api/prices'
+import { priceTypes as priceTypesApi, relationTypes as relationTypesApi } from '@/api/prices'
 import { mediaUsageTypes } from '@/api/mediaUsageTypes'
 import catalogPresets from '@/config/catalogPresets'
 
@@ -324,6 +324,7 @@ const themeForm = ref({
   catalog_share_wishlist_enabled: false,
   catalog_access_mode: 'public',
   catalog_linked_products_only: false,
+  catalog_relation_type_ids: [],
 })
 const activeMainTab = ref('general')
 const activeThemeTab = ref('general')
@@ -389,6 +390,7 @@ async function loadThemeSettings() {
         catalog_share_wishlist_enabled: !!d.catalog_share_wishlist_enabled,
         catalog_access_mode: d.catalog_access_mode || 'public',
         catalog_linked_products_only: !!d.catalog_linked_products_only,
+        catalog_relation_type_ids: d.catalog_relation_type_ids || [],
       }
       themeLogoPreview.value = d.logo_url || null
     }
@@ -412,6 +414,7 @@ async function saveThemeSettings() {
     if (!payload.facet_attribute_ids || payload.facet_attribute_ids.length === 0) payload.facet_attribute_ids = []
     if (!payload.card_attribute_ids || payload.card_attribute_ids.length === 0) payload.card_attribute_ids = []
     if (!payload.description_attributes || payload.description_attributes.length === 0) payload.description_attributes = []
+    if (!payload.catalog_relation_type_ids || payload.catalog_relation_type_ids.length === 0) payload.catalog_relation_type_ids = []
     // Ensure booleans are actual booleans (not strings)
     payload.card_show_sku = !!payload.card_show_sku
     payload.card_show_category = !!payload.card_show_category
@@ -461,6 +464,16 @@ function removeLogo() {
 }
 
 // ── PDF Templates for catalog ──
+const availableRelationTypes = ref([])
+async function loadRelationTypes() {
+  try {
+    const { data } = await relationTypesApi.list()
+    availableRelationTypes.value = data.data || data || []
+  } catch (e) {
+    console.warn('Failed to load relation types:', e.message)
+  }
+}
+
 const availablePdfTemplates = ref([])
 async function loadPdfTemplates() {
   try {
@@ -656,6 +669,7 @@ onMounted(async () => {
     loadPriceTypes()
     loadUsageTypes()
     loadPdfTemplates()
+    loadRelationTypes()
   }
 })
 </script>
@@ -1109,6 +1123,36 @@ onMounted(async () => {
             <input type="checkbox" v-model="themeForm.catalog_share_wishlist_enabled" class="rounded border-[var(--color-border-strong)] text-[var(--color-accent)]" />
             Merkliste teilen per Link aktivieren
           </label>
+        </div>
+
+        <!-- Produktbeziehungen -->
+        <div class="space-y-3">
+          <div class="flex items-center gap-2">
+            <GitBranch class="w-3.5 h-3.5 text-[var(--color-text-secondary)]" :stroke-width="2" />
+            <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">Produktbeziehungen</h4>
+          </div>
+          <p class="text-[11px] text-[var(--color-text-tertiary)]">Beziehungsarten, die im Vorschaukatalog als eigener Tab auf der Produktdetailseite angezeigt werden. Bei Auswahl erscheint ein Tab „Beziehungen" mit SKU und Name (anklickbar).</p>
+          <div v-if="availableRelationTypes.length === 0" class="text-xs text-[var(--color-text-tertiary)]">Keine Beziehungsarten vorhanden</div>
+          <div v-else class="space-y-1">
+            <label
+              v-for="rt in availableRelationTypes"
+              :key="rt.id"
+              class="flex items-center gap-2 text-xs cursor-pointer text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+            >
+              <input
+                type="checkbox"
+                :checked="(themeForm.catalog_relation_type_ids || []).includes(rt.id)"
+                class="rounded border-[var(--color-border-strong)] text-[var(--color-accent)]"
+                @change="
+                  const ids = [...(themeForm.catalog_relation_type_ids || [])];
+                  const idx = ids.indexOf(rt.id);
+                  if (idx >= 0) ids.splice(idx, 1); else ids.push(rt.id);
+                  themeForm.catalog_relation_type_ids = ids;
+                "
+              />
+              {{ rt.name_de || rt.technical_name }}
+            </label>
+          </div>
         </div>
 
         <!-- Beschreibung (Produktdetail) -->

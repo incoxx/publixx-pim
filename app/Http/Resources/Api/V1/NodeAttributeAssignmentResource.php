@@ -11,7 +11,7 @@ class NodeAttributeAssignmentResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
-        return [
+        $data = [
             'id' => $this->id,
             'hierarchy_node_id' => $this->hierarchy_node_id,
             'attribute_id' => $this->attribute_id,
@@ -28,5 +28,15 @@ class NodeAttributeAssignmentResource extends JsonResource
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];
+
+        // Include inheritance info when available (set by controller for ?inherited=true)
+        if (isset($this->resource->is_inherited_assignment)) {
+            $data['is_inherited'] = (bool) $this->resource->is_inherited_assignment;
+            if ($this->resource->is_inherited_assignment && $this->relationLoaded('hierarchyNode')) {
+                $data['inherited_from_node_name'] = $this->hierarchyNode->name_de ?? $this->hierarchyNode->name_en ?? null;
+            }
+        }
+
+        return $data;
     }
 }

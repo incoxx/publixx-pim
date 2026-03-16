@@ -463,6 +463,10 @@ class CatalogController extends BaseController
     {
         $lang = $request->query('lang', 'de');
 
+        // Check which relation types to show in catalog
+        $themePayloadEarly = Setting::getPayload('catalog_theme') ?? [];
+        $catalogRelationTypeIds = $themePayloadEarly['catalog_relation_type_ids'] ?? [];
+
         $product = Product::where('status', 'active')
             ->with([
                 'media',
@@ -483,6 +487,16 @@ class CatalogController extends BaseController
                 'attributeValues.valueListEntry',
                 'attributeValues.unit',
                 'variants',
+                'outgoingRelations' => function ($q) use ($catalogRelationTypeIds) {
+                    if (!empty($catalogRelationTypeIds)) {
+                        $q->whereIn('relation_type_id', $catalogRelationTypeIds);
+                    } else {
+                        $q->whereRaw('1 = 0'); // Load none if no types configured
+                    }
+                    $q->orderBy('sort_order');
+                },
+                'outgoingRelations.targetProduct',
+                'outgoingRelations.relationType',
             ])
             ->findOrFail($productId);
 
@@ -509,8 +523,8 @@ class CatalogController extends BaseController
             ];
         }
 
-        // Load attribute view filter from settings (includes hierarchy-assigned attributes)
-        $themePayload = Setting::getPayload('catalog_theme') ?? [];
+        // Reuse theme settings already loaded for relation type filtering
+        $themePayload = $themePayloadEarly;
         $allowedAttributeIds = $this->buildAllowedAttributeIds($product, $themePayload);
 
         // Load description attributes configuration
@@ -567,6 +581,7 @@ class CatalogController extends BaseController
                     'breadcrumb' => $breadcrumb,
                     'allowed_attribute_ids' => $allowedAttributeIds,
                     'description_attributes' => $descriptionAttrData,
+                    'catalog_relation_type_ids' => $catalogRelationTypeIds,
                 ])
                 ->resolve(),
         ]);

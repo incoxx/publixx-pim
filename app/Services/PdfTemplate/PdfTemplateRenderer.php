@@ -43,6 +43,7 @@ class PdfTemplateRenderer
             'text' => $this->resolveTextElement($element, $product, $language),
             'variant_table' => $this->resolveVariantTableElement($element, $product, $language),
             'relation_table' => $this->resolveRelationTableElement($element, $product, $language),
+            'attribute_table' => $this->resolveAttributeTableElement($element, $product, $language),
             'shape' => $element,
             default => $element,
         };
@@ -205,6 +206,9 @@ class PdfTemplateRenderer
         $relationTypeId = $element['relationTypeId'] ?? null;
         $columns = $element['columns'] ?? ['sku', 'name'];
 
+        $sortBy = $element['sortBy'] ?? null;
+        $sortDirection = $element['sortDirection'] ?? 'asc';
+
         $relations = $product->outgoingRelations ?? collect();
         if ($relationTypeId) {
             $relations = $relations->where('relation_type_id', $relationTypeId);
@@ -238,7 +242,9 @@ class PdfTemplateRenderer
         // Build headers
         $headers = [];
         foreach ($columns as $col) {
-            if ($col === 'sku') {
+            if ($col === 'relation_type') {
+                $headers[] = 'Beziehungsart';
+            } elseif ($col === 'sku') {
                 $headers[] = 'SKU';
             } elseif ($col === 'name') {
                 $headers[] = 'Name';
@@ -255,9 +261,28 @@ class PdfTemplateRenderer
             }
         }
 
+        // Sort relations
+        if ($sortBy === 'relation_type') {
+            $sorted = $relations->sortBy(fn ($r) => $r->relationType->{"name_{$language}"} ?? $r->relationType->name_de ?? '', SORT_NATURAL | SORT_FLAG_CASE);
+            if ($sortDirection === 'desc') $sorted = $sorted->reverse();
+            // Secondary sort by target name
+            $relations = $sorted->groupBy(fn ($r) => $r->relationType->{"name_{$language}"} ?? '')
+                ->flatMap(fn ($group) => $group->sortBy(fn ($r) => $r->targetProduct?->name ?? ''));
+        } elseif ($sortBy === 'name') {
+            $sorted = $relations->sortBy(fn ($r) => $r->targetProduct?->name ?? '', SORT_NATURAL | SORT_FLAG_CASE);
+            if ($sortDirection === 'desc') $sorted = $sorted->reverse();
+            $relations = $sorted;
+        } elseif ($sortBy === 'sku') {
+            $sorted = $relations->sortBy(fn ($r) => $r->targetProduct?->sku ?? '', SORT_NATURAL | SORT_FLAG_CASE);
+            if ($sortDirection === 'desc') $sorted = $sorted->reverse();
+            $relations = $sorted;
+        } else {
+            $relations = $relations->sortBy('sort_order');
+        }
+
         // Build rows
         $rows = [];
-        foreach ($relations->sortBy('sort_order') as $relation) {
+        foreach ($relations as $relation) {
             $target = $relation->targetProduct;
             if (!$target) {
                 continue;
@@ -265,7 +290,9 @@ class PdfTemplateRenderer
 
             $row = [];
             foreach ($columns as $col) {
-                if ($col === 'sku') {
+                if ($col === 'relation_type') {
+                    $row[] = $relation->relationType?->{"name_{$language}"} ?? $relation->relationType?->name_de ?? '';
+                } elseif ($col === 'sku') {
                     $row[] = $target->sku ?? '';
                 } elseif ($col === 'name') {
                     $row[] = $target->name ?? '';
@@ -322,6 +349,51 @@ class PdfTemplateRenderer
             }
 
             $rows[] = $row;
+        }
+
+        return array_merge($element, ['variantTableData' => ['headers' => $headers, 'rows' => $rows]]);
+    }
+
+    private function resolveAttributeTableElement(array $element, Product $product, string $language): array
+    {
+        $sourceMode = $element['sourceMode'] ?? 'group';
+        $attributeGroupId = $element['attributeGroupId'] ?? null;
+        $attributeIds = $element['attributeIds'] ?? [];
+
+        // Load attributes based on source mode
+        if ($sourceMode === 'group' && $attributeGroupId) {
+            $attributes = Attribute::where('attribute_type_id', $attributeGroupId)
+                ->where('is_internal', false)
+                ->where('status', 'active')
+                ->orderBy('position')
+                ->get();
+        } elseif ($sourceMode === 'individual' && !empty($attributeIds)) {
+            $attrs = Attribute::whereIn('id', $attributeIds)->get();
+            // Preserve the order from attributeIds
+            $attributes = collect($attributeIds)
+                ->map(fn ($id) => $attrs->firstWhere('id', $id))
+                ->filter();
+        } else {
+            return array_merge($element, ['variantTableData' => ['headers' => [], 'rows' => []]]);
+        }
+
+        if ($attributes->isEmpty()) {
+            return array_merge($element, ['variantTableData' => ['headers' => [], 'rows' => []]]);
+        }
+
+        // Fixed headers: Attributname | Attributwert | Einheit
+        $headers = ['Attributname', 'Attributwert', 'Einheit'];
+
+        // Build rows — one row per attribute
+        $rows = [];
+        foreach ($attributes as $attr) {
+            $resolved = $this->elementRenderer->resolveAttributeValue($product, $attr->id, $language);
+
+            $label = $attr->{"name_{$language}"} ?? $attr->name_de ?? $attr->technical_name;
+            $value = $resolved['value'] ?? '';
+            $unit = $resolved['unit'] ?? '';
+
+            $rows[] = [$label, $value, $unit];
         }
 
         return array_merge($element, ['variantTableData' => ['headers' => $headers, 'rows' => $rows]]);

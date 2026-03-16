@@ -28,15 +28,64 @@ class NodeAttributeAssignmentController extends Controller
         $showInherited = filter_var($request->query('inherited', 'false'), FILTER_VALIDATE_BOOLEAN);
 
         if ($showInherited) {
-            // Collect attribute assignments from this node and all ancestors
-            $nodeIds = $this->getAncestorNodeIds($hierarchyNode);
-            $nodeIds[] = $hierarchyNode->id;
+            // Collect attribute assignments from ancestors (dont_inherit=false) + own node (all)
+            $ancestorIds = $this->getAncestorNodeIds($hierarchyNode);
 
-            $query = HierarchyNodeAttributeAssignment::whereIn('hierarchy_node_id', $nodeIds)
-                ->where('dont_inherit', false)
-                ->with('attribute.valueList.entries')
-                ->orderBy('collection_sort', 'asc')
-                ->orderBy('attribute_sort', 'asc');
+            $all = HierarchyNodeAttributeAssignment::where(function ($q) use ($ancestorIds, $hierarchyNode) {
+                    if (!empty($ancestorIds)) {
+                        $q->where(function ($sub) use ($ancestorIds) {
+                            $sub->whereIn('hierarchy_node_id', $ancestorIds)
+                                ->where('dont_inherit', false);
+                        });
+                    }
+                    $q->orWhere('hierarchy_node_id', $hierarchyNode->id);
+                })
+                ->with(['attribute.valueList.entries', 'hierarchyNode:id,name_de,name_en,depth'])
+                ->get();
+
+            // Deduplicate: own node wins; among ancestors, deepest wins
+            $ownNodeId = $hierarchyNode->id;
+            $ownAttributeIds = $all->where('hierarchy_node_id', $ownNodeId)
+                ->pluck('attribute_id')
+                ->toArray();
+
+            $ancestorMap = []; // attribute_id => assignment (deepest wins)
+            foreach ($all as $assignment) {
+                if ($assignment->hierarchy_node_id === $ownNodeId) {
+                    continue;
+                }
+                $attrId = $assignment->attribute_id;
+                // Skip if own node has this attribute directly
+                if (in_array($attrId, $ownAttributeIds)) {
+                    continue;
+                }
+                $depth = $assignment->hierarchyNode->depth ?? 0;
+                if (!isset($ancestorMap[$attrId]) || $depth > ($ancestorMap[$attrId]->hierarchyNode->depth ?? 0)) {
+                    $ancestorMap[$attrId] = $assignment;
+                }
+            }
+
+            // Merge: own assignments (not inherited) + ancestor assignments (inherited)
+            $result = collect();
+            foreach ($all as $assignment) {
+                if ($assignment->hierarchy_node_id === $ownNodeId) {
+                    $assignment->is_inherited_assignment = false;
+                    $result->push($assignment);
+                }
+            }
+            foreach ($ancestorMap as $assignment) {
+                $assignment->is_inherited_assignment = true;
+                $result->push($assignment);
+            }
+
+            // Sort: own first by collection_sort/attribute_sort, then inherited grouped by source node
+            $result = $result->sortBy([
+                ['is_inherited_assignment', 'asc'],
+                ['collection_sort', 'asc'],
+                ['attribute_sort', 'asc'],
+            ])->values();
+
+            return NodeAttributeAssignmentResource::collection($result);
         } else {
             $query = $hierarchyNode->attributeAssignments()
                 ->with('attribute.valueList.entries')
