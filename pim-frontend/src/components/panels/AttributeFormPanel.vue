@@ -2,6 +2,7 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { useAttributeStore } from '@/stores/attributes'
 import { useAuthStore } from '@/stores/auth'
+import { units as unitsApi } from '@/api/units'
 import PimForm from '@/components/shared/PimForm.vue'
 
 const props = defineProps({
@@ -12,9 +13,11 @@ const store = useAttributeStore()
 const authStore = useAuthStore()
 const loading = ref(false)
 const errors = ref({})
+const unitOptions = ref([])
 
 onMounted(() => {
   if (!store.allItems.length) store.fetchAllAttributes()
+  if (!store.unitGroupsList.length) store.fetchUnitGroups()
 })
 
 const isEdit = computed(() => !!props.attribute)
@@ -32,6 +35,8 @@ const formData = ref(
         data_type: '',
         attribute_type_id: '',
         value_list_id: '',
+        unit_group_id: '',
+        default_unit_id: '',
         child_attribute_ids: [],
         is_translatable: false,
         is_multipliable: false,
@@ -45,6 +50,30 @@ const formData = ref(
         status: 'active',
       }
 )
+
+// Load units when unit group changes
+watch(() => formData.value.unit_group_id, async (newGroupId) => {
+  formData.value.default_unit_id = ''
+  if (newGroupId) {
+    try {
+      const { data } = await unitsApi.list(newGroupId)
+      unitOptions.value = data.data || data
+    } catch {
+      unitOptions.value = []
+    }
+  } else {
+    unitOptions.value = []
+  }
+}, { immediate: !!props.attribute?.unit_group_id })
+
+// Clear unit fields when data type changes away from numeric
+watch(() => formData.value.data_type, (newType) => {
+  if (!['Number', 'Float'].includes(newType)) {
+    formData.value.unit_group_id = ''
+    formData.value.default_unit_id = ''
+    unitOptions.value = []
+  }
+})
 
 const fields = computed(() => {
   const base = [
@@ -101,6 +130,26 @@ const fields = computed(() => {
       base.push({
         key: 'parent_attribute_id', label: 'Übergeordnetes Composite-Attribut', type: 'select',
         options: [{ value: '', label: '— Kein übergeordnetes Attribut —' }, ...composites.map(c => ({ value: c.id, label: c.name_de || c.technical_name }))],
+      })
+    }
+  }
+
+  // Unit group and default unit for numeric types
+  if (['Number', 'Float'].includes(formData.value.data_type)) {
+    base.push({
+      key: 'unit_group_id', label: 'Einheitengruppe', type: 'select',
+      options: [
+        { value: '', label: '— Keine —' },
+        ...store.unitGroupsList.map(g => ({ value: g.id, label: g.name_de || g.technical_name })),
+      ],
+    })
+    if (formData.value.unit_group_id) {
+      base.push({
+        key: 'default_unit_id', label: 'Standard-Einheit', type: 'select',
+        options: [
+          { value: '', label: '— Keine —' },
+          ...unitOptions.value.map(u => ({ value: u.id, label: u.name_de || u.symbol || u.technical_name })),
+        ],
       })
     }
   }

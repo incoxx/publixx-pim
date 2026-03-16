@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import attributesApi, { attributeTypes, valueLists, productTypes } from '@/api/attributes'
+import { unitGroups as unitGroupsApi } from '@/api/units'
 
 export const useAttributeStore = defineStore('attributes', () => {
   const items = ref([])
@@ -8,6 +9,7 @@ export const useAttributeStore = defineStore('attributes', () => {
   const types = ref([])
   const lists = ref([])
   const prodTypes = ref([])
+  const unitGroupsList = ref([])
   const loading = ref(false)
   const error = ref(null)
   const meta = ref({ current_page: 1, last_page: 1, total: 0, per_page: 50 })
@@ -74,6 +76,15 @@ export const useAttributeStore = defineStore('attributes', () => {
     }
   }
 
+  async function fetchUnitGroups() {
+    try {
+      const { data } = await unitGroupsApi.list({ include: 'units' })
+      unitGroupsList.value = data.data || data
+    } catch (e) {
+      console.error('Failed to fetch unit groups', e)
+    }
+  }
+
   async function createAttribute(attrData) {
     const { data } = await attributesApi.create(attrData)
     return data.data || data
@@ -104,8 +115,8 @@ export const useAttributeStore = defineStore('attributes', () => {
   }
 
   return {
-    items, allItems, types, lists, prodTypes, loading, error, meta, dataTypes,
-    fetchAttributes, fetchAllAttributes, fetchTypes, fetchValueLists, fetchProductTypes,
+    items, allItems, types, lists, prodTypes, unitGroupsList, loading, error, meta, dataTypes,
+    fetchAttributes, fetchAllAttributes, fetchTypes, fetchValueLists, fetchProductTypes, fetchUnitGroups,
     createAttribute, updateAttribute, copyAttribute, deleteAttribute, setPage, bulkUpdate,
   }
 })
