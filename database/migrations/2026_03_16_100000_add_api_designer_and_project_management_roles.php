@@ -21,6 +21,7 @@ return new class extends Migration
         $newPermissions = [
             'api-templates.view', 'api-templates.create', 'api-templates.edit', 'api-templates.delete',
             'dashboard.view',
+            'price-regions.view', 'price-regions.create', 'price-regions.edit', 'price-regions.delete',
         ];
 
         foreach ($newPermissions as $name) {
