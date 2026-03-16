@@ -84,7 +84,7 @@ hero:
 <div class="marketing-card">
 <div class="marketing-card-icon">📦</div>
 <h3>Excel Import & Export</h3>
-<p>14-tab Excel import with intelligent validation. Export to JSON, PXF catalog, or your custom format.</p>
+<p>14-tab Excel import with intelligent validation. Export to JSON, Publixx, or your custom format.</p>
 </div>
 
 <div class="marketing-card">

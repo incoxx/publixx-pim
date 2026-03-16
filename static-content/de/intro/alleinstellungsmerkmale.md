@@ -70,7 +70,7 @@ anyPIM unterscheidet sich durch eine Reihe architektonischer und funktionaler En
   <!-- Spoke 4: Import/Export -->
   <rect x="610" y="275" rx="12" ry="12" width="180" height="72" fill="url(#spokeGrad4)" filter="url(#shadow)"/>
   <text x="700" y="305" text-anchor="middle" fill="white" font-size="13" font-weight="bold">Import / Export</text>
-  <text x="700" y="325" text-anchor="middle" fill="white" font-size="11">Excel + PXF</text>
+  <text x="700" y="325" text-anchor="middle" fill="white" font-size="11">Excel + JSON</text>
 
   <!-- Spoke 5: RBAC -->
   <rect x="70" y="462" rx="12" ry="12" width="180" height="72" fill="url(#spokeGrad5)" filter="url(#shadow)"/>
@@ -175,7 +175,7 @@ Das **Fuzzy-Matching** bei der Zuordnung von Spaltennamen zu Attributen ist beso
 
 ## 5. Konfigurierbarer Export mit Katalog-Integration
 
-Das Export-System arbeitet mit **konfigurierbaren Mapping-Templates** (PXF-Format). Jedes Template definiert:
+Das Export-System arbeitet mit **konfigurierbaren Mapping-Templates**. Jedes Template definiert:
 
 - Welche Attribute exportiert werden
 - Wie Attributnamen im Zielformat heissen sollen (Mapping)

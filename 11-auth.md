@@ -41,7 +41,9 @@ GET  /api/v1/auth/me       → User + Roles + Permissions
 | Data Steward | Structure management | attributes.*, hierarchies.*, unit-groups.*, value-lists.* |
 | Product Manager | Data maintenance | products.view/edit/create, media.*, prices.view |
 | Viewer | Read-only | *.view |
-| Export Manager | Export + Publixx | export.*, publixx-mappings.*, pxf-templates.* |
+| Export Manager | Export + Publixx | export.*, publixx-mappings.* |
+| API Designer | API Templates | api-templates.* |
+| Project Management | Dashboard, Workflows, Teams, Projects | dashboard.*, workflows.*, workflow-statuses.*, teams.*, projects.* |
 
 ### Permission Granularity
 

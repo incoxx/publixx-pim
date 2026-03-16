@@ -4,7 +4,7 @@ title: Publixx Export
 
 # Publixx Export
 
-The Publixx export transforms PIM product data into the Publixx-specific record format (PXF -- Publixx Exchange Format). Configurable mappings define which PIM fields are mapped to which Publixx record fields. The exported records can be used directly in Publixx catalogs and templates.
+The Publixx export transforms PIM product data into the Publixx-specific record format. Configurable mappings define which PIM fields are mapped to which Publixx record fields. The exported records can be used directly in Publixx catalogs and templates.
 
 ## Export Mapping Configuration
 
@@ -98,7 +98,7 @@ The following endpoints provide the interface between PIM and the Publixx platfo
 GET /api/v1/publixx/datasets
 ```
 
-Returns all exported records in PXF format, filtered by mapping configuration.
+Returns all exported records in Publixx format, filtered by mapping configuration.
 
 **Query Parameters:**
 
@@ -127,68 +127,6 @@ POST /api/v1/publixx/datasets/query
 ```
 
 Returns records based on a PQL query.
-
-## PXF Template Management
-
-PXF templates define the layout and structure of a Publixx catalog. They are managed in the PIM and linked to the exported records.
-
-### Template Endpoints
-
-| Method | Endpoint | Description |
-|---|---|---|
-| `GET` | `/api/v1/publixx/templates` | List all templates |
-| `GET` | `/api/v1/publixx/templates/{id}` | Retrieve template details |
-| `POST` | `/api/v1/publixx/templates` | Create new template |
-| `PUT` | `/api/v1/publixx/templates/{id}` | Update template |
-| `DELETE` | `/api/v1/publixx/templates/{id}` | Delete template |
-
-### Template Structure
-
-```json
-{
-  "id": "tpl-550e8400-e29b-41d4",
-  "name": "Produktdatenblatt A4",
-  "format": "A4",
-  "orientation": "portrait",
-  "elements": [
-    {
-      "id": "elem-title",
-      "type": "text",
-      "binding": "title",
-      "position": { "x": 20, "y": 30 },
-      "style": { "font_size": 24, "font_weight": "bold" }
-    },
-    {
-      "id": "elem-image",
-      "type": "image",
-      "binding": "image",
-      "position": { "x": 20, "y": 80 },
-      "size": { "width": 200, "height": 200 }
-    },
-    {
-      "id": "elem-specs",
-      "type": "table",
-      "binding": "specs",
-      "position": { "x": 240, "y": 80 }
-    }
-  ]
-}
-```
-
-## Publixx Element Binding
-
-Each element in a PXF template has a `binding` property that defines which field of the exported record is bound to this element.
-
-| Element Type | Binding Type | Description |
-|---|---|---|
-| `text` | Text value | Displays the value of the bound field as text |
-| `image` | Media URL | Displays the image of the bound media URL |
-| `table` | Object/Array | Renders the data as a table |
-| `list` | Array | Renders the data as a list |
-| `price` | Price value | Formats and displays the price value |
-| `barcode` | String | Generates a barcode (EAN/GTIN) |
-
-The resolution is done via the field name: the `binding` attribute references the `target` field of the mapping configuration.
 
 ## Example: Exported Record
 

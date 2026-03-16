@@ -39,7 +39,7 @@ Controller
 The `ExportService` coordinates the entire export process from template evaluation to file generation.
 
 **Responsibilities:**
-- Loading and interpreting PXF export templates
+- Loading and interpreting export templates
 - Resolving attribute mappings (source attribute to target field name)
 - Aggregating product data according to template configuration
 - Applying transformation rules (formatting, unit conversion, text truncation)

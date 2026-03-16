@@ -207,7 +207,7 @@ PUT    /roles/{id}/permissions             Set permissions
 GET    /export/products                    Products as JSON (filter via query params)
 GET    /export/products/{id}               Single product as dataset
 POST   /export/products/bulk               Bulk export by filter
-GET    /export/products/{id}/publixx       In Publixx PXF dataset format
+GET    /export/products/{id}/publixx       In Publixx dataset format
 POST   /export/query                       Export with PQL filter
 ```
 
@@ -229,17 +229,6 @@ POST   /publixx/datasets/{mapping_id}/pql            Datasets with PQL query
 POST   /publixx/webhook                              Webhook from Publixx
 ```
 
-### PXF Templates
-
-```
-GET    /pxf-templates                      All
-POST   /pxf-templates                      Create / Upload
-GET    /pxf-templates/{id}                 Detail (incl. PXF JSON)
-PUT    /pxf-templates/{id}                 Update
-DELETE /pxf-templates/{id}                 Delete
-GET    /pxf-templates/{id}/preview/{product_id}  Live preview: template + product data
-POST   /pxf-templates/import               Import PXF file
-```
 
 ### Import
 

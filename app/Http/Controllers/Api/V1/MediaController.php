@@ -163,7 +163,7 @@ class MediaController extends Controller
     }
 
     /**
-     * GET /media/file/{filename} — serve the file directly (for PXF assetBase).
+     * GET /media/file/{filename} — serve the file directly.
      */
     public function serve(string $filename): BinaryFileResponse
     {

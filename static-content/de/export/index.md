@@ -4,7 +4,7 @@ title: Export - Übersicht
 
 # Export
 
-Das Export-Modul des anyPIM stellt Produktdaten in strukturierter Form für externe Systeme bereit. Es unterstützt sowohl generische JSON-Exporte als auch die spezialisierte Publixx-Integration über PXF-Datensätze (Publixx Exchange Format).
+Das Export-Modul des anyPIM stellt Produktdaten in strukturierter Form für externe Systeme bereit. Es unterstützt sowohl generische JSON-Exporte als auch die spezialisierte Publixx-Integration.
 
 ## Exportformate
 
@@ -13,7 +13,7 @@ Das anyPIM bietet zwei Export-Kanäle:
 | Kanal | Format | Zielgruppe | Beschreibung |
 |---|---|---|---|
 | **JSON-Export** | JSON | Entwickler, Systeme | Generischer Export mit konfigurierbaren Filtern und Formaten |
-| **Publixx-Export** | PXF-JSON | Publixx-Plattform | Spezialisierter Export mit Mapping-Konfiguration für Publixx-Kataloge |
+| **Publixx-Export** | JSON | Publixx-Plattform | Spezialisierter Export mit Mapping-Konfiguration für Publixx-Kataloge |
 
 ## Export-Pipeline
 
@@ -89,7 +89,7 @@ Der Exportprozess folgt einer klar definierten Pipeline:
   <rect x="635" y="210" width="160" height="110" rx="12" fill="#fefce8" stroke="#eab308" stroke-width="2" filter="url(#shadow-export)"/>
   <rect x="635" y="210" width="160" height="40" rx="12" fill="#eab308"/>
   <rect x="635" y="238" width="160" height="12" fill="#eab308"/>
-  <text x="715" y="236" text-anchor="middle" fill="white" font-size="14" font-weight="bold" font-family="system-ui, sans-serif">Publixx PXF</text>
+  <text x="715" y="236" text-anchor="middle" fill="white" font-size="14" font-weight="bold" font-family="system-ui, sans-serif">Publixx</text>
   <text x="715" y="275" text-anchor="middle" fill="#713f12" font-size="11" font-family="system-ui, sans-serif">Publixx-Datensätze</text>
   <text x="715" y="295" text-anchor="middle" fill="#713f12" font-size="11" font-family="system-ui, sans-serif">für Kataloge</text>
 
@@ -192,4 +192,4 @@ Der BMEcat-Export unterstützt flexible Filterung:
 ## Weiterführende Dokumentation
 
 - [JSON-Export](/de/export/json-export) -- Endpunkte, Filter, Formate und Paginierung
-- [Publixx-Export](/de/export/publixx-export) -- Mapping-Konfiguration und PXF-Integration
+- [Publixx-Export](/de/export/publixx-export) -- Mapping-Konfiguration und Publixx-Integration

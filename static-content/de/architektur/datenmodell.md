@@ -59,11 +59,11 @@ Das Attributmodell bildet das Rueckgrat der EAV-Architektur. Es definiert, welch
 | `price_lists` | Preislisten-Definitionen mit Waehrung, Gueltigkeitszeitraum und Prioritaet |
 | `product_prices` | Preiszuordnungen: Produkt-Preisliste-Kombination mit Netto-/Bruttopreis |
 
-### Export und PXF (2 Tabellen)
+### Export (2 Tabellen)
 
 | Tabelle | Beschreibung |
 |---|---|
-| `export_templates` | PXF-Export-Templates mit Kanalzuordnung und Mapping-Konfiguration (JSON) |
+| `export_templates` | Export-Templates mit Kanalzuordnung und Mapping-Konfiguration (JSON) |
 | `export_mappings` | Einzelne Feld-Mappings innerhalb eines Templates: Quell-Attribut zu Ziel-Feldname |
 
 ### Import (2 Tabellen)

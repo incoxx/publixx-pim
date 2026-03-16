@@ -106,7 +106,7 @@ Industrial minimalism. Clean, bright, typographically clear. Inspired by Linear.
 | PimJsonPreview | JSON with syntax highlighting, copy, collapse |
 | PimFilterBar | Chips, quick search, preset filters, clear all |
 | PimCommandPalette | Cmd+K: global search, actions, navigation |
-| PxfRenderer | PXF layout preview (renders all 15 element types) |
+| PdfRenderer | PDF layout preview (renders all 15 element types) |
 
 ---
 
@@ -164,10 +164,10 @@ pim-frontend/
 │   │   ├── export/
 │   │   │   ├── MappingEditor.vue
 │   │   │   └── JsonPreview.vue
-│   │   ├── pxf/
-│   │   │   ├── PxfRenderer.vue
-│   │   │   ├── PxfPage.vue
-│   │   │   └── elements/
+│   │   ├── pdf-templates/
+│   │   │   ├── PdfCanvas.vue
+│   │   │   ├── PdfCanvasElement.vue
+│   │   │   └── PdfElementProperties.vue
 │   │   └── shared/
 │   │       ├── PimTable.vue
 │   │       ├── PimTree.vue

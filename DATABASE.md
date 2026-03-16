@@ -533,7 +533,7 @@ Saved import configurations with column mappings, price mappings, and relation m
 ## Export
 
 ### `publixx_export_mappings`
-Export mapping templates (PXF) for channel-specific data formats.
+Export mapping templates for channel-specific data formats.
 
 | Column | Type | Notes |
 |--------|------|-------|

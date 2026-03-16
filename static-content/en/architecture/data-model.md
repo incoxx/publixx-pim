@@ -59,11 +59,11 @@ The attribute model forms the backbone of the EAV architecture. It defines which
 | `price_lists` | Price list definitions with currency, validity period, and priority |
 | `product_prices` | Price assignments: Product-price list combination with net/gross price |
 
-### Export and PXF (2 Tables)
+### Export (2 Tables)
 
 | Table | Description |
 |---|---|
-| `export_templates` | PXF export templates with channel assignment and mapping configuration (JSON) |
+| `export_templates` | Export templates with channel assignment and mapping configuration (JSON) |
 | `export_mappings` | Individual field mappings within a template: Source attribute to target field name |
 
 ### Import (2 Tables)

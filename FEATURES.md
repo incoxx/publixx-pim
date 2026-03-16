@@ -49,7 +49,7 @@
 | **API Tester** | Built-in API tester for directly calling all ~285 REST endpoints with authentication. | Interfaces can be tested directly in the PIM — without Postman or external tools. |
 | **BMEcat Import/Export** | Industry-standard format for B2B product data exchange — bidirectional. | Seamless data exchange with suppliers and customers using BMEcat — without manual conversion. |
 | **Database** | Direct view of the database structure and table contents for administrators. | Quick error analysis and data verification without command-line access to the server. |
-| **Export** | Filtered product exports in configurable formats with mapping templates (PXF). | Each channel gets data in the desired format — shop, marketplace, and print from a single source. |
+| **Export** | Filtered product exports in configurable formats with mapping templates. | Each channel gets data in the desired format — shop, marketplace, and print from a single source. |
 | **Export Jobs** | Named, reusable export configurations with scheduling (cron) and delivery via filesystem, SFTP, or webhook. | Regular exports run automatically — e.g., updated product data to the shop every morning. |
 | **Import** | Excel import with 14-tab structure, three-phase validation (parse → validate → execute), and fuzzy matching for typos. | Large data volumes can be loaded via Excel — with automatic error detection and correction suggestions instead of silent failures. |
 | **Journal** | System-wide change log of all data modifications. | Complete data history — every change is traceable and reversible if needed. |

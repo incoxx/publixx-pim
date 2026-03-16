@@ -4,7 +4,7 @@ title: Export - Overview
 
 # Export
 
-The export module of the anyPIM provides product data in a structured form for external systems. It supports both generic JSON exports and the specialized Publixx integration via PXF records (Publixx Exchange Format).
+The export module of the anyPIM provides product data in a structured form for external systems. It supports both generic JSON exports and the specialized Publixx integration.
 
 ## Export Formats
 
@@ -13,7 +13,7 @@ The anyPIM offers two export channels:
 | Channel | Format | Target Audience | Description |
 |---|---|---|---|
 | **JSON Export** | JSON | Developers, systems | Generic export with configurable filters and formats |
-| **Publixx Export** | PXF-JSON | Publixx platform | Specialized export with mapping configuration for Publixx catalogs |
+| **Publixx Export** | JSON | Publixx platform | Specialized export with mapping configuration for Publixx catalogs |
 
 ## Export Pipeline
 
@@ -89,7 +89,7 @@ The export process follows a clearly defined pipeline:
   <rect x="635" y="210" width="160" height="110" rx="12" fill="#fefce8" stroke="#eab308" stroke-width="2" filter="url(#shadow-export)"/>
   <rect x="635" y="210" width="160" height="40" rx="12" fill="#eab308"/>
   <rect x="635" y="238" width="160" height="12" fill="#eab308"/>
-  <text x="715" y="236" text-anchor="middle" fill="white" font-size="14" font-weight="bold" font-family="system-ui, sans-serif">Publixx PXF</text>
+  <text x="715" y="236" text-anchor="middle" fill="white" font-size="14" font-weight="bold" font-family="system-ui, sans-serif">Publixx</text>
   <text x="715" y="275" text-anchor="middle" fill="#713f12" font-size="11" font-family="system-ui, sans-serif">Publixx records</text>
   <text x="715" y="295" text-anchor="middle" fill="#713f12" font-size="11" font-family="system-ui, sans-serif">for catalogs</text>
 
@@ -192,4 +192,4 @@ The BMEcat export supports flexible filtering:
 ## Further Documentation
 
 - [JSON Export](/en/export/json-export) -- Endpoints, filters, formats, and pagination
-- [Publixx Export](/en/export/publixx-export) -- Mapping configuration and PXF integration
+- [Publixx Export](/en/export/publixx-export) -- Mapping configuration and Publixx integration

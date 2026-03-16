@@ -503,18 +503,6 @@ Supported operations: attribute values (replace/append/remove), relations, outpu
 
 ---
 
-## PXF Templates
-
-| Method | Path | Description |
-|---|---|---|
-| GET | `/pxf-templates` | All templates |
-| POST | `/pxf-templates` | Create template |
-| POST | `/pxf-templates/import` | Import template |
-| GET/PUT/DELETE | `/pxf-templates/{id}` | CRUD |
-| GET | `/pxf-templates/{id}/preview/{product}` | Preview for product |
-
----
-
 ## Reports (Enterprise: reports module)
 
 | Method | Path | Description |
