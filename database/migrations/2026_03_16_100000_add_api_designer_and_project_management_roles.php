@@ -22,6 +22,12 @@ return new class extends Migration
             'api-templates.view', 'api-templates.create', 'api-templates.edit', 'api-templates.delete',
             'dashboard.view',
             'price-regions.view', 'price-regions.create', 'price-regions.edit', 'price-regions.delete',
+            'manufacturers.view', 'manufacturers.create', 'manufacturers.edit', 'manufacturers.delete',
+            'workflow.view',
+            'workflows.view', 'workflows.create', 'workflows.edit', 'workflows.delete',
+            'workflow-statuses.view', 'workflow-statuses.create', 'workflow-statuses.edit', 'workflow-statuses.delete',
+            'teams.view', 'teams.create', 'teams.edit', 'teams.delete',
+            'projects.view', 'projects.create', 'projects.edit', 'projects.delete',
         ];
 
         foreach ($newPermissions as $name) {
