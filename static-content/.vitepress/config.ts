@@ -97,6 +97,7 @@ export default defineConfig({
                 { text: 'Umgebungsvariablen', link: '/de/installation/umgebungsvariablen' },
                 { text: 'Cronjobs & Planung', link: '/de/installation/cronjobs' },
                 { text: 'Deployment', link: '/de/installation/deployment' },
+                { text: 'Typesense', link: '/de/installation/typesense' },
               ],
             },
             {
@@ -257,6 +258,7 @@ export default defineConfig({
                 { text: 'Environment', link: '/en/installation/environment' },
                 { text: 'Cron Jobs & Scheduling', link: '/en/installation/cron-jobs' },
                 { text: 'Deployment', link: '/en/installation/deployment' },
+                { text: 'Typesense', link: '/en/installation/typesense' },
               ],
             },
             {
