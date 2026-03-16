@@ -40,9 +40,9 @@ const mainStyle = computed(() => ({
     <transition name="slide-right">
       <div
         v-if="authStore.panelOpen"
-        class="fixed top-0 right-0 w-[360px] h-screen bg-[var(--color-surface)] border-l border-[var(--color-border)] shadow-lg z-30 overflow-y-auto"
+        class="fixed top-0 right-0 w-[360px] h-screen bg-[var(--color-surface)] border-l border-[var(--color-border)] shadow-lg z-30 flex flex-col"
       >
-        <div class="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)]">
+        <div class="shrink-0 flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)]">
           <span class="text-sm font-medium text-[var(--color-text-primary)]">Detail</span>
           <button
             class="pim-btn-ghost p-1 rounded"
@@ -53,12 +53,14 @@ const mainStyle = computed(() => ({
             </svg>
           </button>
         </div>
-        <component
-          v-if="authStore.panelComponent"
-          :is="authStore.panelComponent"
-          v-bind="authStore.panelProps"
-          :key="Object.values(authStore.panelProps).map(p => p?.id).join('-') || 'new'"
-        />
+        <div class="flex-1 min-h-0 overflow-y-auto">
+          <component
+            v-if="authStore.panelComponent"
+            :is="authStore.panelComponent"
+            v-bind="authStore.panelProps"
+            :key="Object.values(authStore.panelProps).map(p => p?.id).join('-') || 'new'"
+          />
+        </div>
       </div>
     </transition>
   </div>
