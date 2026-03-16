@@ -27,14 +27,20 @@ class DemoHierarchySeeder extends Seeder
 
         // Level 0: Root
         $root = HierarchyNode::firstOrCreate(
-            ['hierarchy_id' => $master->id, 'path' => '/'],
+            ['hierarchy_id' => $master->id, 'name_de' => 'Elektrowerkzeuge', 'parent_node_id' => null],
             [
-                'name_de' => 'Elektrowerkzeuge',
                 'name_en' => 'Power Tools',
+                'path' => '/', // temporary, updated below
                 'depth' => 0,
                 'sort_order' => 0,
             ]
         );
+
+        // Ensure UUID-based path
+        $correctRootPath = "/{$root->id}/";
+        if ($root->path !== $correctRootPath) {
+            $root->update(['path' => $correctRootPath]);
+        }
 
         // Level 1: Categories
         $bohren = $this->createNode($master, $root, 'Bohren & Schrauben', 'Drilling & Screwing', 10);
@@ -105,17 +111,23 @@ class DemoHierarchySeeder extends Seeder
 
     private function createNode(Hierarchy $hierarchy, HierarchyNode $parent, string $nameDe, string $nameEn, int $sort): HierarchyNode
     {
-        $path = $parent->path === '/' ? "/{$parent->id}/" : "{$parent->path}{$parent->id}/";
-
-        return HierarchyNode::firstOrCreate(
+        $node = HierarchyNode::firstOrCreate(
             ['hierarchy_id' => $hierarchy->id, 'name_de' => $nameDe, 'parent_node_id' => $parent->id],
             [
                 'name_en' => $nameEn,
-                'path' => $path,
+                'path' => '/', // temporary, updated below
                 'depth' => $parent->depth + 1,
                 'sort_order' => $sort,
             ]
         );
+
+        // Build UUID-based materialized path: parent's path + this node's ID
+        $correctPath = "{$parent->path}{$node->id}/";
+        if ($node->path !== $correctPath) {
+            $node->update(['path' => $correctPath]);
+        }
+
+        return $node;
     }
 
     private function assignAttributes(HierarchyNode $node, array $assignments): void

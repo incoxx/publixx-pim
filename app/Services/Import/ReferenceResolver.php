@@ -121,8 +121,8 @@ class ReferenceResolver
     }
 
     /**
-     * Hierarchieknoten über Pfad → UUID.
-     * Der Pfad wird als "Hierarchie/Ebene1/Ebene2/..." erwartet.
+     * Hierarchieknoten über Name-Pfad → UUID.
+     * Der Pfad wird als "Ebene1/Ebene2/..." erwartet (Knotennamen, nicht UUIDs).
      */
     public function resolveHierarchyNode(string $hierarchyTechName, string $path): ResolveResult
     {
@@ -138,18 +138,27 @@ class ReferenceResolver
 
         $nodes = $this->cache[$cacheKey];
 
-        // Indexierten Cache für Pfad-Lookups aufbauen
+        // Build name-path index: walk tree by parent_node_id to build name-based paths
         if (!isset($this->indexedCache[$cacheKey])) {
             $indexed = [];
+            $byId = $nodes->keyBy('id');
+
             foreach ($nodes as $n) {
-                if ($n->path) {
-                    $indexed[$n->path] = $n->id;
+                // Build name path by walking up parent chain
+                $parts = [];
+                $current = $n;
+                while ($current) {
+                    $parts[] = $current->name_de;
+                    $current = $current->parent_node_id ? ($byId[$current->parent_node_id] ?? null) : null;
                 }
+                $namePath = '/' . implode('/', array_reverse($parts)) . '/';
+                $indexed[$namePath] = $n->id;
             }
+
             $this->indexedCache[$cacheKey] = $indexed;
         }
 
-        // O(1) Suche nach exaktem Pfad-Match
+        // O(1) lookup by name path
         $normalizedPath = '/' . trim($path, '/') . '/';
         if (isset($this->indexedCache[$cacheKey][$normalizedPath])) {
             return new ResolveResult($this->indexedCache[$cacheKey][$normalizedPath], true, null);

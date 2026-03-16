@@ -1754,7 +1754,7 @@ class ImportExecutor
     private function ensureHierarchyPath(Hierarchy $hierarchy, array $row): void
     {
         $parentId = null;
-        $pathSegments = [];
+        $parentPath = '/';
 
         for ($level = 1; $level <= 6; $level++) {
             $name = $row["level_{$level}"] ?? null;
@@ -1762,20 +1762,47 @@ class ImportExecutor
                 break;
             }
 
-            $pathSegments[] = $name;
-            $path = '/' . implode('/', $pathSegments) . '/';
+            // Find existing node by parent + name (independent of path format)
+            $query = HierarchyNode::where('hierarchy_id', $hierarchy->id)
+                ->where('name_de', $name);
 
-            $existing = HierarchyNode::where('hierarchy_id', $hierarchy->id)
-                ->where('path', $path)
-                ->first();
+            if ($parentId === null) {
+                $query->whereNull('parent_node_id');
+            } else {
+                $query->where('parent_node_id', $parentId);
+            }
+
+            $existing = $query->first();
 
             if ($existing) {
-                // Hierarchieknoten: Skip bei Existenz (laut Spezifikation)
                 $parentId = $existing->id;
+                $parentPath = $existing->path;
+
+                // Repair name-based path to UUID-based path if needed
+                $expectedPath = ($parentId === $existing->id && $level === 1)
+                    ? "/{$existing->id}/"
+                    : "{$parentPath}";
+                // Recalculate correct path from parent
+                if ($existing->parent_node_id === null) {
+                    $correctPath = "/{$existing->id}/";
+                } else {
+                    $parent = HierarchyNode::find($existing->parent_node_id);
+                    $correctPath = $parent ? "{$parent->path}{$existing->id}/" : "/{$existing->id}/";
+                }
+                if ($existing->path !== $correctPath) {
+                    $existing->update(['path' => $correctPath]);
+                }
+                $parentPath = $correctPath;
+
                 continue;
             }
 
             $nodeId = Str::uuid()->toString();
+            // Build UUID-based path: parent's path + this node's ID
+            $path = $parentId === null
+                ? "/{$nodeId}/"
+                : "{$parentPath}{$nodeId}/";
+
             HierarchyNode::create([
                 'id' => $nodeId,
                 'hierarchy_id' => $hierarchy->id,
@@ -1788,6 +1815,7 @@ class ImportExecutor
             ]);
 
             $parentId = $nodeId;
+            $parentPath = $path;
         }
     }
 
