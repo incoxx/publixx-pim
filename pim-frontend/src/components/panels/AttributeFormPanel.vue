@@ -178,6 +178,9 @@ async function handleSubmit(data) {
   errors.value = {}
   try {
     const { child_attribute_ids, ...attrData } = data
+    // Convert empty strings to null for nullable FK fields
+    if (!attrData.unit_group_id) attrData.unit_group_id = null
+    if (!attrData.default_unit_id) attrData.default_unit_id = null
     let savedId
 
     if (isEdit.value) {
