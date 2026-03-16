@@ -36,4 +36,12 @@ export default {
   reindexSearch() {
     return client.post('/admin/search-reindex', {}, { timeout: 300000 })
   },
+
+  getEnvInfo() {
+    return client.get('/admin/env-info')
+  },
+
+  getSystemStatus() {
+    return client.get('/admin/system-status')
+  },
 }

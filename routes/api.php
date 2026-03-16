@@ -72,6 +72,7 @@ use App\Http\Controllers\Api\V1\ReportTemplateController;
 use App\Http\Controllers\Api\V1\RelationTypeController;
 use App\Http\Controllers\Api\V1\ResetDataController;
 use App\Http\Controllers\Api\V1\SettingController;
+use App\Http\Controllers\Api\V1\SystemInfoController;
 use App\Http\Controllers\Api\V1\LicenseController;
 use App\Http\Controllers\Api\V1\LicenseGeneratorController;
 use App\Http\Controllers\Api\V1\PermissionController;
@@ -609,6 +610,8 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::post('admin/load-demo-data', LoadDemoDataController::class);
     Route::put('settings/catalog-theme', [SettingController::class, 'updateCatalogTheme']);
     Route::post('admin/search-reindex', [SettingController::class, 'reindexSearch']);
+    Route::get('admin/env-info', [SystemInfoController::class, 'envInfo']);
+    Route::get('admin/system-status', [SystemInfoController::class, 'systemStatus']);
 
     // =====================================================================
     // Report Designer (Enterprise: reports)
