@@ -59,6 +59,7 @@ async function clearLicense() {
 const envGroups = ref([])
 const envLoading = ref(false)
 const envFilter = ref('all') // 'all', 'set', 'unset'
+const envMeta = ref(null)
 
 const systemStatus = ref(null)
 const systemLoading = ref(false)
@@ -68,6 +69,7 @@ async function loadEnvInfo() {
   try {
     const { data } = await adminApi.getEnvInfo()
     envGroups.value = data.data || []
+    envMeta.value = data.meta || null
   } catch (e) {
     console.warn('Failed to load env info:', e.message)
   } finally {
@@ -1968,6 +1970,21 @@ onMounted(async () => {
             <RefreshCw class="w-3.5 h-3.5" :class="{ 'animate-spin': envLoading }" :stroke-width="2" />
           </button>
         </div>
+      </div>
+
+      <!-- .env file warning -->
+      <div v-if="envMeta && !envMeta.env_file_exists" class="flex items-start gap-3 px-4 py-3 rounded-lg bg-[var(--color-warning)]/10 border border-[var(--color-warning)]/30">
+        <AlertTriangle class="w-4 h-4 text-[var(--color-warning)] shrink-0 mt-0.5" :stroke-width="2" />
+        <div class="text-xs">
+          <p class="font-medium text-[var(--color-warning)]">Keine .env-Datei gefunden</p>
+          <p class="text-[var(--color-text-secondary)] mt-0.5">Erwartet in: <code class="font-mono text-[11px] bg-[var(--color-bg-secondary)] px-1 rounded">{{ envMeta.env_file_path }}</code></p>
+          <p class="text-[var(--color-text-tertiary)] mt-0.5">Die Werte werden direkt aus der .env-Datei gelesen. Wenn die Datei fehlt, erscheinen alle Variablen als leer.</p>
+        </div>
+      </div>
+
+      <!-- Base path info -->
+      <div v-if="envMeta" class="text-[11px] text-[var(--color-text-quaternary)] font-mono">
+        Base Path: {{ envMeta.base_path }}
       </div>
 
       <div v-if="envLoading && envGroups.length === 0" class="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">

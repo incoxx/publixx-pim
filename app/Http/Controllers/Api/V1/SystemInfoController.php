@@ -15,7 +15,8 @@ class SystemInfoController extends Controller
     /**
      * GET /api/v1/admin/env-info
      *
-     * Returns all known .env keys with their current status (set or not).
+     * Parses the actual .env file on disk and compares against .env.example.
+     * Works even when the app runs in a subdirectory.
      */
     public function envInfo(Request $request): JsonResponse
     {
@@ -23,20 +24,33 @@ class SystemInfoController extends Controller
             abort(403, 'Unauthorized.');
         }
 
+        $envValues = $this->parseEnvFile(base_path('.env'));
+        $exampleValues = $this->parseEnvFile(base_path('.env.example'));
+
+        // All known keys = union of .env and .env.example
+        $allKeys = array_unique(array_merge(array_keys($envValues), array_keys($exampleValues)));
+
         $groups = $this->getEnvGroups();
+        $categorized = [];
+        foreach ($allKeys as $key) {
+            $categorized[$key] = false;
+        }
+
         $result = [];
 
         foreach ($groups as $group => $keys) {
             $items = [];
             foreach ($keys as $key => $description) {
-                $value = env($key);
+                $value = $envValues[$key] ?? null;
                 $isSet = $value !== null && $value !== '';
                 $items[] = [
                     'key' => $key,
                     'description' => $description,
                     'is_set' => $isSet,
                     'value' => $this->maskValue($key, $value),
+                    'in_example' => array_key_exists($key, $exampleValues),
                 ];
+                $categorized[$key] = true;
             }
             $result[] = [
                 'group' => $group,
@@ -44,7 +58,42 @@ class SystemInfoController extends Controller
             ];
         }
 
-        return response()->json(['data' => $result]);
+        // Collect uncategorized keys from .env that aren't in our groups
+        $extraItems = [];
+        foreach ($allKeys as $key) {
+            if (!($categorized[$key] ?? false)) {
+                $value = $envValues[$key] ?? null;
+                $isSet = $value !== null && $value !== '';
+                $extraItems[] = [
+                    'key' => $key,
+                    'description' => '',
+                    'is_set' => $isSet,
+                    'value' => $this->maskValue($key, $value),
+                    'in_example' => array_key_exists($key, $exampleValues),
+                ];
+            }
+        }
+        if (!empty($extraItems)) {
+            // Sort alphabetically
+            usort($extraItems, fn ($a, $b) => strcmp($a['key'], $b['key']));
+            $result[] = [
+                'group' => 'Weitere',
+                'items' => $extraItems,
+            ];
+        }
+
+        $envPath = base_path('.env');
+        $examplePath = base_path('.env.example');
+
+        return response()->json([
+            'data' => $result,
+            'meta' => [
+                'env_file_exists' => file_exists($envPath),
+                'env_file_path' => $envPath,
+                'example_file_exists' => file_exists($examplePath),
+                'base_path' => base_path(),
+            ],
+        ]);
     }
 
     /**
@@ -65,6 +114,47 @@ class SystemInfoController extends Controller
                 'php' => $this->getPhpInfo(),
             ],
         ]);
+    }
+
+    /**
+     * Parse a .env file into a key => value array.
+     */
+    private function parseEnvFile(string $path): array
+    {
+        if (!file_exists($path)) {
+            return [];
+        }
+
+        $values = [];
+        $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+
+        foreach ($lines as $line) {
+            $line = trim($line);
+
+            // Skip comments
+            if ($line === '' || str_starts_with($line, '#')) {
+                continue;
+            }
+
+            // Must contain =
+            if (!str_contains($line, '=')) {
+                continue;
+            }
+
+            [$key, $value] = explode('=', $line, 2);
+            $key = trim($key);
+            $value = trim($value);
+
+            // Remove surrounding quotes
+            if ((str_starts_with($value, '"') && str_ends_with($value, '"'))
+                || (str_starts_with($value, "'") && str_ends_with($value, "'"))) {
+                $value = substr($value, 1, -1);
+            }
+
+            $values[$key] = $value;
+        }
+
+        return $values;
     }
 
     private function getServiceStatuses(): array
@@ -276,13 +366,12 @@ class SystemInfoController extends Controller
     /**
      * Mask sensitive values — show only that they are set, not the actual value.
      */
-    private function maskValue(string $key, mixed $value): ?string
+    private function maskValue(string $key, ?string $value): ?string
     {
         if ($value === null || $value === '') {
             return null;
         }
 
-        // Never show actual values for these keys
         $sensitive = [
             'APP_KEY', 'DB_PASSWORD', 'REDIS_PASSWORD',
             'TYPESENSE_API_KEY', 'TMS_API_KEY',
@@ -291,15 +380,14 @@ class SystemInfoController extends Controller
         ];
 
         if (in_array($key, $sensitive, true)) {
-            return '••••••••';
+            return str_repeat('*', min(strlen($value), 8));
         }
 
-        // For passwords in general
         if (str_contains(strtolower($key), 'password') || str_contains(strtolower($key), 'secret')) {
-            return '••••••••';
+            return str_repeat('*', min(strlen($value), 8));
         }
 
-        return (string) $value;
+        return $value;
     }
 
     private function getEnvGroups(): array
