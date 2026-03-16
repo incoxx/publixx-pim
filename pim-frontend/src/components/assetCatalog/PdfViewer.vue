@@ -7,7 +7,11 @@ import pdfApi from '@/api/pdf'
 
 const props = defineProps({
   pdfId: { type: String, required: true },
-  initialPage: { type: Number, default: 1 },
+  initialPage: {
+    type: Number,
+    default: 1,
+    validator: (val) => Number.isInteger(val) && val >= 1,
+  },
 })
 
 const { t } = useI18n()
@@ -19,8 +23,11 @@ const errorMessage = ref('')
 const currentPage = ref(props.initialPage)
 const loadedPages = ref(new Set())
 const pageRefs = ref([])
+const observerCleanups = []
 
 let pollInterval = null
+let pollErrorCount = 0
+const MAX_POLL_ERRORS = 5
 
 async function loadDocument() {
   try {
@@ -45,7 +52,6 @@ async function loadPages() {
   try {
     const { data } = await pdfApi.getPages(props.pdfId)
     pages.value = data.pages || []
-    // Seite 1 sofort als geladen markieren
     if (pages.value.length > 0) {
       loadedPages.value.add(1)
     }
@@ -58,15 +64,24 @@ async function loadPages() {
 }
 
 function setupLazyLoading() {
+  // Cleanup previous observers
+  cleanupObservers()
+
   pageRefs.value.forEach((el, index) => {
-    if (!el || index === 0) return // Seite 1 ist bereits geladen
+    if (!el || index === 0) return
     const pageNumber = index + 1
-    useIntersectionObserver(el, ([{ isIntersecting }]) => {
+    const { stop } = useIntersectionObserver(el, ([{ isIntersecting }]) => {
       if (isIntersecting) {
         loadedPages.value.add(pageNumber)
       }
     }, { rootMargin: '200px' })
+    observerCleanups.push(stop)
   })
+}
+
+function cleanupObservers() {
+  observerCleanups.forEach(stop => stop())
+  observerCleanups.length = 0
 }
 
 function scrollToPage(pageNumber) {
@@ -82,10 +97,12 @@ function scrollToPage(pageNumber) {
 
 function startPolling() {
   if (pollInterval) return
+  pollErrorCount = 0
   pollInterval = setInterval(async () => {
     try {
       const { data } = await pdfApi.getStatus(props.pdfId)
       status.value = data.status
+      pollErrorCount = 0
       if (document.value) {
         document.value.page_count = data.page_count
       }
@@ -97,7 +114,12 @@ function startPolling() {
         errorMessage.value = data.error_message || t('pdf.processingError', 'Verarbeitung fehlgeschlagen')
       }
     } catch (e) {
-      // Polling Fehler ignorieren
+      pollErrorCount++
+      if (pollErrorCount >= MAX_POLL_ERRORS) {
+        stopPolling()
+        status.value = 'error'
+        errorMessage.value = t('pdf.pollingError', 'Statusabfrage fehlgeschlagen')
+      }
     }
   }, 3000)
 }
@@ -116,7 +138,12 @@ function goToPage(n) {
   }
 }
 
-const pageCountDisplay = computed(() => document.value?.page_count || pages.value.length || 0)
+const pageCountDisplay = computed(() => {
+  if (status.value === 'ready' && document.value?.page_count) {
+    return document.value.page_count
+  }
+  return pages.value.length || 0
+})
 
 onMounted(() => {
   loadDocument()
@@ -124,6 +151,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   stopPolling()
+  cleanupObservers()
 })
 </script>
 

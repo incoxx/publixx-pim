@@ -16,7 +16,15 @@ const totalFound = ref(0)
 const currentPage = ref(1)
 const perPage = 20
 
-async function performSearch() {
+function sanitizeSnippet(html) {
+  if (!html) return ''
+  // Only allow <mark> tags for search highlighting, strip everything else
+  return html
+    .replace(/<(?!\/?(mark)\b)[^>]*>/gi, '')
+    .replace(/<\/(?!mark\b)[^>]*>/gi, '')
+}
+
+async function performSearch(append = false) {
   const q = query.value.trim()
   if (q.length < 2) {
     results.value = []
@@ -31,12 +39,20 @@ async function performSearch() {
       perPage,
       page: currentPage.value,
     })
-    results.value = data.hits || []
+    const hits = (data.hits || []).map(hit => ({
+      ...hit,
+      snippet: sanitizeSnippet(hit.snippet),
+    }))
+    results.value = append ? [...results.value, ...hits] : hits
     totalFound.value = data.found || 0
   } catch (e) {
     console.error('PDF search failed:', e)
-    results.value = []
-    totalFound.value = 0
+    if (!append) {
+      results.value = []
+      totalFound.value = 0
+    } else {
+      currentPage.value-- // Rollback on pagination error
+    }
   } finally {
     loading.value = false
   }
@@ -52,9 +68,9 @@ watch(query, () => {
 })
 
 function loadMore() {
-  if (results.value.length < totalFound.value) {
+  if (results.value.length < totalFound.value && !loading.value) {
     currentPage.value++
-    performSearch()
+    performSearch(true)
   }
 }
 
@@ -94,7 +110,7 @@ function selectResult(hit) {
     <div v-if="results.length > 0" class="flex flex-col gap-1">
       <button
         v-for="(hit, index) in results"
-        :key="index"
+        :key="`${hit.pdf_document_id}-${hit.page_number}`"
         class="flex items-start gap-3 p-3 rounded-lg hover:bg-base-200 transition-colors text-left w-full"
         @click="selectResult(hit)"
       >

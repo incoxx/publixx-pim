@@ -39,6 +39,15 @@ class PdfController extends Controller
      */
     public function page(PdfDocument $pdfDocument, int $pageNumber): RedirectResponse|JsonResponse
     {
+        if ($pdfDocument->status !== 'ready') {
+            return $this->errorResponse(
+                'pdf_not_ready',
+                'PDF nicht bereit',
+                409,
+                "PDF-Status: {$pdfDocument->status}"
+            );
+        }
+
         $page = $pdfDocument->pages()->where('page_number', $pageNumber)->first();
 
         if (!$page) {
@@ -60,6 +69,15 @@ class PdfController extends Controller
      */
     public function pages(PdfDocument $pdfDocument): JsonResponse
     {
+        if ($pdfDocument->status !== 'ready') {
+            return $this->successResponse([
+                'id' => $pdfDocument->id,
+                'status' => $pdfDocument->status,
+                'page_count' => $pdfDocument->page_count,
+                'pages' => [],
+            ]);
+        }
+
         $pages = $pdfDocument->pages->map(fn ($page) => [
             'page_number' => $page->page_number,
             'image_url' => Storage::disk('public')->url($page->image_path),
@@ -144,12 +162,14 @@ class PdfController extends Controller
      */
     public function reprocess(PdfDocument $pdfDocument): JsonResponse
     {
+        $this->authorize('update', $pdfDocument->media);
+
         $pdfDocument->update([
             'status' => 'pending',
             'error_message' => null,
         ]);
 
-        dispatch(new ProcessPdfDocument($pdfDocument->id));
+        dispatch(new ProcessPdfDocument($pdfDocument->id))->afterCommit();
 
         return $this->successResponse([
             'message' => 'Verarbeitung erneut gestartet.',

@@ -7,13 +7,16 @@ namespace App\Observers;
 use App\Jobs\ProcessPdfDocument;
 use App\Models\Media;
 use App\Models\PdfDocument;
+use App\Services\TypesenseService;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * MediaObserver – reagiert auf CRUD-Operationen am Media-Model.
  *
  * Verantwortlich für:
  * - PDF-Verarbeitung auslösen wenn ein PDF-Asset angelegt/aktualisiert wird
+ * - Typesense-Index und Storage bereinigen bei Löschung
  */
 class MediaObserver
 {
@@ -25,6 +28,43 @@ class MediaObserver
     public function updated(Media $media): void
     {
         $this->handlePdfProcessing($media);
+    }
+
+    /**
+     * Media wird gelöscht → Typesense-Index + Storage-Dateien bereinigen.
+     */
+    public function deleted(Media $media): void
+    {
+        $pdfDocument = PdfDocument::where('media_id', $media->id)->first();
+
+        if (!$pdfDocument) {
+            return;
+        }
+
+        // Typesense-Index bereinigen
+        try {
+            app(TypesenseService::class)->deletePagesForDocument($pdfDocument->id);
+        } catch (\Throwable $e) {
+            Log::warning('MediaObserver: Failed to delete from Typesense', [
+                'pdf_document_id' => $pdfDocument->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        // WebP-Bilder aus Storage löschen
+        try {
+            Storage::disk('public')->deleteDirectory('pdf-pages/' . $pdfDocument->id);
+        } catch (\Throwable $e) {
+            Log::warning('MediaObserver: Failed to delete PDF page images', [
+                'pdf_document_id' => $pdfDocument->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        Log::debug('MediaObserver: PDF cleanup completed', [
+            'media_id' => $media->id,
+            'pdf_document_id' => $pdfDocument->id,
+        ]);
     }
 
     /**

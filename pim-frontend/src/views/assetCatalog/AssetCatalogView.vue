@@ -7,7 +7,7 @@ import AssetCatalogPagination from '@/components/assetCatalog/AssetCatalogPagina
 import AssetCatalogDetailModal from '@/components/assetCatalog/AssetCatalogDetailModal.vue'
 import PdfSearch from '@/components/assetCatalog/PdfSearch.vue'
 import PdfViewer from '@/components/assetCatalog/PdfViewer.vue'
-import { Image, FileText } from 'lucide-vue-next'
+import { Image, FileText, X } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
@@ -81,7 +81,7 @@ onMounted(() => {
         <div v-if="pdfViewerDocId" class="bg-base-100 rounded-xl border border-base-300 p-4">
           <div class="flex items-center justify-between mb-3">
             <h3 class="text-sm font-semibold">PDF-Vorschau</h3>
-            <button class="btn btn-ghost btn-xs" @click="closePdfViewer">✕</button>
+            <button class="btn btn-ghost btn-xs" @click="closePdfViewer"><X class="w-4 h-4" /></button>
           </div>
           <PdfViewer :pdf-id="pdfViewerDocId" :initial-page="pdfViewerPage" />
         </div>

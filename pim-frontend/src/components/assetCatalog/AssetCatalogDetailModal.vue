@@ -41,14 +41,24 @@ watch(() => props.assetId, (id) => {
 })
 
 // PDF-Dokument laden wenn ein PDF-Asset angezeigt wird
+let pdfFetchMediaId = null
 watch(isPdf, async (val) => {
   if (val && store.currentAsset) {
+    const mediaId = store.currentAsset.id
+    pdfFetchMediaId = mediaId
     try {
-      const { data } = await pdfApi.getByMedia(store.currentAsset.id)
-      pdfDocumentId.value = data.id
+      const { data } = await pdfApi.getByMedia(mediaId)
+      // Guard: nur setzen wenn noch dasselbe Asset angezeigt wird
+      if (pdfFetchMediaId === mediaId) {
+        pdfDocumentId.value = data.id
+      }
     } catch {
-      pdfDocumentId.value = null
+      if (pdfFetchMediaId === mediaId) {
+        pdfDocumentId.value = null
+      }
     }
+  } else {
+    pdfDocumentId.value = null
   }
 }, { immediate: true })
 
