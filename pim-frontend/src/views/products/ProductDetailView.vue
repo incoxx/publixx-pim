@@ -82,19 +82,28 @@ async function loadProductTypes() {
 }
 
 const tabs = computed(() => {
+  const pt = product.value?.product_type
   const base = [
     { key: 'base-data', label: 'Grunddaten' },
     { key: 'attributes', label: t('product.attributes') },
-    { key: 'variant-attributes', label: 'Varianten-Attribute' },
-    { key: 'variants', label: t('product.variants') },
-    { key: 'media', label: t('product.media') },
-    { key: 'prices', label: t('product.prices') },
+  ]
+  if (!pt || pt.has_variants) {
+    base.push({ key: 'variant-attributes', label: 'Varianten-Attribute' })
+    base.push({ key: 'variants', label: t('product.variants') })
+  }
+  if (!pt || pt.has_media) {
+    base.push({ key: 'media', label: t('product.media') })
+  }
+  if (!pt || pt.has_prices) {
+    base.push({ key: 'prices', label: t('product.prices') })
+  }
+  base.push(
     { key: 'relations', label: t('product.relations') },
     { key: 'output-hierarchies', label: 'Ausgabehierarchien' },
     { key: 'preview', label: t('product.preview') },
     { key: 'versions', label: t('product.versions') },
     { key: 'scheduled-actions', label: 'Planung' },
-  ]
+  )
   if (workflowEnabled.value) {
     base.push({ key: 'workflow-history', label: 'Workflow-Verlauf' })
   }
@@ -445,7 +454,11 @@ const schemaAttributes = computed(() => {
 })
 
 const attributeGroups = computed(() => {
-  const allAttrs = schemaAttributes.value.filter(a => !a.is_variant_attribute)
+  let allAttrs = schemaAttributes.value.filter(a => !a.is_variant_attribute)
+  // Hide internal attributes for non-admin users
+  if (authStore.userRole !== 'Admin') {
+    allAttrs = allAttrs.filter(a => !a.is_internal)
+  }
   if (allAttrs.length === 0) return []
 
   // Collect IDs of all composite attributes in the schema
@@ -475,7 +488,11 @@ const attributeGroups = computed(() => {
 })
 
 const variantAttributeGroups = computed(() => {
-  const attrs = schemaAttributes.value.filter(a => a.is_variant_attribute)
+  let attrs = schemaAttributes.value.filter(a => a.is_variant_attribute)
+  // Hide internal attributes for non-admin users
+  if (authStore.userRole !== 'Admin') {
+    attrs = attrs.filter(a => !a.is_internal)
+  }
   if (attrs.length === 0) return []
   const groups = {}
   for (const attr of attrs) {
@@ -498,6 +515,11 @@ const filteredAttributes = computed(() => {
     if (attr.data_type === 'Composite') {
       attr._children = allAttrs.filter(c => c.parent_attribute_id === attr.id)
     }
+  }
+
+  // Filter: Interne Attribute für Nicht-Admins ausblenden
+  if (authStore.userRole !== 'Admin') {
+    attrs = attrs.filter(a => !a.is_internal)
   }
 
   // Filter: Attribut-Sicht
@@ -1474,6 +1496,48 @@ async function downloadPdf() {
   }
 }
 
+// ─── Mandatory Validation ─────────────────────────────
+const mandatoryWarnings = ref(new Set())
+const showMandatoryConfirm = ref(false)
+
+function validateMandatoryAttributes() {
+  const missing = []
+  for (const attr of schemaAttributes.value) {
+    if (!attr.is_mandatory) continue
+    if (attr.is_translatable) {
+      for (const lang of localeStore.activeDataLocales) {
+        const key = `${attr.id}_${lang}`
+        const val = translatedValues.value[key]
+        if (val === null || val === undefined || val === '') {
+          missing.push(attr)
+          break
+        }
+      }
+    } else {
+      const val = attributeValues.value[attr.id]
+      if (val === null || val === undefined || val === '') {
+        missing.push(attr)
+      }
+    }
+  }
+  return missing
+}
+
+async function saveWithValidation() {
+  const missing = validateMandatoryAttributes()
+  mandatoryWarnings.value = new Set(missing.map(a => a.id))
+  if (missing.length > 0) {
+    showMandatoryConfirm.value = true
+    return
+  }
+  await save()
+}
+
+function confirmSaveDespiteWarnings() {
+  showMandatoryConfirm.value = false
+  save()
+}
+
 // ─── Save ─────────────────────────────────────────────
 async function save() {
   if (!product.value) return
@@ -1596,6 +1660,13 @@ watch(activeTab, (tab) => {
   if (tab === 'output-hierarchies') loadOutputHierarchyAssignments()
   if (tab === 'preview') loadPreview()
   if (tab === 'workflow-history') loadWorkflowHistory()
+})
+
+// Reset active tab if it becomes hidden (e.g. after product type change)
+watch(tabs, (newTabs) => {
+  if (!newTabs.find(t => t.key === activeTab.value)) {
+    activeTab.value = 'base-data'
+  }
 })
 
 onMounted(async () => {
@@ -1730,7 +1801,7 @@ watch(() => route.params.id, async (newId, oldId) => {
         <Copy class="w-4 h-4" :stroke-width="1.75" />
         <span class="hidden sm:inline">Kopieren</span>
       </button>
-      <button v-if="authStore.hasPermission('products.edit')" class="pim-btn pim-btn-primary" :disabled="saving" @click="save">
+      <button v-if="authStore.hasPermission('products.edit')" class="pim-btn pim-btn-primary" :disabled="saving" @click="saveWithValidation">
         <Save class="w-4 h-4" :stroke-width="1.75" />
         {{ saving ? 'Speichern…' : t('common.save') }}
       </button>
@@ -1905,7 +1976,7 @@ watch(() => route.params.id, async (newId, oldId) => {
             <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Name</label>
             <input class="pim-input" v-model="product.name" />
           </div>
-          <div>
+          <div v-if="!product.product_type || product.product_type.has_ean !== false">
             <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">EAN</label>
             <input class="pim-input font-mono" v-model="product.ean" />
           </div>
@@ -2049,7 +2120,7 @@ watch(() => route.params.id, async (newId, oldId) => {
         <div v-if="filteredAttributes.length === 0" class="text-center py-8">
           <p class="text-sm text-[var(--color-text-tertiary)]">Keine Attribute gefunden</p>
         </div>
-        <div v-for="attr in filteredAttributes" :key="attr.id">
+        <div v-for="attr in filteredAttributes" :key="attr.id" :class="{ 'ring-1 ring-red-400 rounded-lg p-2 -m-2': mandatoryWarnings.has(attr.id) }">
           <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">
             {{ attr.name_de || attr.technical_name }}
             <span v-if="attr.is_mandatory" class="text-[var(--color-error)]">*</span>
@@ -2204,7 +2275,7 @@ watch(() => route.params.id, async (newId, oldId) => {
             <input class="pim-input" v-model="variantForm.name" />
             <p v-if="variantErrors.name" class="text-[11px] text-[var(--color-error)] mt-0.5">{{ variantErrors.name }}</p>
           </div>
-          <div>
+          <div v-if="!product.product_type || product.product_type.has_ean !== false">
             <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">EAN</label>
             <input class="pim-input" v-model="variantForm.ean" />
           </div>
@@ -3006,7 +3077,7 @@ watch(() => route.params.id, async (newId, oldId) => {
           </p>
           <div class="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-[12px] text-[var(--color-text-secondary)]">
             <span><span class="text-[var(--color-text-tertiary)]">SKU:</span> <span class="font-mono">{{ previewData.stammdaten.sku || '—' }}</span></span>
-            <span><span class="text-[var(--color-text-tertiary)]">EAN:</span> <span class="font-mono">{{ previewData.stammdaten.ean || '—' }}</span></span>
+            <span v-if="!product.product_type || product.product_type.has_ean !== false"><span class="text-[var(--color-text-tertiary)]">EAN:</span> <span class="font-mono">{{ previewData.stammdaten.ean || '—' }}</span></span>
             <span :class="[
               'pim-badge text-[11px]',
               previewData.stammdaten.status === 'active' ? 'bg-[var(--color-success-light)] text-[var(--color-success)]' : 'bg-[var(--color-bg)] text-[var(--color-text-tertiary)]'
@@ -3339,6 +3410,15 @@ watch(() => route.params.id, async (newId, oldId) => {
     <PdfTemplatePickerModal
       v-model:open="showPdfTemplatePicker"
       :productIds="product ? [product.id] : []"
+    />
+
+    <!-- Mandatory fields warning dialog -->
+    <PimConfirmDialog
+      :open="showMandatoryConfirm"
+      title="Pflichtfelder nicht ausgefüllt"
+      :message="`${mandatoryWarnings.size} Pflichtfeld(er) sind leer. Trotzdem speichern?`"
+      @confirm="confirmSaveDespiteWarnings"
+      @cancel="showMandatoryConfirm = false"
     />
   </div>
 </template>
