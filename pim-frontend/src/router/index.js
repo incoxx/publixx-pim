@@ -266,6 +266,12 @@ const routes = [
     meta: { title: 'Datenbank' },
   },
   {
+    path: '/admin/license-generator',
+    name: 'license-generator',
+    component: () => import('@/views/admin/LicenseGeneratorView.vue'),
+    meta: { title: 'License Generator' },
+  },
+  {
     path: '/journal',
     name: 'journal',
     component: () => import('@/views/journal/JournalView.vue'),
