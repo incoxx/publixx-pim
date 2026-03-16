@@ -50,6 +50,9 @@ function clearFolder() {
       </span>
     </div>
 
+    <!-- Center: Search mode toggle (slot) -->
+    <slot name="search-toggle" />
+
     <!-- Right: Filters + Sort + View mode -->
     <div class="flex items-center gap-2">
       <!-- Usage filter -->

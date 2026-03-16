@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Media extends Model
 {
@@ -64,6 +65,11 @@ class Media extends Model
     public function productAssignments(): HasMany
     {
         return $this->hasMany(ProductMediaAssignment::class);
+    }
+
+    public function pdfDocument(): HasOne
+    {
+        return $this->hasOne(PdfDocument::class);
     }
 
     public function deletionConstraints(): array

@@ -111,6 +111,19 @@ return [
             'timeout' => 600,
             'nice' => 10, // Niedrige Priorität
         ],
+        'supervisor-pdf' => [
+            'connection' => 'redis',
+            'queue' => ['pdf'],
+            'balance' => 'simple',
+            'maxProcesses' => 2,
+            'minProcesses' => 1,
+            'maxTime' => 3600,
+            'maxJobs' => 100,
+            'memory' => 512,
+            'tries' => 3,
+            'timeout' => 300,
+            'nice' => 5,
+        ],
         'supervisor-default' => [
             'connection' => 'redis',
             'queue' => ['default', 'import', 'export'],
@@ -149,6 +162,10 @@ return [
                 'maxProcesses' => 2,
                 'minProcesses' => 1,
             ],
+            'supervisor-pdf' => [
+                'maxProcesses' => 2,
+                'minProcesses' => 1,
+            ],
             'supervisor-default' => [
                 'maxProcesses' => 4,
                 'minProcesses' => 1,
@@ -168,6 +185,9 @@ return [
             'supervisor-warmup' => [
                 'maxProcesses' => 1,
             ],
+            'supervisor-pdf' => [
+                'maxProcesses' => 1,
+            ],
             'supervisor-default' => [
                 'maxProcesses' => 2,
                 'minProcesses' => 1,
@@ -183,6 +203,9 @@ return [
                 'maxProcesses' => 1,
             ],
             'supervisor-warmup' => [
+                'maxProcesses' => 1,
+            ],
+            'supervisor-pdf' => [
                 'maxProcesses' => 1,
             ],
             'supervisor-default' => [
@@ -206,6 +229,7 @@ return [
         'redis:indexing' => 30,
         'redis:cache' => 60,
         'redis:warmup' => 300,
+        'redis:pdf' => 120,
         'redis:default' => 120,
     ],
 
