@@ -4,7 +4,7 @@ title: Publixx-Export
 
 # Publixx-Export
 
-Der Publixx-Export transformiert PIM-Produktdaten in das Publixx-spezifische Datensatzformat (PXF -- Publixx Exchange Format). Über konfigurierbare Mappings wird definiert, welche PIM-Felder auf welche Publixx-Datensatzfelder abgebildet werden. Die exportierten Datensätze können direkt in Publixx-Katalogen und -Templates verwendet werden.
+Der Publixx-Export transformiert PIM-Produktdaten in das Publixx-spezifische Datensatzformat. Über konfigurierbare Mappings wird definiert, welche PIM-Felder auf welche Publixx-Datensatzfelder abgebildet werden. Die exportierten Datensätze können direkt in Publixx-Katalogen und -Templates verwendet werden.
 
 ## Export-Mapping-Konfiguration
 
@@ -98,7 +98,7 @@ Die folgenden Endpunkte stellen die Schnittstelle zwischen PIM und Publixx-Platt
 GET /api/v1/publixx/datasets
 ```
 
-Liefert alle exportierten Datensätze im PXF-Format, gefiltert nach Mapping-Konfiguration.
+Liefert alle exportierten Datensätze im Publixx-Format, gefiltert nach Mapping-Konfiguration.
 
 **Query-Parameter:**
 
@@ -127,68 +127,6 @@ POST /api/v1/publixx/datasets/query
 ```
 
 Liefert Datensätze basierend auf einer PQL-Abfrage.
-
-## PXF-Template-Verwaltung
-
-PXF-Templates definieren das Layout und die Struktur eines Publixx-Katalogs. Sie werden im PIM verwaltet und mit den exportierten Datensätzen verknüpft.
-
-### Template-Endpunkte
-
-| Methode | Endpunkt | Beschreibung |
-|---|---|---|
-| `GET` | `/api/v1/publixx/templates` | Alle Templates auflisten |
-| `GET` | `/api/v1/publixx/templates/{id}` | Template-Details abrufen |
-| `POST` | `/api/v1/publixx/templates` | Neues Template anlegen |
-| `PUT` | `/api/v1/publixx/templates/{id}` | Template aktualisieren |
-| `DELETE` | `/api/v1/publixx/templates/{id}` | Template löschen |
-
-### Template-Struktur
-
-```json
-{
-  "id": "tpl-550e8400-e29b-41d4",
-  "name": "Produktdatenblatt A4",
-  "format": "A4",
-  "orientation": "portrait",
-  "elements": [
-    {
-      "id": "elem-title",
-      "type": "text",
-      "binding": "title",
-      "position": { "x": 20, "y": 30 },
-      "style": { "font_size": 24, "font_weight": "bold" }
-    },
-    {
-      "id": "elem-image",
-      "type": "image",
-      "binding": "image",
-      "position": { "x": 20, "y": 80 },
-      "size": { "width": 200, "height": 200 }
-    },
-    {
-      "id": "elem-specs",
-      "type": "table",
-      "binding": "specs",
-      "position": { "x": 240, "y": 80 }
-    }
-  ]
-}
-```
-
-## Publixx-Element-Binding
-
-Jedes Element in einem PXF-Template hat eine `binding`-Eigenschaft, die definiert, welches Feld des exportierten Datensatzes an dieses Element gebunden wird.
-
-| Element-Typ | Binding-Typ | Beschreibung |
-|---|---|---|
-| `text` | Textwert | Zeigt den Wert des gebundenen Felds als Text an |
-| `image` | Media-URL | Zeigt das Bild der gebundenen Media-URL an |
-| `table` | Objekt/Array | Rendert die Daten als Tabelle |
-| `list` | Array | Rendert die Daten als Liste |
-| `price` | Preiswert | Formatiert und zeigt den Preiswert an |
-| `barcode` | String | Generiert einen Barcode (EAN/GTIN) |
-
-Die Auflösung erfolgt über den Feldnamen: Das `binding`-Attribut referenziert das `target`-Feld der Mapping-Konfiguration.
 
 ## Beispiel: Exportierter Datensatz
 

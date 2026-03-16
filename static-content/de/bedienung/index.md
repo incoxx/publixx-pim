@@ -89,7 +89,7 @@ Die Sidebar ist persistent sichtbar und kann eingeklappt werden. Sie gliedert si
 | **Produkttypen** | Definition von Produkttypen mit zugeordneten Attributen |
 | **Attributgruppen** | Logische Gruppierung von Attributen (AttributeTypes) |
 | **Wertelisten** | Auswahllisten fuer Selection-Attribute |
-| **Import / Export** | Datenimport (Excel) und -export (JSON, PXF) |
+| **Import / Export** | Datenimport (Excel) und -export (JSON, Publixx) |
 | **Medien** | Medienbibliothek mit Upload und Zuordnung |
 | **Preise** | Preisarten, Waehrungen und Gueltigkeiten |
 | **Uebersetzungen** | Translation Memory Service fuer Metadaten-Uebersetzungen |

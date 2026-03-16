@@ -268,5 +268,5 @@ curl -X GET "https://pim.example.com/api/v1/export/products?status=active&hierar
 ## Weiterführende Dokumentation
 
 - [Export-Übersicht](/de/export/) -- Prozessübersicht und Konzept
-- [Publixx-Export](/de/export/publixx-export) -- Mapping-Konfiguration und PXF-Integration
+- [Publixx-Export](/de/export/publixx-export) -- Mapping-Konfiguration und Publixx-Integration
 - [API-Referenz](/de/api/) -- Vollständige API-Dokumentation

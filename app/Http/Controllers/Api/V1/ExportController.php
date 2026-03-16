@@ -102,7 +102,7 @@ class ExportController extends Controller
     /**
      * GET /api/v1/export/products/{id}/publixx
      *
-     * Export a single product in Publixx PXF-Dataset format.
+     * Export a single product in Publixx dataset format.
      */
     public function publixx(Request $request, string $id): JsonResponse
     {

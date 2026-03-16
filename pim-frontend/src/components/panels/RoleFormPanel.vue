@@ -57,13 +57,15 @@ const entityLabels = {
   'json-export-import': 'JSON Export/Import',
   'bmecat': 'BMEcat',
   'export-jobs': 'Export-Jobs',
+  'api-templates': 'API-Templates',
+  'dashboard': 'Dashboard',
 }
 
 // Category grouping
 const categoryGroups = [
   {
     label: 'Tagesgeschäft',
-    entities: ['products', 'hierarchies', 'hierarchy-nodes', 'media', 'media-usage-types', 'prices', 'price-types', 'search', 'watchlist', 'reports', 'pdf-templates', 'calendar'],
+    entities: ['dashboard', 'products', 'hierarchies', 'hierarchy-nodes', 'media', 'media-usage-types', 'prices', 'price-types', 'search', 'watchlist', 'reports', 'pdf-templates', 'calendar'],
   },
   {
     label: 'Konfiguration',
@@ -71,7 +73,7 @@ const categoryGroups = [
   },
   {
     label: 'Administration',
-    entities: ['imports', 'export', 'json-export-import', 'bmecat', 'export-jobs', 'publixx-mappings', 'settings', 'users', 'roles', 'access-links', 'journal'],
+    entities: ['imports', 'export', 'json-export-import', 'bmecat', 'export-jobs', 'publixx-mappings', 'api-templates', 'settings', 'users', 'roles', 'access-links', 'journal'],
   },
 ]
 

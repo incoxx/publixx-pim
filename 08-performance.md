@@ -16,7 +16,7 @@
 | Hierarchy node open | < 50ms | Lazy-load children |
 | Save attribute values | < 300ms | Bulk upsert, async cache invalidation |
 | Export (1000 products) | < 5s | Streaming JSON, queue |
-| PXF Preview | < 500ms | Client-side rendering, data preloaded |
+| PDF Preview | < 500ms | Client-side rendering, data preloaded |
 
 ---
 
@@ -141,7 +141,7 @@ ft_min_word_len = 2                    # Allow short search terms
 | SWR | Stale-While-Revalidate | Instant navigation |
 | Code Splitting | Vite route-based chunks | Initial < 200KB gzip |
 | Web Worker | Client PQL filter | UI stays responsive |
-| PXF Client Rendering | No server roundtrip | Layout immediately |
+| PDF Client Rendering | No server roundtrip | Layout immediately |
 
 ---
 

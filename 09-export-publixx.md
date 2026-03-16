@@ -16,7 +16,7 @@ The PIM exports product data as JSON datasets that are directly usable as Publix
 GET  /api/v1/export/products                           Filter → JSON array
 GET  /api/v1/export/products/{id}                      Single product
 POST /api/v1/export/products/bulk                      Bulk by filter
-GET  /api/v1/export/products/{id}/publixx              PXF dataset format
+GET  /api/v1/export/products/{id}/publixx              Publixx dataset format
 POST /api/v1/export/query                              PQL filter
 ```
 

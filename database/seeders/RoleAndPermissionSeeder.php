@@ -94,7 +94,10 @@ class RoleAndPermissionSeeder extends Seeder
             'bmecat.view', 'bmecat.execute',
             // Export-Jobs
             'export-jobs.view', 'export-jobs.create', 'export-jobs.delete',
-            // Hersteller (manufacturers already included above)
+            // API-Designer / API-Templates
+            'api-templates.view', 'api-templates.create', 'api-templates.edit', 'api-templates.delete',
+            // Dashboard
+            'dashboard.view',
         ];
 
         foreach ($permissions as $permissionName) {
@@ -195,6 +198,42 @@ class RoleAndPermissionSeeder extends Seeder
             'value-lists.view',
         ]);
 
+        // ─── 6. API Designer (API-Templates) ──────────────────────────
+        $apiDesigner = Role::firstOrCreate(
+            ['name' => 'API Designer', 'guard_name' => 'sanctum'],
+        );
+        $apiDesigner->syncPermissions([
+            'api-templates.view', 'api-templates.create', 'api-templates.edit', 'api-templates.delete',
+            'products.view',
+            'product-types.view',
+            'attributes.view',
+            'attribute-types.view',
+            'hierarchies.view',
+            'hierarchy-nodes.view',
+            'prices.view',
+            'price-types.view',
+            'price-regions.view',
+            'units.view',
+            'unit-groups.view',
+            'value-lists.view',
+            'media.view',
+            'search.view',
+        ]);
+
+        // ─── 7. Project Management (Dashboard, Workflows, Teams, Projects) ─
+        $projectManagement = Role::firstOrCreate(
+            ['name' => 'Project Management', 'guard_name' => 'sanctum'],
+        );
+        $projectManagement->syncPermissions([
+            'dashboard.view',
+            'workflows.view', 'workflows.create', 'workflows.edit', 'workflows.delete',
+            'workflow-statuses.view', 'workflow-statuses.create', 'workflow-statuses.edit', 'workflow-statuses.delete',
+            'teams.view', 'teams.create', 'teams.edit', 'teams.delete',
+            'projects.view', 'projects.create', 'projects.edit', 'projects.delete',
+            'products.view',
+            'calendar.view', 'calendar.create', 'calendar.edit', 'calendar.delete',
+        ]);
+
         $this->command->info('Rollen und Permissions erfolgreich geseeded.');
         $this->command->table(
             ['Rolle', 'Permissions'],
@@ -204,6 +243,8 @@ class RoleAndPermissionSeeder extends Seeder
                 ['Product Manager', (string) $productManager->permissions()->count()],
                 ['Viewer', (string) $viewer->permissions()->count()],
                 ['Export Manager', (string) $exportManager->permissions()->count()],
+                ['API Designer', (string) $apiDesigner->permissions()->count()],
+                ['Project Management', (string) $projectManagement->permissions()->count()],
             ]
         );
     }

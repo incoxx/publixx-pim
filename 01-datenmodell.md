@@ -22,7 +22,7 @@
 | Hierarchy Model (4) | Hierarchy, HierarchyNode, HierarchyNodeAttributeAssignment, OutputHierarchyProductAssignment |
 | Media Model (2) | Media, ProductMediaAssignment |
 | Price Model (2) | PriceType, ProductPrice |
-| Export & PXF (2) | PublixxExportMapping, PxfTemplate |
+| Export (1) | PublixxExportMapping |
 | Import (2) | ImportJob, ImportJobError |
 | User Management (5) | User, Role, Permission, RolePermission, UserRole |
 | Performance (1) | products_search_index |
@@ -342,7 +342,7 @@ created_at, updated_at
 
 ---
 
-## Export & PXF
+## Export
 
 ### publixx_export_mappings
 
@@ -351,16 +351,6 @@ id, name VARCHAR(255), attribute_view_id (FK nullable), output_hierarchy_id (FK 
 mapping_rules JSON, include_media BOOLEAN, include_prices BOOLEAN,
 include_variants BOOLEAN, include_relations BOOLEAN,
 languages JSON (["de","en"]), flatten_mode ENUM('flat','nested','publixx')
-```
-
-### pxf_templates
-
-```
-id, name VARCHAR(255), description TEXT nullable, pxf_data JSON (LONGTEXT),
-version VARCHAR(10), orientation ENUM('a4hoch','a4quer','custom'),
-product_type_id (FK nullable), export_mapping_id (FK nullable),
-thumbnail VARCHAR(500) nullable, is_default BOOLEAN, is_active BOOLEAN,
-created_at, updated_at
 ```
 
 ---
