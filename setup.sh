@@ -1127,7 +1127,7 @@ if [ "$DB_EXISTS" = true ] && [ "$DB_RESET" = false ]; then
     echo -e "  Demodaten wurden nicht erneut geladen."
 else
     echo -e "${BOLD}Demodaten geladen:${NC}"
-    echo -e "  5 Rollen (Admin, Data Steward, Product Manager, Viewer, Export Manager)"
+    echo -e "  7 Rollen (Admin, Data Steward, Product Manager, Viewer, Export Manager, API Designer, Project Management)"
     echo -e "  2 Admin-Benutzer"
     echo -e "  6 Produkttypen"
     echo -e "  12 Attribute mit Einheiten und Wertelisten"
