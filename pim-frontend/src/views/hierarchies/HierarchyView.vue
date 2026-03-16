@@ -286,7 +286,7 @@ async function loadNodeAttributes(nodeId) {
   if (!nodeId) return
   nodeAttrsLoading.value = true
   try {
-    const { data } = await hierarchiesApi.getNodeAttributes(nodeId)
+    const { data } = await hierarchiesApi.getNodeAttributes(nodeId, { inherited: true, perPage: 500 })
     nodeAttributes.value = data.data || data
   } catch { nodeAttributes.value = [] }
   finally { nodeAttrsLoading.value = false }
@@ -1085,30 +1085,37 @@ onMounted(async () => {
               <div
                 v-for="(assignment, idx) in filteredNodeAttributes"
                 :key="assignment.id"
-                class="flex items-center justify-between px-3 py-2 rounded-lg bg-[var(--color-bg)] group"
+                :class="['flex items-center justify-between px-3 py-2 rounded-lg group', assignment.is_inherited ? 'bg-[var(--color-bg)] opacity-75 border border-dashed border-[var(--color-border)]' : 'bg-[var(--color-bg)]']"
               >
-                <div class="flex items-center gap-2">
-                  <GripVertical class="w-3 h-3 text-[var(--color-text-tertiary)] opacity-40" />
+                <div class="flex items-center gap-2 flex-wrap">
+                  <GripVertical v-if="!assignment.is_inherited" class="w-3 h-3 text-[var(--color-text-tertiary)] opacity-40" />
                   <span class="text-[10px] text-[var(--color-text-tertiary)] font-mono w-4 text-right">{{ idx + 1 }}</span>
                   <span class="text-xs font-medium">{{ assignment.attribute?.name_de || assignment.attribute?.technical_name || '—' }}</span>
                   <span class="text-[10px] text-[var(--color-text-tertiary)]">{{ assignment.attribute?.data_type }}</span>
+                  <span v-if="assignment.collection_name" class="text-[10px] bg-[var(--color-surface)] text-[var(--color-text-secondary)] px-1.5 py-0.5 rounded">{{ assignment.collection_name }}</span>
+                  <span v-if="assignment.is_inherited" class="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium" :title="assignment.inherited_from_node_name ? ('Vererbt von: ' + assignment.inherited_from_node_name) : 'Vererbt vom übergeordneten Knoten'">
+                    vererbt{{ assignment.inherited_from_node_name ? (' von ' + assignment.inherited_from_node_name) : '' }}
+                  </span>
                   <span v-if="assignment.attribute?.data_type === 'Composite'" class="text-[10px] text-[var(--color-accent)]">
                     ({{ nodeAttributes.filter(a => a.attribute?.parent_attribute_id === (assignment.attribute?.id || assignment.attribute_id)).length }} Felder)
                   </span>
-                  <label v-if="authStore.hasPermission('hierarchies.edit')" class="flex items-center gap-1 ml-2 cursor-pointer" @click.stop>
-                    <input
-                      type="checkbox"
-                      :checked="assignment.is_required || assignment.attribute?.is_mandatory"
-                      :disabled="assignment.attribute?.is_mandatory"
-                      class="w-3 h-3 rounded border-[var(--color-border)] text-[var(--color-error)] accent-[var(--color-error)] disabled:opacity-60"
-                      @change="toggleRequired(assignment)"
-                    />
-                    <span class="text-[10px] text-[var(--color-text-tertiary)]">Pflicht</span>
-                    <span v-if="assignment.attribute?.is_mandatory" class="text-[10px] text-[var(--color-text-tertiary)]">(global)</span>
-                  </label>
+                  <template v-if="!assignment.is_inherited">
+                    <label v-if="authStore.hasPermission('hierarchies.edit')" class="flex items-center gap-1 ml-2 cursor-pointer" @click.stop>
+                      <input
+                        type="checkbox"
+                        :checked="assignment.is_required || assignment.attribute?.is_mandatory"
+                        :disabled="assignment.attribute?.is_mandatory"
+                        class="w-3 h-3 rounded border-[var(--color-border)] text-[var(--color-error)] accent-[var(--color-error)] disabled:opacity-60"
+                        @change="toggleRequired(assignment)"
+                      />
+                      <span class="text-[10px] text-[var(--color-text-tertiary)]">Pflicht</span>
+                      <span v-if="assignment.attribute?.is_mandatory" class="text-[10px] text-[var(--color-text-tertiary)]">(global)</span>
+                    </label>
+                    <span v-else-if="assignment.is_required || assignment.attribute?.is_mandatory" class="text-[10px] text-[var(--color-error)] font-medium ml-2">Pflicht</span>
+                  </template>
                   <span v-else-if="assignment.is_required || assignment.attribute?.is_mandatory" class="text-[10px] text-[var(--color-error)] font-medium ml-2">Pflicht</span>
                 </div>
-                <div class="flex items-center gap-0.5">
+                <div v-if="!assignment.is_inherited" class="flex items-center gap-0.5">
                   <template v-if="authStore.hasPermission('hierarchies.edit')">
                     <button
                       class="p-0.5 rounded text-[var(--color-text-tertiary)] hover:text-[var(--color-accent)] hover:bg-[var(--color-bg-secondary)] transition-all disabled:opacity-20 disabled:cursor-default"
@@ -1137,7 +1144,9 @@ onMounted(async () => {
                 </div>
               </div>
             </div>
-            <p v-if="nodeAttributes.length > 0" class="text-[11px] text-[var(--color-text-tertiary)] mt-1">{{ nodeAttributes.length }} Attribute zugeordnet</p>
+            <p v-if="nodeAttributes.length > 0" class="text-[11px] text-[var(--color-text-tertiary)] mt-1">
+              {{ nodeAttributes.filter(a => !a.is_inherited).length }} direkt zugeordnet<template v-if="nodeAttributes.some(a => a.is_inherited)">, {{ nodeAttributes.filter(a => a.is_inherited).length }} vererbt</template>
+            </p>
           </template>
           <p v-else class="text-xs text-[var(--color-text-tertiary)]">Keine Attribute zugeordnet</p>
         </div>

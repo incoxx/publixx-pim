@@ -100,6 +100,7 @@ export function buildParams(options = {}) {
     }
   }
 
+  if (options.inherited) params.inherited = 'true'
   if (options.attribute_columns) params.attribute_columns = options.attribute_columns
   if (options.language) params.language = options.language
   if (options.include_thumbnail) params.include_thumbnail = '1'
