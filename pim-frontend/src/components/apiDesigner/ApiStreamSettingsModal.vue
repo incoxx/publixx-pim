@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useApiDesignerStore } from '@/stores/apiDesigner'
 import { X, Copy, Check, RefreshCw, ExternalLink } from 'lucide-vue-next'
 import apiTemplatesApi from '@/api/apiTemplates'
@@ -10,7 +10,10 @@ const copied = ref(false)
 const regenerating = ref(false)
 const newApiKey = ref('')
 
-const streamUrl = `${window.location.origin}/api/v1/api-streams/${store.currentTemplate?.slug || '...'}`
+const apiBase = (import.meta.env.VITE_API_BASE_URL || '/api/v1').replace(/\/+$/, '')
+const streamUrl = computed(() =>
+  `${window.location.origin}${apiBase}/api-streams/${store.currentTemplate?.slug || '...'}`
+)
 
 function copyUrl() {
   navigator.clipboard.writeText(streamUrl)
