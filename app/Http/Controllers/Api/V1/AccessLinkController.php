@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Requests\Api\V1\AccessLink\StoreAccessLinkRequest;
 use App\Http\Resources\Api\V1\AccessLinkResource;
 use App\Http\Resources\Api\V1\UserResource;
+use App\Jobs\WriteAuditLog;
 use App\Models\AccessLink;
 use App\Models\Role;
 use App\Models\User;
@@ -205,6 +206,25 @@ class AccessLinkController extends Controller
 
             $user->assignRole($role);
 
+            // Audit: user created via access link
+            WriteAuditLog::dispatch(
+                auditableType: User::class,
+                auditableId: $user->id,
+                action: 'created',
+                oldValues: null,
+                newValues: [
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'language' => $user->language,
+                    'is_active' => $user->is_active,
+                    'roles' => [$role->name],
+                    'method' => 'access_link',
+                ],
+                userId: $user->id,
+                ipAddress: $request->ip(),
+                userAgent: $request->userAgent(),
+            )->afterCommit();
+
             // Mark link as used
             $link->update([
                 'used_at' => now(),
@@ -218,6 +238,18 @@ class AccessLinkController extends Controller
                 name: 'pim-api',
                 expiresAt: now()->addHours((int) config('sanctum.expiration_hours', 24)),
             );
+
+            // Audit: user logged in via access link
+            WriteAuditLog::dispatch(
+                auditableType: User::class,
+                auditableId: $user->id,
+                action: 'logged_in',
+                oldValues: null,
+                newValues: ['method' => 'access_link'],
+                userId: $user->id,
+                ipAddress: $request->ip(),
+                userAgent: $request->userAgent(),
+            )->afterCommit();
 
             $user->load('roles.permissions');
 
