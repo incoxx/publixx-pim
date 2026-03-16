@@ -61,6 +61,13 @@ class TypesenseService
             } catch (ObjectNotFound) {
                 // Collection existiert nicht — ok
             }
+        } else {
+            try {
+                $this->client()->collections['pdf_pages']->retrieve();
+                return; // Collection existiert bereits
+            } catch (ObjectNotFound) {
+                // Collection existiert nicht — wird unten erstellt
+            }
         }
 
         $this->client()->collections->create($this->getCollectionSchema());
