@@ -5,7 +5,7 @@
 | Software | Version |
 |---|---|
 | Ubuntu / Debian | 22.04+ / 24.04 recommended |
-| PHP | 8.3+ (extensions: mysql, redis, mbstring, xml, zip, gd, bcmath, curl, intl) |
+| PHP | 8.4+ (extensions: mysql, redis, mbstring, xml, zip, gd, bcmath, curl, intl) |
 | MySQL | 8.0+ |
 | Redis | 6+ |
 | Node.js | 20 LTS (with npm) |
@@ -43,16 +43,16 @@ The script asks for the following information:
 
 | Step | Description |
 |---|---|
-| 1/10 | Install system packages (PHP, MySQL client, Redis, Node.js, Composer) |
-| 2/10 | Check and install PHP extensions |
-| 3/10 | Composer install (PHP dependencies) |
-| 4/10 | Generate .env file + APP_KEY |
-| 5/10 | Create database and run migrations |
-| 6/10 | Create admin user |
-| 7/10 | Load demo data (optional) |
-| 8/10 | Configure Supervisor/Horizon |
+| 1/10 | Update system packages (apt update/upgrade) |
+| 2/10 | Install PHP 8.4 + extensions |
+| 3/10 | Install Apache + enable modules |
+| 4/10 | Install MySQL + create database and user |
+| 5/10 | Install Redis + configure |
+| 6/10 | Install Node.js 20 LTS |
+| 7/10 | Install Composer |
+| 8/10 | Setup application (Composer install, .env, migrations, seed, admin user) |
 | 9/10 | Build frontend (npm ci + npm run build) |
-| 10/10 | Configure Apache + set permissions |
+| 10/10 | Configure Apache VHost, Supervisor/Horizon, Cron + set permissions |
 
 ## Deployment Modes
 
