@@ -88,6 +88,9 @@ if [ ! -f "${INSTALL_DIR}/artisan" ]; then
     error "Kein Laravel-Projekt in ${INSTALL_DIR} gefunden. Bitte im Installationsverzeichnis ausfuehren."
 fi
 
+# Git safe.directory setzen (noetig wenn Repository einem anderen User gehoert, z.B. www-data)
+git config --global --add safe.directory "${INSTALL_DIR}" 2>/dev/null || true
+
 # Pruefen ob .env existiert
 if [ ! -f "${INSTALL_DIR}/.env" ]; then
     error "Keine .env gefunden. Bitte zuerst setup.sh ausfuehren."
