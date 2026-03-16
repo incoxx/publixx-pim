@@ -3,7 +3,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useLocaleStore } from '@/stores/locale'
 import { useAuthStore } from '@/stores/auth'
-import { Globe, Palette, AlertTriangle, Server, RotateCcw, CheckCircle, XCircle, Loader2, GitBranch, Database, Upload, Trash2, Save, Filter, LayoutGrid, Columns3, Image, Settings2, Paintbrush, BookOpen, GripVertical, Plus, X, Shield, Key, Eye, Monitor, RefreshCw } from 'lucide-vue-next'
+import { Globe, Palette, AlertTriangle, Server, RotateCcw, CheckCircle, XCircle, Loader2, GitBranch, Database, Upload, Trash2, Save, Filter, LayoutGrid, Columns3, Image, Settings2, Paintbrush, BookOpen, GripVertical, Plus, X, Shield, Key, Eye, Monitor, RefreshCw, FileCode2, Activity, HardDrive, Cpu, Check } from 'lucide-vue-next'
 import { useLicenseStore } from '@/stores/license'
 import adminApi from '@/api/admin'
 import catalogApi from '@/api/catalog'
@@ -54,6 +54,80 @@ async function clearLicense() {
     licenseActivating.value = false
   }
 }
+
+// ── Environment & System Status State ──
+const envGroups = ref([])
+const envLoading = ref(false)
+const envFilter = ref('all') // 'all', 'set', 'unset'
+
+const systemStatus = ref(null)
+const systemLoading = ref(false)
+
+async function loadEnvInfo() {
+  envLoading.value = true
+  try {
+    const { data } = await adminApi.getEnvInfo()
+    envGroups.value = data.data || []
+  } catch (e) {
+    console.warn('Failed to load env info:', e.message)
+  } finally {
+    envLoading.value = false
+  }
+}
+
+async function loadSystemStatus() {
+  systemLoading.value = true
+  try {
+    const { data } = await adminApi.getSystemStatus()
+    systemStatus.value = data.data || null
+  } catch (e) {
+    console.warn('Failed to load system status:', e.message)
+  } finally {
+    systemLoading.value = false
+  }
+}
+
+function serviceStatusColor(status) {
+  if (status === 'running') return 'text-[var(--color-success)]'
+  if (status === 'paused') return 'text-[var(--color-warning)]'
+  if (status === 'error' || status === 'stopped' || status === 'inactive') return 'text-[var(--color-error)]'
+  if (status === 'not_configured') return 'text-[var(--color-text-tertiary)]'
+  return 'text-[var(--color-text-secondary)]'
+}
+
+function serviceStatusLabel(status) {
+  const map = {
+    running: 'Aktiv',
+    paused: 'Pausiert',
+    error: 'Fehler',
+    stopped: 'Gestoppt',
+    inactive: 'Inaktiv',
+    not_configured: 'Nicht konfiguriert',
+    unknown: 'Unbekannt',
+  }
+  return map[status] || status
+}
+
+function serviceStatusBg(status) {
+  if (status === 'running') return 'bg-[var(--color-success)]/10 border-[var(--color-success)]/30'
+  if (status === 'paused') return 'bg-[var(--color-warning)]/10 border-[var(--color-warning)]/30'
+  if (status === 'error' || status === 'stopped' || status === 'inactive') return 'bg-[var(--color-error)]/10 border-[var(--color-error)]/30'
+  return 'bg-[var(--color-bg)] border-[var(--color-border)]'
+}
+
+function progressBarColor(percent) {
+  if (percent >= 90) return 'bg-[var(--color-error)]'
+  if (percent >= 75) return 'bg-[var(--color-warning)]'
+  return 'bg-[var(--color-success)]'
+}
+
+const filteredEnvGroups = computed(() => {
+  if (envFilter.value === 'all') return envGroups.value
+  return envGroups.value.map(g => ({
+    ...g,
+    items: g.items.filter(i => envFilter.value === 'set' ? i.is_set : !i.is_set),
+  })).filter(g => g.items.length > 0)
+})
 
 // ── Catalog Theme State ──
 const FONT_OPTIONS = [
@@ -652,6 +726,12 @@ async function triggerRollback() {
   }
 }
 
+// Lazy-load data when switching to env/system tabs
+watch(activeMainTab, (tab) => {
+  if (tab === 'env' && envGroups.value.length === 0) loadEnvInfo()
+  if (tab === 'system' && !systemStatus.value) loadSystemStatus()
+})
+
 // Reload attributes when hierarchy selection changes
 watch(() => themeForm.value.hierarchy_id, (newId, oldId) => {
   if (newId !== oldId) {
@@ -684,6 +764,8 @@ onMounted(async () => {
         v-for="tab in [
           { key: 'general', label: 'Generell', icon: Settings2 },
           ...(isAdmin ? [{ key: 'catalog', label: 'Preview Katalog', icon: Eye }] : []),
+          ...(isAdmin ? [{ key: 'env', label: 'Umgebung', icon: FileCode2 }] : []),
+          ...(isAdmin ? [{ key: 'system', label: 'System', icon: Activity }] : []),
           ...(isAdmin ? [{ key: 'license', label: 'Lizenz', icon: Key }] : []),
         ]"
         :key="tab.key"
@@ -1864,6 +1946,210 @@ onMounted(async () => {
     </div>
 
     </template><!-- end TAB: Generell (continued) -->
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- TAB: UMGEBUNG (ENV)                                                -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <template v-if="activeMainTab === 'env' && isAdmin">
+
+    <div class="pim-card p-6 space-y-4">
+      <div class="flex items-center justify-between mb-2">
+        <div class="flex items-center gap-3">
+          <FileCode2 class="w-5 h-5 text-[var(--color-accent)]" :stroke-width="1.75" />
+          <h3 class="text-sm font-semibold">Umgebungsvariablen</h3>
+        </div>
+        <div class="flex items-center gap-2">
+          <select v-model="envFilter" class="pim-input text-xs py-1 px-2">
+            <option value="all">Alle</option>
+            <option value="set">Nur gesetzte</option>
+            <option value="unset">Nur fehlende</option>
+          </select>
+          <button class="pim-btn pim-btn-secondary text-xs py-1" @click="loadEnvInfo" :disabled="envLoading">
+            <RefreshCw class="w-3.5 h-3.5" :class="{ 'animate-spin': envLoading }" :stroke-width="2" />
+          </button>
+        </div>
+      </div>
+
+      <div v-if="envLoading && envGroups.length === 0" class="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">
+        <Loader2 class="w-4 h-4 animate-spin" :stroke-width="2" />
+        Lade Umgebungsvariablen...
+      </div>
+
+      <div v-else-if="envGroups.length === 0" class="text-sm text-[var(--color-text-tertiary)]">
+        Keine Daten geladen.
+      </div>
+
+      <template v-else>
+        <div v-for="group in filteredEnvGroups" :key="group.group" class="space-y-1">
+          <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wider pt-3 pb-1 border-b border-[var(--color-border)]">
+            {{ group.group }}
+          </h4>
+          <div class="divide-y divide-[var(--color-border)]">
+            <div
+              v-for="item in group.items"
+              :key="item.key"
+              class="flex items-center gap-3 py-2 text-xs"
+            >
+              <div class="w-4 shrink-0">
+                <Check v-if="item.is_set" class="w-3.5 h-3.5 text-[var(--color-success)]" :stroke-width="2.5" />
+                <XCircle v-else class="w-3.5 h-3.5 text-[var(--color-text-quaternary)]" :stroke-width="2" />
+              </div>
+              <div class="min-w-0 flex-1">
+                <span class="font-mono font-medium" :class="item.is_set ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-tertiary)]'">{{ item.key }}</span>
+                <span class="ml-2 text-[var(--color-text-tertiary)]">{{ item.description }}</span>
+              </div>
+              <div class="shrink-0 text-right">
+                <span v-if="item.value" class="font-mono text-[11px] px-1.5 py-0.5 rounded bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)]">{{ item.value }}</span>
+                <span v-else class="text-[var(--color-text-quaternary)]">—</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
+    </div>
+
+    </template><!-- end TAB: Umgebung -->
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- TAB: SYSTEM                                                        -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <template v-if="activeMainTab === 'system' && isAdmin">
+
+    <!-- Services -->
+    <div class="pim-card p-6 space-y-4">
+      <div class="flex items-center justify-between mb-2">
+        <div class="flex items-center gap-3">
+          <Activity class="w-5 h-5 text-[var(--color-accent)]" :stroke-width="1.75" />
+          <h3 class="text-sm font-semibold">Services</h3>
+        </div>
+        <button class="pim-btn pim-btn-secondary text-xs py-1" @click="loadSystemStatus" :disabled="systemLoading">
+          <RefreshCw class="w-3.5 h-3.5" :class="{ 'animate-spin': systemLoading }" :stroke-width="2" />
+        </button>
+      </div>
+
+      <div v-if="systemLoading && !systemStatus" class="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">
+        <Loader2 class="w-4 h-4 animate-spin" :stroke-width="2" />
+        Lade Systemstatus...
+      </div>
+
+      <div v-else-if="!systemStatus" class="text-sm text-[var(--color-text-tertiary)]">
+        Keine Daten geladen.
+      </div>
+
+      <template v-else>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div
+            v-for="svc in systemStatus.services"
+            :key="svc.name"
+            class="flex items-center gap-3 px-4 py-3 rounded-lg border"
+            :class="serviceStatusBg(svc.status)"
+          >
+            <div class="w-2.5 h-2.5 rounded-full shrink-0" :class="svc.status === 'running' ? 'bg-[var(--color-success)]' : svc.status === 'paused' ? 'bg-[var(--color-warning)]' : svc.status === 'error' || svc.status === 'stopped' ? 'bg-[var(--color-error)]' : 'bg-[var(--color-text-quaternary)]'"></div>
+            <div class="min-w-0 flex-1">
+              <p class="text-xs font-semibold text-[var(--color-text-primary)]">{{ svc.name }}</p>
+              <p class="text-[11px]" :class="serviceStatusColor(svc.status)">
+                {{ serviceStatusLabel(svc.status) }}
+                <span v-if="svc.version" class="text-[var(--color-text-tertiary)]">· {{ svc.version }}</span>
+              </p>
+              <p v-if="svc.error" class="text-[10px] text-[var(--color-error)] truncate mt-0.5">{{ svc.error }}</p>
+            </div>
+          </div>
+        </div>
+      </template>
+    </div>
+
+    <!-- Resources -->
+    <div v-if="systemStatus" class="pim-card p-6 space-y-5">
+      <div class="flex items-center gap-3 mb-2">
+        <Cpu class="w-5 h-5 text-[var(--color-accent)]" :stroke-width="1.75" />
+        <h3 class="text-sm font-semibold">Ressourcen</h3>
+      </div>
+
+      <!-- RAM -->
+      <div v-if="systemStatus.resources?.ram?.total_mb" class="space-y-2">
+        <div class="flex items-center justify-between text-xs">
+          <span class="font-medium text-[var(--color-text-secondary)]">RAM</span>
+          <span class="text-[var(--color-text-tertiary)]">
+            {{ Math.round(systemStatus.resources.ram.used_mb / 1024 * 10) / 10 }} GB /
+            {{ Math.round(systemStatus.resources.ram.total_mb / 1024 * 10) / 10 }} GB
+            <span class="font-medium" :class="systemStatus.resources.ram.percent >= 90 ? 'text-[var(--color-error)]' : systemStatus.resources.ram.percent >= 75 ? 'text-[var(--color-warning)]' : 'text-[var(--color-success)]'">
+              ({{ systemStatus.resources.ram.percent }}%)
+            </span>
+          </span>
+        </div>
+        <div class="w-full h-2 rounded-full bg-[var(--color-bg-secondary)] overflow-hidden">
+          <div class="h-full rounded-full transition-all" :class="progressBarColor(systemStatus.resources.ram.percent)" :style="{ width: systemStatus.resources.ram.percent + '%' }"></div>
+        </div>
+      </div>
+
+      <!-- Disk -->
+      <div v-if="systemStatus.resources?.disk?.total_gb" class="space-y-2">
+        <div class="flex items-center justify-between text-xs">
+          <div class="flex items-center gap-2">
+            <span class="font-medium text-[var(--color-text-secondary)]">Festplatte</span>
+            <span class="text-[10px] font-mono text-[var(--color-text-quaternary)]">{{ systemStatus.resources.disk.path }}</span>
+          </div>
+          <span class="text-[var(--color-text-tertiary)]">
+            {{ systemStatus.resources.disk.used_gb }} GB /
+            {{ systemStatus.resources.disk.total_gb }} GB
+            <span class="font-medium" :class="systemStatus.resources.disk.percent >= 90 ? 'text-[var(--color-error)]' : systemStatus.resources.disk.percent >= 75 ? 'text-[var(--color-warning)]' : 'text-[var(--color-success)]'">
+              ({{ systemStatus.resources.disk.percent }}%)
+            </span>
+          </span>
+        </div>
+        <div class="w-full h-2 rounded-full bg-[var(--color-bg-secondary)] overflow-hidden">
+          <div class="h-full rounded-full transition-all" :class="progressBarColor(systemStatus.resources.disk.percent)" :style="{ width: systemStatus.resources.disk.percent + '%' }"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PHP Info -->
+    <div v-if="systemStatus?.php" class="pim-card p-6 space-y-4">
+      <div class="flex items-center gap-3 mb-2">
+        <Server class="w-5 h-5 text-[var(--color-accent)]" :stroke-width="1.75" />
+        <h3 class="text-sm font-semibold">PHP</h3>
+        <span class="text-xs font-mono text-[var(--color-text-tertiary)]">{{ systemStatus.php.version }}</span>
+      </div>
+
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div class="text-xs">
+          <p class="text-[var(--color-text-tertiary)]">Memory Limit</p>
+          <p class="font-mono font-medium text-[var(--color-text-primary)]">{{ systemStatus.php.memory_limit }}</p>
+        </div>
+        <div class="text-xs">
+          <p class="text-[var(--color-text-tertiary)]">Max Execution</p>
+          <p class="font-mono font-medium text-[var(--color-text-primary)]">{{ systemStatus.php.max_execution_time }}s</p>
+        </div>
+        <div class="text-xs">
+          <p class="text-[var(--color-text-tertiary)]">Upload Max</p>
+          <p class="font-mono font-medium text-[var(--color-text-primary)]">{{ systemStatus.php.upload_max_filesize }}</p>
+        </div>
+        <div class="text-xs">
+          <p class="text-[var(--color-text-tertiary)]">Post Max</p>
+          <p class="font-mono font-medium text-[var(--color-text-primary)]">{{ systemStatus.php.post_max_size }}</p>
+        </div>
+      </div>
+
+      <div class="pt-3 border-t border-[var(--color-border)]">
+        <p class="text-xs font-medium text-[var(--color-text-secondary)] mb-2">Extensions</p>
+        <div class="flex flex-wrap gap-2">
+          <span
+            v-for="(loaded, ext) in systemStatus.php.extensions"
+            :key="ext"
+            class="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-mono border"
+            :class="loaded
+              ? 'bg-[var(--color-success)]/5 border-[var(--color-success)]/20 text-[var(--color-success)]'
+              : 'bg-[var(--color-error)]/5 border-[var(--color-error)]/20 text-[var(--color-error)]'"
+          >
+            <Check v-if="loaded" class="w-3 h-3" :stroke-width="2.5" />
+            <XCircle v-else class="w-3 h-3" :stroke-width="2" />
+            {{ ext }}
+          </span>
+        </div>
+      </div>
+    </div>
+
+    </template><!-- end TAB: System -->
 
     <!-- ═══════════════════════════════════════════════════════════════════ -->
     <!-- TAB: LIZENZ                                                        -->
