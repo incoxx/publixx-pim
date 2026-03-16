@@ -103,6 +103,23 @@ class ProjectController extends Controller
         return new ProjectResource($project->fresh());
     }
 
+    public function bulkAddProducts(Request $request, Project $project): JsonResponse
+    {
+        $this->authorize('update', $project);
+
+        $validated = $request->validate([
+            'product_ids' => ['required', 'array', 'min:1'],
+            'product_ids.*' => ['required', 'uuid', 'exists:products,id'],
+        ]);
+
+        $project->products()->syncWithoutDetaching($validated['product_ids']);
+
+        return response()->json([
+            'message' => count($validated['product_ids']) . ' Produkt(e) dem Projekt zugeordnet.',
+            'products_count' => $project->products()->count(),
+        ]);
+    }
+
     public function dependencies(Project $project): JsonResponse
     {
         $this->authorize('view', $project);

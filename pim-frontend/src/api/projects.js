@@ -24,4 +24,8 @@ export default {
   delete(id, { force = false } = {}) {
     return client.delete(`/projects/${id}`, { params: force ? { force: true } : {} })
   },
+
+  bulkAddProducts(projectId, productIds) {
+    return client.post(`/projects/${projectId}/bulk-add-products`, { product_ids: productIds })
+  },
 }

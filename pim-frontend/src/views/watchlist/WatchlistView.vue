@@ -5,7 +5,7 @@ import { useLocaleStore } from '@/stores/locale'
 import {
   Star, Trash2, Download, FileSpreadsheet, FileText,
   Languages, Archive, X, GitCompareArrows, Pencil, Settings, ListFilter,
-  Code2, ChevronDown, ChevronUp,
+  Code2, ChevronDown, ChevronUp, FolderTree,
 } from 'lucide-vue-next'
 import { useAttributeStore } from '@/stores/attributes'
 import watchlistApi from '@/api/watchlist'
@@ -18,10 +18,13 @@ import { triggerDownload } from '@/utils/download'
 import PimConfirmDialog from '@/components/shared/PimConfirmDialog.vue'
 import ReportTemplatePickerModal from '@/components/reports/ReportTemplatePickerModal.vue'
 import PdfTemplatePickerModal from '@/components/pdf-templates/PdfTemplatePickerModal.vue'
+import { useLicenseStore } from '@/stores/license'
+import BulkAssignProjectDialog from '@/components/dialogs/BulkAssignProjectDialog.vue'
 
 const router = useRouter()
 const localeStore = useLocaleStore()
 const attrStore = useAttributeStore()
+const licenseStore = useLicenseStore()
 
 const items = ref([])
 const loading = ref(false)
@@ -303,6 +306,9 @@ async function removeAllItems() {
 
 const watchlistProductIds = computed(() => items.value.map(i => i.product_id).filter(Boolean))
 
+// ─── Bulk Assign to Project ──────────────────────────
+const showAssignProject = ref(false)
+
 // --- API Call Display ---
 const showApiCall = ref(false)
 const apiBaseUrl = computed(() => import.meta.env.VITE_API_BASE_URL || '/api/v1')
@@ -493,6 +499,14 @@ onMounted(async () => {
       >
         <FileText class="w-3.5 h-3.5" :stroke-width="1.75" />
         <span class="hidden sm:inline">PDF-Vorlage</span>
+      </button>
+      <button
+        v-if="licenseStore.isModuleActive('workflow')"
+        class="pim-btn pim-btn-secondary text-xs"
+        @click="showAssignProject = true"
+      >
+        <FolderTree class="w-3.5 h-3.5" :stroke-width="1.75" />
+        <span class="hidden sm:inline">Projekt zuordnen</span>
       </button>
       <button
         class="pim-btn pim-btn-danger text-xs"
@@ -694,6 +708,12 @@ onMounted(async () => {
     <!-- PDF Template Picker (selected only) -->
     <PdfTemplatePickerModal
       v-model:open="showPdfTemplatePickerSelected"
+      :productIds="selectedProductIds"
+    />
+
+    <!-- Bulk Assign to Project Dialog -->
+    <BulkAssignProjectDialog
+      v-model:open="showAssignProject"
       :productIds="selectedProductIds"
     />
   </div>

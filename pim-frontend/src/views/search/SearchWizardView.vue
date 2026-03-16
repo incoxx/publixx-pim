@@ -22,10 +22,13 @@ import { useColumnConfig } from '@/composables/useColumnConfig'
 import { triggerDownload } from '@/utils/download'
 import { useAttributeStore } from '@/stores/attributes'
 import ReportTemplatePickerModal from '@/components/reports/ReportTemplatePickerModal.vue'
+import { useLicenseStore } from '@/stores/license'
+import BulkAssignProjectDialog from '@/components/dialogs/BulkAssignProjectDialog.vue'
 
 const router = useRouter()
 const localeStore = useLocaleStore()
 const attrStore = useAttributeStore()
+const licenseStore = useLicenseStore()
 
 // --- Search Profiles ---
 const searchProfiles = ref([])
@@ -705,6 +708,9 @@ function openBulkUpdate() {
   router.push({ path: '/products/bulk-update', query: { ids } })
 }
 
+// ─── Bulk Assign to Project ──────────────────────────
+const showAssignProject = ref(false)
+
 // --- API Call Display ---
 const showApiCall = ref(false)
 const apiBaseUrl = computed(() => import.meta.env.VITE_API_BASE_URL || '/api/v1')
@@ -1106,6 +1112,14 @@ const apiCallDisplay = computed(() => {
         <FileText class="w-3.5 h-3.5" :stroke-width="1.75" />
         <span class="hidden sm:inline">Report</span>
       </button>
+      <button
+        v-if="licenseStore.isModuleActive('workflow')"
+        class="pim-btn pim-btn-secondary text-xs"
+        @click="showAssignProject = true"
+      >
+        <FolderTree class="w-3.5 h-3.5" :stroke-width="1.75" />
+        <span class="hidden sm:inline">Projekt zuordnen</span>
+      </button>
       <span v-if="selectedProductIds.length === 1" class="text-[11px] text-[var(--color-text-tertiary)] hidden sm:inline">
         Noch 1 Produkt auswählen zum Vergleichen
       </span>
@@ -1400,6 +1414,12 @@ const apiCallDisplay = computed(() => {
     <ReportTemplatePickerModal
       v-model:open="showReportPicker"
       :productIds="reportProductIds"
+    />
+
+    <!-- Bulk Assign to Project Dialog -->
+    <BulkAssignProjectDialog
+      v-model:open="showAssignProject"
+      :productIds="selectedProductIds"
     />
   </div>
 </template>
