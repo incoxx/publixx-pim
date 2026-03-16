@@ -1228,10 +1228,9 @@ onMounted(async () => {
                 :checked="(themeForm.catalog_relation_type_ids || []).includes(rt.id)"
                 class="rounded border-[var(--color-border-strong)] text-[var(--color-accent)]"
                 @change="
-                  const ids = [...(themeForm.catalog_relation_type_ids || [])];
-                  const idx = ids.indexOf(rt.id);
-                  if (idx >= 0) ids.splice(idx, 1); else ids.push(rt.id);
-                  themeForm.catalog_relation_type_ids = ids;
+                  $event.target.checked
+                    ? themeForm.catalog_relation_type_ids.push(rt.id)
+                    : themeForm.catalog_relation_type_ids = themeForm.catalog_relation_type_ids.filter(id => id !== rt.id)
                 "
               />
               {{ rt.name_de || rt.technical_name }}
