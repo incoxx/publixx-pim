@@ -119,27 +119,22 @@ class HierarchyInheritanceService
     }
 
     /**
-     * Get the ancestor node IDs for a given node (ordered by depth, root first).
+     * Get the ancestor node IDs for a given node by walking the parent_node_id chain.
      *
-     * Uses the materialized path column: the node's path contains all ancestor IDs.
-     * Path format: /root-id/child-id/grandchild-id/
-     *
-     * @return array<int, string> Ancestor node IDs ordered by depth
+     * @return array<int, string> Ancestor node IDs (unordered)
      */
     public function getAncestorIds(HierarchyNode $node): array
     {
-        if (empty($node->path)) {
-            return [];
+        $ids = [];
+        $current = $node->parent_node_id;
+
+        while ($current !== null) {
+            $ids[] = $current;
+            $parent = HierarchyNode::select('id', 'parent_node_id')->find($current);
+            $current = $parent?->parent_node_id;
         }
 
-        // Path format: /root-id/child-id/this-node-id/
-        // Extract all IDs from the path, excluding the node itself
-        $pathSegments = array_filter(explode('/', trim($node->path, '/')));
-
-        // Remove the last segment (which is the node itself)
-        array_pop($pathSegments);
-
-        return array_values($pathSegments);
+        return $ids;
     }
 
     /**

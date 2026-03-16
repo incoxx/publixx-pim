@@ -220,11 +220,14 @@ class NodeAttributeAssignmentController extends Controller
     private function getAncestorNodeIds(HierarchyNode $node): array
     {
         $ids = [];
-        $pathSegments = array_filter(explode('/', trim($node->path, '/')));
+        $current = $node->parent_node_id;
 
-        // Remove the last segment (current node)
-        array_pop($pathSegments);
+        while ($current !== null) {
+            $ids[] = $current;
+            $parent = HierarchyNode::select('id', 'parent_node_id')->find($current);
+            $current = $parent?->parent_node_id;
+        }
 
-        return $pathSegments;
+        return $ids;
     }
 }
