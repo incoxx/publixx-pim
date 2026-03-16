@@ -51,6 +51,11 @@ class MediaAttributeValue extends Model
         return $this->belongsTo(ValueListEntry::class, 'value_selection_id');
     }
 
+    public function dictionaryEntry(): BelongsTo
+    {
+        return $this->belongsTo(DictionaryEntry::class, 'value_selection_id');
+    }
+
     public function unit(): BelongsTo
     {
         return $this->belongsTo(Unit::class);

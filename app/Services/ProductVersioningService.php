@@ -321,7 +321,8 @@ class ProductVersioningService
             'Flag' => $av->value_flag !== null
                 ? ($av->value_flag ? 'Ja' : 'Nein')
                 : null,
-            'Selection', 'Dictionary' => $this->resolveSelectionLabel($av),
+            'Selection' => $this->resolveSelectionLabel($av),
+            'Dictionary' => $this->resolveDictionaryLabel($av),
             default => $av->value_string
                 ?? ($av->value_number !== null ? rtrim(rtrim((string) $av->value_number, '0'), '.') : null)
                 ?? $av->value_date?->format('Y-m-d')
@@ -338,5 +339,15 @@ class ProductVersioningService
         }
 
         return $entry->display_value_de;
+    }
+
+    private function resolveDictionaryLabel(ProductAttributeValue $av): ?string
+    {
+        $entry = $av->dictionaryEntry;
+        if (!$entry) {
+            return null;
+        }
+
+        return $entry->short_text_de;
     }
 }

@@ -87,7 +87,8 @@ class AssetCatalogResource extends JsonResource
                 : null,
             'Date' => $attrValue->value_date?->format('Y-m-d'),
             'Flag' => $attrValue->value_flag !== null ? ($attrValue->value_flag ? 'Ja' : 'Nein') : null,
-            'Selection', 'Dictionary' => $this->resolveSelectionValue($attrValue, $lang),
+            'Selection' => $this->resolveSelectionValue($attrValue, $lang),
+            'Dictionary' => $this->resolveDictionaryValue($attrValue, $lang),
             default => $attrValue->value_string,
         };
     }
@@ -101,5 +102,16 @@ class AssetCatalogResource extends JsonResource
         return $lang === 'en' && $entry->display_value_en
             ? $entry->display_value_en
             : $entry->display_value_de;
+    }
+
+    private function resolveDictionaryValue($attrValue, string $lang): ?string
+    {
+        $entry = $attrValue->dictionaryEntry;
+        if (!$entry) {
+            return $attrValue->value_string;
+        }
+        return $lang === 'en' && $entry->short_text_en
+            ? $entry->short_text_en
+            : $entry->short_text_de;
     }
 }

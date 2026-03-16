@@ -152,6 +152,7 @@ class ReportDataCollector
             $relations[] = 'attributeValues.attribute';
             $relations[] = 'attributeValues.unit';
             $relations[] = 'attributeValues.valueListEntry';
+            $relations[] = 'attributeValues.dictionaryEntry';
         }
 
         if ($hasImages) {

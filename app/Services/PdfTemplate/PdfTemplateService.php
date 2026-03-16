@@ -280,6 +280,7 @@ class PdfTemplateService
             $relations[] = 'attributeValues.attribute';
             $relations[] = 'attributeValues.unit';
             $relations[] = 'attributeValues.valueListEntry';
+            $relations[] = 'attributeValues.dictionaryEntry';
         }
 
         if ($hasImages) {
@@ -292,16 +293,19 @@ class PdfTemplateService
             $relations[] = 'variants.attributeValues.attribute';
             $relations[] = 'variants.attributeValues.unit';
             $relations[] = 'variants.attributeValues.valueListEntry';
+            $relations[] = 'variants.attributeValues.dictionaryEntry';
         }
 
         if ($hasRelationTable) {
             $relations[] = 'outgoingRelations.targetProduct.attributeValues.attribute';
             $relations[] = 'outgoingRelations.targetProduct.attributeValues.unit';
             $relations[] = 'outgoingRelations.targetProduct.attributeValues.valueListEntry';
+            $relations[] = 'outgoingRelations.targetProduct.attributeValues.dictionaryEntry';
             $relations[] = 'outgoingRelations.relationType';
             $relations[] = 'outgoingRelations.attributeValues.attribute';
             $relations[] = 'outgoingRelations.attributeValues.unit';
             $relations[] = 'outgoingRelations.attributeValues.valueListEntry';
+            $relations[] = 'outgoingRelations.attributeValues.dictionaryEntry';
         }
 
         return $relations;

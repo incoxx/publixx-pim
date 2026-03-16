@@ -485,6 +485,7 @@ class CatalogController extends BaseController
                 },
                 'attributeValues.attribute',
                 'attributeValues.valueListEntry',
+                'attributeValues.dictionaryEntry',
                 'attributeValues.unit',
                 'variants',
                 'outgoingRelations' => function ($q) use ($catalogRelationTypeIds) {
@@ -609,6 +610,7 @@ class CatalogController extends BaseController
                 'masterHierarchyNode',
                 'attributeValues.attribute',
                 'attributeValues.valueListEntry',
+                'attributeValues.dictionaryEntry',
                 'attributeValues.unit',
                 'variants',
             ])
@@ -722,6 +724,7 @@ class CatalogController extends BaseController
                 'masterHierarchyNode',
                 'attributeValues.attribute',
                 'attributeValues.valueListEntry',
+                'attributeValues.dictionaryEntry',
                 'attributeValues.unit',
                 'prices' => function ($q) {
                     $q->where(function ($q2) {
@@ -890,7 +893,8 @@ class CatalogController extends BaseController
             'Number', 'Float' => $attrValue->value_number !== null ? rtrim(rtrim((string) $attrValue->value_number, '0'), '.') : null,
             'Date' => $attrValue->value_date?->format('Y-m-d'),
             'Flag' => $attrValue->value_flag !== null ? ($attrValue->value_flag ? 'true' : 'false') : null,
-            'Selection', 'Dictionary' => $this->resolveExportSelectionValue($attrValue, $lang),
+            'Selection' => $this->resolveExportSelectionValue($attrValue, $lang),
+            'Dictionary' => $this->resolveExportDictionaryValue($attrValue, $lang),
             default => $attrValue->value_string,
         };
     }
@@ -904,6 +908,17 @@ class CatalogController extends BaseController
         return $lang === 'en' && $entry->display_value_en
             ? $entry->display_value_en
             : $entry->display_value_de;
+    }
+
+    private function resolveExportDictionaryValue($attrValue, string $lang): ?string
+    {
+        $entry = $attrValue->dictionaryEntry;
+        if (!$entry) {
+            return null;
+        }
+        return $lang === 'en' && $entry->short_text_en
+            ? $entry->short_text_en
+            : $entry->short_text_de;
     }
 
     /**

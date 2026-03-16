@@ -40,6 +40,7 @@ class AssetCatalogController extends BaseController
         $query = Media::query()->with([
             'attributeValues.attribute',
             'attributeValues.valueListEntry',
+            'attributeValues.dictionaryEntry',
             'attributeValues.unit',
             'assetFolder',
         ]);
@@ -232,6 +233,7 @@ class AssetCatalogController extends BaseController
         $medium->load([
             'attributeValues.attribute',
             'attributeValues.valueListEntry',
+            'attributeValues.dictionaryEntry',
             'attributeValues.unit',
             'assetFolder',
         ]);

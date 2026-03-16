@@ -29,6 +29,7 @@ class ProductPreviewService
             'masterHierarchyNode',
             'attributeValues.attribute',
             'attributeValues.valueListEntry',
+            'attributeValues.dictionaryEntry',
             'attributeValues.unit',
             'prices.priceType',
             'relations.relationType',
@@ -195,7 +196,7 @@ class ProductPreviewService
             // Load channel-specific values for this hierarchy
             $channelValues = ProductAttributeValue::where('product_id', $product->id)
                 ->where('output_hierarchy_id', $hierarchyId)
-                ->with(['attribute', 'valueListEntry', 'unit'])
+                ->with(['attribute', 'valueListEntry', 'dictionaryEntry', 'unit'])
                 ->get()
                 ->groupBy('attribute_id');
 
@@ -458,7 +459,7 @@ class ProductPreviewService
         $variantIds = $product->variants->pluck('id');
         $allVariantValues = ProductAttributeValue::whereIn('product_id', $variantIds)
             ->whereIn('attribute_id', $variantAttributes->pluck('id'))
-            ->with(['attribute', 'valueListEntry', 'unit'])
+            ->with(['attribute', 'valueListEntry', 'dictionaryEntry', 'unit'])
             ->get()
             ->groupBy('product_id');
 
@@ -541,7 +542,8 @@ class ProductPreviewService
             'Flag' => $attrValue->value_flag !== null
                 ? ($attrValue->value_flag ? ($lang === 'en' ? 'Yes' : 'Ja') : ($lang === 'en' ? 'No' : 'Nein'))
                 : null,
-            'Selection', 'Dictionary' => $this->resolveSelectionValue($attrValue, $lang),
+            'Selection' => $this->resolveSelectionValue($attrValue, $lang),
+            'Dictionary' => $this->resolveDictionaryValue($attrValue, $lang),
             'Hyperlink', 'ImageLink', 'PdfLink', 'VideoLink' => $this->resolveLinkDisplayValue($attrValue->value_string),
             default => $attrValue->value_string,
         };
@@ -571,6 +573,18 @@ class ProductPreviewService
         return $lang === 'en' && $entry->display_value_en
             ? $entry->display_value_en
             : $entry->display_value_de;
+    }
+
+    private function resolveDictionaryValue(ProductAttributeValue $attrValue, string $lang): ?string
+    {
+        $entry = $attrValue->dictionaryEntry;
+        if (!$entry) {
+            return null;
+        }
+
+        return $lang === 'en' && $entry->short_text_en
+            ? $entry->short_text_en
+            : $entry->short_text_de;
     }
 
     /**
