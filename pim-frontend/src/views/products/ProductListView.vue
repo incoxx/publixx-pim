@@ -7,7 +7,7 @@ import { useAttributeStore } from '@/stores/attributes'
 import { useAuthStore } from '@/stores/auth'
 import { useFilters } from '@/composables/useFilters'
 import { useLocaleStore } from '@/stores/locale'
-import { Plus, Languages, Upload, Download, X, GitCompareArrows, Star, Pencil, FileSpreadsheet, ListFilter, Settings, Package } from 'lucide-vue-next'
+import { Plus, Languages, Upload, Download, X, GitCompareArrows, Star, Pencil, FileSpreadsheet, ListFilter, Settings, Package, FolderTree } from 'lucide-vue-next'
 import mediaApi from '@/api/media'
 import PimTable from '@/components/shared/PimTable.vue'
 import ColumnConfigPopover from '@/components/shared/ColumnConfigPopover.vue'
@@ -20,6 +20,8 @@ import productsApi from '@/api/products'
 import watchlistApi from '@/api/watchlist'
 import searchApi from '@/api/search'
 import manufacturersApi from '@/api/manufacturers'
+import { useLicenseStore } from '@/stores/license'
+import BulkAssignProjectDialog from '@/components/dialogs/BulkAssignProjectDialog.vue'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -27,6 +29,7 @@ const store = useProductStore()
 const attrStore = useAttributeStore()
 const authStore = useAuthStore()
 const localeStore = useLocaleStore()
+const licenseStore = useLicenseStore()
 
 const { search, activeFilters, setSearch, removeFilter, clearFilters } = useFilters(() => {
   store.setSearch(search.value)
@@ -306,6 +309,9 @@ function openBulkUpdate() {
   router.push({ path: '/products/bulk-update', query: { ids } })
 }
 
+// ─── Bulk Assign to Project ──────────────────────────
+const showAssignProject = ref(false)
+
 // Fetch with attribute columns
 function fetchWithAttributes() {
   const attrColumnIds = visibleKeys.value
@@ -459,6 +465,14 @@ onMounted(async () => {
       <button class="pim-btn pim-btn-secondary text-xs" @click="openBulkUpdate">
         <Settings class="w-3.5 h-3.5" :stroke-width="1.75" />
         <span class="hidden sm:inline">Massendatenpflege</span>
+      </button>
+      <button
+        v-if="licenseStore.isModuleActive('workflow')"
+        class="pim-btn pim-btn-secondary text-xs"
+        @click="showAssignProject = true"
+      >
+        <FolderTree class="w-3.5 h-3.5" :stroke-width="1.75" />
+        <span class="hidden sm:inline">Projekt zuordnen</span>
       </button>
       <span v-if="!canCompare && selectedProductIds.length === 1" class="text-[11px] text-[var(--color-text-tertiary)] hidden sm:inline">
         Noch 1 Produkt auswählen zum Vergleichen
@@ -659,5 +673,11 @@ onMounted(async () => {
         </div>
       </transition>
     </Teleport>
+
+    <!-- Bulk Assign to Project Dialog -->
+    <BulkAssignProjectDialog
+      v-model:open="showAssignProject"
+      :productIds="selectedProductIds"
+    />
   </div>
 </template>

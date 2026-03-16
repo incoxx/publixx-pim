@@ -651,6 +651,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // =====================================================================
     Route::apiResource('projects', ProjectController::class);
     Route::get('projects/{project}/dependencies', [ProjectController::class, 'dependencies']);
+    Route::post('projects/{project}/bulk-add-products', [ProjectController::class, 'bulkAddProducts']);
 
     // =====================================================================
     // Workflow Statuses (Enterprise: workflow)
