@@ -6,6 +6,9 @@ import { useCatalogStore } from '@/stores/catalog'
 import { X, Download, Heart, Image, FileText, Info, Package, ChevronLeft, ChevronRight } from 'lucide-vue-next'
 import { formatFileSize } from '@/utils/formatting'
 import CatalogProductModal from '@/components/catalog/CatalogProductModal.vue'
+import PdfStatusBadge from '@/components/assetCatalog/PdfStatusBadge.vue'
+import PdfViewer from '@/components/assetCatalog/PdfViewer.vue'
+import pdfApi from '@/api/pdf'
 
 const props = defineProps({
   assetId: String,
@@ -20,13 +23,44 @@ const catalogStore = useCatalogStore()
 const activeTab = ref('details')
 const productModalOpen = ref(false)
 const productModalId = ref(null)
+const pdfDocumentId = ref(null)
+
+const isPdf = computed(() => {
+  const asset = store.currentAsset
+  if (!asset) return false
+  return asset.mime_type === 'application/pdf'
+    || asset.file_name?.toLowerCase().endsWith('.pdf')
+})
 
 watch(() => props.assetId, (id) => {
   if (id) {
     store.fetchAsset(id)
     activeTab.value = 'details'
+    pdfDocumentId.value = null
   }
 })
+
+// PDF-Dokument laden wenn ein PDF-Asset angezeigt wird
+let pdfFetchMediaId = null
+watch(isPdf, async (val) => {
+  if (val && store.currentAsset) {
+    const mediaId = store.currentAsset.id
+    pdfFetchMediaId = mediaId
+    try {
+      const { data } = await pdfApi.getByMedia(mediaId)
+      // Guard: nur setzen wenn noch dasselbe Asset angezeigt wird
+      if (pdfFetchMediaId === mediaId) {
+        pdfDocumentId.value = data.id
+      }
+    } catch {
+      if (pdfFetchMediaId === mediaId) {
+        pdfDocumentId.value = null
+      }
+    }
+  } else {
+    pdfDocumentId.value = null
+  }
+}, { immediate: true })
 
 watch(activeTab, (tab) => {
   if (tab === 'usedBy' && props.assetId) {
@@ -129,6 +163,15 @@ const productPages = computed(() => {
               {{ t('assetCatalog.details') }}
             </button>
             <button
+              v-if="isPdf"
+              class="tab"
+              :class="{ 'tab-active': activeTab === 'pdf' }"
+              @click="activeTab = 'pdf'"
+            >
+              PDF
+              <PdfStatusBadge v-if="store.currentAsset" :media-id="store.currentAsset.id" class="ml-1" />
+            </button>
+            <button
               class="tab"
               :class="{ 'tab-active': activeTab === 'usedBy' }"
               @click="activeTab = 'usedBy'"
@@ -217,6 +260,18 @@ const productPages = computed(() => {
                     </div>
                   </div>
                 </div>
+              </div>
+            </div>
+
+            <!-- ═══ PDF Tab ═══ -->
+            <div v-if="activeTab === 'pdf'" class="p-4 md:p-6">
+              <PdfViewer
+                v-if="pdfDocumentId"
+                :pdf-id="pdfDocumentId"
+              />
+              <div v-else class="flex flex-col items-center py-16 gap-2">
+                <FileText class="w-12 h-12 text-base-content/15" />
+                <p class="text-sm text-base-content/40">{{ t('pdf.notProcessed', 'PDF wird verarbeitet oder nicht verfügbar.') }}</p>
               </div>
             </div>
 

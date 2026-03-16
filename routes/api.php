@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\V1\WorkflowController;
 use App\Http\Controllers\Api\V1\WorkflowStatusController;
 use App\Http\Controllers\Api\V1\WorkflowTaskController;
 use App\Http\Controllers\Api\V1\CatalogController;
+use App\Http\Controllers\Api\V1\PdfController;
 use App\Http\Controllers\Api\V1\AttributeController;
 use App\Http\Controllers\Api\V1\AttributeTypeController;
 use App\Http\Controllers\Api\V1\AttributeViewController;
@@ -128,6 +129,18 @@ Route::prefix('v1/asset-catalog')->middleware(['throttle.pim', 'catalog.access']
     Route::get('assets/{medium}/products', [AssetCatalogController::class, 'assetProducts']);
     Route::get('folders', [AssetCatalogController::class, 'folders']);
     Route::post('download', [AssetCatalogController::class, 'download']);
+});
+
+// =========================================================================
+// Public PDF API (no auth — page images and search for asset catalog)
+// =========================================================================
+Route::prefix('v1/pdf')->middleware(['throttle.pim', 'catalog.access'])->group(function () {
+    Route::get('search', [PdfController::class, 'search']);
+    Route::get('by-media/{mediaId}', [PdfController::class, 'byMedia']);
+    Route::get('{pdfDocument}', [PdfController::class, 'show']);
+    Route::get('{pdfDocument}/page/{pageNumber}', [PdfController::class, 'page'])->where('pageNumber', '[0-9]+');
+    Route::get('{pdfDocument}/pages', [PdfController::class, 'pages']);
+    Route::get('{pdfDocument}/status', [PdfController::class, 'status']);
 });
 
 // =========================================================================
@@ -411,6 +424,11 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::post('products/{product}/versions/{version}/schedule', [ProductVersionController::class, 'schedule']);
     Route::post('products/{product}/versions/{version}/cancel-schedule', [ProductVersionController::class, 'cancelSchedule']);
     Route::post('products/{product}/versions/{version}/revert', [ProductVersionController::class, 'revert']);
+
+    // =====================================================================
+    // PDF Documents (Admin: reprocess)
+    // =====================================================================
+    Route::post('pdf/{pdfDocument}/reprocess', [PdfController::class, 'reprocess']);
 
     // =====================================================================
     // Agent 3: Media
