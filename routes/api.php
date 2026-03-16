@@ -72,6 +72,7 @@ use App\Http\Controllers\Api\V1\RelationTypeController;
 use App\Http\Controllers\Api\V1\ResetDataController;
 use App\Http\Controllers\Api\V1\SettingController;
 use App\Http\Controllers\Api\V1\LicenseController;
+use App\Http\Controllers\Api\V1\LicenseGeneratorController;
 use App\Http\Controllers\Api\V1\PermissionController;
 use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\UnitController;
@@ -217,6 +218,13 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // =====================================================================
     Route::get('license', [LicenseController::class, 'show']);
     Route::put('license', [LicenseController::class, 'update']);
+
+    // =====================================================================
+    // License Generator (hidden admin tool)
+    // =====================================================================
+    Route::post('license-generator/validate-key', [LicenseGeneratorController::class, 'validateKey']);
+    Route::post('license-generator/generate', [LicenseGeneratorController::class, 'generate']);
+    Route::post('license-generator/generate-keypair', [LicenseGeneratorController::class, 'generateKeypair']);
 
     // =====================================================================
     // Audit Log (Änderungsprotokoll)
