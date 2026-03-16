@@ -98,6 +98,37 @@ if ! grep -q "Ubuntu" /etc/os-release 2>/dev/null; then
     fi
 fi
 
+# ─── Swap-Check ─────────────────────────────────────────────────────────────
+# Bei wenig RAM (< 4 GB) wird Swap benoetigt, damit der Vite-Build
+# (Frontend) nicht vom OOM-Killer abgebrochen wird.
+TOTAL_RAM_MB=$(awk '/MemTotal/ {printf "%d", $2/1024}' /proc/meminfo)
+SWAP_TOTAL_MB=$(awk '/SwapTotal/ {printf "%d", $2/1024}' /proc/meminfo)
+
+if [ "$TOTAL_RAM_MB" -lt 4096 ] && [ "$SWAP_TOTAL_MB" -lt 512 ]; then
+    warn "Nur ${TOTAL_RAM_MB} MB RAM und ${SWAP_TOTAL_MB} MB Swap erkannt."
+    info "Erstelle 2 GB Swap-Datei (noetig fuer Frontend-Build)..."
+
+    if [ ! -f /swapfile ]; then
+        fallocate -l 2G /swapfile
+        chmod 600 /swapfile
+        mkswap /swapfile > /dev/null
+        swapon /swapfile
+        # Permanent machen
+        if ! grep -q '/swapfile' /etc/fstab; then
+            echo '/swapfile none swap sw 0 0' >> /etc/fstab
+        fi
+        info "Swap-Datei erstellt und aktiviert (2 GB)."
+    else
+        # Swapfile existiert aber ist nicht aktiv
+        if ! swapon --show | grep -q '/swapfile'; then
+            swapon /swapfile 2>/dev/null || true
+        fi
+        info "Vorhandene Swap-Datei aktiviert."
+    fi
+elif [ "$TOTAL_RAM_MB" -lt 4096 ]; then
+    info "RAM: ${TOTAL_RAM_MB} MB, Swap: ${SWAP_TOTAL_MB} MB — ausreichend."
+fi
+
 # ═════════════════════════════════════════════════════════════════════════════
 #  INTERAKTIVE KONFIGURATION
 # ═════════════════════════════════════════════════════════════════════════════
