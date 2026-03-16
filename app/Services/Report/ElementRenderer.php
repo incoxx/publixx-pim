@@ -134,11 +134,18 @@ class ElementRenderer
      */
     private function resolveAttributeDisplayValue(mixed $attributeValue, string $language): string
     {
-        // Value list entry
+        // Dictionary entry
+        if ($attributeValue->dictionaryEntry) {
+            return ($language === 'en' && $attributeValue->dictionaryEntry->short_text_en
+                ? $attributeValue->dictionaryEntry->short_text_en
+                : $attributeValue->dictionaryEntry->short_text_de) ?? '';
+        }
+
+        // Value list entry (Selection)
         if ($attributeValue->valueListEntry) {
-            return $attributeValue->valueListEntry->{"value_{$language}"}
-                ?? $attributeValue->valueListEntry->value_de
-                ?? '';
+            return ($language === 'en' && $attributeValue->valueListEntry->display_value_en
+                ? $attributeValue->valueListEntry->display_value_en
+                : $attributeValue->valueListEntry->display_value_de) ?? '';
         }
 
         // Boolean
