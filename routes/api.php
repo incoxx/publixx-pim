@@ -65,6 +65,8 @@ use App\Http\Controllers\Api\V1\ProductVariantController;
 use App\Http\Controllers\Api\V1\ProductVersionController;
 use App\Http\Controllers\Api\V1\PublixxDatasetController;
 use App\Http\Controllers\Api\V1\PdfTemplateController;
+use App\Http\Controllers\Api\V1\ApiStreamController;
+use App\Http\Controllers\Api\V1\ApiTemplateController;
 use App\Http\Controllers\Api\V1\ReportTemplateController;
 use App\Http\Controllers\Api\V1\RelationTypeController;
 use App\Http\Controllers\Api\V1\ResetDataController;
@@ -150,6 +152,14 @@ Route::prefix('v1/catalog')->middleware('throttle.pim')->group(function () {
         Route::post('wishlist/excel', [CatalogController::class, 'wishlistExcel']);
         Route::post('products/compare', [CatalogController::class, 'compareProducts']);
     });
+});
+
+// =========================================================================
+// API Designer Stream Endpoints (own auth via API key / bearer)
+// =========================================================================
+Route::prefix('v1')->middleware('throttle.pim')->group(function () {
+    Route::get('api-streams/{slug}', [ApiStreamController::class, 'stream']);
+    Route::post('api-streams/{slug}', [ApiStreamController::class, 'import']);
 });
 
 // =========================================================================
@@ -595,6 +605,17 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
         Route::post('pdf-templates/{pdf_template}/resolve-preview', [PdfTemplateController::class, 'resolvePreview']);
         Route::post('pdf-templates/{pdf_template}/preview', [PdfTemplateController::class, 'preview']);
         Route::post('pdf-templates/{pdf_template}/execute', [PdfTemplateController::class, 'execute']);
+    });
+
+    // =====================================================================
+    // API Designer (Enterprise: api_designer)
+    // =====================================================================
+    Route::middleware('module:api_designer')->group(function () {
+        Route::get('api-templates/fields', [ApiTemplateController::class, 'fields']);
+        Route::apiResource('api-templates', ApiTemplateController::class);
+        Route::get('api-templates/{api_template}/dependencies', [ApiTemplateController::class, 'dependencies']);
+        Route::post('api-templates/{api_template}/preview', [ApiTemplateController::class, 'preview']);
+        Route::post('api-templates/{api_template}/regenerate-key', [ApiTemplateController::class, 'regenerateApiKey']);
     });
 
     // =====================================================================

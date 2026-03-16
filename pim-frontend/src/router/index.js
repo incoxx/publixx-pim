@@ -158,6 +158,18 @@ const routes = [
     meta: { title: 'Bericht-Designer' },
   },
   {
+    path: '/api-designer',
+    name: 'api-designer-list',
+    component: () => import('@/views/apiDesigner/ApiDesignerListView.vue'),
+    meta: { title: 'API-Designer' },
+  },
+  {
+    path: '/api-designer/:id',
+    name: 'api-designer-edit',
+    component: () => import('@/views/apiDesigner/ApiDesignerView.vue'),
+    meta: { title: 'API-Designer' },
+  },
+  {
     path: '/pdf-templates',
     name: 'pdf-templates',
     component: () => import('@/views/pdf-templates/PdfTemplateListView.vue'),

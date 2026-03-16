@@ -67,6 +67,10 @@ return [
             'name' => 'Workflow-Management',
             'description' => 'Konfigurierbare Workflows, Teams und Projekte',
         ],
+        'api_designer' => [
+            'name' => 'API-Designer',
+            'description' => 'Visueller API-Designer mit JSON-Streaming-Endpoints',
+        ],
     ],
 
 ];
