@@ -58,6 +58,8 @@ export const useCatalogStore = defineStore('catalog', () => {
     catalog_share_wishlist_enabled: false,
   })
 
+  const _themeLoaded = ref(false)
+
   async function fetchThemeSettings() {
     try {
       const { data } = await catalogApi.getSettings()
@@ -69,6 +71,7 @@ export const useCatalogStore = defineStore('catalog', () => {
           locale.value = data.data.default_locale
         }
       }
+      _themeLoaded.value = true
     } catch (e) {
       console.warn('Failed to load catalog theme settings:', e.message)
     }
@@ -329,6 +332,7 @@ export const useCatalogStore = defineStore('catalog', () => {
     setViewMode,
     setLocale,
     themeSettings,
+    _themeLoaded,
     fetchThemeSettings,
     facets,
     activeFilters,

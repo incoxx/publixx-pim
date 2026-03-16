@@ -27,6 +27,10 @@ export default {
     return catalogClient.get('/asset-catalog/folders', { params: buildParams(options) })
   },
 
+  getAssetProducts(assetId, options = {}) {
+    return catalogClient.get(`/asset-catalog/assets/${assetId}/products`, { params: buildParams(options) })
+  },
+
   downloadZip(mediaIds) {
     return catalogClient.post('/asset-catalog/download', { media_ids: mediaIds }, {
       responseType: 'blob',

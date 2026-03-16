@@ -262,6 +262,10 @@ const messages = {
       loadingError: 'Fehler beim Laden',
       assetNotFound: 'Asset nicht gefunden',
       downloadFailed: 'Download fehlgeschlagen',
+      details: 'Details',
+      usedBy: 'Verwendet von',
+      noProducts: 'Dieses Asset wird von keinem Produkt verwendet.',
+      productName: 'Produktname',
     },
   },
   en: {
@@ -519,6 +523,10 @@ const messages = {
       loadingError: 'Loading error',
       assetNotFound: 'Asset not found',
       downloadFailed: 'Download failed',
+      details: 'Details',
+      usedBy: 'Used by',
+      noProducts: 'This asset is not used by any product.',
+      productName: 'Product name',
     },
   },
 }

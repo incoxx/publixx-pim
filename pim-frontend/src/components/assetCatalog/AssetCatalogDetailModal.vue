@@ -1,9 +1,11 @@
 <script setup>
-import { watch, ref } from 'vue'
+import { watch, ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAssetCatalogStore } from '@/stores/assetCatalog'
-import { X, Download, Heart, Image, FileText, Info } from 'lucide-vue-next'
+import { useCatalogStore } from '@/stores/catalog'
+import { X, Download, Heart, Image, FileText, Info, Package, ChevronLeft, ChevronRight } from 'lucide-vue-next'
 import { formatFileSize } from '@/utils/formatting'
+import CatalogProductModal from '@/components/catalog/CatalogProductModal.vue'
 
 const props = defineProps({
   assetId: String,
@@ -13,9 +15,23 @@ const props = defineProps({
 const emit = defineEmits(['close'])
 const { t } = useI18n()
 const store = useAssetCatalogStore()
+const catalogStore = useCatalogStore()
+
+const activeTab = ref('details')
+const productModalOpen = ref(false)
+const productModalId = ref(null)
 
 watch(() => props.assetId, (id) => {
-  if (id) store.fetchAsset(id)
+  if (id) {
+    store.fetchAsset(id)
+    activeTab.value = 'details'
+  }
+})
+
+watch(activeTab, (tab) => {
+  if (tab === 'usedBy' && props.assetId) {
+    store.fetchAssetProducts(props.assetId)
+  }
 })
 
 function usageLabel(purpose) {
@@ -39,6 +55,39 @@ function toggleWishlist() {
     store.toggleWishlist(store.currentAsset.id)
   }
 }
+
+function openProduct(product) {
+  productModalId.value = product.id
+  productModalOpen.value = true
+  // Ensure catalog store has theme settings for product modal
+  if (!catalogStore._themeLoaded) {
+    catalogStore.themeSettings = { ...catalogStore.themeSettings, ...store.themeSettings }
+  }
+}
+
+function closeProductModal() {
+  productModalOpen.value = false
+  productModalId.value = null
+}
+
+function goToProductPage(page) {
+  if (props.assetId) {
+    store.fetchAssetProducts(props.assetId, page)
+  }
+}
+
+const productPages = computed(() => {
+  const meta = store.assetProductsMeta
+  const pages = []
+  for (let i = 1; i <= meta.last_page; i++) {
+    if (i === 1 || i === meta.last_page || Math.abs(i - meta.current_page) <= 1) {
+      pages.push(i)
+    } else if (pages[pages.length - 1] !== '...') {
+      pages.push('...')
+    }
+  }
+  return pages
+})
 </script>
 
 <template>
@@ -70,14 +119,36 @@ function toggleWishlist() {
             </div>
           </div>
 
+          <!-- Tabs -->
+          <div class="tabs tabs-bordered px-4 shrink-0">
+            <button
+              class="tab"
+              :class="{ 'tab-active': activeTab === 'details' }"
+              @click="activeTab = 'details'"
+            >
+              {{ t('assetCatalog.details') }}
+            </button>
+            <button
+              class="tab"
+              :class="{ 'tab-active': activeTab === 'usedBy' }"
+              @click="activeTab = 'usedBy'"
+            >
+              {{ t('assetCatalog.usedBy') }}
+              <span v-if="store.assetProductsMeta.total > 0" class="badge badge-xs badge-primary ml-1">
+                {{ store.assetProductsMeta.total }}
+              </span>
+            </button>
+          </div>
+
           <!-- Loading -->
           <div v-if="store.assetLoading" class="flex-1 flex items-center justify-center py-24">
             <span class="loading loading-spinner loading-lg text-primary"></span>
           </div>
 
-          <!-- Content -->
+          <!-- Tab Content -->
           <div v-else-if="store.currentAsset" class="flex-1 overflow-y-auto">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-0">
+            <!-- ═══ Details Tab ═══ -->
+            <div v-if="activeTab === 'details'" class="grid grid-cols-1 md:grid-cols-2 gap-0">
               <!-- Left: Preview -->
               <div class="bg-base-200 flex items-center justify-center min-h-[300px] p-4">
                 <img
@@ -148,11 +219,103 @@ function toggleWishlist() {
                 </div>
               </div>
             </div>
+
+            <!-- ═══ Verwendet von Tab ═══ -->
+            <div v-if="activeTab === 'usedBy'" class="p-4 md:p-6">
+              <!-- Loading -->
+              <div v-if="store.assetProductsLoading" class="flex justify-center py-12">
+                <span class="loading loading-spinner loading-lg text-primary"></span>
+              </div>
+
+              <!-- Empty state -->
+              <div v-else-if="store.assetProducts.length === 0" class="flex flex-col items-center justify-center py-16 text-center">
+                <Package class="w-12 h-12 text-base-content/15 mb-3" />
+                <p class="text-sm text-base-content/50">{{ t('assetCatalog.noProducts') }}</p>
+              </div>
+
+              <!-- Product table -->
+              <div v-else>
+                <div class="overflow-x-auto">
+                  <table class="table table-sm w-full">
+                    <thead>
+                      <tr>
+                        <th class="w-16"></th>
+                        <th>{{ t('assetCatalog.productName') }}</th>
+                        <th>SKU</th>
+                        <th class="hidden sm:table-cell">EAN</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr
+                        v-for="product in store.assetProducts"
+                        :key="product.id"
+                        class="hover cursor-pointer"
+                        @click="openProduct(product)"
+                      >
+                        <td>
+                          <div class="w-10 h-10 rounded bg-base-200 flex items-center justify-center overflow-hidden">
+                            <img
+                              v-if="product.image_url"
+                              :src="product.image_url"
+                              :alt="product.name"
+                              class="w-full h-full object-contain"
+                              loading="lazy"
+                            />
+                            <Package v-else class="w-5 h-5 text-base-content/15" />
+                          </div>
+                        </td>
+                        <td class="font-medium">{{ product.name }}</td>
+                        <td class="font-mono text-base-content/60 text-xs">{{ product.sku }}</td>
+                        <td class="hidden sm:table-cell font-mono text-base-content/60 text-xs">{{ product.ean || '–' }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <!-- Pagination -->
+                <div v-if="store.assetProductsMeta.last_page > 1" class="flex justify-center mt-4">
+                  <div class="join">
+                    <button
+                      class="join-item btn btn-sm"
+                      :disabled="store.assetProductsMeta.current_page <= 1"
+                      @click="goToProductPage(store.assetProductsMeta.current_page - 1)"
+                    >
+                      <ChevronLeft class="w-4 h-4" />
+                    </button>
+                    <template v-for="page in productPages" :key="page">
+                      <button
+                        v-if="page !== '...'"
+                        class="join-item btn btn-sm"
+                        :class="{ 'btn-active': page === store.assetProductsMeta.current_page }"
+                        @click="goToProductPage(page)"
+                      >
+                        {{ page }}
+                      </button>
+                      <button v-else class="join-item btn btn-sm btn-disabled">...</button>
+                    </template>
+                    <button
+                      class="join-item btn btn-sm"
+                      :disabled="store.assetProductsMeta.current_page >= store.assetProductsMeta.last_page"
+                      @click="goToProductPage(store.assetProductsMeta.current_page + 1)"
+                    >
+                      <ChevronRight class="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
     </Transition>
   </Teleport>
+
+  <!-- Product detail modal (opened from "Verwendet von" tab) -->
+  <CatalogProductModal
+    :product-id="productModalId"
+    :open="productModalOpen"
+    @close="closeProductModal"
+  />
 </template>
 
 <style scoped>

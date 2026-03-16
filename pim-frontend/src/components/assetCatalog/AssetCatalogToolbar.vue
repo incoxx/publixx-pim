@@ -1,24 +1,14 @@
 <script setup>
-import { ref, watch, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAssetCatalogStore } from '@/stores/assetCatalog'
-import { Search, Grid, List, SlidersHorizontal } from 'lucide-vue-next'
+import { LayoutGrid, List, X } from 'lucide-vue-next'
 
 const { t } = useI18n()
 const store = useAssetCatalogStore()
-const searchInput = ref(store.search)
 
-let debounceTimer = null
-watch(searchInput, (val) => {
-  clearTimeout(debounceTimer)
-  debounceTimer = setTimeout(() => {
-    store.setSearch(val)
-    store.fetchAssets()
-  }, 300)
-})
-onUnmounted(() => clearTimeout(debounceTimer))
-
-function setSort(field, order) {
+function changeSort(e) {
+  const val = e.target.value
+  const [field, order] = val.split(':')
   store.setSort(field, order)
   store.fetchAssets()
 }
@@ -32,77 +22,89 @@ function setMediaType(val) {
   store.setMediaType(val || null)
   store.fetchAssets()
 }
+
+function clearFolder() {
+  store.clearFolder()
+  store.fetchAssets()
+}
 </script>
 
 <template>
-  <div class="flex flex-wrap items-center gap-3 mb-4">
-    <!-- Search -->
-    <div class="relative flex-1 min-w-[200px]">
-      <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-base-content/40" />
-      <input
-        v-model="searchInput"
-        type="text"
-        :placeholder="t('assetCatalog.search')"
-        class="input input-bordered input-sm w-full pl-9"
-      />
+  <div class="flex flex-wrap items-center justify-between gap-3 mb-5">
+    <!-- Left: Active filter / breadcrumb -->
+    <div class="flex items-center gap-2 min-w-0">
+      <div v-if="store.selectedFolderName" class="badge badge-primary badge-outline gap-1">
+        {{ store.selectedFolderName }}
+        <button @click="clearFolder" class="hover:text-error">
+          <X class="w-3 h-3" />
+        </button>
+      </div>
+      <div v-if="store.search" class="badge badge-accent badge-outline gap-1">
+        "{{ store.search }}"
+        <button @click="store.setSearch(''); store.fetchAssets()" class="hover:text-error">
+          <X class="w-3 h-3" />
+        </button>
+      </div>
+      <span class="text-sm text-base-content/50">
+        {{ store.meta.total }} {{ t('catalog.results') }}
+      </span>
     </div>
 
-    <!-- Usage filter -->
-    <select
-      class="select select-bordered select-sm"
-      :value="store.usagePurposeFilter || ''"
-      @change="setUsagePurpose($event.target.value)"
-    >
-      <option value="">{{ t('assetCatalog.allUsage') }}</option>
-      <option value="print">{{ t('assetCatalog.usagePrint') }}</option>
-      <option value="web">{{ t('assetCatalog.usageWeb') }}</option>
-    </select>
-
-    <!-- Media type filter -->
-    <select
-      class="select select-bordered select-sm"
-      :value="store.mediaTypeFilter || ''"
-      @change="setMediaType($event.target.value)"
-    >
-      <option value="">{{ t('assetCatalog.allTypes') }}</option>
-      <option value="image">{{ t('assetCatalog.images') }}</option>
-      <option value="document">{{ t('assetCatalog.documents') }}</option>
-    </select>
-
-    <!-- Sort -->
-    <select
-      class="select select-bordered select-sm"
-      @change="
-        const [f, o] = $event.target.value.split(':');
-        setSort(f, o)
-      "
-    >
-      <option value="created_at:desc">{{ t('assetCatalog.sortDate') }} ↓</option>
-      <option value="created_at:asc">{{ t('assetCatalog.sortDate') }} ↑</option>
-      <option value="name:asc">{{ t('assetCatalog.sortName') }} A-Z</option>
-      <option value="name:desc">{{ t('assetCatalog.sortName') }} Z-A</option>
-      <option value="file_size:desc">{{ t('assetCatalog.sortSize') }} ↓</option>
-      <option value="file_size:asc">{{ t('assetCatalog.sortSize') }} ↑</option>
-    </select>
-
-    <!-- View toggle -->
-    <div class="flex gap-1">
-      <button
-        class="btn btn-sm btn-ghost"
-        :class="store.viewMode === 'grid' ? 'btn-active' : ''"
-        @click="store.setViewMode('grid')"
-        :title="t('assetCatalog.gridView')"
+    <!-- Right: Filters + Sort + View mode -->
+    <div class="flex items-center gap-2">
+      <!-- Usage filter -->
+      <select
+        class="select select-bordered select-xs"
+        :value="store.usagePurposeFilter || ''"
+        @change="setUsagePurpose($event.target.value)"
       >
-        <Grid class="w-4 h-4" />
-      </button>
-      <button
-        class="btn btn-sm btn-ghost"
-        :class="store.viewMode === 'list' ? 'btn-active' : ''"
-        @click="store.setViewMode('list')"
-        :title="t('assetCatalog.listView')"
+        <option value="">{{ t('assetCatalog.allUsage') }}</option>
+        <option value="print">{{ t('assetCatalog.usagePrint') }}</option>
+        <option value="web">{{ t('assetCatalog.usageWeb') }}</option>
+      </select>
+
+      <!-- Media type filter -->
+      <select
+        class="select select-bordered select-xs"
+        :value="store.mediaTypeFilter || ''"
+        @change="setMediaType($event.target.value)"
       >
-        <List class="w-4 h-4" />
-      </button>
+        <option value="">{{ t('assetCatalog.allTypes') }}</option>
+        <option value="image">{{ t('assetCatalog.images') }}</option>
+        <option value="document">{{ t('assetCatalog.documents') }}</option>
+      </select>
+
+      <select
+        class="select select-bordered select-xs"
+        :value="`${store.sort.field}:${store.sort.order}`"
+        @change="changeSort"
+      >
+        <option value="created_at:desc">{{ t('assetCatalog.sortDate') }} ↓</option>
+        <option value="created_at:asc">{{ t('assetCatalog.sortDate') }} ↑</option>
+        <option value="name:asc">{{ t('assetCatalog.sortName') }} A-Z</option>
+        <option value="name:desc">{{ t('assetCatalog.sortName') }} Z-A</option>
+        <option value="file_size:desc">{{ t('assetCatalog.sortSize') }} ↓</option>
+        <option value="file_size:asc">{{ t('assetCatalog.sortSize') }} ↑</option>
+      </select>
+
+      <div class="join">
+        <button
+          class="join-item btn btn-xs"
+          :class="store.viewMode === 'grid' ? 'btn-primary' : 'btn-ghost'"
+          :title="t('assetCatalog.gridView')"
+          @click="store.setViewMode('grid')"
+        >
+          <LayoutGrid class="w-3.5 h-3.5" />
+        </button>
+        <button
+          class="join-item btn btn-xs"
+          :class="store.viewMode === 'list' ? 'btn-primary' : 'btn-ghost'"
+          :title="t('assetCatalog.listView')"
+          @click="store.setViewMode('list')"
+        >
+          <List class="w-3.5 h-3.5" />
+        </button>
+      </div>
     </div>
   </div>
 </template>

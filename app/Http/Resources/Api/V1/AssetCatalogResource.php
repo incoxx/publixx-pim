@@ -72,6 +72,7 @@ class AssetCatalogResource extends JsonResource
             'preview_url' => url("api/v1/media/thumb/{$this->id}?w=800&h=800"),
             'original_url' => url('api/v1/media/file/' . rawurlencode($this->file_name)),
             'metadata' => $metadata,
+            'match_sources' => $this->match_sources ?? null,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

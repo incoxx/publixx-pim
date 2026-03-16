@@ -1,25 +1,32 @@
 <script setup>
-import { onMounted, ref, provide } from 'vue'
+import { onMounted, ref, provide, computed } from 'vue'
 import { useAssetCatalogStore } from '@/stores/assetCatalog'
+import { useThemeApplicator } from '@/composables/useThemeApplicator'
 import AssetCatalogHeader from '@/components/assetCatalog/AssetCatalogHeader.vue'
 import AssetCatalogSidebar from '@/components/assetCatalog/AssetCatalogSidebar.vue'
 import AssetCatalogWishlistDrawer from '@/components/assetCatalog/AssetCatalogWishlistDrawer.vue'
-import AssetCatalogFooter from '@/components/assetCatalog/AssetCatalogFooter.vue'
+import CatalogFooter from '@/components/catalog/CatalogFooter.vue'
 
 const store = useAssetCatalogStore()
 const sidebarOpen = ref(false)
 const wishlistOpen = ref(false)
+const themeRoot = ref(null)
 
 provide('wishlistOpen', wishlistOpen)
 provide('sidebarOpen', sidebarOpen)
 
-onMounted(() => {
+// Apply theme via composable
+const themeSettingsRef = computed(() => store.themeSettings)
+useThemeApplicator(themeRoot, themeSettingsRef)
+
+onMounted(async () => {
+  await store.fetchThemeSettings()
   store.fetchFolders()
 })
 </script>
 
 <template>
-  <div data-theme="pim-catalog" class="min-h-screen bg-base-200 flex flex-col">
+  <div ref="themeRoot" data-theme="pim-catalog" class="min-h-screen bg-base-200 flex flex-col" :style="{ fontSize: store.themeSettings.font_body_size || '0.875rem' }">
     <AssetCatalogHeader />
 
     <div class="flex flex-1">
@@ -36,7 +43,7 @@ onMounted(() => {
       </main>
     </div>
 
-    <AssetCatalogFooter />
+    <CatalogFooter :theme-settings="store.themeSettings" base-path="/assetpreview" />
 
     <!-- Mobile sidebar overlay -->
     <Transition name="sidebar-fade">
