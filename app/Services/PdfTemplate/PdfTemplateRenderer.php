@@ -314,10 +314,15 @@ class PdfTemplateRenderer
                                 'Flag', 'Boolean' => $attrVal->value_flag !== null
                                     ? ($attrVal->value_flag ? 'Ja' : 'Nein')
                                     : null,
-                                'Selection', 'Dictionary', 'ValueList' => $attrVal->valueListEntry
+                                'Selection', 'ValueList' => $attrVal->valueListEntry
                                     ? ($language === 'en' && $attrVal->valueListEntry->display_value_en
                                         ? $attrVal->valueListEntry->display_value_en
                                         : $attrVal->valueListEntry->display_value_de)
+                                    : null,
+                                'Dictionary' => $attrVal->dictionaryEntry
+                                    ? ($language === 'en' && $attrVal->dictionaryEntry->short_text_en
+                                        ? $attrVal->dictionaryEntry->short_text_en
+                                        : $attrVal->dictionaryEntry->short_text_de)
                                     : null,
                                 default => $attrVal->value_string,
                             };
