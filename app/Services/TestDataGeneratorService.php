@@ -14,6 +14,7 @@ use App\Models\Product;
 use App\Models\ProductAttributeValue;
 use App\Models\ProductPrice;
 use App\Models\ProductType;
+use App\Models\HierarchyNodeAttributeAssignment;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -53,6 +54,9 @@ class TestDataGeneratorService
 
         $hierarchy = $this->createTestHierarchy();
         $nodes = $this->createCategoryTree($hierarchy, $categoryCount, $categoryDepth);
+
+        // Assign attributes to hierarchy root nodes so they appear in the UI
+        $this->assignAttributesToHierarchyNodes($nodes, $attributes);
 
         $result = $this->generateProducts(
             $count,
@@ -478,6 +482,63 @@ class TestDataGeneratorService
             $nodes[] = $childNode;
 
             $this->createChildNodes($hierarchy, $childNode, $currentDepth + 1, $maxDepth, $nodes, $maxTotal);
+        }
+    }
+
+    /**
+     * Assign attributes to hierarchy root nodes (depth 0) so they are visible in the UI.
+     * Child nodes inherit these assignments automatically.
+     */
+    private function assignAttributesToHierarchyNodes(array $nodes, $attributes): void
+    {
+        $rootNodes = array_filter($nodes, fn (HierarchyNode $n) => $n->depth === 0);
+
+        if (empty($rootNodes) || $attributes->isEmpty()) {
+            return;
+        }
+
+        // Group attributes into collections by data type
+        $collections = [
+            'Basisdaten' => ['text', 'string', 'textarea'],
+            'Technisch' => ['number', 'integer', 'float', 'decimal', 'boolean'],
+            'Marketing' => ['html', 'richtext', 'date'],
+            'Ausstattung' => ['select', 'dropdown', 'multiselect'],
+        ];
+        $defaultCollection = 'Allgemein';
+
+        foreach ($rootNodes as $rootNode) {
+            $collectionSort = 10;
+            $attributeSort = 10;
+            $lastCollection = null;
+
+            foreach ($attributes as $attribute) {
+                // Determine collection based on data type
+                $dataType = strtolower($attribute->data_type ?? '');
+                $collection = $defaultCollection;
+                foreach ($collections as $colName => $types) {
+                    if (in_array($dataType, $types)) {
+                        $collection = $colName;
+                        break;
+                    }
+                }
+
+                if ($lastCollection !== $collection) {
+                    $collectionSort += 10;
+                    $attributeSort = 10;
+                    $lastCollection = $collection;
+                }
+
+                HierarchyNodeAttributeAssignment::firstOrCreate(
+                    ['hierarchy_node_id' => $rootNode->id, 'attribute_id' => $attribute->id],
+                    [
+                        'collection_name' => $collection,
+                        'collection_sort' => $collectionSort,
+                        'attribute_sort' => $attributeSort,
+                    ],
+                );
+
+                $attributeSort += 10;
+            }
         }
     }
 
