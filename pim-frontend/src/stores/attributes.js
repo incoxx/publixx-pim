@@ -114,9 +114,15 @@ export const useAttributeStore = defineStore('attributes', () => {
     return data
   }
 
+  async function bulkDelete(ids) {
+    const { data } = await attributesApi.bulkDelete(ids)
+    items.value = items.value.filter(a => !ids.includes(a.id))
+    return data
+  }
+
   return {
     items, allItems, types, lists, prodTypes, unitGroupsList, loading, error, meta, dataTypes,
     fetchAttributes, fetchAllAttributes, fetchTypes, fetchValueLists, fetchProductTypes, fetchUnitGroups,
-    createAttribute, updateAttribute, copyAttribute, deleteAttribute, setPage, bulkUpdate,
+    createAttribute, updateAttribute, copyAttribute, deleteAttribute, setPage, bulkUpdate, bulkDelete,
   }
 })

@@ -258,6 +258,8 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // Agent 3: Attributes
     // =====================================================================
     Route::put('attributes/bulk-update', [AttributeController::class, 'bulkUpdate']);
+    Route::post('attributes/all-ids', [AttributeController::class, 'allIds']);
+    Route::post('attributes/bulk-delete', [AttributeController::class, 'bulkDelete']);
     Route::apiResource('attributes', AttributeController::class);
     Route::get('attributes/{attribute}/dependencies', [AttributeController::class, 'dependencies']);
     Route::post('attributes/{attribute}/copy', [AttributeController::class, 'copy']);
@@ -328,6 +330,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
         ->shallow()
         ->parameters(['nodes' => 'hierarchy_node']);
     Route::get('hierarchy-nodes/{hierarchy_node}/dependencies', [HierarchyNodeController::class, 'dependencies']);
+    Route::delete('hierarchy-nodes/{hierarchy_node}', [HierarchyNodeController::class, 'destroy']);
     Route::get('hierarchy-nodes', [HierarchyNodeController::class, 'searchAll']);
     Route::put('hierarchy-nodes/{hierarchy_node}/move', [HierarchyNodeController::class, 'move']);
     Route::post('hierarchy-nodes/{hierarchy_node}/duplicate', [HierarchyNodeController::class, 'duplicate']);
