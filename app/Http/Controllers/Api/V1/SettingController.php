@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Jobs\UpdateSearchIndex;
 use App\Models\Attribute;
+use App\Models\AttributeView;
 use App\Models\Media;
 use App\Models\Product;
 use App\Models\ProductRelationType;
@@ -126,6 +127,15 @@ class SettingController extends Controller
                 'description_attributes' => array_values(array_filter(
                     $request->input('description_attributes', []),
                     fn ($da) => isset($attrIdSet[$da['attribute_id'] ?? ''])
+                )),
+            ]);
+        }
+        if ($request->has('attribute_view_ids')) {
+            $existingAvIds = array_flip(AttributeView::pluck('id')->toArray());
+            $request->merge([
+                'attribute_view_ids' => array_values(array_filter(
+                    $request->input('attribute_view_ids', []),
+                    fn ($id) => isset($existingAvIds[$id])
                 )),
             ]);
         }

@@ -197,6 +197,10 @@ async function loadAttributeViews() {
   try {
     const { data } = await attributeViewsApi.list()
     availableAttributeViews.value = (data.data || data || [])
+
+    // Remove stale attribute view IDs that no longer exist
+    const avIds = new Set(availableAttributeViews.value.map(av => av.id))
+    themeForm.value.attribute_view_ids = (themeForm.value.attribute_view_ids || []).filter(id => avIds.has(id))
   } catch (e) {
     console.warn('Failed to load attribute views:', e.message)
   }
