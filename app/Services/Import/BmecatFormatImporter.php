@@ -42,6 +42,12 @@ class BmecatFormatImporter
     /** Optional parsing progress callback: fn(int $productsParsed) */
     private $parsingProgressCallback = null;
 
+    /** Optional build-phase progress callback: fn(string $step, int $current, int $total) */
+    private $buildProgressCallback = null;
+
+    /** Optional heartbeat callback to keep SSE connection alive. */
+    private $heartbeatCallback = null;
+
     /** BMEcat 2005 Namespace. */
     private const NS_2005 = 'http://www.bmecat.org/bmecat/2005';
 
@@ -131,7 +137,39 @@ class BmecatFormatImporter
      */
     public function setHeartbeatCallback(callable $callback): void
     {
+        $this->heartbeatCallback = $callback;
         $this->executor->setHeartbeatCallback($callback);
+    }
+
+    /**
+     * Setzt eine Callback-Funktion für Fortschritt während der Datenaufbereitung.
+     *
+     * @param callable(string $step, int $current, int $total): void $callback
+     */
+    public function setBuildProgressCallback(callable $callback): void
+    {
+        $this->buildProgressCallback = $callback;
+    }
+
+    /**
+     * Sendet einen Heartbeat um die SSE-Verbindung offen zu halten.
+     */
+    private function heartbeat(): void
+    {
+        if ($this->heartbeatCallback) {
+            ($this->heartbeatCallback)();
+        }
+    }
+
+    /**
+     * Sendet Build-Phase-Fortschritt und Heartbeat.
+     */
+    private function sendBuildProgress(string $step, int $current, int $total): void
+    {
+        if ($this->buildProgressCallback) {
+            ($this->buildProgressCallback)($step, $current, $total);
+        }
+        $this->heartbeat();
     }
 
     /**
@@ -1136,7 +1174,12 @@ class BmecatFormatImporter
      */
     private function buildParseResult(array $parsed, ?string $productType): ParseResult
     {
+        // Caches für diesen Build-Durchlauf zurücksetzen
+        $this->nodePathCache = [];
+        $this->sanitizeCache = [];
+
         $sheets = [];
+        $totalProducts = count($parsed['products']);
 
         $productTypeName = $productType ?? 'bmecat_product';
         $catalogId = $parsed['catalog_id'] ?: 'bmecat_catalog';
@@ -1154,19 +1197,31 @@ class BmecatFormatImporter
             'has_media' => true,
         ]];
 
+        $this->sendBuildProgress('Hierarchien aufbauen', 0, $totalProducts);
+
         // 2. Hierarchien aus CATALOG_GROUP_SYSTEM
         $catalogGroupTree = $this->buildCatalogGroupTree($parsed['catalog_structures'] ?? []);
         if (!empty($catalogGroupTree)) {
             $sheets['06_Hierarchien'] = $this->buildHierarchyRows($catalogGroupTree, $hierarchyTechName);
         }
 
+        $this->sendBuildProgress('Attribute & Produktwerte sammeln', 0, $totalProducts);
+        $this->checkCancelled();
+
         // 3. Attribute sammeln (aus allen Produkt-Features deduplizieren)
         $attributeMap = []; // technical_name → ['name_de' => ..., 'data_type' => ...]
         $productValues = [];
         $allPriceTypes = [];
         $allRelationTypes = [];
+        $loopIndex = 0;
 
         foreach ($parsed['products'] as $product) {
+            $loopIndex++;
+            if ($loopIndex % 500 === 0) {
+                $this->sendBuildProgress('Attribute & Produktwerte sammeln', $loopIndex, $totalProducts);
+                $this->checkCancelled();
+            }
+
             $sku = $product['sku'];
 
             // Features → Attribute + Produktwerte
@@ -1375,9 +1430,17 @@ class BmecatFormatImporter
         }
 
         // UDX-Felder → eigene Attributgruppen + Attribute + Produktwerte
+        $this->sendBuildProgress('UDX-Felder verarbeiten', 0, $totalProducts);
+        $this->checkCancelled();
         $udxGroupMap = [];     // namespace → group row
         $udxAttributeMap = []; // key → attribute row
+        $loopIndex = 0;
         foreach ($parsed['products'] as $product) {
+            $loopIndex++;
+            if ($loopIndex % 500 === 0) {
+                $this->sendBuildProgress('UDX-Felder verarbeiten', $loopIndex, $totalProducts);
+                $this->checkCancelled();
+            }
             foreach ($product['udx_fields'] as $udxField) {
                 $ns = $udxField['namespace'];
                 $key = $udxField['key'];
@@ -1466,6 +1529,8 @@ class BmecatFormatImporter
         }
 
         // 4. Hierarchie-Attribut-Zuordnungen
+        $this->sendBuildProgress('Hierarchie-Attribut-Zuordnungen', 0, $totalProducts);
+        $this->checkCancelled();
         if (!empty($catalogGroupTree) && !empty($attributeMap)) {
             $hierarchyAttributes = $this->buildHierarchyAttributeAssignments(
                 $parsed['products'],
@@ -1479,6 +1544,8 @@ class BmecatFormatImporter
         }
 
         // 5. Produkte
+        $this->sendBuildProgress('Produktliste erstellen', 0, $totalProducts);
+        $this->checkCancelled();
         $sheets['08_Produkte'] = array_map(fn (array $product) => [
             'sku' => $product['sku'],
             'name' => $product['details']['description_short'] ?? $product['sku'],
@@ -1494,6 +1561,8 @@ class BmecatFormatImporter
         }
 
         // 7. Produkt-Hierarchie-Zuordnungen
+        $this->sendBuildProgress('Produkt-Hierarchie-Zuordnungen', 0, $totalProducts);
+        $this->checkCancelled();
         $productHierarchies = $this->buildProductHierarchyAssignments(
             $parsed['products'],
             $parsed['product_to_group_maps'],
@@ -1505,9 +1574,17 @@ class BmecatFormatImporter
         }
 
         // 8. Produktbeziehungen
+        $this->sendBuildProgress('Produktbeziehungen sammeln', 0, $totalProducts);
+        $this->checkCancelled();
         $relations = [];
         $sortOrder = 0;
+        $loopIndex = 0;
         foreach ($parsed['products'] as $product) {
+            $loopIndex++;
+            if ($loopIndex % 500 === 0) {
+                $this->sendBuildProgress('Produktbeziehungen sammeln', $loopIndex, $totalProducts);
+                $this->checkCancelled();
+            }
             foreach ($product['references'] as $ref) {
                 $relations[] = [
                     'source_sku' => $product['sku'],
@@ -1522,8 +1599,16 @@ class BmecatFormatImporter
         }
 
         // 9. Preise
+        $this->sendBuildProgress('Preise sammeln', 0, $totalProducts);
+        $this->checkCancelled();
         $prices = [];
+        $loopIndex = 0;
         foreach ($parsed['products'] as $product) {
+            $loopIndex++;
+            if ($loopIndex % 500 === 0) {
+                $this->sendBuildProgress('Preise sammeln', $loopIndex, $totalProducts);
+                $this->checkCancelled();
+            }
             foreach ($product['prices'] as $price) {
                 $country = !empty($price['territories']) ? $price['territories'][0] : null;
                 $prices[] = [
@@ -1544,8 +1629,16 @@ class BmecatFormatImporter
         }
 
         // 10. Medien
+        $this->sendBuildProgress('Medien sammeln', 0, $totalProducts);
+        $this->checkCancelled();
         $media = [];
+        $loopIndex = 0;
         foreach ($parsed['products'] as $product) {
+            $loopIndex++;
+            if ($loopIndex % 500 === 0) {
+                $this->sendBuildProgress('Medien sammeln', $loopIndex, $totalProducts);
+                $this->checkCancelled();
+            }
             foreach ($product['media'] as $idx => $m) {
                 $media[] = [
                     'sku' => $product['sku'],
@@ -1574,11 +1667,20 @@ class BmecatFormatImporter
     // Hilfsmethoden
     // =========================================================================
 
+    /** Cache für sanitizeTechnicalName-Ergebnisse. */
+    private array $sanitizeCache = [];
+
     /**
      * Sanitisiert einen FNAME zu einem gültigen technical_name.
      */
     public function sanitizeTechnicalName(string $name): string
     {
+        if (isset($this->sanitizeCache[$name])) {
+            return $this->sanitizeCache[$name];
+        }
+
+        $originalName = $name;
+
         // Deutsche Umlaute explizit ersetzen (vor Transliteration)
         $name = str_replace(
             ['Ä', 'ä', 'Ö', 'ö', 'Ü', 'ü', 'ß'],
@@ -1605,6 +1707,7 @@ class BmecatFormatImporter
             $name = rtrim($name, '_');
         }
 
+        $this->sanitizeCache[$originalName] = $name;
         return $name;
     }
 
@@ -1674,8 +1777,12 @@ class BmecatFormatImporter
         return $tree;
     }
 
+    /** Cache für resolveNodePath-Ergebnisse. */
+    private array $nodePathCache = [];
+
     /**
      * Löst den vollständigen Pfad (als Array von Knotennamen) für eine GROUP_ID auf.
+     * Ergebnisse werden gecacht für bessere Performance bei vielen Produkten.
      *
      * @return string[] Pfad-Komponenten von Root abwärts (ohne Root selbst)
      */
@@ -1683,7 +1790,12 @@ class BmecatFormatImporter
     {
         $groupId = (string) $groupId;
 
+        if (isset($this->nodePathCache[$groupId])) {
+            return $this->nodePathCache[$groupId];
+        }
+
         if (!isset($tree[$groupId])) {
+            $this->nodePathCache[$groupId] = [];
             return [];
         }
 
@@ -1708,6 +1820,7 @@ class BmecatFormatImporter
             $current = $node['parent_id'];
         }
 
+        $this->nodePathCache[$groupId] = $path;
         return $path;
     }
 
@@ -1772,8 +1885,15 @@ class BmecatFormatImporter
 
         // Sammle welche Attribute in welchen Knoten vorkommen
         $nodeAttributes = []; // group_id → [attribute_tech_name => true]
+        $loopIndex = 0;
 
         foreach ($products as $product) {
+            $loopIndex++;
+            if ($loopIndex % 1000 === 0) {
+                $this->heartbeat();
+                $this->checkCancelled();
+            }
+
             $productGroupIds = array_keys($skuToGroupIds[$product['sku']] ?? []);
             if (empty($productGroupIds)) {
                 continue;
@@ -1858,9 +1978,15 @@ class BmecatFormatImporter
 
         $rows = [];
         $seen = []; // Deduplizierung: "sku|node_path"
+        $loopIndex = 0;
 
         // Inline-Maps (aus Produkten)
         foreach ($products as $product) {
+            $loopIndex++;
+            if ($loopIndex % 1000 === 0) {
+                $this->heartbeat();
+                $this->checkCancelled();
+            }
             foreach ($product['catalog_group_maps'] as $map) {
                 $path = $this->resolveNodePath($map['group_id'], $tree);
                 if (!empty($path)) {
