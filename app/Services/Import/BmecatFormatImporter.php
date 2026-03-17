@@ -259,6 +259,8 @@ class BmecatFormatImporter
 
         $this->checkCancelled();
 
+        $productCount = count($parsed['products']);
+
         try {
             $parseResult = $this->buildParseResult($parsed, $productType);
         } catch (ImportCancelledException $e) {
@@ -271,7 +273,6 @@ class BmecatFormatImporter
             throw new \RuntimeException('Import-Daten konnten nicht aufbereitet werden: ' . $e->getMessage(), 0, $e);
         }
 
-        $productCount = count($parsed['products'] ?? []);
         Log::channel('import')->info("Parsing abgeschlossen: {$productCount} Produkte geparst, starte DB-Import");
 
         $result = $this->executor->execute($parseResult);
@@ -1172,7 +1173,7 @@ class BmecatFormatImporter
     /**
      * Baut das ParseResult aus den geparsten Daten.
      */
-    private function buildParseResult(array $parsed, ?string $productType): ParseResult
+    private function buildParseResult(array &$parsed, ?string $productType): ParseResult
     {
         // Caches für diesen Build-Durchlauf zurücksetzen
         $this->nodePathCache = [];
@@ -1204,39 +1205,63 @@ class BmecatFormatImporter
         if (!empty($catalogGroupTree)) {
             $sheets['06_Hierarchien'] = $this->buildHierarchyRows($catalogGroupTree, $hierarchyTechName);
         }
+        $hasTree = !empty($catalogGroupTree);
 
-        $this->sendBuildProgress('Attribute & Produktwerte sammeln', 0, $totalProducts);
+        // Standalone Maps → skuToGroupIds (vor Haupt-Loop)
+        $skuToGroupIds = [];
+        foreach ($parsed['product_to_group_maps'] as $map) {
+            $skuToGroupIds[$map['prod_id']][$map['group_id']] = true;
+        }
+
+        // =====================================================================
+        // Single-Pass: Alle Produktdaten in einem Durchlauf sammeln.
+        // Jedes Produkt wird nach Verarbeitung sofort freigegeben um Speicher
+        // zu sparen (~1.5 GB bei 110K Produkten aus 229 MB XML).
+        // =====================================================================
+        $this->sendBuildProgress('Produkte verarbeiten', 0, $totalProducts);
         $this->checkCancelled();
 
-        // 3. Attribute sammeln (aus allen Produkt-Features deduplizieren)
-        $attributeMap = []; // technical_name → ['name_de' => ..., 'data_type' => ...]
+        $attributeMap = [];
         $productValues = [];
         $allPriceTypes = [];
         $allRelationTypes = [];
+        $udxGroupMap = [];
+        $udxAttributeMap = [];
+        $nodeAttributes = []; // group_id → [attribute_tech_name → true]
+        $productRows = [];
+        $relations = [];
+        $prices = [];
+        $media = [];
+        $productHierarchies = [];
+        $seenHierarchy = [];
+        $sortOrderRelations = 0;
+
+        $productKeys = array_keys($parsed['products']);
         $loopIndex = 0;
 
-        foreach ($parsed['products'] as $product) {
+        foreach ($productKeys as $productIdx) {
+            $product = $parsed['products'][$productIdx];
+            unset($parsed['products'][$productIdx]); // Sofort freigeben
+
             $loopIndex++;
             if ($loopIndex % 500 === 0) {
-                $this->sendBuildProgress('Attribute & Produktwerte sammeln', $loopIndex, $totalProducts);
+                $this->sendBuildProgress('Produkte verarbeiten', $loopIndex, $totalProducts);
                 $this->checkCancelled();
             }
 
             $sku = $product['sku'];
 
-            // Features → Attribute + Produktwerte
+            // --- Features → Attribute + Produktwerte ---
             foreach ($product['features'] as $feature) {
                 $techName = $this->sanitizeTechnicalName($feature['fname']);
                 if (empty($techName)) {
                     continue;
                 }
 
-                // Mehrsprachigkeit erkennen: mindestens ein Wert mit explizitem xml:lang
                 $valuesI18n = $feature['values_i18n'] ?? [];
                 $hasExplicitLang = $this->hasExplicitLanguage($valuesI18n);
                 $hasMultipleLangs = $hasExplicitLang;
 
-                // Attribut deduplizieren
                 if (!isset($attributeMap[$techName])) {
                     $dataType = $this->inferDataType($feature['values'], $feature['fvalue_type'] ?? null);
                     $attributeMap[$techName] = [
@@ -1261,17 +1286,14 @@ class BmecatFormatImporter
                         'views' => null,
                     ];
                 } else {
-                    // Wenn ein späteres Produkt Mehrsprachigkeit zeigt, Attribut upgraden
                     if ($hasMultipleLangs && !$attributeMap[$techName]['is_translatable']) {
                         $attributeMap[$techName]['is_translatable'] = true;
                     }
-                    // name_en nachtragen falls bisher nicht gesetzt
                     if (!empty($feature['fname_en']) && empty($attributeMap[$techName]['name_en'])) {
                         $attributeMap[$techName]['name_en'] = $feature['fname_en'];
                     }
                 }
 
-                // Produktwerte: mehrsprachig oder einsprachig
                 if ($hasMultipleLangs) {
                     foreach ($valuesI18n as $lang => $value) {
                         $productValues[] = [
@@ -1297,7 +1319,7 @@ class BmecatFormatImporter
                 }
             }
 
-            // Beschreibungen immer als eigenständige Attribute importieren
+            // --- Beschreibungen ---
             $descShortI18n = $product['details']['description_short_i18n'] ?? [];
             $descLongI18n = $product['details']['description_long_i18n'] ?? [];
 
@@ -1403,49 +1425,11 @@ class BmecatFormatImporter
                 }
             }
 
-            // Preistypen sammeln
-            foreach ($product['prices'] as $price) {
-                $priceType = $price['price_type'];
-                if (!isset($allPriceTypes[$priceType])) {
-                    $allPriceTypes[$priceType] = [
-                        'technical_name' => $priceType,
-                        'name_de' => $this->translatePriceType($priceType),
-                        'name_en' => $priceType,
-                    ];
-                }
-            }
-
-            // Beziehungstypen sammeln
-            foreach ($product['references'] as $ref) {
-                $refType = $ref['type'];
-                if (!isset($allRelationTypes[$refType])) {
-                    $allRelationTypes[$refType] = [
-                        'technical_name' => $refType,
-                        'name_de' => $this->translateRelationType($refType),
-                        'name_en' => $refType,
-                        'is_bidirectional' => in_array($refType, ['similar']),
-                    ];
-                }
-            }
-        }
-
-        // UDX-Felder → eigene Attributgruppen + Attribute + Produktwerte
-        $this->sendBuildProgress('UDX-Felder verarbeiten', 0, $totalProducts);
-        $this->checkCancelled();
-        $udxGroupMap = [];     // namespace → group row
-        $udxAttributeMap = []; // key → attribute row
-        $loopIndex = 0;
-        foreach ($parsed['products'] as $product) {
-            $loopIndex++;
-            if ($loopIndex % 500 === 0) {
-                $this->sendBuildProgress('UDX-Felder verarbeiten', $loopIndex, $totalProducts);
-                $this->checkCancelled();
-            }
+            // --- UDX-Felder ---
             foreach ($product['udx_fields'] as $udxField) {
                 $ns = $udxField['namespace'];
                 $key = $udxField['key'];
 
-                // Attributgruppe pro Namespace deduplizieren
                 $groupTechName = $this->udxNamespaceToGroupTechName($ns);
                 if (!isset($udxGroupMap[$ns])) {
                     $udxGroupMap[$ns] = [
@@ -1457,7 +1441,6 @@ class BmecatFormatImporter
                     ];
                 }
 
-                // Attribut deduplizieren (technical_name = voller UDX-Key als snake_case)
                 $attrTechName = $this->sanitizeTechnicalName($key);
                 $udxLang = $udxField['language'] ?? null;
 
@@ -1489,9 +1472,8 @@ class BmecatFormatImporter
                     $udxAttributeMap[$attrTechName]['is_translatable'] = true;
                 }
 
-                // Produktwert
                 $productValues[] = [
-                    'sku' => $product['sku'],
+                    'sku' => $sku,
                     'attribute' => $attrTechName,
                     'value' => $udxField['value'],
                     'unit' => null,
@@ -1499,120 +1481,20 @@ class BmecatFormatImporter
                     'index' => 0,
                 ];
             }
-        }
 
-        // UDX-Attributgruppen in Sheet 02_Attributgruppen einspeisen
-        if (!empty($udxGroupMap)) {
-            $sheets['02_Attributgruppen'] = array_values($udxGroupMap);
-        }
-
-        // UDX-Attribute in die Attribut-Map einfügen (nach regulären Features)
-        foreach ($udxAttributeMap as $techName => $udxAttr) {
-            if (!isset($attributeMap[$techName])) {
-                $attributeMap[$techName] = $udxAttr;
-            }
-        }
-
-        // Attribute Sheet
-        if (!empty($attributeMap)) {
-            $sheets['05_Attribute'] = array_values($attributeMap);
-        }
-
-        // Preistypen Sheet
-        if (!empty($allPriceTypes)) {
-            $sheets['16_Preistypen'] = array_values($allPriceTypes);
-        }
-
-        // Beziehungstypen Sheet
-        if (!empty($allRelationTypes)) {
-            $sheets['17_Beziehungstypen'] = array_values($allRelationTypes);
-        }
-
-        // 4. Hierarchie-Attribut-Zuordnungen
-        $this->sendBuildProgress('Hierarchie-Attribut-Zuordnungen', 0, $totalProducts);
-        $this->checkCancelled();
-        if (!empty($catalogGroupTree) && !empty($attributeMap)) {
-            $hierarchyAttributes = $this->buildHierarchyAttributeAssignments(
-                $parsed['products'],
-                $catalogGroupTree,
-                $hierarchyTechName,
-                $parsed['product_to_group_maps'],
-            );
-            if (!empty($hierarchyAttributes)) {
-                $sheets['07_Hierarchie_Attribute'] = $hierarchyAttributes;
-            }
-        }
-
-        // 5. Produkte
-        $this->sendBuildProgress('Produktliste erstellen', 0, $totalProducts);
-        $this->checkCancelled();
-        $sheets['08_Produkte'] = array_map(fn (array $product) => [
-            'sku' => $product['sku'],
-            'name' => $product['details']['description_short'] ?? $product['sku'],
-            'name_en' => null,
-            'product_type' => $productTypeName,
-            'ean' => $product['details']['ean'] ?? null,
-            'status' => 'draft',
-        ], $parsed['products']);
-
-        // 6. Produktwerte
-        if (!empty($productValues)) {
-            $sheets['09_Produktwerte'] = $productValues;
-        }
-
-        // 7. Produkt-Hierarchie-Zuordnungen
-        $this->sendBuildProgress('Produkt-Hierarchie-Zuordnungen', 0, $totalProducts);
-        $this->checkCancelled();
-        $productHierarchies = $this->buildProductHierarchyAssignments(
-            $parsed['products'],
-            $parsed['product_to_group_maps'],
-            $catalogGroupTree,
-            $hierarchyTechName,
-        );
-        if (!empty($productHierarchies)) {
-            $sheets['11_Produkt_Hierarchien'] = $productHierarchies;
-        }
-
-        // 8. Produktbeziehungen
-        $this->sendBuildProgress('Produktbeziehungen sammeln', 0, $totalProducts);
-        $this->checkCancelled();
-        $relations = [];
-        $sortOrder = 0;
-        $loopIndex = 0;
-        foreach ($parsed['products'] as $product) {
-            $loopIndex++;
-            if ($loopIndex % 500 === 0) {
-                $this->sendBuildProgress('Produktbeziehungen sammeln', $loopIndex, $totalProducts);
-                $this->checkCancelled();
-            }
-            foreach ($product['references'] as $ref) {
-                $relations[] = [
-                    'source_sku' => $product['sku'],
-                    'target_sku' => $ref['target_id'],
-                    'relation_type' => $ref['type'],
-                    'sort_order' => $sortOrder++,
-                ];
-            }
-        }
-        if (!empty($relations)) {
-            $sheets['12_Produktbeziehungen'] = $relations;
-        }
-
-        // 9. Preise
-        $this->sendBuildProgress('Preise sammeln', 0, $totalProducts);
-        $this->checkCancelled();
-        $prices = [];
-        $loopIndex = 0;
-        foreach ($parsed['products'] as $product) {
-            $loopIndex++;
-            if ($loopIndex % 500 === 0) {
-                $this->sendBuildProgress('Preise sammeln', $loopIndex, $totalProducts);
-                $this->checkCancelled();
-            }
+            // --- Preistypen + Preise ---
             foreach ($product['prices'] as $price) {
+                $priceType = $price['price_type'];
+                if (!isset($allPriceTypes[$priceType])) {
+                    $allPriceTypes[$priceType] = [
+                        'technical_name' => $priceType,
+                        'name_de' => $this->translatePriceType($priceType),
+                        'name_en' => $priceType,
+                    ];
+                }
                 $country = !empty($price['territories']) ? $price['territories'][0] : null;
                 $prices[] = [
-                    'sku' => $product['sku'],
+                    'sku' => $sku,
                     'price_type' => $price['price_type'],
                     'amount' => (float) $price['amount'],
                     'currency' => $price['currency'],
@@ -1623,25 +1505,30 @@ class BmecatFormatImporter
                     'scale_to' => null,
                 ];
             }
-        }
-        if (!empty($prices)) {
-            $sheets['13_Preise'] = $prices;
-        }
 
-        // 10. Medien
-        $this->sendBuildProgress('Medien sammeln', 0, $totalProducts);
-        $this->checkCancelled();
-        $media = [];
-        $loopIndex = 0;
-        foreach ($parsed['products'] as $product) {
-            $loopIndex++;
-            if ($loopIndex % 500 === 0) {
-                $this->sendBuildProgress('Medien sammeln', $loopIndex, $totalProducts);
-                $this->checkCancelled();
+            // --- Beziehungstypen + Beziehungen ---
+            foreach ($product['references'] as $ref) {
+                $refType = $ref['type'];
+                if (!isset($allRelationTypes[$refType])) {
+                    $allRelationTypes[$refType] = [
+                        'technical_name' => $refType,
+                        'name_de' => $this->translateRelationType($refType),
+                        'name_en' => $refType,
+                        'is_bidirectional' => in_array($refType, ['similar']),
+                    ];
+                }
+                $relations[] = [
+                    'source_sku' => $sku,
+                    'target_sku' => $ref['target_id'],
+                    'relation_type' => $ref['type'],
+                    'sort_order' => $sortOrderRelations++,
+                ];
             }
+
+            // --- Medien ---
             foreach ($product['media'] as $idx => $m) {
                 $media[] = [
-                    'sku' => $product['sku'],
+                    'sku' => $sku,
                     'file_name' => basename($m['source']),
                     'media_type' => $this->mapMimeTypeToMediaType($m['mime_type']),
                     'usage_type' => $this->mapMimePurpose($m['purpose']),
@@ -1652,10 +1539,190 @@ class BmecatFormatImporter
                     'is_primary' => $idx === 0,
                 ];
             }
+
+            // --- Produkt-Zeile ---
+            $productRows[] = [
+                'sku' => $sku,
+                'name' => $product['details']['description_short'] ?? $sku,
+                'name_en' => null,
+                'product_type' => $productTypeName,
+                'ean' => $product['details']['ean'] ?? null,
+                'status' => 'draft',
+            ];
+
+            // --- Hierarchie-Daten sammeln ---
+            foreach ($product['catalog_group_maps'] as $map) {
+                $skuToGroupIds[$sku][$map['group_id']] = true;
+            }
+
+            if ($hasTree) {
+                $productGroupIds = array_keys($skuToGroupIds[$sku] ?? []);
+                if (!empty($productGroupIds)) {
+                    // nodeAttributes für Hierarchie-Attribut-Zuordnungen
+                    foreach ($product['features'] as $feature) {
+                        $techName = $this->sanitizeTechnicalName($feature['fname']);
+                        if (empty($techName)) {
+                            continue;
+                        }
+                        foreach ($productGroupIds as $groupId) {
+                            $nodeAttributes[$groupId][$techName] = true;
+                        }
+                    }
+                    foreach ($product['udx_fields'] as $udxField) {
+                        $techName = $this->sanitizeTechnicalName($udxField['key']);
+                        if (empty($techName)) {
+                            continue;
+                        }
+                        foreach ($productGroupIds as $groupId) {
+                            $nodeAttributes[$groupId][$techName] = true;
+                        }
+                    }
+                    if (!empty($descShortI18n)) {
+                        foreach ($productGroupIds as $groupId) {
+                            $nodeAttributes[$groupId]['description_short'] = true;
+                        }
+                    }
+                    if (!empty($descLongI18n)) {
+                        foreach ($productGroupIds as $groupId) {
+                            $nodeAttributes[$groupId]['description_long'] = true;
+                        }
+                    }
+                }
+
+                // Produkt-Hierarchie-Zuordnungen (inline maps)
+                foreach ($product['catalog_group_maps'] as $map) {
+                    $path = $this->resolveNodePath($map['group_id'], $catalogGroupTree);
+                    if (!empty($path)) {
+                        $nodePath = implode('/', $path);
+                        $key = $sku . '|' . $nodePath;
+                        if (!isset($seenHierarchy[$key])) {
+                            $seenHierarchy[$key] = true;
+                            $productHierarchies[] = [
+                                'sku' => $sku,
+                                'hierarchy' => $hierarchyTechName,
+                                'node_path' => $nodePath,
+                            ];
+                        }
+                    }
+                }
+            }
         }
+
+        // Produkt-Array vollständig freigeben
+        $parsed['products'] = [];
+        unset($productKeys, $skuToGroupIds);
+
+        // UDX-Attribute in die Attribut-Map einfügen (nach regulären Features)
+        foreach ($udxAttributeMap as $techName => $udxAttr) {
+            if (!isset($attributeMap[$techName])) {
+                $attributeMap[$techName] = $udxAttr;
+            }
+        }
+        unset($udxAttributeMap);
+
+        // Sheets zusammenstellen
+        if (!empty($udxGroupMap)) {
+            $sheets['02_Attributgruppen'] = array_values($udxGroupMap);
+        }
+        unset($udxGroupMap);
+
+        if (!empty($attributeMap)) {
+            $sheets['05_Attribute'] = array_values($attributeMap);
+        }
+        unset($attributeMap);
+
+        if (!empty($allPriceTypes)) {
+            $sheets['16_Preistypen'] = array_values($allPriceTypes);
+        }
+        unset($allPriceTypes);
+
+        if (!empty($allRelationTypes)) {
+            $sheets['17_Beziehungstypen'] = array_values($allRelationTypes);
+        }
+        unset($allRelationTypes);
+
+        // 4. Hierarchie-Attribut-Zuordnungen (aus gesammelten nodeAttributes)
+        $this->sendBuildProgress('Hierarchie-Attribut-Zuordnungen', 0, $totalProducts);
+        $this->checkCancelled();
+        if ($hasTree && !empty($nodeAttributes)) {
+            $hierarchyAttributeRows = [];
+            $sort = 0;
+            foreach ($nodeAttributes as $groupId => $attributes) {
+                $path = $this->resolveNodePath($groupId, $catalogGroupTree);
+                if (empty($path)) {
+                    continue;
+                }
+                $nodePath = implode('/', $path);
+                foreach (array_keys($attributes) as $attrTechName) {
+                    $hierarchyAttributeRows[] = [
+                        'hierarchy' => $hierarchyTechName,
+                        'node_path' => $nodePath,
+                        'attribute' => $attrTechName,
+                        'collection_name' => null,
+                        'collection_sort' => 0,
+                        'attribute_sort' => $sort++,
+                        'dont_inherit' => false,
+                    ];
+                }
+            }
+            if (!empty($hierarchyAttributeRows)) {
+                $sheets['07_Hierarchie_Attribute'] = $hierarchyAttributeRows;
+            }
+            unset($hierarchyAttributeRows);
+        }
+        unset($nodeAttributes);
+
+        // 5. Produkte
+        $sheets['08_Produkte'] = $productRows;
+        unset($productRows);
+
+        // 6. Produktwerte
+        if (!empty($productValues)) {
+            $sheets['09_Produktwerte'] = $productValues;
+        }
+        unset($productValues);
+
+        // 7. Produkt-Hierarchie-Zuordnungen (standalone maps ergänzen)
+        if ($hasTree) {
+            foreach ($parsed['product_to_group_maps'] as $map) {
+                $path = $this->resolveNodePath($map['group_id'], $catalogGroupTree);
+                if (!empty($path)) {
+                    $nodePath = implode('/', $path);
+                    $key = $map['prod_id'] . '|' . $nodePath;
+                    if (!isset($seenHierarchy[$key])) {
+                        $seenHierarchy[$key] = true;
+                        $productHierarchies[] = [
+                            'sku' => $map['prod_id'],
+                            'hierarchy' => $hierarchyTechName,
+                            'node_path' => $nodePath,
+                        ];
+                    }
+                }
+            }
+        }
+        unset($seenHierarchy);
+        if (!empty($productHierarchies)) {
+            $sheets['11_Produkt_Hierarchien'] = $productHierarchies;
+        }
+        unset($productHierarchies);
+
+        // 8. Produktbeziehungen
+        if (!empty($relations)) {
+            $sheets['12_Produktbeziehungen'] = $relations;
+        }
+        unset($relations);
+
+        // 9. Preise
+        if (!empty($prices)) {
+            $sheets['13_Preise'] = $prices;
+        }
+        unset($prices);
+
+        // 10. Medien
         if (!empty($media)) {
             $sheets['14_Medien'] = $media;
         }
+        unset($media);
 
         return new ParseResult(
             sheetsFound: array_keys($sheets),

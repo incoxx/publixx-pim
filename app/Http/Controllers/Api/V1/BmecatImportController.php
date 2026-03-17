@@ -149,7 +149,7 @@ class BmecatImportController extends Controller
     {
         set_time_limit(0);
         ini_set('max_execution_time', '0');
-        ini_set('memory_limit', '2G');
+        ini_set('memory_limit', '4G');
 
         try {
             $result = $this->importer->importFromFilePath($filePath, $productType);
@@ -258,7 +258,7 @@ class BmecatImportController extends Controller
     private function importStreamedFromFile(string $filePath, ?string $productType): StreamedResponse
     {
         return new StreamedResponse(function () use ($filePath, $productType) {
-            $this->configureForLongRunning('2G');
+            $this->configureForLongRunning('4G');
             $sendEvent = $this->createSseEventSender();
             $sendHeartbeat = $this->createSseHeartbeatSender();
 
