@@ -110,10 +110,26 @@ class ImportExecutor
      * @param string[] $columns   Spaltennamen die geupdated werden sollen
      * @param int      $batchSize Max Zeilen pro Temp-Table (Default 2000)
      */
+    /** Erlaubte Tabellen für Bulk-Operationen (SQL-Injection-Schutz). */
+    private const ALLOWED_BULK_TABLES = [
+        'products', 'product_attribute_values', 'product_prices',
+        'product_relations', 'product_relation_attribute_values',
+        'product_media_assignments', 'output_hierarchy_product_assignments',
+    ];
+
     private function bulkUpdateById(string $table, array $rows, array $columns, int $batchSize = 2000): void
     {
         if (empty($rows) || empty($columns)) {
             return;
+        }
+        if (!in_array($table, self::ALLOWED_BULK_TABLES, true)) {
+            throw new \InvalidArgumentException("Tabelle '$table' ist nicht für Bulk-Operationen freigegeben");
+        }
+        // Spalten-Validierung: nur alphanumerische Zeichen + Unterstrich
+        foreach ($columns as $col) {
+            if (!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $col)) {
+                throw new \InvalidArgumentException("Ungültiger Spaltenname: '$col'");
+            }
         }
         $startTime = microtime(true);
 
@@ -183,6 +199,12 @@ class ImportExecutor
     {
         if (empty($ids)) {
             return;
+        }
+        if (!in_array($table, self::ALLOWED_BULK_TABLES, true)) {
+            throw new \InvalidArgumentException("Tabelle '$table' ist nicht für Bulk-Operationen freigegeben");
+        }
+        if (!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $joinColumn)) {
+            throw new \InvalidArgumentException("Ungültiger Spaltenname: '$joinColumn'");
         }
         $startTime = microtime(true);
 
@@ -1063,11 +1085,11 @@ class ImportExecutor
                 ($this->progressCallback)($sheetKey, $processedRows, $totalRows, $this->stats);
             }
 
+            $insertBatch = [];
+            $updateBatch = [];
+
             DB::beginTransaction();
             try {
-                $insertBatch = [];
-                $updateBatch = [];
-
                 foreach ($chunk as $row) {
                     try {
                         $typeResult = $this->resolver->resolveProductType($row['product_type']);
@@ -2025,7 +2047,7 @@ class ImportExecutor
             ]);
         }
 
-        $updateColumns = ['amount', 'valid_to', 'country', 'scale_to', 'updated_at'];
+        $updateColumns = ['amount', 'valid_to', 'price_region_id', 'scale_to', 'updated_at'];
 
         foreach (array_chunk($rows, $chunkSize) as $chunk) {
             $chunkIndex++;
@@ -2036,10 +2058,11 @@ class ImportExecutor
                 ($this->progressCallback)($sheetKey, $processedRows, $totalRows, $this->stats);
             }
 
+            $insertBatch = [];
+            $updateBatch = [];
+
             DB::beginTransaction();
             try {
-                $insertBatch = [];
-                $updateBatch = [];
 
                 foreach ($chunk as $row) {
                     try {
@@ -2067,7 +2090,7 @@ class ImportExecutor
                             'currency' => $currency,
                             'valid_from' => $validFrom,
                             'valid_to' => $row['valid_to'] ?? null,
-                            'country' => !empty($row['country']) ? strtoupper((string) $row['country']) : null,
+                            'price_region_id' => !empty($row['country']) ? $this->resolvePriceRegionId(strtoupper((string) $row['country'])) : null,
                             'scale_from' => $scaleFrom,
                             'scale_to' => !empty($row['scale_to']) ? (int) $row['scale_to'] : null,
                             'updated_at' => $now,
