@@ -27,12 +27,12 @@ const { search, activeFilters, setSearch, removeFilter, clearFilters } = useFilt
   loadWithFilters()
 })
 
-function loadWithFilters() {
+async function loadWithFilters() {
   const opts = { search: search.value, include: 'attributeType,valueList,unitGroup,children,attributeViews' }
   if (Object.keys(activeFilterEntries.value).length > 0) {
     opts.filters = { ...activeFilterEntries.value }
   }
-  store.fetchAttributes(opts)
+  await store.fetchAttributes(opts)
 }
 
 // pendingFilterEntries holds in-progress filter selections (not yet applied)
@@ -238,15 +238,25 @@ function clearAllSelection() {
   allPagesSelected.value = false
 }
 
+const bulkDeleteError = ref(null)
+
 async function bulkDeleteAttributes() {
+  showConfirmBulkDelete.value = false
+  bulkDeleteError.value = null
   bulkDeleting.value = true
+  // Snapshot IDs before any reactive changes
+  const idsToDelete = [...selectedIds.value]
   try {
-    await store.bulkDelete(selectedIds.value)
-    showConfirmBulkDelete.value = false
-    clearAllSelection()
-    loadWithFilters()
+    await attributesApi.bulkDelete(idsToDelete)
+    selectedIds.value = []
+    allPagesSelected.value = false
+    if (pimTableRef.value?.clearSelection) {
+      pimTableRef.value.clearSelection()
+    }
+    await loadWithFilters()
   } catch (e) {
     console.error('Bulk delete failed', e)
+    bulkDeleteError.value = e.response?.data?.message || e.message || 'Löschen fehlgeschlagen'
   } finally {
     bulkDeleting.value = false
   }
@@ -453,6 +463,20 @@ onBeforeUnmount(() => {
         {{ bulkDeleting ? 'Lösche...' : 'Ja, endgültig löschen' }}
       </button>
       <button class="pim-btn pim-btn-ghost text-xs" @click="showConfirmBulkDelete = false">Abbrechen</button>
+    </div>
+
+    <!-- Bulk deleting indicator -->
+    <div v-if="bulkDeleting" class="px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-2">
+      <svg class="animate-spin w-3.5 h-3.5 text-amber-600" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+      <span class="text-xs text-amber-700 font-medium">Attribute werden gelöscht…</span>
+    </div>
+
+    <!-- Bulk delete error -->
+    <div v-if="bulkDeleteError" class="px-3 py-2 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
+      <span class="text-xs text-red-700 font-medium">Fehler beim Löschen: {{ bulkDeleteError }}</span>
+      <button class="pim-btn pim-btn-ghost text-xs" @click="bulkDeleteError = null">
+        <X class="w-3.5 h-3.5" :stroke-width="2" />
+      </button>
     </div>
 
     <!-- Filter Panel -->
