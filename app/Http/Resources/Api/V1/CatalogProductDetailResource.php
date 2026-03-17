@@ -180,15 +180,25 @@ class CatalogProductDetailResource extends JsonResource
             return [];
         }
 
-        // Eager-load primary media for target products to build image URLs
-        $targetProducts = $product->outgoingRelations
+        // Eager-load media for target products to build image URLs
+        $targetIds = $product->outgoingRelations
             ->pluck('targetProduct')
-            ->filter();
-        if ($targetProducts->isNotEmpty()) {
-            $targetProducts->load('media');
+            ->filter()
+            ->pluck('id')
+            ->unique()
+            ->values()
+            ->toArray();
+
+        if (!empty($targetIds)) {
+            $mediaByProduct = \App\Models\Product::whereIn('id', $targetIds)
+                ->with('media')
+                ->get()
+                ->keyBy('id');
+        } else {
+            $mediaByProduct = collect();
         }
 
-        return $product->outgoingRelations->map(function ($relation) use ($lang) {
+        return $product->outgoingRelations->map(function ($relation) use ($lang, $mediaByProduct) {
             $target = $relation->targetProduct;
             if (!$target || $target->status !== 'active') {
                 return null;
@@ -202,10 +212,11 @@ class CatalogProductDetailResource extends JsonResource
 
             // Find primary image for the related product
             $imageUrl = null;
-            if ($target->relationLoaded('media')) {
-                $primaryMedia = $target->media->first(fn ($m) => $m->pivot->is_primary && $m->media_type === 'image');
+            $targetWithMedia = $mediaByProduct->get($target->id);
+            if ($targetWithMedia && $targetWithMedia->media->isNotEmpty()) {
+                $primaryMedia = $targetWithMedia->media->first(fn ($m) => $m->pivot->is_primary && $m->media_type === 'image');
                 if (!$primaryMedia) {
-                    $primaryMedia = $target->media->first(fn ($m) => $m->media_type === 'image');
+                    $primaryMedia = $targetWithMedia->media->first(fn ($m) => $m->media_type === 'image');
                 }
                 if ($primaryMedia) {
                     $imageUrl = url('api/v1/catalog/media/' . rawurlencode($primaryMedia->file_name));
