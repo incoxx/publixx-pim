@@ -3,15 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Doka-Style Katalog</title>
+  <title>Austrian Sunrise – Produktkatalog</title>
   <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
   <style>
     /* ===========================================================
-     * DOKA Corporate Design — überschreibt das Standard-Framework
+     * AUSTRIAN SUNRISE — Corporate Design Template
      * ===========================================================
-     * Extrahiert aus shop.doka.com CSS
-     * Farben: Doka Blau #004588, Doka Gelb #fd0
-     * Font:   Soehne (fallback: Open Sans)
+     * Farbschema: Blau #004588, Gelb #fd0
+     * Font:   Open Sans
+     * Container: 960px, Border-Radius: 0px
      */
     :root {
       --pxc-primary: #004588;
@@ -27,12 +27,12 @@
       --pxc-shadow: none;
       --pxc-shadow-lg: 0 1px 0 0 rgba(0,0,0,0.35);
 
-      --doka-blue: #004588;
-      --doka-blue-active: #003e7a;
-      --doka-yellow: #fd0;
-      --doka-dark: #2b2b2b;
-      --doka-gray: #eee;
-      --doka-border: #c3c3c3;
+      --as-blue: #004588;
+      --as-blue-active: #003e7a;
+      --as-yellow: #fd0;
+      --as-dark: #2b2b2b;
+      --as-gray: #eee;
+      --as-border: #c3c3c3;
     }
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -42,17 +42,17 @@
       font-size: 17px;
       font-weight: 400;
       background: #fff;
-      color: var(--doka-dark);
+      color: var(--as-dark);
     }
 
     /* ===== META NAV — Top dark bar ===== */
-    .doka-meta-nav {
-      background: var(--doka-dark);
+    .as-meta-nav {
+      background: var(--as-dark);
       color: #fff;
       font-size: 14px;
       font-weight: 400;
     }
-    .doka-meta-nav__inner {
+    .as-meta-nav__inner {
       max-width: 960px;
       margin: 0 auto;
       padding: 6px 15px;
@@ -60,38 +60,38 @@
       align-items: center;
       justify-content: space-between;
     }
-    .doka-meta-nav__links {
+    .as-meta-nav__links {
       display: flex;
       gap: 15px;
     }
-    .doka-meta-nav__links a {
+    .as-meta-nav__links a {
       color: #fff;
       text-decoration: none;
       text-transform: uppercase;
       font-weight: 600;
       font-size: 14px;
     }
-    .doka-meta-nav__links a:hover {
+    .as-meta-nav__links a:hover {
       text-decoration: underline;
     }
-    .doka-meta-nav__links a.active {
-      color: var(--doka-yellow);
+    .as-meta-nav__links a.active {
+      color: var(--as-yellow);
     }
-    .doka-meta-nav__right {
+    .as-meta-nav__right {
       display: flex;
       align-items: center;
       gap: 10px;
     }
 
     /* ===== NAV MID — Yellow bar with logo, search, cart ===== */
-    .doka-nav-mid {
-      background: var(--doka-yellow);
+    .as-nav-mid {
+      background: var(--as-yellow);
       border-bottom: 1px solid #fff;
       position: sticky;
       top: 0;
       z-index: 100;
     }
-    .doka-nav-mid__inner {
+    .as-nav-mid__inner {
       max-width: 960px;
       margin: 0 auto;
       padding: 5px 15px;
@@ -100,80 +100,80 @@
       gap: 20px;
       position: relative;
     }
-    .doka-logo {
+    .as-logo {
       flex-shrink: 0;
     }
-    .doka-logo img,
-    .doka-logo svg {
+    .as-logo img,
+    .as-logo svg {
       height: 42px;
       width: auto;
     }
-    .doka-logo__placeholder {
+    .as-logo__placeholder {
       display: flex;
       align-items: center;
       gap: 6px;
     }
-    .doka-logo__icon {
+    .as-logo__icon {
       width: 42px;
       height: 42px;
-      background: var(--doka-blue);
+      background: var(--as-blue);
       border-radius: 2px;
       display: flex;
       align-items: center;
       justify-content: center;
     }
-    .doka-logo__icon svg {
+    .as-logo__icon svg {
       width: 26px;
       height: 26px;
-      fill: var(--doka-yellow);
+      fill: var(--as-yellow);
     }
-    .doka-logo__text {
+    .as-logo__text {
       font-size: 1.75rem;
       font-weight: 800;
-      color: var(--doka-blue);
+      color: var(--as-blue);
       letter-spacing: -0.5px;
     }
 
     /* Search on yellow bar */
-    .doka-search-area {
+    .as-search-area {
       flex: 1;
       min-width: 0;
     }
-    .doka-search-area .pxc-search__input {
+    .as-search-area .pxc-search__input {
       border: none;
       border-radius: 0;
       height: 32px;
       font-size: 17px;
-      color: var(--doka-blue);
+      color: var(--as-blue);
       background: transparent;
       padding: 0 40px 0 0;
     }
-    .doka-search-area .pxc-search__input:focus {
+    .as-search-area .pxc-search__input:focus {
       box-shadow: none;
       outline: none;
     }
-    .doka-search-area .pxc-search__input::placeholder {
-      color: var(--doka-blue);
+    .as-search-area .pxc-search__input::placeholder {
+      color: var(--as-blue);
       opacity: 0.6;
     }
-    .doka-search-area .pxc-search__icon {
-      color: var(--doka-blue);
+    .as-search-area .pxc-search__icon {
+      color: var(--as-blue);
       font-size: 17px;
     }
-    .doka-search-area .pxc-search__wrapper {
+    .as-search-area .pxc-search__wrapper {
       border: none;
       background: transparent;
     }
 
     /* Cart button — blue circle on yellow bar */
-    .doka-cart-area {
+    .as-cart-area {
       position: relative;
       flex-shrink: 0;
     }
 
-    /* Override wishlist button to look like Doka cart */
-    .doka-cart-area .pxc-wishlist-btn {
-      background: var(--doka-blue);
+    /* Override wishlist button to look like cart */
+    .as-cart-area .pxc-wishlist-btn {
+      background: var(--as-blue);
       border: none;
       border-radius: 50%;
       width: 48px;
@@ -185,46 +185,46 @@
       box-shadow: 0 1px 0 0 rgba(0,0,0,0.35);
       cursor: pointer;
     }
-    .doka-cart-area .pxc-wishlist-btn__count {
+    .as-cart-area .pxc-wishlist-btn__count {
       font-weight: 600;
       font-size: 14px;
     }
 
     /* ===== NAV BOT — Gray category bar ===== */
-    .doka-nav-bot {
-      background: var(--doka-gray);
+    .as-nav-bot {
+      background: var(--as-gray);
     }
-    .doka-nav-bot__inner {
+    .as-nav-bot__inner {
       max-width: 960px;
       margin: 0 auto;
       padding: 0 15px;
       display: flex;
       justify-content: center;
     }
-    .doka-nav-bot__links {
+    .as-nav-bot__links {
       display: flex;
       gap: 0;
     }
-    .doka-nav-bot__links a {
+    .as-nav-bot__links a {
       display: block;
       padding: 8px 15px;
-      color: var(--doka-blue);
+      color: var(--as-blue);
       font-weight: 600;
       text-decoration: none;
       text-transform: none;
       font-size: 1rem;
     }
-    .doka-nav-bot__links a:hover {
-      background: var(--doka-blue);
+    .as-nav-bot__links a:hover {
+      background: var(--as-blue);
       color: #fff;
     }
-    .doka-nav-bot__links a.active {
+    .as-nav-bot__links a.active {
       background: #fff;
     }
 
     /* ===== HERO BANNER ===== */
-    .doka-hero {
-      background: var(--doka-yellow);
+    .as-hero {
+      background: var(--as-yellow);
       padding: 32px 20px;
       display: flex;
       align-items: center;
@@ -234,21 +234,21 @@
       gap: 24px;
       overflow: hidden;
     }
-    .doka-hero__text h2 {
+    .as-hero__text h2 {
       font-size: 45px;
       font-weight: 700;
-      color: var(--doka-blue);
+      color: var(--as-blue);
       line-height: 1.1;
     }
-    .doka-hero__text p {
+    .as-hero__text p {
       font-size: 17px;
-      color: var(--doka-blue);
+      color: var(--as-blue);
       margin-top: 8px;
       opacity: 0.8;
     }
-    .doka-hero__badge {
+    .as-hero__badge {
       background: white;
-      color: var(--doka-blue);
+      color: var(--as-blue);
       font-weight: 600;
       font-size: 14px;
       padding: 6px 12px;
@@ -257,86 +257,86 @@
     }
 
     /* ===== MAIN CONTENT ===== */
-    .doka-content {
+    .as-content {
       max-width: 960px;
       margin: 0 auto;
       padding: 0 15px;
     }
 
-    /* Section headers — Doka uppercase blue */
-    .doka-section-title {
+    /* Section headers — uppercase blue */
+    .as-section-title {
       font-size: 21px;
       font-weight: 600;
-      color: var(--doka-blue);
+      color: var(--as-blue);
       text-transform: uppercase;
       margin: 20px 0 16px;
     }
 
     /* ===== PRODUCT GRID OVERRIDES ===== */
-    .doka-products .pxc-product-card {
+    .as-products .pxc-product-card {
       border: none;
       border-radius: 0;
       box-shadow: none;
       background: transparent;
     }
-    .doka-products .pxc-product-card:hover {
+    .as-products .pxc-product-card:hover {
       box-shadow: none;
       transform: none;
     }
-    .doka-products .pxc-product-card__image {
+    .as-products .pxc-product-card__image {
       background: white;
-      border: 1px solid var(--doka-border);
+      border: 1px solid var(--as-border);
       border-radius: 0;
       aspect-ratio: 1;
     }
-    .doka-products .pxc-product-card__name {
+    .as-products .pxc-product-card__name {
       font-size: 17px;
       font-weight: 600;
-      color: var(--doka-blue);
+      color: var(--as-blue);
       min-height: auto;
     }
-    .doka-products .pxc-product-card__price {
+    .as-products .pxc-product-card__price {
       font-size: 17px;
       font-weight: 600;
-      color: var(--doka-blue);
+      color: var(--as-blue);
       background: transparent;
       padding: 8px 0;
     }
-    .doka-products .pxc-product-card__body {
+    .as-products .pxc-product-card__body {
       padding: 8px 0;
     }
-    .doka-products .pxc-product-card__category {
+    .as-products .pxc-product-card__category {
       display: none;
     }
 
     /* Grid layout */
-    .doka-products .pxc-product-grid__grid {
+    .as-products .pxc-product-grid__grid {
       grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
       gap: 20px;
     }
 
     /* ===== TOOLBAR OVERRIDES ===== */
-    .doka-toolbar .pxc-toolbar {
+    .as-toolbar .pxc-toolbar {
       border-bottom: none;
       padding: 12px 0;
     }
 
     /* ===== PAGINATION OVERRIDES ===== */
-    .doka-pagination .pxc-pagination__btn {
+    .as-pagination .pxc-pagination__btn {
       border-radius: 0;
     }
-    .doka-pagination .pxc-pagination__active {
-      background: var(--doka-blue) !important;
+    .as-pagination .pxc-pagination__active {
+      background: var(--as-blue) !important;
     }
 
     /* ===== PRODUCT DETAIL OVERRIDES ===== */
     .pxc-detail__title {
-      color: var(--doka-blue);
+      color: var(--as-blue);
       font-weight: 700;
       font-size: 45px;
     }
     .pxc-detail__section-title {
-      color: var(--doka-blue);
+      color: var(--as-blue);
       font-weight: 600;
       text-transform: uppercase;
       font-size: 21px;
@@ -344,13 +344,13 @@
       margin-bottom: 20px;
     }
     .pxc-detail__price-value {
-      color: var(--doka-blue);
+      color: var(--as-blue);
       font-weight: 600;
     }
 
     /* ===== BUTTON OVERRIDES ===== */
     .pxc-btn {
-      background: var(--doka-blue);
+      background: var(--as-blue);
       color: #fff;
       border: none;
       border-radius: 0;
@@ -363,216 +363,216 @@
       box-shadow: inset 0 0 12px 0 rgba(43,43,43,0.45);
     }
     .pxc-btn:active {
-      background: var(--doka-blue-active);
+      background: var(--as-blue-active);
       color: rgba(255,255,255,0.8);
     }
 
     /* ===== FACETS / SIDEBAR ===== */
-    .doka-layout {
+    .as-layout {
       display: grid;
       grid-template-columns: 260px 1fr;
       gap: 24px;
       margin-top: 16px;
     }
-    .doka-sidebar {
-      border-right: 1px solid var(--doka-gray);
+    .as-sidebar {
+      border-right: 1px solid var(--as-gray);
       padding-right: 16px;
     }
-    .doka-sidebar .pxc-categories__item--active {
-      background: var(--doka-blue);
+    .as-sidebar .pxc-categories__item--active {
+      background: var(--as-blue);
     }
-    .doka-sidebar .pxc-categories__item {
+    .as-sidebar .pxc-categories__item {
       border-radius: 0;
     }
-    .doka-sidebar .pxc-facets__badge {
-      background: var(--doka-blue);
+    .as-sidebar .pxc-facets__badge {
+      background: var(--as-blue);
       border-radius: 0;
     }
-    .doka-sidebar .pxc-facets__title {
+    .as-sidebar .pxc-facets__title {
       font-weight: 600;
-      color: var(--doka-dark);
+      color: var(--as-dark);
       text-transform: uppercase;
       font-size: 14px;
     }
 
     /* ===== INFO BANNER ===== */
-    .doka-info-banner {
-      background: var(--doka-yellow);
+    .as-info-banner {
+      background: var(--as-yellow);
       padding: 24px;
       margin: 32px 0;
     }
-    .doka-info-banner h3 {
+    .as-info-banner h3 {
       font-size: 21px;
       font-weight: 600;
-      color: var(--doka-blue);
+      color: var(--as-blue);
       text-transform: uppercase;
       margin-bottom: 12px;
     }
-    .doka-info-banner ul {
+    .as-info-banner ul {
       list-style: none;
       padding: 0;
     }
-    .doka-info-banner li {
+    .as-info-banner li {
       padding: 6px 0;
       font-size: 14px;
-      color: var(--doka-blue);
+      color: var(--as-blue);
       display: flex;
       align-items: flex-start;
       gap: 8px;
       line-height: 22px;
     }
-    .doka-info-banner li::before {
+    .as-info-banner li::before {
       content: "";
       width: 12px;
       height: 12px;
       margin-top: 5px;
-      background: var(--doka-blue);
+      background: var(--as-blue);
       flex-shrink: 0;
     }
 
     /* ===== FOOTER ===== */
-    .doka-footer {
+    .as-footer {
       background: #333;
       color: #fff;
       padding: 30px 20px 25px;
       margin-top: 48px;
       font-size: 16px;
     }
-    .doka-footer__inner {
+    .as-footer__inner {
       max-width: 960px;
       margin: 0 auto;
     }
-    .doka-footer a {
+    .as-footer a {
       color: #fff;
       text-decoration: none;
     }
-    .doka-footer a:hover {
+    .as-footer a:hover {
       text-decoration: underline;
     }
-    .doka-copyright {
-      background: var(--doka-dark);
+    .as-copyright {
+      background: var(--as-dark);
       border-top: 1px solid #222;
       color: #fff;
       font-size: 15px;
       padding: 20px;
       text-align: center;
     }
-    .doka-copyright a {
+    .as-copyright a {
       color: #fff;
       text-decoration: none;
       margin: 0 3px;
     }
-    .doka-copyright a:hover {
+    .as-copyright a:hover {
       text-decoration: underline;
     }
 
     /* ===== MOBILE ===== */
     @media (max-width: 767px) {
-      .doka-layout {
+      .as-layout {
         grid-template-columns: 1fr;
       }
-      .doka-sidebar { display: none; }
-      .doka-hero { flex-direction: column; text-align: center; }
-      .doka-hero__text h2 { font-size: 28px; }
-      .doka-meta-nav__inner { flex-direction: column; gap: 4px; }
-      .doka-nav-bot__links { flex-wrap: wrap; justify-content: center; }
-      .doka-nav-mid__inner { flex-wrap: wrap; }
+      .as-sidebar { display: none; }
+      .as-hero { flex-direction: column; text-align: center; }
+      .as-hero__text h2 { font-size: 28px; }
+      .as-meta-nav__inner { flex-direction: column; gap: 4px; }
+      .as-nav-bot__links { flex-wrap: wrap; justify-content: center; }
+      .as-nav-mid__inner { flex-wrap: wrap; }
     }
   </style>
 </head>
 <body>
 
   <!-- ===== META NAV — Top dark bar ===== -->
-  <div class="doka-meta-nav">
-    <div class="doka-meta-nav__inner">
-      <div class="doka-meta-nav__links">
-        <a href="#">doka.com</a>
-        <a href="#" class="active">online shop</a>
+  <div class="as-meta-nav">
+    <div class="as-meta-nav__inner">
+      <div class="as-meta-nav__links">
+        <a href="#">ihrefirma.at</a>
+        <a href="#" class="active">Online Shop</a>
       </div>
-      <div class="doka-meta-nav__right">
+      <div class="as-meta-nav__right">
         <div data-catalog="locale"></div>
       </div>
     </div>
   </div>
 
   <!-- ===== NAV MID — Yellow bar: Logo + Search + Cart ===== -->
-  <nav class="doka-nav-mid">
-    <div class="doka-nav-mid__inner">
-      <div class="doka-logo">
-        <div class="doka-logo__placeholder">
-          <div class="doka-logo__icon">
+  <nav class="as-nav-mid">
+    <div class="as-nav-mid__inner">
+      <div class="as-logo">
+        <div class="as-logo__placeholder">
+          <div class="as-logo__icon">
             <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="3" width="7" height="18" rx="1"/></svg>
           </div>
-          <span class="doka-logo__text">doka</span>
+          <span class="as-logo__text">Ihr Logo</span>
         </div>
       </div>
 
-      <div class="doka-search-area">
+      <div class="as-search-area">
         <div data-catalog="search"></div>
       </div>
 
-      <div class="doka-cart-area">
+      <div class="as-cart-area">
         <div data-catalog="wishlist"></div>
       </div>
     </div>
   </nav>
 
   <!-- ===== NAV BOT — Gray category links ===== -->
-  <div class="doka-nav-bot">
-    <div class="doka-nav-bot__inner">
-      <div class="doka-nav-bot__links">
+  <div class="as-nav-bot">
+    <div class="as-nav-bot__inner">
+      <div class="as-nav-bot__links">
         <a href="#" class="active">Alle Produkte</a>
-        <a href="#">Schalungen</a>
-        <a href="#">Ger&uuml;ste</a>
-        <a href="#">Sicherheit</a>
+        <a href="#">Kategorie 1</a>
+        <a href="#">Kategorie 2</a>
+        <a href="#">Kategorie 3</a>
         <a href="#">Zubeh&ouml;r</a>
       </div>
     </div>
   </div>
 
   <!-- ===== HERO BANNER ===== -->
-  <div class="doka-content">
-    <div class="doka-hero">
-      <div class="doka-hero__text">
-        <h2>Basics f&uuml;r Ihren<br>Baustellenalltag</h2>
-        <p>Jetzt online bestellen und Preisvorteil sichern</p>
-        <span class="doka-hero__badge">G&uuml;ltig bis 31.03.2026</span>
+  <div class="as-content">
+    <div class="as-hero">
+      <div class="as-hero__text">
+        <h2>Willkommen in<br>unserem Katalog</h2>
+        <p>Entdecken Sie unser Sortiment und bestellen Sie online</p>
+        <span class="as-hero__badge">Aktuelles Angebot</span>
       </div>
     </div>
   </div>
 
   <!-- ===== MAIN LAYOUT ===== -->
-  <div class="doka-content">
-    <div class="doka-layout">
+  <div class="as-content">
+    <div class="as-layout">
       <!-- Sidebar -->
-      <aside class="doka-sidebar">
+      <aside class="as-sidebar">
         <div data-catalog="categories"></div>
         <div data-catalog="facets"></div>
       </aside>
 
       <!-- Products -->
       <main>
-        <div class="doka-toolbar">
+        <div class="as-toolbar">
           <div data-catalog="toolbar"></div>
         </div>
         <div data-catalog="active-filters"></div>
 
-        <h2 class="doka-section-title">Produkte</h2>
-        <div class="doka-products">
+        <h2 class="as-section-title">Produkte</h2>
+        <div class="as-products">
           <div data-catalog="product-grid"></div>
         </div>
 
-        <div class="doka-pagination">
+        <div class="as-pagination">
           <div data-catalog="pagination"></div>
         </div>
 
-        <!-- Doka-style info banner -->
-        <div class="doka-info-banner">
+        <!-- Info banner -->
+        <div class="as-info-banner">
           <h3>Ihre Vorteile</h3>
           <ul>
-            <li><strong>Kosteng&uuml;nstig und leicht zu verarbeiten</strong> mit langer Lebensdauer</li>
-            <li><strong>Wetterfeste Verleimung</strong> und wasserfeste Oberfl&auml;che</li>
-            <li><strong>H&auml;lt gro&szlig;en mechanischen Belastungen stand</strong> &ndash; ausgezeichnetes Verh&auml;ltnis zwischen Gewicht und Stabilit&auml;t</li>
+            <li><strong>Hochwertige Produkte</strong> aus erstklassigen Materialien</li>
+            <li><strong>Schnelle Lieferung</strong> direkt zu Ihnen</li>
+            <li><strong>Pers&ouml;nliche Beratung</strong> &ndash; unser Team ist f&uuml;r Sie da</li>
           </ul>
         </div>
       </main>
@@ -580,14 +580,14 @@
   </div>
 
   <!-- ===== FOOTER ===== -->
-  <footer class="doka-footer">
-    <div class="doka-footer__inner">
-      <strong>Doka GmbH</strong><br>
+  <footer class="as-footer">
+    <div class="as-footer__inner">
+      <strong>Ihre Firma GmbH</strong><br>
       <a href="#">Kontakt</a> | <a href="#">Standorte</a> | <a href="#">Karriere</a>
     </div>
   </footer>
-  <div class="doka-copyright">
-    &copy; 2026 Doka GmbH |
+  <div class="as-copyright">
+    &copy; 2026 Ihre Firma GmbH |
     <a href="#">Impressum</a> |
     <a href="#">Datenschutz</a> |
     <a href="#">AGB</a>

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useStore } from '../store.js'
 import { icons } from '../icons.js'
 
@@ -7,6 +7,11 @@ const { state, actions, getters } = useStore()
 const drawerOpen = ref(false)
 const exporting = ref(null)
 const linkCopied = ref(false)
+
+// Listen for external open-wishlist events (from WishlistButtonWidget)
+function onOpenWishlist() { drawerOpen.value = true }
+onMounted(() => window.addEventListener('pxc:open-wishlist', onOpenWishlist))
+onUnmounted(() => window.removeEventListener('pxc:open-wishlist', onOpenWishlist))
 
 const wishlistProducts = computed(() => {
   return state.products.filter(p => getters.isInWishlist(p.id))
@@ -53,7 +58,8 @@ function openCompare() {
 }
 
 async function shareWishlist() {
-  const url = `${window.location.origin}${window.location.pathname}?wishlist=${state.wishlistIds.join(',')}`
+  const base = window.location.href.split('?')[0]
+  const url = `${base}?wishlist=${state.wishlistIds.join(',')}`
   try {
     await navigator.clipboard.writeText(url)
     linkCopied.value = true

@@ -1,10 +1,15 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useStore } from '../store.js'
 import { icons } from '../icons.js'
 
 const { state, actions } = useStore()
 const showDiffsOnly = ref(false)
+
+// Body scroll lock when compare modal is open
+watch(() => state.compareOpen, (open) => {
+  document.body.style.overflow = open ? 'hidden' : ''
+})
 
 const rows = computed(() => {
   if (!state.compareData?.rows) return []

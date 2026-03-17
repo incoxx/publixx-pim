@@ -3,7 +3,7 @@
  * All widgets share this single reactive state.
  */
 import { reactive, computed, watch } from 'vue'
-import { catalogApi, resolveMediaUrl } from './api.js'
+import { catalogApi, resolveMediaUrl, clearCache } from './api.js'
 
 function createStore() {
   const state = reactive({
@@ -27,8 +27,8 @@ function createStore() {
     selectedCategoryId: null,
     selectedCategoryName: null,
     sort: { field: 'name', order: 'asc' },
-    viewMode: localStorage.getItem('pxc_view_mode') || 'grid',
-    locale: localStorage.getItem('pxc_locale') || 'de',
+    viewMode: (typeof localStorage !== 'undefined' && localStorage.getItem('pxc_view_mode')) || 'grid',
+    locale: (typeof localStorage !== 'undefined' && localStorage.getItem('pxc_locale')) || 'de',
 
     // Categories
     categories: [],
@@ -40,7 +40,7 @@ function createStore() {
     activeFilters: {},
 
     // Wishlist
-    wishlistIds: JSON.parse(localStorage.getItem('pxc_wishlist') || '[]'),
+    wishlistIds: JSON.parse((typeof localStorage !== 'undefined' && localStorage.getItem('pxc_wishlist')) || '[]'),
 
     // Settings (from PIM)
     settings: {},
@@ -58,15 +58,17 @@ function createStore() {
   })
 
   // Persist wishlist
-  watch(() => state.wishlistIds, (ids) => {
-    localStorage.setItem('pxc_wishlist', JSON.stringify(ids))
-  }, { deep: true })
+  if (typeof localStorage !== 'undefined') {
+    watch(() => state.wishlistIds, (ids) => {
+      localStorage.setItem('pxc_wishlist', JSON.stringify(ids))
+    }, { deep: true })
 
-  // Persist view mode
-  watch(() => state.viewMode, (v) => localStorage.setItem('pxc_view_mode', v))
+    // Persist view mode
+    watch(() => state.viewMode, (v) => localStorage.setItem('pxc_view_mode', v))
 
-  // Persist locale
-  watch(() => state.locale, (v) => localStorage.setItem('pxc_locale', v))
+    // Persist locale
+    watch(() => state.locale, (v) => localStorage.setItem('pxc_locale', v))
+  }
 
   // --- Computed-like getters ---
   const getters = {
@@ -83,7 +85,7 @@ function createStore() {
       try {
         const data = await catalogApi.getSettings()
         state.settings = data || {}
-        if (!localStorage.getItem('pxc_locale') && data.default_locale) {
+        if (!(typeof localStorage !== 'undefined' && localStorage.getItem('pxc_locale')) && data.default_locale) {
           state.locale = data.default_locale
         }
         state._settingsLoaded = true
@@ -202,6 +204,7 @@ function createStore() {
 
     setLocale(loc) {
       state.locale = loc
+      clearCache()
     },
 
     // Filters
@@ -233,7 +236,7 @@ function createStore() {
     },
 
     clearWishlist() {
-      state.wishlistIds = []
+      state.wishlistIds.splice(0, state.wishlistIds.length)
     },
 
     importWishlistFromUrl() {

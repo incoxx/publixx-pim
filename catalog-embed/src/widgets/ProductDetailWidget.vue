@@ -6,6 +6,11 @@ import { icons } from '../icons.js'
 const { state, actions, getters } = useStore()
 const selectedImageIdx = ref(0)
 
+// Body scroll lock when detail modal is open
+watch(() => state.detailOpen, (open) => {
+  document.body.style.overflow = open ? 'hidden' : ''
+})
+
 const images = computed(() => {
   if (!state.currentProduct?.media) return []
   return state.currentProduct.media.filter(m => m.media_type === 'image')

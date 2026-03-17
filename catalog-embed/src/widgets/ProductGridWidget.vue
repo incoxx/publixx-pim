@@ -79,7 +79,7 @@ function onWishlist(e, productId) {
         <!-- Body -->
         <div class="pxc-product-card__body">
           <p v-if="product.category_path" class="pxc-product-card__category">{{ product.category_path }}</p>
-          <h3 class="pxc-product-card__name">{{ product.primary_attribute_value || product.name || product.sku || '–' }}</h3>
+          <h3 class="pxc-product-card__name">{{ (product.primary_attribute_value && product.primary_attribute_value.trim()) || product.name || product.sku || '–' }}</h3>
           <p v-if="product.sku" class="pxc-product-card__sku">{{ product.sku }}</p>
 
           <!-- Card attributes -->

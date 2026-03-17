@@ -7,10 +7,36 @@ let _baseUrl = '/api/v1'
 let _token = null
 let _timeout = 15000
 
-export function configureApi({ baseUrl, token, timeout }) {
+// In-memory response cache (GET requests only)
+const _cache = new Map()
+const _cacheTTL = 60000 // 60 seconds default
+let _cacheEnabled = true
+
+function getCached(key) {
+  if (!_cacheEnabled) return null
+  const entry = _cache.get(key)
+  if (!entry) return null
+  if (Date.now() - entry.ts > _cacheTTL) {
+    _cache.delete(key)
+    return null
+  }
+  return entry.data
+}
+
+function setCache(key, data) {
+  if (!_cacheEnabled) return
+  _cache.set(key, { data, ts: Date.now() })
+}
+
+export function clearCache() {
+  _cache.clear()
+}
+
+export function configureApi({ baseUrl, token, timeout, cache }) {
   if (baseUrl) _baseUrl = baseUrl.replace(/\/+$/, '')
   if (token) _token = token
   if (timeout) _timeout = timeout
+  if (cache === false) _cacheEnabled = false
 }
 
 export function getBaseUrl() {
@@ -33,10 +59,7 @@ export function resolveMediaUrl(path) {
 }
 
 async function request(path, options = {}) {
-  const url = new URL(path, _baseUrl.startsWith('http') ? _baseUrl : window.location.origin + _baseUrl)
-  if (!url.pathname.startsWith(_baseUrl.replace(/^https?:\/\/[^/]+/, ''))) {
-    url.pathname = _baseUrl.replace(/^https?:\/\/[^/]+/, '') + path
-  }
+  const url = _baseUrl + path
 
   const headers = {
     Accept: 'application/json',
@@ -44,14 +67,11 @@ async function request(path, options = {}) {
   }
   if (_token) headers.Authorization = `Bearer ${_token}`
 
-  const storedToken = typeof localStorage !== 'undefined' ? localStorage.getItem('pim_token') : null
-  if (!_token && storedToken) headers.Authorization = `Bearer ${storedToken}`
-
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), _timeout)
 
   try {
-    const resp = await fetch(url.toString(), {
+    const resp = await fetch(url, {
       ...options,
       headers: { ...headers, ...options.headers },
       signal: controller.signal,
@@ -95,9 +115,12 @@ function buildQuery(options = {}) {
 
 export const catalogApi = {
   async getProducts(options = {}) {
-    const resp = await request(`/catalog/products${buildQuery(options)}`)
+    const path = `/catalog/products${buildQuery(options)}`
+    const cached = getCached(path)
+    if (cached) return cached
+    const resp = await request(path)
     const data = await resp.json()
-    return {
+    const result = {
       products: Array.isArray(data) ? data : (data.data || data),
       meta: {
         current_page: parseInt(resp.headers.get('x-current-page') || '1', 10),
@@ -106,29 +129,50 @@ export const catalogApi = {
         total: parseInt(resp.headers.get('x-total-count') || '0', 10),
       },
     }
+    setCache(path, result)
+    return result
   },
 
   async getProduct(id, options = {}) {
-    const resp = await request(`/catalog/products/${id}${buildQuery(options)}`)
+    const path = `/catalog/products/${id}${buildQuery(options)}`
+    const cached = getCached(path)
+    if (cached) return cached
+    const resp = await request(path)
     const data = await resp.json()
-    return data.data || data
+    const result = data.data || data
+    setCache(path, result)
+    return result
   },
 
   async getCategories(options = {}) {
-    const resp = await request(`/catalog/categories${buildQuery(options)}`)
+    const path = `/catalog/categories${buildQuery(options)}`
+    const cached = getCached(path)
+    if (cached) return cached
+    const resp = await request(path)
     const data = await resp.json()
-    return data.data || data
+    const result = data.data || data
+    setCache(path, result)
+    return result
   },
 
   async getSettings() {
-    const resp = await request('/catalog/settings')
+    const path = '/catalog/settings'
+    const cached = getCached(path)
+    if (cached) return cached
+    const resp = await request(path)
     const data = await resp.json()
-    return data.data || data
+    const result = data.data || data
+    setCache(path, result)
+    return result
   },
 
   async getFacets(options = {}) {
-    const resp = await request(`/catalog/facets${buildQuery(options)}`)
+    const path = `/catalog/facets${buildQuery(options)}`
+    const cached = getCached(path)
+    if (cached) return cached
+    const resp = await request(path)
     const data = await resp.json()
+    setCache(path, data)
     return data
   },
 

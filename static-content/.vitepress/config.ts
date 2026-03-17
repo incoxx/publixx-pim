@@ -69,6 +69,7 @@ export default defineConfig({
               items: [
                 { text: 'Berichte', link: '/de/erweitert/berichte' },
                 { text: 'PDF-Vorlagen', link: '/de/erweitert/pdf-vorlagen' },
+                { text: 'Katalog-Embed', link: '/de/erweitert/catalog-embed' },
                 { text: 'Planungskalender', link: '/de/erweitert/planungskalender' },
                 { text: 'Preisregionen', link: '/de/erweitert/preisregionen' },
                 { text: 'Export-Jobs', link: '/de/erweitert/exportjobs' },
@@ -230,6 +231,7 @@ export default defineConfig({
               items: [
                 { text: 'Reports', link: '/en/advanced/reports' },
                 { text: 'PDF Templates', link: '/en/advanced/pdf-templates' },
+                { text: 'Catalog Embed', link: '/en/advanced/catalog-embed' },
                 { text: 'Planning Calendar', link: '/en/advanced/calendar' },
                 { text: 'Price Regions', link: '/en/advanced/price-regions' },
                 { text: 'Export Jobs', link: '/en/advanced/export-jobs' },
