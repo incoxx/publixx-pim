@@ -104,6 +104,24 @@ if [ "$MODE" = "full" ] || [ "$MODE" = "frontend" ]; then
         echo ""
         cd "$APP_DIR"
 
+        # Build catalog-embed widget
+        CATALOG_EMBED_DIR="${APP_DIR}/catalog-embed"
+        if [ -d "$CATALOG_EMBED_DIR" ] && [ -f "${CATALOG_EMBED_DIR}/package.json" ]; then
+            info "Building catalog-embed widget..."
+            cd "$CATALOG_EMBED_DIR"
+            sudo -u "$APP_USER" npm ci --production=false
+            sudo -u "$APP_USER" npm run build
+            echo ""
+
+            info "Copying catalog-embed assets to public..."
+            mkdir -p "${APP_DIR}/public/catalog-embed-assets"
+            cp "${CATALOG_EMBED_DIR}/dist/catalog-embed.umd.js" "${APP_DIR}/public/catalog-embed-assets/"
+            cp "${CATALOG_EMBED_DIR}/dist/catalog-embed.css" "${APP_DIR}/public/catalog-embed-assets/"
+            chown -R "$APP_USER":"$APP_USER" "${APP_DIR}/public/catalog-embed-assets"
+            echo ""
+            cd "$APP_DIR"
+        fi
+
         # Build documentation
         if [ -d "$DOCS_DIR" ] && [ -f "${DOCS_DIR}/package.json" ]; then
             info "Building documentation..."
