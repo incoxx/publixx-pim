@@ -33,6 +33,14 @@ export default {
     return client.put('/attributes/bulk-update', { ids, fields })
   },
 
+  allIds(params = {}) {
+    return client.post('/attributes/all-ids', params)
+  },
+
+  bulkDelete(attributeIds) {
+    return client.post('/attributes/bulk-delete', { attribute_ids: attributeIds })
+  },
+
   listSearchable() {
     return client.get('/attributes', {
       params: buildParams({

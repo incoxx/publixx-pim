@@ -9,10 +9,12 @@ use App\Http\Requests\Api\V1\UpdateAttributeRequest;
 use App\Http\Resources\Api\V1\AttributeResource;
 use App\Http\Traits\ChecksDeletionConstraints;
 use App\Models\Attribute;
+use App\Models\HierarchyNode;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class AttributeController extends Controller
 {
@@ -40,6 +42,9 @@ class AttributeController extends Controller
             $request->query('filter', []),
             array_flip(self::ALLOWED_FILTERS)
         ));
+
+        $this->applyHierarchyNodeFilter($query, $request);
+
         $this->applySearch($query, $request, ['name_de', 'name_en', 'technical_name']);
         $this->applySorting($query, $request, 'position', 'asc');
 
@@ -123,6 +128,119 @@ class AttributeController extends Controller
         $this->authorize('delete', $attribute);
 
         return $this->destroyWithConstraintCheck($request, $attribute);
+    }
+
+    /**
+     * Apply hierarchy node filter: find attributes assigned to a given node and all its descendants.
+     */
+    private function applyHierarchyNodeFilter($query, Request $request): void
+    {
+        $filters = $request->query('filter', []);
+        $nodeId = $filters['hierarchy_node_id'] ?? null;
+
+        if ($nodeId) {
+            $node = HierarchyNode::find($nodeId);
+            if ($node) {
+                // Find all descendant node IDs (including the node itself)
+                $nodeIds = HierarchyNode::where('hierarchy_id', $node->hierarchy_id)
+                    ->where('path', 'LIKE', $node->path . '%')
+                    ->pluck('id')
+                    ->push($node->id)
+                    ->unique();
+
+                $query->whereHas('hierarchyNodeAssignments', function ($q) use ($nodeIds) {
+                    $q->whereIn('hierarchy_node_id', $nodeIds);
+                });
+            }
+        }
+    }
+
+    /**
+     * POST /attributes/all-ids — return all attribute IDs matching current filters.
+     */
+    public function allIds(Request $request): JsonResponse
+    {
+        $this->authorize('viewAny', Attribute::class);
+
+        $query = Attribute::query();
+
+        $this->applyFilters($query, array_intersect_key(
+            $request->input('filter', []),
+            array_flip(self::ALLOWED_FILTERS)
+        ));
+
+        // Apply hierarchy node filter from POST body
+        if ($request->input('filter.hierarchy_node_id')) {
+            $nodeId = $request->input('filter.hierarchy_node_id');
+            $node = HierarchyNode::find($nodeId);
+            if ($node) {
+                $nodeIds = HierarchyNode::where('hierarchy_id', $node->hierarchy_id)
+                    ->where('path', 'LIKE', $node->path . '%')
+                    ->pluck('id')
+                    ->push($node->id)
+                    ->unique();
+
+                $query->whereHas('hierarchyNodeAssignments', function ($q) use ($nodeIds) {
+                    $q->whereIn('hierarchy_node_id', $nodeIds);
+                });
+            }
+        }
+
+        if ($request->input('search')) {
+            $search = $request->input('search');
+            $query->where(function ($q) use ($search) {
+                $q->where('name_de', 'LIKE', "%{$search}%")
+                  ->orWhere('name_en', 'LIKE', "%{$search}%")
+                  ->orWhere('technical_name', 'LIKE', "%{$search}%");
+            });
+        }
+
+        return response()->json(['ids' => $query->pluck('id')]);
+    }
+
+    /**
+     * POST /attributes/bulk-delete — delete multiple attributes at once (Admin only).
+     */
+    public function bulkDelete(Request $request): JsonResponse
+    {
+        $this->authorize('delete', Attribute::class);
+
+        $user = $request->user();
+        if (!$user || $user->role !== 'Admin') {
+            return response()->json(['message' => 'Nur Administratoren können Attribute in Massen löschen.'], 403);
+        }
+
+        $request->validate([
+            'attribute_ids' => 'required|array|min:1|max:5000',
+            'attribute_ids.*' => 'uuid',
+        ]);
+
+        $ids = $request->input('attribute_ids');
+
+        $count = DB::transaction(function () use ($ids) {
+            // Delete related data first
+            DB::table('product_attribute_values')->whereIn('attribute_id', $ids)->delete();
+            DB::table('hierarchy_node_attribute_values')->whereIn('attribute_id', $ids)->delete();
+            DB::table('media_attribute_values')->whereIn('attribute_id', $ids)->delete();
+            DB::table('attribute_view_assignments')->whereIn('attribute_id', $ids)->delete();
+            DB::table('variant_inheritance_rules')->whereIn('attribute_id', $ids)->delete();
+
+            // Delete child attribute assignments in hierarchy nodes (including child assignments)
+            DB::table('hierarchy_node_attribute_assignments')->whereIn('attribute_id', $ids)->delete();
+
+            // Nullify parent references for child attributes
+            Attribute::whereIn('parent_attribute_id', $ids)->update(['parent_attribute_id' => null]);
+
+            // Delete the attributes themselves
+            return Attribute::whereIn('id', $ids)->delete();
+        });
+
+        Log::info('Bulk delete attributes', ['count' => $count, 'user_id' => $user->id]);
+
+        return response()->json([
+            'message' => "{$count} Attribute gelöscht.",
+            'deleted' => $count,
+        ]);
     }
 
     private const BULK_ALLOWED_FIELDS = [

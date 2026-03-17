@@ -4,13 +4,15 @@ import { useAttributeStore } from '@/stores/attributes'
 import { useAuthStore } from '@/stores/auth'
 import { useI18n } from 'vue-i18n'
 import { useFilters } from '@/composables/useFilters'
-import { Plus, Filter, X, Pencil, ListFilter, Copy, Trash2, MoreHorizontal } from 'lucide-vue-next'
+import { Plus, Filter, X, Pencil, ListFilter, Copy, Trash2, MoreHorizontal, CheckCheck } from 'lucide-vue-next'
 import PimTable from '@/components/shared/PimTable.vue'
 import PimFilterBar from '@/components/shared/PimFilterBar.vue'
 import PimDeleteConfirmDialog from '@/components/shared/PimDeleteConfirmDialog.vue'
 import AttributeFormPanel from '@/components/panels/AttributeFormPanel.vue'
 import AttributePagination from '@/components/attributes/AttributePagination.vue'
 import AttributeBulkUpdateDialog from '@/components/attributes/AttributeBulkUpdateDialog.vue'
+import attributesApi from '@/api/attributes'
+import hierarchiesApi from '@/api/hierarchies'
 
 const { t } = useI18n()
 const store = useAttributeStore()
@@ -125,12 +127,117 @@ function onQuickLookupChange(values) {
   quickLookupFilters.value = values
 }
 
+// ─── Hierarchy data for filter ──────────────────────
+const hierarchies = ref([])
+const hierarchyNodes = ref([])
+const selectedHierarchyId = ref('')
+
+async function fetchHierarchies() {
+  try {
+    const { data } = await hierarchiesApi.list()
+    hierarchies.value = data.data || data
+  } catch (e) {
+    console.error('Failed to fetch hierarchies', e)
+  }
+}
+
+async function fetchHierarchyNodes(hierarchyId) {
+  if (!hierarchyId) {
+    hierarchyNodes.value = []
+    return
+  }
+  try {
+    const { data } = await hierarchiesApi.getTree(hierarchyId)
+    hierarchyNodes.value = flattenTree(data.data || data)
+  } catch (e) {
+    console.error('Failed to fetch hierarchy nodes', e)
+  }
+}
+
+function flattenTree(nodes, depth = 0) {
+  const result = []
+  for (const node of nodes) {
+    result.push({ ...node, _depth: depth })
+    if (node.children?.length) {
+      result.push(...flattenTree(node.children, depth + 1))
+    }
+  }
+  return result
+}
+
+function onHierarchyChange(hierarchyId) {
+  selectedHierarchyId.value = hierarchyId
+  if (!hierarchyId) {
+    hierarchyNodes.value = []
+    setFilter('hierarchy_node_id', '')
+  } else {
+    fetchHierarchyNodes(hierarchyId)
+  }
+}
+
+function onHierarchyNodeChange(nodeId) {
+  setFilter('hierarchy_node_id', nodeId)
+}
+
 // ─── Selection & Bulk Update ─────────────────────────
 const selectedIds = ref([])
 const bulkDialogOpen = ref(false)
+const pimTableRef = ref(null)
+
+// Select-all across pages
+const allPagesSelected = ref(false)
+const selectingAll = ref(false)
+
+// Bulk delete
+const bulkDeleting = ref(false)
+const showConfirmBulkDelete = ref(false)
+
+async function selectAllPages() {
+  selectingAll.value = true
+  try {
+    const params = { search: search.value }
+    if (Object.keys(activeFilterEntries.value).length > 0) {
+      params.filter = { ...activeFilterEntries.value }
+    }
+    const { data } = await attributesApi.allIds(params)
+    const ids = data.ids || []
+    if (pimTableRef.value?.setSelectedIds) {
+      pimTableRef.value.setSelectedIds(ids)
+    }
+    selectedIds.value = ids
+    allPagesSelected.value = true
+  } catch (e) {
+    console.error('Failed to select all', e)
+  } finally {
+    selectingAll.value = false
+  }
+}
+
+function clearAllSelection() {
+  if (pimTableRef.value?.clearSelection) {
+    pimTableRef.value.clearSelection()
+  }
+  selectedIds.value = []
+  allPagesSelected.value = false
+}
+
+async function bulkDeleteAttributes() {
+  bulkDeleting.value = true
+  try {
+    await store.bulkDelete(selectedIds.value)
+    showConfirmBulkDelete.value = false
+    clearAllSelection()
+    loadWithFilters()
+  } catch (e) {
+    console.error('Bulk delete failed', e)
+  } finally {
+    bulkDeleting.value = false
+  }
+}
 
 function handleSelect(ids) {
   selectedIds.value = ids
+  if (allPagesSelected.value) allPagesSelected.value = false
 }
 
 function openBulkUpdate() {
@@ -228,6 +335,7 @@ onMounted(() => {
   store.fetchAttributes({ include: 'attributeType,valueList,unitGroup,children,attributeViews' })
   store.fetchTypes()
   store.fetchValueLists()
+  fetchHierarchies()
   document.addEventListener('click', onClickOutside)
 })
 
@@ -280,6 +388,17 @@ onBeforeUnmount(() => {
     <!-- Selection toolbar -->
     <div v-if="selectedIds.length > 0" class="flex flex-wrap items-center gap-2 sm:gap-3 px-3 py-2 bg-[color-mix(in_srgb,var(--color-accent)_8%,transparent)] border border-[var(--color-accent)]/20 rounded-lg">
       <span class="text-xs text-[var(--color-text-secondary)]">{{ selectedIds.length }} ausgewählt</span>
+
+      <button
+        v-if="!allPagesSelected && store.meta.total > store.meta.per_page"
+        class="pim-btn pim-btn-secondary text-xs"
+        :disabled="selectingAll"
+        @click="selectAllPages"
+      >
+        <CheckCheck class="w-3.5 h-3.5" :stroke-width="1.75" />
+        {{ selectingAll ? 'Lade...' : `Alle ${store.meta.total} Attribute auswählen` }}
+      </button>
+
       <button
         v-if="authStore.hasPermission('attributes.edit')"
         class="pim-btn pim-btn-primary text-xs"
@@ -289,6 +408,34 @@ onBeforeUnmount(() => {
         <span class="hidden sm:inline">Bulk bearbeiten</span>
         <span class="sm:hidden">Bulk</span>
       </button>
+
+      <button
+        v-if="authStore.userRole === 'Admin'"
+        class="pim-btn text-xs bg-[var(--color-error)] text-white hover:bg-[var(--color-error)]/90"
+        :disabled="bulkDeleting"
+        @click="showConfirmBulkDelete = true"
+      >
+        <Trash2 class="w-3.5 h-3.5" :stroke-width="1.75" />
+        {{ bulkDeleting ? 'Lösche...' : 'Löschen' }}
+      </button>
+
+      <button class="pim-btn pim-btn-ghost text-xs" @click="clearAllSelection">
+        <X class="w-3.5 h-3.5" :stroke-width="1.75" />
+        Auswahl aufheben
+      </button>
+    </div>
+
+    <!-- Bulk Delete Confirmation -->
+    <div v-if="showConfirmBulkDelete" class="px-3 py-2 bg-red-50 border border-red-200 rounded-lg flex flex-wrap items-center gap-3">
+      <span class="text-xs text-red-700 font-medium">{{ selectedIds.length }} Attribute unwiderruflich löschen?</span>
+      <button
+        class="pim-btn text-xs bg-[var(--color-error)] text-white hover:bg-[var(--color-error)]/90"
+        :disabled="bulkDeleting"
+        @click="bulkDeleteAttributes"
+      >
+        {{ bulkDeleting ? 'Lösche...' : 'Ja, endgültig löschen' }}
+      </button>
+      <button class="pim-btn pim-btn-ghost text-xs" @click="showConfirmBulkDelete = false">Abbrechen</button>
     </div>
 
     <!-- Filter Panel -->
@@ -357,9 +504,31 @@ onBeforeUnmount(() => {
           </select>
         </div>
       </div>
+
+      <!-- Hierarchy usage filter -->
+      <div class="border-t border-[var(--color-border)] pt-3 mt-1">
+        <h4 class="text-[11px] font-semibold text-[var(--color-text-secondary)] mb-2">Verwendung in Hierarchie</h4>
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          <div>
+            <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">Hierarchie</label>
+            <select class="pim-input text-xs" :value="selectedHierarchyId" @change="onHierarchyChange($event.target.value)">
+              <option value="">— Alle —</option>
+              <option v-for="h in hierarchies" :key="h.id" :value="h.id">{{ h.name_de || h.technical_name }}</option>
+            </select>
+          </div>
+          <div v-if="hierarchyNodes.length > 0">
+            <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">Knoten (inkl. Unterknoten)</label>
+            <select class="pim-input text-xs" :value="activeFilterEntries.hierarchy_node_id || ''" @change="onHierarchyNodeChange($event.target.value)">
+              <option value="">— Alle Knoten —</option>
+              <option v-for="n in hierarchyNodes" :key="n.id" :value="n.id">{{ '—'.repeat(n._depth) + ' ' + (n.name_de || n.name_en || n.id) }}</option>
+            </select>
+          </div>
+        </div>
+      </div>
     </div>
 
     <PimTable
+      ref="pimTableRef"
       :columns="columns"
       :rows="filteredItems"
       :loading="store.loading"
