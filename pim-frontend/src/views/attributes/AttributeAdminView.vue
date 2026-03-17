@@ -4,7 +4,7 @@ import { useAttributeStore } from '@/stores/attributes'
 import { useAuthStore } from '@/stores/auth'
 import { useI18n } from 'vue-i18n'
 import { useFilters } from '@/composables/useFilters'
-import { Plus, Filter, X, Pencil, ListFilter, Copy, Trash2, MoreHorizontal, CheckCheck } from 'lucide-vue-next'
+import { Plus, Filter, X, Pencil, ListFilter, Copy, Trash2, MoreHorizontal, CheckCheck, Search, ChevronDown, ChevronRight } from 'lucide-vue-next'
 import PimTable from '@/components/shared/PimTable.vue'
 import PimFilterBar from '@/components/shared/PimFilterBar.vue'
 import PimDeleteConfirmDialog from '@/components/shared/PimDeleteConfirmDialog.vue'
@@ -35,24 +35,35 @@ function loadWithFilters() {
   store.fetchAttributes(opts)
 }
 
+// pendingFilterEntries holds in-progress filter selections (not yet applied)
+const pendingFilterEntries = ref({})
+
 function setFilter(key, value) {
   if (value === '' || value === null || value === undefined) {
-    delete activeFilterEntries.value[key]
+    delete pendingFilterEntries.value[key]
   } else {
-    activeFilterEntries.value[key] = value
+    pendingFilterEntries.value[key] = value
   }
+}
+
+function applyFilterPanel() {
+  activeFilterEntries.value = { ...pendingFilterEntries.value }
   store.setPage(1)
   loadWithFilters()
 }
 
 function clearAllFilters() {
   activeFilterEntries.value = {}
+  pendingFilterEntries.value = {}
+  selectedHierarchyId.value = ''
+  hierarchyNodes.value = []
   clearFilters()
   store.setPage(1)
   loadWithFilters()
 }
 
 const filterCount = computed(() => Object.keys(activeFilterEntries.value).length)
+const pendingFilterCount = computed(() => Object.keys(pendingFilterEntries.value).length)
 
 const boolFilterOptions = [
   { value: '', label: 'Alle' },
@@ -131,11 +142,17 @@ function onQuickLookupChange(values) {
 const hierarchies = ref([])
 const hierarchyNodes = ref([])
 const selectedHierarchyId = ref('')
+const showHierarchyPicker = ref(false)
 
 async function fetchHierarchies() {
   try {
     const { data } = await hierarchiesApi.list()
     hierarchies.value = data.data || data
+    // Auto-select first hierarchy if only one exists
+    if (hierarchies.value.length === 1) {
+      selectedHierarchyId.value = hierarchies.value[0].id
+      fetchHierarchyNodes(hierarchies.value[0].id)
+    }
   } catch (e) {
     console.error('Failed to fetch hierarchies', e)
   }
@@ -169,7 +186,7 @@ function onHierarchyChange(hierarchyId) {
   selectedHierarchyId.value = hierarchyId
   if (!hierarchyId) {
     hierarchyNodes.value = []
-    setFilter('hierarchy_node_id', '')
+    delete pendingFilterEntries.value.hierarchy_node_id
   } else {
     fetchHierarchyNodes(hierarchyId)
   }
@@ -457,49 +474,49 @@ onBeforeUnmount(() => {
       <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
         <div>
           <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">Datentyp</label>
-          <select class="pim-input text-xs" :value="activeFilterEntries.data_type || ''" @change="setFilter('data_type', $event.target.value)">
+          <select class="pim-input text-xs" :value="pendingFilterEntries.data_type || ''" @change="setFilter('data_type', $event.target.value)">
             <option v-for="o in dataTypeOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
           </select>
         </div>
         <div>
           <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">Attributgruppe</label>
-          <select class="pim-input text-xs" :value="activeFilterEntries.attribute_type_id || ''" @change="setFilter('attribute_type_id', $event.target.value)">
+          <select class="pim-input text-xs" :value="pendingFilterEntries.attribute_type_id || ''" @change="setFilter('attribute_type_id', $event.target.value)">
             <option v-for="o in attributeTypeOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
           </select>
         </div>
         <div>
           <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">Übersetzbar</label>
-          <select class="pim-input text-xs" :value="activeFilterEntries.is_translatable ?? ''" @change="setFilter('is_translatable', $event.target.value)">
+          <select class="pim-input text-xs" :value="pendingFilterEntries.is_translatable ?? ''" @change="setFilter('is_translatable', $event.target.value)">
             <option v-for="o in boolFilterOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
           </select>
         </div>
         <div>
           <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">Pflichtfeld</label>
-          <select class="pim-input text-xs" :value="activeFilterEntries.is_mandatory ?? ''" @change="setFilter('is_mandatory', $event.target.value)">
+          <select class="pim-input text-xs" :value="pendingFilterEntries.is_mandatory ?? ''" @change="setFilter('is_mandatory', $event.target.value)">
             <option v-for="o in boolFilterOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
           </select>
         </div>
         <div>
           <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">Suchbar</label>
-          <select class="pim-input text-xs" :value="activeFilterEntries.is_searchable ?? ''" @change="setFilter('is_searchable', $event.target.value)">
+          <select class="pim-input text-xs" :value="pendingFilterEntries.is_searchable ?? ''" @change="setFilter('is_searchable', $event.target.value)">
             <option v-for="o in boolFilterOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
           </select>
         </div>
         <div>
           <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">Vererbbar</label>
-          <select class="pim-input text-xs" :value="activeFilterEntries.is_inheritable ?? ''" @change="setFilter('is_inheritable', $event.target.value)">
+          <select class="pim-input text-xs" :value="pendingFilterEntries.is_inheritable ?? ''" @change="setFilter('is_inheritable', $event.target.value)">
             <option v-for="o in boolFilterOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
           </select>
         </div>
         <div>
           <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">Varianten-Attribut</label>
-          <select class="pim-input text-xs" :value="activeFilterEntries.is_variant_attribute ?? ''" @change="setFilter('is_variant_attribute', $event.target.value)">
+          <select class="pim-input text-xs" :value="pendingFilterEntries.is_variant_attribute ?? ''" @change="setFilter('is_variant_attribute', $event.target.value)">
             <option v-for="o in boolFilterOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
           </select>
         </div>
         <div>
           <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">Intern</label>
-          <select class="pim-input text-xs" :value="activeFilterEntries.is_internal ?? ''" @change="setFilter('is_internal', $event.target.value)">
+          <select class="pim-input text-xs" :value="pendingFilterEntries.is_internal ?? ''" @change="setFilter('is_internal', $event.target.value)">
             <option v-for="o in boolFilterOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
           </select>
         </div>
@@ -507,23 +524,67 @@ onBeforeUnmount(() => {
 
       <!-- Hierarchy usage filter -->
       <div class="border-t border-[var(--color-border)] pt-3 mt-1">
-        <h4 class="text-[11px] font-semibold text-[var(--color-text-secondary)] mb-2">Verwendung in Hierarchie</h4>
-        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-          <div>
-            <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">Hierarchie</label>
-            <select class="pim-input text-xs" :value="selectedHierarchyId" @change="onHierarchyChange($event.target.value)">
+        <button
+          class="flex items-center gap-2 text-[12px] font-medium text-[var(--color-text-secondary)] mb-2 cursor-pointer"
+          @click="showHierarchyPicker = !showHierarchyPicker"
+        >
+          <component :is="showHierarchyPicker ? ChevronDown : ChevronRight" class="w-3.5 h-3.5" />
+          Verwendung in Hierarchie (inkl. Unterknoten)
+          <span v-if="pendingFilterEntries.hierarchy_node_id" class="pim-badge bg-[var(--color-accent-light)] text-[var(--color-accent)] text-[10px] px-1.5">1</span>
+        </button>
+        <div v-if="showHierarchyPicker" class="space-y-2">
+          <div v-if="hierarchies.length > 1" class="flex items-center gap-2">
+            <label class="text-[11px] font-medium text-[var(--color-text-tertiary)]">Hierarchie:</label>
+            <select
+              class="pim-input text-xs flex-1"
+              :value="selectedHierarchyId"
+              @change="onHierarchyChange($event.target.value)"
+            >
               <option value="">— Alle —</option>
-              <option v-for="h in hierarchies" :key="h.id" :value="h.id">{{ h.name_de || h.technical_name }}</option>
+              <option v-for="h in hierarchies" :key="h.id" :value="h.id">{{ h.name_de || h.name_en || h.technical_name }}</option>
             </select>
           </div>
-          <div v-if="hierarchyNodes.length > 0">
-            <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">Knoten (inkl. Unterknoten)</label>
-            <select class="pim-input text-xs" :value="activeFilterEntries.hierarchy_node_id || ''" @change="onHierarchyNodeChange($event.target.value)">
-              <option value="">— Alle Knoten —</option>
-              <option v-for="n in hierarchyNodes" :key="n.id" :value="n.id">{{ '—'.repeat(n._depth) + ' ' + (n.name_de || n.name_en || n.id) }}</option>
-            </select>
+          <div v-if="hierarchyNodes.length > 0" class="max-h-48 overflow-y-auto border border-[var(--color-border)] rounded-lg p-2 space-y-0.5">
+            <label
+              v-for="n in hierarchyNodes"
+              :key="n.id"
+              class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[var(--color-bg)] cursor-pointer text-xs"
+              :style="{ paddingLeft: (n._depth * 16 + 8) + 'px' }"
+            >
+              <input
+                type="radio"
+                name="hierarchy_node_filter"
+                :checked="pendingFilterEntries.hierarchy_node_id === n.id"
+                @change="onHierarchyNodeChange(n.id)"
+                class="rounded border-[var(--color-border)]"
+              />
+              <span class="text-[var(--color-text-primary)]">{{ n.name_de || n.name_en || n.id }}</span>
+            </label>
+            <label class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[var(--color-bg)] cursor-pointer text-xs text-[var(--color-text-tertiary)]">
+              <input
+                type="radio"
+                name="hierarchy_node_filter"
+                :checked="!pendingFilterEntries.hierarchy_node_id"
+                @change="onHierarchyNodeChange('')"
+                class="rounded border-[var(--color-border)]"
+              />
+              Alle Knoten
+            </label>
           </div>
+          <p v-else-if="selectedHierarchyId" class="text-xs text-[var(--color-text-tertiary)] py-2">Keine Knoten vorhanden</p>
+          <p v-else class="text-xs text-[var(--color-text-tertiary)] py-2">Hierarchie auswählen, um Knoten zu filtern</p>
         </div>
+      </div>
+
+      <!-- Search button -->
+      <div class="flex items-center justify-end gap-2 pt-2 border-t border-[var(--color-border)]">
+        <button v-if="pendingFilterCount > 0 || filterCount > 0" class="pim-btn pim-btn-ghost text-xs" @click="clearAllFilters">
+          Alle zurücksetzen
+        </button>
+        <button class="pim-btn pim-btn-primary py-2 px-5" @click="applyFilterPanel">
+          <Search class="w-3.5 h-3.5" :stroke-width="1.75" />
+          Suchen
+        </button>
       </div>
     </div>
 
