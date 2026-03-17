@@ -174,53 +174,63 @@ class CatalogProductDetailResource extends JsonResource
 
     private function buildRelations(string $lang): array
     {
-        $product = $this->resource;
+        try {
+            $product = $this->resource;
 
-        if (!$product->relationLoaded('outgoingRelations') || $product->outgoingRelations->isEmpty()) {
+            if (!$product->relationLoaded('outgoingRelations') || $product->outgoingRelations->isEmpty()) {
+                return [];
+            }
+
+            // Pre-fetch media for all target products in a single query
+            $targetIds = $product->outgoingRelations
+                ->map(fn ($r) => $r->targetProduct?->id)
+                ->filter()
+                ->unique()
+                ->values()
+                ->toArray();
+
+            $mediaMap = [];
+            if (!empty($targetIds)) {
+                $productsWithMedia = \App\Models\Product::whereIn('id', $targetIds)
+                    ->with('media')
+                    ->get();
+
+                foreach ($productsWithMedia as $p) {
+                    $primary = $p->media->first(fn ($m) => ($m->pivot->is_primary ?? false) && $m->media_type === 'image');
+                    if (!$primary) {
+                        $primary = $p->media->first(fn ($m) => $m->media_type === 'image');
+                    }
+                    if ($primary) {
+                        $mediaMap[$p->id] = url('api/v1/catalog/media/' . rawurlencode($primary->file_name));
+                    }
+                }
+            }
+
+            return $product->outgoingRelations->map(function ($relation) use ($lang, $mediaMap) {
+                $target = $relation->targetProduct;
+                if (!$target || $target->status !== 'active') {
+                    return null;
+                }
+
+                $typeName = $relation->relationType
+                    ? ($lang === 'en' && $relation->relationType->name_en
+                        ? $relation->relationType->name_en
+                        : $relation->relationType->name_de)
+                    : null;
+
+                return [
+                    'target_product_id' => $target->id,
+                    'sku' => $target->sku,
+                    'name' => $target->name,
+                    'image_url' => $mediaMap[$target->id] ?? null,
+                    'relation_type' => $typeName,
+                    'relation_type_id' => $relation->relation_type_id,
+                ];
+            })->filter()->values()->toArray();
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('buildRelations failed: ' . $e->getMessage());
             return [];
         }
-
-        // Eager-load primary media for target products to build image URLs
-        $targetProducts = $product->outgoingRelations
-            ->pluck('targetProduct')
-            ->filter();
-        if ($targetProducts->isNotEmpty()) {
-            $targetProducts->load('media');
-        }
-
-        return $product->outgoingRelations->map(function ($relation) use ($lang) {
-            $target = $relation->targetProduct;
-            if (!$target || $target->status !== 'active') {
-                return null;
-            }
-
-            $typeName = $relation->relationType
-                ? ($lang === 'en' && $relation->relationType->name_en
-                    ? $relation->relationType->name_en
-                    : $relation->relationType->name_de)
-                : null;
-
-            // Find primary image for the related product
-            $imageUrl = null;
-            if ($target->relationLoaded('media')) {
-                $primaryMedia = $target->media->first(fn ($m) => $m->pivot->is_primary && $m->media_type === 'image');
-                if (!$primaryMedia) {
-                    $primaryMedia = $target->media->first(fn ($m) => $m->media_type === 'image');
-                }
-                if ($primaryMedia) {
-                    $imageUrl = url('api/v1/catalog/media/' . rawurlencode($primaryMedia->file_name));
-                }
-            }
-
-            return [
-                'target_product_id' => $target->id,
-                'sku' => $target->sku,
-                'name' => $target->name,
-                'image_url' => $imageUrl,
-                'relation_type' => $typeName,
-                'relation_type_id' => $relation->relation_type_id,
-            ];
-        })->filter()->values()->toArray();
     }
 
     /**
