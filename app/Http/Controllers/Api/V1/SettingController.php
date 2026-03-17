@@ -7,7 +7,10 @@ namespace App\Http\Controllers\Api\V1;
 use App\Jobs\UpdateSearchIndex;
 use App\Models\Attribute;
 use App\Models\AttributeView;
+use App\Models\Hierarchy;
 use App\Models\Media;
+use App\Models\PdfTemplate;
+use App\Models\PriceType;
 use App\Models\Product;
 use App\Models\ProductRelationType;
 use App\Models\Setting;
@@ -147,6 +150,26 @@ class SettingController extends Controller
                     fn ($id) => isset($existingRtIds[$id])
                 )),
             ]);
+        }
+        if ($request->has('logo_media_id') && $request->input('logo_media_id') !== null) {
+            if (!Media::where('id', $request->input('logo_media_id'))->exists()) {
+                $request->merge(['logo_media_id' => null]);
+            }
+        }
+        if ($request->has('hierarchy_id') && $request->input('hierarchy_id') !== null) {
+            if (!Hierarchy::where('id', $request->input('hierarchy_id'))->exists()) {
+                $request->merge(['hierarchy_id' => null]);
+            }
+        }
+        if ($request->has('card_price_type_id') && $request->input('card_price_type_id') !== null) {
+            if (!PriceType::where('id', $request->input('card_price_type_id'))->exists()) {
+                $request->merge(['card_price_type_id' => null]);
+            }
+        }
+        if ($request->has('catalog_pdf_template_id') && $request->input('catalog_pdf_template_id') !== null) {
+            if (!PdfTemplate::where('id', $request->input('catalog_pdf_template_id'))->exists()) {
+                $request->merge(['catalog_pdf_template_id' => null]);
+            }
         }
 
         $validated = $request->validate([
