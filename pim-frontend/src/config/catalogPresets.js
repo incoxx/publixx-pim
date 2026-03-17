@@ -179,6 +179,23 @@ export default [
     },
   },
   {
+    name: 'Austrian Sunset',
+    description: 'Vollbreites Layout mit Gelb-Header und Blau-Sidebar (Doka DOPI-Stil)',
+    colors: {
+      color_primary: '#004588',
+      color_accent: '#FFdd00',
+      color_sidebar: '#004588',
+      color_button: '#004588',
+      color_table_bg: '#F5F5F5',
+      color_table_stripe: '#EBEBEB',
+      color_body_text: '#2B2B2B',
+      color_header_bg: '#FFdd00',
+      color_header_text: '#004588',
+      color_mobile_menu_bg: '#FFFFFF',
+      color_mobile_menu_text: '#004588',
+    },
+  },
+  {
     name: 'Midnight',
     description: 'Dunkler Modus mit Neon-Akzent',
     colors: {
