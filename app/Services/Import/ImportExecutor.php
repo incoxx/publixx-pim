@@ -272,6 +272,7 @@ class ImportExecutor
                 '08_Produkte' => 'importProductsBulk',
                 '09_Produktwerte' => 'importProductValuesBulk',
                 '11_Produkt_Hierarchien' => 'importProductHierarchiesBulk',
+                '12_Produktbeziehungen' => 'importProductRelationsBulk',
                 '13_Preise' => 'importPricesBulk',
                 default => null,
             };
@@ -1095,7 +1096,8 @@ class ImportExecutor
     private function importProductValuesBulk(array $rows, string $sheetKey): void
     {
         $now = now();
-        $totalChunks = (int) ceil(count($rows) / 500);
+        $chunkSize = 2000;
+        $totalChunks = (int) ceil(count($rows) / $chunkSize);
         $chunkIndex = 0;
 
         // Attribut-Cache vorwärmen: alle Attribute laden (vermeidet Attribute::find() pro Zeile)
@@ -1114,15 +1116,28 @@ class ImportExecutor
             }
         }
 
-        foreach (array_chunk($rows, 500) as $chunk) {
+        // Default-Zeile für konsistente Spalten (vermeidet innere Schleife pro Zeile)
+        $defaultRow = [
+            'id' => null, 'product_id' => null, 'attribute_id' => null,
+            'language' => null, 'multiplied_index' => 0,
+            'value_string' => null, 'value_number' => null, 'value_date' => null,
+            'value_flag' => null, 'value_selection_id' => null, 'unit_id' => null,
+            'updated_at' => $now, 'created_at' => $now,
+        ];
+
+        $totalRows = count($rows);
+
+        foreach (array_chunk($rows, $chunkSize) as $chunk) {
             $this->heartbeat();
             $chunkIndex++;
 
-            if ($this->progressCallback && $chunkIndex % 20 === 0) {
-                ($this->progressCallback)($sheetKey, $chunkIndex, $totalChunks, $this->stats);
+            if ($this->progressCallback && ($chunkIndex % 5 === 0 || $chunkIndex === 1)) {
+                $processedRows = min($chunkIndex * $chunkSize, $totalRows);
+                ($this->progressCallback)($sheetKey, $processedRows, $totalRows, $this->stats);
             }
 
             $upsertData = [];
+            $nullLangRows = [];
             $affectedIds = [];
 
             DB::beginTransaction();
@@ -1149,15 +1164,17 @@ class ImportExecutor
                     $attribute = $attributeById->get($attrResult->id);
                     $valueData = $this->mapValueToColumns($row['value'], $attribute?->data_type ?? 'String');
 
-                    $data = array_merge([
-                        'id' => Str::uuid()->toString(),
-                        'product_id' => $productResult->id,
-                        'attribute_id' => $attrResult->id,
-                        'language' => $language,
-                        'multiplied_index' => $index,
-                        'updated_at' => $now,
-                        'created_at' => $now,
-                    ], $valueData);
+                    // Zeile aus Default + spezifische Werte zusammenbauen (kein array_merge nötig)
+                    $data = $defaultRow;
+                    $data['id'] = Str::uuid()->toString();
+                    $data['product_id'] = $productResult->id;
+                    $data['attribute_id'] = $attrResult->id;
+                    $data['language'] = $language;
+                    $data['multiplied_index'] = $index;
+                    // Werte aus mapValueToColumns übernehmen
+                    foreach ($valueData as $k => $v) {
+                        $data[$k] = $v;
+                    }
 
                     // Selection-Werte aus vorgewärmtem Cache auflösen
                     if ($attribute && $attribute->data_type === 'Selection' && $attribute->value_list_id) {
@@ -1177,69 +1194,82 @@ class ImportExecutor
                         }
                     }
 
-                    $upsertData[] = $data;
+                    // Sofort in richtige Gruppe einsortieren
+                    if ($language === null) {
+                        $nullLangRows[] = $data;
+                    } else {
+                        $upsertData[] = $data;
+                    }
                     $affectedIds[] = $productResult->id;
                 } catch (\Throwable $e) {
                     $this->logRowError($sheetKey, $row, $e);
                 }
             }
 
+            // Batch-Upsert für Zeilen mit language != NULL
             if (!empty($upsertData)) {
-                // Bestehende Einträge zählen für Stats
-                $countBefore = 0;
-                $productIds = array_unique(array_column($upsertData, 'product_id'));
-                if (!empty($productIds)) {
-                    $countBefore = ProductAttributeValue::whereIn('product_id', $productIds)->count();
-                }
+                ProductAttributeValue::upsert(
+                    $upsertData,
+                    ['product_id', 'attribute_id', 'language', 'multiplied_index'],
+                    ['value_string', 'value_number', 'value_date', 'value_flag', 'value_selection_id', 'unit_id', 'updated_at']
+                );
+            }
 
-                // Alle Spalten konsistent machen für upsert
-                $allKeys = ['id', 'product_id', 'attribute_id', 'language', 'multiplied_index',
-                    'value_string', 'value_number', 'value_date', 'value_flag',
-                    'value_selection_id', 'unit_id', 'updated_at', 'created_at'];
-                foreach ($upsertData as &$d) {
-                    foreach ($allKeys as $key) {
-                        if (!array_key_exists($key, $d)) {
-                            $d[$key] = null;
-                        }
+            // NULL-Language-Zeilen: Batch-Lookup statt Einzel-Queries
+            if (!empty($nullLangRows)) {
+                // Alle bestehenden NULL-language Werte für die betroffenen Produkte+Attribute laden
+                $nlProductIds = array_unique(array_column($nullLangRows, 'product_id'));
+                $nlAttributeIds = array_unique(array_column($nullLangRows, 'attribute_id'));
+
+                $existingNullLang = [];
+                foreach (array_chunk($nlProductIds, 5000) as $pidChunk) {
+                    $results = ProductAttributeValue::whereIn('product_id', $pidChunk)
+                        ->whereIn('attribute_id', $nlAttributeIds)
+                        ->whereNull('language')
+                        ->get(['id', 'product_id', 'attribute_id', 'multiplied_index']);
+                    foreach ($results as $r) {
+                        $existingNullLang[$r->product_id . '|' . $r->attribute_id . '|' . $r->multiplied_index] = $r->id;
                     }
-                }
-                unset($d);
-
-                // MySQL UNIQUE-Index behandelt NULL als jeweils unterschiedlich (NULL ≠ NULL),
-                // daher funktioniert upsert() nicht für Zeilen mit language=NULL.
-                // Lösung: NULL-Language-Zeilen separat per updateOrCreate verarbeiten.
-                $nullLangRows = array_filter($upsertData, fn ($d) => $d['language'] === null);
-                $nonNullLangRows = array_values(array_filter($upsertData, fn ($d) => $d['language'] !== null));
-
-                if (!empty($nonNullLangRows)) {
-                    ProductAttributeValue::upsert(
-                        $nonNullLangRows,
-                        ['product_id', 'attribute_id', 'language', 'multiplied_index'],
-                        ['value_string', 'value_number', 'value_date', 'value_flag', 'value_selection_id', 'unit_id', 'updated_at']
-                    );
                 }
 
                 $updateColumns = ['value_string', 'value_number', 'value_date', 'value_flag', 'value_selection_id', 'unit_id', 'updated_at'];
-                foreach ($nullLangRows as $row) {
-                    $existing = ProductAttributeValue::where('product_id', $row['product_id'])
-                        ->where('attribute_id', $row['attribute_id'])
-                        ->whereNull('language')
-                        ->where('multiplied_index', $row['multiplied_index'])
-                        ->first();
+                $insertBatch = [];
+                $updateBatch = [];
 
-                    if ($existing) {
-                        $existing->update(array_intersect_key($row, array_flip($updateColumns)));
+                foreach ($nullLangRows as $nlRow) {
+                    $lookupKey = $nlRow['product_id'] . '|' . $nlRow['attribute_id'] . '|' . $nlRow['multiplied_index'];
+                    if (isset($existingNullLang[$lookupKey])) {
+                        // Bestehend → Update sammeln
+                        $updateBatch[] = $nlRow;
                     } else {
-                        ProductAttributeValue::create($row);
+                        // Neu → Insert sammeln
+                        $insertBatch[] = $nlRow;
                     }
                 }
 
-                $countAfter = ProductAttributeValue::whereIn('product_id', $productIds)->count();
-                $created = $countAfter - $countBefore;
-                $updated = count($upsertData) - $created;
-                $this->stats[$sheetKey]['created'] += max(0, $created);
-                $this->stats[$sheetKey]['updated'] += max(0, $updated);
+                // Batch-Insert für neue NULL-language Zeilen
+                if (!empty($insertBatch)) {
+                    foreach (array_chunk($insertBatch, 2000) as $insertChunk) {
+                        ProductAttributeValue::insert($insertChunk);
+                    }
+                }
+
+                // Updates: upsert mit einem Trick - wir kennen die IDs, nutzen product_id+attribute_id+multiplied_index
+                // Da language=NULL ist und MySQL NULL≠NULL, müssen wir einzeln updaten, aber gebündelt per Raw-Query
+                if (!empty($updateBatch)) {
+                    foreach ($updateBatch as $uRow) {
+                        $lookupKey = $uRow['product_id'] . '|' . $uRow['attribute_id'] . '|' . $uRow['multiplied_index'];
+                        $existingId = $existingNullLang[$lookupKey];
+                        ProductAttributeValue::where('id', $existingId)->update(
+                            array_intersect_key($uRow, array_flip($updateColumns))
+                        );
+                    }
+                }
             }
+
+            // Stats: geschätzt statt 2× COUNT-Query pro Chunk
+            $this->stats[$sheetKey]['created'] += count($upsertData) + count($insertBatch ?? []);
+            $this->stats[$sheetKey]['updated'] += count($updateBatch ?? []);
 
             $this->affectedProductIds = array_merge($this->affectedProductIds, $affectedIds);
 
@@ -1248,6 +1278,7 @@ class ImportExecutor
                 DB::rollBack();
                 Log::channel('import')->error("Produktwerte-Chunk {$chunkIndex}/{$totalChunks} fehlgeschlagen", [
                     'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
                 ]);
                 $this->stats[$sheetKey]['errors'] += count($chunk);
             }
@@ -1526,6 +1557,187 @@ class ImportExecutor
             ], fn ($v) => $v !== null);
 
             ProductRelationAttributeValue::updateOrCreate($key, $data);
+        }
+    }
+
+    /**
+     * Bulk-Import für Produktbeziehungen: upsert() in Chunks statt Einzel-Queries.
+     */
+    private function importProductRelationsBulk(array $rows, string $sheetKey): void
+    {
+        $now = now();
+        $chunkSize = 2000;
+        $totalChunks = (int) ceil(count($rows) / $chunkSize);
+        $chunkIndex = 0;
+        $totalRows = count($rows);
+
+        // Beziehungstypen vorab auflösen und bei Bedarf anlegen
+        $relationTypeNames = array_unique(array_column($rows, 'relation_type'));
+        $relationTypeMap = [];
+        foreach ($relationTypeNames as $rtName) {
+            $rtResult = $this->resolver->resolveRelationType($rtName);
+            if ($rtResult->resolved()) {
+                $relationTypeMap[$rtName] = $rtResult->id;
+            } else {
+                $relationType = ProductRelationType::firstOrCreate(
+                    ['technical_name' => $rtName],
+                    ['id' => Str::uuid()->toString(), 'name_de' => $rtName]
+                );
+                $relationTypeMap[$rtName] = $relationType->id;
+            }
+        }
+        $this->resolver->clearCache('relation_type');
+
+        foreach (array_chunk($rows, $chunkSize) as $chunk) {
+            $this->heartbeat();
+            $chunkIndex++;
+
+            if ($this->progressCallback && ($chunkIndex % 5 === 0 || $chunkIndex === 1)) {
+                $processedRows = min($chunkIndex * $chunkSize, $totalRows);
+                ($this->progressCallback)($sheetKey, $processedRows, $totalRows, $this->stats);
+            }
+
+            DB::beginTransaction();
+            try {
+                // Alle SKUs im Chunk auflösen
+                $allSkus = array_unique(array_merge(
+                    array_column($chunk, 'source_sku'),
+                    array_column($chunk, 'target_sku')
+                ));
+                $productIdMap = [];
+                foreach ($allSkus as $sku) {
+                    $r = $this->resolver->resolveProduct($sku);
+                    if ($r->resolved()) {
+                        $productIdMap[$sku] = $r->id;
+                    }
+                }
+
+                // Bestehende Beziehungen im Chunk laden für upsert/update-Entscheidung
+                $sourceIds = [];
+                foreach ($chunk as $row) {
+                    $sid = $productIdMap[$row['source_sku']] ?? null;
+                    if ($sid) $sourceIds[] = $sid;
+                }
+                $sourceIds = array_unique($sourceIds);
+
+                $existingRelations = [];
+                foreach (array_chunk($sourceIds, 5000) as $sidChunk) {
+                    $results = ProductRelation::whereIn('source_product_id', $sidChunk)->get(['id', 'source_product_id', 'target_product_id', 'relation_type_id']);
+                    foreach ($results as $r) {
+                        $existingRelations[$r->source_product_id . '|' . $r->target_product_id . '|' . $r->relation_type_id] = $r->id;
+                    }
+                }
+
+                $upsertData = [];
+                $relationAttrValues = []; // relation_id → attribute_values
+
+                foreach ($chunk as $row) {
+                    $sourceId = $productIdMap[$row['source_sku']] ?? null;
+                    $targetId = $productIdMap[$row['target_sku']] ?? null;
+
+                    if (!$sourceId || !$targetId) {
+                        $missing = [];
+                        if (!$sourceId) $missing[] = "Quell-SKU '{$row['source_sku']}'";
+                        if (!$targetId) $missing[] = "Ziel-SKU '{$row['target_sku']}'";
+                        $this->logSkipped($sheetKey, $row, "Produkt(e) nicht gefunden: " . implode(', ', $missing));
+                        continue;
+                    }
+
+                    $relationTypeId = $relationTypeMap[$row['relation_type']] ?? null;
+                    if (!$relationTypeId) {
+                        $this->logSkipped($sheetKey, $row, "Beziehungstyp nicht gefunden: '{$row['relation_type']}'");
+                        continue;
+                    }
+
+                    $lookupKey = $sourceId . '|' . $targetId . '|' . $relationTypeId;
+                    $isExisting = isset($existingRelations[$lookupKey]);
+                    $relationId = $isExisting ? $existingRelations[$lookupKey] : Str::uuid()->toString();
+
+                    $upsertData[] = [
+                        'id' => $relationId,
+                        'source_product_id' => $sourceId,
+                        'target_product_id' => $targetId,
+                        'relation_type_id' => $relationTypeId,
+                        'sort_order' => (int) ($row['sort_order'] ?? 0),
+                        'updated_at' => $now,
+                        'created_at' => $now,
+                    ];
+
+                    if ($isExisting) {
+                        $this->stats[$sheetKey]['updated']++;
+                    } else {
+                        $this->stats[$sheetKey]['created']++;
+                        // Für neue Relationen: ID in Map eintragen für Attr-Values
+                        $existingRelations[$lookupKey] = $relationId;
+                    }
+
+                    // Attributwerte für spätere Batch-Verarbeitung sammeln
+                    if (!empty($row['attribute_values']) && is_array($row['attribute_values'])) {
+                        foreach ($row['attribute_values'] as $av) {
+                            $relationAttrValues[] = array_merge($av, ['_relation_id' => $relationId]);
+                        }
+                    }
+                }
+
+                // Batch-Upsert der Beziehungen
+                if (!empty($upsertData)) {
+                    ProductRelation::upsert(
+                        $upsertData,
+                        ['source_product_id', 'target_product_id', 'relation_type_id'],
+                        ['sort_order', 'updated_at']
+                    );
+                }
+
+                // Batch-Upsert der Beziehungs-Attributwerte
+                if (!empty($relationAttrValues)) {
+                    $ravUpsertData = [];
+                    foreach ($relationAttrValues as $av) {
+                        $attrResult = $this->resolver->resolveAttribute($av['attribute'] ?? '');
+                        if (!$attrResult->resolved()) continue;
+
+                        $unitId = null;
+                        if (!empty($av['unit'])) {
+                            $unitResult = $this->resolver->resolveUnit($av['unit']);
+                            if ($unitResult->resolved()) $unitId = $unitResult->id;
+                        }
+
+                        $ravUpsertData[] = [
+                            'id' => Str::uuid()->toString(),
+                            'product_relation_id' => $av['_relation_id'],
+                            'attribute_id' => $attrResult->id,
+                            'language' => $av['language'] ?? null,
+                            'multiplied_index' => $av['multiplied_index'] ?? 0,
+                            'value_string' => $av['value_string'] ?? null,
+                            'value_number' => $av['value_number'] ?? null,
+                            'value_date' => $av['value_date'] ?? null,
+                            'value_flag' => $av['value_flag'] ?? null,
+                            'value_selection_id' => $av['value_selection_id'] ?? null,
+                            'unit_id' => $unitId,
+                            'updated_at' => $now,
+                            'created_at' => $now,
+                        ];
+                    }
+
+                    if (!empty($ravUpsertData)) {
+                        foreach (array_chunk($ravUpsertData, 2000) as $ravChunk) {
+                            ProductRelationAttributeValue::upsert(
+                                $ravChunk,
+                                ['product_relation_id', 'attribute_id', 'language', 'multiplied_index'],
+                                ['value_string', 'value_number', 'value_date', 'value_flag', 'value_selection_id', 'unit_id', 'updated_at']
+                            );
+                        }
+                    }
+                }
+
+                DB::commit();
+            } catch (\Throwable $e) {
+                DB::rollBack();
+                Log::channel('import')->error("Produktbeziehungen-Chunk {$chunkIndex}/{$totalChunks} fehlgeschlagen", [
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
+                ]);
+                $this->stats[$sheetKey]['errors'] += count($chunk);
+            }
         }
     }
 
