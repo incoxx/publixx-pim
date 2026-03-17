@@ -1878,11 +1878,6 @@ class BmecatFormatImporter
 
             $node = $tree[$current];
 
-            // Root-Knoten nicht in den Pfad aufnehmen
-            if ($node['type'] === 'root') {
-                break;
-            }
-
             array_unshift($path, $node['group_name']);
             $current = $node['parent_id'];
         }
