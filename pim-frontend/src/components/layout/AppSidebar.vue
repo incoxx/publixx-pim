@@ -127,7 +127,8 @@ function isActive(to) {
 function navigate(item) {
   const url = typeof item.to === 'function' ? item.to() : item.to
   if (item.external) {
-    window.open(url, '_blank')
+    const base = (import.meta.env.VITE_BASE_PATH || '/').replace(/\/+$/, '')
+    window.open(base + url, '_blank')
   } else {
     router.push(url)
   }
