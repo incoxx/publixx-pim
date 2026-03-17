@@ -844,12 +844,12 @@ const apiCallDisplay = computed(() => {
 <template>
   <div class="space-y-4 max-w-4xl mx-auto">
     <!-- Entity category tabs -->
-    <div class="flex items-center gap-1 border-b border-[var(--color-border)] pb-0">
+    <div class="flex items-center gap-1 border-b border-[var(--color-border)] pb-0 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
       <button
         v-for="cat in searchCategoryDefs"
         :key="cat.key"
         :class="[
-          'flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 transition-colors -mb-px',
+          'flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 transition-colors -mb-px whitespace-nowrap shrink-0',
           searchCategory === cat.key
             ? 'border-[var(--color-accent)] text-[var(--color-accent)]'
             : 'border-transparent text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] hover:border-[var(--color-border-strong)]',
@@ -874,9 +874,9 @@ const apiCallDisplay = computed(() => {
     />
 
     <!-- Search header -->
-    <div class="flex flex-wrap items-center gap-2 sm:gap-3">
+    <div class="space-y-2 sm:space-y-0 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
       <div class="flex items-center gap-3 flex-1 min-w-0">
-        <Search class="w-5 h-5 text-[var(--color-text-tertiary)] shrink-0" :stroke-width="1.75" />
+        <Search class="w-5 h-5 text-[var(--color-text-tertiary)] shrink-0 hidden sm:block" :stroke-width="1.75" />
         <input
           v-model="searchInput"
           type="text"
@@ -885,14 +885,15 @@ const apiCallDisplay = computed(() => {
             : searchCategory === 'attributes' ? 'Attribute durchsuchen...'
             : searchCategory === 'nodes' ? 'Kategorieknoten durchsuchen (inkl. Unterkategorien)...'
             : 'Medien durchsuchen...'"
-          class="pim-input pl-4 pr-4 py-3 text-base w-full"
+          class="pim-input pl-4 pr-4 py-2.5 sm:py-3 text-sm sm:text-base w-full"
           @keydown.enter="doSearch(1)"
           autofocus
         />
       </div>
+      <div class="flex items-center gap-2 flex-wrap">
       <button
         v-if="searchCategory === 'products'"
-        class="pim-btn pim-btn-secondary py-3 px-4 relative"
+        class="pim-btn pim-btn-secondary py-2 px-3 sm:py-3 sm:px-4 relative"
         @click="showAttributeFilters = !showAttributeFilters"
       >
         <Filter class="w-4 h-4" :stroke-width="1.75" />
@@ -916,7 +917,7 @@ const apiCallDisplay = computed(() => {
       />
       <button
         v-if="searchCategory === 'products'"
-        class="pim-btn pim-btn-secondary py-3 px-4"
+        class="pim-btn pim-btn-secondary py-2 px-3 sm:py-3 sm:px-4"
         :class="showQuickLookup ? 'bg-[var(--color-accent-light)] text-[var(--color-accent)]' : ''"
         @click="showQuickLookup = !showQuickLookup"
         title="Quick Lookup"
@@ -926,7 +927,7 @@ const apiCallDisplay = computed(() => {
       </button>
       <button
         v-if="searchCategory === 'products' && hasSearched && results.length > 0"
-        class="pim-btn pim-btn-secondary py-3 px-4"
+        class="pim-btn pim-btn-secondary py-2 px-3 sm:py-3 sm:px-4"
         :disabled="excelExporting"
         @click="exportSearchExcel"
       >
@@ -935,15 +936,16 @@ const apiCallDisplay = computed(() => {
       </button>
       <button
         v-if="searchCategory === 'products' && hasSearched && results.length > 0"
-        class="pim-btn pim-btn-secondary py-3 px-4"
+        class="pim-btn pim-btn-secondary py-2 px-3 sm:py-3 sm:px-4"
         @click="showReportPicker = true"
       >
         <FileText class="w-4 h-4" :stroke-width="1.75" />
         <span class="ml-1.5 text-sm hidden sm:inline">Report</span>
       </button>
-      <button class="pim-btn pim-btn-primary py-3 px-6" @click="doSearch(1)">
+      <button class="pim-btn pim-btn-primary py-2 px-4 sm:py-3 sm:px-6" @click="doSearch(1)">
         Suchen
       </button>
+      </div>
     </div>
 
     <!-- Search mode toggle (products only) -->

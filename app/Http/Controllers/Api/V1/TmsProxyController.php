@@ -46,7 +46,7 @@ class TmsProxyController extends Controller
     public function updateTranslation(Request $request, string $id, string $lang): JsonResponse
     {
         $this->abortIfDisabled();
-        $this->authorize('manage', 'translations');
+        abort_unless(auth()->user()?->hasPermissionTo('translations.edit'), 403);
 
         $request->validate([
             'translation' => 'required|string|max:5000',
@@ -86,7 +86,7 @@ class TmsProxyController extends Controller
     public function retranslate(Request $request): JsonResponse
     {
         $this->abortIfDisabled();
-        $this->authorize('manage', 'translations');
+        abort_unless(auth()->user()?->hasPermissionTo('translations.edit'), 403);
 
         $request->validate([
             'unit_ids' => 'required|array|max:100',
@@ -105,7 +105,7 @@ class TmsProxyController extends Controller
     public function triggerIngest(): JsonResponse
     {
         $this->abortIfDisabled();
-        $this->authorize('manage', 'translations');
+        abort_unless(auth()->user()?->hasPermissionTo('translations.edit'), 403);
 
         $job = new IngestToTmsJob();
         $result = $job->handle($this->client);
@@ -119,7 +119,7 @@ class TmsProxyController extends Controller
     public function deleteTranslations(Request $request): JsonResponse
     {
         $this->abortIfDisabled();
-        $this->authorize('manage', 'translations');
+        abort_unless(auth()->user()?->hasPermissionTo('translations.edit'), 403);
 
         $request->validate([
             'target_lang' => 'nullable|string|max:5',
@@ -136,7 +136,7 @@ class TmsProxyController extends Controller
     public function syncToDatabase(): JsonResponse
     {
         $this->abortIfDisabled();
-        $this->authorize('manage', 'translations');
+        abort_unless(auth()->user()?->hasPermissionTo('translations.edit'), 403);
 
         $job = new SyncTmsTranslationsJob();
         $result = $job->handle($this->client);
