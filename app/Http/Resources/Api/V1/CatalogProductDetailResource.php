@@ -180,6 +180,14 @@ class CatalogProductDetailResource extends JsonResource
             return [];
         }
 
+        // Eager-load primary media for target products to build image URLs
+        $targetProducts = $product->outgoingRelations
+            ->pluck('targetProduct')
+            ->filter();
+        if ($targetProducts->isNotEmpty()) {
+            $targetProducts->load('media');
+        }
+
         return $product->outgoingRelations->map(function ($relation) use ($lang) {
             $target = $relation->targetProduct;
             if (!$target || $target->status !== 'active') {
@@ -192,10 +200,23 @@ class CatalogProductDetailResource extends JsonResource
                     : $relation->relationType->name_de)
                 : null;
 
+            // Find primary image for the related product
+            $imageUrl = null;
+            if ($target->relationLoaded('media')) {
+                $primaryMedia = $target->media->first(fn ($m) => $m->pivot->is_primary && $m->media_type === 'image');
+                if (!$primaryMedia) {
+                    $primaryMedia = $target->media->first(fn ($m) => $m->media_type === 'image');
+                }
+                if ($primaryMedia) {
+                    $imageUrl = url('api/v1/catalog/media/' . rawurlencode($primaryMedia->file_name));
+                }
+            }
+
             return [
                 'target_product_id' => $target->id,
                 'sku' => $target->sku,
                 'name' => $target->name,
+                'image_url' => $imageUrl,
                 'relation_type' => $typeName,
                 'relation_type_id' => $relation->relation_type_id,
             ];

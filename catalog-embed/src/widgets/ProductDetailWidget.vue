@@ -2,13 +2,19 @@
 import { watch, ref, computed } from 'vue'
 import { useStore } from '../store.js'
 import { icons } from '../icons.js'
+import { resolveMediaUrl } from '../api.js'
 
 const { state, actions, getters } = useStore()
 const selectedImageIdx = ref(0)
+const activeTab = ref('attributes')
 
 // Body scroll lock when detail modal is open
 watch(() => state.detailOpen, (open) => {
   document.body.style.overflow = open ? 'hidden' : ''
+  if (open) {
+    activeTab.value = 'attributes'
+    selectedImageIdx.value = 0
+  }
 })
 
 const images = computed(() => {
@@ -16,10 +22,69 @@ const images = computed(() => {
   return state.currentProduct.media.filter(m => m.media_type === 'image')
 })
 
+const documents = computed(() => {
+  if (!state.currentProduct?.media) return []
+  return state.currentProduct.media.filter(m => m.media_type !== 'image')
+})
+
 const currentImage = computed(() => images.value[selectedImageIdx.value])
 
 // Reset image index when product changes
 watch(() => state.currentProduct, () => { selectedImageIdx.value = 0 })
+
+// Group attributes by parent (composite) or as flat list
+const groupedAttributes = computed(() => {
+  const attrs = state.currentProduct?.attributes
+  if (!attrs?.length) return []
+
+  // Filter out child attributes of composites — they are shown inline
+  const childIds = new Set()
+  attrs.forEach(a => {
+    if (a.parent_attribute_id) childIds.add(a.attribute_id)
+  })
+
+  return attrs.filter(a => !a.parent_attribute_id || !childIds.has(a.attribute_id))
+})
+
+// Group relations by type
+const groupedRelations = computed(() => {
+  const rels = state.currentProduct?.relations
+  if (!rels?.length) return []
+
+  const groups = {}
+  for (const rel of rels) {
+    const typeId = rel.relation_type_id || 'default'
+    if (!groups[typeId]) {
+      groups[typeId] = {
+        type_id: typeId,
+        type_name: rel.relation_type || (state.locale === 'de' ? 'Verwandte Produkte' : 'Related Products'),
+        products: [],
+      }
+    }
+    groups[typeId].products.push({
+      id: rel.target_product_id,
+      name: rel.name,
+      sku: rel.sku,
+      image_url: rel.image_url ? resolveMediaUrl(rel.image_url) : null,
+    })
+  }
+  return Object.values(groups)
+})
+
+const hasRelations = computed(() => groupedRelations.value.length > 0)
+const hasDocuments = computed(() => documents.value.length > 0)
+
+// Available tabs
+const tabs = computed(() => {
+  const t = [{ key: 'attributes', label: state.locale === 'de' ? 'Eigenschaften' : 'Attributes' }]
+  if (hasDocuments.value) {
+    t.push({ key: 'media', label: state.locale === 'de' ? 'Dokumente' : 'Documents' })
+  }
+  if (hasRelations.value) {
+    t.push({ key: 'relations', label: state.locale === 'de' ? 'Beziehungen' : 'Relations' })
+  }
+  return t
+})
 
 function prev() {
   selectedImageIdx.value = selectedImageIdx.value > 0
@@ -44,6 +109,12 @@ async function downloadPdf() {
   if (!state.currentProduct) return
   await actions.downloadProductPdf(state.currentProduct.id)
 }
+
+function getDocIcon(mimeType) {
+  if (mimeType?.includes('pdf')) return icons.fileDown
+  if (mimeType?.includes('sheet') || mimeType?.includes('excel')) return icons.sheet
+  return icons.fileDown
+}
 </script>
 
 <template>
@@ -58,7 +129,7 @@ async function downloadPdf() {
           <!-- Loading -->
           <div v-if="state.productLoading" class="pxc-detail-modal__loading">
             <span v-html="icons.loader" style="width:32px;height:32px"></span>
-            <p>Lade Produktdetails...</p>
+            <p>{{ state.locale === 'de' ? 'Lade Produktdetails…' : 'Loading product…' }}</p>
           </div>
 
           <!-- Content -->
@@ -92,9 +163,9 @@ async function downloadPdf() {
               <!-- Right: Info -->
               <div class="pxc-detail__info">
                 <!-- Breadcrumb -->
-                <p v-if="state.currentProduct.breadcrumbs?.length" class="pxc-detail__breadcrumb">
-                  <span v-for="(bc, i) in state.currentProduct.breadcrumbs" :key="i">
-                    {{ bc.name }}<template v-if="i < state.currentProduct.breadcrumbs.length - 1"> / </template>
+                <p v-if="state.currentProduct.category_breadcrumb?.length" class="pxc-detail__breadcrumb">
+                  <span v-for="(bc, i) in state.currentProduct.category_breadcrumb" :key="i">
+                    {{ bc.name }}<template v-if="i < state.currentProduct.category_breadcrumb.length - 1"> / </template>
                   </span>
                 </p>
 
@@ -105,11 +176,19 @@ async function downloadPdf() {
                   <span v-if="state.currentProduct.ean">EAN: {{ state.currentProduct.ean }}</span>
                 </div>
 
+                <!-- Description attributes -->
+                <div v-if="state.currentProduct.description_attributes?.length" class="pxc-detail__description">
+                  <div v-for="da in state.currentProduct.description_attributes" :key="da.attribute_id"
+                    :class="'pxc-detail__desc-' + (da.typography || 'base')">
+                    {{ da.value }}
+                  </div>
+                </div>
+
                 <!-- Prices -->
                 <div v-if="state.currentProduct.prices?.length" class="pxc-detail__prices">
                   <div v-for="(price, idx) in state.currentProduct.prices" :key="idx" class="pxc-detail__price">
                     <span class="pxc-detail__price-label">{{ price.type_name || 'Preis' }}</span>
-                    <span class="pxc-detail__price-value">{{ formatPrice(price.value, price.currency) }}</span>
+                    <span class="pxc-detail__price-value">{{ formatPrice(price.amount, price.currency) }}</span>
                   </div>
                 </div>
 
@@ -121,7 +200,9 @@ async function downloadPdf() {
                     @click="actions.toggleWishlist(state.currentProduct.id)"
                   >
                     <span v-html="getters.isInWishlist(state.currentProduct.id) ? icons.heartFilled : icons.heart"></span>
-                    {{ getters.isInWishlist(state.currentProduct.id) ? 'Auf Merkliste' : 'Zur Merkliste' }}
+                    {{ getters.isInWishlist(state.currentProduct.id)
+                      ? (state.locale === 'de' ? 'Auf Merkliste' : 'On Wishlist')
+                      : (state.locale === 'de' ? 'Zur Merkliste' : 'Add to Wishlist') }}
                   </button>
                   <button
                     v-if="state.settings.catalog_pdf_enabled"
@@ -133,39 +214,87 @@ async function downloadPdf() {
                   </button>
                 </div>
 
-                <!-- Attribute sections -->
-                <div v-if="state.currentProduct.attribute_sections?.length" class="pxc-detail__sections">
-                  <div v-for="section in state.currentProduct.attribute_sections" :key="section.name" class="pxc-detail__section">
-                    <h3 class="pxc-detail__section-title">{{ section.name }}</h3>
-                    <table class="pxc-detail__table">
-                      <tr v-for="attr in section.attributes" :key="attr.attribute_id">
+                <!-- Tabs -->
+                <div class="pxc-detail__tabs">
+                  <button
+                    v-for="tab in tabs"
+                    :key="tab.key"
+                    class="pxc-detail__tab"
+                    :class="{ 'pxc-detail__tab--active': activeTab === tab.key }"
+                    @click="activeTab = tab.key"
+                  >
+                    {{ tab.label }}
+                  </button>
+                </div>
+
+                <!-- Tab: Attributes -->
+                <div v-if="activeTab === 'attributes'" class="pxc-detail__tab-content">
+                  <table v-if="groupedAttributes.length" class="pxc-detail__table">
+                    <tbody>
+                      <tr v-for="attr in groupedAttributes" :key="attr.attribute_id">
                         <td class="pxc-detail__table-label">{{ attr.label }}</td>
                         <td class="pxc-detail__table-value">
-                          <template v-if="attr.type === 'Hyperlink'">
+                          <template v-if="attr.link_data">
+                            <a :href="attr.link_data.url" target="_blank" rel="noopener">
+                              {{ attr.link_data.title || attr.link_data.url }}
+                            </a>
+                          </template>
+                          <template v-else-if="attr.data_type === 'Hyperlink'">
                             <a :href="attr.value" target="_blank" rel="noopener">{{ attr.value }}</a>
                           </template>
-                          <template v-else>{{ attr.display_value || attr.value || '—' }}</template>
+                          <template v-else>{{ attr.value || '—' }}</template>
                           <span v-if="attr.unit" class="pxc-text-muted"> {{ attr.unit }}</span>
                         </td>
                       </tr>
-                    </table>
-                  </div>
+                    </tbody>
+                  </table>
+                  <p v-else class="pxc-detail__empty">
+                    {{ state.locale === 'de' ? 'Keine Eigenschaften vorhanden.' : 'No attributes available.' }}
+                  </p>
                 </div>
 
-                <!-- Relations -->
-                <div v-if="state.currentProduct.relations?.length" class="pxc-detail__relations">
-                  <div v-for="rel in state.currentProduct.relations" :key="rel.type_id" class="pxc-detail__relation-group">
-                    <h3 class="pxc-detail__section-title">{{ rel.type_name }}</h3>
+                <!-- Tab: Documents/Media -->
+                <div v-if="activeTab === 'media'" class="pxc-detail__tab-content">
+                  <div v-if="documents.length" class="pxc-detail__documents">
+                    <a
+                      v-for="doc in documents"
+                      :key="doc.file_name"
+                      :href="doc.url"
+                      target="_blank"
+                      rel="noopener"
+                      class="pxc-detail__doc-item"
+                    >
+                      <span class="pxc-detail__doc-icon" v-html="getDocIcon(doc.mime_type)"></span>
+                      <div class="pxc-detail__doc-info">
+                        <span class="pxc-detail__doc-name">{{ doc.description || doc.file_name }}</span>
+                        <span class="pxc-detail__doc-type">{{ doc.mime_type }}</span>
+                      </div>
+                    </a>
+                  </div>
+                  <p v-else class="pxc-detail__empty">
+                    {{ state.locale === 'de' ? 'Keine Dokumente vorhanden.' : 'No documents available.' }}
+                  </p>
+                </div>
+
+                <!-- Tab: Relations -->
+                <div v-if="activeTab === 'relations'" class="pxc-detail__tab-content">
+                  <div v-for="group in groupedRelations" :key="group.type_id" class="pxc-detail__relation-group">
+                    <h4 class="pxc-detail__relation-type">{{ group.type_name }}</h4>
                     <div class="pxc-detail__relation-items">
                       <div
-                        v-for="item in rel.products"
+                        v-for="item in group.products"
                         :key="item.id"
                         class="pxc-detail__relation-card"
                         @click="actions.openDetail(item.id)"
                       >
-                        <img v-if="item.image_url" :src="item.image_url" :alt="item.name" />
-                        <span v-else v-html="icons.package"></span>
-                        <p>{{ item.name }}</p>
+                        <div class="pxc-detail__relation-img">
+                          <img v-if="item.image_url" :src="item.image_url" :alt="item.name" />
+                          <span v-else v-html="icons.package" class="pxc-detail__relation-placeholder"></span>
+                        </div>
+                        <div class="pxc-detail__relation-info">
+                          <p class="pxc-detail__relation-name">{{ item.name }}</p>
+                          <span v-if="item.sku" class="pxc-detail__relation-sku">{{ item.sku }}</span>
+                        </div>
                       </div>
                     </div>
                   </div>
