@@ -9,6 +9,8 @@ use App\Services\Import\BmecatFormatImporter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
@@ -320,6 +322,169 @@ class BmecatImportController extends Controller
             'Connection' => 'keep-alive',
             'X-Accel-Buffering' => 'no',
         ]);
+    }
+
+    /**
+     * POST /api/v1/bmecat-import/upload-init — Chunked Upload initialisieren.
+     *
+     * Gibt eine Upload-ID zurück, mit der Chunks hochgeladen werden können.
+     */
+    public function uploadInit(Request $request): JsonResponse
+    {
+        $request->validate([
+            'filename' => 'required|string|max:255',
+            'filesize' => 'required|integer|min:1',
+            'chunk_size' => 'integer|min:1048576|max:20971520', // 1MB–20MB
+        ]);
+
+        $uploadId = Str::uuid()->toString();
+        $chunkDir = storage_path("app/bmecat-chunks/{$uploadId}");
+
+        if (!is_dir($chunkDir)) {
+            mkdir($chunkDir, 0755, true);
+        }
+
+        // Metadaten speichern
+        file_put_contents("{$chunkDir}/_meta.json", json_encode([
+            'filename' => $request->input('filename'),
+            'filesize' => (int) $request->input('filesize'),
+            'chunk_size' => (int) $request->input('chunk_size', 5242880),
+            'created_at' => now()->toIso8601String(),
+        ]));
+
+        return response()->json([
+            'upload_id' => $uploadId,
+            'chunk_size' => (int) $request->input('chunk_size', 5242880),
+        ]);
+    }
+
+    /**
+     * POST /api/v1/bmecat-import/upload-chunk — Einzelnen Chunk hochladen.
+     */
+    public function uploadChunk(Request $request): JsonResponse
+    {
+        $request->validate([
+            'upload_id' => 'required|string|uuid',
+            'chunk_index' => 'required|integer|min:0',
+            'chunk' => 'required|file|max:25600', // max 25MB pro Chunk
+        ]);
+
+        $uploadId = $request->input('upload_id');
+        $chunkIndex = (int) $request->input('chunk_index');
+        $chunkDir = storage_path("app/bmecat-chunks/{$uploadId}");
+
+        if (!is_dir($chunkDir) || !file_exists("{$chunkDir}/_meta.json")) {
+            return response()->json(['error' => 'Ungültige Upload-ID.'], 404);
+        }
+
+        $chunkFile = $request->file('chunk');
+        $chunkFile->move($chunkDir, sprintf('chunk_%05d', $chunkIndex));
+
+        // Zähle vorhandene Chunks
+        $chunks = glob("{$chunkDir}/chunk_*");
+        $meta = json_decode(file_get_contents("{$chunkDir}/_meta.json"), true);
+        $expectedChunks = (int) ceil($meta['filesize'] / $meta['chunk_size']);
+
+        return response()->json([
+            'chunk_index' => $chunkIndex,
+            'chunks_received' => count($chunks),
+            'chunks_expected' => $expectedChunks,
+            'complete' => count($chunks) >= $expectedChunks,
+        ]);
+    }
+
+    /**
+     * POST /api/v1/bmecat-import/upload-complete — Chunks zusammenführen und Import starten.
+     */
+    public function uploadComplete(Request $request): StreamedResponse|JsonResponse
+    {
+        $request->validate([
+            'upload_id' => 'required|string|uuid',
+            'mode' => 'string|in:update,delete_insert',
+            'product_type' => 'nullable|string',
+        ]);
+
+        $uploadId = $request->input('upload_id');
+        $mode = $request->input('mode', 'update');
+        $productType = $request->input('product_type');
+        $chunkDir = storage_path("app/bmecat-chunks/{$uploadId}");
+
+        if (!is_dir($chunkDir) || !file_exists("{$chunkDir}/_meta.json")) {
+            return response()->json(['error' => 'Ungültige Upload-ID.'], 404);
+        }
+
+        $meta = json_decode(file_get_contents("{$chunkDir}/_meta.json"), true);
+
+        // Chunks zusammenführen
+        $assembledPath = storage_path("app/bmecat-chunks/{$uploadId}/assembled.xml");
+        $chunks = glob("{$chunkDir}/chunk_*");
+        natsort($chunks);
+
+        $output = fopen($assembledPath, 'wb');
+        foreach ($chunks as $chunkPath) {
+            $chunk = fopen($chunkPath, 'rb');
+            stream_copy_to_stream($chunk, $output);
+            fclose($chunk);
+            unlink($chunkPath); // Chunk nach Zusammenführen löschen
+        }
+        fclose($output);
+
+        // Metadaten löschen
+        @unlink("{$chunkDir}/_meta.json");
+
+        $this->importer->setMode($mode);
+
+        // Schnelle XML-Header-Validierung
+        $handle = fopen($assembledPath, 'r');
+        $headerXml = fread($handle, 8192);
+        fclose($handle);
+
+        $validation = $this->importer->validate($headerXml);
+        if (!$validation['valid'] && filesize($assembledPath) <= 8192) {
+            $this->cleanupChunkDir($chunkDir);
+            return response()->json([
+                'error' => 'Validierungsfehler',
+                'details' => $validation['errors'],
+                'warnings' => $validation['warnings'] ?? [],
+            ], 422);
+        }
+
+        $wantsStream = str_contains($request->header('Accept', ''), 'text/event-stream');
+
+        if (!$wantsStream) {
+            $response = $this->importJsonFromFile($assembledPath, $productType);
+            // Cleanup nach Import
+            $this->cleanupChunkDir($chunkDir);
+            return $response;
+        }
+
+        // Bei SSE: Cleanup nach dem Stream registrieren
+        $response = $this->importStreamedFromFile($assembledPath, $productType);
+
+        // Cleanup wird nach Request automatisch durchgeführt
+        app()->terminating(function () use ($chunkDir) {
+            $this->cleanupChunkDir($chunkDir);
+        });
+
+        return $response;
+    }
+
+    /**
+     * Chunk-Verzeichnis aufräumen.
+     */
+    private function cleanupChunkDir(string $chunkDir): void
+    {
+        if (!is_dir($chunkDir)) {
+            return;
+        }
+
+        $files = glob("{$chunkDir}/*");
+        foreach ($files as $file) {
+            if (is_file($file)) {
+                @unlink($file);
+            }
+        }
+        @rmdir($chunkDir);
     }
 
     /**
