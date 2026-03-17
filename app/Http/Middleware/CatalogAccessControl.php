@@ -17,7 +17,7 @@ class CatalogAccessControl
         $payload = Setting::getPayload('catalog_theme');
         $mode = $payload['catalog_access_mode'] ?? 'public';
 
-        if ($mode === 'login' && !Auth::guard('sanctum')->check()) {
+        if ($mode === 'login' && !Auth::guard('web')->check() && !Auth::guard('sanctum')->check()) {
             abort(401, 'Authentication required.');
         }
 
