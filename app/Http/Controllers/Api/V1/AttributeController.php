@@ -203,8 +203,6 @@ class AttributeController extends Controller
      */
     public function bulkDelete(Request $request): JsonResponse
     {
-        $this->authorize('delete', Attribute::class);
-
         $user = $request->user();
         if (!$user || $user->role !== 'Admin') {
             return response()->json(['message' => 'Nur Administratoren können Attribute in Massen löschen.'], 403);
