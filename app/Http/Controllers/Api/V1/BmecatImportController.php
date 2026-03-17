@@ -192,6 +192,18 @@ class BmecatImportController extends Controller
                 'import_id' => $importId,
             ]);
 
+            $this->importer->setBuildProgressCallback(
+                function (string $step, int $current, int $total) use ($sendEvent, $importId) {
+                    $sendEvent('progress', [
+                        'phase' => 'building',
+                        'message' => "Datenaufbereitung: {$step}",
+                        'current' => $current,
+                        'total' => $total,
+                        'import_id' => $importId,
+                    ]);
+                }
+            );
+
             $this->importer->setProgressCallback(
                 function (string $phase, int $current, int $total, array $stats) use ($sendEvent, $importId) {
                     $sendEvent('progress', [
@@ -272,6 +284,19 @@ class BmecatImportController extends Controller
                         'import_id' => $importId,
                     ]);
                     $sendHeartbeat();
+                }
+            );
+
+            // Build-Progress: zeigt Fortschritt während Datenaufbereitung
+            $this->importer->setBuildProgressCallback(
+                function (string $step, int $current, int $total) use ($sendEvent, $importId) {
+                    $sendEvent('progress', [
+                        'phase' => 'building',
+                        'message' => "Datenaufbereitung: {$step}",
+                        'current' => $current,
+                        'total' => $total,
+                        'import_id' => $importId,
+                    ]);
                 }
             );
 
