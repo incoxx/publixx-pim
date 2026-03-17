@@ -10,7 +10,12 @@ use Illuminate\Support\Facades\Route;
 Route::get('/catalog-embed', [CatalogEmbedController::class, 'index']);
 Route::get('/catalog-embed/{template}', [CatalogEmbedController::class, 'show']);
 
+// Serve catalog-embed static assets (JS/CSS) — needed because Apache
+// routes all requests through Laravel in subdirectory installs.
+Route::get('/catalog-embed-assets/{file}', [CatalogEmbedController::class, 'asset'])
+    ->where('file', '.+');
+
 // Serve SPA for all non-API routes
 Route::get('/{any?}', function () {
     return file_get_contents(public_path('spa.html'));
-})->where('any', '^(?!api|horizon|up|docs|catalog-embed).*$');
+})->where('any', '^(?!api|horizon|up|docs|catalog-embed|catalog-embed-assets).*$');

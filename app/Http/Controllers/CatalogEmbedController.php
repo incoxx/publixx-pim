@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\File;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 /**
  * Serves customizable catalog-embed HTML templates.
@@ -65,6 +66,29 @@ class CatalogEmbedController extends Controller
         return new Response($html, 200, [
             'Content-Type' => 'text/html; charset=UTF-8',
         ]);
+    }
+
+    /**
+     * Serve catalog-embed static assets (JS/CSS) with correct MIME types.
+     *
+     * Needed because Apache subdirectory installs route all requests through
+     * Laravel, so static files in public/ are not served directly.
+     */
+    public function asset(string $file): BinaryFileResponse
+    {
+        $allowed = ['catalog-embed.umd.js', 'catalog-embed.css'];
+
+        if (! in_array($file, $allowed, true)) {
+            abort(404);
+        }
+
+        $path = public_path("catalog-embed-assets/{$file}");
+
+        if (! File::exists($path)) {
+            abort(404);
+        }
+
+        return response()->file($path);
     }
 
     /**
