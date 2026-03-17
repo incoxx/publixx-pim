@@ -614,6 +614,8 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::post('admin/test-data/generate', [TestDataGeneratorController::class, 'generate']);
     Route::delete('admin/test-data', [TestDataGeneratorController::class, 'cleanup']);
     Route::get('admin/test-data/stats', [TestDataGeneratorController::class, 'stats']);
+    Route::get('admin/test-data/progress', [TestDataGeneratorController::class, 'progress']);
+    Route::post('admin/test-data/cancel', [TestDataGeneratorController::class, 'cancel']);
     Route::put('settings/catalog-theme', [SettingController::class, 'updateCatalogTheme']);
     Route::post('admin/search-reindex', [SettingController::class, 'reindexSearch']);
     Route::get('admin/env-info', [SystemInfoController::class, 'envInfo']);

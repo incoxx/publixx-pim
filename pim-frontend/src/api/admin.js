@@ -57,4 +57,12 @@ export default {
   getTestDataStats() {
     return client.get('/admin/test-data/stats')
   },
+
+  getTestDataProgress() {
+    return client.get('/admin/test-data/progress')
+  },
+
+  cancelTestData() {
+    return client.post('/admin/test-data/cancel')
+  },
 }

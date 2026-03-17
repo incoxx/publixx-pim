@@ -639,6 +639,9 @@ const cleanupError = ref(null)
 const showConfirmCleanup = ref(false)
 const testDataStats = ref(null)
 const testDataStatsLoading = ref(false)
+const testDataProgress = ref(null)
+const cancellingTestData = ref(false)
+let progressPollTimer = null
 
 async function loadTestDataStats() {
   testDataStatsLoading.value = true
@@ -652,11 +655,34 @@ async function loadTestDataStats() {
   }
 }
 
+function startProgressPolling() {
+  stopProgressPolling()
+  progressPollTimer = setInterval(async () => {
+    try {
+      const { data } = await adminApi.getTestDataProgress()
+      const p = data.data || data
+      testDataProgress.value = p.phase ? p : null
+    } catch (e) {
+      // Ignore polling errors
+    }
+  }, 1000)
+}
+
+function stopProgressPolling() {
+  if (progressPollTimer) {
+    clearInterval(progressPollTimer)
+    progressPollTimer = null
+  }
+  testDataProgress.value = null
+}
+
 async function triggerGenerateTestData() {
   showConfirmGenerate.value = false
   generatingTestData.value = true
   testDataResult.value = null
   testDataError.value = null
+  cancellingTestData.value = false
+  startProgressPolling()
   try {
     // Filter out null/empty values so backend uses defaults
     const params = Object.fromEntries(
@@ -669,6 +695,16 @@ async function triggerGenerateTestData() {
     testDataError.value = e.response?.data?.detail || e.response?.data?.message || e.message || 'Testdaten-Generierung fehlgeschlagen'
   } finally {
     generatingTestData.value = false
+    stopProgressPolling()
+  }
+}
+
+async function triggerCancelTestData() {
+  cancellingTestData.value = true
+  try {
+    await adminApi.cancelTestData()
+  } catch (e) {
+    // Ignore cancel errors
   }
 }
 
@@ -1809,12 +1845,12 @@ onMounted(async () => {
       </div>
 
       <!-- Result -->
-      <div v-if="testDataResult" class="rounded-lg p-4 border bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800">
-        <div class="flex items-center gap-2 text-sm font-medium text-green-700 dark:text-green-400">
+      <div v-if="testDataResult" class="rounded-lg p-4 border" :class="testDataResult.cancelled ? 'bg-yellow-50 dark:bg-yellow-950/30 border-yellow-200 dark:border-yellow-800' : 'bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800'">
+        <div class="flex items-center gap-2 text-sm font-medium" :class="testDataResult.cancelled ? 'text-yellow-700 dark:text-yellow-400' : 'text-green-700 dark:text-green-400'">
           <CheckCircle class="w-4 h-4" />
-          {{ testDataResult.message }}
+          {{ testDataResult.cancelled ? 'Generierung abgebrochen.' : testDataResult.message }}
         </div>
-        <div class="flex gap-4 mt-2 text-xs text-green-600 dark:text-green-400">
+        <div class="flex gap-4 mt-2 text-xs" :class="testDataResult.cancelled ? 'text-yellow-600 dark:text-yellow-400' : 'text-green-600 dark:text-green-400'">
           <span>{{ testDataResult.products_created }} Produkte</span>
           <span>{{ testDataResult.attribute_values_created }} Attributwerte</span>
           <span>{{ testDataResult.prices_created }} Preise</span>
@@ -1846,10 +1882,33 @@ onMounted(async () => {
         <p class="text-xs text-red-600 dark:text-red-400 mt-1">{{ cleanupError }}</p>
       </div>
 
-      <!-- Loading -->
-      <div v-if="generatingTestData" class="flex items-center gap-3 text-sm text-[var(--color-text-secondary)]">
-        <Loader2 class="w-5 h-5 animate-spin text-purple-500" />
-        <span>Testdaten werden generiert... {{ testDataForm.count }} Produkte werden angelegt.</span>
+      <!-- Loading / Progress -->
+      <div v-if="generatingTestData" class="space-y-3">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3 text-sm text-[var(--color-text-secondary)]">
+            <Loader2 class="w-5 h-5 animate-spin text-purple-500" />
+            <span>{{ testDataProgress?.phase || 'Testdaten werden generiert...' }}</span>
+          </div>
+          <button
+            @click="triggerCancelTestData"
+            :disabled="cancellingTestData"
+            class="px-3 py-1 text-xs font-medium rounded-md text-red-600 border border-red-300 hover:bg-red-50 dark:text-red-400 dark:border-red-700 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50"
+          >
+            {{ cancellingTestData ? 'Wird abgebrochen...' : 'Abbrechen' }}
+          </button>
+        </div>
+        <div v-if="testDataProgress" class="space-y-1">
+          <div class="w-full bg-[var(--color-bg-tertiary)] rounded-full h-2.5 overflow-hidden">
+            <div
+              class="bg-purple-500 h-2.5 rounded-full transition-all duration-500"
+              :style="{ width: testDataProgress.percent + '%' }"
+            ></div>
+          </div>
+          <div class="flex justify-between text-[10px] text-[var(--color-text-tertiary)]">
+            <span>{{ testDataProgress.current.toLocaleString() }} / {{ testDataProgress.total.toLocaleString() }} Produkte</span>
+            <span>{{ testDataProgress.percent }}%</span>
+          </div>
+        </div>
       </div>
       <div v-if="cleaningTestData" class="flex items-center gap-3 text-sm text-[var(--color-text-secondary)]">
         <Loader2 class="w-5 h-5 animate-spin text-purple-500" />

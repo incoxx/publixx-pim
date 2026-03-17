@@ -158,4 +158,32 @@ class TestDataGeneratorController extends Controller
 
         return $this->successResponse($this->service->stats());
     }
+
+    /**
+     * GET /api/v1/admin/test-data/progress
+     */
+    public function progress(Request $request): JsonResponse
+    {
+        if (! $request->user()->hasRole('Admin')) {
+            return $this->errorResponse('forbidden', 'Forbidden', 403);
+        }
+
+        $progress = $this->service->progress();
+
+        return $this->successResponse($progress ?? ['phase' => null, 'current' => 0, 'total' => 0, 'percent' => 0]);
+    }
+
+    /**
+     * POST /api/v1/admin/test-data/cancel
+     */
+    public function cancel(Request $request): JsonResponse
+    {
+        if (! $request->user()->hasRole('Admin')) {
+            return $this->errorResponse('forbidden', 'Forbidden', 403);
+        }
+
+        $this->service->cancel();
+
+        return $this->successResponse(['message' => 'Abbruch angefordert.']);
+    }
 }

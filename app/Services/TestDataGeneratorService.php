@@ -15,6 +15,7 @@ use App\Models\ProductAttributeValue;
 use App\Models\ProductPrice;
 use App\Models\ProductType;
 use App\Models\HierarchyNodeAttributeAssignment;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -22,6 +23,8 @@ class TestDataGeneratorService
 {
     public const SKU_PREFIX = 'TEST-';
     public const HIERARCHY_TECHNICAL_NAME = '__testdata__';
+    private const CACHE_KEY_PROGRESS = 'testdata:progress';
+    private const CACHE_KEY_CANCEL = 'testdata:cancel';
 
     /**
      * Generate test products with attribute values, prices, and hierarchy assignments.
@@ -37,11 +40,16 @@ class TestDataGeneratorService
     ): array {
         $startTime = microtime(true);
 
+        // Reset cancel flag and init progress
+        Cache::forget(self::CACHE_KEY_CANCEL);
+        $this->updateProgress('Initialisiere...', 0, $count);
+
         $productTypes = ProductType::where('is_active', true)->get();
         if ($productTypes->isEmpty()) {
             $productTypes = ProductType::all();
         }
         if ($productTypes->isEmpty()) {
+            $this->clearProgress();
             throw new \RuntimeException('Keine Produkttypen vorhanden. Bitte zuerst mindestens einen Produkttyp anlegen.');
         }
 
@@ -52,11 +60,18 @@ class TestDataGeneratorService
 
         $priceTypes = $withPrices ? PriceType::all() : collect();
 
+        $this->updateProgress('Hierarchie wird erstellt...', 0, $count);
         $hierarchy = $this->createTestHierarchy();
         $nodes = $this->createCategoryTree($hierarchy, $categoryCount, $categoryDepth);
 
         // Assign attributes to hierarchy root nodes so they appear in the UI
-        $this->assignAttributesToHierarchyNodes($nodes, $attributes);
+        $hierarchyAttributes = $attributes;
+        if ($attributesPerProduct !== null && $attributesPerProduct < $attributes->count()) {
+            $hierarchyAttributes = $attributes->random($attributesPerProduct);
+        }
+        $this->assignAttributesToHierarchyNodes($nodes, $hierarchyAttributes);
+
+        $this->updateProgress('Produkte werden generiert...', 0, $count);
 
         $result = $this->generateProducts(
             $count,
@@ -69,6 +84,8 @@ class TestDataGeneratorService
         );
 
         $duration = round(microtime(true) - $startTime, 2);
+
+        $this->clearProgress();
 
         Log::info('Test data generated', [
             'products' => $result['products'],
@@ -85,7 +102,45 @@ class TestDataGeneratorService
             'attribute_values_created' => $result['attribute_values'],
             'prices_created' => $result['prices'],
             'duration_seconds' => $duration,
+            'cancelled' => $result['cancelled'] ?? false,
         ];
+    }
+
+    /**
+     * Get current generation progress.
+     */
+    public function progress(): ?array
+    {
+        return Cache::get(self::CACHE_KEY_PROGRESS);
+    }
+
+    /**
+     * Request cancellation of the running generation.
+     */
+    public function cancel(): void
+    {
+        Cache::put(self::CACHE_KEY_CANCEL, true, 300);
+    }
+
+    private function isCancelled(): bool
+    {
+        return (bool) Cache::get(self::CACHE_KEY_CANCEL, false);
+    }
+
+    private function updateProgress(string $phase, int $current, int $total): void
+    {
+        Cache::put(self::CACHE_KEY_PROGRESS, [
+            'phase' => $phase,
+            'current' => $current,
+            'total' => $total,
+            'percent' => $total > 0 ? round(($current / $total) * 100) : 0,
+        ], 300);
+    }
+
+    private function clearProgress(): void
+    {
+        Cache::forget(self::CACHE_KEY_PROGRESS);
+        Cache::forget(self::CACHE_KEY_CANCEL);
     }
 
     /**
@@ -211,8 +266,18 @@ class TestDataGeneratorService
         $attributeValuesCreated = 0;
         $pricesCreated = 0;
         $statuses = ['draft', 'active', 'active', 'active']; // 75% active
+        $cancelled = false;
 
         for ($i = 0; $i < $count; $i++) {
+            // Check for cancellation every 10 products
+            if ($i % 10 === 0) {
+                $this->updateProgress('Produkte werden generiert...', $i, $count);
+                if ($this->isCancelled()) {
+                    $cancelled = true;
+                    break;
+                }
+            }
+
             $productType = $productTypes->random();
             $node = !empty($nodes) ? $nodes[array_rand($nodes)] : null;
 
@@ -285,6 +350,7 @@ class TestDataGeneratorService
             'products' => $productsCreated,
             'attribute_values' => $attributeValuesCreated,
             'prices' => $pricesCreated,
+            'cancelled' => $cancelled,
         ];
     }
 
