@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Minimal Catalog</title>
+</head>
+<body>
+  <!--
+    Minimal-Beispiel: nur 3 Zeilen braucht man.
+    1. Ein paar data-catalog Platzhalter
+    2. Das Script einbinden
+    3. init() aufrufen
+  -->
+
+  <h1>Unsere Produkte</h1>
+
+  <div data-catalog="search"></div>
+  <div data-catalog="product-grid"></div>
+  <div data-catalog="pagination"></div>
+  <div data-catalog="product-detail"></div>
+
+  <script src="../dist/catalog-embed.umd.js"></script>
+  <script>
+    PublixxCatalog.init({ api: 'http://localhost:8000/api/v1' })
+  </script>
+</body>
+</html>

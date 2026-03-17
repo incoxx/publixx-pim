@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Produktkatalog — Basic Example</title>
+
+  <!-- 1. Eigenes Firmen-CSS laden (oder inline) -->
+  <style>
+    /* Eigene Farben überschreiben: */
+    :root {
+      --pxc-primary: #2563eb;
+      --pxc-primary-text: #ffffff;
+      --pxc-accent: #dc2626;
+      --pxc-font: 'Segoe UI', system-ui, sans-serif;
+      --pxc-radius: 12px;
+    }
+
+    body {
+      margin: 0;
+      font-family: var(--pxc-font);
+      background: #f5f5f5;
+    }
+
+    .page-header {
+      background: var(--pxc-primary);
+      color: white;
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .page-header h1 {
+      margin: 0;
+      font-size: 1.25rem;
+    }
+
+    .page-header__actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      max-width: 1400px;
+      margin: 0 auto;
+      gap: 0;
+      min-height: calc(100vh - 64px);
+    }
+
+    .sidebar {
+      background: white;
+      border-right: 1px solid #e5e7eb;
+      overflow-y: auto;
+    }
+
+    .main {
+      padding: 24px;
+    }
+
+    .page-footer {
+      text-align: center;
+      padding: 24px;
+      color: #9ca3af;
+      font-size: 0.75rem;
+    }
+
+    /* Mobile: sidebar collapsed */
+    @media (max-width: 768px) {
+      .layout { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ============================================ -->
+  <!-- Eigenes Layout — komplett frei gestaltet     -->
+  <!-- ============================================ -->
+
+  <!-- Header: eigenes Design, Widget-Platzhalter drin -->
+  <header class="page-header">
+    <h1>Mein Produktkatalog</h1>
+    <div class="page-header__actions">
+      <div data-catalog="search"></div>
+      <div data-catalog="locale"></div>
+      <div data-catalog="wishlist"></div>
+    </div>
+  </header>
+
+  <div class="layout">
+    <!-- Sidebar: Kategorien + Facetten -->
+    <aside class="sidebar">
+      <div data-catalog="categories"></div>
+      <div data-catalog="facets"></div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main">
+      <div data-catalog="toolbar"></div>
+      <div data-catalog="active-filters"></div>
+      <div data-catalog="product-grid"></div>
+      <div data-catalog="pagination"></div>
+    </main>
+  </div>
+
+  <footer class="page-footer">
+    &copy; 2026 Meine Firma GmbH
+  </footer>
+
+  <!-- Unsichtbare Widgets (Modals, die sich bei Bedarf öffnen) -->
+  <div data-catalog="product-detail"></div>
+  <div data-catalog="compare"></div>
+
+  <!-- ============================================ -->
+  <!-- 2. catalog-embed.js laden und initialisieren -->
+  <!-- ============================================ -->
+  <script src="../dist/catalog-embed.umd.js"></script>
+  <script>
+    PublixxCatalog.init({
+      api: 'http://localhost:8000/api/v1',   // <-- PIM Backend URL anpassen
+      locale: 'de',
+      perPage: 24,
+    })
+  </script>
+
+</body>
+</html>

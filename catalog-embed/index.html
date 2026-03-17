@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PublixxCatalog Embed — Dev</title>
+  <style>
+    :root {
+      --pxc-primary: #1B3A5C;
+      --pxc-accent: #ef4444;
+    }
+    body { margin: 0; font-family: system-ui, sans-serif; background: #f5f5f5; }
+    .dev-header { background: #1B3A5C; color: white; padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; }
+    .dev-header h1 { margin: 0; font-size: 1.25rem; }
+    .dev-header__actions { display: flex; align-items: center; gap: 12px; }
+    .dev-layout { display: grid; grid-template-columns: 280px 1fr; max-width: 1400px; margin: 0 auto; min-height: calc(100vh - 64px); }
+    .dev-sidebar { background: white; border-right: 1px solid #e5e7eb; overflow-y: auto; }
+    .dev-main { padding: 24px; }
+    @media (max-width: 768px) {
+      .dev-layout { grid-template-columns: 1fr; }
+      .dev-sidebar { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <header class="dev-header">
+    <h1>Catalog Embed — Dev</h1>
+    <div class="dev-header__actions">
+      <div data-catalog="search"></div>
+      <div data-catalog="locale"></div>
+      <div data-catalog="wishlist"></div>
+    </div>
+  </header>
+
+  <div class="dev-layout">
+    <aside class="dev-sidebar">
+      <div data-catalog="categories"></div>
+      <div data-catalog="facets"></div>
+    </aside>
+    <main class="dev-main">
+      <div data-catalog="toolbar"></div>
+      <div data-catalog="active-filters"></div>
+      <div data-catalog="product-grid"></div>
+      <div data-catalog="pagination"></div>
+    </main>
+  </div>
+
+  <div data-catalog="product-detail"></div>
+  <div data-catalog="compare"></div>
+
+  <script type="module">
+    import PublixxCatalog from './src/index.js'
+    PublixxCatalog.init({
+      api: 'http://localhost:8000/api/v1',
+      locale: 'de',
+    })
+  </script>
+</body>
+</html>
