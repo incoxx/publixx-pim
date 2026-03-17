@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue'
 import {
   FileCode, Download, Upload, CheckCircle, XCircle, Loader2,
-  AlertTriangle, X, FileUp, Info, ChevronRight,
+  AlertTriangle, X, FileUp, Info, ChevronRight, StopCircle,
 } from 'lucide-vue-next'
 import bmecatApi from '@/api/bmecatImport'
 import hierarchiesApi from '@/api/hierarchies'
@@ -23,7 +23,9 @@ const importing = ref(false)
 const validating = ref(false)
 const validationResult = ref(null)
 const importResult = ref(null)
-const importProgress = ref(null) // { phase, message, current, total, percent }
+const importProgress = ref(null) // { phase, message, current, total, percent, import_id }
+const importCancelling = ref(false)
+const importCancelled = ref(false)
 const dragOver = ref(false)
 
 // --- Export ---
@@ -105,6 +107,8 @@ async function validateImport() {
 async function runImport() {
   if (!importFile.value) return
   importing.value = true
+  importCancelling.value = false
+  importCancelled.value = false
   error.value = ''
   importResult.value = null
   importProgress.value = { phase: 'upload', message: 'Datei wird hochgeladen...', current: 0, total: 0, percent: 0 }
@@ -123,10 +127,31 @@ async function runImport() {
     importResult.value = result
     importProgress.value = null
   } catch (e) {
-    error.value = e.message || 'Import fehlgeschlagen'
+    if (!importCancelled.value) {
+      error.value = e.message || 'Import fehlgeschlagen'
+    }
     importProgress.value = null
   } finally {
     importing.value = false
+    importCancelling.value = false
+  }
+}
+
+async function cancelImport() {
+  const importId = importProgress.value?.import_id
+  if (!importId || importCancelling.value) return
+  importCancelling.value = true
+  importCancelled.value = true
+  try {
+    await bmecatApi.cancelImport(importId)
+    importProgress.value = {
+      ...importProgress.value,
+      message: 'Import wird abgebrochen...',
+    }
+  } catch (e) {
+    // Cancel-Request fehlgeschlagen — Import läuft weiter
+    importCancelling.value = false
+    importCancelled.value = false
   }
 }
 
@@ -341,23 +366,56 @@ const tabs = [
       </div>
 
       <!-- Import Progress -->
-      <div v-if="importProgress" class="pim-card p-4 space-y-2">
+      <div v-if="importProgress" class="pim-card p-4 space-y-3">
         <div class="flex items-center justify-between text-xs">
           <span class="text-[var(--color-text-secondary)] flex items-center gap-2">
-            <Loader2 class="w-3.5 h-3.5 animate-spin text-[var(--color-accent)]" :stroke-width="2" />
+            <Loader2 v-if="!importCancelling" class="w-3.5 h-3.5 animate-spin text-[var(--color-accent)]" :stroke-width="2" />
+            <StopCircle v-else class="w-3.5 h-3.5 text-orange-500" :stroke-width="2" />
             {{ importProgress.message }}
           </span>
-          <span v-if="importProgress.total > 0" class="text-[var(--color-text-tertiary)]">
-            {{ importProgress.current }} / {{ importProgress.total }}
+          <span v-if="importProgress.current > 0" class="text-[var(--color-text-tertiary)]">
+            <template v-if="importProgress.total > 0">
+              {{ importProgress.current }} / {{ importProgress.total }}
+            </template>
+            <template v-else>
+              {{ importProgress.current }}
+            </template>
           </span>
         </div>
         <div class="w-full bg-[var(--color-bg)] rounded-full h-2 overflow-hidden">
           <div
             class="h-full rounded-full transition-all duration-300 ease-out"
-            :class="importProgress.total > 0 ? 'bg-[var(--color-accent)]' : 'bg-[var(--color-accent)] animate-pulse'"
+            :class="[
+              importCancelling ? 'bg-orange-500' : 'bg-[var(--color-accent)]',
+              importProgress.total > 0 ? '' : 'animate-pulse',
+            ]"
             :style="{ width: importProgress.total > 0 ? importProgress.percent + '%' : '100%' }"
           />
         </div>
+        <!-- Cancel Button -->
+        <div v-if="importProgress.import_id && !importCancelling" class="flex justify-end">
+          <button
+            class="pim-btn pim-btn-secondary text-xs text-red-600 hover:text-red-700 border-red-200 hover:border-red-300"
+            @click="cancelImport"
+          >
+            <StopCircle class="w-3.5 h-3.5" :stroke-width="1.75" />
+            Import abbrechen
+          </button>
+        </div>
+        <p v-if="importCancelling" class="text-[10px] text-orange-600">
+          Abbruch angefordert — der Import stoppt nach dem aktuellen Schritt...
+        </p>
+      </div>
+
+      <!-- Import Cancelled -->
+      <div v-if="importCancelled && !importing" class="pim-card p-4">
+        <div class="flex items-center gap-2">
+          <AlertTriangle class="w-4 h-4 text-orange-500" :stroke-width="2" />
+          <span class="text-sm font-medium text-orange-600">Import wurde abgebrochen</span>
+        </div>
+        <p class="text-[11px] text-[var(--color-text-tertiary)] mt-1">
+          Bereits importierte Daten des aktuellen Schritts wurden zurückgerollt.
+        </p>
       </div>
 
       <!-- Validation Result -->

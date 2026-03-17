@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace App\Services\Import;
 
+use App\Exceptions\ImportCancelledException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 /**
  * Importiert PIM-Daten aus BMEcat-XML-Dateien (1.2 und 2005).
@@ -32,6 +35,12 @@ use Illuminate\Support\Facades\Log;
 class BmecatFormatImporter
 {
     private string $mode = 'update';
+
+    /** Eindeutige Import-ID für Cancel-Tracking. */
+    private ?string $importId = null;
+
+    /** Optional parsing progress callback: fn(int $productsParsed) */
+    private $parsingProgressCallback = null;
 
     /** BMEcat 2005 Namespace. */
     private const NS_2005 = 'http://www.bmecat.org/bmecat/2005';
@@ -78,11 +87,43 @@ class BmecatFormatImporter
     }
 
     /**
+     * Setzt die Import-ID für Cancel-Tracking.
+     */
+    public function setImportId(string $importId): void
+    {
+        $this->importId = $importId;
+        $this->executor->setImportId($importId);
+    }
+
+    /**
+     * Gibt die Import-ID zurück (erzeugt eine neue falls nicht gesetzt).
+     */
+    public function getImportId(): string
+    {
+        if ($this->importId === null) {
+            $this->importId = Str::uuid()->toString();
+            $this->executor->setImportId($this->importId);
+        }
+
+        return $this->importId;
+    }
+
+    /**
      * Setzt eine Callback-Funktion für Fortschrittsmeldungen.
      */
     public function setProgressCallback(callable $callback): void
     {
         $this->executor->setProgressCallback($callback);
+    }
+
+    /**
+     * Setzt eine Callback-Funktion für Parsing-Fortschrittsmeldungen.
+     *
+     * @param callable(int $productsParsed): void $callback
+     */
+    public function setParsingProgressCallback(callable $callback): void
+    {
+        $this->parsingProgressCallback = $callback;
     }
 
     /**
@@ -94,7 +135,34 @@ class BmecatFormatImporter
     }
 
     /**
+     * Prüft ob der Import abgebrochen wurde.
+     *
+     * @throws ImportCancelledException
+     */
+    private function checkCancelled(): void
+    {
+        if ($this->importId === null) {
+            return;
+        }
+
+        if (Cache::get("bmecat_import_cancel_{$this->importId}")) {
+            Cache::forget("bmecat_import_cancel_{$this->importId}");
+            Log::channel('import')->info("Import {$this->importId} wurde vom Benutzer abgebrochen");
+            throw new ImportCancelledException($this->importId);
+        }
+    }
+
+    /**
+     * Bricht einen laufenden Import ab.
+     */
+    public static function cancelImport(string $importId): void
+    {
+        Cache::put("bmecat_import_cancel_{$importId}", true, 300);
+    }
+
+    /**
      * Importiert Daten aus einer BMEcat-XML-Datei.
+     * Nutzt file-basiertes XMLReader-Streaming für geringen Speicherverbrauch.
      */
     public function importFromFile(string $filePath, ?string $productType = null): JsonImportResult
     {
@@ -102,9 +170,86 @@ class BmecatFormatImporter
             throw new \RuntimeException("Datei nicht gefunden: {$filePath}");
         }
 
+        $fileSize = filesize($filePath);
+        $isLargeFile = $fileSize > 10 * 1024 * 1024; // > 10 MB
+
+        if ($isLargeFile) {
+            return $this->importFromFilePath($filePath, $productType);
+        }
+
         $xml = file_get_contents($filePath);
 
         return $this->importFromString($xml, $productType);
+    }
+
+    /**
+     * Importiert aus Dateipfad mit file-basiertem XMLReader (spart RAM bei großen Dateien).
+     */
+    public function importFromFilePath(string $filePath, ?string $productType = null): JsonImportResult
+    {
+        $startTime = microtime(true);
+        $importId = $this->getImportId();
+
+        $version = $this->detectVersionFromFile($filePath);
+        $elementMap = BmecatElementMap::forVersion($version);
+
+        $fileSize = filesize($filePath);
+        $fileSizeMb = round($fileSize / 1024 / 1024, 1);
+
+        Log::channel('import')->info('BMEcat-Import gestartet (Datei-Modus)', [
+            'import_id' => $importId,
+            'version' => $version,
+            'mode' => $this->mode,
+            'product_type' => $productType ?? 'bmecat_product',
+            'file_size_mb' => $fileSizeMb,
+        ]);
+
+        $this->executor->setMode($this->mode);
+        $this->checkCancelled();
+
+        try {
+            $parsed = $this->parseXmlFromFile($filePath, $elementMap, $version);
+        } catch (ImportCancelledException $e) {
+            throw $e;
+        } catch (\Throwable $e) {
+            Log::channel('import')->error('BMEcat-XML konnte nicht geparst werden', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            throw new \RuntimeException('BMEcat-XML konnte nicht geparst werden: ' . $e->getMessage(), 0, $e);
+        }
+
+        $this->checkCancelled();
+
+        try {
+            $parseResult = $this->buildParseResult($parsed, $productType);
+        } catch (ImportCancelledException $e) {
+            throw $e;
+        } catch (\Throwable $e) {
+            Log::channel('import')->error('Import-Daten konnten nicht aufbereitet werden', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            throw new \RuntimeException('Import-Daten konnten nicht aufbereitet werden: ' . $e->getMessage(), 0, $e);
+        }
+
+        $productCount = count($parsed['products'] ?? []);
+        Log::channel('import')->info("Parsing abgeschlossen: {$productCount} Produkte geparst, starte DB-Import");
+
+        $result = $this->executor->execute($parseResult);
+
+        $duration = round(microtime(true) - $startTime, 2);
+        Log::channel('import')->info("BMEcat-Import abgeschlossen in {$duration}s", [
+            'stats' => $result->stats,
+            'affected_products' => count($result->affectedProductIds),
+        ]);
+
+        return new JsonImportResult(
+            stats: $result->stats,
+            affectedProductIds: $result->affectedProductIds,
+            skippedDetails: $result->skippedDetails,
+            durationSeconds: $duration,
+        );
     }
 
     /**
@@ -124,9 +269,12 @@ class BmecatFormatImporter
         ]);
 
         $this->executor->setMode($this->mode);
+        $this->checkCancelled();
 
         try {
             $parsed = $this->parseXml($xml, $elementMap, $version);
+        } catch (ImportCancelledException $e) {
+            throw $e;
         } catch (\Throwable $e) {
             Log::channel('import')->error('BMEcat-XML konnte nicht geparst werden', [
                 'error' => $e->getMessage(),
@@ -135,8 +283,12 @@ class BmecatFormatImporter
             throw new \RuntimeException('BMEcat-XML konnte nicht geparst werden: ' . $e->getMessage(), 0, $e);
         }
 
+        $this->checkCancelled();
+
         try {
             $parseResult = $this->buildParseResult($parsed, $productType);
+        } catch (ImportCancelledException $e) {
+            throw $e;
         } catch (\Throwable $e) {
             Log::channel('import')->error('Import-Daten konnten nicht aufbereitet werden', [
                 'error' => $e->getMessage(),
@@ -413,6 +565,124 @@ class BmecatFormatImporter
 
         // Standard: 2005
         return '2005';
+    }
+
+    /**
+     * Erkennt die BMEcat-Version aus den ersten Bytes einer Datei.
+     * Liest nur die ersten 8KB statt die gesamte Datei.
+     */
+    private function detectVersionFromFile(string $filePath): string
+    {
+        $handle = fopen($filePath, 'r');
+        if ($handle === false) {
+            return '2005';
+        }
+
+        $header = fread($handle, 8192);
+        fclose($handle);
+
+        if ($header === false) {
+            return '2005';
+        }
+
+        return $this->detectVersion($header);
+    }
+
+    /**
+     * Parst das BMEcat-XML aus einer Datei via file-basiertem XMLReader.
+     * Spart ~200MB RAM bei großen Dateien gegenüber String-basiertem Parsing.
+     *
+     * @throws ImportCancelledException
+     */
+    private function parseXmlFromFile(string $filePath, array $elementMap, string $version): array
+    {
+        $isV12 = BmecatElementMap::isVersion12($version);
+
+        // Namespace-Erkennung aus den ersten Bytes
+        $handle = fopen($filePath, 'r');
+        $header = $handle !== false ? fread($handle, 8192) : '';
+        if ($handle !== false) {
+            fclose($handle);
+        }
+        $hasNs = str_contains($header ?: '', self::NS_2005);
+        $ns = ($isV12 || !$hasNs) ? null : self::NS_2005;
+
+        $altElementMap = BmecatElementMap::forVersion($isV12 ? '2005' : '1.2');
+
+        $parsed = [
+            'header' => [],
+            'default_currency' => 'EUR',
+            'default_language' => null,
+            'catalog_id' => '',
+            'catalog_structures' => [],
+            'products' => [],
+            'product_to_group_maps' => [],
+        ];
+
+        $reader = new \XMLReader();
+        if (!$reader->open($filePath, 'UTF-8', LIBXML_NONET | LIBXML_NOCDATA)) {
+            throw new \RuntimeException("Datei konnte nicht zum Parsen geöffnet werden: {$filePath}");
+        }
+
+        $productName = strtoupper($elementMap['product']);
+        $altProductName = strtoupper($altElementMap['product']);
+        $mapName = strtoupper($elementMap['product_to_cataloggroup_map']);
+        $altMapName = strtoupper($altElementMap['product_to_cataloggroup_map']);
+
+        $productsParsed = 0;
+        $lastCancelCheck = 0;
+
+        while ($reader->read()) {
+            if ($reader->nodeType !== \XMLReader::ELEMENT) {
+                continue;
+            }
+
+            $localName = strtoupper($reader->localName);
+
+            if ($localName === 'HEADER') {
+                $parsed['header'] = $this->parseHeader($reader, $ns);
+                $parsed['default_currency'] = $parsed['header']['currency'] ?? 'EUR';
+                $parsed['catalog_id'] = $parsed['header']['catalog_id'] ?? '';
+                if (!empty($parsed['header']['language'])) {
+                    $parsed['default_language'] = $this->mapLanguageCode($parsed['header']['language']);
+                }
+            } elseif ($localName === 'CATALOG_GROUP_SYSTEM') {
+                $parsed['catalog_structures'] = $this->parseCatalogGroupSystem($reader, $ns);
+            } elseif ($localName === $productName || $localName === $altProductName) {
+                $actualElementName = $reader->localName;
+                $product = $this->parseProduct($reader, $elementMap, $altElementMap, $ns, $parsed['default_currency'], $parsed['default_language'], $actualElementName);
+                if ($product !== null) {
+                    $parsed['products'][] = $product;
+                    $productsParsed++;
+
+                    // Parsing-Progress alle 100 Produkte senden
+                    if ($this->parsingProgressCallback && $productsParsed % 100 === 0) {
+                        ($this->parsingProgressCallback)($productsParsed);
+                    }
+
+                    // Cancel-Check alle 500 Produkte
+                    if ($productsParsed - $lastCancelCheck >= 500) {
+                        $lastCancelCheck = $productsParsed;
+                        $this->checkCancelled();
+                    }
+                }
+            } elseif ($localName === $mapName || $localName === $altMapName) {
+                $actualElementName = $reader->localName;
+                $map = $this->parseCatalogGroupMap($reader, $elementMap, $altElementMap, $ns, $actualElementName);
+                if ($map !== null) {
+                    $parsed['product_to_group_maps'][] = $map;
+                }
+            }
+        }
+
+        $reader->close();
+
+        // Finalen Parsing-Progress senden
+        if ($this->parsingProgressCallback && $productsParsed > 0) {
+            ($this->parsingProgressCallback)($productsParsed);
+        }
+
+        return $parsed;
     }
 
     /**

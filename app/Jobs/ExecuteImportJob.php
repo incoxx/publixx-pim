@@ -27,9 +27,9 @@ class ExecuteImportJob implements ShouldQueue
     use SerializesModels;
 
     /**
-     * Maximale Ausführungszeit in Sekunden.
+     * Maximale Ausführungszeit in Sekunden (30 Minuten für große Imports).
      */
-    public int $timeout = 600;
+    public int $timeout = 1800;
 
     /**
      * Anzahl Versuche bei Fehlern.

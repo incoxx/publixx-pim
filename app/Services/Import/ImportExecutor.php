@@ -27,6 +27,8 @@ use App\Models\Unit;
 use App\Models\UnitGroup;
 use App\Models\ValueList;
 use App\Models\ValueListEntry;
+use App\Exceptions\ImportCancelledException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -60,6 +62,9 @@ class ImportExecutor
     /** Optional heartbeat callback: wird regelmäßig aufgerufen um SSE-Verbindung offen zu halten */
     private $heartbeatCallback = null;
 
+    /** Import-ID für Cancel-Tracking. */
+    private ?string $importId = null;
+
     public function __construct(?ReferenceResolver $resolver = null)
     {
         $this->resolver = $resolver ?? new ReferenceResolver();
@@ -85,12 +90,37 @@ class ImportExecutor
     }
 
     /**
+     * Setzt die Import-ID für Cancel-Tracking.
+     */
+    public function setImportId(string $importId): void
+    {
+        $this->importId = $importId;
+    }
+
+    /**
      * Heartbeat senden (zeitbasiert, nicht bei jedem Aufruf).
      */
     private function heartbeat(): void
     {
         if ($this->heartbeatCallback) {
             ($this->heartbeatCallback)();
+        }
+    }
+
+    /**
+     * Prüft ob der Import abgebrochen wurde.
+     *
+     * @throws ImportCancelledException
+     */
+    private function checkCancelled(): void
+    {
+        if ($this->importId === null) {
+            return;
+        }
+
+        if (Cache::get("bmecat_import_cancel_{$this->importId}")) {
+            Cache::forget("bmecat_import_cancel_{$this->importId}");
+            throw new ImportCancelledException($this->importId);
         }
     }
 
@@ -203,6 +233,9 @@ class ImportExecutor
             if (empty($rows)) {
                 continue;
             }
+
+            // Cancel-Check vor jedem Sheet
+            $this->checkCancelled();
 
             $this->stats[$sheetKey] = ['created' => 0, 'updated' => 0, 'skipped' => 0, 'errors' => 0];
 

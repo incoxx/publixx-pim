@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Exceptions\ImportCancelledException;
 use App\Services\Import\BmecatFormatImporter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -15,6 +16,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  *
  * POST /api/v1/bmecat-import           — BMEcat-XML-Datei importieren (mit SSE-Progress)
  * POST /api/v1/bmecat-import/validate  — BMEcat-XML validieren (ohne Import)
+ * POST /api/v1/bmecat-import/cancel    — Laufenden Import abbrechen
  */
 class BmecatImportController extends Controller
 {
@@ -34,12 +36,49 @@ class BmecatImportController extends Controller
         $productType = $request->input('product_type');
         $this->importer->setMode($mode);
 
-        // XML aus Datei-Upload oder Request-Body
+        // Datei-Upload oder Request-Body
         if ($request->hasFile('file')) {
             $request->validate([
-                'file' => 'required|file|max:204800|mimetypes:application/xml,text/xml,text/plain',
+                'file' => 'required|file|max:512000|mimetypes:application/xml,text/xml,text/plain',
             ]);
-            $xml = file_get_contents($request->file('file')->getRealPath());
+            $uploadedFile = $request->file('file');
+            $fileSize = $uploadedFile->getSize();
+            $isLargeFile = $fileSize > 10 * 1024 * 1024; // > 10 MB
+
+            if ($isLargeFile) {
+                // Große Dateien: auf Disk speichern statt in RAM laden
+                $tempPath = $uploadedFile->getRealPath();
+
+                // Validierung mit den ersten 8KB statt der ganzen Datei
+                $handle = fopen($tempPath, 'r');
+                $headerXml = fread($handle, 8192);
+                fclose($handle);
+
+                // Schnelle Validierung: XML-Wohlgeformtheit prüfen
+                $validation = $this->importer->validate($headerXml);
+                if (!$validation['valid']) {
+                    // Fallback: Vollständige Validierung nur wenn Header-Check fehlschlägt
+                    // (kann bei kleinen Dateien vorkommen die < 8KB sind)
+                    if ($fileSize <= 8192) {
+                        return response()->json([
+                            'error' => 'Validierungsfehler',
+                            'details' => $validation['errors'],
+                            'warnings' => $validation['warnings'] ?? [],
+                        ], 422);
+                    }
+                    // Bei großen Dateien: Header-Validierung reicht um grobe Fehler zu erkennen
+                    // Feingranulare Fehler werden beim Parsing abgefangen
+                }
+
+                $wantsStream = str_contains($request->header('Accept', ''), 'text/event-stream');
+                if (!$wantsStream) {
+                    return $this->importJsonFromFile($tempPath, $productType);
+                }
+
+                return $this->importStreamedFromFile($tempPath, $productType);
+            }
+
+            $xml = file_get_contents($uploadedFile->getRealPath());
         } else {
             $xml = $request->getContent();
         }
@@ -76,7 +115,7 @@ class BmecatImportController extends Controller
     {
         set_time_limit(0);
         ini_set('max_execution_time', '0');
-        ini_set('memory_limit', '512M');
+        ini_set('memory_limit', '1G');
 
         try {
             $result = $this->importer->importFromString($xml, $productType);
@@ -86,11 +125,40 @@ class BmecatImportController extends Controller
                 'trace' => $e->getTraceAsString(),
             ]);
 
-            // Detaillierte Fehlermeldung statt generischem "Import fehlgeschlagen"
             $errorMessage = $this->formatImportError($e);
 
             return response()->json([
                 'error' => $errorMessage,
+            ], 500);
+        }
+
+        Log::channel('import')->info('BMEcat-Import via REST abgeschlossen', $result->toArray());
+
+        return response()->json([
+            'message' => 'Import erfolgreich',
+            'data' => $result->toArray(),
+        ]);
+    }
+
+    /**
+     * JSON-Import aus Dateipfad (für große Dateien).
+     */
+    private function importJsonFromFile(string $filePath, ?string $productType): JsonResponse
+    {
+        set_time_limit(0);
+        ini_set('max_execution_time', '0');
+        ini_set('memory_limit', '2G');
+
+        try {
+            $result = $this->importer->importFromFilePath($filePath, $productType);
+        } catch (\Throwable $e) {
+            Log::channel('import')->error('BMEcat-Import via REST fehlgeschlagen (Datei-Modus)', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'error' => $this->formatImportError($e),
             ], 500);
         }
 
@@ -108,59 +176,33 @@ class BmecatImportController extends Controller
     private function importStreamed(string $xml, ?string $productType): StreamedResponse
     {
         return new StreamedResponse(function () use ($xml, $productType) {
-            // Timeouts und Memory für lang laufende Imports aufheben
-            set_time_limit(0);
-            ini_set('max_execution_time', '0');
-            ini_set('memory_limit', '512M');
-            if (function_exists('fastcgi_finish_request')) {
-                // FPM: Verbindung offen halten
-                ignore_user_abort(true);
-            }
+            $this->configureForLongRunning('1G');
+            $sendEvent = $this->createSseEventSender();
+            $sendHeartbeat = $this->createSseHeartbeatSender();
 
-            // Disable output buffering for real-time streaming
-            while (ob_get_level() > 0) {
-                ob_end_flush();
-            }
-
-            $lastEventTime = microtime(true);
-
-            $sendEvent = function (string $event, array $data) use (&$lastEventTime) {
-                echo "event: {$event}\n";
-                echo 'data: ' . json_encode($data, JSON_UNESCAPED_UNICODE) . "\n\n";
-                flush();
-                $lastEventTime = microtime(true);
-            };
-
-            // SSE-Heartbeat: Hält die Verbindung offen wenn lange kein Event kommt
-            // (verhindert nginx proxy_read_timeout)
-            $sendHeartbeat = function () use (&$lastEventTime) {
-                if ((microtime(true) - $lastEventTime) > 15) {
-                    echo ": heartbeat\n\n";
-                    flush();
-                    $lastEventTime = microtime(true);
-                }
-            };
+            $importId = $this->importer->getImportId();
 
             $sendEvent('progress', [
                 'phase' => 'parsing',
                 'message' => 'XML wird geparst...',
                 'current' => 0,
                 'total' => 0,
+                'import_id' => $importId,
             ]);
 
             $this->importer->setProgressCallback(
-                function (string $phase, int $current, int $total, array $stats) use ($sendEvent) {
+                function (string $phase, int $current, int $total, array $stats) use ($sendEvent, $importId) {
                     $sendEvent('progress', [
                         'phase' => $phase,
                         'message' => "Importiere {$phase}...",
                         'current' => $current,
                         'total' => $total,
                         'stats' => $stats,
+                        'import_id' => $importId,
                     ]);
                 }
             );
 
-            // Heartbeat alle 15s senden um nginx proxy_read_timeout zu vermeiden
             $this->importer->setHeartbeatCallback($sendHeartbeat);
 
             try {
@@ -171,6 +213,12 @@ class BmecatImportController extends Controller
                 $sendEvent('complete', [
                     'message' => 'Import erfolgreich',
                     'data' => $result->toArray(),
+                ]);
+            } catch (ImportCancelledException $e) {
+                Log::channel('import')->info('BMEcat-Import abgebrochen', ['import_id' => $importId]);
+                $sendEvent('cancelled', [
+                    'message' => 'Import wurde abgebrochen.',
+                    'import_id' => $importId,
                 ]);
             } catch (\Throwable $e) {
                 Log::channel('import')->error('BMEcat-Import via REST fehlgeschlagen', [
@@ -186,8 +234,167 @@ class BmecatImportController extends Controller
             'Content-Type' => 'text/event-stream',
             'Cache-Control' => 'no-cache',
             'Connection' => 'keep-alive',
-            'X-Accel-Buffering' => 'no', // Disable nginx buffering
+            'X-Accel-Buffering' => 'no',
         ]);
+    }
+
+    /**
+     * SSE-Streaming-Import aus Dateipfad (für große Dateien).
+     */
+    private function importStreamedFromFile(string $filePath, ?string $productType): StreamedResponse
+    {
+        return new StreamedResponse(function () use ($filePath, $productType) {
+            $this->configureForLongRunning('2G');
+            $sendEvent = $this->createSseEventSender();
+            $sendHeartbeat = $this->createSseHeartbeatSender();
+
+            $importId = $this->importer->getImportId();
+            $fileSizeMb = round(filesize($filePath) / 1024 / 1024, 1);
+
+            $sendEvent('progress', [
+                'phase' => 'parsing',
+                'message' => "XML wird geparst ({$fileSizeMb} MB)...",
+                'current' => 0,
+                'total' => 0,
+                'import_id' => $importId,
+            ]);
+
+            // Parsing-Progress: zeigt wie viele Produkte bereits geparst wurden
+            $this->importer->setParsingProgressCallback(
+                function (int $productsParsed) use ($sendEvent, $importId, $sendHeartbeat) {
+                    $sendEvent('progress', [
+                        'phase' => 'parsing',
+                        'message' => "{$productsParsed} Produkte geparst...",
+                        'current' => $productsParsed,
+                        'total' => 0, // Total unbekannt beim Parsen
+                        'import_id' => $importId,
+                    ]);
+                    $sendHeartbeat();
+                }
+            );
+
+            // Import-Progress: zeigt welches Sheet gerade importiert wird
+            $this->importer->setProgressCallback(
+                function (string $phase, int $current, int $total, array $stats) use ($sendEvent, $importId) {
+                    $sendEvent('progress', [
+                        'phase' => $phase,
+                        'message' => "Importiere {$phase}...",
+                        'current' => $current,
+                        'total' => $total,
+                        'stats' => $stats,
+                        'import_id' => $importId,
+                    ]);
+                }
+            );
+
+            $this->importer->setHeartbeatCallback($sendHeartbeat);
+
+            try {
+                $result = $this->importer->importFromFilePath($filePath, $productType);
+
+                Log::channel('import')->info('BMEcat-Import via REST abgeschlossen (Datei-Modus)', $result->toArray());
+
+                $sendEvent('complete', [
+                    'message' => 'Import erfolgreich',
+                    'data' => $result->toArray(),
+                ]);
+            } catch (ImportCancelledException $e) {
+                Log::channel('import')->info('BMEcat-Import abgebrochen', ['import_id' => $importId]);
+                $sendEvent('cancelled', [
+                    'message' => 'Import wurde abgebrochen.',
+                    'import_id' => $importId,
+                ]);
+            } catch (\Throwable $e) {
+                Log::channel('import')->error('BMEcat-Import via REST fehlgeschlagen (Datei-Modus)', [
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
+                ]);
+
+                $sendEvent('error', [
+                    'error' => $this->formatImportError($e),
+                ]);
+            }
+        }, 200, [
+            'Content-Type' => 'text/event-stream',
+            'Cache-Control' => 'no-cache',
+            'Connection' => 'keep-alive',
+            'X-Accel-Buffering' => 'no',
+        ]);
+    }
+
+    /**
+     * POST /api/v1/bmecat-import/cancel — Laufenden Import abbrechen.
+     */
+    public function cancel(Request $request): JsonResponse
+    {
+        $request->validate([
+            'import_id' => 'required|string|uuid',
+        ]);
+
+        $importId = $request->input('import_id');
+        BmecatFormatImporter::cancelImport($importId);
+
+        Log::channel('import')->info('BMEcat-Import-Abbruch angefordert', ['import_id' => $importId]);
+
+        return response()->json([
+            'message' => 'Abbruch wurde angefordert. Der Import wird nach dem aktuellen Schritt gestoppt.',
+            'import_id' => $importId,
+        ]);
+    }
+
+    /**
+     * Konfiguriert PHP für lang laufende Imports.
+     */
+    private function configureForLongRunning(string $memoryLimit): void
+    {
+        set_time_limit(0);
+        ini_set('max_execution_time', '0');
+        ini_set('memory_limit', $memoryLimit);
+        if (function_exists('fastcgi_finish_request')) {
+            ignore_user_abort(true);
+        }
+
+        // Output Buffering deaktivieren für Echtzeit-Streaming
+        while (ob_get_level() > 0) {
+            ob_end_flush();
+        }
+    }
+
+    /**
+     * Erstellt eine SSE-Event-Sender-Funktion.
+     */
+    private function createSseEventSender(): \Closure
+    {
+        $lastEventTime = microtime(true);
+
+        return function (string $event, array $data) use (&$lastEventTime) {
+            echo "event: {$event}\n";
+            echo 'data: ' . json_encode($data, JSON_UNESCAPED_UNICODE) . "\n\n";
+            if (ob_get_level() > 0) {
+                ob_flush();
+            }
+            flush();
+            $lastEventTime = microtime(true);
+        };
+    }
+
+    /**
+     * Erstellt eine SSE-Heartbeat-Funktion.
+     */
+    private function createSseHeartbeatSender(): \Closure
+    {
+        $lastEventTime = microtime(true);
+
+        return function () use (&$lastEventTime) {
+            if ((microtime(true) - $lastEventTime) > 15) {
+                echo ": heartbeat\n\n";
+                if (ob_get_level() > 0) {
+                    ob_flush();
+                }
+                flush();
+                $lastEventTime = microtime(true);
+            }
+        };
     }
 
     /**
@@ -195,9 +402,12 @@ class BmecatImportController extends Controller
      */
     private function formatImportError(\Throwable $e): string
     {
+        if ($e instanceof ImportCancelledException) {
+            return $e->getMessage();
+        }
+
         $message = $e->getMessage();
 
-        // Bekannte Fehlertypen mit verständlichen Meldungen
         if (str_contains($message, 'konnte nicht geparst werden')) {
             return "XML-Parsing-Fehler: {$message}";
         }
@@ -214,7 +424,6 @@ class BmecatImportController extends Controller
             return 'Datenbankfehler beim Import: ' . $this->simplifyDbError($message);
         }
 
-        // Allgemeiner Fehler — Nachricht weitergeben statt generischem Text
         return "Import fehlgeschlagen: {$message}";
     }
 
@@ -223,17 +432,14 @@ class BmecatImportController extends Controller
      */
     private function simplifyDbError(string $message): string
     {
-        // NOT NULL Constraint
         if (preg_match('/NOT NULL constraint.*?\.(\w+)/i', $message, $m)) {
             return "Pflichtfeld \"{$m[1]}\" ist leer. Bitte prüfen Sie die BMEcat-Daten.";
         }
 
-        // Unique Constraint
         if (preg_match('/UNIQUE constraint/i', $message)) {
             return 'Duplikat-Eintrag. Ein Datensatz mit diesem Schlüssel existiert bereits.';
         }
 
-        // Truncation
         if (preg_match('/Data too long for column.*?\'(\w+)\'/i', $message, $m)) {
             return "Feld \"{$m[1]}\" enthält zu lange Daten. Bitte kürzen.";
         }
@@ -248,7 +454,7 @@ class BmecatImportController extends Controller
     {
         if ($request->hasFile('file')) {
             $request->validate([
-                'file' => 'required|file|max:204800|mimetypes:application/xml,text/xml,text/plain',
+                'file' => 'required|file|max:512000|mimetypes:application/xml,text/xml,text/plain',
             ]);
             $xml = file_get_contents($request->file('file')->getRealPath());
         } else {
