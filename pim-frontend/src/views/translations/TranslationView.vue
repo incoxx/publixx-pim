@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted, computed, watch } from 'vue'
 import { useTranslationsStore } from '@/stores/translations'
-import { Languages, RefreshCw, Download, Upload, Search, Globe, BarChart3, AlertCircle, Check, Loader2, Settings, X } from 'lucide-vue-next'
+import { Languages, RefreshCw, Download, Upload, Search, Globe, BarChart3, AlertCircle, Check, Loader2, Settings, X, Trash2 } from 'lucide-vue-next'
 import TranslationStatsCard from './TranslationStatsCard.vue'
 import TranslationUnitPanel from './TranslationUnitPanel.vue'
 
@@ -16,6 +16,7 @@ const selectedUnitId = ref(null)
 const showPanel = ref(false)
 const ingestLoading = ref(false)
 const syncLoading = ref(false)
+const deleteLoading = ref(false)
 const actionLog = ref([])
 const unitsPage = ref(1)
 const missingPage = ref(1)
@@ -147,6 +148,21 @@ async function refreshStats() {
     addLog('success', `Statistiken aktualisiert — ${total} Begriffe im TMS.`)
   } catch (e) {
     addLog('error', 'Statistiken laden fehlgeschlagen: ' + (e.response?.data?.message || e.message))
+  }
+}
+
+async function deleteAllTranslations() {
+  if (!confirm('Alle Übersetzungen unwiderruflich löschen? Dieser Vorgang kann nicht rückgängig gemacht werden.')) return
+  deleteLoading.value = true
+  addLog('info', 'Lösche alle Übersetzungen...')
+  try {
+    const { data } = await store.deleteAllTranslations()
+    addLog('success', data.message || `${data.deleted} Übersetzungen gelöscht.`)
+    await store.fetchStats()
+  } catch (e) {
+    addLog('error', 'Löschen fehlgeschlagen: ' + (e.response?.data?.message || e.message))
+  } finally {
+    deleteLoading.value = false
   }
 }
 
@@ -414,7 +430,7 @@ const paginationPages = computed(() => {
             </button>
           </div>
 
-          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3 border-b border-[var(--color-border)]">
             <div>
               <div class="text-sm font-medium text-[var(--color-text-primary)]">Statistiken aktualisieren</div>
               <div class="text-xs text-[var(--color-text-tertiary)] mt-0.5">Übersetzungs-Statistiken neu laden</div>
@@ -425,6 +441,22 @@ const paginationPages = computed(() => {
             >
               <RefreshCw class="w-4 h-4" />
               Aktualisieren
+            </button>
+          </div>
+
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
+            <div>
+              <div class="text-sm font-medium text-red-600">Alle Übersetzungen löschen</div>
+              <div class="text-xs text-[var(--color-text-tertiary)] mt-0.5">Alle gespeicherten Übersetzungen unwiderruflich entfernen (Quellbegriffe bleiben erhalten)</div>
+            </div>
+            <button
+              class="flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium border border-red-300 text-red-600 rounded-md hover:bg-red-50 disabled:opacity-50 shrink-0 w-full sm:w-auto"
+              :disabled="deleteLoading"
+              @click="deleteAllTranslations"
+            >
+              <Trash2 v-if="!deleteLoading" class="w-4 h-4" />
+              <Loader2 v-else class="w-4 h-4 animate-spin" />
+              Alle löschen
             </button>
           </div>
         </div>

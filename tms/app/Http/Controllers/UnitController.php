@@ -145,6 +145,43 @@ class UnitController
     }
 
     /**
+     * DELETE /api/translations — delete all translations (optionally filtered by language).
+     */
+    public function deleteTranslations(Request $request): JsonResponse
+    {
+        $request->validate([
+            'target_lang' => 'nullable|string|max:5',
+        ]);
+
+        $query = TmsTranslation::query();
+
+        if ($lang = $request->query('target_lang')) {
+            $query->where('target_lang', $lang);
+        }
+
+        $count = $query->count();
+        $query->delete();
+
+        // Flush Redis cache
+        $prefix = config('tms.cache_prefix', 'tms:t:');
+        try {
+            $keys = Redis::keys("{$prefix}*");
+            if (!empty($keys)) {
+                // Strip Redis prefix if present
+                $cleaned = array_map(fn ($k) => str_replace(config('database.redis.options.prefix', ''), '', $k), $keys);
+                Redis::del($cleaned);
+            }
+        } catch (\Throwable $e) {
+            // Cache flush is best-effort
+        }
+
+        return response()->json([
+            'message' => "Deleted {$count} translations.",
+            'deleted' => $count,
+        ]);
+    }
+
+    /**
      * POST /api/retranslate — trigger MT re-translation.
      */
     public function retranslate(Request $request): JsonResponse

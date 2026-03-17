@@ -22,6 +22,9 @@ Route::middleware(ValidateApiKey::class)->group(function () {
     Route::get('stats', [UnitController::class, 'stats']);
     Route::get('missing', [UnitController::class, 'missing']);
 
+    // Delete translations
+    Route::delete('translations', [UnitController::class, 'deleteTranslations']);
+
     // Retranslate
     Route::post('retranslate', [UnitController::class, 'retranslate']);
 });
