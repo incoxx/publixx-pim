@@ -25,6 +25,9 @@ Route::middleware(ValidateApiKey::class)->group(function () {
     // Delete translations
     Route::delete('translations', [UnitController::class, 'deleteTranslations']);
 
+    // Delete all units (purge)
+    Route::delete('units', [UnitController::class, 'purgeUnits']);
+
     // Retranslate
     Route::post('retranslate', [UnitController::class, 'retranslate']);
 });

@@ -182,6 +182,36 @@ class UnitController
     }
 
     /**
+     * DELETE /api/units — purge all units, translations, and usages.
+     */
+    public function purgeUnits(): JsonResponse
+    {
+        $count = TmsUnit::count();
+
+        // Delete in correct order (foreign keys)
+        TmsTranslation::query()->delete();
+        \Tms\Models\TmsUsage::query()->delete();
+        TmsUnit::query()->delete();
+
+        // Flush Redis cache
+        $prefix = config('tms.cache_prefix', 'tms:t:');
+        try {
+            $keys = Redis::keys("{$prefix}*");
+            if (!empty($keys)) {
+                $cleaned = array_map(fn ($k) => str_replace(config('database.redis.options.prefix', ''), '', $k), $keys);
+                Redis::del($cleaned);
+            }
+        } catch (\Throwable $e) {
+            // Cache flush is best-effort
+        }
+
+        return response()->json([
+            'message' => "{$count} Begriffe und alle zugehörigen Übersetzungen gelöscht.",
+            'deleted' => $count,
+        ]);
+    }
+
+    /**
      * POST /api/retranslate — trigger MT re-translation.
      */
     public function retranslate(Request $request): JsonResponse
