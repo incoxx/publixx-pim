@@ -38,7 +38,13 @@ class TestDataGeneratorService
         ?int $attributesPerProduct = null,
         ?string $userId = null,
     ): array {
+        // Disable PHP execution timeout for long-running generation
+        set_time_limit(0);
+
         $startTime = microtime(true);
+
+        // System health check before starting
+        $this->assertSystemHealth($count);
 
         // Reset cancel flag and init progress
         Cache::forget(self::CACHE_KEY_CANCEL);
@@ -71,10 +77,14 @@ class TestDataGeneratorService
         }
         $this->assignAttributesToHierarchyNodes($nodes, $hierarchyAttributes);
 
+        // Determine next free SKU number (avoid duplicates on re-run)
+        $nextSkuNumber = $this->getNextSkuNumber();
+
         $this->updateProgress('Produkte werden generiert...', 0, $count);
 
         $result = $this->generateProducts(
             $count,
+            $nextSkuNumber,
             $productTypes,
             $attributes,
             $priceTypes,
@@ -144,10 +154,77 @@ class TestDataGeneratorService
     }
 
     /**
+     * Find the next available SKU number to avoid duplicate key errors.
+     */
+    private function getNextSkuNumber(): int
+    {
+        $lastSku = Product::where('sku', 'like', self::SKU_PREFIX . '%')
+            ->orderByRaw("CAST(SUBSTRING(sku, ?) AS UNSIGNED) DESC", [strlen(self::SKU_PREFIX) + 1])
+            ->value('sku');
+
+        if (!$lastSku) {
+            return 1;
+        }
+
+        $number = (int) str_replace(self::SKU_PREFIX, '', $lastSku);
+
+        return $number + 1;
+    }
+
+    /**
+     * Check disk space and memory before starting generation.
+     */
+    private function assertSystemHealth(int $count): void
+    {
+        // Check disk space (need at least 500MB free)
+        $freeBytes = disk_free_space(storage_path());
+        if ($freeBytes !== false && $freeBytes < 500 * 1024 * 1024) {
+            $freeMb = round($freeBytes / 1024 / 1024);
+            throw new \RuntimeException("Zu wenig Speicherplatz: nur {$freeMb} MB frei (min. 500 MB benötigt).");
+        }
+
+        // Check PHP memory limit vs expected usage (~2KB per product as rough estimate)
+        $memoryLimit = $this->getMemoryLimitBytes();
+        if ($memoryLimit > 0) {
+            $currentUsage = memory_get_usage(true);
+            $estimatedNeed = $count * 2048; // ~2KB per product (rough)
+            $available = $memoryLimit - $currentUsage;
+
+            if ($estimatedNeed > $available * 0.8) {
+                $availableMb = round($available / 1024 / 1024);
+                $neededMb = round($estimatedNeed / 1024 / 1024);
+                throw new \RuntimeException(
+                    "Möglicherweise nicht genug PHP-Speicher: ~{$neededMb} MB benötigt, {$availableMb} MB verfügbar. "
+                    . "Versuche weniger Produkte oder erhöhe memory_limit."
+                );
+            }
+        }
+    }
+
+    private function getMemoryLimitBytes(): int
+    {
+        $limit = ini_get('memory_limit');
+        if ($limit === '-1' || $limit === false) {
+            return 0; // Unlimited
+        }
+
+        $value = (int) $limit;
+        $unit = strtolower(substr($limit, -1));
+
+        return match ($unit) {
+            'g' => $value * 1024 * 1024 * 1024,
+            'm' => $value * 1024 * 1024,
+            'k' => $value * 1024,
+            default => $value,
+        };
+    }
+
+    /**
      * Delete all test data (products with TEST- prefix and the test hierarchy).
      */
     public function cleanup(): array
     {
+        set_time_limit(0);
         $startTime = microtime(true);
 
         $productsDeleted = 0;
@@ -255,6 +332,7 @@ class TestDataGeneratorService
 
     private function generateProducts(
         int $count,
+        int $startSkuNumber,
         $productTypes,
         $attributes,
         $priceTypes,
@@ -278,14 +356,15 @@ class TestDataGeneratorService
                 }
             }
 
+            $skuNumber = $startSkuNumber + $i;
             $productType = $productTypes->random();
             $node = !empty($nodes) ? $nodes[array_rand($nodes)] : null;
 
             // Create product via Eloquent (triggers ProductObserver)
             $product = Product::create([
-                'sku' => self::SKU_PREFIX . str_pad((string) ($i + 1), 6, '0', STR_PAD_LEFT),
+                'sku' => self::SKU_PREFIX . str_pad((string) $skuNumber, 6, '0', STR_PAD_LEFT),
                 'name' => $this->generateProductName($i),
-                'ean' => $this->generateEan($i),
+                'ean' => $this->generateEan($skuNumber),
                 'status' => $statuses[array_rand($statuses)],
                 'product_type_id' => $productType->id,
                 'product_type_ref' => 'product',
