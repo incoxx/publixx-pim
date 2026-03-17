@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\Route;
 // ── Catalog Embed Templates ──
 // Serves customizable HTML catalog templates under /catalog-embed/
 // Uses the same access control as the catalog API.
-Route::middleware('catalog.access')->group(function () {
+Route::middleware(['web', 'catalog.access'])->group(function () {
     Route::get('/catalog-embed', [CatalogEmbedController::class, 'index']);
     Route::get('/catalog-embed/{template}', [CatalogEmbedController::class, 'show']);
 });
