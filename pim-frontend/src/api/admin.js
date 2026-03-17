@@ -44,4 +44,17 @@ export default {
   getSystemStatus() {
     return client.get('/admin/system-status')
   },
+
+  // ── Test Data Generator ──
+  generateTestData(params = {}) {
+    return client.post('/admin/test-data/generate', params, { timeout: 600000 })
+  },
+
+  cleanupTestData() {
+    return client.delete('/admin/test-data', { timeout: 300000 })
+  },
+
+  getTestDataStats() {
+    return client.get('/admin/test-data/stats')
+  },
 }

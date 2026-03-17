@@ -34,6 +34,7 @@ use App\Http\Controllers\Api\V1\BmecatExportController;
 use App\Http\Controllers\Api\V1\JsonExportImportController;
 use App\Http\Controllers\Api\V1\ImportProfileController;
 use App\Http\Controllers\Api\V1\LoadDemoDataController;
+use App\Http\Controllers\Api\V1\TestDataGeneratorController;
 use App\Http\Controllers\Api\V1\ScheduledActionController;
 use App\Http\Controllers\Api\V1\SearchProfileController;
 use App\Http\Controllers\Api\V1\HierarchyAttributeAssignmentController;
@@ -608,6 +609,11 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::get('admin/reset-categories', [ResetDataController::class, 'categories']);
     Route::post('admin/reset-data', ResetDataController::class);
     Route::post('admin/load-demo-data', LoadDemoDataController::class);
+
+    // Admin: Test Data Generator (DEV)
+    Route::post('admin/test-data/generate', [TestDataGeneratorController::class, 'generate']);
+    Route::delete('admin/test-data', [TestDataGeneratorController::class, 'cleanup']);
+    Route::get('admin/test-data/stats', [TestDataGeneratorController::class, 'stats']);
     Route::put('settings/catalog-theme', [SettingController::class, 'updateCatalogTheme']);
     Route::post('admin/search-reindex', [SettingController::class, 'reindexSearch']);
     Route::get('admin/env-info', [SystemInfoController::class, 'envInfo']);
