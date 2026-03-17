@@ -209,8 +209,17 @@ class TestDataGeneratorService
      */
     public function stats(): array
     {
+        $testProductIds = Product::where('sku', 'like', self::SKU_PREFIX . '%')->pluck('id');
+
         return [
-            'test_products' => Product::where('sku', 'like', self::SKU_PREFIX . '%')->count(),
+            'test_products' => $testProductIds->count(),
+            'test_attribute_values' => $testProductIds->isNotEmpty()
+                ? ProductAttributeValue::whereIn('product_id', $testProductIds)->count()
+                : 0,
+            'test_prices' => $testProductIds->isNotEmpty()
+                ? ProductPrice::whereIn('product_id', $testProductIds)->count()
+                : 0,
+            'total_products' => Product::count(),
             'test_hierarchy_exists' => Hierarchy::where('technical_name', self::HIERARCHY_TECHNICAL_NAME)->exists(),
         ];
     }
@@ -409,7 +418,7 @@ class TestDataGeneratorService
             'value_selection_id' => null,
             'unit_id' => $attribute->default_unit_id,
             'language' => $attribute->is_translatable ? 'de' : null,
-            'multiplied_index' => null,
+            'multiplied_index' => 0,
             'is_inherited' => false,
         ];
 
