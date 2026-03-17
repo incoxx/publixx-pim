@@ -16,7 +16,7 @@ export default {
     }
     return client.post('/bmecat-import', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
-      timeout: 300000,
+      timeout: 600000,
     })
   },
 
@@ -125,6 +125,10 @@ export default {
                     onProgress(parsed)
                   } else if (currentEvent === 'complete') {
                     settledResolve(parsed.data || parsed)
+                  } else if (currentEvent === 'cancelled') {
+                    settledReject(
+                      new Error(parsed.message || 'Import wurde abgebrochen.'),
+                    )
                   } else if (currentEvent === 'error') {
                     settledReject(
                       new Error(parsed.error || parsed.message || 'Import fehlgeschlagen'),
@@ -164,6 +168,13 @@ export default {
         })
         .catch(reject)
     })
+  },
+
+  /**
+   * Laufenden BMEcat-Import abbrechen.
+   */
+  cancelImport(importId) {
+    return client.post('/bmecat-import/cancel', { import_id: importId })
   },
 
   /**
