@@ -33,7 +33,14 @@ export function clearCache() {
 }
 
 export function configureApi({ baseUrl, token, timeout, cache }) {
-  if (baseUrl) _baseUrl = baseUrl.replace(/\/+$/, '')
+  if (baseUrl) {
+    let url = baseUrl.replace(/\/+$/, '')
+    // Auto-upgrade http to https when page is served over HTTPS (prevents mixed content)
+    if (typeof window !== 'undefined' && window.location.protocol === 'https:' && url.startsWith('http://')) {
+      url = url.replace(/^http:\/\//, 'https://')
+    }
+    _baseUrl = url
+  }
   if (token) _token = token
   if (timeout) _timeout = timeout
   if (cache === false) _cacheEnabled = false
@@ -48,7 +55,13 @@ export function getBaseUrl() {
  */
 export function resolveMediaUrl(path) {
   if (!path) return null
-  if (path.startsWith('http://') || path.startsWith('https://')) return path
+  if (path.startsWith('http://') || path.startsWith('https://')) {
+    // Auto-upgrade http to https when page is served over HTTPS (prevents mixed content)
+    if (typeof window !== 'undefined' && window.location.protocol === 'https:' && path.startsWith('http://')) {
+      return path.replace(/^http:\/\//, 'https://')
+    }
+    return path
+  }
   if (_baseUrl.startsWith('http')) {
     try {
       const url = new URL(_baseUrl)
