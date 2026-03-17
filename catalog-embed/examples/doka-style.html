@@ -53,7 +53,7 @@
       font-weight: 400;
     }
     .doka-meta-nav__inner {
-      max-width: 1200px;
+      max-width: 960px;
       margin: 0 auto;
       padding: 6px 15px;
       display: flex;
@@ -92,7 +92,7 @@
       z-index: 100;
     }
     .doka-nav-mid__inner {
-      max-width: 1200px;
+      max-width: 960px;
       margin: 0 auto;
       padding: 5px 15px;
       display: flex;
@@ -195,7 +195,7 @@
       background: var(--doka-gray);
     }
     .doka-nav-bot__inner {
-      max-width: 1200px;
+      max-width: 960px;
       margin: 0 auto;
       padding: 0 15px;
       display: flex;
@@ -229,7 +229,7 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      max-width: 1200px;
+      max-width: 960px;
       margin: 0 auto;
       gap: 24px;
       overflow: hidden;
@@ -258,7 +258,7 @@
 
     /* ===== MAIN CONTENT ===== */
     .doka-content {
-      max-width: 1200px;
+      max-width: 960px;
       margin: 0 auto;
       padding: 0 15px;
     }
@@ -432,18 +432,37 @@
 
     /* ===== FOOTER ===== */
     .doka-footer {
-      background: var(--doka-dark);
-      color: rgba(255,255,255,0.6);
-      padding: 32px 20px;
+      background: #333;
+      color: #fff;
+      padding: 30px 20px 25px;
       margin-top: 48px;
-      text-align: center;
-      font-size: 14px;
+      font-size: 16px;
+    }
+    .doka-footer__inner {
+      max-width: 960px;
+      margin: 0 auto;
     }
     .doka-footer a {
-      color: var(--doka-yellow);
+      color: #fff;
       text-decoration: none;
     }
     .doka-footer a:hover {
+      text-decoration: underline;
+    }
+    .doka-copyright {
+      background: var(--doka-dark);
+      border-top: 1px solid #222;
+      color: #fff;
+      font-size: 15px;
+      padding: 20px;
+      text-align: center;
+    }
+    .doka-copyright a {
+      color: #fff;
+      text-decoration: none;
+      margin: 0 3px;
+    }
+    .doka-copyright a:hover {
       text-decoration: underline;
     }
 
@@ -562,8 +581,17 @@
 
   <!-- ===== FOOTER ===== -->
   <footer class="doka-footer">
-    &copy; 2026 Doka GmbH | <a href="#">Impressum</a> | <a href="#">Datenschutz</a> | <a href="#">AGB</a>
+    <div class="doka-footer__inner">
+      <strong>Doka GmbH</strong><br>
+      <a href="#">Kontakt</a> | <a href="#">Standorte</a> | <a href="#">Karriere</a>
+    </div>
   </footer>
+  <div class="doka-copyright">
+    &copy; 2026 Doka GmbH |
+    <a href="#">Impressum</a> |
+    <a href="#">Datenschutz</a> |
+    <a href="#">AGB</a>
+  </div>
 
   <!-- Hidden widgets (Modals) -->
   <div data-catalog="product-detail"></div>
