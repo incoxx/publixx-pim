@@ -627,6 +627,7 @@ const testDataForm = ref({
   with_prices: true,
   category_count: 20,
   category_depth: 3,
+  attributes_per_product: null,
 })
 const generatingTestData = ref(false)
 const testDataResult = ref(null)
@@ -657,7 +658,11 @@ async function triggerGenerateTestData() {
   testDataResult.value = null
   testDataError.value = null
   try {
-    const { data } = await adminApi.generateTestData(testDataForm.value)
+    // Filter out null/empty values so backend uses defaults
+    const params = Object.fromEntries(
+      Object.entries(testDataForm.value).filter(([, v]) => v != null && v !== '')
+    )
+    const { data } = await adminApi.generateTestData(params)
     testDataResult.value = data.data || data
     loadTestDataStats()
   } catch (e) {
@@ -1773,10 +1778,16 @@ onMounted(async () => {
       </div>
 
       <!-- Settings -->
-      <div v-if="!generatingTestData && !cleaningTestData" class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div v-if="!generatingTestData && !cleaningTestData" class="grid grid-cols-2 sm:grid-cols-5 gap-4">
         <div>
           <label class="block text-[10px] font-medium text-[var(--color-text-secondary)] mb-1">Anzahl Produkte</label>
           <input v-model.number="testDataForm.count" type="number" min="1" max="100000" step="100"
+            class="pim-input text-sm w-full" />
+        </div>
+        <div>
+          <label class="block text-[10px] font-medium text-[var(--color-text-secondary)] mb-1">Attribute pro Produkt</label>
+          <input v-model.number="testDataForm.attributes_per_product" type="number" min="1" max="500"
+            :placeholder="'Alle'"
             class="pim-input text-sm w-full" />
         </div>
         <div>

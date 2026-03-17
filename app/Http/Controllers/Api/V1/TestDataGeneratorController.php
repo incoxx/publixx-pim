@@ -43,12 +43,16 @@ class TestDataGeneratorController extends Controller
             'with_prices' => 'boolean',
             'category_count' => 'integer|min:1|max:200',
             'category_depth' => 'integer|min:1|max:10',
+            'attributes_per_product' => 'nullable|integer|min:1|max:500',
         ]);
 
         $count = (int) $request->input('count', 1000);
         $withPrices = $request->boolean('with_prices', true);
         $categoryCount = (int) $request->input('category_count', 20);
         $categoryDepth = (int) $request->input('category_depth', 3);
+        $attributesPerProduct = $request->filled('attributes_per_product')
+            ? (int) $request->input('attributes_per_product')
+            : null;
 
         try {
             $result = $this->service->generate(
@@ -56,6 +60,7 @@ class TestDataGeneratorController extends Controller
                 withPrices: $withPrices,
                 categoryCount: $categoryCount,
                 categoryDepth: $categoryDepth,
+                attributesPerProduct: $attributesPerProduct,
                 userId: $request->user()->id,
             );
 
