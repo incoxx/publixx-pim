@@ -4,7 +4,6 @@
 /public/storage
 /public/pim-assets
 /public/spa.html
-/public/catalog-embed-assets
 /catalog-embed/dist
 /catalog-embed/node_modules
 /storage/*.key
