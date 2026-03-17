@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Models\Attribute;
 use App\Models\ExportProfile;
 use App\Services\Export\ExportProfileService;
 use Illuminate\Http\JsonResponse;
@@ -23,7 +24,8 @@ class ExportProfileController extends Controller
         $profiles = ExportProfile::visibleTo($request->user()->id)
             ->with('searchProfile')
             ->orderBy('name')
-            ->get();
+            ->get()
+            ->map(fn ($p) => $this->stripStaleReferences($p));
 
         return response()->json(['data' => $profiles]);
     }
@@ -122,5 +124,24 @@ class ExportProfileController extends Controller
         }
 
         return $this->exportService->stream($exportProfile);
+    }
+
+    /**
+     * Strip stale attribute references from an export profile
+     * so deleted attributes don't cause broken exports.
+     */
+    private function stripStaleReferences(ExportProfile $profile): ExportProfile
+    {
+        if (empty($profile->attribute_ids)) {
+            return $profile;
+        }
+
+        $validIds = Attribute::whereIn('id', $profile->attribute_ids)->pluck('id')->toArray();
+        if (count($validIds) !== count($profile->attribute_ids)) {
+            $profile->attribute_ids = array_values($validIds);
+            $profile->saveQuietly();
+        }
+
+        return $profile;
     }
 }
