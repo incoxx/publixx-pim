@@ -188,6 +188,14 @@ async function loadHierarchies() {
   try {
     const { data } = await hierarchiesApi.list({ per_page: 200 })
     availableHierarchies.value = (data.data || data || [])
+
+    // Remove stale hierarchy ID if it no longer exists
+    if (themeForm.value.hierarchy_id) {
+      const hIds = new Set(availableHierarchies.value.map(h => h.id))
+      if (!hIds.has(themeForm.value.hierarchy_id)) {
+        themeForm.value.hierarchy_id = null
+      }
+    }
   } catch (e) {
     console.warn('Failed to load hierarchies:', e.message)
   }
@@ -197,6 +205,10 @@ async function loadAttributeViews() {
   try {
     const { data } = await attributeViewsApi.list()
     availableAttributeViews.value = (data.data || data || [])
+
+    // Remove stale attribute view IDs that no longer exist
+    const avIds = new Set(availableAttributeViews.value.map(av => av.id))
+    themeForm.value.attribute_view_ids = (themeForm.value.attribute_view_ids || []).filter(id => avIds.has(id))
   } catch (e) {
     console.warn('Failed to load attribute views:', e.message)
   }
@@ -234,6 +246,14 @@ async function loadPriceTypes() {
   try {
     const { data } = await priceTypesApi.list()
     availablePriceTypes.value = data.data || data || []
+
+    // Remove stale price type ID if it no longer exists
+    if (themeForm.value.card_price_type_id) {
+      const ptIds = new Set(availablePriceTypes.value.map(pt => pt.id))
+      if (!ptIds.has(themeForm.value.card_price_type_id)) {
+        themeForm.value.card_price_type_id = null
+      }
+    }
   } catch (e) {
     console.warn('Failed to load price types:', e.message)
   }
@@ -566,6 +586,14 @@ async function loadPdfTemplates() {
   try {
     const { data } = await pdfTemplatesApi.list()
     availablePdfTemplates.value = data.data || data
+
+    // Remove stale PDF template ID if it no longer exists
+    if (themeForm.value.catalog_pdf_template_id) {
+      const tplIds = new Set(availablePdfTemplates.value.map(t => t.id))
+      if (!tplIds.has(themeForm.value.catalog_pdf_template_id)) {
+        themeForm.value.catalog_pdf_template_id = null
+      }
+    }
   } catch (e) {
     console.warn('Failed to load PDF templates:', e.message)
   }

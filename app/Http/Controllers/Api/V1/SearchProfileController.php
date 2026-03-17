@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Traits\ChecksDeletionConstraints;
+use App\Models\Attribute;
+use App\Models\HierarchyNode;
 use App\Models\SearchProfile;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -12,13 +14,15 @@ use Illuminate\Http\Request;
 class SearchProfileController extends Controller
 {
     use ChecksDeletionConstraints;
+
     public function index(Request $request): JsonResponse
     {
         $this->authorize('viewAny', SearchProfile::class);
 
         $profiles = SearchProfile::visibleTo($request->user()->id)
             ->orderBy('name')
-            ->get();
+            ->get()
+            ->map(fn ($p) => $this->stripStaleReferences($p));
 
         return response()->json(['data' => $profiles]);
     }
@@ -83,5 +87,44 @@ class SearchProfileController extends Controller
         $this->authorize('delete', $searchProfile);
 
         return $this->destroyWithConstraintCheck($request, $searchProfile);
+    }
+
+    /**
+     * Strip stale category/attribute references from a search profile
+     * so deleted entities don't cause broken filters in the frontend.
+     */
+    private function stripStaleReferences(SearchProfile $profile): SearchProfile
+    {
+        $dirty = false;
+
+        if (!empty($profile->category_ids)) {
+            $validNodeIds = HierarchyNode::whereIn('id', $profile->category_ids)->pluck('id')->toArray();
+            if (count($validNodeIds) !== count($profile->category_ids)) {
+                $profile->category_ids = array_values($validNodeIds);
+                $dirty = true;
+            }
+        }
+
+        if (!empty($profile->attribute_filters)) {
+            $filterAttrIds = array_keys($profile->attribute_filters);
+            $validAttrIds = Attribute::whereIn('id', $filterAttrIds)->pluck('id')->toArray();
+            if (count($validAttrIds) !== count($filterAttrIds)) {
+                $validSet = array_flip($validAttrIds);
+                $cleaned = array_filter(
+                    $profile->attribute_filters,
+                    fn ($v, $k) => isset($validSet[$k]),
+                    ARRAY_FILTER_USE_BOTH,
+                );
+                $profile->attribute_filters = $cleaned;
+                $dirty = true;
+            }
+        }
+
+        // Persist cleanup so stale data doesn't accumulate
+        if ($dirty) {
+            $profile->saveQuietly();
+        }
+
+        return $profile;
     }
 }
