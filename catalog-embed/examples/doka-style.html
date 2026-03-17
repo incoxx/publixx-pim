@@ -9,174 +9,217 @@
     /* ===========================================================
      * DOKA Corporate Design — überschreibt das Standard-Framework
      * ===========================================================
-     * Farben: Doka Blau #003878, Doka Gelb #FFD100
+     * Extrahiert aus shop.doka.com CSS
+     * Farben: Doka Blau #004588, Doka Gelb #fd0
+     * Font:   Soehne (fallback: Open Sans)
      */
     :root {
-      --pxc-primary: #003878;
+      --pxc-primary: #004588;
       --pxc-primary-text: #ffffff;
-      --pxc-accent: #FFD100;
+      --pxc-accent: #fd0;
       --pxc-bg: #ffffff;
-      --pxc-surface: #f5f5f5;
-      --pxc-border: #e0e0e0;
-      --pxc-text: #1a1a1a;
-      --pxc-text-muted: #6b7280;
-      --pxc-radius: 4px;
-      --pxc-font: 'Open Sans', Arial, sans-serif;
-      --pxc-shadow: 0 1px 4px rgba(0,0,0,0.08);
-      --pxc-shadow-lg: 0 8px 30px rgba(0,0,0,0.15);
+      --pxc-surface: #f7f7f7;
+      --pxc-border: #c3c3c3;
+      --pxc-text: #2b2b2b;
+      --pxc-text-muted: #808080;
+      --pxc-radius: 0px;
+      --pxc-font: 'Open Sans', sans-serif;
+      --pxc-shadow: none;
+      --pxc-shadow-lg: 0 1px 0 0 rgba(0,0,0,0.35);
 
-      --doka-blue: #003878;
-      --doka-yellow: #FFD100;
-      --doka-light-blue: #e8f0f8;
+      --doka-blue: #004588;
+      --doka-blue-active: #003e7a;
+      --doka-yellow: #fd0;
+      --doka-dark: #2b2b2b;
+      --doka-gray: #eee;
+      --doka-border: #c3c3c3;
     }
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
       font-family: var(--pxc-font);
+      font-size: 17px;
+      font-weight: 400;
       background: #fff;
-      color: var(--pxc-text);
+      color: var(--doka-dark);
     }
 
-    /* ===== HEADER — Doka Style ===== */
-    .doka-header {
-      background: var(--doka-blue);
+    /* ===== META NAV — Top dark bar ===== */
+    .doka-meta-nav {
+      background: var(--doka-dark);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 400;
+    }
+    .doka-meta-nav__inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 6px 15px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .doka-meta-nav__links {
+      display: flex;
+      gap: 15px;
+    }
+    .doka-meta-nav__links a {
+      color: #fff;
+      text-decoration: none;
+      text-transform: uppercase;
+      font-weight: 600;
+      font-size: 14px;
+    }
+    .doka-meta-nav__links a:hover {
+      text-decoration: underline;
+    }
+    .doka-meta-nav__links a.active {
+      color: var(--doka-yellow);
+    }
+    .doka-meta-nav__right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* ===== NAV MID — Yellow bar with logo, search, cart ===== */
+    .doka-nav-mid {
+      background: var(--doka-yellow);
+      border-bottom: 1px solid #fff;
       position: sticky;
       top: 0;
       z-index: 100;
     }
-
-    .doka-header__top {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 12px 20px;
-      max-width: 1400px;
+    .doka-nav-mid__inner {
+      max-width: 1200px;
       margin: 0 auto;
-    }
-
-    .doka-logo {
+      padding: 5px 15px;
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 20px;
+      position: relative;
     }
-
+    .doka-logo {
+      flex-shrink: 0;
+    }
+    .doka-logo img,
+    .doka-logo svg {
+      height: 42px;
+      width: auto;
+    }
+    .doka-logo__placeholder {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
     .doka-logo__icon {
-      width: 40px;
-      height: 40px;
-      background: var(--doka-yellow);
-      border-radius: 4px;
+      width: 42px;
+      height: 42px;
+      background: var(--doka-blue);
+      border-radius: 2px;
       display: flex;
       align-items: center;
       justify-content: center;
     }
-
     .doka-logo__icon svg {
-      width: 24px;
-      height: 24px;
-      fill: var(--doka-blue);
+      width: 26px;
+      height: 26px;
+      fill: var(--doka-yellow);
     }
-
     .doka-logo__text {
-      font-size: 1.5rem;
+      font-size: 1.75rem;
       font-weight: 800;
-      color: white;
+      color: var(--doka-blue);
       letter-spacing: -0.5px;
     }
 
-    .doka-header__actions {
-      display: flex;
-      align-items: center;
-      gap: 12px;
+    /* Search on yellow bar */
+    .doka-search-area {
+      flex: 1;
+      min-width: 0;
     }
-
-    .doka-menu-btn {
-      background: none;
-      border: none;
-      color: white;
-      cursor: pointer;
-      padding: 8px;
-      display: flex;
-    }
-
-    .doka-menu-btn svg {
-      width: 28px;
-      height: 28px;
-      stroke: white;
-    }
-
-    .doka-cart-btn {
-      position: relative;
-      background: var(--doka-blue);
-      border: 2px solid rgba(255,255,255,0.3);
-      border-radius: 50%;
-      width: 44px;
-      height: 44px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-    }
-
-    .doka-cart-btn svg {
-      width: 22px;
-      height: 22px;
-      stroke: white;
-      fill: none;
-    }
-
-    .doka-cart-badge {
-      position: absolute;
-      top: -4px;
-      right: -4px;
-      background: var(--doka-yellow);
-      color: var(--doka-blue);
-      font-size: 0.625rem;
-      font-weight: 800;
-      width: 20px;
-      height: 20px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    /* Search bar — Doka style: yellow underline */
-    .doka-search {
-      background: white;
-      border-bottom: 3px solid var(--doka-yellow);
-    }
-
-    .doka-search__inner {
-      max-width: 1400px;
-      margin: 0 auto;
-      padding: 0 20px;
-      display: flex;
-      align-items: center;
-    }
-
-    /* Override the framework search input styling to match Doka */
-    .doka-search .pxc-search__input {
+    .doka-search-area .pxc-search__input {
       border: none;
       border-radius: 0;
-      padding: 14px 40px;
-      font-size: 1rem;
+      height: 32px;
+      font-size: 17px;
+      color: var(--doka-blue);
+      background: transparent;
+      padding: 0 40px 0 0;
+    }
+    .doka-search-area .pxc-search__input:focus {
+      box-shadow: none;
+      outline: none;
+    }
+    .doka-search-area .pxc-search__input::placeholder {
+      color: var(--doka-blue);
+      opacity: 0.6;
+    }
+    .doka-search-area .pxc-search__icon {
+      color: var(--doka-blue);
+      font-size: 17px;
+    }
+    .doka-search-area .pxc-search__wrapper {
+      border: none;
       background: transparent;
     }
-    .doka-search .pxc-search__input:focus {
-      box-shadow: none;
+
+    /* Cart button — blue circle on yellow bar */
+    .doka-cart-area {
+      position: relative;
+      flex-shrink: 0;
     }
-    .doka-search .pxc-search__input::placeholder {
-      color: #999;
+
+    /* Override wishlist button to look like Doka cart */
+    .doka-cart-area .pxc-wishlist-btn {
+      background: var(--doka-blue);
+      border: none;
+      border-radius: 50%;
+      width: 48px;
+      height: 48px;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 1px 0 0 rgba(0,0,0,0.35);
+      cursor: pointer;
+    }
+    .doka-cart-area .pxc-wishlist-btn__count {
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    /* ===== NAV BOT — Gray category bar ===== */
+    .doka-nav-bot {
+      background: var(--doka-gray);
+    }
+    .doka-nav-bot__inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 15px;
+      display: flex;
+      justify-content: center;
+    }
+    .doka-nav-bot__links {
+      display: flex;
+      gap: 0;
+    }
+    .doka-nav-bot__links a {
+      display: block;
+      padding: 8px 15px;
+      color: var(--doka-blue);
+      font-weight: 600;
+      text-decoration: none;
+      text-transform: none;
       font-size: 1rem;
     }
-    .doka-search .pxc-search__icon {
-      color: var(--doka-blue);
-      right: 12px;
-      left: auto;
+    .doka-nav-bot__links a:hover {
+      background: var(--doka-blue);
+      color: #fff;
     }
-    .doka-search .pxc-search__wrapper {
-      flex: 1;
+    .doka-nav-bot__links a.active {
+      background: #fff;
     }
 
     /* ===== HERO BANNER ===== */
@@ -186,55 +229,50 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      max-width: 1400px;
+      max-width: 1200px;
       margin: 0 auto;
       gap: 24px;
       overflow: hidden;
     }
-
     .doka-hero__text h2 {
-      font-size: 1.75rem;
-      font-weight: 800;
+      font-size: 45px;
+      font-weight: 700;
       color: var(--doka-blue);
-      line-height: 1.2;
+      line-height: 1.1;
     }
-
     .doka-hero__text p {
-      font-size: 0.875rem;
+      font-size: 17px;
       color: var(--doka-blue);
       margin-top: 8px;
       opacity: 0.8;
     }
-
     .doka-hero__badge {
       background: white;
       color: var(--doka-blue);
-      font-weight: 700;
-      font-size: 0.75rem;
+      font-weight: 600;
+      font-size: 14px;
       padding: 6px 12px;
-      border-radius: 4px;
       display: inline-block;
       margin-top: 12px;
     }
 
     /* ===== MAIN CONTENT ===== */
     .doka-content {
-      max-width: 1400px;
+      max-width: 1200px;
       margin: 0 auto;
-      padding: 0 20px;
+      padding: 0 15px;
     }
 
-    /* Section headers — Doka bold blue caps */
+    /* Section headers — Doka uppercase blue */
     .doka-section-title {
-      font-size: 1.25rem;
-      font-weight: 800;
+      font-size: 21px;
+      font-weight: 600;
       color: var(--doka-blue);
       text-transform: uppercase;
-      margin: 40px 0 16px;
+      margin: 20px 0 16px;
     }
 
     /* ===== PRODUCT GRID OVERRIDES ===== */
-    /* Cards: minimal border, clean look */
     .doka-products .pxc-product-card {
       border: none;
       border-radius: 0;
@@ -247,20 +285,22 @@
     }
     .doka-products .pxc-product-card__image {
       background: white;
-      border: 1px solid #eee;
-      border-radius: 4px;
+      border: 1px solid var(--doka-border);
+      border-radius: 0;
       aspect-ratio: 1;
     }
     .doka-products .pxc-product-card__name {
-      font-size: 0.875rem;
-      font-weight: 700;
+      font-size: 17px;
+      font-weight: 600;
       color: var(--doka-blue);
       min-height: auto;
     }
     .doka-products .pxc-product-card__price {
-      font-size: 0.875rem;
-      font-weight: 700;
+      font-size: 17px;
+      font-weight: 600;
       color: var(--doka-blue);
+      background: transparent;
+      padding: 8px 0;
     }
     .doka-products .pxc-product-card__body {
       padding: 8px 0;
@@ -269,51 +309,101 @@
       display: none;
     }
 
-    /* Grid: Doka uses tighter grid */
+    /* Grid layout */
     .doka-products .pxc-product-grid__grid {
-      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
       gap: 20px;
     }
 
     /* ===== TOOLBAR OVERRIDES ===== */
     .doka-toolbar .pxc-toolbar {
-      border-bottom: 2px solid var(--doka-yellow);
+      border-bottom: none;
       padding: 12px 0;
     }
 
     /* ===== PAGINATION OVERRIDES ===== */
+    .doka-pagination .pxc-pagination__btn {
+      border-radius: 0;
+    }
     .doka-pagination .pxc-pagination__active {
       background: var(--doka-blue) !important;
     }
 
     /* ===== PRODUCT DETAIL OVERRIDES ===== */
-    /* Override modal to match Doka product page style */
     .pxc-detail__title {
       color: var(--doka-blue);
-      font-weight: 800;
-      font-size: 1.75rem;
+      font-weight: 700;
+      font-size: 45px;
     }
     .pxc-detail__section-title {
       color: var(--doka-blue);
-      font-weight: 800;
+      font-weight: 600;
       text-transform: uppercase;
-      border-bottom-color: var(--doka-yellow);
-      border-bottom-width: 3px;
+      font-size: 21px;
+      border-bottom: none;
+      margin-bottom: 20px;
     }
     .pxc-detail__price-value {
       color: var(--doka-blue);
+      font-weight: 600;
     }
 
-    /* Doka-style info banner */
+    /* ===== BUTTON OVERRIDES ===== */
+    .pxc-btn {
+      background: var(--doka-blue);
+      color: #fff;
+      border: none;
+      border-radius: 0;
+      font-size: 15px;
+      font-weight: 600;
+      padding: 10px 20px;
+      min-width: 100px;
+    }
+    .pxc-btn:hover {
+      box-shadow: inset 0 0 12px 0 rgba(43,43,43,0.45);
+    }
+    .pxc-btn:active {
+      background: var(--doka-blue-active);
+      color: rgba(255,255,255,0.8);
+    }
+
+    /* ===== FACETS / SIDEBAR ===== */
+    .doka-layout {
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      gap: 24px;
+      margin-top: 16px;
+    }
+    .doka-sidebar {
+      border-right: 1px solid var(--doka-gray);
+      padding-right: 16px;
+    }
+    .doka-sidebar .pxc-categories__item--active {
+      background: var(--doka-blue);
+    }
+    .doka-sidebar .pxc-categories__item {
+      border-radius: 0;
+    }
+    .doka-sidebar .pxc-facets__badge {
+      background: var(--doka-blue);
+      border-radius: 0;
+    }
+    .doka-sidebar .pxc-facets__title {
+      font-weight: 600;
+      color: var(--doka-dark);
+      text-transform: uppercase;
+      font-size: 14px;
+    }
+
+    /* ===== INFO BANNER ===== */
     .doka-info-banner {
       background: var(--doka-yellow);
       padding: 24px;
-      border-radius: 4px;
       margin: 32px 0;
     }
     .doka-info-banner h3 {
-      font-size: 1.125rem;
-      font-weight: 800;
+      font-size: 21px;
+      font-weight: 600;
       color: var(--doka-blue);
       text-transform: uppercase;
       margin-bottom: 12px;
@@ -324,94 +414,100 @@
     }
     .doka-info-banner li {
       padding: 6px 0;
-      font-size: 0.875rem;
+      font-size: 14px;
       color: var(--doka-blue);
       display: flex;
       align-items: flex-start;
       gap: 8px;
+      line-height: 22px;
     }
     .doka-info-banner li::before {
-      content: "\2714";
-      font-weight: 700;
+      content: "";
+      width: 12px;
+      height: 12px;
+      margin-top: 5px;
+      background: var(--doka-blue);
       flex-shrink: 0;
-    }
-
-    /* ===== SIDEBAR / Filter ===== */
-    .doka-layout {
-      display: grid;
-      grid-template-columns: 260px 1fr;
-      gap: 24px;
-      margin-top: 16px;
-    }
-
-    .doka-sidebar {
-      border-right: 1px solid #eee;
-      padding-right: 16px;
-    }
-
-    /* Override category active color */
-    .doka-sidebar .pxc-categories__item--active {
-      background: var(--doka-blue);
-    }
-    .doka-sidebar .pxc-facets__badge {
-      background: var(--doka-blue);
     }
 
     /* ===== FOOTER ===== */
     .doka-footer {
-      background: var(--doka-blue);
+      background: var(--doka-dark);
       color: rgba(255,255,255,0.6);
       padding: 32px 20px;
       margin-top: 48px;
       text-align: center;
-      font-size: 0.75rem;
+      font-size: 14px;
     }
-    .doka-footer a { color: var(--doka-yellow); text-decoration: none; }
+    .doka-footer a {
+      color: var(--doka-yellow);
+      text-decoration: none;
+    }
+    .doka-footer a:hover {
+      text-decoration: underline;
+    }
 
     /* ===== MOBILE ===== */
-    @media (max-width: 768px) {
+    @media (max-width: 767px) {
       .doka-layout {
         grid-template-columns: 1fr;
       }
       .doka-sidebar { display: none; }
       .doka-hero { flex-direction: column; text-align: center; }
-      .doka-header__actions { gap: 8px; }
+      .doka-hero__text h2 { font-size: 28px; }
+      .doka-meta-nav__inner { flex-direction: column; gap: 4px; }
+      .doka-nav-bot__links { flex-wrap: wrap; justify-content: center; }
+      .doka-nav-mid__inner { flex-wrap: wrap; }
     }
   </style>
 </head>
 <body>
 
-  <!-- ===== HEADER ===== -->
-  <header class="doka-header">
-    <div class="doka-header__top">
+  <!-- ===== META NAV — Top dark bar ===== -->
+  <div class="doka-meta-nav">
+    <div class="doka-meta-nav__inner">
+      <div class="doka-meta-nav__links">
+        <a href="#">doka.com</a>
+        <a href="#" class="active">online shop</a>
+      </div>
+      <div class="doka-meta-nav__right">
+        <div data-catalog="locale"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== NAV MID — Yellow bar: Logo + Search + Cart ===== -->
+  <nav class="doka-nav-mid">
+    <div class="doka-nav-mid__inner">
       <div class="doka-logo">
-        <div class="doka-logo__icon">
-          <!-- Simplified Doka-like icon -->
-          <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="3" width="7" height="18" rx="1"/></svg>
+        <div class="doka-logo__placeholder">
+          <div class="doka-logo__icon">
+            <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="3" width="7" height="18" rx="1"/></svg>
+          </div>
+          <span class="doka-logo__text">doka</span>
         </div>
-        <span class="doka-logo__text">doka</span>
       </div>
 
-      <div class="doka-header__actions">
-        <!-- Hamburger -->
-        <button class="doka-menu-btn">
-          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round">
-            <line x1="3" y1="6" x2="21" y2="6"/>
-            <line x1="3" y1="12" x2="21" y2="12"/>
-            <line x1="3" y1="18" x2="21" y2="18"/>
-          </svg>
-        </button>
+      <div class="doka-search-area">
+        <div data-catalog="search"></div>
+      </div>
 
-        <!-- Wishlist/Cart (uses our widget) -->
+      <div class="doka-cart-area">
         <div data-catalog="wishlist"></div>
       </div>
     </div>
-  </header>
+  </nav>
 
-  <!-- ===== SEARCH BAR ===== -->
-  <div class="doka-search">
-    <div class="doka-search__inner">
-      <div data-catalog="search" style="flex:1"></div>
+  <!-- ===== NAV BOT — Gray category links ===== -->
+  <div class="doka-nav-bot">
+    <div class="doka-nav-bot__inner">
+      <div class="doka-nav-bot__links">
+        <a href="#" class="active">Alle Produkte</a>
+        <a href="#">Schalungen</a>
+        <a href="#">Ger&uuml;ste</a>
+        <a href="#">Sicherheit</a>
+        <a href="#">Zubeh&ouml;r</a>
+      </div>
     </div>
   </div>
 
@@ -455,7 +551,7 @@
         <div class="doka-info-banner">
           <h3>Ihre Vorteile</h3>
           <ul>
-            <li><strong>Kostengunstig und leicht zu verarbeiten</strong> mit langer Lebensdauer</li>
+            <li><strong>Kosteng&uuml;nstig und leicht zu verarbeiten</strong> mit langer Lebensdauer</li>
             <li><strong>Wetterfeste Verleimung</strong> und wasserfeste Oberfl&auml;che</li>
             <li><strong>H&auml;lt gro&szlig;en mechanischen Belastungen stand</strong> &ndash; ausgezeichnetes Verh&auml;ltnis zwischen Gewicht und Stabilit&auml;t</li>
           </ul>
