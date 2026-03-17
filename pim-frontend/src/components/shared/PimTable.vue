@@ -21,6 +21,19 @@ const props = defineProps({
 const emit = defineEmits(['sort', 'select', 'row-click', 'row-action', 'quick-lookup-change'])
 
 const selectedIds = ref(new Set())
+
+// Allow parent to set selected IDs externally
+function setSelectedIds(ids) {
+  selectedIds.value = new Set(ids)
+  emit('select', [...selectedIds.value])
+}
+
+function clearSelection() {
+  selectedIds.value.clear()
+  emit('select', [])
+}
+
+defineExpose({ setSelectedIds, clearSelection, selectedIds })
 const quickLookupValues = ref({})
 
 // Debounce timer for text inputs

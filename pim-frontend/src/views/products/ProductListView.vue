@@ -7,7 +7,7 @@ import { useAttributeStore } from '@/stores/attributes'
 import { useAuthStore } from '@/stores/auth'
 import { useFilters } from '@/composables/useFilters'
 import { useLocaleStore } from '@/stores/locale'
-import { Plus, Languages, Upload, Download, X, GitCompareArrows, Star, Pencil, FileSpreadsheet, ListFilter, Settings, Package, FolderTree } from 'lucide-vue-next'
+import { Plus, Languages, Upload, Download, X, GitCompareArrows, Star, Pencil, FileSpreadsheet, ListFilter, Settings, Package, FolderTree, Trash2, CheckCheck } from 'lucide-vue-next'
 import mediaApi from '@/api/media'
 import PimTable from '@/components/shared/PimTable.vue'
 import ColumnConfigPopover from '@/components/shared/ColumnConfigPopover.vue'
@@ -191,18 +191,73 @@ async function confirmDelete({ force } = {}) {
   }
 }
 
-// ─── Product Comparison ──────────────────────────────
+// ─── Selection & Bulk Operations ─────────────────────
 const selectedProductIds = ref([])
-const showCompare = ref(false)
-const compareData = ref(null)
-const compareLoading = ref(false)
-const showDiffsOnly = ref(false)
+const allPagesSelected = ref(false)
+const selectingAll = ref(false)
+const bulkDeleting = ref(false)
+const showConfirmBulkDelete = ref(false)
+const pimTableRef = ref(null)
 
 const canCompare = computed(() => selectedProductIds.value.length === 2)
 
 function handleSelect(ids) {
   selectedProductIds.value = ids
+  // If user deselects anything, reset "all pages" mode
+  if (allPagesSelected.value && ids.length < store.meta.total) {
+    allPagesSelected.value = false
+  }
 }
+
+async function selectAllPages() {
+  selectingAll.value = true
+  try {
+    const params = { search: search.value || undefined }
+    const { data } = await searchApi.allIds(params)
+    const allIds = data.data || data
+    selectedProductIds.value = allIds
+    allPagesSelected.value = true
+    if (pimTableRef.value) {
+      pimTableRef.value.setSelectedIds(allIds)
+    }
+  } catch (e) {
+    console.error('Failed to select all', e)
+  } finally {
+    selectingAll.value = false
+  }
+}
+
+function clearAllSelection() {
+  selectedProductIds.value = []
+  allPagesSelected.value = false
+  if (pimTableRef.value) {
+    pimTableRef.value.clearSelection()
+  }
+}
+
+async function bulkDeleteProducts() {
+  showConfirmBulkDelete.value = false
+  bulkDeleting.value = true
+  try {
+    await productsApi.bulkDelete(selectedProductIds.value)
+    selectedProductIds.value = []
+    allPagesSelected.value = false
+    if (pimTableRef.value) {
+      pimTableRef.value.clearSelection()
+    }
+    await fetchWithAttributes()
+  } catch (e) {
+    console.error('Bulk delete failed', e)
+  } finally {
+    bulkDeleting.value = false
+  }
+}
+
+// ─── Product Comparison ──────────────────────────────
+const showCompare = ref(false)
+const compareData = ref(null)
+const compareLoading = ref(false)
+const showDiffsOnly = ref(false)
 
 const compareRows = computed(() => {
   if (!compareData.value?.rows) return []
@@ -440,47 +495,97 @@ onMounted(async () => {
     />
 
     <!-- Selection toolbar -->
-    <div v-if="selectedProductIds.length > 0" class="flex flex-wrap items-center gap-2 sm:gap-3 px-3 py-2 bg-[color-mix(in_srgb,var(--color-accent)_8%,transparent)] border border-[var(--color-accent)]/20 rounded-lg">
-      <span class="text-xs text-[var(--color-text-secondary)]">{{ selectedProductIds.length }} ausgewählt</span>
-      <button
-        class="pim-btn pim-btn-secondary text-xs"
-        @click="bulkAddToWatchlist"
-      >
-        <Star class="w-3.5 h-3.5" :stroke-width="1.75" />
-        Zur Merkliste
-      </button>
-      <button
-        v-if="canCompare"
-        class="pim-btn pim-btn-primary text-xs"
-        @click="openCompare"
-      >
-        <GitCompareArrows class="w-3.5 h-3.5" :stroke-width="1.75" />
-        <span class="hidden sm:inline">Produkte vergleichen</span>
-        <span class="sm:hidden">Vergleichen</span>
-      </button>
-      <button class="pim-btn pim-btn-secondary text-xs" @click="openBulkEditor">
-        <Pencil class="w-3.5 h-3.5" :stroke-width="1.75" />
-        <span class="hidden sm:inline">Bulk bearbeiten</span>
-      </button>
-      <button class="pim-btn pim-btn-secondary text-xs" @click="openBulkUpdate">
-        <Settings class="w-3.5 h-3.5" :stroke-width="1.75" />
-        <span class="hidden sm:inline">Massendatenpflege</span>
-      </button>
-      <button
-        v-if="licenseStore.isModuleActive('workflow')"
-        class="pim-btn pim-btn-secondary text-xs"
-        @click="showAssignProject = true"
-      >
-        <FolderTree class="w-3.5 h-3.5" :stroke-width="1.75" />
-        <span class="hidden sm:inline">Projekt zuordnen</span>
-      </button>
-      <span v-if="!canCompare && selectedProductIds.length === 1" class="text-[11px] text-[var(--color-text-tertiary)] hidden sm:inline">
-        Noch 1 Produkt auswählen zum Vergleichen
-      </span>
+    <div v-if="selectedProductIds.length > 0" class="space-y-2">
+      <div class="flex flex-wrap items-center gap-2 sm:gap-3 px-3 py-2 bg-[color-mix(in_srgb,var(--color-accent)_8%,transparent)] border border-[var(--color-accent)]/20 rounded-lg">
+        <span class="text-xs text-[var(--color-text-secondary)]">
+          {{ selectedProductIds.length }} {{ allPagesSelected ? 'Produkte' : '' }} ausgewählt
+        </span>
+
+        <!-- Select all pages hint -->
+        <template v-if="!allPagesSelected && selectedProductIds.length === filteredItems.length && store.meta.total > filteredItems.length">
+          <button
+            class="pim-btn pim-btn-secondary text-xs border-dashed"
+            :disabled="selectingAll"
+            @click="selectAllPages"
+          >
+            <CheckCheck class="w-3.5 h-3.5" :stroke-width="1.75" />
+            {{ selectingAll ? 'Lade...' : `Alle ${store.meta.total.toLocaleString()} Produkte auswählen` }}
+          </button>
+        </template>
+
+        <button
+          class="pim-btn pim-btn-secondary text-xs"
+          @click="bulkAddToWatchlist"
+        >
+          <Star class="w-3.5 h-3.5" :stroke-width="1.75" />
+          Zur Merkliste
+        </button>
+        <button
+          v-if="canCompare"
+          class="pim-btn pim-btn-primary text-xs"
+          @click="openCompare"
+        >
+          <GitCompareArrows class="w-3.5 h-3.5" :stroke-width="1.75" />
+          <span class="hidden sm:inline">Produkte vergleichen</span>
+          <span class="sm:hidden">Vergleichen</span>
+        </button>
+        <button class="pim-btn pim-btn-secondary text-xs" @click="openBulkEditor">
+          <Pencil class="w-3.5 h-3.5" :stroke-width="1.75" />
+          <span class="hidden sm:inline">Bulk bearbeiten</span>
+        </button>
+        <button class="pim-btn pim-btn-secondary text-xs" @click="openBulkUpdate">
+          <Settings class="w-3.5 h-3.5" :stroke-width="1.75" />
+          <span class="hidden sm:inline">Massendatenpflege</span>
+        </button>
+        <button
+          v-if="licenseStore.isModuleActive('workflow')"
+          class="pim-btn pim-btn-secondary text-xs"
+          @click="showAssignProject = true"
+        >
+          <FolderTree class="w-3.5 h-3.5" :stroke-width="1.75" />
+          <span class="hidden sm:inline">Projekt zuordnen</span>
+        </button>
+
+        <!-- Admin: Bulk Delete -->
+        <button
+          v-if="authStore.userRole === 'Admin'"
+          class="pim-btn text-xs bg-[var(--color-error-light)] text-[var(--color-error)] hover:bg-[var(--color-error)] hover:text-white"
+          :disabled="bulkDeleting"
+          @click="showConfirmBulkDelete = true"
+        >
+          <Trash2 class="w-3.5 h-3.5" :stroke-width="1.75" />
+          <span class="hidden sm:inline">{{ bulkDeleting ? 'Lösche...' : 'Löschen' }}</span>
+        </button>
+
+        <button class="pim-btn pim-btn-ghost text-xs ml-auto" @click="clearAllSelection">
+          <X class="w-3.5 h-3.5" :stroke-width="2" />
+          Auswahl aufheben
+        </button>
+      </div>
+
+      <!-- Bulk delete confirm -->
+      <div v-if="showConfirmBulkDelete" class="flex items-center gap-3 px-3 py-2 bg-[var(--color-error-light)] border border-[var(--color-error)]/20 rounded-lg">
+        <span class="text-xs text-[var(--color-error)] font-medium">
+          {{ selectedProductIds.length.toLocaleString() }} Produkte unwiderruflich löschen?
+        </span>
+        <button
+          class="pim-btn text-xs bg-[var(--color-error)] text-white hover:opacity-90"
+          @click="bulkDeleteProducts"
+        >
+          Ja, löschen
+        </button>
+        <button
+          class="pim-btn pim-btn-ghost text-xs"
+          @click="showConfirmBulkDelete = false"
+        >
+          Abbrechen
+        </button>
+      </div>
     </div>
 
     <!-- Table -->
     <PimTable
+      ref="pimTableRef"
       :columns="visibleColumns"
       :rows="filteredItems"
       :loading="store.loading"

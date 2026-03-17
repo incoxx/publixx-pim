@@ -29,6 +29,10 @@ export default {
     return client.delete(`/products/${id}`, { params: force ? { force: true } : {} })
   },
 
+  bulkDelete(productIds) {
+    return client.post('/products/bulk-delete', { product_ids: productIds })
+  },
+
   duplicate(id, options = {}) {
     return client.post(`/products/${id}/duplicate`, options)
   },
