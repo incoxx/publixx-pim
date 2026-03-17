@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Custom Corporate Design</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    /*
+     * Beispiel: Komplett eigenes Corporate Design
+     * Alle pxc-* CSS Variables überschreiben
+     */
+    :root {
+      --pxc-primary: #059669;
+      --pxc-primary-text: #ffffff;
+      --pxc-accent: #f59e0b;
+      --pxc-bg: #fefce8;
+      --pxc-surface: #ffffff;
+      --pxc-border: #d1d5db;
+      --pxc-text: #1f2937;
+      --pxc-text-muted: #6b7280;
+      --pxc-radius: 16px;
+      --pxc-font: 'Poppins', sans-serif;
+      --pxc-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      --pxc-shadow-lg: 0 12px 40px rgba(0,0,0,0.12);
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: var(--pxc-font);
+      background: var(--pxc-bg);
+      color: var(--pxc-text);
+    }
+
+    /* ===== Eigenes Header-Design ===== */
+    .corp-header {
+      background: linear-gradient(135deg, #059669, #047857);
+      color: white;
+      padding: 20px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 4px 12px rgba(5,150,105,0.3);
+    }
+    .corp-logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 1.5rem;
+      font-weight: 700;
+    }
+    .corp-logo span { font-size: 2rem; }
+    .corp-nav {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .corp-nav a {
+      color: rgba(255,255,255,0.8);
+      text-decoration: none;
+      font-size: 0.875rem;
+    }
+    .corp-nav a:hover { color: white; }
+
+    /* ===== Hero Banner ===== */
+    .hero {
+      background: linear-gradient(to right, #ecfdf5, #f0fdf4);
+      padding: 48px 32px;
+      text-align: center;
+    }
+    .hero h2 { font-size: 2rem; font-weight: 700; margin-bottom: 8px; }
+    .hero p { color: var(--pxc-text-muted); max-width: 600px; margin: 0 auto 24px; }
+    .hero [data-catalog="search"] { max-width: 500px; margin: 0 auto; }
+
+    /* ===== Custom Layout ===== */
+    .content-grid {
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      gap: 24px;
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 24px 32px;
+    }
+
+    .filter-panel {
+      background: white;
+      border-radius: var(--pxc-radius);
+      padding: 16px;
+      box-shadow: var(--pxc-shadow);
+      position: sticky;
+      top: 24px;
+      max-height: calc(100vh - 48px);
+      overflow-y: auto;
+    }
+
+    .product-area {
+      min-width: 0;
+    }
+
+    /* ===== Eigene Anpassungen an den Widget-Styles ===== */
+    /* Karten runder machen */
+    .pxc-product-card {
+      border-radius: var(--pxc-radius) !important;
+      border: none !important;
+    }
+    /* Wishlist-Herz: gold statt rot */
+    .pxc-text-accent { color: var(--pxc-accent) !important; }
+
+    /* Footer */
+    .corp-footer {
+      background: #1f2937;
+      color: #9ca3af;
+      text-align: center;
+      padding: 32px;
+      margin-top: 48px;
+      font-size: 0.75rem;
+    }
+    .corp-footer a { color: #059669; }
+
+    @media (max-width: 768px) {
+      .content-grid { grid-template-columns: 1fr; }
+      .filter-panel { position: static; }
+      .corp-header { flex-direction: column; gap: 12px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ===== Custom Corporate Header ===== -->
+  <header class="corp-header">
+    <div class="corp-logo">
+      <span>&#9752;</span> GreenTech Solutions
+    </div>
+    <nav class="corp-nav">
+      <a href="#">Startseite</a>
+      <a href="#">Über uns</a>
+      <a href="#">Kontakt</a>
+      <div data-catalog="locale"></div>
+      <div data-catalog="wishlist"></div>
+    </nav>
+  </header>
+
+  <!-- ===== Hero with Search ===== -->
+  <section class="hero">
+    <h2>Entdecken Sie unsere Produkte</h2>
+    <p>Durchsuchen Sie unseren Katalog nach nachhaltigen Technologie-Lösungen</p>
+    <div data-catalog="search"></div>
+  </section>
+
+  <!-- ===== Main Content ===== -->
+  <div class="content-grid">
+    <aside class="filter-panel">
+      <div data-catalog="categories"></div>
+      <div data-catalog="facets"></div>
+    </aside>
+    <div class="product-area">
+      <div data-catalog="toolbar"></div>
+      <div data-catalog="active-filters"></div>
+      <div data-catalog="product-grid"></div>
+      <div data-catalog="pagination"></div>
+    </div>
+  </div>
+
+  <footer class="corp-footer">
+    &copy; 2026 GreenTech Solutions GmbH | <a href="#">Impressum</a> | <a href="#">Datenschutz</a>
+  </footer>
+
+  <!-- Hidden widgets -->
+  <div data-catalog="product-detail"></div>
+  <div data-catalog="compare"></div>
+
+  <script src="../dist/catalog-embed.umd.js"></script>
+  <script>
+    PublixxCatalog.init({
+      api: 'http://localhost:8000/api/v1',
+      locale: 'de',
+      perPage: 12,
+    })
+  </script>
+</body>
+</html>

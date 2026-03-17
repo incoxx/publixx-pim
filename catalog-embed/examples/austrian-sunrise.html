@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Austrian Sunrise – Produktkatalog</title>
+  <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    /* ===========================================================
+     * AUSTRIAN SUNRISE — Corporate Design Template
+     * ===========================================================
+     * Farbschema: Blau #004588, Gelb #fd0
+     * Font:   Open Sans
+     * Container: 960px, Border-Radius: 0px
+     */
+    :root {
+      --pxc-primary: #004588;
+      --pxc-primary-text: #ffffff;
+      --pxc-accent: #fd0;
+      --pxc-bg: #ffffff;
+      --pxc-surface: #f7f7f7;
+      --pxc-border: #c3c3c3;
+      --pxc-text: #2b2b2b;
+      --pxc-text-muted: #808080;
+      --pxc-radius: 0px;
+      --pxc-font: 'Open Sans', sans-serif;
+      --pxc-shadow: none;
+      --pxc-shadow-lg: 0 1px 0 0 rgba(0,0,0,0.35);
+
+      --as-blue: #004588;
+      --as-blue-active: #003e7a;
+      --as-yellow: #fd0;
+      --as-dark: #2b2b2b;
+      --as-gray: #eee;
+      --as-border: #c3c3c3;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: var(--pxc-font);
+      font-size: 17px;
+      font-weight: 400;
+      background: #fff;
+      color: var(--as-dark);
+    }
+
+    /* ===== META NAV — Top dark bar ===== */
+    .as-meta-nav {
+      background: var(--as-dark);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 400;
+    }
+    .as-meta-nav__inner {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 6px 15px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .as-meta-nav__links {
+      display: flex;
+      gap: 15px;
+    }
+    .as-meta-nav__links a {
+      color: #fff;
+      text-decoration: none;
+      text-transform: uppercase;
+      font-weight: 600;
+      font-size: 14px;
+    }
+    .as-meta-nav__links a:hover {
+      text-decoration: underline;
+    }
+    .as-meta-nav__links a.active {
+      color: var(--as-yellow);
+    }
+    .as-meta-nav__right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* ===== NAV MID — Yellow bar with logo, search, cart ===== */
+    .as-nav-mid {
+      background: var(--as-yellow);
+      border-bottom: 1px solid #fff;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .as-nav-mid__inner {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 5px 15px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      position: relative;
+    }
+    .as-logo {
+      flex-shrink: 0;
+    }
+    .as-logo img,
+    .as-logo svg {
+      height: 42px;
+      width: auto;
+    }
+    .as-logo__placeholder {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .as-logo__icon {
+      width: 42px;
+      height: 42px;
+      background: var(--as-blue);
+      border-radius: 2px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .as-logo__icon svg {
+      width: 26px;
+      height: 26px;
+      fill: var(--as-yellow);
+    }
+    .as-logo__text {
+      font-size: 1.75rem;
+      font-weight: 800;
+      color: var(--as-blue);
+      letter-spacing: -0.5px;
+    }
+
+    /* Search on yellow bar */
+    .as-search-area {
+      flex: 1;
+      min-width: 0;
+    }
+    .as-search-area .pxc-search__input {
+      border: none;
+      border-radius: 0;
+      height: 32px;
+      font-size: 17px;
+      color: var(--as-blue);
+      background: transparent;
+      padding: 0 40px 0 0;
+    }
+    .as-search-area .pxc-search__input:focus {
+      box-shadow: none;
+      outline: none;
+    }
+    .as-search-area .pxc-search__input::placeholder {
+      color: var(--as-blue);
+      opacity: 0.6;
+    }
+    .as-search-area .pxc-search__icon {
+      color: var(--as-blue);
+      font-size: 17px;
+    }
+    .as-search-area .pxc-search__wrapper {
+      border: none;
+      background: transparent;
+    }
+
+    /* Cart button — blue circle on yellow bar */
+    .as-cart-area {
+      position: relative;
+      flex-shrink: 0;
+    }
+
+    /* Override wishlist button to look like cart */
+    .as-cart-area .pxc-wishlist-btn {
+      background: var(--as-blue);
+      border: none;
+      border-radius: 50%;
+      width: 48px;
+      height: 48px;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 1px 0 0 rgba(0,0,0,0.35);
+      cursor: pointer;
+    }
+    .as-cart-area .pxc-wishlist-btn__count {
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    /* ===== NAV BOT — Gray category bar ===== */
+    .as-nav-bot {
+      background: var(--as-gray);
+    }
+    .as-nav-bot__inner {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 0 15px;
+      display: flex;
+      justify-content: center;
+    }
+    .as-nav-bot__links {
+      display: flex;
+      gap: 0;
+    }
+    .as-nav-bot__links a {
+      display: block;
+      padding: 8px 15px;
+      color: var(--as-blue);
+      font-weight: 600;
+      text-decoration: none;
+      text-transform: none;
+      font-size: 1rem;
+    }
+    .as-nav-bot__links a:hover {
+      background: var(--as-blue);
+      color: #fff;
+    }
+    .as-nav-bot__links a.active {
+      background: #fff;
+    }
+
+    /* ===== HERO BANNER ===== */
+    .as-hero {
+      background: var(--as-yellow);
+      padding: 32px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      max-width: 960px;
+      margin: 0 auto;
+      gap: 24px;
+      overflow: hidden;
+    }
+    .as-hero__text h2 {
+      font-size: 45px;
+      font-weight: 700;
+      color: var(--as-blue);
+      line-height: 1.1;
+    }
+    .as-hero__text p {
+      font-size: 17px;
+      color: var(--as-blue);
+      margin-top: 8px;
+      opacity: 0.8;
+    }
+    .as-hero__badge {
+      background: white;
+      color: var(--as-blue);
+      font-weight: 600;
+      font-size: 14px;
+      padding: 6px 12px;
+      display: inline-block;
+      margin-top: 12px;
+    }
+
+    /* ===== MAIN CONTENT ===== */
+    .as-content {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 0 15px;
+    }
+
+    /* Section headers — uppercase blue */
+    .as-section-title {
+      font-size: 21px;
+      font-weight: 600;
+      color: var(--as-blue);
+      text-transform: uppercase;
+      margin: 20px 0 16px;
+    }
+
+    /* ===== PRODUCT GRID OVERRIDES ===== */
+    .as-products .pxc-product-card {
+      border: none;
+      border-radius: 0;
+      box-shadow: none;
+      background: transparent;
+    }
+    .as-products .pxc-product-card:hover {
+      box-shadow: none;
+      transform: none;
+    }
+    .as-products .pxc-product-card__image {
+      background: white;
+      border: 1px solid var(--as-border);
+      border-radius: 0;
+      aspect-ratio: 1;
+    }
+    .as-products .pxc-product-card__name {
+      font-size: 17px;
+      font-weight: 600;
+      color: var(--as-blue);
+      min-height: auto;
+    }
+    .as-products .pxc-product-card__price {
+      font-size: 17px;
+      font-weight: 600;
+      color: var(--as-blue);
+      background: transparent;
+      padding: 8px 0;
+    }
+    .as-products .pxc-product-card__body {
+      padding: 8px 0;
+    }
+    .as-products .pxc-product-card__category {
+      display: none;
+    }
+
+    /* Grid layout */
+    .as-products .pxc-product-grid__grid {
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 20px;
+    }
+
+    /* ===== TOOLBAR OVERRIDES ===== */
+    .as-toolbar .pxc-toolbar {
+      border-bottom: none;
+      padding: 12px 0;
+    }
+
+    /* ===== PAGINATION OVERRIDES ===== */
+    .as-pagination .pxc-pagination__btn {
+      border-radius: 0;
+    }
+    .as-pagination .pxc-pagination__active {
+      background: var(--as-blue) !important;
+    }
+
+    /* ===== PRODUCT DETAIL OVERRIDES ===== */
+    .pxc-detail__title {
+      color: var(--as-blue);
+      font-weight: 700;
+      font-size: 45px;
+    }
+    .pxc-detail__section-title {
+      color: var(--as-blue);
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 21px;
+      border-bottom: none;
+      margin-bottom: 20px;
+    }
+    .pxc-detail__price-value {
+      color: var(--as-blue);
+      font-weight: 600;
+    }
+
+    /* ===== BUTTON OVERRIDES ===== */
+    .pxc-btn {
+      background: var(--as-blue);
+      color: #fff;
+      border: none;
+      border-radius: 0;
+      font-size: 15px;
+      font-weight: 600;
+      padding: 10px 20px;
+      min-width: 100px;
+    }
+    .pxc-btn:hover {
+      box-shadow: inset 0 0 12px 0 rgba(43,43,43,0.45);
+    }
+    .pxc-btn:active {
+      background: var(--as-blue-active);
+      color: rgba(255,255,255,0.8);
+    }
+
+    /* ===== FACETS / SIDEBAR ===== */
+    .as-layout {
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      gap: 24px;
+      margin-top: 16px;
+    }
+    .as-sidebar {
+      border-right: 1px solid var(--as-gray);
+      padding-right: 16px;
+    }
+    .as-sidebar .pxc-categories__item--active {
+      background: var(--as-blue);
+    }
+    .as-sidebar .pxc-categories__item {
+      border-radius: 0;
+    }
+    .as-sidebar .pxc-facets__badge {
+      background: var(--as-blue);
+      border-radius: 0;
+    }
+    .as-sidebar .pxc-facets__title {
+      font-weight: 600;
+      color: var(--as-dark);
+      text-transform: uppercase;
+      font-size: 14px;
+    }
+
+    /* ===== INFO BANNER ===== */
+    .as-info-banner {
+      background: var(--as-yellow);
+      padding: 24px;
+      margin: 32px 0;
+    }
+    .as-info-banner h3 {
+      font-size: 21px;
+      font-weight: 600;
+      color: var(--as-blue);
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+    .as-info-banner ul {
+      list-style: none;
+      padding: 0;
+    }
+    .as-info-banner li {
+      padding: 6px 0;
+      font-size: 14px;
+      color: var(--as-blue);
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      line-height: 22px;
+    }
+    .as-info-banner li::before {
+      content: "";
+      width: 12px;
+      height: 12px;
+      margin-top: 5px;
+      background: var(--as-blue);
+      flex-shrink: 0;
+    }
+
+    /* ===== FOOTER ===== */
+    .as-footer {
+      background: #333;
+      color: #fff;
+      padding: 30px 20px 25px;
+      margin-top: 48px;
+      font-size: 16px;
+    }
+    .as-footer__inner {
+      max-width: 960px;
+      margin: 0 auto;
+    }
+    .as-footer a {
+      color: #fff;
+      text-decoration: none;
+    }
+    .as-footer a:hover {
+      text-decoration: underline;
+    }
+    .as-copyright {
+      background: var(--as-dark);
+      border-top: 1px solid #222;
+      color: #fff;
+      font-size: 15px;
+      padding: 20px;
+      text-align: center;
+    }
+    .as-copyright a {
+      color: #fff;
+      text-decoration: none;
+      margin: 0 3px;
+    }
+    .as-copyright a:hover {
+      text-decoration: underline;
+    }
+
+    /* ===== MOBILE ===== */
+    @media (max-width: 767px) {
+      .as-layout {
+        grid-template-columns: 1fr;
+      }
+      .as-sidebar { display: none; }
+      .as-hero { flex-direction: column; text-align: center; }
+      .as-hero__text h2 { font-size: 28px; }
+      .as-meta-nav__inner { flex-direction: column; gap: 4px; }
+      .as-nav-bot__links { flex-wrap: wrap; justify-content: center; }
+      .as-nav-mid__inner { flex-wrap: wrap; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ===== META NAV — Top dark bar ===== -->
+  <div class="as-meta-nav">
+    <div class="as-meta-nav__inner">
+      <div class="as-meta-nav__links">
+        <a href="#">ihrefirma.at</a>
+        <a href="#" class="active">Online Shop</a>
+      </div>
+      <div class="as-meta-nav__right">
+        <div data-catalog="locale"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== NAV MID — Yellow bar: Logo + Search + Cart ===== -->
+  <nav class="as-nav-mid">
+    <div class="as-nav-mid__inner">
+      <div class="as-logo">
+        <div class="as-logo__placeholder">
+          <div class="as-logo__icon">
+            <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="3" width="7" height="18" rx="1"/></svg>
+          </div>
+          <span class="as-logo__text">Ihr Logo</span>
+        </div>
+      </div>
+
+      <div class="as-search-area">
+        <div data-catalog="search"></div>
+      </div>
+
+      <div class="as-cart-area">
+        <div data-catalog="wishlist"></div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ===== NAV BOT — Gray category links ===== -->
+  <div class="as-nav-bot">
+    <div class="as-nav-bot__inner">
+      <div class="as-nav-bot__links">
+        <a href="#" class="active">Alle Produkte</a>
+        <a href="#">Kategorie 1</a>
+        <a href="#">Kategorie 2</a>
+        <a href="#">Kategorie 3</a>
+        <a href="#">Zubeh&ouml;r</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== HERO BANNER ===== -->
+  <div class="as-content">
+    <div class="as-hero">
+      <div class="as-hero__text">
+        <h2>Willkommen in<br>unserem Katalog</h2>
+        <p>Entdecken Sie unser Sortiment und bestellen Sie online</p>
+        <span class="as-hero__badge">Aktuelles Angebot</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== MAIN LAYOUT ===== -->
+  <div class="as-content">
+    <div class="as-layout">
+      <!-- Sidebar -->
+      <aside class="as-sidebar">
+        <div data-catalog="categories"></div>
+        <div data-catalog="facets"></div>
+      </aside>
+
+      <!-- Products -->
+      <main>
+        <div class="as-toolbar">
+          <div data-catalog="toolbar"></div>
+        </div>
+        <div data-catalog="active-filters"></div>
+
+        <h2 class="as-section-title">Produkte</h2>
+        <div class="as-products">
+          <div data-catalog="product-grid"></div>
+        </div>
+
+        <div class="as-pagination">
+          <div data-catalog="pagination"></div>
+        </div>
+
+        <!-- Info banner -->
+        <div class="as-info-banner">
+          <h3>Ihre Vorteile</h3>
+          <ul>
+            <li><strong>Hochwertige Produkte</strong> aus erstklassigen Materialien</li>
+            <li><strong>Schnelle Lieferung</strong> direkt zu Ihnen</li>
+            <li><strong>Pers&ouml;nliche Beratung</strong> &ndash; unser Team ist f&uuml;r Sie da</li>
+          </ul>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- ===== FOOTER ===== -->
+  <footer class="as-footer">
+    <div class="as-footer__inner">
+      <strong>Ihre Firma GmbH</strong><br>
+      <a href="#">Kontakt</a> | <a href="#">Standorte</a> | <a href="#">Karriere</a>
+    </div>
+  </footer>
+  <div class="as-copyright">
+    &copy; 2026 Ihre Firma GmbH |
+    <a href="#">Impressum</a> |
+    <a href="#">Datenschutz</a> |
+    <a href="#">AGB</a>
+  </div>
+
+  <!-- Hidden widgets (Modals) -->
+  <div data-catalog="product-detail"></div>
+  <div data-catalog="compare"></div>
+
+  <!-- ===== INIT ===== -->
+  <script src="../dist/catalog-embed.umd.js"></script>
+  <script>
+    PublixxCatalog.init({
+      api: 'http://localhost:8000/api/v1',
+      locale: 'de',
+      perPage: 12,
+    })
+  </script>
+
+</body>
+</html>
