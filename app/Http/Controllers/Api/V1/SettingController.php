@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Jobs\UpdateSearchIndex;
+use App\Models\Attribute;
 use App\Models\Media;
 use App\Models\Product;
+use App\Models\ProductRelationType;
 use App\Models\Setting;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -91,6 +93,50 @@ class SettingController extends Controller
         // Only admins may update catalog theme
         if (!$request->user()?->hasRole('Admin')) {
             abort(403, 'Unauthorized.');
+        }
+
+        // Strip stale attribute/relation IDs so validation doesn't reject
+        // references to deleted entities (settings store IDs as JSON, no FK cascade)
+        $existingAttrIds = Attribute::pluck('id')->toArray();
+        $attrIdSet = array_flip($existingAttrIds);
+
+        if ($request->has('card_attribute_ids')) {
+            $request->merge([
+                'card_attribute_ids' => array_values(array_filter(
+                    $request->input('card_attribute_ids', []),
+                    fn ($id) => isset($attrIdSet[$id])
+                )),
+            ]);
+        }
+        if ($request->has('facet_attribute_ids')) {
+            $request->merge([
+                'facet_attribute_ids' => array_values(array_filter(
+                    $request->input('facet_attribute_ids', []),
+                    fn ($id) => isset($attrIdSet[$id])
+                )),
+            ]);
+        }
+        if ($request->has('primary_card_attribute_id') && $request->input('primary_card_attribute_id') !== null) {
+            if (!isset($attrIdSet[$request->input('primary_card_attribute_id')])) {
+                $request->merge(['primary_card_attribute_id' => null]);
+            }
+        }
+        if ($request->has('description_attributes')) {
+            $request->merge([
+                'description_attributes' => array_values(array_filter(
+                    $request->input('description_attributes', []),
+                    fn ($da) => isset($attrIdSet[$da['attribute_id'] ?? ''])
+                )),
+            ]);
+        }
+        if ($request->has('catalog_relation_type_ids')) {
+            $existingRtIds = array_flip(ProductRelationType::pluck('id')->toArray());
+            $request->merge([
+                'catalog_relation_type_ids' => array_values(array_filter(
+                    $request->input('catalog_relation_type_ids', []),
+                    fn ($id) => isset($existingRtIds[$id])
+                )),
+            ]);
         }
 
         $validated = $request->validate([

@@ -215,9 +215,16 @@ async function loadAttributes(hierarchyId = null) {
     allAttributes.value = all.filter(a => a.data_type !== 'Composite')
     availableAttributes.value = all.filter(a => FACET_DATA_TYPES.includes(a.data_type))
 
-    // Remove stale facet IDs that are no longer in the available attributes
+    // Remove stale attribute IDs that no longer exist
     const availableIds = new Set(availableAttributes.value.map(a => a.id))
     themeForm.value.facet_attribute_ids = themeForm.value.facet_attribute_ids.filter(id => availableIds.has(id))
+
+    const allIds = new Set(allAttributes.value.map(a => a.id))
+    themeForm.value.card_attribute_ids = (themeForm.value.card_attribute_ids || []).filter(id => allIds.has(id))
+    if (themeForm.value.primary_card_attribute_id && !allIds.has(themeForm.value.primary_card_attribute_id)) {
+      themeForm.value.primary_card_attribute_id = null
+    }
+    themeForm.value.description_attributes = (themeForm.value.description_attributes || []).filter(da => allIds.has(da.attribute_id))
   } catch (e) {
     console.warn('Failed to load attributes:', e.message)
   }
@@ -545,6 +552,10 @@ async function loadRelationTypes() {
   try {
     const { data } = await relationTypesApi.list()
     availableRelationTypes.value = data.data || data || []
+
+    // Remove stale relation type IDs that no longer exist
+    const rtIds = new Set(availableRelationTypes.value.map(rt => rt.id))
+    themeForm.value.catalog_relation_type_ids = (themeForm.value.catalog_relation_type_ids || []).filter(id => rtIds.has(id))
   } catch (e) {
     console.warn('Failed to load relation types:', e.message)
   }
