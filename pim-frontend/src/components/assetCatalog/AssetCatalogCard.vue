@@ -35,8 +35,8 @@ const staggerDelay = computed(() => `${Math.min(props.index * 40, 400)}ms`)
     <!-- Image / Preview -->
     <figure class="relative overflow-hidden aspect-square bg-base-200">
       <img
-        v-if="isImage && asset.thumb_url"
-        :src="asset.thumb_url"
+        v-if="(isImage && asset.thumb_url) || asset.pdf_preview_url"
+        :src="asset.pdf_preview_url || asset.thumb_url"
         :alt="asset.title || asset.file_name"
         class="object-contain w-full h-full p-2 group-hover:scale-105 transition-transform duration-500"
         loading="lazy"
