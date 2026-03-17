@@ -65,4 +65,8 @@ export default {
   cancelTestData() {
     return client.post('/admin/test-data/cancel')
   },
+
+  batchProcessPdfs(mode = 'missing') {
+    return client.post('/admin/pdf/batch-process', { mode }, { timeout: 300000 })
+  },
 }

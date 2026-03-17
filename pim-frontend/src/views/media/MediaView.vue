@@ -868,7 +868,7 @@ onMounted(() => {
         <!-- Preview -->
         <div class="aspect-square rounded-lg bg-[var(--color-bg)] overflow-hidden flex items-center justify-center">
           <img v-if="detailItem.media_type === 'image'" :src="getImageUrl(detailItem)" class="w-full h-full object-contain" />
-          <PdfPreview v-else-if="isItemPdf(detailItem)" :url="getFileUrl(detailItem)" :title="detailItem.file_name || 'PDF'" max-height="100%" />
+          <PdfPreview v-else-if="isItemPdf(detailItem)" :url="getFileUrl(detailItem)" :media-id="detailItem.id" :title="detailItem.file_name || 'PDF'" max-height="100%" />
           <Image v-else class="w-12 h-12 text-[var(--color-text-tertiary)]" />
         </div>
 

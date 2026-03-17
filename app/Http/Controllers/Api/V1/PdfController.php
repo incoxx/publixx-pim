@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Jobs\ProcessPdfDocument;
+use App\Models\Media;
 use App\Models\PdfDocument;
 use App\Services\TypesenseService;
 use Illuminate\Http\JsonResponse;
@@ -175,6 +176,70 @@ class PdfController extends Controller
             'message' => 'Verarbeitung erneut gestartet.',
             'id' => $pdfDocument->id,
             'status' => 'pending',
+        ]);
+    }
+
+    /**
+     * POST /admin/pdf/batch-process — Vorschaubilder für alle bestehenden PDFs erzeugen.
+     */
+    public function batchProcess(Request $request): JsonResponse
+    {
+        if (!$request->user()?->hasRole('Admin')) {
+            abort(403, 'Unauthorized.');
+        }
+
+        $mode = $request->input('mode', 'missing'); // missing | failed | all
+
+        $pdfMedia = Media::where(function ($q) {
+            $q->where('mime_type', 'application/pdf')
+              ->orWhere('file_name', 'like', '%.pdf')
+              ->orWhere('file_path', 'like', '%.pdf');
+        })->get();
+
+        $dispatched = 0;
+        $skipped = 0;
+
+        foreach ($pdfMedia as $media) {
+            $existing = PdfDocument::where('media_id', $media->id)->first();
+
+            if ($existing) {
+                if ($mode === 'all') {
+                    // reprocess all
+                } elseif ($mode === 'failed' && in_array($existing->status, ['error', 'pending'])) {
+                    // reprocess failed
+                } elseif ($existing->status === 'ready') {
+                    $skipped++;
+                    continue;
+                } elseif ($mode === 'missing') {
+                    $skipped++;
+                    continue;
+                }
+            }
+
+            $url = $media->file_path;
+            if (empty($url)) {
+                $skipped++;
+                continue;
+            }
+
+            $pdfDocument = PdfDocument::updateOrCreate(
+                ['media_id' => $media->id],
+                [
+                    'original_url' => $url,
+                    'status' => 'pending',
+                    'error_message' => null,
+                ]
+            );
+
+            ProcessPdfDocument::dispatch($pdfDocument->id);
+            $dispatched++;
+        }
+
+        return response()->json([
+            'message' => "{$dispatched} PDF-Verarbeitungen gestartet, {$skipped} übersprungen.",
+            'dispatched' => $dispatched,
+            'skipped' => $skipped,
+            'total_pdfs' => $pdfMedia->count(),
         ]);
     }
 }

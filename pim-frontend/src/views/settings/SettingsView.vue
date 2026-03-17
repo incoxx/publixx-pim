@@ -788,6 +788,26 @@ async function triggerReindex() {
   }
 }
 
+// ── PDF Batch Processing ──
+const pdfBatchProcessing = ref(false)
+const pdfBatchResult = ref(null)
+const pdfBatchError = ref(null)
+const pdfBatchMode = ref('missing')
+
+async function triggerPdfBatchProcess() {
+  pdfBatchProcessing.value = true
+  pdfBatchResult.value = null
+  pdfBatchError.value = null
+  try {
+    const { data } = await adminApi.batchProcessPdfs(pdfBatchMode.value)
+    pdfBatchResult.value = data
+  } catch (e) {
+    pdfBatchError.value = e.response?.data?.message || e.message
+  } finally {
+    pdfBatchProcessing.value = false
+  }
+}
+
 async function loadStatus() {
   if (!isAdmin) return
   try {
@@ -2084,6 +2104,49 @@ onMounted(async () => {
         <div class="flex items-center gap-2 text-red-700 dark:text-red-400 text-sm font-medium">
           <XCircle class="w-4 h-4" />
           {{ reindexError }}
+        </div>
+      </div>
+    </div>
+
+    <!-- Admin: PDF Batch Processing -->
+    <div v-if="isAdmin" class="pim-card p-6 space-y-4">
+      <div class="flex items-center gap-3 mb-2">
+        <BookOpen class="w-5 h-5 text-[var(--color-accent)]" :stroke-width="1.75" />
+        <h3 class="text-sm font-semibold">PDF-Vorschaubilder</h3>
+      </div>
+
+      <p class="text-xs text-[var(--color-text-secondary)]">
+        Erzeugt Vorschaubilder (WebP) für PDF-Assets, die noch keine haben. Nützlich für PDFs, die vor der Aktivierung der PDF-Pipeline importiert wurden.
+      </p>
+
+      <div class="flex items-center gap-3">
+        <select v-model="pdfBatchMode" class="pim-input text-xs py-1.5 px-2">
+          <option value="missing">Nur fehlende</option>
+          <option value="failed">Fehlende + fehlerhafte</option>
+          <option value="all">Alle neu verarbeiten</option>
+        </select>
+        <button
+          @click="triggerPdfBatchProcess"
+          :disabled="pdfBatchProcessing"
+          class="pim-btn-primary flex items-center gap-2 text-sm"
+        >
+          <Loader2 v-if="pdfBatchProcessing" class="w-4 h-4 animate-spin" />
+          <RefreshCw v-else class="w-4 h-4" :stroke-width="1.75" />
+          Vorschaubilder erzeugen
+        </button>
+      </div>
+
+      <div v-if="pdfBatchResult" class="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg p-3">
+        <div class="flex items-center gap-2 text-green-700 dark:text-green-400 text-sm font-medium">
+          <CheckCircle class="w-4 h-4" />
+          {{ pdfBatchResult.message }}
+        </div>
+      </div>
+
+      <div v-if="pdfBatchError" class="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg p-3">
+        <div class="flex items-center gap-2 text-red-700 dark:text-red-400 text-sm font-medium">
+          <XCircle class="w-4 h-4" />
+          {{ pdfBatchError }}
         </div>
       </div>
     </div>
