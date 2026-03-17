@@ -10,7 +10,7 @@ import {
   HelpCircle, PanelLeftClose, PanelLeft, Star, LayoutGrid, Ruler,
   FileJson, FileCode, PlayCircle, FileBarChart, FileText, BookOpen, Link2, Zap, Languages,
   ChevronDown, ChevronRight, GripVertical, Factory, CalendarDays, ScrollText, Globe,
-  LayoutDashboard, ClipboardList, Code,
+  LayoutDashboard, ClipboardList, Code, ExternalLink,
 } from 'lucide-vue-next'
 import AnyPimLogo from '@/components/shared/AnyPimLogo.vue'
 
@@ -81,6 +81,7 @@ const sections = computed(() => {
         { icon: FileJson, label: () => 'JSON Export/Import', to: '/json-export-import' },
         { icon: FileCode, label: () => 'BMEcat Import/Export', to: '/bmecat-import-export', module: 'bmecat' },
         { icon: PlayCircle, label: () => 'Export-Jobs', to: '/export-jobs', module: 'advanced_export' },
+        { icon: ExternalLink, label: () => 'Katalog-Demo', to: '/catalog-embed', external: true },
         { icon: Settings, label: () => t('nav.settings'), to: '/settings', permission: 'users.view' },
         { icon: Users, label: () => t('nav.users'), to: '/users', permission: 'users.view' },
         { icon: ScrollText, label: () => 'Benutzer-Audit', to: '/users/audit', permission: 'users.view' },
