@@ -152,6 +152,21 @@ async function deleteSearchProfile(id) {
     const { data } = await searchProfilesApi.list()
     searchProfiles.value = data.data || data
   } catch (e) {
+    if (e.response?.status === 409) {
+      const deps = e.response.data?.dependencies || {}
+      const labels = Object.values(deps).map(d => `${d.label} (${d.count})`).join(', ')
+      if (confirm(`Dieses Suchprofil wird noch verwendet: ${labels}. Trotzdem löschen?`)) {
+        try {
+          await searchProfilesApi.remove(id, { force: true })
+          if (selectedSearchProfileId.value === id) selectedSearchProfileId.value = null
+          const { data } = await searchProfilesApi.list()
+          searchProfiles.value = data.data || data
+          return
+        } catch (e2) { /* fall through */ }
+      } else {
+        return
+      }
+    }
     error.value = 'Suchprofil konnte nicht gelöscht werden'
   }
 }

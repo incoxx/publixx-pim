@@ -32,4 +32,9 @@ export default {
   syncToDatabase() {
     return client.post('/tms/sync')
   },
+
+  deleteAllTranslations(targetLang = null) {
+    const params = targetLang ? { target_lang: targetLang } : {}
+    return client.delete('/tms/translations', { params })
+  },
 }

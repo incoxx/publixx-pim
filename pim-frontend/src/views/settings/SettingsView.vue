@@ -949,11 +949,11 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="space-y-6 max-w-5xl">
+  <div class="space-y-4 sm:space-y-6 max-w-5xl">
     <h2 class="text-lg font-semibold text-[var(--color-text-primary)]">{{ t('settings.title') }}</h2>
 
     <!-- ═══ TOP-LEVEL TABS ═══ -->
-    <div class="flex gap-1 border-b border-[var(--color-border)]">
+    <div class="flex gap-1 border-b border-[var(--color-border)] overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
       <button
         v-for="tab in [
           { key: 'general', label: 'Generell', icon: Settings2 },
@@ -963,7 +963,7 @@ onMounted(async () => {
           ...(isAdmin ? [{ key: 'license', label: 'Lizenz', icon: Key }] : []),
         ]"
         :key="tab.key"
-        class="flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors"
+        class="flex items-center gap-2 px-3 sm:px-4 py-2.5 text-[13px] sm:text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap shrink-0"
         :class="activeMainTab === tab.key
           ? 'border-[var(--color-accent)] text-[var(--color-accent)]'
           : 'border-transparent text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'"
@@ -980,7 +980,7 @@ onMounted(async () => {
     <template v-if="activeMainTab === 'general'">
 
     <!-- Sprache -->
-    <div class="pim-card p-6 space-y-4">
+    <div class="pim-card p-4 sm:p-6 space-y-4">
       <div class="flex items-center gap-3 mb-2"><Globe class="w-5 h-5 text-[var(--color-accent)]" :stroke-width="1.75" /><h3 class="text-sm font-semibold">{{ t('settings.language') }}</h3></div>
       <div>
         <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">{{ t('settings.uiLanguage') }}</label>
@@ -1006,7 +1006,7 @@ onMounted(async () => {
     <!-- ═══════════════════════════════════════════════════════════════════ -->
     <template v-if="activeMainTab === 'catalog' && isAdmin">
 
-    <div class="pim-card p-6 space-y-5">
+    <div class="pim-card p-4 sm:p-6 space-y-5">
       <div class="flex items-center gap-3 mb-2">
         <Palette class="w-5 h-5 text-[var(--color-accent)]" :stroke-width="1.75" />
         <h3 class="text-sm font-semibold">Katalog-Darstellung</h3>
@@ -1692,7 +1692,7 @@ onMounted(async () => {
     </div>
 
     <!-- SVG Live Preview -->
-    <div class="pim-card p-6 space-y-4">
+    <div class="pim-card p-4 sm:p-6 space-y-4">
       <div class="flex items-center gap-3 mb-2">
         <Monitor class="w-5 h-5 text-[var(--color-accent)]" :stroke-width="1.75" />
         <h3 class="text-sm font-semibold">Vorschau</h3>
@@ -1821,7 +1821,7 @@ onMounted(async () => {
     <template v-if="activeMainTab === 'general' && isAdmin">
 
     <!-- Admin: Demo-Daten laden -->
-    <div v-if="isAdmin" class="pim-card border border-blue-300 dark:border-blue-800 p-6 space-y-4">
+    <div v-if="isAdmin" class="pim-card border border-blue-300 dark:border-blue-800 p-4 sm:p-6 space-y-4">
       <div class="flex items-center gap-3 mb-2">
         <Database class="w-5 h-5 text-blue-500" :stroke-width="1.75" />
         <h3 class="text-sm font-semibold text-blue-600 dark:text-blue-400">Demo-Daten laden</h3>
@@ -1863,25 +1863,25 @@ onMounted(async () => {
       </div>
 
       <!-- Buttons -->
-      <div class="flex items-center gap-3" v-if="!loadingDemo">
+      <div class="flex items-center gap-3 flex-wrap" v-if="!loadingDemo">
         <button
           v-if="!showConfirmDemo"
           @click="showConfirmDemo = true"
-          class="px-4 py-1.5 text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 transition-colors flex items-center gap-2"
+          class="pim-btn pim-btn-primary"
         >
           <Database class="w-4 h-4" />
           Demo-Daten laden
         </button>
         <template v-if="showConfirmDemo">
-          <span class="text-xs text-[var(--color-text-secondary)]">Alle Daten werden geloescht und durch Demo-Daten ersetzt!</span>
-          <button @click="triggerLoadDemo" class="px-4 py-1.5 text-xs font-medium rounded-md text-white bg-red-600 hover:bg-red-700 transition-colors">Ja, laden</button>
-          <button @click="showConfirmDemo = false" class="px-4 py-1.5 text-xs font-medium rounded-md text-[var(--color-text-secondary)] bg-[var(--color-bg-secondary)] hover:bg-[var(--color-bg-tertiary)] transition-colors">Abbrechen</button>
+          <span class="text-xs text-[var(--color-text-secondary)]">Alle Daten werden gelöscht und durch Demo-Daten ersetzt!</span>
+          <button @click="triggerLoadDemo" class="pim-btn pim-btn-danger">Ja, laden</button>
+          <button @click="showConfirmDemo = false" class="pim-btn pim-btn-secondary">Abbrechen</button>
         </template>
       </div>
     </div>
 
     <!-- Admin: Testdaten-Generator -->
-    <div v-if="isAdmin" class="pim-card border border-purple-300 dark:border-purple-800 p-6 space-y-4">
+    <div v-if="isAdmin" class="pim-card border border-purple-300 dark:border-purple-800 p-4 sm:p-6 space-y-4">
       <div class="flex items-center gap-3 mb-2">
         <Server class="w-5 h-5 text-purple-500" :stroke-width="1.75" />
         <h3 class="text-sm font-semibold text-purple-600 dark:text-purple-400">Testdaten-Generator</h3>
@@ -1894,7 +1894,7 @@ onMounted(async () => {
       </p>
 
       <!-- Stats -->
-      <div v-if="testDataStats" class="flex items-center gap-4 text-xs text-[var(--color-text-secondary)] bg-[var(--color-bg-secondary)] rounded-lg px-4 py-2.5">
+      <div v-if="testDataStats" class="flex flex-wrap items-center gap-3 sm:gap-4 text-xs text-[var(--color-text-secondary)] bg-[var(--color-bg-secondary)] rounded-lg px-4 py-2.5">
         <span><strong class="text-[var(--color-text-primary)]">{{ testDataStats.test_products ?? 0 }}</strong> Testprodukte</span>
         <span><strong class="text-[var(--color-text-primary)]">{{ testDataStats.test_attribute_values ?? 0 }}</strong> Attributwerte</span>
         <span><strong class="text-[var(--color-text-primary)]">{{ testDataStats.test_prices ?? 0 }}</strong> Preise</span>
@@ -1980,7 +1980,7 @@ onMounted(async () => {
           <button
             @click="triggerCancelTestData"
             :disabled="cancellingTestData"
-            class="px-3 py-1 text-xs font-medium rounded-md text-red-600 border border-red-300 hover:bg-red-50 dark:text-red-400 dark:border-red-700 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50"
+            class="pim-btn pim-btn-secondary !text-[var(--color-error)] !border-[var(--color-error)]/30"
           >
             {{ cancellingTestData ? 'Wird abgebrochen...' : 'Abbrechen' }}
           </button>
@@ -2009,15 +2009,15 @@ onMounted(async () => {
         <button
           v-if="!showConfirmGenerate"
           @click="showConfirmGenerate = true"
-          class="px-4 py-1.5 text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 transition-colors flex items-center gap-2"
+          class="pim-btn pim-btn-primary"
         >
           <Database class="w-4 h-4" />
           {{ testDataForm.count.toLocaleString() }} Testprodukte generieren
         </button>
         <template v-if="showConfirmGenerate">
           <span class="text-xs text-[var(--color-text-secondary)]">{{ testDataForm.count.toLocaleString() }} Produkte mit Attributwerten generieren?</span>
-          <button @click="triggerGenerateTestData" class="px-4 py-1.5 text-xs font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 transition-colors">Ja, generieren</button>
-          <button @click="showConfirmGenerate = false" class="px-4 py-1.5 text-xs font-medium rounded-md text-[var(--color-text-secondary)] bg-[var(--color-bg-secondary)] hover:bg-[var(--color-bg-tertiary)] transition-colors">Abbrechen</button>
+          <button @click="triggerGenerateTestData" class="pim-btn pim-btn-primary">Ja, generieren</button>
+          <button @click="showConfirmGenerate = false" class="pim-btn pim-btn-secondary">Abbrechen</button>
         </template>
 
         <!-- Cleanup Button -->
@@ -2025,22 +2025,22 @@ onMounted(async () => {
           <button
             v-if="!showConfirmCleanup"
             @click="showConfirmCleanup = true"
-            class="px-4 py-1.5 text-sm font-medium rounded-md text-red-600 border border-red-300 hover:bg-red-50 dark:text-red-400 dark:border-red-700 dark:hover:bg-red-900/20 transition-colors flex items-center gap-2"
+            class="pim-btn pim-btn-secondary !text-[var(--color-error)] !border-[var(--color-error)]/30"
           >
             <Trash2 class="w-4 h-4" />
             Testdaten löschen
           </button>
           <template v-if="showConfirmCleanup">
             <span class="text-xs text-[var(--color-text-secondary)]">Alle {{ testDataStats.test_products }} Testprodukte löschen?</span>
-            <button @click="triggerCleanupTestData" class="px-4 py-1.5 text-xs font-medium rounded-md text-white bg-red-600 hover:bg-red-700 transition-colors">Ja, löschen</button>
-            <button @click="showConfirmCleanup = false" class="px-4 py-1.5 text-xs font-medium rounded-md text-[var(--color-text-secondary)] bg-[var(--color-bg-secondary)] hover:bg-[var(--color-bg-tertiary)] transition-colors">Abbrechen</button>
+            <button @click="triggerCleanupTestData" class="pim-btn pim-btn-danger">Ja, löschen</button>
+            <button @click="showConfirmCleanup = false" class="pim-btn pim-btn-secondary">Abbrechen</button>
           </template>
         </template>
       </div>
     </div>
 
     <!-- Admin: Reset Data Model (Danger Zone) -->
-    <div v-if="authStore.userRole === 'Admin'" class="pim-card border border-red-300 dark:border-red-800 p-6 space-y-4">
+    <div v-if="authStore.userRole === 'Admin'" class="pim-card border border-red-300 dark:border-red-800 p-4 sm:p-6 space-y-4">
       <div class="flex items-center gap-3 mb-2">
         <AlertTriangle class="w-5 h-5 text-red-500" :stroke-width="1.75" />
         <h3 class="text-sm font-semibold text-red-600 dark:text-red-400">{{ t('settings.dangerZone') }}</h3>
@@ -2108,7 +2108,7 @@ onMounted(async () => {
             />
             <div class="flex gap-2">
               <button
-                class="px-3 py-1.5 text-xs font-medium rounded-md text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                class="pim-btn pim-btn-danger"
                 :disabled="confirmText !== 'RESET' || resetting || selectedResetCategories.length === 0"
                 @click="executeReset"
               >
@@ -2116,7 +2116,7 @@ onMounted(async () => {
                 <span v-else>{{ t('settings.resetExecute') }}</span>
               </button>
               <button
-                class="px-3 py-1.5 text-xs font-medium rounded-md text-[var(--color-text-secondary)] bg-[var(--color-bg-secondary)] hover:bg-[var(--color-bg-tertiary)] transition-colors"
+                class="pim-btn pim-btn-secondary"
                 :disabled="resetting"
                 @click="cancelReset"
               >
@@ -2129,7 +2129,7 @@ onMounted(async () => {
         <!-- Initial button -->
         <button
           v-else
-          class="px-3 py-1.5 text-xs font-medium rounded-md text-red-600 border border-red-300 hover:bg-red-50 dark:text-red-400 dark:border-red-700 dark:hover:bg-red-900/20 transition-colors"
+          class="pim-btn pim-btn-secondary !text-[var(--color-error)] !border-[var(--color-error)]/30"
           @click="openConfirmDialog"
         >
           {{ t('settings.resetButton') }}
@@ -2138,7 +2138,7 @@ onMounted(async () => {
     </div>
 
     <!-- Admin: PDF Processing & Search Reindex (combined) -->
-    <div v-if="isAdmin" class="pim-card p-6 space-y-4">
+    <div v-if="isAdmin" class="pim-card p-4 sm:p-6 space-y-4">
       <div class="flex items-center gap-3 mb-2">
         <RefreshCw class="w-5 h-5 text-[var(--color-accent)]" :stroke-width="1.75" />
         <h3 class="text-sm font-semibold">PDF-Verarbeitung & Suchindex</h3>
@@ -2154,11 +2154,11 @@ onMounted(async () => {
         <button
           @click="triggerCombinedProcess"
           :disabled="combinedProcessing || reindexing || pdfBatchProcessing"
-          class="pim-btn-primary flex items-center gap-2 text-sm"
+          class="pim-btn pim-btn-primary"
         >
           <Loader2 v-if="combinedProcessing" class="w-4 h-4 animate-spin" />
           <RefreshCw v-else class="w-4 h-4" :stroke-width="1.75" />
-          Fehlende Thumbnails erzeugen & Suchindex aktualisieren
+          Thumbnails & Suchindex aktualisieren
         </button>
       </div>
 
@@ -2199,7 +2199,7 @@ onMounted(async () => {
             <button
               @click="triggerPdfBatchProcess"
               :disabled="pdfBatchProcessing || combinedProcessing"
-              class="pim-btn-secondary flex items-center gap-2 text-xs"
+              class="pim-btn pim-btn-secondary"
             >
               <Loader2 v-if="pdfBatchProcessing" class="w-3.5 h-3.5 animate-spin" />
               <BookOpen v-else class="w-3.5 h-3.5" :stroke-width="1.75" />
@@ -2226,7 +2226,7 @@ onMounted(async () => {
             <button
               @click="triggerReindex"
               :disabled="reindexing || combinedProcessing"
-              class="pim-btn-secondary flex items-center gap-2 text-xs"
+              class="pim-btn pim-btn-secondary"
             >
               <Loader2 v-if="reindexing" class="w-3.5 h-3.5 animate-spin" />
               <RefreshCw v-else class="w-3.5 h-3.5" :stroke-width="1.75" />
@@ -2252,7 +2252,7 @@ onMounted(async () => {
     </div>
 
     <!-- Admin: Deployment -->
-    <div v-if="isAdmin" class="pim-card p-6 space-y-5">
+    <div v-if="isAdmin" class="pim-card p-4 sm:p-6 space-y-5">
       <div class="flex items-center gap-3 mb-2">
         <Server class="w-5 h-5 text-[var(--color-accent)]" :stroke-width="1.75" />
         <h3 class="text-sm font-semibold">Server-Deployment</h3>
@@ -2290,7 +2290,7 @@ onMounted(async () => {
           v-if="!showConfirmDeploy"
           @click="showConfirmDeploy = true"
           :disabled="deploying"
-          class="pim-btn-primary flex items-center gap-2 text-sm"
+          class="pim-btn pim-btn-primary"
         >
           <Loader2 v-if="deploying" class="w-4 h-4 animate-spin" />
           <Server v-else class="w-4 h-4" :stroke-width="1.75" />
@@ -2299,8 +2299,8 @@ onMounted(async () => {
 
         <template v-if="showConfirmDeploy && !deploying">
           <span class="text-xs text-[var(--color-text-secondary)]">Sicher? Der Server wird aktualisiert.</span>
-          <button @click="triggerDeploy" class="pim-btn-danger text-sm px-4 py-1.5">Ja, deployen</button>
-          <button @click="showConfirmDeploy = false" class="pim-btn-secondary text-sm px-4 py-1.5">Abbrechen</button>
+          <button @click="triggerDeploy" class="pim-btn pim-btn-danger">Ja, deployen</button>
+          <button @click="showConfirmDeploy = false" class="pim-btn pim-btn-secondary">Abbrechen</button>
         </template>
       </div>
 
@@ -2363,7 +2363,7 @@ onMounted(async () => {
           <button
             @click="triggerRollback"
             :disabled="rollingBack"
-            class="pim-btn-secondary text-xs px-3 py-1"
+            class="pim-btn pim-btn-secondary"
           >
             <Loader2 v-if="rollingBack" class="w-3 h-3 animate-spin" />
             <template v-else>Rollback</template>
@@ -2379,7 +2379,7 @@ onMounted(async () => {
     <!-- ═══════════════════════════════════════════════════════════════════ -->
     <template v-if="activeMainTab === 'env' && isAdmin">
 
-    <div class="pim-card p-6 space-y-4">
+    <div class="pim-card p-4 sm:p-6 space-y-4">
       <div class="flex items-center justify-between mb-2">
         <div class="flex items-center gap-3">
           <FileCode2 class="w-5 h-5 text-[var(--color-accent)]" :stroke-width="1.75" />
@@ -2458,7 +2458,7 @@ onMounted(async () => {
     <template v-if="activeMainTab === 'system' && isAdmin">
 
     <!-- Services -->
-    <div class="pim-card p-6 space-y-4">
+    <div class="pim-card p-4 sm:p-6 space-y-4">
       <div class="flex items-center justify-between mb-2">
         <div class="flex items-center gap-3">
           <Activity class="w-5 h-5 text-[var(--color-accent)]" :stroke-width="1.75" />
@@ -2501,7 +2501,7 @@ onMounted(async () => {
     </div>
 
     <!-- Resources -->
-    <div v-if="systemStatus" class="pim-card p-6 space-y-5">
+    <div v-if="systemStatus" class="pim-card p-4 sm:p-6 space-y-5">
       <div class="flex items-center gap-3 mb-2">
         <Cpu class="w-5 h-5 text-[var(--color-accent)]" :stroke-width="1.75" />
         <h3 class="text-sm font-semibold">Ressourcen</h3>
@@ -2546,7 +2546,7 @@ onMounted(async () => {
     </div>
 
     <!-- PHP Info -->
-    <div v-if="systemStatus?.php" class="pim-card p-6 space-y-4">
+    <div v-if="systemStatus?.php" class="pim-card p-4 sm:p-6 space-y-4">
       <div class="flex items-center gap-3 mb-2">
         <Server class="w-5 h-5 text-[var(--color-accent)]" :stroke-width="1.75" />
         <h3 class="text-sm font-semibold">PHP</h3>
@@ -2598,7 +2598,7 @@ onMounted(async () => {
     <!-- ═══════════════════════════════════════════════════════════════════ -->
     <template v-if="activeMainTab === 'license' && isAdmin">
 
-    <div class="pim-card p-6 space-y-4">
+    <div class="pim-card p-4 sm:p-6 space-y-4">
       <div class="flex items-center gap-3 mb-2">
         <Key class="w-5 h-5 text-[var(--color-accent)]" :stroke-width="1.75" />
         <h3 class="text-sm font-semibold">Lizenz</h3>

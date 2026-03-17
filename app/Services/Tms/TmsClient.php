@@ -134,6 +134,14 @@ class TmsClient
         return $this->post('/retranslate', $data);
     }
 
+    /**
+     * Delete all translations (optionally filtered by language).
+     */
+    public function deleteAllTranslations(?string $targetLang = null): array
+    {
+        return $this->delete('/translations', $targetLang ? ['target_lang' => $targetLang] : []);
+    }
+
     // ─── HTTP Helpers ────────────────────────────────────────
 
     private function get(string $path, array $params = []): array
@@ -168,6 +176,24 @@ class TmsClient
             return $response->successful() ? ($response->json() ?? []) : [];
         } catch (\Throwable $e) {
             Log::warning("TMS POST {$path} error", ['error' => $e->getMessage()]);
+            return [];
+        }
+    }
+
+    private function delete(string $path, array $params = []): array
+    {
+        if (!$this->enabled) {
+            return [];
+        }
+
+        try {
+            $response = Http::timeout(30)
+                ->withToken($this->apiKey)
+                ->delete("{$this->baseUrl}{$path}", $params);
+
+            return $response->successful() ? ($response->json() ?? []) : [];
+        } catch (\Throwable $e) {
+            Log::warning("TMS DELETE {$path} error", ['error' => $e->getMessage()]);
             return [];
         }
     }

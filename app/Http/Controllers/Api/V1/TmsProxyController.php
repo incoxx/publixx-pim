@@ -114,6 +114,23 @@ class TmsProxyController extends Controller
     }
 
     /**
+     * DELETE /tms/translations — delete all translations (optionally filtered by language).
+     */
+    public function deleteTranslations(Request $request): JsonResponse
+    {
+        $this->abortIfDisabled();
+        $this->authorize('manage', 'translations');
+
+        $request->validate([
+            'target_lang' => 'nullable|string|max:5',
+        ]);
+
+        $data = $this->client->deleteAllTranslations($request->query('target_lang'));
+
+        return response()->json($data);
+    }
+
+    /**
      * POST /tms/sync — sync translations from TMS back into PIM database (synchronous).
      */
     public function syncToDatabase(): JsonResponse
