@@ -81,12 +81,6 @@ class HierarchyController extends Controller
     {
         $this->authorize('delete', $hierarchy);
 
-        if ($hierarchy->hierarchy_type === 'master') {
-            return response()->json([
-                'message' => 'Die Master-Hierarchie kann nicht gelöscht werden.',
-            ], 422);
-        }
-
         if (!$request->boolean('force')) {
             return $this->destroyWithConstraintCheck($request, $hierarchy);
         }
