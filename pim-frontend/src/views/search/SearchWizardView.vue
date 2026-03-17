@@ -95,6 +95,20 @@ async function deleteProfile(id) {
     selectedProfileId.value = null
     await loadProfiles()
   } catch (e) {
+    if (e.response?.status === 409) {
+      const deps = e.response.data?.dependencies || {}
+      const labels = Object.values(deps).map(d => `${d.label} (${d.count})`).join(', ')
+      if (confirm(`Dieses Suchprofil wird noch verwendet: ${labels}. Trotzdem löschen?`)) {
+        try {
+          await searchProfilesApi.remove(id, { force: true })
+          selectedProfileId.value = null
+          await loadProfiles()
+          return
+        } catch (e2) { /* fall through */ }
+      } else {
+        return
+      }
+    }
     error.value = 'Profil konnte nicht gelöscht werden'
   }
 }
