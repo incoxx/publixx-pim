@@ -252,7 +252,7 @@
       background: #fff;
     }
 
-    /* ===== SEARCH BAR — full width in content area ===== */
+    /* ===== SEARCH BAR + FILTER BUTTON — full width in content area ===== */
     .aset-search-bar {
       margin-bottom: 16px;
       display: flex;
@@ -274,6 +274,43 @@
     .aset-search-bar .pxc-search__input:focus {
       box-shadow: none;
       outline: none;
+    }
+
+    /* Filtern button styling */
+    .aset-search-bar .pxc-facets-trigger {
+      border: 1px solid var(--aset-border);
+      border-radius: 0;
+      padding: 8px 20px;
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--aset-blue);
+      background: #fff;
+      height: 42px;
+    }
+    .aset-search-bar .pxc-facets-trigger:hover {
+      border-color: var(--aset-blue);
+      background: var(--aset-gray-bg);
+    }
+
+    /* Drawer overrides for this template */
+    .pxc-facets-drawer {
+      border-radius: 0;
+    }
+    .pxc-facets-drawer__header {
+      border-bottom: 1px solid var(--aset-border);
+    }
+    .pxc-facets-drawer__title {
+      color: var(--aset-blue);
+      font-size: 1.1rem;
+    }
+    .pxc-facets-drawer__footer .pxc-btn--outline {
+      border: 1px solid var(--aset-border);
+      color: var(--aset-dark);
+      border-radius: 0;
+    }
+    .pxc-facets-drawer__footer .pxc-btn--primary {
+      background: var(--aset-blue);
+      border-radius: 0;
     }
 
     /* ===== TOOLBAR OVERRIDES ===== */
@@ -469,17 +506,17 @@
 
   <!-- ===== MAIN LAYOUT ===== -->
   <div class="aset-page">
-    <!-- Sidebar: Categories + Facets -->
+    <!-- Sidebar: Categories only -->
     <aside class="aset-sidebar">
       <div data-catalog="categories"></div>
-      <div data-catalog="facets"></div>
     </aside>
 
     <!-- Content area -->
     <main class="aset-content">
-      <!-- Search bar -->
+      <!-- Search bar + Filter button -->
       <div class="aset-search-bar">
         <div data-catalog="search" style="flex:1"></div>
+        <div data-catalog="facets" data-mode="drawer"></div>
       </div>
 
       <!-- Toolbar: count, sort, view toggle -->
