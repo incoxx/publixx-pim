@@ -123,6 +123,19 @@ class DeploymentController extends Controller
             . ' && find ' . $frontendPath . '/dist -maxdepth 1 -type f ! -name "index.html" -exec cp {} ' . $basePath . '/public/ \\;';
         $log[] = $this->runStep('copy_frontend', $copyCmd, $basePath, deployUser: $deployUser);
 
+        // ── 5b. Catalog Embed bauen (falls vorhanden) ──
+        $catalogEmbedDir = $basePath . '/catalog-embed';
+        if (is_dir($catalogEmbedDir) && file_exists($catalogEmbedDir . '/package.json')) {
+            $log[] = $this->runStep('catalog_embed_npm_ci', "npm ci --cache {$npmCacheDir}", $catalogEmbedDir, timeout: 180, deployUser: $deployUser);
+            $log[] = $this->runStep('catalog_embed_build', 'npm run build', $catalogEmbedDir, timeout: 120, deployUser: $deployUser);
+
+            $embedCopyCmd = 'rm -rf ' . $basePath . '/public/catalog-embed-assets'
+                . ' && mkdir -p ' . $basePath . '/public/catalog-embed-assets'
+                . ' && cp ' . $catalogEmbedDir . '/dist/catalog-embed.umd.js ' . $basePath . '/public/catalog-embed-assets/'
+                . ' && cp ' . $catalogEmbedDir . '/dist/catalog-embed.css ' . $basePath . '/public/catalog-embed-assets/';
+            $log[] = $this->runStep('copy_catalog_embed', $embedCopyCmd, $basePath, deployUser: $deployUser);
+        }
+
         // ── 6. Dokumentation bauen (VitePress, falls vorhanden) ──
         $docsDir = $basePath . '/static-content';
         if (is_dir($docsDir) && file_exists($docsDir . '/package.json')) {
