@@ -680,6 +680,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
         Route::post('ingest', [TmsProxyController::class, 'triggerIngest']);
         Route::post('sync', [TmsProxyController::class, 'syncToDatabase']);
         Route::delete('translations', [TmsProxyController::class, 'deleteTranslations']);
+        Route::delete('units', [TmsProxyController::class, 'purgeUnits']);
     });
 
     // =====================================================================

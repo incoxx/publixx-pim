@@ -131,6 +131,19 @@ class TmsProxyController extends Controller
     }
 
     /**
+     * DELETE /tms/units — purge all units (source terms + translations).
+     */
+    public function purgeUnits(): JsonResponse
+    {
+        $this->abortIfDisabled();
+        abort_unless(auth()->user()?->hasPermissionTo('translations.edit'), 403);
+
+        $data = $this->client->purgeAllUnits();
+
+        return response()->json($data);
+    }
+
+    /**
      * POST /tms/sync — sync translations from TMS back into PIM database (synchronous).
      */
     public function syncToDatabase(): JsonResponse

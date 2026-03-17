@@ -166,6 +166,23 @@ async function deleteAllTranslations() {
   }
 }
 
+const purgeLoading = ref(false)
+
+async function purgeAllUnits() {
+  if (!confirm('Alle Begriffe und Übersetzungen unwiderruflich löschen? Dieser Vorgang kann nicht rückgängig gemacht werden.')) return
+  purgeLoading.value = true
+  addLog('info', 'Lösche alle Begriffe und Übersetzungen...')
+  try {
+    const { data } = await store.purgeAllUnits()
+    addLog('success', data.message || 'Alle Begriffe gelöscht.')
+    await store.fetchStats()
+  } catch (e) {
+    addLog('error', 'Löschen fehlgeschlagen: ' + (e.response?.data?.message || e.message))
+  } finally {
+    purgeLoading.value = false
+  }
+}
+
 function dismissError() {
   store.error = null
 }
@@ -444,7 +461,7 @@ const paginationPages = computed(() => {
             </button>
           </div>
 
-          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3 border-b border-[var(--color-border)]">
             <div>
               <div class="text-sm font-medium text-red-600">Alle Übersetzungen löschen</div>
               <div class="text-xs text-[var(--color-text-tertiary)] mt-0.5">Alle gespeicherten Übersetzungen unwiderruflich entfernen (Quellbegriffe bleiben erhalten)</div>
@@ -456,7 +473,23 @@ const paginationPages = computed(() => {
             >
               <Trash2 v-if="!deleteLoading" class="w-4 h-4" />
               <Loader2 v-else class="w-4 h-4 animate-spin" />
-              Alle löschen
+              Übersetzungen löschen
+            </button>
+          </div>
+
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-3">
+            <div>
+              <div class="text-sm font-medium text-red-600">Alle Begriffe löschen</div>
+              <div class="text-xs text-[var(--color-text-tertiary)] mt-0.5">Alle Quellbegriffe und deren Übersetzungen unwiderruflich entfernen. Per Ingest können sie neu erzeugt werden.</div>
+            </div>
+            <button
+              class="flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium border border-red-300 text-red-600 rounded-md hover:bg-red-50 disabled:opacity-50 shrink-0 w-full sm:w-auto"
+              :disabled="purgeLoading"
+              @click="purgeAllUnits"
+            >
+              <Trash2 v-if="!purgeLoading" class="w-4 h-4" />
+              <Loader2 v-else class="w-4 h-4 animate-spin" />
+              Begriffe löschen
             </button>
           </div>
         </div>

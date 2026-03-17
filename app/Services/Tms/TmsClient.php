@@ -142,6 +142,14 @@ class TmsClient
         return $this->delete('/translations', $targetLang ? ['target_lang' => $targetLang] : []);
     }
 
+    /**
+     * Purge all units (source terms + translations).
+     */
+    public function purgeAllUnits(): array
+    {
+        return $this->delete('/units');
+    }
+
     // ─── HTTP Helpers ────────────────────────────────────────
 
     private function get(string $path, array $params = []): array

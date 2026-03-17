@@ -37,4 +37,8 @@ export default {
     const params = targetLang ? { target_lang: targetLang } : {}
     return client.delete('/tms/translations', { params })
   },
+
+  purgeAllUnits() {
+    return client.delete('/tms/units')
+  },
 }
