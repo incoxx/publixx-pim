@@ -788,6 +788,55 @@ async function triggerReindex() {
   }
 }
 
+// ── PDF Batch Processing ──
+const pdfBatchProcessing = ref(false)
+const pdfBatchResult = ref(null)
+const pdfBatchError = ref(null)
+const pdfBatchMode = ref('missing')
+
+async function triggerPdfBatchProcess() {
+  pdfBatchProcessing.value = true
+  pdfBatchResult.value = null
+  pdfBatchError.value = null
+  try {
+    const { data } = await adminApi.batchProcessPdfs(pdfBatchMode.value)
+    pdfBatchResult.value = data
+  } catch (e) {
+    pdfBatchError.value = e.response?.data?.message || e.message
+  } finally {
+    pdfBatchProcessing.value = false
+  }
+}
+
+// ── Combined: PDF Thumbnails + Search Reindex ──
+const combinedProcessing = ref(false)
+const combinedStep = ref('')  // 'pdf' | 'reindex' | ''
+const combinedResult = ref(null)
+const combinedError = ref(null)
+
+async function triggerCombinedProcess() {
+  combinedProcessing.value = true
+  combinedResult.value = null
+  combinedError.value = null
+
+  try {
+    // Step 1: PDF thumbnails
+    combinedStep.value = 'pdf'
+    await adminApi.batchProcessPdfs('missing')
+
+    // Step 2: Reindex
+    combinedStep.value = 'reindex'
+    await adminApi.reindexSearch()
+
+    combinedResult.value = { message: 'PDF-Vorschaubilder erzeugt und Suchindex aktualisiert.' }
+  } catch (e) {
+    combinedError.value = `Fehler bei ${combinedStep.value === 'pdf' ? 'PDF-Verarbeitung' : 'Suchindex'}: ${e.response?.data?.message || e.message}`
+  } finally {
+    combinedProcessing.value = false
+    combinedStep.value = ''
+  }
+}
+
 async function loadStatus() {
   if (!isAdmin) return
   try {
@@ -2049,43 +2098,118 @@ onMounted(async () => {
       </div>
     </div>
 
-    <!-- Admin: Search Reindex -->
+    <!-- Admin: PDF Processing & Search Reindex (combined) -->
     <div v-if="isAdmin" class="pim-card p-6 space-y-4">
       <div class="flex items-center gap-3 mb-2">
         <RefreshCw class="w-5 h-5 text-[var(--color-accent)]" :stroke-width="1.75" />
-        <h3 class="text-sm font-semibold">Suchindex</h3>
+        <h3 class="text-sm font-semibold">PDF-Verarbeitung & Suchindex</h3>
       </div>
 
       <p class="text-xs text-[var(--color-text-secondary)]">
-        Baut den Suchindex für den Vorschaukatalog neu auf. Durchsucht alle Attribute, SKU, Produktnamen und PDF-Dokumente.
-        Empfohlen nach Massenänderungen oder dem initialen Setup.
+        Erzeugt fehlende PDF-Vorschaubilder (WebP) und aktualisiert den Suchindex für den Vorschaukatalog.
+        Empfohlen nach Massenänderungen, dem initialen Setup oder wenn PDF-Thumbnails fehlen.
       </p>
 
+      <!-- Combined button -->
       <div class="flex items-center gap-3">
         <button
-          @click="triggerReindex"
-          :disabled="reindexing"
+          @click="triggerCombinedProcess"
+          :disabled="combinedProcessing || reindexing || pdfBatchProcessing"
           class="pim-btn-primary flex items-center gap-2 text-sm"
         >
-          <Loader2 v-if="reindexing" class="w-4 h-4 animate-spin" />
+          <Loader2 v-if="combinedProcessing" class="w-4 h-4 animate-spin" />
           <RefreshCw v-else class="w-4 h-4" :stroke-width="1.75" />
-          Suchindex neu aufbauen
+          Fehlende Thumbnails erzeugen & Suchindex aktualisieren
         </button>
       </div>
 
-      <div v-if="reindexResult" class="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg p-3">
+      <!-- Progress indicator -->
+      <div v-if="combinedProcessing" class="flex items-center gap-3 text-xs text-[var(--color-text-secondary)]">
+        <Loader2 class="w-3.5 h-3.5 animate-spin" />
+        <span v-if="combinedStep === 'pdf'">Schritt 1/2 — PDF-Vorschaubilder werden erzeugt…</span>
+        <span v-else-if="combinedStep === 'reindex'">Schritt 2/2 — Suchindex wird aktualisiert…</span>
+      </div>
+
+      <div v-if="combinedResult" class="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg p-3">
         <div class="flex items-center gap-2 text-green-700 dark:text-green-400 text-sm font-medium">
           <CheckCircle class="w-4 h-4" />
-          {{ reindexResult.message }}
+          {{ combinedResult.message }}
         </div>
       </div>
 
-      <div v-if="reindexError" class="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg p-3">
+      <div v-if="combinedError" class="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg p-3">
         <div class="flex items-center gap-2 text-red-700 dark:text-red-400 text-sm font-medium">
           <XCircle class="w-4 h-4" />
-          {{ reindexError }}
+          {{ combinedError }}
         </div>
       </div>
+
+      <!-- Advanced: individual actions -->
+      <details class="mt-2">
+        <summary class="text-xs text-[var(--color-text-tertiary)] cursor-pointer hover:text-[var(--color-text-secondary)]">
+          Erweiterte Optionen
+        </summary>
+        <div class="mt-3 space-y-3 pl-2 border-l-2 border-[var(--color-border)]">
+          <!-- PDF only -->
+          <div class="flex items-center gap-3">
+            <select v-model="pdfBatchMode" class="pim-input text-xs py-1.5 px-2">
+              <option value="missing">Nur fehlende</option>
+              <option value="failed">Fehlende + fehlerhafte</option>
+              <option value="all">Alle neu verarbeiten</option>
+            </select>
+            <button
+              @click="triggerPdfBatchProcess"
+              :disabled="pdfBatchProcessing || combinedProcessing"
+              class="pim-btn-secondary flex items-center gap-2 text-xs"
+            >
+              <Loader2 v-if="pdfBatchProcessing" class="w-3.5 h-3.5 animate-spin" />
+              <BookOpen v-else class="w-3.5 h-3.5" :stroke-width="1.75" />
+              Nur Vorschaubilder
+            </button>
+          </div>
+
+          <div v-if="pdfBatchResult" class="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg p-3">
+            <div class="flex items-center gap-2 text-green-700 dark:text-green-400 text-sm font-medium">
+              <CheckCircle class="w-4 h-4" />
+              {{ pdfBatchResult.message }}
+            </div>
+          </div>
+
+          <div v-if="pdfBatchError" class="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg p-3">
+            <div class="flex items-center gap-2 text-red-700 dark:text-red-400 text-sm font-medium">
+              <XCircle class="w-4 h-4" />
+              {{ pdfBatchError }}
+            </div>
+          </div>
+
+          <!-- Reindex only -->
+          <div class="flex items-center gap-3">
+            <button
+              @click="triggerReindex"
+              :disabled="reindexing || combinedProcessing"
+              class="pim-btn-secondary flex items-center gap-2 text-xs"
+            >
+              <Loader2 v-if="reindexing" class="w-3.5 h-3.5 animate-spin" />
+              <RefreshCw v-else class="w-3.5 h-3.5" :stroke-width="1.75" />
+              Nur Suchindex
+            </button>
+          </div>
+
+          <div v-if="reindexResult" class="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg p-3">
+            <div class="flex items-center gap-2 text-green-700 dark:text-green-400 text-sm font-medium">
+              <CheckCircle class="w-4 h-4" />
+              {{ reindexResult.message }}
+            </div>
+          </div>
+
+          <div v-if="reindexError" class="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg p-3">
+            <div class="flex items-center gap-2 text-red-700 dark:text-red-400 text-sm font-medium">
+              <XCircle class="w-4 h-4" />
+              {{ reindexError }}
+            </div>
+          </div>
+        </div>
+      </details>
     </div>
 
     <!-- Admin: Deployment -->

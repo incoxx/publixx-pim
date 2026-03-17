@@ -237,7 +237,7 @@ function formatPrice(price) {
                   <h5 class="text-xs font-semibold text-base-content/60 mb-1">Dokumente</h5>
                   <div class="space-y-3">
                     <div v-for="(m, idx) in pdfMedia" :key="'pdf-' + idx" class="border border-base-300 rounded-lg overflow-hidden">
-                      <PdfPreview :url="m.url" :title="m.file_name || m.alt || 'PDF'" max-height="16rem" />
+                      <PdfPreview :url="m.url" :media-id="m.id || m.media_id" :title="m.file_name || m.alt || 'PDF'" max-height="16rem" />
                       <div class="px-3 py-2 bg-base-200/50">
                         <p class="text-xs font-medium text-base-content">{{ m.file_name || 'PDF' }}</p>
                         <p v-if="m.description" class="text-xs text-base-content/60 mt-0.5">{{ m.description }}</p>
@@ -419,7 +419,7 @@ function formatPrice(price) {
                   <h4 class="font-semibold text-sm text-base-content mb-2">Dokumente</h4>
                   <div class="space-y-3">
                     <div v-for="(m, idx) in pdfMedia" :key="'pdf-' + idx" class="rounded-lg border border-base-300 overflow-hidden">
-                      <PdfPreview :url="m.url" :title="m.file_name || m.alt || 'PDF'" max-height="24rem" />
+                      <PdfPreview :url="m.url" :media-id="m.id || m.media_id" :title="m.file_name || m.alt || 'PDF'" max-height="24rem" />
                       <div class="px-3 py-2 bg-base-200/50">
                         <p class="text-sm font-medium text-base-content">{{ m.file_name || 'PDF' }}</p>
                         <p v-if="m.description" class="text-xs text-base-content/60 mt-0.5">{{ m.description }}</p>
@@ -600,7 +600,7 @@ function formatPrice(price) {
                     <h5 class="text-xs font-semibold text-base-content/60 mb-1.5">Dokumente</h5>
                     <div class="space-y-3">
                       <div v-for="(m, idx) in pdfMedia" :key="'pdf-' + idx" class="border border-base-300 rounded-lg overflow-hidden">
-                        <PdfPreview :url="m.url" :title="m.file_name || m.alt || 'PDF'" max-height="16rem" />
+                        <PdfPreview :url="m.url" :media-id="m.id || m.media_id" :title="m.file_name || m.alt || 'PDF'" max-height="16rem" />
                         <div class="px-3 py-2 bg-base-200/50">
                           <p class="text-xs font-medium text-base-content">{{ m.file_name || 'PDF' }}</p>
                           <p v-if="m.description" class="text-xs text-base-content/60 mt-0.5">{{ m.description }}</p>

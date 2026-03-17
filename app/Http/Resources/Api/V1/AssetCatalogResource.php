@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Http\Resources\Api\V1;
 
+use App\Models\PdfDocument;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\Storage;
 
 class AssetCatalogResource extends JsonResource
 {
@@ -46,6 +48,27 @@ class AssetCatalogResource extends JsonResource
             }
         }
 
+        // PDF preview URL (first page WebP from pipeline)
+        $pdfPreviewUrl = null;
+        $isPdf = $this->mime_type === 'application/pdf'
+            || str_ends_with(strtolower($this->file_name ?? ''), '.pdf');
+
+        if ($isPdf) {
+            $pdfDoc = $this->relationLoaded('pdfDocument')
+                ? $this->pdfDocument
+                : PdfDocument::where('media_id', $this->id)->where('status', 'ready')->first();
+
+            if ($pdfDoc && $pdfDoc->status === 'ready') {
+                $firstPage = $pdfDoc->relationLoaded('pages')
+                    ? $pdfDoc->pages->where('page_number', 1)->first()
+                    : $pdfDoc->pages()->where('page_number', 1)->first();
+
+                if ($firstPage && $firstPage->image_path) {
+                    $pdfPreviewUrl = Storage::disk('public')->url($firstPage->image_path);
+                }
+            }
+        }
+
         // Folder breadcrumb
         $folderPath = null;
         if ($this->relationLoaded('assetFolder') && $this->assetFolder) {
@@ -70,6 +93,7 @@ class AssetCatalogResource extends JsonResource
             'folder_name' => $folderPath,
             'thumb_url' => url("api/v1/media/thumb/{$this->id}?w=300&h=300"),
             'preview_url' => url("api/v1/media/thumb/{$this->id}?w=800&h=800"),
+            'pdf_preview_url' => $pdfPreviewUrl,
             'original_url' => url('api/v1/media/file/' . rawurlencode($this->file_name)),
             'metadata' => $metadata,
             'match_sources' => $this->match_sources ?? null,

@@ -621,6 +621,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::post('admin/search-reindex', [SettingController::class, 'reindexSearch']);
     Route::get('admin/env-info', [SystemInfoController::class, 'envInfo']);
     Route::get('admin/system-status', [SystemInfoController::class, 'systemStatus']);
+    Route::post('admin/pdf/batch-process', [PdfController::class, 'batchProcess']);
 
     // =====================================================================
     // Report Designer (Enterprise: reports)

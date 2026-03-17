@@ -2603,7 +2603,7 @@ watch(() => route.params.id, async (newId, oldId) => {
       <div v-else-if="filteredMediaItems.length > 0 && mediaViewMode === 'grid'" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
         <div v-for="m in filteredMediaItems" :key="m.id" class="pim-card overflow-hidden group relative">
           <div class="aspect-square bg-[var(--color-bg)] flex items-center justify-center overflow-hidden">
-            <PdfPreview v-if="isMediaPdf(m)" :url="getMediaUrl(m)" :title="m.file_name || ''" max-height="100%" />
+            <PdfPreview v-if="isMediaPdf(m)" :url="getMediaUrl(m)" :media-id="m.media_id || m.media?.id || m.id" :title="m.file_name || ''" max-height="100%" />
             <img v-else :src="getMediaUrl(m)" class="w-full h-full object-cover" loading="lazy" alt="" />
           </div>
           <div class="p-2">
@@ -2638,7 +2638,7 @@ watch(() => route.params.id, async (newId, oldId) => {
             >
               <td class="px-3 py-1.5">
                 <div class="w-8 h-8 rounded bg-[var(--color-bg)] overflow-hidden border border-[var(--color-border)]">
-                  <PdfPreview v-if="isMediaPdf(m)" :url="getMediaUrl(m)" :title="''" max-height="2rem" />
+                  <PdfPreview v-if="isMediaPdf(m)" :url="getMediaUrl(m)" :media-id="m.media_id || m.media?.id || m.id" :title="''" max-height="2rem" />
                   <img v-else :src="getMediaUrl(m)" class="w-full h-full object-cover" loading="lazy" alt="" />
                 </div>
               </td>

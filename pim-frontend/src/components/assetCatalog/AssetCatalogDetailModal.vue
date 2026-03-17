@@ -195,8 +195,8 @@ const productPages = computed(() => {
               <!-- Left: Preview -->
               <div class="bg-base-200 flex items-center justify-center min-h-[300px] p-4">
                 <img
-                  v-if="store.currentAsset.media_type === 'image' && store.currentAsset.preview_url"
-                  :src="store.currentAsset.preview_url"
+                  v-if="(store.currentAsset.media_type === 'image' && store.currentAsset.preview_url) || store.currentAsset.pdf_preview_url"
+                  :src="store.currentAsset.pdf_preview_url || store.currentAsset.preview_url"
                   :alt="store.currentAsset.title"
                   class="max-w-full max-h-[500px] object-contain rounded-lg shadow-lg"
                 />
