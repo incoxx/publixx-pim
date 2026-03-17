@@ -6,7 +6,9 @@ import {
   Search, Filter, ChevronDown, ChevronUp, ChevronRight, X, Star,
   Regex, AudioLines, Languages, Download, GitCompareArrows, Pencil, Settings,
   Package, Sliders, GitBranch, Image, FolderTree, FileSpreadsheet, FileText, Code2, ListFilter,
+  Trash2, CheckCheck,
 } from 'lucide-vue-next'
+import { useAuthStore } from '@/stores/auth'
 import searchApi from '@/api/search'
 import searchProfilesApi from '@/api/searchProfiles'
 import watchlistApi from '@/api/watchlist'
@@ -28,6 +30,7 @@ import BulkAssignProjectDialog from '@/components/dialogs/BulkAssignProjectDialo
 const router = useRouter()
 const localeStore = useLocaleStore()
 const attrStore = useAttributeStore()
+const authStore = useAuthStore()
 const licenseStore = useLicenseStore()
 
 // --- Search Profiles ---
@@ -225,6 +228,11 @@ const watchlistIds = ref(new Set())
 
 // Selection & XLIFF export
 const selectedProductIds = ref([])
+const allPagesSelected = ref(false)
+const selectingAll = ref(false)
+const bulkDeleting = ref(false)
+const showConfirmBulkDelete = ref(false)
+const searchTableRef = ref(null)
 const showXliffPanel = ref(false)
 const showReportPicker = ref(false)
 const xliffSourceLang = ref('de')
@@ -659,6 +667,69 @@ async function toggleWatchlist(productId) {
 // --- Selection & XLIFF ---
 function handleSelect(ids) {
   selectedProductIds.value = ids
+  if (allPagesSelected.value && ids.length < resultMeta.value.total) {
+    allPagesSelected.value = false
+  }
+}
+
+function buildSearchParams() {
+  const params = {
+    search: searchInput.value.trim() || undefined,
+    search_mode: searchMode.value,
+  }
+  if (selectedCategories.value.length > 0) {
+    params.category_ids = selectedCategories.value
+    params.include_descendants = true
+    const h = hierarchies.value.find(h => h.id === selectedHierarchyId.value)
+    if (h?.hierarchy_type) params.hierarchy_type = h.hierarchy_type
+  }
+  if (selectedProductTypes.value.length > 0) params.product_type_ids = selectedProductTypes.value
+  if (selectedManufacturers.value.length > 0) params.manufacturer_ids = selectedManufacturers.value
+  if (statusFilter.value) params.status = statusFilter.value
+  return params
+}
+
+async function selectAllPages() {
+  selectingAll.value = true
+  try {
+    const { data } = await searchApi.allIds(buildSearchParams())
+    const allIds = data.data || data
+    selectedProductIds.value = allIds
+    allPagesSelected.value = true
+    if (searchTableRef.value) {
+      searchTableRef.value.setSelectedIds(allIds)
+    }
+  } catch (e) {
+    console.error('Failed to select all', e)
+  } finally {
+    selectingAll.value = false
+  }
+}
+
+function clearAllSelection() {
+  selectedProductIds.value = []
+  allPagesSelected.value = false
+  if (searchTableRef.value) {
+    searchTableRef.value.clearSelection()
+  }
+}
+
+async function bulkDeleteProducts() {
+  showConfirmBulkDelete.value = false
+  bulkDeleting.value = true
+  try {
+    await searchApi.bulkDelete(selectedProductIds.value)
+    selectedProductIds.value = []
+    allPagesSelected.value = false
+    if (searchTableRef.value) {
+      searchTableRef.value.clearSelection()
+    }
+    await doSearch(1)
+  } catch (e) {
+    console.error('Bulk delete failed', e)
+  } finally {
+    bulkDeleting.value = false
+  }
 }
 
 async function bulkAddToWatchlist() {
@@ -947,14 +1018,17 @@ const apiCallDisplay = computed(() => {
         </div>
 
         <!-- Manufacturer filter -->
-        <div v-if="manufacturerList.length > 0">
+        <div>
           <p class="text-[12px] font-medium text-[var(--color-text-secondary)] mb-2">
             Hersteller
             <span v-if="selectedManufacturers.length > 0" class="pim-badge bg-[var(--color-accent-light)] text-[var(--color-accent)] text-[10px] px-1.5 ml-1">
               {{ selectedManufacturers.length }}
             </span>
           </p>
-          <div class="max-h-36 overflow-y-auto border border-[var(--color-border)] rounded-lg p-2 space-y-0.5">
+          <div v-if="manufacturerList.length === 0" class="border border-[var(--color-border)] rounded-lg p-3 text-center">
+            <p class="text-xs text-[var(--color-text-tertiary)]">Keine Hersteller angelegt</p>
+          </div>
+          <div v-else class="max-h-36 overflow-y-auto border border-[var(--color-border)] rounded-lg p-2 space-y-0.5">
             <label
               v-for="m in manufacturerList"
               :key="m.id"
@@ -1082,47 +1156,96 @@ const apiCallDisplay = computed(() => {
     </div>
 
     <!-- Selection toolbar (products only) -->
-    <div v-if="searchCategory === 'products' && selectedProductIds.length > 0" class="flex flex-wrap items-center gap-2 sm:gap-3 px-3 py-2 bg-[color-mix(in_srgb,var(--color-accent)_8%,transparent)] border border-[var(--color-accent)]/20 rounded-lg">
-      <span class="text-xs text-[var(--color-text-secondary)]">{{ selectedProductIds.length }} ausgewählt</span>
-      <button class="pim-btn pim-btn-secondary text-xs" @click="bulkAddToWatchlist">
-        <Star class="w-3.5 h-3.5" :stroke-width="1.75" />
-        <span class="hidden sm:inline">Zur Merkliste</span>
-      </button>
-      <button class="pim-btn pim-btn-secondary text-xs" @click="showXliffPanel = !showXliffPanel">
-        <Languages class="w-3.5 h-3.5" :stroke-width="1.75" />
-        XLIFF
-      </button>
-      <button
-        v-if="canCompare"
-        class="pim-btn pim-btn-primary text-xs"
-        @click="openCompare"
-      >
-        <GitCompareArrows class="w-3.5 h-3.5" :stroke-width="1.75" />
-        <span class="hidden sm:inline">Vergleichen</span>
-      </button>
-      <button class="pim-btn pim-btn-secondary text-xs" @click="openBulkEditor">
-        <Pencil class="w-3.5 h-3.5" :stroke-width="1.75" />
-        <span class="hidden sm:inline">Bulk bearbeiten</span>
-      </button>
-      <button class="pim-btn pim-btn-secondary text-xs" @click="openBulkUpdate">
-        <Settings class="w-3.5 h-3.5" :stroke-width="1.75" />
-        <span class="hidden sm:inline">Massendatenpflege</span>
-      </button>
-      <button class="pim-btn pim-btn-secondary text-xs" @click="showReportPicker = true">
-        <FileText class="w-3.5 h-3.5" :stroke-width="1.75" />
-        <span class="hidden sm:inline">Report</span>
-      </button>
-      <button
-        v-if="licenseStore.isModuleActive('workflow')"
-        class="pim-btn pim-btn-secondary text-xs"
-        @click="showAssignProject = true"
-      >
-        <FolderTree class="w-3.5 h-3.5" :stroke-width="1.75" />
-        <span class="hidden sm:inline">Projekt zuordnen</span>
-      </button>
-      <span v-if="selectedProductIds.length === 1" class="text-[11px] text-[var(--color-text-tertiary)] hidden sm:inline">
-        Noch 1 Produkt auswählen zum Vergleichen
-      </span>
+    <div v-if="searchCategory === 'products' && selectedProductIds.length > 0" class="space-y-2">
+      <div class="flex flex-wrap items-center gap-2 sm:gap-3 px-3 py-2 bg-[color-mix(in_srgb,var(--color-accent)_8%,transparent)] border border-[var(--color-accent)]/20 rounded-lg">
+        <span class="text-xs text-[var(--color-text-secondary)]">
+          {{ selectedProductIds.length }} {{ allPagesSelected ? 'Produkte' : '' }} ausgewählt
+        </span>
+
+        <!-- Select all pages hint -->
+        <template v-if="!allPagesSelected && selectedProductIds.length === filteredResults.length && resultMeta.total > filteredResults.length">
+          <button
+            class="pim-btn pim-btn-secondary text-xs border-dashed"
+            :disabled="selectingAll"
+            @click="selectAllPages"
+          >
+            <CheckCheck class="w-3.5 h-3.5" :stroke-width="1.75" />
+            {{ selectingAll ? 'Lade...' : `Alle ${resultMeta.total.toLocaleString()} Produkte auswählen` }}
+          </button>
+        </template>
+
+        <button class="pim-btn pim-btn-secondary text-xs" @click="bulkAddToWatchlist">
+          <Star class="w-3.5 h-3.5" :stroke-width="1.75" />
+          <span class="hidden sm:inline">Zur Merkliste</span>
+        </button>
+        <button class="pim-btn pim-btn-secondary text-xs" @click="showXliffPanel = !showXliffPanel">
+          <Languages class="w-3.5 h-3.5" :stroke-width="1.75" />
+          XLIFF
+        </button>
+        <button
+          v-if="canCompare"
+          class="pim-btn pim-btn-primary text-xs"
+          @click="openCompare"
+        >
+          <GitCompareArrows class="w-3.5 h-3.5" :stroke-width="1.75" />
+          <span class="hidden sm:inline">Vergleichen</span>
+        </button>
+        <button class="pim-btn pim-btn-secondary text-xs" @click="openBulkEditor">
+          <Pencil class="w-3.5 h-3.5" :stroke-width="1.75" />
+          <span class="hidden sm:inline">Bulk bearbeiten</span>
+        </button>
+        <button class="pim-btn pim-btn-secondary text-xs" @click="openBulkUpdate">
+          <Settings class="w-3.5 h-3.5" :stroke-width="1.75" />
+          <span class="hidden sm:inline">Massendatenpflege</span>
+        </button>
+        <button class="pim-btn pim-btn-secondary text-xs" @click="showReportPicker = true">
+          <FileText class="w-3.5 h-3.5" :stroke-width="1.75" />
+          <span class="hidden sm:inline">Report</span>
+        </button>
+        <button
+          v-if="licenseStore.isModuleActive('workflow')"
+          class="pim-btn pim-btn-secondary text-xs"
+          @click="showAssignProject = true"
+        >
+          <FolderTree class="w-3.5 h-3.5" :stroke-width="1.75" />
+          <span class="hidden sm:inline">Projekt zuordnen</span>
+        </button>
+
+        <!-- Admin: Bulk Delete -->
+        <button
+          v-if="authStore.userRole === 'Admin'"
+          class="pim-btn text-xs bg-[var(--color-error-light)] text-[var(--color-error)] hover:bg-[var(--color-error)] hover:text-white"
+          :disabled="bulkDeleting"
+          @click="showConfirmBulkDelete = true"
+        >
+          <Trash2 class="w-3.5 h-3.5" :stroke-width="1.75" />
+          <span class="hidden sm:inline">{{ bulkDeleting ? 'Lösche...' : 'Löschen' }}</span>
+        </button>
+
+        <button class="pim-btn pim-btn-ghost text-xs ml-auto" @click="clearAllSelection">
+          <X class="w-3.5 h-3.5" :stroke-width="2" />
+          Auswahl aufheben
+        </button>
+      </div>
+
+      <!-- Bulk delete confirm -->
+      <div v-if="showConfirmBulkDelete" class="flex items-center gap-3 px-3 py-2 bg-[var(--color-error-light)] border border-[var(--color-error)]/20 rounded-lg">
+        <span class="text-xs text-[var(--color-error)] font-medium">
+          {{ selectedProductIds.length.toLocaleString() }} Produkte unwiderruflich löschen?
+        </span>
+        <button
+          class="pim-btn text-xs bg-[var(--color-error)] text-white hover:opacity-90"
+          @click="bulkDeleteProducts"
+        >
+          Ja, löschen
+        </button>
+        <button
+          class="pim-btn pim-btn-ghost text-xs"
+          @click="showConfirmBulkDelete = false"
+        >
+          Abbrechen
+        </button>
+      </div>
     </div>
 
     <!-- XLIFF Export Panel (products only) -->
@@ -1162,6 +1285,7 @@ const apiCallDisplay = computed(() => {
     </div>
 
     <PimTable
+      ref="searchTableRef"
       v-if="results.length > 0"
       :columns="columns"
       :rows="searchCategory === 'products' ? filteredResults : results"

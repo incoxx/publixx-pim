@@ -9,9 +9,11 @@ use App\Models\Attribute;
 use App\Models\HierarchyNode;
 use App\Models\Product;
 use App\Models\ProductAttributeValue;
+use App\Models\ProductPrice;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
  * SQL-based product search — replaces PQL engine.
@@ -163,6 +165,137 @@ class ProductSearchController extends Controller
                 'total' => $paginated->total(),
                 'per_page' => $paginated->perPage(),
             ],
+        ]);
+    }
+
+    /**
+     * POST /api/v1/products/search/ids
+     *
+     * Return all product IDs matching the current search/filter criteria.
+     */
+    public function allIds(Request $request): JsonResponse
+    {
+        $this->authorize('viewAny', Product::class);
+
+        $validated = $request->validate([
+            'search' => 'nullable|string|max:500',
+            'search_mode' => 'nullable|string|in:like,soundex,regex',
+            'category_ids' => 'nullable|array',
+            'category_ids.*' => 'string|uuid',
+            'include_descendants' => 'nullable|boolean',
+            'hierarchy_type' => 'nullable|string|in:master,output',
+            'status' => 'nullable|string|in:active,draft,inactive,discontinued',
+            'product_type_ids' => 'nullable|array',
+            'product_type_ids.*' => 'string|uuid',
+            'manufacturer_ids' => 'nullable|array',
+            'manufacturer_ids.*' => 'string|uuid',
+        ]);
+
+        $query = Product::query()->where('product_type_ref', 'product');
+
+        if ($status = $validated['status'] ?? null) {
+            $query->where('status', $status);
+        }
+
+        $productTypeIds = $validated['product_type_ids'] ?? [];
+        if (!empty($productTypeIds)) {
+            $query->whereIn('product_type_id', $productTypeIds);
+        }
+
+        $manufacturerIds = $validated['manufacturer_ids'] ?? [];
+        if (!empty($manufacturerIds)) {
+            $query->whereIn('manufacturer_id', $manufacturerIds);
+        }
+
+        $searchTerm = $validated['search'] ?? null;
+        $searchMode = $validated['search_mode'] ?? 'like';
+        if ($searchTerm) {
+            $this->applyTextSearch($query, $searchTerm, $searchMode);
+        }
+
+        $categoryIds = $validated['category_ids'] ?? [];
+        if (!empty($categoryIds)) {
+            $includeDescendants = $validated['include_descendants'] ?? true;
+            $hierarchyType = $validated['hierarchy_type'] ?? 'master';
+            $this->applyCategoryFilter($query, $categoryIds, $includeDescendants, $hierarchyType);
+        }
+
+        return response()->json([
+            'data' => $query->pluck('id'),
+        ]);
+    }
+
+    /**
+     * POST /api/v1/products/bulk-delete
+     *
+     * Delete multiple products at once (Admin only).
+     */
+    public function bulkDelete(Request $request): JsonResponse
+    {
+        $this->authorize('delete', Product::class);
+
+        if (!$request->user()->hasRole('Admin')) {
+            return response()->json([
+                'message' => 'Nur Administratoren dürfen Produkte in Masse löschen.',
+            ], 403);
+        }
+
+        $validated = $request->validate([
+            'product_ids' => 'required|array|min:1',
+            'product_ids.*' => 'string|uuid',
+        ]);
+
+        $productIds = collect($validated['product_ids']);
+        $deletedCount = 0;
+
+        DB::transaction(function () use ($productIds, &$deletedCount) {
+            // Delete related data
+            ProductAttributeValue::whereIn('product_id', $productIds)->delete();
+            ProductPrice::whereIn('product_id', $productIds)->delete();
+
+            DB::table('product_relations')
+                ->where(function ($q) use ($productIds) {
+                    $q->whereIn('source_product_id', $productIds)
+                        ->orWhereIn('target_product_id', $productIds);
+                })
+                ->delete();
+
+            DB::table('product_media_assignments')
+                ->whereIn('product_id', $productIds)
+                ->delete();
+
+            DB::table('output_hierarchy_product_assignments')
+                ->whereIn('product_id', $productIds)
+                ->delete();
+
+            DB::table('products_search_index')
+                ->whereIn('product_id', $productIds)
+                ->delete();
+
+            DB::table('watchlist_items')
+                ->whereIn('product_id', $productIds)
+                ->delete();
+
+            DB::table('product_versions')
+                ->whereIn('product_id', $productIds)
+                ->delete();
+
+            DB::table('variant_inheritance_rules')
+                ->whereIn('product_id', $productIds)
+                ->delete();
+
+            $deletedCount = Product::whereIn('id', $productIds)->delete();
+        });
+
+        Log::info('Bulk delete completed', [
+            'user' => $request->user()->email,
+            'requested' => $productIds->count(),
+            'deleted' => $deletedCount,
+        ]);
+
+        return response()->json([
+            'message' => "{$deletedCount} Produkte gelöscht.",
+            'deleted_count' => $deletedCount,
         ]);
     }
 

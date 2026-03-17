@@ -369,7 +369,9 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
 
     // Product Search (SQL-based, replaces PQL)
     Route::post('products/search', [ProductSearchController::class, 'search']);
+    Route::post('products/search/ids', [ProductSearchController::class, 'allIds']);
     Route::get('products/search/attributes', [ProductSearchController::class, 'searchableAttributes']);
+    Route::post('products/bulk-delete', [ProductSearchController::class, 'bulkDelete']);
 
     // Product Excel Export (configurable columns + filters)
     Route::post('products/export/excel', [ProductExportController::class, 'exportExcel']);

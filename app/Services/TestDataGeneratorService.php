@@ -9,6 +9,7 @@ use App\Events\ProductCreated;
 use App\Models\Attribute;
 use App\Models\Hierarchy;
 use App\Models\HierarchyNode;
+use App\Models\Manufacturer;
 use App\Models\PriceType;
 use App\Models\Product;
 use App\Models\ProductAttributeValue;
@@ -77,6 +78,9 @@ class TestDataGeneratorService
         }
         $this->assignAttributesToHierarchyNodes($nodes, $hierarchyAttributes);
 
+        // Create test manufacturers
+        $manufacturers = $this->createTestManufacturers();
+
         // Determine next free SKU number (avoid duplicates on re-run)
         $nextSkuNumber = $this->getNextSkuNumber();
 
@@ -91,6 +95,7 @@ class TestDataGeneratorService
             $nodes,
             $attributesPerProduct,
             $userId,
+            $manufacturers,
         );
 
         $duration = round(microtime(true) - $startTime, 2);
@@ -339,6 +344,7 @@ class TestDataGeneratorService
         array $nodes,
         ?int $attributesPerProduct,
         ?string $userId,
+        ?array $manufacturers = null,
     ): array {
         $productsCreated = 0;
         $attributeValuesCreated = 0;
@@ -359,6 +365,7 @@ class TestDataGeneratorService
             $skuNumber = $startSkuNumber + $i;
             $productType = $productTypes->random();
             $node = !empty($nodes) ? $nodes[array_rand($nodes)] : null;
+            $manufacturer = !empty($manufacturers) ? $manufacturers[array_rand($manufacturers)] : null;
 
             // Create product via Eloquent (triggers ProductObserver)
             $product = Product::create([
@@ -369,6 +376,7 @@ class TestDataGeneratorService
                 'product_type_id' => $productType->id,
                 'product_type_ref' => 'product',
                 'master_hierarchy_node_id' => $node?->id,
+                'manufacturer_id' => $manufacturer?->id,
                 'created_by' => $userId,
             ]);
             $productsCreated++;
@@ -719,6 +727,37 @@ class TestDataGeneratorService
         }
 
         return $ean12 . ((10 - ($sum % 10)) % 10);
+    }
+
+    // ── Test Manufacturers ──────────────────────────────────────────────
+
+    /**
+     * Create or reuse test manufacturers.
+     *
+     * @return Manufacturer[]
+     */
+    private function createTestManufacturers(): array
+    {
+        $names = [
+            ['name' => 'TechCorp GmbH', 'city' => 'München', 'country' => 'DE'],
+            ['name' => 'IndustrieWerk AG', 'city' => 'Stuttgart', 'country' => 'DE'],
+            ['name' => 'PräzisionsTech KG', 'city' => 'Nürnberg', 'country' => 'DE'],
+            ['name' => 'NordParts OHG', 'city' => 'Hamburg', 'country' => 'DE'],
+            ['name' => 'AlpenMechanik GmbH', 'city' => 'Innsbruck', 'country' => 'AT'],
+        ];
+
+        $manufacturers = [];
+        foreach ($names as $data) {
+            $manufacturers[] = Manufacturer::firstOrCreate(
+                ['name' => $data['name']],
+                [
+                    'city' => $data['city'],
+                    'country' => $data['country'],
+                ],
+            );
+        }
+
+        return $manufacturers;
     }
 
     // ── Static Data ─────────────────────────────────────────────────────

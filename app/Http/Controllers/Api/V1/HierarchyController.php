@@ -11,9 +11,11 @@ use App\Http\Resources\Api\V1\HierarchyNodeResource;
 use App\Http\Traits\ChecksDeletionConstraints;
 use App\Models\Hierarchy;
 use App\Models\HierarchyNode;
+use App\Models\Product;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\DB;
 
 class HierarchyController extends Controller
 {
@@ -85,7 +87,49 @@ class HierarchyController extends Controller
             ], 422);
         }
 
-        return $this->destroyWithConstraintCheck($request, $hierarchy);
+        if (!$request->boolean('force')) {
+            return $this->destroyWithConstraintCheck($request, $hierarchy);
+        }
+
+        DB::transaction(function () use ($hierarchy) {
+            $this->cascadeDeleteHierarchy($hierarchy);
+        });
+
+        return response()->json(null, 204);
+    }
+
+    private function cascadeDeleteHierarchy(Hierarchy $hierarchy): void
+    {
+        $nodeIds = HierarchyNode::where('hierarchy_id', $hierarchy->id)->pluck('id');
+
+        if ($nodeIds->isNotEmpty()) {
+            // Nullify products' master_hierarchy_node_id
+            Product::whereIn('master_hierarchy_node_id', $nodeIds)
+                ->update(['master_hierarchy_node_id' => null]);
+
+            // Delete attribute assignments and values on nodes
+            DB::table('hierarchy_node_attribute_assignments')
+                ->whereIn('hierarchy_node_id', $nodeIds)
+                ->delete();
+            DB::table('hierarchy_node_attribute_values')
+                ->whereIn('hierarchy_node_id', $nodeIds)
+                ->delete();
+
+            // Delete output product assignments
+            DB::table('output_hierarchy_product_assignments')
+                ->whereIn('hierarchy_node_id', $nodeIds)
+                ->delete();
+
+            // Delete all nodes
+            HierarchyNode::where('hierarchy_id', $hierarchy->id)->delete();
+        }
+
+        // Delete hierarchy-level attribute assignments
+        DB::table('hierarchy_attribute_assignments')
+            ->where('hierarchy_id', $hierarchy->id)
+            ->delete();
+
+        $hierarchy->delete();
     }
 
     /**
