@@ -289,9 +289,15 @@ class BmecatFormatImporterTest extends TestCase
         $nodes = HierarchyNode::where('hierarchy_id', $hierarchy->id)->get();
         $this->assertGreaterThanOrEqual(1, $nodes->count());
 
-        // "Elektronik" als Knoten vorhanden
+        // Root-Knoten "Alle Produkte" wird als level_1 übernommen
+        $rootNode = $nodes->where('name_de', 'Alle Produkte')->first();
+        $this->assertNotNull($rootNode, 'Root-Knoten "Alle Produkte" muss im Baum enthalten sein');
+        $this->assertNull($rootNode->parent_node_id);
+
+        // "Elektronik" als Kind von "Alle Produkte" vorhanden
         $elektronikNode = $nodes->where('name_de', 'Elektronik')->first();
         $this->assertNotNull($elektronikNode);
+        $this->assertEquals($rootNode->id, $elektronikNode->parent_node_id);
     }
 
     // =========================================================================
