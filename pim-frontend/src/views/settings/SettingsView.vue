@@ -621,6 +621,68 @@ async function triggerLoadDemo() {
   }
 }
 
+// ── Test Data Generator State ──
+const testDataForm = ref({
+  count: 1000,
+  with_prices: true,
+  category_count: 20,
+  category_depth: 3,
+})
+const generatingTestData = ref(false)
+const testDataResult = ref(null)
+const testDataError = ref(null)
+const showConfirmGenerate = ref(false)
+const cleaningTestData = ref(false)
+const cleanupResult = ref(null)
+const cleanupError = ref(null)
+const showConfirmCleanup = ref(false)
+const testDataStats = ref(null)
+const testDataStatsLoading = ref(false)
+
+async function loadTestDataStats() {
+  testDataStatsLoading.value = true
+  try {
+    const { data } = await adminApi.getTestDataStats()
+    testDataStats.value = data.data || data
+  } catch (e) {
+    testDataStats.value = null
+  } finally {
+    testDataStatsLoading.value = false
+  }
+}
+
+async function triggerGenerateTestData() {
+  showConfirmGenerate.value = false
+  generatingTestData.value = true
+  testDataResult.value = null
+  testDataError.value = null
+  try {
+    const { data } = await adminApi.generateTestData(testDataForm.value)
+    testDataResult.value = data.data || data
+    loadTestDataStats()
+  } catch (e) {
+    testDataError.value = e.response?.data?.detail || e.response?.data?.message || e.message || 'Testdaten-Generierung fehlgeschlagen'
+  } finally {
+    generatingTestData.value = false
+  }
+}
+
+async function triggerCleanupTestData() {
+  showConfirmCleanup.value = false
+  cleaningTestData.value = true
+  cleanupResult.value = null
+  cleanupError.value = null
+  try {
+    const { data } = await adminApi.cleanupTestData()
+    cleanupResult.value = data.data || data
+    loadTestDataStats()
+  } catch (e) {
+    cleanupError.value = e.response?.data?.detail || e.response?.data?.message || e.message || 'Testdaten-Löschung fehlgeschlagen'
+  } finally {
+    cleaningTestData.value = false
+  }
+}
+
 // ── Reset Categories State ──
 const resetCategories = ref([])
 const selectedResetCategories = ref([])
@@ -752,6 +814,7 @@ onMounted(async () => {
     loadUsageTypes()
     loadPdfTemplates()
     loadRelationTypes()
+    loadTestDataStats()
   }
 })
 </script>
@@ -1684,6 +1747,136 @@ onMounted(async () => {
           <span class="text-xs text-[var(--color-text-secondary)]">Alle Daten werden geloescht und durch Demo-Daten ersetzt!</span>
           <button @click="triggerLoadDemo" class="px-4 py-1.5 text-xs font-medium rounded-md text-white bg-red-600 hover:bg-red-700 transition-colors">Ja, laden</button>
           <button @click="showConfirmDemo = false" class="px-4 py-1.5 text-xs font-medium rounded-md text-[var(--color-text-secondary)] bg-[var(--color-bg-secondary)] hover:bg-[var(--color-bg-tertiary)] transition-colors">Abbrechen</button>
+        </template>
+      </div>
+    </div>
+
+    <!-- Admin: Testdaten-Generator -->
+    <div v-if="isAdmin" class="pim-card border border-purple-300 dark:border-purple-800 p-6 space-y-4">
+      <div class="flex items-center gap-3 mb-2">
+        <Server class="w-5 h-5 text-purple-500" :stroke-width="1.75" />
+        <h3 class="text-sm font-semibold text-purple-600 dark:text-purple-400">Testdaten-Generator</h3>
+      </div>
+
+      <p class="text-xs text-[var(--color-text-tertiary)]">
+        Generiert realistische Testprodukte basierend auf dem vorhandenen Datenmodell (Produkttypen, Attribute, Hierarchien).
+        Testprodukte erhalten das SKU-Präfix <code class="text-[10px] bg-[var(--color-bg-secondary)] px-1 py-0.5 rounded">TEST-</code>
+        und können separat wieder gelöscht werden.
+      </p>
+
+      <!-- Stats -->
+      <div v-if="testDataStats" class="flex items-center gap-4 text-xs text-[var(--color-text-secondary)] bg-[var(--color-bg-secondary)] rounded-lg px-4 py-2.5">
+        <span><strong class="text-[var(--color-text-primary)]">{{ testDataStats.test_products ?? 0 }}</strong> Testprodukte</span>
+        <span><strong class="text-[var(--color-text-primary)]">{{ testDataStats.test_attribute_values ?? 0 }}</strong> Attributwerte</span>
+        <span><strong class="text-[var(--color-text-primary)]">{{ testDataStats.test_prices ?? 0 }}</strong> Preise</span>
+        <span><strong class="text-[var(--color-text-primary)]">{{ testDataStats.total_products ?? 0 }}</strong> Produkte gesamt</span>
+      </div>
+
+      <!-- Settings -->
+      <div v-if="!generatingTestData && !cleaningTestData" class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div>
+          <label class="block text-[10px] font-medium text-[var(--color-text-secondary)] mb-1">Anzahl Produkte</label>
+          <input v-model.number="testDataForm.count" type="number" min="1" max="100000" step="100"
+            class="pim-input text-sm w-full" />
+        </div>
+        <div>
+          <label class="block text-[10px] font-medium text-[var(--color-text-secondary)] mb-1">Kategorien</label>
+          <input v-model.number="testDataForm.category_count" type="number" min="1" max="200"
+            class="pim-input text-sm w-full" />
+        </div>
+        <div>
+          <label class="block text-[10px] font-medium text-[var(--color-text-secondary)] mb-1">Kategorie-Tiefe</label>
+          <input v-model.number="testDataForm.category_depth" type="number" min="1" max="10"
+            class="pim-input text-sm w-full" />
+        </div>
+        <div class="flex items-end pb-1">
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input v-model="testDataForm.with_prices" type="checkbox" class="accent-purple-600 w-3.5 h-3.5" />
+            <span class="text-xs text-[var(--color-text-secondary)]">Mit Preisen</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Result -->
+      <div v-if="testDataResult" class="rounded-lg p-4 border bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800">
+        <div class="flex items-center gap-2 text-sm font-medium text-green-700 dark:text-green-400">
+          <CheckCircle class="w-4 h-4" />
+          {{ testDataResult.message }}
+        </div>
+        <div class="flex gap-4 mt-2 text-xs text-green-600 dark:text-green-400">
+          <span>{{ testDataResult.products_created }} Produkte</span>
+          <span>{{ testDataResult.attribute_values_created }} Attributwerte</span>
+          <span>{{ testDataResult.prices_created }} Preise</span>
+          <span>{{ testDataResult.categories_created }} Kategorien</span>
+        </div>
+      </div>
+
+      <!-- Cleanup Result -->
+      <div v-if="cleanupResult" class="rounded-lg p-4 border bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800">
+        <div class="flex items-center gap-2 text-sm font-medium text-green-700 dark:text-green-400">
+          <CheckCircle class="w-4 h-4" />
+          {{ cleanupResult.message }}
+        </div>
+      </div>
+
+      <!-- Errors -->
+      <div v-if="testDataError" class="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg p-4">
+        <div class="flex items-center gap-2 text-red-700 dark:text-red-400 text-sm font-medium">
+          <XCircle class="w-4 h-4" />
+          Generierung fehlgeschlagen
+        </div>
+        <p class="text-xs text-red-600 dark:text-red-400 mt-1">{{ testDataError }}</p>
+      </div>
+      <div v-if="cleanupError" class="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg p-4">
+        <div class="flex items-center gap-2 text-red-700 dark:text-red-400 text-sm font-medium">
+          <XCircle class="w-4 h-4" />
+          Löschung fehlgeschlagen
+        </div>
+        <p class="text-xs text-red-600 dark:text-red-400 mt-1">{{ cleanupError }}</p>
+      </div>
+
+      <!-- Loading -->
+      <div v-if="generatingTestData" class="flex items-center gap-3 text-sm text-[var(--color-text-secondary)]">
+        <Loader2 class="w-5 h-5 animate-spin text-purple-500" />
+        <span>Testdaten werden generiert... {{ testDataForm.count }} Produkte werden angelegt.</span>
+      </div>
+      <div v-if="cleaningTestData" class="flex items-center gap-3 text-sm text-[var(--color-text-secondary)]">
+        <Loader2 class="w-5 h-5 animate-spin text-purple-500" />
+        <span>Testdaten werden gelöscht...</span>
+      </div>
+
+      <!-- Buttons -->
+      <div class="flex items-center gap-3 flex-wrap" v-if="!generatingTestData && !cleaningTestData">
+        <!-- Generate Button -->
+        <button
+          v-if="!showConfirmGenerate"
+          @click="showConfirmGenerate = true"
+          class="px-4 py-1.5 text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 transition-colors flex items-center gap-2"
+        >
+          <Database class="w-4 h-4" />
+          {{ testDataForm.count.toLocaleString() }} Testprodukte generieren
+        </button>
+        <template v-if="showConfirmGenerate">
+          <span class="text-xs text-[var(--color-text-secondary)]">{{ testDataForm.count.toLocaleString() }} Produkte mit Attributwerten generieren?</span>
+          <button @click="triggerGenerateTestData" class="px-4 py-1.5 text-xs font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 transition-colors">Ja, generieren</button>
+          <button @click="showConfirmGenerate = false" class="px-4 py-1.5 text-xs font-medium rounded-md text-[var(--color-text-secondary)] bg-[var(--color-bg-secondary)] hover:bg-[var(--color-bg-tertiary)] transition-colors">Abbrechen</button>
+        </template>
+
+        <!-- Cleanup Button -->
+        <template v-if="testDataStats && testDataStats.test_products > 0 && !showConfirmGenerate">
+          <button
+            v-if="!showConfirmCleanup"
+            @click="showConfirmCleanup = true"
+            class="px-4 py-1.5 text-sm font-medium rounded-md text-red-600 border border-red-300 hover:bg-red-50 dark:text-red-400 dark:border-red-700 dark:hover:bg-red-900/20 transition-colors flex items-center gap-2"
+          >
+            <Trash2 class="w-4 h-4" />
+            Testdaten löschen
+          </button>
+          <template v-if="showConfirmCleanup">
+            <span class="text-xs text-[var(--color-text-secondary)]">Alle {{ testDataStats.test_products }} Testprodukte löschen?</span>
+            <button @click="triggerCleanupTestData" class="px-4 py-1.5 text-xs font-medium rounded-md text-white bg-red-600 hover:bg-red-700 transition-colors">Ja, löschen</button>
+            <button @click="showConfirmCleanup = false" class="px-4 py-1.5 text-xs font-medium rounded-md text-[var(--color-text-secondary)] bg-[var(--color-bg-secondary)] hover:bg-[var(--color-bg-tertiary)] transition-colors">Abbrechen</button>
+          </template>
         </template>
       </div>
     </div>
