@@ -372,10 +372,10 @@ info "PHP 8.4 installiert: $(php -v | head -1)"
 # PHP Konfiguration optimieren
 PHP_INI="/etc/php/8.4/apache2/php.ini"
 if [ -f "$PHP_INI" ]; then
-    sed -i 's/^memory_limit = .*/memory_limit = 256M/' "$PHP_INI"
-    sed -i 's/^upload_max_filesize = .*/upload_max_filesize = 64M/' "$PHP_INI"
-    sed -i 's/^post_max_size = .*/post_max_size = 64M/' "$PHP_INI"
-    sed -i 's/^max_execution_time = .*/max_execution_time = 120/' "$PHP_INI"
+    sed -i 's/^memory_limit = .*/memory_limit = 512M/' "$PHP_INI"
+    sed -i 's/^upload_max_filesize = .*/upload_max_filesize = 256M/' "$PHP_INI"
+    sed -i 's/^post_max_size = .*/post_max_size = 260M/' "$PHP_INI"
+    sed -i 's/^max_execution_time = .*/max_execution_time = 300/' "$PHP_INI"
     sed -i 's/^;date.timezone =.*/date.timezone = Europe\/Berlin/' "$PHP_INI"
     info "PHP-Konfiguration optimiert."
 fi
@@ -945,7 +945,7 @@ else
     CustomLog \${APACHE_LOG_DIR}/publixx-pim-access.log combined
 
     # Upload-Limit (64 MB)
-    LimitRequestBody 67108864
+    LimitRequestBody 268435456
 </VirtualHost>
 VHOST
 
@@ -997,7 +997,7 @@ VHOST
     ErrorLog \${APACHE_LOG_DIR}/publixx-pim-ssl-error.log
     CustomLog \${APACHE_LOG_DIR}/publixx-pim-ssl-access.log combined
 
-    LimitRequestBody 67108864
+    LimitRequestBody 268435456
 </VirtualHost>
 SSLEXISTING
                     systemctl restart apache2
@@ -1062,7 +1062,7 @@ SSLEXISTING
     ErrorLog \${APACHE_LOG_DIR}/publixx-pim-ssl-error.log
     CustomLog \${APACHE_LOG_DIR}/publixx-pim-ssl-access.log combined
 
-    LimitRequestBody 67108864
+    LimitRequestBody 268435456
 </VirtualHost>
 SSLVHOST
                 systemctl restart apache2

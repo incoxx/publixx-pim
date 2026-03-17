@@ -177,10 +177,10 @@ sudo nano /etc/php/8.4/apache2/php.ini
 ```
 
 ```ini
-memory_limit = 256M
-upload_max_filesize = 64M
-post_max_size = 64M
-max_execution_time = 120
+memory_limit = 512M
+upload_max_filesize = 256M
+post_max_size = 260M
+max_execution_time = 300
 ```
 
 ```bash

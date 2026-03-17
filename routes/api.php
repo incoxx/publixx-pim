@@ -578,6 +578,9 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
             Route::post('/', [BmecatImportController::class, 'import']);
             Route::post('validate', [BmecatImportController::class, 'validate']);
             Route::post('cancel', [BmecatImportController::class, 'cancel']);
+            Route::post('upload-init', [BmecatImportController::class, 'uploadInit']);
+            Route::post('upload-chunk', [BmecatImportController::class, 'uploadChunk']);
+            Route::post('upload-complete', [BmecatImportController::class, 'uploadComplete']);
         });
         Route::post('bmecat-export', [BmecatExportController::class, 'export']);
     });
