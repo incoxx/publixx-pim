@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Events\AttributeValuesChanged;
+use App\Events\ProductCreated;
 use App\Models\Attribute;
 use App\Models\Hierarchy;
 use App\Models\HierarchyNode;
@@ -12,10 +14,8 @@ use App\Models\Product;
 use App\Models\ProductAttributeValue;
 use App\Models\ProductPrice;
 use App\Models\ProductType;
-use App\Models\ValueListEntry;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
 
 class TestDataGeneratorService
 {
@@ -24,24 +24,18 @@ class TestDataGeneratorService
 
     /**
      * Generate test products with attribute values, prices, and hierarchy assignments.
-     *
-     * @param int         $count             Number of products to generate
-     * @param bool        $withPrices        Generate prices for products
-     * @param int         $categoryCount     Number of categories in the test hierarchy
-     * @param int         $categoryDepth     Depth of category tree
-     * @param string|null $userId            User ID for created_by
-     * @return array{products_created: int, hierarchy_id: string|null, categories_created: int, attribute_values_created: int, prices_created: int, duration_seconds: float}
+     * Uses Eloquent models to trigger observers, events, and business logic.
      */
     public function generate(
         int $count = 1000,
         bool $withPrices = true,
         int $categoryCount = 20,
         int $categoryDepth = 3,
+        ?int $attributesPerProduct = null,
         ?string $userId = null,
     ): array {
         $startTime = microtime(true);
 
-        // Gather existing data model
         $productTypes = ProductType::where('is_active', true)->get();
         if ($productTypes->isEmpty()) {
             $productTypes = ProductType::all();
@@ -57,58 +51,41 @@ class TestDataGeneratorService
 
         $priceTypes = $withPrices ? PriceType::all() : collect();
 
-        // Build hierarchy
         $hierarchy = $this->createTestHierarchy();
         $nodes = $this->createCategoryTree($hierarchy, $categoryCount, $categoryDepth);
 
-        // Generate products in chunks for performance
-        $chunkSize = 500;
-        $productsCreated = 0;
-        $attributeValuesCreated = 0;
-        $pricesCreated = 0;
-
-        for ($offset = 0; $offset < $count; $offset += $chunkSize) {
-            $batchSize = min($chunkSize, $count - $offset);
-
-            $result = $this->generateProductBatch(
-                $batchSize,
-                $offset,
-                $productTypes,
-                $attributes,
-                $priceTypes,
-                $nodes,
-                $userId,
-            );
-
-            $productsCreated += $result['products'];
-            $attributeValuesCreated += $result['attribute_values'];
-            $pricesCreated += $result['prices'];
-        }
+        $result = $this->generateProducts(
+            $count,
+            $productTypes,
+            $attributes,
+            $priceTypes,
+            $nodes,
+            $attributesPerProduct,
+            $userId,
+        );
 
         $duration = round(microtime(true) - $startTime, 2);
 
         Log::info('Test data generated', [
-            'products' => $productsCreated,
-            'attribute_values' => $attributeValuesCreated,
-            'prices' => $pricesCreated,
+            'products' => $result['products'],
+            'attribute_values' => $result['attribute_values'],
+            'prices' => $result['prices'],
             'categories' => count($nodes),
             'duration' => $duration,
         ]);
 
         return [
-            'products_created' => $productsCreated,
+            'products_created' => $result['products'],
             'hierarchy_id' => $hierarchy->id,
             'categories_created' => count($nodes),
-            'attribute_values_created' => $attributeValuesCreated,
-            'prices_created' => $pricesCreated,
+            'attribute_values_created' => $result['attribute_values'],
+            'prices_created' => $result['prices'],
             'duration_seconds' => $duration,
         ];
     }
 
     /**
      * Delete all test data (products with TEST- prefix and the test hierarchy).
-     *
-     * @return array{products_deleted: int, hierarchy_deleted: bool, duration_seconds: float}
      */
     public function cleanup(): array
     {
@@ -118,12 +95,10 @@ class TestDataGeneratorService
         $hierarchyDeleted = false;
 
         DB::transaction(function () use (&$productsDeleted, &$hierarchyDeleted) {
-            // Find all test products
             $testProductIds = Product::where('sku', 'like', self::SKU_PREFIX . '%')
                 ->pluck('id');
 
             if ($testProductIds->isNotEmpty()) {
-                // Delete related data first
                 ProductAttributeValue::whereIn('product_id', $testProductIds)->delete();
                 ProductPrice::whereIn('product_id', $testProductIds)->delete();
 
@@ -161,10 +136,8 @@ class TestDataGeneratorService
                 $productsDeleted = Product::whereIn('id', $testProductIds)->delete();
             }
 
-            // Delete test hierarchy
             $hierarchy = Hierarchy::where('technical_name', self::HIERARCHY_TECHNICAL_NAME)->first();
             if ($hierarchy) {
-                // Delete node attribute values and assignments
                 $nodeIds = HierarchyNode::where('hierarchy_id', $hierarchy->id)->pluck('id');
                 if ($nodeIds->isNotEmpty()) {
                     DB::table('hierarchy_node_attribute_values')
@@ -202,11 +175,6 @@ class TestDataGeneratorService
         ];
     }
 
-    /**
-     * Get statistics about existing test data.
-     *
-     * @return array{test_products: int, test_hierarchy_exists: bool}
-     */
     public function stats(): array
     {
         $testProductIds = Product::where('sku', 'like', self::SKU_PREFIX . '%')->pluck('id');
@@ -224,189 +192,99 @@ class TestDataGeneratorService
         ];
     }
 
-    private function createTestHierarchy(): Hierarchy
-    {
-        // Delete existing test hierarchy first
-        $existing = Hierarchy::where('technical_name', self::HIERARCHY_TECHNICAL_NAME)->first();
-        if ($existing) {
-            HierarchyNode::where('hierarchy_id', $existing->id)->delete();
-            $existing->delete();
-        }
+    // ── Product Generation ──────────────────────────────────────────────
 
-        return Hierarchy::create([
-            'technical_name' => self::HIERARCHY_TECHNICAL_NAME,
-            'name_de' => 'Testdaten-Hierarchie',
-            'name_en' => 'Test Data Hierarchy',
-            'name_json' => ['de' => 'Testdaten-Hierarchie', 'en' => 'Test Data Hierarchy'],
-            'hierarchy_type' => 'master',
-            'description' => 'Automatisch generierte Hierarchie für Testdaten. Kann über Admin > Testdaten löschen entfernt werden.',
-        ]);
-    }
-
-    /**
-     * @return HierarchyNode[]
-     */
-    private function createCategoryTree(Hierarchy $hierarchy, int $categoryCount, int $maxDepth): array
-    {
-        $nodes = [];
-        $categories = $this->getCategoryNames();
-
-        // Create root categories first
-        $rootCount = min((int) ceil($categoryCount / $maxDepth), $categoryCount);
-
-        for ($i = 0; $i < $rootCount && count($nodes) < $categoryCount; $i++) {
-            $catName = $categories[$i % count($categories)];
-            $suffix = $i >= count($categories) ? ' ' . ($i + 1) : '';
-
-            $rootNode = HierarchyNode::create([
-                'hierarchy_id' => $hierarchy->id,
-                'parent_node_id' => null,
-                'name_de' => $catName . $suffix,
-                'name_en' => $catName . $suffix,
-                'name_json' => ['de' => $catName . $suffix, 'en' => $catName . $suffix],
-                'path' => '',
-                'depth' => 0,
-                'sort_order' => $i,
-                'is_active' => true,
-            ]);
-            $rootNode->update(['path' => $rootNode->id . '/']);
-            $nodes[] = $rootNode;
-
-            // Create children up to max depth
-            $this->createChildNodes($hierarchy, $rootNode, 1, $maxDepth, $nodes, $categoryCount);
-        }
-
-        return $nodes;
-    }
-
-    private function createChildNodes(
-        Hierarchy $hierarchy,
-        HierarchyNode $parent,
-        int $currentDepth,
-        int $maxDepth,
-        array &$nodes,
-        int $maxTotal,
-    ): void {
-        if ($currentDepth >= $maxDepth || count($nodes) >= $maxTotal) {
-            return;
-        }
-
-        $subcategories = $this->getSubcategoryNames();
-        $childCount = min(rand(2, 4), $maxTotal - count($nodes));
-
-        for ($i = 0; $i < $childCount && count($nodes) < $maxTotal; $i++) {
-            $name = $subcategories[($i + count($nodes)) % count($subcategories)];
-
-            $childNode = HierarchyNode::create([
-                'hierarchy_id' => $hierarchy->id,
-                'parent_node_id' => $parent->id,
-                'name_de' => $name,
-                'name_en' => $name,
-                'name_json' => ['de' => $name, 'en' => $name],
-                'path' => $parent->path . '/',
-                'depth' => $currentDepth,
-                'sort_order' => $i,
-                'is_active' => true,
-            ]);
-            $childNode->update(['path' => $parent->path . $childNode->id . '/']);
-            $nodes[] = $childNode;
-
-            $this->createChildNodes($hierarchy, $childNode, $currentDepth + 1, $maxDepth, $nodes, $maxTotal);
-        }
-    }
-
-    /**
-     * @return array{products: int, attribute_values: int, prices: int}
-     */
-    private function generateProductBatch(
-        int $batchSize,
-        int $offset,
+    private function generateProducts(
+        int $count,
         $productTypes,
         $attributes,
         $priceTypes,
         array $nodes,
+        ?int $attributesPerProduct,
         ?string $userId,
     ): array {
-        $productRows = [];
-        $attributeValueRows = [];
-        $priceRows = [];
-        $now = now();
+        $productsCreated = 0;
+        $attributeValuesCreated = 0;
+        $pricesCreated = 0;
         $statuses = ['draft', 'active', 'active', 'active']; // 75% active
 
-        for ($i = 0; $i < $batchSize; $i++) {
-            $index = $offset + $i;
-            $productId = (string) Str::uuid();
+        for ($i = 0; $i < $count; $i++) {
             $productType = $productTypes->random();
             $node = !empty($nodes) ? $nodes[array_rand($nodes)] : null;
-            $status = $statuses[array_rand($statuses)];
 
-            $productRows[] = [
-                'id' => $productId,
-                'sku' => self::SKU_PREFIX . str_pad((string) ($index + 1), 6, '0', STR_PAD_LEFT),
-                'name' => $this->generateProductName($index),
-                'ean' => $this->generateEan($index),
-                'status' => $status,
+            // Create product via Eloquent (triggers ProductObserver)
+            $product = Product::create([
+                'sku' => self::SKU_PREFIX . str_pad((string) ($i + 1), 6, '0', STR_PAD_LEFT),
+                'name' => $this->generateProductName($i),
+                'ean' => $this->generateEan($i),
+                'status' => $statuses[array_rand($statuses)],
                 'product_type_id' => $productType->id,
                 'product_type_ref' => 'product',
                 'master_hierarchy_node_id' => $node?->id,
                 'created_by' => $userId,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ];
+            ]);
+            $productsCreated++;
 
-            // Generate attribute values for this product
-            foreach ($attributes as $attribute) {
-                $value = $this->generateAttributeValue($attribute, $index);
-                if ($value !== null) {
-                    $value['id'] = (string) Str::uuid();
-                    $value['product_id'] = $productId;
-                    $value['attribute_id'] = $attribute->id;
-                    $value['created_at'] = $now;
-                    $value['updated_at'] = $now;
-                    $attributeValueRows[] = $value;
+            try {
+                event(new ProductCreated($product));
+            } catch (\Throwable $e) {
+                Log::warning('TestDataGenerator: ProductCreated event failed', [
+                    'product_id' => $product->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
+            // Select attributes for this product (limit if configured)
+            $productAttributes = $attributes;
+            if ($attributesPerProduct !== null && $attributesPerProduct < $attributes->count()) {
+                $productAttributes = $attributes->random($attributesPerProduct);
+            }
+
+            // Create attribute values via Eloquent (triggers AttributeValueObserver)
+            $changedAttributeIds = [];
+            foreach ($productAttributes as $attribute) {
+                $valueData = $this->generateAttributeValue($attribute, $i);
+                if ($valueData === null) {
+                    continue;
+                }
+
+                $valueData['product_id'] = $product->id;
+                $valueData['attribute_id'] = $attribute->id;
+                ProductAttributeValue::create($valueData);
+                $changedAttributeIds[] = $attribute->id;
+                $attributeValuesCreated++;
+            }
+
+            if (!empty($changedAttributeIds)) {
+                try {
+                    event(new AttributeValuesChanged($product->id, $changedAttributeIds));
+                } catch (\Throwable $e) {
+                    Log::warning('TestDataGenerator: AttributeValuesChanged event failed', [
+                        'product_id' => $product->id,
+                        'error' => $e->getMessage(),
+                    ]);
                 }
             }
 
-            // Generate prices
+            // Create prices via Eloquent relationship
             foreach ($priceTypes as $priceType) {
-                $priceRows[] = [
-                    'id' => (string) Str::uuid(),
-                    'product_id' => $productId,
+                $product->prices()->create([
                     'price_type_id' => $priceType->id,
                     'amount' => round(mt_rand(100, 999900) / 100, 2),
                     'currency' => 'EUR',
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ];
+                ]);
+                $pricesCreated++;
             }
         }
 
-        // Bulk insert in transaction
-        DB::transaction(function () use ($productRows, $attributeValueRows, $priceRows) {
-            // Insert products
-            foreach (array_chunk($productRows, 500) as $chunk) {
-                DB::table('products')->insert($chunk);
-            }
-
-            // Insert attribute values
-            foreach (array_chunk($attributeValueRows, 1000) as $chunk) {
-                DB::table('product_attribute_values')->insert($chunk);
-            }
-
-            // Insert prices
-            if (!empty($priceRows)) {
-                foreach (array_chunk($priceRows, 1000) as $chunk) {
-                    DB::table('product_prices')->insert($chunk);
-                }
-            }
-        });
-
         return [
-            'products' => count($productRows),
-            'attribute_values' => count($attributeValueRows),
-            'prices' => count($priceRows),
+            'products' => $productsCreated,
+            'attribute_values' => $attributeValuesCreated,
+            'prices' => $pricesCreated,
         ];
     }
+
+    // ── Attribute Value Generation ──────────────────────────────────────
 
     private function generateAttributeValue(Attribute $attribute, int $index): ?array
     {
@@ -443,7 +321,7 @@ class TestDataGeneratorService
             ]),
             'select', 'dropdown' => $this->generateSelectValue($attribute, $base),
             'multiselect' => $this->generateSelectValue($attribute, $base),
-            'composite' => null, // Skip composite attributes
+            'composite' => null,
             default => array_merge($base, [
                 'value_string' => 'Test-' . $attribute->technical_name . '-' . ($index + 1),
             ]),
@@ -452,11 +330,9 @@ class TestDataGeneratorService
 
     private function generateTextValue(Attribute $attribute, int $index): string
     {
-        $prefixes = [
-            'Premium', 'Standard', 'Professional', 'Basic', 'Advanced',
-            'Ultra', 'Classic', 'Modern', 'Eco', 'Industrial',
-        ];
-        $prefix = $prefixes[($index) % count($prefixes)];
+        $prefixes = ['Premium', 'Standard', 'Professional', 'Basic', 'Advanced',
+            'Ultra', 'Classic', 'Modern', 'Eco', 'Industrial'];
+        $prefix = $prefixes[$index % count($prefixes)];
 
         return $prefix . ' ' . ($attribute->name_de ?? $attribute->technical_name) . ' ' . ($index + 1);
     }
@@ -511,27 +387,112 @@ class TestDataGeneratorService
             $entries = $attribute->valueList->entries;
         }
 
-        $entry = $entries->random();
-
         return array_merge($base, [
-            'value_selection_id' => $entry->id,
+            'value_selection_id' => $entries->random()->id,
         ]);
     }
 
+    // ── Hierarchy ───────────────────────────────────────────────────────
+
+    private function createTestHierarchy(): Hierarchy
+    {
+        $existing = Hierarchy::where('technical_name', self::HIERARCHY_TECHNICAL_NAME)->first();
+        if ($existing) {
+            HierarchyNode::where('hierarchy_id', $existing->id)->delete();
+            $existing->delete();
+        }
+
+        return Hierarchy::create([
+            'technical_name' => self::HIERARCHY_TECHNICAL_NAME,
+            'name_de' => 'Testdaten-Hierarchie',
+            'name_en' => 'Test Data Hierarchy',
+            'name_json' => ['de' => 'Testdaten-Hierarchie', 'en' => 'Test Data Hierarchy'],
+            'hierarchy_type' => 'master',
+            'description' => 'Automatisch generierte Hierarchie für Testdaten. Kann über Admin > Testdaten löschen entfernt werden.',
+        ]);
+    }
+
+    /**
+     * @return HierarchyNode[]
+     */
+    private function createCategoryTree(Hierarchy $hierarchy, int $categoryCount, int $maxDepth): array
+    {
+        $nodes = [];
+        $categories = $this->getCategoryNames();
+        $rootCount = min((int) ceil($categoryCount / $maxDepth), $categoryCount);
+
+        for ($i = 0; $i < $rootCount && count($nodes) < $categoryCount; $i++) {
+            $catName = $categories[$i % count($categories)];
+            $suffix = $i >= count($categories) ? ' ' . ($i + 1) : '';
+
+            $rootNode = HierarchyNode::create([
+                'hierarchy_id' => $hierarchy->id,
+                'parent_node_id' => null,
+                'name_de' => $catName . $suffix,
+                'name_en' => $catName . $suffix,
+                'name_json' => ['de' => $catName . $suffix, 'en' => $catName . $suffix],
+                'path' => '',
+                'depth' => 0,
+                'sort_order' => $i,
+                'is_active' => true,
+            ]);
+            $rootNode->update(['path' => $rootNode->id . '/']);
+            $nodes[] = $rootNode;
+
+            $this->createChildNodes($hierarchy, $rootNode, 1, $maxDepth, $nodes, $categoryCount);
+        }
+
+        return $nodes;
+    }
+
+    private function createChildNodes(
+        Hierarchy $hierarchy,
+        HierarchyNode $parent,
+        int $currentDepth,
+        int $maxDepth,
+        array &$nodes,
+        int $maxTotal,
+    ): void {
+        if ($currentDepth >= $maxDepth || count($nodes) >= $maxTotal) {
+            return;
+        }
+
+        $subcategories = $this->getSubcategoryNames();
+        $childCount = min(rand(2, 4), $maxTotal - count($nodes));
+
+        for ($i = 0; $i < $childCount && count($nodes) < $maxTotal; $i++) {
+            $name = $subcategories[($i + count($nodes)) % count($subcategories)];
+
+            $childNode = HierarchyNode::create([
+                'hierarchy_id' => $hierarchy->id,
+                'parent_node_id' => $parent->id,
+                'name_de' => $name,
+                'name_en' => $name,
+                'name_json' => ['de' => $name, 'en' => $name],
+                'path' => $parent->path . '/',
+                'depth' => $currentDepth,
+                'sort_order' => $i,
+                'is_active' => true,
+            ]);
+            $childNode->update(['path' => $parent->path . $childNode->id . '/']);
+            $nodes[] = $childNode;
+
+            $this->createChildNodes($hierarchy, $childNode, $currentDepth + 1, $maxDepth, $nodes, $maxTotal);
+        }
+    }
+
+    // ── Product Name & EAN Generation ───────────────────────────────────
+
     private function generateProductName(int $index): string
     {
-        $adjectives = [
-            'Robuster', 'Kompakter', 'Leistungsstarker', 'Vielseitiger', 'Innovativer',
+        $adjectives = ['Robuster', 'Kompakter', 'Leistungsstarker', 'Vielseitiger', 'Innovativer',
             'Hochwertiger', 'Professioneller', 'Ergonomischer', 'Modularer', 'Präziser',
-            'Effizienter', 'Nachhaltiger', 'Flexibler', 'Intelligenter', 'Zuverlässiger',
-        ];
+            'Effizienter', 'Nachhaltiger', 'Flexibler', 'Intelligenter', 'Zuverlässiger'];
 
-        $nouns = [
-            'Werkzeugsatz', 'Adapter', 'Sensor', 'Regler', 'Verbinder',
+        $nouns = ['Werkzeugsatz', 'Adapter', 'Sensor', 'Regler', 'Verbinder',
             'Antrieb', 'Wandler', 'Filter', 'Halter', 'Schalter',
             'Detektor', 'Verstärker', 'Transformator', 'Generator', 'Kompressor',
-            'Ventil', 'Motor', 'Pumpe', 'Zylinder', 'Getriebe',
-        ];
+            'Ventil', 'Motor', 'Pumpe', 'Zylinder', 'Getriebe'];
 
         $series = ['Alpha', 'Beta', 'Gamma', 'Delta', 'Sigma', 'Omega', 'Pro', 'Max', 'Plus', 'Eco'];
 
@@ -544,24 +505,19 @@ class TestDataGeneratorService
 
     private function generateEan(int $index): string
     {
-        // Generate a 13-digit EAN
-        $prefix = '400';
-        $body = str_pad((string) ($index + 1), 9, '0', STR_PAD_LEFT);
-        $ean12 = $prefix . $body;
+        $ean12 = '400' . str_pad((string) ($index + 1), 9, '0', STR_PAD_LEFT);
 
-        // Calculate check digit
         $sum = 0;
         for ($i = 0; $i < 12; $i++) {
             $sum += (int) $ean12[$i] * ($i % 2 === 0 ? 1 : 3);
         }
-        $checkDigit = (10 - ($sum % 10)) % 10;
 
-        return $ean12 . $checkDigit;
+        return $ean12 . ((10 - ($sum % 10)) % 10);
     }
 
-    /**
-     * @return string[]
-     */
+    // ── Static Data ─────────────────────────────────────────────────────
+
+    /** @return string[] */
     private function getCategoryNames(): array
     {
         return [
@@ -571,9 +527,7 @@ class TestDataGeneratorService
         ];
     }
 
-    /**
-     * @return string[]
-     */
+    /** @return string[] */
     private function getSubcategoryNames(): array
     {
         return [
