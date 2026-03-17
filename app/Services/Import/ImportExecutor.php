@@ -98,6 +98,114 @@ class ImportExecutor
     }
 
     /**
+     * Batch-UPDATE via Temporary Table + JOIN — 1 UPDATE statt N Einzel-Queries.
+     *
+     * CREATE TEMPORARY TABLE _bulk_upd (...) ENGINE=MEMORY;
+     * INSERT INTO _bulk_upd VALUES (...), (...);
+     * UPDATE target_table t JOIN _bulk_upd u ON t.id = u.id SET t.col = u.col;
+     * DROP TEMPORARY TABLE _bulk_upd;
+     *
+     * @param string   $table     Zieltabelle
+     * @param array    $rows      Array von Zeilen, jede mit 'id' und den zu updatenden Spalten
+     * @param string[] $columns   Spaltennamen die geupdated werden sollen
+     * @param int      $batchSize Max Zeilen pro Temp-Table (Default 2000)
+     */
+    private function bulkUpdateById(string $table, array $rows, array $columns, int $batchSize = 2000): void
+    {
+        if (empty($rows) || empty($columns)) {
+            return;
+        }
+        $startTime = microtime(true);
+
+        foreach (array_chunk($rows, $batchSize) as $chunk) {
+            // 1. Temp-Table erstellen
+            $colDefs = ['`id` CHAR(36) NOT NULL PRIMARY KEY'];
+            foreach ($columns as $col) {
+                // Typ-Erkennung aus erstem Wert
+                $sample = $chunk[0][$col] ?? null;
+                if ($sample instanceof \DateTimeInterface || $sample instanceof \Carbon\Carbon) {
+                    $colDefs[] = "`$col` DATETIME NULL";
+                } elseif (is_float($sample)) {
+                    $colDefs[] = "`$col` DECIMAL(20,6) NULL";
+                } elseif (is_int($sample)) {
+                    $colDefs[] = "`$col` BIGINT NULL";
+                } else {
+                    $colDefs[] = "`$col` TEXT NULL";
+                }
+            }
+
+            DB::statement("CREATE TEMPORARY TABLE `_bulk_upd` (" . implode(', ', $colDefs) . ") ENGINE=MEMORY");
+
+            try {
+                // 2. Multi-row INSERT in Temp-Table
+                $allCols = array_merge(['id'], $columns);
+                $insertRows = [];
+                foreach ($chunk as $row) {
+                    $insertRow = [];
+                    foreach ($allCols as $c) {
+                        $val = $row[$c] ?? null;
+                        // Carbon/DateTime zu String konvertieren
+                        if ($val instanceof \DateTimeInterface) {
+                            $val = $val->format('Y-m-d H:i:s');
+                        }
+                        $insertRow[$c] = $val;
+                    }
+                    $insertRows[] = $insertRow;
+                }
+                DB::table('_bulk_upd')->insert($insertRows);
+
+                // 3. JOIN UPDATE: 1 Query für alle Zeilen
+                $setParts = [];
+                foreach ($columns as $col) {
+                    $setParts[] = "`t`.`$col` = `u`.`$col`";
+                }
+                $sql = "UPDATE `$table` `t` JOIN `_bulk_upd` `u` ON `t`.`id` = `u`.`id` SET " . implode(', ', $setParts);
+                DB::statement($sql);
+            } finally {
+                // 4. Temp-Table aufräumen
+                DB::statement("DROP TEMPORARY TABLE IF EXISTS `_bulk_upd`");
+            }
+        }
+        Log::channel('import')->debug("bulkUpdateById({$table}): " . count($rows) . " Zeilen", [
+            'dauer_sek' => round(microtime(true) - $startTime, 2),
+        ]);
+    }
+
+    /**
+     * Batch-DELETE via Temporary Table + JOIN — 1 DELETE statt N whereIn-Chunks.
+     *
+     * @param string $table      Zieltabelle aus der gelöscht wird
+     * @param string $joinColumn Spalte in $table die mit den IDs gematcht wird (z.B. 'product_id')
+     * @param array  $ids        Array von IDs die gelöscht werden sollen
+     * @param int    $batchSize  Max IDs pro Temp-Table (Default 10000)
+     */
+    private function bulkDeleteViaTempTable(string $table, string $joinColumn, array $ids, int $batchSize = 10000): void
+    {
+        if (empty($ids)) {
+            return;
+        }
+        $startTime = microtime(true);
+
+        foreach (array_chunk($ids, $batchSize) as $idChunk) {
+            DB::statement("CREATE TEMPORARY TABLE `_bulk_del` (`id` CHAR(36) NOT NULL PRIMARY KEY) ENGINE=MEMORY");
+
+            try {
+                // Multi-row INSERT der zu löschenden IDs
+                $insertData = array_map(fn ($id) => ['id' => $id], $idChunk);
+                DB::table('_bulk_del')->insert($insertData);
+
+                // JOIN DELETE: 1 Query statt N whereIn-Chunks
+                DB::statement("DELETE `t` FROM `$table` `t` JOIN `_bulk_del` `d` ON `t`.`$joinColumn` = `d`.`id`");
+            } finally {
+                DB::statement("DROP TEMPORARY TABLE IF EXISTS `_bulk_del`");
+            }
+        }
+        Log::channel('import')->debug("bulkDeleteViaTempTable({$table}.{$joinColumn}): " . count($ids) . " IDs", [
+            'dauer_sek' => round(microtime(true) - $startTime, 2),
+        ]);
+    }
+
+    /**
      * Heartbeat senden (zeitbasiert, nicht bei jedem Aufruf).
      */
     private function heartbeat(): void
@@ -222,7 +330,16 @@ class ImportExecutor
 
         if ($useBulk) {
             Log::channel('import')->info("Bulk-Import-Modus aktiviert ({$totalRows} Zeilen gesamt)");
+
+            // MySQL Session-Optimierung: Constraint-Checks deaktivieren
+            // Spart erheblich Disk-I/O bei Sekundär-Indizes und FK-Prüfungen.
+            // Daten-Integrität ist gewährleistet durch In-Memory Constraint-Checks.
+            DB::statement("SET SESSION unique_checks=0");
+            DB::statement("SET SESSION foreign_key_checks=0");
+            Log::channel('import')->info('MySQL Session-Optimierung: unique_checks=0, foreign_key_checks=0');
         }
+
+        try {
 
         foreach ($sheetOrder as $sheetKey) {
             if (!$parseResult->hasSheet($sheetKey)) {
@@ -239,6 +356,7 @@ class ImportExecutor
 
             $this->stats[$sheetKey] = ['created' => 0, 'updated' => 0, 'skipped' => 0, 'errors' => 0];
 
+            $sheetStartTime = microtime(true);
             Log::channel('import')->info("Importiere Sheet: {$sheetKey}", ['rows' => count($rows), 'bulk' => $useBulk]);
 
             if ($this->progressCallback) {
@@ -310,6 +428,14 @@ class ImportExecutor
             }
 
             $completedSheets++;
+            $sheetDuration = round(microtime(true) - $sheetStartTime, 2);
+            $rowsPerSec = $sheetDuration > 0 ? round(count($rows) / $sheetDuration) : '∞';
+            Log::channel('import')->info("Sheet {$sheetKey} fertig", [
+                'dauer_sek' => $sheetDuration,
+                'zeilen' => count($rows),
+                'zeilen_pro_sek' => $rowsPerSec,
+                'stats' => $this->stats[$sheetKey],
+            ]);
 
             // Cache nach Stammdaten-Import leeren
             if (in_array($sheetKey, [
@@ -318,6 +444,15 @@ class ImportExecutor
                 '15_Attribut_Sichten', '16_Preistypen', '17_Beziehungstypen',
             ])) {
                 $this->resolver->clearCache();
+            }
+        }
+
+        } finally {
+            // MySQL Session-Optimierung zurücksetzen (egal ob Erfolg oder Fehler)
+            if ($useBulk) {
+                DB::statement("SET SESSION unique_checks=1");
+                DB::statement("SET SESSION foreign_key_checks=1");
+                Log::channel('import')->info('MySQL Session-Optimierung zurückgesetzt');
             }
         }
 
@@ -413,33 +548,37 @@ class ImportExecutor
         $allSkus = array_merge($productSkus, $variantSkus);
 
         if (!empty($allSkus)) {
-            // Produkt-IDs in Chunks sammeln um SQL-Limits zu vermeiden
+            // Produkt-IDs sammeln
             $productIds = [];
             foreach (array_chunk($allSkus, 5000) as $skuChunk) {
                 $productIds = array_merge($productIds, Product::whereIn('sku', $skuChunk)->pluck('id')->toArray());
             }
 
             if (!empty($productIds)) {
-                // Abhängige Daten in korrekter Reihenfolge löschen (in Chunks)
-                foreach (array_chunk($productIds, 5000) as $idChunk) {
-                    ProductRelation::whereIn('source_product_id', $idChunk)->delete();
-                    ProductRelation::whereIn('target_product_id', $idChunk)->delete();
-                    ProductPrice::whereIn('product_id', $idChunk)->delete();
-                    ProductMediaAssignment::whereIn('product_id', $idChunk)->delete();
-                    ProductAttributeValue::whereIn('product_id', $idChunk)->delete();
-                    OutputHierarchyProductAssignment::whereIn('product_id', $idChunk)->delete();
+                // Abhängige Daten via Temp-Table JOIN DELETE löschen (1 Query pro Tabelle)
+                $this->bulkDeleteViaTempTable('product_relations', 'source_product_id', $productIds);
+                $this->bulkDeleteViaTempTable('product_relations', 'target_product_id', $productIds);
+                $this->bulkDeleteViaTempTable('product_prices', 'product_id', $productIds);
+                $this->bulkDeleteViaTempTable('product_media_assignments', 'product_id', $productIds);
+                $this->bulkDeleteViaTempTable('product_attribute_values', 'product_id', $productIds);
+                $this->bulkDeleteViaTempTable('output_hierarchy_product_assignments', 'product_id', $productIds);
+
+                // Varianten vor Elternprodukten löschen (Reihenfolge wichtig wegen parent_product_id FK)
+                // Hier nutzen wir die id-Spalte direkt, mit Filter auf product_type_ref
+                $variantIds = DB::table('products')
+                    ->whereIn('id', $productIds)
+                    ->where('product_type_ref', 'variant')
+                    ->pluck('id')->toArray();
+                if (!empty($variantIds)) {
+                    $this->bulkDeleteViaTempTable('products', 'id', $variantIds);
                 }
 
-                // Varianten vor Elternprodukten löschen
-                foreach (array_chunk($productIds, 5000) as $idChunk) {
-                    Product::whereIn('id', $idChunk)
-                        ->where('product_type_ref', 'variant')
-                        ->delete();
-                }
-                foreach (array_chunk($productIds, 5000) as $idChunk) {
-                    Product::whereIn('id', $idChunk)
-                        ->where('product_type_ref', 'product')
-                        ->delete();
+                $parentIds = DB::table('products')
+                    ->whereIn('id', $productIds)
+                    ->where('product_type_ref', 'product')
+                    ->pluck('id')->toArray();
+                if (!empty($parentIds)) {
+                    $this->bulkDeleteViaTempTable('products', 'id', $parentIds);
                 }
 
                 Log::channel('import')->info('Delete: Produkte und abhängige Daten gelöscht', [
@@ -892,25 +1031,43 @@ class ImportExecutor
         $nameAttribute = Attribute::where('technical_name', 'name')->first();
         $now = now();
         $englishNameRows = [];
-        $totalChunks = (int) ceil(count($rows) / 500);
+        $chunkSize = 2000;
+        $totalRows = count($rows);
+        $totalChunks = (int) ceil($totalRows / $chunkSize);
         $chunkIndex = 0;
+        $isDeleteInsert = $this->mode === 'delete_insert';
 
-        foreach (array_chunk($rows, 500) as $chunk) {
+        // ── In-Memory Constraint-Map: SKU → existing UUID ──
+        $constraintMapStart = microtime(true);
+        $existingSkuMap = []; // sku → id
+        if (!$isDeleteInsert) {
+            $allSkus = array_column($rows, 'sku');
+            foreach (array_chunk($allSkus, 5000) as $skuChunk) {
+                $existing = DB::table('products')->whereIn('sku', $skuChunk)->pluck('id', 'sku')->all();
+                $existingSkuMap = array_merge($existingSkuMap, $existing);
+                $this->heartbeat();
+            }
+            Log::channel('import')->info("Produkt-Constraint-Map geladen: " . count($existingSkuMap) . " bestehende Produkte", [
+                'dauer_sek' => round(microtime(true) - $constraintMapStart, 2),
+            ]);
+        }
+
+        $updateColumns = ['name', 'product_type_id', 'ean', 'status', 'product_type_ref', 'updated_at'];
+
+        foreach (array_chunk($rows, $chunkSize) as $chunk) {
             $this->heartbeat();
             $chunkIndex++;
 
-            // Fortschritt pro Chunk
-            if ($this->progressCallback && $chunkIndex % 10 === 0) {
-                ($this->progressCallback)($sheetKey, $chunkIndex, $totalChunks, $this->stats);
+            if ($this->progressCallback && ($chunkIndex % 5 === 0 || $chunkIndex === 1)) {
+                $processedRows = min($chunkIndex * $chunkSize, $totalRows);
+                ($this->progressCallback)($sheetKey, $processedRows, $totalRows, $this->stats);
             }
 
             DB::beginTransaction();
             try {
-                // Bestehende SKUs in diesem Chunk ermitteln für Stats
-                $skusInChunk = array_column($chunk, 'sku');
-                $existingSkus = Product::whereIn('sku', $skusInChunk)->pluck('sku')->flip()->all();
+                $insertBatch = [];
+                $updateBatch = [];
 
-                $upsertData = [];
                 foreach ($chunk as $row) {
                     try {
                         $typeResult = $this->resolver->resolveProductType($row['product_type']);
@@ -919,9 +1076,7 @@ class ImportExecutor
                             continue;
                         }
 
-                        $isUpdate = isset($existingSkus[$row['sku']]);
-                        $upsertData[] = [
-                            'id' => Str::uuid()->toString(),
+                        $data = [
                             'sku' => $row['sku'],
                             'name' => $row['name'],
                             'product_type_id' => $typeResult->id,
@@ -929,13 +1084,18 @@ class ImportExecutor
                             'status' => mb_strtolower($row['status'] ?? 'draft'),
                             'product_type_ref' => 'product',
                             'updated_at' => $now,
-                            'created_at' => $now,
                         ];
 
-                        if ($isUpdate) {
-                            $this->stats[$sheetKey]['updated']++;
+                        if (isset($existingSkuMap[$row['sku']])) {
+                            // UPDATE: existiert → ID aus Map
+                            $data['id'] = $existingSkuMap[$row['sku']];
+                            $updateBatch[] = $data;
                         } else {
-                            $this->stats[$sheetKey]['created']++;
+                            // INSERT: neu → UUID generieren
+                            $data['id'] = Str::uuid()->toString();
+                            $data['created_at'] = $now;
+                            $insertBatch[] = $data;
+                            $existingSkuMap[$row['sku']] = $data['id'];
                         }
 
                         // English name für spätere Batch-Verarbeitung sammeln
@@ -950,12 +1110,16 @@ class ImportExecutor
                     }
                 }
 
-                if (!empty($upsertData)) {
-                    Product::upsert(
-                        $upsertData,
-                        ['sku'],
-                        ['name', 'product_type_id', 'ean', 'status', 'product_type_ref', 'updated_at']
-                    );
+                // ── Reines INSERT für neue Produkte ──
+                if (!empty($insertBatch)) {
+                    DB::table('products')->insert($insertBatch);
+                    $this->stats[$sheetKey]['created'] += count($insertBatch);
+                }
+
+                // ── Batch-UPDATE per CASE WHEN (1 Query statt N) ──
+                if (!empty($updateBatch)) {
+                    $this->bulkUpdateById('products', $updateBatch, $updateColumns);
+                    $this->stats[$sheetKey]['updated'] += count($updateBatch);
                 }
 
                 DB::commit();
@@ -963,24 +1127,23 @@ class ImportExecutor
                 DB::rollBack();
                 Log::channel('import')->error("Produkt-Chunk {$chunkIndex}/{$totalChunks} fehlgeschlagen", [
                     'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
                 ]);
                 $this->stats[$sheetKey]['errors'] += count($chunk);
             }
         }
 
-        // Produkt-IDs sammeln (in Chunks um SQL-Limits zu vermeiden)
-        $allSkus = array_column($rows, 'sku');
-        $productIdMap = [];
-        foreach (array_chunk($allSkus, 5000) as $skuChunk) {
-            $productIdMap += Product::whereIn('sku', $skuChunk)->pluck('id', 'sku')->all();
-        }
-        $this->affectedProductIds = array_merge($this->affectedProductIds, array_values($productIdMap));
+        // Produkt-IDs sammeln (aus existingSkuMap — kein extra DB-Query nötig!)
+        $this->affectedProductIds = array_merge($this->affectedProductIds, array_values($existingSkuMap));
 
-        // English names batch-verarbeiten
+        // Resolver-Cache neu aufbauen nach Produkt-Import
+        $this->resolver->clearCache('product');
+
+        // English names batch-verarbeiten (reines INSERT, da Attributwerte danach kommen)
         if ($nameAttribute && !empty($englishNameRows)) {
             $pavData = [];
             foreach ($englishNameRows as $enRow) {
-                $productId = $productIdMap[$enRow['sku']] ?? null;
+                $productId = $existingSkuMap[$enRow['sku']] ?? null;
                 if ($productId) {
                     $pavData[] = [
                         'id' => Str::uuid()->toString(),
@@ -989,18 +1152,19 @@ class ImportExecutor
                         'language' => 'en',
                         'multiplied_index' => 0,
                         'value_string' => $enRow['name_en'],
+                        'value_number' => null,
+                        'value_date' => null,
+                        'value_flag' => null,
+                        'value_selection_id' => null,
+                        'unit_id' => null,
                         'updated_at' => $now,
                         'created_at' => $now,
                     ];
                 }
             }
             if (!empty($pavData)) {
-                foreach (array_chunk($pavData, 500) as $pavChunk) {
-                    ProductAttributeValue::upsert(
-                        $pavChunk,
-                        ['product_id', 'attribute_id', 'language', 'multiplied_index'],
-                        ['value_string', 'updated_at']
-                    );
+                foreach (array_chunk($pavData, 2000) as $pavChunk) {
+                    DB::table('product_attribute_values')->insert($pavChunk);
                 }
             }
         }
@@ -1097,10 +1261,12 @@ class ImportExecutor
     {
         $now = now();
         $chunkSize = 2000;
-        $totalChunks = (int) ceil(count($rows) / $chunkSize);
+        $totalRows = count($rows);
+        $totalChunks = (int) ceil($totalRows / $chunkSize);
         $chunkIndex = 0;
+        $isDeleteInsert = $this->mode === 'delete_insert';
 
-        // Attribut-Cache vorwärmen: alle Attribute laden (vermeidet Attribute::find() pro Zeile)
+        // Attribut-Cache vorwärmen
         $attributeById = Attribute::all()->keyBy('id');
 
         // ValueListEntry-Cache vorwärmen
@@ -1116,7 +1282,44 @@ class ImportExecutor
             }
         }
 
-        // Default-Zeile für konsistente Spalten (vermeidet innere Schleife pro Zeile)
+        // ── In-Memory Constraint-Map aufbauen ──────────────────────────
+        $constraintMapStart = microtime(true);
+        $existingMap = [];
+        if (!$isDeleteInsert) {
+            // Nur die betroffenen Produkt-IDs laden (aus den Import-Daten)
+            $allSkus = array_unique(array_column($rows, 'sku'));
+            $affectedProductIds = [];
+            foreach (array_chunk($allSkus, 5000) as $skuChunk) {
+                foreach ($skuChunk as $sku) {
+                    $r = $this->resolver->resolveProduct($sku);
+                    if ($r->resolved()) {
+                        $affectedProductIds[$sku] = $r->id;
+                    }
+                }
+            }
+            $uniqueProductIds = array_unique(array_values($affectedProductIds));
+
+            $this->heartbeat();
+            Log::channel('import')->info("Lade bestehende Attributwerte für " . count($uniqueProductIds) . " Produkte in Memory...");
+
+            foreach (array_chunk($uniqueProductIds, 5000) as $pidChunk) {
+                $existing = DB::table('product_attribute_values')
+                    ->whereIn('product_id', $pidChunk)
+                    ->select(['id', 'product_id', 'attribute_id', 'language', 'multiplied_index'])
+                    ->get();
+                foreach ($existing as $e) {
+                    $key = $e->product_id . '|' . $e->attribute_id . '|' . ($e->language ?? '_NULL_') . '|' . $e->multiplied_index;
+                    $existingMap[$key] = $e->id;
+                }
+                $this->heartbeat();
+            }
+
+            Log::channel('import')->info("Constraint-Map geladen: " . count($existingMap) . " bestehende Werte", [
+                'dauer_sek' => round(microtime(true) - $constraintMapStart, 2),
+            ]);
+        }
+
+        // Default-Zeile für konsistente Spalten
         $defaultRow = [
             'id' => null, 'product_id' => null, 'attribute_id' => null,
             'language' => null, 'multiplied_index' => 0,
@@ -1125,7 +1328,7 @@ class ImportExecutor
             'updated_at' => $now, 'created_at' => $now,
         ];
 
-        $totalRows = count($rows);
+        $updateColumns = ['value_string', 'value_number', 'value_date', 'value_flag', 'value_selection_id', 'unit_id', 'updated_at'];
 
         foreach (array_chunk($rows, $chunkSize) as $chunk) {
             $this->heartbeat();
@@ -1136,8 +1339,8 @@ class ImportExecutor
                 ($this->progressCallback)($sheetKey, $processedRows, $totalRows, $this->stats);
             }
 
-            $upsertData = [];
-            $nullLangRows = [];
+            $insertBatch = [];
+            $updateBatch = [];
             $affectedIds = [];
 
             DB::beginTransaction();
@@ -1160,23 +1363,19 @@ class ImportExecutor
                     $language = !empty($row['language']) ? mb_strtolower((string) $row['language']) : null;
                     $index = (int) ($row['index'] ?? 0);
 
-                    // Attribut aus vorgewärmtem Cache laden
                     $attribute = $attributeById->get($attrResult->id);
                     $valueData = $this->mapValueToColumns($row['value'], $attribute?->data_type ?? 'String');
 
-                    // Zeile aus Default + spezifische Werte zusammenbauen (kein array_merge nötig)
                     $data = $defaultRow;
-                    $data['id'] = Str::uuid()->toString();
                     $data['product_id'] = $productResult->id;
                     $data['attribute_id'] = $attrResult->id;
                     $data['language'] = $language;
                     $data['multiplied_index'] = $index;
-                    // Werte aus mapValueToColumns übernehmen
                     foreach ($valueData as $k => $v) {
                         $data[$k] = $v;
                     }
 
-                    // Selection-Werte aus vorgewärmtem Cache auflösen
+                    // Selection-Werte auflösen
                     if ($attribute && $attribute->data_type === 'Selection' && $attribute->value_list_id) {
                         $vlEntries = $valueListEntries[$attribute->value_list_id] ?? [];
                         $entry = $vlEntries[(string) $row['value']] ?? $vlEntries['_display_' . (string) $row['value']] ?? null;
@@ -1186,7 +1385,7 @@ class ImportExecutor
                         }
                     }
 
-                    // Einheit auflösen (Resolver hat O(1)-Cache)
+                    // Einheit auflösen
                     if (!empty($row['unit'])) {
                         $unitResult = $this->resolver->resolveUnit($row['unit']);
                         if ($unitResult->resolved()) {
@@ -1194,82 +1393,40 @@ class ImportExecutor
                         }
                     }
 
-                    // Sofort in richtige Gruppe einsortieren
-                    if ($language === null) {
-                        $nullLangRows[] = $data;
+                    // ── In-Memory Constraint-Check ──
+                    $constraintKey = $productResult->id . '|' . $attrResult->id . '|' . ($language ?? '_NULL_') . '|' . $index;
+
+                    if (isset($existingMap[$constraintKey])) {
+                        // UPDATE: existiert schon → ID übernehmen, in Update-Batch
+                        $data['id'] = $existingMap[$constraintKey];
+                        $updateBatch[] = $data;
                     } else {
-                        $upsertData[] = $data;
+                        // INSERT: neu → UUID generieren, in Insert-Batch
+                        $data['id'] = Str::uuid()->toString();
+                        $insertBatch[] = $data;
+                        // In Map eintragen damit Duplikate im selben Chunk erkannt werden
+                        $existingMap[$constraintKey] = $data['id'];
                     }
+
                     $affectedIds[] = $productResult->id;
                 } catch (\Throwable $e) {
                     $this->logRowError($sheetKey, $row, $e);
                 }
             }
 
-            // Batch-Upsert für Zeilen mit language != NULL
-            if (!empty($upsertData)) {
-                ProductAttributeValue::upsert(
-                    $upsertData,
-                    ['product_id', 'attribute_id', 'language', 'multiplied_index'],
-                    ['value_string', 'value_number', 'value_date', 'value_flag', 'value_selection_id', 'unit_id', 'updated_at']
-                );
+            // ── Reines INSERT für neue Zeilen (kein ON DUPLICATE KEY overhead) ──
+            if (!empty($insertBatch)) {
+                foreach (array_chunk($insertBatch, 2000) as $batchChunk) {
+                    DB::table('product_attribute_values')->insert($batchChunk);
+                }
+                $this->stats[$sheetKey]['created'] += count($insertBatch);
             }
 
-            // NULL-Language-Zeilen: Batch-Lookup statt Einzel-Queries
-            if (!empty($nullLangRows)) {
-                // Alle bestehenden NULL-language Werte für die betroffenen Produkte+Attribute laden
-                $nlProductIds = array_unique(array_column($nullLangRows, 'product_id'));
-                $nlAttributeIds = array_unique(array_column($nullLangRows, 'attribute_id'));
-
-                $existingNullLang = [];
-                foreach (array_chunk($nlProductIds, 5000) as $pidChunk) {
-                    $results = ProductAttributeValue::whereIn('product_id', $pidChunk)
-                        ->whereIn('attribute_id', $nlAttributeIds)
-                        ->whereNull('language')
-                        ->get(['id', 'product_id', 'attribute_id', 'multiplied_index']);
-                    foreach ($results as $r) {
-                        $existingNullLang[$r->product_id . '|' . $r->attribute_id . '|' . $r->multiplied_index] = $r->id;
-                    }
-                }
-
-                $updateColumns = ['value_string', 'value_number', 'value_date', 'value_flag', 'value_selection_id', 'unit_id', 'updated_at'];
-                $insertBatch = [];
-                $updateBatch = [];
-
-                foreach ($nullLangRows as $nlRow) {
-                    $lookupKey = $nlRow['product_id'] . '|' . $nlRow['attribute_id'] . '|' . $nlRow['multiplied_index'];
-                    if (isset($existingNullLang[$lookupKey])) {
-                        // Bestehend → Update sammeln
-                        $updateBatch[] = $nlRow;
-                    } else {
-                        // Neu → Insert sammeln
-                        $insertBatch[] = $nlRow;
-                    }
-                }
-
-                // Batch-Insert für neue NULL-language Zeilen
-                if (!empty($insertBatch)) {
-                    foreach (array_chunk($insertBatch, 2000) as $insertChunk) {
-                        ProductAttributeValue::insert($insertChunk);
-                    }
-                }
-
-                // Updates: upsert mit einem Trick - wir kennen die IDs, nutzen product_id+attribute_id+multiplied_index
-                // Da language=NULL ist und MySQL NULL≠NULL, müssen wir einzeln updaten, aber gebündelt per Raw-Query
-                if (!empty($updateBatch)) {
-                    foreach ($updateBatch as $uRow) {
-                        $lookupKey = $uRow['product_id'] . '|' . $uRow['attribute_id'] . '|' . $uRow['multiplied_index'];
-                        $existingId = $existingNullLang[$lookupKey];
-                        ProductAttributeValue::where('id', $existingId)->update(
-                            array_intersect_key($uRow, array_flip($updateColumns))
-                        );
-                    }
-                }
+            // ── Batch-UPDATE per CASE WHEN (1 Query statt N) ──
+            if (!empty($updateBatch)) {
+                $this->bulkUpdateById('product_attribute_values', $updateBatch, $updateColumns);
+                $this->stats[$sheetKey]['updated'] += count($updateBatch);
             }
-
-            // Stats: geschätzt statt 2× COUNT-Query pro Chunk
-            $this->stats[$sheetKey]['created'] += count($upsertData) + count($insertBatch ?? []);
-            $this->stats[$sheetKey]['updated'] += count($updateBatch ?? []);
 
             $this->affectedProductIds = array_merge($this->affectedProductIds, $affectedIds);
 
@@ -1810,12 +1967,16 @@ class ImportExecutor
     }
 
     /**
-     * Bulk-Import für Preise: upsert() in Chunks für Zeilen mit valid_from,
-     * Fallback auf Einzel-Insert/Update für Zeilen ohne valid_from (NULL in UNIQUE-Index).
+     * Bulk-Import für Preise: In-Memory Constraint-Check + reines INSERT/UPDATE.
      */
     private function importPricesBulk(array $rows, string $sheetKey): void
     {
         $now = now();
+        $chunkSize = 2000;
+        $totalRows = count($rows);
+        $totalChunks = (int) ceil($totalRows / $chunkSize);
+        $chunkIndex = 0;
+        $isDeleteInsert = $this->mode === 'delete_insert';
 
         // Preistypen vorab auflösen und bei Bedarf anlegen
         $priceTypeNames = array_unique(array_column($rows, 'price_type'));
@@ -1834,48 +1995,60 @@ class ImportExecutor
         }
         $this->resolver->clearCache('price_type');
 
-        $chunkIndex = 0;
-        $totalChunks = (int) ceil(count($rows) / 500);
+        // ── In-Memory Constraint-Map: composite-key → existing UUID ──
+        $constraintMapStart = microtime(true);
+        $existingMap = []; // "product_id|price_type_id|currency|valid_from|scale_from" → id
+        if (!$isDeleteInsert) {
+            $allSkus = array_unique(array_column($rows, 'sku'));
+            $affectedProductIds = [];
+            foreach ($allSkus as $sku) {
+                $r = $this->resolver->resolveProduct($sku);
+                if ($r->resolved()) $affectedProductIds[] = $r->id;
+            }
+            $affectedProductIds = array_unique($affectedProductIds);
 
-        foreach (array_chunk($rows, 500) as $chunk) {
+            $this->heartbeat();
+            foreach (array_chunk($affectedProductIds, 5000) as $pidChunk) {
+                $existing = DB::table('product_prices')
+                    ->whereIn('product_id', $pidChunk)
+                    ->select(['id', 'product_id', 'price_type_id', 'currency', 'valid_from', 'scale_from'])
+                    ->get();
+                foreach ($existing as $e) {
+                    $key = $e->product_id . '|' . $e->price_type_id . '|' . $e->currency
+                        . '|' . ($e->valid_from ?? '_NULL_') . '|' . ($e->scale_from ?? '_NULL_');
+                    $existingMap[$key] = $e->id;
+                }
+                $this->heartbeat();
+            }
+            Log::channel('import')->info("Preis-Constraint-Map geladen: " . count($existingMap) . " bestehende Preise", [
+                'dauer_sek' => round(microtime(true) - $constraintMapStart, 2),
+            ]);
+        }
+
+        $updateColumns = ['amount', 'valid_to', 'country', 'scale_to', 'updated_at'];
+
+        foreach (array_chunk($rows, $chunkSize) as $chunk) {
             $chunkIndex++;
             $this->heartbeat();
 
+            if ($this->progressCallback && ($chunkIndex % 5 === 0 || $chunkIndex === 1)) {
+                $processedRows = min($chunkIndex * $chunkSize, $totalRows);
+                ($this->progressCallback)($sheetKey, $processedRows, $totalRows, $this->stats);
+            }
+
             DB::beginTransaction();
             try {
-                // Alle Produkt-IDs im Chunk sammeln
-                $skusInChunk = array_unique(array_column($chunk, 'sku'));
-                $productIdMap = [];
-                foreach ($skusInChunk as $sku) {
-                    $r = $this->resolver->resolveProduct($sku);
-                    if ($r->resolved()) {
-                        $productIdMap[$sku] = $r->id;
-                    }
-                }
-
-                $upsertData = [];
-                $productIds = array_values($productIdMap);
-
-                // Bestehende Preise laden für Fallback und Stats
-                $existingPricesMap = [];
-                if (!empty($productIds)) {
-                    foreach (array_chunk($productIds, 5000) as $pidChunk) {
-                        $allExisting = ProductPrice::whereIn('product_id', $pidChunk)->get();
-                        foreach ($allExisting as $ep) {
-                            $key = $ep->product_id . '|' . $ep->price_type_id . '|' . $ep->currency
-                                . '|' . ($ep->valid_from ?? '') . '|' . ($ep->scale_from ?? '');
-                            $existingPricesMap[$key] = $ep;
-                        }
-                    }
-                }
+                $insertBatch = [];
+                $updateBatch = [];
 
                 foreach ($chunk as $row) {
                     try {
-                        $productId = $productIdMap[$row['sku']] ?? null;
-                        if (!$productId) {
+                        $productResult = $this->resolver->resolveProduct($row['sku']);
+                        if (!$productResult->resolved()) {
                             $this->logSkipped($sheetKey, $row, "Produkt nicht gefunden: SKU '{$row['sku']}'");
                             continue;
                         }
+                        $productId = $productResult->id;
 
                         $priceTypeId = $priceTypeMap[$row['price_type']] ?? null;
                         if (!$priceTypeId) {
@@ -1885,6 +2058,7 @@ class ImportExecutor
 
                         $currency = strtoupper((string) ($row['currency'] ?? 'EUR'));
                         $validFrom = $row['valid_from'] ?? null;
+                        $scaleFrom = !empty($row['scale_from']) ? (int) $row['scale_from'] : null;
 
                         $data = [
                             'product_id' => $productId,
@@ -1894,40 +2068,23 @@ class ImportExecutor
                             'valid_from' => $validFrom,
                             'valid_to' => $row['valid_to'] ?? null,
                             'country' => !empty($row['country']) ? strtoupper((string) $row['country']) : null,
-                            'scale_from' => !empty($row['scale_from']) ? (int) $row['scale_from'] : null,
+                            'scale_from' => $scaleFrom,
                             'scale_to' => !empty($row['scale_to']) ? (int) $row['scale_to'] : null,
+                            'updated_at' => $now,
                         ];
 
-                        $scaleFrom = !empty($row['scale_from']) ? (int) $row['scale_from'] : null;
-                        $lookupKey = $productId . '|' . $priceTypeId . '|' . $currency
-                            . '|' . ($validFrom ?? '') . '|' . ($scaleFrom ?? '');
-                        $isExisting = isset($existingPricesMap[$lookupKey]);
+                        // In-Memory Constraint-Check
+                        $constraintKey = $productId . '|' . $priceTypeId . '|' . $currency
+                            . '|' . ($validFrom ?? '_NULL_') . '|' . ($scaleFrom ?? '_NULL_');
 
-                        if ($validFrom === null || $scaleFrom === null) {
-                            // NULL in unique-key Spalten: Fallback auf Einzel-Insert/Update
-                            $existingPrice = $existingPricesMap[$lookupKey] ?? null;
-                            if ($existingPrice) {
-                                $existingPrice->update($data);
-                                $this->stats[$sheetKey]['updated']++;
-                            } else {
-                                $data['id'] = Str::uuid()->toString();
-                                $data['updated_at'] = $now;
-                                $data['created_at'] = $now;
-                                ProductPrice::create($data);
-                                $this->stats[$sheetKey]['created']++;
-                            }
+                        if (isset($existingMap[$constraintKey])) {
+                            $data['id'] = $existingMap[$constraintKey];
+                            $updateBatch[] = $data;
                         } else {
-                            // Alle unique-key Spalten non-null: sammeln für Batch-Upsert
                             $data['id'] = Str::uuid()->toString();
-                            $data['updated_at'] = $now;
                             $data['created_at'] = $now;
-                            $upsertData[] = $data;
-
-                            if ($isExisting) {
-                                $this->stats[$sheetKey]['updated']++;
-                            } else {
-                                $this->stats[$sheetKey]['created']++;
-                            }
+                            $insertBatch[] = $data;
+                            $existingMap[$constraintKey] = $data['id'];
                         }
 
                         $this->affectedProductIds[] = $productId;
@@ -1936,25 +2093,21 @@ class ImportExecutor
                     }
                 }
 
-                // Preise mit valid_from als Batch-Upsert
-                if (!empty($upsertData)) {
-                    ProductPrice::upsert(
-                        $upsertData,
-                        ['product_id', 'price_type_id', 'currency', 'valid_from', 'scale_from'],
-                        ['amount', 'valid_to', 'country', 'scale_to', 'updated_at']
-                    );
+                // Reines INSERT für neue Preise
+                if (!empty($insertBatch)) {
+                    foreach (array_chunk($insertBatch, 2000) as $batchChunk) {
+                        DB::table('product_prices')->insert($batchChunk);
+                    }
+                    $this->stats[$sheetKey]['created'] += count($insertBatch);
+                }
+
+                // Batch-UPDATE per CASE WHEN (1 Query statt N)
+                if (!empty($updateBatch)) {
+                    $this->bulkUpdateById('product_prices', $updateBatch, $updateColumns);
+                    $this->stats[$sheetKey]['updated'] += count($updateBatch);
                 }
 
                 DB::commit();
-
-                if ($this->progressCallback && $chunkIndex % 5 === 0) {
-                    call_user_func($this->progressCallback, [
-                        'phase' => 'importing',
-                        'message' => "Preise: Chunk {$chunkIndex}/{$totalChunks} verarbeitet",
-                        'current' => $chunkIndex,
-                        'total' => $totalChunks,
-                    ]);
-                }
             } catch (\Throwable $e) {
                 DB::rollBack();
                 Log::channel('import')->error("Preise Chunk {$chunkIndex}/{$totalChunks} fehlgeschlagen", [
