@@ -856,7 +856,7 @@ const apiCallDisplay = computed(() => {
 </script>
 
 <template>
-  <div class="space-y-4 max-w-4xl mx-auto">
+  <div class="space-y-4">
     <!-- Entity category tabs -->
     <div class="flex items-center gap-1 border-b border-[var(--color-border)] pb-0 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
       <button

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import { ArrowUp, ArrowDown, ArrowUpDown, Trash2 } from 'lucide-vue-next'
 
 const props = defineProps({
@@ -98,11 +98,52 @@ function getCellValue(row, col) {
   for (const k of keys) val = val?.[k]
   return val ?? '—'
 }
+
+// --- Column resize ---
+const columnWidths = ref({})
+let resizeCol = null
+let resizeStartX = 0
+let resizeStartW = 0
+
+function onResizeStart(event, col) {
+  event.preventDefault()
+  event.stopPropagation()
+  resizeCol = col.key
+  resizeStartX = event.clientX
+  const th = event.target.closest('th')
+  resizeStartW = th.offsetWidth
+  document.addEventListener('mousemove', onResizeMove)
+  document.addEventListener('mouseup', onResizeEnd)
+}
+
+function onResizeMove(event) {
+  if (!resizeCol) return
+  const diff = event.clientX - resizeStartX
+  const newWidth = Math.max(60, resizeStartW + diff)
+  columnWidths.value = { ...columnWidths.value, [resizeCol]: newWidth + 'px' }
+}
+
+function onResizeEnd() {
+  resizeCol = null
+  document.removeEventListener('mousemove', onResizeMove)
+  document.removeEventListener('mouseup', onResizeEnd)
+}
+
+onBeforeUnmount(() => {
+  document.removeEventListener('mousemove', onResizeMove)
+  document.removeEventListener('mouseup', onResizeEnd)
+})
+
+function getColStyle(col) {
+  const w = columnWidths.value[col.key] || col.width
+  if (!w) return {}
+  return { width: w, minWidth: w, maxWidth: w }
+}
 </script>
 
 <template>
   <div class="pim-card overflow-hidden">
-    <div class="overflow-x-auto">
+    <div class="overflow-auto max-h-[calc(100vh-280px)]">
       <table class="w-full text-[13px]">
         <thead :class="stickyHeader ? 'sticky top-0 z-10' : ''">
           <tr class="bg-[var(--color-bg)] border-b border-[var(--color-border)]">
@@ -120,11 +161,11 @@ function getCellValue(row, col) {
               v-for="col in columns"
               :key="col.key"
               :class="[
-                'px-3 py-2.5 text-left font-medium text-[11px] uppercase tracking-wider text-[var(--color-text-tertiary)]',
+                'px-3 py-2.5 text-left font-medium text-[11px] uppercase tracking-wider text-[var(--color-text-tertiary)] relative',
                 col.sortable ? 'cursor-pointer select-none hover:text-[var(--color-text-secondary)]' : '',
                 col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : '',
               ]"
-              :style="col.width ? { width: col.width, minWidth: col.width, maxWidth: col.width } : {}"
+              :style="getColStyle(col)"
               @click="handleSort(col)"
             >
               <div class="flex items-center gap-1" :class="col.align === 'right' ? 'justify-end' : ''">
@@ -135,6 +176,10 @@ function getCellValue(row, col) {
                   <ArrowUpDown v-else class="w-3 h-3 opacity-30" />
                 </template>
               </div>
+              <div
+                class="col-resize-handle"
+                @mousedown="onResizeStart($event, col)"
+              />
             </th>
             <!-- Actions column -->
             <th v-if="showActions" class="w-10"></th>
@@ -221,7 +266,7 @@ function getCellValue(row, col) {
                 col.mono ? 'font-mono text-xs text-[var(--color-text-secondary)]' : '',
                 col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : '',
               ]"
-              :style="col.width ? { width: col.width, minWidth: col.width, maxWidth: col.width } : {}"
+              :style="getColStyle(col)"
             >
               <slot :name="'cell-' + col.key" :row="row" :value="getCellValue(row, col)">
                 {{ getCellValue(row, col) }}
@@ -247,3 +292,20 @@ function getCellValue(row, col) {
     <slot name="pagination" />
   </div>
 </template>
+
+<style scoped>
+.col-resize-handle {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  user-select: none;
+}
+.col-resize-handle:hover,
+.col-resize-handle:active {
+  background: var(--color-accent);
+  opacity: 0.3;
+}
+</style>
