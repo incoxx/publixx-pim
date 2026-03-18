@@ -1080,7 +1080,7 @@ class ImportExecutor
             $this->heartbeat();
             $chunkIndex++;
 
-            if ($this->progressCallback && ($chunkIndex % 5 === 0 || $chunkIndex === 1)) {
+            if ($this->progressCallback) {
                 $processedRows = min($chunkIndex * $chunkSize, $totalRows);
                 ($this->progressCallback)($sheetKey, $processedRows, $totalRows, $this->stats);
             }
@@ -1175,7 +1175,7 @@ class ImportExecutor
         }
 
         // Produkt-IDs sammeln (aus existingSkuMap — kein extra DB-Query nötig!)
-        $this->affectedProductIds = array_merge($this->affectedProductIds, array_values($existingSkuMap));
+        array_push($this->affectedProductIds, ...array_values($existingSkuMap));
 
         // Resolver-Cache neu aufbauen nach Produkt-Import
         $this->resolver->clearCache('product');
@@ -1379,7 +1379,7 @@ class ImportExecutor
             $this->heartbeat();
             $chunkIndex++;
 
-            if ($this->progressCallback && ($chunkIndex % 5 === 0 || $chunkIndex === 1)) {
+            if ($this->progressCallback) {
                 $processedRows = min($chunkIndex * $chunkSize, $totalRows);
                 ($this->progressCallback)($sheetKey, $processedRows, $totalRows, $this->stats);
             }
@@ -1490,7 +1490,9 @@ class ImportExecutor
                 $this->stats[$sheetKey]['updated'] += count($updateBatch);
             }
 
-            $this->affectedProductIds = array_merge($this->affectedProductIds, $affectedIds);
+            // array_push statt array_merge: O(k) statt O(n) — vermeidet
+            // progressiven Slowdown bei 1M+ Einträgen.
+            array_push($this->affectedProductIds, ...$affectedIds);
 
             DB::commit();
             } catch (\Throwable $e) {
@@ -1811,7 +1813,7 @@ class ImportExecutor
             $this->heartbeat();
             $chunkIndex++;
 
-            if ($this->progressCallback && ($chunkIndex % 5 === 0 || $chunkIndex === 1)) {
+            if ($this->progressCallback) {
                 $processedRows = min($chunkIndex * $chunkSize, $totalRows);
                 ($this->progressCallback)($sheetKey, $processedRows, $totalRows, $this->stats);
             }
@@ -2093,7 +2095,7 @@ class ImportExecutor
             $chunkIndex++;
             $this->heartbeat();
 
-            if ($this->progressCallback && ($chunkIndex % 5 === 0 || $chunkIndex === 1)) {
+            if ($this->progressCallback) {
                 $processedRows = min($chunkIndex * $chunkSize, $totalRows);
                 ($this->progressCallback)($sheetKey, $processedRows, $totalRows, $this->stats);
             }
