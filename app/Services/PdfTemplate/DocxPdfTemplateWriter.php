@@ -93,7 +93,7 @@ class DocxPdfTemplateWriter
         $type = $element['type'] ?? 'text';
         $style = $element['style'] ?? [];
 
-        if ($type === 'variant_table' || $type === 'relation_table') {
+        if ($type === 'variant_table' || $type === 'relation_table' || $type === 'attribute_table') {
             $this->renderVariantTableElement($section, $element);
             return;
         }
@@ -115,7 +115,8 @@ class DocxPdfTemplateWriter
         }
 
         // Use textBox with absolute positioning (Frame style, unit = pt)
-        $textBox = $section->addTextBox([
+        $hasBorder = isset($style['borderWidth']) && (int) $style['borderWidth'] > 0;
+        $textBoxStyle = [
             'width' => $widthPt,
             'height' => $heightPt,
             'positioning' => 'absolute',
@@ -124,11 +125,19 @@ class DocxPdfTemplateWriter
             'marginLeft' => $xTwip,
             'marginTop' => $yTwip,
             'wrappingStyle' => 'infront',
-            'borderSize' => isset($style['borderWidth']) && (int) $style['borderWidth'] > 0
-                ? (int) $style['borderWidth'] * self::PT_TO_HALF_PT
-                : 0,
-            'borderColor' => ltrim($style['borderColor'] ?? '000000', '#'),
-        ]);
+            'innerMarginTop' => 0,
+            'innerMarginBottom' => 0,
+            'innerMarginLeft' => 0,
+            'innerMarginRight' => 0,
+        ];
+        if ($hasBorder) {
+            $textBoxStyle['borderSize'] = (int) $style['borderWidth'] * self::PT_TO_HALF_PT;
+            $textBoxStyle['borderColor'] = ltrim($style['borderColor'] ?? '000000', '#');
+        } else {
+            $textBoxStyle['borderSize'] = 0;
+            $textBoxStyle['borderColor'] = 'FFFFFF';
+        }
+        $textBox = $section->addTextBox($textBoxStyle);
 
         if (!empty($style['backgroundColor']) && $style['backgroundColor'] !== 'transparent') {
             $textBox->getStyle()->setBgColor(ltrim($style['backgroundColor'], '#'));
@@ -148,6 +157,10 @@ class DocxPdfTemplateWriter
             return;
         }
 
+        // Element bounds in points (PhpWord uses points for image width/height)
+        $boxWPt = max(1, ($element['width'] ?? 40) * self::MM_TO_PT);
+        $boxHPt = max(1, ($element['height'] ?? 40) * self::MM_TO_PT);
+
         foreach ($images as $imgPath) {
             if (!file_exists($imgPath)) {
                 continue;
@@ -156,34 +169,32 @@ class DocxPdfTemplateWriter
             try {
                 // Calculate contain dimensions: fit image within element bounds preserving aspect ratio
                 $imgSize = @getimagesize($imgPath);
-                $boxW = max(1, ($element['width'] ?? 40) * (96 / 25.4));
-                $boxH = max(1, ($element['height'] ?? 40) * (96 / 25.4));
 
                 if ($imgSize && $imgSize[0] > 0 && $imgSize[1] > 0) {
                     $imgAspect = $imgSize[0] / $imgSize[1];
-                    $boxAspect = $boxW / $boxH;
+                    $boxAspect = $boxWPt / $boxHPt;
 
                     if ($imgAspect > $boxAspect) {
-                        $renderW = $boxW;
-                        $renderH = $boxW / $imgAspect;
+                        $renderW = $boxWPt;
+                        $renderH = $boxWPt / $imgAspect;
                     } else {
-                        $renderH = $boxH;
-                        $renderW = $boxH * $imgAspect;
+                        $renderH = $boxHPt;
+                        $renderW = $boxHPt * $imgAspect;
                     }
                 } else {
-                    $renderW = $boxW;
-                    $renderH = $boxH;
+                    $renderW = $boxWPt;
+                    $renderH = $boxHPt;
                 }
 
                 $section->addImage($imgPath, [
-                    'width' => $renderW,
-                    'height' => $renderH,
+                    'width' => round($renderW, 1),
+                    'height' => round($renderH, 1),
                     'positioning' => 'absolute',
                     'posHorizontalRel' => 'page',
                     'posVerticalRel' => 'page',
                     'marginLeft' => $x,
                     'marginTop' => $y,
-                    'wrappingStyle' => 'infront',
+                    'wrappingStyle' => 'behind',
                 ]);
 
                 break; // Only render first valid image per element

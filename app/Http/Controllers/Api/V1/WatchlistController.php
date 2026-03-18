@@ -373,11 +373,13 @@ class WatchlistController extends Controller
             'pdf_template_id' => 'required|string|exists:pdf_templates,id',
             'mode' => 'sometimes|string|in:combined,zip',
             'lang' => 'sometimes|string|max:5',
+            'format' => 'sometimes|string|in:pdf,docx,indesign',
         ]);
 
         $template = PdfTemplate::findOrFail($validated['pdf_template_id']);
         $mode = $validated['mode'] ?? 'combined';
         $lang = $validated['lang'] ?? 'de';
+        $format = $validated['format'] ?? 'pdf';
 
         $items = WatchlistItem::where('user_id', $request->user()->id)
             ->with('product')
@@ -389,7 +391,13 @@ class WatchlistController extends Controller
             abort(404, 'Keine Produkte auf der Merkliste.');
         }
 
-        $result = $pdfTemplateService->generateForProducts($template, $products, $mode, $lang);
+        if ($format === 'indesign') {
+            $result = $pdfTemplateService->generateInDesignForProducts($template, $products, $lang);
+        } elseif ($format === 'docx') {
+            $result = $pdfTemplateService->generateDocxForProducts($template, $products, $mode, $lang);
+        } else {
+            $result = $pdfTemplateService->generateForProducts($template, $products, $mode, $lang);
+        }
 
         return response()->streamDownload(function () use ($result) {
             readfile($result['path']);

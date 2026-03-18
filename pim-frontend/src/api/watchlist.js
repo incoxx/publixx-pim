@@ -52,11 +52,12 @@ export default {
     })
   },
 
-  exportPdfTemplate(pdfTemplateId, mode = 'combined', lang = 'de') {
+  exportPdfTemplate(pdfTemplateId, mode = 'combined', lang = 'de', format = 'pdf') {
     return client.post('/watchlist/export/pdf-template', {
       pdf_template_id: pdfTemplateId,
       mode,
       lang,
+      format,
     }, { responseType: 'blob' })
   },
 }
