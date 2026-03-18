@@ -4,6 +4,10 @@ import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import {
   ArrowLeft, Save, Eye, Code, Settings, Maximize2, Minimize2,
   Monitor, Tablet, Smartphone, RefreshCw, Globe, EyeOff, Copy,
+  Search, LayoutGrid, Package, FolderTree, SlidersHorizontal, Filter,
+  Wrench, ChevronsLeftRight, Heart, Columns, Languages,
+  PanelTop, PanelLeft, PanelBottom, Rows3, Type, Image,
+  Puzzle, Undo2, Redo2, ClipboardCopy, ClipboardPaste,
 } from 'lucide-vue-next'
 import catalogTemplatesApi from '@/api/catalogTemplates'
 
@@ -165,7 +169,57 @@ function onKeyDown(e) {
 window.addEventListener('keydown', onKeyDown)
 onBeforeUnmount(() => { window.removeEventListener('keydown', onKeyDown) })
 
-// Tab handling in textarea
+// ─── Editor enhancements ────────────────────────────
+const editorLine = ref(1)
+const editorCol = ref(1)
+const lineCount = computed(() => (htmlCode.value.match(/\n/g) || []).length + 1)
+const lineNumbers = computed(() => Array.from({ length: lineCount.value }, (_, i) => i + 1))
+
+function updateCursorPosition(e) {
+  const el = e?.target || document.getElementById('html-editor-textarea')
+  if (!el) return
+  const pos = el.selectionStart
+  const textBefore = el.value.substring(0, pos)
+  editorLine.value = (textBefore.match(/\n/g) || []).length + 1
+  editorCol.value = pos - textBefore.lastIndexOf('\n')
+}
+
+function syncLineScroll(e) {
+  const lineEl = document.getElementById('line-number-gutter')
+  if (lineEl) lineEl.scrollTop = e.target.scrollTop
+}
+
+async function copySelection() {
+  const el = document.getElementById('html-editor-textarea')
+  if (!el) return
+  const text = el.value.substring(el.selectionStart, el.selectionEnd) || el.value
+  await navigator.clipboard.writeText(text)
+}
+
+async function pasteAtCursor() {
+  const el = document.getElementById('html-editor-textarea')
+  if (!el) return
+  const text = await navigator.clipboard.readText()
+  const pos = el.selectionStart
+  const end = el.selectionEnd
+  htmlCode.value = el.value.substring(0, pos) + text + el.value.substring(end)
+  nextTick(() => {
+    el.selectionStart = el.selectionEnd = pos + text.length
+    el.focus()
+  })
+}
+
+function editorUndo() {
+  document.getElementById('html-editor-textarea')?.focus()
+  document.execCommand('undo')
+}
+
+function editorRedo() {
+  document.getElementById('html-editor-textarea')?.focus()
+  document.execCommand('redo')
+}
+
+// Tab and Enter handling in textarea
 function onEditorKeyDown(e) {
   if (e.key === 'Tab') {
     e.preventDefault()
@@ -177,6 +231,7 @@ function onEditorKeyDown(e) {
     el.selectionStart = el.selectionEnd = start + 2
     htmlCode.value = el.value
   }
+  nextTick(() => updateCursorPosition(e))
 }
 
 function isColorVar(key) {
@@ -200,6 +255,99 @@ function applyCssVarsToPreview() {
     html = html.replace('<style>', `<style>\n    ${rootBlock}\n`)
   }
   htmlCode.value = html
+}
+
+// ─── Widget Palette ─────────────────────────────────
+const showPalette = ref(true)
+
+const widgetItems = [
+  { tag: 'search', label: 'Suche', icon: Search, snippet: '<div data-catalog="search"></div>' },
+  { tag: 'product-grid', label: 'Produktraster', icon: LayoutGrid, snippet: '<div data-catalog="product-grid"></div>' },
+  { tag: 'product-detail', label: 'Produktdetail', icon: Package, snippet: '<div data-catalog="product-detail"></div>' },
+  { tag: 'categories', label: 'Kategorien', icon: FolderTree, snippet: '<div data-catalog="categories"></div>' },
+  { tag: 'facets', label: 'Facetten', icon: SlidersHorizontal, snippet: '<div data-catalog="facets"></div>' },
+  { tag: 'active-filters', label: 'Akt. Filter', icon: Filter, snippet: '<div data-catalog="active-filters"></div>' },
+  { tag: 'toolbar', label: 'Toolbar', icon: Wrench, snippet: '<div data-catalog="toolbar"></div>' },
+  { tag: 'pagination', label: 'Seiten', icon: ChevronsLeftRight, snippet: '<div data-catalog="pagination"></div>' },
+  { tag: 'wishlist', label: 'Merkliste', icon: Heart, snippet: '<div data-catalog="wishlist"></div>' },
+  { tag: 'compare', label: 'Vergleich', icon: Columns, snippet: '<div data-catalog="compare"></div>' },
+  { tag: 'locale', label: 'Sprache', icon: Languages, snippet: '<div data-catalog="locale"></div>' },
+]
+
+const layoutItems = [
+  { tag: 'header', label: 'Header', icon: PanelTop, snippet: '<header style="background:#2563eb;color:white;padding:16px 24px;display:flex;align-items:center;justify-content:space-between">\n  <h1 style="margin:0;font-size:1.25rem">Katalog</h1>\n  <div style="display:flex;gap:12px;align-items:center">\n    <div data-catalog="search"></div>\n    <div data-catalog="wishlist"></div>\n  </div>\n</header>' },
+  { tag: 'sidebar-layout', label: 'Sidebar + Main', icon: PanelLeft, snippet: '<div style="display:grid;grid-template-columns:280px 1fr;max-width:1400px;margin:0 auto">\n  <aside style="padding:16px;background:white;min-height:calc(100vh - 60px)">\n    <div data-catalog="categories"></div>\n    <div data-catalog="facets"></div>\n  </aside>\n  <main style="padding:24px">\n    <div data-catalog="toolbar"></div>\n    <div data-catalog="active-filters"></div>\n    <div data-catalog="product-grid"></div>\n    <div data-catalog="pagination"></div>\n  </main>\n</div>' },
+  { tag: 'footer', label: 'Footer', icon: PanelBottom, snippet: '<footer style="background:#1e293b;color:#94a3b8;padding:24px;text-align:center;font-size:0.85rem">\n  &copy; 2026 Firma — Alle Rechte vorbehalten\n</footer>' },
+  { tag: 'section', label: 'Abschnitt', icon: Rows3, snippet: '<section style="max-width:1200px;margin:0 auto;padding:32px 24px">\n  \n</section>' },
+  { tag: 'heading', label: 'Überschrift', icon: Type, snippet: '<h2 style="font-size:1.5rem;font-weight:600;margin:0 0 16px">Überschrift</h2>' },
+  { tag: 'hero', label: 'Hero-Banner', icon: Image, snippet: '<div style="background:linear-gradient(135deg,#2563eb,#7c3aed);color:white;padding:64px 24px;text-align:center">\n  <h1 style="font-size:2rem;margin:0 0 8px">Produktkatalog</h1>\n  <p style="font-size:1.1rem;opacity:0.9;margin:0">Entdecken Sie unser Sortiment</p>\n</div>' },
+]
+
+let dragSnippet = ''
+
+function onWidgetDragStart(e, snippet) {
+  dragSnippet = snippet
+  e.dataTransfer.setData('text/plain', snippet)
+  e.dataTransfer.effectAllowed = 'copy'
+}
+
+function onEditorDrop(e) {
+  e.preventDefault()
+  const textarea = e.target
+  if (textarea.tagName !== 'TEXTAREA') return
+
+  const snippet = e.dataTransfer.getData('text/plain') || dragSnippet
+  if (!snippet) return
+
+  // Get drop position from mouse coordinates
+  const pos = getCaretPositionFromPoint(textarea, e.clientX, e.clientY)
+  insertSnippetAtPosition(textarea, snippet, pos)
+}
+
+function onEditorDragOver(e) {
+  e.preventDefault()
+  e.dataTransfer.dropEffect = 'copy'
+}
+
+function insertWidgetAtCursor(snippet) {
+  const textarea = document.getElementById('html-editor-textarea')
+  if (!textarea) return
+  const pos = textarea.selectionStart ?? textarea.value.length
+  insertSnippetAtPosition(textarea, snippet, pos)
+  textarea.focus()
+}
+
+function insertSnippetAtPosition(textarea, snippet, pos) {
+  const before = textarea.value.substring(0, pos)
+  const after = textarea.value.substring(pos)
+
+  // Determine indentation of current line
+  const lineStart = before.lastIndexOf('\n') + 1
+  const currentLine = before.substring(lineStart)
+  const indent = currentLine.match(/^(\s*)/)?.[1] || ''
+
+  // Indent the snippet lines to match
+  const indented = snippet.split('\n').map((line, i) => i === 0 ? line : indent + line).join('\n')
+
+  const needsNewlineBefore = before.length > 0 && !before.endsWith('\n') ? '\n' + indent : ''
+  const needsNewlineAfter = after.length > 0 && !after.startsWith('\n') ? '\n' : ''
+
+  htmlCode.value = before + needsNewlineBefore + indented + needsNewlineAfter + after
+  nextTick(() => {
+    const newPos = before.length + needsNewlineBefore.length + indented.length
+    textarea.selectionStart = textarea.selectionEnd = newPos
+  })
+}
+
+function getCaretPositionFromPoint(textarea, x, y) {
+  // Approximate caret position from coordinates
+  // Since browsers don't expose this directly for textareas, use selectionStart as fallback
+  textarea.focus()
+  if (document.caretPositionFromPoint) {
+    const range = document.caretPositionFromPoint(x, y)
+    if (range) return range.offset
+  }
+  return textarea.selectionStart ?? textarea.value.length
 }
 </script>
 
@@ -287,10 +435,96 @@ function applyCssVarsToPreview() {
       </div>
     </div>
 
-    <!-- Editor tab: Code + Preview side by side -->
+    <!-- Editor tab: Palette + Code + Preview -->
     <div v-else-if="activeTab === 'editor'" class="flex-1 flex overflow-hidden">
-      <!-- Left: Code editor -->
-      <div class="w-1/2 flex flex-col border-r border-[var(--color-border)]">
+
+      <!-- Widget Palette (left strip) -->
+      <div
+        class="shrink-0 border-r border-[var(--color-border)] bg-[var(--color-surface)] flex flex-col overflow-y-auto transition-all"
+        :style="{ width: showPalette ? '156px' : '36px' }"
+      >
+        <!-- Palette toggle -->
+        <button
+          class="w-full px-2 py-1.5 text-[10px] font-semibold text-[var(--color-text-secondary)] hover:bg-[var(--color-bg)] transition-colors flex items-center gap-1 border-b border-[var(--color-border)] shrink-0"
+          @click="showPalette = !showPalette"
+          :title="showPalette ? 'Palette einklappen' : 'Palette aufklappen'"
+        >
+          <Puzzle class="w-3.5 h-3.5 shrink-0" :stroke-width="1.75" />
+          <span v-if="showPalette">Widgets</span>
+        </button>
+
+        <template v-if="showPalette">
+          <!-- Catalog Widgets -->
+          <div class="px-2 pt-2 pb-1">
+            <div class="text-[9px] font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wider mb-1.5">Katalog</div>
+            <div class="grid grid-cols-2 gap-1">
+              <button
+                v-for="w in widgetItems"
+                :key="w.tag"
+                draggable="true"
+                @dragstart="onWidgetDragStart($event, w.snippet)"
+                @dblclick="insertWidgetAtCursor(w.snippet)"
+                class="flex flex-col items-center gap-0.5 p-1.5 rounded border border-transparent hover:border-[var(--color-border)] hover:bg-[var(--color-bg)] cursor-grab active:cursor-grabbing transition-colors group"
+                :title="`${w.label} — Doppelklick oder Drag&amp;Drop`"
+              >
+                <component :is="w.icon" class="w-4 h-4 text-[var(--color-accent)] group-hover:scale-110 transition-transform" :stroke-width="1.75" />
+                <span class="text-[8px] text-[var(--color-text-tertiary)] leading-tight text-center">{{ w.label }}</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Layout Blocks -->
+          <div class="px-2 pt-2 pb-2 border-t border-[var(--color-border)]">
+            <div class="text-[9px] font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wider mb-1.5">Layout</div>
+            <div class="grid grid-cols-2 gap-1">
+              <button
+                v-for="w in layoutItems"
+                :key="w.tag"
+                draggable="true"
+                @dragstart="onWidgetDragStart($event, w.snippet)"
+                @dblclick="insertWidgetAtCursor(w.snippet)"
+                class="flex flex-col items-center gap-0.5 p-1.5 rounded border border-transparent hover:border-[var(--color-border)] hover:bg-[var(--color-bg)] cursor-grab active:cursor-grabbing transition-colors group"
+                :title="`${w.label} — Doppelklick oder Drag&amp;Drop`"
+              >
+                <component :is="w.icon" class="w-4 h-4 text-[var(--color-text-secondary)] group-hover:scale-110 transition-transform" :stroke-width="1.75" />
+                <span class="text-[8px] text-[var(--color-text-tertiary)] leading-tight text-center">{{ w.label }}</span>
+              </button>
+            </div>
+          </div>
+        </template>
+
+        <!-- Collapsed: icon-only strip -->
+        <template v-else>
+          <div class="flex flex-col items-center gap-0.5 py-2">
+            <button
+              v-for="w in widgetItems"
+              :key="w.tag"
+              draggable="true"
+              @dragstart="onWidgetDragStart($event, w.snippet)"
+              @dblclick="insertWidgetAtCursor(w.snippet)"
+              class="p-1 rounded hover:bg-[var(--color-bg)] cursor-grab active:cursor-grabbing transition-colors"
+              :title="w.label"
+            >
+              <component :is="w.icon" class="w-3.5 h-3.5 text-[var(--color-accent)]" :stroke-width="1.75" />
+            </button>
+            <div class="w-4 border-t border-[var(--color-border)] my-1" />
+            <button
+              v-for="w in layoutItems"
+              :key="w.tag"
+              draggable="true"
+              @dragstart="onWidgetDragStart($event, w.snippet)"
+              @dblclick="insertWidgetAtCursor(w.snippet)"
+              class="p-1 rounded hover:bg-[var(--color-bg)] cursor-grab active:cursor-grabbing transition-colors"
+              :title="w.label"
+            >
+              <component :is="w.icon" class="w-3.5 h-3.5 text-[var(--color-text-secondary)]" :stroke-width="1.75" />
+            </button>
+          </div>
+        </template>
+      </div>
+
+      <!-- Code editor (center) -->
+      <div class="flex-1 flex flex-col border-r border-[var(--color-border)] min-w-0">
         <!-- CSS Variables bar -->
         <div class="border-b border-[var(--color-border)]">
           <button
@@ -328,17 +562,59 @@ function applyCssVarsToPreview() {
           </div>
         </div>
 
-        <!-- Textarea editor -->
-        <textarea
-          v-model="htmlCode"
-          class="flex-1 w-full p-3 font-mono text-[12px] leading-relaxed bg-[var(--color-bg)] text-[var(--color-text-primary)] border-none outline-none resize-none"
-          spellcheck="false"
-          @keydown="onEditorKeyDown"
-        />
+        <!-- Editor toolbar -->
+        <div class="flex items-center gap-1 px-2 py-1 border-b border-[var(--color-border)] bg-[var(--color-surface)] shrink-0">
+          <button class="p-1 rounded hover:bg-[var(--color-bg)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors" @click="editorUndo" title="Rückgängig (Ctrl+Z)">
+            <Undo2 class="w-3.5 h-3.5" :stroke-width="1.75" />
+          </button>
+          <button class="p-1 rounded hover:bg-[var(--color-bg)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors" @click="editorRedo" title="Wiederholen (Ctrl+Y)">
+            <Redo2 class="w-3.5 h-3.5" :stroke-width="1.75" />
+          </button>
+          <div class="w-px h-4 bg-[var(--color-border)] mx-1" />
+          <button class="p-1 rounded hover:bg-[var(--color-bg)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors" @click="copySelection" title="Kopieren (Ctrl+C)">
+            <ClipboardCopy class="w-3.5 h-3.5" :stroke-width="1.75" />
+          </button>
+          <button class="p-1 rounded hover:bg-[var(--color-bg)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors" @click="pasteAtCursor" title="Einfügen (Ctrl+V)">
+            <ClipboardPaste class="w-3.5 h-3.5" :stroke-width="1.75" />
+          </button>
+          <div class="flex-1" />
+          <span class="text-[10px] font-mono text-[var(--color-text-tertiary)]">
+            Zeile {{ editorLine }}, Spalte {{ editorCol }} | {{ lineCount }} Zeilen
+          </span>
+        </div>
+
+        <!-- Textarea with line numbers -->
+        <div class="flex-1 flex overflow-hidden">
+          <div
+            id="line-number-gutter"
+            class="shrink-0 py-3 pr-2 text-right select-none overflow-hidden bg-[var(--color-surface)] border-r border-[var(--color-border)]"
+            style="width: 44px;"
+          >
+            <div
+              v-for="n in lineNumbers"
+              :key="n"
+              class="font-mono leading-relaxed px-1"
+              :class="n === editorLine ? 'text-[var(--color-accent)] font-medium' : 'text-[var(--color-text-tertiary)]'"
+              style="font-size: 12px;"
+            >{{ n }}</div>
+          </div>
+          <textarea
+            id="html-editor-textarea"
+            v-model="htmlCode"
+            class="flex-1 w-full py-3 px-3 font-mono text-[12px] leading-relaxed bg-[var(--color-bg)] text-[var(--color-text-primary)] border-none outline-none resize-none"
+            spellcheck="false"
+            @keydown="onEditorKeyDown"
+            @keyup="updateCursorPosition"
+            @click="updateCursorPosition"
+            @scroll="syncLineScroll"
+            @drop="onEditorDrop"
+            @dragover="onEditorDragOver"
+          />
+        </div>
       </div>
 
-      <!-- Right: Live preview -->
-      <div class="w-1/2 flex flex-col bg-[#f0f0f0]">
+      <!-- Live preview (right) -->
+      <div class="w-[45%] shrink-0 flex flex-col bg-[#f0f0f0]">
         <div class="px-3 py-1.5 text-[11px] text-[var(--color-text-tertiary)] border-b border-[var(--color-border)] bg-[var(--color-surface)] shrink-0 flex items-center justify-between">
           <span>Vorschau</span>
           <span class="text-[10px]">{{ previewDevice }} {{ previewDevice !== 'desktop' ? previewWidth : '' }}</span>
@@ -391,23 +667,17 @@ function applyCssVarsToPreview() {
         <div class="pt-4 border-t border-[var(--color-border)]">
           <h4 class="text-[12px] font-semibold text-[var(--color-text-secondary)] mb-3">Verfügbare data-catalog Widgets</h4>
           <div class="grid grid-cols-2 gap-2">
-            <div v-for="widget in [
-              { tag: 'search', label: 'Suche' },
-              { tag: 'product-grid', label: 'Produktraster' },
-              { tag: 'product-detail', label: 'Produktdetail-Modal' },
-              { tag: 'categories', label: 'Kategorien' },
-              { tag: 'facets', label: 'Facetten-Filter' },
-              { tag: 'active-filters', label: 'Aktive Filter' },
-              { tag: 'toolbar', label: 'Toolbar (Sortierung, Ansicht)' },
-              { tag: 'pagination', label: 'Seitennavigation' },
-              { tag: 'wishlist', label: 'Merkliste-Button' },
-              { tag: 'compare', label: 'Vergleichen-Modal' },
-              { tag: 'locale', label: 'Sprachumschalter' },
-            ]" :key="widget.tag" class="pim-card p-2">
-              <code class="text-[10px] text-[var(--color-accent)] block">data-catalog="{{ widget.tag }}"</code>
-              <span class="text-[10px] text-[var(--color-text-tertiary)]">{{ widget.label }}</span>
+            <div v-for="w in widgetItems" :key="w.tag" class="pim-card p-2 flex items-center gap-2">
+              <component :is="w.icon" class="w-4 h-4 text-[var(--color-accent)] shrink-0" :stroke-width="1.75" />
+              <div>
+                <code class="text-[10px] text-[var(--color-accent)] block">data-catalog="{{ w.tag }}"</code>
+                <span class="text-[10px] text-[var(--color-text-tertiary)]">{{ w.label }}</span>
+              </div>
             </div>
           </div>
+          <p class="text-[10px] text-[var(--color-text-tertiary)] mt-2">
+            Tipp: Im Editor-Tab findest du links die Widget-Palette — per Doppelklick oder Drag&amp;Drop einfügen.
+          </p>
         </div>
 
         <div class="pt-4 border-t border-[var(--color-border)]">
