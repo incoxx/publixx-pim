@@ -37,9 +37,9 @@ watch(() => props.open, async (isOpen) => {
 async function loadProjects() {
   loading.value = true
   try {
-    const { data } = await projectsApi.list({ filter: { status: 'active' }, perPage: 100 })
+    const { data } = await projectsApi.list({ filters: { status: 'active' }, perPage: 100 })
     const active = data.data || data
-    const { data: data2 } = await projectsApi.list({ filter: { status: 'planning' }, perPage: 100 })
+    const { data: data2 } = await projectsApi.list({ filters: { status: 'planning' }, perPage: 100 })
     const planning = data2.data || data2
     projects.value = [...active, ...planning]
   } catch {

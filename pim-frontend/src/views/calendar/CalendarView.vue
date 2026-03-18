@@ -176,6 +176,7 @@ onMounted(() => {
       :export-jobs="exportJobs"
       @close="showDialog = false"
       @saved="onDialogSaved"
+      @deleted="onDialogSaved"
     />
   </div>
 </template>

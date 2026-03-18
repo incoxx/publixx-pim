@@ -166,10 +166,21 @@ class ProcessPdfDocument implements ShouldQueue
 
     private function downloadPdf(string $url, string $destination): void
     {
-        $response = Http::timeout(60)->withOptions(['sink' => $destination])->get($url);
+        // If the URL is a relative storage path (no scheme), copy directly from the public disk
+        if (!preg_match('#^https?://#i', $url)) {
+            $storagePath = Storage::disk('public')->path($url);
 
-        if (!$response->successful()) {
-            throw new \RuntimeException('PDF download failed: HTTP ' . $response->status());
+            if (!file_exists($storagePath)) {
+                throw new \RuntimeException('PDF file not found on disk: ' . $url);
+            }
+
+            copy($storagePath, $destination);
+        } else {
+            $response = Http::timeout(60)->withOptions(['sink' => $destination])->get($url);
+
+            if (!$response->successful()) {
+                throw new \RuntimeException('PDF download failed: HTTP ' . $response->status());
+            }
         }
 
         if (!file_exists($destination) || filesize($destination) === 0) {
