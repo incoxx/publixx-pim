@@ -6,9 +6,13 @@ namespace App\Http\Controllers\Api\V1;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Facades\Process;
+use Laravel\Horizon\Contracts\JobRepository;
+use Laravel\Horizon\Contracts\MasterSupervisorRepository;
+use Laravel\Horizon\Jobs\RetryFailedJob;
 
 class SystemInfoController extends Controller
 {
@@ -114,6 +118,325 @@ class SystemInfoController extends Controller
                 'php' => $this->getPhpInfo(),
             ],
         ]);
+    }
+
+    /**
+     * GET /api/v1/admin/queue-jobs
+     *
+     * Returns all pending, running, and failed queue jobs.
+     */
+    public function queueJobs(Request $request): JsonResponse
+    {
+        if (!$request->user()?->hasRole('Admin')) {
+            abort(403, 'Unauthorized.');
+        }
+
+        $jobs = [];
+
+        // ── Pending jobs from Redis queues ──
+        $queues = ['default', 'import', 'export', 'indexing', 'cache', 'warmup', 'pdf'];
+        foreach ($queues as $queue) {
+            try {
+                $size = Redis::llen("queues:{$queue}");
+                if ($size > 0) {
+                    // Peek at pending jobs (first 20)
+                    $raw = Redis::lrange("queues:{$queue}", 0, min($size - 1, 19));
+                    foreach ($raw as $payload) {
+                        $data = json_decode($payload, true);
+                        $jobs[] = [
+                            'id' => $data['uuid'] ?? $data['id'] ?? null,
+                            'type' => 'pending',
+                            'queue' => $queue,
+                            'job' => $this->extractJobName($data),
+                            'payload' => $this->extractJobSummary($data),
+                            'created_at' => isset($data['pushedAt']) ? date('Y-m-d H:i:s', (int) $data['pushedAt']) : null,
+                        ];
+                    }
+                    // If more than 20, add summary
+                    if ($size > 20) {
+                        $jobs[] = [
+                            'id' => null,
+                            'type' => 'pending',
+                            'queue' => $queue,
+                            'job' => "... und " . ($size - 20) . " weitere",
+                            'payload' => null,
+                            'created_at' => null,
+                        ];
+                    }
+                }
+            } catch (\Throwable) {
+                // Queue not available
+            }
+        }
+
+        // ── Reserved (running) jobs ──
+        foreach ($queues as $queue) {
+            try {
+                $reserved = Redis::zrange("queues:{$queue}:reserved", 0, -1);
+                foreach ($reserved as $payload) {
+                    $data = json_decode($payload, true);
+                    $jobs[] = [
+                        'id' => $data['uuid'] ?? $data['id'] ?? null,
+                        'type' => 'running',
+                        'queue' => $queue,
+                        'job' => $this->extractJobName($data),
+                        'payload' => $this->extractJobSummary($data),
+                        'created_at' => isset($data['pushedAt']) ? date('Y-m-d H:i:s', (int) $data['pushedAt']) : null,
+                    ];
+                }
+            } catch (\Throwable) {
+                // ignore
+            }
+        }
+
+        // ── Failed jobs from DB ──
+        try {
+            $failed = DB::table('failed_jobs')
+                ->orderByDesc('failed_at')
+                ->limit(50)
+                ->get();
+            foreach ($failed as $fj) {
+                $payload = json_decode($fj->payload, true);
+                $jobs[] = [
+                    'id' => $fj->uuid ?? (string) $fj->id,
+                    'type' => 'failed',
+                    'queue' => $fj->queue,
+                    'job' => $this->extractJobName($payload),
+                    'payload' => $this->extractJobSummary($payload),
+                    'error' => \Illuminate\Support\Str::limit($fj->exception, 200),
+                    'failed_at' => $fj->failed_at,
+                ];
+            }
+        } catch (\Throwable) {
+            // failed_jobs table might not exist
+        }
+
+        // ── Active import jobs (Cache-based) ──
+        try {
+            $importKeys = [];
+            // Check for active BMEcat imports via known pattern
+            $cursor = null;
+            do {
+                $result = Redis::scan($cursor, ['match' => 'laravel_cache_1:bmecat_import_progress_*', 'count' => 100]);
+                if ($result === false) break;
+                [$cursor, $keys] = $result;
+                if (!empty($keys)) {
+                    $importKeys = array_merge($importKeys, $keys);
+                }
+            } while ($cursor);
+
+            foreach ($importKeys as $key) {
+                $importId = str_replace('laravel_cache_1:bmecat_import_progress_', '', $key);
+                $jobs[] = [
+                    'id' => $importId,
+                    'type' => 'import',
+                    'queue' => 'import',
+                    'job' => 'BMEcat Import',
+                    'payload' => "Import-ID: {$importId}",
+                    'created_at' => null,
+                    'cancelable' => true,
+                ];
+            }
+        } catch (\Throwable) {
+            // ignore
+        }
+
+        // ── Queue sizes summary ──
+        $queueSizes = [];
+        foreach ($queues as $queue) {
+            try {
+                $queueSizes[$queue] = (int) Redis::llen("queues:{$queue}");
+            } catch (\Throwable) {
+                $queueSizes[$queue] = 0;
+            }
+        }
+
+        return response()->json([
+            'data' => [
+                'jobs' => $jobs,
+                'queue_sizes' => $queueSizes,
+            ],
+        ]);
+    }
+
+    /**
+     * POST /api/v1/admin/queue-flush
+     *
+     * Flush a specific queue or all queues.
+     */
+    public function queueFlush(Request $request): JsonResponse
+    {
+        if (!$request->user()?->hasRole('Admin')) {
+            abort(403, 'Unauthorized.');
+        }
+
+        $queue = $request->input('queue');
+        $queues = $queue ? [$queue] : ['default', 'import', 'export', 'indexing', 'cache', 'warmup', 'pdf'];
+        $flushed = 0;
+
+        foreach ($queues as $q) {
+            try {
+                $size = (int) Redis::llen("queues:{$q}");
+                if ($size > 0) {
+                    Redis::del("queues:{$q}");
+                    $flushed += $size;
+                }
+                // Also clear reserved/delayed
+                Redis::del("queues:{$q}:reserved");
+                Redis::del("queues:{$q}:delayed");
+            } catch (\Throwable) {
+                // ignore
+            }
+        }
+
+        return response()->json([
+            'message' => "{$flushed} Jobs gelöscht.",
+            'flushed' => $flushed,
+        ]);
+    }
+
+    /**
+     * POST /api/v1/admin/queue-cancel-job
+     *
+     * Cancel a specific job by ID (import or queue job).
+     */
+    public function queueCancelJob(Request $request): JsonResponse
+    {
+        if (!$request->user()?->hasRole('Admin')) {
+            abort(403, 'Unauthorized.');
+        }
+
+        $jobId = $request->input('job_id');
+        $jobType = $request->input('job_type');
+
+        if (!$jobId) {
+            return response()->json(['message' => 'job_id erforderlich.'], 422);
+        }
+
+        // Cancel active BMEcat import
+        if ($jobType === 'import') {
+            Cache::put("bmecat_import_cancel_{$jobId}", true, 300);
+            return response()->json(['message' => "Import {$jobId} wird abgebrochen..."]);
+        }
+
+        // Delete failed job
+        if ($jobType === 'failed') {
+            DB::table('failed_jobs')->where('uuid', $jobId)->orWhere('id', $jobId)->delete();
+            return response()->json(['message' => "Fehlgeschlagener Job gelöscht."]);
+        }
+
+        return response()->json(['message' => "Job-Typ '{$jobType}' nicht unterstützt."], 422);
+    }
+
+    /**
+     * DELETE /api/v1/admin/failed-jobs
+     *
+     * Delete all failed jobs.
+     */
+    public function flushFailedJobs(Request $request): JsonResponse
+    {
+        if (!$request->user()?->hasRole('Admin')) {
+            abort(403, 'Unauthorized.');
+        }
+
+        $count = DB::table('failed_jobs')->count();
+        DB::table('failed_jobs')->truncate();
+
+        return response()->json([
+            'message' => "{$count} fehlgeschlagene Jobs gelöscht.",
+            'deleted' => $count,
+        ]);
+    }
+
+    /**
+     * POST /api/v1/admin/restart-apache
+     *
+     * Gracefully restart Apache (requires sudo permissions for www-data).
+     */
+    public function restartApache(Request $request): JsonResponse
+    {
+        if (!$request->user()?->hasRole('Admin')) {
+            abort(403, 'Unauthorized.');
+        }
+
+        try {
+            $result = Process::timeout(15)->run(['sudo', 'systemctl', 'reload', 'apache2']);
+
+            if ($result->successful()) {
+                return response()->json(['message' => 'Apache wurde neu geladen (graceful reload).']);
+            }
+
+            // Fallback: try apachectl
+            $result2 = Process::timeout(15)->run(['sudo', 'apachectl', 'graceful']);
+            if ($result2->successful()) {
+                return response()->json(['message' => 'Apache wurde neu geladen (graceful).']);
+            }
+
+            return response()->json([
+                'message' => 'Apache-Reload fehlgeschlagen.',
+                'error' => $result->errorOutput() ?: $result2->errorOutput(),
+            ], 500);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'message' => 'Apache-Reload fehlgeschlagen.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * POST /api/v1/admin/restart-horizon
+     *
+     * Restart Horizon workers.
+     */
+    public function restartHorizon(Request $request): JsonResponse
+    {
+        if (!$request->user()?->hasRole('Admin')) {
+            abort(403, 'Unauthorized.');
+        }
+
+        try {
+            $result = Process::timeout(10)->run(['php', base_path('artisan'), 'horizon:terminate']);
+
+            return response()->json([
+                'message' => 'Horizon wird neu gestartet (Supervisor startet automatisch neu).',
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'message' => 'Horizon-Restart fehlgeschlagen.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    private function extractJobName(?array $data): string
+    {
+        if (!$data) return 'Unknown';
+
+        $displayName = $data['displayName'] ?? null;
+        if ($displayName) {
+            // Shorten class name: App\Jobs\UpdateSearchIndex → UpdateSearchIndex
+            return class_basename($displayName);
+        }
+
+        $job = $data['data']['commandName'] ?? $data['job'] ?? 'Unknown';
+        return class_basename($job);
+    }
+
+    private function extractJobSummary(?array $data): ?string
+    {
+        if (!$data) return null;
+
+        // Try to extract meaningful info from the command payload
+        $command = $data['data']['command'] ?? null;
+        if ($command && is_string($command)) {
+            // Unserialize might be risky, just return a hint
+            if (preg_match('/O:\d+:"([^"]+)"/', $command, $m)) {
+                return class_basename($m[1]);
+            }
+        }
+
+        return null;
     }
 
     /**
