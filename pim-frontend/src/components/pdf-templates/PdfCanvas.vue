@@ -71,10 +71,75 @@ onBeforeUnmount(() => {
 })
 
 function onCanvasClick(e) {
-  // Click on empty canvas area → clear selection
+  // Click on empty canvas area → clear selection (unless Ctrl/Shift held)
   if (e.target === e.currentTarget || e.target.classList.contains('canvas-inner')) {
-    store.clearSelection()
+    if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
+      store.clearSelection()
+    }
   }
+}
+
+// ── Rubber-band (marquee) selection ──────────────────
+const rubberBand = ref(null)
+
+function onCanvasMouseDown(e) {
+  // Only start rubber-band on direct canvas click (not on elements)
+  if (e.target !== e.currentTarget && !e.target.classList.contains('canvas-inner')) return
+  if (store.previewMode) return
+  if (e.button !== 0) return
+
+  const rect = e.currentTarget.getBoundingClientRect()
+  const startX = e.clientX - rect.left
+  const startY = e.clientY - rect.top
+  let moved = false
+
+  function onMove(ev) {
+    const curX = ev.clientX - rect.left
+    const curY = ev.clientY - rect.top
+    const dx = Math.abs(curX - startX)
+    const dy = Math.abs(curY - startY)
+    if (!moved && dx < 4 && dy < 4) return // threshold before starting
+    moved = true
+    rubberBand.value = {
+      x: Math.min(startX, curX),
+      y: Math.min(startY, curY),
+      w: Math.abs(curX - startX),
+      h: Math.abs(curY - startY),
+    }
+  }
+
+  function onUp() {
+    if (moved && rubberBand.value) {
+      // Find elements intersecting the rubber-band (in mm)
+      const rb = rubberBand.value
+      const rbLeft = rb.x / scale.value
+      const rbTop = rb.y / scale.value
+      const rbRight = (rb.x + rb.w) / scale.value
+      const rbBottom = (rb.y + rb.h) / scale.value
+
+      const ids = new Set()
+      for (const el of store.templateJson.elements) {
+        const ex = el.x || 0
+        const ey = el.y || 0
+        const ew = el.width || 50
+        const eh = el.height || 10
+        // Check intersection
+        if (ex + ew > rbLeft && ex < rbRight && ey + eh > rbTop && ey < rbBottom) {
+          ids.add(el.id)
+        }
+      }
+      if (ids.size > 0) {
+        store.selectedElementIds = ids
+        store.selectedElementId = [...ids][ids.size - 1]
+      }
+    }
+    rubberBand.value = null
+    document.removeEventListener('mousemove', onMove)
+    document.removeEventListener('mouseup', onUp)
+  }
+
+  document.addEventListener('mousemove', onMove)
+  document.addEventListener('mouseup', onUp)
 }
 
 function onDrop(e) {
@@ -209,25 +274,72 @@ function getElementDefaults(item) {
 }
 
 function onKeyDown(e) {
-  if (!store.selectedElementId || store.previewMode) return
+  if (store.previewMode) return
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return
 
+  // Ctrl+A: Select all elements
+  if (e.key === 'a' && (e.ctrlKey || e.metaKey)) {
+    e.preventDefault()
+    store.selectAllElements()
+    return
+  }
+
+  // Ctrl+C: Copy selected elements
+  if (e.key === 'c' && (e.ctrlKey || e.metaKey)) {
+    if (store.selectedElementIds.size > 0) {
+      e.preventDefault()
+      store.copySelectedElements()
+    }
+    return
+  }
+
+  // Ctrl+V: Paste elements
+  if (e.key === 'v' && (e.ctrlKey || e.metaKey)) {
+    if (store.clipboard.length > 0) {
+      e.preventDefault()
+      store.pasteElements()
+    }
+    return
+  }
+
+  if (!store.selectedElementId) return
+
+  // Delete/Backspace: remove selected elements
   if (e.key === 'Delete' || e.key === 'Backspace') {
     e.preventDefault()
-    store.removeElement(store.selectedElementId)
+    if (store.selectedElementIds.size > 1) {
+      store.removeSelectedElements()
+    } else {
+      store.removeElement(store.selectedElementId)
+    }
+    return
   }
+
+  // Ctrl+D: Duplicate
   if (e.key === 'd' && (e.ctrlKey || e.metaKey)) {
     e.preventDefault()
     store.duplicateElement(store.selectedElementId)
+    return
   }
-  // Arrow key nudge
+
+  // Arrow key nudge (works for multi-selection)
   const nudge = e.shiftKey ? 10 : (store.snapToGrid ? store.gridSize : 1)
-  const el = store.selectedElement
-  if (!el) return
-  if (e.key === 'ArrowLeft') { e.preventDefault(); store.updateElement(el.id, { x: Math.max(0, (el.x || 0) - nudge) }) }
-  if (e.key === 'ArrowRight') { e.preventDefault(); store.updateElement(el.id, { x: (el.x || 0) + nudge }) }
-  if (e.key === 'ArrowUp') { e.preventDefault(); store.updateElement(el.id, { y: Math.max(0, (el.y || 0) - nudge) }) }
-  if (e.key === 'ArrowDown') { e.preventDefault(); store.updateElement(el.id, { y: (el.y || 0) + nudge }) }
+  if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
+    e.preventDefault()
+    const dx = e.key === 'ArrowLeft' ? -nudge : e.key === 'ArrowRight' ? nudge : 0
+    const dy = e.key === 'ArrowUp' ? -nudge : e.key === 'ArrowDown' ? nudge : 0
+    if (store.selectedElementIds.size > 1) {
+      store.moveSelectedElements(dx, dy)
+    } else {
+      const el = store.selectedElement
+      if (el) {
+        store.updateElement(el.id, {
+          x: Math.max(0, (el.x || 0) + dx),
+          y: Math.max(0, (el.y || 0) + dy),
+        })
+      }
+    }
+  }
 }
 </script>
 
@@ -242,6 +354,7 @@ function onKeyDown(e) {
       class="relative shadow-lg border border-[var(--color-border)] shrink-0 canvas-inner"
       :style="{ ...canvasStyle, ...gridStyle }"
       @click="onCanvasClick"
+      @mousedown="onCanvasMouseDown"
       @drop="onDrop"
       @dragover="onDragOver"
     >
@@ -263,9 +376,22 @@ function onKeyDown(e) {
         :element="el"
         :scale="scale"
         :selected="store.selectedElementId === el.id"
-        @select="store.selectElement(el.id)"
+        :multiSelected="store.selectedElementIds.size > 1 && store.isElementSelected(el.id)"
+        @select="(opts) => store.selectElement(el.id, opts?.addToSelection)"
         @move="onElementMove(el.id, $event)"
         @resize="onElementResize(el.id, $event)"
+      />
+
+      <!-- Rubber-band selection rectangle -->
+      <div
+        v-if="rubberBand"
+        class="absolute pointer-events-none border border-[var(--color-accent)] bg-[var(--color-accent)]/10 z-30"
+        :style="{
+          left: rubberBand.x + 'px',
+          top: rubberBand.y + 'px',
+          width: rubberBand.w + 'px',
+          height: rubberBand.h + 'px',
+        }"
       />
     </div>
   </div>

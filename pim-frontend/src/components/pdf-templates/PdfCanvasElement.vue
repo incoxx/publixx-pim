@@ -7,6 +7,7 @@ const props = defineProps({
   element: { type: Object, required: true },
   scale: { type: Number, default: 1 },
   selected: { type: Boolean, default: false },
+  multiSelected: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['select', 'move', 'resize'])
@@ -33,7 +34,9 @@ const style = computed(() => {
     backgroundColor: s.backgroundColor || 'transparent',
     border: s.borderWidth && parseInt(s.borderWidth) > 0
       ? `${parseInt(s.borderWidth) * props.scale}px solid ${s.borderColor || '#000'}`
-      : props.selected ? '1px dashed var(--color-accent)' : '1px dashed transparent',
+      : props.selected ? '1px dashed var(--color-accent)'
+      : props.multiSelected ? '1px dashed var(--color-accent)'
+      : '1px dashed rgba(0,0,0,0.15)',
     padding: ((s.padding || 0) * props.scale) + 'px',
     lineHeight: s.lineHeight || 'normal',
     overflow: 'hidden',
@@ -170,7 +173,9 @@ const typeIcon = computed(() => {
 function onMouseDown(e) {
   if (resizing.value || store.previewMode) return
   e.stopPropagation()
-  emit('select')
+
+  const addToSelection = e.ctrlKey || e.metaKey || e.shiftKey
+  emit('select', { addToSelection })
 
   dragging.value = true
   const startX = e.clientX
@@ -178,14 +183,36 @@ function onMouseDown(e) {
   const startElX = props.element.x || 0
   const startElY = props.element.y || 0
 
+  // Capture start positions of all selected elements for group move
+  const isMulti = store.selectedElementIds.size > 1
+  const startPositions = isMulti ? new Map() : null
+  if (isMulti) {
+    for (const id of store.selectedElementIds) {
+      const el = store.templateJson.elements.find(e => e.id === id)
+      if (el) startPositions.set(id, { x: el.x || 0, y: el.y || 0 })
+    }
+  }
+
   function onMove(ev) {
     const dx = (ev.clientX - startX) / props.scale
     const dy = (ev.clientY - startY) / props.scale
-    let newX = store.snapValue(startElX + dx)
-    let newY = store.snapValue(startElY + dy)
-    newX = Math.max(0, newX)
-    newY = Math.max(0, newY)
-    emit('move', { x: newX, y: newY })
+
+    if (isMulti && startPositions) {
+      // Move all selected elements together
+      for (const [id, startPos] of startPositions) {
+        let newX = store.snapValue(startPos.x + dx)
+        let newY = store.snapValue(startPos.y + dy)
+        newX = Math.max(0, newX)
+        newY = Math.max(0, newY)
+        store.updateElement(id, { x: newX, y: newY })
+      }
+    } else {
+      let newX = store.snapValue(startElX + dx)
+      let newY = store.snapValue(startElY + dy)
+      newX = Math.max(0, newX)
+      newY = Math.max(0, newY)
+      emit('move', { x: newX, y: newY })
+    }
   }
 
   function onUp() {
@@ -249,7 +276,7 @@ function onResizeStart(e, handle) {
   <div
     class="absolute select-none group"
     :style="style"
-    :class="{ 'z-10': selected, 'cursor-default': store.previewMode }"
+    :class="{ 'z-10': selected || multiSelected, 'cursor-default': store.previewMode }"
     @mousedown="onMouseDown"
   >
     <!-- Content -->
@@ -410,8 +437,8 @@ function onResizeStart(e, handle) {
       {{ { text: 'Text', field: 'Feld', attribute: 'Attribut', image: 'Bild', shape: 'Form', variant_table: 'Varianten', relation_table: 'Beziehungen', attribute_table: 'Attr.-Tabelle' }[element.type] || element.type }}
     </div>
 
-    <!-- Resize handles (only when selected and not in preview mode) -->
-    <template v-if="selected && !store.previewMode">
+    <!-- Resize handles (only when single-selected and not in preview mode) -->
+    <template v-if="selected && !multiSelected && !store.previewMode">
       <div
         v-for="handle in ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w']"
         :key="handle"

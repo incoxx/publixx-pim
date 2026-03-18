@@ -17,6 +17,10 @@ export const usePdfTemplateDesignerStore = defineStore('pdfTemplateDesigner', ()
 
   // Selection state
   const selectedElementId = ref(null)
+  const selectedElementIds = ref(new Set()) // multi-select
+
+  // Clipboard for copy/paste
+  const clipboard = ref([])
 
   // Grid & snap
   const gridSize = ref(5) // mm
@@ -140,12 +144,81 @@ export const usePdfTemplateDesignerStore = defineStore('pdfTemplateDesigner', ()
     return newEl
   }
 
-  function selectElement(elementId) {
-    selectedElementId.value = elementId
+  function selectElement(elementId, addToSelection = false) {
+    if (addToSelection) {
+      // Toggle in multi-selection
+      const newSet = new Set(selectedElementIds.value)
+      if (newSet.has(elementId)) {
+        newSet.delete(elementId)
+        if (selectedElementId.value === elementId) {
+          selectedElementId.value = newSet.size > 0 ? [...newSet][newSet.size - 1] : null
+        }
+      } else {
+        newSet.add(elementId)
+        selectedElementId.value = elementId
+      }
+      selectedElementIds.value = newSet
+    } else {
+      selectedElementId.value = elementId
+      selectedElementIds.value = new Set([elementId])
+    }
   }
 
   function clearSelection() {
     selectedElementId.value = null
+    selectedElementIds.value = new Set()
+  }
+
+  function isElementSelected(elementId) {
+    return selectedElementIds.value.has(elementId)
+  }
+
+  // Multi-move: move all selected elements by delta
+  function moveSelectedElements(deltaX, deltaY) {
+    for (const id of selectedElementIds.value) {
+      const el = templateJson.value.elements.find(e => e.id === id)
+      if (el) {
+        el.x = Math.max(0, (el.x || 0) + deltaX)
+        el.y = Math.max(0, (el.y || 0) + deltaY)
+      }
+    }
+    isDirty.value = true
+  }
+
+  // Copy selected elements to clipboard
+  function copySelectedElements() {
+    const els = templateJson.value.elements.filter(e => selectedElementIds.value.has(e.id))
+    clipboard.value = JSON.parse(JSON.stringify(els))
+  }
+
+  // Paste elements from clipboard
+  function pasteElements() {
+    if (clipboard.value.length === 0) return
+    const newIds = new Set()
+    for (const el of clipboard.value) {
+      const newEl = { ...JSON.parse(JSON.stringify(el)), id: generateId(), x: (el.x || 0) + 5, y: (el.y || 0) + 5 }
+      templateJson.value.elements.push(newEl)
+      newIds.add(newEl.id)
+    }
+    selectedElementIds.value = newIds
+    selectedElementId.value = [...newIds][newIds.size - 1]
+    isDirty.value = true
+    // Update clipboard offsets for repeated paste
+    clipboard.value = clipboard.value.map(el => ({ ...el, x: (el.x || 0) + 5, y: (el.y || 0) + 5 }))
+  }
+
+  // Remove all selected elements
+  function removeSelectedElements() {
+    templateJson.value.elements = templateJson.value.elements.filter(e => !selectedElementIds.value.has(e.id))
+    clearSelection()
+    isDirty.value = true
+  }
+
+  // Select all elements
+  function selectAllElements() {
+    const ids = new Set(templateJson.value.elements.map(e => e.id))
+    selectedElementIds.value = ids
+    selectedElementId.value = ids.size > 0 ? [...ids][ids.size - 1] : null
   }
 
   function bringToFront(elementId) {
@@ -272,14 +345,16 @@ export const usePdfTemplateDesignerStore = defineStore('pdfTemplateDesigner', ()
   return {
     templates, loading, currentTemplate, templateJson,
     availableFields, fieldsLoading,
-    selectedElementId, selectedElement,
+    selectedElementId, selectedElementIds, selectedElement,
+    clipboard,
     gridSize, showGrid, snapToGrid,
     isDirty,
     referenceProductId, referenceProductLabel, previewMode, resolvedElements, previewLoading,
     loadTemplates, loadTemplate, saveTemplate, createTemplate, deleteTemplate,
     loadFields,
     addElement, removeElement, updateElement, duplicateElement,
-    selectElement, clearSelection,
+    selectElement, clearSelection, isElementSelected,
+    moveSelectedElements, copySelectedElements, pasteElements, removeSelectedElements, selectAllElements,
     bringToFront, sendToBack,
     snapValue, getDefaultFontFamily,
     setReferenceProduct, loadPreview, togglePreviewMode, getResolvedElement,
