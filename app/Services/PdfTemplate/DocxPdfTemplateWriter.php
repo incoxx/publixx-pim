@@ -12,7 +12,6 @@ class DocxPdfTemplateWriter
 {
     private const MM_TO_TWIP = 56.6929;
     private const MM_TO_PT = 2.834645;  // 72 / 25.4
-    private const MM_TO_PX = 3.7795275; // 96 / 25.4 (pixels at 96 DPI)
 
     /**
      * Generate a DOCX file from resolved template elements.
@@ -97,14 +96,15 @@ class DocxPdfTemplateWriter
             return;
         }
 
-        // TextBox uses points for ALL properties (width, height, marginLeft, marginTop)
+        // VML uses points for all properties; posHorizontal/posVertical must be
+        // 'absolute' so Word uses marginLeft/marginTop as exact coordinates.
         $xPt = round(($element['x'] ?? 0) * self::MM_TO_PT, 1);
         $yPt = round(($element['y'] ?? 0) * self::MM_TO_PT, 1);
         $widthPt = round(($element['width'] ?? 50) * self::MM_TO_PT, 1);
         $heightPt = round(($element['height'] ?? 10) * self::MM_TO_PT, 1);
 
         if ($type === 'image') {
-            $this->renderImageElement($section, $element);
+            $this->renderImageElement($section, $element, $xPt, $yPt);
             return;
         }
 
@@ -113,12 +113,13 @@ class DocxPdfTemplateWriter
             $displayValue = '';
         }
 
-        // Use textBox with absolute positioning (Frame style, unit = pt)
         $hasBorder = isset($style['borderWidth']) && (int) $style['borderWidth'] > 0;
         $textBoxStyle = [
             'width' => $widthPt,
             'height' => $heightPt,
             'positioning' => 'absolute',
+            'posHorizontal' => 'absolute',
+            'posVertical' => 'absolute',
             'posHorizontalRel' => 'page',
             'posVerticalRel' => 'page',
             'marginLeft' => $xPt,
@@ -148,18 +149,16 @@ class DocxPdfTemplateWriter
         }
     }
 
-    private function renderImageElement($section, array $element): void
+    private function renderImageElement($section, array $element, float $xPt, float $yPt): void
     {
         $images = $element['resolvedImages'] ?? [];
         if (empty($images)) {
             return;
         }
 
-        // Image positioning uses pixels (96 DPI) for addImage
-        $xPx = round(($element['x'] ?? 0) * self::MM_TO_PX);
-        $yPx = round(($element['y'] ?? 0) * self::MM_TO_PX);
-        $boxWPx = max(1, round(($element['width'] ?? 40) * self::MM_TO_PX));
-        $boxHPx = max(1, round(($element['height'] ?? 40) * self::MM_TO_PX));
+        // Image VML also uses points (same as TextBox)
+        $boxWPt = max(1, round(($element['width'] ?? 40) * self::MM_TO_PT, 1));
+        $boxHPt = max(1, round(($element['height'] ?? 40) * self::MM_TO_PT, 1));
 
         foreach ($images as $imgPath) {
             if (!file_exists($imgPath)) {
@@ -169,31 +168,32 @@ class DocxPdfTemplateWriter
             try {
                 // Calculate contain dimensions: fit image within element bounds preserving aspect ratio
                 $imgSize = @getimagesize($imgPath);
-                $renderW = $boxWPx;
-                $renderH = $boxHPx;
+                $renderW = $boxWPt;
+                $renderH = $boxHPt;
 
                 if ($imgSize && $imgSize[0] > 0 && $imgSize[1] > 0) {
                     $imgAspect = $imgSize[0] / $imgSize[1];
-                    $boxAspect = $boxWPx / $boxHPx;
+                    $boxAspect = $boxWPt / $boxHPt;
 
                     if ($imgAspect > $boxAspect) {
-                        $renderW = $boxWPx;
-                        $renderH = $boxWPx / $imgAspect;
+                        $renderW = $boxWPt;
+                        $renderH = $boxWPt / $imgAspect;
                     } else {
-                        $renderH = $boxHPx;
-                        $renderW = $boxHPx * $imgAspect;
+                        $renderH = $boxHPt;
+                        $renderW = $boxHPt * $imgAspect;
                     }
                 }
 
-                // Use addImage directly with absolute positioning (units: pixels at 96 DPI)
                 $section->addImage($imgPath, [
-                    'width' => round($renderW),
-                    'height' => round($renderH),
+                    'width' => round($renderW, 1),
+                    'height' => round($renderH, 1),
                     'positioning' => 'absolute',
+                    'posHorizontal' => 'absolute',
+                    'posVertical' => 'absolute',
                     'posHorizontalRel' => 'page',
                     'posVerticalRel' => 'page',
-                    'marginLeft' => $xPx,
-                    'marginTop' => $yPx,
+                    'marginLeft' => $xPt,
+                    'marginTop' => $yPt,
                     'wrappingStyle' => 'infront',
                 ]);
 
