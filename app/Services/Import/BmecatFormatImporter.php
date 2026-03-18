@@ -1235,6 +1235,7 @@ class BmecatFormatImporter
         $productHierarchies = [];
         $seenHierarchy = [];
         $sortOrderRelations = 0;
+        $seenProductSkus = [];
 
         $productKeys = array_keys($parsed['products']);
         $loopIndex = 0;
@@ -1250,6 +1251,14 @@ class BmecatFormatImporter
             }
 
             $sku = $product['sku'];
+
+            // Duplikat-SKUs überspringen (letztes Vorkommen gewinnt bei Features/Werten,
+            // aber Produkt-Zeile wird nur einmal angelegt)
+            if (isset($seenProductSkus[$sku])) {
+                Log::channel('import')->debug("Duplikat-SKU übersprungen: '{$sku}'");
+                continue;
+            }
+            $seenProductSkus[$sku] = true;
 
             // --- Features → Attribute + Produktwerte ---
             foreach ($product['features'] as $feature) {
