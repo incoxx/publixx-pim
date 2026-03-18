@@ -1,8 +1,9 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
-import { X, Trash2 } from 'lucide-vue-next'
+import { X, Trash2, Plus } from 'lucide-vue-next'
 import scheduledActionsApi from '@/api/scheduledActions'
 import productsApi from '@/api/products'
+import attributesApi from '@/api/attributes'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -33,6 +34,16 @@ const form = ref({
 })
 
 const selectedProductName = ref('')
+const availableAttributes = ref([])
+
+async function loadAttributes() {
+  try {
+    const { data } = await attributesApi.list({ perPage: 200, filters: { status: 'active' } })
+    availableAttributes.value = data.data || data || []
+  } catch {
+    availableAttributes.value = []
+  }
+}
 
 const ACTION_TYPES = [
   { value: 'activate_product', label: 'Produkt aktivieren' },
@@ -75,6 +86,7 @@ watch(() => props.visible, (val) => {
       selectedProductName.value = ''
     }
     error.value = null
+    loadAttributes()
   }
 })
 
@@ -115,6 +127,15 @@ function selectProduct(product) {
 function clearProduct() {
   form.value.product_id = null
   selectedProductName.value = ''
+}
+
+function addAttribute() {
+  if (!form.value.payload.attributes) form.value.payload.attributes = []
+  form.value.payload.attributes.push({ attribute_id: '', value_string: '' })
+}
+
+function removeAttribute(index) {
+  form.value.payload.attributes.splice(index, 1)
 }
 
 async function save() {
@@ -237,6 +258,24 @@ async function deleteAction() {
               <input v-model="form.payload.prices[0].amount" type="number" step="0.01" class="pim-input text-xs flex-1" placeholder="Betrag" />
               <input v-model="form.payload.prices[0].currency" type="text" class="pim-input text-xs w-16" placeholder="EUR" />
             </div>
+          </div>
+
+          <!-- Payload: Data Change -->
+          <div v-if="form.action_type === 'data_change' && form.payload.attributes">
+            <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">Attribute</label>
+            <div v-for="(attr, idx) in form.payload.attributes" :key="idx" class="flex gap-2 mb-2 items-center">
+              <select v-model="attr.attribute_id" class="pim-input text-xs flex-1">
+                <option value="">— Attribut wählen —</option>
+                <option v-for="a in availableAttributes" :key="a.id" :value="a.id">{{ a.label || a.code }}</option>
+              </select>
+              <input v-model="attr.value_string" type="text" class="pim-input text-xs flex-1" placeholder="Neuer Wert" />
+              <button v-if="form.payload.attributes.length > 1" @click="removeAttribute(idx)" class="p-1 text-[var(--color-text-tertiary)] hover:text-[var(--color-error)]">
+                <X class="w-3 h-3" />
+              </button>
+            </div>
+            <button @click="addAttribute" class="text-xs text-[var(--color-text-link)] hover:underline flex items-center gap-1">
+              <Plus class="w-3 h-3" /> Attribut hinzufügen
+            </button>
           </div>
 
           <!-- Payload: Export -->
