@@ -69,4 +69,29 @@ export default {
   batchProcessPdfs(mode = 'missing') {
     return client.post('/admin/pdf/batch-process', { mode }, { timeout: 300000 })
   },
+
+  // ── Process / Queue Management ──
+  getQueueJobs() {
+    return client.get('/admin/queue-jobs')
+  },
+
+  flushQueue(queue = null) {
+    return client.post('/admin/queue-flush', { queue })
+  },
+
+  cancelJob(jobId, jobType) {
+    return client.post('/admin/queue-cancel-job', { job_id: jobId, job_type: jobType })
+  },
+
+  flushFailedJobs() {
+    return client.delete('/admin/failed-jobs')
+  },
+
+  restartApache() {
+    return client.post('/admin/restart-apache', {}, { timeout: 20000 })
+  },
+
+  restartHorizon() {
+    return client.post('/admin/restart-horizon', {}, { timeout: 15000 })
+  },
 }

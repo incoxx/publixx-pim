@@ -1078,9 +1078,10 @@ class ImportExecutor
 
         foreach (array_chunk($rows, $chunkSize) as $chunk) {
             $this->heartbeat();
+            $this->checkCancelled();
             $chunkIndex++;
 
-            if ($this->progressCallback && ($chunkIndex % 5 === 0 || $chunkIndex === 1)) {
+            if ($this->progressCallback) {
                 $processedRows = min($chunkIndex * $chunkSize, $totalRows);
                 ($this->progressCallback)($sheetKey, $processedRows, $totalRows, $this->stats);
             }
@@ -1175,7 +1176,7 @@ class ImportExecutor
         }
 
         // Produkt-IDs sammeln (aus existingSkuMap — kein extra DB-Query nötig!)
-        $this->affectedProductIds = array_merge($this->affectedProductIds, array_values($existingSkuMap));
+        array_push($this->affectedProductIds, ...array_values($existingSkuMap));
 
         // Resolver-Cache neu aufbauen nach Produkt-Import
         $this->resolver->clearCache('product');
@@ -1377,9 +1378,10 @@ class ImportExecutor
 
         foreach (array_chunk($rows, $chunkSize) as $chunk) {
             $this->heartbeat();
+            $this->checkCancelled();
             $chunkIndex++;
 
-            if ($this->progressCallback && ($chunkIndex % 5 === 0 || $chunkIndex === 1)) {
+            if ($this->progressCallback) {
                 $processedRows = min($chunkIndex * $chunkSize, $totalRows);
                 ($this->progressCallback)($sheetKey, $processedRows, $totalRows, $this->stats);
             }
@@ -1490,7 +1492,9 @@ class ImportExecutor
                 $this->stats[$sheetKey]['updated'] += count($updateBatch);
             }
 
-            $this->affectedProductIds = array_merge($this->affectedProductIds, $affectedIds);
+            // array_push statt array_merge: O(k) statt O(n) — vermeidet
+            // progressiven Slowdown bei 1M+ Einträgen.
+            array_push($this->affectedProductIds, ...$affectedIds);
 
             DB::commit();
             } catch (\Throwable $e) {
@@ -1789,6 +1793,7 @@ class ImportExecutor
         $totalChunks = (int) ceil(count($rows) / $chunkSize);
         $chunkIndex = 0;
         $totalRows = count($rows);
+        $isDeleteInsert = $this->mode === 'delete_insert';
 
         // Beziehungstypen vorab auflösen und bei Bedarf anlegen
         $relationTypeNames = array_unique(array_column($rows, 'relation_type'));
@@ -1807,50 +1812,77 @@ class ImportExecutor
         }
         $this->resolver->clearCache('relation_type');
 
+        // ── SKU → Product-ID Map einmalig aufbauen ─────────────────────
+        $allSkus = array_unique(array_merge(
+            array_column($rows, 'source_sku'),
+            array_column($rows, 'target_sku')
+        ));
+        $productIdMap = [];
+        foreach ($allSkus as $sku) {
+            $r = $this->resolver->resolveProduct($sku);
+            if ($r->resolved()) {
+                $productIdMap[$sku] = $r->id;
+            }
+        }
+        $this->heartbeat();
+
+        // ── In-Memory Constraint-Map einmalig aufbauen ─────────────────
+        $existingMap = [];
+        if (!$isDeleteInsert) {
+            $constraintMapStart = microtime(true);
+            $sourceProductIds = [];
+            foreach ($rows as $row) {
+                $sid = $productIdMap[$row['source_sku']] ?? null;
+                if ($sid) $sourceProductIds[$sid] = true;
+            }
+            $uniqueSourceIds = array_keys($sourceProductIds);
+
+            Log::channel('import')->info("Lade bestehende Beziehungen für " . count($uniqueSourceIds) . " Quell-Produkte in Memory...");
+
+            foreach (array_chunk($uniqueSourceIds, 5000) as $sidChunk) {
+                $existing = DB::table('product_relations')
+                    ->whereIn('source_product_id', $sidChunk)
+                    ->select(['id', 'source_product_id', 'target_product_id', 'relation_type_id'])
+                    ->get();
+                foreach ($existing as $e) {
+                    $key = $e->source_product_id . '|' . $e->target_product_id . '|' . $e->relation_type_id;
+                    $existingMap[$key] = $e->id;
+                }
+                $this->heartbeat();
+            }
+
+            Log::channel('import')->info("Beziehungs-Constraint-Map geladen: " . count($existingMap) . " bestehende Beziehungen", [
+                'dauer_sek' => round(microtime(true) - $constraintMapStart, 2),
+            ]);
+        }
+
+        $defaultRow = [
+            'id' => null, 'source_product_id' => null, 'target_product_id' => null,
+            'relation_type_id' => null, 'sort_order' => 0,
+            'updated_at' => $now, 'created_at' => $now,
+        ];
+
+        $updateColumns = ['sort_order', 'updated_at'];
+
         foreach (array_chunk($rows, $chunkSize) as $chunk) {
             $this->heartbeat();
+            $this->checkCancelled();
             $chunkIndex++;
 
-            if ($this->progressCallback && ($chunkIndex % 5 === 0 || $chunkIndex === 1)) {
+            if ($this->progressCallback) {
                 $processedRows = min($chunkIndex * $chunkSize, $totalRows);
                 ($this->progressCallback)($sheetKey, $processedRows, $totalRows, $this->stats);
             }
 
+            $insertBatch = [];
+            $updateBatch = [];
+            $relationAttrValues = [];
+
             DB::beginTransaction();
             try {
-                // Alle SKUs im Chunk auflösen
-                $allSkus = array_unique(array_merge(
-                    array_column($chunk, 'source_sku'),
-                    array_column($chunk, 'target_sku')
-                ));
-                $productIdMap = [];
-                foreach ($allSkus as $sku) {
-                    $r = $this->resolver->resolveProduct($sku);
-                    if ($r->resolved()) {
-                        $productIdMap[$sku] = $r->id;
-                    }
-                }
 
-                // Bestehende Beziehungen im Chunk laden für upsert/update-Entscheidung
-                $sourceIds = [];
-                foreach ($chunk as $row) {
-                    $sid = $productIdMap[$row['source_sku']] ?? null;
-                    if ($sid) $sourceIds[] = $sid;
-                }
-                $sourceIds = array_unique($sourceIds);
-
-                $existingRelations = [];
-                foreach (array_chunk($sourceIds, 5000) as $sidChunk) {
-                    $results = ProductRelation::whereIn('source_product_id', $sidChunk)->get(['id', 'source_product_id', 'target_product_id', 'relation_type_id']);
-                    foreach ($results as $r) {
-                        $existingRelations[$r->source_product_id . '|' . $r->target_product_id . '|' . $r->relation_type_id] = $r->id;
-                    }
-                }
-
-                $upsertData = [];
-                $relationAttrValues = []; // relation_id → attribute_values
-
-                foreach ($chunk as $row) {
+            foreach ($chunk as $row) {
+                try {
                     $sourceId = $productIdMap[$row['source_sku']] ?? null;
                     $targetId = $productIdMap[$row['target_sku']] ?? null;
 
@@ -1868,27 +1900,24 @@ class ImportExecutor
                         continue;
                     }
 
-                    $lookupKey = $sourceId . '|' . $targetId . '|' . $relationTypeId;
-                    $isExisting = isset($existingRelations[$lookupKey]);
-                    $relationId = $isExisting ? $existingRelations[$lookupKey] : Str::uuid()->toString();
+                    $constraintKey = $sourceId . '|' . $targetId . '|' . $relationTypeId;
 
-                    $upsertData[] = [
-                        'id' => $relationId,
-                        'source_product_id' => $sourceId,
-                        'target_product_id' => $targetId,
-                        'relation_type_id' => $relationTypeId,
-                        'sort_order' => (int) ($row['sort_order'] ?? 0),
-                        'updated_at' => $now,
-                        'created_at' => $now,
-                    ];
+                    $data = $defaultRow;
+                    $data['source_product_id'] = $sourceId;
+                    $data['target_product_id'] = $targetId;
+                    $data['relation_type_id'] = $relationTypeId;
+                    $data['sort_order'] = (int) ($row['sort_order'] ?? 0);
 
-                    if ($isExisting) {
-                        $this->stats[$sheetKey]['updated']++;
+                    if (isset($existingMap[$constraintKey])) {
+                        $data['id'] = $existingMap[$constraintKey];
+                        $updateBatch[] = $data;
                     } else {
-                        $this->stats[$sheetKey]['created']++;
-                        // Für neue Relationen: ID in Map eintragen für Attr-Values
-                        $existingRelations[$lookupKey] = $relationId;
+                        $data['id'] = Str::uuid()->toString();
+                        $insertBatch[] = $data;
+                        $existingMap[$constraintKey] = $data['id'];
                     }
+
+                    $relationId = $data['id'];
 
                     // Attributwerte für spätere Batch-Verarbeitung sammeln
                     if (!empty($row['attribute_values']) && is_array($row['attribute_values'])) {
@@ -1896,59 +1925,89 @@ class ImportExecutor
                             $relationAttrValues[] = array_merge($av, ['_relation_id' => $relationId]);
                         }
                     }
+                } catch (\Throwable $e) {
+                    $this->logRowError($sheetKey, $row, $e);
                 }
+            }
 
-                // Batch-Upsert der Beziehungen
-                if (!empty($upsertData)) {
-                    ProductRelation::upsert(
-                        $upsertData,
-                        ['source_product_id', 'target_product_id', 'relation_type_id'],
-                        ['sort_order', 'updated_at']
-                    );
-                }
-
-                // Batch-Upsert der Beziehungs-Attributwerte
-                if (!empty($relationAttrValues)) {
-                    $ravUpsertData = [];
-                    foreach ($relationAttrValues as $av) {
-                        $attrResult = $this->resolver->resolveAttribute($av['attribute'] ?? '');
-                        if (!$attrResult->resolved()) continue;
-
-                        $unitId = null;
-                        if (!empty($av['unit'])) {
-                            $unitResult = $this->resolver->resolveUnit($av['unit']);
-                            if ($unitResult->resolved()) $unitId = $unitResult->id;
-                        }
-
-                        $ravUpsertData[] = [
-                            'id' => Str::uuid()->toString(),
-                            'product_relation_id' => $av['_relation_id'],
-                            'attribute_id' => $attrResult->id,
-                            'language' => $av['language'] ?? null,
-                            'multiplied_index' => $av['multiplied_index'] ?? 0,
-                            'value_string' => $av['value_string'] ?? null,
-                            'value_number' => $av['value_number'] ?? null,
-                            'value_date' => $av['value_date'] ?? null,
-                            'value_flag' => $av['value_flag'] ?? null,
-                            'value_selection_id' => $av['value_selection_id'] ?? null,
-                            'unit_id' => $unitId,
-                            'updated_at' => $now,
-                            'created_at' => $now,
-                        ];
-                    }
-
-                    if (!empty($ravUpsertData)) {
-                        foreach (array_chunk($ravUpsertData, 2000) as $ravChunk) {
-                            ProductRelationAttributeValue::upsert(
-                                $ravChunk,
-                                ['product_relation_id', 'attribute_id', 'language', 'multiplied_index'],
-                                ['value_string', 'value_number', 'value_date', 'value_flag', 'value_selection_id', 'unit_id', 'updated_at']
-                            );
+            // ── INSERT neue Beziehungen ──
+            if (!empty($insertBatch)) {
+                foreach (array_chunk($insertBatch, 2000) as $batchChunk) {
+                    try {
+                        DB::table('product_relations')->insert($batchChunk);
+                        $this->stats[$sheetKey]['created'] += count($batchChunk);
+                    } catch (\Throwable $batchError) {
+                        Log::channel('import')->warning("Beziehungen-Batch-Insert fehlgeschlagen, Fallback auf Einzelinserts", [
+                            'error' => $batchError->getMessage(),
+                            'batch_size' => count($batchChunk),
+                        ]);
+                        foreach ($batchChunk as $singleRow) {
+                            try {
+                                DB::table('product_relations')->insert($singleRow);
+                                $this->stats[$sheetKey]['created']++;
+                            } catch (\Throwable $singleError) {
+                                $this->stats[$sheetKey]['errors']++;
+                            }
                         }
                     }
                 }
+            }
 
-                DB::commit();
+            // ── UPDATE bestehende Beziehungen ──
+            if (!empty($updateBatch)) {
+                $this->bulkUpdateById('product_relations', $updateBatch, $updateColumns);
+                $this->stats[$sheetKey]['updated'] += count($updateBatch);
+            }
+
+            // ── Beziehungs-Attributwerte ──
+            if (!empty($relationAttrValues)) {
+                $ravInsertData = [];
+                foreach ($relationAttrValues as $av) {
+                    $attrResult = $this->resolver->resolveAttribute($av['attribute'] ?? '');
+                    if (!$attrResult->resolved()) continue;
+
+                    $unitId = null;
+                    if (!empty($av['unit'])) {
+                        $unitResult = $this->resolver->resolveUnit($av['unit']);
+                        if ($unitResult->resolved()) $unitId = $unitResult->id;
+                    }
+
+                    $ravInsertData[] = [
+                        'id' => Str::uuid()->toString(),
+                        'product_relation_id' => $av['_relation_id'],
+                        'attribute_id' => $attrResult->id,
+                        'language' => $av['language'] ?? null,
+                        'multiplied_index' => $av['multiplied_index'] ?? 0,
+                        'value_string' => $av['value_string'] ?? null,
+                        'value_number' => $av['value_number'] ?? null,
+                        'value_date' => $av['value_date'] ?? null,
+                        'value_flag' => $av['value_flag'] ?? null,
+                        'value_selection_id' => $av['value_selection_id'] ?? null,
+                        'unit_id' => $unitId,
+                        'updated_at' => $now,
+                        'created_at' => $now,
+                    ];
+                }
+
+                if (!empty($ravInsertData)) {
+                    foreach (array_chunk($ravInsertData, 2000) as $ravChunk) {
+                        try {
+                            DB::table('product_relation_attribute_values')->insert($ravChunk);
+                        } catch (\Throwable $ravError) {
+                            // Fallback: Einzelinserts
+                            foreach ($ravChunk as $singleRav) {
+                                try {
+                                    DB::table('product_relation_attribute_values')->insert($singleRav);
+                                } catch (\Throwable $e) {
+                                    // Skip duplicate or invalid entries
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            DB::commit();
             } catch (\Throwable $e) {
                 DB::rollBack();
                 Log::channel('import')->error("Produktbeziehungen-Chunk {$chunkIndex}/{$totalChunks} fehlgeschlagen", [
@@ -2092,8 +2151,9 @@ class ImportExecutor
         foreach (array_chunk($rows, $chunkSize) as $chunk) {
             $chunkIndex++;
             $this->heartbeat();
+            $this->checkCancelled();
 
-            if ($this->progressCallback && ($chunkIndex % 5 === 0 || $chunkIndex === 1)) {
+            if ($this->progressCallback) {
                 $processedRows = min($chunkIndex * $chunkSize, $totalRows);
                 ($this->progressCallback)($sheetKey, $processedRows, $totalRows, $this->stats);
             }

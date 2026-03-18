@@ -3,7 +3,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useLocaleStore } from '@/stores/locale'
 import { useAuthStore } from '@/stores/auth'
-import { Globe, Palette, AlertTriangle, Server, RotateCcw, CheckCircle, XCircle, Loader2, GitBranch, Database, Upload, Trash2, Save, Filter, LayoutGrid, Columns3, Image, Settings2, Paintbrush, BookOpen, GripVertical, Plus, X, Shield, Key, Eye, Monitor, RefreshCw, FileCode2, Activity, HardDrive, Cpu, Check } from 'lucide-vue-next'
+import { Globe, Palette, AlertTriangle, Server, RotateCcw, CheckCircle, XCircle, Loader2, GitBranch, Database, Upload, Trash2, Save, Filter, LayoutGrid, Columns3, Image, Settings2, Paintbrush, BookOpen, GripVertical, Plus, X, Shield, Key, Eye, Monitor, RefreshCw, FileCode2, Activity, HardDrive, Cpu, Check, Zap, Play, Clock, Ban, RotateCw, Power } from 'lucide-vue-next'
 import { useLicenseStore } from '@/stores/license'
 import adminApi from '@/api/admin'
 import catalogApi from '@/api/catalog'
@@ -86,6 +86,88 @@ async function loadSystemStatus() {
     console.warn('Failed to load system status:', e.message)
   } finally {
     systemLoading.value = false
+  }
+}
+
+// ── Prozesse (Queue/Job Management) ──
+const queueJobs = ref(null)
+const queueLoading = ref(false)
+const queueAction = ref(null) // for loading state on buttons
+const apacheRestarting = ref(false)
+const horizonRestarting = ref(false)
+
+async function loadQueueJobs() {
+  queueLoading.value = true
+  try {
+    const { data } = await adminApi.getQueueJobs()
+    queueJobs.value = data.data || null
+  } catch (e) {
+    console.warn('Failed to load queue jobs:', e.message)
+  } finally {
+    queueLoading.value = false
+  }
+}
+
+async function flushQueue(queue = null) {
+  queueAction.value = queue || 'all'
+  try {
+    await adminApi.flushQueue(queue)
+    await loadQueueJobs()
+  } catch (e) {
+    console.warn('Flush failed:', e.message)
+  } finally {
+    queueAction.value = null
+  }
+}
+
+async function cancelJob(jobId, jobType) {
+  queueAction.value = jobId
+  try {
+    await adminApi.cancelJob(jobId, jobType)
+    // Kurz warten, damit der Cancel-Flag greift
+    setTimeout(() => loadQueueJobs(), 1000)
+  } catch (e) {
+    console.warn('Cancel failed:', e.message)
+  } finally {
+    queueAction.value = null
+  }
+}
+
+async function flushFailedJobs() {
+  queueAction.value = 'failed'
+  try {
+    await adminApi.flushFailedJobs()
+    await loadQueueJobs()
+  } catch (e) {
+    console.warn('Flush failed jobs failed:', e.message)
+  } finally {
+    queueAction.value = null
+  }
+}
+
+async function restartApache() {
+  apacheRestarting.value = true
+  try {
+    await adminApi.restartApache()
+  } catch (e) {
+    console.warn('Apache restart failed:', e.message)
+  } finally {
+    setTimeout(() => { apacheRestarting.value = false }, 2000)
+  }
+}
+
+async function restartHorizon() {
+  horizonRestarting.value = true
+  try {
+    await adminApi.restartHorizon()
+    // Horizon braucht etwas Zeit zum Neustarten
+    setTimeout(() => {
+      horizonRestarting.value = false
+      loadQueueJobs()
+    }, 5000)
+  } catch (e) {
+    console.warn('Horizon restart failed:', e.message)
+    horizonRestarting.value = false
   }
 }
 
@@ -929,6 +1011,7 @@ async function triggerRollback() {
 watch(activeMainTab, (tab) => {
   if (tab === 'env' && envGroups.value.length === 0) loadEnvInfo()
   if (tab === 'system' && !systemStatus.value) loadSystemStatus()
+  if (tab === 'processes') loadQueueJobs()
 })
 
 // Reload attributes when hierarchy selection changes
@@ -965,6 +1048,7 @@ onMounted(async () => {
           { key: 'general', label: 'Generell', icon: Settings2 },
           ...(isAdmin ? [{ key: 'catalog', label: 'Preview Katalog', icon: Eye }] : []),
           ...(isAdmin ? [{ key: 'env', label: 'Umgebung', icon: FileCode2 }] : []),
+          ...(isAdmin ? [{ key: 'processes', label: 'Prozesse', icon: Zap }] : []),
           ...(isAdmin ? [{ key: 'system', label: 'System', icon: Activity }] : []),
           ...(isAdmin ? [{ key: 'license', label: 'Lizenz', icon: Key }] : []),
         ]"
@@ -2457,6 +2541,172 @@ onMounted(async () => {
     </div>
 
     </template><!-- end TAB: Umgebung -->
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- TAB: PROZESSE                                                      -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <template v-if="activeMainTab === 'processes' && isAdmin">
+
+    <!-- Service-Aktionen -->
+    <div class="pim-card p-4 sm:p-6 space-y-4">
+      <div class="flex items-center gap-3 mb-2">
+        <Power class="w-5 h-5 text-[var(--color-accent)]" :stroke-width="1.75" />
+        <h3 class="text-sm font-semibold">Service-Aktionen</h3>
+      </div>
+
+      <div class="flex flex-wrap gap-3">
+        <button
+          class="pim-btn pim-btn-secondary text-xs py-2 px-4 flex items-center gap-2"
+          :disabled="apacheRestarting"
+          @click="restartApache"
+        >
+          <RotateCw class="w-3.5 h-3.5" :class="{ 'animate-spin': apacheRestarting }" :stroke-width="2" />
+          {{ apacheRestarting ? 'Apache wird neu geladen...' : 'Apache Reload' }}
+        </button>
+        <button
+          class="pim-btn pim-btn-secondary text-xs py-2 px-4 flex items-center gap-2"
+          :disabled="horizonRestarting"
+          @click="restartHorizon"
+        >
+          <RotateCw class="w-3.5 h-3.5" :class="{ 'animate-spin': horizonRestarting }" :stroke-width="2" />
+          {{ horizonRestarting ? 'Horizon wird neu gestartet...' : 'Horizon Neustart' }}
+        </button>
+      </div>
+    </div>
+
+    <!-- Queue-Übersicht -->
+    <div class="pim-card p-4 sm:p-6 space-y-4">
+      <div class="flex items-center justify-between mb-2">
+        <div class="flex items-center gap-3">
+          <Zap class="w-5 h-5 text-[var(--color-accent)]" :stroke-width="1.75" />
+          <h3 class="text-sm font-semibold">Queue-Warteschlangen</h3>
+        </div>
+        <div class="flex items-center gap-2">
+          <button class="pim-btn pim-btn-secondary text-xs py-1" @click="loadQueueJobs" :disabled="queueLoading">
+            <RefreshCw class="w-3.5 h-3.5" :class="{ 'animate-spin': queueLoading }" :stroke-width="2" />
+          </button>
+          <button
+            class="pim-btn text-xs py-1 px-3 bg-[var(--color-error)]/10 text-[var(--color-error)] hover:bg-[var(--color-error)]/20 border border-[var(--color-error)]/20"
+            :disabled="queueAction === 'all'"
+            @click="flushQueue(null)"
+          >
+            <Trash2 class="w-3.5 h-3.5 mr-1 inline" :stroke-width="2" />
+            Alle Queues leeren
+          </button>
+        </div>
+      </div>
+
+      <div v-if="queueLoading && !queueJobs" class="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">
+        <Loader2 class="w-4 h-4 animate-spin" :stroke-width="2" />
+        Lade Queue-Status...
+      </div>
+
+      <!-- Queue Sizes -->
+      <div v-if="queueJobs?.queue_sizes" class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+        <div
+          v-for="(size, queue) in queueJobs.queue_sizes"
+          :key="queue"
+          class="flex items-center justify-between px-3 py-2 rounded-lg border text-xs"
+          :class="size > 0
+            ? 'bg-[var(--color-warning)]/10 border-[var(--color-warning)]/30'
+            : 'bg-[var(--color-bg)] border-[var(--color-border)]'"
+        >
+          <span class="font-mono font-medium text-[var(--color-text-primary)]">{{ queue }}</span>
+          <div class="flex items-center gap-1.5">
+            <span class="font-bold" :class="size > 0 ? 'text-[var(--color-warning)]' : 'text-[var(--color-text-quaternary)]'">{{ size }}</span>
+            <button
+              v-if="size > 0"
+              class="text-[var(--color-error)] hover:text-[var(--color-error)]/80 p-0.5"
+              :disabled="queueAction === queue"
+              @click="flushQueue(queue)"
+              :title="queue + ' leeren'"
+            >
+              <X class="w-3 h-3" :stroke-width="2.5" />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Jobs-Liste -->
+    <div class="pim-card p-4 sm:p-6 space-y-4">
+      <div class="flex items-center justify-between mb-2">
+        <div class="flex items-center gap-3">
+          <Activity class="w-5 h-5 text-[var(--color-accent)]" :stroke-width="1.75" />
+          <h3 class="text-sm font-semibold">Aktive &amp; fehlgeschlagene Jobs</h3>
+        </div>
+        <button
+          v-if="queueJobs?.jobs?.some(j => j.type === 'failed')"
+          class="pim-btn text-xs py-1 px-3 bg-[var(--color-error)]/10 text-[var(--color-error)] hover:bg-[var(--color-error)]/20 border border-[var(--color-error)]/20"
+          :disabled="queueAction === 'failed'"
+          @click="flushFailedJobs"
+        >
+          <Trash2 class="w-3.5 h-3.5 mr-1 inline" :stroke-width="2" />
+          Alle fehlgeschlagenen löschen
+        </button>
+      </div>
+
+      <div v-if="!queueJobs?.jobs?.length" class="text-sm text-[var(--color-text-tertiary)] py-4 text-center">
+        Keine aktiven oder fehlgeschlagenen Jobs.
+      </div>
+
+      <div v-else class="space-y-2 max-h-[500px] overflow-y-auto">
+        <div
+          v-for="(job, idx) in queueJobs.jobs"
+          :key="job.id || idx"
+          class="flex items-center gap-3 px-4 py-3 rounded-lg border text-xs"
+          :class="{
+            'bg-[var(--color-success)]/5 border-[var(--color-success)]/20': job.type === 'running',
+            'bg-[var(--color-warning)]/5 border-[var(--color-warning)]/20': job.type === 'pending',
+            'bg-[var(--color-error)]/5 border-[var(--color-error)]/20': job.type === 'failed',
+            'bg-[var(--color-accent)]/5 border-[var(--color-accent)]/20': job.type === 'import',
+          }"
+        >
+          <!-- Status Icon -->
+          <div class="shrink-0">
+            <Play v-if="job.type === 'running'" class="w-4 h-4 text-[var(--color-success)]" :stroke-width="2" />
+            <Clock v-else-if="job.type === 'pending'" class="w-4 h-4 text-[var(--color-warning)]" :stroke-width="2" />
+            <XCircle v-else-if="job.type === 'failed'" class="w-4 h-4 text-[var(--color-error)]" :stroke-width="2" />
+            <Loader2 v-else-if="job.type === 'import'" class="w-4 h-4 text-[var(--color-accent)] animate-spin" :stroke-width="2" />
+          </div>
+
+          <!-- Job Info -->
+          <div class="min-w-0 flex-1">
+            <p class="font-semibold text-[var(--color-text-primary)]">
+              {{ job.job }}
+              <span class="font-normal text-[var(--color-text-tertiary)] ml-1">{{ job.queue }}</span>
+            </p>
+            <p v-if="job.error" class="text-[10px] text-[var(--color-error)] truncate mt-0.5">{{ job.error }}</p>
+            <p v-if="job.created_at || job.failed_at" class="text-[10px] text-[var(--color-text-quaternary)] mt-0.5">
+              {{ job.failed_at || job.created_at }}
+            </p>
+          </div>
+
+          <!-- Actions -->
+          <div class="shrink-0 flex items-center gap-1">
+            <button
+              v-if="job.type === 'import' && job.cancelable"
+              class="pim-btn text-[11px] py-1 px-2 bg-[var(--color-error)]/10 text-[var(--color-error)] hover:bg-[var(--color-error)]/20 border border-[var(--color-error)]/20"
+              :disabled="queueAction === job.id"
+              @click="cancelJob(job.id, 'import')"
+            >
+              <Ban class="w-3 h-3 mr-1 inline" :stroke-width="2" />
+              Abbrechen
+            </button>
+            <button
+              v-if="job.type === 'failed' && job.id"
+              class="pim-btn text-[11px] py-1 px-2 bg-[var(--color-error)]/10 text-[var(--color-error)] hover:bg-[var(--color-error)]/20 border border-[var(--color-error)]/20"
+              :disabled="queueAction === job.id"
+              @click="cancelJob(job.id, 'failed')"
+            >
+              <Trash2 class="w-3 h-3" :stroke-width="2" />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    </template><!-- end TAB: Prozesse -->
 
     <!-- ═══════════════════════════════════════════════════════════════════ -->
     <!-- TAB: SYSTEM                                                        -->

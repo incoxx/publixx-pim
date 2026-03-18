@@ -630,6 +630,12 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::post('admin/search-reindex', [SettingController::class, 'reindexSearch']);
     Route::get('admin/env-info', [SystemInfoController::class, 'envInfo']);
     Route::get('admin/system-status', [SystemInfoController::class, 'systemStatus']);
+    Route::get('admin/queue-jobs', [SystemInfoController::class, 'queueJobs']);
+    Route::post('admin/queue-flush', [SystemInfoController::class, 'queueFlush']);
+    Route::post('admin/queue-cancel-job', [SystemInfoController::class, 'queueCancelJob']);
+    Route::delete('admin/failed-jobs', [SystemInfoController::class, 'flushFailedJobs']);
+    Route::post('admin/restart-apache', [SystemInfoController::class, 'restartApache']);
+    Route::post('admin/restart-horizon', [SystemInfoController::class, 'restartHorizon']);
     Route::post('admin/pdf/batch-process', [PdfController::class, 'batchProcess']);
 
     // =====================================================================
