@@ -36,30 +36,43 @@ class TranslationXliffController extends Controller
             ? explode(',', $request->query('product_ids'))
             : null;
 
-        // Get all translatable attributes
-        $translatableAttrIds = Attribute::where('is_translatable', true)->pluck('id');
-        if ($translatableAttrIds->isEmpty()) {
+        // Get translatable attributes as subquery to avoid placeholder limits
+        $translatableAttrQuery = Attribute::where('is_translatable', true)->select('id');
+        if (!Attribute::where('is_translatable', true)->exists()) {
             return $this->xliffResponse($sourceLang, $targetLang, '', 'translations.xliff');
         }
 
         // Build query for source values
         $query = ProductAttributeValue::with(['product', 'attribute'])
             ->where('language', $sourceLang)
-            ->whereIn('attribute_id', $translatableAttrIds)
+            ->whereIn('attribute_id', $translatableAttrQuery)
             ->whereNotNull('value_string')
             ->where('value_string', '!=', '');
 
         if ($productIds) {
-            $query->whereIn('product_id', $productIds);
+            // Chunk product IDs to avoid too many placeholders
+            $query->where(function ($q) use ($productIds) {
+                foreach (array_chunk($productIds, 1000) as $chunk) {
+                    $q->orWhereIn('product_id', $chunk);
+                }
+            });
         }
 
         $sourceValues = $query->orderBy('product_id')->orderBy('attribute_id')->get();
 
         // Load existing target values for comparison
-        $targetValues = ProductAttributeValue::where('language', $targetLang)
-            ->whereIn('attribute_id', $translatableAttrIds)
-            ->when($productIds, fn ($q) => $q->whereIn('product_id', $productIds))
-            ->get()
+        $targetQuery = ProductAttributeValue::where('language', $targetLang)
+            ->whereIn('attribute_id', $translatableAttrQuery);
+
+        if ($productIds) {
+            $targetQuery->where(function ($q) use ($productIds) {
+                foreach (array_chunk($productIds, 1000) as $chunk) {
+                    $q->orWhereIn('product_id', $chunk);
+                }
+            });
+        }
+
+        $targetValues = $targetQuery->get()
             ->keyBy(fn ($v) => $v->product_id . '_' . $v->attribute_id . '_' . $v->multiplied_index);
 
         // Build XLIFF 1.2

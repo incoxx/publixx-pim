@@ -249,42 +249,34 @@ class ProductSearchController extends Controller
         $deletedCount = 0;
 
         DB::transaction(function () use ($productIds, &$deletedCount) {
-            // Delete related data
-            ProductAttributeValue::whereIn('product_id', $productIds)->delete();
-            ProductPrice::whereIn('product_id', $productIds)->delete();
+            // Delete related data in chunks to avoid too many placeholders
+            foreach ($productIds->chunk(1000) as $chunk) {
+                $ids = $chunk->values()->all();
+                ProductAttributeValue::whereIn('product_id', $ids)->delete();
+                ProductPrice::whereIn('product_id', $ids)->delete();
 
-            DB::table('product_relations')
-                ->where(function ($q) use ($productIds) {
-                    $q->whereIn('source_product_id', $productIds)
-                        ->orWhereIn('target_product_id', $productIds);
-                })
-                ->delete();
+                DB::table('product_relations')
+                    ->where(function ($q) use ($ids) {
+                        $q->whereIn('source_product_id', $ids)
+                            ->orWhereIn('target_product_id', $ids);
+                    })
+                    ->delete();
 
-            DB::table('product_media_assignments')
-                ->whereIn('product_id', $productIds)
-                ->delete();
+                DB::table('product_media_assignments')
+                    ->whereIn('product_id', $ids)->delete();
+                DB::table('output_hierarchy_product_assignments')
+                    ->whereIn('product_id', $ids)->delete();
+                DB::table('products_search_index')
+                    ->whereIn('product_id', $ids)->delete();
+                DB::table('watchlist_items')
+                    ->whereIn('product_id', $ids)->delete();
+                DB::table('product_versions')
+                    ->whereIn('product_id', $ids)->delete();
+                DB::table('variant_inheritance_rules')
+                    ->whereIn('product_id', $ids)->delete();
 
-            DB::table('output_hierarchy_product_assignments')
-                ->whereIn('product_id', $productIds)
-                ->delete();
-
-            DB::table('products_search_index')
-                ->whereIn('product_id', $productIds)
-                ->delete();
-
-            DB::table('watchlist_items')
-                ->whereIn('product_id', $productIds)
-                ->delete();
-
-            DB::table('product_versions')
-                ->whereIn('product_id', $productIds)
-                ->delete();
-
-            DB::table('variant_inheritance_rules')
-                ->whereIn('product_id', $productIds)
-                ->delete();
-
-            $deletedCount = Product::whereIn('id', $productIds)->delete();
+                $deletedCount += Product::whereIn('id', $ids)->delete();
+            }
         });
 
         Log::info('Bulk delete completed', [

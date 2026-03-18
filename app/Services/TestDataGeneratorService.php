@@ -236,45 +236,35 @@ class TestDataGeneratorService
         $hierarchyDeleted = false;
 
         DB::transaction(function () use (&$productsDeleted, &$hierarchyDeleted) {
-            $testProductIds = Product::where('sku', 'like', self::SKU_PREFIX . '%')
-                ->pluck('id');
+            // Use subquery to avoid too many placeholders with large test datasets
+            $testProductIdQuery = Product::where('sku', 'like', self::SKU_PREFIX . '%')
+                ->select('id');
 
-            if ($testProductIds->isNotEmpty()) {
-                ProductAttributeValue::whereIn('product_id', $testProductIds)->delete();
-                ProductPrice::whereIn('product_id', $testProductIds)->delete();
+            if (Product::where('sku', 'like', self::SKU_PREFIX . '%')->exists()) {
+                ProductAttributeValue::whereIn('product_id', $testProductIdQuery)->delete();
+                ProductPrice::whereIn('product_id', $testProductIdQuery)->delete();
 
                 DB::table('product_relations')
-                    ->where(function ($q) use ($testProductIds) {
-                        $q->whereIn('source_product_id', $testProductIds)
-                            ->orWhereIn('target_product_id', $testProductIds);
+                    ->where(function ($q) use ($testProductIdQuery) {
+                        $q->whereIn('source_product_id', $testProductIdQuery)
+                            ->orWhereIn('target_product_id', $testProductIdQuery);
                     })
                     ->delete();
 
                 DB::table('product_media_assignments')
-                    ->whereIn('product_id', $testProductIds)
-                    ->delete();
-
+                    ->whereIn('product_id', $testProductIdQuery)->delete();
                 DB::table('output_hierarchy_product_assignments')
-                    ->whereIn('product_id', $testProductIds)
-                    ->delete();
-
+                    ->whereIn('product_id', $testProductIdQuery)->delete();
                 DB::table('products_search_index')
-                    ->whereIn('product_id', $testProductIds)
-                    ->delete();
-
+                    ->whereIn('product_id', $testProductIdQuery)->delete();
                 DB::table('watchlist_items')
-                    ->whereIn('product_id', $testProductIds)
-                    ->delete();
-
+                    ->whereIn('product_id', $testProductIdQuery)->delete();
                 DB::table('product_versions')
-                    ->whereIn('product_id', $testProductIds)
-                    ->delete();
-
+                    ->whereIn('product_id', $testProductIdQuery)->delete();
                 DB::table('variant_inheritance_rules')
-                    ->whereIn('product_id', $testProductIds)
-                    ->delete();
+                    ->whereIn('product_id', $testProductIdQuery)->delete();
 
-                $productsDeleted = Product::whereIn('id', $testProductIds)->delete();
+                $productsDeleted = Product::whereIn('id', $testProductIdQuery)->delete();
             }
 
             $hierarchy = Hierarchy::where('technical_name', self::HIERARCHY_TECHNICAL_NAME)->first();
@@ -318,15 +308,17 @@ class TestDataGeneratorService
 
     public function stats(): array
     {
-        $testProductIds = Product::where('sku', 'like', self::SKU_PREFIX . '%')->pluck('id');
+        // Use subquery to avoid too many placeholders
+        $testProductIdQuery = Product::where('sku', 'like', self::SKU_PREFIX . '%')->select('id');
+        $testCount = Product::where('sku', 'like', self::SKU_PREFIX . '%')->count();
 
         return [
-            'test_products' => $testProductIds->count(),
-            'test_attribute_values' => $testProductIds->isNotEmpty()
-                ? ProductAttributeValue::whereIn('product_id', $testProductIds)->count()
+            'test_products' => $testCount,
+            'test_attribute_values' => $testCount > 0
+                ? ProductAttributeValue::whereIn('product_id', $testProductIdQuery)->count()
                 : 0,
-            'test_prices' => $testProductIds->isNotEmpty()
-                ? ProductPrice::whereIn('product_id', $testProductIds)->count()
+            'test_prices' => $testCount > 0
+                ? ProductPrice::whereIn('product_id', $testProductIdQuery)->count()
                 : 0,
             'total_products' => Product::count(),
             'test_hierarchy_exists' => Hierarchy::where('technical_name', self::HIERARCHY_TECHNICAL_NAME)->exists(),

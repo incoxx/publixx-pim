@@ -416,22 +416,22 @@ class WatchlistController extends Controller
         $sourceLang = $validated['source_lang'];
         $targetLang = $validated['target_lang'];
 
-        $productIds = WatchlistItem::where('user_id', $request->user()->id)
-            ->pluck('product_id');
+        // Use subquery to avoid too many placeholders with large watchlists
+        $productIdQuery = WatchlistItem::where('user_id', $request->user()->id)
+            ->select('product_id');
 
-        // Delegate to the existing XLIFF export controller logic
-        $products = Product::whereIn('id', $productIds)->get();
+        $products = Product::whereIn('id', $productIdQuery)->get();
 
         $translatableAttributes = \App\Models\Attribute::where('is_translatable', true)->get();
         $attrIds = $translatableAttributes->pluck('id');
 
-        $sourceValues = \App\Models\ProductAttributeValue::whereIn('product_id', $productIds)
+        $sourceValues = \App\Models\ProductAttributeValue::whereIn('product_id', $productIdQuery)
             ->whereIn('attribute_id', $attrIds)
             ->where('language', $sourceLang)
             ->get()
             ->groupBy('product_id');
 
-        $targetValues = \App\Models\ProductAttributeValue::whereIn('product_id', $productIds)
+        $targetValues = \App\Models\ProductAttributeValue::whereIn('product_id', $productIdQuery)
             ->whereIn('attribute_id', $attrIds)
             ->where('language', $targetLang)
             ->get()

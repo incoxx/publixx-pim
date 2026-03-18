@@ -309,15 +309,19 @@ class FlatImportExecutor
             return 0;
         }
 
-        \App\Models\ProductRelation::whereIn('source_product_id', $productIds)
-            ->orWhereIn('target_product_id', $productIds)
-            ->delete();
-        \App\Models\ProductPrice::whereIn('product_id', $productIds)->delete();
-        \App\Models\ProductMediaAssignment::whereIn('product_id', $productIds)->delete();
-        ProductAttributeValue::whereIn('product_id', $productIds)->delete();
-        \App\Models\OutputHierarchyProductAssignment::whereIn('product_id', $productIds)->delete();
-        Product::whereIn('id', $productIds)->where('product_type_ref', 'variant')->delete();
-        Product::whereIn('id', $productIds)->where('product_type_ref', 'product')->delete();
+        // Chunk to avoid too many placeholders with large imports
+        foreach (array_chunk($productIds, 1000) as $chunk) {
+            \App\Models\ProductRelation::where(function ($q) use ($chunk) {
+                $q->whereIn('source_product_id', $chunk)
+                    ->orWhereIn('target_product_id', $chunk);
+            })->delete();
+            \App\Models\ProductPrice::whereIn('product_id', $chunk)->delete();
+            \App\Models\ProductMediaAssignment::whereIn('product_id', $chunk)->delete();
+            ProductAttributeValue::whereIn('product_id', $chunk)->delete();
+            \App\Models\OutputHierarchyProductAssignment::whereIn('product_id', $chunk)->delete();
+            Product::whereIn('id', $chunk)->where('product_type_ref', 'variant')->delete();
+            Product::whereIn('id', $chunk)->where('product_type_ref', 'product')->delete();
+        }
 
         $this->stats['deleted'] = count($productIds);
         return count($productIds);
