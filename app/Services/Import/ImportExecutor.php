@@ -1134,8 +1134,27 @@ class ImportExecutor
 
                 // ── Reines INSERT für neue Produkte ──
                 if (!empty($insertBatch)) {
-                    DB::table('products')->insert($insertBatch);
-                    $this->stats[$sheetKey]['created'] += count($insertBatch);
+                    try {
+                        DB::table('products')->insert($insertBatch);
+                        $this->stats[$sheetKey]['created'] += count($insertBatch);
+                    } catch (\Throwable $batchError) {
+                        // Fallback: Einzelinserts um möglichst viele Produkte zu retten
+                        Log::channel('import')->warning("Produkt-Batch-Insert fehlgeschlagen, Fallback auf Einzelinserts", [
+                            'error' => $batchError->getMessage(),
+                            'batch_size' => count($insertBatch),
+                        ]);
+                        foreach ($insertBatch as $singleRow) {
+                            try {
+                                DB::table('products')->insert($singleRow);
+                                $this->stats[$sheetKey]['created']++;
+                            } catch (\Throwable $singleError) {
+                                Log::channel('import')->warning("Produkt-Insert fehlgeschlagen: SKU '{$singleRow['sku']}'", [
+                                    'error' => $singleError->getMessage(),
+                                ]);
+                                $this->stats[$sheetKey]['errors']++;
+                            }
+                        }
+                    }
                 }
 
                 // ── Batch-UPDATE per CASE WHEN (1 Query statt N) ──
@@ -1179,6 +1198,7 @@ class ImportExecutor
                         'value_flag' => null,
                         'value_selection_id' => null,
                         'unit_id' => null,
+                        'output_hierarchy_id' => null,
                         'updated_at' => $now,
                         'created_at' => $now,
                     ];
@@ -1215,10 +1235,12 @@ class ImportExecutor
             $language = !empty($row['language']) ? mb_strtolower((string) $row['language']) : null;
             $index = (int) ($row['index'] ?? 0);
 
+            $outputHierarchyId = $row['output_hierarchy_id'] ?? null;
             $existing = ProductAttributeValue::where('product_id', $productResult->id)
                 ->where('attribute_id', $attrResult->id)
                 ->where('language', $language)
                 ->where('multiplied_index', $index)
+                ->where('output_hierarchy_id', $outputHierarchyId)
                 ->first();
 
             // Attribut laden um Datentyp zu bestimmen
@@ -1327,10 +1349,10 @@ class ImportExecutor
             foreach (array_chunk($uniqueProductIds, 5000) as $pidChunk) {
                 $existing = DB::table('product_attribute_values')
                     ->whereIn('product_id', $pidChunk)
-                    ->select(['id', 'product_id', 'attribute_id', 'language', 'multiplied_index'])
+                    ->select(['id', 'product_id', 'attribute_id', 'language', 'multiplied_index', 'output_hierarchy_id'])
                     ->get();
                 foreach ($existing as $e) {
-                    $key = $e->product_id . '|' . $e->attribute_id . '|' . ($e->language ?? '_NULL_') . '|' . $e->multiplied_index;
+                    $key = $e->product_id . '|' . $e->attribute_id . '|' . ($e->language ?? '_NULL_') . '|' . $e->multiplied_index . '|' . ($e->output_hierarchy_id ?? '_NULL_');
                     $existingMap[$key] = $e->id;
                 }
                 $this->heartbeat();
@@ -1347,10 +1369,11 @@ class ImportExecutor
             'language' => null, 'multiplied_index' => 0,
             'value_string' => null, 'value_number' => null, 'value_date' => null,
             'value_flag' => null, 'value_selection_id' => null, 'unit_id' => null,
+            'output_hierarchy_id' => null,
             'updated_at' => $now, 'created_at' => $now,
         ];
 
-        $updateColumns = ['value_string', 'value_number', 'value_date', 'value_flag', 'value_selection_id', 'unit_id', 'updated_at'];
+        $updateColumns = ['value_string', 'value_number', 'value_date', 'value_flag', 'value_selection_id', 'unit_id', 'output_hierarchy_id', 'updated_at'];
 
         foreach (array_chunk($rows, $chunkSize) as $chunk) {
             $this->heartbeat();
@@ -1416,7 +1439,8 @@ class ImportExecutor
                     }
 
                     // ── In-Memory Constraint-Check ──
-                    $constraintKey = $productResult->id . '|' . $attrResult->id . '|' . ($language ?? '_NULL_') . '|' . $index;
+                    $outputHierarchyId = $data['output_hierarchy_id'] ?? null;
+                    $constraintKey = $productResult->id . '|' . $attrResult->id . '|' . ($language ?? '_NULL_') . '|' . $index . '|' . ($outputHierarchyId ?? '_NULL_');
 
                     if (isset($existingMap[$constraintKey])) {
                         // UPDATE: existiert schon → ID übernehmen, in Update-Batch
@@ -1439,9 +1463,25 @@ class ImportExecutor
             // ── Reines INSERT für neue Zeilen (kein ON DUPLICATE KEY overhead) ──
             if (!empty($insertBatch)) {
                 foreach (array_chunk($insertBatch, 2000) as $batchChunk) {
-                    DB::table('product_attribute_values')->insert($batchChunk);
+                    try {
+                        DB::table('product_attribute_values')->insert($batchChunk);
+                        $this->stats[$sheetKey]['created'] += count($batchChunk);
+                    } catch (\Throwable $batchError) {
+                        // Fallback: Einzelinserts um möglichst viele Werte zu retten
+                        Log::channel('import')->warning("Attributwerte-Batch-Insert fehlgeschlagen, Fallback auf Einzelinserts", [
+                            'error' => $batchError->getMessage(),
+                            'batch_size' => count($batchChunk),
+                        ]);
+                        foreach ($batchChunk as $singleRow) {
+                            try {
+                                DB::table('product_attribute_values')->insert($singleRow);
+                                $this->stats[$sheetKey]['created']++;
+                            } catch (\Throwable $singleError) {
+                                $this->stats[$sheetKey]['errors']++;
+                            }
+                        }
+                    }
                 }
-                $this->stats[$sheetKey]['created'] += count($insertBatch);
             }
 
             // ── Batch-UPDATE per CASE WHEN (1 Query statt N) ──
