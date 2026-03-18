@@ -21,12 +21,28 @@ import manufacturersApi from '@/api/manufacturers'
 const route = useRoute()
 const router = useRouter()
 
-// ── Product IDs from query ─────────────────────────
+// ── Product IDs or Filter from query ─────────────────────────
 const productIds = computed(() => {
   const ids = route.query.ids
   if (!ids) return []
   return ids.split(',').filter(Boolean)
 })
+
+const filterFromRoute = computed(() => {
+  try {
+    return route.query.filter ? JSON.parse(route.query.filter) : null
+  } catch { return null }
+})
+
+const productCount = computed(() => {
+  if (filterFromRoute.value) {
+    return parseInt(route.query.count) || 0
+  }
+  return productIds.value.length
+})
+
+// Large dataset = skip preview, use filter-based API
+const isLargeDataset = computed(() => productCount.value > 100)
 
 // ── Tabs ────────────────────────────────────────────
 const tabs = [
@@ -64,10 +80,11 @@ async function fetchAttrPickerItems(page = 1) {
   try {
     const usedIds = new Set(attrOperations.value.map(o => o.attribute.id))
 
-    if (productIds.value.length > 0) {
+    if (productIds.value.length > 0 || filterFromRoute.value) {
       // Use hierarchy-aware common attributes
       const { data } = await bulkUpdateApi.commonAttributes({
-        productIds: productIds.value,
+        productIds: filterFromRoute.value ? undefined : productIds.value,
+        filter: filterFromRoute.value || undefined,
         search: attrPickerSearch.value || undefined,
         excludeIds: usedIds.size > 0 ? [...usedIds] : undefined,
       })
@@ -418,18 +435,32 @@ const executing = ref(false)
 const executeResult = ref(null)
 const showConfirm = ref(false)
 
+function buildPayload(operations) {
+  const payload = { operations }
+  if (filterFromRoute.value) {
+    payload.filter = filterFromRoute.value
+  } else {
+    payload.productIds = productIds.value
+  }
+  return payload
+}
+
 async function runPreview() {
   if (operationCount.value === 0) {
     showFeedback('Keine Operationen konfiguriert', 'error')
     return
   }
+
+  // For large datasets, skip preview and go directly to confirm
+  if (isLargeDataset.value) {
+    showConfirm.value = true
+    return
+  }
+
   previewing.value = true
   previewResult.value = null
   try {
-    const { data } = await bulkUpdateApi.preview({
-      productIds: productIds.value,
-      operations: buildOperations(),
-    })
+    const { data } = await bulkUpdateApi.preview(buildPayload(buildOperations()))
     previewResult.value = data.summary
     showPreview.value = true
   } catch (e) {
@@ -443,21 +474,23 @@ function requestExecute() {
   showConfirm.value = true
 }
 
+const executeProgress = ref(null) // { processed, total, percent }
+
 async function confirmExecute() {
   showConfirm.value = false
   executing.value = true
+  executeProgress.value = isLargeDataset.value ? { processed: 0, total: productCount.value, percent: 0 } : null
   try {
-    const { data } = await bulkUpdateApi.execute({
-      productIds: productIds.value,
-      operations: buildOperations(),
-    })
+    const { data } = await bulkUpdateApi.execute(buildPayload(buildOperations()))
     executeResult.value = data.results
     showPreview.value = false
+    executeProgress.value = null
     showFeedback(`Massenaktualisierung abgeschlossen`)
   } catch (e) {
     showFeedback(e.response?.data?.message || 'Fehler bei der Ausführung', 'error')
   } finally {
     executing.value = false
+    executeProgress.value = null
   }
 }
 
@@ -467,7 +500,7 @@ function goBack() {
 
 // ── Init ────────────────────────────────────────────
 onMounted(() => {
-  if (productIds.value.length === 0) {
+  if (productIds.value.length === 0 && !filterFromRoute.value) {
     router.push('/products')
     return
   }
@@ -489,7 +522,10 @@ onMounted(() => {
         </button>
         <div>
           <h2 class="text-lg font-semibold text-[var(--color-text-primary)]">Massendatenpflege</h2>
-          <p class="text-xs text-[var(--color-text-tertiary)]">{{ productIds.length }} Produkte ausgewählt</p>
+          <p class="text-xs text-[var(--color-text-tertiary)]">
+            {{ productCount.toLocaleString('de-DE') }} Produkte ausgewählt
+            <span v-if="filterFromRoute" class="ml-1 pim-badge text-[10px]">Filter-basiert</span>
+          </p>
         </div>
       </div>
     </div>
@@ -973,11 +1009,11 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- Footer: Summary + Preview Button -->
+      <!-- Footer: Summary + Action Button -->
       <div class="pim-card p-4 flex items-center justify-between">
         <div class="text-xs text-[var(--color-text-secondary)]">
           <template v-if="operationCount > 0">
-            {{ operationCount }} Operation(en) konfiguriert für {{ productIds.length }} Produkte
+            {{ operationCount }} Operation(en) konfiguriert für {{ productCount.toLocaleString('de-DE') }} Produkte
           </template>
           <template v-else>
             Noch keine Operationen konfiguriert
@@ -985,12 +1021,27 @@ onMounted(() => {
         </div>
         <button
           class="pim-btn pim-btn-primary text-sm"
-          :disabled="operationCount === 0 || previewing"
+          :disabled="operationCount === 0 || previewing || executing"
           @click="runPreview"
         >
           <template v-if="previewing">Vorschau wird erstellt…</template>
+          <template v-else-if="isLargeDataset">Ausführen ({{ productCount.toLocaleString('de-DE') }} Produkte)</template>
           <template v-else>Vorschau & Prüfen</template>
         </button>
+      </div>
+
+      <!-- Execution Progress (large datasets) -->
+      <div v-if="executing && executeProgress" class="pim-card p-4 space-y-3">
+        <div class="flex items-center gap-2">
+          <div class="w-4 h-4 border-2 border-[var(--color-accent)] border-t-transparent rounded-full animate-spin" />
+          <span class="text-sm font-medium text-[var(--color-text-primary)]">Massenaktualisierung läuft…</span>
+        </div>
+        <p class="text-xs text-[var(--color-text-tertiary)]">
+          {{ productCount.toLocaleString('de-DE') }} Produkte werden verarbeitet. Dies kann bei großen Datenmengen einige Minuten dauern.
+        </p>
+        <div class="w-full bg-[var(--color-bg)] rounded-full h-2">
+          <div class="bg-[var(--color-accent)] h-2 rounded-full transition-all" style="width: 100%; animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;" />
+        </div>
       </div>
 
       <!-- Preview Modal -->
@@ -1075,7 +1126,7 @@ onMounted(() => {
     <PimConfirmDialog
       :open="showConfirm"
       title="Massenaktualisierung ausführen?"
-      :message="`${operationCount} Operation(en) werden auf ${productIds.length} Produkte angewendet. Diese Aktion kann nicht rückgängig gemacht werden.`"
+      :message="`${operationCount} Operation(en) werden auf ${productCount.toLocaleString('de-DE')} Produkte angewendet. Diese Aktion kann nicht rückgängig gemacht werden.`"
       confirmLabel="Ausführen"
       :danger="true"
       :loading="executing"

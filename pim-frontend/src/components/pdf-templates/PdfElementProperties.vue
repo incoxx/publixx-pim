@@ -166,15 +166,36 @@ const typeLabels = {
     <div class="text-xs font-semibold text-[var(--color-text-primary)]">Eigenschaften</div>
 
     <!-- No selection -->
-    <div v-if="!sel" class="text-center py-8">
+    <div v-if="!sel && store.selectedElementIds.size === 0" class="text-center py-8">
       <Settings class="w-8 h-8 mx-auto mb-2 text-[var(--color-text-tertiary)]" :stroke-width="1.25" />
       <p class="text-[11px] text-[var(--color-text-tertiary)]">
         Wähle ein Element auf dem Canvas, um die Eigenschaften zu bearbeiten.
       </p>
     </div>
 
+    <!-- Multi-selection info -->
+    <div v-else-if="store.selectedElementIds.size > 1" class="space-y-3">
+      <div class="text-[11px] font-semibold text-[var(--color-accent)]">
+        {{ store.selectedElementIds.size }} Elemente ausgewählt
+      </div>
+      <p class="text-[10px] text-[var(--color-text-tertiary)]">
+        Ziehe zum Verschieben, oder nutze Pfeiltasten. Strg+C zum Kopieren, Strg+V zum Einfügen.
+      </p>
+      <div class="flex flex-wrap gap-1">
+        <button class="pim-btn pim-btn-secondary text-[10px] px-2 py-1" @click="store.copySelectedElements()">
+          <Copy class="w-3 h-3" :stroke-width="2" /> Kopieren
+        </button>
+        <button
+          class="pim-btn text-[10px] px-2 py-1 bg-[var(--color-error-light)] text-[var(--color-error)]"
+          @click="store.removeSelectedElements()"
+        >
+          <Trash2 class="w-3 h-3" :stroke-width="2" /> Löschen
+        </button>
+      </div>
+    </div>
+
     <!-- Element Properties -->
-    <div v-if="sel" class="space-y-3">
+    <div v-if="sel && store.selectedElementIds.size <= 1" class="space-y-3">
       <div class="text-[11px] font-semibold text-[var(--color-accent)]">
         {{ typeLabels[sel.type] || sel.type }}
       </div>

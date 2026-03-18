@@ -511,6 +511,8 @@ async function doSearch(page = 1) {
   hasSearched.value = true
   loading.value = true
   error.value = null
+  // Auto-close filter panel so results are immediately visible
+  showAttributeFilters.value = false
 
   try {
     if (searchCategory.value === 'products') {
@@ -789,8 +791,20 @@ function openBulkEditor() {
 }
 
 function openBulkUpdate() {
-  const ids = selectedProductIds.value.join(',')
-  router.push({ path: '/products/bulk-update', query: { ids } })
+  // For large selections or "all pages selected", pass filter instead of IDs
+  if (allPagesSelected.value || selectedProductIds.value.length > 100) {
+    const filter = buildSearchParams()
+    router.push({
+      path: '/products/bulk-update',
+      query: {
+        filter: JSON.stringify(filter),
+        count: String(resultMeta.value.total || selectedProductIds.value.length),
+      },
+    })
+  } else {
+    const ids = selectedProductIds.value.join(',')
+    router.push({ path: '/products/bulk-update', query: { ids } })
+  }
 }
 
 // ─── Bulk Assign to Project ──────────────────────────

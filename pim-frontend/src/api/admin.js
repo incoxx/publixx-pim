@@ -94,4 +94,8 @@ export default {
   restartHorizon() {
     return client.post('/admin/restart-horizon', {}, { timeout: 15000 })
   },
+
+  getSystemProcesses() {
+    return client.get('/admin/system-processes')
+  },
 }

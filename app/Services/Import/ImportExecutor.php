@@ -1305,7 +1305,7 @@ class ImportExecutor
     private function importProductValuesBulk(array $rows, string $sheetKey): void
     {
         $now = now();
-        $chunkSize = 2000;
+        $chunkSize = 5000;
         $totalRows = count($rows);
         $totalChunks = (int) ceil($totalRows / $chunkSize);
         $chunkIndex = 0;
@@ -1327,22 +1327,46 @@ class ImportExecutor
             }
         }
 
+        // ── Lokale Resolve-Caches: vermeiden wiederholte Fuzzy-Matching-Aufrufe ──
+        // Key = Input-String, Value = aufgelöste ID oder false (nicht gefunden)
+        $productIdCache = [];
+        $attributeIdCache = [];
+        $unitIdCache = [];
+
+        // Alle einzigartigen SKUs, Attribute, Units vorab sammeln und einmalig auflösen
+        $uniqueSkus = array_unique(array_column($rows, 'sku'));
+        $uniqueAttrs = array_unique(array_column($rows, 'attribute'));
+        $uniqueUnits = array_unique(array_filter(array_column($rows, 'unit')));
+
+        Log::channel('import')->info("Produktwerte vorab-auflösen: " . count($uniqueSkus) . " SKUs, " . count($uniqueAttrs) . " Attribute, " . count($uniqueUnits) . " Einheiten");
+
+        foreach ($uniqueSkus as $sku) {
+            $r = $this->resolver->resolveProduct($sku);
+            $productIdCache[$sku] = $r->resolved() ? $r->id : false;
+        }
+        $this->heartbeat();
+
+        foreach ($uniqueAttrs as $attr) {
+            $r = $this->resolver->resolveAttribute($attr);
+            $attributeIdCache[$attr] = $r->resolved() ? $r->id : false;
+        }
+
+        foreach ($uniqueUnits as $unit) {
+            $r = $this->resolver->resolveUnit($unit);
+            $unitIdCache[$unit] = $r->resolved() ? $r->id : false;
+        }
+        $this->heartbeat();
+
+        Log::channel('import')->info("Vorab-Auflösung abgeschlossen: " .
+            count(array_filter($productIdCache)) . " Produkte, " .
+            count(array_filter($attributeIdCache)) . " Attribute, " .
+            count(array_filter($unitIdCache)) . " Einheiten gefunden");
+
         // ── In-Memory Constraint-Map aufbauen ──────────────────────────
         $constraintMapStart = microtime(true);
         $existingMap = [];
         if (!$isDeleteInsert) {
-            // Nur die betroffenen Produkt-IDs laden (aus den Import-Daten)
-            $allSkus = array_unique(array_column($rows, 'sku'));
-            $affectedProductIds = [];
-            foreach (array_chunk($allSkus, 5000) as $skuChunk) {
-                foreach ($skuChunk as $sku) {
-                    $r = $this->resolver->resolveProduct($sku);
-                    if ($r->resolved()) {
-                        $affectedProductIds[$sku] = $r->id;
-                    }
-                }
-            }
-            $uniqueProductIds = array_unique(array_values($affectedProductIds));
+            $uniqueProductIds = array_values(array_unique(array_filter($productIdCache)));
 
             $this->heartbeat();
             Log::channel('import')->info("Lade bestehende Attributwerte für " . count($uniqueProductIds) . " Produkte in Memory...");
@@ -1376,6 +1400,12 @@ class ImportExecutor
 
         $updateColumns = ['value_string', 'value_number', 'value_date', 'value_flag', 'value_selection_id', 'unit_id', 'output_hierarchy_id', 'updated_at'];
 
+        // ── UUIDs vorberechnen (schneller als Str::uuid() pro Zeile im Hot-Loop) ──
+        $uuidPool = [];
+        $uuidPoolSize = 10000;
+        $uuidPoolIndex = 0;
+        $affectedIdSet = [];
+
         foreach (array_chunk($rows, $chunkSize) as $chunk) {
             $this->heartbeat();
             $this->checkCancelled();
@@ -1395,27 +1425,49 @@ class ImportExecutor
 
             foreach ($chunk as $row) {
                 try {
-                    $productResult = $this->resolver->resolveProduct($row['sku']);
-                    if (!$productResult->resolved()) {
-                        $this->logSkipped($sheetKey, $row, "Produkt nicht gefunden: SKU '{$row['sku']}'");
-                        continue;
+                    // Lokaler Cache-Lookup statt Resolver (O(1), kein Fuzzy)
+                    $productId = $productIdCache[$row['sku']] ?? null;
+                    if (!$productId) {
+                        if ($productId === false) {
+                            $this->logSkipped($sheetKey, $row, "Produkt nicht gefunden: SKU '{$row['sku']}'");
+                        } else {
+                            // Unbekannte SKU (sollte nicht vorkommen nach Vorab-Auflösung)
+                            $r = $this->resolver->resolveProduct($row['sku']);
+                            $productIdCache[$row['sku']] = $r->resolved() ? $r->id : false;
+                            $productId = $productIdCache[$row['sku']];
+                            if (!$productId) {
+                                $this->logSkipped($sheetKey, $row, "Produkt nicht gefunden: SKU '{$row['sku']}'");
+                                continue;
+                            }
+                        }
+                        if ($productId === false) continue;
                     }
 
-                    $attrResult = $this->resolver->resolveAttribute($row['attribute']);
-                    if (!$attrResult->resolved()) {
-                        $this->logSkipped($sheetKey, $row, "Attribut nicht gefunden: '{$row['attribute']}'");
-                        continue;
+                    $attributeId = $attributeIdCache[$row['attribute']] ?? null;
+                    if (!$attributeId) {
+                        if ($attributeId === false) {
+                            $this->logSkipped($sheetKey, $row, "Attribut nicht gefunden: '{$row['attribute']}'");
+                        } else {
+                            $r = $this->resolver->resolveAttribute($row['attribute']);
+                            $attributeIdCache[$row['attribute']] = $r->resolved() ? $r->id : false;
+                            $attributeId = $attributeIdCache[$row['attribute']];
+                            if (!$attributeId) {
+                                $this->logSkipped($sheetKey, $row, "Attribut nicht gefunden: '{$row['attribute']}'");
+                                continue;
+                            }
+                        }
+                        if ($attributeId === false) continue;
                     }
 
                     $language = !empty($row['language']) ? mb_strtolower((string) $row['language']) : null;
                     $index = (int) ($row['index'] ?? 0);
 
-                    $attribute = $attributeById->get($attrResult->id);
+                    $attribute = $attributeById->get($attributeId);
                     $valueData = $this->mapValueToColumns($row['value'], $attribute?->data_type ?? 'String');
 
                     $data = $defaultRow;
-                    $data['product_id'] = $productResult->id;
-                    $data['attribute_id'] = $attrResult->id;
+                    $data['product_id'] = $productId;
+                    $data['attribute_id'] = $attributeId;
                     $data['language'] = $language;
                     $data['multiplied_index'] = $index;
                     foreach ($valueData as $k => $v) {
@@ -1432,31 +1484,44 @@ class ImportExecutor
                         }
                     }
 
-                    // Einheit auflösen
+                    // Einheit auflösen (lokaler Cache statt Resolver)
                     if (!empty($row['unit'])) {
-                        $unitResult = $this->resolver->resolveUnit($row['unit']);
-                        if ($unitResult->resolved()) {
-                            $data['unit_id'] = $unitResult->id;
+                        $unitId = $unitIdCache[$row['unit']] ?? null;
+                        if ($unitId === null) {
+                            // Unbekannte Einheit → einmalig auflösen
+                            $unitResult = $this->resolver->resolveUnit($row['unit']);
+                            $unitId = $unitResult->resolved() ? $unitResult->id : false;
+                            $unitIdCache[$row['unit']] = $unitId;
+                        }
+                        if ($unitId !== false) {
+                            $data['unit_id'] = $unitId;
                         }
                     }
 
                     // ── In-Memory Constraint-Check ──
                     $outputHierarchyId = $data['output_hierarchy_id'] ?? null;
-                    $constraintKey = $productResult->id . '|' . $attrResult->id . '|' . ($language ?? '_NULL_') . '|' . $index . '|' . ($outputHierarchyId ?? '_NULL_');
+                    $constraintKey = $productId . '|' . $attributeId . '|' . ($language ?? '_NULL_') . '|' . $index . '|' . ($outputHierarchyId ?? '_NULL_');
 
                     if (isset($existingMap[$constraintKey])) {
                         // UPDATE: existiert schon → ID übernehmen, in Update-Batch
                         $data['id'] = $existingMap[$constraintKey];
                         $updateBatch[] = $data;
                     } else {
-                        // INSERT: neu → UUID generieren, in Insert-Batch
-                        $data['id'] = Str::uuid()->toString();
+                        // INSERT: neu → UUID aus Pool
+                        if ($uuidPoolIndex >= count($uuidPool)) {
+                            $uuidPool = [];
+                            for ($i = 0; $i < $uuidPoolSize; $i++) {
+                                $uuidPool[] = Str::uuid()->toString();
+                            }
+                            $uuidPoolIndex = 0;
+                        }
+                        $data['id'] = $uuidPool[$uuidPoolIndex++];
                         $insertBatch[] = $data;
                         // In Map eintragen damit Duplikate im selben Chunk erkannt werden
                         $existingMap[$constraintKey] = $data['id'];
                     }
 
-                    $affectedIds[] = $productResult->id;
+                    $affectedIds[] = $productId;
                 } catch (\Throwable $e) {
                     $this->logRowError($sheetKey, $row, $e);
                 }
@@ -1464,7 +1529,7 @@ class ImportExecutor
 
             // ── Reines INSERT für neue Zeilen (kein ON DUPLICATE KEY overhead) ──
             if (!empty($insertBatch)) {
-                foreach (array_chunk($insertBatch, 2000) as $batchChunk) {
+                foreach (array_chunk($insertBatch, 5000) as $batchChunk) {
                     try {
                         DB::table('product_attribute_values')->insert($batchChunk);
                         $this->stats[$sheetKey]['created'] += count($batchChunk);
@@ -1492,9 +1557,10 @@ class ImportExecutor
                 $this->stats[$sheetKey]['updated'] += count($updateBatch);
             }
 
-            // array_push statt array_merge: O(k) statt O(n) — vermeidet
-            // progressiven Slowdown bei 1M+ Einträgen.
-            array_push($this->affectedProductIds, ...$affectedIds);
+            // Nur einzigartige IDs sammeln — bei 1.4M Zeilen wäre das sonst ein riesiges Array
+            foreach ($affectedIds as $pid) {
+                $affectedIdSet[$pid] = true;
+            }
 
             DB::commit();
             } catch (\Throwable $e) {
@@ -1506,6 +1572,9 @@ class ImportExecutor
                 $this->stats[$sheetKey]['errors'] += count($chunk);
             }
         }
+
+        // Gesammelte IDs zu den globalen hinzufügen
+        array_push($this->affectedProductIds, ...array_keys($affectedIdSet ?? []));
     }
 
     private function importVariants(array $rows, string $sheetKey): void
@@ -1789,7 +1858,7 @@ class ImportExecutor
     private function importProductRelationsBulk(array $rows, string $sheetKey): void
     {
         $now = now();
-        $chunkSize = 2000;
+        $chunkSize = 5000;
         $totalChunks = (int) ceil(count($rows) / $chunkSize);
         $chunkIndex = 0;
         $totalRows = count($rows);
@@ -1812,17 +1881,28 @@ class ImportExecutor
         }
         $this->resolver->clearCache('relation_type');
 
-        // ── SKU → Product-ID Map einmalig aufbauen ─────────────────────
+        // ── SKU → Product-ID Map einmalig aufbauen (direkter DB-Lookup statt Resolver+Fuzzy) ──
         $allSkus = array_unique(array_merge(
             array_column($rows, 'source_sku'),
             array_column($rows, 'target_sku')
         ));
+
+        Log::channel('import')->info("Produktbeziehungen: Löse " . count($allSkus) . " einzigartige SKUs auf...");
+
+        // Direkte DB-Abfrage statt Resolver pro SKU (vermeidet Fuzzy-Matching)
         $productIdMap = [];
-        foreach ($allSkus as $sku) {
-            $r = $this->resolver->resolveProduct($sku);
-            if ($r->resolved()) {
-                $productIdMap[$sku] = $r->id;
-            }
+        foreach (array_chunk($allSkus, 10000) as $skuChunk) {
+            $found = DB::table('products')
+                ->whereIn('sku', $skuChunk)
+                ->pluck('id', 'sku')
+                ->all();
+            $productIdMap = array_merge($productIdMap, $found);
+            $this->heartbeat();
+        }
+
+        $missingSkus = count($allSkus) - count($productIdMap);
+        if ($missingSkus > 0) {
+            Log::channel('import')->warning("Produktbeziehungen: {$missingSkus} SKUs nicht gefunden");
         }
         $this->heartbeat();
 
@@ -1961,21 +2041,35 @@ class ImportExecutor
 
             // ── Beziehungs-Attributwerte ──
             if (!empty($relationAttrValues)) {
+                // Lokale Caches für Attribute/Units in Relation-Attributwerten
+                static $ravAttrCache = [];
+                static $ravUnitCache = [];
+
                 $ravInsertData = [];
                 foreach ($relationAttrValues as $av) {
-                    $attrResult = $this->resolver->resolveAttribute($av['attribute'] ?? '');
-                    if (!$attrResult->resolved()) continue;
+                    $attrName = $av['attribute'] ?? '';
+                    if (!isset($ravAttrCache[$attrName])) {
+                        $attrResult = $this->resolver->resolveAttribute($attrName);
+                        $ravAttrCache[$attrName] = $attrResult->resolved() ? $attrResult->id : false;
+                    }
+                    if ($ravAttrCache[$attrName] === false) continue;
 
                     $unitId = null;
                     if (!empty($av['unit'])) {
-                        $unitResult = $this->resolver->resolveUnit($av['unit']);
-                        if ($unitResult->resolved()) $unitId = $unitResult->id;
+                        $unitName = $av['unit'];
+                        if (!isset($ravUnitCache[$unitName])) {
+                            $unitResult = $this->resolver->resolveUnit($unitName);
+                            $ravUnitCache[$unitName] = $unitResult->resolved() ? $unitResult->id : false;
+                        }
+                        if ($ravUnitCache[$unitName] !== false) {
+                            $unitId = $ravUnitCache[$unitName];
+                        }
                     }
 
                     $ravInsertData[] = [
                         'id' => Str::uuid()->toString(),
                         'product_relation_id' => $av['_relation_id'],
-                        'attribute_id' => $attrResult->id,
+                        'attribute_id' => $ravAttrCache[$attrName],
                         'language' => $av['language'] ?? null,
                         'multiplied_index' => $av['multiplied_index'] ?? 0,
                         'value_string' => $av['value_string'] ?? null,
@@ -1990,7 +2084,7 @@ class ImportExecutor
                 }
 
                 if (!empty($ravInsertData)) {
-                    foreach (array_chunk($ravInsertData, 2000) as $ravChunk) {
+                    foreach (array_chunk($ravInsertData, 5000) as $ravChunk) {
                         try {
                             DB::table('product_relation_attribute_values')->insert($ravChunk);
                         } catch (\Throwable $ravError) {

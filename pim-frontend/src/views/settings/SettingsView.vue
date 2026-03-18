@@ -3,7 +3,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useLocaleStore } from '@/stores/locale'
 import { useAuthStore } from '@/stores/auth'
-import { Globe, Palette, AlertTriangle, Server, RotateCcw, CheckCircle, XCircle, Loader2, GitBranch, Database, Upload, Trash2, Save, Filter, LayoutGrid, Columns3, Image, Settings2, Paintbrush, BookOpen, GripVertical, Plus, X, Shield, Key, Eye, Monitor, RefreshCw, FileCode2, Activity, HardDrive, Cpu, Check, Zap, Play, Clock, Ban, RotateCw, Power } from 'lucide-vue-next'
+import { Globe, Palette, AlertTriangle, Server, RotateCcw, CheckCircle, XCircle, Loader2, GitBranch, Database, Upload, Trash2, Save, Filter, LayoutGrid, Columns3, Image, Settings2, Paintbrush, BookOpen, GripVertical, Plus, X, Shield, Key, Eye, Monitor, RefreshCw, FileCode2, Activity, HardDrive, Cpu, Check, Zap, Play, Clock, Ban, RotateCw, Power, Terminal } from 'lucide-vue-next'
 import { useLicenseStore } from '@/stores/license'
 import adminApi from '@/api/admin'
 import catalogApi from '@/api/catalog'
@@ -168,6 +168,22 @@ async function restartHorizon() {
   } catch (e) {
     console.warn('Horizon restart failed:', e.message)
     horizonRestarting.value = false
+  }
+}
+
+// ── System-Prozesse (www-data, mysql) ──
+const systemProcesses = ref(null)
+const processesLoading = ref(false)
+
+async function loadSystemProcesses() {
+  processesLoading.value = true
+  try {
+    const { data } = await adminApi.getSystemProcesses()
+    systemProcesses.value = data.data || null
+  } catch (e) {
+    console.warn('Failed to load system processes:', e.message)
+  } finally {
+    processesLoading.value = false
   }
 }
 
@@ -1011,7 +1027,7 @@ async function triggerRollback() {
 watch(activeMainTab, (tab) => {
   if (tab === 'env' && envGroups.value.length === 0) loadEnvInfo()
   if (tab === 'system' && !systemStatus.value) loadSystemStatus()
-  if (tab === 'processes') loadQueueJobs()
+  if (tab === 'processes') { loadQueueJobs(); loadSystemProcesses() }
 })
 
 // Reload attributes when hierarchy selection changes
@@ -2706,6 +2722,98 @@ onMounted(async () => {
       </div>
     </div>
 
+    <!-- Linux-Prozesse (www-data, mysql) -->
+    <div class="pim-card p-4 sm:p-6 space-y-4">
+      <div class="flex items-center justify-between mb-2">
+        <div class="flex items-center gap-3">
+          <Terminal class="w-5 h-5 text-[var(--color-accent)]" :stroke-width="1.75" />
+          <h3 class="text-sm font-semibold">Linux-Prozesse (www-data &amp; mysql)</h3>
+        </div>
+        <button class="pim-btn pim-btn-secondary text-xs py-1" @click="loadSystemProcesses" :disabled="processesLoading">
+          <RefreshCw class="w-3.5 h-3.5" :class="{ 'animate-spin': processesLoading }" :stroke-width="2" />
+        </button>
+      </div>
+
+      <div v-if="processesLoading && !systemProcesses" class="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">
+        <Loader2 class="w-4 h-4 animate-spin" :stroke-width="2" />
+        Lade Prozesse...
+      </div>
+
+      <div v-else-if="!systemProcesses?.processes?.length && !systemProcesses?.mysql_queries?.length" class="text-sm text-[var(--color-text-tertiary)] py-4 text-center">
+        Keine Prozesse geladen.
+      </div>
+
+      <template v-else>
+        <!-- Prozess-Tabelle -->
+        <div v-if="systemProcesses?.processes?.length" class="overflow-x-auto">
+          <table class="w-full text-xs">
+            <thead>
+              <tr class="border-b border-[var(--color-border)] text-left text-[var(--color-text-tertiary)]">
+                <th class="py-2 px-2 font-medium">User</th>
+                <th class="py-2 px-2 font-medium">PID</th>
+                <th class="py-2 px-2 font-medium text-right">CPU%</th>
+                <th class="py-2 px-2 font-medium text-right">MEM%</th>
+                <th class="py-2 px-2 font-medium text-right">RSS</th>
+                <th class="py-2 px-2 font-medium">Status</th>
+                <th class="py-2 px-2 font-medium">Zeit</th>
+                <th class="py-2 px-2 font-medium">Befehl</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="proc in systemProcesses.processes"
+                :key="proc.pid"
+                class="border-b border-[var(--color-border)]/50 hover:bg-[var(--color-bg-secondary)]/50"
+              >
+                <td class="py-1.5 px-2">
+                  <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono"
+                    :class="proc.user === 'mysql' ? 'bg-blue-500/10 text-blue-600' : 'bg-purple-500/10 text-purple-600'">
+                    {{ proc.user }}
+                  </span>
+                </td>
+                <td class="py-1.5 px-2 font-mono text-[var(--color-text-secondary)]">{{ proc.pid }}</td>
+                <td class="py-1.5 px-2 text-right font-mono" :class="proc.cpu > 50 ? 'text-[var(--color-error)] font-bold' : proc.cpu > 10 ? 'text-[var(--color-warning)]' : 'text-[var(--color-text-secondary)]'">
+                  {{ proc.cpu }}%
+                </td>
+                <td class="py-1.5 px-2 text-right font-mono text-[var(--color-text-secondary)]">{{ proc.mem }}%</td>
+                <td class="py-1.5 px-2 text-right font-mono text-[var(--color-text-secondary)]">{{ proc.rss_mb }} MB</td>
+                <td class="py-1.5 px-2 font-mono text-[var(--color-text-tertiary)]">{{ proc.stat }}</td>
+                <td class="py-1.5 px-2 font-mono text-[var(--color-text-tertiary)]">{{ proc.time }}</td>
+                <td class="py-1.5 px-2 font-mono text-[var(--color-text-secondary)] max-w-[400px] truncate" :title="proc.command">{{ proc.command }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- MySQL Queries -->
+        <div v-if="systemProcesses?.mysql_queries?.length" class="mt-4">
+          <div class="flex items-center gap-2 mb-3">
+            <Database class="w-4 h-4 text-blue-500" :stroke-width="1.75" />
+            <h4 class="text-xs font-semibold text-[var(--color-text-secondary)]">Aktive MySQL-Queries</h4>
+          </div>
+          <div class="space-y-2">
+            <div
+              v-for="q in systemProcesses.mysql_queries"
+              :key="q.id"
+              class="px-3 py-2 rounded-lg border text-xs"
+              :class="q.time > 10 ? 'bg-[var(--color-error)]/5 border-[var(--color-error)]/20' : q.time > 3 ? 'bg-[var(--color-warning)]/5 border-[var(--color-warning)]/20' : 'bg-[var(--color-bg)] border-[var(--color-border)]'"
+            >
+              <div class="flex items-center justify-between mb-1">
+                <span class="font-mono font-medium text-[var(--color-text-primary)]">
+                  ID {{ q.id }} · {{ q.user }}@{{ q.db || '?' }}
+                </span>
+                <span class="font-mono" :class="q.time > 10 ? 'text-[var(--color-error)] font-bold' : q.time > 3 ? 'text-[var(--color-warning)]' : 'text-[var(--color-text-tertiary)]'">
+                  {{ q.time }}s · {{ q.command }}
+                </span>
+              </div>
+              <p v-if="q.info" class="font-mono text-[10px] text-[var(--color-text-tertiary)] truncate" :title="q.info">{{ q.info }}</p>
+              <p v-if="q.state" class="text-[10px] text-[var(--color-text-quaternary)]">{{ q.state }}</p>
+            </div>
+          </div>
+        </div>
+      </template>
+    </div>
+
     </template><!-- end TAB: Prozesse -->
 
     <!-- ═══════════════════════════════════════════════════════════════════ -->
@@ -2758,9 +2866,14 @@ onMounted(async () => {
 
     <!-- Resources -->
     <div v-if="systemStatus" class="pim-card p-4 sm:p-6 space-y-5">
-      <div class="flex items-center gap-3 mb-2">
-        <Cpu class="w-5 h-5 text-[var(--color-accent)]" :stroke-width="1.75" />
-        <h3 class="text-sm font-semibold">Ressourcen</h3>
+      <div class="flex items-center justify-between mb-2">
+        <div class="flex items-center gap-3">
+          <Cpu class="w-5 h-5 text-[var(--color-accent)]" :stroke-width="1.75" />
+          <h3 class="text-sm font-semibold">Ressourcen</h3>
+        </div>
+        <button class="pim-btn pim-btn-secondary text-xs py-1" @click="loadSystemStatus" :disabled="systemLoading">
+          <RefreshCw class="w-3.5 h-3.5" :class="{ 'animate-spin': systemLoading }" :stroke-width="2" />
+        </button>
       </div>
 
       <!-- RAM -->

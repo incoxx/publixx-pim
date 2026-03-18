@@ -636,6 +636,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::delete('admin/failed-jobs', [SystemInfoController::class, 'flushFailedJobs']);
     Route::post('admin/restart-apache', [SystemInfoController::class, 'restartApache']);
     Route::post('admin/restart-horizon', [SystemInfoController::class, 'restartHorizon']);
+    Route::get('admin/system-processes', [SystemInfoController::class, 'systemProcesses']);
     Route::post('admin/pdf/batch-process', [PdfController::class, 'batchProcess']);
 
     // =====================================================================
