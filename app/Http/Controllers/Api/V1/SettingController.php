@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Jobs\BulkReindexSearchJob;
 use App\Jobs\UpdateSearchIndex;
 use App\Models\Attribute;
 use App\Models\AttributeView;
@@ -16,6 +17,7 @@ use App\Models\ProductRelationType;
 use App\Models\Setting;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 class SettingController extends Controller
 {
@@ -249,20 +251,56 @@ class SettingController extends Controller
             return response()->json(['message' => 'Forbidden'], 403);
         }
 
-        $count = 0;
-        Product::where('status', 'active')
+        // Check if already running
+        $progress = Cache::get('search_reindex_progress');
+        if ($progress && $progress['status'] === 'running') {
+            return response()->json([
+                'message' => 'Reindex läuft bereits.',
+                'progress' => $progress,
+            ], 409);
+        }
+
+        $total = Product::where('status', 'active')
             ->where('product_type_ref', 'product')
-            ->select('id')
-            ->chunkById(500, function ($products) use (&$count) {
-                foreach ($products as $product) {
-                    UpdateSearchIndex::dispatch($product->id);
-                    $count++;
-                }
-            });
+            ->count();
+
+        // Initialize progress immediately
+        Cache::put('search_reindex_progress', [
+            'status' => 'running',
+            'processed' => 0,
+            'total' => $total,
+            'percent' => 0,
+            'error' => null,
+            'updated_at' => now()->toIso8601String(),
+        ], 600);
+
+        BulkReindexSearchJob::dispatch();
 
         return response()->json([
-            'message' => "Reindex gestartet für {$count} Produkte.",
-            'count' => $count,
+            'message' => "Reindex gestartet für {$total} Produkte.",
+            'count' => $total,
+        ]);
+    }
+
+    /**
+     * GET /api/v1/admin/search-reindex/progress
+     */
+    public function reindexProgress(Request $request): JsonResponse
+    {
+        if (!$request->user()?->hasRole('Admin')) {
+            return response()->json(['message' => 'Forbidden'], 403);
+        }
+
+        $progress = Cache::get('search_reindex_progress');
+
+        return response()->json([
+            'progress' => $progress ?? [
+                'status' => 'idle',
+                'processed' => 0,
+                'total' => 0,
+                'percent' => 0,
+                'error' => null,
+            ],
         ]);
     }
 }

@@ -34,7 +34,11 @@ export default {
   },
 
   reindexSearch() {
-    return client.post('/admin/search-reindex', {}, { timeout: 300000 })
+    return client.post('/admin/search-reindex', {}, { timeout: 30000 })
+  },
+
+  reindexProgress() {
+    return client.get('/admin/search-reindex/progress')
   },
 
   getEnvInfo() {

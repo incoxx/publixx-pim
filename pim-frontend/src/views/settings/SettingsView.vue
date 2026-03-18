@@ -916,18 +916,54 @@ const showConfirmDeploy = ref(false)
 const reindexing = ref(false)
 const reindexResult = ref(null)
 const reindexError = ref(null)
+const reindexProgress = ref(null)
+let reindexPollTimer = null
 
 async function triggerReindex() {
   reindexing.value = true
   reindexResult.value = null
   reindexError.value = null
+  reindexProgress.value = null
   try {
-    const { data } = await adminApi.reindexSearch()
-    reindexResult.value = data
+    await adminApi.reindexSearch()
+    startReindexPolling()
   } catch (e) {
-    reindexError.value = e.response?.data?.message || e.message
-  } finally {
-    reindexing.value = false
+    if (e.response?.status === 409) {
+      // Already running, start polling
+      reindexProgress.value = e.response.data.progress
+      startReindexPolling()
+    } else {
+      reindexError.value = e.response?.data?.message || e.message
+      reindexing.value = false
+    }
+  }
+}
+
+function startReindexPolling() {
+  stopReindexPolling()
+  reindexPollTimer = setInterval(async () => {
+    try {
+      const { data } = await adminApi.reindexProgress()
+      reindexProgress.value = data.progress
+      if (data.progress.status === 'completed') {
+        stopReindexPolling()
+        reindexing.value = false
+        reindexResult.value = { message: `Suchindex aktualisiert: ${data.progress.total.toLocaleString('de-DE')} Produkte indiziert.` }
+      } else if (data.progress.status === 'failed') {
+        stopReindexPolling()
+        reindexing.value = false
+        reindexError.value = data.progress.error || 'Reindex fehlgeschlagen'
+      }
+    } catch {
+      // Ignore poll errors
+    }
+  }, 2000)
+}
+
+function stopReindexPolling() {
+  if (reindexPollTimer) {
+    clearInterval(reindexPollTimer)
+    reindexPollTimer = null
   }
 }
 
@@ -967,9 +1003,26 @@ async function triggerCombinedProcess() {
     combinedStep.value = 'pdf'
     await adminApi.batchProcessPdfs('missing')
 
-    // Step 2: Reindex
+    // Step 2: Reindex (now async with polling)
     combinedStep.value = 'reindex'
     await adminApi.reindexSearch()
+
+    // Poll until reindex completes
+    await new Promise((resolve, reject) => {
+      const poll = setInterval(async () => {
+        try {
+          const { data } = await adminApi.reindexProgress()
+          reindexProgress.value = data.progress
+          if (data.progress.status === 'completed') {
+            clearInterval(poll)
+            resolve()
+          } else if (data.progress.status === 'failed') {
+            clearInterval(poll)
+            reject(new Error(data.progress.error || 'Reindex fehlgeschlagen'))
+          }
+        } catch { /* ignore poll errors */ }
+      }, 2000)
+    })
 
     combinedResult.value = { message: 'PDF-Vorschaubilder erzeugt und Suchindex aktualisiert.' }
   } catch (e) {
@@ -977,6 +1030,7 @@ async function triggerCombinedProcess() {
   } finally {
     combinedProcessing.value = false
     combinedStep.value = ''
+    reindexProgress.value = null
   }
 }
 
@@ -2269,10 +2323,21 @@ onMounted(async () => {
       </div>
 
       <!-- Progress indicator -->
-      <div v-if="combinedProcessing" class="flex items-center gap-3 text-xs text-[var(--color-text-secondary)]">
-        <Loader2 class="w-3.5 h-3.5 animate-spin" />
-        <span v-if="combinedStep === 'pdf'">Schritt 1/2 — PDF-Vorschaubilder werden erzeugt…</span>
-        <span v-else-if="combinedStep === 'reindex'">Schritt 2/2 — Suchindex wird aktualisiert…</span>
+      <div v-if="combinedProcessing || reindexing" class="space-y-2">
+        <div class="flex items-center gap-3 text-xs text-[var(--color-text-secondary)]">
+          <Loader2 class="w-3.5 h-3.5 animate-spin" />
+          <span v-if="combinedStep === 'pdf'">Schritt 1/2 — PDF-Vorschaubilder werden erzeugt…</span>
+          <span v-else-if="reindexProgress && reindexProgress.status === 'running'">
+            {{ combinedStep === 'reindex' ? 'Schritt 2/2 — ' : '' }}Suchindex: {{ reindexProgress.processed?.toLocaleString('de-DE') }} / {{ reindexProgress.total?.toLocaleString('de-DE') }} Produkte ({{ reindexProgress.percent }}%)
+          </span>
+          <span v-else>Suchindex wird vorbereitet…</span>
+        </div>
+        <div v-if="reindexProgress && reindexProgress.status === 'running'" class="w-full bg-[var(--color-border)] rounded-full h-2 overflow-hidden">
+          <div
+            class="h-full bg-[var(--color-accent)] rounded-full transition-all duration-500 ease-out"
+            :style="{ width: reindexProgress.percent + '%' }"
+          />
+        </div>
       </div>
 
       <div v-if="combinedResult" class="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg p-3">
@@ -2340,14 +2405,14 @@ onMounted(async () => {
             </button>
           </div>
 
-          <div v-if="reindexResult" class="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg p-3">
+          <div v-if="reindexResult && !combinedProcessing" class="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg p-3">
             <div class="flex items-center gap-2 text-green-700 dark:text-green-400 text-sm font-medium">
               <CheckCircle class="w-4 h-4" />
               {{ reindexResult.message }}
             </div>
           </div>
 
-          <div v-if="reindexError" class="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg p-3">
+          <div v-if="reindexError && !combinedProcessing" class="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg p-3">
             <div class="flex items-center gap-2 text-red-700 dark:text-red-400 text-sm font-medium">
               <XCircle class="w-4 h-4" />
               {{ reindexError }}
