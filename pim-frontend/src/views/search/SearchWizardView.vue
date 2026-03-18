@@ -6,7 +6,7 @@ import {
   Search, Filter, ChevronDown, ChevronUp, ChevronRight, X, Star,
   Regex, AudioLines, Languages, Download, GitCompareArrows, Pencil, Settings,
   Package, Sliders, GitBranch, Image, FolderTree, FileSpreadsheet, FileText, Code2, ListFilter,
-  Trash2, CheckCheck,
+  Trash2, CheckCheck, FileOutput,
 } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import searchApi from '@/api/search'
@@ -24,6 +24,7 @@ import { useColumnConfig } from '@/composables/useColumnConfig'
 import { triggerDownload } from '@/utils/download'
 import { useAttributeStore } from '@/stores/attributes'
 import ReportTemplatePickerModal from '@/components/reports/ReportTemplatePickerModal.vue'
+import PdfTemplatePickerModal from '@/components/pdf-templates/PdfTemplatePickerModal.vue'
 import { useLicenseStore } from '@/stores/license'
 import BulkAssignProjectDialog from '@/components/dialogs/BulkAssignProjectDialog.vue'
 
@@ -249,6 +250,7 @@ const showConfirmBulkDelete = ref(false)
 const searchTableRef = ref(null)
 const showXliffPanel = ref(false)
 const showReportPicker = ref(false)
+const showPdfPicker = ref(false)
 const xliffSourceLang = ref('de')
 const xliffTargetLang = ref('en')
 const xliffExporting = ref(false)
@@ -956,6 +958,14 @@ const apiCallDisplay = computed(() => {
         <FileText class="w-4 h-4" :stroke-width="1.75" />
         <span class="ml-1.5 text-sm hidden sm:inline">Report</span>
       </button>
+      <button
+        v-if="searchCategory === 'products' && hasSearched && results.length > 0"
+        class="pim-btn pim-btn-secondary py-2 px-3 sm:py-3 sm:px-4"
+        @click="showPdfPicker = true"
+      >
+        <FileOutput class="w-4 h-4" :stroke-width="1.75" />
+        <span class="ml-1.5 text-sm hidden sm:inline">PDF</span>
+      </button>
       <button class="pim-btn pim-btn-primary py-2 px-4 sm:py-3 sm:px-6" @click="doSearch(1)">
         Suchen
       </button>
@@ -1231,6 +1241,10 @@ const apiCallDisplay = computed(() => {
         <button class="pim-btn pim-btn-secondary text-xs" @click="showReportPicker = true">
           <FileText class="w-3.5 h-3.5" :stroke-width="1.75" />
           <span class="hidden sm:inline">Report</span>
+        </button>
+        <button class="pim-btn pim-btn-secondary text-xs" @click="showPdfPicker = true">
+          <FileOutput class="w-3.5 h-3.5" :stroke-width="1.75" />
+          <span class="hidden sm:inline">PDF</span>
         </button>
         <button
           v-if="licenseStore.isModuleActive('workflow')"
@@ -1567,6 +1581,12 @@ const apiCallDisplay = computed(() => {
     <!-- Report Template Picker -->
     <ReportTemplatePickerModal
       v-model:open="showReportPicker"
+      :productIds="reportProductIds"
+    />
+
+    <!-- PDF Template Picker -->
+    <PdfTemplatePickerModal
+      v-model:open="showPdfPicker"
       :productIds="reportProductIds"
     />
 

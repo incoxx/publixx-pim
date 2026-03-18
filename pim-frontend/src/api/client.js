@@ -104,6 +104,7 @@ export function buildParams(options = {}) {
   if (options.attribute_columns) params.attribute_columns = options.attribute_columns
   if (options.language) params.language = options.language
   if (options.include_thumbnail) params.include_thumbnail = '1'
+  if (options.include_descendants !== undefined) params.include_descendants = options.include_descendants ? '1' : '0'
 
   return params
 }

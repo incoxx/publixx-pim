@@ -59,6 +59,83 @@ const hierarchyAttrValues = ref({})
 const hierarchyAttrSaving = ref(false)
 const hierarchyAttrsLoaded = ref(null) // track which hierarchy was loaded
 
+// Node search
+const nodeSearchQuery = ref('')
+const nodeSearchResults = ref([])
+const nodeSearching = ref(false)
+let nodeSearchTimer = null
+
+function searchNodes() {
+  clearTimeout(nodeSearchTimer)
+  if (nodeSearchQuery.value.length < 2) {
+    nodeSearchResults.value = []
+    return
+  }
+  nodeSearchTimer = setTimeout(async () => {
+    nodeSearching.value = true
+    try {
+      const { data } = await hierarchiesApi.searchNodes({
+        search: nodeSearchQuery.value,
+        filters: { hierarchy_id: selectedHierarchyId.value },
+        include_descendants: false,
+        perPage: 20,
+      })
+      const results = data.data || data
+      // Build breadcrumb path labels from the in-memory tree
+      for (const result of results) {
+        if (result.path) {
+          const ids = result.path.split('/').filter(Boolean)
+          // Exclude the node itself from the breadcrumb
+          const ancestorIds = ids.slice(0, -1)
+          const labels = ancestorIds.map(id => {
+            const n = findNodeInTree(store.tree, id)
+            return n ? (n.name_de || n.name || '') : ''
+          }).filter(Boolean)
+          result.breadcrumb = labels.length > 0 ? labels.join(' › ') : null
+        }
+      }
+      nodeSearchResults.value = results
+    } catch {
+      nodeSearchResults.value = []
+    } finally {
+      nodeSearching.value = false
+    }
+  }, 300)
+}
+
+function navigateToNode(node) {
+  // Extract ancestor IDs from materialized path and expand them
+  if (node.path) {
+    const ids = node.path.split('/').filter(Boolean)
+    for (const id of ids) {
+      if (!store.expandedNodes.has(id)) {
+        store.expandedNodes.add(id)
+      }
+    }
+  }
+  // Also expand the node's parent
+  if (node.parent_node_id && !store.expandedNodes.has(node.parent_node_id)) {
+    store.expandedNodes.add(node.parent_node_id)
+  }
+  // Find the full node object in the tree for selection
+  const fullNode = findNodeInTree(store.tree, node.id)
+  store.selectNode(fullNode || node)
+  // Clear search
+  nodeSearchQuery.value = ''
+  nodeSearchResults.value = []
+}
+
+function findNodeInTree(nodes, id) {
+  for (const n of nodes) {
+    if (n.id === id) return n
+    if (n.children?.length) {
+      const found = findNodeInTree(n.children, id)
+      if (found) return found
+    }
+  }
+  return null
+}
+
 // Delete state
 const deleteNodeTarget = ref(null)
 const nodeDeleting = ref(false)
@@ -751,6 +828,38 @@ onMounted(async () => {
           <FolderPlus class="w-3.5 h-3.5" :stroke-width="2" /> Knoten erstellen
         </button>
       </div>
+      <!-- Node search -->
+      <div class="px-3 py-2 border-b border-[var(--color-border)] relative">
+        <div class="relative">
+          <Search class="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--color-text-tertiary)]" :stroke-width="2" />
+          <input
+            v-model="nodeSearchQuery"
+            type="text"
+            class="pim-input text-xs w-full pl-7"
+            placeholder="Knoten suchen..."
+            @input="searchNodes"
+          />
+          <button v-if="nodeSearchQuery" class="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-[var(--color-bg)]" @click="nodeSearchQuery = ''; nodeSearchResults.length = 0">
+            <X class="w-3 h-3 text-[var(--color-text-tertiary)]" />
+          </button>
+        </div>
+        <!-- Search results dropdown -->
+        <div v-if="nodeSearchResults.length > 0" class="absolute left-0 right-0 z-20 mx-3 mt-1 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg shadow-lg max-h-60 overflow-y-auto">
+          <div
+            v-for="result in nodeSearchResults"
+            :key="result.id"
+            class="px-3 py-2 text-xs cursor-pointer hover:bg-[var(--color-bg)] border-b border-[var(--color-border)] last:border-b-0"
+            @click="navigateToNode(result)"
+          >
+            <div class="font-medium text-[var(--color-text-primary)]">{{ result.name_de || result.name }}</div>
+            <div v-if="result.breadcrumb" class="text-[10px] text-[var(--color-text-tertiary)] mt-0.5 truncate">{{ result.breadcrumb }}</div>
+          </div>
+        </div>
+        <div v-else-if="nodeSearchQuery.length >= 2 && !nodeSearching && nodeSearchResults.length === 0" class="absolute left-0 right-0 z-20 mx-3 mt-1 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg shadow-lg">
+          <div class="px-3 py-3 text-xs text-center text-[var(--color-text-tertiary)]">Keine Knoten gefunden.</div>
+        </div>
+      </div>
+
       <!-- Tree -->
       <div class="flex-1 overflow-y-auto p-2 relative">
         <div v-if="store.loading" class="space-y-2 p-2">
