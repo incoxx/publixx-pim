@@ -1078,6 +1078,7 @@ class ImportExecutor
 
         foreach (array_chunk($rows, $chunkSize) as $chunk) {
             $this->heartbeat();
+            $this->checkCancelled();
             $chunkIndex++;
 
             if ($this->progressCallback) {
@@ -1377,6 +1378,7 @@ class ImportExecutor
 
         foreach (array_chunk($rows, $chunkSize) as $chunk) {
             $this->heartbeat();
+            $this->checkCancelled();
             $chunkIndex++;
 
             if ($this->progressCallback) {
@@ -1864,6 +1866,7 @@ class ImportExecutor
 
         foreach (array_chunk($rows, $chunkSize) as $chunk) {
             $this->heartbeat();
+            $this->checkCancelled();
             $chunkIndex++;
 
             if ($this->progressCallback) {
@@ -2148,6 +2151,7 @@ class ImportExecutor
         foreach (array_chunk($rows, $chunkSize) as $chunk) {
             $chunkIndex++;
             $this->heartbeat();
+            $this->checkCancelled();
 
             if ($this->progressCallback) {
                 $processedRows = min($chunkIndex * $chunkSize, $totalRows);
