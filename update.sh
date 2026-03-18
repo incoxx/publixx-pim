@@ -42,10 +42,11 @@ CYAN='\033[0;36m'
 BOLD='\033[1m'
 NC='\033[0m'
 
-info()    { echo -e "${GREEN}[✓]${NC} $1"; }
-warn()    { echo -e "${YELLOW}[!]${NC} $1"; }
-error()   { echo -e "${RED}[✗]${NC} $1"; exit 1; }
-step()    { echo -e "\n${BLUE}━━━ $1 ━━━${NC}\n"; }
+info()         { echo -e "${GREEN}[✓]${NC} $1"; }
+warn()         { echo -e "${YELLOW}[!]${NC} $1"; }
+error()        { echo -e "${RED}[✗]${NC} $1"; exit 1; }
+error_noexit() { echo -e "${RED}[✗]${NC} $1"; }
+step()         { echo -e "\n${BLUE}━━━ $1 ━━━${NC}\n"; }
 
 # ─── Argumente parsen ──────────────────────────────────────────────────────
 BRANCH="main"
@@ -172,7 +173,12 @@ info "Wartungsmodus aktiviert."
 
 # Ab hier: bei Fehler Wartungsmodus wieder deaktivieren
 cleanup() {
-    warn "Fehler aufgetreten — deaktiviere Wartungsmodus..."
+    local exit_code=$?
+    local failed_line=${BASH_LINENO[0]:-unbekannt}
+    echo ""
+    error_noexit "Fehler in Zeile ${failed_line} (Exit-Code: ${exit_code})"
+    error_noexit "Letzter Befehl ist fehlgeschlagen. Pruefe die Ausgabe oberhalb dieser Meldung."
+    warn "Deaktiviere Wartungsmodus..."
     cd "$INSTALL_DIR"
     php artisan up 2>/dev/null || true
 }
@@ -275,9 +281,9 @@ if [ "$RUN_SEED" = true ]; then
 fi
 
 # Typesense Collection sicherstellen (falls Typesense konfiguriert)
-TYPESENSE_KEY=$(grep '^TYPESENSE_API_KEY=' "${INSTALL_DIR}/.env" 2>/dev/null | cut -d'=' -f2- | tr -d '"' | tr -d "'")
+TYPESENSE_KEY=$(grep '^TYPESENSE_API_KEY=' "${INSTALL_DIR}/.env" 2>/dev/null | cut -d'=' -f2- | tr -d '"' | tr -d "'" || true)
 if [ -n "$TYPESENSE_KEY" ]; then
-    php artisan typesense:setup 2>/dev/null && info "Typesense Collection geprueft." \
+    php artisan typesense:setup && info "Typesense Collection geprueft." \
         || warn "Typesense Collection konnte nicht geprueft werden."
 fi
 
