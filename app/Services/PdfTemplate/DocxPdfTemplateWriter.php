@@ -7,7 +7,6 @@ namespace App\Services\PdfTemplate;
 use PhpOffice\PhpWord\PhpWord;
 use PhpOffice\PhpWord\IOFactory;
 use PhpOffice\PhpWord\SimpleType\Jc;
-use PhpOffice\PhpWord\Style\Image as ImageStyle;
 
 class DocxPdfTemplateWriter
 {
@@ -93,7 +92,7 @@ class DocxPdfTemplateWriter
         $type = $element['type'] ?? 'text';
         $style = $element['style'] ?? [];
 
-        if ($type === 'variant_table' || $type === 'relation_table') {
+        if ($type === 'variant_table' || $type === 'relation_table' || $type === 'attribute_table') {
             $this->renderVariantTableElement($section, $element);
             return;
         }
@@ -115,7 +114,8 @@ class DocxPdfTemplateWriter
         }
 
         // Use textBox with absolute positioning (Frame style, unit = pt)
-        $textBox = $section->addTextBox([
+        $hasBorder = isset($style['borderWidth']) && (int) $style['borderWidth'] > 0;
+        $textBoxStyle = [
             'width' => $widthPt,
             'height' => $heightPt,
             'positioning' => 'absolute',
@@ -124,15 +124,22 @@ class DocxPdfTemplateWriter
             'marginLeft' => $xTwip,
             'marginTop' => $yTwip,
             'wrappingStyle' => 'infront',
-            'borderSize' => isset($style['borderWidth']) && (int) $style['borderWidth'] > 0
-                ? (int) $style['borderWidth'] * self::PT_TO_HALF_PT
-                : 0,
-            'borderColor' => ltrim($style['borderColor'] ?? '000000', '#'),
-        ]);
-
-        if (!empty($style['backgroundColor']) && $style['backgroundColor'] !== 'transparent') {
-            $textBox->getStyle()->setBgColor(ltrim($style['backgroundColor'], '#'));
+            'innerMarginTop' => 0,
+            'innerMarginBottom' => 0,
+            'innerMarginLeft' => 0,
+            'innerMarginRight' => 0,
+        ];
+        if ($hasBorder) {
+            $textBoxStyle['borderSize'] = (int) $style['borderWidth'] * self::PT_TO_HALF_PT;
+            $textBoxStyle['borderColor'] = ltrim($style['borderColor'] ?? '000000', '#');
+        } else {
+            $textBoxStyle['borderSize'] = 0;
+            $textBoxStyle['borderColor'] = 'FFFFFF';
         }
+        if (!empty($style['backgroundColor']) && $style['backgroundColor'] !== 'transparent') {
+            $textBoxStyle['bgColor'] = ltrim($style['backgroundColor'], '#');
+        }
+        $textBox = $section->addTextBox($textBoxStyle);
 
         if ($displayValue !== '') {
             $fontStyle = $this->buildFontStyle($style);
@@ -141,12 +148,16 @@ class DocxPdfTemplateWriter
         }
     }
 
-    private function renderImageElement($section, array $element, int $x, int $y): void
+    private function renderImageElement($section, array $element, int $xTwip, int $yTwip): void
     {
         $images = $element['resolvedImages'] ?? [];
         if (empty($images)) {
             return;
         }
+
+        // Element bounds in points
+        $boxWPt = max(1, ($element['width'] ?? 40) * self::MM_TO_PT);
+        $boxHPt = max(1, ($element['height'] ?? 40) * self::MM_TO_PT);
 
         foreach ($images as $imgPath) {
             if (!file_exists($imgPath)) {
@@ -156,34 +167,45 @@ class DocxPdfTemplateWriter
             try {
                 // Calculate contain dimensions: fit image within element bounds preserving aspect ratio
                 $imgSize = @getimagesize($imgPath);
-                $boxW = max(1, ($element['width'] ?? 40) * (96 / 25.4));
-                $boxH = max(1, ($element['height'] ?? 40) * (96 / 25.4));
+                $renderW = $boxWPt;
+                $renderH = $boxHPt;
 
                 if ($imgSize && $imgSize[0] > 0 && $imgSize[1] > 0) {
                     $imgAspect = $imgSize[0] / $imgSize[1];
-                    $boxAspect = $boxW / $boxH;
+                    $boxAspect = $boxWPt / $boxHPt;
 
                     if ($imgAspect > $boxAspect) {
-                        $renderW = $boxW;
-                        $renderH = $boxW / $imgAspect;
+                        $renderW = $boxWPt;
+                        $renderH = $boxWPt / $imgAspect;
                     } else {
-                        $renderH = $boxH;
-                        $renderW = $boxH * $imgAspect;
+                        $renderH = $boxHPt;
+                        $renderW = $boxHPt * $imgAspect;
                     }
-                } else {
-                    $renderW = $boxW;
-                    $renderH = $boxH;
                 }
 
-                $section->addImage($imgPath, [
-                    'width' => $renderW,
-                    'height' => $renderH,
+                // Wrap image in a textBox for correct absolute positioning.
+                // PhpWord textBox uses twips for marginLeft/marginTop (VML),
+                // while addImage uses EMU — leading to wrong positions.
+                $textBox = $section->addTextBox([
+                    'width' => round($boxWPt, 1),
+                    'height' => round($boxHPt, 1),
                     'positioning' => 'absolute',
                     'posHorizontalRel' => 'page',
                     'posVerticalRel' => 'page',
-                    'marginLeft' => $x,
-                    'marginTop' => $y,
+                    'marginLeft' => $xTwip,
+                    'marginTop' => $yTwip,
                     'wrappingStyle' => 'infront',
+                    'borderSize' => 0,
+                    'borderColor' => 'FFFFFF',
+                    'innerMarginTop' => 0,
+                    'innerMarginBottom' => 0,
+                    'innerMarginLeft' => 0,
+                    'innerMarginRight' => 0,
+                ]);
+
+                $textBox->addImage($imgPath, [
+                    'width' => round($renderW, 1),
+                    'height' => round($renderH, 1),
                 ]);
 
                 break; // Only render first valid image per element

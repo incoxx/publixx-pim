@@ -53,9 +53,9 @@ async function doExport() {
         mode: mode.value,
       }, format.value)
     } else {
-      response = await watchlistApi.exportPdfTemplate(selectedTemplateId.value, mode.value)
+      response = await watchlistApi.exportPdfTemplate(selectedTemplateId.value, mode.value, 'de', format.value)
     }
-    const ext = mode.value === 'zip' ? 'zip' : format.value
+    const ext = mode.value === 'zip' || format.value === 'indesign' ? 'zip' : format.value
     const tmpl = templates.value.find(t => t.id === selectedTemplateId.value)
     triggerDownload(response.data, `${tmpl?.name || 'export'}.${ext}`)
     close()
@@ -133,11 +133,20 @@ function close() {
                   >
                     DOCX (Word)
                   </button>
+                  <button
+                    class="flex-1 px-3 py-2 rounded text-xs font-medium border transition-colors"
+                    :class="format === 'indesign'
+                      ? 'bg-[var(--color-accent)] text-white border-[var(--color-accent)]'
+                      : 'bg-[var(--color-surface)] text-[var(--color-text-secondary)] border-[var(--color-border)] hover:border-[var(--color-accent)]'"
+                    @click="format = 'indesign'"
+                  >
+                    InDesign
+                  </button>
                 </div>
               </div>
 
-              <!-- Mode selection -->
-              <div>
+              <!-- Mode selection (not applicable for InDesign - always ZIP) -->
+              <div v-if="format !== 'indesign'">
                 <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Ausgabemodus</label>
                 <div class="flex gap-2">
                   <button

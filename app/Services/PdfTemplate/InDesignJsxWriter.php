@@ -142,7 +142,7 @@ class InDesignJsxWriter
         return match ($type) {
             'field', 'attribute', 'text' => $this->convertTextElement($base, $element, $style),
             'image' => $this->convertImageElement($base, $element, $style),
-            'variant_table' => $this->convertVariantTableElement($base, $element, $style),
+            'variant_table', 'relation_table', 'attribute_table' => $this->convertVariantTableElement($base, $element, $style),
             'shape' => $this->convertShapeElement($base, $element, $style),
             default => null,
         };
