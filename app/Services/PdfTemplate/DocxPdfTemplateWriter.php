@@ -11,8 +11,8 @@ use PhpOffice\PhpWord\SimpleType\Jc;
 class DocxPdfTemplateWriter
 {
     private const MM_TO_TWIP = 56.6929;
-    private const MM_TO_PT = 2.834645; // 72 / 25.4
-    private const PT_TO_HALF_PT = 2;
+    private const MM_TO_PT = 2.834645;  // 72 / 25.4
+    private const MM_TO_PX = 3.7795275; // 96 / 25.4 (pixels at 96 DPI)
 
     /**
      * Generate a DOCX file from resolved template elements.
@@ -97,14 +97,14 @@ class DocxPdfTemplateWriter
             return;
         }
 
-        // TextBox positioning uses twips, width/height use points
-        $xTwip = (int) round(($element['x'] ?? 0) * self::MM_TO_TWIP);
-        $yTwip = (int) round(($element['y'] ?? 0) * self::MM_TO_TWIP);
+        // TextBox uses points for ALL properties (width, height, marginLeft, marginTop)
+        $xPt = round(($element['x'] ?? 0) * self::MM_TO_PT, 1);
+        $yPt = round(($element['y'] ?? 0) * self::MM_TO_PT, 1);
         $widthPt = round(($element['width'] ?? 50) * self::MM_TO_PT, 1);
         $heightPt = round(($element['height'] ?? 10) * self::MM_TO_PT, 1);
 
         if ($type === 'image') {
-            $this->renderImageElement($section, $element, $xTwip, $yTwip);
+            $this->renderImageElement($section, $element);
             return;
         }
 
@@ -121,8 +121,8 @@ class DocxPdfTemplateWriter
             'positioning' => 'absolute',
             'posHorizontalRel' => 'page',
             'posVerticalRel' => 'page',
-            'marginLeft' => $xTwip,
-            'marginTop' => $yTwip,
+            'marginLeft' => $xPt,
+            'marginTop' => $yPt,
             'wrappingStyle' => 'infront',
             'innerMarginTop' => 0,
             'innerMarginBottom' => 0,
@@ -130,7 +130,7 @@ class DocxPdfTemplateWriter
             'innerMarginRight' => 0,
         ];
         if ($hasBorder) {
-            $textBoxStyle['borderSize'] = (int) $style['borderWidth'] * self::PT_TO_HALF_PT;
+            $textBoxStyle['borderSize'] = (int) $style['borderWidth'];
             $textBoxStyle['borderColor'] = ltrim($style['borderColor'] ?? '000000', '#');
         } else {
             $textBoxStyle['borderSize'] = 0;
@@ -148,16 +148,18 @@ class DocxPdfTemplateWriter
         }
     }
 
-    private function renderImageElement($section, array $element, int $xTwip, int $yTwip): void
+    private function renderImageElement($section, array $element): void
     {
         $images = $element['resolvedImages'] ?? [];
         if (empty($images)) {
             return;
         }
 
-        // Element bounds in points
-        $boxWPt = max(1, ($element['width'] ?? 40) * self::MM_TO_PT);
-        $boxHPt = max(1, ($element['height'] ?? 40) * self::MM_TO_PT);
+        // Image positioning uses pixels (96 DPI) for addImage
+        $xPx = round(($element['x'] ?? 0) * self::MM_TO_PX);
+        $yPx = round(($element['y'] ?? 0) * self::MM_TO_PX);
+        $boxWPx = max(1, round(($element['width'] ?? 40) * self::MM_TO_PX));
+        $boxHPx = max(1, round(($element['height'] ?? 40) * self::MM_TO_PX));
 
         foreach ($images as $imgPath) {
             if (!file_exists($imgPath)) {
@@ -167,45 +169,32 @@ class DocxPdfTemplateWriter
             try {
                 // Calculate contain dimensions: fit image within element bounds preserving aspect ratio
                 $imgSize = @getimagesize($imgPath);
-                $renderW = $boxWPt;
-                $renderH = $boxHPt;
+                $renderW = $boxWPx;
+                $renderH = $boxHPx;
 
                 if ($imgSize && $imgSize[0] > 0 && $imgSize[1] > 0) {
                     $imgAspect = $imgSize[0] / $imgSize[1];
-                    $boxAspect = $boxWPt / $boxHPt;
+                    $boxAspect = $boxWPx / $boxHPx;
 
                     if ($imgAspect > $boxAspect) {
-                        $renderW = $boxWPt;
-                        $renderH = $boxWPt / $imgAspect;
+                        $renderW = $boxWPx;
+                        $renderH = $boxWPx / $imgAspect;
                     } else {
-                        $renderH = $boxHPt;
-                        $renderW = $boxHPt * $imgAspect;
+                        $renderH = $boxHPx;
+                        $renderW = $boxHPx * $imgAspect;
                     }
                 }
 
-                // Wrap image in a textBox for correct absolute positioning.
-                // PhpWord textBox uses twips for marginLeft/marginTop (VML),
-                // while addImage uses EMU — leading to wrong positions.
-                $textBox = $section->addTextBox([
-                    'width' => round($boxWPt, 1),
-                    'height' => round($boxHPt, 1),
+                // Use addImage directly with absolute positioning (units: pixels at 96 DPI)
+                $section->addImage($imgPath, [
+                    'width' => round($renderW),
+                    'height' => round($renderH),
                     'positioning' => 'absolute',
                     'posHorizontalRel' => 'page',
                     'posVerticalRel' => 'page',
-                    'marginLeft' => $xTwip,
-                    'marginTop' => $yTwip,
+                    'marginLeft' => $xPx,
+                    'marginTop' => $yPx,
                     'wrappingStyle' => 'infront',
-                    'borderSize' => 0,
-                    'borderColor' => 'FFFFFF',
-                    'innerMarginTop' => 0,
-                    'innerMarginBottom' => 0,
-                    'innerMarginLeft' => 0,
-                    'innerMarginRight' => 0,
-                ]);
-
-                $textBox->addImage($imgPath, [
-                    'width' => round($renderW, 1),
-                    'height' => round($renderH, 1),
                 ]);
 
                 break; // Only render first valid image per element
