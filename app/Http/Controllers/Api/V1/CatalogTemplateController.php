@@ -129,8 +129,7 @@ class CatalogTemplateController extends Controller
         $template = CatalogTemplate::findOrFail($id);
         $this->authorizeAccess($request, $template);
 
-        $basePath = rtrim(parse_url(config('app.url'), PHP_URL_PATH) ?? '', '/');
-        $previewUrl = rtrim(config('app.url'), '/') . $basePath . '/catalog-embed/' . $template->slug;
+        $previewUrl = rtrim(config('app.url'), '/') . '/catalog-embed/' . $template->slug;
 
         return response()->json([
             'data' => [
