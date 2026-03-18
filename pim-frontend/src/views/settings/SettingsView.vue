@@ -611,6 +611,8 @@ function openConfirmDialog() {
   resultMessage.value = ''
   resultError.value = false
   showConfirm.value = true
+  // Force reload categories so newly added backend categories appear
+  resetCategories.value = []
   loadResetCategories()
 }
 
@@ -631,6 +633,10 @@ async function executeReset() {
     resultError.value = false
     showConfirm.value = false
     confirmText.value = ''
+    // Auto-dismiss success message after 8 seconds
+    setTimeout(() => {
+      if (!resultError.value) resultMessage.value = ''
+    }, 8000)
   } catch (err) {
     resultMessage.value = err.response?.data?.detail || t('settings.resetError')
     resultError.value = true

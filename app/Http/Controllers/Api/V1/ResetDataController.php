@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Models\Setting;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -78,9 +79,26 @@ class ResetDataController extends Controller
             'import_jobs',
             'publixx_export_mappings',
         ],
+        'search_profiles' => [
+            'search_profiles',
+        ],
+        'export_profiles' => [
+            'export_profiles',
+        ],
+        'watchlist' => [
+            'watchlist_items',
+        ],
         'audit_logs' => [
             'audit_logs',
         ],
+    ];
+
+    /**
+     * Categories that require special handling (not simple truncation).
+     * Each entry maps a category key to a callable name on this controller.
+     */
+    private const SPECIAL_CATEGORIES = [
+        'catalog_settings',
     ];
 
     /**
@@ -88,7 +106,7 @@ class ResetDataController extends Controller
      */
     public static function availableCategories(): array
     {
-        return array_keys(self::CATEGORY_TABLES);
+        return array_merge(array_keys(self::CATEGORY_TABLES), self::SPECIAL_CATEGORIES);
     }
 
     /**
@@ -114,7 +132,11 @@ class ResetDataController extends Controller
             'comparison_operators' => 'Vergleichsoperatoren',
             'media'                => 'Medien',
             'import_export'        => 'Import-/Export-Daten',
-            'audit_logs'           => 'Audit-Logs',
+            'search_profiles'      => 'Suchprofile',
+            'export_profiles'      => 'Exportprofile',
+            'watchlist'            => 'Merkliste',
+            'catalog_settings'     => 'Vorschaukatalog Einstellungen',
+            'audit_logs'           => 'Journal / Audit-Logs',
         ];
 
         $categories = [];
@@ -122,7 +144,7 @@ class ResetDataController extends Controller
             $categories[] = [
                 'key'    => $key,
                 'label'  => $label,
-                'tables' => self::CATEGORY_TABLES[$key],
+                'tables' => self::CATEGORY_TABLES[$key] ?? [],
             ];
         }
 
@@ -168,17 +190,22 @@ class ResetDataController extends Controller
             // Collect all tables from selected categories (deduplicated)
             $tables = [];
             foreach ($selectedCategories as $category) {
-                foreach (self::CATEGORY_TABLES[$category] as $table) {
+                foreach (self::CATEGORY_TABLES[$category] ?? [] as $table) {
                     $tables[$table] = true;
                 }
             }
             $tables = array_keys($tables);
 
-            DB::transaction(function () use ($tables) {
+            DB::transaction(function () use ($tables, $selectedCategories) {
                 DB::statement('SET FOREIGN_KEY_CHECKS=0');
 
                 foreach ($tables as $table) {
                     DB::table($table)->truncate();
+                }
+
+                // Handle special categories that need conditional deletes
+                if (in_array('catalog_settings', $selectedCategories, true)) {
+                    Setting::where('group', 'catalog_theme')->delete();
                 }
 
                 DB::statement('SET FOREIGN_KEY_CHECKS=1');
