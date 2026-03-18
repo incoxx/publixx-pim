@@ -7,7 +7,6 @@ namespace App\Services\PdfTemplate;
 use PhpOffice\PhpWord\PhpWord;
 use PhpOffice\PhpWord\IOFactory;
 use PhpOffice\PhpWord\SimpleType\Jc;
-use PhpOffice\PhpWord\Style\Image as ImageStyle;
 
 class DocxPdfTemplateWriter
 {

@@ -1,6 +1,6 @@
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted, markRaw } from 'vue'
-import { useDebounceFn } from '@vueuse/core'
+import { ref, computed, watch, onMounted, onUnmounted, markRaw, nextTick } from 'vue'
+import { useDebounceFn, onClickOutside } from '@vueuse/core'
 import { useHierarchyStore } from '@/stores/hierarchies'
 import { useAuthStore } from '@/stores/auth'
 import { useI18n } from 'vue-i18n'
@@ -63,7 +63,12 @@ const hierarchyAttrsLoaded = ref(null) // track which hierarchy was loaded
 const nodeSearchQuery = ref('')
 const nodeSearchResults = ref([])
 const nodeSearching = ref(false)
+const nodeSearchRef = ref(null)
 let nodeSearchTimer = null
+
+onClickOutside(nodeSearchRef, () => {
+  nodeSearchResults.value = []
+})
 
 function searchNodes() {
   clearTimeout(nodeSearchTimer)
@@ -206,7 +211,10 @@ function handleDocClick(e) {
 }
 
 onMounted(() => document.addEventListener('click', handleDocClick, true))
-onUnmounted(() => document.removeEventListener('click', handleDocClick, true))
+onUnmounted(() => {
+  document.removeEventListener('click', handleDocClick, true)
+  clearTimeout(nodeSearchTimer)
+})
 
 // ─── Hierarchy CRUD ──────────────────────────────────
 function openCreateHierarchy() {
@@ -829,7 +837,7 @@ onMounted(async () => {
         </button>
       </div>
       <!-- Node search -->
-      <div class="px-3 py-2 border-b border-[var(--color-border)] relative">
+      <div ref="nodeSearchRef" class="px-3 py-2 border-b border-[var(--color-border)] relative">
         <div class="relative">
           <Search class="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--color-text-tertiary)]" :stroke-width="2" />
           <input
