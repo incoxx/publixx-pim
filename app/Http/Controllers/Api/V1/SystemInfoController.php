@@ -409,6 +409,106 @@ class SystemInfoController extends Controller
         }
     }
 
+    /**
+     * GET /api/v1/admin/system-processes
+     *
+     * Returns running Linux processes for www-data and MySQL.
+     */
+    public function systemProcesses(Request $request): JsonResponse
+    {
+        if (!$request->user()?->hasRole('Admin')) {
+            abort(403, 'Unauthorized.');
+        }
+
+        $processes = [];
+
+        // www-data Prozesse
+        try {
+            $result = Process::timeout(5)->run(['ps', '-u', 'www-data', '-o', 'pid,pcpu,pmem,vsz,rss,stat,start_time,time,args', '--no-headers']);
+            if ($result->successful()) {
+                foreach (explode("\n", trim($result->output())) as $line) {
+                    $line = trim($line);
+                    if ($line === '') continue;
+                    $parts = preg_split('/\s+/', $line, 9);
+                    if (count($parts) >= 9) {
+                        $processes[] = [
+                            'user' => 'www-data',
+                            'pid' => (int) $parts[0],
+                            'cpu' => (float) $parts[1],
+                            'mem' => (float) $parts[2],
+                            'vsz_mb' => round((int) $parts[3] / 1024, 1),
+                            'rss_mb' => round((int) $parts[4] / 1024, 1),
+                            'stat' => $parts[5],
+                            'start' => $parts[6],
+                            'time' => $parts[7],
+                            'command' => $parts[8],
+                        ];
+                    }
+                }
+            }
+        } catch (\Throwable) {
+            // ignore
+        }
+
+        // MySQL Prozesse
+        try {
+            $result = Process::timeout(5)->run(['ps', '-u', 'mysql', '-o', 'pid,pcpu,pmem,vsz,rss,stat,start_time,time,args', '--no-headers']);
+            if ($result->successful()) {
+                foreach (explode("\n", trim($result->output())) as $line) {
+                    $line = trim($line);
+                    if ($line === '') continue;
+                    $parts = preg_split('/\s+/', $line, 9);
+                    if (count($parts) >= 9) {
+                        $processes[] = [
+                            'user' => 'mysql',
+                            'pid' => (int) $parts[0],
+                            'cpu' => (float) $parts[1],
+                            'mem' => (float) $parts[2],
+                            'vsz_mb' => round((int) $parts[3] / 1024, 1),
+                            'rss_mb' => round((int) $parts[4] / 1024, 1),
+                            'stat' => $parts[5],
+                            'start' => $parts[6],
+                            'time' => $parts[7],
+                            'command' => $parts[8],
+                        ];
+                    }
+                }
+            }
+        } catch (\Throwable) {
+            // ignore
+        }
+
+        // Nach CPU absteigend sortieren
+        usort($processes, fn($a, $b) => $b['cpu'] <=> $a['cpu']);
+
+        // MySQL aktive Queries
+        $mysqlQueries = [];
+        try {
+            $procs = DB::select("SHOW PROCESSLIST");
+            foreach ($procs as $p) {
+                if ($p->Command === 'Sleep' && empty($p->Info)) continue;
+                $mysqlQueries[] = [
+                    'id' => $p->Id,
+                    'user' => $p->User,
+                    'db' => $p->db,
+                    'command' => $p->Command,
+                    'time' => $p->Time,
+                    'state' => $p->State ?? null,
+                    'info' => $p->Info ? \Illuminate\Support\Str::limit($p->Info, 200) : null,
+                ];
+            }
+        } catch (\Throwable) {
+            // ignore
+        }
+
+        return response()->json([
+            'data' => [
+                'processes' => $processes,
+                'mysql_queries' => $mysqlQueries,
+            ],
+        ]);
+    }
+
     private function extractJobName(?array $data): string
     {
         if (!$data) return 'Unknown';
