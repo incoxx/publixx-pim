@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
-import { X } from 'lucide-vue-next'
+import { X, Trash2 } from 'lucide-vue-next'
 import scheduledActionsApi from '@/api/scheduledActions'
 import productsApi from '@/api/products'
 
@@ -12,9 +12,11 @@ const props = defineProps({
   exportJobs: { type: Array, default: () => [] },
 })
 
-const emit = defineEmits(['close', 'saved'])
+const emit = defineEmits(['close', 'saved', 'deleted'])
 
 const saving = ref(false)
+const deleting = ref(false)
+const confirmDelete = ref(false)
 const error = ref(null)
 const productSearch = ref('')
 const productResults = ref([])
@@ -138,6 +140,25 @@ async function save() {
     saving.value = false
   }
 }
+
+async function deleteAction() {
+  if (!confirmDelete.value) {
+    confirmDelete.value = true
+    return
+  }
+  deleting.value = true
+  error.value = null
+  try {
+    await scheduledActionsApi.destroy(props.editAction.id)
+    emit('deleted')
+    emit('close')
+  } catch (e) {
+    error.value = e.response?.data?.message || 'Fehler beim Löschen'
+  } finally {
+    deleting.value = false
+    confirmDelete.value = false
+  }
+}
 </script>
 
 <template>
@@ -229,11 +250,25 @@ async function save() {
         </div>
 
         <!-- Footer -->
-        <div class="flex items-center justify-end gap-2 p-4 border-t border-[var(--color-border)]">
-          <button class="pim-btn pim-btn-ghost text-xs" @click="emit('close')">Abbrechen</button>
-          <button class="pim-btn pim-btn-primary text-xs" @click="save" :disabled="saving || !form.title || !form.scheduled_at || (needsProduct && !form.product_id && (!form.product_ids || form.product_ids.length === 0))">
-            {{ saving ? 'Speichern...' : (isEdit ? 'Aktualisieren' : 'Planen') }}
-          </button>
+        <div class="flex items-center justify-between p-4 border-t border-[var(--color-border)]">
+          <div>
+            <button
+              v-if="isEdit && editAction?.status === 'pending'"
+              class="pim-btn text-xs"
+              :class="confirmDelete ? 'pim-btn-danger' : 'pim-btn-ghost text-[var(--color-error)]'"
+              @click="deleteAction"
+              :disabled="deleting"
+            >
+              <Trash2 class="w-3.5 h-3.5" :stroke-width="1.75" />
+              {{ deleting ? 'Löschen...' : confirmDelete ? 'Wirklich löschen?' : 'Löschen' }}
+            </button>
+          </div>
+          <div class="flex items-center gap-2">
+            <button class="pim-btn pim-btn-ghost text-xs" @click="emit('close')">Abbrechen</button>
+            <button class="pim-btn pim-btn-primary text-xs" @click="save" :disabled="saving || !form.title || !form.scheduled_at || (needsProduct && !form.product_id && (!form.product_ids || form.product_ids.length === 0))">
+              {{ saving ? 'Speichern...' : (isEdit ? 'Aktualisieren' : 'Planen') }}
+            </button>
+          </div>
         </div>
       </div>
     </div>
