@@ -182,6 +182,18 @@ const routes = [
     meta: { title: 'PDF-Vorlage Designer' },
   },
   {
+    path: '/catalog-templates',
+    name: 'catalog-templates',
+    component: () => import('@/views/catalog-templates/CatalogTemplateListView.vue'),
+    meta: { title: 'Katalog-Vorlagen' },
+  },
+  {
+    path: '/catalog-templates/:id',
+    name: 'catalog-template-designer',
+    component: () => import('@/views/catalog-templates/CatalogTemplateDesignerView.vue'),
+    meta: { title: 'Katalog-Vorlage Designer' },
+  },
+  {
     path: '/media',
     name: 'media',
     component: () => import('@/views/media/MediaView.vue'),
