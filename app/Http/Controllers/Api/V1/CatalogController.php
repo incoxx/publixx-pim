@@ -1042,10 +1042,10 @@ class CatalogController extends BaseController
 
         $attributes = Attribute::whereIn('id', $facetAttributeIds)->get()->keyBy('id');
 
-        // Only active products
-        $activeProductIds = Product::where('status', 'active')
+        // Only active products — use subquery to avoid too many placeholders
+        $activeProductQuery = Product::where('status', 'active')
             ->where('product_type_ref', 'product')
-            ->pluck('id');
+            ->select('id');
 
         $facets = [];
 
@@ -1059,7 +1059,7 @@ class CatalogController extends BaseController
             $dataType = $attr->data_type;
 
             $baseQuery = ProductAttributeValue::where('attribute_id', $attrId)
-                ->whereIn('product_id', $activeProductIds);
+                ->whereIn('product_id', $activeProductQuery);
 
             if (in_array($dataType, ['ValueList', 'Selection', 'Dictionary'])) {
                 // Get distinct value_list_entry values with counts
