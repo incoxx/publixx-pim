@@ -69,6 +69,7 @@ use App\Http\Controllers\Api\V1\PublixxDatasetController;
 use App\Http\Controllers\Api\V1\PdfTemplateController;
 use App\Http\Controllers\Api\V1\ApiStreamController;
 use App\Http\Controllers\Api\V1\ApiTemplateController;
+use App\Http\Controllers\Api\V1\CatalogTemplateController;
 use App\Http\Controllers\Api\V1\ReportTemplateController;
 use App\Http\Controllers\Api\V1\RelationTypeController;
 use App\Http\Controllers\Api\V1\ResetDataController;
@@ -665,6 +666,14 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
         Route::post('api-templates/{api_template}/preview', [ApiTemplateController::class, 'preview']);
         Route::post('api-templates/{api_template}/regenerate-key', [ApiTemplateController::class, 'regenerateApiKey']);
     });
+
+    // =====================================================================
+    // Catalog Templates
+    // =====================================================================
+    Route::get('catalog-templates/presets', [CatalogTemplateController::class, 'presets']);
+    Route::apiResource('catalog-templates', CatalogTemplateController::class);
+    Route::post('catalog-templates/{catalog_template}/duplicate', [CatalogTemplateController::class, 'duplicate']);
+    Route::get('catalog-templates/{catalog_template}/preview', [CatalogTemplateController::class, 'preview']);
 
     // =====================================================================
     // TMS: Translation Management
