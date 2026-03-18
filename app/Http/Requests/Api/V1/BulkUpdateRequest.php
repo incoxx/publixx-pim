@@ -16,8 +16,23 @@ class BulkUpdateRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'product_ids' => 'required|array|min:1|max:500',
-            'product_ids.*' => 'required|string|uuid|exists:products,id',
+            // Entweder product_ids ODER filter angeben
+            'product_ids' => 'required_without:filter|array|min:1',
+            'product_ids.*' => 'required|string|uuid',
+
+            // Filter-basierte Auswahl (für große Datenmengen)
+            'filter' => 'required_without:product_ids|array',
+            'filter.search' => 'nullable|string|max:500',
+            'filter.search_mode' => 'nullable|string|in:like,soundex,regex',
+            'filter.category_ids' => 'nullable|array',
+            'filter.category_ids.*' => 'string|uuid',
+            'filter.include_descendants' => 'nullable|boolean',
+            'filter.hierarchy_type' => 'nullable|string|in:master,output',
+            'filter.status' => 'nullable|string|in:active,draft,inactive,discontinued',
+            'filter.product_type_ids' => 'nullable|array',
+            'filter.product_type_ids.*' => 'string|uuid',
+            'filter.manufacturer_ids' => 'nullable|array',
+            'filter.manufacturer_ids.*' => 'string|uuid',
 
             'operations' => 'required|array',
 
