@@ -221,11 +221,17 @@ class BulkUpdateController extends Controller
                 if (!empty($operations['status'])) {
                     $r = $this->processStatus($chunk, $operations['status'], true);
                     $this->mergeResults($results, 'status', $r);
+                    // Status changes affect search index (status field + visibility)
+                    if (($r['would_change'] ?? 0) > 0) {
+                        array_push($allChangedProductIds, ...$chunk);
+                    }
                 }
 
                 if (array_key_exists('master_hierarchy_node_id', $operations)) {
                     $r = $this->processMasterHierarchy($chunk, $operations['master_hierarchy_node_id'], true);
                     $this->mergeResults($results, 'master_hierarchy', $r);
+                    // Hierarchy changes affect search index (hierarchy_path field)
+                    array_push($allChangedProductIds, ...$chunk);
                 }
 
                 if (array_key_exists('manufacturer_id', $operations)) {
@@ -236,6 +242,8 @@ class BulkUpdateController extends Controller
                 if (!empty($operations['media'])) {
                     $r = $this->processMedia($chunk, $operations['media'], true);
                     $this->mergeResults($results, 'media', $r);
+                    // Media changes affect search index (primary_image field)
+                    array_push($allChangedProductIds, ...$chunk);
                 }
             });
         }
