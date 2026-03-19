@@ -29,9 +29,11 @@ class CatalogEmbedController extends Controller
 
         // Try database template first
         $dbTemplate = CatalogTemplate::where('slug', $template)->where('is_active', true)->first();
+        $templateName = $template;
 
         if ($dbTemplate) {
             $html = $dbTemplate->html_template;
+            $templateName = $dbTemplate->name;
         } else {
             // Fallback to file-based template
             $templatePath = base_path("catalog-embed/examples/{$template}.html");
@@ -43,14 +45,14 @@ class CatalogEmbedController extends Controller
             $html = File::get($templatePath);
         }
 
-        $html = $this->injectAssets($html);
+        $html = $this->injectAssets($html, $templateName);
 
         return new Response($html, 200, [
             'Content-Type' => 'text/html; charset=UTF-8',
         ]);
     }
 
-    private function injectAssets(string $html): string
+    private function injectAssets(string $html, string $templateName = 'basic'): string
     {
         $basePath = rtrim(parse_url(config('app.url'), PHP_URL_PATH) ?? '', '/');
 
@@ -98,6 +100,41 @@ class CatalogEmbedController extends Controller
         }
         if ($hiddenWidgetHtml && str_contains($html, '</body>')) {
             $html = str_replace('</body>', $hiddenWidgetHtml . '</body>', $html);
+        }
+
+        // Build release info (HTML comment + info icon)
+        $jsPath = public_path('catalog-embed-assets/catalog-embed.umd.js');
+        $cssPath = public_path('catalog-embed-assets/catalog-embed.css');
+        $date = now()->format('Y-m-d H:i:s');
+        $jsHash = file_exists($jsPath) ? substr(md5_file($jsPath), 0, 8) : '-';
+        $cssHash = file_exists($cssPath) ? substr(md5_file($cssPath), 0, 8) : '-';
+        $tplName = e($templateName);
+
+        $releaseInfo = <<<HTML
+
+  <!-- ════════════════════════════════════════════════
+       PublixxCatalog Online
+       Rendered: {$date}
+       JS:       {$jsHash}
+       CSS:      {$cssHash}
+       Template: {$tplName}
+       ════════════════════════════════════════════════ -->
+  <div id="pxc-release-info" style="position:fixed;bottom:12px;right:12px;z-index:9000">
+    <button onclick="document.getElementById('pxc-release-popup').style.display=document.getElementById('pxc-release-popup').style.display==='none'?'block':'none'"
+      style="width:28px;height:28px;border-radius:50%;border:1px solid #ccc;background:#fff;color:#888;font-size:14px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,0.15);display:flex;align-items:center;justify-content:center"
+      title="Build-Info">&nbsp;&#x2139;&nbsp;</button>
+    <div id="pxc-release-popup" style="display:none;position:absolute;bottom:36px;right:0;background:#fff;border:1px solid #ddd;border-radius:6px;padding:12px 16px;font-family:monospace;font-size:12px;line-height:1.6;white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,0.15);color:#333">
+      <div style="font-weight:700;margin-bottom:4px;font-size:13px;color:#004588">PublixxCatalog Online</div>
+      <div>Rendered: {$date}</div>
+      <div>JS:  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{$jsHash}</div>
+      <div>CSS: &nbsp;&nbsp;&nbsp;&nbsp;{$cssHash}</div>
+      <div>Template: {$tplName}</div>
+    </div>
+  </div>
+HTML;
+
+        if (str_contains($html, '</body>')) {
+            $html = str_replace('</body>', $releaseInfo . "\n</body>", $html);
         }
 
         return $html;

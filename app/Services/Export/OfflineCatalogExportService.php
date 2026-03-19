@@ -862,11 +862,20 @@ class OfflineCatalogExportService
             copy($cssFile, "{$tmpDir}/catalog-embed.css");
         }
 
+        // 2. Collect build metadata for release info
+        $buildMeta = [
+            'build_date' => now()->format('Y-m-d H:i:s'),
+            'js_hash' => substr(md5_file($jsFile), 0, 8),
+            'css_hash' => file_exists($cssFile) ? substr(md5_file($cssFile), 0, 8) : '-',
+            'template' => $templateId ? (CatalogTemplate::find($templateId)?->name ?? $templateId) : 'basic',
+            'locale' => $lang,
+        ];
+
         // 3. Load template HTML
         $html = $this->loadTemplateHtml($templateId);
 
         // 4. Transform for offline use
-        $html = $this->transformHtmlForOffline($html, $lang);
+        $html = $this->transformHtmlForOffline($html, $lang, $buildMeta);
 
         // 5. Write index.html
         if (file_put_contents("{$tmpDir}/index.html", $html) === false) {
@@ -899,7 +908,7 @@ class OfflineCatalogExportService
     /**
      * Transform an online catalog template HTML into an offline-ready version.
      */
-    private function transformHtmlForOffline(string $html, string $lang): string
+    private function transformHtmlForOffline(string $html, string $lang, array $buildMeta = []): string
     {
         // Remove existing catalog-embed script references (online versions)
         $html = preg_replace(
@@ -950,11 +959,46 @@ HTML;
             }
         }
 
+        // Build release info (HTML comment + info icon popup)
+        $releaseHtml = '';
+        if ($buildMeta) {
+            $date = e($buildMeta['build_date'] ?? '-');
+            $jsHash = e($buildMeta['js_hash'] ?? '-');
+            $cssHash = e($buildMeta['css_hash'] ?? '-');
+            $template = e($buildMeta['template'] ?? '-');
+            $locale = e($buildMeta['locale'] ?? '-');
+
+            $releaseHtml = <<<HTML
+
+  <!-- ════════════════════════════════════════════════
+       PublixxCatalog Offline Build
+       Build:    {$date}
+       JS:       {$jsHash}
+       CSS:      {$cssHash}
+       Template: {$template}
+       Locale:   {$locale}
+       ════════════════════════════════════════════════ -->
+  <div id="pxc-release-info" style="position:fixed;bottom:12px;right:12px;z-index:9000">
+    <button onclick="document.getElementById('pxc-release-popup').style.display=document.getElementById('pxc-release-popup').style.display==='none'?'block':'none'"
+      style="width:28px;height:28px;border-radius:50%;border:1px solid #ccc;background:#fff;color:#888;font-size:14px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,0.15);display:flex;align-items:center;justify-content:center"
+      title="Build-Info">&nbsp;&#x2139;&nbsp;</button>
+    <div id="pxc-release-popup" style="display:none;position:absolute;bottom:36px;right:0;background:#fff;border:1px solid #ddd;border-radius:6px;padding:12px 16px;font-family:monospace;font-size:12px;line-height:1.6;white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,0.15);color:#333">
+      <div style="font-weight:700;margin-bottom:4px;font-size:13px;color:#004588">PublixxCatalog Offline</div>
+      <div>Build: &nbsp;{$date}</div>
+      <div>JS: &nbsp;&nbsp;&nbsp;{$jsHash}</div>
+      <div>CSS: &nbsp;&nbsp;{$cssHash}</div>
+      <div>Template: {$template}</div>
+      <div>Locale: &nbsp;{$locale}</div>
+    </div>
+  </div>
+HTML;
+        }
+
         if (str_contains($html, '</body>')) {
-            $html = str_replace('</body>', $hiddenWidgetHtml . $offlineScript . "\n</body>", $html);
+            $html = str_replace('</body>', $hiddenWidgetHtml . $offlineScript . $releaseHtml . "\n</body>", $html);
         } else {
             // No </body> tag — append at end
-            $html .= "\n" . $hiddenWidgetHtml . $offlineScript;
+            $html .= "\n" . $hiddenWidgetHtml . $offlineScript . $releaseHtml;
         }
 
         return $html;
