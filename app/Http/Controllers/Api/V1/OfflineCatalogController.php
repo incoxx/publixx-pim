@@ -32,6 +32,9 @@ class OfflineCatalogController extends BaseController
         $lang = $request->input('lang', 'de');
         $templateId = $request->input('template_id');
 
+        // Kein PHP-Timeout bei großen Exporten (100k+ Produkte)
+        set_time_limit(0);
+
         try {
             $result = $this->service->generate($lang, $templateId);
 
@@ -163,7 +166,7 @@ class OfflineCatalogController extends BaseController
      *
      * Lädt die zuletzt erstellte Offline-Katalog-ZIP-Datei herunter.
      */
-    public function download(Request $request): \Symfony\Component\HttpFoundation\BinaryFileResponse|JsonResponse
+    public function download(Request $request): \Symfony\Component\HttpFoundation\StreamedResponse|JsonResponse
     {
         $progress = $this->service->getProgress();
 
@@ -176,6 +179,34 @@ class OfflineCatalogController extends BaseController
             return response()->json(['message' => 'Datei nicht mehr vorhanden.'], 404);
         }
 
-        return response()->download($path, $progress['file_name'] ?? basename($path));
+        $fileName = $progress['file_name'] ?? basename($path);
+        $fileSize = filesize($path);
+
+        // Kein Timeout beim Streamen großer Dateien
+        set_time_limit(0);
+
+        return response()->streamDownload(function () use ($path) {
+            // Output-Buffer leeren, damit PHP nicht alles im RAM hält
+            if (ob_get_level()) {
+                ob_end_clean();
+            }
+
+            $handle = fopen($path, 'rb');
+            if ($handle === false) {
+                return;
+            }
+
+            // 8 KB Chunks streamen
+            while (!feof($handle)) {
+                echo fread($handle, 8192);
+                flush();
+            }
+
+            fclose($handle);
+        }, $fileName, [
+            'Content-Type' => 'application/zip',
+            'Content-Length' => $fileSize,
+            'Cache-Control' => 'no-store',
+        ]);
     }
 }
