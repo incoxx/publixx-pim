@@ -87,6 +87,19 @@ class CatalogEmbedController extends Controller
             $html,
         );
 
+        // Ensure essential hidden widget placeholders are present (wishlist drawer,
+        // product detail modal, compare modal). DB templates might omit these.
+        $requiredWidgets = ['wishlist', 'product-detail', 'compare'];
+        $hiddenWidgetHtml = '';
+        foreach ($requiredWidgets as $widget) {
+            if (! str_contains($html, 'data-catalog="' . $widget . '"')) {
+                $hiddenWidgetHtml .= '  <div data-catalog="' . $widget . '"></div>' . "\n";
+            }
+        }
+        if ($hiddenWidgetHtml && str_contains($html, '</body>')) {
+            $html = str_replace('</body>', $hiddenWidgetHtml . '</body>', $html);
+        }
+
         return $html;
     }
 
