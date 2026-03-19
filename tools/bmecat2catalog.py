@@ -246,7 +246,7 @@ def build_catalog_data(parsed: dict, chunk_size: int, catalog_name: str | None,
             if len(card_attrs) >= 4:
                 break
 
-        # Facet values + collect for facets.json
+        # Facet values (compact format) + collect for facets.json
         facet_values = {}
         for feat in p["features"]:
             if feat["name"] == "Kurzbeschreibung":
@@ -255,16 +255,16 @@ def build_catalog_data(parsed: dict, chunk_size: int, catalog_name: str | None,
             # Try to detect numeric values
             try:
                 num_val = float(feat["value"])
-                facet_values[attr_id] = {"value": num_val}
+                facet_values[attr_id] = num_val
                 numeric_features[feat["name"]].append(num_val)
             except (ValueError, TypeError):
                 if feat["value"].lower() in ("true", "false"):
                     bool_val = feat["value"].lower() == "true"
-                    facet_values[attr_id] = {"value": bool_val}
+                    facet_values[attr_id] = bool_val
                     all_features[feat["name"]][str(bool_val)] += 1
                 else:
                     value_id = deterministic_uuid(f"val:{feat['name']}:{feat['value']}")
-                    facet_values[attr_id] = {"value": feat["value"], "value_id": value_id}
+                    facet_values[attr_id] = value_id
                     all_features[feat["name"]][feat["value"]] += 1
 
         # Searchable text
@@ -275,26 +275,30 @@ def build_catalog_data(parsed: dict, chunk_size: int, catalog_name: str | None,
 
         detail_bucket = product_counter // DETAIL_DIR_SIZE
 
-        product_list.append({
+        # Compact chunk format — only essential fields, optional fields omitted if empty
+        item = {
             "id": p["id"],
             "sku": p["sku"],
-            "ean": p["ean"],
             "name": p["name"],
-            "name_de": p["name"],
-            "description": p["description"][:200] if p["description"] else "",
-            "category_path": "",
-            "category_id": None,
-            "category_ids": [],
-            "image_url": image_url,
-            "price": price,
-            "currency": currency,
-            "product_type": "simple",
-            "primary_attribute_value": None,
-            "card_attributes": card_attrs,
-            "searchable_text": searchable_text,
-            "facet_values": facet_values,
-            "_detail_dir": detail_bucket,
-        })
+            "cat": None,
+            "cats": [],
+            "img": image_url,
+            "_dd": detail_bucket,
+        }
+        if p["ean"]:
+            item["ean"] = p["ean"]
+        if price is not None:
+            item["price"] = price
+        if currency != "EUR":
+            item["cur"] = currency
+        if card_attrs:
+            item["attrs"] = card_attrs
+        if searchable_text:
+            item["search"] = searchable_text[:200]
+        if facet_values:
+            item["facets"] = facet_values
+
+        product_list.append(item)
 
         # Full detail
         attrs_detail = []
