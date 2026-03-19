@@ -39,6 +39,7 @@ import ProductDetailWidget from './widgets/ProductDetailWidget.vue'
 import CompareWidget from './widgets/CompareWidget.vue'
 import LocaleWidget from './widgets/LocaleWidget.vue'
 import ActiveFiltersWidget from './widgets/ActiveFiltersWidget.vue'
+import SidebarToggleWidget from './widgets/SidebarToggleWidget.vue'
 
 // CSS
 import './styles.css'
@@ -56,6 +57,7 @@ const WIDGET_MAP = {
   'compare': CompareWidget,
   'locale': LocaleWidget,
   'active-filters': ActiveFiltersWidget,
+  'sidebar-toggle': SidebarToggleWidget,
 }
 
 const mountedApps = []
@@ -186,6 +188,9 @@ async function init(options = {}) {
 
   // Load products (this triggers the chunk loading with progress)
   await actions.fetchProducts()
+
+  // Apply deeplinks (?sku=, ?cat=)
+  await actions.applyDeeplinks()
 
   if (showProgress) {
     hideLoadingOverlay()
