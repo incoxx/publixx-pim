@@ -120,7 +120,7 @@
 
     @media (max-width: 768px) {
       .content-grid { grid-template-columns: 1fr; }
-      .filter-panel { position: static; }
+      .filter-panel { display: none; } /* Mobile: handled by pxc-sidebar drawer */
       .corp-header { flex-direction: column; gap: 12px; }
     }
   </style>
@@ -138,7 +138,7 @@
       <a href="#">Über uns</a>
       <a href="#">Kontakt</a>
       <div data-catalog="locale"></div>
-      <div data-catalog="wishlist"></div>
+      <div data-catalog="wishlist-button"></div>
     </nav>
   </header>
 
@@ -167,7 +167,8 @@
     &copy; 2026 GreenTech Solutions GmbH | <a href="#">Impressum</a> | <a href="#">Datenschutz</a>
   </footer>
 
-  <!-- Hidden widgets -->
+  <!-- Hidden widgets (Modals/Drawers) -->
+  <div data-catalog="wishlist"></div>
   <div data-catalog="product-detail"></div>
   <div data-catalog="compare"></div>
 
