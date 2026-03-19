@@ -17,6 +17,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Queue\SerializesModels;
 use App\Models\Setting;
+use App\Models\WebsiteProfile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -218,7 +219,7 @@ class UpdateSearchIndex implements ShouldQueue, ShouldBeUnique
     private function getPrimaryImage(string $productId): ?string
     {
         // Check for configured thumbnail usage type
-        $themePayload = Setting::getPayload('catalog_theme');
+        $themePayload = WebsiteProfile::getActivePayload();
         $thumbnailUsageTypeId = $themePayload['thumbnail_usage_type_id'] ?? null;
 
         if ($thumbnailUsageTypeId) {

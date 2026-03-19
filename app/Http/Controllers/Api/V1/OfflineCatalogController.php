@@ -28,16 +28,18 @@ class OfflineCatalogController extends BaseController
         $request->validate([
             'lang' => 'sometimes|string|in:de,en',
             'template_id' => 'sometimes|nullable|uuid',
+            'website_profile_id' => 'sometimes|nullable|uuid|exists:website_profiles,id',
         ]);
 
         $lang = $request->input('lang', 'de');
         $templateId = $request->input('template_id');
+        $websiteProfileId = $request->input('website_profile_id');
 
         // Kein PHP-Timeout bei großen Exporten (100k+ Produkte)
         set_time_limit(0);
 
         try {
-            $result = $this->service->generate($lang, $templateId);
+            $result = $this->service->generate($lang, $templateId, $websiteProfileId);
 
             if ($result['cancelled']) {
                 return response()->json([

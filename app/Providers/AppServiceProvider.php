@@ -62,8 +62,10 @@ use App\Policies\ValueListPolicy;
 use App\Policies\ProjectPolicy;
 use App\Policies\TeamPolicy;
 use App\Policies\WorkflowPolicy;
+use App\Policies\WebsiteProfilePolicy;
 use App\Policies\WorkflowStatusPolicy;
 use App\Policies\WorkflowTaskPolicy;
+use App\Models\WebsiteProfile;
 use App\Models\WorkflowTask;
 use App\Observers\MediaObserver;
 use Illuminate\Support\Facades\Event;
@@ -114,6 +116,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(SearchProfile::class, SearchProfilePolicy::class);
         Gate::policy(ExportProfile::class, ExportProfilePolicy::class);
         Gate::policy(ImportProfile::class, ImportProfilePolicy::class);
+        Gate::policy(WebsiteProfile::class, WebsiteProfilePolicy::class);
         Gate::policy(Project::class, ProjectPolicy::class);
         Gate::policy(Team::class, TeamPolicy::class);
         Gate::policy(Workflow::class, WorkflowPolicy::class);

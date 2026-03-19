@@ -9,6 +9,7 @@ use App\Models\ProductAttributeValue;
 use App\Models\ProductMediaAssignment;
 use App\Models\ProductPrice;
 use App\Models\Setting;
+use App\Models\WebsiteProfile;
 use App\Support\KoelnerPhonetik;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -51,7 +52,7 @@ class BulkReindexSearchJob implements ShouldQueue
         $this->updateProgress('running', 0, $total);
 
         $hasVariantColumns = Schema::hasColumn('products_search_index', 'product_type_ref');
-        $themePayload = Setting::getPayload('catalog_theme');
+        $themePayload = WebsiteProfile::getActivePayload();
         $thumbnailUsageTypeId = $themePayload['thumbnail_usage_type_id'] ?? null;
 
         // Pre-load mandatory attribute count (same for all products)

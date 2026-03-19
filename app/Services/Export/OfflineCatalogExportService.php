@@ -16,6 +16,7 @@ use App\Models\ProductAttributeValue;
 use App\Models\ProductPrice;
 use App\Models\ProductSearchIndex;
 use App\Models\Setting;
+use App\Models\WebsiteProfile;
 use App\Models\ValueListEntry;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
@@ -54,7 +55,7 @@ class OfflineCatalogExportService
      *
      * @return array{path: string, total_products: int, chunks: int, cancelled: bool}
      */
-    public function generate(?string $lang = null, ?string $templateId = null): array
+    public function generate(?string $lang = null, ?string $templateId = null, ?string $websiteProfileId = null): array
     {
         $lang = $lang ?? 'de';
         $startTime = microtime(true);
@@ -63,7 +64,12 @@ class OfflineCatalogExportService
         Cache::forget(self::CACHE_KEY_CANCEL);
         $this->updateProgress('Initialisiere...', 0, 0, 'initializing');
 
-        $themePayload = Setting::getPayload('catalog_theme') ?? [];
+        // Use specified profile or fall back to the active one
+        if ($websiteProfileId) {
+            $themePayload = WebsiteProfile::find($websiteProfileId)?->payload ?? WebsiteProfile::getActivePayload();
+        } else {
+            $themePayload = WebsiteProfile::getActivePayload();
+        }
 
         // Temporäres Verzeichnis
         $tmpDir = storage_path('app/tmp/offline-catalog-' . uniqid());
