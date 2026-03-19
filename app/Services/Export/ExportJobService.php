@@ -7,7 +7,12 @@ namespace App\Services\Export;
 use App\Models\ExportJob;
 use App\Models\ExportJobLog;
 use App\Models\ExportProfile;
+use App\Models\PdfTemplate;
+use App\Models\Product;
+use App\Models\ReportTemplate;
 use App\Models\SearchProfile;
+use App\Services\PdfTemplate\PdfTemplateService;
+use App\Services\Report\ReportService;
 use Cron\CronExpression;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -28,6 +33,9 @@ class ExportJobService
         private readonly ExportProfileService $profileService,
         private readonly ImportFormatExporter $importFormatExporter,
         private readonly ExportDeliveryService $deliveryService,
+        private readonly OfflineCatalogExportService $offlineCatalogService,
+        private readonly ReportService $reportService,
+        private readonly PdfTemplateService $pdfTemplateService,
     ) {}
 
     /**
@@ -72,6 +80,9 @@ class ExportJobService
             $result = match ($job->format) {
                 'json' => $this->executeJsonExport($job, $outputDir),
                 'excel' => $this->executeExcelExport($job, $outputDir),
+                'offline_catalog' => $this->executeOfflineCatalogExport($job),
+                'report' => $this->executeReportExport($job, $outputDir),
+                'pdf_template' => $this->executePdfTemplateExport($job, $outputDir),
                 default => $this->executeViaProfile($job, $outputDir),
             };
 
@@ -272,6 +283,96 @@ class ExportJobService
         return [
             'path' => $outputPath,
             'format' => $job->format,
+            'size' => (int) filesize($outputPath),
+        ];
+    }
+
+    /**
+     * Offline-Katalog-Export (ZIP mit index.html + Daten).
+     */
+    private function executeOfflineCatalogExport(ExportJob $job): array
+    {
+        $lang = $job->filters['lang'] ?? 'de';
+        $templateId = $job->catalog_template_id;
+
+        $result = $this->offlineCatalogService->generate($lang, $templateId);
+
+        if ($result['cancelled'] || !$result['path']) {
+            throw new \RuntimeException($result['cancelled'] ? 'Export abgebrochen.' : 'Keine aktiven Produkte gefunden.');
+        }
+
+        return [
+            'path' => $result['path'],
+            'format' => 'offline_catalog',
+            'size' => (int) ($result['file_size'] ?? filesize($result['path'])),
+        ];
+    }
+
+    /**
+     * Bericht-Export via ReportService.
+     */
+    private function executeReportExport(ExportJob $job, string $outputDir): array
+    {
+        $template = ReportTemplate::findOrFail($job->report_template_id);
+        $searchProfile = $job->searchProfile ?? $template->searchProfile;
+        $format = $job->output_format ?: $template->format ?: 'pdf';
+
+        $result = $this->reportService->execute($template, $searchProfile, $outputDir, $format);
+
+        return [
+            'path' => $result['path'],
+            'format' => 'report',
+            'size' => (int) $result['size'],
+        ];
+    }
+
+    /**
+     * PDF-Vorlagen-Export via PdfTemplateService.
+     */
+    private function executePdfTemplateExport(ExportJob $job, string $outputDir): array
+    {
+        $template = PdfTemplate::findOrFail($job->pdf_template_id);
+        $outputFormat = $job->output_format ?: 'pdf';
+
+        // Load filtered products
+        $query = Product::where('status', 'active')->where('product_type_ref', 'product');
+        $filters = $this->resolveFilters($job);
+        if (!empty($filters['search_text'])) {
+            $search = $filters['search_text'];
+            $query->where(function ($q) use ($search) {
+                $q->where('sku', 'like', "%{$search}%")
+                  ->orWhere('name', 'like', "%{$search}%");
+            });
+        }
+        $products = $query->orderBy('sku')->limit(500)->get();
+
+        if ($products->isEmpty()) {
+            throw new \RuntimeException('Keine aktiven Produkte gefunden.');
+        }
+
+        $fileName = $this->buildFileName($job, match ($outputFormat) {
+            'docx' => 'docx',
+            'indesign' => 'zip',
+            default => 'pdf',
+        });
+        $outputPath = "{$outputDir}/{$fileName}";
+
+        $result = match ($outputFormat) {
+            'docx' => $this->pdfTemplateService->generateDocxForProducts($template, $products, 'combined'),
+            'indesign' => $this->pdfTemplateService->generateInDesignForProducts($template, $products),
+            default => $this->pdfTemplateService->generateForProducts($template, $products, 'combined'),
+        };
+
+        // Move generated file to outputDir
+        if (isset($result['path']) && file_exists($result['path'])) {
+            rename($result['path'], $outputPath);
+        } else {
+            throw new \RuntimeException('PDF-Vorlagen-Export fehlgeschlagen.');
+        }
+
+        return [
+            'path' => $outputPath,
+            'format' => 'pdf_template',
             'size' => (int) filesize($outputPath),
         ];
     }
