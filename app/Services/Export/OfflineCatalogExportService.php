@@ -200,8 +200,24 @@ class OfflineCatalogExportService
             $zipPath = "{$outputDir}/{$zipFileName}";
             $this->createZip($tmpDir, $zipPath);
 
-            // Aufräumen
-            $this->cleanup($tmpDir);
+            // tmp-Verzeichnis als Preview-Quelle behalten (Umbenennen statt löschen)
+            $previewDir = storage_path('app/offline-preview');
+            if (is_dir($previewDir)) {
+                $this->cleanup($previewDir);
+            }
+            rename($tmpDir, $previewDir);
+
+            // data/ Unterverzeichnis erstellen — die index.html verweist auf ./data/,
+            // aber die JSON-Dateien liegen direkt im Preview-Verzeichnis.
+            // Wir erstellen data/ und verschieben die Datenverzeichnisse/Dateien hinein.
+            $dataDir = "{$previewDir}/data";
+            mkdir($dataDir, 0755, true);
+            foreach (['products', 'products-detail', 'categories.json', 'facets.json', 'settings.json'] as $item) {
+                $src = "{$previewDir}/{$item}";
+                if (file_exists($src)) {
+                    rename($src, "{$dataDir}/{$item}");
+                }
+            }
 
             $duration = round(microtime(true) - $startTime, 2);
             $fileSize = filesize($zipPath);
@@ -211,6 +227,7 @@ class OfflineCatalogExportService
                 'file_name' => $zipFileName,
                 'file_size' => $fileSize,
                 'duration' => $duration,
+                'preview_dir' => $previewDir,
             ]);
 
             Log::channel('export')->info('Offline-Katalog-Export abgeschlossen', [
@@ -246,6 +263,12 @@ class OfflineCatalogExportService
     public function getProgress(): ?array
     {
         return Cache::get(self::CACHE_KEY_PROGRESS);
+    }
+
+    public function clearProgress(): void
+    {
+        Cache::forget(self::CACHE_KEY_PROGRESS);
+        Cache::forget(self::CACHE_KEY_CANCEL);
     }
 
     private function isCancelled(): bool
