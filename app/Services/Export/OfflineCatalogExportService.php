@@ -801,6 +801,28 @@ class OfflineCatalogExportService
                     'count' => $stats->cnt ?? 0,
                     'unit' => $unit,
                 ];
+            } elseif (in_array($attr->data_type, ['Text', 'String'])) {
+                $rows = (clone $baseQuery)
+                    ->whereNotNull('value_string')
+                    ->where('value_string', '!=', '')
+                    ->select('value_string', DB::raw('COUNT(DISTINCT product_id) as cnt'))
+                    ->groupBy('value_string')
+                    ->orderByDesc('cnt')
+                    ->limit(20)
+                    ->get();
+
+                $values = $rows->map(fn ($r) => [
+                    'value' => $r->value_string,
+                    'value_id' => $r->value_string,
+                    'count' => $r->cnt,
+                ])->toArray();
+
+                $facets[] = [
+                    'attribute_id' => $attrId,
+                    'label' => $label,
+                    'data_type' => 'Text',
+                    'values' => $values,
+                ];
             }
         }
 
