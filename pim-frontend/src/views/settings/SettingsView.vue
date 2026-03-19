@@ -773,7 +773,23 @@ async function saveThemeSettings() {
     if (!payload.card_price_type_id) payload.card_price_type_id = null
     if (!payload.card_price_country) payload.card_price_country = null
     if (!payload.thumbnail_usage_type_id) payload.thumbnail_usage_type_id = null
-    await adminApi.updateCatalogTheme(payload)
+
+    // Save to selected profile if one is selected, otherwise update active via legacy endpoint
+    const selectedProfile = websiteProfiles.value.find(p => p.id === selectedWebsiteProfileId.value)
+    if (selectedProfile) {
+      if (selectedProfile.is_active) {
+        // Active profile: use legacy endpoint (updates active profile + handles validation)
+        await adminApi.updateCatalogTheme(payload)
+      } else {
+        // Non-active profile: update via profile API
+        await websiteProfilesApi.update(selectedProfile.id, { payload })
+      }
+      // Sync payload in local list
+      selectedProfile.payload = { ...payload }
+    } else {
+      await adminApi.updateCatalogTheme(payload)
+    }
+
     themeSaved.value = true
     setTimeout(() => { themeSaved.value = false }, 3000)
   } catch (e) {
@@ -900,6 +916,10 @@ async function deleteWebsiteProfile(id) {
       const active = websiteProfiles.value.find(p => p.is_active)
       selectedWebsiteProfileId.value = active?.id || null
       if (active?.payload) applyPayloadToForm(active.payload)
+    }
+    // Reset offline export profile selection if deleted
+    if (offlineWebsiteProfileId.value === id) {
+      offlineWebsiteProfileId.value = null
     }
   } catch (e) {
     themeError.value = e.response?.data?.message || 'Profil konnte nicht gelöscht werden.'

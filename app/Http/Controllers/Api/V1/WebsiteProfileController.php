@@ -17,7 +17,7 @@ class WebsiteProfileController extends Controller
 
         $profiles = WebsiteProfile::visibleTo($request->user()->id)
             ->orderBy('name')
-            ->get(['id', 'name', 'user_id', 'is_shared', 'is_active', 'created_at', 'updated_at']);
+            ->get(['id', 'name', 'user_id', 'is_shared', 'is_active', 'payload', 'created_at', 'updated_at']);
 
         return response()->json(['data' => $profiles]);
     }
