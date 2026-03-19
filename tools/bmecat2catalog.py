@@ -153,10 +153,10 @@ def _parse_product(prod_el, default_currency: str) -> dict:
     for ref in prod_el.findall("bme:PRODUCT_REFERENCE", NS):
         ref_type = ref.get("type", "similar")
         target_sku = _text(ref, "bme:PROD_ID_TO")
-        if target_sku:
+        if target_sku and target_sku.strip():
             relations.append({
-                "target_sku": target_sku,
-                "target_product_id": deterministic_uuid(target_sku),
+                "target_sku": target_sku.strip(),
+                "target_product_id": deterministic_uuid(target_sku.strip()),
                 "relation_type": _normalize_relation_type(ref_type),
             })
 

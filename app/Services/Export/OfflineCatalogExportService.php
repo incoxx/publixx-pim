@@ -67,8 +67,12 @@ class OfflineCatalogExportService
         $tmpDir = storage_path('app/tmp/offline-catalog-' . uniqid());
         $productsDir = $tmpDir . '/products';
         $detailDir = $tmpDir . '/products-detail';
-        mkdir($productsDir, 0755, true);
-        mkdir($detailDir, 0755, true);
+        if (!mkdir($productsDir, 0755, true)) {
+            throw new \RuntimeException("Verzeichnis konnte nicht erstellt werden: {$productsDir}");
+        }
+        if (!mkdir($detailDir, 0755, true)) {
+            throw new \RuntimeException("Verzeichnis konnte nicht erstellt werden: {$detailDir}");
+        }
 
         try {
             // 1. Gesamtanzahl ermitteln
@@ -112,20 +116,20 @@ class OfflineCatalogExportService
 
                     // Detail-Datei in Unterverzeichnis schreiben
                     $subDir = "{$detailDir}/{$bucket}";
-                    if (!is_dir($subDir)) {
-                        mkdir($subDir, 0755, true);
+                    if (!is_dir($subDir) && !mkdir($subDir, 0755, true)) {
+                        throw new \RuntimeException("Verzeichnis konnte nicht erstellt werden: {$subDir}");
                     }
                     $detailData = $this->buildDetailItem($product, $themePayload, $lang);
-                    file_put_contents(
+                    $this->writeJsonFile(
                         "{$subDir}/{$product->id}.json",
-                        json_encode($detailData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT)
+                        $detailData
                     );
 
                     $detailCounter++;
                 }
-                file_put_contents(
+                $this->writeJsonFile(
                     "{$productsDir}/{$chunkFileName}",
-                    json_encode($listData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+                    $listData
                 );
                 $chunkFiles[] = $chunkFileName;
 
@@ -148,13 +152,13 @@ class OfflineCatalogExportService
             // 3. Index-Datei
             $this->updateProgress('Index wird erstellt...', $totalProducts, $totalProducts, 'indexing');
             $totalDetailBuckets = $totalProducts > 0 ? intdiv($totalProducts - 1, self::DETAIL_DIR_SIZE) + 1 : 0;
-            file_put_contents("{$productsDir}/index.json", json_encode([
+            $this->writeJsonFile("{$productsDir}/index.json", [
                 'totalProducts' => $totalProducts,
                 'chunkSize' => self::CHUNK_SIZE,
                 'chunks' => $chunkFiles,
                 'detailDirSize' => self::DETAIL_DIR_SIZE,
                 'detailBuckets' => $totalDetailBuckets,
-            ], JSON_UNESCAPED_UNICODE));
+            ]);
 
             // 4. Kategorien
             if ($this->isCancelled()) {
@@ -164,25 +168,16 @@ class OfflineCatalogExportService
             }
             $this->updateProgress('Kategorien werden exportiert...', $totalProducts, $totalProducts, 'categories');
             $categories = $this->buildCategories($themePayload, $lang);
-            file_put_contents("{$tmpDir}/categories.json", json_encode(
-                ['data' => $categories],
-                JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
-            ));
+            $this->writeJsonFile("{$tmpDir}/categories.json", ['data' => $categories]);
 
             // 5. Facetten
             $this->updateProgress('Facetten werden exportiert...', $totalProducts, $totalProducts, 'facets');
             $facets = $this->buildFacets($themePayload, $lang);
-            file_put_contents("{$tmpDir}/facets.json", json_encode(
-                $facets,
-                JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
-            ));
+            $this->writeJsonFile("{$tmpDir}/facets.json", $facets);
 
             // 6. Settings
             $settings = $this->buildSettings($themePayload);
-            file_put_contents("{$tmpDir}/settings.json", json_encode(
-                ['data' => $settings],
-                JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
-            ));
+            $this->writeJsonFile("{$tmpDir}/settings.json", ['data' => $settings]);
 
             // 7. index.html + Offline-Assets
             $this->updateProgress('HTML wird generiert...', $totalProducts, $totalProducts, 'html');
@@ -237,6 +232,7 @@ class OfflineCatalogExportService
             ];
         } catch (\Throwable $e) {
             $this->cleanup($tmpDir);
+            Cache::forget(self::CACHE_KEY_CANCEL);
             $this->updateProgress('Fehler: ' . $e->getMessage(), 0, 0, 'failed');
             throw $e;
         }
@@ -812,7 +808,9 @@ class OfflineCatalogExportService
         $html = $this->transformHtmlForOffline($html, $lang);
 
         // 5. Write index.html
-        file_put_contents("{$tmpDir}/index.html", $html);
+        if (file_put_contents("{$tmpDir}/index.html", $html) === false) {
+            throw new \RuntimeException("Datei konnte nicht geschrieben werden: {$tmpDir}/index.html");
+        }
     }
 
     /**
@@ -938,6 +936,19 @@ HTML;
 </body>
 </html>
 HTML;
+    }
+
+    // ─── File I/O ─────────────────────────────────────────────────
+
+    private function writeJsonFile(string $path, mixed $data): void
+    {
+        $json = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if ($json === false) {
+            throw new \RuntimeException("JSON-Encoding fehlgeschlagen: " . json_last_error_msg());
+        }
+        if (file_put_contents($path, $json) === false) {
+            throw new \RuntimeException("Datei konnte nicht geschrieben werden: {$path}");
+        }
     }
 
     // ─── Helpers ──────────────────────────────────────────────────
