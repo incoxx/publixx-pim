@@ -218,8 +218,9 @@ Route::get('v1/admin/offline-catalog/download', [OfflineCatalogController::class
     ->middleware('throttle.pim');
 Route::get('v1/admin/offline-catalog/preview', [OfflineCatalogController::class, 'preview'])
     ->middleware('throttle.pim');
+// Kein Rate-Limiting für Preview-Assets — der Offline-Katalog lädt hunderte
+// JSON-Chunks parallel (215 Chunks bei 107k Produkten)
 Route::get('v1/admin/offline-catalog/preview-asset/{path}', [OfflineCatalogController::class, 'previewAsset'])
-    ->middleware('throttle.pim')
     ->where('path', '.*');
 
 // =========================================================================
