@@ -334,6 +334,20 @@ elif [ -d "$FRONTEND_DIR" ]; then
         warn "Frontend dist/ nicht gefunden — Build moeglicherweise fehlgeschlagen."
     fi
 
+    # Offline-Katalog Bundle bauen (catalog-embed)
+    CATALOG_EMBED_DIR="${INSTALL_DIR}/catalog-embed"
+    if [ -d "$CATALOG_EMBED_DIR" ] && [ -f "${CATALOG_EMBED_DIR}/package.json" ]; then
+        cd "$CATALOG_EMBED_DIR"
+        info "Installiere catalog-embed Abhaengigkeiten..."
+        npm ci 2>&1
+        info "Baue Offline-Katalog Bundle..."
+        VITE_BUILD_TARGET=offline npx vite build 2>&1
+        info "Offline-Katalog Bundle gebaut."
+        cd "$INSTALL_DIR"
+    else
+        warn "catalog-embed/ nicht gefunden — Offline-Katalog Bundle wird nicht gebaut."
+    fi
+
     cd "$INSTALL_DIR"
 else
     warn "Frontend-Verzeichnis nicht gefunden — ueberspringe Frontend-Build."
