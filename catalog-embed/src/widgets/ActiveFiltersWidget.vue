@@ -23,7 +23,17 @@ const chips = computed(() => {
   for (const [attrId, val] of Object.entries(state.activeFilters)) {
     const facet = state.facets.find(f => String(f.attribute_id) === String(attrId))
     const label = facet ? facet.label : `Filter ${attrId}`
-    items.push({ type: 'filter', attrId, label: `${label}: ${val}` })
+    // Resolve display values for ValueList facets (IDs → names)
+    let displayVal = val
+    if (facet?.values?.length) {
+      const selectedIds = val.split(',').filter(Boolean)
+      const names = selectedIds.map(id => {
+        const v = facet.values.find(fv => String(fv.value_id) === id)
+        return v ? v.value : id
+      })
+      displayVal = names.join(', ')
+    }
+    items.push({ type: 'filter', attrId, label: `${label}: ${displayVal}` })
   }
   return items
 })

@@ -7,7 +7,9 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Resources\Api\V1\CatalogCategoryNodeResource;
 use App\Http\Resources\Api\V1\CatalogProductDetailResource;
 use App\Http\Resources\Api\V1\CatalogProductResource;
+use App\Models\AttributeType;
 use App\Models\AttributeViewAssignment;
+use App\Models\DictionaryEntry;
 use App\Models\Hierarchy;
 use App\Models\HierarchyNode;
 use App\Models\Media;
@@ -1072,7 +1074,11 @@ class CatalogController extends BaseController
                     ->get();
 
                 $entryIds = $rows->pluck('value_selection_id')->toArray();
-                $entries = ValueListEntry::whereIn('id', $entryIds)->get()->keyBy('id');
+                if ($dataType === 'Dictionary') {
+                    $entries = DictionaryEntry::whereIn('id', $entryIds)->get()->keyBy('id');
+                } else {
+                    $entries = ValueListEntry::whereIn('id', $entryIds)->get()->keyBy('id');
+                }
 
                 $values = [];
                 foreach ($rows as $row) {
@@ -1080,9 +1086,15 @@ class CatalogController extends BaseController
                     if (!$entry) {
                         continue;
                     }
-                    $displayValue = $lang === 'en' && $entry->display_value_en
-                        ? $entry->display_value_en
-                        : $entry->display_value_de;
+                    if ($dataType === 'Dictionary') {
+                        $displayValue = $lang === 'en' && $entry->short_text_en
+                            ? $entry->short_text_en
+                            : $entry->short_text_de;
+                    } else {
+                        $displayValue = $lang === 'en' && $entry->display_value_en
+                            ? $entry->display_value_en
+                            : $entry->display_value_de;
+                    }
                     $values[] = [
                         'value' => $displayValue,
                         'value_id' => $row->value_selection_id,
@@ -1164,6 +1176,24 @@ class CatalogController extends BaseController
         }
 
         return response()->json(['facets' => $facets]);
+    }
+
+    /**
+     * GET /api/v1/catalog/attribute-groups
+     *
+     * Returns attribute groups for grouping product attributes in detail view.
+     */
+    public function attributeGroups(Request $request): JsonResponse
+    {
+        $lang = $request->query('lang', 'de');
+
+        $groups = AttributeType::orderBy('sort_order')->get()->map(fn ($g) => [
+            'id' => $g->id,
+            'name' => $lang === 'en' && $g->name_en ? $g->name_en : $g->name_de,
+            'sort_order' => $g->sort_order,
+        ])->values();
+
+        return response()->json(['data' => $groups]);
     }
 
     /**

@@ -189,6 +189,16 @@ export const catalogApi = {
     return data
   },
 
+  async getAttributeGroups(options = {}) {
+    const path = `/catalog/attribute-groups${buildQuery(options)}`
+    const cached = getCached(path)
+    if (cached) return cached
+    const resp = await request(path)
+    const data = await resp.json()
+    setCache(path, data)
+    return data
+  },
+
   async downloadProductPdf(id, options = {}) {
     const resp = await request(`/catalog/products/${id}/pdf${buildQuery(options)}`)
     return resp.blob()

@@ -181,6 +181,7 @@ async function init(options = {}) {
   await Promise.all([
     actions.fetchCategories(),
     actions.fetchFacets(),
+    actions.fetchAttributeGroups(),
   ])
 
   // Load products (this triggers the chunk loading with progress)
