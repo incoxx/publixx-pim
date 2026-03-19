@@ -4,7 +4,9 @@
 /public/storage
 /public/pim-assets
 /public/spa.html
-/catalog-embed/dist
+/catalog-embed/dist/*
+!/catalog-embed/dist/catalog-offline.umd.js
+!/catalog-embed/dist/catalog-embed.css
 /catalog-embed/node_modules
 /storage/*.key
 /storage/app/imports
