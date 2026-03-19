@@ -508,9 +508,9 @@ else
     info "Queue Worker gestartet (PID: $!)."
 fi
 
-# Apache neu laden (graceful)
-systemctl reload apache2 > /dev/null 2>&1 && info "Apache neu geladen." \
-    || warn "Apache konnte nicht neu geladen werden."
+# Apache neu starten (restart statt reload, damit neue PHP-Configs greifen)
+systemctl restart apache2 > /dev/null 2>&1 && info "Apache neu gestartet." \
+    || warn "Apache konnte nicht neu gestartet werden."
 
 # ═════════════════════════════════════════════════════════════════════════════
 #  9. HEALTHCHECK & WARTUNGSMODUS BEENDEN
