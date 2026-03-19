@@ -799,34 +799,18 @@ class OfflineCatalogExportService
     }
 
     /**
-     * Build the offline catalog-embed bundle if not already present.
+     * Verify the offline catalog-embed bundle exists.
+     *
+     * The bundle must be built beforehand via:
+     *   cd catalog-embed && VITE_BUILD_TARGET=offline npx vite build
      */
     private function ensureOfflineBundleBuilt(): void
     {
         $distJs = base_path('catalog-embed/dist/catalog-offline.umd.js');
-        if (file_exists($distJs)) {
-            return; // Already built
-        }
-
-        $catalogEmbedDir = base_path('catalog-embed');
-
-        // Install deps if needed
-        if (!is_dir("{$catalogEmbedDir}/node_modules")) {
-            exec("cd " . escapeshellarg($catalogEmbedDir) . " && npm install 2>&1", $output, $code);
-            if ($code !== 0) {
-                Log::channel('export')->warning('npm install for catalog-embed failed', ['output' => implode("\n", $output)]);
-            }
-        }
-
-        // Build
-        exec(
-            "cd " . escapeshellarg($catalogEmbedDir) . " && VITE_BUILD_TARGET=offline npx vite build 2>&1",
-            $output,
-            $code
-        );
-
-        if ($code !== 0) {
-            Log::channel('export')->warning('Offline bundle build failed', ['output' => implode("\n", $output)]);
+        if (!file_exists($distJs)) {
+            throw new \RuntimeException(
+                'Offline-Bundle nicht gefunden. Bitte zuerst unter Einstellungen → Offline den Offline-Katalog bauen.'
+            );
         }
     }
 

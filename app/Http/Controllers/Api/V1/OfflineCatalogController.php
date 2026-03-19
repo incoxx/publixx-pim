@@ -98,6 +98,67 @@ class OfflineCatalogController extends BaseController
     }
 
     /**
+     * POST /api/v1/admin/offline-catalog/build-bundle
+     *
+     * Baut das Offline-JS/CSS-Bundle (catalog-offline.umd.js + catalog-embed.css).
+     */
+    public function buildBundle(): JsonResponse
+    {
+        $catalogEmbedDir = base_path('catalog-embed');
+
+        if (!is_dir($catalogEmbedDir)) {
+            return response()->json(['message' => 'catalog-embed Verzeichnis nicht gefunden.'], 500);
+        }
+
+        // Install deps if needed
+        if (!is_dir("{$catalogEmbedDir}/node_modules")) {
+            exec("cd " . escapeshellarg($catalogEmbedDir) . " && npm install 2>&1", $output, $code);
+            if ($code !== 0) {
+                return response()->json(['message' => 'npm install fehlgeschlagen.', 'output' => implode("\n", $output)], 500);
+            }
+        }
+
+        // Build
+        $output = [];
+        exec(
+            "cd " . escapeshellarg($catalogEmbedDir) . " && VITE_BUILD_TARGET=offline npx vite build 2>&1",
+            $output,
+            $code,
+        );
+
+        if ($code !== 0) {
+            return response()->json(['message' => 'Build fehlgeschlagen.', 'output' => implode("\n", $output)], 500);
+        }
+
+        $jsPath = "{$catalogEmbedDir}/dist/catalog-offline.umd.js";
+        $cssPath = "{$catalogEmbedDir}/dist/catalog-embed.css";
+
+        return response()->json([
+            'message' => 'Offline-Bundle erfolgreich gebaut.',
+            'js_size' => file_exists($jsPath) ? filesize($jsPath) : 0,
+            'css_size' => file_exists($cssPath) ? filesize($cssPath) : 0,
+        ]);
+    }
+
+    /**
+     * GET /api/v1/admin/offline-catalog/bundle-status
+     *
+     * Prüft ob das Offline-Bundle existiert.
+     */
+    public function bundleStatus(): JsonResponse
+    {
+        $jsPath = base_path('catalog-embed/dist/catalog-offline.umd.js');
+        $cssPath = base_path('catalog-embed/dist/catalog-embed.css');
+
+        return response()->json([
+            'built' => file_exists($jsPath),
+            'js_size' => file_exists($jsPath) ? filesize($jsPath) : 0,
+            'css_size' => file_exists($cssPath) ? filesize($cssPath) : 0,
+            'built_at' => file_exists($jsPath) ? date('c', filemtime($jsPath)) : null,
+        ]);
+    }
+
+    /**
      * GET /api/v1/admin/offline-catalog/download
      *
      * Lädt die zuletzt erstellte Offline-Katalog-ZIP-Datei herunter.

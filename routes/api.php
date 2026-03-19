@@ -633,6 +633,8 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::get('admin/offline-catalog/progress', [OfflineCatalogController::class, 'progress']);
     Route::post('admin/offline-catalog/cancel', [OfflineCatalogController::class, 'cancel']);
     Route::get('admin/offline-catalog/download', [OfflineCatalogController::class, 'download']);
+    Route::post('admin/offline-catalog/build-bundle', [OfflineCatalogController::class, 'buildBundle']);
+    Route::get('admin/offline-catalog/bundle-status', [OfflineCatalogController::class, 'bundleStatus']);
     Route::put('settings/catalog-theme', [SettingController::class, 'updateCatalogTheme']);
     Route::post('admin/search-reindex', [SettingController::class, 'reindexSearch']);
     Route::get('admin/search-reindex/progress', [SettingController::class, 'reindexProgress']);

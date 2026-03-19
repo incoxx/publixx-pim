@@ -18,4 +18,12 @@ export default {
   download() {
     return client.get('/admin/offline-catalog/download', { responseType: 'blob' })
   },
+
+  buildBundle() {
+    return client.post('/admin/offline-catalog/build-bundle', {}, { timeout: 120000 })
+  },
+
+  bundleStatus() {
+    return client.get('/admin/offline-catalog/bundle-status')
+  },
 }

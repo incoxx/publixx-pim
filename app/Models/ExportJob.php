@@ -19,6 +19,10 @@ class ExportJob extends Model
         'description',
         'export_profile_id',
         'search_profile_id',
+        'catalog_template_id',
+        'report_template_id',
+        'pdf_template_id',
+        'output_format',
         'format',
         'sections',
         'filters',
@@ -64,6 +68,21 @@ class ExportJob extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function catalogTemplate(): BelongsTo
+    {
+        return $this->belongsTo(CatalogTemplate::class);
+    }
+
+    public function reportTemplate(): BelongsTo
+    {
+        return $this->belongsTo(ReportTemplate::class);
+    }
+
+    public function pdfTemplate(): BelongsTo
+    {
+        return $this->belongsTo(PdfTemplate::class);
     }
 
     public function logs(): HasMany

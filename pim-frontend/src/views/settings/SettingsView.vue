@@ -40,6 +40,30 @@ const offlineCatalogTemplates = ref([])
 const offlineCatalogTemplateId = ref(null)
 const offlineCatalogTemplatesLoading = ref(false)
 
+const offlineBundleStatus = ref(null)
+const offlineBundleBuilding = ref(false)
+const offlineBundleError = ref(null)
+
+async function loadOfflineBundleStatus() {
+  try {
+    const { data } = await offlineCatalogApi.bundleStatus()
+    offlineBundleStatus.value = data
+  } catch { /* ignore */ }
+}
+
+async function buildOfflineBundle() {
+  offlineBundleBuilding.value = true
+  offlineBundleError.value = null
+  try {
+    await offlineCatalogApi.buildBundle()
+    await loadOfflineBundleStatus()
+  } catch (e) {
+    offlineBundleError.value = e.response?.data?.message || 'Build fehlgeschlagen.'
+  } finally {
+    offlineBundleBuilding.value = false
+  }
+}
+
 async function loadOfflineCatalogTemplates() {
   offlineCatalogTemplatesLoading.value = true
   try {
@@ -1174,7 +1198,10 @@ watch(activeMainTab, (tab) => {
   if (tab === 'env' && envGroups.value.length === 0) loadEnvInfo()
   if (tab === 'system' && !systemStatus.value) loadSystemStatus()
   if (tab === 'processes') { loadQueueJobs(); loadSystemProcesses() }
-  if (tab === 'offline' && offlineCatalogTemplates.value.length === 0) loadOfflineCatalogTemplates()
+  if (tab === 'offline') {
+    if (offlineCatalogTemplates.value.length === 0) loadOfflineCatalogTemplates()
+    if (!offlineBundleStatus.value) loadOfflineBundleStatus()
+  }
 })
 
 // Reload attributes when hierarchy selection changes
@@ -2094,6 +2121,36 @@ onUnmounted(() => {
         Die ZIP kann auf einem Webserver oder lokal ohne Backend betrieben werden.
         PDF-Export und Excel-Export stehen im Offline-Katalog nicht zur Verfügung.
       </p>
+
+      <!-- Offline Bundle Status -->
+      <div class="p-3 rounded-lg border space-y-2" :class="offlineBundleStatus?.built ? 'border-[var(--color-border)] bg-[var(--color-bg)]' : 'border-amber-300 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-800'">
+        <div class="flex items-center justify-between gap-3">
+          <div class="text-xs">
+            <span v-if="offlineBundleStatus?.built" class="flex items-center gap-1.5 text-[var(--color-text-secondary)]">
+              <CheckCircle class="w-3.5 h-3.5 text-green-500" />
+              Offline-Bundle vorhanden
+              <span class="text-[var(--color-text-tertiary)]">
+                ({{ formatFileSize(offlineBundleStatus.js_size + offlineBundleStatus.css_size) }})
+              </span>
+            </span>
+            <span v-else class="flex items-center gap-1.5 text-amber-700 dark:text-amber-400">
+              <AlertTriangle class="w-3.5 h-3.5" />
+              Offline-Bundle nicht vorhanden — muss zuerst gebaut werden.
+            </span>
+          </div>
+          <button
+            class="pim-btn-sm text-xs"
+            :class="offlineBundleStatus?.built ? 'pim-btn-secondary' : 'pim-btn-primary'"
+            :disabled="offlineBundleBuilding"
+            @click="buildOfflineBundle"
+          >
+            <Loader2 v-if="offlineBundleBuilding" class="w-3 h-3 animate-spin" />
+            <RefreshCw v-else class="w-3 h-3" />
+            {{ offlineBundleBuilding ? 'Wird gebaut...' : (offlineBundleStatus?.built ? 'Neu bauen' : 'Bundle bauen') }}
+          </button>
+        </div>
+        <div v-if="offlineBundleError" class="text-xs text-red-600">{{ offlineBundleError }}</div>
+      </div>
 
       <!-- Template Selection -->
       <div class="space-y-1">

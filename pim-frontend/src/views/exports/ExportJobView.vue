@@ -4,13 +4,16 @@ import {
   Play, Plus, Trash2, Edit3, Download, FileJson, FileSpreadsheet,
   FileText, FileCode, Clock, CheckCircle, XCircle, Loader2,
   ChevronDown, ChevronUp, Save, X, Send, HardDrive, Globe, Server,
-  History, FolderOpen, Timer,
+  History, FolderOpen, Timer, WifiOff, FileBarChart, Layout,
 } from 'lucide-vue-next'
 import { resolveApiUrl } from '@/api/client'
 import exportJobsApi from '@/api/exportJobs'
 import exportFilesApi from '@/api/exportFiles'
 import searchProfilesApi from '@/api/searchProfiles'
 import jsonExportImportApi from '@/api/jsonExportImport'
+import catalogTemplatesApi from '@/api/catalogTemplates'
+import reportTemplatesApi from '@/api/reportTemplates'
+import pdfTemplatesApi from '@/api/pdfTemplates'
 import StreamUrlBox from '@/components/shared/StreamUrlBox.vue'
 
 // --- State ---
@@ -31,6 +34,11 @@ const searchProfiles = ref([])
 
 // --- Available Sections (JSON) ---
 const availableSections = ref([])
+
+// --- Template lists for new job types ---
+const catalogTemplates = ref([])
+const reportTemplates = ref([])
+const pdfTemplates = ref([])
 
 // --- Logs ---
 const jobLogs = ref({}) // jobId → logs[]
@@ -57,6 +65,10 @@ function createEmptyForm() {
     description: '',
     format: 'json',
     search_profile_id: null,
+    catalog_template_id: null,
+    report_template_id: null,
+    pdf_template_id: null,
+    output_format: null,
     sections: [],
     filters: {
       status: '',
@@ -80,8 +92,21 @@ function createEmptyDeliveryConfig(type) {
 
 // --- Load ---
 onMounted(async () => {
-  await Promise.all([loadJobs(), loadSearchProfiles(), loadSections()])
+  await Promise.all([loadJobs(), loadSearchProfiles(), loadSections(), loadTemplates()])
 })
+
+async function loadTemplates() {
+  try {
+    const [cat, rep, pdf] = await Promise.all([
+      catalogTemplatesApi.list(),
+      reportTemplatesApi.list(),
+      pdfTemplatesApi.list(),
+    ])
+    catalogTemplates.value = (cat.data.data || []).filter(t => t.is_active)
+    reportTemplates.value = rep.data.data || []
+    pdfTemplates.value = pdf.data.data || []
+  } catch { /* ignore — modules may not be available */ }
+}
 
 async function loadJobs() {
   loading.value = true
@@ -157,6 +182,10 @@ function openEdit(job) {
     description: job.description || '',
     format: job.format,
     search_profile_id: job.search_profile_id,
+    catalog_template_id: job.catalog_template_id || null,
+    report_template_id: job.report_template_id || null,
+    pdf_template_id: job.pdf_template_id || null,
+    output_format: job.output_format || null,
     sections: job.sections || [],
     filters: job.filters || { status: '', product_type: '', search_text: '' },
     cron_expression: job.cron_expression || null,
@@ -280,6 +309,9 @@ const formatIcon = (fmt) => ({
   excel: FileSpreadsheet,
   csv: FileText,
   xml: FileCode,
+  offline_catalog: WifiOff,
+  report: FileBarChart,
+  pdf_template: Layout,
 }[fmt] || FileJson)
 
 const formatLabel = (fmt) => ({
@@ -287,6 +319,9 @@ const formatLabel = (fmt) => ({
   excel: 'Excel',
   csv: 'CSV',
   xml: 'XML',
+  offline_catalog: 'Offline-Katalog',
+  report: 'Bericht',
+  pdf_template: 'PDF-Vorlage',
 }[fmt] || fmt)
 
 const statusColor = (status) => ({
@@ -747,7 +782,7 @@ const sectionLabel = (s) => ({
               <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Format *</label>
               <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 <button
-                  v-for="fmt in ['json', 'excel', 'csv', 'xml']"
+                  v-for="fmt in ['json', 'excel', 'csv', 'xml', 'offline_catalog', 'report', 'pdf_template']"
                   :key="fmt"
                   :class="[
                     'flex flex-col items-center gap-1.5 p-3 rounded-lg border-2 transition-colors cursor-pointer',
@@ -770,8 +805,68 @@ const sectionLabel = (s) => ({
               </div>
             </div>
 
-            <!-- Suchprofil -->
-            <div>
+            <!-- Offline-Katalog: Template-Auswahl -->
+            <div v-if="form.format === 'offline_catalog'">
+              <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Katalog-Vorlage</label>
+              <select v-model="form.catalog_template_id" class="pim-input text-xs w-full">
+                <option :value="null">— Standard (Basic) —</option>
+                <option v-for="tpl in catalogTemplates" :key="tpl.id" :value="tpl.id">{{ tpl.name }}</option>
+              </select>
+              <p class="text-[10px] text-[var(--color-text-tertiary)] mt-0.5">HTML-Template für die index.html im Offline-ZIP.</p>
+            </div>
+
+            <!-- Bericht: Template-Auswahl + Ausgabeformat -->
+            <div v-if="form.format === 'report'" class="space-y-3">
+              <div>
+                <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Berichtsvorlage *</label>
+                <select v-model="form.report_template_id" class="pim-input text-xs w-full">
+                  <option :value="null">-- Vorlage wählen --</option>
+                  <option v-for="tpl in reportTemplates" :key="tpl.id" :value="tpl.id">{{ tpl.name }}</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Ausgabeformat</label>
+                <div class="flex gap-2">
+                  <button
+                    v-for="fmt in ['pdf', 'docx']"
+                    :key="fmt"
+                    class="px-3 py-1.5 text-xs rounded-md border transition-colors"
+                    :class="form.output_format === fmt
+                      ? 'border-[var(--color-accent)] bg-[color-mix(in_srgb,var(--color-accent)_5%,transparent)] text-[var(--color-accent)]'
+                      : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-accent)]/50'"
+                    @click="form.output_format = fmt"
+                  >{{ fmt.toUpperCase() }}</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- PDF-Vorlage: Template-Auswahl + Ausgabeformat -->
+            <div v-if="form.format === 'pdf_template'" class="space-y-3">
+              <div>
+                <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">PDF-Vorlage *</label>
+                <select v-model="form.pdf_template_id" class="pim-input text-xs w-full">
+                  <option :value="null">-- Vorlage wählen --</option>
+                  <option v-for="tpl in pdfTemplates" :key="tpl.id" :value="tpl.id">{{ tpl.name }}</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Ausgabeformat</label>
+                <div class="flex gap-2">
+                  <button
+                    v-for="fmt in ['pdf', 'docx', 'indesign']"
+                    :key="fmt"
+                    class="px-3 py-1.5 text-xs rounded-md border transition-colors"
+                    :class="form.output_format === fmt
+                      ? 'border-[var(--color-accent)] bg-[color-mix(in_srgb,var(--color-accent)_5%,transparent)] text-[var(--color-accent)]'
+                      : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-accent)]/50'"
+                    @click="form.output_format = fmt"
+                  >{{ fmt === 'indesign' ? 'InDesign (JSX)' : fmt.toUpperCase() }}</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Suchprofil (nicht für offline_catalog) -->
+            <div v-if="form.format !== 'offline_catalog'">
               <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Suchprofil (optional)</label>
               <select v-model="form.search_profile_id" class="pim-input text-xs w-full">
                 <option :value="null">-- Kein Suchprofil --</option>
@@ -779,8 +874,8 @@ const sectionLabel = (s) => ({
               </select>
             </div>
 
-            <!-- Filter -->
-            <div>
+            <!-- Filter (nicht für offline_catalog) -->
+            <div v-if="!['offline_catalog'].includes(form.format)">
               <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Filter</label>
               <div class="grid grid-cols-3 gap-2">
                 <div>
