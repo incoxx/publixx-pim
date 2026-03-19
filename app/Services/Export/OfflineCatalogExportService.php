@@ -773,17 +773,19 @@ class OfflineCatalogExportService
      */
     private function buildOfflineHtml(string $tmpDir, ?string $templateId, string $lang): void
     {
-        // 1. Ensure offline bundle is built
-        $this->ensureOfflineBundleBuilt();
-
-        // 2. Copy JS & CSS into tmpDir
+        // 1. Copy JS & CSS into tmpDir
         $embedDist = base_path('catalog-embed/dist');
         $jsFile = "{$embedDist}/catalog-offline.umd.js";
         $cssFile = "{$embedDist}/catalog-embed.css";
 
-        if (file_exists($jsFile)) {
-            copy($jsFile, "{$tmpDir}/catalog-offline.umd.js");
+        if (!file_exists($jsFile)) {
+            Log::channel('export')->error('Offline-Bundle JS nicht gefunden', ['path' => $jsFile]);
+            throw new \RuntimeException(
+                "Offline-Bundle nicht gefunden ({$jsFile}). Bitte per Deployment bereitstellen: cd catalog-embed && VITE_BUILD_TARGET=offline npx vite build"
+            );
         }
+
+        copy($jsFile, "{$tmpDir}/catalog-offline.umd.js");
         if (file_exists($cssFile)) {
             copy($cssFile, "{$tmpDir}/catalog-embed.css");
         }
@@ -796,22 +798,6 @@ class OfflineCatalogExportService
 
         // 5. Write index.html
         file_put_contents("{$tmpDir}/index.html", $html);
-    }
-
-    /**
-     * Verify the offline catalog-embed bundle exists.
-     *
-     * The bundle must be built beforehand via:
-     *   cd catalog-embed && VITE_BUILD_TARGET=offline npx vite build
-     */
-    private function ensureOfflineBundleBuilt(): void
-    {
-        $distJs = base_path('catalog-embed/dist/catalog-offline.umd.js');
-        if (!file_exists($distJs)) {
-            throw new \RuntimeException(
-                'Offline-Bundle nicht gefunden. Bitte zuerst unter Einstellungen → Offline den Offline-Katalog bauen.'
-            );
-        }
     }
 
     /**

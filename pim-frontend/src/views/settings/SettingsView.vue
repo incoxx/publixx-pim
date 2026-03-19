@@ -2123,33 +2123,22 @@ onUnmounted(() => {
       </p>
 
       <!-- Offline Bundle Status -->
-      <div class="p-3 rounded-lg border space-y-2" :class="offlineBundleStatus?.built ? 'border-[var(--color-border)] bg-[var(--color-bg)]' : 'border-amber-300 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-800'">
-        <div class="flex items-center justify-between gap-3">
-          <div class="text-xs">
-            <span v-if="offlineBundleStatus?.built" class="flex items-center gap-1.5 text-[var(--color-text-secondary)]">
-              <CheckCircle class="w-3.5 h-3.5 text-green-500" />
-              Offline-Bundle vorhanden
-              <span class="text-[var(--color-text-tertiary)]">
-                ({{ formatFileSize(offlineBundleStatus.js_size + offlineBundleStatus.css_size) }})
-              </span>
+      <div class="p-3 rounded-lg border" :class="offlineBundleStatus?.built ? 'border-[var(--color-border)] bg-[var(--color-bg)]' : 'border-amber-300 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-800'">
+        <div class="text-xs">
+          <span v-if="offlineBundleStatus?.built" class="flex items-center gap-1.5 text-[var(--color-text-secondary)]">
+            <CheckCircle class="w-3.5 h-3.5 text-green-500" />
+            Offline-Bundle vorhanden
+            <span class="text-[var(--color-text-tertiary)]">
+              ({{ formatFileSize(offlineBundleStatus.js_size + offlineBundleStatus.css_size) }},
+              gebaut am {{ new Date(offlineBundleStatus.built_at).toLocaleDateString('de') }})
             </span>
-            <span v-else class="flex items-center gap-1.5 text-amber-700 dark:text-amber-400">
-              <AlertTriangle class="w-3.5 h-3.5" />
-              Offline-Bundle nicht vorhanden — muss zuerst gebaut werden.
-            </span>
-          </div>
-          <button
-            class="pim-btn-sm text-xs"
-            :class="offlineBundleStatus?.built ? 'pim-btn-secondary' : 'pim-btn-primary'"
-            :disabled="offlineBundleBuilding"
-            @click="buildOfflineBundle"
-          >
-            <Loader2 v-if="offlineBundleBuilding" class="w-3 h-3 animate-spin" />
-            <RefreshCw v-else class="w-3 h-3" />
-            {{ offlineBundleBuilding ? 'Wird gebaut...' : (offlineBundleStatus?.built ? 'Neu bauen' : 'Bundle bauen') }}
-          </button>
+          </span>
+          <span v-else class="flex items-center gap-1.5 text-amber-700 dark:text-amber-400">
+            <AlertTriangle class="w-3.5 h-3.5" />
+            Offline-Bundle nicht vorhanden. Bitte per Deployment bereitstellen:
+            <code class="ml-1 text-[10px] bg-[var(--color-bg)] px-1.5 py-0.5 rounded font-mono">cd catalog-embed && VITE_BUILD_TARGET=offline npx vite build</code>
+          </span>
         </div>
-        <div v-if="offlineBundleError" class="text-xs text-red-600">{{ offlineBundleError }}</div>
       </div>
 
       <!-- Template Selection -->
