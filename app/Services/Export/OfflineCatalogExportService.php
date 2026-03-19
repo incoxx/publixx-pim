@@ -940,11 +940,21 @@ class OfflineCatalogExportService
   </script>
 HTML;
 
+        // Ensure essential hidden widget placeholders are present (wishlist drawer,
+        // product detail modal, compare modal). Templates from the DB might omit these.
+        $requiredWidgets = ['wishlist', 'product-detail', 'compare'];
+        $hiddenWidgetHtml = '';
+        foreach ($requiredWidgets as $widget) {
+            if (! str_contains($html, 'data-catalog="' . $widget . '"')) {
+                $hiddenWidgetHtml .= '  <div data-catalog="' . $widget . '"></div>' . "\n";
+            }
+        }
+
         if (str_contains($html, '</body>')) {
-            $html = str_replace('</body>', $offlineScript . "\n</body>", $html);
+            $html = str_replace('</body>', $hiddenWidgetHtml . $offlineScript . "\n</body>", $html);
         } else {
             // No </body> tag — append at end
-            $html .= "\n" . $offlineScript;
+            $html .= "\n" . $hiddenWidgetHtml . $offlineScript;
         }
 
         return $html;
