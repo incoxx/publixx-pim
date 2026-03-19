@@ -831,7 +831,7 @@ class OfflineCatalogExportService
             'catalog_compare_enabled' => $themePayload['catalog_compare_enabled'] ?? false,
             'catalog_compare_max_products' => $themePayload['catalog_compare_max_products'] ?? 3,
             'catalog_share_wishlist_enabled' => $themePayload['catalog_share_wishlist_enabled'] ?? false,
-            'catalog_pdf_enabled' => false, // PDF not available offline
+            'catalog_pdf_enabled' => $themePayload['catalog_pdf_enabled'] ?? false, // client-side PDF via jsPDF
             'catalog_excel_export_enabled' => false, // Excel not available offline
             'catalog_access_mode' => 'public', // offline is always public
             'mode' => 'offline',
@@ -966,6 +966,7 @@ HTML;
     body { margin: 0; font-family: system-ui, sans-serif; background: #f5f5f5; }
     .page-header { background: #1B3A5C; color: white; padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; }
     .page-header h1 { margin: 0; font-size: 1.25rem; }
+    .page-header__actions { display: flex; align-items: center; gap: 12px; }
     .layout { display: grid; grid-template-columns: 280px 1fr; max-width: 1400px; margin: 0 auto; min-height: calc(100vh - 64px); }
     .sidebar { background: white; border-right: 1px solid #e5e7eb; overflow-y: auto; }
     .main { padding: 24px; }
@@ -974,14 +975,18 @@ HTML;
 </head>
 <body>
   <header class="page-header">
-    <h1>Produktkatalog</h1>
     <div style="display:flex;align-items:center;gap:12px">
+      <div data-catalog="sidebar-toggle"></div>
+      <h1>Produktkatalog</h1>
+    </div>
+    <div class="page-header__actions">
       <div data-catalog="search"></div>
-      <div data-catalog="wishlist"></div>
+      <div data-catalog="locale"></div>
+      <div data-catalog="wishlist-button"></div>
     </div>
   </header>
   <div class="layout">
-    <aside class="sidebar">
+    <aside class="sidebar" data-catalog-sidebar>
       <div data-catalog="categories"></div>
       <div data-catalog="facets"></div>
     </aside>
@@ -992,6 +997,7 @@ HTML;
       <div data-catalog="pagination"></div>
     </main>
   </div>
+  <div data-catalog="wishlist"></div>
   <div data-catalog="product-detail"></div>
   <div data-catalog="compare"></div>
 </body>
