@@ -25,6 +25,18 @@ export default {
     return `${base}?token=${encodeURIComponent(token)}`
   },
 
+  /**
+   * Returns the preview URL (opens in new tab).
+   */
+  previewUrl(token) {
+    const base = resolveApiUrl('admin/offline-catalog/preview')
+    return `${base}?token=${encodeURIComponent(token)}`
+  },
+
+  cleanup() {
+    return client.delete('/admin/offline-catalog/cleanup')
+  },
+
   buildBundle() {
     return client.post('/admin/offline-catalog/build-bundle', {}, { timeout: 120000 })
   },

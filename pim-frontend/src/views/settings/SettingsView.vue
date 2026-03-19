@@ -40,6 +40,9 @@ const offlineCatalogTemplates = ref([])
 const offlineCatalogTemplateId = ref(null)
 const offlineCatalogTemplatesLoading = ref(false)
 
+const offlineCatalogCleaning = ref(false)
+const offlineCatalogCleanupResult = ref(null)
+
 const offlineBundleStatus = ref(null)
 const offlineBundleBuilding = ref(false)
 const offlineBundleError = ref(null)
@@ -132,6 +135,27 @@ function downloadOfflineCatalog() {
     document.body.removeChild(link)
   } catch (e) {
     offlineCatalogError.value = 'Download fehlgeschlagen.'
+  }
+}
+
+function previewOfflineCatalog() {
+  const url = offlineCatalogApi.previewUrl(authStore.token)
+  window.open(url, '_blank')
+}
+
+async function cleanupOfflineCatalog() {
+  offlineCatalogCleaning.value = true
+  offlineCatalogCleanupResult.value = null
+  try {
+    const { data } = await offlineCatalogApi.cleanup()
+    const freed = data.freed_bytes ? ` (${formatFileSize(data.freed_bytes)} freigegeben)` : ''
+    offlineCatalogCleanupResult.value = `${data.message}${freed}`
+    offlineCatalogResult.value = null
+    offlineCatalogError.value = null
+  } catch (e) {
+    offlineCatalogError.value = 'Aufräumen fehlgeschlagen.'
+  } finally {
+    offlineCatalogCleaning.value = false
   }
 }
 
@@ -2214,12 +2238,40 @@ onUnmounted(() => {
             <p>{{ offlineCatalogResult.total_products?.toLocaleString() }} Produkte in {{ offlineCatalogResult.chunks }} Chunks</p>
             <p>{{ formatFileSize(offlineCatalogResult.file_size) }} · {{ offlineCatalogResult.duration }}s</p>
           </div>
+          <div class="flex items-center gap-2 flex-wrap">
+            <button
+              class="pim-btn pim-btn-primary text-xs"
+              @click="downloadOfflineCatalog"
+            >
+              <HardDrive class="w-3.5 h-3.5" /> ZIP herunterladen
+            </button>
+            <button
+              class="pim-btn pim-btn-secondary text-xs"
+              @click="previewOfflineCatalog"
+            >
+              <Eye class="w-3.5 h-3.5" /> Vorschau
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Cleanup -->
+      <div class="pt-3 border-t border-[var(--color-border)]">
+        <div class="flex items-center justify-between">
+          <div class="text-xs text-[var(--color-text-tertiary)]">
+            Generierte ZIPs, Preview-Dateien und temporäre Arbeitsdateien löschen.
+          </div>
           <button
-            class="pim-btn pim-btn-primary text-xs"
-            @click="downloadOfflineCatalog"
+            class="pim-btn-sm pim-btn-danger text-xs"
+            :disabled="offlineCatalogCleaning"
+            @click="cleanupOfflineCatalog"
           >
-            <HardDrive class="w-3.5 h-3.5" /> ZIP herunterladen
+            <Trash2 class="w-3 h-3" />
+            {{ offlineCatalogCleaning ? 'Bereinige...' : 'Aufräumen' }}
           </button>
+        </div>
+        <div v-if="offlineCatalogCleanupResult" class="mt-2 text-xs text-green-600 dark:text-green-400">
+          {{ offlineCatalogCleanupResult }}
         </div>
       </div>
     </div>

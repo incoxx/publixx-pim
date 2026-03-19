@@ -211,11 +211,16 @@ Route::prefix('v1/auth')->middleware(['auth:sanctum', 'throttle.pim'])->group(fu
 });
 
 // =========================================================================
-// Offline Catalog Download (Auth via Query-Parameter, da Browser-Navigation
-// keinen Authorization-Header senden kann)
+// Offline Catalog: Routen mit Token-Auth via Query-Parameter
+// (Browser-Navigation kann keinen Authorization-Header senden)
 // =========================================================================
 Route::get('v1/admin/offline-catalog/download', [OfflineCatalogController::class, 'download'])
     ->middleware('throttle.pim');
+Route::get('v1/admin/offline-catalog/preview', [OfflineCatalogController::class, 'preview'])
+    ->middleware('throttle.pim');
+Route::get('v1/admin/offline-catalog/preview-asset/{path}', [OfflineCatalogController::class, 'previewAsset'])
+    ->middleware('throttle.pim')
+    ->where('path', '.*');
 
 // =========================================================================
 // All authenticated routes
@@ -639,7 +644,8 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::post('admin/offline-catalog/generate', [OfflineCatalogController::class, 'generate']);
     Route::get('admin/offline-catalog/progress', [OfflineCatalogController::class, 'progress']);
     Route::post('admin/offline-catalog/cancel', [OfflineCatalogController::class, 'cancel']);
-    // Download-Route ist außerhalb der Auth-Gruppe (unterstützt Token als Query-Parameter)
+    Route::delete('admin/offline-catalog/cleanup', [OfflineCatalogController::class, 'cleanup']);
+    // Download/Preview-Routen sind außerhalb der Auth-Gruppe (Token via Query-Parameter)
     Route::post('admin/offline-catalog/build-bundle', [OfflineCatalogController::class, 'buildBundle']);
     Route::get('admin/offline-catalog/bundle-status', [OfflineCatalogController::class, 'bundleStatus']);
     Route::put('settings/catalog-theme', [SettingController::class, 'updateCatalogTheme']);

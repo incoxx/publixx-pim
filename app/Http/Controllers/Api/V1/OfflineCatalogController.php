@@ -163,23 +163,132 @@ class OfflineCatalogController extends BaseController
     }
 
     /**
+     * GET /api/v1/admin/offline-catalog/preview
+     *
+     * Entpackt die ZIP und leitet auf die index.html weiter.
+     */
+    public function preview(Request $request)
+    {
+        $user = $this->resolveUser($request);
+        if (!$user) {
+            return response()->json(['message' => 'Nicht authentifiziert.'], 401);
+        }
+
+        $previewDir = storage_path('app/offline-preview');
+        if (!is_dir($previewDir) || !file_exists("{$previewDir}/index.html")) {
+            return response()->json(['message' => 'Keine Preview vorhanden. Bitte zuerst einen Export generieren.'], 404);
+        }
+
+        // Redirect auf die Asset-Route für index.html
+        return redirect(url('/api/v1/admin/offline-catalog/preview-asset/index.html'));
+    }
+
+    /**
+     * GET /api/v1/admin/offline-catalog/preview-asset/{path}
+     *
+     * Liefert eine statische Datei aus dem entpackten Preview-Verzeichnis.
+     * Keine Auth-Prüfung nötig — Zugriff erfordert Kenntnis der URL,
+     * und die Daten entsprechen dem öffentlichen Katalog.
+     */
+    public function previewAsset(Request $request, string $path)
+    {
+        // Path-Traversal verhindern
+        $path = ltrim($path, '/');
+        if (str_contains($path, '..')) {
+            return response('Ungültiger Pfad.', 400);
+        }
+
+        $previewDir = storage_path('app/offline-preview');
+        $filePath = realpath("{$previewDir}/{$path}");
+
+        // Sicherstellen, dass der aufgelöste Pfad innerhalb des Preview-Verzeichnisses liegt
+        if (!$filePath || !str_starts_with($filePath, realpath($previewDir))) {
+            return response('Datei nicht gefunden.', 404);
+        }
+
+        if (!is_file($filePath)) {
+            return response('Datei nicht gefunden.', 404);
+        }
+
+        $mimeTypes = [
+            'html' => 'text/html',
+            'js' => 'application/javascript',
+            'css' => 'text/css',
+            'json' => 'application/json',
+            'png' => 'image/png',
+            'jpg' => 'image/jpeg',
+            'jpeg' => 'image/jpeg',
+            'svg' => 'image/svg+xml',
+            'gif' => 'image/gif',
+            'ico' => 'image/x-icon',
+        ];
+
+        $ext = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
+        $mime = $mimeTypes[$ext] ?? 'application/octet-stream';
+
+        return response()->file($filePath, [
+            'Content-Type' => $mime,
+            'Cache-Control' => $ext === 'html' ? 'no-store' : 'public, max-age=3600',
+        ]);
+    }
+
+    /**
+     * DELETE /api/v1/admin/offline-catalog/cleanup
+     *
+     * Löscht alle generierten ZIPs und das Preview-Verzeichnis.
+     */
+    public function cleanup(Request $request): JsonResponse
+    {
+        $deletedFiles = 0;
+        $freedBytes = 0;
+
+        // 1. ZIP-Dateien in storage/app/exports/offline-catalog_*.zip löschen
+        $exportsDir = storage_path('app/exports');
+        if (is_dir($exportsDir)) {
+            foreach (glob("{$exportsDir}/offline-catalog_*.zip") as $file) {
+                $freedBytes += filesize($file);
+                unlink($file);
+                $deletedFiles++;
+            }
+        }
+
+        // 2. Preview-Verzeichnis löschen
+        $previewDir = storage_path('app/offline-preview');
+        if (is_dir($previewDir)) {
+            $this->deleteDirectory($previewDir);
+            $deletedFiles++;
+        }
+
+        // 3. Temporäre Build-Verzeichnisse löschen
+        $tmpDir = storage_path('app/tmp');
+        if (is_dir($tmpDir)) {
+            foreach (glob("{$tmpDir}/offline-catalog-*") as $dir) {
+                if (is_dir($dir)) {
+                    $this->deleteDirectory($dir);
+                    $deletedFiles++;
+                }
+            }
+        }
+
+        // 4. Cache-Einträge bereinigen
+        $this->service->clearProgress();
+
+        return response()->json([
+            'message' => 'Aufgeräumt.',
+            'deleted_files' => $deletedFiles,
+            'freed_bytes' => $freedBytes,
+        ]);
+    }
+
+    /**
      * GET /api/v1/admin/offline-catalog/download
      *
      * Lädt die zuletzt erstellte Offline-Katalog-ZIP-Datei herunter.
      */
     public function download(Request $request): \Symfony\Component\HttpFoundation\BinaryFileResponse|JsonResponse
     {
-        // Unterstütze Token als Query-Parameter für direkte Browser-Downloads
-        // (Browser-Navigation kann keinen Authorization-Header setzen)
-        if (!$request->user() && $request->query('token')) {
-            $accessToken = PersonalAccessToken::findToken($request->query('token'));
-            if (!$accessToken) {
-                return response()->json(['message' => 'Ungültiger Token.'], 401);
-            }
-            $request->setUserResolver(fn () => $accessToken->tokenable);
-        }
-
-        if (!$request->user()) {
+        $user = $this->resolveUser($request);
+        if (!$user) {
             return response()->json(['message' => 'Nicht authentifiziert.'], 401);
         }
 
@@ -203,5 +312,47 @@ class OfflineCatalogController extends BaseController
             'Content-Type' => 'application/zip',
             'Cache-Control' => 'no-store',
         ]);
+    }
+
+    // ─── Hilfsmethoden ────────────────────────────────────────────
+
+    /**
+     * Authentifizierung via Bearer-Header oder ?token= Query-Parameter.
+     * Nötig für Routen außerhalb der auth:sanctum Middleware (Browser-Navigation).
+     */
+    private function resolveUser(Request $request)
+    {
+        if ($request->user()) {
+            return $request->user();
+        }
+
+        $token = $request->query('token');
+        if ($token) {
+            $accessToken = PersonalAccessToken::findToken($token);
+            if ($accessToken) {
+                return $accessToken->tokenable;
+            }
+        }
+
+        return null;
+    }
+
+    private function deleteDirectory(string $dir): void
+    {
+        if (!is_dir($dir)) {
+            return;
+        }
+
+        $files = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($dir, \RecursiveDirectoryIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::CHILD_FIRST
+        );
+
+        foreach ($files as $fileinfo) {
+            $action = $fileinfo->isDir() ? 'rmdir' : 'unlink';
+            $action($fileinfo->getRealPath());
+        }
+
+        rmdir($dir);
     }
 }
