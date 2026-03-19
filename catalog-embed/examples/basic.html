@@ -71,7 +71,7 @@
     /* Mobile: sidebar collapsed */
     @media (max-width: 768px) {
       .layout { grid-template-columns: 1fr; }
-      .sidebar { display: none; }
+      .sidebar { display: none; } /* Mobile: handled by pxc-sidebar drawer */
     }
   </style>
 </head>
@@ -83,6 +83,7 @@
 
   <!-- Header: eigenes Design, Widget-Platzhalter drin -->
   <header class="page-header">
+    <div data-catalog="sidebar-toggle"></div>
     <h1>Mein Produktkatalog</h1>
     <div class="page-header__actions">
       <div data-catalog="search"></div>
@@ -93,7 +94,7 @@
 
   <div class="layout">
     <!-- Sidebar: Kategorien + Facetten -->
-    <aside class="sidebar">
+    <aside class="sidebar" data-catalog-sidebar>
       <div data-catalog="categories"></div>
       <div data-catalog="facets"></div>
     </aside>

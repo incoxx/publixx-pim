@@ -459,10 +459,8 @@
         flex-direction: column;
       }
       .aset-sidebar {
-        width: 100%;
-        border-right: none;
-        border-bottom: 1px solid var(--aset-border);
-        max-height: 300px;
+        /* Mobile: handled by pxc-sidebar drawer */
+        display: none;
       }
       .aset-content {
         padding: 16px;
@@ -488,6 +486,7 @@
   <!-- ===== HEADER — Yellow bar with Logo, Title, Actions ===== -->
   <header class="aset-header">
     <div class="aset-header__inner">
+      <div data-catalog="sidebar-toggle"></div>
       <div class="aset-logo">
         <div class="aset-logo__icon">
           <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="3" width="7" height="18" rx="1"/></svg>
@@ -507,7 +506,7 @@
   <!-- ===== MAIN LAYOUT ===== -->
   <div class="aset-page">
     <!-- Sidebar: Categories only -->
-    <aside class="aset-sidebar">
+    <aside class="aset-sidebar" data-catalog-sidebar>
       <div data-catalog="categories"></div>
     </aside>
 

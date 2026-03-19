@@ -471,7 +471,7 @@
       .as-layout {
         grid-template-columns: 1fr;
       }
-      .as-sidebar { display: none; }
+      .as-sidebar { display: none; } /* Mobile: handled by pxc-sidebar drawer */
       .as-hero { flex-direction: column; text-align: center; }
       .as-hero__text h2 { font-size: 28px; }
       .as-meta-nav__inner { flex-direction: column; gap: 4px; }
@@ -498,6 +498,7 @@
   <!-- ===== NAV MID — Yellow bar: Logo + Search + Cart ===== -->
   <nav class="as-nav-mid">
     <div class="as-nav-mid__inner">
+      <div data-catalog="sidebar-toggle"></div>
       <div class="as-logo">
         <div class="as-logo__placeholder">
           <div class="as-logo__icon">
@@ -545,7 +546,7 @@
   <div class="as-content">
     <div class="as-layout">
       <!-- Sidebar -->
-      <aside class="as-sidebar">
+      <aside class="as-sidebar" data-catalog-sidebar>
         <div data-catalog="categories"></div>
         <div data-catalog="facets"></div>
       </aside>

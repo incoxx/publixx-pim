@@ -72,6 +72,9 @@ function createStore() {
     // Product detail modal/view
     detailOpen: false,
     detailProductId: null,
+
+    // Mobile sidebar
+    sidebarOpen: false,
   })
 
   // Persist wishlist
@@ -266,6 +269,34 @@ function createStore() {
       state.wishlistIds.splice(0, state.wishlistIds.length)
     },
 
+    /**
+     * Process URL deeplinks: ?sku=XXX opens product detail, ?cat=XXX selects category.
+     */
+    async applyDeeplinks() {
+      const params = new URLSearchParams(window.location.search)
+
+      // Category deeplink: ?cat=<category-id>
+      const cat = params.get('cat')
+      if (cat) {
+        actions.setCategory(cat)
+        await actions.fetchProducts()
+      }
+
+      // Product SKU deeplink: ?sku=<sku>
+      const sku = params.get('sku')
+      if (sku) {
+        try {
+          const result = await _api.getProducts({ search: sku, perPage: 1, lang: state.locale })
+          const product = result.products && result.products[0]
+          if (product) {
+            actions.openDetail(product.id)
+          }
+        } catch (e) {
+          console.warn('[PublixxCatalog] Deeplink SKU lookup failed:', e.message)
+        }
+      }
+    },
+
     importWishlistFromUrl() {
       const params = new URLSearchParams(window.location.search)
       const wl = params.get('wishlist')
@@ -315,6 +346,11 @@ function createStore() {
       state.compareData = null
       state.compareProductIds = []
     },
+
+    // Mobile sidebar
+    openSidebar() { state.sidebarOpen = true },
+    closeSidebar() { state.sidebarOpen = false },
+    toggleSidebar() { state.sidebarOpen = !state.sidebarOpen },
 
     // Exports
     async downloadProductPdf(id) {
