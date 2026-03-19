@@ -480,10 +480,9 @@ info "Caches erstellt."
 # ═════════════════════════════════════════════════════════════════════════════
 step "9/10 — Services neu starten"
 
-# Dateiberechtigungen korrigieren
+# Dateiberechtigungen korrigieren (ohne langsames find -exec)
 chown -R www-data:www-data "$INSTALL_DIR"
-find "$INSTALL_DIR" -type f -exec chmod 644 {} \;
-find "$INSTALL_DIR" -type d -exec chmod 755 {} \;
+chmod -R u=rwX,g=rX,o=rX "$INSTALL_DIR"
 chmod -R 775 "${INSTALL_DIR}/storage"
 chmod -R 775 "${INSTALL_DIR}/bootstrap/cache"
 info "Dateiberechtigungen gesetzt."
@@ -509,9 +508,9 @@ else
     info "Queue Worker gestartet (PID: $!)."
 fi
 
-# Apache neu laden (graceful)
-systemctl reload apache2 > /dev/null 2>&1 && info "Apache neu geladen." \
-    || warn "Apache konnte nicht neu geladen werden."
+# Apache neu starten (restart statt reload, damit neue PHP-Configs greifen)
+systemctl restart apache2 > /dev/null 2>&1 && info "Apache neu gestartet." \
+    || warn "Apache konnte nicht neu gestartet werden."
 
 # ═════════════════════════════════════════════════════════════════════════════
 #  9. HEALTHCHECK & WARTUNGSMODUS BEENDEN
