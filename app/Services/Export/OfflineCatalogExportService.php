@@ -423,12 +423,12 @@ class OfflineCatalogExportService
             }
         }
 
-        // Searchable text for offline search — nur Zusatztext, der nicht schon
-        // in name/sku/ean enthalten ist. Wird im JS zusammen mit diesen Feldern gesucht.
-        $extraSearchParts = collect([
-            $index?->description_de ? mb_substr(strip_tags($index->description_de), 0, 150) : null,
-        ])->filter();
-        $searchableText = $extraSearchParts->isNotEmpty() ? $extraSearchParts->implode(' ') : null;
+        // Searchable text for offline search — aus dem Search-Index, der alle
+        // durchsuchbaren Attributwerte enthält (name, ShortDescription, etc.)
+        // Name/SKU/EAN werden im JS separat gesucht, daher hier rausfiltern.
+        $searchableText = $index?->searchable_text
+            ? mb_substr($index->searchable_text, 0, 500)
+            : null;
 
         // Facet values for offline filtering — kompaktes Format:
         // ValueList/Selection: value_selection_id (String)

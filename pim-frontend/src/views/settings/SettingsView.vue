@@ -2134,6 +2134,7 @@ onUnmounted(() => {
     <!-- ═══════════════════════════════════════════════════════════════════ -->
     <template v-if="activeMainTab === 'offline' && isAdmin">
 
+    <!-- Offline-Katalog: Generierung -->
     <div class="pim-card p-4 sm:p-6 space-y-5">
       <div class="flex items-center gap-3 mb-2">
         <WifiOff class="w-5 h-5 text-[var(--color-accent)]" :stroke-width="1.75" />
@@ -2187,31 +2188,33 @@ onUnmounted(() => {
       <div v-if="offlineCatalogExporting" class="space-y-3">
         <div class="flex items-center gap-2">
           <Loader2 class="w-4 h-4 animate-spin text-[var(--color-accent)]" />
-          <span class="text-xs text-[var(--color-text-secondary)]">
+          <span class="text-xs font-medium text-[var(--color-text-secondary)]">
             {{ offlineCatalogProgress?.phase || 'Exportiere...' }}
           </span>
         </div>
-        <div v-if="offlineCatalogProgress?.total > 0" class="space-y-1">
-          <div class="w-full bg-[var(--color-bg-tertiary)] rounded-full h-2.5">
+        <div v-if="offlineCatalogProgress?.total > 0" class="space-y-1.5">
+          <div class="w-full bg-[var(--color-bg-tertiary)] rounded-full h-2">
             <div
-              class="bg-[var(--color-accent)] h-2.5 rounded-full transition-all duration-300"
+              class="bg-[var(--color-accent)] h-2 rounded-full transition-all duration-300"
               :style="{ width: (offlineCatalogProgress?.percent || 0) + '%' }"
             ></div>
           </div>
-          <p class="text-[11px] text-[var(--color-text-tertiary)]">
-            {{ offlineCatalogProgress?.current?.toLocaleString() }} / {{ offlineCatalogProgress?.total?.toLocaleString() }} Produkte
-            ({{ offlineCatalogProgress?.percent || 0 }}%)
-          </p>
+          <div class="flex items-center justify-between">
+            <p class="text-[11px] text-[var(--color-text-tertiary)]">
+              {{ offlineCatalogProgress?.current?.toLocaleString() }} / {{ offlineCatalogProgress?.total?.toLocaleString() }} Produkte
+              ({{ offlineCatalogProgress?.percent || 0 }}%)
+            </p>
+            <button
+              class="pim-btn-sm pim-btn-secondary text-[11px] !py-0.5 !px-2"
+              @click="cancelOfflineCatalogExport"
+            >
+              Abbrechen
+            </button>
+          </div>
         </div>
-        <div class="flex items-center gap-3">
-          <button
-            class="pim-btn-sm pim-btn-danger text-xs"
-            @click="cancelOfflineCatalogExport"
-          >
-            <X class="w-3 h-3" /> Abbrechen
-          </button>
-          <p class="text-[10px] text-[var(--color-text-tertiary)]">Tipp: Drücke <kbd class="px-1 py-0.5 bg-[var(--color-bg-tertiary)] rounded text-[9px]">Esc</kbd> zum Abbrechen</p>
-        </div>
+        <p v-else class="text-[10px] text-[var(--color-text-tertiary)]">
+          Drücke <kbd class="px-1 py-0.5 bg-[var(--color-bg-tertiary)] rounded text-[9px]">Esc</kbd> zum Abbrechen
+        </p>
       </div>
 
       <div v-else class="space-y-3">
@@ -2254,25 +2257,28 @@ onUnmounted(() => {
           </div>
         </div>
       </div>
+    </div>
 
-      <!-- Cleanup -->
-      <div class="pt-3 border-t border-[var(--color-border)]">
-        <div class="flex items-center justify-between">
-          <div class="text-xs text-[var(--color-text-tertiary)]">
+    <!-- Aufräumen -->
+    <div class="pim-card p-4 sm:p-6">
+      <div class="flex items-center justify-between gap-4">
+        <div>
+          <h4 class="text-xs font-medium text-[var(--color-text-secondary)] mb-1">Aufräumen</h4>
+          <p class="text-[11px] text-[var(--color-text-tertiary)]">
             Generierte ZIPs, Preview-Dateien und temporäre Arbeitsdateien löschen.
-          </div>
-          <button
-            class="pim-btn-sm pim-btn-danger text-xs"
-            :disabled="offlineCatalogCleaning"
-            @click="cleanupOfflineCatalog"
-          >
-            <Trash2 class="w-3 h-3" />
-            {{ offlineCatalogCleaning ? 'Bereinige...' : 'Aufräumen' }}
-          </button>
+          </p>
         </div>
-        <div v-if="offlineCatalogCleanupResult" class="mt-2 text-xs text-green-600 dark:text-green-400">
-          {{ offlineCatalogCleanupResult }}
-        </div>
+        <button
+          class="pim-btn-sm pim-btn-secondary text-xs shrink-0"
+          :disabled="offlineCatalogCleaning"
+          @click="cleanupOfflineCatalog"
+        >
+          <Trash2 class="w-3 h-3" />
+          {{ offlineCatalogCleaning ? 'Bereinige...' : 'Aufräumen' }}
+        </button>
+      </div>
+      <div v-if="offlineCatalogCleanupResult" class="mt-2 text-xs text-green-600 dark:text-green-400">
+        {{ offlineCatalogCleanupResult }}
       </div>
     </div>
 
