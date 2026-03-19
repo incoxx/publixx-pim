@@ -192,6 +192,14 @@ step "2/10 — Neuesten Stand von GitHub holen"
 # Aktuellen Branch merken
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")
 
+# Build-Artefakte zuruecksetzen (werden in Schritt 5 ohnehin neu gebaut)
+for build_dir in catalog-embed/dist pim-frontend/dist; do
+    if [ -d "$build_dir" ] && ! git diff --quiet HEAD -- "$build_dir" 2>/dev/null; then
+        git checkout HEAD -- "$build_dir" 2>/dev/null || true
+        info "Build-Artefakte in ${build_dir}/ zurueckgesetzt (werden spaeter neu gebaut)."
+    fi
+done
+
 # Lokale Aenderungen sichern (z.B. durch Bild-Uploads, Cache-Dateien etc.)
 STASHED=false
 if ! git diff --quiet HEAD 2>/dev/null || [ -n "$(git ls-files --others --exclude-standard)" ]; then
