@@ -17,8 +17,11 @@ The script produces:
           chunk-1.json
           ...
         products-detail/
-          {product-id}.json
-          ...
+          0/
+            {product-id}.json
+            ...  (max 1000 per subdirectory)
+          1/
+            ...
         categories.json
         facets.json
         settings.json
@@ -198,6 +201,9 @@ def _normalize_relation_type(bmecat_type: str) -> str:
 
 # ─── Transform to offline catalog format ─────────────────────────────────────
 
+DETAIL_DIR_SIZE = 1000  # max JSON files per detail subdirectory
+
+
 def build_catalog_data(parsed: dict, chunk_size: int, catalog_name: str | None,
                        primary_color: str, images_dir: str | None) -> dict:
     """Transform parsed BMECAT data into the offline catalog directory structure."""
@@ -213,7 +219,7 @@ def build_catalog_data(parsed: dict, chunk_size: int, catalog_name: str | None,
     all_features = defaultdict(lambda: defaultdict(int))  # name -> value -> count
     numeric_features = defaultdict(list)  # name -> [values]
 
-    for p in products:
+    for product_counter, p in enumerate(products):
         # Determine primary image
         image_url = None
         if p["media"]:
@@ -267,6 +273,8 @@ def build_catalog_data(parsed: dict, chunk_size: int, catalog_name: str | None,
             searchable_parts.append(feat["value"])
         searchable_text = " ".join(filter(None, searchable_parts)).lower()
 
+        detail_bucket = product_counter // DETAIL_DIR_SIZE
+
         product_list.append({
             "id": p["id"],
             "sku": p["sku"],
@@ -285,6 +293,7 @@ def build_catalog_data(parsed: dict, chunk_size: int, catalog_name: str | None,
             "card_attributes": card_attrs,
             "searchable_text": searchable_text,
             "facet_values": facet_values,
+            "_detail_dir": detail_bucket,
         })
 
         # Full detail
@@ -360,10 +369,13 @@ def build_catalog_data(parsed: dict, chunk_size: int, catalog_name: str | None,
             "data": product_list[i : i + chunk_size],
         })
 
+    total_detail_buckets = (len(product_list) - 1) // DETAIL_DIR_SIZE + 1 if product_list else 0
     index = {
         "totalProducts": len(product_list),
         "chunkSize": chunk_size,
         "chunks": [c["name"] for c in chunks],
+        "detailDirSize": DETAIL_DIR_SIZE,
+        "detailBuckets": total_detail_buckets,
     }
 
     # Build facets
@@ -498,9 +510,19 @@ def write_output(catalog_data: dict, output_dir: str, images_dir: str | None):
     for chunk in catalog_data["chunks"]:
         _write_json(os.path.join(products_dir, chunk["name"]), chunk["data"])
 
-    # products-detail/{id}.json
-    for pid, detail in catalog_data["product_details"].items():
-        _write_json(os.path.join(detail_dir, f"{pid}.json"), detail)
+    # products-detail/{bucket}/{id}.json — max DETAIL_DIR_SIZE files per subdirectory
+    product_list = []
+    for chunk in catalog_data["chunks"]:
+        product_list.extend(chunk["data"])
+
+    for counter, item in enumerate(product_list):
+        pid = item["id"]
+        if pid not in catalog_data["product_details"]:
+            continue
+        bucket = counter // DETAIL_DIR_SIZE
+        bucket_dir = os.path.join(detail_dir, str(bucket))
+        os.makedirs(bucket_dir, exist_ok=True)
+        _write_json(os.path.join(bucket_dir, f"{pid}.json"), catalog_data["product_details"][pid])
 
     # categories.json
     _write_json(os.path.join(data_dir, "categories.json"), catalog_data["categories"])

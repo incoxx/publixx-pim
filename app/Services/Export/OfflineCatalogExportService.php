@@ -29,7 +29,7 @@ use ZipArchive;
  * Der Export enthält:
  * - products/index.json (Chunk-Index)
  * - products/chunk-0.json, chunk-1.json, ... (Produktlisten in 500er Chunks)
- * - products-detail/{id}.json (Detail-JSON pro Produkt)
+ * - products-detail/{bucket}/{id}.json (Detail-JSON pro Produkt, max 1000 pro Unterordner)
  * - categories.json (Hierarchie-Baum)
  * - facets.json (Filter-Konfiguration)
  * - settings.json (Katalog-Theme-Einstellungen)
@@ -42,6 +42,7 @@ use ZipArchive;
 class OfflineCatalogExportService
 {
     private const CHUNK_SIZE = 500;
+    private const DETAIL_DIR_SIZE = 1000; // max JSON files per detail subdirectory
     private const CACHE_KEY_PROGRESS = 'offline_catalog_export:progress';
     private const CACHE_KEY_CANCEL = 'offline_catalog_export:cancel';
     private const CACHE_TTL = 1800; // 30 min
@@ -84,6 +85,7 @@ class OfflineCatalogExportService
             $chunkFiles = [];
             $offset = 0;
             $chunkIndex = 0;
+            $detailCounter = 0; // Global counter for detail subdirectory bucketing
             $cancelled = false;
 
             while ($offset < $totalProducts) {
@@ -99,23 +101,33 @@ class OfflineCatalogExportService
 
                 $products = $this->loadProductChunk($themePayload, $lang, $offset, self::CHUNK_SIZE);
 
-                // Chunk-Datei (Listendaten)
+                // Chunk-Datei (Listendaten) — _detail_dir wird pro Produkt gesetzt
                 $chunkFileName = "chunk-{$chunkIndex}.json";
-                $listData = $products->map(fn ($p) => $this->buildListItem($p, $themePayload, $lang))->values();
+                $listData = [];
+                foreach ($products as $product) {
+                    $bucket = intdiv($detailCounter, self::DETAIL_DIR_SIZE);
+                    $item = $this->buildListItem($product, $themePayload, $lang);
+                    $item['_detail_dir'] = $bucket;
+                    $listData[] = $item;
+
+                    // Detail-Datei in Unterverzeichnis schreiben
+                    $subDir = "{$detailDir}/{$bucket}";
+                    if (!is_dir($subDir)) {
+                        mkdir($subDir, 0755, true);
+                    }
+                    $detailData = $this->buildDetailItem($product, $themePayload, $lang);
+                    file_put_contents(
+                        "{$subDir}/{$product->id}.json",
+                        json_encode($detailData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT)
+                    );
+
+                    $detailCounter++;
+                }
                 file_put_contents(
                     "{$productsDir}/{$chunkFileName}",
                     json_encode($listData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
                 );
                 $chunkFiles[] = $chunkFileName;
-
-                // Detail-Dateien pro Produkt
-                foreach ($products as $product) {
-                    $detailData = $this->buildDetailItem($product, $themePayload, $lang);
-                    file_put_contents(
-                        "{$detailDir}/{$product->id}.json",
-                        json_encode($detailData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT)
-                    );
-                }
 
                 $offset += self::CHUNK_SIZE;
                 $chunkIndex++;
@@ -135,10 +147,13 @@ class OfflineCatalogExportService
 
             // 3. Index-Datei
             $this->updateProgress('Index wird erstellt...', $totalProducts, $totalProducts, 'indexing');
+            $totalDetailBuckets = $totalProducts > 0 ? intdiv($totalProducts - 1, self::DETAIL_DIR_SIZE) + 1 : 0;
             file_put_contents("{$productsDir}/index.json", json_encode([
                 'totalProducts' => $totalProducts,
                 'chunkSize' => self::CHUNK_SIZE,
                 'chunks' => $chunkFiles,
+                'detailDirSize' => self::DETAIL_DIR_SIZE,
+                'detailBuckets' => $totalDetailBuckets,
             ], JSON_UNESCAPED_UNICODE));
 
             // 4. Kategorien

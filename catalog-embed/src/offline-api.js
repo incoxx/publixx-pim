@@ -242,7 +242,11 @@ export function createOfflineApi(dataPath, options = {}) {
 
     async getProduct(id, opts = {}) {
       try {
-        return await fetchJson(`products-detail/${id}.json`)
+        // Look up detail subdirectory from in-memory product list
+        const allProducts = await loadAllProducts()
+        const product = allProducts.find(p => p.id === id)
+        const bucket = product?._detail_dir ?? 0
+        return await fetchJson(`products-detail/${bucket}/${id}.json`)
       } catch {
         throw new Error('Produkt nicht gefunden')
       }
