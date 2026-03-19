@@ -110,11 +110,13 @@ export function createOfflineApi(dataPath, options = {}) {
 
         if (filterValue.includes(':')) {
           // Range filter
-          const [min, max] = filterValue.split(':')
+          const [minStr, maxStr] = filterValue.split(':')
           const val = facet.value
           if (val == null) return false
-          if (min !== '' && val < parseFloat(min)) return false
-          if (max !== '' && val > parseFloat(max)) return false
+          const minVal = parseFloat(minStr)
+          const maxVal = parseFloat(maxStr)
+          if (minStr !== '' && !isNaN(minVal) && val < minVal) return false
+          if (maxStr !== '' && !isNaN(maxVal) && val > maxVal) return false
         } else if (filterValue === '0' || filterValue === '1') {
           // Boolean filter
           const expected = filterValue === '1'
@@ -123,8 +125,8 @@ export function createOfflineApi(dataPath, options = {}) {
           // Value list filter (comma-separated IDs or strings)
           const selectedIds = filterValue.split(',').filter(Boolean)
           if (selectedIds.length === 0) continue
-          const matchId = facet.value_id || facet.value
-          if (!selectedIds.includes(String(matchId))) return false
+          const matchId = String(facet.value_id ?? facet.value ?? '')
+          if (!selectedIds.includes(matchId)) return false
         }
       }
       return true
@@ -191,9 +193,9 @@ export function createOfflineApi(dataPath, options = {}) {
    */
   function resolveProductName(product, lang) {
     if (lang === 'en') {
-      return product.name_en || product.name_de || product.name || ''
+      return product.name_en || product.name_de || ''
     }
-    return product.name_de || product.name || ''
+    return product.name_de || ''
   }
 
   // ── Public API (mirrors catalogApi interface) ─────────────────
@@ -242,7 +244,11 @@ export function createOfflineApi(dataPath, options = {}) {
 
     async getProduct(id, opts = {}) {
       try {
-        return await fetchJson(`products-detail/${id}.json`)
+        // Look up detail subdirectory from in-memory product list
+        const allProducts = await loadAllProducts()
+        const product = allProducts.find(p => p.id === id)
+        const bucket = product?._detail_dir ?? 0
+        return await fetchJson(`products-detail/${bucket}/${id}.json`)
       } catch {
         throw new Error('Produkt nicht gefunden')
       }
