@@ -34,6 +34,10 @@ export default {
     return `${base}?token=${encodeURIComponent(token)}`
   },
 
+  status() {
+    return client.get('/admin/offline-catalog/status')
+  },
+
   cleanup() {
     return client.delete('/admin/offline-catalog/cleanup')
   },

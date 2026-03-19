@@ -37,6 +37,8 @@ class OfflineCatalogController extends BaseController
 
         // Kein PHP-Timeout bei großen Exporten (100k+ Produkte)
         set_time_limit(0);
+        // Export soll auch bei Verbindungsabbruch (Network Error) weiterlaufen
+        ignore_user_abort(true);
 
         try {
             $result = $this->service->generate($lang, $templateId, $websiteProfileId);
@@ -283,6 +285,32 @@ class OfflineCatalogController extends BaseController
     }
 
     /**
+     * GET /api/v1/admin/offline-catalog/status
+     *
+     * Prüft ob ein Offline-Katalog auf der Platte vorhanden ist.
+     * Liefert Metadaten zur letzten Generierung.
+     */
+    public function status(): JsonResponse
+    {
+        $result = $this->findLatestZip();
+
+        if (!$result) {
+            return response()->json(['available' => false]);
+        }
+
+        $previewDir = storage_path('app/offline-preview');
+        $hasPreview = is_dir($previewDir) && file_exists("{$previewDir}/index.html");
+
+        return response()->json([
+            'available' => true,
+            'file_name' => $result['file_name'],
+            'file_size' => $result['file_size'],
+            'created_at' => $result['created_at'],
+            'has_preview' => $hasPreview,
+        ]);
+    }
+
+    /**
      * GET /api/v1/admin/offline-catalog/download
      *
      * Lädt die zuletzt erstellte Offline-Katalog-ZIP-Datei herunter.
@@ -294,23 +322,17 @@ class OfflineCatalogController extends BaseController
             return response()->json(['message' => 'Nicht authentifiziert.'], 401);
         }
 
-        $progress = $this->service->getProgress();
+        // 1. Versuche neueste ZIP auf der Platte zu finden
+        $result = $this->findLatestZip();
 
-        if (!$progress || $progress['status'] !== 'completed' || empty($progress['path'])) {
+        if (!$result) {
             return response()->json(['message' => 'Keine Datei verfügbar.'], 404);
         }
-
-        $path = $progress['path'];
-        if (!file_exists($path)) {
-            return response()->json(['message' => 'Datei nicht mehr vorhanden.'], 404);
-        }
-
-        $fileName = $progress['file_name'] ?? basename($path);
 
         // Kein Timeout beim Streamen großer Dateien
         set_time_limit(0);
 
-        return response()->download($path, $fileName, [
+        return response()->download($result['path'], $result['file_name'], [
             'Content-Type' => 'application/zip',
             'Cache-Control' => 'no-store',
         ]);
@@ -337,6 +359,33 @@ class OfflineCatalogController extends BaseController
         }
 
         return null;
+    }
+
+    /**
+     * Findet die neueste offline-catalog_*.zip auf der Platte.
+     */
+    private function findLatestZip(): ?array
+    {
+        $exportsDir = storage_path('app/exports');
+        if (!is_dir($exportsDir)) {
+            return null;
+        }
+
+        $files = glob("{$exportsDir}/offline-catalog_*.zip");
+        if (empty($files)) {
+            return null;
+        }
+
+        // Neueste Datei nach Änderungszeit
+        usort($files, fn ($a, $b) => filemtime($b) <=> filemtime($a));
+        $path = $files[0];
+
+        return [
+            'path' => $path,
+            'file_name' => basename($path),
+            'file_size' => filesize($path),
+            'created_at' => date('c', filemtime($path)),
+        ];
     }
 
     private function deleteDirectory(string $dir): void

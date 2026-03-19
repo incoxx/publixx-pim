@@ -43,12 +43,21 @@ const offlineCatalogTemplateId = ref(null)
 const offlineCatalogTemplatesLoading = ref(false)
 const offlineWebsiteProfileId = ref(null)
 
+const offlineCatalogStatus = ref(null) // Persistierter Status von der Platte
+
 const offlineCatalogCleaning = ref(false)
 const offlineCatalogCleanupResult = ref(null)
 
 const offlineBundleStatus = ref(null)
 const offlineBundleBuilding = ref(false)
 const offlineBundleError = ref(null)
+
+async function loadOfflineCatalogStatus() {
+  try {
+    const { data } = await offlineCatalogApi.status()
+    offlineCatalogStatus.value = data.available ? data : null
+  } catch { /* ignore */ }
+}
 
 async function loadOfflineBundleStatus() {
   try {
@@ -79,34 +88,61 @@ async function loadOfflineCatalogTemplates() {
   finally { offlineCatalogTemplatesLoading.value = false }
 }
 
+function handleExportCompletion(data) {
+  offlineCatalogProgress.value = null
+  offlineCatalogExporting.value = false
+  clearInterval(offlineCatalogPollTimer)
+  offlineCatalogPollTimer = null
+
+  if (data.cancelled || data.status === 'cancelled') {
+    offlineCatalogError.value = 'Export wurde abgebrochen.'
+  } else if (data.total_products === 0) {
+    offlineCatalogError.value = 'Keine aktiven Produkte gefunden.'
+  } else {
+    offlineCatalogResult.value = data
+    // Persistierten Status aktualisieren
+    loadOfflineCatalogStatus()
+  }
+}
+
 async function startOfflineCatalogExport() {
   offlineCatalogExporting.value = true
   offlineCatalogError.value = null
   offlineCatalogResult.value = null
+  offlineCatalogStatus.value = null
   offlineCatalogProgress.value = { phase: 'Initialisiere...', percent: 0, status: 'initializing' }
 
-  // Start polling for progress
+  // Start polling for progress — erkennt auch Completion bei Network Error
   offlineCatalogPollTimer = setInterval(async () => {
     try {
       const { data } = await offlineCatalogApi.progress()
       offlineCatalogProgress.value = data
+
+      // Completion über Polling erkennen (z.B. nach Network Error des POST)
+      if (data.status === 'completed') {
+        handleExportCompletion(data)
+      } else if (data.status === 'failed' || data.status === 'cancelled') {
+        handleExportCompletion(data)
+      }
     } catch { /* ignore poll errors */ }
   }, 1000)
 
   try {
     const { data } = await offlineCatalogApi.generate(themeForm.value.default_locale || 'de', offlineCatalogTemplateId.value, offlineWebsiteProfileId.value)
-    offlineCatalogProgress.value = null
-
-    if (data.cancelled) {
-      offlineCatalogError.value = 'Export wurde abgebrochen.'
-    } else if (data.total_products === 0) {
-      offlineCatalogError.value = 'Keine aktiven Produkte gefunden.'
-    } else {
-      offlineCatalogResult.value = data
+    // POST hat normal geantwortet — Completion verarbeiten
+    if (offlineCatalogExporting.value) {
+      handleExportCompletion(data)
     }
   } catch (e) {
+    // Bei Network Error / Timeout: prüfen ob Export im Hintergrund noch läuft
+    const isNetworkError = !e.response && (e.code === 'ECONNABORTED' || e.message === 'Network Error' || e.code === 'ERR_NETWORK')
+    if (isNetworkError && offlineCatalogExporting.value) {
+      // Polling läuft weiter — Export wird im Hintergrund fortgesetzt
+      // Kein Fehler anzeigen, Polling erkennt Completion
+      return
+    }
+    // Echter Server-Fehler
     offlineCatalogError.value = e.response?.data?.message || e.message || 'Export fehlgeschlagen.'
-  } finally {
     offlineCatalogExporting.value = false
     clearInterval(offlineCatalogPollTimer)
     offlineCatalogPollTimer = null
@@ -127,12 +163,12 @@ function handleOfflineCatalogKeydown(e) {
 }
 
 function downloadOfflineCatalog() {
-  if (!offlineCatalogResult.value) return
+  const fileName = offlineCatalogResult.value?.file_name || offlineCatalogStatus.value?.file_name || 'offline-catalog.zip'
   try {
     const url = offlineCatalogApi.downloadUrl(authStore.token)
     const link = document.createElement('a')
     link.href = url
-    link.download = offlineCatalogResult.value.file_name || 'offline-catalog.zip'
+    link.download = fileName
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
@@ -154,6 +190,7 @@ async function cleanupOfflineCatalog() {
     const freed = data.freed_bytes ? ` (${formatFileSize(data.freed_bytes)} freigegeben)` : ''
     offlineCatalogCleanupResult.value = `${data.message}${freed}`
     offlineCatalogResult.value = null
+    offlineCatalogStatus.value = null
     offlineCatalogError.value = null
   } catch (e) {
     offlineCatalogError.value = 'Aufräumen fehlgeschlagen.'
@@ -1377,6 +1414,7 @@ watch(activeMainTab, (tab) => {
     if (offlineCatalogTemplates.value.length === 0) loadOfflineCatalogTemplates()
     if (!offlineBundleStatus.value) loadOfflineBundleStatus()
     if (websiteProfiles.value.length === 0) loadWebsiteProfiles()
+    loadOfflineCatalogStatus()
   }
 })
 
@@ -2428,7 +2466,7 @@ onUnmounted(() => {
           {{ offlineCatalogError }}
         </div>
 
-        <!-- Success + Download -->
+        <!-- Success + Download (frisch generiert) -->
         <div v-if="offlineCatalogResult" class="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg space-y-3">
           <div class="flex items-center gap-2 text-sm text-green-700 dark:text-green-400 font-medium">
             <CheckCircle class="w-4 h-4" />
@@ -2446,6 +2484,33 @@ onUnmounted(() => {
               <HardDrive class="w-3.5 h-3.5" /> ZIP herunterladen
             </button>
             <button
+              class="pim-btn pim-btn-secondary text-xs"
+              @click="previewOfflineCatalog"
+            >
+              <Eye class="w-3.5 h-3.5" /> Vorschau
+            </button>
+          </div>
+        </div>
+
+        <!-- Persistierter Katalog (von der Platte geladen) -->
+        <div v-else-if="offlineCatalogStatus" class="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg space-y-3">
+          <div class="flex items-center gap-2 text-sm text-green-700 dark:text-green-400 font-medium">
+            <CheckCircle class="w-4 h-4" />
+            Offline-Katalog vorhanden
+          </div>
+          <div class="text-xs text-[var(--color-text-secondary)] space-y-0.5">
+            <p>Letzte Generierung am {{ new Date(offlineCatalogStatus.created_at).toLocaleDateString('de-DE') }} {{ new Date(offlineCatalogStatus.created_at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) }}</p>
+            <p>{{ offlineCatalogStatus.file_name }} ({{ formatFileSize(offlineCatalogStatus.file_size) }})</p>
+          </div>
+          <div class="flex items-center gap-2 flex-wrap">
+            <button
+              class="pim-btn pim-btn-primary text-xs"
+              @click="downloadOfflineCatalog"
+            >
+              <HardDrive class="w-3.5 h-3.5" /> ZIP herunterladen
+            </button>
+            <button
+              v-if="offlineCatalogStatus.has_preview"
               class="pim-btn pim-btn-secondary text-xs"
               @click="previewOfflineCatalog"
             >
