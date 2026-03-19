@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useLocaleStore } from '@/stores/locale'
 import { useAuthStore } from '@/stores/auth'
@@ -14,6 +14,7 @@ import attributesApi, { attributeViews as attributeViewsApi } from '@/api/attrib
 import { priceTypes as priceTypesApi, relationTypes as relationTypesApi } from '@/api/prices'
 import { mediaUsageTypes } from '@/api/mediaUsageTypes'
 import catalogPresets from '@/config/catalogPresets'
+import offlineCatalogApi from '@/api/offlineCatalog'
 
 const { t } = useI18n()
 const localeStore = useLocaleStore()
@@ -27,6 +28,84 @@ const licenseKeyInput = ref('')
 const licenseActivating = ref(false)
 const licenseError = ref(null)
 const licenseSuccess = ref(false)
+
+// ── Offline Catalog Export ──
+const offlineCatalogExporting = ref(false)
+const offlineCatalogProgress = ref(null)
+const offlineCatalogError = ref(null)
+const offlineCatalogResult = ref(null)
+let offlineCatalogPollTimer = null
+
+async function startOfflineCatalogExport() {
+  offlineCatalogExporting.value = true
+  offlineCatalogError.value = null
+  offlineCatalogResult.value = null
+  offlineCatalogProgress.value = { phase: 'Initialisiere...', percent: 0, status: 'initializing' }
+
+  // Start polling for progress
+  offlineCatalogPollTimer = setInterval(async () => {
+    try {
+      const { data } = await offlineCatalogApi.progress()
+      offlineCatalogProgress.value = data
+    } catch { /* ignore poll errors */ }
+  }, 1000)
+
+  try {
+    const { data } = await offlineCatalogApi.generate('de')
+    offlineCatalogProgress.value = null
+
+    if (data.cancelled) {
+      offlineCatalogError.value = 'Export wurde abgebrochen.'
+    } else if (data.total_products === 0) {
+      offlineCatalogError.value = 'Keine aktiven Produkte gefunden.'
+    } else {
+      offlineCatalogResult.value = data
+    }
+  } catch (e) {
+    offlineCatalogError.value = e.response?.data?.message || e.message || 'Export fehlgeschlagen.'
+  } finally {
+    offlineCatalogExporting.value = false
+    clearInterval(offlineCatalogPollTimer)
+    offlineCatalogPollTimer = null
+  }
+}
+
+async function cancelOfflineCatalogExport() {
+  try {
+    await offlineCatalogApi.cancel()
+  } catch { /* ignore */ }
+}
+
+function handleOfflineCatalogKeydown(e) {
+  if (e.key === 'Escape' && offlineCatalogExporting.value) {
+    e.preventDefault()
+    cancelOfflineCatalogExport()
+  }
+}
+
+async function downloadOfflineCatalog() {
+  if (!offlineCatalogResult.value) return
+  try {
+    const { data } = await offlineCatalogApi.download()
+    const url = URL.createObjectURL(data)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = offlineCatalogResult.value.file_name || 'offline-catalog.zip'
+    link.click()
+    URL.revokeObjectURL(url)
+  } catch (e) {
+    offlineCatalogError.value = 'Download fehlgeschlagen.'
+  }
+}
+
+function formatFileSize(bytes) {
+  if (!bytes) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB']
+  let i = 0
+  let size = bytes
+  while (size >= 1024 && i < units.length - 1) { size /= 1024; i++ }
+  return `${size.toFixed(1)} ${units[i]}`
+}
 
 async function activateLicense() {
   licenseActivating.value = true
@@ -1104,6 +1183,15 @@ onMounted(async () => {
     loadRelationTypes()
     loadTestDataStats()
   }
+  // Global Escape listener for offline catalog cancel
+  window.addEventListener('keydown', handleOfflineCatalogKeydown)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleOfflineCatalogKeydown)
+  if (offlineCatalogPollTimer) {
+    clearInterval(offlineCatalogPollTimer)
+  }
 })
 </script>
 
@@ -1559,6 +1647,80 @@ onMounted(async () => {
             <input type="checkbox" v-model="themeForm.catalog_share_wishlist_enabled" class="rounded border-[var(--color-border-strong)] text-[var(--color-accent)]" />
             Merkliste teilen per Link aktivieren
           </label>
+        </div>
+
+        <!-- Offline-Katalog Export -->
+        <div class="space-y-3" @keydown="handleOfflineCatalogKeydown">
+          <div class="flex items-center gap-2">
+            <HardDrive class="w-3.5 h-3.5 text-[var(--color-text-secondary)]" :stroke-width="2" />
+            <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">Offline-Katalog</h4>
+          </div>
+          <p class="text-[11px] text-[var(--color-text-tertiary)]">
+            Generiert eine ZIP-Datei mit allen Katalogdaten als JSON-Chunks.
+            Die ZIP kann auf einem Webserver oder lokal ohne Backend betrieben werden.
+          </p>
+
+          <!-- Export Button / Progress -->
+          <div v-if="offlineCatalogExporting" class="space-y-2">
+            <div class="flex items-center gap-2">
+              <Loader2 class="w-4 h-4 animate-spin text-[var(--color-accent)]" />
+              <span class="text-xs text-[var(--color-text-secondary)]">
+                {{ offlineCatalogProgress?.phase || 'Exportiere...' }}
+              </span>
+            </div>
+            <div v-if="offlineCatalogProgress?.total > 0" class="space-y-1">
+              <div class="w-full bg-[var(--color-bg-tertiary)] rounded-full h-2">
+                <div
+                  class="bg-[var(--color-accent)] h-2 rounded-full transition-all duration-300"
+                  :style="{ width: (offlineCatalogProgress?.percent || 0) + '%' }"
+                ></div>
+              </div>
+              <p class="text-[10px] text-[var(--color-text-tertiary)]">
+                {{ offlineCatalogProgress?.current?.toLocaleString() }} / {{ offlineCatalogProgress?.total?.toLocaleString() }} Produkte
+                ({{ offlineCatalogProgress?.percent || 0 }}%)
+              </p>
+            </div>
+            <button
+              class="pim-btn-sm pim-btn-danger text-xs"
+              @click="cancelOfflineCatalogExport"
+            >
+              <X class="w-3 h-3" /> Abbrechen
+            </button>
+            <p class="text-[10px] text-[var(--color-text-tertiary)]">Tipp: Drücke <kbd class="px-1 py-0.5 bg-[var(--color-bg-tertiary)] rounded text-[9px]">Esc</kbd> zum Abbrechen</p>
+          </div>
+
+          <div v-else class="space-y-2">
+            <button
+              class="pim-btn-sm pim-btn-primary text-xs"
+              @click="startOfflineCatalogExport"
+            >
+              <Play class="w-3 h-3" /> Offline-Katalog generieren
+            </button>
+
+            <!-- Error -->
+            <div v-if="offlineCatalogError" class="flex items-center gap-2 text-xs text-red-600">
+              <XCircle class="w-3.5 h-3.5" />
+              {{ offlineCatalogError }}
+            </div>
+
+            <!-- Success + Download -->
+            <div v-if="offlineCatalogResult" class="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg space-y-2">
+              <div class="flex items-center gap-2 text-xs text-green-700 dark:text-green-400">
+                <CheckCircle class="w-3.5 h-3.5" />
+                Export abgeschlossen
+              </div>
+              <div class="text-[11px] text-[var(--color-text-secondary)] space-y-0.5">
+                <p>{{ offlineCatalogResult.total_products?.toLocaleString() }} Produkte in {{ offlineCatalogResult.chunks }} Chunks</p>
+                <p>{{ formatFileSize(offlineCatalogResult.file_size) }} · {{ offlineCatalogResult.duration }}s</p>
+              </div>
+              <button
+                class="pim-btn-sm pim-btn-primary text-xs"
+                @click="downloadOfflineCatalog"
+              >
+                <HardDrive class="w-3 h-3" /> ZIP herunterladen
+              </button>
+            </div>
+          </div>
         </div>
 
         <!-- Produktbeziehungen -->
