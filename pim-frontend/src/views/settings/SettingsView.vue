@@ -120,16 +120,16 @@ function handleOfflineCatalogKeydown(e) {
   }
 }
 
-async function downloadOfflineCatalog() {
+function downloadOfflineCatalog() {
   if (!offlineCatalogResult.value) return
   try {
-    const { data } = await offlineCatalogApi.download()
-    const url = URL.createObjectURL(data)
+    const url = offlineCatalogApi.downloadUrl(authStore.token)
     const link = document.createElement('a')
     link.href = url
     link.download = offlineCatalogResult.value.file_name || 'offline-catalog.zip'
+    document.body.appendChild(link)
     link.click()
-    URL.revokeObjectURL(url)
+    document.body.removeChild(link)
   } catch (e) {
     offlineCatalogError.value = 'Download fehlgeschlagen.'
   }
