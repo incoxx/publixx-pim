@@ -26,12 +26,14 @@ class OfflineCatalogController extends BaseController
     {
         $request->validate([
             'lang' => 'sometimes|string|in:de,en',
+            'template_id' => 'sometimes|nullable|uuid',
         ]);
 
         $lang = $request->input('lang', 'de');
+        $templateId = $request->input('template_id');
 
         try {
-            $result = $this->service->generate($lang);
+            $result = $this->service->generate($lang, $templateId);
 
             if ($result['cancelled']) {
                 return response()->json([

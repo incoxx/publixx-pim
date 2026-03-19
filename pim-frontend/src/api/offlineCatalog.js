@@ -1,8 +1,10 @@
 import client from './client'
 
 export default {
-  generate(lang = 'de') {
-    return client.post('/admin/offline-catalog/generate', { lang }, { timeout: 600000 })
+  generate(lang = 'de', templateId = null) {
+    const payload = { lang }
+    if (templateId) payload.template_id = templateId
+    return client.post('/admin/offline-catalog/generate', payload, { timeout: 600000 })
   },
 
   progress() {

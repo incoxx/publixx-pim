@@ -339,6 +339,21 @@ else
     warn "Frontend-Verzeichnis nicht gefunden — ueberspringe Frontend-Build."
 fi
 
+# ── 5b. OFFLINE CATALOG BUNDLE ──
+EMBED_DIR="${INSTALL_DIR}/catalog-embed"
+if [ -d "$EMBED_DIR" ] && [ -f "${EMBED_DIR}/package.json" ]; then
+    cd "$EMBED_DIR"
+    info "Baue Offline-Katalog-Bundle..."
+    npm ci --silent 2>&1
+    VITE_BUILD_TARGET=offline npx vite build 2>&1
+    if [ -f "${EMBED_DIR}/dist/catalog-offline.umd.js" ]; then
+        info "Offline-Katalog-Bundle erfolgreich gebaut."
+    else
+        warn "Offline-Bundle dist/ nicht gefunden — Build moeglicherweise fehlgeschlagen."
+    fi
+    cd "$INSTALL_DIR"
+fi
+
 # ═════════════════════════════════════════════════════════════════════════════
 #  6. DOKUMENTATION BAUEN (VitePress)
 # ═════════════════════════════════════════════════════════════════════════════

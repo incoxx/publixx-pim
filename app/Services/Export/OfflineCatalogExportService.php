@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Export;
 
 use App\Models\Attribute;
+use App\Models\CatalogTemplate;
 use App\Models\Hierarchy;
 use App\Models\HierarchyNode;
 use App\Models\OutputHierarchyProductAssignment;
@@ -17,6 +18,7 @@ use App\Models\ValueListEntry;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use ZipArchive;
@@ -49,7 +51,7 @@ class OfflineCatalogExportService
      *
      * @return array{path: string, total_products: int, chunks: int, cancelled: bool}
      */
-    public function generate(?string $lang = null): array
+    public function generate(?string $lang = null, ?string $templateId = null): array
     {
         $lang = $lang ?? 'de';
         $startTime = microtime(true);
@@ -167,7 +169,11 @@ class OfflineCatalogExportService
                 JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
             ));
 
-            // 7. ZIP erstellen
+            // 7. index.html + Offline-Assets
+            $this->updateProgress('HTML wird generiert...', $totalProducts, $totalProducts, 'html');
+            $this->buildOfflineHtml($tmpDir, $templateId, $lang);
+
+            // 8. ZIP erstellen
             if ($this->isCancelled()) {
                 $this->updateProgress('Export abgebrochen.', $totalProducts, $totalProducts, 'cancelled');
                 $this->cleanup($tmpDir);
@@ -760,6 +766,195 @@ class OfflineCatalogExportService
         ];
     }
 
+    // ─── Offline HTML & Assets ─────────────────────────────────
+
+    /**
+     * Build the offline index.html and copy JS/CSS assets into the tmp directory.
+     */
+    private function buildOfflineHtml(string $tmpDir, ?string $templateId, string $lang): void
+    {
+        // 1. Ensure offline bundle is built
+        $this->ensureOfflineBundleBuilt();
+
+        // 2. Copy JS & CSS into tmpDir
+        $embedDist = base_path('catalog-embed/dist');
+        $jsFile = "{$embedDist}/catalog-offline.umd.js";
+        $cssFile = "{$embedDist}/catalog-embed.css";
+
+        if (file_exists($jsFile)) {
+            copy($jsFile, "{$tmpDir}/catalog-offline.umd.js");
+        }
+        if (file_exists($cssFile)) {
+            copy($cssFile, "{$tmpDir}/catalog-embed.css");
+        }
+
+        // 3. Load template HTML
+        $html = $this->loadTemplateHtml($templateId);
+
+        // 4. Transform for offline use
+        $html = $this->transformHtmlForOffline($html, $lang);
+
+        // 5. Write index.html
+        file_put_contents("{$tmpDir}/index.html", $html);
+    }
+
+    /**
+     * Build the offline catalog-embed bundle if not already present.
+     */
+    private function ensureOfflineBundleBuilt(): void
+    {
+        $distJs = base_path('catalog-embed/dist/catalog-offline.umd.js');
+        if (file_exists($distJs)) {
+            return; // Already built
+        }
+
+        $catalogEmbedDir = base_path('catalog-embed');
+
+        // Install deps if needed
+        if (!is_dir("{$catalogEmbedDir}/node_modules")) {
+            exec("cd " . escapeshellarg($catalogEmbedDir) . " && npm install 2>&1", $output, $code);
+            if ($code !== 0) {
+                Log::channel('export')->warning('npm install for catalog-embed failed', ['output' => implode("\n", $output)]);
+            }
+        }
+
+        // Build
+        exec(
+            "cd " . escapeshellarg($catalogEmbedDir) . " && VITE_BUILD_TARGET=offline npx vite build 2>&1",
+            $output,
+            $code
+        );
+
+        if ($code !== 0) {
+            Log::channel('export')->warning('Offline bundle build failed', ['output' => implode("\n", $output)]);
+        }
+    }
+
+    /**
+     * Load the HTML template from database or fallback to basic example.
+     */
+    private function loadTemplateHtml(?string $templateId): string
+    {
+        if ($templateId) {
+            $template = CatalogTemplate::find($templateId);
+            if ($template && $template->html_template) {
+                return $template->html_template;
+            }
+        }
+
+        // Fallback: basic example
+        $fallbackPath = base_path('catalog-embed/examples/basic.html');
+        if (File::exists($fallbackPath)) {
+            return File::get($fallbackPath);
+        }
+
+        // Absolute minimum fallback
+        return $this->getMinimalOfflineHtml();
+    }
+
+    /**
+     * Transform an online catalog template HTML into an offline-ready version.
+     */
+    private function transformHtmlForOffline(string $html, string $lang): string
+    {
+        // Remove existing catalog-embed script references (online versions)
+        $html = preg_replace(
+            '/<script[^>]*src=["\'][^"\']*catalog-embed[^"\']*\.js["\'][^>]*><\/script>\s*/i',
+            '',
+            $html
+        );
+
+        // Remove existing CSS references to catalog-embed
+        $html = preg_replace(
+            '/<link[^>]*href=["\'][^"\']*catalog-embed[^"\']*\.css["\'][^>]*>\s*/i',
+            '',
+            $html
+        );
+
+        // Remove existing PublixxCatalog.init(...) script block (online init)
+        $html = preg_replace(
+            '/<script>\s*PublixxCatalog\.init\s*\(\s*\{[^}]*\}\s*\)\s*;?\s*<\/script>\s*/is',
+            '',
+            $html
+        );
+
+        // Inject offline CSS before </head>
+        $offlineCss = '  <link rel="stylesheet" href="./catalog-embed.css">' . "\n";
+        if (str_contains($html, '</head>')) {
+            $html = str_replace('</head>', $offlineCss . '</head>', $html);
+        }
+
+        // Inject offline JS + init before </body>
+        $offlineScript = <<<HTML
+  <script src="./catalog-offline.umd.js"></script>
+  <script>
+    PublixxCatalogOffline.init({
+      dataPath: './data/',
+      locale: '{$lang}',
+      perPage: 24,
+    })
+  </script>
+HTML;
+
+        if (str_contains($html, '</body>')) {
+            $html = str_replace('</body>', $offlineScript . "\n</body>", $html);
+        } else {
+            // No </body> tag — append at end
+            $html .= "\n" . $offlineScript;
+        }
+
+        return $html;
+    }
+
+    /**
+     * Minimal offline HTML fallback when no template is available.
+     */
+    private function getMinimalOfflineHtml(): string
+    {
+        return <<<'HTML'
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Offline-Katalog</title>
+  <style>
+    body { margin: 0; font-family: system-ui, sans-serif; background: #f5f5f5; }
+    .page-header { background: #1B3A5C; color: white; padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; }
+    .page-header h1 { margin: 0; font-size: 1.25rem; }
+    .layout { display: grid; grid-template-columns: 280px 1fr; max-width: 1400px; margin: 0 auto; min-height: calc(100vh - 64px); }
+    .sidebar { background: white; border-right: 1px solid #e5e7eb; overflow-y: auto; }
+    .main { padding: 24px; }
+    @media (max-width: 768px) { .layout { grid-template-columns: 1fr; } .sidebar { display: none; } }
+  </style>
+</head>
+<body>
+  <header class="page-header">
+    <h1>Produktkatalog</h1>
+    <div style="display:flex;align-items:center;gap:12px">
+      <div data-catalog="search"></div>
+      <div data-catalog="wishlist"></div>
+    </div>
+  </header>
+  <div class="layout">
+    <aside class="sidebar">
+      <div data-catalog="categories"></div>
+      <div data-catalog="facets"></div>
+    </aside>
+    <main class="main">
+      <div data-catalog="toolbar"></div>
+      <div data-catalog="active-filters"></div>
+      <div data-catalog="product-grid"></div>
+      <div data-catalog="pagination"></div>
+    </main>
+  </div>
+  <div data-catalog="product-detail"></div>
+  <div data-catalog="compare"></div>
+</body>
+</html>
+HTML;
+    }
+
     // ─── Helpers ──────────────────────────────────────────────────
 
     private function resolveAttributeValue($attrValue, $attr, string $lang): ?string
@@ -798,7 +993,21 @@ class OfflineCatalogExportService
             throw new \RuntimeException("ZIP konnte nicht erstellt werden: {$zipPath}");
         }
 
-        $this->addDirToZip($zip, $sourceDir, 'data');
+        // Add root-level files (index.html, JS, CSS)
+        $rootFiles = ['index.html', 'catalog-offline.umd.js', 'catalog-embed.css'];
+        foreach ($rootFiles as $file) {
+            $filePath = $sourceDir . '/' . $file;
+            if (file_exists($filePath)) {
+                $zip->addFile($filePath, $file);
+            }
+        }
+
+        // Add data/ directory with JSON exports
+        $dataDir = $sourceDir . '/products';
+        if (is_dir($dataDir)) {
+            $this->addDirToZip($zip, $sourceDir, 'data');
+        }
+
         $zip->close();
     }
 
