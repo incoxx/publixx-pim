@@ -20,6 +20,7 @@ use App\Models\Attribute;
 use App\Models\ProductAttributeValue;
 use App\Models\ProductPrice;
 use App\Models\Setting;
+use App\Models\WebsiteProfile;
 use App\Models\ValueListEntry;
 use App\Models\PdfTemplate;
 use App\Services\Inheritance\HierarchyInheritanceService;
@@ -129,7 +130,7 @@ class CatalogController extends BaseController
 
             // "Nur verknüpfte Produkte" – restrict to products in the configured hierarchy
             if (!$categoryId) {
-                $themePayload = Setting::getPayload('catalog_theme') ?? [];
+                $themePayload = WebsiteProfile::getActivePayload();
                 $linkedOnly = !empty($themePayload['catalog_linked_products_only']);
                 $settingsHierarchyId = $themePayload['hierarchy_id'] ?? null;
 
@@ -241,7 +242,7 @@ class CatalogController extends BaseController
         $paginated = $query->paginate($perPage);
 
         // Load card attributes if configured
-        $themePayload = Setting::getPayload('catalog_theme') ?? [];
+        $themePayload = WebsiteProfile::getActivePayload();
         $cardAttributeIds = $themePayload['card_attribute_ids'] ?? [];
         $primaryCardAttributeId = $themePayload['primary_card_attribute_id'] ?? null;
         $cardAttributeMap = [];
@@ -466,7 +467,7 @@ class CatalogController extends BaseController
         $lang = $request->query('lang', 'de');
 
         // Check which relation types to show in catalog
-        $themePayloadEarly = Setting::getPayload('catalog_theme') ?? [];
+        $themePayloadEarly = WebsiteProfile::getActivePayload();
         $catalogRelationTypeIds = $themePayloadEarly['catalog_relation_type_ids'] ?? [];
 
         $product = Product::where('status', 'active')
@@ -639,7 +640,7 @@ class CatalogController extends BaseController
         }
 
         // Load attribute view filter from settings (includes hierarchy-assigned attributes)
-        $themePayload = Setting::getPayload('catalog_theme') ?? [];
+        $themePayload = WebsiteProfile::getActivePayload();
         $allowedAttributeIds = $this->buildAllowedAttributeIds($product, $themePayload);
 
         // Load description attributes configuration
@@ -936,7 +937,7 @@ class CatalogController extends BaseController
 
         // Fall back to hierarchy_id from catalog theme settings if not passed as param
         if (!$hierarchyId) {
-            $themePayload = Setting::getPayload('catalog_theme') ?? [];
+            $themePayload = WebsiteProfile::getActivePayload();
             $hierarchyId = $themePayload['hierarchy_id'] ?? null;
         }
 
@@ -1035,7 +1036,7 @@ class CatalogController extends BaseController
     public function facets(Request $request): JsonResponse
     {
         $lang = $request->query('lang', 'de');
-        $themePayload = Setting::getPayload('catalog_theme') ?? [];
+        $themePayload = WebsiteProfile::getActivePayload();
         $facetAttributeIds = $themePayload['facet_attribute_ids'] ?? [];
 
         if (empty($facetAttributeIds)) {
@@ -1320,7 +1321,7 @@ class CatalogController extends BaseController
      */
     public function productPdf(string $productId, PdfTemplateService $pdfTemplateService): \Illuminate\Http\Response|JsonResponse
     {
-        $themePayload = Setting::getPayload('catalog_theme') ?? [];
+        $themePayload = WebsiteProfile::getActivePayload();
 
         if (empty($themePayload['catalog_pdf_enabled'])) {
             return response()->json(['message' => 'PDF-Download ist nicht aktiviert.'], 403);
@@ -1354,7 +1355,7 @@ class CatalogController extends BaseController
      */
     public function wishlistPdf(Request $request, PdfTemplateService $pdfTemplateService): \Illuminate\Http\Response|JsonResponse
     {
-        $themePayload = Setting::getPayload('catalog_theme') ?? [];
+        $themePayload = WebsiteProfile::getActivePayload();
 
         if (empty($themePayload['catalog_pdf_enabled'])) {
             return response()->json(['message' => 'PDF-Download ist nicht aktiviert.'], 403);
@@ -1403,7 +1404,7 @@ class CatalogController extends BaseController
      */
     public function wishlistExcel(Request $request): StreamedResponse|JsonResponse
     {
-        $themePayload = Setting::getPayload('catalog_theme') ?? [];
+        $themePayload = WebsiteProfile::getActivePayload();
 
         if (empty($themePayload['catalog_excel_export_enabled'])) {
             return response()->json(['message' => 'Excel-Export ist nicht aktiviert.'], 403);
@@ -1464,7 +1465,7 @@ class CatalogController extends BaseController
      */
     public function compareProducts(Request $request): JsonResponse
     {
-        $themePayload = Setting::getPayload('catalog_theme') ?? [];
+        $themePayload = WebsiteProfile::getActivePayload();
 
         if (empty($themePayload['catalog_compare_enabled'])) {
             return response()->json(['message' => 'Produktvergleich ist nicht aktiviert.'], 403);

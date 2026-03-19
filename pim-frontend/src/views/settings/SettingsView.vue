@@ -16,6 +16,8 @@ import { mediaUsageTypes } from '@/api/mediaUsageTypes'
 import catalogPresets from '@/config/catalogPresets'
 import offlineCatalogApi from '@/api/offlineCatalog'
 import catalogTemplatesApi from '@/api/catalogTemplates'
+import websiteProfilesApi from '@/api/websiteProfiles'
+import ProfileSelector from '@/components/shared/ProfileSelector.vue'
 
 const { t } = useI18n()
 const localeStore = useLocaleStore()
@@ -39,6 +41,7 @@ let offlineCatalogPollTimer = null
 const offlineCatalogTemplates = ref([])
 const offlineCatalogTemplateId = ref(null)
 const offlineCatalogTemplatesLoading = ref(false)
+const offlineWebsiteProfileId = ref(null)
 
 const offlineCatalogCleaning = ref(false)
 const offlineCatalogCleanupResult = ref(null)
@@ -91,7 +94,7 @@ async function startOfflineCatalogExport() {
   }, 1000)
 
   try {
-    const { data } = await offlineCatalogApi.generate(themeForm.value.default_locale || 'de', offlineCatalogTemplateId.value)
+    const { data } = await offlineCatalogApi.generate(themeForm.value.default_locale || 'de', offlineCatalogTemplateId.value, offlineWebsiteProfileId.value)
     offlineCatalogProgress.value = null
 
     if (data.cancelled) {
@@ -770,7 +773,23 @@ async function saveThemeSettings() {
     if (!payload.card_price_type_id) payload.card_price_type_id = null
     if (!payload.card_price_country) payload.card_price_country = null
     if (!payload.thumbnail_usage_type_id) payload.thumbnail_usage_type_id = null
-    await adminApi.updateCatalogTheme(payload)
+
+    // Save to selected profile if one is selected, otherwise update active via legacy endpoint
+    const selectedProfile = websiteProfiles.value.find(p => p.id === selectedWebsiteProfileId.value)
+    if (selectedProfile) {
+      if (selectedProfile.is_active) {
+        // Active profile: use legacy endpoint (updates active profile + handles validation)
+        await adminApi.updateCatalogTheme(payload)
+      } else {
+        // Non-active profile: update via profile API
+        await websiteProfilesApi.update(selectedProfile.id, { payload })
+      }
+      // Sync payload in local list
+      selectedProfile.payload = { ...payload }
+    } else {
+      await adminApi.updateCatalogTheme(payload)
+    }
+
     themeSaved.value = true
     setTimeout(() => { themeSaved.value = false }, 3000)
   } catch (e) {
@@ -783,6 +802,138 @@ async function saveThemeSettings() {
       themeError.value = respData?.message || e.message || 'Speichern fehlgeschlagen'
     }
   } finally { themeSaving.value = false }
+}
+
+// ── Website Profiles ──
+const websiteProfiles = ref([])
+const selectedWebsiteProfileId = ref(null)
+
+async function loadWebsiteProfiles() {
+  try {
+    const { data } = await websiteProfilesApi.list()
+    websiteProfiles.value = data.data || []
+    // Auto-select the active profile
+    const active = websiteProfiles.value.find(p => p.is_active)
+    if (active) selectedWebsiteProfileId.value = active.id
+  } catch (e) {
+    console.warn('Failed to load website profiles:', e.message)
+  }
+}
+
+function applyPayloadToForm(payload) {
+  if (!payload) return
+  const d = payload
+  themeForm.value = {
+    font_family: d.font_family || 'Inter',
+    font_heading_size: d.font_heading_size || '1.75rem',
+    font_body_size: d.font_body_size || '0.875rem',
+    color_primary: d.color_primary || '#1B3A5C',
+    color_accent: d.color_accent || '#0D9488',
+    color_table_bg: d.color_table_bg || '#f8fafc',
+    color_body_text: d.color_body_text || '#111827',
+    color_sidebar: d.color_sidebar || '#1B3A5C',
+    color_button: d.color_button || '#0D9488',
+    color_table_stripe: d.color_table_stripe || '#f1f5f9',
+    logo_media_id: d.logo_media_id || null,
+    catalog_title: d.catalog_title || 'Produktkatalog',
+    seo_title: d.seo_title || '',
+    seo_description: d.seo_description || '',
+    impressum_url: d.impressum_url || '',
+    kontakt_url: d.kontakt_url || '',
+    impressum_text: d.impressum_text || '',
+    kontakt_text: d.kontakt_text || '',
+    footer_text: d.footer_text || '',
+    hierarchy_id: d.hierarchy_id || null,
+    attribute_view_ids: d.attribute_view_ids || [],
+    default_locale: d.default_locale || 'de',
+    color_header_bg: d.color_header_bg || '',
+    color_header_text: d.color_header_text || '',
+    color_mobile_menu_bg: d.color_mobile_menu_bg || '',
+    color_mobile_menu_text: d.color_mobile_menu_text || '',
+    popup_max_width: d.popup_max_width || '4xl',
+    facet_attribute_ids: d.facet_attribute_ids || [],
+    detail_layout: d.detail_layout || 'classic',
+    card_attribute_ids: d.card_attribute_ids || [],
+    primary_card_attribute_id: d.primary_card_attribute_id || null,
+    card_show_sku: d.card_show_sku ?? false,
+    card_show_category: d.card_show_category ?? true,
+    card_show_price: d.card_show_price ?? true,
+    card_price_type_id: d.card_price_type_id || null,
+    card_price_country: d.card_price_country || null,
+    card_image_ratio: d.card_image_ratio || '4/3',
+    thumbnail_usage_type_id: d.thumbnail_usage_type_id || null,
+    description_attributes: d.description_attributes || [],
+    pdf_display_mode: d.pdf_display_mode || 'link',
+    catalog_pdf_enabled: !!d.catalog_pdf_enabled,
+    catalog_pdf_template_id: d.catalog_pdf_template_id || null,
+    catalog_compare_enabled: !!d.catalog_compare_enabled,
+    catalog_compare_max_products: d.catalog_compare_max_products ?? 3,
+    catalog_excel_export_enabled: !!d.catalog_excel_export_enabled,
+    catalog_share_wishlist_enabled: !!d.catalog_share_wishlist_enabled,
+    catalog_access_mode: d.catalog_access_mode || 'public',
+    catalog_linked_products_only: !!d.catalog_linked_products_only,
+    catalog_relation_type_ids: d.catalog_relation_type_ids || [],
+  }
+  themeLogoPreview.value = d.logo_url || null
+}
+
+async function loadWebsiteProfile(id) {
+  try {
+    const profile = websiteProfiles.value.find(p => p.id === id)
+    if (profile?.payload) {
+      applyPayloadToForm(profile.payload)
+    }
+  } catch (e) {
+    console.warn('Failed to load website profile:', e.message)
+  }
+}
+
+async function saveWebsiteProfile({ name, is_shared }) {
+  try {
+    const { data } = await websiteProfilesApi.create({ name, is_shared, payload: themeForm.value })
+    await loadWebsiteProfiles()
+    selectedWebsiteProfileId.value = data.data.id
+  } catch (e) {
+    themeError.value = e.response?.data?.message || 'Profil konnte nicht gespeichert werden.'
+  }
+}
+
+async function updateWebsiteProfile({ id, name, is_shared }) {
+  try {
+    await websiteProfilesApi.update(id, { name, is_shared, payload: themeForm.value })
+    await loadWebsiteProfiles()
+  } catch (e) {
+    themeError.value = e.response?.data?.message || 'Profil konnte nicht aktualisiert werden.'
+  }
+}
+
+async function deleteWebsiteProfile(id) {
+  try {
+    await websiteProfilesApi.remove(id)
+    await loadWebsiteProfiles()
+    // If deleted was selected, reset to active
+    if (selectedWebsiteProfileId.value === id) {
+      const active = websiteProfiles.value.find(p => p.is_active)
+      selectedWebsiteProfileId.value = active?.id || null
+      if (active?.payload) applyPayloadToForm(active.payload)
+    }
+    // Reset offline export profile selection if deleted
+    if (offlineWebsiteProfileId.value === id) {
+      offlineWebsiteProfileId.value = null
+    }
+  } catch (e) {
+    themeError.value = e.response?.data?.message || 'Profil konnte nicht gelöscht werden.'
+  }
+}
+
+async function activateWebsiteProfile() {
+  if (!selectedWebsiteProfileId.value) return
+  try {
+    await websiteProfilesApi.activate(selectedWebsiteProfileId.value)
+    await loadWebsiteProfiles()
+  } catch (e) {
+    themeError.value = e.response?.data?.message || 'Profil konnte nicht aktiviert werden.'
+  }
 }
 
 async function uploadLogo(event) {
@@ -1225,6 +1376,7 @@ watch(activeMainTab, (tab) => {
   if (tab === 'offline') {
     if (offlineCatalogTemplates.value.length === 0) loadOfflineCatalogTemplates()
     if (!offlineBundleStatus.value) loadOfflineBundleStatus()
+    if (websiteProfiles.value.length === 0) loadWebsiteProfiles()
   }
 })
 
@@ -1239,6 +1391,7 @@ onMounted(async () => {
   loadStatus()
   if (isAdmin) {
     await loadThemeSettings()
+    loadWebsiteProfiles()
     loadHierarchies()
     loadAttributeViews()
     loadAttributes(themeForm.value.hierarchy_id || null)
@@ -1331,6 +1484,32 @@ onUnmounted(() => {
       </div>
 
       <template v-else>
+        <!-- Website Profile Selector -->
+        <div class="flex items-center gap-3 mb-4">
+          <ProfileSelector
+            v-model="selectedWebsiteProfileId"
+            :profiles="websiteProfiles"
+            label="Website-Profil"
+            @load="loadWebsiteProfile"
+            @save="saveWebsiteProfile"
+            @update="updateWebsiteProfile"
+            @delete="deleteWebsiteProfile"
+          />
+          <button
+            v-if="selectedWebsiteProfileId && !websiteProfiles.find(p => p.id === selectedWebsiteProfileId)?.is_active"
+            class="pim-btn pim-btn-primary text-xs"
+            @click="activateWebsiteProfile"
+          >
+            Aktivieren
+          </button>
+          <span
+            v-if="websiteProfiles.find(p => p.id === selectedWebsiteProfileId)?.is_active"
+            class="text-[10px] text-[var(--color-success)] font-medium"
+          >
+            Aktiv
+          </span>
+        </div>
+
         <!-- Sub-Tab Navigation -->
         <div class="flex gap-1 border-b border-[var(--color-border)] -mx-6 px-6">
           <button
@@ -2181,6 +2360,24 @@ onUnmounted(() => {
         </select>
         <p class="text-[10px] text-[var(--color-text-tertiary)]">
           HTML-Template für die index.html im ZIP. Vorlagen können unter „Katalog Vorlagen" erstellt werden.
+        </p>
+      </div>
+
+      <!-- Website Profile Selection -->
+      <div class="space-y-1">
+        <label class="block text-[12px] font-medium text-[var(--color-text-secondary)]">Website-Profil</label>
+        <select
+          class="pim-input text-xs max-w-md"
+          v-model="offlineWebsiteProfileId"
+          :disabled="offlineCatalogExporting"
+        >
+          <option :value="null">— Aktives Profil —</option>
+          <option v-for="p in websiteProfiles" :key="p.id" :value="p.id">
+            {{ p.name }}{{ p.is_active ? ' (aktiv)' : '' }}{{ p.is_shared ? ' (geteilt)' : '' }}
+          </option>
+        </select>
+        <p class="text-[10px] text-[var(--color-text-tertiary)]">
+          Website-Profil für den Offline-Export. Standardmäßig wird das aktive Profil verwendet.
         </p>
       </div>
 

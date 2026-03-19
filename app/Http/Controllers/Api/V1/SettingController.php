@@ -15,6 +15,7 @@ use App\Models\PriceType;
 use App\Models\Product;
 use App\Models\ProductRelationType;
 use App\Models\Setting;
+use App\Models\WebsiteProfile;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -76,7 +77,7 @@ class SettingController extends Controller
      */
     public function catalogTheme(): JsonResponse
     {
-        $payload = Setting::getPayload('catalog_theme') ?? [];
+        $payload = WebsiteProfile::getActivePayload();
         $merged = array_merge(self::CATALOG_THEME_DEFAULTS, $payload);
 
         // Resolve logo URL from media ID
@@ -232,10 +233,20 @@ class SettingController extends Controller
         ]);
 
         // Merge with existing payload so that unsent keys are preserved
-        $existing = Setting::getPayload('catalog_theme') ?? [];
+        $activeProfile = WebsiteProfile::where('is_active', true)->first();
+        $existing = $activeProfile?->payload ?? [];
         $merged = array_merge($existing, $validated);
 
-        Setting::setPayload('catalog_theme', $merged);
+        if ($activeProfile) {
+            $activeProfile->update(['payload' => $merged]);
+        } else {
+            WebsiteProfile::create([
+                'name' => 'Standard',
+                'is_shared' => true,
+                'is_active' => true,
+                'payload' => $merged,
+            ]);
+        }
 
         return response()->json(['message' => 'Catalog theme updated.']);
     }

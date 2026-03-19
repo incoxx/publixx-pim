@@ -2,9 +2,10 @@ import client from './client'
 import { resolveApiUrl } from './client'
 
 export default {
-  generate(lang = 'de', templateId = null) {
+  generate(lang = 'de', templateId = null, websiteProfileId = null) {
     const payload = { lang }
     if (templateId) payload.template_id = templateId
+    if (websiteProfileId) payload.website_profile_id = websiteProfileId
     return client.post('/admin/offline-catalog/generate', payload, { timeout: 600000 })
   },
 

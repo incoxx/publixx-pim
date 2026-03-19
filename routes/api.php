@@ -38,6 +38,7 @@ use App\Http\Controllers\Api\V1\OfflineCatalogController;
 use App\Http\Controllers\Api\V1\TestDataGeneratorController;
 use App\Http\Controllers\Api\V1\ScheduledActionController;
 use App\Http\Controllers\Api\V1\SearchProfileController;
+use App\Http\Controllers\Api\V1\WebsiteProfileController;
 use App\Http\Controllers\Api\V1\HierarchyAttributeAssignmentController;
 use App\Http\Controllers\Api\V1\HierarchyController;
 use App\Http\Controllers\Api\V1\OutputHierarchyProductAssignmentController;
@@ -533,6 +534,12 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // =====================================================================
     Route::apiResource('import-profiles', ImportProfileController::class)->except(['show']);
     Route::post('import-profiles/analyze', [ImportProfileController::class, 'analyze']);
+
+    // =====================================================================
+    // Website Profiles (Website-Profile)
+    // =====================================================================
+    Route::apiResource('website-profiles', WebsiteProfileController::class)->except(['show']);
+    Route::post('website-profiles/{website_profile}/activate', [WebsiteProfileController::class, 'activate']);
     Route::post('import-profiles/auto-generate-attributes', [ImportProfileController::class, 'autoGenerateAttributes']);
     Route::post('import-profiles/{import_profile}/preview', [ImportProfileController::class, 'preview']);
 
