@@ -34,6 +34,7 @@ use App\Http\Controllers\Api\V1\BmecatExportController;
 use App\Http\Controllers\Api\V1\JsonExportImportController;
 use App\Http\Controllers\Api\V1\ImportProfileController;
 use App\Http\Controllers\Api\V1\LoadDemoDataController;
+use App\Http\Controllers\Api\V1\OfflineCatalogController;
 use App\Http\Controllers\Api\V1\TestDataGeneratorController;
 use App\Http\Controllers\Api\V1\ScheduledActionController;
 use App\Http\Controllers\Api\V1\SearchProfileController;
@@ -626,6 +627,12 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::get('admin/test-data/stats', [TestDataGeneratorController::class, 'stats']);
     Route::get('admin/test-data/progress', [TestDataGeneratorController::class, 'progress']);
     Route::post('admin/test-data/cancel', [TestDataGeneratorController::class, 'cancel']);
+
+    // Admin: Offline Catalog Export
+    Route::post('admin/offline-catalog/generate', [OfflineCatalogController::class, 'generate']);
+    Route::get('admin/offline-catalog/progress', [OfflineCatalogController::class, 'progress']);
+    Route::post('admin/offline-catalog/cancel', [OfflineCatalogController::class, 'cancel']);
+    Route::get('admin/offline-catalog/download', [OfflineCatalogController::class, 'download']);
     Route::put('settings/catalog-theme', [SettingController::class, 'updateCatalogTheme']);
     Route::post('admin/search-reindex', [SettingController::class, 'reindexSearch']);
     Route::get('admin/search-reindex/progress', [SettingController::class, 'reindexProgress']);

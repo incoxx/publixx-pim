@@ -3,7 +3,21 @@
  * All widgets share this single reactive state.
  */
 import { reactive, computed, watch } from 'vue'
-import { catalogApi, resolveMediaUrl, clearCache } from './api.js'
+import { catalogApi as defaultApi, resolveMediaUrl as defaultResolveMedia, clearCache } from './api.js'
+
+// Swappable API provider — allows offline mode to inject a different backend
+let _api = defaultApi
+let _resolveMedia = defaultResolveMedia
+
+/**
+ * Replace the API backend used by the store.
+ * @param {object} api - Object implementing the same interface as catalogApi
+ * @param {function} [resolveMedia] - Optional media URL resolver override
+ */
+export function setApiProvider(api, resolveMedia) {
+  _api = api
+  if (resolveMedia) _resolveMedia = resolveMedia
+}
 
 function createStore() {
   const state = reactive({
@@ -83,7 +97,7 @@ function createStore() {
   const actions = {
     async fetchSettings() {
       try {
-        const data = await catalogApi.getSettings()
+        const data = await _api.getSettings()
         state.settings = data || {}
         if (!(typeof localStorage !== 'undefined' && localStorage.getItem('pxc_locale')) && data.default_locale) {
           state.locale = data.default_locale
@@ -99,7 +113,7 @@ function createStore() {
       state.error = null
       try {
         const isSearching = state.search && state.search.trim().length > 0
-        const result = await catalogApi.getProducts({
+        const result = await _api.getProducts({
           page: state.meta.current_page,
           perPage: state.meta.per_page,
           sort: state.sort.field,
@@ -112,7 +126,7 @@ function createStore() {
         })
         state.products = result.products.map(p => ({
           ...p,
-          image_url: resolveMediaUrl(p.image_url),
+          image_url: _resolveMedia(p.image_url),
         }))
         state.meta = result.meta
       } catch (e) {
@@ -127,9 +141,9 @@ function createStore() {
       state.productLoading = true
       state.error = null
       try {
-        const prod = await catalogApi.getProduct(id, { lang: state.locale })
+        const prod = await _api.getProduct(id, { lang: state.locale })
         if (prod?.media) {
-          prod.media = prod.media.map(m => ({ ...m, url: resolveMediaUrl(m.url) }))
+          prod.media = prod.media.map(m => ({ ...m, url: _resolveMedia(m.url) }))
         }
         state.currentProduct = prod
       } catch (e) {
@@ -143,7 +157,7 @@ function createStore() {
     async fetchCategories() {
       state.categoriesLoading = true
       try {
-        const data = await catalogApi.getCategories({
+        const data = await _api.getCategories({
           lang: state.locale,
           hierarchyId: state.settings.hierarchy_id || undefined,
         })
@@ -163,7 +177,7 @@ function createStore() {
 
     async fetchFacets() {
       try {
-        const data = await catalogApi.getFacets({ lang: state.locale })
+        const data = await _api.getFacets({ lang: state.locale })
         state.facets = data.facets || []
       } catch (e) {
         console.warn('[PublixxCatalog] Facets load failed:', e.message)
@@ -274,7 +288,7 @@ function createStore() {
       state.compareOpen = true
       state.compareLoading = true
       try {
-        state.compareData = await catalogApi.compareProducts(state.compareProductIds, state.locale)
+        state.compareData = await _api.compareProducts(state.compareProductIds, state.locale)
       } catch (e) {
         console.error('[PublixxCatalog] Compare failed:', e)
         state.compareData = null
@@ -291,17 +305,17 @@ function createStore() {
 
     // Exports
     async downloadProductPdf(id) {
-      const blob = await catalogApi.downloadProductPdf(id, { lang: state.locale })
+      const blob = await _api.downloadProductPdf(id, { lang: state.locale })
       triggerBlobDownload(blob, `product-${id}.pdf`)
     },
 
     async downloadWishlistPdf() {
-      const blob = await catalogApi.downloadWishlistPdf(state.wishlistIds, state.locale)
+      const blob = await _api.downloadWishlistPdf(state.wishlistIds, state.locale)
       triggerBlobDownload(blob, `wishlist-${new Date().toISOString().slice(0, 10)}.pdf`)
     },
 
     async downloadWishlistExcel() {
-      const blob = await catalogApi.downloadWishlistExcel(state.wishlistIds)
+      const blob = await _api.downloadWishlistExcel(state.wishlistIds)
       triggerBlobDownload(blob, `wishlist-${new Date().toISOString().slice(0, 10)}.xlsx`)
     },
   }
