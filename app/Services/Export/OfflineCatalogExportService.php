@@ -971,6 +971,17 @@ class OfflineCatalogExportService
   </script>
 HTML;
 
+        // Ensure sidebar-toggle is present (needed for mobile hamburger menu).
+        // Inject right after <body> so it appears early in the DOM.
+        if (! str_contains($html, 'data-catalog="sidebar-toggle"')) {
+            $html = preg_replace(
+                '/<body[^>]*>/i',
+                '$0' . "\n" . '  <div data-catalog="sidebar-toggle" style="position:fixed;top:12px;left:12px;z-index:9995"></div>',
+                $html,
+                1
+            );
+        }
+
         // Ensure essential hidden widget placeholders are present (wishlist drawer,
         // product detail modal, compare modal). Templates from the DB might omit these.
         $requiredWidgets = ['wishlist', 'product-detail', 'compare'];

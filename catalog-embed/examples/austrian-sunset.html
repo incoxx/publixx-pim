@@ -459,7 +459,8 @@
         flex-direction: column;
       }
       .aset-sidebar {
-        /* Mobile: handled by pxc-sidebar drawer */
+        /* Mobile: hidden by default, pxc-sidebar class (added by JS)
+           transforms it into a fixed left drawer via !important rules */
         display: none;
       }
       .aset-content {
@@ -472,11 +473,21 @@
       .aset-header__title {
         font-size: 0.9rem;
       }
+      /* Hide long title on small screens to make room for hamburger + actions */
+      @media (max-width: 480px) {
+        .aset-header__title {
+          display: none;
+        }
+      }
       .aset-footer {
         flex-direction: column;
         gap: 6px;
         text-align: center;
         padding: 12px;
+      }
+      /* Hamburger button color in yellow header */
+      .pxc-sidebar-toggle {
+        color: var(--aset-blue);
       }
     }
   </style>
