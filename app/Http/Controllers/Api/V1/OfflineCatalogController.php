@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Models\CatalogTemplate;
 use App\Services\Export\OfflineCatalogExportService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Routing\Controller as BaseController;
 use Illuminate\Support\Facades\Log;
 
-class OfflineCatalogController extends BaseController
+class OfflineCatalogController extends Controller
 {
     public function __construct(
         private readonly OfflineCatalogExportService $service,
@@ -24,14 +24,19 @@ class OfflineCatalogController extends BaseController
      */
     public function generate(Request $request): JsonResponse
     {
+        $this->authorizeAdmin($request);
+
         $request->validate([
             'lang' => 'sometimes|string|in:de,en',
+            'template_id' => 'sometimes|nullable|string|exists:catalog_templates,id',
         ]);
 
         $lang = $request->input('lang', 'de');
+        $templateId = $request->input('template_id');
+        $userId = $request->user()->id;
 
         try {
-            $result = $this->service->generate($lang);
+            $result = $this->service->generate($lang, $userId, $templateId);
 
             if ($result['cancelled']) {
                 return response()->json([
@@ -69,12 +74,11 @@ class OfflineCatalogController extends BaseController
 
     /**
      * GET /api/v1/admin/offline-catalog/progress
-     *
-     * Gibt den aktuellen Fortschritt zurück.
      */
-    public function progress(): JsonResponse
+    public function progress(Request $request): JsonResponse
     {
-        $progress = $this->service->getProgress();
+        $userId = $request->user()->id;
+        $progress = $this->service->getProgress($userId);
 
         if (!$progress) {
             return response()->json(['status' => 'idle']);
@@ -85,12 +89,11 @@ class OfflineCatalogController extends BaseController
 
     /**
      * POST /api/v1/admin/offline-catalog/cancel
-     *
-     * Bricht den laufenden Export ab.
      */
-    public function cancel(): JsonResponse
+    public function cancel(Request $request): JsonResponse
     {
-        $this->service->cancel();
+        $userId = $request->user()->id;
+        $this->service->cancel($userId);
 
         return response()->json(['message' => 'Abbruch angefordert.']);
     }
@@ -99,20 +102,47 @@ class OfflineCatalogController extends BaseController
      * GET /api/v1/admin/offline-catalog/download
      *
      * Lädt die zuletzt erstellte Offline-Katalog-ZIP-Datei herunter.
+     * Fallback: Sucht neueste ZIP im exports-Verzeichnis, falls Cache abgelaufen.
      */
     public function download(Request $request): \Symfony\Component\HttpFoundation\BinaryFileResponse|JsonResponse
     {
-        $progress = $this->service->getProgress();
+        $userId = $request->user()->id;
+        $progress = $this->service->getProgress($userId);
 
-        if (!$progress || $progress['status'] !== 'completed' || empty($progress['path'])) {
-            return response()->json(['message' => 'Keine Datei verfügbar.'], 404);
+        // Try from cache first
+        if ($progress && $progress['status'] === 'completed' && !empty($progress['path'])) {
+            $path = $progress['path'];
+            if (file_exists($path)) {
+                return response()->download($path, $progress['file_name'] ?? basename($path));
+            }
         }
 
-        $path = $progress['path'];
-        if (!file_exists($path)) {
-            return response()->json(['message' => 'Datei nicht mehr vorhanden.'], 404);
+        // Fallback: find newest offline-catalog ZIP on disk
+        $exportDir = storage_path('app/exports');
+        if (is_dir($exportDir)) {
+            $files = glob($exportDir . '/offline-catalog_*.zip');
+            if (!empty($files)) {
+                usort($files, fn ($a, $b) => filemtime($b) - filemtime($a));
+                $latest = $files[0];
+                return response()->download($latest, basename($latest));
+            }
         }
 
-        return response()->download($path, $progress['file_name'] ?? basename($path));
+        return response()->json(['message' => 'Keine Datei verfügbar.'], 404);
+    }
+
+    private function authorizeAdmin(Request $request): void
+    {
+        $user = $request->user();
+        if (!$user) {
+            abort(401, 'Nicht authentifiziert.');
+        }
+
+        $isAdmin = $user->hasRole('Admin')
+            || (method_exists($user, 'hasPermissionTo') && $user->hasPermissionTo('*'));
+
+        if (!$isAdmin) {
+            abort(403, 'Nur Administratoren können den Offline-Katalog exportieren.');
+        }
     }
 }

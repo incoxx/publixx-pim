@@ -15,6 +15,7 @@ import { priceTypes as priceTypesApi, relationTypes as relationTypesApi } from '
 import { mediaUsageTypes } from '@/api/mediaUsageTypes'
 import catalogPresets from '@/config/catalogPresets'
 import offlineCatalogApi from '@/api/offlineCatalog'
+import catalogTemplatesApi from '@/api/catalogTemplates'
 
 const { t } = useI18n()
 const localeStore = useLocaleStore()
@@ -35,6 +36,18 @@ const offlineCatalogProgress = ref(null)
 const offlineCatalogError = ref(null)
 const offlineCatalogResult = ref(null)
 let offlineCatalogPollTimer = null
+const offlineCatalogTemplates = ref([])
+const offlineCatalogSelectedTemplateId = ref(null)
+const offlineCatalogTemplatesLoading = ref(false)
+
+async function loadOfflineCatalogTemplates() {
+  offlineCatalogTemplatesLoading.value = true
+  try {
+    const { data } = await catalogTemplatesApi.list()
+    offlineCatalogTemplates.value = data.data || data || []
+  } catch { /* ignore */ }
+  offlineCatalogTemplatesLoading.value = false
+}
 
 async function startOfflineCatalogExport() {
   offlineCatalogExporting.value = true
@@ -51,7 +64,7 @@ async function startOfflineCatalogExport() {
   }, 1000)
 
   try {
-    const { data } = await offlineCatalogApi.generate('de')
+    const { data } = await offlineCatalogApi.generate('de', offlineCatalogSelectedTemplateId.value)
     offlineCatalogProgress.value = null
 
     if (data.cancelled) {
@@ -1161,6 +1174,7 @@ watch(activeMainTab, (tab) => {
   if (tab === 'env' && envGroups.value.length === 0) loadEnvInfo()
   if (tab === 'system' && !systemStatus.value) loadSystemStatus()
   if (tab === 'processes') { loadQueueJobs(); loadSystemProcesses() }
+  if (tab === 'offline' && offlineCatalogTemplates.value.length === 0) loadOfflineCatalogTemplates()
 })
 
 // Reload attributes when hierarchy selection changes
@@ -1205,6 +1219,7 @@ onUnmounted(() => {
         v-for="tab in [
           { key: 'general', label: 'Generell', icon: Settings2 },
           ...(isAdmin ? [{ key: 'catalog', label: 'Preview Katalog', icon: Eye }] : []),
+          ...(isAdmin ? [{ key: 'offline', label: 'Offline-Katalog', icon: HardDrive }] : []),
           ...(isAdmin ? [{ key: 'env', label: 'Umgebung', icon: FileCode2 }] : []),
           ...(isAdmin ? [{ key: 'processes', label: 'Prozesse', icon: Zap }] : []),
           ...(isAdmin ? [{ key: 'system', label: 'System', icon: Activity }] : []),
@@ -1649,80 +1664,6 @@ onUnmounted(() => {
           </label>
         </div>
 
-        <!-- Offline-Katalog Export -->
-        <div class="space-y-3" @keydown="handleOfflineCatalogKeydown">
-          <div class="flex items-center gap-2">
-            <HardDrive class="w-3.5 h-3.5 text-[var(--color-text-secondary)]" :stroke-width="2" />
-            <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">Offline-Katalog</h4>
-          </div>
-          <p class="text-[11px] text-[var(--color-text-tertiary)]">
-            Generiert eine ZIP-Datei mit allen Katalogdaten als JSON-Chunks.
-            Die ZIP kann auf einem Webserver oder lokal ohne Backend betrieben werden.
-          </p>
-
-          <!-- Export Button / Progress -->
-          <div v-if="offlineCatalogExporting" class="space-y-2">
-            <div class="flex items-center gap-2">
-              <Loader2 class="w-4 h-4 animate-spin text-[var(--color-accent)]" />
-              <span class="text-xs text-[var(--color-text-secondary)]">
-                {{ offlineCatalogProgress?.phase || 'Exportiere...' }}
-              </span>
-            </div>
-            <div v-if="offlineCatalogProgress?.total > 0" class="space-y-1">
-              <div class="w-full bg-[var(--color-bg-tertiary)] rounded-full h-2">
-                <div
-                  class="bg-[var(--color-accent)] h-2 rounded-full transition-all duration-300"
-                  :style="{ width: (offlineCatalogProgress?.percent || 0) + '%' }"
-                ></div>
-              </div>
-              <p class="text-[10px] text-[var(--color-text-tertiary)]">
-                {{ offlineCatalogProgress?.current?.toLocaleString() }} / {{ offlineCatalogProgress?.total?.toLocaleString() }} Produkte
-                ({{ offlineCatalogProgress?.percent || 0 }}%)
-              </p>
-            </div>
-            <button
-              class="pim-btn-sm pim-btn-danger text-xs"
-              @click="cancelOfflineCatalogExport"
-            >
-              <X class="w-3 h-3" /> Abbrechen
-            </button>
-            <p class="text-[10px] text-[var(--color-text-tertiary)]">Tipp: Drücke <kbd class="px-1 py-0.5 bg-[var(--color-bg-tertiary)] rounded text-[9px]">Esc</kbd> zum Abbrechen</p>
-          </div>
-
-          <div v-else class="space-y-2">
-            <button
-              class="pim-btn-sm pim-btn-primary text-xs"
-              @click="startOfflineCatalogExport"
-            >
-              <Play class="w-3 h-3" /> Offline-Katalog generieren
-            </button>
-
-            <!-- Error -->
-            <div v-if="offlineCatalogError" class="flex items-center gap-2 text-xs text-red-600">
-              <XCircle class="w-3.5 h-3.5" />
-              {{ offlineCatalogError }}
-            </div>
-
-            <!-- Success + Download -->
-            <div v-if="offlineCatalogResult" class="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg space-y-2">
-              <div class="flex items-center gap-2 text-xs text-green-700 dark:text-green-400">
-                <CheckCircle class="w-3.5 h-3.5" />
-                Export abgeschlossen
-              </div>
-              <div class="text-[11px] text-[var(--color-text-secondary)] space-y-0.5">
-                <p>{{ offlineCatalogResult.total_products?.toLocaleString() }} Produkte in {{ offlineCatalogResult.chunks }} Chunks</p>
-                <p>{{ formatFileSize(offlineCatalogResult.file_size) }} · {{ offlineCatalogResult.duration }}s</p>
-              </div>
-              <button
-                class="pim-btn-sm pim-btn-primary text-xs"
-                @click="downloadOfflineCatalog"
-              >
-                <HardDrive class="w-3 h-3" /> ZIP herunterladen
-              </button>
-            </div>
-          </div>
-        </div>
-
         <!-- Produktbeziehungen -->
         <div class="space-y-3">
           <div class="flex items-center gap-2">
@@ -2136,6 +2077,112 @@ onUnmounted(() => {
     </div>
 
     </template><!-- end TAB: Preview Katalog -->
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- TAB: OFFLINE-KATALOG                                               -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <template v-if="activeMainTab === 'offline' && isAdmin">
+    <div class="pim-card p-4 sm:p-6 space-y-6" @keydown="handleOfflineCatalogKeydown">
+      <div class="flex items-center gap-3 mb-2">
+        <HardDrive class="w-5 h-5 text-[var(--color-accent)]" :stroke-width="1.75" />
+        <h3 class="text-sm font-semibold">Offline-Katalog Export</h3>
+      </div>
+
+      <p class="text-xs text-[var(--color-text-secondary)]">
+        Generiert eine ZIP-Datei mit allen Katalogdaten als JSON-Chunks.
+        Die ZIP kann auf einem Webserver oder lokal ohne Backend betrieben werden.
+      </p>
+
+      <!-- Template-Auswahl -->
+      <div class="space-y-2">
+        <label class="block text-[12px] font-medium text-[var(--color-text-secondary)]">Katalog-Vorlage</label>
+        <p class="text-[11px] text-[var(--color-text-tertiary)]">
+          Wähle die Vorlage, mit der der Offline-Katalog generiert wird. Die Vorlage bestimmt das HTML-Template und die CSS-Variablen.
+        </p>
+        <div class="flex items-center gap-2">
+          <select
+            v-model="offlineCatalogSelectedTemplateId"
+            class="pim-input text-xs max-w-sm"
+            :disabled="offlineCatalogExporting || offlineCatalogTemplatesLoading"
+          >
+            <option :value="null">Standard (aktuelle Katalog-Einstellungen)</option>
+            <option
+              v-for="tpl in offlineCatalogTemplates"
+              :key="tpl.id"
+              :value="tpl.id"
+            >
+              {{ tpl.name }}{{ tpl.description ? ` — ${tpl.description}` : '' }}
+            </option>
+          </select>
+          <Loader2 v-if="offlineCatalogTemplatesLoading" class="w-4 h-4 animate-spin text-[var(--color-text-tertiary)]" />
+        </div>
+      </div>
+
+      <hr class="border-[var(--color-border)]" />
+
+      <!-- Export Button / Progress -->
+      <div v-if="offlineCatalogExporting" class="space-y-3">
+        <div class="flex items-center gap-2">
+          <Loader2 class="w-4 h-4 animate-spin text-[var(--color-accent)]" />
+          <span class="text-xs text-[var(--color-text-secondary)]">
+            {{ offlineCatalogProgress?.phase || 'Exportiere...' }}
+          </span>
+        </div>
+        <div v-if="offlineCatalogProgress?.total > 0" class="space-y-1">
+          <div class="w-full bg-[var(--color-bg-tertiary)] rounded-full h-2.5">
+            <div
+              class="bg-[var(--color-accent)] h-2.5 rounded-full transition-all duration-300"
+              :style="{ width: (offlineCatalogProgress?.percent || 0) + '%' }"
+            ></div>
+          </div>
+          <p class="text-[11px] text-[var(--color-text-tertiary)]">
+            {{ offlineCatalogProgress?.current?.toLocaleString() }} / {{ offlineCatalogProgress?.total?.toLocaleString() }} Produkte
+            ({{ offlineCatalogProgress?.percent || 0 }}%)
+          </p>
+        </div>
+        <button
+          class="pim-btn-sm pim-btn-danger text-xs"
+          @click="cancelOfflineCatalogExport"
+        >
+          <X class="w-3 h-3" /> Abbrechen
+        </button>
+        <p class="text-[10px] text-[var(--color-text-tertiary)]">Tipp: Drücke <kbd class="px-1 py-0.5 bg-[var(--color-bg-tertiary)] rounded text-[9px]">Esc</kbd> zum Abbrechen</p>
+      </div>
+
+      <div v-else class="space-y-3">
+        <button
+          class="pim-btn-sm pim-btn-primary text-xs"
+          @click="startOfflineCatalogExport"
+        >
+          <Play class="w-3 h-3" /> Offline-Katalog generieren
+        </button>
+
+        <!-- Error -->
+        <div v-if="offlineCatalogError" class="flex items-center gap-2 text-xs text-red-600">
+          <XCircle class="w-3.5 h-3.5" />
+          {{ offlineCatalogError }}
+        </div>
+
+        <!-- Success + Download -->
+        <div v-if="offlineCatalogResult" class="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg space-y-3">
+          <div class="flex items-center gap-2 text-sm text-green-700 dark:text-green-400">
+            <CheckCircle class="w-4 h-4" />
+            Export abgeschlossen
+          </div>
+          <div class="text-xs text-[var(--color-text-secondary)] space-y-0.5">
+            <p>{{ offlineCatalogResult.total_products?.toLocaleString() }} Produkte in {{ offlineCatalogResult.chunks }} Chunks</p>
+            <p>{{ formatFileSize(offlineCatalogResult.file_size) }} · {{ offlineCatalogResult.duration }}s</p>
+          </div>
+          <button
+            class="pim-btn-sm pim-btn-primary text-xs"
+            @click="downloadOfflineCatalog"
+          >
+            <HardDrive class="w-3 h-3" /> ZIP herunterladen
+          </button>
+        </div>
+      </div>
+    </div>
+    </template><!-- end TAB: Offline-Katalog -->
 
     <!-- ═══════════════════════════════════════════════════════════════════ -->
     <!-- TAB: GENERELL (continued — admin sections)                         -->
