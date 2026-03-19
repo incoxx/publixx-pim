@@ -14,6 +14,10 @@ watch(() => state.detailOpen, (open) => {
   if (open) {
     activeTab.value = 'attributes'
     selectedImageIdx.value = 0
+    // Lazy-load attribute groups if not loaded yet
+    if (state.attributeGroups.length === 0) {
+      actions.fetchAttributeGroups()
+    }
   }
 })
 
@@ -33,7 +37,7 @@ const currentImage = computed(() => images.value[selectedImageIdx.value])
 watch(() => state.currentProduct, () => { selectedImageIdx.value = 0 })
 
 // Group attributes by parent (composite) or as flat list
-const groupedAttributes = computed(() => {
+const flatAttributes = computed(() => {
   const attrs = state.currentProduct?.attributes
   if (!attrs?.length) return []
 
@@ -44,6 +48,56 @@ const groupedAttributes = computed(() => {
   })
 
   return attrs.filter(a => !a.parent_attribute_id || !childIds.has(a.attribute_id))
+})
+
+// Group attributes by attribute group (AttributeType) — MediaMarkt style
+const attributeSections = computed(() => {
+  const attrs = flatAttributes.value
+  if (!attrs.length) return []
+
+  const groups = state.attributeGroups || []
+  const groupMap = {}
+  for (const g of groups) {
+    groupMap[g.id] = g.name
+  }
+
+  // Check if there are multiple groups
+  const uniqueGroups = new Set(attrs.map(a => a.group_id).filter(Boolean))
+  const hasMultipleGroups = uniqueGroups.size > 1
+
+  if (!hasMultipleGroups) {
+    // Single or no group — flat list, no headers
+    return [{ name: null, attrs }]
+  }
+
+  // Build ordered sections: grouped attributes first (by group sort_order), ungrouped last
+  const groupOrder = {}
+  groups.forEach((g, i) => { groupOrder[g.id] = i })
+
+  const sections = {}
+  const ungrouped = []
+
+  for (const attr of attrs) {
+    if (attr.group_id && groupMap[attr.group_id]) {
+      if (!sections[attr.group_id]) {
+        sections[attr.group_id] = {
+          name: groupMap[attr.group_id],
+          sortOrder: groupOrder[attr.group_id] ?? 999,
+          attrs: [],
+        }
+      }
+      sections[attr.group_id].attrs.push(attr)
+    } else {
+      ungrouped.push(attr)
+    }
+  }
+
+  const result = Object.values(sections).sort((a, b) => a.sortOrder - b.sortOrder)
+  if (ungrouped.length) {
+    result.push({ name: state.locale === 'de' ? 'Sonstige' : 'Other', attrs: ungrouped })
+  }
+
+  return result
 })
 
 // Group relations by type
@@ -229,25 +283,30 @@ function getDocIcon(mimeType) {
 
                 <!-- Tab: Attributes -->
                 <div v-if="activeTab === 'attributes'" class="pxc-detail__tab-content">
-                  <table v-if="groupedAttributes.length" class="pxc-detail__table">
-                    <tbody>
-                      <tr v-for="attr in groupedAttributes" :key="attr.attribute_id">
-                        <td class="pxc-detail__table-label">{{ attr.label }}</td>
-                        <td class="pxc-detail__table-value">
-                          <template v-if="attr.link_data">
-                            <a :href="attr.link_data.url" target="_blank" rel="noopener">
-                              {{ attr.link_data.title || attr.link_data.url }}
-                            </a>
-                          </template>
-                          <template v-else-if="attr.data_type === 'Hyperlink'">
-                            <a :href="attr.value" target="_blank" rel="noopener">{{ attr.value }}</a>
-                          </template>
-                          <template v-else>{{ attr.value || '—' }}</template>
-                          <span v-if="attr.unit" class="pxc-text-muted"> {{ attr.unit }}</span>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
+                  <template v-if="attributeSections.length">
+                    <div v-for="(section, sIdx) in attributeSections" :key="sIdx" :class="sIdx > 0 ? 'pxc-mt-4' : ''">
+                      <h4 v-if="section.name" class="pxc-detail__group-header">{{ section.name }}</h4>
+                      <table class="pxc-detail__table">
+                        <tbody>
+                          <tr v-for="attr in section.attrs" :key="attr.attribute_id">
+                            <td class="pxc-detail__table-label">{{ attr.label }}</td>
+                            <td class="pxc-detail__table-value">
+                              <template v-if="attr.link_data">
+                                <a :href="attr.link_data.url" target="_blank" rel="noopener">
+                                  {{ attr.link_data.title || attr.link_data.url }}
+                                </a>
+                              </template>
+                              <template v-else-if="attr.data_type === 'Hyperlink'">
+                                <a :href="attr.value" target="_blank" rel="noopener">{{ attr.value }}</a>
+                              </template>
+                              <template v-else>{{ attr.value || '—' }}</template>
+                              <span v-if="attr.unit" class="pxc-text-muted"> {{ attr.unit }}</span>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </template>
                   <p v-else class="pxc-detail__empty">
                     {{ state.locale === 'de' ? 'Keine Eigenschaften vorhanden.' : 'No attributes available.' }}
                   </p>

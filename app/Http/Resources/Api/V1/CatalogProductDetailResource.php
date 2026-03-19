@@ -85,6 +85,7 @@ class CatalogProductDetailResource extends JsonResource
                     'data_type' => $attr->data_type,
                     'parent_attribute_id' => $attr->parent_attribute_id,
                     'composite_format' => $attr->data_type === 'Composite' ? $attr->composite_format : null,
+                    'group_id' => $attr->attribute_type_id,
                 ];
 
                 if ($linkData) {

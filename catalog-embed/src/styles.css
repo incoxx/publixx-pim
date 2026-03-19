@@ -869,6 +869,10 @@
   padding: 32px 0;
 }
 
+/* Attribute group headers */
+.pxc-detail__group-header { font-size: 0.8125rem; font-weight: 600; color: var(--pxc-text); padding: 8px 0 4px; border-bottom: 2px solid var(--pxc-primary); margin-bottom: 0; }
+.pxc-mt-4 { margin-top: 1rem; }
+
 /* Attribute table */
 .pxc-detail__table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
 .pxc-detail__table tr { border-bottom: 1px solid var(--pxc-border); }

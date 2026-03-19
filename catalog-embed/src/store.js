@@ -53,6 +53,9 @@ function createStore() {
     facets: [],
     activeFilters: {},
 
+    // Attribute groups (for detail view grouping)
+    attributeGroups: [],
+
     // Wishlist
     wishlistIds: JSON.parse((typeof localStorage !== 'undefined' && localStorage.getItem('pxc_wishlist')) || '[]'),
 
@@ -182,6 +185,16 @@ function createStore() {
       } catch (e) {
         console.warn('[PublixxCatalog] Facets load failed:', e.message)
         state.facets = []
+      }
+    },
+
+    async fetchAttributeGroups() {
+      try {
+        const data = await _api.getAttributeGroups({ lang: state.locale })
+        state.attributeGroups = data.data || []
+      } catch (e) {
+        console.warn('[PublixxCatalog] Attribute groups load failed:', e.message)
+        state.attributeGroups = []
       }
     },
 

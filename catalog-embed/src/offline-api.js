@@ -263,6 +263,14 @@ export function createOfflineApi(dataPath, options = {}) {
       return _facets
     },
 
+    async getAttributeGroups(opts = {}) {
+      try {
+        return await fetchJson('attribute-groups.json')
+      } catch {
+        return { data: [] }
+      }
+    },
+
     async downloadProductPdf() {
       throw new Error('PDF-Download ist im Offline-Katalog nicht verfügbar.')
     },

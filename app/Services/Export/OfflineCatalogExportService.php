@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Services\Export;
 
 use App\Models\Attribute;
+use App\Models\AttributeType;
 use App\Models\CatalogTemplate;
+use App\Models\DictionaryEntry;
 use App\Models\Hierarchy;
 use App\Models\HierarchyNode;
 use App\Models\OutputHierarchyProductAssignment;
@@ -175,15 +177,19 @@ class OfflineCatalogExportService
             $facets = $this->buildFacets($themePayload, $lang);
             $this->writeJsonFile("{$tmpDir}/facets.json", $facets);
 
-            // 6. Settings
+            // 6. Attributgruppen
+            $attrGroups = $this->buildAttributeGroups($lang);
+            $this->writeJsonFile("{$tmpDir}/attribute-groups.json", ['data' => $attrGroups]);
+
+            // 7. Settings
             $settings = $this->buildSettings($themePayload);
             $this->writeJsonFile("{$tmpDir}/settings.json", ['data' => $settings]);
 
-            // 7. index.html + Offline-Assets
+            // 8. index.html + Offline-Assets
             $this->updateProgress('HTML wird generiert...', $totalProducts, $totalProducts, 'html');
             $this->buildOfflineHtml($tmpDir, $templateId, $lang);
 
-            // 8. ZIP erstellen
+            // 9. ZIP erstellen
             if ($this->isCancelled()) {
                 $this->updateProgress('Export abgebrochen.', $totalProducts, $totalProducts, 'cancelled');
                 $this->cleanup($tmpDir);
@@ -212,7 +218,7 @@ class OfflineCatalogExportService
             // Wir erstellen data/ und verschieben die Datenverzeichnisse/Dateien hinein.
             $dataDir = "{$previewDir}/data";
             mkdir($dataDir, 0755, true);
-            foreach (['products', 'products-detail', 'categories.json', 'facets.json', 'settings.json'] as $item) {
+            foreach (['products', 'products-detail', 'categories.json', 'facets.json', 'attribute-groups.json', 'settings.json'] as $item) {
                 $src = "{$previewDir}/{$item}";
                 if (file_exists($src)) {
                     rename($src, "{$dataDir}/{$item}");
@@ -519,7 +525,7 @@ class OfflineCatalogExportService
                 'value' => $unit ? $value . ' ' . $unit : $value,
                 'raw_value' => $value,
                 'unit' => $unit,
-                'group' => $attr->attribute_group_id,
+                'group_id' => $attr->attribute_type_id,
             ];
         }
 
@@ -721,13 +727,31 @@ class OfflineCatalogExportService
                     ->limit(50)
                     ->get();
 
-                $entries = ValueListEntry::whereIn('id', $rows->pluck('value_selection_id')->toArray())->get()->keyBy('id');
+                // ValueList/Selection → ValueListEntry, Dictionary → DictionaryEntry
+                $ids = $rows->pluck('value_selection_id')->toArray();
+                if ($attr->data_type === 'Dictionary') {
+                    $entries = DictionaryEntry::whereIn('id', $ids)->get()->keyBy('id');
+                } else {
+                    $entries = ValueListEntry::whereIn('id', $ids)->get()->keyBy('id');
+                }
+
                 $values = [];
                 foreach ($rows as $row) {
                     $entry = $entries->get($row->value_selection_id);
                     if (!$entry) continue;
+
+                    if ($attr->data_type === 'Dictionary') {
+                        $displayValue = $lang === 'en' && $entry->short_text_en
+                            ? $entry->short_text_en
+                            : $entry->short_text_de;
+                    } else {
+                        $displayValue = $lang === 'en' && $entry->display_value_en
+                            ? $entry->display_value_en
+                            : $entry->display_value_de;
+                    }
+
                     $values[] = [
-                        'value' => $lang === 'en' && $entry->display_value_en ? $entry->display_value_en : $entry->display_value_de,
+                        'value' => $displayValue,
                         'value_id' => $row->value_selection_id,
                         'count' => $row->cnt,
                     ];
@@ -775,6 +799,17 @@ class OfflineCatalogExportService
         }
 
         return ['facets' => $facets];
+    }
+
+    // ─── Attribute Groups ────────────────────────────────────────
+
+    private function buildAttributeGroups(string $lang): array
+    {
+        return AttributeType::orderBy('sort_order')->get()->map(fn ($g) => [
+            'id' => $g->id,
+            'name' => $lang === 'en' && $g->name_en ? $g->name_en : $g->name_de,
+            'sort_order' => $g->sort_order,
+        ])->values()->toArray();
     }
 
     // ─── Settings ─────────────────────────────────────────────────
