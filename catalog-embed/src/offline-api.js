@@ -66,21 +66,18 @@ export function createOfflineApi(dataPath, options = {}) {
   }
 
   /**
-   * Filter products by search term (substring match on searchable_text, sku, ean, name).
+   * Filter products by search term (substring match on name, sku, ean, search text).
    */
   function filterBySearch(products, search) {
     if (!search || !search.trim()) return products
     const term = search.trim().toLowerCase()
     return products.filter(p => {
-      const text = (p.searchable_text || '').toLowerCase()
       const name = (p.name || '').toLowerCase()
-      const nameDe = (p.name_de || '').toLowerCase()
-      const nameEn = (p.name_en || '').toLowerCase()
       const sku = (p.sku || '').toLowerCase()
       const ean = (p.ean || '').toLowerCase()
-      return text.includes(term) || name.includes(term)
-        || nameDe.includes(term) || nameEn.includes(term)
-        || sku.includes(term) || ean.includes(term)
+      const extra = (p.search || '').toLowerCase()
+      return name.includes(term) || sku.includes(term)
+        || ean.includes(term) || extra.includes(term)
     })
   }
 
@@ -90,8 +87,8 @@ export function createOfflineApi(dataPath, options = {}) {
   function filterByCategory(products, categoryId) {
     if (!categoryId) return products
     return products.filter(p => {
-      if (!p.category_ids) return p.category_id === categoryId
-      return p.category_ids.includes(categoryId)
+      if (!p.cats) return p.cat === categoryId
+      return p.cats.includes(categoryId)
     })
   }
 
@@ -99,34 +96,38 @@ export function createOfflineApi(dataPath, options = {}) {
    * Filter products by facet filters.
    * filters = { attrId: "value1,value2" | "min:max" | "0" | "1" }
    */
+  /**
+   * Filter products by facet filters.
+   * filters = { attrId: "value1,value2" | "min:max" | "0" | "1" }
+   * Compact format: p.facets[attrId] = value_id (string) | true/false | number | string
+   */
   function filterByFacets(products, filters) {
     if (!filters || Object.keys(filters).length === 0) return products
 
     return products.filter(p => {
-      const fv = p.facet_values || {}
+      const fv = p.facets || {}
       for (const [attrId, filterValue] of Object.entries(filters)) {
-        const facet = fv[attrId]
-        if (!facet) return false
+        const val = fv[attrId]
+        if (val == null) return false
 
         if (filterValue.includes(':')) {
-          // Range filter
+          // Range filter (numeric)
           const [minStr, maxStr] = filterValue.split(':')
-          const val = facet.value
-          if (val == null) return false
+          const numVal = typeof val === 'number' ? val : parseFloat(val)
+          if (isNaN(numVal)) return false
           const minVal = parseFloat(minStr)
           const maxVal = parseFloat(maxStr)
-          if (minStr !== '' && !isNaN(minVal) && val < minVal) return false
-          if (maxStr !== '' && !isNaN(maxVal) && val > maxVal) return false
+          if (minStr !== '' && !isNaN(minVal) && numVal < minVal) return false
+          if (maxStr !== '' && !isNaN(maxVal) && numVal > maxVal) return false
         } else if (filterValue === '0' || filterValue === '1') {
           // Boolean filter
           const expected = filterValue === '1'
-          if (facet.value !== expected) return false
+          if (val !== expected) return false
         } else {
-          // Value list filter (comma-separated IDs or strings)
+          // Value list filter (comma-separated IDs)
           const selectedIds = filterValue.split(',').filter(Boolean)
           if (selectedIds.length === 0) continue
-          const matchId = String(facet.value_id ?? facet.value ?? '')
-          if (!selectedIds.includes(matchId)) return false
+          if (!selectedIds.includes(String(val))) return false
         }
       }
       return true
@@ -136,7 +137,7 @@ export function createOfflineApi(dataPath, options = {}) {
   /**
    * Sort products by field and order.
    */
-  function sortProducts(products, sortField, sortOrder, lang) {
+  function sortProducts(products, sortField, sortOrder) {
     const sorted = [...products]
     const asc = sortOrder !== 'desc'
 
@@ -151,14 +152,9 @@ export function createOfflineApi(dataPath, options = {}) {
           va = (a.sku || '').toLowerCase()
           vb = (b.sku || '').toLowerCase()
           break
-        default: // name
-          if (lang === 'en') {
-            va = (a.name_en || a.name || '').toLowerCase()
-            vb = (b.name_en || b.name || '').toLowerCase()
-          } else {
-            va = (a.name_de || a.name || '').toLowerCase()
-            vb = (b.name_de || b.name || '').toLowerCase()
-          }
+        default: // name (already locale-resolved by export)
+          va = (a.name || '').toLowerCase()
+          vb = (b.name || '').toLowerCase()
       }
 
       if (va < vb) return asc ? -1 : 1
@@ -188,16 +184,6 @@ export function createOfflineApi(dataPath, options = {}) {
     }
   }
 
-  /**
-   * Resolve product name based on locale.
-   */
-  function resolveProductName(product, lang) {
-    if (lang === 'en') {
-      return product.name_en || product.name_de || ''
-    }
-    return product.name_de || ''
-  }
-
   // ── Public API (mirrors catalogApi interface) ─────────────────
 
   const api = {
@@ -216,26 +202,26 @@ export function createOfflineApi(dataPath, options = {}) {
         filtered = filterByFacets(filtered, opts.filters)
       }
 
-      filtered = sortProducts(filtered, opts.sort || 'name', opts.order || 'asc', lang)
+      filtered = sortProducts(filtered, opts.sort || 'name', opts.order || 'asc')
 
       const page = opts.page || 1
       const perPage = opts.perPage || 24
       const result = paginate(filtered, page, perPage)
 
-      // Resolve locale-specific name for each product on the page
+      // Map compact format to full API format for the current page only
       const products = result.items.map(p => ({
         id: p.id,
         sku: p.sku,
-        ean: p.ean,
-        name: resolveProductName(p, lang),
-        description: p.description,
-        category_path: p.category_path,
-        image_url: p.image_url,
-        price: p.price,
-        currency: p.currency || 'EUR',
-        product_type: p.product_type,
-        primary_attribute_value: p.primary_attribute_value || null,
-        card_attributes: p.card_attributes || [],
+        ean: p.ean || null,
+        name: p.name,
+        description: null, // only in detail
+        category_path: p.cat_name || null,
+        image_url: p.img,
+        price: p.price ?? null,
+        currency: p.cur || 'EUR',
+        product_type: null,
+        primary_attribute_value: p.primary || null,
+        card_attributes: p.attrs || [],
         match_sources: null,
       }))
 
@@ -247,7 +233,7 @@ export function createOfflineApi(dataPath, options = {}) {
         // Look up detail subdirectory from in-memory product list
         const allProducts = await loadAllProducts()
         const product = allProducts.find(p => p.id === id)
-        const bucket = product?._detail_dir ?? 0
+        const bucket = product?._dd ?? 0
         return await fetchJson(`products-detail/${bucket}/${id}.json`)
       } catch {
         throw new Error('Produkt nicht gefunden')

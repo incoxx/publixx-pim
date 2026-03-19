@@ -111,7 +111,7 @@ class OfflineCatalogExportService
                 foreach ($products as $product) {
                     $bucket = intdiv($detailCounter, self::DETAIL_DIR_SIZE);
                     $item = $this->buildListItem($product, $themePayload, $lang);
-                    $item['_detail_dir'] = $bucket;
+                    $item['_dd'] = $bucket;
                     $listData[] = $item;
 
                     // Detail-Datei in Unterverzeichnis schreiben
@@ -423,16 +423,18 @@ class OfflineCatalogExportService
             }
         }
 
-        // Searchable text for offline search
-        $searchableText = collect([
-            $index?->name_de,
-            $index?->name_en,
-            $product->sku,
-            $product->ean,
-            $index?->description_de,
-        ])->filter()->implode(' ');
+        // Searchable text for offline search — nur Zusatztext, der nicht schon
+        // in name/sku/ean enthalten ist. Wird im JS zusammen mit diesen Feldern gesucht.
+        $extraSearchParts = collect([
+            $index?->description_de ? mb_substr(strip_tags($index->description_de), 0, 150) : null,
+        ])->filter();
+        $searchableText = $extraSearchParts->isNotEmpty() ? $extraSearchParts->implode(' ') : null;
 
-        // Facet values for offline filtering
+        // Facet values for offline filtering — kompaktes Format:
+        // ValueList/Selection: value_selection_id (String)
+        // Flag: true/false
+        // Number: Zahlenwert (float)
+        // Sonstiges: value_string
         $facetAttributeIds = $themePayload['facet_attribute_ids'] ?? [];
         $facetValues = [];
         if (!empty($facetAttributeIds)) {
@@ -442,43 +444,38 @@ class OfflineCatalogExportService
                 if (!$attr) continue;
 
                 if (in_array($attr->data_type, ['ValueList', 'Selection', 'Dictionary'])) {
-                    $entry = $av->valueListEntry ?? $av->dictionaryEntry;
-                    $facetValues[$attr->id] = [
-                        'value' => $entry ? ($lang === 'en' && ($entry->display_value_en ?? $entry->short_text_en)
-                            ? ($entry->display_value_en ?? $entry->short_text_en)
-                            : ($entry->display_value_de ?? $entry->short_text_de)) : null,
-                        'value_id' => $av->value_selection_id,
-                    ];
+                    // Nur die ID speichern — der Anzeigename steht in facets.json
+                    $facetValues[$attr->id] = $av->value_selection_id;
                 } elseif ($attr->data_type === 'Flag') {
-                    $facetValues[$attr->id] = ['value' => $av->value_flag];
+                    $facetValues[$attr->id] = $av->value_flag;
                 } elseif (in_array($attr->data_type, ['Number', 'Float', 'Decimal', 'Integer'])) {
-                    $facetValues[$attr->id] = ['value' => $av->value_number !== null ? (float) $av->value_number : null];
+                    $facetValues[$attr->id] = $av->value_number !== null ? (float) $av->value_number : null;
                 } else {
-                    $facetValues[$attr->id] = ['value' => $av->value_string];
+                    $facetValues[$attr->id] = $av->value_string;
                 }
             }
         }
 
-        return [
+        $item = [
             'id' => $product->id,
             'sku' => $product->sku,
-            'ean' => $product->ean,
             'name' => $name,
-            'name_de' => $index?->name_de,
-            'name_en' => $index?->name_en,
-            'description' => $index?->description_de,
-            'category_path' => $categoryPath,
-            'category_id' => $categoryId,
-            'category_ids' => $categoryIds,
-            'image_url' => $imageUrl,
-            'price' => $price,
-            'currency' => $currency,
-            'product_type' => $index?->product_type,
-            'primary_attribute_value' => $primaryValue,
-            'card_attributes' => $cardAttributes,
-            'searchable_text' => $searchableText,
-            'facet_values' => $facetValues,
+            'cat' => $categoryId,
+            'cats' => $categoryIds,
+            'img' => $imageUrl,
         ];
+
+        // Optionale Felder nur wenn vorhanden (spart Platz bei 100k+ Produkten)
+        if ($product->ean) $item['ean'] = $product->ean;
+        if ($categoryPath) $item['cat_name'] = $categoryPath;
+        if ($price !== null) $item['price'] = $price;
+        if ($currency !== 'EUR') $item['cur'] = $currency;
+        if ($primaryValue) $item['primary'] = $primaryValue;
+        if (!empty($cardAttributes)) $item['attrs'] = $cardAttributes;
+        if ($searchableText) $item['search'] = $searchableText;
+        if (!empty($facetValues)) $item['facets'] = $facetValues;
+
+        return $item;
     }
 
     private function buildDetailItem(Product $product, array $themePayload, string $lang): array

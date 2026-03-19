@@ -111,10 +111,24 @@ class UpdateSearchIndex implements ShouldQueue, ShouldBeUnique
 
         $nameDe = $this->getAttributeValue($product->id, 'productName', 'de');
         $nameEn = $this->getAttributeValue($product->id, 'productName', 'en');
+
+        // Fallback auf products.name wenn kein productName-Attribut vorhanden
+        if (!$nameDe && $product->name) {
+            $nameDe = $product->name;
+        }
+        if (!$nameEn && $product->name) {
+            $nameEn = $product->name;
+        }
+
         $descriptionDe = $this->getAttributeValue($product->id, 'description', 'de');
 
         $searchableText = $this->getSearchableText($product->id);
         $mediaText = $this->getMediaText($product->id);
+
+        // products.name in den searchable_text aufnehmen (falls nicht schon enthalten)
+        if ($product->name && !str_contains($searchableText, $product->name)) {
+            $searchableText = $product->name . ($searchableText ? ' | ' . $searchableText : '');
+        }
 
         $indexData = [
             'sku' => $product->sku,
