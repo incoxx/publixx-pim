@@ -9,6 +9,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller as BaseController;
 use Illuminate\Support\Facades\Log;
+use Laravel\Sanctum\PersonalAccessToken;
 
 class OfflineCatalogController extends BaseController
 {
@@ -166,8 +167,22 @@ class OfflineCatalogController extends BaseController
      *
      * Lädt die zuletzt erstellte Offline-Katalog-ZIP-Datei herunter.
      */
-    public function download(Request $request): \Symfony\Component\HttpFoundation\StreamedResponse|JsonResponse
+    public function download(Request $request): \Symfony\Component\HttpFoundation\BinaryFileResponse|JsonResponse
     {
+        // Unterstütze Token als Query-Parameter für direkte Browser-Downloads
+        // (Browser-Navigation kann keinen Authorization-Header setzen)
+        if (!$request->user() && $request->query('token')) {
+            $accessToken = PersonalAccessToken::findToken($request->query('token'));
+            if (!$accessToken) {
+                return response()->json(['message' => 'Ungültiger Token.'], 401);
+            }
+            $request->setUserResolver(fn () => $accessToken->tokenable);
+        }
+
+        if (!$request->user()) {
+            return response()->json(['message' => 'Nicht authentifiziert.'], 401);
+        }
+
         $progress = $this->service->getProgress();
 
         if (!$progress || $progress['status'] !== 'completed' || empty($progress['path'])) {
@@ -180,32 +195,12 @@ class OfflineCatalogController extends BaseController
         }
 
         $fileName = $progress['file_name'] ?? basename($path);
-        $fileSize = filesize($path);
 
         // Kein Timeout beim Streamen großer Dateien
         set_time_limit(0);
 
-        return response()->streamDownload(function () use ($path) {
-            // Output-Buffer leeren, damit PHP nicht alles im RAM hält
-            if (ob_get_level()) {
-                ob_end_clean();
-            }
-
-            $handle = fopen($path, 'rb');
-            if ($handle === false) {
-                return;
-            }
-
-            // 8 KB Chunks streamen
-            while (!feof($handle)) {
-                echo fread($handle, 8192);
-                flush();
-            }
-
-            fclose($handle);
-        }, $fileName, [
+        return response()->download($path, $fileName, [
             'Content-Type' => 'application/zip',
-            'Content-Length' => $fileSize,
             'Cache-Control' => 'no-store',
         ]);
     }

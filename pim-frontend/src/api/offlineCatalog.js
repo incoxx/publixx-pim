@@ -1,4 +1,5 @@
 import client from './client'
+import { resolveApiUrl } from './client'
 
 export default {
   generate(lang = 'de', templateId = null) {
@@ -15,8 +16,13 @@ export default {
     return client.post('/admin/offline-catalog/cancel')
   },
 
-  download() {
-    return client.get('/admin/offline-catalog/download', { responseType: 'blob' })
+  /**
+   * Returns a direct download URL with auth token as query parameter.
+   * This avoids loading the entire ZIP into browser memory via axios blob.
+   */
+  downloadUrl(token) {
+    const base = resolveApiUrl('admin/offline-catalog/download')
+    return `${base}?token=${encodeURIComponent(token)}`
   },
 
   buildBundle() {
