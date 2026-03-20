@@ -56,36 +56,52 @@ class CatalogEmbedController extends Controller
     {
         $basePath = rtrim(parse_url(config('app.url'), PHP_URL_PATH) ?? '', '/');
 
-        // Replace the script src to point to the public assets (subdirectory-aware)
-        $html = str_replace(
-            '../dist/catalog-embed.umd.js',
-            $basePath . '/catalog-embed-assets/catalog-embed.umd.js',
+        $assetsBase = $basePath . '/catalog-embed-assets';
+
+        // Replace any script src pointing to catalog-embed JS (dev path or previous deploy path)
+        $html = preg_replace(
+            '/src=["\'][^"\']*catalog-embed\.umd\.js["\']/',
+            'src="' . $assetsBase . '/catalog-embed.umd.js"',
             $html,
         );
 
-        // Inject the CSS link if not already present
+        // Replace any CSS href pointing to catalog-embed CSS
+        $html = preg_replace(
+            '/href=["\'][^"\']*catalog-embed\.css["\']/',
+            'href="' . $assetsBase . '/catalog-embed.css"',
+            $html,
+        );
+
+        // Inject CSS link if not already present
         if (! str_contains($html, 'catalog-embed.css')) {
             $html = str_replace(
                 '</head>',
-                '  <link rel="stylesheet" href="' . $basePath . '/catalog-embed-assets/catalog-embed.css">' . "\n" . '</head>',
+                '  <link rel="stylesheet" href="' . $assetsBase . '/catalog-embed.css">' . "\n" . '</head>',
                 $html,
             );
         }
 
-        // Inject the JS if not already present
+        // Inject JS if not already present
         if (! str_contains($html, 'catalog-embed.umd.js') && ! str_contains($html, 'catalog-embed-assets')) {
             $html = str_replace(
                 '</body>',
-                '  <script src="' . $basePath . '/catalog-embed-assets/catalog-embed.umd.js"></script>' . "\n" . '</body>',
+                '  <script src="' . $assetsBase . '/catalog-embed.umd.js"></script>' . "\n" . '</body>',
                 $html,
             );
         }
 
-        // Replace localhost API URL with the actual app URL
+        // Replace API URL with the correct app URL
+        // Handles localhost dev URLs and previously saved production URLs
         $apiBase = rtrim(config('app.url'), '/') . '/api/v1';
         $html = str_replace(
             'http://localhost:8000/api/v1',
             $apiBase,
+            $html,
+        );
+        // Also replace any other API base URLs in PublixxCatalog.init() calls
+        $html = preg_replace(
+            '/api:\s*[\'"]https?:\/\/[^"\']+\/api\/v1[\'"]/',
+            "api: '{$apiBase}'",
             $html,
         );
 
@@ -93,11 +109,17 @@ class CatalogEmbedController extends Controller
         if (! str_contains($html, 'data-catalog="sidebar-toggle"')) {
             $html = preg_replace(
                 '/<body[^>]*>/i',
-                '$0' . "\n" . '  <div data-catalog="sidebar-toggle" style="position:fixed;top:12px;left:12px;z-index:9995"></div>',
+                '$0' . "\n" . '  <div data-catalog="sidebar-toggle"></div>',
                 $html,
                 1
             );
         }
+        // Strip old inline fixed positioning from sidebar-toggle (caused overlap with search)
+        $html = preg_replace(
+            '/(<div\s+data-catalog="sidebar-toggle")\s+style="[^"]*"/',
+            '$1',
+            $html,
+        );
 
         // Ensure essential hidden widget placeholders are present (wishlist drawer,
         // product detail modal, compare modal). DB templates might omit these.

@@ -351,18 +351,31 @@ elif [ -d "$FRONTEND_DIR" ]; then
         warn "Frontend dist/ nicht gefunden — Build moeglicherweise fehlgeschlagen."
     fi
 
-    # Offline-Katalog Bundle bauen (catalog-embed)
+    # Katalog-Embed Bundles bauen (Online + Offline)
     CATALOG_EMBED_DIR="${INSTALL_DIR}/catalog-embed"
     if [ -d "$CATALOG_EMBED_DIR" ] && [ -f "${CATALOG_EMBED_DIR}/package.json" ]; then
         cd "$CATALOG_EMBED_DIR"
         info "Installiere catalog-embed Abhaengigkeiten..."
         npm ci 2>&1
+
+        info "Baue Online-Katalog Bundle..."
+        npx vite build 2>&1
+        # Kopiere Online-Bundle nach public/catalog-embed-assets/
+        if [ -d "${CATALOG_EMBED_DIR}/dist" ]; then
+            mkdir -p "${INSTALL_DIR}/public/catalog-embed-assets"
+            cp "${CATALOG_EMBED_DIR}/dist/catalog-embed.umd.js" "${INSTALL_DIR}/public/catalog-embed-assets/" 2>/dev/null || true
+            cp "${CATALOG_EMBED_DIR}/dist/catalog-embed.css" "${INSTALL_DIR}/public/catalog-embed-assets/" 2>/dev/null || true
+            cp "${CATALOG_EMBED_DIR}/dist/catalog-embed.es.js" "${INSTALL_DIR}/public/catalog-embed-assets/" 2>/dev/null || true
+            info "Online-Katalog Bundle gebaut und nach public/ kopiert."
+        fi
+
         info "Baue Offline-Katalog Bundle..."
         VITE_BUILD_TARGET=offline npx vite build 2>&1
         info "Offline-Katalog Bundle gebaut."
+
         cd "$INSTALL_DIR"
     else
-        warn "catalog-embed/ nicht gefunden — Offline-Katalog Bundle wird nicht gebaut."
+        warn "catalog-embed/ nicht gefunden — Katalog Bundles werden nicht gebaut."
     fi
 
     cd "$INSTALL_DIR"

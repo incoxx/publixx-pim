@@ -20,8 +20,11 @@ onMounted(() => {
   store.fetchFacets()
 })
 
-// Re-fetch facets when locale changes
+// Re-fetch facets when locale or category changes
 watch(() => store.locale, () => {
+  store.fetchFacets()
+})
+watch(() => store.selectedCategoryId, () => {
   store.fetchFacets()
 })
 
@@ -62,6 +65,7 @@ function toggleValueSelection(attributeId, valueId) {
     store.setFilter(attributeId, current.join(','))
   }
   store.fetchProducts()
+  store.fetchFacets()
 }
 
 function isValueSelected(attributeId, valueId) {
@@ -77,6 +81,7 @@ function toggleBoolean(attributeId) {
     store.setFilter(attributeId, '1')
   }
   store.fetchProducts()
+  store.fetchFacets()
 }
 
 // Range (Decimal / Integer) with slider support
@@ -147,6 +152,7 @@ function applyRange(attributeId, range) {
     store.setFilter(attributeId, `${range.min}:${range.max}`)
   }
   store.fetchProducts()
+  store.fetchFacets()
 }
 
 function rangeStep(facet) {
@@ -198,7 +204,7 @@ function facetFilterCount(attributeId) {
       <button
         v-if="store.activeFilterCount > 0"
         class="text-xs text-primary hover:underline"
-        @click="store.clearAllFilters(); store.fetchProducts()"
+        @click="store.clearAllFilters(); store.fetchProducts(); store.fetchFacets()"
       >
         {{ t('catalog.clearAllFilters') }}
       </button>
