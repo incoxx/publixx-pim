@@ -44,10 +44,12 @@ function handleKeydown(e) {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   document.addEventListener('keydown', handleKeydown)
-  authStore.checkAuth()
-  licenseStore.fetchLicense()
+  await authStore.checkAuth()
+  if (authStore.isAuthenticated) {
+    licenseStore.fetchLicense()
+  }
 })
 
 onUnmounted(() => {

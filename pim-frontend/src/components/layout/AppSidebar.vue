@@ -191,13 +191,13 @@ const sections = computed(() => {
         if (item.children) {
           const filtered = item.children.filter(child =>
             (!child.permission || authStore.hasPermission(child.permission))
-            && (!child.module || licenseStore.isModuleActive(child.module))
+            && (!child.module || !licenseStore.loaded || licenseStore.isModuleActive(child.module))
           )
           return filtered.length > 0 ? { ...item, children: filtered } : null
         }
         if (item.divider) return item
         if ((!item.permission || authStore.hasPermission(item.permission))
-          && (!item.module || licenseStore.isModuleActive(item.module))) {
+          && (!item.module || !licenseStore.loaded || licenseStore.isModuleActive(item.module))) {
           return item
         }
         return null
