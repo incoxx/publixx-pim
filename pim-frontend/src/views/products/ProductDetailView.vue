@@ -1698,6 +1698,8 @@ onMounted(async () => {
 // Re-load when navigating between products/variants (same component, different ID)
 watch(() => route.params.id, async (newId, oldId) => {
   if (newId === oldId) return
+  // Ignore route changes away from product-detail (e.g. navigating to /media)
+  if (route.name !== 'product-detail') return
 
   // Reset all loaded flags
   attrLoaded.value = false
