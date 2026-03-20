@@ -977,43 +977,20 @@ class CatalogController extends BaseController
         // Count active products per node (including descendants)
         $productCounts = $this->getProductCounts($allNodes, $type);
 
-        // Build children lookup using plain PHP arrays (keyed by parent_node_id)
-        $visibleIds = [];
-        $childrenOf = [];
-        foreach ($allNodes as $node) {
-            $visibleIds[$node->id] = true;
-        }
+        // Build nested tree
+        $rootNodes = $allNodes->whereNull('parent_node_id');
+        $nodesByParent = $allNodes->groupBy('parent_node_id');
 
-        // For orphaned nodes (parent excluded/inactive), find nearest visible ancestor
-        $parentMap = null;
-        foreach ($allNodes as $node) {
-            $parentId = $node->parent_node_id;
-
-            // If parent exists but is not visible, walk up to find nearest visible ancestor
-            if ($parentId !== null && !isset($visibleIds[$parentId])) {
-                // Lazy-load full parent chain (only when needed)
-                if ($parentMap === null) {
-                    $parentMap = $hierarchy->nodes()->pluck('parent_node_id', 'id')->toArray();
-                }
-                while ($parentId !== null && !isset($visibleIds[$parentId])) {
-                    $parentId = $parentMap[$parentId] ?? null;
-                }
-            }
-
-            $key = $parentId ?? '';
-            $childrenOf[$key][] = $node;
-        }
-
-        $buildTree = function (array $nodes) use (&$buildTree, &$childrenOf, $productCounts, $lang) {
-            return array_values(array_map(function ($node) use (&$buildTree, &$childrenOf, $productCounts, $lang) {
-                $children = $childrenOf[$node->id] ?? [];
+        $buildTree = function ($nodes) use (&$buildTree, $nodesByParent, $productCounts, $lang) {
+            return $nodes->map(function ($node) use (&$buildTree, $nodesByParent, $productCounts, $lang) {
+                $children = $nodesByParent->get($node->id, collect());
                 return [
                     'id' => $node->id,
                     'name' => $lang === 'en' && $node->name_en ? $node->name_en : $node->name_de,
                     'product_count' => $productCounts[$node->id] ?? 0,
-                    'children' => $buildTree($children),
+                    'children' => $buildTree($children)->values()->toArray(),
                 ];
-            }, $nodes));
+            })->values();
         };
 
         return response()->json([
@@ -1021,7 +998,7 @@ class CatalogController extends BaseController
                 'hierarchy_id' => $hierarchy->id,
                 'hierarchy_name' => $lang === 'en' && $hierarchy->name_en ? $hierarchy->name_en : $hierarchy->name_de,
                 'type' => $type,
-                'nodes' => $buildTree($childrenOf[''] ?? []),
+                'nodes' => $buildTree($rootNodes)->toArray(),
             ],
         ]);
     }
