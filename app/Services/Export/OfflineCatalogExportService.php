@@ -143,7 +143,7 @@ class OfflineCatalogExportService
                 $listData = [];
                 foreach ($products as $product) {
                     $bucket = intdiv($detailCounter, self::DETAIL_DIR_SIZE);
-                    $item = $this->buildListItem($product, $themePayload, $lang);
+                    $item = $this->buildListItem($product, $themePayload, $lang, $themePayload['catalog_excluded_node_ids'] ?? []);
                     $item['_dd'] = $bucket;
                     $listData[] = $item;
 
@@ -192,7 +192,7 @@ class OfflineCatalogExportService
                     $listData = [];
                     foreach ($products as $product) {
                         $bucket = intdiv($detailCounter, self::DETAIL_DIR_SIZE);
-                        $item = $this->buildListItem($product, $themePayload, $lang);
+                        $item = $this->buildListItem($product, $themePayload, $lang, $themePayload['catalog_excluded_node_ids'] ?? []);
                         $item['_dd'] = $bucket;
                         $listData[] = $item;
 
@@ -457,7 +457,7 @@ class OfflineCatalogExportService
             ->get();
     }
 
-    private function buildListItem(Product $product, array $themePayload, string $lang): array
+    private function buildListItem(Product $product, array $themePayload, string $lang, array $excludedNodeIds = []): array
     {
         $index = $product->searchIndex;
         $node = $product->masterHierarchyNode;
@@ -472,17 +472,27 @@ class OfflineCatalogExportService
             ? "/api/v1/catalog/media/{$index->primary_image}"
             : null;
 
-        // Category info
-        $categoryPath = $node
+        // Category info — exclude hidden nodes from category references
+        $excludedSet = !empty($excludedNodeIds) ? array_flip($excludedNodeIds) : [];
+        $rawCategoryId = $product->master_hierarchy_node_id;
+        $isNodeExcluded = $rawCategoryId && isset($excludedSet[$rawCategoryId]);
+
+        $categoryPath = ($node && !$isNodeExcluded)
             ? ($lang === 'en' && $node->name_en ? $node->name_en : $node->name_de)
             : null;
-        $categoryId = $product->master_hierarchy_node_id;
-        $categoryIds = $categoryId ? [$categoryId] : [];
+        $categoryId = $isNodeExcluded ? null : $rawCategoryId;
+        $categoryIds = [];
 
-        // Ancestor category IDs for filtering
+        // Ancestor category IDs for filtering (skip excluded nodes)
         if ($node && $node->path) {
             $ancestorIds = array_filter(explode('/', $node->path));
-            $categoryIds = array_merge($ancestorIds, $categoryIds);
+            if (!empty($excludedSet)) {
+                $ancestorIds = array_filter($ancestorIds, fn ($id) => !isset($excludedSet[$id]));
+            }
+            $categoryIds = array_values($ancestorIds);
+        }
+        if ($categoryId) {
+            $categoryIds[] = $categoryId;
         }
 
         // Price
@@ -725,6 +735,7 @@ class OfflineCatalogExportService
     {
         $type = 'master';
         $hierarchyId = $themePayload['hierarchy_id'] ?? null;
+        $excludedNodeIds = $themePayload['catalog_excluded_node_ids'] ?? [];
 
         $hierarchyQuery = Hierarchy::where('hierarchy_type', $type);
         if ($hierarchyId) {
@@ -736,15 +747,25 @@ class OfflineCatalogExportService
             return ['hierarchy_id' => null, 'hierarchy_name' => null, 'type' => $type, 'nodes' => []];
         }
 
-        $allNodes = $hierarchy->nodes()
+        $nodesQuery = $hierarchy->nodes()
             ->where('is_active', true)
             ->orderBy('depth')
-            ->orderBy('sort_order')
-            ->get();
+            ->orderBy('sort_order');
+
+        // Filter out excluded nodes
+        if (!empty($excludedNodeIds)) {
+            $nodesQuery->whereNotIn('id', $excludedNodeIds);
+        }
+
+        $allNodes = $nodesQuery->get();
 
         $productCounts = $this->getProductCounts($allNodes, $type);
 
-        $rootNodes = $allNodes->whereNull('parent_node_id');
+        // Build nested tree (skip nodes whose parent was excluded)
+        $visibleNodeIdSet = array_flip($allNodes->pluck('id')->toArray());
+        $rootNodes = $allNodes->filter(function ($node) use ($visibleNodeIdSet) {
+            return $node->parent_node_id === null || !isset($visibleNodeIdSet[$node->parent_node_id]);
+        });
         $nodesByParent = $allNodes->groupBy('parent_node_id');
 
         $buildTree = function ($nodes) use (&$buildTree, $nodesByParent, $productCounts, $lang) {

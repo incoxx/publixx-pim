@@ -109,11 +109,17 @@ class CatalogEmbedController extends Controller
         if (! str_contains($html, 'data-catalog="sidebar-toggle"')) {
             $html = preg_replace(
                 '/<body[^>]*>/i',
-                '$0' . "\n" . '  <div data-catalog="sidebar-toggle" style="position:fixed;top:12px;left:12px;z-index:9995"></div>',
+                '$0' . "\n" . '  <div data-catalog="sidebar-toggle"></div>',
                 $html,
                 1
             );
         }
+        // Strip old inline fixed positioning from sidebar-toggle (caused overlap with search)
+        $html = preg_replace(
+            '/(<div\s+data-catalog="sidebar-toggle")\s+style="[^"]*"/',
+            '$1',
+            $html,
+        );
 
         // Ensure essential hidden widget placeholders are present (wishlist drawer,
         // product detail modal, compare modal). DB templates might omit these.

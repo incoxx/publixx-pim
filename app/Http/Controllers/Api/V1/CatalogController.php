@@ -936,8 +936,8 @@ class CatalogController extends BaseController
         $lang = $request->query('lang', 'de');
 
         // Fall back to hierarchy_id from catalog theme settings if not passed as param
+        $themePayload = WebsiteProfile::getActivePayload();
         if (!$hierarchyId) {
-            $themePayload = WebsiteProfile::getActivePayload();
             $hierarchyId = $themePayload['hierarchy_id'] ?? null;
         }
 
@@ -958,18 +958,31 @@ class CatalogController extends BaseController
             ]);
         }
 
+        // Excluded node IDs from catalog settings
+        $excludedNodeIds = $themePayload['catalog_excluded_node_ids'] ?? [];
+
         // Load all active nodes for this hierarchy
-        $allNodes = $hierarchy->nodes()
+        $nodesQuery = $hierarchy->nodes()
             ->where('is_active', true)
             ->orderBy('depth')
-            ->orderBy('sort_order')
-            ->get();
+            ->orderBy('sort_order');
+
+        // Filter out excluded nodes
+        if (!empty($excludedNodeIds)) {
+            $nodesQuery->whereNotIn('id', $excludedNodeIds);
+        }
+
+        $allNodes = $nodesQuery->get();
 
         // Count active products per node (including descendants)
         $productCounts = $this->getProductCounts($allNodes, $type);
 
-        // Build nested tree
-        $rootNodes = $allNodes->whereNull('parent_node_id');
+        // Build nested tree (skip nodes whose parent was excluded)
+        $visibleNodeIds = $allNodes->pluck('id')->toArray();
+        $visibleNodeIdSet = array_flip($visibleNodeIds);
+        $rootNodes = $allNodes->filter(function ($node) use ($visibleNodeIdSet) {
+            return $node->parent_node_id === null || !isset($visibleNodeIdSet[$node->parent_node_id]);
+        });
         $nodesByParent = $allNodes->groupBy('parent_node_id');
 
         $buildTree = function ($nodes) use (&$buildTree, $nodesByParent, $productCounts, $lang) {

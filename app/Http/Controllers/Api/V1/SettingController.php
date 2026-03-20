@@ -230,6 +230,8 @@ class SettingController extends Controller
             'catalog_share_wishlist_enabled' => 'nullable|boolean',
             'catalog_relation_type_ids' => 'nullable|array',
             'catalog_relation_type_ids.*' => 'uuid|exists:product_relation_types,id',
+            'catalog_excluded_node_ids' => 'nullable|array',
+            'catalog_excluded_node_ids.*' => 'uuid|exists:hierarchy_nodes,id',
         ]);
 
         // Merge with existing payload so that unsent keys are preserved

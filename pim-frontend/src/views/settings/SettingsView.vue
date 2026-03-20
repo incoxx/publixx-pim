@@ -461,6 +461,7 @@ const availableAttributes = ref([])
 const allAttributes = ref([])
 const availablePriceTypes = ref([])
 const availableUsageTypes = ref([])
+const hierarchyNodes = ref([]) // flat list of nodes for the selected hierarchy
 
 async function loadHierarchies() {
   try {
@@ -476,6 +477,43 @@ async function loadHierarchies() {
     }
   } catch (e) {
     console.warn('Failed to load hierarchies:', e.message)
+  }
+}
+
+async function loadHierarchyNodes(hierarchyId) {
+  if (!hierarchyId) {
+    hierarchyNodes.value = []
+    return
+  }
+  try {
+    const { data } = await hierarchiesApi.getNodes(hierarchyId)
+    const nodes = data.data || data || []
+    // Build flat list with indentation info from depth
+    const sorted = nodes.sort((a, b) => {
+      if (a.path && b.path) return a.path.localeCompare(b.path)
+      return (a.depth || 0) - (b.depth || 0)
+    })
+    hierarchyNodes.value = sorted.map(n => ({
+      id: n.id,
+      name: n.name_de || n.name_en || n.name || '(ohne Name)',
+      depth: n.depth || 0,
+      is_active: n.is_active,
+    }))
+    // Clean up stale excluded node IDs
+    const nodeIdSet = new Set(hierarchyNodes.value.map(n => n.id))
+    themeForm.value.catalog_excluded_node_ids = themeForm.value.catalog_excluded_node_ids.filter(id => nodeIdSet.has(id))
+  } catch (e) {
+    console.warn('Failed to load hierarchy nodes:', e.message)
+    hierarchyNodes.value = []
+  }
+}
+
+function toggleNodeExclusion(nodeId) {
+  const idx = themeForm.value.catalog_excluded_node_ids.indexOf(nodeId)
+  if (idx === -1) {
+    themeForm.value.catalog_excluded_node_ids.push(nodeId)
+  } else {
+    themeForm.value.catalog_excluded_node_ids.splice(idx, 1)
   }
 }
 
@@ -706,6 +744,7 @@ const themeForm = ref({
   catalog_access_mode: 'public',
   catalog_linked_products_only: false,
   catalog_relation_type_ids: [],
+  catalog_excluded_node_ids: [],
 })
 const activeMainTab = ref('general')
 const activeThemeTab = ref('general')
@@ -772,6 +811,7 @@ async function loadThemeSettings() {
         catalog_access_mode: d.catalog_access_mode || 'public',
         catalog_linked_products_only: !!d.catalog_linked_products_only,
         catalog_relation_type_ids: d.catalog_relation_type_ids || [],
+        catalog_excluded_node_ids: d.catalog_excluded_node_ids || [],
       }
       themeLogoPreview.value = d.logo_url || null
     }
@@ -796,6 +836,7 @@ async function saveThemeSettings() {
     if (!payload.card_attribute_ids || payload.card_attribute_ids.length === 0) payload.card_attribute_ids = []
     if (!payload.description_attributes || payload.description_attributes.length === 0) payload.description_attributes = []
     if (!payload.catalog_relation_type_ids || payload.catalog_relation_type_ids.length === 0) payload.catalog_relation_type_ids = []
+    if (!payload.catalog_excluded_node_ids || payload.catalog_excluded_node_ids.length === 0) payload.catalog_excluded_node_ids = []
     // Ensure booleans are actual booleans (not strings)
     payload.card_show_sku = !!payload.card_show_sku
     payload.card_show_category = !!payload.card_show_category
@@ -1418,10 +1459,11 @@ watch(activeMainTab, (tab) => {
   }
 })
 
-// Reload attributes when hierarchy selection changes
+// Reload attributes and hierarchy nodes when hierarchy selection changes
 watch(() => themeForm.value.hierarchy_id, (newId, oldId) => {
   if (newId !== oldId) {
     loadAttributes(newId || null)
+    loadHierarchyNodes(newId || null)
   }
 })
 
@@ -1433,6 +1475,7 @@ onMounted(async () => {
     loadHierarchies()
     loadAttributeViews()
     loadAttributes(themeForm.value.hierarchy_id || null)
+    loadHierarchyNodes(themeForm.value.hierarchy_id || null)
     loadPriceTypes()
     loadUsageTypes()
     loadPdfTemplates()
@@ -1610,6 +1653,36 @@ onUnmounted(() => {
                    class="rounded border-[var(--color-border-strong)] text-[var(--color-accent)]" />
             Nur verknüpfte Produkte darstellen
           </label>
+
+          <!-- Hierarchy node exclusion -->
+          <div v-if="hierarchyNodes.length > 0">
+            <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Sichtbare Hierarchie-Knoten</label>
+            <p class="text-[11px] text-[var(--color-text-tertiary)] mb-2">
+              Deaktivierte Knoten werden im Kategorie-Baum des Katalogs ausgeblendet. Produkte bleiben weiterhin über Suche oder andere Knoten erreichbar.
+            </p>
+            <div class="border border-[var(--color-border)] rounded-lg p-2 max-h-60 overflow-y-auto bg-[var(--color-bg)]">
+              <label
+                v-for="node in hierarchyNodes"
+                :key="node.id"
+                class="flex items-center gap-1.5 text-xs py-0.5 cursor-pointer hover:bg-[var(--color-bg-tertiary)] rounded px-1"
+                :style="{ paddingLeft: (node.depth * 16 + 4) + 'px' }"
+              >
+                <input
+                  type="checkbox"
+                  :checked="!themeForm.catalog_excluded_node_ids.includes(node.id)"
+                  @change="toggleNodeExclusion(node.id)"
+                  class="rounded border-[var(--color-border-strong)] text-[var(--color-accent)]"
+                />
+                <span :class="{ 'text-[var(--color-text-tertiary)] line-through': themeForm.catalog_excluded_node_ids.includes(node.id) }">
+                  {{ node.name }}
+                </span>
+              </label>
+            </div>
+            <div v-if="themeForm.catalog_excluded_node_ids.length > 0" class="mt-1.5 text-[11px] text-[var(--color-text-tertiary)]">
+              {{ themeForm.catalog_excluded_node_ids.length }} Knoten ausgeblendet
+            </div>
+          </div>
+
           <div>
             <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Angezeigte Attribute</label>
             <div class="flex gap-3 mt-1.5 mb-2">
