@@ -1,5 +1,5 @@
 <script setup>
-import { computed, watch } from 'vue'
+import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import AppSidebar from './AppSidebar.vue'
@@ -13,9 +13,25 @@ watch(() => route.path, () => {
   authStore.closePanel()
 })
 
+// On mobile (<768px), sidebar is an overlay — no margin needed
+const isMobile = ref(false)
+
+function checkMobile() {
+  isMobile.value = window.innerWidth < 768
+}
+
+onMounted(() => {
+  checkMobile()
+  window.addEventListener('resize', checkMobile)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', checkMobile)
+})
+
 const mainStyle = computed(() => ({
-  marginLeft: authStore.sidebarCollapsed ? '56px' : authStore.sidebarWidth + 'px',
-  marginRight: authStore.panelOpen ? '360px' : '0',
+  marginLeft: isMobile.value ? '0' : (authStore.sidebarCollapsed ? '56px' : authStore.sidebarWidth + 'px'),
+  marginRight: authStore.panelOpen && !isMobile.value ? '360px' : '0',
 }))
 </script>
 

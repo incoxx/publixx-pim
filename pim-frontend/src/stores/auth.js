@@ -8,6 +8,7 @@ export const useAuthStore = defineStore('auth', () => {
   const locale = ref(localStorage.getItem('pim_locale') || 'de')
   const commandPaletteOpen = ref(false)
   const sidebarCollapsed = ref(false)
+  const sidebarMobileOpen = ref(false)
   const sidebarWidth = ref(parseInt(localStorage.getItem('pim_sidebar_width')) || 240)
   const sidebarCollapsedSections = ref(JSON.parse(localStorage.getItem('pim_sidebar_sections') || '{}'))
   const panelOpen = ref(false)
@@ -65,6 +66,14 @@ export const useAuthStore = defineStore('auth', () => {
     sidebarCollapsed.value = !sidebarCollapsed.value
   }
 
+  function toggleMobileSidebar() {
+    sidebarMobileOpen.value = !sidebarMobileOpen.value
+  }
+
+  function closeMobileSidebar() {
+    sidebarMobileOpen.value = false
+  }
+
   function setSidebarWidth(w) {
     sidebarWidth.value = w
     localStorage.setItem('pim_sidebar_width', String(w))
@@ -91,11 +100,11 @@ export const useAuthStore = defineStore('auth', () => {
 
   return {
     user, token, locale,
-    commandPaletteOpen, sidebarCollapsed, sidebarWidth, sidebarCollapsedSections,
+    commandPaletteOpen, sidebarCollapsed, sidebarMobileOpen, sidebarWidth, sidebarCollapsedSections,
     panelOpen, panelComponent, panelProps,
     isAuthenticated, userName, userRole, permissions,
     hasPermission, login, logout, checkAuth, setLocale,
-    toggleCommandPalette, toggleSidebar, setSidebarWidth, toggleSidebarSection,
+    toggleCommandPalette, toggleSidebar, toggleMobileSidebar, closeMobileSidebar, setSidebarWidth, toggleSidebarSection,
     openPanel, closePanel,
   }
 })
