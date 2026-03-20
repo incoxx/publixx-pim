@@ -19,9 +19,11 @@ const connectorLabels = {
   deepl: 'DeepL',
   shopware: 'Shopware 6',
   cloudinary: 'Cloudinary',
-  claude_ai: 'Claude AI',
+  claude_ai: 'Claude AI (Betextung)',
+  openai: 'OpenAI / ChatGPT (Betextung)',
   google_translate: 'Google Translate',
-  anthropic_tms: 'Anthropic (Claude)',
+  anthropic_tms: 'Anthropic / Claude (Übersetzung)',
+  openai_tms: 'OpenAI / ChatGPT (Übersetzung)',
 }
 
 // Group connectors into sections for the UI
@@ -29,12 +31,17 @@ const sections = {
   connectors: {
     label: 'Connectoren',
     description: 'API-Zugangsdaten für externe Dienste und Integrationen.',
-    keys: ['canva', 'deepl', 'shopware', 'cloudinary', 'claude_ai'],
+    keys: ['canva', 'deepl', 'shopware', 'cloudinary'],
+  },
+  ai: {
+    label: 'KI-Dienste (Betextung)',
+    description: 'API-Keys für KI-gestützte Produktbetextung und Content-Generierung.',
+    keys: ['claude_ai', 'openai'],
   },
   tms: {
     label: 'Übersetzungsdienste (TMS)',
     description: 'API-Keys für maschinelle Übersetzung im Translation Management System. Der DeepL-Key oben wird automatisch auch für das TMS verwendet.',
-    keys: ['google_translate', 'anthropic_tms'],
+    keys: ['google_translate', 'anthropic_tms', 'openai_tms'],
   },
 }
 

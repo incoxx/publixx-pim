@@ -59,6 +59,13 @@ class ConnectorServiceProvider extends ServiceProvider
                 if (! empty($dbCredentials['anthropic_tms']['model'])) {
                     config(['tms.providers.claude.model' => $dbCredentials['anthropic_tms']['model']]);
                 }
+                // OpenAI: TMS translation provider
+                if (! empty($dbCredentials['openai_tms']['api_key'])) {
+                    config(['tms.providers.openai.api_key' => $dbCredentials['openai_tms']['api_key']]);
+                }
+                if (! empty($dbCredentials['openai_tms']['model'])) {
+                    config(['tms.providers.openai.model' => $dbCredentials['openai_tms']['model']]);
+                }
             }
         });
 

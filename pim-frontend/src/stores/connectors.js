@@ -6,6 +6,23 @@ export const useConnectorsStore = defineStore('connectors', () => {
   const connectors = ref([])
   const connections = ref([])
   const loading = ref(false)
+  const configuredPlugins = ref([])
+  const configuredPluginsLoaded = ref(false)
+
+  async function loadConfiguredPlugins() {
+    try {
+      const { data } = await connectorsApi.configuredPlugins()
+      configuredPlugins.value = data.data || data
+    } catch {
+      configuredPlugins.value = []
+    } finally {
+      configuredPluginsLoaded.value = true
+    }
+  }
+
+  function isPluginConfigured(key) {
+    return configuredPlugins.value.includes(key)
+  }
 
   async function loadConnectors() {
     loading.value = true
@@ -36,6 +53,10 @@ export const useConnectorsStore = defineStore('connectors', () => {
     connectors,
     connections,
     loading,
+    configuredPlugins,
+    configuredPluginsLoaded,
+    loadConfiguredPlugins,
+    isPluginConfigured,
     loadConnectors,
     loadConnections,
     deleteConnection,

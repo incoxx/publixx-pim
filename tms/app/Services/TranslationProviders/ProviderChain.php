@@ -19,6 +19,7 @@ class ProviderChain
             'deepl' => DeepLProvider::class,
             'google' => GoogleTranslateProvider::class,
             'claude' => ClaudeProvider::class,
+            'openai' => OpenAIProvider::class,
         ];
 
         foreach ($chain as $name) {

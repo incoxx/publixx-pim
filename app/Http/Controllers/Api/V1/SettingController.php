@@ -252,6 +252,42 @@ class SettingController extends Controller
     }
 
     /**
+     * GET /api/v1/settings/configured-plugins
+     *
+     * Returns which connector/provider types have API keys configured.
+     * Available to all authenticated users (used by sidebar).
+     */
+    public function configuredPlugins(): JsonResponse
+    {
+        $payload = Setting::getPayload('connector_credentials') ?? [];
+
+        $configured = [];
+        foreach ($payload as $connector => $fields) {
+            if (collect($fields)->some(fn ($v) => ! empty($v))) {
+                $configured[] = $connector;
+            }
+        }
+
+        // Also check .env-based config for connectors not stored in DB
+        $envChecks = [
+            'deepl' => config('connectors.deepl.api_key'),
+            'canva' => config('connectors.canva.client_id'),
+            'shopware' => config('connectors.shopware.client_id'),
+            'cloudinary' => config('connectors.cloudinary.api_key'),
+            'claude_ai' => config('connectors.claude_ai.api_key'),
+            'openai' => config('connectors.openai.api_key'),
+        ];
+
+        foreach ($envChecks as $key => $value) {
+            if (! empty($value) && ! in_array($key, $configured)) {
+                $configured[] = $key;
+            }
+        }
+
+        return response()->json(['data' => $configured]);
+    }
+
+    /**
      * GET /api/v1/settings/connector-credentials
      *
      * Gibt die gespeicherten Connector-Credentials zurück (Werte maskiert).
@@ -283,9 +319,11 @@ class SettingController extends Controller
             'shopware'  => ['shop_url', 'client_id', 'client_secret'],
             'cloudinary' => ['cloud_name', 'api_key', 'api_secret'],
             'claude_ai' => ['api_key', 'model', 'max_tokens'],
+            'openai'    => ['api_key', 'model'],
             // ── Übersetzungsdienste (TMS) ──
             'google_translate' => ['api_key'],
             'anthropic_tms'    => ['api_key', 'model'],
+            'openai_tms'       => ['api_key', 'model'],
         ];
 
         return response()->json([
@@ -330,12 +368,18 @@ class SettingController extends Controller
             'claude_ai.api_key'     => 'nullable|string|max:500',
             'claude_ai.model'       => 'nullable|string|max:100',
             'claude_ai.max_tokens'  => 'nullable|integer|min:1|max:16384',
+            'openai'                => 'sometimes|array',
+            'openai.api_key'        => 'nullable|string|max:500',
+            'openai.model'          => 'nullable|string|max:100',
             // Übersetzungsdienste (TMS)
             'google_translate'          => 'sometimes|array',
             'google_translate.api_key'  => 'nullable|string|max:500',
             'anthropic_tms'             => 'sometimes|array',
             'anthropic_tms.api_key'     => 'nullable|string|max:500',
             'anthropic_tms.model'       => 'nullable|string|max:100',
+            'openai_tms'                => 'sometimes|array',
+            'openai_tms.api_key'        => 'nullable|string|max:500',
+            'openai_tms.model'          => 'nullable|string|max:100',
         ]);
 
         // Merge mit bestehenden Werten (leere Felder = nicht überschreiben)

@@ -59,6 +59,11 @@ export default {
     return client.get(`/connectors/connections/${connectionId}/sync-logs`, { params })
   },
 
+  // Which plugins have API keys configured (available to all authenticated users)
+  configuredPlugins() {
+    return client.get('/settings/configured-plugins')
+  },
+
   // Connector Credentials (Admin)
   getCredentials() {
     return client.get('/settings/connector-credentials')

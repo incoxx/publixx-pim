@@ -3,6 +3,7 @@ import { onMounted, onUnmounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useLicenseStore } from '@/stores/license'
+import { useConnectorsStore } from '@/stores/connectors'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import PimCommandPalette from '@/components/shared/PimCommandPalette.vue'
 
@@ -10,6 +11,7 @@ const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
 const licenseStore = useLicenseStore()
+const connectorsStore = useConnectorsStore()
 
 const isCatalogRoute = computed(() => route.matched.some((r) => r.meta.public))
 
@@ -49,6 +51,7 @@ onMounted(async () => {
   await authStore.checkAuth()
   if (authStore.isAuthenticated) {
     licenseStore.fetchLicense()
+    connectorsStore.loadConfiguredPlugins()
   }
 })
 

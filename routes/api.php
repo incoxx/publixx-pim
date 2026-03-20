@@ -660,6 +660,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::get('admin/offline-catalog/bundle-status', [OfflineCatalogController::class, 'bundleStatus']);
     Route::get('admin/offline-catalog/status', [OfflineCatalogController::class, 'status']);
     Route::put('settings/catalog-theme', [SettingController::class, 'updateCatalogTheme']);
+    Route::get('settings/configured-plugins', [SettingController::class, 'configuredPlugins']);
     Route::get('settings/connector-credentials', [SettingController::class, 'connectorCredentials']);
     Route::put('settings/connector-credentials', [SettingController::class, 'updateConnectorCredentials']);
     Route::post('admin/search-reindex', [SettingController::class, 'reindexSearch']);
