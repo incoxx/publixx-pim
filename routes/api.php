@@ -89,6 +89,7 @@ use App\Http\Controllers\Api\V1\UserAuditController;
 use App\Http\Controllers\Api\V1\UserController;
 use App\Http\Controllers\Api\V1\ValueListController;
 use App\Http\Controllers\Api\V1\ValueListEntryController;
+use App\Http\Controllers\Api\V1\ConnectorController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -794,4 +795,32 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // Dashboard
     // =====================================================================
     Route::get('dashboard', [DashboardController::class, 'index']);
+
+    // =====================================================================
+    // Connectors (Enterprise: connectors)
+    // =====================================================================
+    Route::middleware('module:connectors')->prefix('connectors')->group(function () {
+        Route::get('/', [ConnectorController::class, 'index']);
+        Route::get('/connections', [ConnectorController::class, 'connections']);
+        Route::post('/connections', [ConnectorController::class, 'store']);
+        Route::get('/connections/{connection}', [ConnectorController::class, 'showConnection']);
+        Route::delete('/connections/{connection}', [ConnectorController::class, 'destroy']);
+
+        // OAuth Flow
+        Route::get('/{type}/authorize', [ConnectorController::class, 'authorize'])
+            ->where('type', '[a-z_]+');
+        Route::post('/{type}/callback', [ConnectorController::class, 'callback'])
+            ->where('type', '[a-z_]+');
+
+        // Asset-Sync
+        Route::post('/connections/{connection}/sync-media', [ConnectorController::class, 'syncMedia']);
+        Route::post('/connections/{connection}/sync-media-bulk', [ConnectorController::class, 'syncMediaBulk']);
+
+        // Produktdaten-Sync
+        Route::post('/connections/{connection}/sync-product', [ConnectorController::class, 'syncProduct']);
+        Route::post('/connections/{connection}/sync-product-bulk', [ConnectorController::class, 'syncProductBulk']);
+
+        // Logs
+        Route::get('/connections/{connection}/sync-logs', [ConnectorController::class, 'syncLogs']);
+    });
 });

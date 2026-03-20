@@ -158,6 +158,18 @@ const routes = [
     meta: { title: 'Bericht-Designer' },
   },
   {
+    path: '/connectors',
+    name: 'connector-list',
+    component: () => import('@/views/connectors/ConnectorListView.vue'),
+    meta: { title: 'Connectoren' },
+  },
+  {
+    path: '/connectors/:id',
+    name: 'connector-connection',
+    component: () => import('@/views/connectors/ConnectorConnectionView.vue'),
+    meta: { title: 'Connector-Verbindung' },
+  },
+  {
     path: '/api-designer',
     name: 'api-designer-list',
     component: () => import('@/views/apiDesigner/ApiDesignerListView.vue'),
