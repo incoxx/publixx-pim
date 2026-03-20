@@ -274,10 +274,15 @@ class ConnectorController extends Controller
         $validated = $request->validate([
             'product_id'        => 'required|uuid|exists:products,id',
             'language'          => 'sometimes|string|in:de,en,fr,es,it',
+            'task'              => 'sometimes|string|in:description,seo,features,marketing',
+            'tonality'          => 'sometimes|string|max:200',
+            'custom_prompt'     => 'sometimes|string|max:2000|nullable',
             'attributes'        => 'sometimes|array',
             'attributes.*'      => 'string',
             'include_prices'    => 'sometimes|boolean',
             'include_media'     => 'sometimes|boolean',
+            'save_as_attribute' => 'sometimes|boolean',
+            'target_attribute'  => 'sometimes|string|max:255|nullable',
             'brand_template_id' => 'sometimes|string|nullable',
         ]);
 
