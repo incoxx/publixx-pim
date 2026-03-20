@@ -83,8 +83,21 @@ class OfflineCatalogExportService
         }
 
         try {
-            // 1. Gesamtanzahl ermitteln
-            $totalProducts = $this->buildProductQuery($themePayload)->count();
+            // 1. Split products into hierarchy (primary) and relations-only
+            $baseQuery = $this->buildProductQuery($themePayload);
+            $hierarchyQuery = (clone $baseQuery)->whereNotNull('master_hierarchy_node_id');
+            $relationsQuery = (clone $baseQuery)->whereNull('master_hierarchy_node_id');
+
+            $hierarchyCount = $hierarchyQuery->count();
+            $relationsCount = $relationsQuery->count();
+            $totalProducts = $hierarchyCount + $relationsCount;
+
+            Log::channel('export')->info('Offline-Katalog: Produkt-Aufteilung', [
+                'hierarchy' => $hierarchyCount,
+                'relations_only' => $relationsCount,
+                'total' => $totalProducts,
+            ]);
+
             $this->updateProgress('Produkte werden exportiert...', 0, $totalProducts, 'exporting');
 
             if ($totalProducts === 0) {
@@ -93,15 +106,14 @@ class OfflineCatalogExportService
                 return ['path' => null, 'total_products' => 0, 'chunks' => 0, 'cancelled' => false];
             }
 
-            // 2. Produkte in Chunks exportieren
+            // 2a. Export hierarchy products (primary index — loaded eagerly)
             $chunkFiles = [];
             $offset = 0;
             $chunkIndex = 0;
             $detailCounter = 0; // Global counter for detail subdirectory bucketing
             $cancelled = false;
 
-            while ($offset < $totalProducts) {
-                // Cancel-Check vor jedem Chunk
+            while ($offset < $hierarchyCount) {
                 if ($this->isCancelled()) {
                     $cancelled = true;
                     Log::channel('export')->info('Offline-Katalog-Export abgebrochen', [
@@ -111,9 +123,8 @@ class OfflineCatalogExportService
                     break;
                 }
 
-                $products = $this->loadProductChunk($themePayload, $lang, $offset, self::CHUNK_SIZE);
+                $products = $this->loadProductChunk($themePayload, $lang, $offset, self::CHUNK_SIZE, 'hierarchy');
 
-                // Chunk-Datei (Listendaten) — _detail_dir wird pro Produkt gesetzt
                 $chunkFileName = "chunk-{$chunkIndex}.json";
                 $listData = [];
                 foreach ($products as $product) {
@@ -122,51 +133,101 @@ class OfflineCatalogExportService
                     $item['_dd'] = $bucket;
                     $listData[] = $item;
 
-                    // Detail-Datei in Unterverzeichnis schreiben
                     $subDir = "{$detailDir}/{$bucket}";
                     if (!is_dir($subDir) && !mkdir($subDir, 0755, true)) {
                         throw new \RuntimeException("Verzeichnis konnte nicht erstellt werden: {$subDir}");
                     }
                     $detailData = $this->buildDetailItem($product, $themePayload, $lang);
-                    $this->writeJsonFile(
-                        "{$subDir}/{$product->id}.json",
-                        $detailData
-                    );
+                    $this->writeJsonFile("{$subDir}/{$product->id}.json", $detailData);
 
                     $detailCounter++;
                 }
-                $this->writeJsonFile(
-                    "{$productsDir}/{$chunkFileName}",
-                    $listData
-                );
+                $this->writeJsonFile("{$productsDir}/{$chunkFileName}", $listData);
                 $chunkFiles[] = $chunkFileName;
 
                 $offset += self::CHUNK_SIZE;
                 $chunkIndex++;
                 $this->updateProgress(
-                    'Produkte werden exportiert...',
-                    min($offset, $totalProducts),
+                    'Hierarchie-Produkte werden exportiert...',
+                    min($offset, $hierarchyCount),
                     $totalProducts,
                     'exporting'
                 );
             }
 
-            if ($cancelled) {
-                $this->updateProgress('Export abgebrochen.', $offset, $totalProducts, 'cancelled');
-                $this->cleanup($tmpDir);
-                return ['path' => null, 'total_products' => $offset, 'chunks' => $chunkIndex, 'cancelled' => true];
+            // 2b. Export relations-only products (secondary index — loaded on demand)
+            $relationsDir = $tmpDir . '/products-relations';
+            $relationsChunkFiles = [];
+            $relationsOffset = 0;
+            $relationsChunkIndex = 0;
+
+            if (!$cancelled && $relationsCount > 0) {
+                if (!mkdir($relationsDir, 0755, true)) {
+                    throw new \RuntimeException("Verzeichnis konnte nicht erstellt werden: {$relationsDir}");
+                }
+
+                while ($relationsOffset < $relationsCount) {
+                    if ($this->isCancelled()) {
+                        $cancelled = true;
+                        break;
+                    }
+
+                    $products = $this->loadProductChunk($themePayload, $lang, $relationsOffset, self::CHUNK_SIZE, 'relations');
+
+                    $chunkFileName = "chunk-{$relationsChunkIndex}.json";
+                    $listData = [];
+                    foreach ($products as $product) {
+                        $bucket = intdiv($detailCounter, self::DETAIL_DIR_SIZE);
+                        $item = $this->buildListItem($product, $themePayload, $lang);
+                        $item['_dd'] = $bucket;
+                        $listData[] = $item;
+
+                        $subDir = "{$detailDir}/{$bucket}";
+                        if (!is_dir($subDir) && !mkdir($subDir, 0755, true)) {
+                            throw new \RuntimeException("Verzeichnis konnte nicht erstellt werden: {$subDir}");
+                        }
+                        $detailData = $this->buildDetailItem($product, $themePayload, $lang);
+                        $this->writeJsonFile("{$subDir}/{$product->id}.json", $detailData);
+
+                        $detailCounter++;
+                    }
+                    $this->writeJsonFile("{$relationsDir}/{$chunkFileName}", $listData);
+                    $relationsChunkFiles[] = $chunkFileName;
+
+                    $relationsOffset += self::CHUNK_SIZE;
+                    $relationsChunkIndex++;
+                    $this->updateProgress(
+                        'Beziehungs-Produkte werden exportiert...',
+                        $hierarchyCount + min($relationsOffset, $relationsCount),
+                        $totalProducts,
+                        'exporting'
+                    );
+                }
             }
 
-            // 3. Index-Datei
+            if ($cancelled) {
+                $this->updateProgress('Export abgebrochen.', $offset + $relationsOffset, $totalProducts, 'cancelled');
+                $this->cleanup($tmpDir);
+                return ['path' => null, 'total_products' => $offset + $relationsOffset, 'chunks' => $chunkIndex + $relationsChunkIndex, 'cancelled' => true];
+            }
+
+            // 3. Index-Datei (includes relations metadata)
             $this->updateProgress('Index wird erstellt...', $totalProducts, $totalProducts, 'indexing');
-            $totalDetailBuckets = $totalProducts > 0 ? intdiv($totalProducts - 1, self::DETAIL_DIR_SIZE) + 1 : 0;
-            $this->writeJsonFile("{$productsDir}/index.json", [
-                'totalProducts' => $totalProducts,
+            $totalDetailBuckets = $detailCounter > 0 ? intdiv($detailCounter - 1, self::DETAIL_DIR_SIZE) + 1 : 0;
+            $indexData = [
+                'totalProducts' => $hierarchyCount,
                 'chunkSize' => self::CHUNK_SIZE,
                 'chunks' => $chunkFiles,
                 'detailDirSize' => self::DETAIL_DIR_SIZE,
                 'detailBuckets' => $totalDetailBuckets,
-            ]);
+            ];
+            if (!empty($relationsChunkFiles)) {
+                $indexData['relations'] = [
+                    'totalProducts' => $relationsCount,
+                    'chunks' => $relationsChunkFiles,
+                ];
+            }
+            $this->writeJsonFile("{$productsDir}/index.json", $indexData);
 
             // 4. Kategorien
             if ($this->isCancelled()) {
@@ -224,7 +285,7 @@ class OfflineCatalogExportService
             // Wir erstellen data/ und verschieben die Datenverzeichnisse/Dateien hinein.
             $dataDir = "{$previewDir}/data";
             mkdir($dataDir, 0755, true);
-            foreach (['products', 'products-detail', 'categories.json', 'facets.json', 'attribute-groups.json', 'settings.json'] as $item) {
+            foreach (['products', 'products-detail', 'products-relations', 'categories.json', 'facets.json', 'attribute-groups.json', 'settings.json'] as $item) {
                 $src = "{$previewDir}/{$item}";
                 if (file_exists($src)) {
                     rename($src, "{$dataDir}/{$item}");
@@ -244,8 +305,11 @@ class OfflineCatalogExportService
 
             Log::channel('export')->info('Offline-Katalog-Export abgeschlossen', [
                 'path' => $zipPath,
+                'hierarchy_products' => $hierarchyCount,
+                'relations_products' => $relationsCount,
                 'total_products' => $totalProducts,
                 'chunks' => $chunkIndex,
+                'relations_chunks' => $relationsChunkIndex,
                 'duration' => $duration,
                 'file_size' => $fileSize,
             ]);
@@ -254,6 +318,8 @@ class OfflineCatalogExportService
                 'path' => $zipPath,
                 'file_name' => $zipFileName,
                 'total_products' => $totalProducts,
+                'hierarchy_products' => $hierarchyCount,
+                'relations_products' => $relationsCount,
                 'chunks' => $chunkIndex,
                 'duration' => $duration,
                 'file_size' => $fileSize,
@@ -328,10 +394,17 @@ class OfflineCatalogExportService
         return $query->orderBy('sku');
     }
 
-    private function loadProductChunk(array $themePayload, string $lang, int $offset, int $limit): Collection
+    private function loadProductChunk(array $themePayload, string $lang, int $offset, int $limit, string $tier = 'all'): Collection
     {
-        return $this->buildProductQuery($themePayload)
-            ->with([
+        $query = $this->buildProductQuery($themePayload);
+
+        if ($tier === 'hierarchy') {
+            $query->whereNotNull('master_hierarchy_node_id');
+        } elseif ($tier === 'relations') {
+            $query->whereNull('master_hierarchy_node_id');
+        }
+
+        return $query->with([
                 'searchIndex',
                 'masterHierarchyNode',
                 'attributeValues' => fn ($q) => $q->where(function ($q2) use ($lang) {
@@ -707,18 +780,28 @@ class OfflineCatalogExportService
     {
         $facetAttributeIds = $themePayload['facet_attribute_ids'] ?? [];
         if (empty($facetAttributeIds)) {
+            Log::channel('export')->info('Facets: keine facet_attribute_ids konfiguriert');
             return ['facets' => []];
         }
 
         $attributes = Attribute::whereIn('id', $facetAttributeIds)->get()->keyBy('id');
-        $activeProductQuery = Product::where('status', 'active')
-            ->where('product_type_ref', 'product')
-            ->select('id');
+
+        // Use the same product scope as the export (respects hierarchy filter)
+        $activeProductQuery = $this->buildProductQuery($themePayload)->select('id');
+
+        Log::channel('export')->info('Facets: starte Export', [
+            'configured_ids' => count($facetAttributeIds),
+            'found_attrs' => $attributes->count(),
+            'types' => $attributes->pluck('data_type', 'technical_name')->toArray(),
+        ]);
 
         $facets = [];
         foreach ($facetAttributeIds as $attrId) {
             $attr = $attributes->get($attrId);
-            if (!$attr) continue;
+            if (!$attr) {
+                Log::channel('export')->warning("Facet: Attribut {$attrId} nicht gefunden");
+                continue;
+            }
 
             $label = $lang === 'en' && $attr->name_en ? $attr->name_en : ($attr->name_de ?: $attr->technical_name);
             $baseQuery = ProductAttributeValue::where('attribute_id', $attrId)
@@ -823,8 +906,16 @@ class OfflineCatalogExportService
                     'data_type' => 'Text',
                     'values' => $values,
                 ];
+            } else {
+                Log::channel('export')->warning("Facet: unbekannter data_type '{$attr->data_type}' für {$attr->technical_name}");
             }
         }
+
+        Log::channel('export')->info('Facets: Export abgeschlossen', [
+            'total' => count($facets),
+            'types' => collect($facets)->groupBy('data_type')->map->count()->toArray(),
+            'labels' => collect($facets)->pluck('label')->toArray(),
+        ]);
 
         return ['facets' => $facets];
     }

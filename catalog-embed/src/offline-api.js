@@ -20,13 +20,15 @@ import { generateProductPdf, generateWishlistPdf } from './pdf-generator.js'
 export function createOfflineApi(dataPath, options = {}) {
   const basePath = dataPath.replace(/\/+$/, '')
 
-  // In-memory product store
-  let _allProducts = null
-  let _productIndex = null // { totalProducts, chunkSize, chunks }
+  // In-memory product stores (two-tier)
+  let _primaryProducts = null   // Hierarchy products (loaded eagerly)
+  let _relationsProducts = null // Relations-only products (loaded on demand)
+  let _productIndex = null      // { totalProducts, chunkSize, chunks, relations? }
   let _settings = null
   let _categories = null
   let _facets = null
-  let _loadingPromise = null
+  let _primaryPromise = null
+  let _relationsPromise = null
 
   async function fetchJson(path) {
     const resp = await fetch(`${basePath}/${path}`)
@@ -35,18 +37,18 @@ export function createOfflineApi(dataPath, options = {}) {
   }
 
   /**
-   * Load all product chunks into memory. Called once, returns cached result.
+   * Load primary (hierarchy) product chunks into memory. Called once, returns cached result.
+   * These are products with direct hierarchy assignments — the main catalog.
    */
-  async function loadAllProducts() {
-    if (_allProducts) return _allProducts
-    if (_loadingPromise) return _loadingPromise
+  async function loadPrimaryProducts() {
+    if (_primaryProducts) return _primaryProducts
+    if (_primaryPromise) return _primaryPromise
 
-    _loadingPromise = (async () => {
+    _primaryPromise = (async () => {
       _productIndex = await fetchJson('products/index.json')
       const { chunks, totalProducts } = _productIndex
-      const allProducts = []
+      const products = []
 
-      // Load chunks in parallel batches of 4
       const batchSize = 4
       for (let i = 0; i < chunks.length; i += batchSize) {
         const batch = chunks.slice(i, i + batchSize)
@@ -54,18 +56,76 @@ export function createOfflineApi(dataPath, options = {}) {
           batch.map(chunkFile => fetchJson(`products/${chunkFile}`))
         )
         for (const chunkData of results) {
-          allProducts.push(...chunkData)
+          products.push(...chunkData)
         }
         if (options.onProgress) {
-          options.onProgress(allProducts.length, totalProducts)
+          options.onProgress(products.length, totalProducts)
         }
       }
 
-      _allProducts = allProducts
-      return _allProducts
+      _primaryProducts = products
+      return _primaryProducts
     })()
 
-    return _loadingPromise
+    return _primaryPromise
+  }
+
+  /**
+   * Load relations-only product chunks into memory (lazy, on first need).
+   * These are products without hierarchy — only reachable via product relations.
+   */
+  async function loadRelationsProducts() {
+    if (_relationsProducts) return _relationsProducts
+    if (_relationsPromise) return _relationsPromise
+
+    _relationsPromise = (async () => {
+      if (!_productIndex) {
+        _productIndex = await fetchJson('products/index.json')
+      }
+      const relInfo = _productIndex.relations
+      if (!relInfo || !relInfo.chunks || relInfo.chunks.length === 0) {
+        _relationsProducts = []
+        return _relationsProducts
+      }
+
+      const products = []
+      const batchSize = 4
+      for (let i = 0; i < relInfo.chunks.length; i += batchSize) {
+        const batch = relInfo.chunks.slice(i, i + batchSize)
+        const results = await Promise.all(
+          batch.map(chunkFile => fetchJson(`products-relations/${chunkFile}`))
+        )
+        for (const chunkData of results) {
+          products.push(...chunkData)
+        }
+      }
+
+      _relationsProducts = products
+      return _relationsProducts
+    })()
+
+    return _relationsPromise
+  }
+
+  /**
+   * Load all products (primary + relations). Used for search.
+   */
+  async function loadAllProducts() {
+    const primary = await loadPrimaryProducts()
+    const relations = await loadRelationsProducts()
+    return primary.concat(relations)
+  }
+
+  /**
+   * Find a product by ID across both tiers.
+   */
+  async function findProductById(id) {
+    const primary = await loadPrimaryProducts()
+    const found = primary.find(p => p.id === id)
+    if (found) return found
+
+    const relations = await loadRelationsProducts()
+    return relations.find(p => p.id === id)
   }
 
   /**
@@ -191,17 +251,17 @@ export function createOfflineApi(dataPath, options = {}) {
 
   const api = {
     async getProducts(opts = {}) {
-      const allProducts = await loadAllProducts()
-      const lang = opts.lang || 'de'
       const isSearching = opts.search && opts.search.trim().length > 0
-
-      let filtered = allProducts
+      let filtered
 
       if (isSearching) {
-        // Search overrides category and facet filters (same as online API)
-        filtered = filterBySearch(filtered, opts.search)
+        // Search all products (primary + relations, lazy-loads relations on first search)
+        const allProducts = await loadAllProducts()
+        filtered = filterBySearch(allProducts, opts.search)
       } else {
-        filtered = filterByCategory(filtered, opts.category)
+        // Browse/filter: only primary (hierarchy) products
+        const primaryProducts = await loadPrimaryProducts()
+        filtered = filterByCategory(primaryProducts, opts.category)
         filtered = filterByFacets(filtered, opts.filters)
       }
 
@@ -233,9 +293,8 @@ export function createOfflineApi(dataPath, options = {}) {
 
     async getProduct(id, opts = {}) {
       try {
-        // Look up detail subdirectory from in-memory product list
-        const allProducts = await loadAllProducts()
-        const product = allProducts.find(p => p.id === id)
+        // Look up detail subdirectory from primary or relations index
+        const product = await findProductById(id)
         const bucket = product?._dd ?? 0
         return await fetchJson(`products-detail/${bucket}/${id}.json`)
       } catch {
@@ -284,7 +343,9 @@ export function createOfflineApi(dataPath, options = {}) {
     },
 
     async downloadWishlistPdf(productIds, lang) {
-      const allProducts = await loadAllProducts()
+      const primary = await loadPrimaryProducts()
+      const relations = _relationsProducts || []
+      const allProducts = primary.concat(relations)
       const idSet = new Set(productIds)
       const products = allProducts
         .filter(p => idSet.has(p.id))
