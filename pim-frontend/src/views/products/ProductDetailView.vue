@@ -1,3 +1,19 @@
+<script>
+// Module-level cache — shared across all ProductDetailView instances,
+// survives component unmount/remount (tab switching).
+// Only cleared on full page reload.
+const _refDataCache = {
+  manufacturers: null,
+  productTypes: null,
+  projects: null,
+  hierarchies: null,
+  hierarchyTrees: {},    // keyed by hierarchyId
+  filterOptions: null,   // { views, types }
+  workflowUsers: null,
+  workflowTeams: null,
+}
+</script>
+
 <script setup>
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -52,9 +68,14 @@ const selectedHierarchyId = ref(null)
 const manufacturers = ref([])
 
 async function loadManufacturers() {
+  if (_refDataCache.manufacturers) {
+    manufacturers.value = _refDataCache.manufacturers
+    return
+  }
   try {
     const { data } = await manufacturersApi.list({ perPage: 500 })
     manufacturers.value = data.data || data
+    _refDataCache.manufacturers = manufacturers.value
   } catch { /* silently fail */ }
 }
 
@@ -63,23 +84,33 @@ const availableProjects = ref([])
 const selectedProjectIds = ref([])
 
 async function loadProjects() {
-  try {
-    const { data } = await projectsApi.list({ perPage: 500 })
-    availableProjects.value = data.data || data
-    // Initialize selected projects from current product
-    if (product.value?.projects) {
-      selectedProjectIds.value = product.value.projects.map(p => p.id)
-    }
-  } catch { /* silently fail */ }
+  if (_refDataCache.projects) {
+    availableProjects.value = _refDataCache.projects
+  } else {
+    try {
+      const { data } = await projectsApi.list({ perPage: 500 })
+      availableProjects.value = data.data || data
+      _refDataCache.projects = availableProjects.value
+    } catch { /* silently fail */ }
+  }
+  // Initialize selected projects from current product
+  if (product.value?.projects) {
+    selectedProjectIds.value = product.value.projects.map(p => p.id)
+  }
 }
 
 // Product type assignment
 const productTypesList = ref([])
 
 async function loadProductTypes() {
+  if (_refDataCache.productTypes) {
+    productTypesList.value = _refDataCache.productTypes
+    return
+  }
   try {
     const { data } = await productTypes.list()
     productTypesList.value = data.data || data
+    _refDataCache.productTypes = productTypesList.value
   } catch { /* silently fail */ }
 }
 
@@ -123,6 +154,12 @@ const filterOptionsLoaded = ref(false)
 
 async function loadFilterOptions() {
   if (filterOptionsLoaded.value) return
+  if (_refDataCache.filterOptions) {
+    availableAttrViews.value = _refDataCache.filterOptions.views
+    availableAttrGroups.value = _refDataCache.filterOptions.types
+    filterOptionsLoaded.value = true
+    return
+  }
   try {
     const [viewsRes, typesRes] = await Promise.all([
       attributeViews.list({ include: 'attributes' }),
@@ -130,6 +167,7 @@ async function loadFilterOptions() {
     ])
     availableAttrViews.value = viewsRes.data.data || viewsRes.data || []
     availableAttrGroups.value = typesRes.data.data || typesRes.data || []
+    _refDataCache.filterOptions = { views: availableAttrViews.value, types: availableAttrGroups.value }
     filterOptionsLoaded.value = true
   } catch (e) {
     console.error('Failed to load filter options:', e)
@@ -165,19 +203,27 @@ async function startWorkflow() {
 }
 
 async function loadWorkflowUsers() {
-  if (workflowUsers.value.length) return
+  if (_refDataCache.workflowUsers) {
+    workflowUsers.value = _refDataCache.workflowUsers
+    return
+  }
   try {
     const { data } = await usersApi.list({ perPage: 200 })
     workflowUsers.value = data.data || data
+    _refDataCache.workflowUsers = workflowUsers.value
   } catch { /* ignore */ }
 }
 
 async function loadWorkflowTeams() {
-  if (workflowTeams.value.length) return
+  if (_refDataCache.workflowTeams) {
+    workflowTeams.value = _refDataCache.workflowTeams
+    return
+  }
   try {
     const teamsApi = (await import('@/api/teams')).default
     const { data } = await teamsApi.list({ perPage: 200 })
     workflowTeams.value = data.data || data
+    _refDataCache.workflowTeams = workflowTeams.value
   } catch { /* ignore */ }
 }
 
@@ -1592,8 +1638,13 @@ async function save() {
 // ─── Hierarchy node loading ──────────────────────────
 async function loadHierarchies() {
   try {
-    const { data } = await hierarchiesApi.list()
-    hierarchies.value = data.data || data
+    if (_refDataCache.hierarchies) {
+      hierarchies.value = _refDataCache.hierarchies
+    } else {
+      const { data } = await hierarchiesApi.list()
+      hierarchies.value = data.data || data
+      _refDataCache.hierarchies = hierarchies.value
+    }
     // Load tree for the hierarchy that the product belongs to
     if (product.value?.master_hierarchy_node_id) {
       for (const h of hierarchies.value) {
@@ -1607,8 +1658,14 @@ async function loadHierarchies() {
 
 async function loadHierarchyTree(hierarchyId) {
   try {
-    const { data } = await hierarchiesApi.getTree(hierarchyId)
-    const tree = data.data || data
+    let tree
+    if (_refDataCache.hierarchyTrees[hierarchyId]) {
+      tree = _refDataCache.hierarchyTrees[hierarchyId]
+    } else {
+      const { data } = await hierarchiesApi.getTree(hierarchyId)
+      tree = data.data || data
+      _refDataCache.hierarchyTrees[hierarchyId] = tree
+    }
     const flatNodes = flattenTree(tree, hierarchyId)
     hierarchyNodes.value = [...hierarchyNodes.value.filter(n => n._hierarchyId !== hierarchyId), ...flatNodes]
     // Auto-select hierarchy that contains the product's current node
