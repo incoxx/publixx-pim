@@ -1,6 +1,4 @@
 <script setup>
-defineOptions({ name: 'CatalogTemplateDesignerView' })
-
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import {

@@ -1,6 +1,4 @@
 <script setup>
-defineOptions({ name: 'PdfTemplateDesignerView' })
-
 import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { usePdfTemplateDesignerStore } from '@/stores/pdfTemplateDesigner'

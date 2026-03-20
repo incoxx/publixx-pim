@@ -2,13 +2,11 @@
 import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { useTabStore } from '@/stores/tabs'
 import AppSidebar from './AppSidebar.vue'
 import AppHeader from './AppHeader.vue'
 import AppTabBar from './AppTabBar.vue'
 
 const authStore = useAuthStore()
-const tabStore = useTabStore()
 const route = useRoute()
 
 // Close panel when navigating to a different route (but not when switching between open tabs)
@@ -51,9 +49,7 @@ const mainStyle = computed(() => ({
       <AppTabBar />
       <main class="p-6">
         <router-view v-slot="{ Component }">
-          <keep-alive :include="tabStore.cachedComponentNames">
-            <component :is="Component" :key="route.fullPath" />
-          </keep-alive>
+          <component :is="Component" :key="route.fullPath" />
         </router-view>
       </main>
     </div>
