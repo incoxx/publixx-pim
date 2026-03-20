@@ -84,9 +84,23 @@ class OfflineCatalogExportService
 
         try {
             // 1. Split products into hierarchy (primary) and relations-only
+            //    Hierarchy = has master_hierarchy_node_id OR is assigned to output hierarchy
             $baseQuery = $this->buildProductQuery($themePayload);
-            $hierarchyQuery = (clone $baseQuery)->whereNotNull('master_hierarchy_node_id');
-            $relationsQuery = (clone $baseQuery)->whereNull('master_hierarchy_node_id');
+            $hierarchyId = $themePayload['hierarchy_id'] ?? null;
+            $hierarchy = $hierarchyId ? Hierarchy::find($hierarchyId) : null;
+
+            if ($hierarchy && $hierarchy->hierarchy_type === 'output') {
+                // Output hierarchy: products linked via output_hierarchy_product_assignments
+                $allNodeIds = HierarchyNode::where('hierarchy_id', $hierarchy->id)->pluck('id');
+                $outputProductIds = OutputHierarchyProductAssignment::whereIn('hierarchy_node_id', $allNodeIds)
+                    ->pluck('product_id');
+                $hierarchyQuery = (clone $baseQuery)->whereIn('id', $outputProductIds);
+                $relationsQuery = (clone $baseQuery)->whereNotIn('id', $outputProductIds);
+            } else {
+                // Master hierarchy: products with master_hierarchy_node_id
+                $hierarchyQuery = (clone $baseQuery)->whereNotNull('master_hierarchy_node_id');
+                $relationsQuery = (clone $baseQuery)->whereNull('master_hierarchy_node_id');
+            }
 
             $hierarchyCount = $hierarchyQuery->count();
             $relationsCount = $relationsQuery->count();
@@ -398,10 +412,26 @@ class OfflineCatalogExportService
     {
         $query = $this->buildProductQuery($themePayload);
 
-        if ($tier === 'hierarchy') {
-            $query->whereNotNull('master_hierarchy_node_id');
-        } elseif ($tier === 'relations') {
-            $query->whereNull('master_hierarchy_node_id');
+        if ($tier !== 'all') {
+            $hierarchyId = $themePayload['hierarchy_id'] ?? null;
+            $hierarchy = $hierarchyId ? Hierarchy::find($hierarchyId) : null;
+
+            if ($hierarchy && $hierarchy->hierarchy_type === 'output') {
+                $allNodeIds = HierarchyNode::where('hierarchy_id', $hierarchy->id)->pluck('id');
+                $outputProductIds = OutputHierarchyProductAssignment::whereIn('hierarchy_node_id', $allNodeIds)
+                    ->pluck('product_id');
+                if ($tier === 'hierarchy') {
+                    $query->whereIn('id', $outputProductIds);
+                } else {
+                    $query->whereNotIn('id', $outputProductIds);
+                }
+            } else {
+                if ($tier === 'hierarchy') {
+                    $query->whereNotNull('master_hierarchy_node_id');
+                } else {
+                    $query->whereNull('master_hierarchy_node_id');
+                }
+            }
         }
 
         return $query->with([
@@ -786,8 +816,20 @@ class OfflineCatalogExportService
 
         $attributes = Attribute::whereIn('id', $facetAttributeIds)->get()->keyBy('id');
 
-        // Use the same product scope as the export (respects hierarchy filter)
-        $activeProductQuery = $this->buildProductQuery($themePayload)->select('id');
+        // Scope facets to hierarchy products only (matching the primary/browse index)
+        $facetQuery = $this->buildProductQuery($themePayload);
+        $hierarchyId = $themePayload['hierarchy_id'] ?? null;
+        $hierarchy = $hierarchyId ? Hierarchy::find($hierarchyId) : null;
+
+        if ($hierarchy && $hierarchy->hierarchy_type === 'output') {
+            $allNodeIds = HierarchyNode::where('hierarchy_id', $hierarchy->id)->pluck('id');
+            $outputProductIds = OutputHierarchyProductAssignment::whereIn('hierarchy_node_id', $allNodeIds)
+                ->pluck('product_id');
+            $facetQuery->whereIn('id', $outputProductIds);
+        } else {
+            $facetQuery->whereNotNull('master_hierarchy_node_id');
+        }
+        $activeProductQuery = $facetQuery->select('id');
 
         Log::channel('export')->info('Facets: starte Export', [
             'configured_ids' => count($facetAttributeIds),

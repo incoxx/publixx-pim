@@ -116,16 +116,33 @@ export function createOfflineApi(dataPath, options = {}) {
     return primary.concat(relations)
   }
 
+  // ID → product lookup map (built lazily)
+  let _productMap = null
+
+  function getProductMap(products) {
+    if (!_productMap) {
+      _productMap = new Map()
+      for (const p of products) _productMap.set(p.id, p)
+    }
+    return _productMap
+  }
+
   /**
    * Find a product by ID across both tiers.
    */
   async function findProductById(id) {
     const primary = await loadPrimaryProducts()
-    const found = primary.find(p => p.id === id)
+    const map = getProductMap(primary)
+    const found = map.get(id)
     if (found) return found
 
+    // Check relations (lazy load)
     const relations = await loadRelationsProducts()
-    return relations.find(p => p.id === id)
+    // Extend map with relations on first miss
+    if (relations.length > 0 && !map.has(relations[0]?.id)) {
+      for (const p of relations) map.set(p.id, p)
+    }
+    return map.get(id)
   }
 
   /**
@@ -343,9 +360,7 @@ export function createOfflineApi(dataPath, options = {}) {
     },
 
     async downloadWishlistPdf(productIds, lang) {
-      const primary = await loadPrimaryProducts()
-      const relations = _relationsProducts || []
-      const allProducts = primary.concat(relations)
+      const allProducts = await loadAllProducts()
       const idSet = new Set(productIds)
       const products = allProducts
         .filter(p => idSet.has(p.id))
