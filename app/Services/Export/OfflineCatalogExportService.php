@@ -91,13 +91,26 @@ class OfflineCatalogExportService
 
             if ($hierarchy && $hierarchy->hierarchy_type === 'output') {
                 // Output hierarchy: products linked via output_hierarchy_product_assignments
-                $allNodeIds = HierarchyNode::where('hierarchy_id', $hierarchy->id)->pluck('id');
-                $outputProductIds = OutputHierarchyProductAssignment::whereIn('hierarchy_node_id', $allNodeIds)
+                // Only include products assigned to ACTIVE hierarchy nodes
+                $activeNodeIds = HierarchyNode::where('hierarchy_id', $hierarchy->id)
+                    ->where('is_active', true)
+                    ->pluck('id');
+                $outputProductIds = OutputHierarchyProductAssignment::whereIn('hierarchy_node_id', $activeNodeIds)
                     ->pluck('product_id');
                 $hierarchyQuery = (clone $baseQuery)->whereIn('id', $outputProductIds);
                 $relationsQuery = (clone $baseQuery)->whereNotIn('id', $outputProductIds);
+            } elseif ($hierarchy) {
+                // Master hierarchy: products with master_hierarchy_node_id pointing to an active node
+                $activeNodeIds = HierarchyNode::where('hierarchy_id', $hierarchy->id)
+                    ->where('is_active', true)
+                    ->pluck('id');
+                $hierarchyQuery = (clone $baseQuery)->whereIn('master_hierarchy_node_id', $activeNodeIds);
+                $relationsQuery = (clone $baseQuery)->where(function ($q) use ($activeNodeIds) {
+                    $q->whereNotIn('master_hierarchy_node_id', $activeNodeIds)
+                      ->orWhereNull('master_hierarchy_node_id');
+                });
             } else {
-                // Master hierarchy: products with master_hierarchy_node_id
+                // No hierarchy configured: fall back to master_hierarchy_node_id presence
                 $hierarchyQuery = (clone $baseQuery)->whereNotNull('master_hierarchy_node_id');
                 $relationsQuery = (clone $baseQuery)->whereNull('master_hierarchy_node_id');
             }
@@ -394,13 +407,16 @@ class OfflineCatalogExportService
         if ($linkedOnly && $hierarchyId) {
             $hierarchy = Hierarchy::find($hierarchyId);
             if ($hierarchy) {
-                $allNodeIds = HierarchyNode::where('hierarchy_id', $hierarchy->id)->pluck('id');
+                // Only consider active hierarchy nodes
+                $activeNodeIds = HierarchyNode::where('hierarchy_id', $hierarchy->id)
+                    ->where('is_active', true)
+                    ->pluck('id');
                 if ($hierarchy->hierarchy_type === 'output') {
-                    $linkedProductIds = OutputHierarchyProductAssignment::whereIn('hierarchy_node_id', $allNodeIds)
+                    $linkedProductIds = OutputHierarchyProductAssignment::whereIn('hierarchy_node_id', $activeNodeIds)
                         ->pluck('product_id');
                     $query->whereIn('id', $linkedProductIds);
                 } else {
-                    $query->whereIn('master_hierarchy_node_id', $allNodeIds);
+                    $query->whereIn('master_hierarchy_node_id', $activeNodeIds);
                 }
             }
         }
@@ -417,13 +433,28 @@ class OfflineCatalogExportService
             $hierarchy = $hierarchyId ? Hierarchy::find($hierarchyId) : null;
 
             if ($hierarchy && $hierarchy->hierarchy_type === 'output') {
-                $allNodeIds = HierarchyNode::where('hierarchy_id', $hierarchy->id)->pluck('id');
-                $outputProductIds = OutputHierarchyProductAssignment::whereIn('hierarchy_node_id', $allNodeIds)
+                // Only consider active hierarchy nodes
+                $activeNodeIds = HierarchyNode::where('hierarchy_id', $hierarchy->id)
+                    ->where('is_active', true)
+                    ->pluck('id');
+                $outputProductIds = OutputHierarchyProductAssignment::whereIn('hierarchy_node_id', $activeNodeIds)
                     ->pluck('product_id');
                 if ($tier === 'hierarchy') {
                     $query->whereIn('id', $outputProductIds);
                 } else {
                     $query->whereNotIn('id', $outputProductIds);
+                }
+            } elseif ($hierarchy) {
+                $activeNodeIds = HierarchyNode::where('hierarchy_id', $hierarchy->id)
+                    ->where('is_active', true)
+                    ->pluck('id');
+                if ($tier === 'hierarchy') {
+                    $query->whereIn('master_hierarchy_node_id', $activeNodeIds);
+                } else {
+                    $query->where(function ($q) use ($activeNodeIds) {
+                        $q->whereNotIn('master_hierarchy_node_id', $activeNodeIds)
+                          ->orWhereNull('master_hierarchy_node_id');
+                    });
                 }
             } else {
                 if ($tier === 'hierarchy') {
