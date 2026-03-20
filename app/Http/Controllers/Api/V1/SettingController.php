@@ -252,6 +252,104 @@ class SettingController extends Controller
     }
 
     /**
+     * GET /api/v1/settings/connector-credentials
+     *
+     * Gibt die gespeicherten Connector-Credentials zurück (Werte maskiert).
+     */
+    public function connectorCredentials(Request $request): JsonResponse
+    {
+        if (! $request->user()?->hasRole('Admin')) {
+            abort(403, 'Unauthorized.');
+        }
+
+        $payload = Setting::getPayload('connector_credentials') ?? [];
+
+        // Maskiere sensible Werte für die Anzeige
+        $masked = [];
+        foreach ($payload as $connector => $fields) {
+            $masked[$connector] = [];
+            foreach ($fields as $key => $value) {
+                $masked[$connector][$key] = $value
+                    ? str_repeat('*', min(8, strlen($value))) . substr($value, -4)
+                    : '';
+            }
+        }
+
+        // Zeige welche Felder pro Connector konfigurierbar sind
+        $schema = [
+            'canva'     => ['client_id', 'client_secret', 'redirect_uri'],
+            'deepl'     => ['api_key'],
+            'shopware'  => ['shop_url', 'client_id', 'client_secret'],
+            'cloudinary' => ['cloud_name', 'api_key', 'api_secret'],
+            'claude_ai' => ['api_key', 'model', 'max_tokens'],
+        ];
+
+        return response()->json([
+            'data' => [
+                'values' => $masked,
+                'schema' => $schema,
+                'has_values' => array_map(
+                    fn ($fields) => collect($fields)->some(fn ($v) => ! empty($v)),
+                    $payload,
+                ),
+            ],
+        ]);
+    }
+
+    /**
+     * PUT /api/v1/settings/connector-credentials
+     *
+     * Speichert Connector-Credentials in der Datenbank.
+     */
+    public function updateConnectorCredentials(Request $request): JsonResponse
+    {
+        if (! $request->user()?->hasRole('Admin')) {
+            abort(403, 'Unauthorized.');
+        }
+
+        $validated = $request->validate([
+            'canva'              => 'sometimes|array',
+            'canva.client_id'    => 'nullable|string|max:500',
+            'canva.client_secret' => 'nullable|string|max:500',
+            'canva.redirect_uri' => 'nullable|string|max:500',
+            'deepl'              => 'sometimes|array',
+            'deepl.api_key'      => 'nullable|string|max:500',
+            'shopware'           => 'sometimes|array',
+            'shopware.shop_url'  => 'nullable|string|max:500',
+            'shopware.client_id' => 'nullable|string|max:500',
+            'shopware.client_secret' => 'nullable|string|max:500',
+            'cloudinary'             => 'sometimes|array',
+            'cloudinary.cloud_name'  => 'nullable|string|max:500',
+            'cloudinary.api_key'     => 'nullable|string|max:500',
+            'cloudinary.api_secret'  => 'nullable|string|max:500',
+            'claude_ai'             => 'sometimes|array',
+            'claude_ai.api_key'     => 'nullable|string|max:500',
+            'claude_ai.model'       => 'nullable|string|max:100',
+            'claude_ai.max_tokens'  => 'nullable|integer|min:1|max:16384',
+        ]);
+
+        // Merge mit bestehenden Werten (leere Felder = nicht überschreiben)
+        $existing = Setting::getPayload('connector_credentials') ?? [];
+
+        foreach ($validated as $connector => $fields) {
+            if (! is_array($fields)) {
+                continue;
+            }
+            foreach ($fields as $key => $value) {
+                // Leerer String oder Sternchen = nicht überschreiben
+                if ($value === null || $value === '' || str_starts_with($value, '***')) {
+                    continue;
+                }
+                $existing[$connector][$key] = $value;
+            }
+        }
+
+        Setting::setPayload('connector_credentials', $existing);
+
+        return response()->json(['message' => 'Connector-Credentials gespeichert.']);
+    }
+
+    /**
      * POST /api/v1/admin/search-reindex
      *
      * Trigger a full search index rebuild for all active products.

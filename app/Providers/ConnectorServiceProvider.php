@@ -19,12 +19,32 @@ use App\Services\Connectors\Shopware\ShopwareAuthService;
 use App\Services\Connectors\Shopware\ShopwareConnector;
 use App\Services\Connectors\Shopware\ShopwareMediaService;
 use App\Services\Connectors\Shopware\ShopwareProductService;
+use App\Models\Setting;
 use Illuminate\Support\ServiceProvider;
 
 class ConnectorServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        // Merge DB-stored credentials into config (overrides .env values)
+        $this->app->booted(function () {
+            try {
+                $dbCredentials = Setting::getPayload('connector_credentials');
+            } catch (\Throwable) {
+                $dbCredentials = null; // Table may not exist during migrations
+            }
+
+            if ($dbCredentials) {
+                foreach ($dbCredentials as $connector => $fields) {
+                    foreach ($fields as $key => $value) {
+                        if (! empty($value)) {
+                            config(["connectors.{$connector}.{$key}" => $value]);
+                        }
+                    }
+                }
+            }
+        });
+
         $this->app->singleton(ConnectorRegistry::class);
 
         // Canva

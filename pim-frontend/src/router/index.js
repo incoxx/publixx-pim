@@ -158,6 +158,12 @@ const routes = [
     meta: { title: 'Bericht-Designer' },
   },
   {
+    path: '/plugin-settings',
+    name: 'plugin-settings',
+    component: () => import('@/views/connectors/PluginSettingsView.vue'),
+    meta: { title: 'Plugin-Einstellungen' },
+  },
+  {
     path: '/connectors',
     name: 'connector-list',
     component: () => import('@/views/connectors/ConnectorListView.vue'),

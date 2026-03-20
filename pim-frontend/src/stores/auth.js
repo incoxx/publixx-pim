@@ -81,8 +81,8 @@ export const useAuthStore = defineStore('auth', () => {
 
   function toggleSidebarSection(key) {
     const sections = { ...sidebarCollapsedSections.value }
-    // grp-* keys default to collapsed (undefined = true), others default to expanded (undefined = false)
-    const isCollapsed = key.startsWith('grp-') ? sections[key] !== false : !!sections[key]
+    // All sections default to collapsed (undefined = true)
+    const isCollapsed = sections[key] !== false
     sections[key] = !isCollapsed
     sidebarCollapsedSections.value = sections
     localStorage.setItem('pim_sidebar_sections', JSON.stringify(sections))
