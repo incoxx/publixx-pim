@@ -19,12 +19,49 @@ use App\Services\Connectors\Shopware\ShopwareAuthService;
 use App\Services\Connectors\Shopware\ShopwareConnector;
 use App\Services\Connectors\Shopware\ShopwareMediaService;
 use App\Services\Connectors\Shopware\ShopwareProductService;
+use App\Models\Setting;
 use Illuminate\Support\ServiceProvider;
 
 class ConnectorServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        // Merge DB-stored credentials into config (overrides .env values)
+        $this->app->booted(function () {
+            try {
+                $dbCredentials = Setting::getPayload('connector_credentials');
+            } catch (\Throwable) {
+                $dbCredentials = null; // Table may not exist during migrations
+            }
+
+            if ($dbCredentials) {
+                foreach ($dbCredentials as $connector => $fields) {
+                    foreach ($fields as $key => $value) {
+                        if (! empty($value)) {
+                            config(["connectors.{$connector}.{$key}" => $value]);
+                        }
+                    }
+                }
+
+                // Sync shared keys into TMS provider config
+                // DeepL: used by both connector system and TMS
+                if (! empty($dbCredentials['deepl']['api_key'])) {
+                    config(['tms.providers.deepl.api_key' => $dbCredentials['deepl']['api_key']]);
+                }
+                // Google Translate: TMS only
+                if (! empty($dbCredentials['google_translate']['api_key'])) {
+                    config(['tms.providers.google.api_key' => $dbCredentials['google_translate']['api_key']]);
+                }
+                // Anthropic/Claude: TMS translation provider
+                if (! empty($dbCredentials['anthropic_tms']['api_key'])) {
+                    config(['tms.providers.claude.api_key' => $dbCredentials['anthropic_tms']['api_key']]);
+                }
+                if (! empty($dbCredentials['anthropic_tms']['model'])) {
+                    config(['tms.providers.claude.model' => $dbCredentials['anthropic_tms']['model']]);
+                }
+            }
+        });
+
         $this->app->singleton(ConnectorRegistry::class);
 
         // Canva

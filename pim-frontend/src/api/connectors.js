@@ -58,4 +58,13 @@ export default {
   syncLogs(connectionId, params = {}) {
     return client.get(`/connectors/connections/${connectionId}/sync-logs`, { params })
   },
+
+  // Connector Credentials (Admin)
+  getCredentials() {
+    return client.get('/settings/connector-credentials')
+  },
+
+  updateCredentials(data) {
+    return client.put('/settings/connector-credentials', data)
+  },
 }

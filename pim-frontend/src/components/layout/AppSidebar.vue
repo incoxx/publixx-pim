@@ -51,6 +51,7 @@ const sections = computed(() => {
       key: 'plugins',
       label: 'Plugins',
       items: [
+        { icon: Settings, label: () => 'Plugin-Einstellungen', to: '/plugin-settings', permission: 'users.view' },
         { icon: Languages, label: () => 'Übersetzung (DeepL)', to: '/connectors/deepl', module: 'connectors' },
         {
           key: 'grp-connectors',
@@ -95,6 +96,8 @@ const sections = computed(() => {
       key: 'config',
       label: 'Konfiguration',
       items: [
+        { icon: Tags, label: () => t('nav.mediaUsageTypes'), to: '/media-usage-types' },
+        { icon: Languages, label: () => t('nav.translations'), to: '/translations' },
         {
           key: 'grp-produktstruktur',
           icon: Layers,
@@ -103,7 +106,6 @@ const sections = computed(() => {
             { icon: Factory, label: () => t('nav.manufacturers'), to: '/manufacturers' },
             { icon: Layers, label: () => t('nav.productTypes'), to: '/product-types' },
             { icon: Link2, label: () => t('nav.relationTypes'), to: '/relation-types' },
-            { icon: Tags, label: () => t('nav.mediaUsageTypes'), to: '/media-usage-types' },
           ],
         },
         {
@@ -126,7 +128,6 @@ const sections = computed(() => {
             { icon: Ruler, label: () => 'Einheiten', to: '/units' },
             { icon: DollarSign, label: () => t('nav.prices'), to: '/prices' },
             { icon: Globe, label: () => t('nav.priceRegions'), to: '/price-regions' },
-            { icon: Languages, label: () => t('nav.translations'), to: '/translations' },
           ],
         },
       ],
@@ -206,11 +207,8 @@ const sections = computed(() => {
 })
 
 function isSectionCollapsed(key) {
-  // Sub-groups (grp-*) default to collapsed; sections default to expanded
-  if (key.startsWith('grp-')) {
-    return authStore.sidebarCollapsedSections[key] !== false
-  }
-  return !!authStore.sidebarCollapsedSections[key]
+  // All sections and sub-groups default to collapsed on start
+  return authStore.sidebarCollapsedSections[key] !== false
 }
 
 function sectionHasActiveRoute(section) {
