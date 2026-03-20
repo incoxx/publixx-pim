@@ -36,7 +36,7 @@ class ClaudeAITextService
 
         $response = Http::withHeaders([
             'x-api-key'         => $apiKey,
-            'anthropic-version' => '2023-06-01',
+            'anthropic-version' => '2023-06-01', // stable version, compatible with all models
             'content-type'      => 'application/json',
         ])
             ->timeout(60)

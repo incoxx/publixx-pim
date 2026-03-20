@@ -137,11 +137,11 @@ class CanvaDataService
             ];
         }
 
-        // Erstes Bild
-        if (! empty($productData['media'])) {
+        // Erstes Bild (erfordert eine vorherige Asset-Upload-ID aus Canva)
+        if (! empty($productData['media'][0]['canva_asset_id'])) {
             $data['product_image'] = [
-                'type'      => 'image',
-                'asset_url' => $productData['media'][0]['url'],
+                'type'     => 'image',
+                'asset_id' => $productData['media'][0]['canva_asset_id'],
             ];
         }
 

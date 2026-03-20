@@ -25,12 +25,10 @@ class CanvaAssetService
      */
     public function uploadFromUrl(PendingRequest $http, Media $media, string $publicUrl): string
     {
-        $response = $http->post("{$this->baseUrl}/asset-uploads", [
-            'job' => [
-                'type' => 'url',
-                'url'  => $publicUrl,
-                'name' => $media->title_de ?: $media->file_name,
-            ],
+        // Canva Connect API: POST /v1/url-asset-uploads (flat body, not nested in job)
+        $response = $http->post("{$this->baseUrl}/url-asset-uploads", [
+            'name' => $media->title_de ?: $media->file_name,
+            'url'  => $publicUrl,
         ]);
 
         $response->throw();
@@ -40,13 +38,13 @@ class CanvaAssetService
     }
 
     /**
-     * Prüft den Status eines Asset-Upload-Jobs.
+     * Prüft den Status eines URL-Asset-Upload-Jobs.
      *
      * @return array{status: string, asset: array|null}
      */
     public function getUploadJobStatus(PendingRequest $http, string $jobId): array
     {
-        $response = $http->get("{$this->baseUrl}/asset-uploads/{$jobId}");
+        $response = $http->get("{$this->baseUrl}/url-asset-uploads/{$jobId}");
         $response->throw();
 
         $data = $response->json();

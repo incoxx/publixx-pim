@@ -22,9 +22,9 @@ class ShopwareProductService
         $shopUrl = rtrim($shopUrl, '/');
         $productData = $this->collectProductData($product, $language, $options);
 
-        // Upsert via Shopware Sync API
+        // Upsert via Shopware Sync API (requires named operations)
         $response = $http->post("{$shopUrl}/api/_action/sync", [
-            [
+            'write-product' => [
                 'action'  => 'upsert',
                 'entity'  => 'product',
                 'payload' => [$productData],

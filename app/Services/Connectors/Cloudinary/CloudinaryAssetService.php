@@ -78,7 +78,7 @@ class CloudinaryAssetService
     /**
      * Löscht ein Asset aus Cloudinary.
      */
-    public function delete(string $cloudName, string $apiKey, string $apiSecret, string $publicId): array
+    public function delete(string $cloudName, string $apiKey, string $apiSecret, string $publicId, string $resourceType = 'image'): array
     {
         $timestamp = time();
 
@@ -91,7 +91,7 @@ class CloudinaryAssetService
         $params['api_key'] = $apiKey;
 
         $response = Http::timeout(15)
-            ->post("https://api.cloudinary.com/v1_1/{$cloudName}/image/destroy", $params);
+            ->post("https://api.cloudinary.com/v1_1/{$cloudName}/{$resourceType}/destroy", $params);
 
         $response->throw();
 
@@ -103,8 +103,8 @@ class CloudinaryAssetService
      */
     private function generateSignature(array $params, string $apiSecret): string
     {
-        // Nur relevante Parameter für die Signatur (kein api_key, signature, file)
-        $signParams = array_filter($params, fn ($key) => ! in_array($key, ['api_key', 'signature', 'file']), ARRAY_FILTER_USE_KEY);
+        // Nur relevante Parameter für die Signatur (kein api_key, signature, file, cloud_name, resource_type)
+        $signParams = array_filter($params, fn ($key) => ! in_array($key, ['api_key', 'signature', 'file', 'cloud_name', 'resource_type']), ARRAY_FILTER_USE_KEY);
         ksort($signParams);
 
         $signString = http_build_query($signParams) . $apiSecret;

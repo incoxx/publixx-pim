@@ -26,11 +26,15 @@ class ShopwareMediaService
             'name'    => pathinfo($media->file_name, PATHINFO_FILENAME),
         ])->throw();
 
-        // 2. Datei per URL hochladen
+        // 2. Datei per URL hochladen (extension + fileName als Query-Parameter erforderlich)
         $publicUrl = url("/api/v1/media/file/{$media->file_name}");
         $extension = pathinfo($media->file_name, PATHINFO_EXTENSION) ?: 'jpg';
+        $fileName = pathinfo($media->file_name, PATHINFO_FILENAME);
 
-        $http->post("{$shopUrl}/api/_action/media/{$mediaId}/upload", [
+        $http->post("{$shopUrl}/api/_action/media/{$mediaId}/upload?" . http_build_query([
+            'extension' => $extension,
+            'fileName'  => $fileName,
+        ]), [
             'url' => $publicUrl,
         ])->throw();
 
