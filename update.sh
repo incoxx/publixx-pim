@@ -192,10 +192,19 @@ step "2/10 — Neuesten Stand von GitHub holen"
 # Aktuellen Branch merken
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")
 
+# Abgebrochene Merges bereinigen (z.B. nach fehlgeschlagenem Update)
+if [ -f .git/MERGE_HEAD ]; then
+    warn "Unvollstaendiger Merge erkannt — wird abgebrochen..."
+    git merge --abort 2>/dev/null || git reset --merge 2>/dev/null || true
+    info "Merge-Zustand bereinigt."
+fi
+
 # Build-Artefakte zuruecksetzen (werden in Schritt 5 ohnehin neu gebaut)
 for build_dir in catalog-embed/dist pim-frontend/dist; do
-    if [ -d "$build_dir" ] && ! git diff --quiet HEAD -- "$build_dir" 2>/dev/null; then
-        git checkout HEAD -- "$build_dir" 2>/dev/null || true
+    if [ -d "$build_dir" ]; then
+        # Reset index first (handles "needs merge" state), then restore files
+        git reset HEAD -- "$build_dir" 2>/dev/null || true
+        git checkout -- "$build_dir" 2>/dev/null || true
         info "Build-Artefakte in ${build_dir}/ zurueckgesetzt (werden spaeter neu gebaut)."
     fi
 done
