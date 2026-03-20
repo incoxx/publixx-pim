@@ -59,6 +59,7 @@ const sections = computed(() => {
         { icon: FileBarChart, label: () => 'Berichte', to: '/reports', module: 'reports' },
         { icon: FileText, label: () => 'PDF-Vorlagen', to: '/pdf-templates', module: 'pdf_templates' },
         { icon: LayoutTemplate, label: () => 'Katalog-Vorlagen', to: '/catalog-templates' },
+        { icon: ExternalLink, label: () => 'Katalog-Demo', to: '/catalog-embed', external: true },
       ],
     },
     {
@@ -160,7 +161,6 @@ const sections = computed(() => {
             { icon: FileJson, label: () => 'JSON Export/Import', to: '/json-export-import' },
             { icon: FileCode, label: () => 'BMEcat Import/Export', to: '/bmecat-import-export', module: 'bmecat' },
             { icon: PlayCircle, label: () => 'Export-Jobs', to: '/export-jobs', module: 'advanced_export' },
-            { icon: ExternalLink, label: () => 'Katalog-Demo', to: '/catalog-embed', external: true },
           ],
         },
         { icon: Settings, label: () => t('nav.settings'), to: '/settings', permission: 'users.view' },
