@@ -22,10 +22,11 @@ class ConnectorRegistry
      */
     public function get(string $type): ?ConnectorInterface
     {
-        // Normalize: claude-ai → claude_ai
-        $normalized = str_replace('-', '_', $type);
-
-        return $this->connectors[$normalized] ?? $this->connectors[$type] ?? null;
+        // Try exact match first, then with hyphens/underscores swapped
+        return $this->connectors[$type]
+            ?? $this->connectors[str_replace('_', '-', $type)]
+            ?? $this->connectors[str_replace('-', '_', $type)]
+            ?? null;
     }
 
     /**

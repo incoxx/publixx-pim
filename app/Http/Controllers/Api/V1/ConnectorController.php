@@ -192,12 +192,9 @@ class ConnectorController extends Controller
             $validated['code_verifier'] ?? null,
         );
 
-        // Normalize type: claude-ai → claude_ai
-        $normalizedType = str_replace('-', '_', $type);
-
         $connection = ConnectorConnection::create([
-            'connector_type'   => $normalizedType,
-            'name'             => $validated['name'] ?? ucfirst($normalizedType) . '-Verbindung',
+            'connector_type'   => $connector->getType(),
+            'name'             => $validated['name'] ?? ucfirst($type) . '-Verbindung',
             'access_token'     => $tokens['access_token'],
             'refresh_token'    => $tokens['refresh_token'] ?? null,
             'token_expires_at' => isset($tokens['expires_in'])

@@ -118,7 +118,7 @@ async function deleteConnection(id) {
             </div>
           </div>
           <div class="text-xs text-base-content/40 mt-3">
-            Benötigt: <code>CLAUDE_AI_API_KEY</code> von <strong>console.anthropic.com</strong>
+            API-Key von <strong>console.anthropic.com</strong> wird pro Verbindung hinterlegt.
           </div>
         </div>
       </div>
