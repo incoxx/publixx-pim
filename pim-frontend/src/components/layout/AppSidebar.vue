@@ -182,6 +182,10 @@ const sections = computed(() => {
 })
 
 function isSectionCollapsed(key) {
+  // Sub-groups (grp-*) default to collapsed; sections default to expanded
+  if (key.startsWith('grp-')) {
+    return authStore.sidebarCollapsedSections[key] !== false
+  }
   return !!authStore.sidebarCollapsedSections[key]
 }
 
