@@ -1,19 +1,9 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import router from '@/router'
 
 const MAX_TABS = 10
 const STORAGE_KEY = 'pim_open_tabs'
-
-// Map route names to component names for keep-alive include
-const COMPONENT_NAMES = {
-  'product-detail': 'ProductDetailView',
-  'report-designer': 'ReportDesignerView',
-  'connector-connection': 'ConnectorConnectionView',
-  'api-designer-edit': 'ApiDesignerView',
-  'pdf-template-designer': 'PdfTemplateDesignerView',
-  'catalog-template-designer': 'CatalogTemplateDesignerView',
-}
 
 function loadTabs() {
   try {
@@ -32,10 +22,6 @@ export const useTabStore = defineStore('tabs', () => {
   const tabs = ref(loadTabs())
   const activeTabId = ref(null)
 
-  const cachedComponentNames = computed(() =>
-    tabs.value.map(t => t.componentName).filter(Boolean)
-  )
-
   function getTabId(route) {
     return route.params?.id ? `${route.name}-${route.params.id}` : `${route.name}`
   }
@@ -48,8 +34,6 @@ export const useTabStore = defineStore('tabs', () => {
       activeTabId.value = id
       return
     }
-
-    const componentName = COMPONENT_NAMES[route.name] || null
 
     const tabTitle = label
       || route.meta.tabTitle
@@ -67,7 +51,6 @@ export const useTabStore = defineStore('tabs', () => {
       routeParams: { ...route.params },
       routeFullPath: route.fullPath,
       title: tabTitle,
-      componentName,
       pinned: !route.meta.tabable, // manually pinned tabs are marked
     })
 
@@ -143,7 +126,6 @@ export const useTabStore = defineStore('tabs', () => {
   return {
     tabs,
     activeTabId,
-    cachedComponentNames,
     openTab,
     pinCurrentRoute,
     isRoutePinned,

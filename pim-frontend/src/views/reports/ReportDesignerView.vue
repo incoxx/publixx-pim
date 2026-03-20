@@ -1,6 +1,4 @@
 <script setup>
-defineOptions({ name: 'ReportDesignerView' })
-
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { useReportDesignerStore } from '@/stores/reportDesigner'
