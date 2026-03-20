@@ -27,9 +27,9 @@ async function loadData() {
       connectorsApi.connections(),
     ])
     const allConnectors = listRes.data.data || listRes.data
-    connectorInfo.value = allConnectors.find(c => c.type === 'claude-ai')
+    connectorInfo.value = allConnectors.find(c => c.type === 'claude_ai')
     const allConns = connRes.data.data || connRes.data
-    connections.value = allConns.filter(c => c.connector_type === 'claude-ai')
+    connections.value = allConns.filter(c => c.connector_type === 'claude_ai')
   } catch (e) {
     error.value = 'Fehler beim Laden'
   } finally {
@@ -42,7 +42,7 @@ async function connectClaudeAI() {
   connecting.value = true
   error.value = ''
   try {
-    await connectorsApi.callback('claude-ai', {
+    await connectorsApi.callback('claude_ai', {
       code: formData.value.api_key.trim(),
       name: formData.value.name,
     })

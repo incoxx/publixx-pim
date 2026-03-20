@@ -49,7 +49,7 @@ class ConnectorConnection extends Model
     public function isTokenExpired(): bool
     {
         if (! $this->token_expires_at) {
-            return true;
+            return false; // API-key connections have no expiry
         }
 
         return $this->token_expires_at->isPast();
