@@ -42,7 +42,7 @@ return [
     'claude_ai' => [
         'api_key'    => env('CLAUDE_AI_API_KEY', ''),
         'base_url'   => env('CLAUDE_AI_BASE_URL', 'https://api.anthropic.com/v1'),
-        'model'      => env('CLAUDE_AI_MODEL', 'claude-sonnet-4-5-20241022'),
+        'model'      => env('CLAUDE_AI_MODEL', 'claude-sonnet-4-5-20250514'),
         'max_tokens' => env('CLAUDE_AI_MAX_TOKENS', 1024),
     ],
 

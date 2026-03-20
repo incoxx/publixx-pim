@@ -17,7 +17,7 @@ class ClaudeAIConnector extends AbstractConnector
 
     public function getType(): string
     {
-        return 'claude-ai';
+        return 'claude_ai';
     }
 
     public function getName(): string
@@ -52,6 +52,23 @@ class ClaudeAIConnector extends AbstractConnector
 
     public function handleCallback(string $code, ?string $codeVerifier = null): array
     {
+        // Validate the API key with a lightweight request
+        $response = \Illuminate\Support\Facades\Http::withHeaders([
+            'x-api-key'         => $code,
+            'anthropic-version' => '2023-06-01',
+            'content-type'      => 'application/json',
+        ])
+            ->timeout(15)
+            ->post(config('connectors.claude_ai.base_url', 'https://api.anthropic.com/v1') . '/messages', [
+                'model'      => config('connectors.claude_ai.model', 'claude-sonnet-4-5-20250514'),
+                'max_tokens' => 1,
+                'messages'   => [['role' => 'user', 'content' => 'Hi']],
+            ]);
+
+        if ($response->failed() && $response->status() === 401) {
+            throw new \InvalidArgumentException('Ungültiger API-Key. Bitte prüfen Sie den Schlüssel auf console.anthropic.com.');
+        }
+
         return [
             'access_token'  => $code,
             'refresh_token' => null,
@@ -75,13 +92,28 @@ class ClaudeAIConnector extends AbstractConnector
         $language = $options['language'] ?? 'de';
         $task = $options['task'] ?? 'description'; // description, seo, features, marketing
 
-        $result = $this->textService->generateProductText(
-            $apiKey,
-            $product,
-            $language,
-            $task,
-            $options,
-        );
+        try {
+            $result = $this->textService->generateProductText(
+                $apiKey,
+                $product,
+                $language,
+                $task,
+                $options,
+            );
+        } catch (\Throwable $e) {
+            $this->logSync(
+                $connection,
+                'product_push',
+                'product',
+                $product->id,
+                'failed',
+                null,
+                $e->getMessage(),
+                ['task' => $task, 'language' => $language],
+            );
+
+            throw $e;
+        }
 
         $this->logSync(
             $connection,

@@ -136,7 +136,9 @@ class ConnectorController extends Controller
             'connected_by' => $request->user()->id,
         ]);
 
-        return response()->json(['data' => $connection], 201);
+        return response()->json([
+            'data' => $connection->only(['id', 'connector_type', 'name', 'is_active', 'token_expires_at', 'settings', 'created_at']),
+        ], 201);
     }
 
     /**
@@ -176,6 +178,8 @@ class ConnectorController extends Controller
      */
     public function callback(Request $request, string $type): JsonResponse
     {
+        $this->authorize('create', ConnectorConnection::class);
+
         $connector = $this->registry->get($type);
         if (! $connector) {
             return response()->json(['message' => "Unbekannter Connector-Typ: {$type}"], 404);
@@ -192,12 +196,9 @@ class ConnectorController extends Controller
             $validated['code_verifier'] ?? null,
         );
 
-        // Normalize type: claude-ai → claude_ai
-        $normalizedType = str_replace('-', '_', $type);
-
         $connection = ConnectorConnection::create([
-            'connector_type'   => $normalizedType,
-            'name'             => $validated['name'] ?? ucfirst($normalizedType) . '-Verbindung',
+            'connector_type'   => $connector->getType(),
+            'name'             => $validated['name'] ?? ucfirst($type) . '-Verbindung',
             'access_token'     => $tokens['access_token'],
             'refresh_token'    => $tokens['refresh_token'] ?? null,
             'token_expires_at' => isset($tokens['expires_in'])
@@ -207,7 +208,9 @@ class ConnectorController extends Controller
             'connected_by' => $request->user()->id,
         ]);
 
-        return response()->json(['data' => $connection], 201);
+        return response()->json([
+            'data' => $connection->only(['id', 'connector_type', 'name', 'is_active', 'token_expires_at', 'settings', 'created_at']),
+        ], 201);
     }
 
     /**
@@ -270,7 +273,7 @@ class ConnectorController extends Controller
 
         $validated = $request->validate([
             'product_id'        => 'required|uuid|exists:products,id',
-            'language'          => 'sometimes|string|in:de,en',
+            'language'          => 'sometimes|string|in:de,en,fr,es,it',
             'attributes'        => 'sometimes|array',
             'attributes.*'      => 'string',
             'include_prices'    => 'sometimes|boolean',
@@ -301,7 +304,7 @@ class ConnectorController extends Controller
         $validated = $request->validate([
             'product_ids'       => 'required|array|min:1|max:50',
             'product_ids.*'     => 'uuid|exists:products,id',
-            'language'          => 'sometimes|string|in:de,en',
+            'language'          => 'sometimes|string|in:de,en,fr,es,it',
             'attributes'        => 'sometimes|array',
             'attributes.*'      => 'string',
             'include_prices'    => 'sometimes|boolean',
