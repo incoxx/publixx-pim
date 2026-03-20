@@ -31,7 +31,7 @@ client.interceptors.request.use((config) => {
 // Response interceptor — handle errors
 client.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
     const status = error.response?.status
 
     if (status === 401) {
@@ -54,7 +54,15 @@ client.interceptors.response.use(
     }
 
     if (status === 429) {
-      console.warn('Rate limited')
+      console.warn('Rate limited — retrying after delay')
+      const retryCount = error.config._retryCount || 0
+      if (retryCount < 3) {
+        error.config._retryCount = retryCount + 1
+        const retryAfter = error.response?.headers?.['retry-after']
+        const delay = retryAfter ? parseInt(retryAfter, 10) * 1000 : (retryCount + 1) * 1000
+        await new Promise(resolve => setTimeout(resolve, delay))
+        return client.request(error.config)
+      }
     }
 
     if (status >= 500) {
