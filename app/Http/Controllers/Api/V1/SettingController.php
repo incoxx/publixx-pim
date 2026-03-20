@@ -275,13 +275,17 @@ class SettingController extends Controller
             }
         }
 
-        // Zeige welche Felder pro Connector konfigurierbar sind
+        // Zeige welche Felder pro Connector/Provider konfigurierbar sind
         $schema = [
+            // ── Connectoren ──
             'canva'     => ['client_id', 'client_secret', 'redirect_uri'],
             'deepl'     => ['api_key'],
             'shopware'  => ['shop_url', 'client_id', 'client_secret'],
             'cloudinary' => ['cloud_name', 'api_key', 'api_secret'],
             'claude_ai' => ['api_key', 'model', 'max_tokens'],
+            // ── Übersetzungsdienste (TMS) ──
+            'google_translate' => ['api_key'],
+            'anthropic_tms'    => ['api_key', 'model'],
         ];
 
         return response()->json([
@@ -326,6 +330,12 @@ class SettingController extends Controller
             'claude_ai.api_key'     => 'nullable|string|max:500',
             'claude_ai.model'       => 'nullable|string|max:100',
             'claude_ai.max_tokens'  => 'nullable|integer|min:1|max:16384',
+            // Übersetzungsdienste (TMS)
+            'google_translate'          => 'sometimes|array',
+            'google_translate.api_key'  => 'nullable|string|max:500',
+            'anthropic_tms'             => 'sometimes|array',
+            'anthropic_tms.api_key'     => 'nullable|string|max:500',
+            'anthropic_tms.model'       => 'nullable|string|max:100',
         ]);
 
         // Merge mit bestehenden Werten (leere Felder = nicht überschreiben)
