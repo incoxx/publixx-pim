@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { useLicenseStore } from '@/stores/license'
+import { useConnectorsStore } from '@/stores/connectors'
 import {
   Search, Package, GitBranch, Sliders, Database, Layers, FolderTree,
   Upload, Download, Image, Tags, DollarSign, Users, Settings, Shield,
@@ -19,6 +20,19 @@ const router = useRouter()
 const { t } = useI18n()
 const authStore = useAuthStore()
 const licenseStore = useLicenseStore()
+const connectorsStore = useConnectorsStore()
+
+// Module is accessible if licensed OR if any related plugin has API keys configured
+function isModuleAccessible(module) {
+  if (!module) return true
+  if (!licenseStore.loaded) return true // show while loading
+  if (licenseStore.isModuleActive(module)) return true
+  // 'connectors' module: show if any connector has keys configured
+  if (module === 'connectors' && connectorsStore.configuredPluginsLoaded) {
+    return connectorsStore.configuredPlugins.length > 0
+  }
+  return false
+}
 
 // ─── Menu sections ──────────────────────────────────────
 const sections = computed(() => {
@@ -191,13 +205,13 @@ const sections = computed(() => {
         if (item.children) {
           const filtered = item.children.filter(child =>
             (!child.permission || authStore.hasPermission(child.permission))
-            && (!child.module || licenseStore.isModuleActive(child.module))
+            && isModuleAccessible(child.module)
           )
           return filtered.length > 0 ? { ...item, children: filtered } : null
         }
         if (item.divider) return item
         if ((!item.permission || authStore.hasPermission(item.permission))
-          && (!item.module || licenseStore.isModuleActive(item.module))) {
+          && isModuleAccessible(item.module)) {
           return item
         }
         return null

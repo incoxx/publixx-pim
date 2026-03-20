@@ -19,7 +19,7 @@ export const useLicenseStore = defineStore('license', () => {
     return modules.value[key]?.licensed === true
   }
 
-  async function fetchLicense() {
+  async function fetchLicense(retries = 2) {
     if (loading.value) return
     loading.value = true
     try {
@@ -27,7 +27,12 @@ export const useLicenseStore = defineStore('license', () => {
       data.value = response.data.data || response.data
       loaded.value = true
     } catch {
-      // License endpoint might not be available
+      if (retries > 0) {
+        loading.value = false
+        await new Promise(r => setTimeout(r, 1500))
+        return fetchLicense(retries - 1)
+      }
+      // After retries exhausted, mark as loaded with empty data
       data.value = null
       loaded.value = true
     } finally {
