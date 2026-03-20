@@ -7,7 +7,17 @@ const { state, actions } = useStore()
 let sidebarEl = null
 
 onMounted(() => {
+  // Try explicit sidebar marker first
   sidebarEl = document.querySelector('[data-catalog-sidebar]')
+
+  // Fallback: find the parent of the categories widget
+  if (!sidebarEl) {
+    const categoriesEl = document.querySelector('[data-catalog="categories"]')
+    if (categoriesEl) {
+      sidebarEl = categoriesEl.parentElement
+    }
+  }
+
   if (sidebarEl) {
     sidebarEl.classList.add('pxc-sidebar')
   }
