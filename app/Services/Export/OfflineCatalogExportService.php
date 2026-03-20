@@ -761,30 +761,48 @@ class OfflineCatalogExportService
 
         $productCounts = $this->getProductCounts($allNodes, $type);
 
-        // Build nested tree (skip nodes whose parent was excluded)
-        $visibleNodeIdSet = array_flip($allNodes->pluck('id')->toArray());
-        $rootNodes = $allNodes->filter(function ($node) use ($visibleNodeIdSet) {
-            return $node->parent_node_id === null || !isset($visibleNodeIdSet[$node->parent_node_id]);
-        });
-        $nodesByParent = $allNodes->groupBy('parent_node_id');
+        // Build children lookup using plain PHP arrays (keyed by parent_node_id)
+        $visibleIds = [];
+        $childrenOf = [];
+        foreach ($allNodes as $node) {
+            $visibleIds[$node->id] = true;
+        }
 
-        $buildTree = function ($nodes) use (&$buildTree, $nodesByParent, $productCounts, $lang) {
-            return $nodes->map(function ($node) use (&$buildTree, $nodesByParent, $productCounts, $lang) {
-                $children = $nodesByParent->get($node->id, collect());
+        // For orphaned nodes (parent excluded/inactive), find nearest visible ancestor
+        $parentMap = null;
+        foreach ($allNodes as $node) {
+            $parentId = $node->parent_node_id;
+
+            if ($parentId !== null && !isset($visibleIds[$parentId])) {
+                if ($parentMap === null) {
+                    $parentMap = $hierarchy->nodes()->pluck('parent_node_id', 'id')->toArray();
+                }
+                while ($parentId !== null && !isset($visibleIds[$parentId])) {
+                    $parentId = $parentMap[$parentId] ?? null;
+                }
+            }
+
+            $key = $parentId ?? '';
+            $childrenOf[$key][] = $node;
+        }
+
+        $buildTree = function (array $nodes) use (&$buildTree, &$childrenOf, $productCounts, $lang) {
+            return array_values(array_map(function ($node) use (&$buildTree, &$childrenOf, $productCounts, $lang) {
+                $children = $childrenOf[$node->id] ?? [];
                 return [
                     'id' => $node->id,
                     'name' => $lang === 'en' && $node->name_en ? $node->name_en : $node->name_de,
                     'product_count' => $productCounts[$node->id] ?? 0,
-                    'children' => $buildTree($children)->values()->toArray(),
+                    'children' => $buildTree($children),
                 ];
-            })->values();
+            }, $nodes));
         };
 
         return [
             'hierarchy_id' => $hierarchy->id,
             'hierarchy_name' => $lang === 'en' && $hierarchy->name_en ? $hierarchy->name_en : $hierarchy->name_de,
             'type' => $type,
-            'nodes' => $buildTree($rootNodes)->toArray(),
+            'nodes' => $buildTree($childrenOf[''] ?? []),
         ];
     }
 
