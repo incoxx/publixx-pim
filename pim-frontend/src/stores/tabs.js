@@ -37,10 +37,10 @@ export const useTabStore = defineStore('tabs', () => {
   )
 
   function getTabId(route) {
-    return `${route.name}-${route.params.id}`
+    return route.params?.id ? `${route.name}-${route.params.id}` : `${route.name}`
   }
 
-  function openTab(route) {
+  function openTab(route, label) {
     const id = getTabId(route)
     const existing = tabs.value.find(t => t.id === id)
 
@@ -49,12 +49,12 @@ export const useTabStore = defineStore('tabs', () => {
       return
     }
 
-    const componentName = COMPONENT_NAMES[route.name]
-    if (!componentName) return
+    const componentName = COMPONENT_NAMES[route.name] || null
 
-    const tabTitle = route.meta.tabTitle
-      ? `${route.meta.tabTitle} #${route.params.id}`
-      : `${route.meta.title} #${route.params.id}`
+    const tabTitle = label
+      || route.meta.tabTitle
+      || route.meta.title
+      || route.name
 
     // Enforce max limit — remove oldest tab
     if (tabs.value.length >= MAX_TABS) {
@@ -68,10 +68,28 @@ export const useTabStore = defineStore('tabs', () => {
       routeFullPath: route.fullPath,
       title: tabTitle,
       componentName,
+      pinned: !route.meta.tabable, // manually pinned tabs are marked
     })
 
     activeTabId.value = id
     saveTabs(tabs.value)
+  }
+
+  function pinCurrentRoute(route) {
+    const id = getTabId(route)
+    const existing = tabs.value.find(t => t.id === id)
+    if (existing) {
+      // Already pinned — remove it (unpin)
+      closeTab(id)
+      return false
+    }
+    openTab(route)
+    return true
+  }
+
+  function isRoutePinned(route) {
+    const id = getTabId(route)
+    return tabs.value.some(t => t.id === id)
   }
 
   function closeTab(tabId) {
@@ -105,10 +123,6 @@ export const useTabStore = defineStore('tabs', () => {
   }
 
   function setActiveByRoute(route) {
-    if (!route.params?.id) {
-      activeTabId.value = null
-      return
-    }
     const id = getTabId(route)
     if (tabs.value.find(t => t.id === id)) {
       activeTabId.value = id
@@ -131,6 +145,8 @@ export const useTabStore = defineStore('tabs', () => {
     activeTabId,
     cachedComponentNames,
     openTab,
+    pinCurrentRoute,
+    isRoutePinned,
     closeTab,
     closeOtherTabs,
     closeAllTabs,
