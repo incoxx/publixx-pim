@@ -83,8 +83,7 @@ class OfflineCatalogExportService
         }
 
         try {
-            // 1. Split products into hierarchy (primary) and relations-only
-            //    Hierarchy = has master_hierarchy_node_id OR is assigned to output hierarchy
+            // 1. Build hierarchy query — only products assigned to visible hierarchy nodes
             $baseQuery = $this->buildProductQuery($themePayload);
             $hierarchyId = $themePayload['hierarchy_id'] ?? null;
             $hierarchy = $hierarchyId ? Hierarchy::find($hierarchyId) : null;
@@ -92,7 +91,6 @@ class OfflineCatalogExportService
 
             if ($hierarchy && $hierarchy->hierarchy_type === 'output') {
                 // Output hierarchy: products linked via output_hierarchy_product_assignments
-                // Only include products assigned to ACTIVE, non-excluded hierarchy nodes
                 $visibleNodeIds = HierarchyNode::where('hierarchy_id', $hierarchy->id)
                     ->where('is_active', true)
                     ->when(!empty($excludedNodeIds), fn ($q) => $q->whereNotIn('id', $excludedNodeIds))
@@ -100,7 +98,6 @@ class OfflineCatalogExportService
                 $outputProductIds = OutputHierarchyProductAssignment::whereIn('hierarchy_node_id', $visibleNodeIds)
                     ->pluck('product_id');
                 $hierarchyQuery = (clone $baseQuery)->whereIn('id', $outputProductIds);
-                $relationsQuery = (clone $baseQuery)->whereNotIn('id', $outputProductIds);
             } elseif ($hierarchy) {
                 // Master hierarchy: products with master_hierarchy_node_id pointing to a visible node
                 $visibleNodeIds = HierarchyNode::where('hierarchy_id', $hierarchy->id)
@@ -108,52 +105,44 @@ class OfflineCatalogExportService
                     ->when(!empty($excludedNodeIds), fn ($q) => $q->whereNotIn('id', $excludedNodeIds))
                     ->pluck('id');
                 $hierarchyQuery = (clone $baseQuery)->whereIn('master_hierarchy_node_id', $visibleNodeIds);
-                $relationsQuery = (clone $baseQuery)->where(function ($q) use ($visibleNodeIds) {
-                    $q->whereNotIn('master_hierarchy_node_id', $visibleNodeIds)
-                      ->orWhereNull('master_hierarchy_node_id');
-                });
             } else {
                 // No hierarchy configured: fall back to master_hierarchy_node_id presence
                 $hierarchyQuery = (clone $baseQuery)->whereNotNull('master_hierarchy_node_id');
-                $relationsQuery = (clone $baseQuery)->whereNull('master_hierarchy_node_id');
             }
 
             $hierarchyCount = $hierarchyQuery->count();
-            $relationsCount = $relationsQuery->count();
-            $totalProducts = $hierarchyCount + $relationsCount;
 
             Log::channel('export')->info('Offline-Katalog: Produkt-Aufteilung', [
                 'hierarchy' => $hierarchyCount,
-                'relations_only' => $relationsCount,
-                'total' => $totalProducts,
             ]);
 
-            $this->updateProgress('Produkte werden exportiert...', 0, $totalProducts, 'exporting');
+            $this->updateProgress('Produkte werden exportiert...', 0, $hierarchyCount, 'exporting');
 
-            if ($totalProducts === 0) {
+            if ($hierarchyCount === 0) {
                 $this->updateProgress('Keine aktiven Produkte gefunden.', 0, 0, 'completed');
                 $this->cleanup($tmpDir);
                 return ['path' => null, 'total_products' => 0, 'chunks' => 0, 'cancelled' => false];
             }
 
-            // 2a. Export hierarchy products (primary index — loaded eagerly)
+            // 2a. Export hierarchy products (primary index — browse catalog)
             $chunkFiles = [];
             $offset = 0;
             $chunkIndex = 0;
             $detailCounter = 0; // Global counter for detail subdirectory bucketing
             $cancelled = false;
+            $exportedProductIds = []; // Track which products already have a detail JSON
 
             while ($offset < $hierarchyCount) {
                 if ($this->isCancelled()) {
                     $cancelled = true;
                     Log::channel('export')->info('Offline-Katalog-Export abgebrochen', [
                         'exported' => $offset,
-                        'total' => $totalProducts,
+                        'total' => $hierarchyCount,
                     ]);
                     break;
                 }
 
-                $products = $this->loadProductChunk($themePayload, $lang, $offset, self::CHUNK_SIZE, 'hierarchy');
+                $products = $this->loadProductChunk($themePayload, $lang, $offset, self::CHUNK_SIZE);
 
                 $chunkFileName = "chunk-{$chunkIndex}.json";
                 $listData = [];
@@ -170,6 +159,7 @@ class OfflineCatalogExportService
                     $detailData = $this->buildDetailItem($product, $themePayload, $lang);
                     $this->writeJsonFile("{$subDir}/{$product->id}.json", $detailData);
 
+                    $exportedProductIds[] = $product->id;
                     $detailCounter++;
                 }
                 $this->writeJsonFile("{$productsDir}/{$chunkFileName}", $listData);
@@ -180,69 +170,203 @@ class OfflineCatalogExportService
                 $this->updateProgress(
                     'Hierarchie-Produkte werden exportiert...',
                     min($offset, $hierarchyCount),
-                    $totalProducts,
+                    $hierarchyCount,
                     'exporting'
                 );
             }
 
-            // 2b. Export relations-only products (secondary index — loaded on demand)
-            $relationsDir = $tmpDir . '/products-relations';
-            $relationsChunkFiles = [];
-            $relationsOffset = 0;
-            $relationsChunkIndex = 0;
+            // 2b. Export detail JSONs for ALL remaining active products
+            //     Hierarchy products already have detail JSONs from phase 2a.
+            //     This phase covers everything else: relation targets, spare parts,
+            //     and any other active products reachable via search.
+            $relationDetailMap = [];
+            if (!$cancelled) {
+                // Count remaining products (all active minus already exported)
+                $remainingQuery = $this->buildProductQuery($themePayload)
+                    ->whereNotIn('id', $exportedProductIds);
+                $remainingCount = $remainingQuery->count();
 
-            if (!$cancelled && $relationsCount > 0) {
-                if (!mkdir($relationsDir, 0755, true)) {
-                    throw new \RuntimeException("Verzeichnis konnte nicht erstellt werden: {$relationsDir}");
-                }
+                if ($remainingCount > 0) {
+                    Log::channel('export')->info('Offline-Katalog: Detail-Export für restliche Produkte', [
+                        'remaining' => $remainingCount,
+                    ]);
 
-                while ($relationsOffset < $relationsCount) {
-                    if ($this->isCancelled()) {
-                        $cancelled = true;
-                        break;
-                    }
-
-                    $products = $this->loadProductChunk($themePayload, $lang, $relationsOffset, self::CHUNK_SIZE, 'relations');
-
-                    $chunkFileName = "chunk-{$relationsChunkIndex}.json";
-                    $listData = [];
-                    foreach ($products as $product) {
-                        $bucket = intdiv($detailCounter, self::DETAIL_DIR_SIZE);
-                        $item = $this->buildListItem($product, $themePayload, $lang, $themePayload['catalog_excluded_node_ids'] ?? []);
-                        $item['_dd'] = $bucket;
-                        $listData[] = $item;
-
-                        $subDir = "{$detailDir}/{$bucket}";
-                        if (!is_dir($subDir) && !mkdir($subDir, 0755, true)) {
-                            throw new \RuntimeException("Verzeichnis konnte nicht erstellt werden: {$subDir}");
-                        }
-                        $detailData = $this->buildDetailItem($product, $themePayload, $lang);
-                        $this->writeJsonFile("{$subDir}/{$product->id}.json", $detailData);
-
-                        $detailCounter++;
-                    }
-                    $this->writeJsonFile("{$relationsDir}/{$chunkFileName}", $listData);
-                    $relationsChunkFiles[] = $chunkFileName;
-
-                    $relationsOffset += self::CHUNK_SIZE;
-                    $relationsChunkIndex++;
                     $this->updateProgress(
-                        'Beziehungs-Produkte werden exportiert...',
-                        $hierarchyCount + min($relationsOffset, $relationsCount),
-                        $totalProducts,
+                        'Detail-Dateien für weitere Produkte...',
+                        $hierarchyCount,
+                        $hierarchyCount + $remainingCount,
                         'exporting'
                     );
+
+                    $remainingOffset = 0;
+                    $relDetailCount = 0;
+
+                    while ($remainingOffset < $remainingCount) {
+                        if ($this->isCancelled()) {
+                            $cancelled = true;
+                            break;
+                        }
+
+                        $products = $this->buildProductQuery($themePayload)
+                            ->whereNotIn('id', $exportedProductIds)
+                            ->with([
+                                'searchIndex',
+                                'masterHierarchyNode',
+                                'attributeValues' => fn ($q) => $q->where(function ($q2) use ($lang) {
+                                    $q2->whereNull('language')->orWhere('language', $lang);
+                                }),
+                                'attributeValues.attribute',
+                                'attributeValues.valueListEntry',
+                                'attributeValues.dictionaryEntry',
+                                'attributeValues.unit',
+                                'prices' => fn ($q) => $q->where(function ($q2) {
+                                    $q2->whereNull('valid_to')->orWhere('valid_to', '>=', now()->toDateString());
+                                })->orderBy('amount'),
+                                'media',
+                                'variants',
+                                'outgoingRelations.relationType',
+                                'outgoingRelations.targetProduct',
+                            ])
+                            ->orderBy('id')
+                            ->skip($remainingOffset)
+                            ->take(self::CHUNK_SIZE)
+                            ->get();
+
+                        foreach ($products as $product) {
+                            $bucket = intdiv($detailCounter, self::DETAIL_DIR_SIZE);
+                            $subDir = "{$detailDir}/{$bucket}";
+                            if (!is_dir($subDir) && !mkdir($subDir, 0755, true)) {
+                                throw new \RuntimeException("Verzeichnis konnte nicht erstellt werden: {$subDir}");
+                            }
+                            $detailData = $this->buildDetailItem($product, $themePayload, $lang);
+                            $this->writeJsonFile("{$subDir}/{$product->id}.json", $detailData);
+
+                            $relationDetailMap[$product->id] = $bucket;
+                            $detailCounter++;
+                            $relDetailCount++;
+                        }
+
+                        $remainingOffset += self::CHUNK_SIZE;
+                        $this->updateProgress(
+                            'Detail-Dateien für weitere Produkte...',
+                            $hierarchyCount + $relDetailCount,
+                            $hierarchyCount + $remainingCount,
+                            'exporting'
+                        );
+                    }
                 }
             }
 
             if ($cancelled) {
-                $this->updateProgress('Export abgebrochen.', $offset + $relationsOffset, $totalProducts, 'cancelled');
+                $this->updateProgress('Export abgebrochen.', $offset, $hierarchyCount, 'cancelled');
                 $this->cleanup($tmpDir);
-                return ['path' => null, 'total_products' => $offset + $relationsOffset, 'chunks' => $chunkIndex + $relationsChunkIndex, 'cancelled' => true];
+                return ['path' => null, 'total_products' => $offset, 'chunks' => $chunkIndex, 'cancelled' => true];
             }
 
-            // 3. Index-Datei (includes relations metadata)
-            $this->updateProgress('Index wird erstellt...', $totalProducts, $totalProducts, 'indexing');
+            // 2c. Search index — lightweight entries for ALL active products (not just hierarchy)
+            //     Loaded on-demand in the browser when the user performs a text search.
+            $searchIndexDir = $tmpDir . '/search-index';
+            $searchChunkFiles = [];
+            if (!mkdir($searchIndexDir, 0755, true)) {
+                throw new \RuntimeException("Verzeichnis konnte nicht erstellt werden: {$searchIndexDir}");
+            }
+
+            $allProductsQuery = $this->buildProductQuery($themePayload);
+            $allProductsCount = $allProductsQuery->count();
+            $searchOffset = 0;
+            $searchChunkIndex = 0;
+            $searchChunkSize = 2000; // Larger chunks since entries are small
+
+            $this->updateProgress('Such-Index wird erstellt...', 0, $allProductsCount, 'search-index');
+
+            // Set of product IDs already in primary chunks (to avoid duplicates in search)
+            $primaryIdSet = array_flip($exportedProductIds);
+
+            while ($searchOffset < $allProductsCount) {
+                if ($this->isCancelled()) {
+                    $cancelled = true;
+                    break;
+                }
+
+                $products = $this->buildProductQuery($themePayload)
+                    ->with(['searchIndex'])
+                    ->orderBy('id')
+                    ->skip($searchOffset)
+                    ->take($searchChunkSize)
+                    ->get();
+
+                $chunkData = [];
+                foreach ($products as $product) {
+                    // Skip products already in primary chunks
+                    if (isset($primaryIdSet[$product->id])) continue;
+
+                    $index = $product->searchIndex;
+                    $name = $lang === 'en'
+                        ? ($index?->name_en ?: $index?->name_de)
+                        : $index?->name_de;
+
+                    $entry = [
+                        'id' => $product->id,
+                        'name' => $name,
+                        'sku' => $product->sku,
+                    ];
+                    if ($product->ean) $entry['ean'] = $product->ean;
+                    $searchText = $index?->searchable_text
+                        ? mb_substr($index->searchable_text, 0, 300)
+                        : null;
+                    if ($searchText) $entry['search'] = $searchText;
+
+                    // Include image and detail bucket for search result display
+                    $imageUrl = $index?->primary_image
+                        ? "/api/v1/catalog/media/{$index->primary_image}"
+                        : null;
+                    if ($imageUrl) $entry['img'] = $imageUrl;
+
+                    // Detail bucket: check relationDetailMap first, fallback to null
+                    if (isset($relationDetailMap[$product->id])) {
+                        $entry['_dd'] = $relationDetailMap[$product->id];
+                    }
+
+                    $chunkData[] = $entry;
+                }
+
+                if (!empty($chunkData)) {
+                    $searchChunkFileName = "chunk-{$searchChunkIndex}.json";
+                    $this->writeJsonFile("{$searchIndexDir}/{$searchChunkFileName}", $chunkData);
+                    $searchChunkFiles[] = $searchChunkFileName;
+                    $searchChunkIndex++;
+                }
+
+                $searchOffset += $searchChunkSize;
+                $this->updateProgress(
+                    'Such-Index wird erstellt...',
+                    min($searchOffset, $allProductsCount),
+                    $allProductsCount,
+                    'search-index'
+                );
+            }
+
+            // Write search index metadata
+            $this->writeJsonFile("{$searchIndexDir}/index.json", [
+                'totalProducts' => $allProductsCount - count($exportedProductIds),
+                'chunks' => $searchChunkFiles,
+            ]);
+
+            Log::channel('export')->info('Offline-Katalog: Such-Index erstellt', [
+                'all_products' => $allProductsCount,
+                'hierarchy_products' => count($exportedProductIds),
+                'search_only' => $allProductsCount - count($exportedProductIds),
+                'chunks' => count($searchChunkFiles),
+            ]);
+
+            if ($cancelled) {
+                $this->updateProgress('Export abgebrochen.', $hierarchyCount, $hierarchyCount, 'cancelled');
+                $this->cleanup($tmpDir);
+                return ['path' => null, 'total_products' => $hierarchyCount, 'chunks' => $chunkIndex, 'cancelled' => true];
+            }
+
+            // 3. Index-Datei
+            $this->updateProgress('Index wird erstellt...', $hierarchyCount, $hierarchyCount, 'indexing');
             $totalDetailBuckets = $detailCounter > 0 ? intdiv($detailCounter - 1, self::DETAIL_DIR_SIZE) + 1 : 0;
             $indexData = [
                 'totalProducts' => $hierarchyCount,
@@ -251,26 +375,24 @@ class OfflineCatalogExportService
                 'detailDirSize' => self::DETAIL_DIR_SIZE,
                 'detailBuckets' => $totalDetailBuckets,
             ];
-            if (!empty($relationsChunkFiles)) {
-                $indexData['relations'] = [
-                    'totalProducts' => $relationsCount,
-                    'chunks' => $relationsChunkFiles,
-                ];
+            // Relation detail lookup: maps product ID → bucket for products not in chunks
+            if (!empty($relationDetailMap)) {
+                $indexData['relationDetailMap'] = $relationDetailMap;
             }
             $this->writeJsonFile("{$productsDir}/index.json", $indexData);
 
             // 4. Kategorien
             if ($this->isCancelled()) {
-                $this->updateProgress('Export abgebrochen.', $totalProducts, $totalProducts, 'cancelled');
+                $this->updateProgress('Export abgebrochen.', $hierarchyCount, $hierarchyCount, 'cancelled');
                 $this->cleanup($tmpDir);
-                return ['path' => null, 'total_products' => $totalProducts, 'chunks' => $chunkIndex, 'cancelled' => true];
+                return ['path' => null, 'total_products' => $hierarchyCount, 'chunks' => $chunkIndex, 'cancelled' => true];
             }
-            $this->updateProgress('Kategorien werden exportiert...', $totalProducts, $totalProducts, 'categories');
+            $this->updateProgress('Kategorien werden exportiert...', $hierarchyCount, $hierarchyCount, 'categories');
             $categories = $this->buildCategories($themePayload, $lang);
             $this->writeJsonFile("{$tmpDir}/categories.json", ['data' => $categories]);
 
             // 5. Facetten
-            $this->updateProgress('Facetten werden exportiert...', $totalProducts, $totalProducts, 'facets');
+            $this->updateProgress('Facetten werden exportiert...', $hierarchyCount, $hierarchyCount, 'facets');
             $facets = $this->buildFacets($themePayload, $lang);
             $this->writeJsonFile("{$tmpDir}/facets.json", $facets);
 
@@ -283,16 +405,16 @@ class OfflineCatalogExportService
             $this->writeJsonFile("{$tmpDir}/settings.json", ['data' => $settings]);
 
             // 8. index.html + Offline-Assets
-            $this->updateProgress('HTML wird generiert...', $totalProducts, $totalProducts, 'html');
+            $this->updateProgress('HTML wird generiert...', $hierarchyCount, $hierarchyCount, 'html');
             $this->buildOfflineHtml($tmpDir, $templateId, $lang);
 
             // 9. ZIP erstellen
             if ($this->isCancelled()) {
-                $this->updateProgress('Export abgebrochen.', $totalProducts, $totalProducts, 'cancelled');
+                $this->updateProgress('Export abgebrochen.', $hierarchyCount, $hierarchyCount, 'cancelled');
                 $this->cleanup($tmpDir);
-                return ['path' => null, 'total_products' => $totalProducts, 'chunks' => $chunkIndex, 'cancelled' => true];
+                return ['path' => null, 'total_products' => $hierarchyCount, 'chunks' => $chunkIndex, 'cancelled' => true];
             }
-            $this->updateProgress('ZIP wird erstellt...', $totalProducts, $totalProducts, 'zipping');
+            $this->updateProgress('ZIP wird erstellt...', $hierarchyCount, $hierarchyCount, 'zipping');
 
             $outputDir = storage_path('app/exports');
             if (!is_dir($outputDir)) {
@@ -315,7 +437,7 @@ class OfflineCatalogExportService
             // Wir erstellen data/ und verschieben die Datenverzeichnisse/Dateien hinein.
             $dataDir = "{$previewDir}/data";
             mkdir($dataDir, 0755, true);
-            foreach (['products', 'products-detail', 'products-relations', 'categories.json', 'facets.json', 'attribute-groups.json', 'settings.json'] as $item) {
+            foreach (['products', 'products-detail', 'search-index', 'categories.json', 'facets.json', 'attribute-groups.json', 'settings.json'] as $item) {
                 $src = "{$previewDir}/{$item}";
                 if (file_exists($src)) {
                     rename($src, "{$dataDir}/{$item}");
@@ -325,7 +447,10 @@ class OfflineCatalogExportService
             $duration = round(microtime(true) - $startTime, 2);
             $fileSize = filesize($zipPath);
 
-            $this->updateProgress('Export abgeschlossen.', $totalProducts, $totalProducts, 'completed', [
+            $relationDetailCount = count($relationDetailMap ?? []);
+            $totalExported = $hierarchyCount + $relationDetailCount;
+
+            $this->updateProgress('Export abgeschlossen.', $totalExported, $totalExported, 'completed', [
                 'path' => $zipPath,
                 'file_name' => $zipFileName,
                 'file_size' => $fileSize,
@@ -336,10 +461,9 @@ class OfflineCatalogExportService
             Log::channel('export')->info('Offline-Katalog-Export abgeschlossen', [
                 'path' => $zipPath,
                 'hierarchy_products' => $hierarchyCount,
-                'relations_products' => $relationsCount,
-                'total_products' => $totalProducts,
+                'relation_details' => $relationDetailCount,
+                'total_exported' => $totalExported,
                 'chunks' => $chunkIndex,
-                'relations_chunks' => $relationsChunkIndex,
                 'duration' => $duration,
                 'file_size' => $fileSize,
             ]);
@@ -347,9 +471,9 @@ class OfflineCatalogExportService
             return [
                 'path' => $zipPath,
                 'file_name' => $zipFileName,
-                'total_products' => $totalProducts,
+                'total_products' => $totalExported,
                 'hierarchy_products' => $hierarchyCount,
-                'relations_products' => $relationsCount,
+                'relation_details' => $relationDetailCount,
                 'chunks' => $chunkIndex,
                 'duration' => $duration,
                 'file_size' => $fileSize,
@@ -429,48 +553,30 @@ class OfflineCatalogExportService
         return $query->orderBy('sku');
     }
 
-    private function loadProductChunk(array $themePayload, string $lang, int $offset, int $limit, string $tier = 'all'): Collection
+    private function loadProductChunk(array $themePayload, string $lang, int $offset, int $limit): Collection
     {
         $query = $this->buildProductQuery($themePayload);
 
-        if ($tier !== 'all') {
-            $hierarchyId = $themePayload['hierarchy_id'] ?? null;
-            $hierarchy = $hierarchyId ? Hierarchy::find($hierarchyId) : null;
-            $excludedNodeIds = $themePayload['catalog_excluded_node_ids'] ?? [];
+        $hierarchyId = $themePayload['hierarchy_id'] ?? null;
+        $hierarchy = $hierarchyId ? Hierarchy::find($hierarchyId) : null;
+        $excludedNodeIds = $themePayload['catalog_excluded_node_ids'] ?? [];
 
-            if ($hierarchy && $hierarchy->hierarchy_type === 'output') {
-                // Only consider active, non-excluded hierarchy nodes
-                $visibleNodeIds = HierarchyNode::where('hierarchy_id', $hierarchy->id)
-                    ->where('is_active', true)
-                    ->when(!empty($excludedNodeIds), fn ($q) => $q->whereNotIn('id', $excludedNodeIds))
-                    ->pluck('id');
-                $outputProductIds = OutputHierarchyProductAssignment::whereIn('hierarchy_node_id', $visibleNodeIds)
-                    ->pluck('product_id');
-                if ($tier === 'hierarchy') {
-                    $query->whereIn('id', $outputProductIds);
-                } else {
-                    $query->whereNotIn('id', $outputProductIds);
-                }
-            } elseif ($hierarchy) {
-                $visibleNodeIds = HierarchyNode::where('hierarchy_id', $hierarchy->id)
-                    ->where('is_active', true)
-                    ->when(!empty($excludedNodeIds), fn ($q) => $q->whereNotIn('id', $excludedNodeIds))
-                    ->pluck('id');
-                if ($tier === 'hierarchy') {
-                    $query->whereIn('master_hierarchy_node_id', $visibleNodeIds);
-                } else {
-                    $query->where(function ($q) use ($visibleNodeIds) {
-                        $q->whereNotIn('master_hierarchy_node_id', $visibleNodeIds)
-                          ->orWhereNull('master_hierarchy_node_id');
-                    });
-                }
-            } else {
-                if ($tier === 'hierarchy') {
-                    $query->whereNotNull('master_hierarchy_node_id');
-                } else {
-                    $query->whereNull('master_hierarchy_node_id');
-                }
-            }
+        if ($hierarchy && $hierarchy->hierarchy_type === 'output') {
+            $visibleNodeIds = HierarchyNode::where('hierarchy_id', $hierarchy->id)
+                ->where('is_active', true)
+                ->when(!empty($excludedNodeIds), fn ($q) => $q->whereNotIn('id', $excludedNodeIds))
+                ->pluck('id');
+            $outputProductIds = OutputHierarchyProductAssignment::whereIn('hierarchy_node_id', $visibleNodeIds)
+                ->pluck('product_id');
+            $query->whereIn('id', $outputProductIds);
+        } elseif ($hierarchy) {
+            $visibleNodeIds = HierarchyNode::where('hierarchy_id', $hierarchy->id)
+                ->where('is_active', true)
+                ->when(!empty($excludedNodeIds), fn ($q) => $q->whereNotIn('id', $excludedNodeIds))
+                ->pluck('id');
+            $query->whereIn('master_hierarchy_node_id', $visibleNodeIds);
+        } else {
+            $query->whereNotNull('master_hierarchy_node_id');
         }
 
         return $query->with([
