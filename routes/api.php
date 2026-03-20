@@ -810,7 +810,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
         Route::delete('/connections/{connection}', [ConnectorController::class, 'destroy']);
 
         // OAuth Flow
-        Route::get('/{type}/authorize', [ConnectorController::class, 'authorize'])
+        Route::get('/{type}/authorize', [ConnectorController::class, 'startAuthorization'])
             ->where('type', '[a-z_]+');
         Route::post('/{type}/callback', [ConnectorController::class, 'callback'])
             ->where('type', '[a-z_]+');

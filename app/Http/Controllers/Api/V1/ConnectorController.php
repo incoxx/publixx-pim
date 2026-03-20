@@ -155,7 +155,7 @@ class ConnectorController extends Controller
     /**
      * GET /connectors/{type}/authorize — OAuth-Autorisierung starten.
      */
-    public function authorize(string $type): JsonResponse
+    public function startAuthorization(string $type): JsonResponse
     {
         $connector = $this->registry->get($type);
         if (! $connector) {
