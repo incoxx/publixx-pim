@@ -32,7 +32,7 @@ class ClaudeAITextService
         $attributeFilter = $options['attributes'] ?? null;
         $productContext = $this->collectProductContext($product, $language, $attributeFilter);
         $prompt = $this->buildPrompt($productContext, $task, $language, $options);
-        $model = $options['model'] ?? config('connectors.claude_ai.model', 'claude-sonnet-4-5-20250514');
+        $model = $options['model'] ?? config('connectors.claude_ai.model', 'claude-sonnet-4-5-20250929');
         $maxTokens = $options['max_tokens'] ?? config('connectors.claude_ai.max_tokens', 1024);
 
         $response = Http::withHeaders([

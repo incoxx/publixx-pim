@@ -3,7 +3,8 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   Zap, Plus, Trash2, RefreshCw, CheckCircle, Settings, FileText,
-  Search, Sparkles, Save, Copy, ChevronDown, X,
+  Search, Sparkles, Save, Copy, ChevronDown, X, Type, Globe,
+  BarChart3, Megaphone, List, PenTool,
 } from 'lucide-vue-next'
 import connectorsApi from '@/api/connectors'
 import searchApi from '@/api/search'
@@ -36,12 +37,14 @@ let searchTimeout = null
 const allAttributes = ref([])
 const selectedAttributes = ref([])
 const showAttrDropdown = ref(false)
+const attrSearchTerm = ref('')
 
 // Generation config
 const task = ref('description')
 const tonality = ref('')
 const customPrompt = ref('')
 const language = ref('de')
+const showAdvanced = ref(false)
 
 // Target attribute
 const targetAttribute = ref('')
@@ -55,11 +58,13 @@ const copied = ref(false)
 const saved = ref(false)
 
 const tasks = [
-  { value: 'description', label: 'Produktbeschreibung', desc: 'Informative Beschreibung für Online-Shop' },
-  { value: 'seo', label: 'SEO-Text', desc: 'Meta-Title, Description & SEO-Text' },
-  { value: 'features', label: 'Merkmale', desc: 'Strukturierte Bullet-Point-Liste' },
-  { value: 'marketing', label: 'Marketing-Text', desc: 'Emotionaler, überzeugender Text' },
+  { value: 'description', label: 'Produktbeschreibung', desc: 'Informative Beschreibung für Online-Shop', icon: 'Type' },
+  { value: 'seo', label: 'SEO-Text', desc: 'Meta-Title, Description & SEO-Text', icon: 'BarChart3' },
+  { value: 'features', label: 'Merkmale', desc: 'Strukturierte Bullet-Point-Liste', icon: 'List' },
+  { value: 'marketing', label: 'Marketing-Text', desc: 'Emotionaler, überzeugender Text', icon: 'Megaphone' },
 ]
+
+const taskIcons = { Type, BarChart3, List, Megaphone }
 
 const tonalityPresets = [
   'Professionell & sachlich',
@@ -72,6 +77,16 @@ const tonalityPresets = [
 const stringAttributes = computed(() =>
   allAttributes.value.filter(a => a.data_type === 'String' && a.is_translatable),
 )
+
+const filteredAttributes = computed(() => {
+  const attrs = allAttributes.value.filter(a => !a.is_internal)
+  if (!attrSearchTerm.value) return attrs
+  const term = attrSearchTerm.value.toLowerCase()
+  return attrs.filter(a =>
+    (a.name_de || '').toLowerCase().includes(term) ||
+    (a.technical_name || '').toLowerCase().includes(term),
+  )
+})
 
 onMounted(loadData)
 
@@ -90,7 +105,6 @@ async function loadData() {
     connections.value = allConns.filter(c => c.connector_type === 'claude_ai')
     allAttributes.value = (attrRes.data.data || attrRes.data) ?? []
 
-    // Auto-select first connection
     if (connections.value.length > 0 && !activeConnectionId.value) {
       activeConnectionId.value = connections.value[0].id
     }
@@ -248,76 +262,69 @@ async function deleteConnection(id) {
 </script>
 
 <template>
-  <div class="space-y-6 max-w-5xl mx-auto">
+  <div class="space-y-5 max-w-4xl mx-auto">
     <!-- Header -->
     <div class="flex items-center justify-between">
       <div class="flex items-center gap-3">
-        <Zap class="w-6 h-6 text-amber-500" />
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-sm">
+          <Sparkles class="w-5 h-5 text-white" />
+        </div>
         <div>
-          <h1 class="text-xl font-bold">Claude AI</h1>
-          <p class="text-sm text-base-content/60">KI-generierte Produkttexte und SEO-Inhalte</p>
+          <h1 class="text-lg font-bold">Claude AI Textgenerator</h1>
+          <p class="text-xs text-base-content/50">KI-generierte Produkttexte, SEO und Marketing-Inhalte</p>
         </div>
       </div>
-      <button class="btn btn-sm btn-ghost" @click="loadData">
+      <button class="btn btn-sm btn-ghost btn-square" @click="loadData" title="Neu laden">
         <RefreshCw class="w-4 h-4" />
       </button>
     </div>
 
-    <div v-if="error" class="alert alert-error">{{ error }}</div>
+    <div v-if="error" class="alert alert-error text-sm">{{ error }}</div>
 
-    <div v-if="loading" class="flex justify-center py-8">
-      <span class="loading loading-spinner loading-lg"></span>
+    <div v-if="loading" class="flex justify-center py-12">
+      <span class="loading loading-spinner loading-lg text-primary"></span>
     </div>
 
     <template v-if="!loading">
-      <!-- ═══════ Connections ═══════ -->
-      <div class="card bg-base-100 shadow-sm border border-base-200">
+      <!-- ═══════ Connections (kompakt) ═══════ -->
+      <div class="flex items-center gap-2 flex-wrap">
+        <span class="text-xs font-medium text-base-content/40 uppercase tracking-wider mr-1">Verbindung:</span>
+        <button
+          v-for="conn in connections" :key="conn.id"
+          class="btn btn-xs gap-1"
+          :class="activeConnectionId === conn.id ? 'btn-primary' : 'btn-ghost border border-base-300'"
+          @click="activeConnectionId = conn.id"
+        >
+          <CheckCircle v-if="activeConnectionId === conn.id" class="w-3 h-3" />
+          {{ conn.name }}
+          <span class="hover:text-error cursor-pointer" @click.stop="deleteConnection(conn.id)">
+            <X class="w-3 h-3" />
+          </span>
+        </button>
+        <button class="btn btn-xs btn-ghost border border-dashed border-base-300" @click="showConnectForm = true">
+          <Plus class="w-3 h-3" />
+          Hinzufügen
+        </button>
+      </div>
+
+      <!-- Connect Form (inline) -->
+      <div v-if="showConnectForm" class="card bg-base-200/40 border border-base-300">
         <div class="card-body p-4">
-          <div class="flex items-center justify-between mb-2">
-            <h2 class="text-sm font-semibold text-base-content/60 uppercase tracking-wider">Verbindungen</h2>
-            <button class="btn btn-xs btn-primary" @click="showConnectForm = true">
-              <Plus class="w-3 h-3" />
-              Neue Verbindung
+          <div class="flex items-end gap-3">
+            <div class="form-control flex-1">
+              <label class="label py-0.5"><span class="label-text text-xs">Name</span></label>
+              <input v-model="formData.name" type="text" class="input input-bordered input-sm" />
+            </div>
+            <div class="form-control flex-1">
+              <label class="label py-0.5"><span class="label-text text-xs">Anthropic API-Key</span></label>
+              <input v-model="formData.api_key" type="password" class="input input-bordered input-sm" placeholder="sk-ant-..." />
+            </div>
+            <button class="btn btn-primary btn-sm" :disabled="connecting || !formData.api_key.trim()" @click="connectClaudeAI">
+              <span v-if="connecting" class="loading loading-spinner loading-xs"></span>
+              Verbinden
             </button>
-          </div>
-
-          <!-- Connect Form -->
-          <div v-if="showConnectForm" class="p-3 bg-base-200/50 rounded-lg mb-3">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div class="form-control">
-                <label class="label py-1"><span class="label-text text-xs">Name</span></label>
-                <input v-model="formData.name" type="text" class="input input-bordered input-sm" />
-              </div>
-              <div class="form-control">
-                <label class="label py-1"><span class="label-text text-xs">Anthropic API-Key</span></label>
-                <input v-model="formData.api_key" type="password" class="input input-bordered input-sm" placeholder="sk-ant-..." />
-              </div>
-            </div>
-            <div class="flex gap-2 mt-2 justify-end">
-              <button class="btn btn-ghost btn-xs" @click="showConnectForm = false">Abbrechen</button>
-              <button class="btn btn-primary btn-xs" :disabled="connecting || !formData.api_key.trim()" @click="connectClaudeAI">
-                <span v-if="connecting" class="loading loading-spinner loading-xs"></span>
-                Verbinden
-              </button>
-            </div>
-          </div>
-
-          <div v-if="connections.length === 0" class="text-center py-4 text-base-content/40 text-sm">
-            Noch keine Verbindung hergestellt.
-          </div>
-
-          <div class="flex flex-wrap gap-2">
-            <button
-              v-for="conn in connections" :key="conn.id"
-              class="btn btn-sm"
-              :class="activeConnectionId === conn.id ? 'btn-primary' : 'btn-ghost border border-base-300'"
-              @click="activeConnectionId = conn.id"
-            >
-              <CheckCircle class="w-3 h-3" />
-              {{ conn.name }}
-              <button class="ml-1 hover:text-error" @click.stop="deleteConnection(conn.id)">
-                <Trash2 class="w-3 h-3" />
-              </button>
+            <button class="btn btn-ghost btn-sm" @click="showConnectForm = false">
+              <X class="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -326,95 +333,98 @@ async function deleteConnection(id) {
       <!-- ═══════ Text-Generator ═══════ -->
       <template v-if="activeConnection">
         <div class="card bg-base-100 shadow-sm border border-base-200">
-          <div class="card-body space-y-4">
-            <h2 class="font-semibold flex items-center gap-2">
-              <Sparkles class="w-5 h-5 text-amber-500" />
-              Text generieren
-            </h2>
+          <div class="card-body p-5 space-y-5">
 
-            <!-- Row 1: Product search -->
-            <div class="form-control">
-              <label class="label py-1"><span class="label-text font-medium">Produkt</span></label>
+            <!-- ── Produkt suchen ── -->
+            <div>
+              <label class="text-xs font-semibold text-base-content/50 uppercase tracking-wider mb-1.5 block">Produkt</label>
 
-              <div v-if="selectedProduct" class="flex items-center gap-3 p-3 bg-base-200/50 rounded-lg">
-                <div class="flex-1">
-                  <div class="font-semibold text-sm">{{ selectedProduct.name }}</div>
-                  <div class="text-xs text-base-content/50">SKU: {{ selectedProduct.sku }}</div>
+              <div v-if="selectedProduct" class="flex items-center gap-3 px-4 py-3 bg-primary/5 border border-primary/20 rounded-xl">
+                <div class="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  <FileText class="w-4 h-4 text-primary" />
                 </div>
-                <button class="btn btn-ghost btn-xs" @click="clearProduct">
+                <div class="flex-1 min-w-0">
+                  <div class="font-semibold text-sm truncate">{{ selectedProduct.name }}</div>
+                  <div class="text-xs text-base-content/40">SKU: {{ selectedProduct.sku }}<span v-if="selectedProduct.ean"> &middot; EAN: {{ selectedProduct.ean }}</span></div>
+                </div>
+                <button class="btn btn-ghost btn-xs btn-square" @click="clearProduct">
                   <X class="w-4 h-4" />
                 </button>
               </div>
 
               <div v-else class="relative">
-                <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-base-content/40" />
+                <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-base-content/30" />
                 <input
                   v-model="productSearch"
                   type="text"
-                  class="input input-bordered input-sm w-full pl-9"
+                  class="input input-bordered w-full pl-10"
                   placeholder="Produkt suchen (Name, SKU, EAN)..."
                 />
-                <span v-if="searching" class="absolute right-3 top-1/2 -translate-y-1/2 loading loading-spinner loading-xs"></span>
+                <span v-if="searching" class="absolute right-3 top-1/2 -translate-y-1/2 loading loading-spinner loading-xs text-primary"></span>
 
-                <!-- Dropdown -->
-                <div v-if="productResults.length > 0" class="absolute z-20 mt-1 w-full bg-base-100 border border-base-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                <div v-if="productResults.length > 0" class="absolute z-20 mt-1 w-full bg-base-100 border border-base-300 rounded-xl shadow-xl max-h-64 overflow-y-auto">
                   <button
                     v-for="p in productResults" :key="p.id"
-                    class="w-full text-left px-3 py-2 hover:bg-base-200 flex justify-between items-center text-sm"
+                    class="w-full text-left px-4 py-2.5 hover:bg-primary/5 flex justify-between items-center border-b border-base-200 last:border-0 transition-colors"
                     @click="selectProduct(p)"
                   >
-                    <span class="font-medium">{{ p.name }}</span>
-                    <span class="text-xs text-base-content/40">{{ p.sku }}</span>
+                    <div>
+                      <div class="font-medium text-sm">{{ p.name }}</div>
+                      <div class="text-xs text-base-content/40">{{ p.sku }}</div>
+                    </div>
                   </button>
                 </div>
               </div>
             </div>
 
-            <!-- Row 2: Task + Language -->
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div class="form-control md:col-span-2">
-                <label class="label py-1"><span class="label-text font-medium">Aufgabe</span></label>
-                <div class="grid grid-cols-2 gap-2">
+            <!-- ── Aufgabe + Sprache (Grid) ── -->
+            <div class="grid grid-cols-1 lg:grid-cols-4 gap-4">
+              <div class="lg:col-span-3">
+                <label class="text-xs font-semibold text-base-content/50 uppercase tracking-wider mb-1.5 block">Aufgabe</label>
+                <div class="grid grid-cols-4 gap-2">
                   <button
                     v-for="t in tasks" :key="t.value"
-                    class="btn btn-sm justify-start"
-                    :class="task === t.value ? 'btn-primary' : 'btn-ghost border border-base-300'"
+                    class="flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all text-center cursor-pointer"
+                    :class="task === t.value
+                      ? 'border-primary bg-primary/5 text-primary shadow-sm'
+                      : 'border-base-200 hover:border-base-300 hover:bg-base-200/50'"
                     @click="task = t.value"
                   >
-                    <span class="text-left">
-                      <span class="block text-xs font-semibold">{{ t.label }}</span>
-                      <span class="block text-[10px] opacity-60">{{ t.desc }}</span>
-                    </span>
+                    <component :is="taskIcons[t.icon]" class="w-5 h-5" :class="task === t.value ? 'text-primary' : 'text-base-content/40'" />
+                    <span class="text-xs font-semibold leading-tight">{{ t.label }}</span>
+                    <span class="text-[10px] leading-tight opacity-50 hidden sm:block">{{ t.desc }}</span>
                   </button>
                 </div>
               </div>
 
-              <div class="form-control">
-                <label class="label py-1"><span class="label-text font-medium">Sprache</span></label>
-                <select v-model="language" class="select select-bordered select-sm w-full">
+              <div>
+                <label class="text-xs font-semibold text-base-content/50 uppercase tracking-wider mb-1.5 block">Sprache</label>
+                <select v-model="language" class="select select-bordered w-full">
                   <option value="de">Deutsch</option>
-                  <option value="en">Englisch</option>
-                  <option value="fr">Französisch</option>
-                  <option value="es">Spanisch</option>
-                  <option value="it">Italienisch</option>
+                  <option value="en">English</option>
+                  <option value="fr">Français</option>
+                  <option value="es">Español</option>
+                  <option value="it">Italiano</option>
                 </select>
               </div>
             </div>
 
-            <!-- Row 3: Tonality -->
-            <div class="form-control">
-              <label class="label py-1"><span class="label-text font-medium">Tonalität / Stil</span></label>
+            <!-- ── Tonalität ── -->
+            <div>
+              <label class="text-xs font-semibold text-base-content/50 uppercase tracking-wider mb-1.5 block">Tonalität / Stil</label>
               <input
                 v-model="tonality"
                 type="text"
-                class="input input-bordered input-sm"
+                class="input input-bordered w-full"
                 placeholder="z.B. Professionell & sachlich, Premium & exklusiv..."
               />
-              <div class="flex gap-1 mt-1 flex-wrap">
+              <div class="flex gap-1.5 mt-2 flex-wrap">
                 <button
                   v-for="preset in tonalityPresets" :key="preset"
-                  class="badge badge-sm cursor-pointer hover:badge-primary"
-                  :class="tonality === preset ? 'badge-primary' : 'badge-ghost'"
+                  class="px-2.5 py-1 rounded-full text-xs font-medium transition-all cursor-pointer"
+                  :class="tonality === preset
+                    ? 'bg-primary text-primary-content shadow-sm'
+                    : 'bg-base-200 text-base-content/60 hover:bg-base-300'"
                   @click="tonality = tonality === preset ? '' : preset"
                 >
                   {{ preset }}
@@ -422,160 +432,191 @@ async function deleteConnection(id) {
               </div>
             </div>
 
-            <!-- Row 4: Attribute selection -->
-            <div class="form-control">
-              <label class="label py-1">
-                <span class="label-text font-medium">Attribute als Kontext</span>
-                <span class="label-text-alt text-xs">{{ selectedAttributes.length ? selectedAttributes.length + ' gewählt' : 'alle' }}</span>
-              </label>
+            <!-- ── Erweiterte Optionen (collapsible) ── -->
+            <div class="border border-base-200 rounded-xl overflow-hidden">
+              <button
+                class="w-full flex items-center justify-between px-4 py-2.5 text-sm font-medium text-base-content/60 hover:bg-base-200/50 transition-colors"
+                @click="showAdvanced = !showAdvanced"
+              >
+                <span class="flex items-center gap-2">
+                  <Settings class="w-4 h-4" />
+                  Erweiterte Optionen
+                </span>
+                <ChevronDown class="w-4 h-4 transition-transform" :class="showAdvanced ? 'rotate-180' : ''" />
+              </button>
 
-              <div class="relative">
-                <button
-                  class="btn btn-sm btn-ghost border border-base-300 w-full justify-between"
-                  @click="showAttrDropdown = !showAttrDropdown"
-                >
-                  <span class="text-xs truncate">
-                    {{ selectedAttributes.length
-                      ? selectedAttributes.map(a => a.name_de || a.technical_name).join(', ')
-                      : 'Alle Attribute (klicken zum Filtern)'
-                    }}
-                  </span>
-                  <ChevronDown class="w-4 h-4 flex-shrink-0" />
-                </button>
+              <div v-if="showAdvanced" class="px-4 pb-4 space-y-4 border-t border-base-200">
+                <!-- Attribute selection -->
+                <div class="pt-3">
+                  <div class="flex items-center justify-between mb-1.5">
+                    <label class="text-xs font-semibold text-base-content/50 uppercase tracking-wider">Attribute als Kontext</label>
+                    <span class="text-xs text-base-content/40">{{ selectedAttributes.length ? selectedAttributes.length + ' gewählt' : 'Alle Attribute' }}</span>
+                  </div>
 
-                <div v-if="showAttrDropdown" class="absolute z-20 mt-1 w-full bg-base-100 border border-base-300 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                  <button
-                    v-for="attr in allAttributes.filter(a => !a.is_internal)" :key="attr.id"
-                    class="w-full text-left px-3 py-1.5 hover:bg-base-200 flex items-center gap-2 text-xs"
-                    @click="toggleAttribute(attr)"
-                  >
-                    <input type="checkbox" class="checkbox checkbox-xs" :checked="isAttrSelected(attr)" @click.prevent />
-                    <span>{{ attr.name_de || attr.technical_name }}</span>
-                    <span class="text-base-content/30 ml-auto">{{ attr.data_type }}</span>
-                  </button>
-                  <div v-if="allAttributes.length === 0" class="px-3 py-2 text-xs text-base-content/40">Keine Attribute gefunden</div>
+                  <div class="relative">
+                    <button
+                      class="w-full flex items-center justify-between px-3 py-2 border border-base-300 rounded-lg text-sm hover:bg-base-200/50 transition-colors"
+                      @click="showAttrDropdown = !showAttrDropdown"
+                    >
+                      <span class="truncate text-base-content/70">
+                        {{ selectedAttributes.length
+                          ? selectedAttributes.map(a => a.name_de || a.technical_name).join(', ')
+                          : 'Alle Attribute werden als Kontext verwendet'
+                        }}
+                      </span>
+                      <ChevronDown class="w-4 h-4 flex-shrink-0 text-base-content/30" />
+                    </button>
+
+                    <div v-if="showAttrDropdown" class="absolute z-20 mt-1 w-full bg-base-100 border border-base-300 rounded-xl shadow-xl max-h-56 overflow-hidden flex flex-col">
+                      <div class="px-3 py-2 border-b border-base-200">
+                        <input
+                          v-model="attrSearchTerm"
+                          type="text"
+                          class="input input-bordered input-xs w-full"
+                          placeholder="Attribut suchen..."
+                        />
+                      </div>
+                      <div class="overflow-y-auto flex-1">
+                        <button
+                          v-for="attr in filteredAttributes" :key="attr.id"
+                          class="w-full text-left px-3 py-1.5 hover:bg-base-200/70 flex items-center gap-2 text-xs transition-colors"
+                          @click="toggleAttribute(attr)"
+                        >
+                          <input type="checkbox" class="checkbox checkbox-xs checkbox-primary" :checked="isAttrSelected(attr)" @click.prevent />
+                          <span class="flex-1 truncate">{{ attr.name_de || attr.technical_name }}</span>
+                          <span class="text-base-content/20 text-[10px]">{{ attr.data_type }}</span>
+                        </button>
+                        <div v-if="filteredAttributes.length === 0" class="px-3 py-3 text-xs text-base-content/30 text-center">Keine Attribute gefunden</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div v-if="selectedAttributes.length > 0" class="flex gap-1 mt-2 flex-wrap">
+                    <span
+                      v-for="attr in selectedAttributes" :key="attr.id"
+                      class="inline-flex items-center gap-1 px-2 py-0.5 bg-primary/10 text-primary rounded-full text-xs font-medium"
+                    >
+                      {{ attr.name_de || attr.technical_name }}
+                      <button class="hover:text-error transition-colors" @click="toggleAttribute(attr)"><X class="w-3 h-3" /></button>
+                    </span>
+                    <button class="text-xs text-base-content/40 hover:text-base-content/60 underline" @click="selectedAttributes = []">Zurücksetzen</button>
+                  </div>
+                </div>
+
+                <!-- Custom Prompt -->
+                <div>
+                  <div class="flex items-center justify-between mb-1.5">
+                    <label class="text-xs font-semibold text-base-content/50 uppercase tracking-wider">Eigener Prompt</label>
+                    <span class="text-[10px] text-base-content/30">Ersetzt den Standard-Prompt der Aufgabe</span>
+                  </div>
+                  <textarea
+                    v-model="customPrompt"
+                    class="textarea textarea-bordered w-full text-sm"
+                    rows="3"
+                    placeholder="z.B. Erstelle eine Produktbeschreibung für eine junge Zielgruppe, max. 150 Wörter, mit Fokus auf Nachhaltigkeit..."
+                  ></textarea>
+                </div>
+
+                <!-- Target attribute + save toggle -->
+                <div>
+                  <label class="text-xs font-semibold text-base-content/50 uppercase tracking-wider mb-1.5 block">Ziel-Attribut</label>
+                  <div class="flex items-center gap-3">
+                    <select v-model="targetAttribute" class="select select-bordered flex-1">
+                      <option value="">Kein Ziel-Attribut</option>
+                      <option
+                        v-for="attr in stringAttributes" :key="attr.id"
+                        :value="attr.technical_name"
+                      >
+                        {{ attr.name_de || attr.technical_name }}
+                      </option>
+                    </select>
+                    <label v-if="targetAttribute" class="flex items-center gap-2 cursor-pointer whitespace-nowrap">
+                      <input
+                        v-model="saveToAttribute"
+                        type="checkbox"
+                        class="toggle toggle-sm toggle-primary"
+                      />
+                      <span class="text-xs text-base-content/60">Direkt speichern</span>
+                    </label>
+                  </div>
+                  <p v-if="targetAttribute" class="text-[10px] text-base-content/30 mt-1">
+                    Das Ergebnis wird in das Attribut <strong>{{ targetAttribute }}</strong> in der Sprache <strong>{{ language.toUpperCase() }}</strong> geschrieben.
+                  </p>
                 </div>
               </div>
-
-              <!-- Selected chips -->
-              <div v-if="selectedAttributes.length > 0" class="flex gap-1 mt-1 flex-wrap">
-                <span
-                  v-for="attr in selectedAttributes" :key="attr.id"
-                  class="badge badge-sm badge-primary gap-1"
-                >
-                  {{ attr.name_de || attr.technical_name }}
-                  <button @click="toggleAttribute(attr)"><X class="w-3 h-3" /></button>
-                </span>
-                <button class="badge badge-sm badge-ghost" @click="selectedAttributes = []">Alle zurücksetzen</button>
-              </div>
             </div>
 
-            <!-- Row 5: Custom Prompt -->
-            <div class="form-control">
-              <label class="label py-1">
-                <span class="label-text font-medium">Eigener Prompt</span>
-                <span class="label-text-alt text-xs">Optional — ersetzt den Standard-Prompt</span>
-              </label>
-              <textarea
-                v-model="customPrompt"
-                class="textarea textarea-bordered textarea-sm"
-                rows="2"
-                placeholder="z.B. Erstelle eine Produktbeschreibung für eine junge Zielgruppe, max. 150 Wörter..."
-              ></textarea>
-            </div>
-
-            <!-- Row 6: Target attribute + Save toggle -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div class="form-control">
-                <label class="label py-1"><span class="label-text font-medium">Ziel-Attribut</span></label>
-                <select v-model="targetAttribute" class="select select-bordered select-sm w-full">
-                  <option value="">– Kein Ziel-Attribut –</option>
-                  <option
-                    v-for="attr in stringAttributes" :key="attr.id"
-                    :value="attr.technical_name"
-                  >
-                    {{ attr.name_de || attr.technical_name }}
-                  </option>
-                </select>
-              </div>
-              <div class="form-control justify-end">
-                <label class="label cursor-pointer justify-start gap-2">
-                  <input
-                    v-model="saveToAttribute"
-                    type="checkbox"
-                    class="checkbox checkbox-sm checkbox-primary"
-                    :disabled="!targetAttribute"
-                  />
-                  <span class="label-text text-sm">Ergebnis direkt ins Attribut übernehmen</span>
-                </label>
-              </div>
-            </div>
-
-            <!-- Generate Button -->
+            <!-- ── Generate Button ── -->
             <button
-              class="btn btn-primary w-full"
+              class="btn btn-primary btn-lg w-full shadow-md"
               :disabled="generating || !selectedProduct"
               @click="generate"
             >
-              <span v-if="generating" class="loading loading-spinner loading-sm"></span>
-              <Sparkles v-else class="w-4 h-4" />
-              {{ generating ? 'Generiert...' : 'Text generieren' }}
+              <span v-if="generating" class="loading loading-spinner loading-md"></span>
+              <Sparkles v-else class="w-5 h-5" />
+              {{ generating ? 'Text wird generiert...' : 'Text generieren' }}
             </button>
           </div>
         </div>
 
         <!-- ═══════ Result ═══════ -->
-        <div v-if="resultError" class="alert alert-error text-sm">{{ resultError }}</div>
+        <div v-if="resultError" class="alert alert-error text-sm shadow-sm">{{ resultError }}</div>
 
-        <div v-if="result" class="card bg-base-100 shadow-sm border border-primary/20">
-          <div class="card-body space-y-3">
+        <div v-if="result" class="card bg-base-100 shadow-md border-2 border-primary/15">
+          <div class="card-body p-5 space-y-4">
             <div class="flex items-center justify-between">
-              <h3 class="font-semibold flex items-center gap-2">
-                <FileText class="w-4 h-4 text-primary" />
-                Ergebnis
+              <h3 class="font-bold flex items-center gap-2 text-primary">
+                <FileText class="w-5 h-5" />
+                Generierter Text
               </h3>
-              <div class="flex items-center gap-2 text-xs text-base-content/40">
-                <span>{{ result.model }}</span>
-                <span v-if="result.usage">{{ result.usage.input_tokens + result.usage.output_tokens }} Tokens</span>
+              <div class="flex items-center gap-3 text-xs text-base-content/30">
+                <span class="font-mono">{{ result.model }}</span>
+                <span v-if="result.usage" class="px-2 py-0.5 bg-base-200 rounded-full">
+                  {{ result.usage.input_tokens + result.usage.output_tokens }} Tokens
+                </span>
               </div>
             </div>
 
-            <div class="prose prose-sm max-w-none bg-base-200/30 p-4 rounded-lg whitespace-pre-wrap text-sm">{{ result.text }}</div>
+            <div class="bg-base-200/40 border border-base-200 p-5 rounded-xl whitespace-pre-wrap text-sm leading-relaxed">{{ result.text }}</div>
 
-            <div class="flex gap-2">
-              <button class="btn btn-sm btn-ghost" @click="copyResult">
-                <Copy class="w-4 h-4" />
+            <div class="flex items-center gap-2 pt-1">
+              <button class="btn btn-sm btn-ghost gap-1" @click="copyResult">
+                <Copy class="w-3.5 h-3.5" />
                 {{ copied ? 'Kopiert!' : 'Kopieren' }}
               </button>
               <button
                 v-if="targetAttribute && !saveToAttribute"
-                class="btn btn-sm btn-primary"
+                class="btn btn-sm btn-primary gap-1"
                 @click="saveResult"
               >
-                <Save class="w-4 h-4" />
-                {{ saved ? 'Gespeichert!' : 'In Attribut übernehmen' }}
+                <Save class="w-3.5 h-3.5" />
+                {{ saved ? 'Gespeichert!' : 'In Attribut speichern' }}
               </button>
-              <span v-if="saveToAttribute && targetAttribute" class="text-xs text-success flex items-center gap-1">
-                <CheckCircle class="w-3 h-3" />
-                Automatisch gespeichert in {{ targetAttribute }}
+              <span v-if="saveToAttribute && targetAttribute" class="text-xs text-success flex items-center gap-1 px-2">
+                <CheckCircle class="w-3.5 h-3.5" />
+                Gespeichert in <strong>{{ targetAttribute }}</strong>
               </span>
-              <button class="btn btn-sm btn-ghost ml-auto" @click="generate">
-                <RefreshCw class="w-4 h-4" />
-                Neu generieren
-              </button>
+              <div class="ml-auto">
+                <button class="btn btn-sm btn-ghost gap-1" @click="generate">
+                  <RefreshCw class="w-3.5 h-3.5" />
+                  Neu generieren
+                </button>
+              </div>
             </div>
           </div>
         </div>
       </template>
 
       <!-- No connection hint -->
-      <div v-if="connections.length === 0 && !loading" class="card bg-base-200/50 border border-base-300">
-        <div class="card-body text-center py-8">
-          <Settings class="w-8 h-8 mx-auto text-base-content/30 mb-2" />
-          <p class="text-sm text-base-content/50">
-            Erstellen Sie eine Verbindung mit Ihrem Anthropic API-Key, um Texte zu generieren.
+      <div v-if="connections.length === 0 && !loading && !showConnectForm" class="card bg-base-200/30 border border-dashed border-base-300">
+        <div class="card-body text-center py-10">
+          <div class="w-14 h-14 rounded-2xl bg-base-200 flex items-center justify-center mx-auto mb-3">
+            <Zap class="w-7 h-7 text-base-content/20" />
+          </div>
+          <p class="text-sm text-base-content/40 max-w-sm mx-auto">
+            Verbinden Sie Ihren Anthropic API-Key, um KI-generierte Produkttexte zu erstellen.
           </p>
-          <button class="btn btn-primary btn-sm mx-auto mt-2" @click="showConnectForm = true">
+          <button class="btn btn-primary btn-sm mx-auto mt-3" @click="showConnectForm = true">
             <Plus class="w-4 h-4" />
             Verbindung erstellen
           </button>
