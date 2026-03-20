@@ -22,8 +22,11 @@ The script produces:
             ...  (max 1000 per subdirectory)
           1/
             ...
+        search-index/
+          index.json        (empty — all products in primary chunks)
         categories.json
         facets.json
+        attribute-groups.json
         settings.json
 """
 
@@ -503,9 +506,11 @@ def write_output(catalog_data: dict, output_dir: str, images_dir: str | None):
     data_dir = os.path.join(output_dir, "data")
     products_dir = os.path.join(data_dir, "products")
     detail_dir = os.path.join(data_dir, "products-detail")
+    search_index_dir = os.path.join(data_dir, "search-index")
 
     os.makedirs(products_dir, exist_ok=True)
     os.makedirs(detail_dir, exist_ok=True)
+    os.makedirs(search_index_dir, exist_ok=True)
 
     # products/index.json
     _write_json(os.path.join(products_dir, "index.json"), catalog_data["index"])
@@ -528,11 +533,20 @@ def write_output(catalog_data: dict, output_dir: str, images_dir: str | None):
         os.makedirs(bucket_dir, exist_ok=True)
         _write_json(os.path.join(bucket_dir, f"{pid}.json"), catalog_data["product_details"][pid])
 
+    # search-index/index.json — empty for BMEcat (all products are in primary chunks)
+    _write_json(os.path.join(search_index_dir, "index.json"), {
+        "totalProducts": 0,
+        "chunks": [],
+    })
+
     # categories.json
     _write_json(os.path.join(data_dir, "categories.json"), catalog_data["categories"])
 
     # facets.json
     _write_json(os.path.join(data_dir, "facets.json"), catalog_data["facets"])
+
+    # attribute-groups.json
+    _write_json(os.path.join(data_dir, "attribute-groups.json"), {"data": []})
 
     # settings.json
     _write_json(os.path.join(data_dir, "settings.json"), catalog_data["settings"])
