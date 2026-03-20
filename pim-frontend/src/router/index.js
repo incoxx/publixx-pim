@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useTabStore } from '@/stores/tabs'
 import catalogApi from '@/api/catalog'
 
 const routes = [
@@ -47,7 +48,7 @@ const routes = [
     path: '/products/:id',
     name: 'product-detail',
     component: () => import('@/views/products/ProductDetailView.vue'),
-    meta: { title: 'Produktdetail' },
+    meta: { title: 'Produktdetail', tabable: true, tabTitle: 'Produkt' },
   },
   {
     path: '/hierarchies',
@@ -155,7 +156,7 @@ const routes = [
     path: '/reports/:id',
     name: 'report-designer',
     component: () => import('@/views/reports/ReportDesignerView.vue'),
-    meta: { title: 'Bericht-Designer' },
+    meta: { title: 'Bericht-Designer', tabable: true, tabTitle: 'Bericht' },
   },
   {
     path: '/plugin-settings',
@@ -203,7 +204,7 @@ const routes = [
     path: '/connectors/:id',
     name: 'connector-connection',
     component: () => import('@/views/connectors/ConnectorConnectionView.vue'),
-    meta: { title: 'Connector-Verbindung' },
+    meta: { title: 'Connector-Verbindung', tabable: true, tabTitle: 'Connector' },
   },
   {
     path: '/api-designer',
@@ -215,7 +216,7 @@ const routes = [
     path: '/api-designer/:id',
     name: 'api-designer-edit',
     component: () => import('@/views/apiDesigner/ApiDesignerView.vue'),
-    meta: { title: 'API-Designer' },
+    meta: { title: 'API-Designer', tabable: true, tabTitle: 'API' },
   },
   {
     path: '/pdf-templates',
@@ -227,7 +228,7 @@ const routes = [
     path: '/pdf-templates/:id',
     name: 'pdf-template-designer',
     component: () => import('@/views/pdf-templates/PdfTemplateDesignerView.vue'),
-    meta: { title: 'PDF-Vorlage Designer' },
+    meta: { title: 'PDF-Vorlage Designer', tabable: true, tabTitle: 'PDF-Vorlage' },
   },
   {
     path: '/catalog-templates',
@@ -239,7 +240,7 @@ const routes = [
     path: '/catalog-templates/:id',
     name: 'catalog-template-designer',
     component: () => import('@/views/catalog-templates/CatalogTemplateDesignerView.vue'),
-    meta: { title: 'Katalog-Vorlage Designer' },
+    meta: { title: 'Katalog-Vorlage Designer', tabable: true, tabTitle: 'Katalog-Vorlage' },
   },
   {
     path: '/media',
@@ -477,6 +478,16 @@ router.beforeEach(async (to, from, next) => {
 router.afterEach((to) => {
   if (to.name === 'settings' || to.name === 'login') {
     catalogAccessMode = null
+  }
+})
+
+// Open tabable routes as tabs
+router.afterEach((to) => {
+  const tabStore = useTabStore()
+  if (to.meta.tabable && to.params.id) {
+    tabStore.openTab(to)
+  } else {
+    tabStore.setActiveByRoute(to)
   }
 })
 

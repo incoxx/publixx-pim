@@ -1,4 +1,6 @@
 <script setup>
+defineOptions({ name: 'ConnectorConnectionView' })
+
 import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
