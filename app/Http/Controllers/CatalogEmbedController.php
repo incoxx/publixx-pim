@@ -106,13 +106,36 @@ class CatalogEmbedController extends Controller
         );
 
         // Ensure sidebar-toggle is present (needed for mobile hamburger menu).
+        // Try to inject it inside the header element for correct positioning.
         if (! str_contains($html, 'data-catalog="sidebar-toggle"')) {
-            $html = preg_replace(
-                '/<body[^>]*>/i',
-                '$0' . "\n" . '  <div data-catalog="sidebar-toggle"></div>',
-                $html,
-                1
-            );
+            // Try to inject after opening tag of a header element
+            $injected = false;
+            // Look for common header inner containers
+            foreach ([
+                '/(<header[^>]*>[\s]*<div[^>]*>)/is',  // <header><div...> (inner wrapper)
+                '/(<header[^>]*>)/is',                    // <header> directly
+                '/(<nav[^>]*>)/is',                       // <nav>
+            ] as $pattern) {
+                if (preg_match($pattern, $html)) {
+                    $html = preg_replace(
+                        $pattern,
+                        '$0' . "\n" . '      <div data-catalog="sidebar-toggle"></div>',
+                        $html,
+                        1
+                    );
+                    $injected = true;
+                    break;
+                }
+            }
+            // Fallback: inject after <body> if no header found
+            if (! $injected) {
+                $html = preg_replace(
+                    '/<body[^>]*>/i',
+                    '$0' . "\n" . '  <div data-catalog="sidebar-toggle"></div>',
+                    $html,
+                    1
+                );
+            }
         }
         // Strip old inline fixed positioning from sidebar-toggle (caused overlap with search)
         $html = preg_replace(
