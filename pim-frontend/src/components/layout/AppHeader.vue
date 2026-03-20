@@ -4,7 +4,7 @@ import { useLocaleStore } from '@/stores/locale'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { computed } from 'vue'
-import { Command, Globe, LogOut, User } from 'lucide-vue-next'
+import { Command, Globe, LogOut, Menu, User } from 'lucide-vue-next'
 
 const authStore = useAuthStore()
 const localeStore = useLocaleStore()
@@ -21,8 +21,14 @@ function switchLocale(code) {
 
 <template>
   <header class="sticky top-0 z-20 flex items-center justify-between h-14 px-3 sm:px-6 bg-[var(--color-surface)]/80 backdrop-blur-md border-b border-[var(--color-border)]">
-    <!-- Left: Title -->
+    <!-- Left: Hamburger (mobile) + Title -->
     <div class="flex items-center gap-3">
+      <button
+        class="md:hidden pim-btn pim-btn-ghost p-1.5 -ml-1"
+        @click="authStore.toggleMobileSidebar()"
+      >
+        <Menu class="w-5 h-5" :stroke-width="1.75" />
+      </button>
       <h1 class="text-sm font-semibold text-[var(--color-text-primary)]">{{ pageTitle }}</h1>
     </div>
 
