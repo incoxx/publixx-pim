@@ -21,6 +21,7 @@ const exportJobs = ref([])
 // Filters
 const filterType = ref('')
 const filterStatus = ref('')
+const filterWorkflowStatus = ref('')
 
 const ACTION_TYPE_LABELS = {
   activate_product: 'Aktivierung',
@@ -52,6 +53,9 @@ async function loadEvents() {
     if (filterStatus.value) {
       items = items.filter(e => e.status === filterStatus.value)
     }
+    if (filterWorkflowStatus.value) {
+      items = items.filter(e => e.workflow_status === filterWorkflowStatus.value)
+    }
 
     events.value = items
   } catch (e) {
@@ -80,7 +84,7 @@ function onDateClick(date) {
 }
 
 async function onEventClick(event) {
-  if (event.source === 'scheduled_action' && event.editable) {
+  if (event.source === 'scheduled_action') {
     try {
       const { data } = await scheduledActionsApi.show(event.source_id)
       editAction.value = { ...data.data, product_name: event.product_name }
@@ -96,7 +100,7 @@ function onDialogSaved() {
   loadEvents()
 }
 
-watch([filterType, filterStatus], () => loadEvents())
+watch([filterType, filterStatus, filterWorkflowStatus], () => loadEvents())
 
 onMounted(() => {
   loadExportJobs()
@@ -131,10 +135,16 @@ onMounted(() => {
           <option v-for="(label, key) in ACTION_TYPE_LABELS" :key="key" :value="key">{{ label }}</option>
         </select>
         <select v-model="filterStatus" class="pim-input text-[11px] py-1.5">
-          <option value="">Alle Status</option>
+          <option value="">Ausführung</option>
           <option value="pending">Ausstehend</option>
           <option value="completed">Abgeschlossen</option>
           <option value="failed">Fehlgeschlagen</option>
+        </select>
+        <select v-model="filterWorkflowStatus" class="pim-input text-[11px] py-1.5">
+          <option value="">Alle Status</option>
+          <option value="open">Offen</option>
+          <option value="in_progress">In Bearbeitung</option>
+          <option value="done">Erledigt</option>
         </select>
 
         <!-- New Action -->
@@ -166,6 +176,12 @@ onMounted(() => {
       <div class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm" style="background: #14b8a6"></span> Export</div>
       <div class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm" style="background: #8b5cf6"></span> Version</div>
       <div class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm" style="background: #ec4899"></span> Projekt</div>
+    </div>
+    <div class="flex items-center gap-4 flex-wrap text-[10px] text-[var(--color-text-tertiary)]">
+      <span class="font-medium text-[var(--color-text-secondary)]">Workflow:</span>
+      <div class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full" style="background: #9ca3af"></span> Offen</div>
+      <div class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full" style="background: #f59e0b"></span> In Bearbeitung</div>
+      <div class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full" style="background: #22c55e"></span> Erledigt</div>
     </div>
 
     <!-- Dialog -->

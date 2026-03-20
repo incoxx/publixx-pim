@@ -61,7 +61,7 @@ class CalendarController extends Controller
     private function getScheduledActionEvents(Carbon $from, Carbon $to): array
     {
         $actions = ScheduledAction::inRange($from->toDateTimeString(), $to->toDateTimeString())
-            ->with(['product:id,name,sku', 'creator:id,name'])
+            ->with(['product:id,name,sku', 'creator:id,name', 'assignee:id,name'])
             ->get();
 
         return $actions->map(fn (ScheduledAction $a) => [
@@ -72,10 +72,13 @@ class CalendarController extends Controller
             'action_type' => $a->action_type,
             'scheduled_at' => $a->scheduled_at->toIso8601String(),
             'status' => $a->status,
+            'workflow_status' => $a->workflow_status ?? 'open',
             'color' => $a->color ?? (self::ACTION_COLORS[$a->action_type] ?? '#6b7280'),
             'product_id' => $a->product_id,
             'product_name' => $a->product?->name,
-            'editable' => $a->status === 'pending',
+            'assigned_to' => $a->assigned_to,
+            'assignee_name' => $a->assignee?->name,
+            'editable' => true,
         ])->all();
     }
 
