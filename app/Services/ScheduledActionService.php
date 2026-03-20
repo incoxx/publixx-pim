@@ -132,6 +132,12 @@ class ScheduledActionService
     {
         $payload = $action->payload;
         $attributes = $payload['attributes'] ?? [];
+
+        if (empty($attributes)) {
+            $action->update(['result_message' => 'Keine Attribute zu aktualisieren']);
+            return;
+        }
+
         $productIds = $this->resolveProductIds($action);
 
         DB::transaction(function () use ($productIds, $attributes) {

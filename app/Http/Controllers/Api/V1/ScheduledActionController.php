@@ -15,7 +15,7 @@ class ScheduledActionController extends Controller
         $this->authorize('viewAny', ScheduledAction::class);
 
         $query = ScheduledAction::query()
-            ->with(['product:id,name,sku', 'creator:id,name']);
+            ->with(['product:id,name,sku', 'creator:id,name', 'assignee:id,name']);
 
         if ($request->filled('date_from') && $request->filled('date_to')) {
             $query->inRange($request->input('date_from'), $request->input('date_to'));
@@ -51,6 +51,8 @@ class ScheduledActionController extends Controller
             'product_ids.*' => 'string|exists:products,id',
             'payload' => 'present|array',
             'color' => 'sometimes|string|nullable|max:20',
+            'assigned_to' => 'sometimes|string|nullable|exists:users,id',
+            'workflow_status' => 'sometimes|string|in:open,in_progress,done',
             ...$this->payloadRules($request->input('action_type')),
         ]);
 
@@ -58,7 +60,7 @@ class ScheduledActionController extends Controller
         $validated['status'] = 'pending';
 
         $action = ScheduledAction::create($validated);
-        $action->load(['product:id,name,sku', 'creator:id,name']);
+        $action->load(['product:id,name,sku', 'creator:id,name', 'assignee:id,name']);
 
         return response()->json(['data' => $action], 201);
     }
@@ -67,7 +69,7 @@ class ScheduledActionController extends Controller
     {
         $this->authorize('view', $scheduled_action);
 
-        $scheduled_action->load(['product:id,name,sku', 'creator:id,name']);
+        $scheduled_action->load(['product:id,name,sku', 'creator:id,name', 'assignee:id,name']);
 
         return response()->json(['data' => $scheduled_action]);
     }
@@ -76,7 +78,12 @@ class ScheduledActionController extends Controller
     {
         $this->authorize('update', $scheduled_action);
 
-        if ($scheduled_action->status !== 'pending') {
+        // Allow workflow_status and assigned_to updates regardless of execution status
+        $workflowOnlyFields = ['workflow_status', 'assigned_to'];
+        $requestKeys = array_keys($request->except(['_method', '_token']));
+        $isWorkflowOnlyUpdate = empty(array_diff($requestKeys, $workflowOnlyFields));
+
+        if (!$isWorkflowOnlyUpdate && $scheduled_action->status !== 'pending') {
             return response()->json(['message' => 'Nur ausstehende Aktionen können bearbeitet werden.'], 422);
         }
 
@@ -89,13 +96,15 @@ class ScheduledActionController extends Controller
             'product_ids.*' => 'string|exists:products,id',
             'payload' => 'sometimes|array',
             'color' => 'sometimes|string|nullable|max:20',
+            'assigned_to' => 'sometimes|string|nullable|exists:users,id',
+            'workflow_status' => 'sometimes|string|in:open,in_progress,done',
             ...$this->payloadRules($request->input('action_type', $scheduled_action->action_type)),
         ]);
 
         $validated['updated_by'] = $request->user()?->id;
 
         $scheduled_action->update($validated);
-        $scheduled_action->load(['product:id,name,sku', 'creator:id,name']);
+        $scheduled_action->load(['product:id,name,sku', 'creator:id,name', 'assignee:id,name']);
 
         return response()->json(['data' => $scheduled_action]);
     }
@@ -135,8 +144,8 @@ class ScheduledActionController extends Controller
                 'payload.prices.*.currency' => 'sometimes|string|size:3',
             ],
             'data_change' => [
-                'payload.attributes' => 'required|array|min:1',
-                'payload.attributes.*.attribute_id' => 'required|string',
+                'payload.attributes' => 'sometimes|array',
+                'payload.attributes.*.attribute_id' => 'required_with:payload.attributes|string',
             ],
             'export' => [
                 'payload.export_job_id' => 'required|string|exists:export_jobs,id',

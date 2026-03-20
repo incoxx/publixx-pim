@@ -123,6 +123,11 @@ function eventColor(event) {
   return event.color || '#6b7280'
 }
 
+function workflowColor(status) {
+  const colors = { open: '#9ca3af', in_progress: '#f59e0b', done: '#22c55e' }
+  return colors[status] || '#9ca3af'
+}
+
 function getEventHour(event) {
   return new Date(event.scheduled_at).getHours()
 }
@@ -210,7 +215,7 @@ watch(() => props.view, () => emitRange(), { immediate: true })
       <button class="pim-btn pim-btn-ghost text-xs" @click="goToday">Heute</button>
     </div>
 
-    <!-- ═══ MONTH VIEW ═══ -->
+    <!-- MONTH VIEW -->
     <div v-if="view === 'month'" class="calendar-month">
       <div class="grid grid-cols-7 border-b border-[var(--color-border)]">
         <div v-for="day in WEEKDAYS" :key="day" class="text-center text-[10px] font-semibold text-[var(--color-text-tertiary)] py-1.5 uppercase tracking-wider">
@@ -240,12 +245,16 @@ watch(() => props.view, () => emitRange(), { immediate: true })
             <div
               v-for="event in getEventsForDate(day.date).slice(0, 3)"
               :key="event.id"
-              class="calendar-event text-[10px] leading-tight px-1.5 py-0.5 rounded truncate cursor-pointer"
+              class="calendar-event text-[10px] leading-tight px-1.5 py-0.5 rounded truncate cursor-pointer flex items-center gap-1"
               :style="{ backgroundColor: eventColor(event) + '20', color: eventColor(event), borderLeft: `3px solid ${eventColor(event)}` }"
               @click.stop="onEventClick(event)"
             >
+              <span
+                class="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                :style="{ backgroundColor: workflowColor(event.workflow_status) }"
+              ></span>
               <span v-if="statusIcon(event.status)" class="mr-0.5">{{ statusIcon(event.status) }}</span>
-              {{ event.title }}
+              <span class="truncate">{{ event.title }}</span>
             </div>
             <div
               v-if="getEventsForDate(day.date).length > 3"
@@ -258,7 +267,7 @@ watch(() => props.view, () => emitRange(), { immediate: true })
       </div>
     </div>
 
-    <!-- ═══ WEEK VIEW ═══ -->
+    <!-- WEEK VIEW -->
     <div v-else-if="view === 'week'" class="calendar-week overflow-auto" style="max-height: 600px;">
       <!-- Header -->
       <div class="grid grid-cols-[60px_repeat(7,1fr)] sticky top-0 z-10 bg-[var(--color-bg-primary)] border-b border-[var(--color-border)]">
@@ -287,18 +296,22 @@ watch(() => props.view, () => emitRange(), { immediate: true })
             <div
               v-for="event in getEventsForDate(day.date).filter(e => getEventHour(e) === hour)"
               :key="event.id"
-              class="absolute inset-x-0.5 text-[9px] px-1 py-0.5 rounded truncate cursor-pointer"
+              class="absolute inset-x-0.5 text-[9px] px-1 py-0.5 rounded truncate cursor-pointer flex items-center gap-0.5"
               :style="{ backgroundColor: eventColor(event) + '30', color: eventColor(event), borderLeft: `2px solid ${eventColor(event)}` }"
               @click.stop="onEventClick(event)"
             >
-              {{ event.title }}
+              <span
+                class="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                :style="{ backgroundColor: workflowColor(event.workflow_status) }"
+              ></span>
+              <span class="truncate">{{ event.title }}</span>
             </div>
           </div>
         </template>
       </div>
     </div>
 
-    <!-- ═══ DAY VIEW ═══ -->
+    <!-- DAY VIEW -->
     <div v-else class="calendar-day overflow-auto" style="max-height: 600px;">
       <div class="grid grid-cols-[60px_1fr]">
         <template v-for="hour in HOURS" :key="hour">
@@ -316,6 +329,10 @@ watch(() => props.view, () => emitRange(), { immediate: true })
               :style="{ backgroundColor: eventColor(event) + '15', color: eventColor(event), borderLeft: `3px solid ${eventColor(event)}` }"
               @click.stop="onEventClick(event)"
             >
+              <span
+                class="w-2 h-2 rounded-full flex-shrink-0"
+                :style="{ backgroundColor: workflowColor(event.workflow_status) }"
+              ></span>
               <span v-if="statusIcon(event.status)" class="font-bold">{{ statusIcon(event.status) }}</span>
               <span class="truncate font-medium">{{ event.title }}</span>
               <span v-if="event.product_name" class="text-[var(--color-text-tertiary)] truncate">— {{ event.product_name }}</span>

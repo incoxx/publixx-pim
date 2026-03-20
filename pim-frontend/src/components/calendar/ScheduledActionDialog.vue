@@ -4,6 +4,7 @@ import { X, Trash2, Plus } from 'lucide-vue-next'
 import scheduledActionsApi from '@/api/scheduledActions'
 import productsApi from '@/api/products'
 import attributesApi from '@/api/attributes'
+import usersApi from '@/api/users'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -31,17 +32,35 @@ const form = ref({
   product_ids: [],
   payload: {},
   color: null,
+  assigned_to: null,
+  workflow_status: 'open',
 })
 
 const selectedProductName = ref('')
 const availableAttributes = ref([])
+const availableUsers = ref([])
+
+const WORKFLOW_STATUSES = [
+  { value: 'open', label: 'Offen', color: '#9ca3af' },
+  { value: 'in_progress', label: 'In Bearbeitung', color: '#f59e0b' },
+  { value: 'done', label: 'Erledigt', color: '#22c55e' },
+]
 
 async function loadAttributes() {
   try {
-    const { data } = await attributesApi.list({ perPage: 200, filters: { status: 'active' } })
+    const { data } = await attributesApi.list({ perPage: 200 })
     availableAttributes.value = data.data || data || []
   } catch {
     availableAttributes.value = []
+  }
+}
+
+async function loadUsers() {
+  try {
+    const { data } = await usersApi.list({ perPage: 200 })
+    availableUsers.value = data.data || data || []
+  } catch {
+    availableUsers.value = []
   }
 }
 
@@ -71,6 +90,8 @@ watch(() => props.visible, (val) => {
         product_ids: props.editAction.product_ids || [],
         payload: props.editAction.payload || {},
         color: props.editAction.color,
+        assigned_to: props.editAction.assigned_to || null,
+        workflow_status: props.editAction.workflow_status || 'open',
       }
       selectedProductName.value = props.editAction.product_name || ''
     } else {
@@ -82,11 +103,14 @@ watch(() => props.visible, (val) => {
         product_ids: [],
         payload: { target_status: 'active' },
         color: null,
+        assigned_to: null,
+        workflow_status: 'open',
       }
       selectedProductName.value = ''
     }
     error.value = null
     loadAttributes()
+    loadUsers()
   }
 })
 
@@ -95,7 +119,7 @@ watch(() => form.value.action_type, (type) => {
   if (type === 'price_change') {
     form.value.payload = form.value.payload?.prices ? form.value.payload : { prices: [{ price_type_id: '', amount: 0, currency: 'EUR' }] }
   } else if (type === 'data_change') {
-    form.value.payload = form.value.payload?.attributes ? form.value.payload : { attributes: [{ attribute_id: '', value_string: '' }] }
+    form.value.payload = form.value.payload?.attributes ? form.value.payload : { attributes: [] }
   } else if (type === 'export') {
     form.value.payload = form.value.payload?.export_job_id ? form.value.payload : { export_job_id: '' }
   } else {
@@ -146,6 +170,10 @@ async function save() {
     const payload = { ...form.value }
     if (payload.scheduled_at && !payload.scheduled_at.includes('T')) {
       payload.scheduled_at += 'T00:00:00'
+    }
+    // Clean empty attributes before sending
+    if (payload.payload?.attributes) {
+      payload.payload.attributes = payload.payload.attributes.filter(a => a.attribute_id)
     }
 
     if (isEdit.value) {
@@ -203,7 +231,7 @@ async function deleteAction() {
           <!-- Title -->
           <div>
             <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">Titel</label>
-            <input v-model="form.title" type="text" class="pim-input text-xs w-full" placeholder="z.B. Sommerkollektion aktivieren" />
+            <input v-model="form.title" type="text" class="pim-input text-xs w-full" placeholder="z.B. Marketingtext für Produkt xy ändern" />
           </div>
 
           <!-- Action Type -->
@@ -218,6 +246,34 @@ async function deleteAction() {
           <div>
             <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">Zeitpunkt</label>
             <input v-model="form.scheduled_at" type="datetime-local" class="pim-input text-xs w-full" />
+          </div>
+
+          <!-- Assigned To -->
+          <div>
+            <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">Zugewiesen an</label>
+            <select v-model="form.assigned_to" class="pim-input text-xs w-full">
+              <option :value="null">— Niemand —</option>
+              <option v-for="u in availableUsers" :key="u.id" :value="u.id">{{ u.name }}</option>
+            </select>
+          </div>
+
+          <!-- Workflow Status -->
+          <div>
+            <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">Workflow-Status</label>
+            <div class="flex gap-2">
+              <button
+                v-for="ws in WORKFLOW_STATUSES"
+                :key="ws.value"
+                type="button"
+                class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border transition-colors"
+                :class="form.workflow_status === ws.value ? 'border-current' : 'border-transparent opacity-50'"
+                :style="{ color: ws.color, backgroundColor: ws.color + '15' }"
+                @click="form.workflow_status = ws.value"
+              >
+                <span class="w-2 h-2 rounded-full" :style="{ backgroundColor: ws.color }"></span>
+                {{ ws.label }}
+              </button>
+            </div>
           </div>
 
           <!-- Product (wenn nötig) -->
@@ -237,7 +293,7 @@ async function deleteAction() {
                 placeholder="Produkt suchen..."
                 @input="searchProducts"
               />
-              <div v-if="productResults.length" class="absolute z-10 w-full mt-1 bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded shadow-lg max-h-40 overflow-y-auto">
+              <div v-if="productResults.length" class="absolute z-[60] w-full mt-1 bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded shadow-lg max-h-40 overflow-y-auto">
                 <div
                   v-for="p in productResults"
                   :key="p.id"
@@ -261,17 +317,20 @@ async function deleteAction() {
           </div>
 
           <!-- Payload: Data Change -->
-          <div v-if="form.action_type === 'data_change' && form.payload.attributes">
-            <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">Attribute</label>
-            <div v-for="(attr, idx) in form.payload.attributes" :key="idx" class="flex gap-2 mb-2 items-center">
-              <select v-model="attr.attribute_id" class="pim-input text-xs flex-1">
-                <option value="">— Attribut wählen —</option>
-                <option v-for="a in availableAttributes" :key="a.id" :value="a.id">{{ a.label || a.code }}</option>
-              </select>
-              <input v-model="attr.value_string" type="text" class="pim-input text-xs flex-1" placeholder="Neuer Wert" />
-              <button v-if="form.payload.attributes.length > 1" @click="removeAttribute(idx)" class="p-1 text-[var(--color-text-tertiary)] hover:text-[var(--color-error)]">
-                <X class="w-3 h-3" />
-              </button>
+          <div v-if="form.action_type === 'data_change'">
+            <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">Attribute <span class="font-normal text-[var(--color-text-tertiary)]">(optional)</span></label>
+            <div v-if="form.payload.attributes && form.payload.attributes.length > 0">
+              <div v-for="(attr, idx) in form.payload.attributes" :key="idx" class="flex gap-2 mb-2 items-center">
+                <select v-model="attr.attribute_id" class="pim-input text-xs flex-1">
+                  <option value="">— Attribut wählen —</option>
+                  <option v-if="!availableAttributes.length" disabled>Keine Attribute verfügbar</option>
+                  <option v-for="a in availableAttributes" :key="a.id" :value="a.id">{{ a.label || a.code }}</option>
+                </select>
+                <input v-model="attr.value_string" type="text" class="pim-input text-xs flex-1" placeholder="Neuer Wert" />
+                <button @click="removeAttribute(idx)" class="p-1 text-[var(--color-text-tertiary)] hover:text-[var(--color-error)]">
+                  <X class="w-3 h-3" />
+                </button>
+              </div>
             </div>
             <button @click="addAttribute" class="text-xs text-[var(--color-text-link)] hover:underline flex items-center gap-1">
               <Plus class="w-3 h-3" /> Attribut hinzufügen
@@ -292,7 +351,7 @@ async function deleteAction() {
         <div class="flex items-center justify-between p-4 border-t border-[var(--color-border)]">
           <div>
             <button
-              v-if="isEdit && editAction?.status === 'pending'"
+              v-if="isEdit && editAction?.status !== 'processing'"
               class="pim-btn text-xs"
               :class="confirmDelete ? 'pim-btn-danger' : 'pim-btn-ghost text-[var(--color-error)]'"
               @click="deleteAction"

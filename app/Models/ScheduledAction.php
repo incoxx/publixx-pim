@@ -19,6 +19,7 @@ class ScheduledAction extends Model
         'action_type',
         'scheduled_at',
         'status',
+        'workflow_status',
         'product_id',
         'product_ids',
         'payload',
@@ -27,6 +28,7 @@ class ScheduledAction extends Model
         'color',
         'created_by',
         'updated_by',
+        'assigned_to',
     ];
 
     protected function casts(): array
@@ -49,6 +51,11 @@ class ScheduledAction extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function assignee(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'assigned_to');
     }
 
     // --- Scopes ---
