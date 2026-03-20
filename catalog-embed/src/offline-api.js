@@ -20,15 +20,15 @@ import { generateProductPdf, generateWishlistPdf } from './pdf-generator.js'
 export function createOfflineApi(dataPath, options = {}) {
   const basePath = dataPath.replace(/\/+$/, '')
 
-  // In-memory product stores (two-tier)
+  // In-memory product store
   let _primaryProducts = null   // Hierarchy products (loaded eagerly)
-  let _relationsProducts = null // Relations-only products (loaded on demand)
-  let _productIndex = null      // { totalProducts, chunkSize, chunks, relations? }
+  let _searchProducts = null    // Non-hierarchy products (loaded on first search)
+  let _productIndex = null      // { totalProducts, chunkSize, chunks, relationDetailMap? }
   let _settings = null
   let _categories = null
   let _facets = null
   let _primaryPromise = null
-  let _relationsPromise = null
+  let _searchPromise = null
 
   async function fetchJson(path) {
     const resp = await fetch(`${basePath}/${path}`)
@@ -71,49 +71,53 @@ export function createOfflineApi(dataPath, options = {}) {
   }
 
   /**
-   * Load relations-only product chunks into memory (lazy, on first need).
-   * These are products without hierarchy — only reachable via product relations.
+   * Load search-only products (non-hierarchy) from search-index chunks.
+   * Called lazily on first search query.
    */
-  async function loadRelationsProducts() {
-    if (_relationsProducts) return _relationsProducts
-    if (_relationsPromise) return _relationsPromise
+  async function loadSearchProducts() {
+    if (_searchProducts) return _searchProducts
+    if (_searchPromise) return _searchPromise
 
-    _relationsPromise = (async () => {
-      if (!_productIndex) {
-        _productIndex = await fetchJson('products/index.json')
-      }
-      const relInfo = _productIndex.relations
-      if (!relInfo || !relInfo.chunks || relInfo.chunks.length === 0) {
-        _relationsProducts = []
-        return _relationsProducts
-      }
-
-      const products = []
-      const batchSize = 4
-      for (let i = 0; i < relInfo.chunks.length; i += batchSize) {
-        const batch = relInfo.chunks.slice(i, i + batchSize)
-        const results = await Promise.all(
-          batch.map(chunkFile => fetchJson(`products-relations/${chunkFile}`))
-        )
-        for (const chunkData of results) {
-          products.push(...chunkData)
+    _searchPromise = (async () => {
+      try {
+        const searchIndex = await fetchJson('search-index/index.json')
+        const { chunks } = searchIndex
+        if (!chunks || chunks.length === 0) {
+          _searchProducts = []
+          return _searchProducts
         }
-      }
 
-      _relationsProducts = products
-      return _relationsProducts
+        const products = []
+        const batchSize = 4
+        for (let i = 0; i < chunks.length; i += batchSize) {
+          const batch = chunks.slice(i, i + batchSize)
+          const results = await Promise.all(
+            batch.map(chunkFile => fetchJson(`search-index/${chunkFile}`))
+          )
+          for (const chunkData of results) {
+            products.push(...chunkData)
+          }
+        }
+
+        _searchProducts = products
+        return _searchProducts
+      } catch {
+        // search-index may not exist in older exports
+        _searchProducts = []
+        return _searchProducts
+      }
     })()
 
-    return _relationsPromise
+    return _searchPromise
   }
 
   /**
-   * Load all products (primary + relations). Used for search.
+   * Load all products for search: primary (hierarchy) + search-index (non-hierarchy).
    */
   async function loadAllProducts() {
     const primary = await loadPrimaryProducts()
-    const relations = await loadRelationsProducts()
-    return primary.concat(relations)
+    const search = await loadSearchProducts()
+    return primary.concat(search)
   }
 
   // ID → product lookup map (built lazily)
@@ -128,21 +132,13 @@ export function createOfflineApi(dataPath, options = {}) {
   }
 
   /**
-   * Find a product by ID across both tiers.
+   * Find a product by ID in the primary products.
+   * Returns null if not found (product may still have a detail JSON via relationDetailMap).
    */
   async function findProductById(id) {
     const primary = await loadPrimaryProducts()
     const map = getProductMap(primary)
-    const found = map.get(id)
-    if (found) return found
-
-    // Check relations (lazy load)
-    const relations = await loadRelationsProducts()
-    // Extend map with relations on first miss
-    if (relations.length > 0 && !map.has(relations[0]?.id)) {
-      for (const p of relations) map.set(p.id, p)
-    }
-    return map.get(id)
+    return map.get(id) || null
   }
 
   /**
@@ -272,7 +268,7 @@ export function createOfflineApi(dataPath, options = {}) {
       let filtered
 
       if (isSearching) {
-        // Search all products (primary + relations, lazy-loads relations on first search)
+        // Search across ALL products (hierarchy + search-index, lazy-loads search index on first use)
         const allProducts = await loadAllProducts()
         filtered = filterBySearch(allProducts, opts.search)
       } else {
@@ -310,10 +306,31 @@ export function createOfflineApi(dataPath, options = {}) {
 
     async getProduct(id, opts = {}) {
       try {
-        // Look up detail subdirectory from primary or relations index
+        // 1. Check primary (hierarchy) products
         const product = await findProductById(id)
-        const bucket = product?._dd ?? 0
-        return await fetchJson(`products-detail/${bucket}/${id}.json`)
+        if (product) {
+          const bucket = product._dd ?? 0
+          return await fetchJson(`products-detail/${bucket}/${id}.json`)
+        }
+
+        // 2. Check search index products (may have _dd from export)
+        if (_searchProducts) {
+          const searchProduct = _searchProducts.find(p => p.id === id)
+          if (searchProduct && searchProduct._dd != null) {
+            return await fetchJson(`products-detail/${searchProduct._dd}/${id}.json`)
+          }
+        }
+
+        // 3. Fall back to relationDetailMap (for relation-only products)
+        if (!_productIndex) {
+          _productIndex = await fetchJson('products/index.json')
+        }
+        const bucket = _productIndex.relationDetailMap?.[id]
+        if (bucket != null) {
+          return await fetchJson(`products-detail/${bucket}/${id}.json`)
+        }
+
+        throw new Error('Produkt nicht gefunden')
       } catch {
         throw new Error('Produkt nicht gefunden')
       }
