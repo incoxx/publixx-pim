@@ -1,17 +1,21 @@
 <script setup>
 import { useAuthStore } from '@/stores/auth'
+import { useTabStore } from '@/stores/tabs'
 import { useLocaleStore } from '@/stores/locale'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { computed } from 'vue'
-import { Command, Globe, LogOut, Menu, User } from 'lucide-vue-next'
+import { Command, Globe, LogOut, Menu, Pin, PinOff, User } from 'lucide-vue-next'
 
 const authStore = useAuthStore()
+const tabStore = useTabStore()
 const localeStore = useLocaleStore()
 const { t, locale: i18nLocale } = useI18n()
 const route = useRoute()
 
 const pageTitle = computed(() => route.meta.title || '')
+const isPinned = computed(() => tabStore.isRoutePinned(route))
+const canPin = computed(() => route.name && route.name !== 'login' && route.name !== 'dashboard')
 
 function switchLocale(code) {
   localeStore.setUiLocale(code)
@@ -30,6 +34,16 @@ function switchLocale(code) {
         <Menu class="w-5 h-5" :stroke-width="1.75" />
       </button>
       <h1 class="text-sm font-semibold text-[var(--color-text-primary)]">{{ pageTitle }}</h1>
+      <button
+        v-if="canPin"
+        class="pim-btn pim-btn-ghost p-1 rounded"
+        :class="isPinned ? 'text-[var(--color-primary)]' : 'text-[var(--color-text-tertiary)]'"
+        :title="isPinned ? 'Tab entfernen' : 'Als Tab anheften'"
+        @click="tabStore.pinCurrentRoute(route)"
+      >
+        <Pin v-if="!isPinned" class="w-3.5 h-3.5" :stroke-width="1.75" />
+        <PinOff v-else class="w-3.5 h-3.5" :stroke-width="1.75" />
+      </button>
     </div>
 
     <!-- Right: Actions -->

@@ -4,6 +4,7 @@ defineOptions({ name: 'ProductDetailView' })
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useProductStore } from '@/stores/products'
+import { useTabStore } from '@/stores/tabs'
 import { useAuthStore } from '@/stores/auth'
 import { useLocaleStore } from '@/stores/locale'
 import { useI18n } from 'vue-i18n'
@@ -35,6 +36,7 @@ import PdfTemplatePickerModal from '@/components/pdf-templates/PdfTemplatePicker
 const route = useRoute()
 const router = useRouter()
 const store = useProductStore()
+const tabStore = useTabStore()
 const authStore = useAuthStore()
 const localeStore = useLocaleStore()
 const { t } = useI18n()
@@ -1673,6 +1675,10 @@ watch(tabs, (newTabs) => {
 
 onMounted(async () => {
   await store.fetchOne(route.params.id)
+  // Update tab title with SKU instead of UUID
+  if (product.value?.sku) {
+    tabStore.updateTabTitle(route, `Produkt: ${product.value.sku}`)
+  }
   loadAttributeData()
   loadHierarchies()
   loadManufacturers()
@@ -1738,6 +1744,10 @@ watch(() => route.params.id, async (newId, oldId) => {
 
   // Reload product/variant data
   await store.fetchOne(newId)
+  // Update tab title with SKU
+  if (product.value?.sku) {
+    tabStore.updateTabTitle(route, `Produkt: ${product.value.sku}`)
+  }
   loadAttributeData()
   loadHierarchies()
   // If variant, load parent's inheritance rules

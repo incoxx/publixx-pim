@@ -614,7 +614,7 @@ onMounted(() => {
       <!-- All items -->
       <button
         class="w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors"
-        :class="!selectedFolderId ? 'bg-[var(--color-primary-light)] text-[var(--color-primary)]' : 'hover:bg-[var(--color-bg)]'"
+        :class="!selectedFolderId ? 'bg-[var(--color-bg)] text-[var(--color-text-primary)] font-medium' : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg)]'"
         @click="selectedFolderId = null; sidebarOpen = false"
       >
         <FolderOpen class="w-3.5 h-3.5" :stroke-width="1.75" />
