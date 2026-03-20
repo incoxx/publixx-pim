@@ -269,7 +269,17 @@ export const useCatalogStore = defineStore('catalog', () => {
   // Facets
   async function fetchFacets() {
     try {
-      const { data } = await catalogApi.getFacets({ lang: locale.value })
+      const opts = { lang: locale.value }
+      // Pass active filters so facet counts reflect current selection
+      if (Object.keys(activeFilters).length > 0) {
+        opts.filters = { ...activeFilters }
+      }
+      // Pass category so facet counts respect category selection
+      if (selectedCategoryId.value) {
+        opts.category = selectedCategoryId.value
+        opts.hierarchyType = hierarchyType.value
+      }
+      const { data } = await catalogApi.getFacets(opts)
       facets.value = data.facets || []
     } catch (e) {
       console.warn('Failed to load facets:', e.message)

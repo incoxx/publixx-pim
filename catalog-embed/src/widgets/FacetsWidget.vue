@@ -27,6 +27,7 @@ onMounted(() => {
 })
 
 watch(() => state.locale, () => actions.fetchFacets())
+watch(() => state.selectedCategoryId, () => actions.fetchFacets())
 
 function toggle(id) { collapsed.value[id] = !collapsed.value[id] }
 function isCollapsed(id) { return !!collapsed.value[id] }
@@ -48,6 +49,7 @@ function toggleValue(attrId, valId) {
   if (current.length === 0) actions.clearFilter(attrId)
   else actions.setFilter(attrId, current.join(','))
   actions.fetchProducts()
+  actions.fetchFacets()
 }
 
 function isSelected(attrId, valId) {
@@ -59,6 +61,7 @@ function toggleBool(attrId) {
   if (state.activeFilters[attrId] === '1') actions.clearFilter(attrId)
   else actions.setFilter(attrId, '1')
   actions.fetchProducts()
+  actions.fetchFacets()
 }
 
 // Range
@@ -73,6 +76,7 @@ function applyRange(attrId, range) {
   if (!range.min && !range.max) actions.clearFilter(attrId)
   else actions.setFilter(attrId, `${range.min}:${range.max}`)
   actions.fetchProducts()
+  actions.fetchFacets()
 }
 
 function setMin(attrId, val) { applyRange(attrId, { ...getRangeVal(attrId), min: val }) }
@@ -103,6 +107,7 @@ function facetCount(attrId) {
 function clearAll() {
   actions.clearAllFilters()
   actions.fetchProducts()
+  actions.fetchFacets()
 }
 </script>
 

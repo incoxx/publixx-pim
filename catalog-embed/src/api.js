@@ -181,11 +181,17 @@ export const catalogApi = {
 
   async getFacets(options = {}) {
     const path = `/catalog/facets${buildQuery(options)}`
-    const cached = getCached(path)
-    if (cached) return cached
+    // Skip cache when filters are active — counts change with each selection
+    const hasFilters = options.filters && Object.keys(options.filters).length > 0
+    if (!hasFilters) {
+      const cached = getCached(path)
+      if (cached) return cached
+    }
     const resp = await request(path)
     const data = await resp.json()
-    setCache(path, data)
+    if (!hasFilters) {
+      setCache(path, data)
+    }
     return data
   },
 

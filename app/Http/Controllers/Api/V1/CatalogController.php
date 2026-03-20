@@ -1050,6 +1050,57 @@ class CatalogController extends BaseController
             ->where('product_type_ref', 'product')
             ->select('id');
 
+        // Category filter — restrict facet counts to selected category
+        $categoryId = $request->query('category');
+        $hierarchyType = $request->query('hierarchy_type', 'master');
+        $categoryProductIds = null;
+
+        if ($categoryId) {
+            $node = HierarchyNode::find($categoryId);
+            if ($node) {
+                $descendantIds = HierarchyNode::where('hierarchy_id', $node->hierarchy_id)
+                    ->where('path', 'like', $node->path . '%')
+                    ->pluck('id')
+                    ->toArray();
+
+                if ($hierarchyType === 'output') {
+                    $categoryProductIds = OutputHierarchyProductAssignment::whereIn('hierarchy_node_id', $descendantIds)
+                        ->pluck('product_id')
+                        ->toArray();
+                } else {
+                    $categoryProductIds = Product::whereIn('master_hierarchy_node_id', $descendantIds)
+                        ->pluck('id')
+                        ->toArray();
+                }
+            }
+        } else {
+            // "Nur verknüpfte Produkte" – restrict to products in the configured hierarchy
+            $linkedOnly = !empty($themePayload['catalog_linked_products_only']);
+            $settingsHierarchyId = $themePayload['hierarchy_id'] ?? null;
+
+            if ($linkedOnly && $settingsHierarchyId) {
+                $hierarchy = Hierarchy::find($settingsHierarchyId);
+                if ($hierarchy) {
+                    $allNodeIds = HierarchyNode::where('hierarchy_id', $hierarchy->id)->pluck('id');
+                    if ($hierarchy->hierarchy_type === 'output') {
+                        $categoryProductIds = OutputHierarchyProductAssignment::whereIn('hierarchy_node_id', $allNodeIds)
+                            ->pluck('product_id')
+                            ->toArray();
+                    } else {
+                        $categoryProductIds = Product::whereIn('master_hierarchy_node_id', $allNodeIds)
+                            ->pluck('id')
+                            ->toArray();
+                    }
+                }
+            }
+        }
+
+        // Parse active filters from request
+        $filters = $request->query('filters', []);
+        if (!is_array($filters)) {
+            $filters = [];
+        }
+
         $facets = [];
 
         foreach ($facetAttributeIds as $attrId) {
@@ -1061,8 +1112,55 @@ class CatalogController extends BaseController
             $label = $lang === 'en' && $attr->name_en ? $attr->name_en : ($attr->name_de ?: $attr->technical_name);
             $dataType = $attr->data_type;
 
+            // Build filtered product subquery: apply all filters EXCEPT the current facet's own filter.
+            // This way, selecting values in facet A updates counts in facets B/C/D,
+            // but facet A still shows all its available values.
+            $filteredProductQuery = clone $activeProductQuery;
+
+            if ($categoryProductIds !== null) {
+                $filteredProductQuery->whereIn('id', $categoryProductIds);
+            }
+
+            $otherFilters = array_diff_key($filters, [$attrId => true]);
+            if (!empty($otherFilters)) {
+                foreach ($otherFilters as $filterAttrId => $filterValue) {
+                    if (!is_string($filterAttrId) && !is_int($filterAttrId)) {
+                        continue;
+                    }
+                    if (empty($filterValue)) {
+                        continue;
+                    }
+
+                    $filteredProductQuery->whereIn('id', function ($sub) use ($filterAttrId, $filterValue) {
+                        $sub->select('product_id')
+                            ->from('product_attribute_values')
+                            ->where('attribute_id', $filterAttrId);
+
+                        if (str_contains((string) $filterValue, ':')) {
+                            [$min, $max] = explode(':', (string) $filterValue, 2);
+                            if ($min !== '') {
+                                $sub->where('value_number', '>=', (float) $min);
+                            }
+                            if ($max !== '') {
+                                $sub->where('value_number', '<=', (float) $max);
+                            }
+                        } elseif ($filterValue === '0' || $filterValue === '1') {
+                            $sub->where('value_flag', '=', $filterValue === '1');
+                        } else {
+                            $values = array_filter(explode(',', (string) $filterValue));
+                            if (!empty($values)) {
+                                $sub->where(function ($q) use ($values) {
+                                    $q->whereIn('value_selection_id', $values)
+                                      ->orWhereIn('value_string', $values);
+                                });
+                            }
+                        }
+                    });
+                }
+            }
+
             $baseQuery = ProductAttributeValue::where('attribute_id', $attrId)
-                ->whereIn('product_id', $activeProductQuery);
+                ->whereIn('product_id', $filteredProductQuery);
 
             if (in_array($dataType, ['ValueList', 'Selection', 'Dictionary'])) {
                 // Get distinct value_list_entry values with counts

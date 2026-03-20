@@ -183,7 +183,16 @@ function createStore() {
 
     async fetchFacets() {
       try {
-        const data = await _api.getFacets({ lang: state.locale })
+        const opts = { lang: state.locale }
+        // Pass active filters so facet counts reflect current selection
+        if (Object.keys(state.activeFilters).length > 0) {
+          opts.filters = { ...state.activeFilters }
+        }
+        // Pass category so facet counts respect category selection
+        if (state.selectedCategoryId) {
+          opts.category = state.selectedCategoryId
+        }
+        const data = await _api.getFacets(opts)
         state.facets = data.facets || []
       } catch (e) {
         console.warn('[PublixxCatalog] Facets load failed:', e.message)
