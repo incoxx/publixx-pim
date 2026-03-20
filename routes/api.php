@@ -811,9 +811,9 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
 
         // OAuth Flow
         Route::get('/{type}/authorize', [ConnectorController::class, 'startAuthorization'])
-            ->where('type', '[a-z_]+');
+            ->where('type', '[a-z0-9_-]+');
         Route::post('/{type}/callback', [ConnectorController::class, 'callback'])
-            ->where('type', '[a-z_]+');
+            ->where('type', '[a-z0-9_-]+');
 
         // Asset-Sync
         Route::post('/connections/{connection}/sync-media', [ConnectorController::class, 'syncMedia']);
