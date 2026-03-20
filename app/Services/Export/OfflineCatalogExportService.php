@@ -182,7 +182,7 @@ class OfflineCatalogExportService
             $relationDetailMap = [];
             if (!$cancelled) {
                 // Count remaining products (all active minus already exported)
-                $remainingQuery = $this->buildProductQuery($themePayload)
+                $remainingQuery = $this->buildBaseProductQuery()
                     ->whereNotIn('id', $exportedProductIds);
                 $remainingCount = $remainingQuery->count();
 
@@ -207,7 +207,7 @@ class OfflineCatalogExportService
                             break;
                         }
 
-                        $products = $this->buildProductQuery($themePayload)
+                        $products = $this->buildBaseProductQuery()
                             ->whereNotIn('id', $exportedProductIds)
                             ->with([
                                 'searchIndex',
@@ -271,7 +271,7 @@ class OfflineCatalogExportService
                 throw new \RuntimeException("Verzeichnis konnte nicht erstellt werden: {$searchIndexDir}");
             }
 
-            $allProductsQuery = $this->buildProductQuery($themePayload);
+            $allProductsQuery = $this->buildBaseProductQuery();
             $allProductsCount = $allProductsQuery->count();
             $searchOffset = 0;
             $searchChunkIndex = 0;
@@ -288,7 +288,7 @@ class OfflineCatalogExportService
                     break;
                 }
 
-                $products = $this->buildProductQuery($themePayload)
+                $products = $this->buildBaseProductQuery()
                     ->with(['searchIndex'])
                     ->orderBy('id')
                     ->skip($searchOffset)
@@ -524,8 +524,7 @@ class OfflineCatalogExportService
 
     private function buildProductQuery(array $themePayload): \Illuminate\Database\Eloquent\Builder
     {
-        $query = Product::where('status', 'active')
-            ->where('product_type_ref', 'product');
+        $query = $this->buildBaseProductQuery();
 
         // Nur verknüpfte Produkte, wenn konfiguriert
         $linkedOnly = !empty($themePayload['catalog_linked_products_only']);
@@ -551,6 +550,16 @@ class OfflineCatalogExportService
         }
 
         return $query->orderBy('sku');
+    }
+
+    /**
+     * Base query for ALL active products — no hierarchy/linked filter.
+     * Used for search index and detail-only exports.
+     */
+    private function buildBaseProductQuery(): \Illuminate\Database\Eloquent\Builder
+    {
+        return Product::where('status', 'active')
+            ->where('product_type_ref', 'product');
     }
 
     private function loadProductChunk(array $themePayload, string $lang, int $offset, int $limit): Collection
