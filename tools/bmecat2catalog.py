@@ -12,9 +12,8 @@ The script produces:
     output_dir/
       data/
         products/
-          index.json
+          index.json          (primary index — hierarchy products)
           chunk-0.json
-          chunk-1.json
           ...
         products-detail/
           0/
@@ -23,7 +22,9 @@ The script produces:
           1/
             ...
         search-index/
-          index.json        (empty — all products in primary chunks)
+          index.json          (non-hierarchy products for search)
+          chunk-0.json
+          ...
         categories.json
         facets.json
         attribute-groups.json
@@ -31,7 +32,6 @@ The script produces:
 """
 
 import argparse
-import hashlib
 import json
 import os
 import re
@@ -51,7 +51,7 @@ def deterministic_uuid(seed: str) -> str:
 
 
 def parse_bmecat(xml_path: str) -> dict:
-    """Parse a BMECAT 2005 XML file and return header + products."""
+    """Parse a BMECAT 2005 XML file and return header + products + hierarchy."""
     tree = ET.parse(xml_path)
     root = tree.getroot()
 
@@ -68,6 +68,45 @@ def parse_bmecat(xml_path: str) -> dict:
         "supplier_name": _text(supplier_el, "bme:SUPPLIER_NAME"),
     }
 
+    # Parse catalog group system (hierarchy)
+    groups = {}
+    group_system_name = None
+    for section in ["bme:T_NEW_CATALOG", "bme:T_UPDATE_PRODUCTS", "bme:T_UPDATE_PRICES"]:
+        container = root.find(section, NS)
+        if container is None:
+            continue
+        group_system = container.find("bme:CATALOG_GROUP_SYSTEM", NS)
+        if group_system is not None:
+            group_system_name = _text(group_system, "bme:GROUP_SYSTEM_NAME")
+            for struct in group_system.findall("bme:CATALOG_STRUCTURE", NS):
+                group_id = _text(struct, "bme:GROUP_ID")
+                if not group_id:
+                    continue
+                parent_id = _text(struct, "bme:PARENT_ID")
+                group_name = _text(struct, "bme:GROUP_NAME")
+                group_order = _text(struct, "bme:GROUP_ORDER")
+                # Some BMEcat files use KEYWORD elements for alternative names
+                groups[group_id] = {
+                    "id": deterministic_uuid(f"group:{group_id}"),
+                    "group_id": group_id,
+                    "name": group_name or group_id,
+                    "parent_id": parent_id if parent_id and parent_id != "0" else None,
+                    "order": int(group_order) if group_order else 999,
+                }
+
+    # Parse product-to-group mappings
+    product_group_map = defaultdict(list)  # sku -> [group_id, ...]
+    for section in ["bme:T_NEW_CATALOG", "bme:T_UPDATE_PRODUCTS", "bme:T_UPDATE_PRICES"]:
+        container = root.find(section, NS)
+        if container is None:
+            continue
+        for mapping in container.findall("bme:PRODUCT_TO_CATALOGGROUP_MAP", NS):
+            sku = _text(mapping, "bme:PROD_ID")
+            group_id = _text(mapping, "bme:CATALOG_GROUP_ID")
+            if sku and group_id:
+                product_group_map[sku].append(group_id)
+
+    # Parse products
     products = []
     for section in ["bme:T_NEW_CATALOG", "bme:T_UPDATE_PRODUCTS", "bme:T_UPDATE_PRICES"]:
         container = root.find(section, NS)
@@ -76,7 +115,13 @@ def parse_bmecat(xml_path: str) -> dict:
         for prod_el in container.findall("bme:PRODUCT", NS):
             products.append(_parse_product(prod_el, header["currency"]))
 
-    return {"header": header, "products": products}
+    return {
+        "header": header,
+        "products": products,
+        "groups": groups,
+        "group_system_name": group_system_name,
+        "product_group_map": dict(product_group_map),
+    }
 
 
 def _text(parent, path: str) -> str | None:
@@ -202,6 +247,64 @@ def _normalize_relation_type(bmecat_type: str) -> str:
     return mapping.get(bmecat_type, bmecat_type)
 
 
+# ─── Hierarchy helpers ────────────────────────────────────────────────────────
+
+def _build_group_tree(groups: dict) -> list:
+    """Build nested category tree from flat group dict. Returns root nodes."""
+    children_map = defaultdict(list)
+    root_nodes = []
+
+    # Sort groups by order
+    sorted_groups = sorted(groups.values(), key=lambda g: g["order"])
+
+    for g in sorted_groups:
+        if g["parent_id"] and g["parent_id"] in groups:
+            children_map[g["parent_id"]].append(g)
+        else:
+            root_nodes.append(g)
+
+    def build_node(g, product_counts):
+        group_id = g["group_id"]
+        node = {
+            "id": g["id"],
+            "name": g["name"],
+            "product_count": product_counts.get(group_id, 0),
+            "children": [],
+        }
+        for child in sorted(children_map.get(group_id, []), key=lambda c: c["order"]):
+            node["children"].append(build_node(child, product_counts))
+        return node
+
+    return root_nodes, children_map, build_node
+
+
+def _get_ancestor_ids(group_id: str, groups: dict) -> list:
+    """Get list of ancestor UUIDs from root to the given group (inclusive)."""
+    path = []
+    current = group_id
+    visited = set()
+    while current and current in groups and current not in visited:
+        visited.add(current)
+        path.append(groups[current]["id"])
+        current = groups[current]["parent_id"]
+    path.reverse()
+    return path
+
+
+def _get_breadcrumb(group_id: str, groups: dict) -> list:
+    """Get breadcrumb list [{id, name}] from root to the given group."""
+    path = []
+    current = group_id
+    visited = set()
+    while current and current in groups and current not in visited:
+        visited.add(current)
+        g = groups[current]
+        path.append({"id": g["id"], "name": g["name"]})
+        current = g["parent_id"]
+    path.reverse()
+    return path
+
+
 # ─── Transform to offline catalog format ─────────────────────────────────────
 
 DETAIL_DIR_SIZE = 1000  # max JSON files per detail subdirectory
@@ -212,27 +315,55 @@ def build_catalog_data(parsed: dict, chunk_size: int, catalog_name: str | None,
     """Transform parsed BMECAT data into the offline catalog directory structure."""
     header = parsed["header"]
     products = parsed["products"]
+    groups = parsed["groups"]
+    product_group_map = parsed["product_group_map"]
 
     # Build SKU lookup for relation name resolution
     sku_lookup = {p["sku"]: p for p in products}
 
-    # Build product list items (for chunks)
-    product_list = []
-    product_details = {}
-    all_features = defaultdict(lambda: defaultdict(int))  # name -> value -> count
-    numeric_features = defaultdict(list)  # name -> [values]
+    # Determine which products have a category assignment
+    sku_to_primary_group = {}
+    for sku, group_ids in product_group_map.items():
+        # Use first assigned group as primary category
+        for gid in group_ids:
+            if gid in groups:
+                sku_to_primary_group[sku] = gid
+                break
 
-    for product_counter, p in enumerate(products):
-        # Determine primary image
-        image_url = None
-        if p["media"]:
-            image_url = p["media"][0]["url"]
+    # Count products per group (for product_count in categories)
+    group_product_counts = defaultdict(int)
+    for sku, gid in sku_to_primary_group.items():
+        group_product_counts[gid] += 1
+
+    # Split products into hierarchy (has group) and non-hierarchy (no group)
+    hierarchy_products = []
+    non_hierarchy_products = []
+    for p in products:
+        if p["sku"] in sku_to_primary_group:
+            hierarchy_products.append(p)
+        else:
+            non_hierarchy_products.append(p)
+
+    # Collect feature stats for facets (from hierarchy products only)
+    all_features = defaultdict(lambda: defaultdict(int))
+    numeric_features = defaultdict(list)
+
+    def _build_product_item(p, detail_bucket):
+        """Build compact chunk item and detail item for a product."""
+        # Primary image
+        image_url = p["media"][0]["url"] if p["media"] else None
 
         # Primary price
         price = p["prices"][0]["amount"] if p["prices"] else None
         currency = p["prices"][0]["currency"] if p["prices"] else header["currency"]
 
-        # Card attributes: first 4 non-Kurzbeschreibung features
+        # Category info
+        primary_group_id = sku_to_primary_group.get(p["sku"])
+        cat_uuid = groups[primary_group_id]["id"] if primary_group_id else None
+        cat_name = groups[primary_group_id]["name"] if primary_group_id else None
+        cats = _get_ancestor_ids(primary_group_id, groups) if primary_group_id else []
+
+        # Card attributes
         card_attrs = []
         for feat in p["features"]:
             if feat["name"] == "Kurzbeschreibung":
@@ -249,13 +380,12 @@ def build_catalog_data(parsed: dict, chunk_size: int, catalog_name: str | None,
             if len(card_attrs) >= 4:
                 break
 
-        # Facet values (compact format) + collect for facets.json
+        # Facet values
         facet_values = {}
         for feat in p["features"]:
             if feat["name"] == "Kurzbeschreibung":
                 continue
             attr_id = deterministic_uuid(f"attr:{feat['name']}")
-            # Try to detect numeric values
             try:
                 num_val = float(feat["value"])
                 facet_values[attr_id] = num_val
@@ -276,20 +406,20 @@ def build_catalog_data(parsed: dict, chunk_size: int, catalog_name: str | None,
             searchable_parts.append(feat["value"])
         searchable_text = " ".join(filter(None, searchable_parts)).lower()
 
-        detail_bucket = product_counter // DETAIL_DIR_SIZE
-
-        # Compact chunk format — only essential fields, optional fields omitted if empty
+        # Compact chunk item
         item = {
             "id": p["id"],
             "sku": p["sku"],
             "name": p["name"],
-            "cat": None,
-            "cats": [],
+            "cat": cat_uuid,
+            "cats": cats,
             "img": image_url,
             "_dd": detail_bucket,
         }
         if p["ean"]:
             item["ean"] = p["ean"]
+        if cat_name:
+            item["cat_name"] = cat_name
         if price is not None:
             item["price"] = price
         if currency != "EUR":
@@ -300,8 +430,6 @@ def build_catalog_data(parsed: dict, chunk_size: int, catalog_name: str | None,
             item["search"] = searchable_text[:200]
         if facet_values:
             item["facets"] = facet_values
-
-        product_list.append(item)
 
         # Full detail
         attrs_detail = []
@@ -335,30 +463,25 @@ def build_catalog_data(parsed: dict, chunk_size: int, catalog_name: str | None,
                 "relation_type_id": deterministic_uuid(f"reltype:{rel['relation_type']}"),
             })
 
-        detail_prices = []
-        for pr in p["prices"]:
-            detail_prices.append({
-                "amount": pr["amount"],
-                "currency": pr["currency"],
-                "price_type": pr["price_type"],
-            })
+        detail_prices = [
+            {"amount": pr["amount"], "currency": pr["currency"], "price_type": pr["price_type"]}
+            for pr in p["prices"]
+        ]
 
-        detail_media = []
-        for m in p["media"]:
-            detail_media.append({
-                "id": m["id"],
-                "file_name": m["file_name"],
-                "mime_type": m["mime_type"],
-                "url": m["url"],
-            })
+        detail_media = [
+            {"id": m["id"], "file_name": m["file_name"], "mime_type": m["mime_type"], "url": m["url"]}
+            for m in p["media"]
+        ]
 
-        product_details[p["id"]] = {
+        breadcrumb = _get_breadcrumb(primary_group_id, groups) if primary_group_id else []
+
+        detail = {
             "id": p["id"],
             "sku": p["sku"],
             "ean": p["ean"],
             "name": p["name"],
             "description": p["description"],
-            "breadcrumb": [],
+            "breadcrumb": breadcrumb,
             "attributes": attrs_detail,
             "description_attributes": [],
             "media": detail_media,
@@ -367,7 +490,22 @@ def build_catalog_data(parsed: dict, chunk_size: int, catalog_name: str | None,
             "variants": [],
         }
 
-    # Build chunks
+        return item, detail
+
+    # ── Phase 2a: Primary chunks (hierarchy products) ─────────────────────────
+
+    product_list = []
+    product_details = {}
+    detail_counter = 0
+
+    for p in hierarchy_products:
+        bucket = detail_counter // DETAIL_DIR_SIZE
+        item, detail = _build_product_item(p, bucket)
+        product_list.append(item)
+        product_details[p["id"]] = detail
+        detail_counter += 1
+
+    # Build primary chunks
     chunks = []
     for i in range(0, len(product_list), chunk_size):
         chunk_name = f"chunk-{len(chunks)}.json"
@@ -376,7 +514,58 @@ def build_catalog_data(parsed: dict, chunk_size: int, catalog_name: str | None,
             "data": product_list[i : i + chunk_size],
         })
 
-    total_detail_buckets = (len(product_list) - 1) // DETAIL_DIR_SIZE + 1 if product_list else 0
+    total_detail_buckets = (detail_counter - 1) // DETAIL_DIR_SIZE + 1 if detail_counter > 0 else 0
+
+    # ── Phase 2b: Detail JSONs for non-hierarchy products ─────────────────────
+
+    relation_detail_map = {}
+    for p in non_hierarchy_products:
+        bucket = detail_counter // DETAIL_DIR_SIZE
+        _, detail = _build_product_item(p, bucket)
+        product_details[p["id"]] = detail
+        relation_detail_map[p["id"]] = bucket
+        detail_counter += 1
+
+    # Update total_detail_buckets after adding non-hierarchy products
+    total_detail_buckets = (detail_counter - 1) // DETAIL_DIR_SIZE + 1 if detail_counter > 0 else 0
+
+    # ── Phase 2c: Search-index for non-hierarchy products ─────────────────────
+
+    search_items = []
+    for p in non_hierarchy_products:
+        image_url = p["media"][0]["url"] if p["media"] else None
+        searchable_parts = [p["name"], p["sku"], p["ean"], p["description"]]
+        for feat in p["features"]:
+            searchable_parts.append(feat["value"])
+        searchable_text = " ".join(filter(None, searchable_parts)).lower()
+
+        entry = {
+            "id": p["id"],
+            "name": p["name"],
+            "sku": p["sku"],
+        }
+        if p["ean"]:
+            entry["ean"] = p["ean"]
+        if searchable_text:
+            entry["search"] = searchable_text[:300]
+        if image_url:
+            entry["img"] = image_url
+        if p["id"] in relation_detail_map:
+            entry["_dd"] = relation_detail_map[p["id"]]
+
+        search_items.append(entry)
+
+    search_chunks = []
+    search_chunk_size = 2000
+    for i in range(0, len(search_items), search_chunk_size):
+        chunk_name = f"chunk-{len(search_chunks)}.json"
+        search_chunks.append({
+            "name": chunk_name,
+            "data": search_items[i : i + search_chunk_size],
+        })
+
+    # ── Index ─────────────────────────────────────────────────────────────────
+
     index = {
         "totalProducts": len(product_list),
         "chunkSize": chunk_size,
@@ -384,27 +573,38 @@ def build_catalog_data(parsed: dict, chunk_size: int, catalog_name: str | None,
         "detailDirSize": DETAIL_DIR_SIZE,
         "detailBuckets": total_detail_buckets,
     }
+    if relation_detail_map:
+        index["relationDetailMap"] = relation_detail_map
 
-    # Build facets
-    facets = _build_facets(all_features, numeric_features)
+    # ── Categories ────────────────────────────────────────────────────────────
 
-    # Categories (empty — BMECAT doesn't have hierarchy, can be enriched later)
+    root_nodes, children_map, build_node = _build_group_tree(groups)
+    category_nodes = [
+        build_node(g, group_product_counts)
+        for g in sorted(root_nodes, key=lambda g: g["order"])
+    ]
+
     categories = {
         "data": {
             "hierarchy_id": deterministic_uuid("hierarchy:bmecat"),
-            "hierarchy_name": catalog_name or header["catalog_name"] or "Katalog",
+            "hierarchy_name": catalog_name or parsed["group_system_name"] or header["catalog_name"] or "Katalog",
             "type": "master",
-            "nodes": [],
+            "nodes": category_nodes,
         }
     }
 
-    # Settings
+    # ── Facets (from hierarchy products only) ─────────────────────────────────
+
+    facets = _build_facets(all_features, numeric_features)
+
+    # ── Settings ──────────────────────────────────────────────────────────────
+
     settings = {
         "data": {
             "catalog_name": catalog_name or header["catalog_name"] or "Katalog",
             "primary_color": primary_color,
             "card_show_sku": True,
-            "card_show_category": False,
+            "card_show_category": True,
             "card_show_price": True,
             "catalog_compare_enabled": True,
             "catalog_compare_max_products": 4,
@@ -419,10 +619,17 @@ def build_catalog_data(parsed: dict, chunk_size: int, catalog_name: str | None,
     return {
         "index": index,
         "chunks": chunks,
+        "search_chunks": search_chunks,
         "product_details": product_details,
         "categories": categories,
         "facets": facets,
         "settings": settings,
+        "stats": {
+            "hierarchy": len(hierarchy_products),
+            "non_hierarchy": len(non_hierarchy_products),
+            "total": len(products),
+            "groups": len(groups),
+        },
     }
 
 
@@ -515,29 +722,44 @@ def write_output(catalog_data: dict, output_dir: str, images_dir: str | None):
     # products/index.json
     _write_json(os.path.join(products_dir, "index.json"), catalog_data["index"])
 
-    # products/chunk-*.json
+    # products/chunk-*.json (primary — hierarchy products)
     for chunk in catalog_data["chunks"]:
         _write_json(os.path.join(products_dir, chunk["name"]), chunk["data"])
 
-    # products-detail/{bucket}/{id}.json — max DETAIL_DIR_SIZE files per subdirectory
+    # products-detail/{bucket}/{id}.json — ALL products
+    # First: hierarchy products (in chunk order)
+    detail_counter = 0
     product_list = []
     for chunk in catalog_data["chunks"]:
         product_list.extend(chunk["data"])
 
-    for counter, item in enumerate(product_list):
+    for item in product_list:
         pid = item["id"]
         if pid not in catalog_data["product_details"]:
             continue
-        bucket = counter // DETAIL_DIR_SIZE
+        bucket = detail_counter // DETAIL_DIR_SIZE
+        bucket_dir = os.path.join(detail_dir, str(bucket))
+        os.makedirs(bucket_dir, exist_ok=True)
+        _write_json(os.path.join(bucket_dir, f"{pid}.json"), catalog_data["product_details"][pid])
+        detail_counter += 1
+
+    # Then: non-hierarchy products (detail only, no chunk entry)
+    relation_detail_map = catalog_data["index"].get("relationDetailMap", {})
+    for pid, bucket in relation_detail_map.items():
+        if pid not in catalog_data["product_details"]:
+            continue
         bucket_dir = os.path.join(detail_dir, str(bucket))
         os.makedirs(bucket_dir, exist_ok=True)
         _write_json(os.path.join(bucket_dir, f"{pid}.json"), catalog_data["product_details"][pid])
 
-    # search-index/index.json — empty for BMEcat (all products are in primary chunks)
-    _write_json(os.path.join(search_index_dir, "index.json"), {
-        "totalProducts": 0,
-        "chunks": [],
-    })
+    # search-index/ (non-hierarchy products for search)
+    search_index_meta = {
+        "totalProducts": sum(len(c["data"]) for c in catalog_data["search_chunks"]),
+        "chunks": [c["name"] for c in catalog_data["search_chunks"]],
+    }
+    _write_json(os.path.join(search_index_dir, "index.json"), search_index_meta)
+    for chunk in catalog_data["search_chunks"]:
+        _write_json(os.path.join(search_index_dir, chunk["name"]), chunk["data"])
 
     # categories.json
     _write_json(os.path.join(data_dir, "categories.json"), catalog_data["categories"])
@@ -561,10 +783,12 @@ def write_output(catalog_data: dict, output_dir: str, images_dir: str | None):
                 if os.path.isfile(src):
                     shutil.copy2(src, os.path.join(media_dir, m["file_name"]))
 
-    total = catalog_data["index"]["totalProducts"]
-    chunks = len(catalog_data["chunks"])
+    stats = catalog_data["stats"]
     facets = len(catalog_data["facets"]["facets"])
-    print(f"[OK] {total} Produkte in {chunks} Chunk(s), {facets} Facetten")
+    print(f"[OK] {stats['hierarchy']} Hierarchie-Produkte in {len(catalog_data['chunks'])} Chunk(s)")
+    if stats["non_hierarchy"] > 0:
+        print(f"[OK] {stats['non_hierarchy']} weitere Produkte im Such-Index ({len(catalog_data['search_chunks'])} Chunk(s))")
+    print(f"[OK] {stats['total']} Produkte gesamt, {stats['groups']} Kategorien, {facets} Facetten")
     print(f"[OK] Output: {output_dir}")
 
 
@@ -601,6 +825,10 @@ def main():
     print(f"[OK] {len(parsed['products'])} Produkte aus BMECAT gelesen")
     print(f"     Katalog: {parsed['header']['catalog_name']}")
     print(f"     Lieferant: {parsed['header']['supplier_name']}")
+    if parsed["groups"]:
+        print(f"     Hierarchie: {len(parsed['groups'])} Gruppen")
+        mapped = len(parsed["product_group_map"])
+        print(f"     Zugeordnet: {mapped} Produkte in Gruppen")
 
     print(f"[...] Transformiere in Offline-Katalog Format")
     catalog_data = build_catalog_data(
