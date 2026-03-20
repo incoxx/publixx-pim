@@ -71,6 +71,10 @@ return [
             'name' => 'API-Designer',
             'description' => 'Visueller API-Designer mit JSON-Streaming-Endpoints',
         ],
+        'connectors' => [
+            'name' => 'Connectoren',
+            'description' => 'Externe API-Connectoren (Canva, DeepL, Adobe u.a.)',
+        ],
     ],
 
 ];

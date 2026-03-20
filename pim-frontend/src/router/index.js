@@ -158,6 +158,48 @@ const routes = [
     meta: { title: 'Bericht-Designer' },
   },
   {
+    path: '/connectors',
+    name: 'connector-list',
+    component: () => import('@/views/connectors/ConnectorListView.vue'),
+    meta: { title: 'Connectoren' },
+  },
+  {
+    path: '/connectors/canva',
+    name: 'connector-canva',
+    component: () => import('@/views/connectors/ConnectorCanvaView.vue'),
+    meta: { title: 'Canva' },
+  },
+  {
+    path: '/connectors/deepl',
+    name: 'connector-deepl',
+    component: () => import('@/views/connectors/ConnectorDeepLView.vue'),
+    meta: { title: 'DeepL' },
+  },
+  {
+    path: '/connectors/shopware',
+    name: 'connector-shopware',
+    component: () => import('@/views/connectors/ConnectorShopwareView.vue'),
+    meta: { title: 'Shopware' },
+  },
+  {
+    path: '/connectors/cloudinary',
+    name: 'connector-cloudinary',
+    component: () => import('@/views/connectors/ConnectorCloudinaryView.vue'),
+    meta: { title: 'Cloudinary' },
+  },
+  {
+    path: '/connectors/claude-ai',
+    name: 'connector-claude-ai',
+    component: () => import('@/views/connectors/ConnectorClaudeAIView.vue'),
+    meta: { title: 'Claude AI' },
+  },
+  {
+    path: '/connectors/:id',
+    name: 'connector-connection',
+    component: () => import('@/views/connectors/ConnectorConnectionView.vue'),
+    meta: { title: 'Connector-Verbindung' },
+  },
+  {
     path: '/api-designer',
     name: 'api-designer-list',
     component: () => import('@/views/apiDesigner/ApiDesignerListView.vue'),

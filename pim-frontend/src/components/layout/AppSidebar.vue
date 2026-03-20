@@ -10,7 +10,7 @@ import {
   HelpCircle, PanelLeftClose, PanelLeft, Star, LayoutGrid, Ruler,
   FileJson, FileCode, PlayCircle, FileBarChart, FileText, BookOpen, Link2, Zap, Languages, LayoutTemplate,
   ChevronDown, ChevronRight, GripVertical, Factory, CalendarDays, ScrollText, Globe, Send,
-  LayoutDashboard, ClipboardList, Code, ExternalLink,
+  LayoutDashboard, ClipboardList, Code, ExternalLink, Plug,
 } from 'lucide-vue-next'
 import AnyPimLogo from '@/components/shared/AnyPimLogo.vue'
 
@@ -45,6 +45,25 @@ const sections = computed(() => {
         { icon: FileBarChart, label: () => 'Berichte', to: '/reports', module: 'reports' },
         { icon: FileText, label: () => 'PDF-Vorlagen', to: '/pdf-templates', module: 'pdf_templates' },
         { icon: LayoutTemplate, label: () => 'Katalog-Vorlagen', to: '/catalog-templates' },
+      ],
+    },
+    {
+      key: 'plugins',
+      label: 'Plugins',
+      items: [
+        { icon: Languages, label: () => 'Übersetzung (DeepL)', to: '/connectors/deepl', module: 'connectors' },
+        {
+          key: 'grp-connectors',
+          icon: Plug,
+          label: () => 'Connectoren',
+          module: 'connectors',
+          children: [
+            { icon: Send, label: () => 'Canva', to: '/connectors/canva', module: 'connectors' },
+            { icon: Package, label: () => 'Shopware', to: '/connectors/shopware', module: 'connectors' },
+            { icon: Image, label: () => 'Cloudinary', to: '/connectors/cloudinary', module: 'connectors' },
+            { icon: Zap, label: () => 'Claude AI', to: '/connectors/claude-ai', module: 'connectors' },
+          ],
+        },
       ],
     },
     {

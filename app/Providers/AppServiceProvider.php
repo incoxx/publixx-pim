@@ -67,6 +67,8 @@ use App\Policies\WorkflowStatusPolicy;
 use App\Policies\WorkflowTaskPolicy;
 use App\Models\WebsiteProfile;
 use App\Models\WorkflowTask;
+use App\Models\ConnectorConnection;
+use App\Policies\ConnectorConnectionPolicy;
 use App\Observers\MediaObserver;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
@@ -122,6 +124,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(Workflow::class, WorkflowPolicy::class);
         Gate::policy(WorkflowStatus::class, WorkflowStatusPolicy::class);
         Gate::policy(WorkflowTask::class, WorkflowTaskPolicy::class);
+        Gate::policy(ConnectorConnection::class, ConnectorConnectionPolicy::class);
 
         // ExportPolicy — no model, registered as Gates
         Gate::define('export.view', [ExportPolicy::class, 'viewAny']);
