@@ -7,8 +7,25 @@ import CategorySubtree from './CategorySubtree.vue'
 const { state, actions, getters } = useStore()
 const expandedNodes = ref({})
 
+// Auto-expand root nodes so the first hierarchy level is always visible
+function expandRootNodes() {
+  for (const node of state.categories) {
+    if (node.children && node.children.length) {
+      expandedNodes.value[node.id] = true
+    }
+  }
+}
+
 onMounted(() => {
-  if (state.categories.length === 0) actions.fetchCategories()
+  if (state.categories.length === 0) {
+    actions.fetchCategories()
+  } else {
+    expandRootNodes()
+  }
+})
+
+watch(() => state.categories, (cats) => {
+  if (cats && cats.length) expandRootNodes()
 })
 
 watch(() => state.locale, () => actions.fetchCategories())
