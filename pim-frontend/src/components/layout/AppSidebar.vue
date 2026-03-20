@@ -163,12 +163,12 @@ const sections = computed(() => {
             { icon: ExternalLink, label: () => 'Katalog-Demo', to: '/catalog-embed', external: true },
           ],
         },
+        { icon: Settings, label: () => t('nav.settings'), to: '/settings', permission: 'users.view' },
         {
           key: 'grp-benutzer',
           icon: Users,
           label: () => 'Benutzer & Rollen',
           children: [
-            { icon: Settings, label: () => t('nav.settings'), to: '/settings', permission: 'users.view' },
             { icon: Users, label: () => t('nav.users'), to: '/users', permission: 'users.view' },
             { icon: ScrollText, label: () => 'Benutzer-Audit', to: '/users/audit', permission: 'users.view' },
             { icon: Shield, label: () => 'Rollen', to: '/roles', permission: 'roles.view' },
