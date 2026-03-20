@@ -29,14 +29,15 @@ class ClaudeAITextService
         string $task = 'description',
         array $options = [],
     ): array {
-        $productContext = $this->collectProductContext($product, $language);
+        $attributeFilter = $options['attributes'] ?? null;
+        $productContext = $this->collectProductContext($product, $language, $attributeFilter);
         $prompt = $this->buildPrompt($productContext, $task, $language, $options);
-        $model = $options['model'] ?? config('connectors.claude_ai.model', 'claude-sonnet-4-20250514');
+        $model = $options['model'] ?? config('connectors.claude_ai.model', 'claude-sonnet-4-5-20250514');
         $maxTokens = $options['max_tokens'] ?? config('connectors.claude_ai.max_tokens', 1024);
 
         $response = Http::withHeaders([
             'x-api-key'         => $apiKey,
-            'anthropic-version' => '2023-06-01', // stable version, compatible with all models
+            'anthropic-version' => '2023-06-01',
             'content-type'      => 'application/json',
         ])
             ->timeout(60)
@@ -72,8 +73,10 @@ class ClaudeAITextService
 
     /**
      * Sammelt Produktdaten als Kontext für die KI.
+     *
+     * @param  string[]|null  $attributeFilter  Nur diese technical_names einbeziehen (null = alle)
      */
-    private function collectProductContext(Product $product, string $language): array
+    private function collectProductContext(Product $product, string $language, ?array $attributeFilter = null): array
     {
         $context = [
             'name'  => $product->name,
@@ -82,15 +85,21 @@ class ClaudeAITextService
         ];
 
         // Attribute sammeln
-        $attributes = $product->attributeValues()
+        $query = $product->attributeValues()
             ->with('attribute')
-            ->where('language', $language)
-            ->get();
+            ->where('language', $language);
 
-        foreach ($attributes as $av) {
-            $code = $av->attribute->code ?? null;
-            if ($code) {
-                $context['attributes'][$code] = $this->resolveValue($av);
+        if ($attributeFilter) {
+            $query->whereHas('attribute', function ($q) use ($attributeFilter) {
+                $q->whereIn('technical_name', $attributeFilter);
+            });
+        }
+
+        foreach ($query->get() as $av) {
+            $name = $av->attribute->technical_name ?? null;
+            $label = $av->attribute->name_de ?? $name;
+            if ($name) {
+                $context['attributes'][$label ?? $name] = $this->resolveValue($av);
             }
         }
 
@@ -120,6 +129,12 @@ class ClaudeAITextService
             $taskPrompt = $options['custom_prompt'];
         }
 
+        // Tonalität einbauen
+        $tonality = $options['tonality'] ?? null;
+        if ($tonality) {
+            $taskPrompt .= "\n\nTonalität/Stil: {$tonality}";
+        }
+
         $langName = match ($language) {
             'de' => 'Deutsch',
             'en' => 'Englisch',
@@ -138,9 +153,9 @@ class ClaudeAITextService
 
         if (! empty($context['attributes'])) {
             $contextText .= "\nAttribute:\n";
-            foreach ($context['attributes'] as $code => $value) {
+            foreach ($context['attributes'] as $label => $value) {
                 if (is_string($value) || is_numeric($value)) {
-                    $contextText .= "- {$code}: {$value}\n";
+                    $contextText .= "- {$label}: {$value}\n";
                 }
             }
         }
@@ -155,7 +170,7 @@ class ClaudeAITextService
 
     private function saveGeneratedText(Product $product, string $language, string $attributeCode, string $text): void
     {
-        $attribute = \App\Models\Attribute::where('code', $attributeCode)->first();
+        $attribute = \App\Models\Attribute::where('technical_name', $attributeCode)->first();
         if (! $attribute) {
             return;
         }
