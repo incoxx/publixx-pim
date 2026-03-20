@@ -1116,17 +1116,19 @@
   background: none;
   border: none;
   cursor: pointer;
-  padding: 8px;
+  padding: 10px;
   color: inherit;
   border-radius: var(--pxc-radius);
   transition: background var(--pxc-transition);
+  flex-shrink: 0;
+  margin-right: 4px;
 }
 .pxc-sidebar-toggle:hover {
-  background: rgba(0,0,0,0.05);
+  background: rgba(0,0,0,0.08);
 }
 .pxc-sidebar-toggle svg {
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
 }
 
 /* Overlay */
