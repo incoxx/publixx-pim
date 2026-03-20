@@ -9,7 +9,7 @@ import {
   Upload, Download, Image, Tags, DollarSign, Users, Settings, Shield,
   HelpCircle, PanelLeftClose, PanelLeft, Star, LayoutGrid, Ruler,
   FileJson, FileCode, PlayCircle, FileBarChart, FileText, BookOpen, Link2, Zap, Languages, LayoutTemplate,
-  ChevronDown, ChevronRight, GripVertical, Factory, CalendarDays, ScrollText, Globe,
+  ChevronDown, ChevronRight, GripVertical, Factory, CalendarDays, ScrollText, Globe, Send,
   LayoutDashboard, ClipboardList, Code, ExternalLink,
 } from 'lucide-vue-next'
 import AnyPimLogo from '@/components/shared/AnyPimLogo.vue'
@@ -30,18 +30,21 @@ const sections = computed(() => {
         { icon: LayoutDashboard, label: () => 'Dashboard', to: '/dashboard' },
         { icon: Search, label: () => t('nav.search'), to: '/search' },
         { icon: Package, label: () => t('nav.products'), to: '/products' },
+        { icon: GitBranch, label: () => t('nav.hierarchies'), to: '/hierarchies' },
         { icon: Star, label: () => 'Merkliste', to: '/watchlist' },
         { icon: ClipboardList, label: () => 'Workflow', to: '/workflow' },
-        { icon: GitBranch, label: () => t('nav.hierarchies'), to: '/hierarchies' },
+        { icon: CalendarDays, label: () => 'Planungskalender', to: '/calendar' },
         { divider: true },
         { icon: Image, label: () => t('nav.media'), to: '/media' },
-        { icon: Tags, label: () => t('nav.mediaUsageTypes'), to: '/media-usage-types' },
-        { divider: true },
+      ],
+    },
+    {
+      key: 'publish',
+      label: 'Publish',
+      items: [
         { icon: FileBarChart, label: () => 'Berichte', to: '/reports', module: 'reports' },
         { icon: FileText, label: () => 'PDF-Vorlagen', to: '/pdf-templates', module: 'pdf_templates' },
         { icon: LayoutTemplate, label: () => 'Katalog-Vorlagen', to: '/catalog-templates' },
-        { icon: Code, label: () => 'API-Designer', to: '/api-designer', module: 'api_designer' },
-        { icon: CalendarDays, label: () => 'Planungskalender', to: '/calendar' },
       ],
     },
     {
@@ -81,6 +84,7 @@ const sections = computed(() => {
             { icon: Factory, label: () => t('nav.manufacturers'), to: '/manufacturers' },
             { icon: Layers, label: () => t('nav.productTypes'), to: '/product-types' },
             { icon: Link2, label: () => t('nav.relationTypes'), to: '/relation-types' },
+            { icon: Tags, label: () => t('nav.mediaUsageTypes'), to: '/media-usage-types' },
           ],
         },
         {
@@ -142,6 +146,7 @@ const sections = computed(() => {
           icon: Database,
           label: () => 'System',
           children: [
+            { icon: Code, label: () => 'API-Designer', to: '/api-designer', module: 'api_designer' },
             { icon: Zap, label: () => 'API Tester', to: '/api-tester', permission: 'users.view' },
             { icon: Database, label: () => 'Datenbank', to: '/db', permission: 'users.view' },
             { icon: ScrollText, label: () => 'Journal', to: '/journal', permission: 'users.view' },
@@ -182,6 +187,10 @@ const sections = computed(() => {
 })
 
 function isSectionCollapsed(key) {
+  // Sub-groups (grp-*) default to collapsed; sections default to expanded
+  if (key.startsWith('grp-')) {
+    return authStore.sidebarCollapsedSections[key] !== false
+  }
   return !!authStore.sidebarCollapsedSections[key]
 }
 
