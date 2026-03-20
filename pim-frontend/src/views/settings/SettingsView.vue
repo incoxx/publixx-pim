@@ -486,21 +486,34 @@ async function loadHierarchyNodes(hierarchyId) {
     return
   }
   try {
-    const { data } = await hierarchiesApi.getNodes(hierarchyId)
-    const nodes = data.data || data || []
-    // Build flat list with indentation info from depth
-    const sorted = nodes.sort((a, b) => {
-      if (a.path && b.path) return a.path.localeCompare(b.path)
-      return (a.depth || 0) - (b.depth || 0)
-    })
-    hierarchyNodes.value = sorted.map(n => ({
-      id: n.id,
-      name: n.name_de || n.name_en || n.name || '(ohne Name)',
-      depth: n.depth || 0,
-      is_active: n.is_active,
-    }))
+    const { data } = await hierarchiesApi.getTree(hierarchyId)
+    const tree = data.data || data || []
+    // Flatten tree into a flat list with depth and descendant IDs
+    const flat = []
+    const flatten = (nodes, depth) => {
+      for (const n of nodes) {
+        const descendantIds = []
+        const collectDescendants = (children) => {
+          for (const c of children) {
+            descendantIds.push(c.id)
+            if (c.children?.length) collectDescendants(c.children)
+          }
+        }
+        if (n.children?.length) collectDescendants(n.children)
+        flat.push({
+          id: n.id,
+          name: n.name_de || n.name_en || n.name || '(ohne Name)',
+          depth,
+          is_active: n.is_active,
+          descendant_ids: descendantIds,
+        })
+        if (n.children?.length) flatten(n.children, depth + 1)
+      }
+    }
+    flatten(tree, 0)
+    hierarchyNodes.value = flat
     // Clean up stale excluded node IDs
-    const nodeIdSet = new Set(hierarchyNodes.value.map(n => n.id))
+    const nodeIdSet = new Set(flat.map(n => n.id))
     themeForm.value.catalog_excluded_node_ids = themeForm.value.catalog_excluded_node_ids.filter(id => nodeIdSet.has(id))
   } catch (e) {
     console.warn('Failed to load hierarchy nodes:', e.message)
@@ -509,11 +522,18 @@ async function loadHierarchyNodes(hierarchyId) {
 }
 
 function toggleNodeExclusion(nodeId) {
-  const idx = themeForm.value.catalog_excluded_node_ids.indexOf(nodeId)
-  if (idx === -1) {
-    themeForm.value.catalog_excluded_node_ids.push(nodeId)
+  const node = hierarchyNodes.value.find(n => n.id === nodeId)
+  const excluded = themeForm.value.catalog_excluded_node_ids
+  const isCurrentlyExcluded = excluded.includes(nodeId)
+  // Collect this node + all descendants
+  const affectedIds = [nodeId, ...(node?.descendant_ids || [])]
+  if (isCurrentlyExcluded) {
+    // Include: remove all affected from exclusion list
+    themeForm.value.catalog_excluded_node_ids = excluded.filter(id => !affectedIds.includes(id))
   } else {
-    themeForm.value.catalog_excluded_node_ids.splice(idx, 1)
+    // Exclude: add all affected that aren't already excluded
+    const toAdd = affectedIds.filter(id => !excluded.includes(id))
+    excluded.push(...toAdd)
   }
 }
 
