@@ -64,3 +64,4 @@ yarn-error.log
 /public/vendor
 
 publixx_pim
+__pycache__/
