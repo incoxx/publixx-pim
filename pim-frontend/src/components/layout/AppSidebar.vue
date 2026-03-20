@@ -84,6 +84,7 @@ const sections = computed(() => {
             { icon: Factory, label: () => t('nav.manufacturers'), to: '/manufacturers' },
             { icon: Layers, label: () => t('nav.productTypes'), to: '/product-types' },
             { icon: Link2, label: () => t('nav.relationTypes'), to: '/relation-types' },
+            { icon: Tags, label: () => t('nav.mediaUsageTypes'), to: '/media-usage-types' },
           ],
         },
         {
@@ -145,7 +146,6 @@ const sections = computed(() => {
           icon: Database,
           label: () => 'System',
           children: [
-            { icon: Tags, label: () => t('nav.mediaUsageTypes'), to: '/media-usage-types' },
             { icon: Code, label: () => 'API-Designer', to: '/api-designer', module: 'api_designer' },
             { icon: Zap, label: () => 'API Tester', to: '/api-tester', permission: 'users.view' },
             { icon: Database, label: () => 'Datenbank', to: '/db', permission: 'users.view' },
