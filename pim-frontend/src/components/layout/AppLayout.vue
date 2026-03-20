@@ -2,15 +2,20 @@
 import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useTabStore } from '@/stores/tabs'
 import AppSidebar from './AppSidebar.vue'
 import AppHeader from './AppHeader.vue'
+import AppTabBar from './AppTabBar.vue'
 
 const authStore = useAuthStore()
+const tabStore = useTabStore()
 const route = useRoute()
 
-// Close panel when navigating to a different route
-watch(() => route.path, () => {
-  authStore.closePanel()
+// Close panel when navigating to a different route (but not when switching between open tabs)
+watch(() => route.path, (newPath, oldPath) => {
+  if (newPath !== oldPath) {
+    authStore.closePanel()
+  }
 })
 
 // On mobile (<768px), sidebar is an overlay — no margin needed
@@ -43,11 +48,12 @@ const mainStyle = computed(() => ({
     <!-- Main content -->
     <div :style="mainStyle" class="transition-all duration-200 ease-out">
       <AppHeader />
+      <AppTabBar />
       <main class="p-6">
         <router-view v-slot="{ Component }">
-          <transition name="fade" mode="out-in">
-            <component :is="Component" />
-          </transition>
+          <keep-alive :include="tabStore.cachedComponentNames">
+            <component :is="Component" :key="route.fullPath" />
+          </keep-alive>
         </router-view>
       </main>
     </div>

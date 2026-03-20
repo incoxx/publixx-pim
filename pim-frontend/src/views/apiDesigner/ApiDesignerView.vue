@@ -1,4 +1,6 @@
 <script setup>
+defineOptions({ name: 'ApiDesignerView' })
+
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { useApiDesignerStore } from '@/stores/apiDesigner'
