@@ -135,6 +135,24 @@ class TmsClient
     }
 
     /**
+     * Batch-import pre-translated items into TMS.
+     */
+    public function importTranslations(array $items): array
+    {
+        if (!$this->enabled || empty($items)) {
+            return [];
+        }
+
+        $results = [];
+        foreach (array_chunk($items, 200) as $batch) {
+            $result = $this->post('/import-translations', ['items' => $batch]);
+            $results[] = $result;
+        }
+
+        return $results;
+    }
+
+    /**
      * Delete all translations (optionally filtered by language).
      */
     public function deleteAllTranslations(?string $targetLang = null): array

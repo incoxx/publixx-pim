@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Tms\Http\Controllers\ImportTranslationsController;
 use Tms\Http\Controllers\IngestController;
 use Tms\Http\Controllers\ResolveController;
 use Tms\Http\Controllers\UnitController;
@@ -9,6 +10,9 @@ use Tms\Http\Middleware\ValidateApiKey;
 Route::middleware(ValidateApiKey::class)->group(function () {
     // Ingest: receive entities from PIM
     Route::post('ingest', IngestController::class);
+
+    // Import: batch import pre-translated items (from translation jobs)
+    Route::post('import-translations', ImportTranslationsController::class);
 
     // Resolve: look up translations by hash
     Route::get('resolve', ResolveController::class);
