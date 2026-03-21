@@ -93,12 +93,31 @@ class TestRunnerController extends Controller
 
         // Auto-install dev dependencies if PHPUnit is missing (e.g. production server)
         if (! file_exists($phpunitBin)) {
+            // Find composer binary - check common locations
+            $composerBin = null;
+            foreach (['/usr/local/bin/composer', '/usr/bin/composer', '/usr/local/sbin/composer'] as $path) {
+                if (file_exists($path)) {
+                    $composerBin = $path;
+                    break;
+                }
+            }
+
+            if (! $composerBin) {
+                // Try to find via which
+                $which = Process::run('which composer');
+                $composerBin = trim($which->output()) ?: null;
+            }
+
+            if (! $composerBin) {
+                return $this->errorResult('backend', 'PHPUnit nicht installiert und Composer wurde nicht gefunden. Bitte composer install manuell ausführen.');
+            }
+
             $install = Process::timeout(120)
                 ->path(base_path())
-                ->run('composer install --no-interaction');
+                ->run([$composerBin, 'install', '--no-interaction']);
 
             if ($install->exitCode() !== 0) {
-                return $this->errorResult('backend', 'PHPUnit nicht installiert und composer install fehlgeschlagen: ' . mb_substr($install->errorOutput(), -500));
+                return $this->errorResult('backend', 'composer install fehlgeschlagen: ' . mb_substr($install->output() . $install->errorOutput(), -500));
             }
 
             if (! file_exists($phpunitBin)) {
@@ -121,9 +140,10 @@ class TestRunnerController extends Controller
 
         // Cleanup: remove dev dependencies to keep production clean
         if ($installedDevDeps) {
+            $composerPath = collect(['/usr/local/bin/composer', '/usr/bin/composer'])->first(fn ($p) => file_exists($p)) ?? 'composer';
             Process::timeout(120)
                 ->path(base_path())
-                ->run('composer install --no-dev --no-interaction');
+                ->run([$composerPath, 'install', '--no-dev', '--no-interaction']);
         }
 
         return $result;
