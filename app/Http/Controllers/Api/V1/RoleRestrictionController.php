@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Requests\Api\V1\SyncRoleRestrictionsRequest;
+use App\Http\Requests\Api\V1\SyncRoleTabPermissionsRequest;
 use App\Http\Resources\Api\V1\RoleEntityRestrictionResource;
 use App\Models\AttributeType;
 use App\Models\HierarchyNode;
 use App\Models\MediaUsageType;
 use App\Models\Role;
 use App\Models\RoleEntityRestriction;
+use App\Models\RoleTabPermission;
 use Illuminate\Http\JsonResponse;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -41,7 +43,60 @@ class RoleRestrictionController extends Controller
             }
         }
 
+        // Include tab permissions
+        $tabPerms = $role->tabPermissions->map(fn ($tp) => [
+            'tab_key' => $tp->tab_key,
+            'access_level' => $tp->access_level,
+        ]);
+        if ($tabPerms->isNotEmpty()) {
+            $grouped['tab-permissions'] = $tabPerms;
+        }
+
         return response()->json(['data' => $grouped]);
+    }
+
+    /**
+     * GET /api/v1/roles/{role}/tab-permissions
+     */
+    public function tabPermissions(Role $role): JsonResponse
+    {
+        $this->authorize('view', $role);
+
+        $permissions = $role->tabPermissions->map(fn ($tp) => [
+            'tab_key' => $tp->tab_key,
+            'access_level' => $tp->access_level,
+        ]);
+
+        return response()->json(['data' => $permissions]);
+    }
+
+    /**
+     * PUT /api/v1/roles/{role}/tab-permissions
+     */
+    public function syncTabPermissions(SyncRoleTabPermissionsRequest $request, Role $role): JsonResponse
+    {
+        $this->authorize('update', $role);
+
+        $validated = $request->validated();
+
+        // Delete existing tab permissions
+        $role->tabPermissions()->delete();
+
+        // Create new ones (skip 'write' since that's the default)
+        $created = collect($validated['tabs'] ?? [])
+            ->filter(fn ($item) => $item['access_level'] !== 'write')
+            ->map(fn ($item) => RoleTabPermission::create([
+                'role_id' => $role->id,
+                'tab_key' => $item['tab_key'],
+                'access_level' => $item['access_level'],
+            ]));
+
+        return response()->json([
+            'data' => $created->map(fn ($tp) => [
+                'tab_key' => $tp->tab_key,
+                'access_level' => $tp->access_level,
+            ])->values(),
+        ]);
     }
 
     /**

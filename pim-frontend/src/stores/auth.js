@@ -20,6 +20,16 @@ export const useAuthStore = defineStore('auth', () => {
   const userRole = computed(() => user.value?.roles?.[0]?.name || '')
   const permissions = computed(() => user.value?.all_permissions || [])
   const entityRestrictions = computed(() => user.value?.entity_restrictions || [])
+  const tabPermissions = computed(() => user.value?.tab_permissions || {})
+
+  /**
+   * Get the access level for a product editor tab.
+   * Returns 'write' (default), 'read', or 'hidden'.
+   */
+  function getTabAccess(tabKey) {
+    if (userRole.value === 'Admin') return 'write'
+    return tabPermissions.value[tabKey] || 'write'
+  }
 
   function hasPermission(permission) {
     if (userRole.value === 'Admin') return true
@@ -122,8 +132,8 @@ export const useAuthStore = defineStore('auth', () => {
     user, token, locale,
     commandPaletteOpen, sidebarCollapsed, sidebarMobileOpen, sidebarWidth, sidebarCollapsedSections,
     panelOpen, panelComponent, panelProps,
-    isAuthenticated, userName, userRole, permissions, entityRestrictions,
-    hasPermission, hasInstanceAccess, login, logout, checkAuth, setLocale,
+    isAuthenticated, userName, userRole, permissions, entityRestrictions, tabPermissions,
+    hasPermission, hasInstanceAccess, getTabAccess, login, logout, checkAuth, setLocale,
     toggleCommandPalette, toggleSidebar, toggleMobileSidebar, closeMobileSidebar, setSidebarWidth, toggleSidebarSection,
     openPanel, closePanel,
   }

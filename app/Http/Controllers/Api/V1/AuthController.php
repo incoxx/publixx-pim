@@ -85,7 +85,7 @@ class AuthController extends Controller
                 'token' => $token->plainTextToken,
                 'token_type' => 'Bearer',
                 'expires_at' => $token->accessToken->expires_at?->toIso8601String(),
-                'user' => new UserResource($user->load(['roles.permissions', 'roles.entityRestrictions'])),
+                'user' => new UserResource($user->load(['roles.permissions', 'roles.entityRestrictions', 'roles.tabPermissions'])),
             ],
         ], Response::HTTP_OK);
     }
@@ -129,7 +129,7 @@ class AuthController extends Controller
      */
     public function me(Request $request): JsonResponse
     {
-        $user = $request->user()->load(['roles.permissions', 'roles.entityRestrictions']);
+        $user = $request->user()->load(['roles.permissions', 'roles.entityRestrictions', 'roles.tabPermissions']);
 
         return response()->json([
             'data' => new UserResource($user),

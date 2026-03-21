@@ -252,6 +252,8 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::get('roles/{role}/restrictions/{type}', [RoleRestrictionController::class, 'show']);
     Route::put('roles/{role}/restrictions/{type}', [RoleRestrictionController::class, 'sync']);
     Route::delete('roles/{role}/restrictions/{type}', [RoleRestrictionController::class, 'destroy']);
+    Route::get('roles/{role}/tab-permissions', [RoleRestrictionController::class, 'tabPermissions']);
+    Route::put('roles/{role}/tab-permissions', [RoleRestrictionController::class, 'syncTabPermissions']);
 
     // =====================================================================
     // License Management

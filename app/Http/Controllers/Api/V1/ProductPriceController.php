@@ -8,6 +8,7 @@ use App\Http\Requests\Api\V1\StoreProductPriceRequest;
 use App\Http\Requests\Api\V1\UpdateProductPriceRequest;
 use App\Http\Resources\Api\V1\ProductPriceResource;
 use App\Http\Traits\AuditsChanges;
+use App\Http\Traits\ChecksTabPermissions;
 use App\Models\Product;
 use App\Models\ProductPrice;
 use Illuminate\Http\JsonResponse;
@@ -17,6 +18,7 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 class ProductPriceController extends Controller
 {
     use AuditsChanges;
+    use ChecksTabPermissions;
     /**
      * GET /products/{product}/prices
      */
@@ -39,6 +41,7 @@ class ProductPriceController extends Controller
     public function store(StoreProductPriceRequest $request, Product $product): JsonResponse
     {
         $this->authorize('update', $product);
+        $this->assertTabWriteAccess('prices');
 
         $price = $product->prices()->create($request->validated());
 
@@ -60,6 +63,7 @@ class ProductPriceController extends Controller
     public function update(UpdateProductPriceRequest $request, ProductPrice $productPrice): ProductPriceResource
     {
         $this->authorize('update', $productPrice->product);
+        $this->assertTabWriteAccess('prices');
 
         $productPrice->update($request->validated());
         $newValues = $productPrice->getChanges();
@@ -81,6 +85,7 @@ class ProductPriceController extends Controller
     public function destroy(ProductPrice $productPrice): JsonResponse
     {
         $this->authorize('update', $productPrice->product);
+        $this->assertTabWriteAccess('prices');
 
         $snapshot = [
             'price_id' => $productPrice->id,

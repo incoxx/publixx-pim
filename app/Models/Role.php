@@ -24,4 +24,9 @@ class Role extends SpatieRole
     {
         return $this->entityRestrictions()->where('restrictable_type', $modelClass);
     }
+
+    public function tabPermissions(): HasMany
+    {
+        return $this->hasMany(RoleTabPermission::class);
+    }
 }

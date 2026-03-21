@@ -29,6 +29,36 @@ const hierarchyNodeRestrictions = ref([])
 const attributeTypeItems = ref([])
 const mediaUsageTypeItems = ref([])
 
+// Tab permissions
+const tabPermissions = ref({})
+const productEditorTabs = [
+  { key: 'base-data', label: 'Grunddaten' },
+  { key: 'attributes', label: 'Attribute' },
+  { key: 'variant-attributes', label: 'Varianten-Attribute' },
+  { key: 'variants', label: 'Varianten' },
+  { key: 'media', label: 'Medien' },
+  { key: 'prices', label: 'Preise' },
+  { key: 'relations', label: 'Beziehungen' },
+  { key: 'output-hierarchies', label: 'Ausgabehierarchien' },
+  { key: 'preview', label: 'Vorschau' },
+  { key: 'versions', label: 'Versionen' },
+  { key: 'scheduled-actions', label: 'Planung' },
+  { key: 'workflow-history', label: 'Workflow-Verlauf' },
+]
+const tabAccessLevels = [
+  { value: 'write', label: 'Schreiben' },
+  { value: 'read', label: 'Lesen' },
+  { value: 'hidden', label: 'Versteckt' },
+]
+
+function getTabAccess(tabKey) {
+  return tabPermissions.value[tabKey] || 'write'
+}
+
+function setTabAccess(tabKey, level) {
+  tabPermissions.value = { ...tabPermissions.value, [tabKey]: level }
+}
+
 const isEdit = computed(() => !!props.role)
 
 // Entity labels for display
@@ -258,9 +288,12 @@ async function handleSubmit() {
       roleId = (data.data || data).id
     }
 
-    // Sync instance restrictions
+    // Sync instance restrictions and tab permissions
     if (roleId) {
-      await syncRestrictions(roleId)
+      await Promise.all([
+        syncRestrictions(roleId),
+        syncTabPerms(roleId),
+      ])
     }
 
     authStore.closePanel()
@@ -295,6 +328,13 @@ async function syncRestrictions(roleId) {
     syncType('media-usage-types', mediaUsageTypeRestrictions.value),
     syncType('hierarchy-nodes', hierarchyNodeRestrictions.value),
   ])
+}
+
+async function syncTabPerms(roleId) {
+  const tabs = Object.entries(tabPermissions.value)
+    .filter(([, level]) => level !== 'write')
+    .map(([tab_key, access_level]) => ({ tab_key, access_level }))
+  await roleRestrictionsApi.syncTabPermissions(roleId, tabs)
 }
 
 onMounted(async () => {
@@ -341,6 +381,13 @@ onMounted(async () => {
             access_level: r.access_level,
             name: r.restrictable?.name_de || r.restrictable_id,
           }))
+        }
+        if (restrictions['tab-permissions']) {
+          const perms = {}
+          for (const tp of restrictions['tab-permissions']) {
+            perms[tp.tab_key] = tp.access_level
+          }
+          tabPermissions.value = perms
         }
       } catch {
         // Restrictions might not load
@@ -466,6 +513,43 @@ onMounted(async () => {
             :selected-restrictions="hierarchyNodeRestrictions"
             @update:restrictions="hierarchyNodeRestrictions = $event"
           />
+        </div>
+      </div>
+
+      <!-- Tab permissions section -->
+      <div class="mt-4 mb-2">
+        <div class="text-[10px] uppercase tracking-wider font-semibold text-[var(--color-text-tertiary)] mb-2">
+          Produkt-Editor Tabs
+        </div>
+        <p class="text-[10px] text-[var(--color-text-tertiary)] mb-3">
+          Sichtbarkeit und Zugriff auf Tabs im Produkteditor steuern. Standard: Schreiben.
+        </p>
+
+        <div class="border border-[var(--color-border)] rounded-lg overflow-hidden">
+          <div
+            v-for="tab in productEditorTabs"
+            :key="tab.key"
+            class="flex items-center gap-2 px-3 py-1.5 border-b border-[var(--color-border)] last:border-b-0"
+          >
+            <span class="text-xs text-[var(--color-text-primary)] flex-1">{{ tab.label }}</span>
+            <div class="flex gap-0 border border-[var(--color-border)] rounded-lg overflow-hidden">
+              <button
+                v-for="level in tabAccessLevels"
+                :key="level.value"
+                class="px-2 py-0.5 text-[10px] cursor-pointer transition-colors"
+                :class="getTabAccess(tab.key) === level.value
+                  ? level.value === 'hidden'
+                    ? 'bg-[var(--color-error)]/15 text-[var(--color-error)] font-medium'
+                    : level.value === 'read'
+                      ? 'bg-[var(--color-warning)]/15 text-[var(--color-warning)] font-medium'
+                      : 'bg-[var(--color-accent)]/15 text-[var(--color-accent)] font-medium'
+                  : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-bg-hover)]'"
+                @click="setTabAccess(tab.key, level.value)"
+              >
+                {{ level.label }}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>

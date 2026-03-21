@@ -58,6 +58,48 @@ class UserResource extends JsonResource
 
                 return array_values($restrictions);
             }),
+            'tab_permissions' => $this->whenLoaded('roles', function () {
+                $hierarchy = ['hidden' => 0, 'read' => 1, 'write' => 2];
+
+                // Collect per-role tab permissions
+                // A role with NO entry for a tab → implicit 'write' (full access)
+                $perRolePerms = [];
+                foreach ($this->roles as $role) {
+                    $rolePerms = [];
+                    if ($role->relationLoaded('tabPermissions')) {
+                        foreach ($role->tabPermissions as $tp) {
+                            $rolePerms[$tp->tab_key] = $tp->access_level;
+                        }
+                    }
+                    $perRolePerms[] = $rolePerms;
+                }
+
+                if (empty($perRolePerms)) {
+                    return (object) [];
+                }
+
+                // Merge across roles: highest access wins
+                // A role that has no entry for a tab grants 'write'
+                $keyArrays = array_map('array_keys', $perRolePerms);
+                $allTabKeys = array_unique(array_merge(...$keyArrays ?: [[]]));
+
+                $merged = [];
+                foreach ($allTabKeys as $tabKey) {
+                    $maxLevel = 'hidden';
+                    foreach ($perRolePerms as $rolePerms) {
+                        $level = $rolePerms[$tabKey] ?? 'write';
+                        if (($hierarchy[$level] ?? 0) > ($hierarchy[$maxLevel] ?? 0)) {
+                            $maxLevel = $level;
+                        }
+                    }
+                    // Only include non-default levels
+                    if ($maxLevel !== 'write') {
+                        $merged[$tabKey] = $maxLevel;
+                    }
+                }
+
+                return $merged;
+            }),
         ];
     }
 }
