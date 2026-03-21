@@ -43,15 +43,15 @@ function removeRule(index) {
 }
 
 const operatorColors = {
-  AND: 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800',
-  OR: 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800',
-  NOT: 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800',
+  AND: 'qb-group-and',
+  OR: 'qb-group-or',
+  NOT: 'qb-group-not',
 }
 
 const operatorBtnColors = {
-  AND: { active: 'bg-blue-500 text-white', inactive: 'text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900/30' },
-  OR: { active: 'bg-amber-500 text-white', inactive: 'text-amber-600 hover:bg-amber-100 dark:hover:bg-amber-900/30' },
-  NOT: { active: 'bg-red-500 text-white', inactive: 'text-red-600 hover:bg-red-100 dark:hover:bg-red-900/30' },
+  AND: { active: 'qb-btn-and-active', inactive: 'qb-btn-and' },
+  OR: { active: 'bg-amber-500 text-white', inactive: 'text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20' },
+  NOT: { active: 'bg-red-500 text-white', inactive: 'text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20' },
 }
 </script>
 
@@ -96,7 +96,7 @@ const operatorBtnColors = {
         <div v-if="index > 0" class="flex items-center gap-2 px-2">
           <div class="flex-1 h-px bg-[var(--color-border)]" />
           <span class="text-[10px] font-semibold uppercase" :class="{
-            'text-blue-400': group.operator === 'AND',
+            'qb-connector-and': group.operator === 'AND',
             'text-amber-400': group.operator === 'OR',
             'text-red-400': group.operator === 'NOT',
           }">
