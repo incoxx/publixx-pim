@@ -14,8 +14,8 @@ import searchApi from '@/api/search'
 import PimTable from '@/components/shared/PimTable.vue'
 import ColumnConfigPopover from '@/components/shared/ColumnConfigPopover.vue'
 import ProfileSelector from '@/components/shared/ProfileSelector.vue'
-import columnProfilesApi from '@/api/columnProfiles'
 import { useColumnConfig } from '@/composables/useColumnConfig'
+import { useColumnProfiles } from '@/composables/useColumnProfiles'
 import { triggerDownload } from '@/utils/download'
 import PimConfirmDialog from '@/components/shared/PimConfirmDialog.vue'
 import ReportTemplatePickerModal from '@/components/reports/ReportTemplatePickerModal.vue'
@@ -97,39 +97,7 @@ const attributeColumns = computed(() =>
 
 const { visibleColumns, allColumns, visibleKeys, toggleColumn, moveColumn, resetColumns } = useColumnConfig('columns:watchlist', defaultWatchlistColumns, extraWatchlistColumns, attributeColumns)
 
-// Column profiles
-const columnProfiles = ref([])
-const selectedColumnProfileId = ref(null)
-
-async function loadColumnProfiles() {
-  try {
-    const { data } = await columnProfilesApi.list('watchlist')
-    columnProfiles.value = data.data || data
-  } catch { /* ignore */ }
-}
-
-async function loadColumnProfile(id) {
-  const profile = columnProfiles.value.find(p => p.id === id)
-  if (profile?.visible_keys) {
-    visibleKeys.value = [...profile.visible_keys]
-  }
-}
-
-async function saveColumnProfile({ name, is_shared }) {
-  await columnProfilesApi.create({ name, is_shared, context: 'watchlist', visible_keys: visibleKeys.value })
-  await loadColumnProfiles()
-}
-
-async function updateColumnProfile({ id, name, is_shared }) {
-  await columnProfilesApi.update(id, { name, is_shared, visible_keys: visibleKeys.value })
-  await loadColumnProfiles()
-}
-
-async function deleteColumnProfile(id) {
-  await columnProfilesApi.remove(id)
-  selectedColumnProfileId.value = null
-  await loadColumnProfiles()
-}
+const { columnProfiles, selectedColumnProfileId, loadColumnProfiles, loadColumnProfile, saveColumnProfile, updateColumnProfile, deleteColumnProfile } = useColumnProfiles('watchlist', visibleKeys)
 
 // Quick Lookup
 const showQuickLookup = ref(false)

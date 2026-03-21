@@ -12,8 +12,8 @@ import mediaApi from '@/api/media'
 import PimTable from '@/components/shared/PimTable.vue'
 import ColumnConfigPopover from '@/components/shared/ColumnConfigPopover.vue'
 import ProfileSelector from '@/components/shared/ProfileSelector.vue'
-import columnProfilesApi from '@/api/columnProfiles'
 import { useColumnConfig } from '@/composables/useColumnConfig'
+import { useColumnProfiles } from '@/composables/useColumnProfiles'
 import { triggerDownload } from '@/utils/download'
 import PimFilterBar from '@/components/shared/PimFilterBar.vue'
 import PimDeleteConfirmDialog from '@/components/shared/PimDeleteConfirmDialog.vue'
@@ -69,39 +69,7 @@ const attributeColumns = computed(() =>
 
 const { visibleColumns, allColumns, visibleKeys, isColumnVisible, toggleColumn, moveColumn, resetColumns } = useColumnConfig('columns:products', defaultColumns, extraColumns, attributeColumns)
 
-// Column profiles
-const columnProfiles = ref([])
-const selectedColumnProfileId = ref(null)
-
-async function loadColumnProfiles() {
-  try {
-    const { data } = await columnProfilesApi.list('products')
-    columnProfiles.value = data.data || data
-  } catch { /* ignore */ }
-}
-
-async function loadColumnProfile(id) {
-  const profile = columnProfiles.value.find(p => p.id === id)
-  if (profile?.visible_keys) {
-    visibleKeys.value = [...profile.visible_keys]
-  }
-}
-
-async function saveColumnProfile({ name, is_shared }) {
-  await columnProfilesApi.create({ name, is_shared, context: 'products', visible_keys: visibleKeys.value })
-  await loadColumnProfiles()
-}
-
-async function updateColumnProfile({ id, name, is_shared }) {
-  await columnProfilesApi.update(id, { name, is_shared, visible_keys: visibleKeys.value })
-  await loadColumnProfiles()
-}
-
-async function deleteColumnProfile(id) {
-  await columnProfilesApi.remove(id)
-  selectedColumnProfileId.value = null
-  await loadColumnProfiles()
-}
+const { columnProfiles, selectedColumnProfileId, loadColumnProfiles, loadColumnProfile, saveColumnProfile, updateColumnProfile, deleteColumnProfile } = useColumnProfiles('products', visibleKeys)
 
 // Quick Lookup
 const showQuickLookup = ref(false)

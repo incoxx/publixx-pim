@@ -11,7 +11,7 @@ import {
 import { useAuthStore } from '@/stores/auth'
 import searchApi from '@/api/search'
 import searchProfilesApi from '@/api/searchProfiles'
-import columnProfilesApi from '@/api/columnProfiles'
+import { useColumnProfiles } from '@/composables/useColumnProfiles'
 import { translationLanguages } from '@/config/languages'
 import watchlistApi from '@/api/watchlist'
 import productsApi from '@/api/products'
@@ -41,48 +41,6 @@ const licenseStore = useLicenseStore()
 // --- Search Profiles ---
 const searchProfiles = ref([])
 const selectedProfileId = ref(null)
-const columnProfiles = ref([])
-const selectedColumnProfileId = ref(null)
-
-async function loadColumnProfiles() {
-  try {
-    const { data } = await columnProfilesApi.list('search')
-    columnProfiles.value = data.data || data
-  } catch { /* ignore */ }
-}
-
-async function loadColumnProfile(id) {
-  const profile = columnProfiles.value.find(p => p.id === id)
-  if (profile?.visible_keys) {
-    searchVisibleKeys.value = [...profile.visible_keys]
-  }
-}
-
-async function saveColumnProfile({ name, is_shared }) {
-  await columnProfilesApi.create({
-    name,
-    is_shared,
-    context: 'search',
-    visible_keys: searchVisibleKeys.value,
-  })
-  await loadColumnProfiles()
-}
-
-async function updateColumnProfile({ id, name, is_shared }) {
-  await columnProfilesApi.update(id, {
-    name,
-    is_shared,
-    visible_keys: searchVisibleKeys.value,
-  })
-  await loadColumnProfiles()
-}
-
-async function deleteColumnProfile(id) {
-  await columnProfilesApi.remove(id)
-  selectedColumnProfileId.value = null
-  await loadColumnProfiles()
-}
-
 async function loadProfiles() {
   try {
     const { data } = await searchProfilesApi.list()
@@ -207,6 +165,8 @@ const attributeColumns = computed(() =>
 )
 
 const { visibleColumns: searchVisibleColumns, allColumns: searchAllColumns, visibleKeys: searchVisibleKeys, toggleColumn: searchToggleColumn, moveColumn: searchMoveColumn, resetColumns: searchResetColumns } = useColumnConfig('columns:search', defaultSearchColumns, extraSearchColumns, attributeColumns)
+
+const { columnProfiles, selectedColumnProfileId, loadColumnProfiles, loadColumnProfile, saveColumnProfile, updateColumnProfile, deleteColumnProfile } = useColumnProfiles('search', searchVisibleKeys)
 
 // Excel export
 const excelExporting = ref(false)
