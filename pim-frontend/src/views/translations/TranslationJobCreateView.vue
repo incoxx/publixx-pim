@@ -1,10 +1,11 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useTranslationJobsStore } from '@/stores/translationJobs'
 import searchApi from '@/api/search'
+import searchProfilesApi from '@/api/searchProfiles'
 import { translationLanguages as availableLanguages } from '@/config/languages'
-import { ArrowLeft, ArrowRight, Languages, Check } from 'lucide-vue-next'
+import { ArrowLeft, ArrowRight, Languages, Check, Search, List, Layers } from 'lucide-vue-next'
 
 const route = useRoute()
 const router = useRouter()
@@ -20,7 +21,10 @@ const scope = ref('products')
 // Step 2: Product selection (if scope includes products)
 const productIds = ref([])
 const productCount = ref(0)
-const productSearchTerm = ref('')
+const productSource = ref('') // 'search', 'profile', 'all'
+const searchProfiles = ref([])
+const selectedProfileId = ref('')
+const loadingProducts = ref(false)
 
 // Step 3: Attribute selection
 const allAttributes = ref([])
@@ -88,13 +92,60 @@ onMounted(async () => {
     allAttributes.value = data.data || data
   } catch (e) { /* ignore */ }
 
+  // Load search profiles
+  try {
+    const { data } = await searchProfilesApi.list()
+    searchProfiles.value = data.data || data || []
+  } catch (e) { /* ignore */ }
+
   // Check for pre-selected product IDs from search
   const idsParam = route.query.product_ids
   if (idsParam) {
     productIds.value = idsParam.split(',').filter(Boolean)
     productCount.value = productIds.value.length
+    productSource.value = 'search'
   }
 })
+
+async function loadAllProductIds() {
+  loadingProducts.value = true
+  error.value = ''
+  try {
+    const { data } = await searchApi.allIds({})
+    const ids = data.data || data.ids || data
+    productIds.value = Array.isArray(ids) ? ids : []
+    productCount.value = productIds.value.length
+    productSource.value = 'all'
+  } catch (e) {
+    error.value = 'Fehler beim Laden der Produkte'
+  } finally {
+    loadingProducts.value = false
+  }
+}
+
+async function loadProfileProducts(profileId) {
+  if (!profileId) return
+  loadingProducts.value = true
+  error.value = ''
+  selectedProfileId.value = profileId
+  try {
+    const profile = searchProfiles.value.find(p => p.id === profileId)
+    if (!profile) return
+
+    const { data } = await searchApi.allIds({
+      filters: profile.filters || {},
+      query: profile.query || '',
+    })
+    const ids = data.data || data.ids || data
+    productIds.value = Array.isArray(ids) ? ids : []
+    productCount.value = productIds.value.length
+    productSource.value = 'profile'
+  } catch (e) {
+    error.value = 'Fehler beim Laden der Suchprofil-Produkte'
+  } finally {
+    loadingProducts.value = false
+  }
+}
 
 function nextStep() {
   if (step.value < totalSteps.value) {
@@ -159,6 +210,10 @@ function toggleEntityType(value) {
 
 function selectAllAttributes() {
   selectedAttributeIds.value = translatableAttributes.value.map(a => a.id)
+}
+
+function selectAllEntityTypes() {
+  selectedEntityTypes.value = systemEntityTypes.map(et => et.value)
 }
 </script>
 
@@ -225,17 +280,73 @@ function selectAllAttributes() {
         <!-- Products -->
         <div v-if="scope === 'products' || scope === 'mixed'">
           <h2 class="text-sm font-semibold mb-4">Produkte auswählen</h2>
-          <div v-if="productIds.length > 0" class="p-3 rounded-lg bg-green-50 text-green-700 text-sm mb-4">
+
+          <!-- Already selected from search -->
+          <div v-if="productSource === 'search'" class="p-3 rounded-lg bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-sm mb-4 flex items-center gap-2">
+            <Search class="w-4 h-4" />
             {{ productIds.length }} Produkte aus der Suche ausgewählt.
           </div>
-          <p v-else class="text-xs text-[var(--color-text-tertiary)]">
-            Tipp: Verwenden Sie die Suche, um Produkte auszuwählen und von dort einen Übersetzungsjob zu erstellen.
-          </p>
+
+          <!-- Selected via profile -->
+          <div v-if="productSource === 'profile'" class="p-3 rounded-lg bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-sm mb-4 flex items-center gap-2">
+            <List class="w-4 h-4" />
+            {{ productIds.length }} Produkte aus Suchprofil geladen.
+          </div>
+
+          <!-- Selected all -->
+          <div v-if="productSource === 'all'" class="p-3 rounded-lg bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-sm mb-4 flex items-center gap-2">
+            <Layers class="w-4 h-4" />
+            Alle {{ productIds.length }} Produkte ausgewählt.
+          </div>
+
+          <!-- Selection options -->
+          <div class="space-y-3">
+            <!-- Search profile selection -->
+            <div v-if="searchProfiles.length > 0" class="space-y-2">
+              <label class="block text-xs font-medium text-[var(--color-text-secondary)]">Suchprofil verwenden</label>
+              <div class="flex gap-2">
+                <select class="pim-input text-sm flex-1" v-model="selectedProfileId" @change="loadProfileProducts(selectedProfileId)">
+                  <option value="">— Suchprofil wählen —</option>
+                  <option v-for="profile in searchProfiles" :key="profile.id" :value="profile.id">
+                    {{ profile.name }}
+                  </option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Divider -->
+            <div class="flex items-center gap-3 text-xs text-[var(--color-text-tertiary)]">
+              <div class="flex-1 h-px bg-[var(--color-border)]" />
+              oder
+              <div class="flex-1 h-px bg-[var(--color-border)]" />
+            </div>
+
+            <!-- All products button -->
+            <button
+              class="pim-btn pim-btn-secondary w-full justify-center"
+              :disabled="loadingProducts"
+              @click="loadAllProductIds"
+            >
+              <Layers class="w-4 h-4" />
+              {{ loadingProducts ? 'Lade...' : 'Alle Produkte auswählen' }}
+            </button>
+
+            <!-- Hint for search -->
+            <p class="text-xs text-[var(--color-text-tertiary)] text-center">
+              Oder verwenden Sie die <router-link to="/search" class="text-[var(--color-accent)] hover:underline">Produktsuche</router-link>,
+              um gezielt Produkte auszuwählen.
+            </p>
+          </div>
         </div>
 
         <!-- System entities -->
         <div v-if="scope === 'system' || scope === 'mixed'">
-          <h2 class="text-sm font-semibold mb-4">System-Entitäten auswählen</h2>
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-sm font-semibold">System-Entitäten auswählen</h2>
+            <button class="text-xs text-[var(--color-accent)] hover:underline" @click="selectAllEntityTypes">
+              Alle auswählen
+            </button>
+          </div>
           <div class="space-y-2">
             <label
               v-for="et in systemEntityTypes"

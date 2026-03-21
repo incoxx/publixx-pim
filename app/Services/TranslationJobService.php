@@ -170,12 +170,23 @@ class TranslationJobService
     }
 
     /**
+     * Resolve the translatable field prefix for an entity type.
+     * Most entities use "name_*", but ValueListEntry uses "display_value_*".
+     */
+    protected function resolveFieldPrefix(string $entityType): string
+    {
+        return match ($entityType) {
+            'value_list_entry' => 'display_value',
+            default => 'name',
+        };
+    }
+
+    /**
      * Collect system entity texts that need translation.
      */
     protected function collectSystemItems(array $entityTypes, string $sourceLanguage, string $targetLanguage): array
     {
         $items = [];
-        $sourceField = "name_{$sourceLanguage}";
 
         foreach ($entityTypes as $entityType) {
             $modelClass = $this->resolveModelClass($entityType);
@@ -183,20 +194,24 @@ class TranslationJobService
                 continue;
             }
 
+            $fieldPrefix = $this->resolveFieldPrefix($entityType);
+            $sourceField = "{$fieldPrefix}_{$sourceLanguage}";
+            $targetField = "{$fieldPrefix}_{$targetLanguage}";
+            $jsonField = "{$fieldPrefix}_json";
+
             $entities = $modelClass::whereNotNull($sourceField)
                 ->where($sourceField, '!=', '')
                 ->get();
 
             foreach ($entities as $entity) {
-                $nameJson = $entity->name_json ? (is_string($entity->name_json) ? json_decode($entity->name_json, true) : $entity->name_json) : [];
-                $targetField = "name_{$targetLanguage}";
+                $jsonData = $entity->$jsonField ? (is_string($entity->$jsonField) ? json_decode($entity->$jsonField, true) : $entity->$jsonField) : [];
 
                 // Check if translation exists in fixed column or JSON
                 $hasTranslation = false;
                 if (in_array($targetLanguage, ['de', 'en'])) {
                     $hasTranslation = !empty($entity->$targetField);
                 } else {
-                    $hasTranslation = !empty($nameJson[$targetLanguage] ?? null);
+                    $hasTranslation = !empty($jsonData[$targetLanguage] ?? null);
                 }
 
                 if ($hasTranslation) {
@@ -239,7 +254,7 @@ class TranslationJobService
                 );
                 $imported++;
             } else {
-                // System entity – update name_json or fixed column
+                // System entity – update json or fixed column
                 $modelClass = $this->resolveModelClass($item->entity_type);
                 if (!$modelClass) {
                     continue;
@@ -250,13 +265,16 @@ class TranslationJobService
                     continue;
                 }
 
-                $targetField = "name_{$job->target_language}";
+                $fieldPrefix = $this->resolveFieldPrefix($item->entity_type);
+                $targetField = "{$fieldPrefix}_{$job->target_language}";
+                $jsonField = "{$fieldPrefix}_json";
+
                 if (in_array($job->target_language, ['de', 'en'])) {
                     $entity->$targetField = $item->translated_text;
                 } else {
-                    $nameJson = $entity->name_json ? (is_string($entity->name_json) ? json_decode($entity->name_json, true) : $entity->name_json) : [];
-                    $nameJson[$job->target_language] = $item->translated_text;
-                    $entity->name_json = json_encode($nameJson, JSON_UNESCAPED_UNICODE);
+                    $jsonData = $entity->$jsonField ? (is_string($entity->$jsonField) ? json_decode($entity->$jsonField, true) : $entity->$jsonField) : [];
+                    $jsonData[$job->target_language] = $item->translated_text;
+                    $entity->$jsonField = json_encode($jsonData, JSON_UNESCAPED_UNICODE);
                 }
                 $entity->save();
                 $imported++;
@@ -290,7 +308,7 @@ class TranslationJobService
             'product_type' => \App\Models\ProductType::class,
             'unit_group' => \App\Models\UnitGroup::class,
             'price_type' => \App\Models\PriceType::class,
-            'relation_type' => \App\Models\RelationType::class,
+            'relation_type' => \App\Models\ProductRelationType::class,
             default => null,
         };
     }
