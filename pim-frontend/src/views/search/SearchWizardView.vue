@@ -29,6 +29,7 @@ import PdfTemplatePickerModal from '@/components/pdf-templates/PdfTemplatePicker
 import { useLicenseStore } from '@/stores/license'
 import BulkAssignProjectDialog from '@/components/dialogs/BulkAssignProjectDialog.vue'
 import BulkAssignHierarchyNodeDialog from '@/components/dialogs/BulkAssignHierarchyNodeDialog.vue'
+import QueryBuilderGroup from '@/components/search/QueryBuilderGroup.vue'
 
 const router = useRouter()
 const localeStore = useLocaleStore()
@@ -55,6 +56,7 @@ async function loadProfile(id) {
   statusFilter.value = profile.status_filter || ''
   selectedCategories.value = profile.category_ids || []
   attributeFilters.value = profile.attribute_filters || {}
+  attributeFilterGroups.value = profile.attribute_filter_groups || { operator: 'AND', rules: [] }
   doSearch(1)
 }
 
@@ -68,6 +70,7 @@ async function saveProfile({ name, is_shared }) {
       status_filter: statusFilter.value || null,
       category_ids: selectedCategories.value,
       attribute_filters: attributeFilters.value,
+      attribute_filter_groups: attributeFilterGroups.value.rules?.length ? attributeFilterGroups.value : null,
     })
     await loadProfiles()
   } catch (e) {
@@ -230,12 +233,37 @@ const showCategoryPicker = ref(false)
 // Attribute filters
 const searchableAttributes = ref([])
 const attributeFilters = ref({})
+const attributeFilterGroups = ref({ operator: 'AND', rules: [] })
 const showAttributeFilters = ref(false)
+const liveCount = ref(null)
+let liveCountTimer = null
 const statusFilter = ref('')
 const missingTranslationFilter = ref({ attribute_id: null, target_language: null })
 const selectedProductTypes = ref([])
 const selectedManufacturers = ref([])
 const manufacturerList = ref([])
+
+// Live count: debounced update when query builder changes
+watch(attributeFilterGroups, () => {
+  if (liveCountTimer) clearTimeout(liveCountTimer)
+  if (!attributeFilterGroups.value.rules?.length) {
+    liveCount.value = null
+    return
+  }
+  liveCountTimer = setTimeout(async () => {
+    try {
+      const params = { language: 'de' }
+      if (statusFilter.value) params.status = statusFilter.value
+      if (attributeFilterGroups.value.rules.length > 0) {
+        params.attribute_filter_groups = attributeFilterGroups.value
+      }
+      const { data } = await searchApi.count(params)
+      liveCount.value = data.count
+    } catch {
+      liveCount.value = null
+    }
+  }, 600)
+}, { deep: true })
 
 // Quick Lookup
 const showQuickLookup = ref(false)
@@ -360,11 +388,24 @@ const translatableSearchAttributes = computed(() => {
   return searchableAttributes.value.filter(a => a.is_translatable && (a.data_type === 'String' || a.data_type === 'RichText'))
 })
 
+function countRules(group) {
+  let n = 0
+  for (const r of group.rules || []) {
+    if (r.type === 'group') n += countRules(r)
+    else if (r.attribute_id) n++
+  }
+  return n
+}
+
 // --- Computed ---
 const activeFilterCount = computed(() => {
   let count = selectedCategories.value.length + selectedProductTypes.value.length + selectedManufacturers.value.length
   if (statusFilter.value) count++
   if (missingTranslationFilter.value.attribute_id && missingTranslationFilter.value.target_language) count++
+  // Count query builder rules
+  if (attributeFilterGroups.value.rules?.length) {
+    count += countRules(attributeFilterGroups.value)
+  }
   for (const val of Object.values(attributeFilters.value)) {
     if (val !== '' && val !== null && val !== undefined) count++
   }
@@ -498,6 +539,8 @@ function clearAllFilters() {
   selectedProductTypes.value = []
   selectedManufacturers.value = []
   attributeFilters.value = {}
+  attributeFilterGroups.value = { operator: 'AND', rules: [] }
+  liveCount.value = null
   statusFilter.value = ''
   missingTranslationFilter.value = { attribute_id: null, target_language: null }
   searchInput.value = ''
@@ -574,7 +617,12 @@ async function doProductSearch(page) {
     .map(k => k.replace('attributes.', ''))
   if (attrColumnIds.length > 0) params.attribute_columns = attrColumnIds
 
-  // Build attribute filters
+  // Build attribute filter groups (new query builder)
+  if (attributeFilterGroups.value.rules && attributeFilterGroups.value.rules.length > 0) {
+    params.attribute_filter_groups = attributeFilterGroups.value
+  }
+
+  // Legacy flat attribute filters (for backward compatibility with saved profiles)
   const attrFilters = []
   for (const attr of searchableAttributes.value) {
     const val = attributeFilters.value[attr.id]
@@ -629,8 +677,7 @@ async function doEntitySearch(page) {
 
   switch (searchCategory.value) {
     case 'attributes':
-      // Only show searchable attributes
-      options.filters = { is_searchable: 1, is_internal: 0 }
+      options.filters = { is_internal: 0, status: 'active' }
       options.include = 'attributeType'
       response = await attributesApiDefault.list(options)
       break
@@ -1188,51 +1235,19 @@ const apiCallDisplay = computed(() => {
         </div>
 
         <!-- Attribute filters -->
+        <!-- Attribute Query Builder -->
         <div v-if="searchableAttributes.length > 0">
-          <p class="text-[12px] font-medium text-[var(--color-text-secondary)] mb-2">Attribute</p>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div v-for="attr in searchableAttributes" :key="attr.id">
-              <label class="block text-[11px] font-medium text-[var(--color-text-tertiary)] mb-1">
-                {{ attr.name_de || attr.technical_name }}
-              </label>
-              <template v-if="attr.data_type === 'Flag'">
-                <select
-                  class="pim-input text-xs"
-                  :value="attributeFilters[attr.id] ?? ''"
-                  @change="attributeFilters[attr.id] = $event.target.value || ''"
-                >
-                  <option value="">— Alle —</option>
-                  <option value="true">Ja</option>
-                  <option value="false">Nein</option>
-                </select>
-              </template>
-              <template v-else-if="(attr.data_type === 'Selection' || attr.data_type === 'Dictionary') && attr.value_list?.entries?.length">
-                <select
-                  class="pim-input text-xs"
-                  :value="attributeFilters[attr.id] ?? ''"
-                  @change="attributeFilters[attr.id] = $event.target.value || ''"
-                >
-                  <option value="">— Alle —</option>
-                  <option
-                    v-for="entry in attr.value_list.entries"
-                    :key="entry.id"
-                    :value="entry.id"
-                  >
-                    {{ entry.display_value_de || entry.code }}
-                  </option>
-                </select>
-              </template>
-              <template v-else>
-                <input
-                  class="pim-input text-xs"
-                  :type="getFilterInputType(attr.data_type)"
-                  :value="attributeFilters[attr.id] ?? ''"
-                  :placeholder="attr.data_type === 'Date' ? '' : 'Wert eingeben...'"
-                  @input="attributeFilters[attr.id] = $event.target.value"
-                />
-              </template>
-            </div>
+          <div class="flex items-center justify-between mb-2">
+            <p class="text-[12px] font-medium text-[var(--color-text-secondary)]">Attributfilter</p>
+            <span v-if="liveCount !== null" class="text-[11px] text-[var(--color-text-tertiary)]">
+              {{ liveCount.toLocaleString() }} Treffer
+            </span>
           </div>
+          <QueryBuilderGroup
+            :group="attributeFilterGroups"
+            :attributes="searchableAttributes"
+            @update="attributeFilterGroups = $event"
+          />
         </div>
       </div>
     </transition>

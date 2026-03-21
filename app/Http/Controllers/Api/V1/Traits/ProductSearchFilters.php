@@ -14,6 +14,60 @@ use Illuminate\Support\Facades\DB;
  */
 trait ProductSearchFilters
 {
+    private int $filterIdx = 0;
+    private array $attributeCache = [];
+
+    /**
+     * Get attribute by ID with caching to avoid N+1 queries.
+     */
+    private function getCachedAttribute(string $id): ?Attribute
+    {
+        if (!isset($this->attributeCache[$id])) {
+            $this->attributeCache[$id] = Attribute::find($id);
+        }
+        return $this->attributeCache[$id];
+    }
+
+    /**
+     * Pre-load all attributes referenced in filter rules to avoid N+1.
+     */
+    protected function preloadFilterAttributes(array $group): void
+    {
+        $this->filterIdx = 0;
+        $ids = $this->collectAttributeIds($group);
+        if (!empty($ids)) {
+            $attributes = Attribute::whereIn('id', $ids)->get();
+            foreach ($attributes as $attr) {
+                $this->attributeCache[$attr->id] = $attr;
+            }
+        }
+    }
+
+    private function collectAttributeIds(array $group): array
+    {
+        $ids = [];
+        foreach ($group['rules'] ?? [] as $rule) {
+            if (($rule['type'] ?? 'rule') === 'group') {
+                $ids = array_merge($ids, $this->collectAttributeIds($rule));
+            } elseif (!empty($rule['attribute_id'])) {
+                $ids[] = $rule['attribute_id'];
+            }
+        }
+        return array_unique($ids);
+    }
+
+    protected function validateFilterGroupDepth(array $group, int $depth = 0, int $maxDepth = 3): void
+    {
+        if ($depth > $maxDepth) {
+            abort(422, 'Filtergruppen-Verschachtelung überschreitet die maximale Tiefe.');
+        }
+        foreach ($group['rules'] ?? [] as $rule) {
+            if (($rule['type'] ?? 'rule') === 'group') {
+                $this->validateFilterGroupDepth($rule, $depth + 1, $maxDepth);
+            }
+        }
+    }
+
     protected function applyTextSearch($query, string $term, string $mode): void
     {
         $searchColumns = ['name', 'sku', 'ean'];
@@ -57,7 +111,6 @@ trait ProductSearchFilters
             $selectedNodes = HierarchyNode::whereIn('id', $categoryIds)->get();
 
             foreach ($selectedNodes as $node) {
-                // Node path already includes its own ID, so LIKE 'path%' matches all descendants
                 $descendantIds = HierarchyNode::where('hierarchy_id', $node->hierarchy_id)
                     ->where('path', 'like', $node->path . '%')
                     ->where('id', '!=', $node->id)
@@ -77,20 +130,92 @@ trait ProductSearchFilters
         }
     }
 
-    protected function applyAttributeFilter($query, array $filter, int $idx, string $language): void
+    /**
+     * Apply a single attribute filter rule.
+     */
+    protected function applyAttributeFilter($query, array $filter, int $idx, string $language = 'de'): void
     {
         $attrId = $filter['attribute_id'];
-        $value = $filter['value'];
+        $value = $filter['value'] ?? null;
         $operator = $filter['operator'] ?? 'eq';
 
-        $attribute = Attribute::find($attrId);
+        $attribute = $this->getCachedAttribute($attrId);
         if (!$attribute) {
             return;
         }
 
         $alias = "pav_{$idx}";
+        $column = $this->getValueColumn($attribute->data_type);
 
-        $query->whereExists(function ($sub) use ($alias, $attrId, $value, $operator, $attribute, $language) {
+        // Existence checks don't need whereExists — they use whereExists/whereNotExists
+        if ($operator === 'exists') {
+            $query->whereExists(function ($sub) use ($alias, $attrId, $attribute, $language, $column) {
+                $sub->select(DB::raw(1))
+                    ->from("product_attribute_values as {$alias}")
+                    ->whereColumn("{$alias}.product_id", 'products.id')
+                    ->where("{$alias}.attribute_id", $attrId)
+                    ->whereNotNull("{$alias}.{$column}");
+                if ($column === 'value_string') {
+                    $sub->where("{$alias}.{$column}", '!=', '');
+                }
+                if ($attribute->is_translatable) {
+                    $sub->where("{$alias}.language", $language);
+                }
+            });
+            return;
+        }
+
+        if ($operator === 'not_exists') {
+            $query->whereNotExists(function ($sub) use ($alias, $attrId, $attribute, $language, $column) {
+                $sub->select(DB::raw(1))
+                    ->from("product_attribute_values as {$alias}")
+                    ->whereColumn("{$alias}.product_id", 'products.id')
+                    ->where("{$alias}.attribute_id", $attrId)
+                    ->whereNotNull("{$alias}.{$column}");
+                if ($column === 'value_string') {
+                    $sub->where("{$alias}.{$column}", '!=', '');
+                }
+                if ($attribute->is_translatable) {
+                    $sub->where("{$alias}.language", $language);
+                }
+            });
+            return;
+        }
+
+        if ($operator === 'exists_lang') {
+            $targetLang = $value;
+            $query->whereExists(function ($sub) use ($alias, $attrId, $column, $targetLang) {
+                $sub->select(DB::raw(1))
+                    ->from("product_attribute_values as {$alias}")
+                    ->whereColumn("{$alias}.product_id", 'products.id')
+                    ->where("{$alias}.attribute_id", $attrId)
+                    ->where("{$alias}.language", $targetLang)
+                    ->whereNotNull("{$alias}.{$column}");
+                if ($column === 'value_string') {
+                    $sub->where("{$alias}.{$column}", '!=', '');
+                }
+            });
+            return;
+        }
+
+        if ($operator === 'not_exists_lang') {
+            $targetLang = $value;
+            $query->whereNotExists(function ($sub) use ($alias, $attrId, $column, $targetLang) {
+                $sub->select(DB::raw(1))
+                    ->from("product_attribute_values as {$alias}")
+                    ->whereColumn("{$alias}.product_id", 'products.id')
+                    ->where("{$alias}.attribute_id", $attrId)
+                    ->where("{$alias}.language", $targetLang)
+                    ->whereNotNull("{$alias}.{$column}");
+                if ($column === 'value_string') {
+                    $sub->where("{$alias}.{$column}", '!=', '');
+                }
+            });
+            return;
+        }
+
+        // Value-based operators
+        $query->whereExists(function ($sub) use ($alias, $attrId, $value, $operator, $attribute, $language, $column) {
             $sub->select(DB::raw(1))
                 ->from("product_attribute_values as {$alias}")
                 ->whereColumn("{$alias}.product_id", 'products.id')
@@ -100,15 +225,23 @@ trait ProductSearchFilters
                 $sub->where("{$alias}.language", $language);
             }
 
-            $column = $this->getValueColumn($attribute->data_type);
             $fullColumn = "{$alias}.{$column}";
 
             switch ($operator) {
                 case 'like':
                     $sub->where($fullColumn, 'LIKE', '%' . $value . '%');
                     break;
+                case 'starts_with':
+                    $sub->where($fullColumn, 'LIKE', $value . '%');
+                    break;
+                case 'ends_with':
+                    $sub->where($fullColumn, 'LIKE', '%' . $value);
+                    break;
+                case 'neq':
+                    $sub->where($fullColumn, '!=', $value);
+                    break;
                 case 'regex':
-                    $sub->whereRaw("{$fullColumn} REGEXP ?", [$value]);
+                    $sub->whereRaw("{$fullColumn} REGEXP ?", [mb_substr($value, 0, 200)]);
                     break;
                 case 'soundex':
                     $sub->where(function ($q) use ($fullColumn, $value) {
@@ -128,20 +261,62 @@ trait ProductSearchFilters
                 case 'lte':
                     $sub->where($fullColumn, '<=', $value);
                     break;
-                default: // eq
-                    if ($attribute->data_type === 'String') {
-                        $sub->where($fullColumn, 'LIKE', '%' . $value . '%');
-                    } else {
-                        $sub->where($fullColumn, $value);
+                case 'between':
+                    if (is_array($value) && count($value) === 2) {
+                        $sub->whereBetween($fullColumn, [$value[0], $value[1]]);
                     }
+                    break;
+                case 'in':
+                    if (is_array($value)) {
+                        $sub->whereIn($fullColumn, $value);
+                    }
+                    break;
+                default: // eq
+                    $sub->where($fullColumn, $value);
                     break;
             }
         });
     }
 
+    /**
+     * Apply recursive attribute filter groups (AND/OR/NOT logic).
+     */
+    protected function applyAttributeFilterGroups($query, array $group, string $language = 'de'): void
+    {
+        $operator = $group['operator'] ?? 'AND';
+        $rules = $group['rules'] ?? [];
+
+        if (empty($rules)) {
+            return;
+        }
+
+        $buildGroup = function ($q) use ($operator, $rules, $language) {
+            foreach ($rules as $i => $rule) {
+                $ruleMethod = ($operator === 'OR' && $i > 0) ? 'orWhere' : 'where';
+
+                if (($rule['type'] ?? 'rule') === 'group') {
+                    $q->$ruleMethod(function ($sub) use ($rule, $language) {
+                        $this->applyAttributeFilterGroups($sub, $rule, $language);
+                    });
+                } else {
+                    $idx = $this->filterIdx++;
+                    $q->$ruleMethod(function ($sub) use ($rule, $idx, $language) {
+                        $this->applyAttributeFilter($sub, $rule, $idx, $language);
+                    });
+                }
+            }
+        };
+
+        if ($operator === 'NOT') {
+            $query->whereNot($buildGroup);
+        } else {
+            $query->where($buildGroup);
+        }
+    }
+
     protected function applyMissingTranslationFilter($query, string $attributeId, string $targetLanguage): void
     {
-        $attribute = Attribute::find($attributeId);
+        $attribute = $this->getCachedAttribute($attributeId);
         if (!$attribute || !$attribute->is_translatable) {
             return;
         }
