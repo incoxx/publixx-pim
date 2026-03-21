@@ -569,6 +569,9 @@ const filteredAttributes = computed(() => {
     }
   }
 
+  // Filter: Versteckte Attribute ausblenden
+  attrs = attrs.filter(a => !a.is_hidden)
+
   // Filter: Interne Attribute für Nicht-Admins ausblenden
   if (authStore.userRole !== 'Admin') {
     attrs = attrs.filter(a => !a.is_internal)
@@ -2215,7 +2218,7 @@ watch(() => route.params.id, async (newId, oldId) => {
           <button
             v-if="attr.data_type === 'Composite'"
             class="w-full flex items-center justify-between pim-input text-left cursor-pointer hover:border-[var(--color-accent)] transition-colors"
-            :disabled="attr._access === 'read_only' || isAttributeInherited(attr.id) || isTabReadOnly"
+            :disabled="attr._access === 'read_only' || attr.is_readonly || isAttributeInherited(attr.id) || isTabReadOnly"
             @click="openCompositeModal(attr)"
           >
             <span class="text-[13px]" :class="getCompositeSummary(attr) ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-tertiary)]'">
@@ -2229,7 +2232,7 @@ watch(() => route.params.id, async (newId, oldId) => {
             :type="mapDataTypeToInput(attr.data_type)"
             :modelValue="translatedValues[`${attr.id}_${activeDataLang}`]"
             :options="attr.data_type === 'Dictionary' ? dictionaryEntries : (attr.value_list?.entries?.map(e => ({ value: e.id, label: e.value_de || e.label_de || e.code })) || [])"
-            :disabled="attr._access === 'read_only' || isAttributeInherited(attr.id) || isTabReadOnly"
+            :disabled="attr._access === 'read_only' || attr.is_readonly || isAttributeInherited(attr.id) || isTabReadOnly"
             @update:modelValue="translatedValues[`${attr.id}_${activeDataLang}`] = $event"
           />
           <!-- Normal (non-translatable) attribute -->
@@ -2238,7 +2241,7 @@ watch(() => route.params.id, async (newId, oldId) => {
             :type="mapDataTypeToInput(attr.data_type)"
             :modelValue="attributeValues[attr.id]"
             :options="attr.data_type === 'Dictionary' ? dictionaryEntries : (attr.value_list?.entries?.map(e => ({ value: e.id, label: e.value_de || e.label_de || e.code })) || [])"
-            :disabled="attr._access === 'read_only' || isAttributeInherited(attr.id) || isTabReadOnly"
+            :disabled="attr._access === 'read_only' || attr.is_readonly || isAttributeInherited(attr.id) || isTabReadOnly"
             @update:modelValue="attributeValues[attr.id] = $event"
           />
         </div>
@@ -2316,7 +2319,7 @@ watch(() => route.params.id, async (newId, oldId) => {
                 :type="mapDataTypeToInput(attr.data_type)"
                 :modelValue="attributeValues[attr.id]"
                 :options="attr.value_list?.entries?.map(e => ({ value: e.id, label: e.value_de || e.label_de || e.code })) || []"
-                :disabled="attr._access === 'read_only' || isAttributeInherited(attr.id) || isTabReadOnly"
+                :disabled="attr._access === 'read_only' || attr.is_readonly || isAttributeInherited(attr.id) || isTabReadOnly"
                 @update:modelValue="attributeValues[attr.id] = $event"
               />
             </div>

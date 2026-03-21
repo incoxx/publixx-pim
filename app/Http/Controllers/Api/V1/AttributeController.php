@@ -256,41 +256,57 @@ class AttributeController extends Controller
         ]);
 
         $targetLanguage = $request->input('target_language');
+        $batchSize = 5000;
 
-        $count = DB::table('product_attribute_values')
-            ->where('attribute_id', $attribute->id)
-            ->whereNull('language')
-            ->update(['language' => $targetLanguage]);
+        try {
+            $counts = DB::transaction(function () use ($attribute, $targetLanguage, $batchSize) {
+                $tables = [
+                    'product_values' => 'product_attribute_values',
+                    'hierarchy_node_values' => 'hierarchy_node_attribute_values',
+                    'media_values' => 'media_attribute_values',
+                ];
 
-        // Also migrate hierarchy node attribute values
-        $hnCount = DB::table('hierarchy_node_attribute_values')
-            ->where('attribute_id', $attribute->id)
-            ->whereNull('language')
-            ->update(['language' => $targetLanguage]);
+                $counts = [];
+                foreach ($tables as $key => $table) {
+                    $total = 0;
+                    do {
+                        $updated = DB::table($table)
+                            ->where('attribute_id', $attribute->id)
+                            ->whereNull('language')
+                            ->limit($batchSize)
+                            ->update(['language' => $targetLanguage]);
+                        $total += $updated;
+                    } while ($updated >= $batchSize);
+                    $counts[$key] = $total;
+                }
 
-        // Also migrate media attribute values
-        $mediaCount = DB::table('media_attribute_values')
-            ->where('attribute_id', $attribute->id)
-            ->whereNull('language')
-            ->update(['language' => $targetLanguage]);
+                return $counts;
+            });
 
-        $total = $count + $hnCount + $mediaCount;
+            $total = array_sum($counts);
 
-        return response()->json([
-            'message' => "{$total} Werte auf Sprache '{$targetLanguage}' migriert.",
-            'migrated' => $total,
-            'details' => [
-                'product_values' => $count,
-                'hierarchy_node_values' => $hnCount,
-                'media_values' => $mediaCount,
-            ],
-        ]);
+            return response()->json([
+                'message' => "{$total} Werte auf Sprache '{$targetLanguage}' migriert.",
+                'migrated' => $total,
+                'details' => $counts,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Attribute language migration failed', [
+                'attribute_id' => $attribute->id,
+                'target_language' => $targetLanguage,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'Fehler bei der Migration: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 
     private const BULK_ALLOWED_FIELDS = [
         'is_translatable', 'is_multipliable', 'is_searchable', 'is_mandatory',
         'is_unique', 'is_inheritable', 'is_variant_attribute', 'is_internal',
-        'attribute_type_id', 'status',
+        'is_readonly', 'is_hidden', 'attribute_type_id', 'status',
     ];
 
     public function bulkUpdate(Request $request): JsonResponse

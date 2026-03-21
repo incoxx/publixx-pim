@@ -11,6 +11,7 @@ import {
 import { useAuthStore } from '@/stores/auth'
 import searchApi from '@/api/search'
 import searchProfilesApi from '@/api/searchProfiles'
+import { useColumnProfiles } from '@/composables/useColumnProfiles'
 import { translationLanguages } from '@/config/languages'
 import watchlistApi from '@/api/watchlist'
 import productsApi from '@/api/products'
@@ -40,7 +41,6 @@ const licenseStore = useLicenseStore()
 // --- Search Profiles ---
 const searchProfiles = ref([])
 const selectedProfileId = ref(null)
-
 async function loadProfiles() {
   try {
     const { data } = await searchProfilesApi.list()
@@ -165,6 +165,8 @@ const attributeColumns = computed(() =>
 )
 
 const { visibleColumns: searchVisibleColumns, allColumns: searchAllColumns, visibleKeys: searchVisibleKeys, toggleColumn: searchToggleColumn, moveColumn: searchMoveColumn, resetColumns: searchResetColumns } = useColumnConfig('columns:search', defaultSearchColumns, extraSearchColumns, attributeColumns)
+
+const { columnProfiles, selectedColumnProfileId, loadColumnProfiles, loadColumnProfile, saveColumnProfile, updateColumnProfile, deleteColumnProfile } = useColumnProfiles('search', searchVisibleKeys)
 
 // Excel export
 const excelExporting = ref(false)
@@ -507,8 +509,9 @@ onMounted(async () => {
     manufacturerList.value = data.data || data
   } catch (e) { /* ignore */ }
 
-  // Load search profiles
+  // Load search profiles & column profiles
   loadProfiles()
+  loadColumnProfiles()
 })
 
 // --- Actions ---
@@ -1045,6 +1048,16 @@ const apiCallDisplay = computed(() => {
         <input type="checkbox" v-model="autoShowFilterColumns" class="rounded border-[var(--color-border)]" />
         Auto-Spalten
       </label>
+      <ProfileSelector
+        v-if="searchCategory === 'products'"
+        :profiles="columnProfiles"
+        v-model="selectedColumnProfileId"
+        label="Spaltenprofil"
+        @load="loadColumnProfile"
+        @save="saveColumnProfile"
+        @update="updateColumnProfile"
+        @delete="deleteColumnProfile"
+      />
       <button
         v-if="searchCategory === 'products'"
         class="pim-btn pim-btn-secondary py-2 px-3 sm:py-3 sm:px-4"

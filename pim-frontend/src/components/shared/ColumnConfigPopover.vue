@@ -1,6 +1,6 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { Columns3, ArrowUp, ArrowDown, RotateCcw } from 'lucide-vue-next'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { Columns3, ArrowUp, ArrowDown, RotateCcw, X } from 'lucide-vue-next'
 
 const props = defineProps({
   allColumns: { type: Array, required: true },
@@ -10,6 +10,33 @@ const props = defineProps({
 const emit = defineEmits(['toggle', 'move', 'reset'])
 
 const open = ref(false)
+const isMobile = ref(false)
+const btnRef = ref(null)
+const popoverStyle = ref({})
+
+function checkMobile() {
+  isMobile.value = window.innerWidth < 640
+}
+
+function calcPosition() {
+  if (isMobile.value || !btnRef.value) return
+  const rect = btnRef.value.getBoundingClientRect()
+  const popW = 288 // w-72 = 18rem = 288px
+  let left = rect.right - popW
+  if (left < 8) left = 8
+  popoverStyle.value = {
+    position: 'fixed',
+    top: `${rect.bottom + 4}px`,
+    left: `${left}px`,
+    width: `${popW}px`,
+  }
+}
+
+function doOpen() {
+  checkMobile()
+  open.value = !open.value
+  if (open.value) nextTick(calcPosition)
+}
 
 const baseColumns = computed(() => props.allColumns.filter(c => !c.group))
 const groupedColumns = computed(() => {
@@ -48,8 +75,9 @@ onUnmounted(() => window.removeEventListener('keydown', onEscape))
 <template>
   <div class="relative column-config-popover">
     <button
+      ref="btnRef"
       class="pim-btn pim-btn-secondary py-2 px-3"
-      @click="open = !open"
+      @click="doOpen"
       title="Spalten konfigurieren"
     >
       <Columns3 class="w-4 h-4" :stroke-width="1.75" />
@@ -57,98 +85,131 @@ onUnmounted(() => window.removeEventListener('keydown', onEscape))
     </button>
 
     <Teleport to="body">
+      <!-- Backdrop -->
       <div
         v-if="open"
         class="fixed inset-0 z-40"
+        :class="isMobile ? 'bg-black/30' : ''"
         @click="open = false"
       />
-    </Teleport>
 
-    <transition name="fade">
-      <div
-        v-if="open"
-        class="absolute right-0 top-full mt-1 z-50 w-72 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg shadow-lg overflow-hidden"
-      >
-        <div class="flex items-center justify-between px-3 py-2 border-b border-[var(--color-border)] bg-[var(--color-bg)]">
-          <span class="text-[11px] font-semibold text-[var(--color-text-secondary)] uppercase tracking-wider">Sichtbare Spalten</span>
-          <button
-            class="text-[10px] text-[var(--color-accent)] hover:underline flex items-center gap-1"
-            @click="emit('reset')"
+      <!-- Popover / Mobile bottom sheet -->
+      <transition :name="isMobile ? 'slide-up' : 'fade'">
+        <div
+          v-if="open"
+          :class="isMobile
+            ? 'fixed inset-x-0 bottom-0 z-50 bg-[var(--color-surface)] rounded-t-2xl shadow-2xl max-h-[80vh] flex flex-col'
+            : 'z-50 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg shadow-lg overflow-hidden'"
+          :style="isMobile ? {} : popoverStyle"
+        >
+          <!-- Header -->
+          <div class="flex items-center justify-between px-3 py-2 border-b border-[var(--color-border)] bg-[var(--color-bg)] shrink-0"
+               :class="isMobile ? 'rounded-t-2xl py-3' : ''"
           >
-            <RotateCcw class="w-3 h-3" :stroke-width="2" />
-            Zurücksetzen
-          </button>
-        </div>
-        <div class="max-h-80 overflow-y-auto p-1">
-          <!-- Base columns -->
-          <div
-            v-for="col in baseColumns"
-            :key="col.key"
-            class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[var(--color-bg)] group"
-          >
-            <input
-              type="checkbox"
-              :checked="isVisible(col.key)"
-              @change="toggle(col.key)"
-              class="rounded border-[var(--color-border)] text-[var(--color-accent)] shrink-0"
-            />
-            <span class="text-xs text-[var(--color-text-primary)] flex-1">{{ col.label }}</span>
-            <div v-if="isVisible(col.key)" class="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+            <span class="text-[11px] font-semibold text-[var(--color-text-secondary)] uppercase tracking-wider"
+                  :class="isMobile ? 'text-xs' : ''"
+            >Sichtbare Spalten</span>
+            <div class="flex items-center gap-2">
               <button
-                class="p-0.5 rounded hover:bg-[var(--color-border)] text-[var(--color-text-tertiary)]"
-                @click.stop="move(col.key, 'up')"
-                title="Nach oben"
+                class="text-[10px] text-[var(--color-accent)] hover:underline flex items-center gap-1"
+                :class="isMobile ? 'text-xs' : ''"
+                @click="emit('reset')"
               >
-                <ArrowUp class="w-3 h-3" :stroke-width="2" />
+                <RotateCcw class="w-3 h-3" :stroke-width="2" />
+                Zurücksetzen
               </button>
               <button
-                class="p-0.5 rounded hover:bg-[var(--color-border)] text-[var(--color-text-tertiary)]"
-                @click.stop="move(col.key, 'down')"
-                title="Nach unten"
+                v-if="isMobile"
+                class="p-1 rounded-full hover:bg-[var(--color-border)] text-[var(--color-text-tertiary)]"
+                @click="open = false"
               >
-                <ArrowDown class="w-3 h-3" :stroke-width="2" />
+                <X class="w-5 h-5" :stroke-width="2" />
               </button>
             </div>
           </div>
 
-          <!-- Grouped columns (e.g. Attribute) -->
-          <template v-for="(cols, groupName) in groupedColumns" :key="groupName">
-            <div class="flex items-center gap-2 px-2 pt-2 pb-1 mt-1 border-t border-[var(--color-border)]">
-              <span class="text-[10px] font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wider">{{ groupName }}</span>
-            </div>
+          <!-- Column list -->
+          <div class="overflow-y-auto p-1" :class="isMobile ? 'flex-1' : 'max-h-80'">
+            <!-- Base columns -->
             <div
-              v-for="col in cols"
+              v-for="col in baseColumns"
               :key="col.key"
-              class="flex items-center gap-2 px-2 py-1 rounded hover:bg-[var(--color-bg)] group"
+              class="flex items-center gap-2 px-2 rounded hover:bg-[var(--color-bg)] group"
+              :class="isMobile ? 'py-2.5' : 'py-1.5'"
             >
               <input
                 type="checkbox"
                 :checked="isVisible(col.key)"
                 @change="toggle(col.key)"
                 class="rounded border-[var(--color-border)] text-[var(--color-accent)] shrink-0"
+                :class="isMobile ? 'w-5 h-5' : ''"
               />
-              <span class="text-[11px] text-[var(--color-text-secondary)] flex-1 truncate">{{ col.label }}</span>
-              <div v-if="isVisible(col.key)" class="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+              <span class="text-[var(--color-text-primary)] flex-1" :class="isMobile ? 'text-sm' : 'text-xs'">{{ col.label }}</span>
+              <div v-if="isVisible(col.key)" class="flex items-center gap-0.5"
+                   :class="isMobile ? '' : 'opacity-0 group-hover:opacity-100 transition-opacity'"
+              >
                 <button
                   class="p-0.5 rounded hover:bg-[var(--color-border)] text-[var(--color-text-tertiary)]"
                   @click.stop="move(col.key, 'up')"
                   title="Nach oben"
                 >
-                  <ArrowUp class="w-3 h-3" :stroke-width="2" />
+                  <ArrowUp class="w-3 h-3" :stroke-width="2" :class="isMobile ? 'w-4 h-4' : ''" />
                 </button>
                 <button
                   class="p-0.5 rounded hover:bg-[var(--color-border)] text-[var(--color-text-tertiary)]"
                   @click.stop="move(col.key, 'down')"
                   title="Nach unten"
                 >
-                  <ArrowDown class="w-3 h-3" :stroke-width="2" />
+                  <ArrowDown class="w-3 h-3" :stroke-width="2" :class="isMobile ? 'w-4 h-4' : ''" />
                 </button>
               </div>
             </div>
-          </template>
+
+            <!-- Grouped columns (e.g. Attribute) -->
+            <template v-for="(cols, groupName) in groupedColumns" :key="groupName">
+              <div class="flex items-center gap-2 px-2 pt-2 pb-1 mt-1 border-t border-[var(--color-border)]">
+                <span class="text-[10px] font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wider"
+                      :class="isMobile ? 'text-xs' : ''"
+                >{{ groupName }}</span>
+              </div>
+              <div
+                v-for="col in cols"
+                :key="col.key"
+                class="flex items-center gap-2 px-2 rounded hover:bg-[var(--color-bg)] group"
+                :class="isMobile ? 'py-2.5' : 'py-1'"
+              >
+                <input
+                  type="checkbox"
+                  :checked="isVisible(col.key)"
+                  @change="toggle(col.key)"
+                  class="rounded border-[var(--color-border)] text-[var(--color-accent)] shrink-0"
+                  :class="isMobile ? 'w-5 h-5' : ''"
+                />
+                <span class="text-[var(--color-text-secondary)] flex-1 truncate" :class="isMobile ? 'text-sm' : 'text-[11px]'">{{ col.label }}</span>
+                <div v-if="isVisible(col.key)" class="flex items-center gap-0.5"
+                     :class="isMobile ? '' : 'opacity-0 group-hover:opacity-100 transition-opacity'"
+                >
+                  <button
+                    class="p-0.5 rounded hover:bg-[var(--color-border)] text-[var(--color-text-tertiary)]"
+                    @click.stop="move(col.key, 'up')"
+                    title="Nach oben"
+                  >
+                    <ArrowUp class="w-3 h-3" :stroke-width="2" :class="isMobile ? 'w-4 h-4' : ''" />
+                  </button>
+                  <button
+                    class="p-0.5 rounded hover:bg-[var(--color-border)] text-[var(--color-text-tertiary)]"
+                    @click.stop="move(col.key, 'down')"
+                    title="Nach unten"
+                  >
+                    <ArrowDown class="w-3 h-3" :stroke-width="2" :class="isMobile ? 'w-4 h-4' : ''" />
+                  </button>
+                </div>
+              </div>
+            </template>
+          </div>
         </div>
-      </div>
-    </transition>
+      </transition>
+    </Teleport>
   </div>
 </template>
 
@@ -160,5 +221,13 @@ onUnmounted(() => window.removeEventListener('keydown', onEscape))
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
+}
+.slide-up-enter-active,
+.slide-up-leave-active {
+  transition: transform 0.25s ease;
+}
+.slide-up-enter-from,
+.slide-up-leave-to {
+  transform: translateY(100%);
 }
 </style>

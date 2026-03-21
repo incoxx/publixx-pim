@@ -24,6 +24,8 @@ const fields = ref({
   is_inheritable: { enabled: false, value: true },
   is_variant_attribute: { enabled: false, value: false },
   is_internal: { enabled: false, value: false },
+  is_readonly: { enabled: false, value: false },
+  is_hidden: { enabled: false, value: false },
   attribute_type_id: { enabled: false, value: '' },
   status: { enabled: false, value: 'active' },
 })
@@ -37,6 +39,8 @@ const boolFields = [
   { key: 'is_inheritable', label: 'Vererbbar' },
   { key: 'is_variant_attribute', label: 'Varianten-Attribut' },
   { key: 'is_internal', label: 'Intern' },
+  { key: 'is_readonly', label: 'Schreibgeschützt' },
+  { key: 'is_hidden', label: 'Versteckt' },
 ]
 
 const attributeTypeOptions = computed(() =>

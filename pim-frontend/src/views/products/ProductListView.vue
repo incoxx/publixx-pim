@@ -11,7 +11,9 @@ import { Plus, Languages, Upload, Download, X, GitCompareArrows, Star, Pencil, F
 import mediaApi from '@/api/media'
 import PimTable from '@/components/shared/PimTable.vue'
 import ColumnConfigPopover from '@/components/shared/ColumnConfigPopover.vue'
+import ProfileSelector from '@/components/shared/ProfileSelector.vue'
 import { useColumnConfig } from '@/composables/useColumnConfig'
+import { useColumnProfiles } from '@/composables/useColumnProfiles'
 import { triggerDownload } from '@/utils/download'
 import PimFilterBar from '@/components/shared/PimFilterBar.vue'
 import PimDeleteConfirmDialog from '@/components/shared/PimDeleteConfirmDialog.vue'
@@ -66,6 +68,8 @@ const attributeColumns = computed(() =>
 )
 
 const { visibleColumns, allColumns, visibleKeys, isColumnVisible, toggleColumn, moveColumn, resetColumns } = useColumnConfig('columns:products', defaultColumns, extraColumns, attributeColumns)
+
+const { columnProfiles, selectedColumnProfileId, loadColumnProfiles, loadColumnProfile, saveColumnProfile, updateColumnProfile, deleteColumnProfile } = useColumnProfiles('products', visibleKeys)
 
 // Quick Lookup
 const showQuickLookup = ref(false)
@@ -395,6 +399,7 @@ onMounted(async () => {
   attrStore.fetchProductTypes()
   loadManufacturers()
   loadWatchlistIds()
+  loadColumnProfiles()
 })
 </script>
 
@@ -410,6 +415,15 @@ onMounted(async () => {
           @toggle="toggleColumn"
           @move="moveColumn"
           @reset="resetColumns"
+        />
+        <ProfileSelector
+          :profiles="columnProfiles"
+          v-model="selectedColumnProfileId"
+          label="Spaltenprofil"
+          @load="loadColumnProfile"
+          @save="saveColumnProfile"
+          @update="updateColumnProfile"
+          @delete="deleteColumnProfile"
         />
         <button
           class="pim-btn pim-btn-secondary text-xs"

@@ -53,9 +53,11 @@ const changeCount = computed(() => {
 })
 
 // Group attributes by type for easier selection
+// Group attributes by type for easier selection (exclude hidden and readonly)
 const groupedAttributes = computed(() => {
   const groups = {}
   for (const attr of allAttributes.value) {
+    if (attr.is_hidden || attr.is_readonly) continue
     const type = attr.data_type || 'Other'
     if (!groups[type]) groups[type] = []
     groups[type].push(attr)

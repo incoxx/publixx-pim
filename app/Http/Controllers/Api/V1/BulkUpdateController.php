@@ -473,7 +473,7 @@ class BulkUpdateController extends Controller
 
         foreach ($ops as $op) {
             $attribute = $attributes->get($op['attribute_id']);
-            if (!$attribute) {
+            if (!$attribute || $attribute->is_readonly) {
                 continue;
             }
 

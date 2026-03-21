@@ -38,6 +38,7 @@ use App\Http\Controllers\Api\V1\OfflineCatalogController;
 use App\Http\Controllers\Api\V1\TestDataGeneratorController;
 use App\Http\Controllers\Api\V1\ScheduledActionController;
 use App\Http\Controllers\Api\V1\SearchProfileController;
+use App\Http\Controllers\Api\V1\ColumnProfileController;
 use App\Http\Controllers\Api\V1\WebsiteProfileController;
 use App\Http\Controllers\Api\V1\HierarchyAttributeAssignmentController;
 use App\Http\Controllers\Api\V1\HierarchyController;
@@ -534,6 +535,11 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // =====================================================================
     Route::apiResource('search-profiles', SearchProfileController::class)->except(['show']);
     Route::get('search-profiles/{search_profile}/dependencies', [SearchProfileController::class, 'dependencies']);
+
+    // =====================================================================
+    // Column Profiles (Spaltenprofile)
+    // =====================================================================
+    Route::apiResource('column-profiles', ColumnProfileController::class)->except(['show']);
 
     // =====================================================================
     // Export Profiles (Exportprofile)
