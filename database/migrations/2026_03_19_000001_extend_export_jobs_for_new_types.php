@@ -11,8 +11,10 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // Extend format enum to include new types
-        DB::statement("ALTER TABLE export_jobs MODIFY COLUMN format ENUM('json','excel','csv','xml','offline_catalog','report','pdf_template') NOT NULL DEFAULT 'json'");
+        // Extend format enum to include new types (MySQL only — SQLite stores ENUM as TEXT)
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement("ALTER TABLE export_jobs MODIFY COLUMN format ENUM('json','excel','csv','xml','offline_catalog','report','pdf_template') NOT NULL DEFAULT 'json'");
+        }
 
         Schema::table('export_jobs', function (Blueprint $table) {
             // Template references for new job types
@@ -38,6 +40,8 @@ return new class extends Migration
             $table->dropColumn(['catalog_template_id', 'report_template_id', 'pdf_template_id', 'output_format']);
         });
 
-        DB::statement("ALTER TABLE export_jobs MODIFY COLUMN format ENUM('json','excel','csv','xml') NOT NULL DEFAULT 'json'");
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement("ALTER TABLE export_jobs MODIFY COLUMN format ENUM('json','excel','csv','xml') NOT NULL DEFAULT 'json'");
+        }
     }
 };

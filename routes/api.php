@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\V1\CalendarController;
 use App\Http\Controllers\Api\V1\DashboardController;
 use App\Http\Controllers\Api\V1\ProjectController;
 use App\Http\Controllers\Api\V1\TeamController;
+use App\Http\Controllers\Api\V1\TestRunnerController;
 use App\Http\Controllers\Api\V1\WorkflowController;
 use App\Http\Controllers\Api\V1\WorkflowStatusController;
 use App\Http\Controllers\Api\V1\WorkflowTaskController;
@@ -776,6 +777,12 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
         Route::post('deploy', [DeploymentController::class, 'deploy']);
         Route::post('deploy/rollback', [DeploymentController::class, 'rollback']);
     });
+
+    // =====================================================================
+    // Admin: Test Runner (anyPIM Quality Assurance)
+    // =====================================================================
+    Route::get('admin/test-runner/info', [TestRunnerController::class, 'info']);
+    Route::post('admin/test-runner/run', [TestRunnerController::class, 'run']);
 
     // =====================================================================
     // Admin: API Tester

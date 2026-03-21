@@ -333,6 +333,12 @@ const routes = [
     meta: { title: 'Merkliste' },
   },
   {
+    path: '/test-runner',
+    name: 'test-runner',
+    component: () => import('@/views/admin/TestRunnerView.vue'),
+    meta: { title: 'Test anyPIM' },
+  },
+  {
     path: '/api-tester',
     name: 'api-tester',
     component: () => import('@/views/admin/ApiTesterView.vue'),
