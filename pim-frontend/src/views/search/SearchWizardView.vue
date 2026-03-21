@@ -397,6 +397,18 @@ function countRules(group) {
   return n
 }
 
+function collectFilterAttributeIds(group) {
+  const ids = new Set()
+  for (const r of group.rules || []) {
+    if (r.type === 'group') {
+      for (const id of collectFilterAttributeIds(r)) ids.add(id)
+    } else if (r.attribute_id) {
+      ids.add(r.attribute_id)
+    }
+  }
+  return ids
+}
+
 // --- Computed ---
 const activeFilterCount = computed(() => {
   let count = selectedCategories.value.length + selectedProductTypes.value.length + selectedManufacturers.value.length
@@ -611,6 +623,15 @@ async function doProductSearch(page) {
     params.status = statusFilter.value
   }
 
+  // Auto-show columns for filtered attributes
+  const filterAttrIds = collectFilterAttributeIds(attributeFilterGroups.value)
+  for (const id of filterAttrIds) {
+    const colKey = `attributes.${id}`
+    if (!searchVisibleKeys.value.includes(colKey)) {
+      searchVisibleKeys.value.push(colKey)
+    }
+  }
+
   // Attribute columns (for visible attribute columns in table)
   const attrColumnIds = searchVisibleKeys.value
     .filter(k => k.startsWith('attributes.'))
@@ -627,6 +648,12 @@ async function doProductSearch(page) {
   for (const attr of searchableAttributes.value) {
     const val = attributeFilters.value[attr.id]
     if (val === '' || val === null || val === undefined) continue
+
+    // Auto-show column for this filtered attribute
+    const legacyColKey = `attributes.${attr.id}`
+    if (!searchVisibleKeys.value.includes(legacyColKey)) {
+      searchVisibleKeys.value.push(legacyColKey)
+    }
 
     const filter = { attribute_id: attr.id, value: val }
 
