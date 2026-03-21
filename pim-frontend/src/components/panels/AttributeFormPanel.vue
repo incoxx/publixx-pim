@@ -55,6 +55,8 @@ const formData = ref(
         is_inheritable: false,
         is_variant_attribute: false,
         is_internal: false,
+        is_readonly: false,
+        is_hidden: false,
         description_de: '',
         status: 'active',
       }
@@ -162,6 +164,8 @@ const fields = computed(() => {
     { key: 'is_inheritable', label: 'Vererbbar', type: 'boolean' },
     { key: 'is_variant_attribute', label: 'Varianten-Attribut', type: 'boolean' },
     { key: 'is_internal', label: 'Intern', type: 'boolean' },
+    { key: 'is_readonly', label: 'Schreibgeschützt', type: 'boolean', hint: 'Im Produkteditor und bei Massenoperationen nicht bearbeitbar' },
+    { key: 'is_hidden', label: 'Versteckt', type: 'boolean', hint: 'Nicht sichtbar im Editor, aber in Exporten enthalten' },
     { key: 'description_de', label: 'Beschreibung', type: 'textarea' },
   )
 

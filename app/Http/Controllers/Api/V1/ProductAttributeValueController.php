@@ -198,6 +198,11 @@ class ProductAttributeValueController extends Controller
                     continue;
                 }
 
+                // Skip readonly attributes
+                if ($attribute->is_readonly) {
+                    continue;
+                }
+
                 $language = $entry['language'] ?? null;
                 $multipliedIndex = $entry['multiplied_index'] ?? 0;
 
@@ -361,6 +366,10 @@ class ProductAttributeValueController extends Controller
                 $attribute = Attribute::findOrFail($entry['attribute_id']);
 
                 if ($attribute->data_type === 'Composite') {
+                    continue;
+                }
+
+                if ($attribute->is_readonly) {
                     continue;
                 }
 

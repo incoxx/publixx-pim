@@ -89,7 +89,7 @@ async function fetchAttrPickerItems(page = 1) {
         excludeIds: usedIds.size > 0 ? [...usedIds] : undefined,
       })
       const items = data.data || data
-      attrPickerItems.value = items
+      attrPickerItems.value = items.filter(a => !a.is_hidden && !a.is_readonly)
       attrPickerMeta.value = { current_page: 1, last_page: 1, total: items.length }
       if (data.warning) {
         attrPickerWarning.value = data.warning
@@ -104,7 +104,7 @@ async function fetchAttrPickerItems(page = 1) {
         order: 'asc',
       })
       const items = data.data || data
-      attrPickerItems.value = items.filter(a => !usedIds.has(a.id))
+      attrPickerItems.value = items.filter(a => !usedIds.has(a.id) && !a.is_hidden && !a.is_readonly)
       attrPickerMeta.value = data.meta || { current_page: page, last_page: 1, total: items.length }
     }
   } catch {
