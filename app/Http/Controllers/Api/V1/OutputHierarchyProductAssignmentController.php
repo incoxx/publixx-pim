@@ -120,6 +120,72 @@ class OutputHierarchyProductAssignmentController extends Controller
     }
 
     /**
+     * POST /hierarchy-nodes/{hierarchy_node}/output-products/bulk-assign
+     *
+     * Bulk-assign multiple products to an output hierarchy node.
+     */
+    public function bulkAssign(Request $request, HierarchyNode $hierarchyNode): JsonResponse
+    {
+        $this->authorize('update', $hierarchyNode);
+
+        $request->validate([
+            'product_ids' => 'required|array|min:1|max:10000',
+            'product_ids.*' => 'uuid|exists:products,id',
+        ]);
+
+        $productIds = $request->input('product_ids');
+
+        // Get already assigned product IDs to skip
+        $existingIds = $hierarchyNode->outputProductAssignments()
+            ->whereIn('product_id', $productIds)
+            ->pluck('product_id')
+            ->toArray();
+
+        $newIds = array_diff($productIds, $existingIds);
+        $maxSort = $hierarchyNode->outputProductAssignments()->max('sort_order') ?? -1;
+        $created = 0;
+
+        foreach ($newIds as $productId) {
+            $maxSort++;
+            OutputHierarchyProductAssignment::create([
+                'hierarchy_node_id' => $hierarchyNode->id,
+                'product_id' => $productId,
+                'sort_order' => $maxSort,
+            ]);
+            $created++;
+        }
+
+        return response()->json([
+            'message' => "{$created} Produkt(e) zugeordnet.",
+            'assigned' => $created,
+            'skipped' => count($existingIds),
+        ]);
+    }
+
+    /**
+     * POST /hierarchy-nodes/{hierarchy_node}/master-products/bulk-assign
+     *
+     * Bulk-assign multiple products to a master hierarchy node.
+     */
+    public function bulkAssignMaster(Request $request, HierarchyNode $hierarchyNode): JsonResponse
+    {
+        $this->authorize('update', $hierarchyNode);
+
+        $request->validate([
+            'product_ids' => 'required|array|min:1|max:10000',
+            'product_ids.*' => 'uuid|exists:products,id',
+        ]);
+
+        $count = Product::whereIn('id', $request->input('product_ids'))
+            ->update(['master_hierarchy_node_id' => $hierarchyNode->id]);
+
+        return response()->json([
+            'message' => "{$count} Produkt(e) zugeordnet.",
+            'assigned' => $count,
+        ]);
+    }
+
+    /**
      * PUT /hierarchy-nodes/{hierarchy_node}/output-products/sort
      */
     public function bulkSort(Request $request, HierarchyNode $hierarchyNode): JsonResponse

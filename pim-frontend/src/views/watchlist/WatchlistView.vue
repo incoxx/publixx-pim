@@ -20,6 +20,7 @@ import ReportTemplatePickerModal from '@/components/reports/ReportTemplatePicker
 import PdfTemplatePickerModal from '@/components/pdf-templates/PdfTemplatePickerModal.vue'
 import { useLicenseStore } from '@/stores/license'
 import BulkAssignProjectDialog from '@/components/dialogs/BulkAssignProjectDialog.vue'
+import BulkAssignHierarchyNodeDialog from '@/components/dialogs/BulkAssignHierarchyNodeDialog.vue'
 
 const router = useRouter()
 const localeStore = useLocaleStore()
@@ -308,6 +309,10 @@ const watchlistProductIds = computed(() => items.value.map(i => i.product_id).fi
 
 // ─── Bulk Assign to Project ──────────────────────────
 const showAssignProject = ref(false)
+const showAssignHierarchy = ref(false)
+const selectedProductIdsForBulk = computed(() =>
+  selectedIds.value.map(id => items.value.find(i => i.id === id)?.product_id).filter(Boolean)
+)
 
 // --- API Call Display ---
 const showApiCall = ref(false)
@@ -507,6 +512,13 @@ onMounted(async () => {
       >
         <FolderTree class="w-3.5 h-3.5" :stroke-width="1.75" />
         <span class="hidden sm:inline">Projekt zuordnen</span>
+      </button>
+      <button
+        class="pim-btn pim-btn-secondary text-xs"
+        @click="showAssignHierarchy = true"
+      >
+        <FolderTree class="w-3.5 h-3.5" :stroke-width="1.75" />
+        <span class="hidden sm:inline">Hierarchie zuordnen</span>
       </button>
       <button
         class="pim-btn pim-btn-danger text-xs"
@@ -715,6 +727,12 @@ onMounted(async () => {
     <BulkAssignProjectDialog
       v-model:open="showAssignProject"
       :productIds="selectedProductIds"
+    />
+
+    <!-- Bulk Assign to Hierarchy Node Dialog -->
+    <BulkAssignHierarchyNodeDialog
+      v-model:open="showAssignHierarchy"
+      :productIds="selectedProductIdsForBulk"
     />
   </div>
 </template>

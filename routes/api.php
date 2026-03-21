@@ -377,6 +377,8 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::get('hierarchy-nodes/{hierarchy_node}/output-products', [OutputHierarchyProductAssignmentController::class, 'index']);
     Route::post('hierarchy-nodes/{hierarchy_node}/output-products', [OutputHierarchyProductAssignmentController::class, 'store']);
     Route::put('hierarchy-nodes/{hierarchy_node}/output-products/sort', [OutputHierarchyProductAssignmentController::class, 'bulkSort']);
+    Route::post('hierarchy-nodes/{hierarchy_node}/output-products/bulk-assign', [OutputHierarchyProductAssignmentController::class, 'bulkAssign']);
+    Route::post('hierarchy-nodes/{hierarchy_node}/master-products/bulk-assign', [OutputHierarchyProductAssignmentController::class, 'bulkAssignMaster']);
     Route::delete('output-hierarchy-product-assignments/{assignment}', [OutputHierarchyProductAssignmentController::class, 'destroy']);
     Route::get('products/{product}/output-hierarchy-assignments', [OutputHierarchyProductAssignmentController::class, 'productAssignments']);
 

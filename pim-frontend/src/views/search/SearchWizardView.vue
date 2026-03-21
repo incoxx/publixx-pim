@@ -28,6 +28,7 @@ import ReportTemplatePickerModal from '@/components/reports/ReportTemplatePicker
 import PdfTemplatePickerModal from '@/components/pdf-templates/PdfTemplatePickerModal.vue'
 import { useLicenseStore } from '@/stores/license'
 import BulkAssignProjectDialog from '@/components/dialogs/BulkAssignProjectDialog.vue'
+import BulkAssignHierarchyNodeDialog from '@/components/dialogs/BulkAssignHierarchyNodeDialog.vue'
 
 const router = useRouter()
 const localeStore = useLocaleStore()
@@ -832,6 +833,7 @@ function openBulkUpdate() {
 
 // ─── Bulk Assign to Project ──────────────────────────
 const showAssignProject = ref(false)
+const showAssignHierarchy = ref(false)
 
 // --- API Call Display ---
 const showApiCall = ref(false)
@@ -1310,6 +1312,13 @@ const apiCallDisplay = computed(() => {
           <FolderTree class="w-3.5 h-3.5" :stroke-width="1.75" />
           <span class="hidden sm:inline">Projekt zuordnen</span>
         </button>
+        <button
+          class="pim-btn pim-btn-secondary text-xs"
+          @click="showAssignHierarchy = true"
+        >
+          <FolderTree class="w-3.5 h-3.5" :stroke-width="1.75" />
+          <span class="hidden sm:inline">Hierarchie zuordnen</span>
+        </button>
 
         <!-- Admin: Bulk Delete -->
         <button
@@ -1649,6 +1658,12 @@ const apiCallDisplay = computed(() => {
     <!-- Bulk Assign to Project Dialog -->
     <BulkAssignProjectDialog
       v-model:open="showAssignProject"
+      :productIds="selectedProductIds"
+    />
+
+    <!-- Bulk Assign to Hierarchy Node Dialog -->
+    <BulkAssignHierarchyNodeDialog
+      v-model:open="showAssignHierarchy"
       :productIds="selectedProductIds"
     />
   </div>
