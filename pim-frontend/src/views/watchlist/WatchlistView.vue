@@ -13,7 +13,9 @@ import productsApi from '@/api/products'
 import searchApi from '@/api/search'
 import PimTable from '@/components/shared/PimTable.vue'
 import ColumnConfigPopover from '@/components/shared/ColumnConfigPopover.vue'
+import ProfileSelector from '@/components/shared/ProfileSelector.vue'
 import { useColumnConfig } from '@/composables/useColumnConfig'
+import { useColumnProfiles } from '@/composables/useColumnProfiles'
 import { triggerDownload } from '@/utils/download'
 import PimConfirmDialog from '@/components/shared/PimConfirmDialog.vue'
 import ReportTemplatePickerModal from '@/components/reports/ReportTemplatePickerModal.vue'
@@ -94,6 +96,8 @@ const attributeColumns = computed(() =>
 )
 
 const { visibleColumns, allColumns, visibleKeys, toggleColumn, moveColumn, resetColumns } = useColumnConfig('columns:watchlist', defaultWatchlistColumns, extraWatchlistColumns, attributeColumns)
+
+const { columnProfiles, selectedColumnProfileId, loadColumnProfiles, loadColumnProfile, saveColumnProfile, updateColumnProfile, deleteColumnProfile } = useColumnProfiles('watchlist', visibleKeys)
 
 // Quick Lookup
 const showQuickLookup = ref(false)
@@ -331,6 +335,7 @@ onMounted(async () => {
     searchableAttributes.value = data.data || data
   } catch (e) { /* ignore */ }
   loadWatchlist()
+  loadColumnProfiles()
 })
 </script>
 
@@ -355,6 +360,16 @@ onMounted(async () => {
           @toggle="toggleColumn"
           @move="moveColumn"
           @reset="resetColumns"
+        />
+        <ProfileSelector
+          v-if="items.length > 0"
+          :profiles="columnProfiles"
+          v-model="selectedColumnProfileId"
+          label="Spaltenprofil"
+          @load="loadColumnProfile"
+          @save="saveColumnProfile"
+          @update="updateColumnProfile"
+          @delete="deleteColumnProfile"
         />
         <button
           v-if="items.length > 0"
