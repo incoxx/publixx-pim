@@ -37,6 +37,10 @@ export default {
     return client.post('/attributes/all-ids', params)
   },
 
+  migrateLanguage(id, targetLanguage) {
+    return client.post(`/attributes/${id}/migrate-language`, { target_language: targetLanguage })
+  },
+
   bulkDelete(attributeIds) {
     return client.post('/attributes/bulk-delete', { attribute_ids: attributeIds })
   },

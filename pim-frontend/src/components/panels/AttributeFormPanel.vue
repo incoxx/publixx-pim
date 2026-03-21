@@ -3,6 +3,8 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useAttributeStore } from '@/stores/attributes'
 import { useAuthStore } from '@/stores/auth'
 import { units as unitsApi } from '@/api/units'
+import attributesApi from '@/api/attributes'
+import { translationLanguages } from '@/config/languages'
 import PimForm from '@/components/shared/PimForm.vue'
 
 const props = defineProps({
@@ -14,6 +16,13 @@ const authStore = useAuthStore()
 const loading = ref(false)
 const errors = ref({})
 const unitOptions = ref([])
+
+// Migration dialog state
+const showMigrateDialog = ref(false)
+const migrateLanguage = ref('de')
+const migrating = ref(false)
+const migrateResult = ref(null)
+let pendingSubmitData = null
 
 onMounted(() => {
   if (!store.allItems.length) store.fetchAllAttributes()
@@ -81,77 +90,63 @@ const fields = computed(() => {
     { key: 'name_de', label: 'Name (DE)', type: 'text', required: true },
     { key: 'name_en', label: 'Name (EN)', type: 'text' },
     {
-      key: 'data_type', label: 'Datentyp', type: 'select', required: true,
-      options: ['String', 'Number', 'Float', 'Date', 'Flag', 'Selection', 'Dictionary', 'Composite', 'RichText', 'Hyperlink', 'ImageLink', 'PdfLink', 'VideoLink']
-        .map(t => ({ value: t, label: t })),
+      key: 'data_type', label: 'Datentyp', type: 'select', required: true, disabled: isEdit.value,
+      options: [
+        { value: 'String', label: 'Text' },
+        { value: 'Number', label: 'Ganzzahl' },
+        { value: 'Float', label: 'Dezimalzahl' },
+        { value: 'Flag', label: 'Ja / Nein' },
+        { value: 'Date', label: 'Datum' },
+        { value: 'Selection', label: 'Auswahl (Werteliste)' },
+        { value: 'MultiSelection', label: 'Mehrfachauswahl (Werteliste)' },
+        { value: 'Dictionary', label: 'Wörterbuch (Key→Value)' },
+        { value: 'RichText', label: 'Formatierter Text (HTML)' },
+        { value: 'Composite', label: 'Zusammengesetzt' },
+      ],
     },
     {
-      key: 'attribute_type_id', label: 'Attributgruppe', type: 'select',
-      options: [{ value: '', label: '— Keine —' }, ...store.types.map(t => ({ value: t.id, label: t.name_de || t.technical_name }))],
+      key: 'attribute_type_id',
+      label: 'Attributgruppe',
+      type: 'select',
+      options: store.attributeTypeOptions,
     },
   ]
 
-  if (formData.value.data_type === 'Selection' || formData.value.data_type === 'Dictionary') {
+  if (['Selection', 'MultiSelection', 'Dictionary'].includes(formData.value.data_type)) {
     base.push({
-      key: 'value_list_id', label: formData.value.data_type === 'Dictionary' ? 'Werteliste (Wörterbuch)' : 'Werteliste', type: 'select',
-      options: [{ value: '', label: '— Keine —' }, ...store.lists.map(l => ({ value: l.id, label: l.name_de || l.technical_name }))],
-      hint: formData.value.data_type === 'Dictionary' ? 'Wörterbucheinträge können unter Menü → Wörterbuch verwaltet werden.' : undefined,
+      key: 'value_list_id', label: 'Werteliste', type: 'select',
+      options: store.valueListOptions, required: true,
     })
   }
 
-  // Show composite format field and child attribute selector for Composite attributes
-  if (formData.value.data_type === 'Composite') {
-    const eligibleChildren = (store.allItems.length ? store.allItems : store.items).filter(a => {
-      if (a.data_type === 'Composite') return false
-      if (a.id === props.attribute?.id) return false
-      // Available if unassigned or already assigned to this composite
-      if (!a.parent_attribute_id) return true
-      if (a.parent_attribute_id === props.attribute?.id) return true
-      return false
-    })
-    if (eligibleChildren.length > 0) {
-      base.push({
-        key: 'child_attribute_ids', label: 'Kind-Attribute', type: 'multicombobox',
-        options: eligibleChildren.map(a => ({ value: a.id, label: a.name_de || a.technical_name })),
-        hint: 'Attribute die zu diesem Composite gehören.',
-      })
-    }
-    base.push({
-      key: 'composite_format', label: 'Anzeigeformat', type: 'text',
-      hint: 'Platzhalter {0}, {1}, {2}… für Kind-Attribute in Reihenfolge. Beispiel: {0} x {1} x {2} mm',
-    })
-  }
-
-  // Show parent attribute selector only for types that can be children of a composite
-  const compositeChildTypes = ['String', 'Number', 'Float', 'Date', 'Flag']
-  if (compositeChildTypes.includes(formData.value.data_type)) {
-    const composites = (store.allItems.length ? store.allItems : store.items).filter(a => a.data_type === 'Composite' && a.id !== props.attribute?.id)
-    if (composites.length > 0) {
-      base.push({
-        key: 'parent_attribute_id', label: 'Übergeordnetes Composite-Attribut', type: 'select',
-        options: [{ value: '', label: '— Kein übergeordnetes Attribut —' }, ...composites.map(c => ({ value: c.id, label: c.name_de || c.technical_name }))],
-      })
-    }
-  }
-
-  // Unit group and default unit for numeric types
   if (['Number', 'Float'].includes(formData.value.data_type)) {
-    base.push({
-      key: 'unit_group_id', label: 'Einheitengruppe', type: 'select',
-      options: [
-        { value: '', label: '— Keine —' },
-        ...store.unitGroupsList.map(g => ({ value: g.id, label: g.name_de || g.technical_name })),
-      ],
-    })
-    if (formData.value.unit_group_id) {
-      base.push({
+    base.push(
+      {
+        key: 'unit_group_id', label: 'Einheitengruppe', type: 'select',
+        options: store.unitGroupOptions,
+      },
+      {
         key: 'default_unit_id', label: 'Standard-Einheit', type: 'select',
-        options: [
-          { value: '', label: '— Keine —' },
-          ...unitOptions.value.map(u => ({ value: u.id, label: u.name_de || u.symbol || u.technical_name })),
-        ],
-      })
-    }
+        options: unitOptions.value.map(u => ({ value: u.id, label: `${u.abbreviation} — ${u.name_de || u.abbreviation}` })),
+      },
+    )
+  }
+
+  if (formData.value.data_type === 'Composite') {
+    const childOptions = store.allItems
+      .filter(a => a.id !== props.attribute?.id && a.data_type !== 'Composite' && !a.parent_attribute_id)
+      .map(a => ({ value: a.id, label: a.name_de || a.technical_name }))
+    base.push({
+      key: 'child_attribute_ids', label: 'Kind-Attribute', type: 'multi-select',
+      options: childOptions,
+    })
+  }
+
+  if (formData.value.data_type === 'Number' || formData.value.data_type === 'Float') {
+    base.push({
+      key: 'comparison_operator_group_id', label: 'Vergleichsoperator-Gruppe', type: 'select',
+      options: store.comparisonOperatorGroupOptions || [],
+    })
   }
 
   base.push(
@@ -174,6 +169,17 @@ const fields = computed(() => {
 })
 
 async function handleSubmit(data) {
+  // Check if is_translatable was toggled from false to true
+  if (isEdit.value && !props.attribute.is_translatable && data.is_translatable) {
+    pendingSubmitData = data
+    showMigrateDialog.value = true
+    return
+  }
+
+  await doSave(data)
+}
+
+async function doSave(data) {
   loading.value = true
   errors.value = {}
   try {
@@ -223,6 +229,40 @@ async function handleSubmit(data) {
     loading.value = false
   }
 }
+
+async function confirmMigrate() {
+  if (!pendingSubmitData) return
+  migrating.value = true
+  migrateResult.value = null
+
+  try {
+    // First save the attribute (with is_translatable = true)
+    await doSave(pendingSubmitData)
+
+    // Then migrate existing values
+    const { data } = await attributesApi.migrateLanguage(props.attribute.id, migrateLanguage.value)
+    migrateResult.value = data
+
+    showMigrateDialog.value = false
+    pendingSubmitData = null
+  } catch (e) {
+    migrateResult.value = { error: e.response?.data?.message || 'Fehler bei der Migration' }
+  } finally {
+    migrating.value = false
+  }
+}
+
+function skipMigrate() {
+  if (!pendingSubmitData) return
+  showMigrateDialog.value = false
+  doSave(pendingSubmitData)
+  pendingSubmitData = null
+}
+
+function cancelMigrate() {
+  showMigrateDialog.value = false
+  pendingSubmitData = null
+}
 </script>
 
 <template>
@@ -239,5 +279,44 @@ async function handleSubmit(data) {
       @submit="handleSubmit"
       @cancel="authStore.closePanel()"
     />
+
+    <!-- Language Migration Dialog -->
+    <Teleport to="body">
+      <div v-if="showMigrateDialog" class="fixed inset-0 z-[100] flex items-center justify-center">
+        <div class="absolute inset-0 bg-black/50" @click="cancelMigrate" />
+        <div class="relative bg-[var(--color-surface)] rounded-lg shadow-xl p-6 mx-4 max-w-md w-full space-y-4">
+          <h3 class="text-sm font-semibold">Bestehende Werte migrieren</h3>
+          <p class="text-xs text-[var(--color-text-secondary)]">
+            Dieses Attribut hat bestehende Produktwerte ohne Sprachzuordnung.
+            In welche Sprache sollen die vorhandenen Werte übernommen werden?
+          </p>
+
+          <div>
+            <label class="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">Zielsprache</label>
+            <select v-model="migrateLanguage" class="pim-input text-sm w-full">
+              <option v-for="lang in translationLanguages" :key="lang.code" :value="lang.code">
+                {{ lang.label }} ({{ lang.code }})
+              </option>
+            </select>
+          </div>
+
+          <div v-if="migrateResult?.error" class="p-2 rounded bg-[var(--color-error-light)] text-[var(--color-error)] text-xs">
+            {{ migrateResult.error }}
+          </div>
+
+          <div class="flex justify-end gap-2">
+            <button class="pim-btn pim-btn-secondary text-xs" @click="cancelMigrate">
+              Abbrechen
+            </button>
+            <button class="pim-btn pim-btn-secondary text-xs" @click="skipMigrate">
+              Ohne Migration speichern
+            </button>
+            <button class="pim-btn pim-btn-primary text-xs" :disabled="migrating" @click="confirmMigrate">
+              {{ migrating ? 'Migriere...' : 'Migrieren & Speichern' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>

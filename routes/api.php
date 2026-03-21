@@ -282,6 +282,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::apiResource('attributes', AttributeController::class);
     Route::get('attributes/{attribute}/dependencies', [AttributeController::class, 'dependencies']);
     Route::post('attributes/{attribute}/copy', [AttributeController::class, 'copy']);
+    Route::post('attributes/{attribute}/migrate-language', [AttributeController::class, 'migrateLanguage']);
 
     // =====================================================================
     // Agent 3: Attribute Types
