@@ -129,6 +129,9 @@ class TestRunnerController extends Controller
             $installedDevDeps = true;
         }
 
+        // Ensure test database exists
+        $this->ensureTestDatabase();
+
         $cmd = 'php artisan test';
 
         if ($suite === 'unit') {
@@ -270,6 +273,21 @@ class TestRunnerController extends Controller
             'test_files' => null,
             'output' => $message,
         ];
+    }
+
+    private function ensureTestDatabase(): void
+    {
+        try {
+            $db = config('database.connections.mysql');
+            $pdo = new \PDO(
+                "mysql:host={$db['host']};port={$db['port']}",
+                $db['username'],
+                $db['password']
+            );
+            $pdo->exec('CREATE DATABASE IF NOT EXISTS `publixx_pim_testing`');
+        } catch (\Exception $e) {
+            // Silently fail — test run will report the DB error
+        }
     }
 
     private function discoverTestSuites(): array
