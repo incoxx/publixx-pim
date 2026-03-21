@@ -133,7 +133,7 @@ class TestRunnerController extends Controller
             $installedDevDeps = true;
         }
 
-        $args = [$phpunitBin, '--no-interaction'];
+        $args = [$phpunitBin];
 
         if ($suite === 'unit') {
             $args[] = '--testsuite=Unit';
