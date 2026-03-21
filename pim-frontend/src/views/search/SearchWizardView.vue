@@ -234,6 +234,7 @@ const showCategoryPicker = ref(false)
 const searchableAttributes = ref([])
 const attributeFilters = ref({})
 const attributeFilterGroups = ref({ operator: 'AND', rules: [] })
+const autoShowFilterColumns = ref(localStorage.getItem('search:autoShowFilterColumns') !== 'false')
 const showAttributeFilters = ref(false)
 const liveCount = ref(null)
 let liveCountTimer = null
@@ -244,6 +245,10 @@ const selectedManufacturers = ref([])
 const manufacturerList = ref([])
 
 // Live count: debounced update when query builder changes
+watch(autoShowFilterColumns, (val) => {
+  localStorage.setItem('search:autoShowFilterColumns', val ? 'true' : 'false')
+})
+
 watch(attributeFilterGroups, () => {
   if (liveCountTimer) clearTimeout(liveCountTimer)
   if (!attributeFilterGroups.value.rules?.length) {
@@ -623,12 +628,14 @@ async function doProductSearch(page) {
     params.status = statusFilter.value
   }
 
-  // Auto-show columns for filtered attributes
-  const filterAttrIds = collectFilterAttributeIds(attributeFilterGroups.value)
-  for (const id of filterAttrIds) {
-    const colKey = `attributes.${id}`
-    if (!searchVisibleKeys.value.includes(colKey)) {
-      searchVisibleKeys.value.push(colKey)
+  // Auto-show columns for filtered attributes (if enabled)
+  if (autoShowFilterColumns.value) {
+    const filterAttrIds = collectFilterAttributeIds(attributeFilterGroups.value)
+    for (const id of filterAttrIds) {
+      const colKey = `attributes.${id}`
+      if (!searchVisibleKeys.value.includes(colKey)) {
+        searchVisibleKeys.value.push(colKey)
+      }
     }
   }
 
@@ -649,10 +656,12 @@ async function doProductSearch(page) {
     const val = attributeFilters.value[attr.id]
     if (val === '' || val === null || val === undefined) continue
 
-    // Auto-show column for this filtered attribute
-    const legacyColKey = `attributes.${attr.id}`
-    if (!searchVisibleKeys.value.includes(legacyColKey)) {
-      searchVisibleKeys.value.push(legacyColKey)
+    // Auto-show column for this filtered attribute (if enabled)
+    if (autoShowFilterColumns.value) {
+      const legacyColKey = `attributes.${attr.id}`
+      if (!searchVisibleKeys.value.includes(legacyColKey)) {
+        searchVisibleKeys.value.push(legacyColKey)
+      }
     }
 
     const filter = { attribute_id: attr.id, value: val }
@@ -1028,6 +1037,14 @@ const apiCallDisplay = computed(() => {
         @move="searchMoveColumn"
         @reset="searchResetColumns"
       />
+      <label
+        v-if="searchCategory === 'products'"
+        class="flex items-center gap-1.5 text-[11px] text-[var(--color-text-secondary)] cursor-pointer select-none"
+        title="Gefilterte Attribute automatisch als Spalten einblenden"
+      >
+        <input type="checkbox" v-model="autoShowFilterColumns" class="rounded border-[var(--color-border)]" />
+        Auto-Spalten
+      </label>
       <button
         v-if="searchCategory === 'products'"
         class="pim-btn pim-btn-secondary py-2 px-3 sm:py-3 sm:px-4"
