@@ -669,6 +669,30 @@ ENVFILE
 
 info ".env erstellt."
 
+# --- .env.testing erstellen ---
+info "Erstelle .env.testing fuer Test-Datenbank..."
+cat > "${INSTALL_DIR}/.env.testing" <<ENVTESTFILE
+APP_ENV=testing
+APP_KEY=
+
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=${DB_NAME}_testing
+DB_USERNAME=${DB_USER}
+DB_PASSWORD=${DB_PASS}
+
+CACHE_STORE=array
+QUEUE_CONNECTION=sync
+SESSION_DRIVER=array
+MAIL_MAILER=array
+BCRYPT_ROUNDS=4
+ENVTESTFILE
+
+chown www-data:www-data "${INSTALL_DIR}/.env.testing"
+chmod 640 "${INSTALL_DIR}/.env.testing"
+info ".env.testing erstellt."
+
 # --- Composer Install ---
 info "Installiere PHP-Abhaengigkeiten (Composer)..."
 info "(Dies kann bei der ersten Ausfuehrung einige Minuten dauern...)"
@@ -714,6 +738,12 @@ if [ "$DB_EXISTS" = true ] && [ "$DB_RESET" = false ]; then
     info "Fuehre nur fehlende Migrationen aus (Datenbank beibehalten)..."
 fi
 php artisan migrate --force
+
+# --- Test-Datenbank migrieren ---
+info "Migriere Test-Datenbank (${DB_NAME}_testing)..."
+php artisan migrate --database=mysql --force --env=testing 2>&1 \
+    && info "Test-Datenbank migriert." \
+    || warn "Test-Datenbank konnte nicht migriert werden — kann spaeter mit 'php artisan migrate --env=testing' nachgeholt werden."
 
 # --- Demodaten laden (Seed) ---
 if [ "$DB_EXISTS" = true ] && [ "$DB_RESET" = false ]; then
