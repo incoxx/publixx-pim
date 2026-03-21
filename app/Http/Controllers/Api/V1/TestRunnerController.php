@@ -131,7 +131,7 @@ class TestRunnerController extends Controller
                 'duration_ms' => round(($data['testResults'][0]['endTime'] ?? 0) - ($data['startTime'] ?? 0)),
                 'test_files' => collect($data['testResults'] ?? [])->map(fn ($f) => [
                     'file' => str_replace(base_path('pim-frontend/'), '', $f['name'] ?? ''),
-                    'tests' => $f['numPassingTests'] + ($f['numFailingTests'] ?? 0),
+                    'tests' => ($f['numPassingTests'] ?? 0) + ($f['numFailingTests'] ?? 0),
                     'passed' => $f['numPassingTests'] ?? 0,
                     'failed' => $f['numFailingTests'] ?? 0,
                     'duration_ms' => round(($f['endTime'] ?? 0) - ($f['startTime'] ?? 0)),
