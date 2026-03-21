@@ -10,6 +10,7 @@ use App\Services\Connectors\DeepL\DeepLTranslationService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
@@ -23,6 +24,10 @@ class ExecuteTranslationJob implements ShouldQueue
     public array $backoff = [10, 30, 120];
 
     public int $timeout = 1800;
+
+    private const BATCH_SIZE = 50;
+    private const BATCH_DELAY_SECONDS = 2;
+    private const MAX_RETRIES_PER_BATCH = 3;
 
     public function __construct(
         public TranslationJob $translationJob,
@@ -51,19 +56,28 @@ class ExecuteTranslationJob implements ShouldQueue
         $job->update(['status' => 'in_progress']);
 
         $pendingItems = $job->items()->where('status', 'pending')->get();
+        $batches = $pendingItems->chunk(self::BATCH_SIZE);
+        $batchIndex = 0;
 
-        // Process in batches of 50
-        foreach ($pendingItems->chunk(50) as $batch) {
+        foreach ($batches as $batch) {
+            // Delay between batches to avoid rate limiting
+            if ($batchIndex > 0) {
+                sleep(self::BATCH_DELAY_SECONDS);
+            }
+            $batchIndex++;
+
             $texts = $batch->pluck('source_text')->toArray();
 
-            try {
-                $results = $deeplService->translateTexts(
-                    $apiKey,
-                    $texts,
-                    strtoupper($job->source_language),
-                    strtoupper($job->target_language),
-                );
+            $results = $this->translateWithRetry(
+                $deeplService,
+                $apiKey,
+                $texts,
+                strtoupper($job->source_language),
+                strtoupper($job->target_language),
+                $job->id,
+            );
 
+            if ($results !== null) {
                 foreach ($batch->values() as $i => $item) {
                     if (isset($results[$i])) {
                         $item->update([
@@ -79,17 +93,13 @@ class ExecuteTranslationJob implements ShouldQueue
                         $job->increment('failed_items');
                     }
                 }
-            } catch (\Throwable $e) {
-                Log::error('Translation batch failed', [
-                    'job_id' => $job->id,
-                    'error' => $e->getMessage(),
-                ]);
-
+            } else {
+                // Entire batch failed after retries
                 foreach ($batch as $item) {
                     if ($item->status === 'pending') {
                         $item->update([
                             'status' => 'failed',
-                            'error_message' => $e->getMessage(),
+                            'error_message' => 'DeepL API nicht erreichbar nach mehreren Versuchen.',
                         ]);
                         $job->increment('failed_items');
                     }
@@ -104,6 +114,46 @@ class ExecuteTranslationJob implements ShouldQueue
             'status' => $finalStatus,
             'completed_at' => now(),
         ]);
+    }
+
+    /**
+     * Translate texts with retry and exponential backoff for 429 errors.
+     */
+    private function translateWithRetry(
+        DeepLTranslationService $deeplService,
+        string $apiKey,
+        array $texts,
+        string $sourceLang,
+        string $targetLang,
+        string $jobId,
+    ): ?array {
+        $delay = 5; // initial retry delay in seconds
+
+        for ($attempt = 1; $attempt <= self::MAX_RETRIES_PER_BATCH; $attempt++) {
+            try {
+                return $deeplService->translateTexts($apiKey, $texts, $sourceLang, $targetLang);
+            } catch (\Throwable $e) {
+                $is429 = str_contains($e->getMessage(), '429');
+
+                Log::warning('Translation batch attempt failed', [
+                    'job_id' => $jobId,
+                    'attempt' => $attempt,
+                    'error' => $e->getMessage(),
+                    'is_rate_limit' => $is429,
+                ]);
+
+                if ($is429 && $attempt < self::MAX_RETRIES_PER_BATCH) {
+                    sleep($delay);
+                    $delay *= 2; // exponential backoff: 5s, 10s, 20s
+                    continue;
+                }
+
+                // Non-429 error or last attempt - give up on this batch
+                return null;
+            }
+        }
+
+        return null;
     }
 
     public function failed(\Throwable $exception): void
