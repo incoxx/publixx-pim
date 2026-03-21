@@ -174,9 +174,12 @@ class SheetParserTest extends TestCase
     {
         $definitions = SheetParser::getSheetDefinitions();
 
-        $this->assertCount(14, $definitions);
+        $this->assertCount(17, $definitions);
         $this->assertArrayHasKey('01_Produkttypen', $definitions);
         $this->assertArrayHasKey('14_Medien', $definitions);
+        $this->assertArrayHasKey('15_Attribut_Sichten', $definitions);
+        $this->assertArrayHasKey('16_Preistypen', $definitions);
+        $this->assertArrayHasKey('17_Beziehungstypen', $definitions);
     }
 
     // ──────────────────────────────────────────────

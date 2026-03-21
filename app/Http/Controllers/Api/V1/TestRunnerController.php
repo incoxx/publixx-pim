@@ -129,10 +129,13 @@ class TestRunnerController extends Controller
             $installedDevDeps = true;
         }
 
-        // Ensure test database exists
+        // Ensure test database exists and has tables
         $this->ensureTestDatabase();
 
-        $cmd = 'php artisan test';
+        // Migrate test database (fresh) to ensure clean state
+        Process::timeout(120)->path(base_path())->run('php artisan migrate:fresh --env=testing --force 2>&1');
+
+        $cmd = 'php artisan test --env=testing';
 
         if ($suite === 'unit') {
             $cmd .= ' --testsuite=Unit';
