@@ -45,12 +45,12 @@ anyPIM ist ein Open-Source Product Information Management System (PIM). Es zentr
 
 | Kennzahl | Wert |
 |---|---|
-| Datenbank-Tabellen | 58 |
-| Eloquent Models | 55 |
-| REST-API-Endpoints | ~285 |
-| Attribut-Datentypen | 12 |
-| Migrationen | 88 |
-| Vue-Komponenten | 116+ |
+| Datenbank-Tabellen | 85 |
+| Eloquent Models | 70 |
+| REST-API-Endpoints | ~377 |
+| Attribut-Datentypen | 13 |
+| Migrationen | 104 |
+| Vue-Komponenten | 195+ |
 | Unterstützte Sprachen (UI) | Deutsch, Englisch |
 | Produktsprachen (Inhalte) | Unbegrenzt |
 
@@ -62,7 +62,7 @@ anyPIM ist ein Open-Source Product Information Management System (PIM). Es zentr
 
 | Schicht | Technologie | Version |
 |---|---|---|
-| Backend | PHP / Laravel | 8.4 / 11 |
+| Backend | PHP / Laravel | 8.3+ / 11 |
 | Frontend | Vue.js / Vite | 3 |
 | CSS-Framework | Tailwind CSS / DaisyUI | 4 / 5 |
 | Datenbank | MySQL | 8.0+ |
@@ -252,6 +252,8 @@ Unter **Benutzer** weitere Benutzer anlegen und Rollen zuweisen:
 | Product Manager | Produkte bearbeiten |
 | Viewer | Nur Lesen |
 | Export Manager | Exporte konfigurieren und ausführen |
+| API Designer | API-Templates und Zugangslinks verwalten |
+| Project Management | Projekte und Produktzuordnungen verwalten |
 
 ---
 
@@ -261,7 +263,7 @@ Unter **Benutzer** weitere Benutzer anlegen und Rollen zuweisen:
 
 anyPIM steuert den Zugriff über ein RBAC-System (Role-Based Access Control). Jeder Benutzer erhält genau eine Rolle, die bestimmt, welche Bereiche sichtbar und welche Aktionen erlaubt sind.
 
-### Die fünf Systemrollen
+### Die sieben Systemrollen
 
 | Rolle | Verantwortung | Typische Aufgaben |
 |---|---|---|
@@ -270,6 +272,8 @@ anyPIM steuert den Zugriff über ein RBAC-System (Role-Based Access Control). Je
 | **Product Manager** | Produktdaten | Produkte anlegen, bearbeiten, Varianten pflegen, Medien zuordnen |
 | **Viewer** | Nur Lesen | Produkte und Kataloge einsehen, keine Änderungen möglich |
 | **Export Manager** | Datenexport | Export-Jobs konfigurieren, ausführen und überwachen |
+| **API Designer** | API-Schnittstellen | API-Templates und Zugangslinks verwalten |
+| **Project Management** | Projektsteuerung | Projekte anlegen, Produkte zuordnen, Teamzusammenarbeit |
 
 ### Zugriff auf Hierarchieknoten einschränken
 
@@ -429,7 +433,7 @@ Die Oberflächensprache (DE/EN) ist unabhängig von der Inhaltssprache der Produ
 
 anyPIM speichert Produktdaten nach dem Entity-Attribute-Value-Modell. Das bedeutet: Attribute werden nicht als Datenbankspalten angelegt, sondern als konfigurierbare Datensätze. Ein neues Attribut erfordert keinen Eingriff in die Datenbank — es wird über die Oberfläche definiert und steht sofort zur Verfügung.
 
-### 12 Datentypen
+### 13 Datentypen
 
 | Datentyp | Beschreibung | Beispiel |
 |---|---|---|
@@ -445,6 +449,7 @@ anyPIM speichert Produktdaten nach dem Entity-Attribute-Value-Modell. Das bedeut
 | Hyperlink | URL | Herstellerseite |
 | ImageLink | Bild-URL | Produktbild-Referenz |
 | PdfLink | PDF-URL | Datenblatt |
+| VideoLink | Video-URL | Produktvideo |
 
 ### Attributgruppen
 

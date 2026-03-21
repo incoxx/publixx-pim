@@ -1,6 +1,6 @@
 # anyPIM — Von 0 auf 100
 
-Ein Praxisleitfaden für die tägliche Arbeit mit dem PIM.
+Schritt für Schritt vom leeren System zum ersten Export.
 
 ---
 
@@ -23,7 +23,7 @@ Ein Praxisleitfaden für die tägliche Arbeit mit dem PIM.
 
 ## Bevor es losgeht
 
-Dieses Dokument setzt voraus, dass anyPIM installiert und erreichbar ist. Die Installation ist in der Verkaufs-Mappe (Kapitel 4) beschrieben.
+Dieses Dokument setzt voraus, dass anyPIM installiert und erreichbar ist. Die Installation ist in der Verkaufs-Mappe beschrieben.
 
 Melden Sie sich als Administrator an. Nach dem Login sehen Sie das Dashboard mit einer Übersicht der Produkte, offenen Aufgaben und den letzten Änderungen. Alle Funktionsbereiche erreichen Sie über die **Sidebar** links.
 
@@ -221,6 +221,7 @@ Ergebnis: Dropdown mit den Farboptionen aus der Werteliste.
 | Hyperlink | URL | Herstellerseite |
 | ImageLink | Bild-URL | Produktbild-Referenz |
 | PdfLink | PDF-URL | Datenblatt-Link |
+| VideoLink | Video-URL | Produktvideo |
 
 ### Eigenschaften im Überblick
 
@@ -313,6 +314,8 @@ Jetzt steht das Datenmodell. Zeit für das erste Produkt.
 
 Nach dem Speichern öffnet sich die **Produktdetailansicht**.
 
+**Tipp: Massenimport.** Für große Produktbestände müssen Sie nicht jedes Produkt einzeln anlegen. anyPIM bietet einen Excel-Import mit 14-Tab-Struktur (Sprachen, Einheiten, Attribute, Produkte, Varianten, Medien, Preise, ...). Details im Hilfe-Portal. In diesem Leitfaden zeigen wir den manuellen Weg, damit Sie die Zusammenhänge verstehen.
+
 ### Attributwerte pflegen
 
 Die Detailansicht zeigt die Attribute, gruppiert nach den zugewiesenen Attributgruppen. Füllen Sie die Felder aus:
@@ -333,7 +336,7 @@ Beispielwerte für unser Produkt:
 | Mindestbestellmenge | 1 |
 | Erscheinungsdatum | 2025-03-01 |
 
-Speichern mit **Speichern** oder `Strg + S`.
+Speichern mit dem Button **Speichern** oder `Strg + S`.
 
 ### Status ändern
 
@@ -341,9 +344,13 @@ Ein Produkt kann erst auf **Aktiv** gesetzt werden, wenn alle Pflichtfelder ausg
 
 ```
 Entwurf  →  Aktiv  →  Inaktiv
-                         ↓
-                      Entwurf
+                    →  Eingestellt (Discontinued)
 ```
+
+- **Entwurf:** Produkt wird bearbeitet, noch nicht sichtbar
+- **Aktiv:** Produkt wird exportiert und ist in Katalogen sichtbar
+- **Inaktiv:** Temporär deaktiviert, kann reaktiviert werden
+- **Eingestellt:** Dauerhaft aus dem Sortiment genommen
 
 Nur aktive Produkte werden exportiert.
 
@@ -357,6 +364,24 @@ Nur aktive Produkte werden exportiert.
 | **Relationen** | Beziehungen zu anderen Produkten (Zubehör, Ersatzteile, ...) |
 | **Versionen** | Änderungshistorie einsehen, ältere Versionen wiederherstellen |
 | **Hierarchien** | Zuordnung zu Hierarchieknoten anzeigen und ändern |
+
+### Relationen
+
+Über den Tab **Relationen** verknüpfen Sie Produkte miteinander. Typische Anwendungsfälle:
+
+- **Zubehör:** Bohrer als Zubehör zur Bohrmaschine
+- **Ersatzteile:** Kohlebürsten als Ersatzteil
+- **Cross-Selling:** Ähnliche Produkte aus einer anderen Kategorie
+
+**Produktdetail → Tab "Relationen" → + Relation hinzufügen**
+
+Wählen Sie den Relationstyp und das Zielprodukt. Relationen können einseitig oder beidseitig sein.
+
+### Versionen
+
+Jede Speicherung erzeugt automatisch eine neue Version. Über den Tab **Versionen** sehen Sie die komplette Änderungshistorie: Wer hat wann welche Werte geändert?
+
+Um eine ältere Version wiederherzustellen: Version auswählen und **Wiederherstellen** klicken. Die aktuelle Version wird dabei nicht gelöscht — es entsteht eine neue Version mit den alten Werten.
 
 ---
 
@@ -498,7 +523,7 @@ Neben Produktdaten gibt es Metadaten: Attributnamen, Wertelisten-Einträge, Hier
 Der Ablauf in drei Schritten:
 
 1. **Ingest** — Alle Metadaten werden an den Übersetzungsdienst gesendet
-2. **Translate** — Automatische Übersetzung über DeepL, Google Translate oder Claude
+2. **Translate** — Automatische Übersetzung über DeepL, Google Translate oder KI-gestützte Übersetzung
 3. **Sync** — Übersetzungen werden zurück in die Datenbank geschrieben
 
 Überprüfte Übersetzungen können als **"Geprüft"** markiert werden. Geprüfte Einträge werden bei der nächsten automatischen Übersetzung nicht überschrieben.
@@ -581,8 +606,8 @@ Was wir eingerichtet haben:
 ### Nächste Schritte
 
 - **Massenimport:** Produkte per Excel importieren (14-Tab-Struktur). Siehe Hilfe-Portal.
-- **Benutzer anlegen:** Weitere Benutzer einladen und Rollen zuweisen. Siehe Verkaufs-Mappe, Kapitel 6.
-- **Workflow nutzen:** Aufgaben erstellen und im Team koordinieren. Siehe Verkaufs-Mappe, Kapitel 7.
+- **Benutzer anlegen:** Weitere Benutzer einladen und Rollen zuweisen. Siehe Verkaufs-Mappe.
+- **Workflow nutzen:** Aufgaben erstellen und im Team koordinieren. Siehe Verkaufs-Mappe.
 
 ### Hilfe
 
