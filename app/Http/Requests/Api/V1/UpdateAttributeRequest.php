@@ -45,6 +45,8 @@ class UpdateAttributeRequest extends FormRequest
             'is_inheritable' => 'boolean',
             'is_variant_attribute' => 'boolean',
             'is_internal' => 'boolean',
+            'is_readonly' => 'boolean',
+            'is_hidden' => 'boolean',
             'parent_attribute_id' => 'nullable|uuid|exists:attributes,id',
             'composite_format' => 'nullable|string|max:500',
             'composite_expression' => 'nullable|string|max:500',

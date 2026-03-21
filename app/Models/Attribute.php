@@ -42,6 +42,8 @@ class Attribute extends Model
         'is_inheritable',
         'is_variant_attribute',
         'is_internal',
+        'is_readonly',
+        'is_hidden',
         'parent_attribute_id',
         'composite_format',
         'composite_expression',
@@ -69,6 +71,8 @@ class Attribute extends Model
             'is_inheritable' => 'boolean',
             'is_variant_attribute' => 'boolean',
             'is_internal' => 'boolean',
+            'is_readonly' => 'boolean',
+            'is_hidden' => 'boolean',
             'position' => 'integer',
         ];
     }
