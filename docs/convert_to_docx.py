@@ -366,3 +366,7 @@ if __name__ == '__main__':
         '/home/user/publixx-pim/docs/verkaufsmappe.md',
         '/home/user/publixx-pim/docs/verkaufsmappe.docx'
     )
+    convert_md_to_docx(
+        '/home/user/publixx-pim/docs/guide-von-0-auf-100.md',
+        '/home/user/publixx-pim/docs/guide-von-0-auf-100.docx'
+    )
