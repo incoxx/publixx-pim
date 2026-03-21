@@ -114,10 +114,10 @@ class TestRunnerController extends Controller
 
             $install = Process::timeout(120)
                 ->path(base_path())
-                ->run([$composerBin, 'install', '--no-interaction']);
+                ->run(escapeshellarg($composerBin) . ' install --no-interaction 2>&1');
 
-            if ($install->exitCode() !== 0) {
-                return $this->errorResult('backend', 'composer install fehlgeschlagen: ' . mb_substr($install->output() . $install->errorOutput(), -500));
+            if ($install->exitCode() !== 0 || ! file_exists($phpunitBin)) {
+                return $this->errorResult('backend', 'composer install fehlgeschlagen (bin: ' . $composerBin . '): ' . mb_substr($install->output() . $install->errorOutput(), -1000));
             }
 
             if (! file_exists($phpunitBin)) {
@@ -143,7 +143,7 @@ class TestRunnerController extends Controller
             $composerPath = collect(['/usr/local/bin/composer', '/usr/bin/composer'])->first(fn ($p) => file_exists($p)) ?? 'composer';
             Process::timeout(120)
                 ->path(base_path())
-                ->run([$composerPath, 'install', '--no-dev', '--no-interaction']);
+                ->run(escapeshellarg($composerPath) . ' install --no-dev --no-interaction 2>&1');
         }
 
         return $result;
