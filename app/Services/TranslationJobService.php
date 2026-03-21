@@ -11,13 +11,16 @@ use App\Models\ProductAttributeValue;
 use App\Models\TranslationJob;
 use App\Models\TranslationJobItem;
 use App\Services\Connectors\DeepL\DeepLTranslationService;
+use App\Services\Tms\TmsClient;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class TranslationJobService
 {
     public function __construct(
         protected DeepLTranslationService $deeplService,
+        protected TmsClient $tmsClient,
     ) {}
 
     /**
@@ -281,7 +284,45 @@ class TranslationJobService
             }
         }
 
+        // Sync translated items to TMS
+        $this->syncToTms($job, $translatedItems);
+
         return $imported;
+    }
+
+    /**
+     * Sync translated items to the Translation Memory System.
+     */
+    protected function syncToTms(TranslationJob $job, $translatedItems): void
+    {
+        if (!$this->tmsClient->isEnabled()) {
+            return;
+        }
+
+        try {
+            $tmsItems = [];
+            foreach ($translatedItems as $item) {
+                $fieldPrefix = $this->resolveFieldPrefix($item->entity_type);
+
+                $tmsItems[] = [
+                    'source_text' => $item->source_text,
+                    'source_lang' => $job->source_language,
+                    'target_lang' => $job->target_language,
+                    'translated_text' => $item->translated_text,
+                    'entity_type' => $item->entity_type,
+                    'entity_id' => $item->entity_id,
+                    'field_name' => "{$fieldPrefix}_{$job->source_language}",
+                    'provider' => 'deepl',
+                ];
+            }
+
+            $this->tmsClient->importTranslations($tmsItems);
+        } catch (\Throwable $e) {
+            Log::warning('TMS sync after translation import failed', [
+                'job_id' => $job->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**
