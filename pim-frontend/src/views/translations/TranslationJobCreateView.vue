@@ -133,8 +133,11 @@ async function loadProfileProducts(profileId) {
     if (!profile) return
 
     const { data } = await searchApi.allIds({
-      filters: profile.filters || {},
-      query: profile.query || '',
+      search: profile.search_text || '',
+      search_mode: profile.search_mode || 'like',
+      category_ids: profile.category_ids || [],
+      include_descendants: profile.include_descendants !== false,
+      status: profile.status_filter || undefined,
     })
     const ids = data.data || data.ids || data
     productIds.value = Array.isArray(ids) ? ids : []
