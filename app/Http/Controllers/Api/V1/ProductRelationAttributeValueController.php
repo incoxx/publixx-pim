@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Requests\Api\V1\BulkUpdateRelationAttributeValuesRequest;
 use App\Http\Resources\Api\V1\ProductRelationAttributeValueResource;
 use App\Http\Traits\AuditsChanges;
+use App\Http\Traits\ChecksTabPermissions;
 use App\Models\ProductRelation;
 use App\Models\ProductRelationAttributeValue;
 use Illuminate\Http\JsonResponse;
@@ -16,6 +17,7 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 class ProductRelationAttributeValueController extends Controller
 {
     use AuditsChanges;
+    use ChecksTabPermissions;
     /**
      * GET /product-relations/{product_relation}/attribute-values
      */
@@ -43,6 +45,7 @@ class ProductRelationAttributeValueController extends Controller
     public function bulkUpdate(BulkUpdateRelationAttributeValuesRequest $request, ProductRelation $productRelation): AnonymousResourceCollection
     {
         $this->authorize('update', $productRelation->sourceProduct);
+        $this->assertTabWriteAccess('relations');
 
         $values = $request->validated()['values'];
 
@@ -84,6 +87,7 @@ class ProductRelationAttributeValueController extends Controller
     public function destroy(ProductRelationAttributeValue $productRelationAttributeValue): JsonResponse
     {
         $this->authorize('update', $productRelationAttributeValue->productRelation->sourceProduct);
+        $this->assertTabWriteAccess('relations');
 
         $productId = $productRelationAttributeValue->productRelation->source_product_id;
         $snapshot = [

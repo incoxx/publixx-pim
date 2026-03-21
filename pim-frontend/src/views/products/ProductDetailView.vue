@@ -1728,7 +1728,7 @@ watch(activeTab, (tab) => {
 // Reset active tab if it becomes hidden (e.g. after product type change)
 watch(tabs, (newTabs) => {
   if (!newTabs.find(t => t.key === activeTab.value)) {
-    activeTab.value = 'base-data'
+    activeTab.value = newTabs[0]?.key || 'base-data'
   }
 })
 
