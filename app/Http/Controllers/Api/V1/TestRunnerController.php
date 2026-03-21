@@ -279,14 +279,16 @@ class TestRunnerController extends Controller
     {
         try {
             $db = config('database.connections.mysql');
+            $testDbName = $db['database'] . '_testing';
             $pdo = new \PDO(
                 "mysql:host={$db['host']};port={$db['port']}",
                 $db['username'],
                 $db['password']
             );
-            $pdo->exec('CREATE DATABASE IF NOT EXISTS `publixx_pim_testing`');
+            $pdo->exec("CREATE DATABASE IF NOT EXISTS `{$testDbName}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
         } catch (\Exception $e) {
-            // Silently fail — test run will report the DB error
+            // User may not have CREATE DATABASE privilege — that's OK,
+            // the test DB should be created by setup.sh
         }
     }
 
