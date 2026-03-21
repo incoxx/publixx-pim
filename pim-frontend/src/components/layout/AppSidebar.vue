@@ -11,7 +11,7 @@ import {
   HelpCircle, PanelLeftClose, PanelLeft, Star, LayoutGrid, Ruler,
   FileJson, FileCode, PlayCircle, FileBarChart, FileText, BookOpen, Link2, Zap, Languages, LayoutTemplate,
   ChevronDown, ChevronRight, GripVertical, Factory, CalendarDays, ScrollText, Globe, Send,
-  LayoutDashboard, ClipboardList, Code, ExternalLink, Plug,
+  LayoutDashboard, ClipboardList, Code, ExternalLink, Plug, FlaskConical,
 } from 'lucide-vue-next'
 import AnyPimLogo from '@/components/shared/AnyPimLogo.vue'
 
@@ -187,6 +187,7 @@ const sections = computed(() => {
           icon: Database,
           label: () => 'System',
           children: [
+            { icon: FlaskConical, label: () => 'Test anyPIM', to: '/test-runner', permission: 'users.view' },
             { icon: Code, label: () => 'API-Designer', to: '/api-designer', module: 'api_designer' },
             { icon: Zap, label: () => 'API Tester', to: '/api-tester', permission: 'users.view' },
             { icon: Database, label: () => 'Datenbank', to: '/db', permission: 'users.view' },
