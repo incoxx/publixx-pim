@@ -129,7 +129,7 @@ class TestRunnerController extends Controller
             $installedDevDeps = true;
         }
 
-        $cmd = 'php ' . escapeshellarg($phpunitBin);
+        $cmd = 'php artisan test';
 
         if ($suite === 'unit') {
             $cmd .= ' --testsuite=Unit';
