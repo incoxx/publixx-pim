@@ -4,13 +4,14 @@ declare(strict_types=1);
 
 namespace App\Policies;
 
+use App\Http\Traits\ChecksInstanceRestrictions;
 use App\Models\MediaUsageType;
 use App\Models\User;
 use Illuminate\Auth\Access\HandlesAuthorization;
 
 class MediaUsageTypePolicy
 {
-    use HandlesAuthorization;
+    use HandlesAuthorization, ChecksInstanceRestrictions;
 
     public function before(User $user, string $ability): ?bool
     {
@@ -28,7 +29,8 @@ class MediaUsageTypePolicy
 
     public function view(User $user, MediaUsageType $mediaUsageType): bool
     {
-        return $user->hasPermissionTo('media-usage-types.view');
+        return $user->hasPermissionTo('media-usage-types.view')
+            && $this->checkInstanceAccess($user, $mediaUsageType, 'read');
     }
 
     public function create(User $user): bool
@@ -38,11 +40,13 @@ class MediaUsageTypePolicy
 
     public function update(User $user, MediaUsageType $mediaUsageType): bool
     {
-        return $user->hasPermissionTo('media-usage-types.edit');
+        return $user->hasPermissionTo('media-usage-types.edit')
+            && $this->checkInstanceAccess($user, $mediaUsageType, 'write');
     }
 
     public function delete(User $user, MediaUsageType $mediaUsageType): bool
     {
-        return $user->hasPermissionTo('media-usage-types.delete');
+        return $user->hasPermissionTo('media-usage-types.delete')
+            && $this->checkInstanceAccess($user, $mediaUsageType, 'delete');
     }
 }

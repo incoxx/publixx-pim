@@ -8,6 +8,7 @@ use App\Http\Requests\Api\V1\StoreAttributeTypeRequest;
 use App\Http\Requests\Api\V1\UpdateAttributeTypeRequest;
 use App\Http\Resources\Api\V1\AttributeTypeResource;
 use App\Http\Traits\ChecksDeletionConstraints;
+use App\Http\Traits\FiltersByInstanceRestrictions;
 use App\Models\AttributeType;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -15,7 +16,7 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class AttributeTypeController extends Controller
 {
-    use ChecksDeletionConstraints;
+    use ChecksDeletionConstraints, FiltersByInstanceRestrictions;
     private const ALLOWED_INCLUDES = ['attributes'];
 
     public function index(Request $request): AnonymousResourceCollection
@@ -26,6 +27,7 @@ class AttributeTypeController extends Controller
             ->withCount('attributes')
             ->with($this->parseIncludes($request, self::ALLOWED_INCLUDES));
 
+        $this->applyInstanceRestrictionFilter($query, AttributeType::class);
         $this->applySorting($query, $request, 'sort_order', 'asc');
 
         return AttributeTypeResource::collection(

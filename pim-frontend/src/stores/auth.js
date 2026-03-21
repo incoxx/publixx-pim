@@ -19,10 +19,28 @@ export const useAuthStore = defineStore('auth', () => {
   const userName = computed(() => user.value?.name || '')
   const userRole = computed(() => user.value?.roles?.[0]?.name || '')
   const permissions = computed(() => user.value?.all_permissions || [])
+  const entityRestrictions = computed(() => user.value?.entity_restrictions || [])
 
   function hasPermission(permission) {
     if (userRole.value === 'Admin') return true
     return permissions.value.includes(permission)
+  }
+
+  function hasInstanceAccess(restrictableType, instanceId, requiredLevel = 'read') {
+    if (userRole.value === 'Admin') return true
+
+    const typeRestrictions = entityRestrictions.value.filter(
+      r => r.restrictable_type === restrictableType
+    )
+
+    // No restrictions = full access
+    if (typeRestrictions.length === 0) return true
+
+    const restriction = typeRestrictions.find(r => r.restrictable_id === instanceId)
+    if (!restriction) return false
+
+    const hierarchy = { read: 1, write: 2, delete: 3 }
+    return (hierarchy[restriction.access_level] || 0) >= (hierarchy[requiredLevel] || 0)
   }
 
   async function login(credentials) {
@@ -104,8 +122,8 @@ export const useAuthStore = defineStore('auth', () => {
     user, token, locale,
     commandPaletteOpen, sidebarCollapsed, sidebarMobileOpen, sidebarWidth, sidebarCollapsedSections,
     panelOpen, panelComponent, panelProps,
-    isAuthenticated, userName, userRole, permissions,
-    hasPermission, login, logout, checkAuth, setLocale,
+    isAuthenticated, userName, userRole, permissions, entityRestrictions,
+    hasPermission, hasInstanceAccess, login, logout, checkAuth, setLocale,
     toggleCommandPalette, toggleSidebar, toggleMobileSidebar, closeMobileSidebar, setSidebarWidth, toggleSidebarSection,
     openPanel, closePanel,
   }

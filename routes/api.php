@@ -67,6 +67,7 @@ use App\Http\Controllers\Api\V1\ProductPriceController;
 use App\Http\Controllers\Api\V1\ProductRelationAttributeValueController;
 use App\Http\Controllers\Api\V1\ProductRelationController;
 use App\Http\Controllers\Api\V1\ProductVariantController;
+use App\Http\Controllers\Api\V1\RoleRestrictionController;
 use App\Http\Controllers\Api\V1\ProductVersionController;
 use App\Http\Controllers\Api\V1\PublixxDatasetController;
 use App\Http\Controllers\Api\V1\PdfTemplateController;
@@ -247,6 +248,10 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::put('roles/bulk-permissions', [RoleController::class, 'bulkSyncPermissions']);
     Route::apiResource('roles', RoleController::class);
     Route::put('roles/{role}/permissions', [RoleController::class, 'syncPermissions']);
+    Route::get('roles/{role}/restrictions', [RoleRestrictionController::class, 'index']);
+    Route::get('roles/{role}/restrictions/{type}', [RoleRestrictionController::class, 'show']);
+    Route::put('roles/{role}/restrictions/{type}', [RoleRestrictionController::class, 'sync']);
+    Route::delete('roles/{role}/restrictions/{type}', [RoleRestrictionController::class, 'destroy']);
 
     // =====================================================================
     // License Management

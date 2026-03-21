@@ -33,6 +33,31 @@ class UserResource extends JsonResource
             'all_permissions' => $this->whenLoaded('roles', function () {
                 return $this->getAllPermissions()->pluck('name')->unique()->values();
             }),
+            'entity_restrictions' => $this->whenLoaded('roles', function () {
+                $restrictions = [];
+                foreach ($this->roles as $role) {
+                    if ($role->relationLoaded('entityRestrictions')) {
+                        foreach ($role->entityRestrictions as $restriction) {
+                            $key = $restriction->restrictable_type . ':' . $restriction->restrictable_id;
+                            if (! isset($restrictions[$key])) {
+                                $restrictions[$key] = [
+                                    'restrictable_type' => $restriction->restrictable_type,
+                                    'restrictable_id' => $restriction->restrictable_id,
+                                    'access_level' => $restriction->access_level,
+                                ];
+                            } else {
+                                // Keep highest access level across roles
+                                $hierarchy = ['read' => 1, 'write' => 2, 'delete' => 3];
+                                if (($hierarchy[$restriction->access_level] ?? 0) > ($hierarchy[$restrictions[$key]['access_level']] ?? 0)) {
+                                    $restrictions[$key]['access_level'] = $restriction->access_level;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                return array_values($restrictions);
+            }),
         ];
     }
 }

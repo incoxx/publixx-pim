@@ -4,13 +4,14 @@ declare(strict_types=1);
 
 namespace App\Policies;
 
+use App\Http\Traits\ChecksInstanceRestrictions;
 use App\Models\AttributeType;
 use App\Models\User;
 use Illuminate\Auth\Access\HandlesAuthorization;
 
 class AttributeTypePolicy
 {
-    use HandlesAuthorization;
+    use HandlesAuthorization, ChecksInstanceRestrictions;
 
     public function before(User $user, string $ability): ?bool
     {
@@ -28,7 +29,8 @@ class AttributeTypePolicy
 
     public function view(User $user, AttributeType $attributeType): bool
     {
-        return $user->hasPermissionTo('attribute-types.view');
+        return $user->hasPermissionTo('attribute-types.view')
+            && $this->checkInstanceAccess($user, $attributeType, 'read');
     }
 
     public function create(User $user): bool
@@ -38,11 +40,13 @@ class AttributeTypePolicy
 
     public function update(User $user, AttributeType $attributeType): bool
     {
-        return $user->hasPermissionTo('attribute-types.edit');
+        return $user->hasPermissionTo('attribute-types.edit')
+            && $this->checkInstanceAccess($user, $attributeType, 'write');
     }
 
     public function delete(User $user, AttributeType $attributeType): bool
     {
-        return $user->hasPermissionTo('attribute-types.delete');
+        return $user->hasPermissionTo('attribute-types.delete')
+            && $this->checkInstanceAccess($user, $attributeType, 'delete');
     }
 }
