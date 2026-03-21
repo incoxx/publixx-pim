@@ -7,7 +7,6 @@ namespace Tests\Feature\Api;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
-use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class AuthControllerTest extends TestCase
@@ -97,10 +96,16 @@ class AuthControllerTest extends TestCase
 
     public function test_logout_deletes_current_token(): void
     {
-        $user = User::factory()->create();
-        Sanctum::actingAs($user);
+        $user = User::factory()->create(['password' => Hash::make('secret123')]);
 
-        $response = $this->postJson('/api/v1/auth/logout');
+        // Login to get a real token
+        $loginResponse = $this->postJson('/api/v1/auth/login', [
+            'email' => $user->email,
+            'password' => 'secret123',
+        ]);
+        $token = $loginResponse->json('data.token');
+
+        $response = $this->withToken($token)->postJson('/api/v1/auth/logout');
 
         $response->assertOk()
             ->assertJsonPath('message', 'Successfully logged out.');
@@ -108,10 +113,15 @@ class AuthControllerTest extends TestCase
 
     public function test_refresh_returns_new_token(): void
     {
-        $user = User::factory()->create();
-        Sanctum::actingAs($user);
+        $user = User::factory()->create(['password' => Hash::make('secret123')]);
 
-        $response = $this->postJson('/api/v1/auth/refresh');
+        $loginResponse = $this->postJson('/api/v1/auth/login', [
+            'email' => $user->email,
+            'password' => 'secret123',
+        ]);
+        $token = $loginResponse->json('data.token');
+
+        $response = $this->withToken($token)->postJson('/api/v1/auth/refresh');
 
         $response->assertOk()
             ->assertJsonStructure([
@@ -121,10 +131,15 @@ class AuthControllerTest extends TestCase
 
     public function test_me_returns_authenticated_user(): void
     {
-        $user = User::factory()->create();
-        Sanctum::actingAs($user);
+        $user = User::factory()->create(['password' => Hash::make('secret123')]);
 
-        $response = $this->getJson('/api/v1/auth/me');
+        $loginResponse = $this->postJson('/api/v1/auth/login', [
+            'email' => $user->email,
+            'password' => 'secret123',
+        ]);
+        $token = $loginResponse->json('data.token');
+
+        $response = $this->withToken($token)->getJson('/api/v1/auth/me');
 
         $response->assertOk()
             ->assertJsonPath('data.id', $user->id)

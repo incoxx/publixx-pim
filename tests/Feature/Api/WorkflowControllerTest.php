@@ -8,8 +8,8 @@ use App\Models\User;
 use App\Models\Workflow;
 use App\Models\WorkflowStatus;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Laravel\Sanctum\Sanctum;
-use Spatie\Permission\Models\Role;
+
+use App\Models\Role;
 use Tests\TestCase;
 
 class WorkflowControllerTest extends TestCase
@@ -22,10 +22,12 @@ class WorkflowControllerTest extends TestCase
     {
         parent::setUp();
 
+        app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
+
         $this->user = User::factory()->create();
-        $role = Role::create(['name' => 'Admin', 'guard_name' => 'web']);
+        $role = Role::findOrCreate('Admin', 'sanctum');
         $this->user->assignRole($role);
-        Sanctum::actingAs($this->user);
+        $this->actingAs($this->user);
     }
 
     public function test_index_returns_workflows(): void

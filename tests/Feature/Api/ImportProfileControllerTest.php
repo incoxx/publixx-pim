@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Api;
 
+use App\Models\Attribute;
 use App\Models\ImportProfile;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Laravel\Sanctum\Sanctum;
-use Spatie\Permission\Models\Role;
+
+use App\Models\Role;
 use Tests\TestCase;
 
 class ImportProfileControllerTest extends TestCase
@@ -21,10 +22,12 @@ class ImportProfileControllerTest extends TestCase
     {
         parent::setUp();
 
+        app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
+
         $this->user = User::factory()->create();
-        $role = Role::create(['name' => 'Admin', 'guard_name' => 'web']);
+        $role = Role::findOrCreate('Admin', 'sanctum');
         $this->user->assignRole($role);
-        Sanctum::actingAs($this->user);
+        $this->actingAs($this->user);
     }
 
     public function test_index_returns_import_profiles(): void
@@ -36,11 +39,15 @@ class ImportProfileControllerTest extends TestCase
 
     public function test_store_creates_import_profile(): void
     {
+        $attr = Attribute::factory()->create();
+
         $response = $this->postJson('/api/v1/import-profiles', [
             'name' => 'CSV Import',
             'is_shared' => false,
             'sku_column' => 'SKU',
-            'column_mappings' => [],
+            'column_mappings' => [
+                ['source' => 'Name', 'target_attribute_id' => $attr->id, 'language' => 'de'],
+            ],
         ]);
 
         $response->assertCreated()

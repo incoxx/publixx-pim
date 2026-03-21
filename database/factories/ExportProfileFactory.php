@@ -27,7 +27,7 @@ class ExportProfileFactory extends Factory
             'include_variants' => false,
             'attribute_ids' => [],
             'languages' => ['de', 'en'],
-            'format' => 'xlsx',
+            'format' => 'excel',
             'file_name_template' => 'export_{date}',
         ];
     }

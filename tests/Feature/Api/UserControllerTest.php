@@ -6,8 +6,8 @@ namespace Tests\Feature\Api;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Laravel\Sanctum\Sanctum;
-use Spatie\Permission\Models\Role;
+
+use App\Models\Role;
 use Tests\TestCase;
 
 class UserControllerTest extends TestCase
@@ -20,10 +20,12 @@ class UserControllerTest extends TestCase
     {
         parent::setUp();
 
+        app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
+
         $this->admin = User::factory()->create();
-        $role = Role::create(['name' => 'Admin', 'guard_name' => 'web']);
+        $role = Role::findOrCreate('Admin', 'sanctum');
         $this->admin->assignRole($role);
-        Sanctum::actingAs($this->admin);
+        $this->actingAs($this->admin);
     }
 
     public function test_index_returns_paginated_users(): void

@@ -8,8 +8,8 @@ use App\Models\Product;
 use App\Models\ProductType;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Laravel\Sanctum\Sanctum;
-use Spatie\Permission\Models\Role;
+
+use App\Models\Role;
 use Tests\TestCase;
 
 class ProductControllerTest extends TestCase
@@ -22,10 +22,12 @@ class ProductControllerTest extends TestCase
     {
         parent::setUp();
 
+        app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
+
         $this->user = User::factory()->create();
-        $role = Role::create(['name' => 'Admin', 'guard_name' => 'web']);
+        $role = Role::findOrCreate('Admin', 'sanctum');
         $this->user->assignRole($role);
-        Sanctum::actingAs($this->user);
+        $this->actingAs($this->user);
     }
 
     public function test_index_returns_paginated_products(): void
@@ -89,7 +91,7 @@ class ProductControllerTest extends TestCase
         $response = $this->getJson("/api/v1/products/{$product->id}?include=productType");
 
         $response->assertOk()
-            ->assertJsonStructure(['data' => ['id', 'productType']]);
+            ->assertJsonStructure(['data' => ['id', 'product_type']]);
     }
 
     public function test_update_modifies_product(): void

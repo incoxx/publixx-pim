@@ -7,8 +7,8 @@ namespace Tests\Feature\Api;
 use App\Models\ExportProfile;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Laravel\Sanctum\Sanctum;
-use Spatie\Permission\Models\Role;
+
+use App\Models\Role;
 use Tests\TestCase;
 
 class ExportProfileControllerTest extends TestCase
@@ -21,10 +21,12 @@ class ExportProfileControllerTest extends TestCase
     {
         parent::setUp();
 
+        app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
+
         $this->user = User::factory()->create();
-        $role = Role::create(['name' => 'Admin', 'guard_name' => 'web']);
+        $role = Role::findOrCreate('Admin', 'sanctum');
         $this->user->assignRole($role);
-        Sanctum::actingAs($this->user);
+        $this->actingAs($this->user);
     }
 
     public function test_index_returns_export_profiles(): void
@@ -49,7 +51,7 @@ class ExportProfileControllerTest extends TestCase
             'include_media' => false,
             'include_variants' => false,
             'languages' => ['de', 'en'],
-            'format' => 'xlsx',
+            'format' => 'excel',
         ]);
 
         $response->assertCreated()

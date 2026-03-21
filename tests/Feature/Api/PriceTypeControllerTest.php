@@ -8,8 +8,8 @@ use App\Models\PriceType;
 use App\Models\ProductPrice;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Laravel\Sanctum\Sanctum;
-use Spatie\Permission\Models\Role;
+
+use App\Models\Role;
 use Tests\TestCase;
 
 class PriceTypeControllerTest extends TestCase
@@ -22,10 +22,12 @@ class PriceTypeControllerTest extends TestCase
     {
         parent::setUp();
 
+        app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
+
         $this->user = User::factory()->create();
-        $role = Role::create(['name' => 'Admin', 'guard_name' => 'web']);
+        $role = Role::findOrCreate('Admin', 'sanctum');
         $this->user->assignRole($role);
-        Sanctum::actingAs($this->user);
+        $this->actingAs($this->user);
     }
 
     public function test_index_returns_price_types(): void
