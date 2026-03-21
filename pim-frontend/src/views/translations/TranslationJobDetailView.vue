@@ -179,69 +179,67 @@ function formatDate(d) {
     <template v-else-if="job">
       <!-- Header -->
       <div class="pim-card p-6 space-y-4">
-        <div class="flex items-start justify-between">
-          <div>
-            <h1 class="text-xl font-bold">{{ job.name }}</h1>
-            <div class="flex items-center gap-4 mt-2 text-sm text-[var(--color-text-secondary)]">
-              <span>
-                <span class="uppercase font-medium">{{ job.source_language }}</span>
-                <span class="mx-1">→</span>
-                <span class="uppercase font-semibold text-[var(--color-accent)]">{{ job.target_language }}</span>
-              </span>
-              <span>{{ job.scope === 'products' ? 'Produkte' : job.scope === 'system' ? 'System' : 'Gemischt' }}</span>
-              <span :class="statusColor(job.status)" class="flex items-center gap-1">
-                <component :is="job.status === 'in_progress' ? Loader2 : (job.status === 'completed' ? CheckCircle : (job.status === 'failed' ? XCircle : Clock))" class="w-4 h-4" :class="{ 'animate-spin': job.status === 'in_progress' }" />
-                {{ statusLabel(job.status) }}
-              </span>
-            </div>
+        <div>
+          <h1 class="text-xl font-bold">{{ job.name }}</h1>
+          <div class="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-sm text-[var(--color-text-secondary)]">
+            <span>
+              <span class="uppercase font-medium">{{ job.source_language }}</span>
+              <span class="mx-1">→</span>
+              <span class="uppercase font-semibold text-[var(--color-accent)]">{{ job.target_language }}</span>
+            </span>
+            <span>{{ job.scope === 'products' ? 'Produkte' : job.scope === 'system' ? 'System' : 'Gemischt' }}</span>
+            <span :class="statusColor(job.status)" class="flex items-center gap-1">
+              <component :is="job.status === 'in_progress' ? Loader2 : (job.status === 'completed' ? CheckCircle : (job.status === 'failed' ? XCircle : Clock))" class="w-4 h-4" :class="{ 'animate-spin': job.status === 'in_progress' }" />
+              {{ statusLabel(job.status) }}
+            </span>
           </div>
+        </div>
 
-          <!-- Actions -->
-          <div class="flex items-center gap-2">
-            <button
-              v-if="job.status === 'draft' || job.status === 'failed'"
-              class="pim-btn pim-btn-primary text-xs"
-              :disabled="actionLoading"
-              @click="submitJob"
-            >
-              <Play class="w-3.5 h-3.5" />
-              {{ job.status === 'failed' ? 'Erneut senden' : 'An DeepL senden' }}
-            </button>
-            <button
-              v-if="job.status === 'completed' && job.translated_items > 0"
-              class="pim-btn text-xs bg-green-500 text-white hover:bg-green-600"
-              :disabled="actionLoading"
-              @click="approveJob"
-            >
-              <CheckCircle class="w-3.5 h-3.5" />
-              Freigeben & Importieren
-            </button>
-            <button
-              v-if="job.status === 'completed' || job.status === 'failed'"
-              class="pim-btn pim-btn-secondary text-xs"
-              :disabled="actionLoading"
-              @click="retryJob"
-            >
-              <RefreshCw class="w-3.5 h-3.5" />
-              Fehlgeschlagene wiederholen
-            </button>
-            <button
-              v-if="job.status === 'pending' || job.status === 'in_progress'"
-              class="pim-btn pim-btn-secondary text-xs"
-              :disabled="actionLoading"
-              @click="cancelJob"
-            >
-              <Ban class="w-3.5 h-3.5" />
-              Abbrechen
-            </button>
-            <button
-              v-if="job.status !== 'in_progress'"
-              class="pim-btn text-xs bg-[var(--color-error-light)] text-[var(--color-error)] hover:bg-[var(--color-error)] hover:text-white"
-              @click="deleteJob"
-            >
-              <Trash2 class="w-3.5 h-3.5" />
-            </button>
-          </div>
+        <!-- Actions -->
+        <div class="flex flex-wrap items-center gap-2">
+          <button
+            v-if="job.status === 'draft' || job.status === 'failed'"
+            class="pim-btn pim-btn-primary text-xs"
+            :disabled="actionLoading"
+            @click="submitJob"
+          >
+            <Play class="w-3.5 h-3.5" />
+            {{ job.status === 'failed' ? 'Erneut senden' : 'An DeepL senden' }}
+          </button>
+          <button
+            v-if="job.status === 'completed' && job.translated_items > 0"
+            class="pim-btn text-xs bg-green-500 text-white hover:bg-green-600"
+            :disabled="actionLoading"
+            @click="approveJob"
+          >
+            <CheckCircle class="w-3.5 h-3.5" />
+            Freigeben & Importieren
+          </button>
+          <button
+            v-if="job.status === 'completed' || job.status === 'failed'"
+            class="pim-btn pim-btn-secondary text-xs"
+            :disabled="actionLoading"
+            @click="retryJob"
+          >
+            <RefreshCw class="w-3.5 h-3.5" />
+            Fehlgeschlagene wiederholen
+          </button>
+          <button
+            v-if="job.status === 'pending' || job.status === 'in_progress'"
+            class="pim-btn pim-btn-secondary text-xs"
+            :disabled="actionLoading"
+            @click="cancelJob"
+          >
+            <Ban class="w-3.5 h-3.5" />
+            Abbrechen
+          </button>
+          <button
+            v-if="job.status !== 'in_progress'"
+            class="pim-btn text-xs bg-[var(--color-error-light)] text-[var(--color-error)] hover:bg-[var(--color-error)] hover:text-white"
+            @click="deleteJob"
+          >
+            <Trash2 class="w-3.5 h-3.5" />
+          </button>
         </div>
 
         <!-- Progress -->
