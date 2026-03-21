@@ -255,10 +255,17 @@ const allItems = computed(() => {
     },
     {
       id: 'cfg-translations', icon: Languages,
-      label: t('nav.translations'),
+      label: 'Translation Memory',
       description: t('cmd.desc.translations'),
-      keywords: ['übersetzung', 'translation', 'sprache', 'language', 'i18n', 'mehrsprachig', 'multilingual', 'lokalisierung'],
+      keywords: ['übersetzung', 'translation', 'sprache', 'language', 'i18n', 'mehrsprachig', 'multilingual', 'lokalisierung', 'tms', 'memory'],
       section: 'config', action: () => router.push('/translations'),
+    },
+    {
+      id: 'cfg-translation-jobs', icon: Languages,
+      label: 'Übersetzungsjobs',
+      description: 'Übersetzungsjobs erstellen, verwalten und freigeben',
+      keywords: ['übersetzungsjob', 'translation job', 'deepl', 'übersetzen', 'translate', 'batch'],
+      section: 'config', action: () => router.push('/translation-jobs'),
     },
 
     // ── Administration ──

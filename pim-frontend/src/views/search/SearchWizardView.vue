@@ -11,6 +11,7 @@ import {
 import { useAuthStore } from '@/stores/auth'
 import searchApi from '@/api/search'
 import searchProfilesApi from '@/api/searchProfiles'
+import { translationLanguages } from '@/config/languages'
 import watchlistApi from '@/api/watchlist'
 import productsApi from '@/api/products'
 import hierarchiesApi from '@/api/hierarchies'
@@ -230,6 +231,7 @@ const searchableAttributes = ref([])
 const attributeFilters = ref({})
 const showAttributeFilters = ref(false)
 const statusFilter = ref('')
+const missingTranslationFilter = ref({ attribute_id: null, target_language: null })
 const selectedProductTypes = ref([])
 const selectedManufacturers = ref([])
 const manufacturerList = ref([])
@@ -353,10 +355,15 @@ function onQuickLookupChange(filters) {
   quickLookupFilters.value = filters
 }
 
+const translatableSearchAttributes = computed(() => {
+  return searchableAttributes.value.filter(a => a.is_translatable && (a.data_type === 'String' || a.data_type === 'RichText'))
+})
+
 // --- Computed ---
 const activeFilterCount = computed(() => {
   let count = selectedCategories.value.length + selectedProductTypes.value.length + selectedManufacturers.value.length
   if (statusFilter.value) count++
+  if (missingTranslationFilter.value.attribute_id && missingTranslationFilter.value.target_language) count++
   for (const val of Object.values(attributeFilters.value)) {
     if (val !== '' && val !== null && val !== undefined) count++
   }
@@ -491,6 +498,7 @@ function clearAllFilters() {
   selectedManufacturers.value = []
   attributeFilters.value = {}
   statusFilter.value = ''
+  missingTranslationFilter.value = { attribute_id: null, target_language: null }
   searchInput.value = ''
 }
 
@@ -589,6 +597,14 @@ async function doProductSearch(page) {
 
   if (attrFilters.length > 0) {
     params.attribute_filters = attrFilters
+  }
+
+  // Missing translation filter
+  if (missingTranslationFilter.value.attribute_id && missingTranslationFilter.value.target_language) {
+    params.missing_translation = {
+      attribute_id: missingTranslationFilter.value.attribute_id,
+      target_language: missingTranslationFilter.value.target_language,
+    }
   }
 
   const { data } = await searchApi.search(params)
@@ -785,6 +801,11 @@ async function openCompare() {
     compareData.value = data.data || data
   } catch (e) { console.error('Compare failed:', e) }
   finally { compareLoading.value = false }
+}
+
+function openTranslationJobCreate() {
+  const ids = selectedProductIds.value.join(',')
+  router.push({ path: '/translation-jobs/create', query: { product_ids: ids } })
 }
 
 function openBulkEditor() {
@@ -1133,6 +1154,37 @@ const apiCallDisplay = computed(() => {
           </div>
         </div>
 
+        <!-- Missing Translation filter -->
+        <div v-if="translatableSearchAttributes.length > 0">
+          <p class="text-[12px] font-medium text-[var(--color-text-secondary)] mb-2">Fehlende Übersetzung</p>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-[11px] font-medium text-[var(--color-text-tertiary)] mb-1">Attribut</label>
+              <select
+                class="pim-input text-xs"
+                :value="missingTranslationFilter.attribute_id || ''"
+                @change="missingTranslationFilter.attribute_id = $event.target.value || null"
+              >
+                <option value="">— Keins —</option>
+                <option v-for="attr in translatableSearchAttributes" :key="attr.id" :value="attr.id">
+                  {{ attr.name_de || attr.technical_name }}
+                </option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-[11px] font-medium text-[var(--color-text-tertiary)] mb-1">Zielsprache</label>
+              <select
+                class="pim-input text-xs"
+                :value="missingTranslationFilter.target_language || ''"
+                @change="missingTranslationFilter.target_language = $event.target.value || null"
+              >
+                <option value="">— Wählen —</option>
+                <option v-for="lang in translationLanguages" :key="lang.code" :value="lang.code">{{ lang.label }} ({{ lang.code }})</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
         <!-- Attribute filters -->
         <div v-if="searchableAttributes.length > 0">
           <p class="text-[12px] font-medium text-[var(--color-text-secondary)] mb-2">Attribute</p>
@@ -1221,6 +1273,10 @@ const apiCallDisplay = computed(() => {
         <button class="pim-btn pim-btn-secondary text-xs" @click="showXliffPanel = !showXliffPanel">
           <Languages class="w-3.5 h-3.5" :stroke-width="1.75" />
           XLIFF
+        </button>
+        <button class="pim-btn pim-btn-secondary text-xs" @click="openTranslationJobCreate">
+          <Languages class="w-3.5 h-3.5" :stroke-width="1.75" />
+          <span class="hidden sm:inline">Übersetzungsjob</span>
         </button>
         <button
           v-if="canCompare"

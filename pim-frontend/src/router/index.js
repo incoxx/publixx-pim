@@ -270,7 +270,25 @@ const routes = [
     path: '/translations',
     name: 'translations',
     component: () => import('@/views/translations/TranslationView.vue'),
-    meta: { title: 'Übersetzungen' },
+    meta: { title: 'Translation Memory' },
+  },
+  {
+    path: '/translation-jobs',
+    name: 'translation-jobs',
+    component: () => import('@/views/translations/TranslationJobsView.vue'),
+    meta: { title: 'Übersetzungsjobs' },
+  },
+  {
+    path: '/translation-jobs/create',
+    name: 'translation-job-create',
+    component: () => import('@/views/translations/TranslationJobCreateView.vue'),
+    meta: { title: 'Übersetzungsjob erstellen' },
+  },
+  {
+    path: '/translation-jobs/:id',
+    name: 'translation-job-detail',
+    component: () => import('@/views/translations/TranslationJobDetailView.vue'),
+    meta: { title: 'Übersetzungsjob' },
   },
   {
     path: '/users/audit',

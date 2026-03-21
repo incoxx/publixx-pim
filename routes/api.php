@@ -56,6 +56,7 @@ use App\Http\Controllers\Api\V1\PriceTypeController;
 use App\Http\Controllers\Api\V1\ProductTypeController;
 use App\Http\Controllers\Api\V1\ProductAttributeValueController;
 use App\Http\Controllers\Api\V1\TmsProxyController;
+use App\Http\Controllers\Api\V1\TranslationJobController;
 use App\Http\Controllers\Api\V1\TranslationXliffController;
 use App\Http\Controllers\Api\V1\ProductController;
 use App\Http\Controllers\Api\V1\ProductMediaController;
@@ -718,6 +719,20 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::apiResource('catalog-templates', CatalogTemplateController::class);
     Route::post('catalog-templates/{catalog_template}/duplicate', [CatalogTemplateController::class, 'duplicate']);
     Route::get('catalog-templates/{catalog_template}/preview', [CatalogTemplateController::class, 'preview']);
+
+    // =====================================================================
+    // Translation Jobs
+    // =====================================================================
+    Route::prefix('translation-jobs')->group(function () {
+        Route::get('/', [TranslationJobController::class, 'index']);
+        Route::post('/', [TranslationJobController::class, 'store']);
+        Route::get('/{id}', [TranslationJobController::class, 'show'])->where('id', '[a-f0-9\-]{36}');
+        Route::post('/{id}/submit', [TranslationJobController::class, 'submit'])->where('id', '[a-f0-9\-]{36}');
+        Route::post('/{id}/approve', [TranslationJobController::class, 'approve'])->where('id', '[a-f0-9\-]{36}');
+        Route::post('/{id}/cancel', [TranslationJobController::class, 'cancel'])->where('id', '[a-f0-9\-]{36}');
+        Route::post('/{id}/retry', [TranslationJobController::class, 'retry'])->where('id', '[a-f0-9\-]{36}');
+        Route::delete('/{id}', [TranslationJobController::class, 'destroy'])->where('id', '[a-f0-9\-]{36}');
+    });
 
     // =====================================================================
     // TMS: Translation Management
