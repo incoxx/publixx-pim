@@ -112,8 +112,14 @@ class TestRunnerController extends Controller
                 return $this->errorResult('backend', 'PHPUnit nicht installiert und Composer wurde nicht gefunden. Bitte composer install manuell ausführen.');
             }
 
+            $composerHome = base_path('storage/.composer');
+            if (! is_dir($composerHome)) {
+                mkdir($composerHome, 0755, true);
+            }
+
             $install = Process::timeout(120)
                 ->path(base_path())
+                ->env(['COMPOSER_HOME' => $composerHome, 'HOME' => base_path('storage')])
                 ->run(escapeshellarg($composerBin) . ' install --no-interaction 2>&1');
 
             if ($install->exitCode() !== 0 || ! file_exists($phpunitBin)) {
@@ -143,6 +149,7 @@ class TestRunnerController extends Controller
             $composerPath = collect(['/usr/local/bin/composer', '/usr/bin/composer'])->first(fn ($p) => file_exists($p)) ?? 'composer';
             Process::timeout(120)
                 ->path(base_path())
+                ->env(['COMPOSER_HOME' => base_path('storage/.composer'), 'HOME' => base_path('storage')])
                 ->run(escapeshellarg($composerPath) . ' install --no-dev --no-interaction 2>&1');
         }
 
