@@ -129,7 +129,7 @@ class TestRunnerController extends Controller
             $installedDevDeps = true;
         }
 
-        $cmd = escapeshellarg($phpunitBin);
+        $cmd = 'php artisan test';
 
         if ($suite === 'unit') {
             $cmd .= ' --testsuite=Unit';
@@ -137,7 +137,7 @@ class TestRunnerController extends Controller
             $cmd .= ' --testsuite=Feature';
         }
 
-        $process = Process::timeout(300)->run($cmd . ' 2>&1');
+        $process = Process::timeout(300)->path(base_path())->run($cmd . ' 2>&1');
         $result = $this->parsePhpUnitOutput($process->output() . $process->errorOutput(), $process->exitCode());
 
         // Cleanup: remove dev dependencies to keep production clean
