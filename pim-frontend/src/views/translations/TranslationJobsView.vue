@@ -22,7 +22,7 @@ function loadPage(page) {
 }
 
 function applyFilter() {
-  store.fetchJobs({ status: statusFilter.value || undefined })
+  store.fetchJobs({ page: 1, status: statusFilter.value || undefined })
 }
 
 async function deleteJob(id) {

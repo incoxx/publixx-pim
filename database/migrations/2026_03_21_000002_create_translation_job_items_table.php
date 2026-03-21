@@ -22,6 +22,7 @@ return new class extends Migration
 
             $table->index('translation_job_id');
             $table->index('status');
+            $table->index(['entity_type', 'entity_id']);
         });
     }
 

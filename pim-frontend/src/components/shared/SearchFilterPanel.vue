@@ -4,6 +4,7 @@ import { ChevronDown, ChevronRight, X } from 'lucide-vue-next'
 import searchApi from '@/api/search'
 import hierarchiesApi from '@/api/hierarchies'
 import { priceRegions } from '@/api/priceRegions'
+import { translationLanguages as availableLanguages } from '@/config/languages'
 
 const props = defineProps({
   modelValue: {
@@ -85,20 +86,6 @@ watch(selectedHierarchyId, () => {
 const translatableAttributes = computed(() => {
   return searchableAttributes.value.filter(a => a.is_translatable && (a.data_type === 'String' || a.data_type === 'RichText'))
 })
-
-const availableLanguages = [
-  { code: 'de', label: 'Deutsch' },
-  { code: 'en', label: 'Englisch' },
-  { code: 'fr', label: 'Französisch' },
-  { code: 'it', label: 'Italienisch' },
-  { code: 'es', label: 'Spanisch' },
-  { code: 'nl', label: 'Niederländisch' },
-  { code: 'pl', label: 'Polnisch' },
-  { code: 'pt', label: 'Portugiesisch' },
-  { code: 'cs', label: 'Tschechisch' },
-  { code: 'da', label: 'Dänisch' },
-  { code: 'sv', label: 'Schwedisch' },
-]
 
 const activeFilterCount = computed(() => {
   let count = (props.modelValue.category_ids || []).length

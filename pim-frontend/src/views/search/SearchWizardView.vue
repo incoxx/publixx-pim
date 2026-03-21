@@ -11,6 +11,7 @@ import {
 import { useAuthStore } from '@/stores/auth'
 import searchApi from '@/api/search'
 import searchProfilesApi from '@/api/searchProfiles'
+import { translationLanguages } from '@/config/languages'
 import watchlistApi from '@/api/watchlist'
 import productsApi from '@/api/products'
 import hierarchiesApi from '@/api/hierarchies'
@@ -353,21 +354,6 @@ const filteredResults = computed(() => {
 function onQuickLookupChange(filters) {
   quickLookupFilters.value = filters
 }
-
-// --- Translation filter helpers ---
-const translationLanguages = [
-  { code: 'de', label: 'Deutsch' },
-  { code: 'en', label: 'Englisch' },
-  { code: 'fr', label: 'Französisch' },
-  { code: 'it', label: 'Italienisch' },
-  { code: 'es', label: 'Spanisch' },
-  { code: 'nl', label: 'Niederländisch' },
-  { code: 'pl', label: 'Polnisch' },
-  { code: 'pt', label: 'Portugiesisch' },
-  { code: 'cs', label: 'Tschechisch' },
-  { code: 'da', label: 'Dänisch' },
-  { code: 'sv', label: 'Schwedisch' },
-]
 
 const translatableSearchAttributes = computed(() => {
   return searchableAttributes.value.filter(a => a.is_translatable && (a.data_type === 'String' || a.data_type === 'RichText'))

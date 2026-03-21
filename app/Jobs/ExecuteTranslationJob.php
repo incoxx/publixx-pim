@@ -22,6 +22,8 @@ class ExecuteTranslationJob implements ShouldQueue
 
     public array $backoff = [10, 30, 120];
 
+    public int $timeout = 1800;
+
     public function __construct(
         public TranslationJob $translationJob,
     ) {
@@ -51,9 +53,6 @@ class ExecuteTranslationJob implements ShouldQueue
         $pendingItems = $job->items()->where('status', 'pending')->get();
 
         // Process in batches of 50
-        $translated = 0;
-        $failed = 0;
-
         foreach ($pendingItems->chunk(50) as $batch) {
             $texts = $batch->pluck('source_text')->toArray();
 
@@ -71,13 +70,13 @@ class ExecuteTranslationJob implements ShouldQueue
                             'translated_text' => $results[$i],
                             'status' => 'translated',
                         ]);
-                        $translated++;
+                        $job->increment('translated_items');
                     } else {
                         $item->update([
                             'status' => 'failed',
                             'error_message' => 'Keine Übersetzung erhalten.',
                         ]);
-                        $failed++;
+                        $job->increment('failed_items');
                     }
                 }
             } catch (\Throwable $e) {
@@ -92,23 +91,17 @@ class ExecuteTranslationJob implements ShouldQueue
                             'status' => 'failed',
                             'error_message' => $e->getMessage(),
                         ]);
-                        $failed++;
+                        $job->increment('failed_items');
                     }
                 }
             }
-
-            // Update progress
-            $job->update([
-                'translated_items' => $job->translated_items + $translated,
-                'failed_items' => $job->failed_items + $failed,
-            ]);
-            $job->refresh();
-            $translated = 0;
-            $failed = 0;
         }
 
+        // Determine final status from actual item counts
+        $job->refresh();
+        $finalStatus = $job->translated_items === 0 && $job->failed_items > 0 ? 'failed' : 'completed';
         $job->update([
-            'status' => $job->failed_items > 0 && $job->translated_items === 0 ? 'failed' : 'completed',
+            'status' => $finalStatus,
             'completed_at' => now(),
         ]);
     }

@@ -12,10 +12,12 @@ const router = useRouter()
 const store = useTranslationJobsStore()
 
 const error = ref('')
+const approveMessage = ref('')
 const actionLoading = ref(false)
 const itemStatusFilter = ref('')
 const itemPage = ref(1)
 let pollTimer = null
+let isLoading = false
 
 const job = computed(() => store.currentJob?.data || store.currentJob || null)
 const items = computed(() => store.currentJob?.items || [])
@@ -26,10 +28,25 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  if (pollTimer) clearInterval(pollTimer)
+  stopPolling()
 })
 
+function stopPolling() {
+  if (pollTimer) {
+    clearInterval(pollTimer)
+    pollTimer = null
+  }
+}
+
+function startPolling() {
+  if (!pollTimer) {
+    pollTimer = setInterval(() => loadJob(), 5000)
+  }
+}
+
 async function loadJob() {
+  if (isLoading) return
+  isLoading = true
   try {
     await store.fetchJob(route.params.id, {
       item_status: itemStatusFilter.value || undefined,
@@ -39,17 +56,15 @@ async function loadJob() {
 
     // Auto-poll while in progress
     if (job.value?.status === 'in_progress' || job.value?.status === 'pending') {
-      if (!pollTimer) {
-        pollTimer = setInterval(loadJob, 5000)
-      }
+      startPolling()
     } else {
-      if (pollTimer) {
-        clearInterval(pollTimer)
-        pollTimer = null
-      }
+      stopPolling()
     }
   } catch (e) {
     error.value = e.response?.data?.message || 'Fehler beim Laden'
+    stopPolling()
+  } finally {
+    isLoading = false
   }
 }
 
@@ -72,7 +87,8 @@ async function approveJob() {
   error.value = ''
   try {
     const result = await store.approveJob(job.value.id)
-    alert(result.message || 'Übersetzungen importiert.')
+    error.value = ''
+    approveMessage.value = result.message || 'Übersetzungen importiert.'
     await loadJob()
   } catch (e) {
     error.value = e.response?.data?.message || 'Fehler bei der Freigabe'
@@ -250,6 +266,12 @@ function formatDate(d) {
           <span v-if="job.completed_at">Abgeschlossen: {{ formatDate(job.completed_at) }}</span>
           <span v-if="job.created_by">Von: {{ job.created_by.name || job.created_by.email }}</span>
         </div>
+      </div>
+
+      <!-- Success message -->
+      <div v-if="approveMessage" class="p-3 rounded-lg bg-green-50 text-green-700 text-xs flex items-center justify-between">
+        <span>{{ approveMessage }}</span>
+        <button class="text-green-500 hover:text-green-700" @click="approveMessage = ''">×</button>
       </div>
 
       <!-- Error -->

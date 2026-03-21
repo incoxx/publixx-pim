@@ -12,6 +12,8 @@ use Illuminate\Http\Request;
 
 class TranslationJobController extends Controller
 {
+    private const SUPPORTED_LANGUAGES = ['de', 'en', 'fr', 'it', 'es', 'nl', 'pl', 'pt', 'cs', 'da', 'sv', 'bg', 'el', 'et', 'fi', 'hu', 'id', 'ja', 'ko', 'lt', 'lv', 'nb', 'ro', 'ru', 'sk', 'sl', 'tr', 'uk', 'zh'];
+
     public function __construct(
         protected TranslationJobService $service,
     ) {}
@@ -22,6 +24,7 @@ class TranslationJobController extends Controller
     public function index(Request $request): JsonResponse
     {
         $query = TranslationJob::with('createdBy:id,name,email')
+            ->where('created_by', $request->user()->id)
             ->recent();
 
         if ($status = $request->input('status')) {
@@ -46,16 +49,18 @@ class TranslationJobController extends Controller
      */
     public function store(Request $request): JsonResponse
     {
+        $languageRule = 'required|string|in:' . implode(',', self::SUPPORTED_LANGUAGES);
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'source_language' => 'required|string|max:5',
-            'target_language' => 'required|string|max:5',
+            'source_language' => $languageRule,
+            'target_language' => $languageRule . '|different:source_language',
             'scope' => 'required|string|in:products,system,mixed',
-            'product_ids' => 'required_if:scope,products,mixed|array',
-            'product_ids.*' => 'string|uuid',
-            'attribute_ids' => 'required_if:scope,products,mixed|array',
-            'attribute_ids.*' => 'string|uuid',
-            'entity_types' => 'required_if:scope,system,mixed|array',
+            'product_ids' => 'required_if:scope,products,mixed|array|min:1',
+            'product_ids.*' => 'string|uuid|distinct',
+            'attribute_ids' => 'required_if:scope,products,mixed|array|min:1',
+            'attribute_ids.*' => 'string|uuid|distinct',
+            'entity_types' => 'required_if:scope,system,mixed|array|min:1',
             'entity_types.*' => 'string|in:attribute,attribute_type,value_list_entry,value_list,hierarchy_node,hierarchy,product_type,unit_group,price_type,relation_type',
             'filters' => 'nullable|array',
         ]);
@@ -102,6 +107,7 @@ class TranslationJobController extends Controller
     public function show(string $id, Request $request): JsonResponse
     {
         $job = TranslationJob::with('createdBy:id,name,email')->findOrFail($id);
+        $this->authorizeJobAccess($request, $job);
 
         $itemsQuery = $job->items();
 
@@ -126,9 +132,10 @@ class TranslationJobController extends Controller
     /**
      * POST /api/v1/translation-jobs/{id}/submit
      */
-    public function submit(string $id): JsonResponse
+    public function submit(string $id, Request $request): JsonResponse
     {
         $job = TranslationJob::findOrFail($id);
+        $this->authorizeJobAccess($request, $job);
 
         if (!in_array($job->status, ['draft', 'failed'])) {
             return response()->json(['message' => 'Job kann nur im Status "Entwurf" oder "Fehlgeschlagen" abgesendet werden.'], 422);
@@ -152,17 +159,16 @@ class TranslationJobController extends Controller
     /**
      * POST /api/v1/translation-jobs/{id}/approve
      */
-    public function approve(string $id): JsonResponse
+    public function approve(string $id, Request $request): JsonResponse
     {
         $job = TranslationJob::findOrFail($id);
+        $this->authorizeJobAccess($request, $job);
 
         if ($job->status !== 'completed') {
             return response()->json(['message' => 'Nur abgeschlossene Jobs können freigegeben werden.'], 422);
         }
 
         $imported = $this->service->importTranslations($job);
-
-        $job->update(['status' => 'completed']);
 
         return response()->json([
             'message' => "{$imported} Übersetzungen importiert.",
@@ -173,9 +179,10 @@ class TranslationJobController extends Controller
     /**
      * POST /api/v1/translation-jobs/{id}/cancel
      */
-    public function cancel(string $id): JsonResponse
+    public function cancel(string $id, Request $request): JsonResponse
     {
         $job = TranslationJob::findOrFail($id);
+        $this->authorizeJobAccess($request, $job);
 
         if (in_array($job->status, ['completed', 'cancelled'])) {
             return response()->json(['message' => 'Job kann nicht abgebrochen werden.'], 422);
@@ -189,12 +196,13 @@ class TranslationJobController extends Controller
     /**
      * POST /api/v1/translation-jobs/{id}/retry
      */
-    public function retry(string $id): JsonResponse
+    public function retry(string $id, Request $request): JsonResponse
     {
         $job = TranslationJob::findOrFail($id);
+        $this->authorizeJobAccess($request, $job);
 
-        if (!in_array($job->status, ['completed', 'failed'])) {
-            return response()->json(['message' => 'Nur abgeschlossene oder fehlgeschlagene Jobs können erneut gestartet werden.'], 422);
+        if ($job->status !== 'failed') {
+            return response()->json(['message' => 'Nur fehlgeschlagene Jobs können erneut gestartet werden.'], 422);
         }
 
         $apiKey = $this->service->getDeepLApiKey();
@@ -205,7 +213,6 @@ class TranslationJobController extends Controller
         // Reset failed items to pending
         $job->items()->where('status', 'failed')->update(['status' => 'pending', 'error_message' => null]);
 
-        $pendingCount = $job->items()->where('status', 'pending')->count();
         $job->update([
             'status' => 'pending',
             'failed_items' => 0,
@@ -219,9 +226,10 @@ class TranslationJobController extends Controller
     /**
      * DELETE /api/v1/translation-jobs/{id}
      */
-    public function destroy(string $id): JsonResponse
+    public function destroy(string $id, Request $request): JsonResponse
     {
         $job = TranslationJob::findOrFail($id);
+        $this->authorizeJobAccess($request, $job);
 
         if ($job->status === 'in_progress') {
             return response()->json(['message' => 'Laufende Jobs können nicht gelöscht werden.'], 422);
@@ -230,5 +238,19 @@ class TranslationJobController extends Controller
         $job->delete();
 
         return response()->json(null, 204);
+    }
+
+    /**
+     * Verify the current user owns the job (or is Admin).
+     */
+    private function authorizeJobAccess(Request $request, TranslationJob $job): void
+    {
+        $user = $request->user();
+        if ($user->hasRole('Admin')) {
+            return;
+        }
+        if ($job->created_by !== $user->id) {
+            abort(403, 'Kein Zugriff auf diesen Übersetzungsjob.');
+        }
     }
 }

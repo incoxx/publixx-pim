@@ -6,14 +6,18 @@ export const useTranslationJobsStore = defineStore('translationJobs', () => {
   const jobs = ref([])
   const currentJob = ref(null)
   const loading = ref(false)
+  const error = ref(null)
   const meta = ref({ current_page: 1, last_page: 1, total: 0, per_page: 20 })
 
   async function fetchJobs(params = {}) {
     loading.value = true
+    error.value = null
     try {
       const { data } = await translationJobsApi.list(params)
       jobs.value = data.data || []
       meta.value = data.meta || meta.value
+    } catch (e) {
+      error.value = e.response?.data?.message || 'Fehler beim Laden der Jobs'
     } finally {
       loading.value = false
     }
@@ -21,10 +25,14 @@ export const useTranslationJobsStore = defineStore('translationJobs', () => {
 
   async function fetchJob(id, params = {}) {
     loading.value = true
+    error.value = null
     try {
       const { data } = await translationJobsApi.get(id, params)
       currentJob.value = data
       return data
+    } catch (e) {
+      error.value = e.response?.data?.message || 'Fehler beim Laden des Jobs'
+      throw e
     } finally {
       loading.value = false
     }
@@ -64,6 +72,7 @@ export const useTranslationJobsStore = defineStore('translationJobs', () => {
     jobs,
     currentJob,
     loading,
+    error,
     meta,
     fetchJobs,
     fetchJob,

@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useTranslationJobsStore } from '@/stores/translationJobs'
 import searchApi from '@/api/search'
+import { translationLanguages as availableLanguages } from '@/config/languages'
 import { ArrowLeft, ArrowRight, Languages, Check } from 'lucide-vue-next'
 
 const route = useRoute()
@@ -45,20 +46,6 @@ const systemEntityTypes = [
   { value: 'relation_type', label: 'Relationstypen' },
 ]
 const selectedEntityTypes = ref([])
-
-const availableLanguages = [
-  { code: 'de', label: 'Deutsch' },
-  { code: 'en', label: 'Englisch' },
-  { code: 'fr', label: 'Französisch' },
-  { code: 'it', label: 'Italienisch' },
-  { code: 'es', label: 'Spanisch' },
-  { code: 'nl', label: 'Niederländisch' },
-  { code: 'pl', label: 'Polnisch' },
-  { code: 'pt', label: 'Portugiesisch' },
-  { code: 'cs', label: 'Tschechisch' },
-  { code: 'da', label: 'Dänisch' },
-  { code: 'sv', label: 'Schwedisch' },
-]
 
 const translatableAttributes = computed(() => {
   return allAttributes.value.filter(a => a.is_translatable && (a.data_type === 'String' || a.data_type === 'RichText'))
