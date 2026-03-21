@@ -241,6 +241,52 @@ class AttributeController extends Controller
         ]);
     }
 
+    /**
+     * POST /attributes/{attribute}/migrate-language
+     *
+     * Migrate existing non-translatable values (language=NULL) to a specific language
+     * when an attribute is switched to translatable.
+     */
+    public function migrateLanguage(Request $request, Attribute $attribute): JsonResponse
+    {
+        $this->authorize('update', $attribute);
+
+        $request->validate([
+            'target_language' => 'required|string|max:5',
+        ]);
+
+        $targetLanguage = $request->input('target_language');
+
+        $count = DB::table('product_attribute_values')
+            ->where('attribute_id', $attribute->id)
+            ->whereNull('language')
+            ->update(['language' => $targetLanguage]);
+
+        // Also migrate hierarchy node attribute values
+        $hnCount = DB::table('hierarchy_node_attribute_values')
+            ->where('attribute_id', $attribute->id)
+            ->whereNull('language')
+            ->update(['language' => $targetLanguage]);
+
+        // Also migrate media attribute values
+        $mediaCount = DB::table('media_attribute_values')
+            ->where('attribute_id', $attribute->id)
+            ->whereNull('language')
+            ->update(['language' => $targetLanguage]);
+
+        $total = $count + $hnCount + $mediaCount;
+
+        return response()->json([
+            'message' => "{$total} Werte auf Sprache '{$targetLanguage}' migriert.",
+            'migrated' => $total,
+            'details' => [
+                'product_values' => $count,
+                'hierarchy_node_values' => $hnCount,
+                'media_values' => $mediaCount,
+            ],
+        ]);
+    }
+
     private const BULK_ALLOWED_FIELDS = [
         'is_translatable', 'is_multipliable', 'is_searchable', 'is_mandatory',
         'is_unique', 'is_inheritable', 'is_variant_attribute', 'is_internal',

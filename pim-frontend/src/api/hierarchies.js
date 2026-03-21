@@ -122,6 +122,14 @@ export default {
     return client.put(`/hierarchy-nodes/${nodeId}/output-products/sort`, { items })
   },
 
+  bulkAssignOutputProducts(nodeId, productIds) {
+    return client.post(`/hierarchy-nodes/${nodeId}/output-products/bulk-assign`, { product_ids: productIds })
+  },
+
+  bulkAssignMasterProducts(nodeId, productIds) {
+    return client.post(`/hierarchy-nodes/${nodeId}/master-products/bulk-assign`, { product_ids: productIds })
+  },
+
   // Master hierarchy product assignments
   assignMasterProduct(nodeId, data) {
     return client.post(`/hierarchy-nodes/${nodeId}/master-products`, data)

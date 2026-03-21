@@ -282,6 +282,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::apiResource('attributes', AttributeController::class);
     Route::get('attributes/{attribute}/dependencies', [AttributeController::class, 'dependencies']);
     Route::post('attributes/{attribute}/copy', [AttributeController::class, 'copy']);
+    Route::post('attributes/{attribute}/migrate-language', [AttributeController::class, 'migrateLanguage']);
 
     // =====================================================================
     // Agent 3: Attribute Types
@@ -376,6 +377,8 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::get('hierarchy-nodes/{hierarchy_node}/output-products', [OutputHierarchyProductAssignmentController::class, 'index']);
     Route::post('hierarchy-nodes/{hierarchy_node}/output-products', [OutputHierarchyProductAssignmentController::class, 'store']);
     Route::put('hierarchy-nodes/{hierarchy_node}/output-products/sort', [OutputHierarchyProductAssignmentController::class, 'bulkSort']);
+    Route::post('hierarchy-nodes/{hierarchy_node}/output-products/bulk-assign', [OutputHierarchyProductAssignmentController::class, 'bulkAssign']);
+    Route::post('hierarchy-nodes/{hierarchy_node}/master-products/bulk-assign', [OutputHierarchyProductAssignmentController::class, 'bulkAssignMaster']);
     Route::delete('output-hierarchy-product-assignments/{assignment}', [OutputHierarchyProductAssignmentController::class, 'destroy']);
     Route::get('products/{product}/output-hierarchy-assignments', [OutputHierarchyProductAssignmentController::class, 'productAssignments']);
 
@@ -392,6 +395,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // Product Search (SQL-based, replaces PQL)
     Route::post('products/search', [ProductSearchController::class, 'search']);
     Route::post('products/search/ids', [ProductSearchController::class, 'allIds']);
+    Route::post('products/search/count', [ProductSearchController::class, 'count']);
     Route::get('products/search/attributes', [ProductSearchController::class, 'searchableAttributes']);
     Route::post('products/bulk-delete', [ProductSearchController::class, 'bulkDelete']);
 

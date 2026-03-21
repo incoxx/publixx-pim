@@ -51,7 +51,8 @@ class ProductSearchController extends Controller
             'attribute_filters' => 'nullable|array',
             'attribute_filters.*.attribute_id' => 'required|string|uuid',
             'attribute_filters.*.value' => 'required',
-            'attribute_filters.*.operator' => 'nullable|string|in:eq,like,gt,lt,gte,lte,regex,soundex',
+            'attribute_filters.*.operator' => 'nullable|string|in:eq,neq,like,starts_with,ends_with,gt,lt,gte,lte,between,in,regex,soundex,exists,not_exists,exists_lang,not_exists_lang',
+            'attribute_filter_groups' => 'nullable|array',
             'sort' => 'nullable|string|in:name,sku,status,updated_at,created_at',
             'order' => 'nullable|string|in:asc,desc',
             'per_page' => 'nullable|integer|min:1|max:200',
@@ -119,9 +120,17 @@ class ProductSearchController extends Controller
             $this->applyMissingTranslationFilter($query, $missingTranslation['attribute_id'], $missingTranslation['target_language']);
         }
 
-        // ── Attribute filters (subquery-based) ──
+        // ── Attribute filters (flat, legacy) ──
         foreach ($attributeFilters as $idx => $filter) {
             $this->applyAttributeFilter($query, $filter, $idx, $language);
+        }
+
+        // ── Attribute filter groups (recursive AND/OR/NOT) ──
+        $filterGroups = $validated['attribute_filter_groups'] ?? null;
+        if ($filterGroups && !empty($filterGroups['rules'] ?? [])) {
+            $this->validateFilterGroupDepth($filterGroups);
+            $this->preloadFilterAttributes($filterGroups);
+            $this->applyAttributeFilterGroups($query, $filterGroups, $language);
         }
 
         // ── Sorting ──
@@ -198,6 +207,8 @@ class ProductSearchController extends Controller
             'product_type_ids.*' => 'string|uuid',
             'manufacturer_ids' => 'nullable|array',
             'manufacturer_ids.*' => 'string|uuid',
+            'attribute_filter_groups' => 'nullable|array',
+            'language' => 'nullable|string|max:5',
         ]);
 
         $query = Product::query()->where('product_type_ref', 'product');
@@ -229,9 +240,91 @@ class ProductSearchController extends Controller
             $this->applyCategoryFilter($query, $categoryIds, $includeDescendants, $hierarchyType);
         }
 
+        $filterGroups = $validated['attribute_filter_groups'] ?? null;
+        if ($filterGroups && !empty($filterGroups['rules'] ?? [])) {
+            $this->validateFilterGroupDepth($filterGroups);
+            $this->preloadFilterAttributes($filterGroups);
+            $language = $validated['language'] ?? 'de';
+            $this->applyAttributeFilterGroups($query, $filterGroups, $language);
+        }
+
         return response()->json([
             'data' => $query->pluck('id'),
         ]);
+    }
+
+    /**
+     * POST /api/v1/products/search/count
+     *
+     * Returns the count of products matching filter criteria (for live preview).
+     */
+    public function count(Request $request): JsonResponse
+    {
+        $this->authorize('viewAny', Product::class);
+
+        $validated = $request->validate([
+            'search' => 'nullable|string|max:500',
+            'search_mode' => 'nullable|string|in:like,soundex,regex',
+            'category_ids' => 'nullable|array',
+            'category_ids.*' => 'string|uuid',
+            'include_descendants' => 'nullable|boolean',
+            'hierarchy_type' => 'nullable|string|in:master,output',
+            'status' => 'nullable|string|in:active,draft,inactive,discontinued',
+            'product_type_ids' => 'nullable|array',
+            'product_type_ids.*' => 'string|uuid',
+            'manufacturer_ids' => 'nullable|array',
+            'manufacturer_ids.*' => 'string|uuid',
+            'attribute_filter_groups' => 'nullable|array',
+            'attribute_filters' => 'nullable|array',
+            'attribute_filters.*.attribute_id' => 'required|string|uuid',
+            'attribute_filters.*.value' => 'nullable',
+            'attribute_filters.*.operator' => 'nullable|string',
+            'language' => 'nullable|string|max:5',
+            'missing_translation' => 'nullable|array',
+            'missing_translation.attribute_id' => 'required_with:missing_translation|string|uuid',
+            'missing_translation.target_language' => 'required_with:missing_translation|string|max:5',
+        ]);
+
+        $query = Product::query()->where('product_type_ref', 'product');
+        $language = $validated['language'] ?? 'de';
+
+        if ($status = $validated['status'] ?? null) {
+            $query->where('status', $status);
+        }
+
+        if (!empty($validated['product_type_ids'] ?? [])) {
+            $query->whereIn('product_type_id', $validated['product_type_ids']);
+        }
+
+        if (!empty($validated['manufacturer_ids'] ?? [])) {
+            $query->whereIn('manufacturer_id', $validated['manufacturer_ids']);
+        }
+
+        if ($searchTerm = $validated['search'] ?? null) {
+            $this->applyTextSearch($query, $searchTerm, $validated['search_mode'] ?? 'like');
+        }
+
+        $categoryIds = $validated['category_ids'] ?? [];
+        if (!empty($categoryIds)) {
+            $this->applyCategoryFilter($query, $categoryIds, $validated['include_descendants'] ?? true, $validated['hierarchy_type'] ?? 'master');
+        }
+
+        if ($missingTranslation = $validated['missing_translation'] ?? null) {
+            $this->applyMissingTranslationFilter($query, $missingTranslation['attribute_id'], $missingTranslation['target_language']);
+        }
+
+        foreach ($validated['attribute_filters'] ?? [] as $idx => $filter) {
+            $this->applyAttributeFilter($query, $filter, $idx, $language);
+        }
+
+        $filterGroups = $validated['attribute_filter_groups'] ?? null;
+        if ($filterGroups && !empty($filterGroups['rules'] ?? [])) {
+            $this->validateFilterGroupDepth($filterGroups);
+            $this->preloadFilterAttributes($filterGroups);
+            $this->applyAttributeFilterGroups($query, $filterGroups, $language);
+        }
+
+        return response()->json(['count' => $query->count()]);
     }
 
     /**
@@ -309,8 +402,8 @@ class ProductSearchController extends Controller
     {
         $this->authorize('viewAny', Product::class);
 
-        $attributes = Attribute::where('is_searchable', true)
-            ->where('is_internal', false)
+        $attributes = Attribute::where('is_internal', false)
+            ->where('status', 'active')
             ->with(['valueList.entries', 'attributeType', 'unitGroup'])
             ->orderBy('position')
             ->get();

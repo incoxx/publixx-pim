@@ -11,6 +11,15 @@ export default {
   },
 
   /**
+   * POST /products/search/count
+   *
+   * Return count of products matching search/filter criteria.
+   */
+  count(params = {}) {
+    return client.post('/products/search/count', params)
+  },
+
+  /**
    * POST /products/search/ids
    *
    * Return all product IDs matching search/filter criteria.
