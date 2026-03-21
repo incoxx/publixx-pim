@@ -9,6 +9,7 @@ use App\Http\Requests\Api\V1\UpdateHierarchyNodeRequest;
 use App\Http\Requests\Api\V1\MoveHierarchyNodeRequest;
 use App\Http\Resources\Api\V1\HierarchyNodeResource;
 use App\Http\Traits\ChecksDeletionConstraints;
+use App\Http\Traits\FiltersByInstanceRestrictions;
 use App\Models\Hierarchy;
 use App\Models\HierarchyNode;
 use App\Models\Product;
@@ -19,7 +20,7 @@ use Illuminate\Support\Facades\DB;
 
 class HierarchyNodeController extends Controller
 {
-    use ChecksDeletionConstraints;
+    use ChecksDeletionConstraints, FiltersByInstanceRestrictions;
 
     private const ALLOWED_INCLUDES = ['children', 'parent', 'attributeAssignments', 'attributeValues'];
 
@@ -33,6 +34,7 @@ class HierarchyNodeController extends Controller
         $query = $hierarchy->nodes()
             ->with($this->parseIncludes($request, self::ALLOWED_INCLUDES));
 
+        $this->applyNodeInstanceRestrictionFilter($query);
         $this->applySorting($query, $request, 'path', 'asc');
 
         return HierarchyNodeResource::collection(
@@ -91,6 +93,7 @@ class HierarchyNodeController extends Controller
             $this->applySearch($query, $request, self::SEARCH_COLUMNS);
         }
 
+        $this->applyNodeInstanceRestrictionFilter($query);
         $this->applyFilters($query, array_intersect_key(
             $request->query('filter', []),
             array_flip(self::ALLOWED_FILTERS_SEARCH)

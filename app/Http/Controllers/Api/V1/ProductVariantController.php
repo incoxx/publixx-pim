@@ -8,6 +8,7 @@ use App\Http\Requests\Api\V1\StoreProductVariantRequest;
 use App\Http\Requests\Api\V1\UpdateVariantRulesRequest;
 use App\Http\Resources\Api\V1\ProductResource;
 use App\Http\Resources\Api\V1\VariantInheritanceRuleResource;
+use App\Http\Traits\ChecksTabPermissions;
 use App\Models\Attribute;
 use App\Models\Product;
 use App\Models\ProductAttributeValue;
@@ -21,6 +22,7 @@ use Illuminate\Support\Facades\Log;
 
 class ProductVariantController extends Controller
 {
+    use ChecksTabPermissions;
     /**
      * GET /products/{product}/variants — list variants of a parent product.
      */
@@ -44,6 +46,7 @@ class ProductVariantController extends Controller
     public function store(StoreProductVariantRequest $request, Product $product): JsonResponse
     {
         $this->authorize('create', Product::class);
+        $this->assertTabWriteAccess('variants');
 
         $data = $request->validated();
         $data['parent_product_id'] = $product->id;
@@ -86,6 +89,7 @@ class ProductVariantController extends Controller
     public function updateRules(UpdateVariantRulesRequest $request, Product $product): JsonResponse
     {
         $this->authorize('update', $product);
+        $this->assertTabWriteAccess('variants');
 
         $rules = $request->validated('rules');
 
@@ -126,6 +130,7 @@ class ProductVariantController extends Controller
     public function generate(Request $request, Product $product): JsonResponse
     {
         $this->authorize('create', Product::class);
+        $this->assertTabWriteAccess('variants');
 
         $validated = $request->validate([
             'dimensions' => 'required|array|min:1|max:10',

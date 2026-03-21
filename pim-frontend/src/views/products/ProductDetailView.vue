@@ -140,8 +140,12 @@ const tabs = computed(() => {
   if (workflowEnabled.value) {
     base.push({ key: 'workflow-history', label: 'Workflow-Verlauf' })
   }
-  return base
+  // Filter out tabs the user's role has set to 'hidden'
+  return base.filter(tab => authStore.getTabAccess(tab.key) !== 'hidden')
 })
+
+/** Whether the currently active tab is read-only for this user's role. */
+const isTabReadOnly = computed(() => authStore.getTabAccess(activeTab.value) === 'read')
 
 // ─── Attribute Filters ──────────────────────────────────
 const attrFilterSearch = ref('')
@@ -1727,7 +1731,7 @@ watch(activeTab, (tab) => {
 // Reset active tab if it becomes hidden (e.g. after product type change)
 watch(tabs, (newTabs) => {
   if (!newTabs.find(t => t.key === activeTab.value)) {
-    activeTab.value = 'base-data'
+    activeTab.value = newTabs[0]?.key || 'base-data'
   }
 })
 
@@ -1873,7 +1877,7 @@ watch(() => route.params.id, async (newId, oldId) => {
         <Copy class="w-4 h-4" :stroke-width="1.75" />
         <span class="hidden sm:inline">Kopieren</span>
       </button>
-      <button v-if="authStore.hasPermission('products.edit')" class="pim-btn pim-btn-primary" :disabled="saving" @click="saveWithValidation">
+      <button v-if="authStore.hasPermission('products.edit') && !isTabReadOnly" class="pim-btn pim-btn-primary" :disabled="saving" @click="saveWithValidation">
         <Save class="w-4 h-4" :stroke-width="1.75" />
         {{ saving ? 'Speichern…' : t('common.save') }}
       </button>
@@ -2020,8 +2024,15 @@ watch(() => route.params.id, async (newId, oldId) => {
           @click="activeTab = tab.key"
         >
           {{ tab.label }}
+          <Eye v-if="authStore.getTabAccess(tab.key) === 'read'" class="w-3 h-3 inline-block ml-1 opacity-50" :stroke-width="1.75" />
         </button>
       </nav>
+    </div>
+
+    <!-- Read-only banner -->
+    <div v-if="isTabReadOnly" class="bg-[var(--color-warning)]/10 border border-[var(--color-warning)]/30 rounded-lg px-3 py-2 flex items-center gap-2">
+      <Eye class="w-4 h-4 text-[var(--color-warning)]" :stroke-width="1.75" />
+      <span class="text-xs text-[var(--color-warning)]">Dieser Tab ist schreibgeschützt für Ihre Rolle.</span>
     </div>
 
     <!-- Tab content -->
@@ -2037,7 +2048,7 @@ watch(() => route.params.id, async (newId, oldId) => {
     </div>
 
     <!-- ═══ Base Data Tab ═══ -->
-    <div v-else-if="activeTab === 'base-data' && product" class="space-y-3">
+    <div v-else-if="activeTab === 'base-data' && product" class="space-y-3" :class="{ 'pointer-events-none opacity-75': isTabReadOnly }">
       <PimCollectionGroup title="Stammdaten" :filledCount="3" :totalCount="5">
         <div class="space-y-3 pt-3">
           <div>
@@ -2133,7 +2144,7 @@ watch(() => route.params.id, async (newId, oldId) => {
     </div>
 
     <!-- ═══ Attributes Tab ═══ -->
-    <div v-else-if="activeTab === 'attributes' && product" class="space-y-3">
+    <div v-else-if="activeTab === 'attributes' && product" class="space-y-3" :class="{ 'pointer-events-none opacity-75': isTabReadOnly }">
       <!-- Filter bar -->
       <div class="pim-card p-3">
         <div class="flex flex-wrap items-center gap-3">
@@ -2207,7 +2218,7 @@ watch(() => route.params.id, async (newId, oldId) => {
           <button
             v-if="attr.data_type === 'Composite'"
             class="w-full flex items-center justify-between pim-input text-left cursor-pointer hover:border-[var(--color-accent)] transition-colors"
-            :disabled="attr._access === 'read_only' || attr.is_readonly || isAttributeInherited(attr.id)"
+            :disabled="attr._access === 'read_only' || attr.is_readonly || isAttributeInherited(attr.id) || isTabReadOnly"
             @click="openCompositeModal(attr)"
           >
             <span class="text-[13px]" :class="getCompositeSummary(attr) ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-tertiary)]'">
@@ -2221,7 +2232,7 @@ watch(() => route.params.id, async (newId, oldId) => {
             :type="mapDataTypeToInput(attr.data_type)"
             :modelValue="translatedValues[`${attr.id}_${activeDataLang}`]"
             :options="attr.data_type === 'Dictionary' ? dictionaryEntries : (attr.value_list?.entries?.map(e => ({ value: e.id, label: e.value_de || e.label_de || e.code })) || [])"
-            :disabled="attr._access === 'read_only' || attr.is_readonly || isAttributeInherited(attr.id)"
+            :disabled="attr._access === 'read_only' || attr.is_readonly || isAttributeInherited(attr.id) || isTabReadOnly"
             @update:modelValue="translatedValues[`${attr.id}_${activeDataLang}`] = $event"
           />
           <!-- Normal (non-translatable) attribute -->
@@ -2230,7 +2241,7 @@ watch(() => route.params.id, async (newId, oldId) => {
             :type="mapDataTypeToInput(attr.data_type)"
             :modelValue="attributeValues[attr.id]"
             :options="attr.data_type === 'Dictionary' ? dictionaryEntries : (attr.value_list?.entries?.map(e => ({ value: e.id, label: e.value_de || e.label_de || e.code })) || [])"
-            :disabled="attr._access === 'read_only' || attr.is_readonly || isAttributeInherited(attr.id)"
+            :disabled="attr._access === 'read_only' || attr.is_readonly || isAttributeInherited(attr.id) || isTabReadOnly"
             @update:modelValue="attributeValues[attr.id] = $event"
           />
         </div>
@@ -2286,7 +2297,7 @@ watch(() => route.params.id, async (newId, oldId) => {
     </div>
 
     <!-- ═══ Variant Attributes Tab ═══ -->
-    <div v-else-if="activeTab === 'variant-attributes' && product" class="space-y-3">
+    <div v-else-if="activeTab === 'variant-attributes' && product" class="space-y-3" :class="{ 'pointer-events-none opacity-75': isTabReadOnly }">
       <template v-if="variantAttributeGroups.length > 0">
         <PimCollectionGroup
           v-for="group in variantAttributeGroups"
@@ -2308,7 +2319,7 @@ watch(() => route.params.id, async (newId, oldId) => {
                 :type="mapDataTypeToInput(attr.data_type)"
                 :modelValue="attributeValues[attr.id]"
                 :options="attr.value_list?.entries?.map(e => ({ value: e.id, label: e.value_de || e.label_de || e.code })) || []"
-                :disabled="attr._access === 'read_only' || attr.is_readonly || isAttributeInherited(attr.id)"
+                :disabled="attr._access === 'read_only' || attr.is_readonly || isAttributeInherited(attr.id) || isTabReadOnly"
                 @update:modelValue="attributeValues[attr.id] = $event"
               />
             </div>
@@ -2321,7 +2332,7 @@ watch(() => route.params.id, async (newId, oldId) => {
     </div>
 
     <!-- ═══ Variants Tab ═══ -->
-    <div v-else-if="activeTab === 'variants' && product" class="space-y-3">
+    <div v-else-if="activeTab === 'variants' && product" class="space-y-3" :class="{ 'pointer-events-none opacity-75': isTabReadOnly }">
       <div class="flex flex-wrap items-center justify-between gap-2">
         <h3 class="text-sm font-medium text-[var(--color-text-primary)]">Varianten</h3>
         <div class="flex gap-2">
@@ -2626,7 +2637,7 @@ watch(() => route.params.id, async (newId, oldId) => {
     </div>
 
     <!-- ═══ Media Tab ═══ -->
-    <div v-else-if="activeTab === 'media' && product" class="space-y-3">
+    <div v-else-if="activeTab === 'media' && product" class="space-y-3" :class="{ 'pointer-events-none opacity-75': isTabReadOnly }">
       <!-- Header with search, view toggle and add button -->
       <div class="flex items-center gap-2">
         <h3 class="text-sm font-medium text-[var(--color-text-primary)] shrink-0">Medien</h3>
@@ -2757,7 +2768,7 @@ watch(() => route.params.id, async (newId, oldId) => {
     </div>
 
     <!-- ═══ Prices Tab ═══ -->
-    <div v-else-if="activeTab === 'prices' && product" class="space-y-3">
+    <div v-else-if="activeTab === 'prices' && product" class="space-y-3" :class="{ 'pointer-events-none opacity-75': isTabReadOnly }">
       <div class="flex items-center justify-between">
         <h3 class="text-sm font-medium text-[var(--color-text-primary)]">Preise</h3>
         <button class="pim-btn pim-btn-primary text-xs" @click="openPriceForm()">
@@ -2845,7 +2856,7 @@ watch(() => route.params.id, async (newId, oldId) => {
     </div>
 
     <!-- ═══ Relations Tab ═══ -->
-    <div v-else-if="activeTab === 'relations' && product" class="space-y-3">
+    <div v-else-if="activeTab === 'relations' && product" class="space-y-3" :class="{ 'pointer-events-none opacity-75': isTabReadOnly }">
       <div class="flex items-center justify-between">
         <h3 class="text-sm font-medium text-[var(--color-text-primary)]">Produktbeziehungen</h3>
         <button class="pim-btn pim-btn-primary text-xs" @click="showRelationForm = !showRelationForm">
@@ -2997,7 +3008,7 @@ watch(() => route.params.id, async (newId, oldId) => {
     </div>
 
     <!-- ═══ Output Hierarchies Tab ═══ -->
-    <div v-else-if="activeTab === 'output-hierarchies' && product" class="space-y-3">
+    <div v-else-if="activeTab === 'output-hierarchies' && product" class="space-y-3" :class="{ 'pointer-events-none opacity-75': isTabReadOnly }">
       <div class="flex items-center justify-between">
         <h3 class="text-sm font-semibold text-[var(--color-text-primary)]">Ausgabehierarchie-Zuordnungen</h3>
         <button class="pim-btn pim-btn-primary text-xs" @click="showOutputHierarchyForm = !showOutputHierarchyForm">

@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Requests\Api\V1\StoreProductRelationRequest;
 use App\Http\Resources\Api\V1\ProductRelationResource;
 use App\Http\Traits\AuditsChanges;
+use App\Http\Traits\ChecksTabPermissions;
 use App\Models\Product;
 use App\Models\ProductRelation;
 use Illuminate\Http\JsonResponse;
@@ -16,6 +17,7 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 class ProductRelationController extends Controller
 {
     use AuditsChanges;
+    use ChecksTabPermissions;
     /**
      * GET /products/{product}/relations
      */
@@ -38,6 +40,7 @@ class ProductRelationController extends Controller
     public function store(StoreProductRelationRequest $request, Product $product): JsonResponse
     {
         $this->authorize('update', $product);
+        $this->assertTabWriteAccess('relations');
 
         $data = $request->validated();
         $data['source_product_id'] = $product->id;
@@ -61,6 +64,7 @@ class ProductRelationController extends Controller
     public function destroy(ProductRelation $productRelation): JsonResponse
     {
         $this->authorize('update', $productRelation->sourceProduct);
+        $this->assertTabWriteAccess('relations');
 
         $snapshot = [
             'relation_id' => $productRelation->id,

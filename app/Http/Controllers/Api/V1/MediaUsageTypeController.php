@@ -8,6 +8,7 @@ use App\Http\Requests\Api\V1\StoreMediaUsageTypeRequest;
 use App\Http\Requests\Api\V1\UpdateMediaUsageTypeRequest;
 use App\Http\Resources\Api\V1\MediaUsageTypeResource;
 use App\Http\Traits\ChecksDeletionConstraints;
+use App\Http\Traits\FiltersByInstanceRestrictions;
 use App\Models\MediaUsageType;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -15,12 +16,14 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class MediaUsageTypeController extends Controller
 {
-    use ChecksDeletionConstraints;
+    use ChecksDeletionConstraints, FiltersByInstanceRestrictions;
+
     public function index(Request $request): AnonymousResourceCollection
     {
         $this->authorize('viewAny', MediaUsageType::class);
 
         $query = MediaUsageType::query();
+        $this->applyInstanceRestrictionFilter($query, MediaUsageType::class);
         $this->applySorting($query, $request, 'sort_order', 'asc');
 
         return MediaUsageTypeResource::collection(

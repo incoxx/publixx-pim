@@ -2,7 +2,10 @@
 import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { roles } from '@/api/users'
+import roleRestrictionsApi from '@/api/roleRestrictions'
 import { Check, Minus } from 'lucide-vue-next'
+import RoleRestrictionSection from '@/components/roles/RoleRestrictionSection.vue'
+import HierarchyNodeRestrictionPicker from '@/components/roles/HierarchyNodeRestrictionPicker.vue'
 
 const props = defineProps({
   role: { type: Object, default: null },
@@ -18,6 +21,43 @@ const selectedPermissions = ref(new Set(
   props.role?.permissions?.map(p => p.name) || []
 ))
 const availablePermissions = ref({})
+
+// Instance restrictions
+const attributeTypeRestrictions = ref([])
+const mediaUsageTypeRestrictions = ref([])
+const hierarchyNodeRestrictions = ref([])
+const attributeTypeItems = ref([])
+const mediaUsageTypeItems = ref([])
+
+// Tab permissions
+const tabPermissions = ref({})
+const productEditorTabs = [
+  { key: 'base-data', label: 'Grunddaten' },
+  { key: 'attributes', label: 'Attribute' },
+  { key: 'variant-attributes', label: 'Varianten-Attribute' },
+  { key: 'variants', label: 'Varianten' },
+  { key: 'media', label: 'Medien' },
+  { key: 'prices', label: 'Preise' },
+  { key: 'relations', label: 'Beziehungen' },
+  { key: 'output-hierarchies', label: 'Ausgabehierarchien' },
+  { key: 'preview', label: 'Vorschau' },
+  { key: 'versions', label: 'Versionen' },
+  { key: 'scheduled-actions', label: 'Planung' },
+  { key: 'workflow-history', label: 'Workflow-Verlauf' },
+]
+const tabAccessLevels = [
+  { value: 'write', label: 'Schreiben' },
+  { value: 'read', label: 'Lesen' },
+  { value: 'hidden', label: 'Versteckt' },
+]
+
+function getTabAccess(tabKey) {
+  return tabPermissions.value[tabKey] || 'write'
+}
+
+function setTabAccess(tabKey, level) {
+  tabPermissions.value = { ...tabPermissions.value, [tabKey]: level }
+}
 
 const isEdit = computed(() => !!props.role)
 
@@ -239,11 +279,23 @@ async function handleSubmit() {
   }
 
   try {
+    let roleId
     if (isEdit.value) {
       await roles.update(props.role.id, payload)
+      roleId = props.role.id
     } else {
-      await roles.create(payload)
+      const { data } = await roles.create(payload)
+      roleId = (data.data || data).id
     }
+
+    // Sync instance restrictions and tab permissions
+    if (roleId) {
+      await Promise.all([
+        syncRestrictions(roleId),
+        syncTabPerms(roleId),
+      ])
+    }
+
     authStore.closePanel()
     if (props.onSaved) props.onSaved()
   } catch (e) {
@@ -258,11 +310,89 @@ async function handleSubmit() {
   }
 }
 
+async function syncRestrictions(roleId) {
+  const syncType = async (type, restrictions) => {
+    if (restrictions.length === 0) {
+      // Remove all restrictions for this type (= full access)
+      try { await roleRestrictionsApi.remove(roleId, type) } catch { /* ignore 404 */ }
+    } else {
+      await roleRestrictionsApi.sync(roleId, type, restrictions.map(r => ({
+        id: r.id,
+        access_level: r.access_level,
+      })))
+    }
+  }
+
+  await Promise.all([
+    syncType('attribute-types', attributeTypeRestrictions.value),
+    syncType('media-usage-types', mediaUsageTypeRestrictions.value),
+    syncType('hierarchy-nodes', hierarchyNodeRestrictions.value),
+  ])
+}
+
+async function syncTabPerms(roleId) {
+  const tabs = Object.entries(tabPermissions.value)
+    .filter(([, level]) => level !== 'write')
+    .map(([tab_key, access_level]) => ({ tab_key, access_level }))
+  await roleRestrictionsApi.syncTabPermissions(roleId, tabs)
+}
+
 onMounted(async () => {
   loading.value = true
   try {
-    const { data } = await roles.listPermissions()
-    availablePermissions.value = data.data || data
+    const [permResponse, atResponse, mutResponse] = await Promise.all([
+      roles.listPermissions(),
+      import('@/api/attributes').then(m => m.attributeTypes.list({ per_page: 100 })),
+      import('@/api/mediaUsageTypes').then(m => m.default.list()),
+    ])
+
+    availablePermissions.value = permResponse.data.data || permResponse.data
+
+    // Load attribute types and media usage types for restriction pickers
+    const atData = atResponse.data.data || atResponse.data
+    attributeTypeItems.value = Array.isArray(atData) ? atData : (atData.data || [])
+
+    const mutData = mutResponse.data.data || mutResponse.data
+    mediaUsageTypeItems.value = Array.isArray(mutData) ? mutData : (mutData.data || [])
+
+    // Load existing restrictions when editing
+    if (isEdit.value && props.role?.id) {
+      try {
+        const { data } = await roleRestrictionsApi.list(props.role.id)
+        const restrictions = data.data || {}
+
+        if (restrictions['attribute-types']) {
+          attributeTypeRestrictions.value = restrictions['attribute-types'].map(r => ({
+            id: r.restrictable_id,
+            access_level: r.access_level,
+            name: r.restrictable?.name_de || r.restrictable_id,
+          }))
+        }
+        if (restrictions['media-usage-types']) {
+          mediaUsageTypeRestrictions.value = restrictions['media-usage-types'].map(r => ({
+            id: r.restrictable_id,
+            access_level: r.access_level,
+            name: r.restrictable?.name_de || r.restrictable_id,
+          }))
+        }
+        if (restrictions['hierarchy-nodes']) {
+          hierarchyNodeRestrictions.value = restrictions['hierarchy-nodes'].map(r => ({
+            id: r.restrictable_id,
+            access_level: r.access_level,
+            name: r.restrictable?.name_de || r.restrictable_id,
+          }))
+        }
+        if (restrictions['tab-permissions']) {
+          const perms = {}
+          for (const tp of restrictions['tab-permissions']) {
+            perms[tp.tab_key] = tp.access_level
+          }
+          tabPermissions.value = perms
+        }
+      } catch {
+        // Restrictions might not load
+      }
+    }
   } catch {
     // Permissions might not load
   } finally {
@@ -349,6 +479,76 @@ onMounted(async () => {
               <Check v-if="hasPermission(entity.key, action)" class="w-3 h-3" :stroke-width="2.5" />
               <span>{{ actionLabels[action] || action }}</span>
             </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Instance restrictions section -->
+      <div class="mt-4 mb-2">
+        <div class="text-[10px] uppercase tracking-wider font-semibold text-[var(--color-text-tertiary)] mb-2">
+          Instanz-Einschränkungen
+        </div>
+        <p class="text-[10px] text-[var(--color-text-tertiary)] mb-3">
+          Zugriff auf bestimmte Einträge einschränken. Ohne Einschränkung hat die Rolle Vollzugriff.
+        </p>
+
+        <div class="space-y-2">
+          <RoleRestrictionSection
+            label="Attributgruppen"
+            :items="attributeTypeItems"
+            :selected-restrictions="attributeTypeRestrictions"
+            :access-levels="['read', 'write']"
+            @update:restrictions="attributeTypeRestrictions = $event"
+          />
+
+          <RoleRestrictionSection
+            label="Medientypen"
+            :items="mediaUsageTypeItems"
+            :selected-restrictions="mediaUsageTypeRestrictions"
+            :access-levels="['read', 'write', 'delete']"
+            @update:restrictions="mediaUsageTypeRestrictions = $event"
+          />
+
+          <HierarchyNodeRestrictionPicker
+            :selected-restrictions="hierarchyNodeRestrictions"
+            @update:restrictions="hierarchyNodeRestrictions = $event"
+          />
+        </div>
+      </div>
+
+      <!-- Tab permissions section -->
+      <div class="mt-4 mb-2">
+        <div class="text-[10px] uppercase tracking-wider font-semibold text-[var(--color-text-tertiary)] mb-2">
+          Produkt-Editor Tabs
+        </div>
+        <p class="text-[10px] text-[var(--color-text-tertiary)] mb-3">
+          Sichtbarkeit und Zugriff auf Tabs im Produkteditor steuern. Standard: Schreiben.
+        </p>
+
+        <div class="border border-[var(--color-border)] rounded-lg overflow-hidden">
+          <div
+            v-for="tab in productEditorTabs"
+            :key="tab.key"
+            class="flex items-center gap-2 px-3 py-1.5 border-b border-[var(--color-border)] last:border-b-0"
+          >
+            <span class="text-xs text-[var(--color-text-primary)] flex-1">{{ tab.label }}</span>
+            <div class="flex gap-0 border border-[var(--color-border)] rounded-lg overflow-hidden">
+              <button
+                v-for="level in tabAccessLevels"
+                :key="level.value"
+                class="px-2 py-0.5 text-[10px] cursor-pointer transition-colors"
+                :class="getTabAccess(tab.key) === level.value
+                  ? level.value === 'hidden'
+                    ? 'bg-[var(--color-error)]/15 text-[var(--color-error)] font-medium'
+                    : level.value === 'read'
+                      ? 'bg-[var(--color-warning)]/15 text-[var(--color-warning)] font-medium'
+                      : 'bg-[var(--color-accent)]/15 text-[var(--color-accent)] font-medium'
+                  : 'text-[var(--color-text-tertiary)] hover:bg-[var(--color-bg-hover)]'"
+                @click="setTabAccess(tab.key, level.value)"
+              >
+                {{ level.label }}
+              </button>
+            </div>
           </div>
         </div>
       </div>

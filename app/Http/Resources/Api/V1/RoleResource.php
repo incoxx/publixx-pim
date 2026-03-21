@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Resources\Api\V1;
 
+use App\Http\Resources\Api\V1\RoleEntityRestrictionResource;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -26,6 +27,9 @@ class RoleResource extends JsonResource
                 $this->users_count !== null,
                 $this->users_count,
             ),
+            'entity_restrictions' => $this->whenLoaded('entityRestrictions', function () {
+                return RoleEntityRestrictionResource::collection($this->entityRestrictions);
+            }),
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
         ];

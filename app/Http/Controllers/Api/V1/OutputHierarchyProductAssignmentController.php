@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Requests\Api\V1\StoreOutputHierarchyProductAssignmentRequest;
 use App\Http\Resources\Api\V1\OutputHierarchyProductAssignmentResource;
 use App\Http\Resources\Api\V1\ProductResource;
+use App\Http\Traits\ChecksTabPermissions;
 use App\Models\HierarchyNode;
 use App\Models\OutputHierarchyProductAssignment;
 use App\Models\Product;
@@ -16,6 +17,7 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class OutputHierarchyProductAssignmentController extends Controller
 {
+    use ChecksTabPermissions;
     /**
      * GET /hierarchy-nodes/{hierarchy_node}/output-products
      */
@@ -38,6 +40,7 @@ class OutputHierarchyProductAssignmentController extends Controller
     public function store(StoreOutputHierarchyProductAssignmentRequest $request, HierarchyNode $hierarchyNode): JsonResponse
     {
         $this->authorize('update', $hierarchyNode);
+        $this->assertTabWriteAccess('output-hierarchies');
 
         $data = $request->validated();
         $data['hierarchy_node_id'] = $hierarchyNode->id;
@@ -60,6 +63,7 @@ class OutputHierarchyProductAssignmentController extends Controller
     public function destroy(OutputHierarchyProductAssignment $assignment): JsonResponse
     {
         $this->authorize('update', $assignment->hierarchyNode);
+        $this->assertTabWriteAccess('output-hierarchies');
 
         $assignment->delete();
 
@@ -127,6 +131,7 @@ class OutputHierarchyProductAssignmentController extends Controller
     public function bulkAssign(Request $request, HierarchyNode $hierarchyNode): JsonResponse
     {
         $this->authorize('update', $hierarchyNode);
+        $this->assertTabWriteAccess('output-hierarchies');
 
         $request->validate([
             'product_ids' => 'required|array|min:1|max:10000',
@@ -191,6 +196,7 @@ class OutputHierarchyProductAssignmentController extends Controller
     public function bulkSort(Request $request, HierarchyNode $hierarchyNode): JsonResponse
     {
         $this->authorize('update', $hierarchyNode);
+        $this->assertTabWriteAccess('output-hierarchies');
 
         $request->validate([
             'items' => 'required|array',

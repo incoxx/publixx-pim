@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Requests\Api\V1\StoreProductMediaRequest;
 use App\Http\Resources\Api\V1\ProductMediaResource;
 use App\Http\Traits\AuditsChanges;
+use App\Http\Traits\ChecksTabPermissions;
 use App\Models\Product;
 use App\Models\ProductMediaAssignment;
 use Illuminate\Http\JsonResponse;
@@ -16,6 +17,7 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 class ProductMediaController extends Controller
 {
     use AuditsChanges;
+    use ChecksTabPermissions;
     /**
      * GET /products/{product}/media — assigned media for a product.
      */
@@ -38,6 +40,7 @@ class ProductMediaController extends Controller
     public function store(StoreProductMediaRequest $request, Product $product): JsonResponse
     {
         $this->authorize('update', $product);
+        $this->assertTabWriteAccess('media');
 
         $assignment = $product->mediaAssignments()->create($request->validated());
 
@@ -58,6 +61,7 @@ class ProductMediaController extends Controller
     public function destroy(ProductMediaAssignment $productMedium): JsonResponse
     {
         $this->authorize('update', $productMedium->product);
+        $this->assertTabWriteAccess('media');
 
         $snapshot = [
             'assignment_id' => $productMedium->id,
