@@ -129,6 +129,9 @@ class TestRunnerController extends Controller
             $installedDevDeps = true;
         }
 
+        // Ensure test database exists
+        $this->ensureTestDatabase();
+
         $cmd = 'php artisan test';
 
         if ($suite === 'unit') {
@@ -270,6 +273,23 @@ class TestRunnerController extends Controller
             'test_files' => null,
             'output' => $message,
         ];
+    }
+
+    private function ensureTestDatabase(): void
+    {
+        try {
+            $db = config('database.connections.mysql');
+            $testDbName = $db['database'] . '_testing';
+            $pdo = new \PDO(
+                "mysql:host={$db['host']};port={$db['port']}",
+                $db['username'],
+                $db['password']
+            );
+            $pdo->exec("CREATE DATABASE IF NOT EXISTS `{$testDbName}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+        } catch (\Exception $e) {
+            // User may not have CREATE DATABASE privilege — that's OK,
+            // the test DB should be created by setup.sh
+        }
     }
 
     private function discoverTestSuites(): array
