@@ -89,8 +89,23 @@ class TestRunnerController extends Controller
     private function runPhpUnit(string $suite): array
     {
         $phpunitBin = base_path('vendor/bin/phpunit');
+        $installedDevDeps = false;
+
+        // Auto-install dev dependencies if PHPUnit is missing (e.g. production server)
         if (! file_exists($phpunitBin)) {
-            return $this->errorResult('backend', 'PHPUnit nicht installiert (vendor/bin/phpunit fehlt)');
+            $install = Process::timeout(120)
+                ->path(base_path())
+                ->run(['composer', 'install', '--no-interaction']);
+
+            if ($install->exitCode() !== 0) {
+                return $this->errorResult('backend', 'PHPUnit nicht installiert und composer install fehlgeschlagen: ' . mb_substr($install->errorOutput(), -500));
+            }
+
+            if (! file_exists($phpunitBin)) {
+                return $this->errorResult('backend', 'PHPUnit konnte nicht installiert werden');
+            }
+
+            $installedDevDeps = true;
         }
 
         $args = [$phpunitBin, '--no-interaction'];
@@ -102,8 +117,16 @@ class TestRunnerController extends Controller
         }
 
         $process = Process::timeout(300)->run($args);
+        $result = $this->parsePhpUnitOutput($process->output() . $process->errorOutput(), $process->exitCode());
 
-        return $this->parsePhpUnitOutput($process->output() . $process->errorOutput(), $process->exitCode());
+        // Cleanup: remove dev dependencies to keep production clean
+        if ($installedDevDeps) {
+            Process::timeout(120)
+                ->path(base_path())
+                ->run(['composer', 'install', '--no-dev', '--no-interaction']);
+        }
+
+        return $result;
     }
 
     private function runVitest(): array
