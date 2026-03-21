@@ -95,7 +95,7 @@ class TestRunnerController extends Controller
         if (! file_exists($phpunitBin)) {
             $install = Process::timeout(120)
                 ->path(base_path())
-                ->run(['composer', 'install', '--no-interaction']);
+                ->run('composer install --no-interaction');
 
             if ($install->exitCode() !== 0) {
                 return $this->errorResult('backend', 'PHPUnit nicht installiert und composer install fehlgeschlagen: ' . mb_substr($install->errorOutput(), -500));
@@ -123,7 +123,7 @@ class TestRunnerController extends Controller
         if ($installedDevDeps) {
             Process::timeout(120)
                 ->path(base_path())
-                ->run(['composer', 'install', '--no-dev', '--no-interaction']);
+                ->run('composer install --no-dev --no-interaction');
         }
 
         return $result;
