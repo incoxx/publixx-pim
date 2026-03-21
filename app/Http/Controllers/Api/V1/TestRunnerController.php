@@ -129,15 +129,15 @@ class TestRunnerController extends Controller
             $installedDevDeps = true;
         }
 
-        $args = [$phpunitBin];
+        $cmd = escapeshellarg($phpunitBin);
 
         if ($suite === 'unit') {
-            $args[] = '--testsuite=Unit';
+            $cmd .= ' --testsuite=Unit';
         } elseif ($suite === 'feature') {
-            $args[] = '--testsuite=Feature';
+            $cmd .= ' --testsuite=Feature';
         }
 
-        $process = Process::timeout(300)->run($args);
+        $process = Process::timeout(300)->run($cmd . ' 2>&1');
         $result = $this->parsePhpUnitOutput($process->output() . $process->errorOutput(), $process->exitCode());
 
         // Cleanup: remove dev dependencies to keep production clean
