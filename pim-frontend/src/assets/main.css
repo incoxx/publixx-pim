@@ -335,3 +335,30 @@ body {
 [data-theme="pim-catalog"] .catalog-stripe-row:nth-child(even) {
   background-color: var(--catalog-stripe-color, #f1f5f9);
 }
+
+/* Query Builder group colors — uses accent color for AND */
+.qb-group-and {
+  background-color: color-mix(in srgb, var(--color-accent) 5%, var(--color-bg, #fff));
+  border-color: color-mix(in srgb, var(--color-accent) 20%, var(--color-border));
+}
+.qb-group-or {
+  background-color: color-mix(in srgb, #f59e0b 5%, var(--color-bg, #fff));
+  border-color: color-mix(in srgb, #f59e0b 20%, var(--color-border));
+}
+.qb-group-not {
+  background-color: color-mix(in srgb, #ef4444 5%, var(--color-bg, #fff));
+  border-color: color-mix(in srgb, #ef4444 20%, var(--color-border));
+}
+.qb-btn-and-active {
+  background-color: var(--color-accent);
+  color: #fff;
+}
+.qb-btn-and {
+  color: var(--color-accent);
+}
+.qb-btn-and:hover {
+  background-color: color-mix(in srgb, var(--color-accent) 10%, transparent);
+}
+.qb-connector-and {
+  color: color-mix(in srgb, var(--color-accent) 50%, transparent);
+}

@@ -135,9 +135,14 @@ trait ProductSearchFilters
      */
     protected function applyAttributeFilter($query, array $filter, int $idx, string $language = 'de'): void
     {
-        $attrId = $filter['attribute_id'];
+        $attrId = $filter['attribute_id'] ?? null;
         $value = $filter['value'] ?? null;
         $operator = $filter['operator'] ?? 'eq';
+
+        // Skip incomplete rules (no attribute selected)
+        if (empty($attrId)) {
+            return;
+        }
 
         $attribute = $this->getCachedAttribute($attrId);
         if (!$attribute) {
@@ -214,7 +219,11 @@ trait ProductSearchFilters
             return;
         }
 
-        // Value-based operators
+        // Value-based operators — skip if value is empty (incomplete rule)
+        if ($value === null || $value === '') {
+            return;
+        }
+
         $query->whereExists(function ($sub) use ($alias, $attrId, $value, $operator, $attribute, $language, $column) {
             $sub->select(DB::raw(1))
                 ->from("product_attribute_values as {$alias}")
