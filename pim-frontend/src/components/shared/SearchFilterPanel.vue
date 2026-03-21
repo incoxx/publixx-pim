@@ -14,6 +14,7 @@ const props = defineProps({
       attribute_filters: {},
       include_descendants: true,
       price_region_id: '',
+      missing_translation: null,
     }),
   },
 })
@@ -81,10 +82,29 @@ watch(selectedHierarchyId, () => {
   }
 })
 
+const translatableAttributes = computed(() => {
+  return searchableAttributes.value.filter(a => a.is_translatable && (a.data_type === 'String' || a.data_type === 'RichText'))
+})
+
+const availableLanguages = [
+  { code: 'de', label: 'Deutsch' },
+  { code: 'en', label: 'Englisch' },
+  { code: 'fr', label: 'Französisch' },
+  { code: 'it', label: 'Italienisch' },
+  { code: 'es', label: 'Spanisch' },
+  { code: 'nl', label: 'Niederländisch' },
+  { code: 'pl', label: 'Polnisch' },
+  { code: 'pt', label: 'Portugiesisch' },
+  { code: 'cs', label: 'Tschechisch' },
+  { code: 'da', label: 'Dänisch' },
+  { code: 'sv', label: 'Schwedisch' },
+]
+
 const activeFilterCount = computed(() => {
   let count = (props.modelValue.category_ids || []).length
   if (props.modelValue.status) count++
   if (props.modelValue.price_region_id) count++
+  if (props.modelValue.missing_translation?.attribute_id && props.modelValue.missing_translation?.target_language) count++
   for (const val of Object.values(props.modelValue.attribute_filters || {})) {
     if (val !== '' && val !== null && val !== undefined) count++
   }
@@ -113,6 +133,16 @@ function updateAttributeFilter(attrId, value) {
   update('attribute_filters', filters)
 }
 
+function updateMissingTranslation(key, value) {
+  const current = props.modelValue.missing_translation || {}
+  const updated = { ...current, [key]: value }
+  if (!updated.attribute_id && !updated.target_language) {
+    update('missing_translation', null)
+  } else {
+    update('missing_translation', updated)
+  }
+}
+
 function clearAll() {
   emit('update:modelValue', {
     status: '',
@@ -120,6 +150,7 @@ function clearAll() {
     attribute_filters: {},
     include_descendants: true,
     price_region_id: '',
+    missing_translation: null,
   })
 }
 
@@ -207,6 +238,39 @@ function getFilterInputType(dataType) {
             />
             <span>{{ cat.label }}</span>
           </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Missing Translation Filter -->
+    <div v-if="translatableAttributes.length > 0">
+      <p class="text-[12px] font-medium text-[var(--color-text-secondary)] mb-2">Fehlende Übersetzung</p>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label class="block text-[11px] font-medium text-[var(--color-text-tertiary)] mb-1">Attribut</label>
+          <select
+            class="pim-input text-xs"
+            :value="modelValue.missing_translation?.attribute_id || ''"
+            @change="updateMissingTranslation('attribute_id', $event.target.value || null)"
+          >
+            <option value="">— Keins —</option>
+            <option v-for="attr in translatableAttributes" :key="attr.id" :value="attr.id">
+              {{ attr.name_de || attr.technical_name }}
+            </option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-[11px] font-medium text-[var(--color-text-tertiary)] mb-1">Zielsprache</label>
+          <select
+            class="pim-input text-xs"
+            :value="modelValue.missing_translation?.target_language || ''"
+            @change="updateMissingTranslation('target_language', $event.target.value || null)"
+          >
+            <option value="">— Wählen —</option>
+            <option v-for="lang in availableLanguages" :key="lang.code" :value="lang.code">
+              {{ lang.label }} ({{ lang.code }})
+            </option>
+          </select>
         </div>
       </div>
     </div>

@@ -139,6 +139,26 @@ trait ProductSearchFilters
         });
     }
 
+    protected function applyMissingTranslationFilter($query, string $attributeId, string $targetLanguage): void
+    {
+        $attribute = Attribute::find($attributeId);
+        if (!$attribute || !$attribute->is_translatable) {
+            return;
+        }
+
+        $column = $this->getValueColumn($attribute->data_type);
+
+        $query->whereNotExists(function ($sub) use ($attributeId, $targetLanguage, $column) {
+            $sub->select(DB::raw(1))
+                ->from('product_attribute_values as pav_missing')
+                ->whereColumn('pav_missing.product_id', 'products.id')
+                ->where('pav_missing.attribute_id', $attributeId)
+                ->where('pav_missing.language', $targetLanguage)
+                ->whereNotNull("pav_missing.{$column}")
+                ->where("pav_missing.{$column}", '!=', '');
+        });
+    }
+
     protected function applyPriceRegionFilter($query, string $priceRegionId): void
     {
         $query->whereHas('prices', function ($q) use ($priceRegionId) {

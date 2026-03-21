@@ -67,7 +67,6 @@ const sections = computed(() => {
       label: 'Plugins',
       items: [
         { icon: Settings, label: () => 'Plugin-Einstellungen', to: '/plugin-settings', permission: 'users.view' },
-        { icon: Languages, label: () => 'Übersetzung (DeepL)', to: '/connectors/deepl', module: 'connectors' },
         {
           key: 'grp-connectors',
           icon: Plug,
@@ -80,6 +79,15 @@ const sections = computed(() => {
             { icon: Zap, label: () => 'Claude AI', to: '/connectors/claude-ai', module: 'connectors' },
           ],
         },
+      ],
+    },
+    {
+      key: 'translations',
+      label: 'Übersetzungen',
+      items: [
+        { icon: ClipboardList, label: () => 'Übersetzungsjobs', to: '/translation-jobs' },
+        { icon: Languages, label: () => 'Translation Memory', to: '/translations' },
+        { icon: Settings, label: () => 'DeepL Einstellungen', to: '/connectors/deepl', module: 'connectors' },
       ],
     },
     {
@@ -112,7 +120,6 @@ const sections = computed(() => {
       label: 'Konfiguration',
       items: [
         { icon: Tags, label: () => t('nav.mediaUsageTypes'), to: '/media-usage-types' },
-        { icon: Languages, label: () => t('nav.translations'), to: '/translations' },
         {
           key: 'grp-produktstruktur',
           icon: Layers,

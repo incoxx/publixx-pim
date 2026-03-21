@@ -58,6 +58,9 @@ class ProductSearchController extends Controller
             'page' => 'nullable|integer|min:1',
             'language' => 'nullable|string|max:5',
             'price_region_id' => 'nullable|string|uuid',
+            'missing_translation' => 'nullable|array',
+            'missing_translation.attribute_id' => 'required_with:missing_translation|string|uuid',
+            'missing_translation.target_language' => 'required_with:missing_translation|string|max:5',
         ]);
 
         $searchTerm = $validated['search'] ?? null;
@@ -108,6 +111,12 @@ class ProductSearchController extends Controller
         $priceRegionId = $validated['price_region_id'] ?? null;
         if ($priceRegionId) {
             $this->applyPriceRegionFilter($query, $priceRegionId);
+        }
+
+        // ── Missing translation filter ──
+        $missingTranslation = $validated['missing_translation'] ?? null;
+        if ($missingTranslation) {
+            $this->applyMissingTranslationFilter($query, $missingTranslation['attribute_id'], $missingTranslation['target_language']);
         }
 
         // ── Attribute filters (subquery-based) ──
