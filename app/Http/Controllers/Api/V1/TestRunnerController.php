@@ -126,14 +126,10 @@ class TestRunnerController extends Controller
                 return $this->errorResult('backend', 'composer install fehlgeschlagen (bin: ' . $composerBin . '): ' . mb_substr($install->output() . $install->errorOutput(), -1000));
             }
 
-            if (! file_exists($phpunitBin)) {
-                return $this->errorResult('backend', 'PHPUnit konnte nicht installiert werden');
-            }
-
             $installedDevDeps = true;
         }
 
-        $args = [$phpunitBin, '--no-interaction'];
+        $args = [$phpunitBin];
 
         if ($suite === 'unit') {
             $args[] = '--testsuite=Unit';
@@ -146,11 +142,10 @@ class TestRunnerController extends Controller
 
         // Cleanup: remove dev dependencies to keep production clean
         if ($installedDevDeps) {
-            $composerPath = collect(['/usr/local/bin/composer', '/usr/bin/composer'])->first(fn ($p) => file_exists($p)) ?? 'composer';
             Process::timeout(120)
                 ->path(base_path())
                 ->env(['COMPOSER_HOME' => base_path('storage/.composer'), 'HOME' => base_path('storage')])
-                ->run(escapeshellarg($composerPath) . ' install --no-dev --no-interaction 2>&1');
+                ->run(escapeshellarg($composerBin) . ' install --no-dev --no-interaction 2>&1');
         }
 
         return $result;
