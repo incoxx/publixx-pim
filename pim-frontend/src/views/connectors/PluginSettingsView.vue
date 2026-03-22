@@ -128,11 +128,11 @@ function isSecretVisible(connector, field) {
     <!-- Header -->
     <div class="flex items-center justify-between">
       <div class="flex items-center gap-3">
-        <Settings class="w-6 h-6 text-primary" />
-        <h1 class="text-xl font-bold">Plugin-Einstellungen</h1>
+        <Settings class="w-6 h-6 text-[var(--color-accent)]" />
+        <h1 class="text-xl font-bold text-[var(--color-text-primary)]">Plugin-Einstellungen</h1>
       </div>
       <button
-        class="btn btn-sm btn-primary"
+        class="pim-btn pim-btn-primary text-xs flex items-center gap-2"
         :disabled="saving"
         @click="save"
       >
@@ -141,76 +141,77 @@ function isSecretVisible(connector, field) {
       </button>
     </div>
 
-    <p class="text-sm text-base-content/60">
+    <p class="text-sm text-[var(--color-text-secondary)]">
       Konfigurieren Sie hier zentral alle API-Zugangsdaten — für Connectoren und Übersetzungsdienste.
       Die Daten werden verschlüsselt in der Datenbank gespeichert und überschreiben ggf. die .env-Werte.
     </p>
 
     <!-- Messages -->
-    <div v-if="error" class="alert alert-error text-sm">
-      <AlertTriangle class="w-4 h-4" />
+    <div v-if="error" class="flex items-center gap-2 p-3 rounded-lg bg-[var(--color-error-light)] text-[var(--color-error)] text-sm">
+      <AlertTriangle class="w-4 h-4 shrink-0" />
       {{ error }}
     </div>
-    <div v-if="success" class="alert alert-success text-sm">
-      <CheckCircle class="w-4 h-4" />
+    <div v-if="success" class="flex items-center gap-2 p-3 rounded-lg bg-[var(--color-success-light)] text-[var(--color-success)] text-sm">
+      <CheckCircle class="w-4 h-4 shrink-0" />
       {{ success }}
     </div>
 
     <!-- Loading -->
     <div v-if="loading" class="flex justify-center py-8">
-      <span class="loading loading-spinner loading-lg"></span>
+      <div class="w-6 h-6 border-2 border-[var(--color-accent)] border-t-transparent rounded-full animate-spin"></div>
     </div>
 
     <!-- Connector & TMS Cards grouped by section -->
     <template v-else>
       <template v-for="(section, sectionKey) in sections" :key="sectionKey">
         <div class="pt-2">
-          <h2 class="text-lg font-semibold mb-1">{{ section.label }}</h2>
-          <p class="text-sm text-base-content/60 mb-4">{{ section.description }}</p>
+          <h2 class="text-lg font-semibold text-[var(--color-text-primary)] mb-1">{{ section.label }}</h2>
+          <p class="text-sm text-[var(--color-text-secondary)] mb-4">{{ section.description }}</p>
         </div>
 
         <template v-for="connector in section.keys" :key="connector">
           <div
             v-if="schema[connector]"
-            class="card bg-base-100 shadow-sm border border-base-200"
+            class="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] p-5 space-y-4"
           >
-            <div class="card-body p-5 space-y-4">
-              <div class="flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                  <Plug class="w-5 h-5 text-primary" />
-                  <h3 class="font-semibold text-lg">{{ connectorLabels[connector] || connector }}</h3>
-                </div>
-                <span
-                  :class="hasValues[connector] ? 'badge-success' : 'badge-warning'"
-                  class="badge badge-sm"
-                >
-                  {{ hasValues[connector] ? 'Konfiguriert' : 'Nicht konfiguriert' }}
-                </span>
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <Plug class="w-5 h-5 text-[var(--color-accent)]" />
+                <h3 class="font-semibold text-lg text-[var(--color-text-primary)]">{{ connectorLabels[connector] || connector }}</h3>
               </div>
+              <span
+                class="pim-badge text-[11px] px-2 py-0.5 rounded-full font-medium"
+                :class="hasValues[connector]
+                  ? 'bg-[var(--color-success-light)] text-[var(--color-success)]'
+                  : 'bg-[var(--color-warning-light,theme(colors.amber.100))] text-[var(--color-warning,theme(colors.amber.600))]'"
+              >
+                {{ hasValues[connector] ? 'Konfiguriert' : 'Nicht konfiguriert' }}
+              </span>
+            </div>
 
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div v-for="field in schema[connector]" :key="field" class="form-control">
-                  <label class="label">
-                    <span class="label-text text-sm font-medium">{{ fieldLabels[field] || field }}</span>
-                  </label>
-                  <div class="relative">
-                    <input
-                      v-model="form[connector][field]"
-                      :type="isSecret(field) && !isSecretVisible(connector, field) ? 'password' : (fieldTypes[field] || 'text')"
-                      :placeholder="fieldLabels[field] || field"
-                      class="input input-bordered input-sm w-full pr-10"
-                      autocomplete="off"
-                    />
-                    <button
-                      v-if="isSecret(field)"
-                      type="button"
-                      class="absolute right-2 top-1/2 -translate-y-1/2 text-base-content/40 hover:text-base-content/70"
-                      @click="toggleSecret(connector, field)"
-                    >
-                      <EyeOff v-if="isSecretVisible(connector, field)" class="w-4 h-4" />
-                      <Eye v-else class="w-4 h-4" />
-                    </button>
-                  </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div v-for="field in schema[connector]" :key="field">
+                <label class="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">
+                  {{ fieldLabels[field] || field }}
+                </label>
+                <div class="relative">
+                  <input
+                    v-model="form[connector][field]"
+                    :type="isSecret(field) && !isSecretVisible(connector, field) ? 'password' : (fieldTypes[field] || 'text')"
+                    :placeholder="fieldLabels[field] || field"
+                    class="pim-input text-xs w-full"
+                    :class="{ 'pr-10': isSecret(field) }"
+                    autocomplete="off"
+                  />
+                  <button
+                    v-if="isSecret(field)"
+                    type="button"
+                    class="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]"
+                    @click="toggleSecret(connector, field)"
+                  >
+                    <EyeOff v-if="isSecretVisible(connector, field)" class="w-4 h-4" />
+                    <Eye v-else class="w-4 h-4" />
+                  </button>
                 </div>
               </div>
             </div>
