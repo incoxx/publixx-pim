@@ -7,7 +7,6 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Requests\Api\V1\StoreHierarchyRequest;
 use App\Http\Requests\Api\V1\UpdateHierarchyRequest;
 use App\Http\Resources\Api\V1\HierarchyResource;
-use App\Http\Resources\Api\V1\HierarchyNodeResource;
 use App\Http\Traits\ChecksDeletionConstraints;
 use App\Http\Traits\FiltersByInstanceRestrictions;
 use App\Models\Hierarchy;
@@ -17,7 +16,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 
 class HierarchyController extends Controller
 {
