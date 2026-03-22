@@ -110,6 +110,116 @@ class DebugController extends Controller
         ], 200, [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
     }
 
+    /**
+     * GET /debug/test-tree-auth/{hierarchyId} — test the tree endpoint with auth context.
+     */
+    public function testTreeAuth(Request $request, string $hierarchyId): JsonResponse
+    {
+        $hierarchy = Hierarchy::findOrFail($hierarchyId);
+
+        // Step 1: Test HierarchyNodeResource with a single node
+        $firstNode = $hierarchy->nodes()->first();
+        if (!$firstNode) {
+            return response()->json(['error' => 'No nodes found'], 200);
+        }
+
+        $steps = [];
+
+        // Step 2: Test resolve() without relationships
+        try {
+            $data = (new HierarchyNodeResource($firstNode))->resolve();
+            $steps['resolve_plain'] = ['status' => 'ok', 'keys' => array_keys($data)];
+        } catch (\Throwable $e) {
+            $steps['resolve_plain'] = [
+                'status' => 'FAILED',
+                'error' => $e->getMessage(),
+                'file' => $e->getFile() . ':' . $e->getLine(),
+                'class' => get_class($e),
+                'trace' => array_slice(explode("\n", $e->getTraceAsString()), 0, 10),
+            ];
+        }
+
+        // Step 3: Test resolve() with children loaded
+        try {
+            $nodeWithChildren = $hierarchy->nodes()
+                ->whereNull('parent_node_id')
+                ->with('children')
+                ->first();
+            $data = (new HierarchyNodeResource($nodeWithChildren))->resolve();
+            $steps['resolve_with_children'] = ['status' => 'ok', 'keys' => array_keys($data)];
+        } catch (\Throwable $e) {
+            $steps['resolve_with_children'] = [
+                'status' => 'FAILED',
+                'error' => $e->getMessage(),
+                'file' => $e->getFile() . ':' . $e->getLine(),
+                'class' => get_class($e),
+                'trace' => array_slice(explode("\n", $e->getTraceAsString()), 0, 10),
+            ];
+        }
+
+        // Step 4: Test response() (like store endpoint uses)
+        try {
+            $response = (new HierarchyNodeResource($firstNode))->response();
+            $steps['response'] = ['status' => 'ok', 'http_status' => $response->getStatusCode()];
+        } catch (\Throwable $e) {
+            $steps['response'] = [
+                'status' => 'FAILED',
+                'error' => $e->getMessage(),
+                'file' => $e->getFile() . ':' . $e->getLine(),
+                'class' => get_class($e),
+                'trace' => array_slice(explode("\n", $e->getTraceAsString()), 0, 10),
+            ];
+        }
+
+        // Step 5: Test full buildTree
+        try {
+            $rootNodes = $hierarchy->nodes()
+                ->whereNull('parent_node_id')
+                ->with('children')
+                ->orderBy('sort_order', 'asc')
+                ->get();
+
+            $buildTree = function ($nodes, int $currentDepth = 0) use (&$buildTree) {
+                return $nodes->map(function ($node) use (&$buildTree, $currentDepth) {
+                    $data = (new HierarchyNodeResource($node))->resolve();
+                    $children = $node->children()->orderBy('sort_order', 'asc')->with('children')->get();
+                    $data['children'] = $buildTree($children, $currentDepth + 1);
+                    return $data;
+                });
+            };
+
+            $tree = $buildTree($rootNodes);
+            $steps['full_build_tree'] = ['status' => 'ok', 'count' => count($tree)];
+        } catch (\Throwable $e) {
+            $steps['full_build_tree'] = [
+                'status' => 'FAILED',
+                'error' => $e->getMessage(),
+                'file' => $e->getFile() . ':' . $e->getLine(),
+                'class' => get_class($e),
+                'trace' => array_slice(explode("\n", $e->getTraceAsString()), 0, 10),
+            ];
+        }
+
+        // Step 6: Test json encoding of tree
+        try {
+            $json = json_encode(['data' => $tree ?? []], JSON_THROW_ON_ERROR);
+            $steps['json_encode'] = ['status' => 'ok', 'size_bytes' => strlen($json)];
+        } catch (\Throwable $e) {
+            $steps['json_encode'] = [
+                'status' => 'FAILED',
+                'error' => $e->getMessage(),
+                'class' => get_class($e),
+            ];
+        }
+
+        return response()->json([
+            'hierarchy_id' => $hierarchyId,
+            'php_version' => PHP_VERSION,
+            'laravel_version' => app()->version(),
+            'steps' => $steps,
+        ], 200, [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+    }
+
     public function logs(Request $request): Response
     {
         $channel = $request->query('channel', 'laravel');
