@@ -16,6 +16,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class HierarchyController extends Controller
 {
@@ -131,48 +132,63 @@ class HierarchyController extends Controller
      */
     public function tree(Request $request, Hierarchy $hierarchy): JsonResponse
     {
-        $this->authorize('view', $hierarchy);
+        try {
+            $this->authorize('view', $hierarchy);
 
-        $maxDepth = (int) $request->query('depth', '0');
+            $maxDepth = (int) $request->query('depth', '0');
 
-        $query = $hierarchy->nodes()
-            ->whereNull('parent_node_id')
-            ->orderBy('sort_order', 'asc');
+            $query = $hierarchy->nodes()
+                ->whereNull('parent_node_id')
+                ->orderBy('sort_order', 'asc');
 
-        $this->applyNodeInstanceRestrictionFilter($query);
+            $this->applyNodeInstanceRestrictionFilter($query);
 
-        $rootNodes = $query->get();
+            $rootNodes = $query->get();
 
-        $buildTree = function ($nodes, int $currentDepth = 0) use (&$buildTree, $maxDepth) {
-            return $nodes->map(function (HierarchyNode $node) use (&$buildTree, $maxDepth, $currentDepth) {
-                $data = [
-                    'id' => $node->id,
-                    'hierarchy_id' => $node->hierarchy_id,
-                    'parent_node_id' => $node->parent_node_id,
-                    'name_de' => $node->name_de,
-                    'name_en' => $node->name_en,
-                    'name_json' => $node->name_json,
-                    'path' => $node->path,
-                    'depth' => $node->depth,
-                    'sort_order' => $node->sort_order,
-                    'is_active' => $node->is_active,
-                    'created_at' => $node->created_at,
-                    'updated_at' => $node->updated_at,
-                ];
+            $buildTree = function ($nodes, int $currentDepth = 0) use (&$buildTree, $maxDepth) {
+                return $nodes->map(function (HierarchyNode $node) use (&$buildTree, $maxDepth, $currentDepth) {
+                    $data = [
+                        'id' => $node->id,
+                        'hierarchy_id' => $node->hierarchy_id,
+                        'parent_node_id' => $node->parent_node_id,
+                        'name_de' => $node->name_de,
+                        'name_en' => $node->name_en,
+                        'name_json' => $node->name_json,
+                        'path' => $node->path,
+                        'depth' => $node->depth,
+                        'sort_order' => $node->sort_order,
+                        'is_active' => $node->is_active,
+                        'created_at' => $node->created_at,
+                        'updated_at' => $node->updated_at,
+                    ];
 
-                if ($maxDepth > 0 && $currentDepth >= $maxDepth) {
-                    $data['children'] = [];
-                } else {
-                    $children = $node->children()->orderBy('sort_order', 'asc')->get();
-                    $data['children'] = $buildTree($children, $currentDepth + 1);
-                }
+                    if ($maxDepth > 0 && $currentDepth >= $maxDepth) {
+                        $data['children'] = [];
+                    } else {
+                        $children = $node->children()->orderBy('sort_order', 'asc')->get();
+                        $data['children'] = $buildTree($children, $currentDepth + 1);
+                    }
 
-                return $data;
-            })->values();
-        };
+                    return $data;
+                })->values();
+            };
 
-        return response()->json([
-            'data' => $buildTree($rootNodes),
-        ]);
+            return response()->json([
+                'data' => $buildTree($rootNodes),
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Tree endpoint failed', [
+                'hierarchy_id' => $hierarchy->id,
+                'error' => $e->getMessage(),
+                'file' => $e->getFile() . ':' . $e->getLine(),
+                'trace' => array_slice(explode("\n", $e->getTraceAsString()), 0, 15),
+            ]);
+
+            return response()->json([
+                'error' => $e->getMessage(),
+                'file' => $e->getFile() . ':' . $e->getLine(),
+                'class' => get_class($e),
+            ], 500);
+        }
     }
 }
