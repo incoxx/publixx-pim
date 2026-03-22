@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\DeletionConstraints;
 
+use App\Models\Role;
 use App\Models\Unit;
 use App\Models\UnitGroup;
 use App\Models\User;
@@ -21,6 +22,10 @@ class DeletionConstraintTest extends TestCase
     {
         parent::setUp();
         $this->user = User::factory()->create();
+        $adminRole = Role::firstOrCreate(['name' => 'Admin', 'guard_name' => 'sanctum']);
+        $this->user->assignRole($adminRole);
+        $this->user->unsetRelation('roles');
+        app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
         Sanctum::actingAs($this->user);
     }
 
