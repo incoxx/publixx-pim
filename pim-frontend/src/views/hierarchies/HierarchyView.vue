@@ -883,7 +883,11 @@ onMounted(async () => {
           @move="handleMove"
           @context-menu="handleContextMenu"
         />
-        <p v-if="!store.loading && store.tree.length === 0" class="text-xs text-center text-[var(--color-text-tertiary)] py-8">
+        <div v-if="!store.loading && store.error" class="text-xs text-center text-[var(--color-error)] py-4 px-2">
+          <p class="font-semibold">Fehler beim Laden des Baums:</p>
+          <p>{{ store.error }}</p>
+        </div>
+        <p v-else-if="!store.loading && store.tree.length === 0" class="text-xs text-center text-[var(--color-text-tertiary)] py-8">
           Keine Knoten vorhanden.
         </p>
       </div>
