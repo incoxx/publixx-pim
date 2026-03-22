@@ -17,6 +17,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class HierarchyController extends Controller
 {
@@ -144,6 +145,23 @@ class HierarchyController extends Controller
         $this->applyNodeInstanceRestrictionFilter($query);
 
         $rootNodes = $query->get();
+
+        // Temporary debug logging to diagnose empty tree issue
+        if ($rootNodes->isEmpty()) {
+            $totalNodes = $hierarchy->nodes()->count();
+            $rootNodeCount = $hierarchy->nodes()->whereNull('parent_node_id')->count();
+            $sampleNodes = $hierarchy->nodes()->limit(5)->get(['id', 'parent_node_id', 'name_de', 'depth'])->toArray();
+            $user = $request->user();
+            Log::warning('HierarchyController::tree returned empty', [
+                'hierarchy_id' => $hierarchy->id,
+                'hierarchy_name' => $hierarchy->name_de,
+                'total_nodes_in_hierarchy' => $totalNodes,
+                'root_nodes_count' => $rootNodeCount,
+                'user_id' => $user?->id,
+                'user_is_admin' => $user?->hasRole('Admin'),
+                'sample_nodes' => $sampleNodes,
+            ]);
+        }
 
         // Recursive tree building
         $buildTree = function ($nodes, int $currentDepth = 0) use (&$buildTree, $maxDepth) {
