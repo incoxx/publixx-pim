@@ -132,12 +132,25 @@ class TestRunnerController extends Controller
         // Ensure test database exists and has tables
         $this->ensureTestDatabase();
 
-        // Migrate test database (fresh) to ensure clean state
-        Process::timeout(120)->path(base_path())->run('php artisan migrate:fresh --env=testing --force 2>&1');
-
-        // Clear cached config/routes so tests use fresh config
-        Process::timeout(30)->path(base_path())->run('php artisan config:clear --env=testing 2>&1');
+        // SAFETY: Clear config cache so --env=testing is respected
+        // (cached config ignores --env flag and would hit production DB!)
+        Process::timeout(30)->path(base_path())->run('php artisan config:clear 2>&1');
         Process::timeout(30)->path(base_path())->run('php artisan route:clear 2>&1');
+
+        // Migrate test database (fresh) to ensure clean state
+        // Double-safety: verify the target DB name contains 'testing'
+        $envCheck = Process::timeout(10)->path(base_path())
+            ->run('php artisan tinker --env=testing --execute="echo config(\'database.connections.mysql.database\')" 2>&1');
+        $targetDb = trim($envCheck->output());
+
+        if (! str_contains($targetDb, 'testing')) {
+            // Restore caches before aborting
+            Process::timeout(30)->path(base_path())->run('php artisan config:cache 2>&1');
+            Process::timeout(30)->path(base_path())->run('php artisan route:cache 2>&1');
+            return $this->errorResult('backend', 'SICHERHEIT: migrate:fresh abgebrochen — Ziel-DB "' . $targetDb . '" enthält nicht "testing". Bitte .env.testing prüfen.');
+        }
+
+        Process::timeout(120)->path(base_path())->run('php artisan migrate:fresh --env=testing --force 2>&1');
 
         $cmd = 'php artisan test --env=testing';
 

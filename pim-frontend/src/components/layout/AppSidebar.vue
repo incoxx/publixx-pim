@@ -25,7 +25,7 @@ const connectorsStore = useConnectorsStore()
 // Module is accessible if licensed OR if any related plugin has API keys configured
 function isModuleAccessible(module) {
   if (!module) return true
-  if (!licenseStore.loaded) return true // show while loading
+  if (!licenseStore.loaded) return false // hide until license is resolved
   if (licenseStore.isModuleActive(module)) return true
   // 'connectors' module: show if any connector has keys configured
   if (module === 'connectors' && connectorsStore.configuredPluginsLoaded) {
