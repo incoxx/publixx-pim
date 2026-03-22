@@ -146,21 +146,24 @@ class HierarchyController extends Controller
 
         $rootNodes = $query->get();
 
-        // Temporary debug logging to diagnose empty tree issue
+        // Temporary debug: collect diagnostic info for empty tree
+        $debug = null;
         if ($rootNodes->isEmpty()) {
             $totalNodes = $hierarchy->nodes()->count();
             $rootNodeCount = $hierarchy->nodes()->whereNull('parent_node_id')->count();
-            $sampleNodes = $hierarchy->nodes()->limit(5)->get(['id', 'parent_node_id', 'name_de', 'depth'])->toArray();
+            $sampleNodes = $hierarchy->nodes()->limit(5)
+                ->get(['id', 'parent_node_id', 'name_de', 'depth', 'path'])
+                ->toArray();
             $user = $request->user();
-            Log::warning('HierarchyController::tree returned empty', [
+            $debug = [
                 'hierarchy_id' => $hierarchy->id,
-                'hierarchy_name' => $hierarchy->name_de,
-                'total_nodes_in_hierarchy' => $totalNodes,
-                'root_nodes_count' => $rootNodeCount,
-                'user_id' => $user?->id,
+                'total_nodes' => $totalNodes,
+                'root_nodes_whereNull' => $rootNodeCount,
                 'user_is_admin' => $user?->hasRole('Admin'),
                 'sample_nodes' => $sampleNodes,
-            ]);
+                'sql' => $query->toSql(),
+            ];
+            Log::warning('HierarchyController::tree returned empty', $debug);
         }
 
         // Recursive tree building
@@ -179,8 +182,11 @@ class HierarchyController extends Controller
             });
         };
 
-        return response()->json([
-            'data' => $buildTree($rootNodes),
-        ]);
+        $response = ['data' => $buildTree($rootNodes)];
+        if ($debug !== null) {
+            $response['_debug'] = $debug;
+        }
+
+        return response()->json($response);
     }
 }
