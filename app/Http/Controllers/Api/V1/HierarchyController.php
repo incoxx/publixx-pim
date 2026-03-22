@@ -135,7 +135,7 @@ class HierarchyController extends Controller
 
         $maxDepth = (int) $request->query('depth', '0');
 
-        $query = $hierarchy->nodes()
+        $query = HierarchyNode::where('hierarchy_id', $hierarchy->id)
             ->whereNull('parent_node_id')
             ->orderBy('sort_order', 'asc');
 
