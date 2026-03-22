@@ -21,6 +21,7 @@ use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\SsoController;
 use App\Http\Controllers\Api\V1\BulkEditorController;
 use App\Http\Controllers\Api\V1\BulkUpdateController;
+use App\Http\Controllers\Api\V1\DatabaseConsistencyController;
 use App\Http\Controllers\Api\V1\DatabaseViewerController;
 use App\Http\Controllers\Api\V1\DebugController;
 use App\Http\Controllers\Api\V1\DictionaryEntryController;
@@ -795,6 +796,12 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::get('admin/db/tables', [DatabaseViewerController::class, 'tables']);
     Route::get('admin/db/tables/{table}/columns', [DatabaseViewerController::class, 'columns']);
     Route::get('admin/db/tables/{table}/rows', [DatabaseViewerController::class, 'rows']);
+
+    // =====================================================================
+    // Admin: Database Consistency
+    // =====================================================================
+    Route::get('admin/db-consistency/check', [DatabaseConsistencyController::class, 'check']);
+    Route::post('admin/db-consistency/fix/{issueType}', [DatabaseConsistencyController::class, 'fix']);
 
     // =====================================================================
     // Scheduled Actions & Calendar
