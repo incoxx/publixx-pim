@@ -732,6 +732,11 @@ php artisan package:discover --ansi 2>&1 || true
 info "Generiere Application Key..."
 php artisan key:generate --force
 
+# APP_KEY in .env.testing uebernehmen
+APP_KEY_VALUE=$(grep '^APP_KEY=' "${INSTALL_DIR}/.env" | head -1 | cut -d= -f2-)
+sed -i "s|^APP_KEY=.*|APP_KEY=${APP_KEY_VALUE}|" "${INSTALL_DIR}/.env.testing"
+info "APP_KEY in .env.testing uebernommen."
+
 # --- Datenbank migrieren ---
 info "Fuehre Datenbank-Migrationen aus..."
 if [ "$DB_EXISTS" = true ] && [ "$DB_RESET" = false ]; then
