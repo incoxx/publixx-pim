@@ -313,8 +313,11 @@ class BmecatFormatImporterTest extends TestCase
         $this->assertNotNull($product);
 
         $prices = ProductPrice::where('product_id', $product->id)->get();
-        // Mindestens 2 Staffelpreise (1 Stück und 100 Stück)
-        $this->assertGreaterThanOrEqual(2, $prices->count());
+        // Debug: zeige alle Preise
+        $this->assertGreaterThanOrEqual(2, $prices->count(),
+            'Erwartet >= 2 Preise, gefunden: ' . $prices->count()
+            . '. Preise: ' . $prices->map(fn ($p) => "amount={$p->amount} scale_from={$p->scale_from} currency={$p->currency}")->implode(', ')
+        );
 
         // Scale-from Werte prüfen
         $scaleFromValues = $prices->pluck('scale_from')->toArray();
