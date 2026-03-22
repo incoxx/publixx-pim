@@ -135,72 +135,53 @@ class HierarchyController extends Controller
     {
         $this->authorize('view', $hierarchy);
 
-        $maxDepth = (int) $request->query('depth', '0');
+        try {
+            $maxDepth = (int) $request->query('depth', '0');
 
-        $query = $hierarchy->nodes()
-            ->whereNull('parent_node_id')
-            ->with('children')
-            ->orderBy('sort_order', 'asc');
+            $query = $hierarchy->nodes()
+                ->whereNull('parent_node_id')
+                ->with('children')
+                ->orderBy('sort_order', 'asc');
 
-        $this->applyNodeInstanceRestrictionFilter($query);
+            $this->applyNodeInstanceRestrictionFilter($query);
 
-        $rootNodes = $query->get();
+            $rootNodes = $query->get();
 
-        // TEMPORARY: Always include debug info to diagnose empty-tree issue
-        $totalNodes = $hierarchy->nodes()->count();
-        $rootNodeCount = $hierarchy->nodes()->whereNull('parent_node_id')->count();
-        $sampleNodes = $hierarchy->nodes()->limit(3)
-            ->get(['id', 'parent_node_id', 'name_de', 'depth'])
-            ->toArray();
-        $user = $request->user();
-        $debug = [
-            'hierarchy_id' => $hierarchy->id,
-            'hierarchy_name' => $hierarchy->name_de,
-            'total_nodes' => $totalNodes,
-            'root_nodes_count' => $rootNodeCount,
-            'root_nodes_returned' => $rootNodes->count(),
-            'user_id' => $user?->id,
-            'user_email' => $user?->email,
-            'user_is_admin' => $user?->hasRole('Admin'),
-            'user_roles' => $user?->roles->pluck('name')->toArray(),
-            'has_node_restrictions' => false,
-            'sample_nodes' => $sampleNodes,
-        ];
+            // Recursive tree building
+            $buildTree = function ($nodes, int $currentDepth = 0) use (&$buildTree, $maxDepth) {
+                return $nodes->map(function ($node) use (&$buildTree, $maxDepth, $currentDepth) {
+                    $data = (new HierarchyNodeResource($node))->resolve();
 
-        // Check if instance restrictions are filtering nodes
-        if ($user && !$user->hasRole('Admin')) {
-            $roleIds = $user->roles->pluck('id');
-            $restrictions = \App\Models\RoleEntityRestriction::whereIn('role_id', $roleIds)
-                ->where('restrictable_type', \App\Models\HierarchyNode::class)
-                ->get();
-            $debug['has_node_restrictions'] = $restrictions->isNotEmpty();
-            $debug['restriction_count'] = $restrictions->count();
-            $debug['restricted_node_ids'] = $restrictions->pluck('restrictable_id')->toArray();
+                    if ($maxDepth > 0 && $currentDepth >= $maxDepth) {
+                        $data['children'] = [];
+                    } else {
+                        $children = $node->children()->orderBy('sort_order', 'asc')->with('children')->get();
+                        $data['children'] = $buildTree($children, $currentDepth + 1);
+                    }
+
+                    return $data;
+                });
+            };
+
+            return response()->json([
+                'data' => $buildTree($rootNodes),
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('HierarchyController::tree crashed', [
+                'hierarchy_id' => $hierarchy->id,
+                'error' => $e->getMessage(),
+                'file' => $e->getFile() . ':' . $e->getLine(),
+                'trace' => array_slice(explode("\n", $e->getTraceAsString()), 0, 15),
+            ]);
+
+            return response()->json([
+                'data' => [],
+                '_error' => [
+                    'message' => $e->getMessage(),
+                    'file' => basename($e->getFile()) . ':' . $e->getLine(),
+                    'class' => get_class($e),
+                ],
+            ]);
         }
-
-        if ($rootNodes->isEmpty()) {
-            Log::warning('HierarchyController::tree returned empty', $debug);
-        }
-
-        // Recursive tree building
-        $buildTree = function ($nodes, int $currentDepth = 0) use (&$buildTree, $maxDepth) {
-            return $nodes->map(function ($node) use (&$buildTree, $maxDepth, $currentDepth) {
-                $data = (new HierarchyNodeResource($node))->resolve();
-
-                if ($maxDepth > 0 && $currentDepth >= $maxDepth) {
-                    $data['children'] = [];
-                } else {
-                    $children = $node->children()->orderBy('sort_order', 'asc')->with('children')->get();
-                    $data['children'] = $buildTree($children, $currentDepth + 1);
-                }
-
-                return $data;
-            });
-        };
-
-        return response()->json([
-            'data' => $buildTree($rootNodes),
-            '_debug' => $debug,
-        ]);
     }
 }
