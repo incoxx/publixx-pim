@@ -7,6 +7,7 @@ namespace App\Services;
 use App\Events\AttributeValuesChanged;
 use App\Events\ProductCreated;
 use App\Models\Attribute;
+use App\Models\AttributeType;
 use App\Models\Hierarchy;
 use App\Models\HierarchyNode;
 use App\Models\Manufacturer;
@@ -14,8 +15,14 @@ use App\Models\PriceType;
 use App\Models\Product;
 use App\Models\ProductAttributeValue;
 use App\Models\ProductPrice;
+use App\Models\ProductRelation;
+use App\Models\ProductRelationType;
 use App\Models\ProductType;
 use App\Models\HierarchyNodeAttributeAssignment;
+use App\Models\Unit;
+use App\Models\UnitGroup;
+use App\Models\ValueList;
+use App\Models\ValueListEntry;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -24,6 +31,7 @@ class TestDataGeneratorService
 {
     public const SKU_PREFIX = 'TEST-';
     public const HIERARCHY_TECHNICAL_NAME = '__testdata__';
+    public const TEST_PREFIX = '__test__';
     private const CACHE_KEY_PROGRESS = 'testdata:progress';
     private const CACHE_KEY_CANCEL = 'testdata:cancel';
 
@@ -50,6 +58,9 @@ class TestDataGeneratorService
         // Reset cancel flag and init progress
         Cache::forget(self::CACHE_KEY_CANCEL);
         $this->updateProgress('Initialisiere...', 0, $count);
+
+        // Ensure foundation/master data exists (idempotent, skips if data already present)
+        $foundationStats = $this->ensureFoundationData();
 
         $productTypes = ProductType::where('is_active', true)->get();
         if ($productTypes->isEmpty()) {
@@ -98,6 +109,10 @@ class TestDataGeneratorService
             $manufacturers,
         );
 
+        // Create product relations between test products
+        $this->updateProgress('Produktbeziehungen werden erstellt...', 0, 1);
+        $relationsCreated = $this->createTestProductRelations();
+
         $duration = round(microtime(true) - $startTime, 2);
 
         $this->clearProgress();
@@ -106,7 +121,9 @@ class TestDataGeneratorService
             'products' => $result['products'],
             'attribute_values' => $result['attribute_values'],
             'prices' => $result['prices'],
+            'relations' => $relationsCreated,
             'categories' => count($nodes),
+            'foundation_data' => $foundationStats,
             'duration' => $duration,
         ]);
 
@@ -116,6 +133,8 @@ class TestDataGeneratorService
             'categories_created' => count($nodes),
             'attribute_values_created' => $result['attribute_values'],
             'prices_created' => $result['prices'],
+            'relations_created' => $relationsCreated,
+            'foundation_data' => $foundationStats,
             'duration_seconds' => $duration,
             'cancelled' => $result['cancelled'] ?? false,
         ];
@@ -234,8 +253,19 @@ class TestDataGeneratorService
 
         $productsDeleted = 0;
         $hierarchyDeleted = false;
+        $attributesDeleted = 0;
+        $attributeTypesDeleted = 0;
+        $valueListsDeleted = 0;
+        $unitGroupsDeleted = 0;
+        $relationTypesDeleted = 0;
+        $productTypesDeleted = 0;
+        $priceTypesDeleted = 0;
 
-        DB::transaction(function () use (&$productsDeleted, &$hierarchyDeleted) {
+        DB::transaction(function () use (
+            &$productsDeleted, &$hierarchyDeleted,
+            &$attributesDeleted, &$attributeTypesDeleted, &$valueListsDeleted,
+            &$unitGroupsDeleted, &$relationTypesDeleted, &$productTypesDeleted, &$priceTypesDeleted,
+        ) {
             // Use subquery to avoid too many placeholders with large test datasets
             $testProductIdQuery = Product::where('sku', 'like', self::SKU_PREFIX . '%')
                 ->select('id');
@@ -289,6 +319,46 @@ class TestDataGeneratorService
                 $hierarchy->delete();
                 $hierarchyDeleted = true;
             }
+
+            // Clean up test foundation data (order respects FK constraints)
+
+            // 1. Test attributes (must go before attribute types & value lists)
+            $testAttributeIds = Attribute::where('technical_name', 'like', self::TEST_PREFIX . '%')->pluck('id');
+            if ($testAttributeIds->isNotEmpty()) {
+                DB::table('hierarchy_node_attribute_assignments')
+                    ->whereIn('attribute_id', $testAttributeIds)->delete();
+                DB::table('attribute_view_assignments')
+                    ->whereIn('attribute_id', $testAttributeIds)->delete();
+                DB::table('variant_inheritance_rules')
+                    ->whereIn('attribute_id', $testAttributeIds)->delete();
+                $attributesDeleted = Attribute::whereIn('id', $testAttributeIds)->delete();
+            }
+
+            // 2. Test attribute types
+            $attributeTypesDeleted = AttributeType::where('technical_name', 'like', self::TEST_PREFIX . '%')->delete();
+
+            // 3. Test value list entries, then value lists
+            $testValueListIds = ValueList::where('technical_name', 'like', self::TEST_PREFIX . '%')->pluck('id');
+            if ($testValueListIds->isNotEmpty()) {
+                ValueListEntry::whereIn('value_list_id', $testValueListIds)->delete();
+                $valueListsDeleted = ValueList::whereIn('id', $testValueListIds)->delete();
+            }
+
+            // 4. Test units, then unit groups
+            $testUnitGroupIds = UnitGroup::where('technical_name', 'like', self::TEST_PREFIX . '%')->pluck('id');
+            if ($testUnitGroupIds->isNotEmpty()) {
+                Unit::whereIn('unit_group_id', $testUnitGroupIds)->delete();
+                $unitGroupsDeleted = UnitGroup::whereIn('id', $testUnitGroupIds)->delete();
+            }
+
+            // 5. Test product relation types
+            $relationTypesDeleted = ProductRelationType::where('technical_name', 'like', self::TEST_PREFIX . '%')->delete();
+
+            // 6. Test product types
+            $productTypesDeleted = ProductType::where('technical_name', 'like', self::TEST_PREFIX . '%')->delete();
+
+            // 7. Test price types
+            $priceTypesDeleted = PriceType::where('technical_name', 'like', self::TEST_PREFIX . '%')->delete();
         });
 
         $duration = round(microtime(true) - $startTime, 2);
@@ -296,12 +366,26 @@ class TestDataGeneratorService
         Log::info('Test data cleaned up', [
             'products_deleted' => $productsDeleted,
             'hierarchy_deleted' => $hierarchyDeleted,
+            'attributes_deleted' => $attributesDeleted,
+            'attribute_types_deleted' => $attributeTypesDeleted,
+            'value_lists_deleted' => $valueListsDeleted,
+            'unit_groups_deleted' => $unitGroupsDeleted,
+            'relation_types_deleted' => $relationTypesDeleted,
+            'product_types_deleted' => $productTypesDeleted,
+            'price_types_deleted' => $priceTypesDeleted,
             'duration' => $duration,
         ]);
 
         return [
             'products_deleted' => $productsDeleted,
             'hierarchy_deleted' => $hierarchyDeleted,
+            'attributes_deleted' => $attributesDeleted,
+            'attribute_types_deleted' => $attributeTypesDeleted,
+            'value_lists_deleted' => $valueListsDeleted,
+            'unit_groups_deleted' => $unitGroupsDeleted,
+            'relation_types_deleted' => $relationTypesDeleted,
+            'product_types_deleted' => $productTypesDeleted,
+            'price_types_deleted' => $priceTypesDeleted,
             'duration_seconds' => $duration,
         ];
     }
@@ -320,9 +404,551 @@ class TestDataGeneratorService
             'test_prices' => $testCount > 0
                 ? ProductPrice::whereIn('product_id', $testProductIdQuery)->count()
                 : 0,
+            'test_product_relations' => $testCount > 0
+                ? DB::table('product_relations')
+                    ->whereIn('source_product_id', $testProductIdQuery)
+                    ->count()
+                : 0,
+            'test_product_types' => ProductType::where('technical_name', 'like', self::TEST_PREFIX . '%')->count(),
+            'test_attribute_types' => AttributeType::where('technical_name', 'like', self::TEST_PREFIX . '%')->count(),
+            'test_attributes' => Attribute::where('technical_name', 'like', self::TEST_PREFIX . '%')->count(),
+            'test_value_lists' => ValueList::where('technical_name', 'like', self::TEST_PREFIX . '%')->count(),
+            'test_unit_groups' => UnitGroup::where('technical_name', 'like', self::TEST_PREFIX . '%')->count(),
+            'test_price_types' => PriceType::where('technical_name', 'like', self::TEST_PREFIX . '%')->count(),
+            'test_relation_types' => ProductRelationType::where('technical_name', 'like', self::TEST_PREFIX . '%')->count(),
             'total_products' => Product::count(),
             'test_hierarchy_exists' => Hierarchy::where('technical_name', self::HIERARCHY_TECHNICAL_NAME)->exists(),
         ];
+    }
+
+    // ── Foundation Data ───────────────────────────────────────────────
+
+    /**
+     * Ensure all foundation/master data exists so product generation can work on an empty DB.
+     * Each entity type is only created if none exist globally. Uses firstOrCreate for idempotency.
+     */
+    private function ensureFoundationData(): array
+    {
+        $stats = [];
+
+        $this->updateProgress('Stammdaten werden geprüft...', 0, 7);
+
+        $stats['product_types_created'] = $this->ensureProductTypes();
+        $this->updateProgress('Stammdaten werden geprüft...', 1, 7);
+
+        $stats['unit_groups_created'] = $this->ensureUnitGroups();
+        $this->updateProgress('Stammdaten werden geprüft...', 2, 7);
+
+        $stats['value_lists_created'] = $this->ensureValueLists();
+        $this->updateProgress('Stammdaten werden geprüft...', 3, 7);
+
+        $stats['price_types_created'] = $this->ensurePriceTypes();
+        $this->updateProgress('Stammdaten werden geprüft...', 4, 7);
+
+        $stats['attribute_types_created'] = $this->ensureAttributeTypes();
+        $this->updateProgress('Stammdaten werden geprüft...', 5, 7);
+
+        $stats['attributes_created'] = $this->ensureAttributes();
+        $this->updateProgress('Stammdaten werden geprüft...', 6, 7);
+
+        $stats['relation_types_created'] = $this->ensureProductRelationTypes();
+
+        return $stats;
+    }
+
+    private function ensureProductTypes(): int
+    {
+        if (ProductType::exists()) {
+            return 0;
+        }
+
+        $types = [
+            [
+                'technical_name' => 'elektronik',
+                'name_de' => 'Elektronik',
+                'name_en' => 'Electronics',
+                'name_json' => ['de' => 'Elektronik', 'en' => 'Electronics'],
+                'description' => 'Elektronische Geräte und Unterhaltungselektronik',
+                'has_variants' => true,
+                'has_ean' => true,
+                'has_prices' => true,
+                'has_media' => true,
+                'is_active' => true,
+                'sort_order' => 1,
+            ],
+            [
+                'technical_name' => 'zubehoer',
+                'name_de' => 'Zubehör',
+                'name_en' => 'Accessories',
+                'name_json' => ['de' => 'Zubehör', 'en' => 'Accessories'],
+                'description' => 'Zubehörteile und Peripheriegeräte',
+                'has_variants' => false,
+                'has_ean' => true,
+                'has_prices' => true,
+                'has_media' => true,
+                'is_active' => true,
+                'sort_order' => 2,
+            ],
+            [
+                'technical_name' => 'software',
+                'name_de' => 'Software',
+                'name_en' => 'Software',
+                'name_json' => ['de' => 'Software', 'en' => 'Software'],
+                'description' => 'Softwareprodukte und Lizenzen',
+                'has_variants' => false,
+                'has_ean' => false,
+                'has_prices' => true,
+                'has_media' => false,
+                'is_active' => true,
+                'sort_order' => 3,
+            ],
+        ];
+
+        $created = 0;
+        foreach ($types as $data) {
+            $techName = self::TEST_PREFIX . $data['technical_name'];
+            ProductType::firstOrCreate(
+                ['technical_name' => $techName],
+                array_merge($data, ['technical_name' => $techName]),
+            );
+            $created++;
+        }
+
+        return $created;
+    }
+
+    private function ensureUnitGroups(): int
+    {
+        if (UnitGroup::exists()) {
+            return 0;
+        }
+
+        $groups = [
+            [
+                'technical_name' => 'gewicht',
+                'name_de' => 'Gewicht',
+                'name_en' => 'Weight',
+                'name_json' => ['de' => 'Gewicht', 'en' => 'Weight'],
+                'units' => [
+                    ['technical_name' => 'gramm', 'abbreviation' => 'g', 'conversion_factor' => 1, 'is_base_unit' => true],
+                    ['technical_name' => 'kilogramm', 'abbreviation' => 'kg', 'conversion_factor' => 1000, 'is_base_unit' => false],
+                ],
+            ],
+            [
+                'technical_name' => 'laenge',
+                'name_de' => 'Länge',
+                'name_en' => 'Length',
+                'name_json' => ['de' => 'Länge', 'en' => 'Length'],
+                'units' => [
+                    ['technical_name' => 'millimeter', 'abbreviation' => 'mm', 'conversion_factor' => 1, 'is_base_unit' => true],
+                    ['technical_name' => 'zentimeter', 'abbreviation' => 'cm', 'conversion_factor' => 10, 'is_base_unit' => false],
+                    ['technical_name' => 'meter', 'abbreviation' => 'm', 'conversion_factor' => 1000, 'is_base_unit' => false],
+                ],
+            ],
+            [
+                'technical_name' => 'speicher',
+                'name_de' => 'Speicher',
+                'name_en' => 'Storage',
+                'name_json' => ['de' => 'Speicher', 'en' => 'Storage'],
+                'units' => [
+                    ['technical_name' => 'megabyte', 'abbreviation' => 'MB', 'conversion_factor' => 1, 'is_base_unit' => true],
+                    ['technical_name' => 'gigabyte', 'abbreviation' => 'GB', 'conversion_factor' => 1024, 'is_base_unit' => false],
+                    ['technical_name' => 'terabyte', 'abbreviation' => 'TB', 'conversion_factor' => 1048576, 'is_base_unit' => false],
+                ],
+            ],
+            [
+                'technical_name' => 'zeit',
+                'name_de' => 'Zeit',
+                'name_en' => 'Time',
+                'name_json' => ['de' => 'Zeit', 'en' => 'Time'],
+                'units' => [
+                    ['technical_name' => 'stunde', 'abbreviation' => 'h', 'conversion_factor' => 1, 'is_base_unit' => true],
+                    ['technical_name' => 'minute', 'abbreviation' => 'min', 'conversion_factor' => null, 'is_base_unit' => false],
+                ],
+            ],
+            [
+                'technical_name' => 'leistung',
+                'name_de' => 'Leistung',
+                'name_en' => 'Power',
+                'name_json' => ['de' => 'Leistung', 'en' => 'Power'],
+                'units' => [
+                    ['technical_name' => 'watt', 'abbreviation' => 'W', 'conversion_factor' => 1, 'is_base_unit' => true],
+                    ['technical_name' => 'kilowatt', 'abbreviation' => 'kW', 'conversion_factor' => 1000, 'is_base_unit' => false],
+                ],
+            ],
+        ];
+
+        $created = 0;
+        foreach ($groups as $groupData) {
+            $units = $groupData['units'];
+            unset($groupData['units']);
+
+            $techName = self::TEST_PREFIX . $groupData['technical_name'];
+            $group = UnitGroup::firstOrCreate(
+                ['technical_name' => $techName],
+                array_merge($groupData, ['technical_name' => $techName]),
+            );
+
+            foreach ($units as $unitData) {
+                $unitTechName = self::TEST_PREFIX . $unitData['technical_name'];
+                Unit::firstOrCreate(
+                    ['unit_group_id' => $group->id, 'technical_name' => $unitTechName],
+                    array_merge($unitData, [
+                        'unit_group_id' => $group->id,
+                        'technical_name' => $unitTechName,
+                    ]),
+                );
+                $created++;
+            }
+        }
+
+        return $created;
+    }
+
+    private function ensureValueLists(): int
+    {
+        if (ValueList::exists()) {
+            return 0;
+        }
+
+        $lists = [
+            [
+                'technical_name' => 'farben',
+                'name_de' => 'Farben',
+                'name_en' => 'Colors',
+                'name_json' => ['de' => 'Farben', 'en' => 'Colors'],
+                'entries' => [
+                    ['technical_name' => 'schwarz', 'display_value_de' => 'Schwarz', 'display_value_en' => 'Black'],
+                    ['technical_name' => 'weiss', 'display_value_de' => 'Weiß', 'display_value_en' => 'White'],
+                    ['technical_name' => 'silber', 'display_value_de' => 'Silber', 'display_value_en' => 'Silver'],
+                    ['technical_name' => 'blau', 'display_value_de' => 'Blau', 'display_value_en' => 'Blue'],
+                    ['technical_name' => 'rot', 'display_value_de' => 'Rot', 'display_value_en' => 'Red'],
+                    ['technical_name' => 'gruen', 'display_value_de' => 'Grün', 'display_value_en' => 'Green'],
+                ],
+            ],
+            [
+                'technical_name' => 'materialien',
+                'name_de' => 'Materialien',
+                'name_en' => 'Materials',
+                'name_json' => ['de' => 'Materialien', 'en' => 'Materials'],
+                'entries' => [
+                    ['technical_name' => 'kunststoff', 'display_value_de' => 'Kunststoff', 'display_value_en' => 'Plastic'],
+                    ['technical_name' => 'aluminium', 'display_value_de' => 'Aluminium', 'display_value_en' => 'Aluminum'],
+                    ['technical_name' => 'stahl', 'display_value_de' => 'Stahl', 'display_value_en' => 'Steel'],
+                    ['technical_name' => 'glas', 'display_value_de' => 'Glas', 'display_value_en' => 'Glass'],
+                    ['technical_name' => 'holz', 'display_value_de' => 'Holz', 'display_value_en' => 'Wood'],
+                ],
+            ],
+            [
+                'technical_name' => 'energieeffizienz',
+                'name_de' => 'Energieeffizienz',
+                'name_en' => 'Energy Efficiency',
+                'name_json' => ['de' => 'Energieeffizienz', 'en' => 'Energy Efficiency'],
+                'entries' => [
+                    ['technical_name' => 'a_plus_plus_plus', 'display_value_de' => 'A+++', 'display_value_en' => 'A+++'],
+                    ['technical_name' => 'a_plus_plus', 'display_value_de' => 'A++', 'display_value_en' => 'A++'],
+                    ['technical_name' => 'a_plus', 'display_value_de' => 'A+', 'display_value_en' => 'A+'],
+                    ['technical_name' => 'a', 'display_value_de' => 'A', 'display_value_en' => 'A'],
+                    ['technical_name' => 'b', 'display_value_de' => 'B', 'display_value_en' => 'B'],
+                ],
+            ],
+            [
+                'technical_name' => 'anschlusstypen',
+                'name_de' => 'Anschlusstypen',
+                'name_en' => 'Connection Types',
+                'name_json' => ['de' => 'Anschlusstypen', 'en' => 'Connection Types'],
+                'entries' => [
+                    ['technical_name' => 'usb_c', 'display_value_de' => 'USB-C', 'display_value_en' => 'USB-C'],
+                    ['technical_name' => 'usb_a', 'display_value_de' => 'USB-A', 'display_value_en' => 'USB-A'],
+                    ['technical_name' => 'hdmi', 'display_value_de' => 'HDMI', 'display_value_en' => 'HDMI'],
+                    ['technical_name' => 'klinke_35', 'display_value_de' => '3,5mm Klinke', 'display_value_en' => '3.5mm Jack'],
+                    ['technical_name' => 'bluetooth', 'display_value_de' => 'Bluetooth', 'display_value_en' => 'Bluetooth'],
+                ],
+            ],
+            [
+                'technical_name' => 'betriebssysteme',
+                'name_de' => 'Betriebssysteme',
+                'name_en' => 'Operating Systems',
+                'name_json' => ['de' => 'Betriebssysteme', 'en' => 'Operating Systems'],
+                'entries' => [
+                    ['technical_name' => 'windows', 'display_value_de' => 'Windows', 'display_value_en' => 'Windows'],
+                    ['technical_name' => 'macos', 'display_value_de' => 'macOS', 'display_value_en' => 'macOS'],
+                    ['technical_name' => 'linux', 'display_value_de' => 'Linux', 'display_value_en' => 'Linux'],
+                    ['technical_name' => 'android', 'display_value_de' => 'Android', 'display_value_en' => 'Android'],
+                    ['technical_name' => 'ios', 'display_value_de' => 'iOS', 'display_value_en' => 'iOS'],
+                ],
+            ],
+        ];
+
+        $created = 0;
+        foreach ($lists as $listData) {
+            $entries = $listData['entries'];
+            unset($listData['entries']);
+
+            $techName = self::TEST_PREFIX . $listData['technical_name'];
+            $list = ValueList::firstOrCreate(
+                ['technical_name' => $techName],
+                array_merge($listData, ['technical_name' => $techName]),
+            );
+
+            foreach ($entries as $sortOrder => $entryData) {
+                $entryTechName = self::TEST_PREFIX . $entryData['technical_name'];
+                ValueListEntry::firstOrCreate(
+                    ['value_list_id' => $list->id, 'technical_name' => $entryTechName],
+                    [
+                        'value_list_id' => $list->id,
+                        'technical_name' => $entryTechName,
+                        'display_value_de' => $entryData['display_value_de'],
+                        'display_value_en' => $entryData['display_value_en'],
+                        'display_value_json' => [
+                            'de' => $entryData['display_value_de'],
+                            'en' => $entryData['display_value_en'],
+                        ],
+                        'sort_order' => $sortOrder + 1,
+                        'is_active' => true,
+                    ],
+                );
+                $created++;
+            }
+        }
+
+        return $created;
+    }
+
+    private function ensurePriceTypes(): int
+    {
+        if (PriceType::exists()) {
+            return 0;
+        }
+
+        $types = [
+            [
+                'technical_name' => 'listenpreis',
+                'name_de' => 'Listenpreis',
+                'name_en' => 'List Price',
+                'name_json' => ['de' => 'Listenpreis', 'en' => 'List Price'],
+            ],
+            [
+                'technical_name' => 'aktionspreis',
+                'name_de' => 'Aktionspreis',
+                'name_en' => 'Sale Price',
+                'name_json' => ['de' => 'Aktionspreis', 'en' => 'Sale Price'],
+            ],
+        ];
+
+        $created = 0;
+        foreach ($types as $data) {
+            $techName = self::TEST_PREFIX . $data['technical_name'];
+            PriceType::firstOrCreate(
+                ['technical_name' => $techName],
+                array_merge($data, ['technical_name' => $techName]),
+            );
+            $created++;
+        }
+
+        return $created;
+    }
+
+    private function ensureAttributeTypes(): int
+    {
+        if (AttributeType::exists()) {
+            return 0;
+        }
+
+        $types = [
+            ['technical_name' => 'allgemein', 'name_de' => 'Allgemein', 'name_en' => 'General', 'sort_order' => 1],
+            ['technical_name' => 'technische_daten', 'name_de' => 'Technische Daten', 'name_en' => 'Technical Data', 'sort_order' => 2],
+            ['technical_name' => 'abmessungen', 'name_de' => 'Abmessungen', 'name_en' => 'Dimensions', 'sort_order' => 3],
+            ['technical_name' => 'marketing', 'name_de' => 'Marketing', 'name_en' => 'Marketing', 'sort_order' => 4],
+            ['technical_name' => 'konnektivitaet', 'name_de' => 'Konnektivität', 'name_en' => 'Connectivity', 'sort_order' => 5],
+        ];
+
+        $created = 0;
+        foreach ($types as $data) {
+            $techName = self::TEST_PREFIX . $data['technical_name'];
+            AttributeType::firstOrCreate(
+                ['technical_name' => $techName],
+                [
+                    'technical_name' => $techName,
+                    'name_de' => $data['name_de'],
+                    'name_en' => $data['name_en'],
+                    'name_json' => ['de' => $data['name_de'], 'en' => $data['name_en']],
+                    'sort_order' => $data['sort_order'],
+                ],
+            );
+            $created++;
+        }
+
+        return $created;
+    }
+
+    private function ensureAttributes(): int
+    {
+        if (Attribute::exists()) {
+            return 0;
+        }
+
+        // Look up created foundation entities by technical_name
+        $attrTypes = AttributeType::where('technical_name', 'like', self::TEST_PREFIX . '%')
+            ->pluck('id', 'technical_name');
+        $valueLists = ValueList::where('technical_name', 'like', self::TEST_PREFIX . '%')
+            ->pluck('id', 'technical_name');
+        $unitGroups = UnitGroup::where('technical_name', 'like', self::TEST_PREFIX . '%')
+            ->pluck('id', 'technical_name');
+
+        // Look up default units by abbreviation within test unit groups
+        $defaultUnits = Unit::where('technical_name', 'like', self::TEST_PREFIX . '%')
+            ->get()
+            ->keyBy('abbreviation');
+
+        $attributes = [
+            ['technical_name' => 'beschreibung', 'name_de' => 'Beschreibung', 'name_en' => 'Description', 'data_type' => 'String', 'attribute_type' => 'allgemein', 'is_translatable' => true, 'is_mandatory' => true, 'is_searchable' => true, 'is_inheritable' => true],
+            ['technical_name' => 'kurzbeschreibung', 'name_de' => 'Kurzbeschreibung', 'name_en' => 'Short Description', 'data_type' => 'String', 'attribute_type' => 'allgemein', 'is_translatable' => true, 'is_searchable' => true, 'is_inheritable' => true],
+            ['technical_name' => 'herstellerland', 'name_de' => 'Herstellerland', 'name_en' => 'Country of Origin', 'data_type' => 'String', 'attribute_type' => 'allgemein', 'is_searchable' => true, 'is_inheritable' => true],
+            ['technical_name' => 'garantie_jahre', 'name_de' => 'Garantie (Jahre)', 'name_en' => 'Warranty (Years)', 'data_type' => 'Number', 'attribute_type' => 'allgemein', 'is_inheritable' => true],
+            ['technical_name' => 'farbe', 'name_de' => 'Farbe', 'name_en' => 'Color', 'data_type' => 'Selection', 'attribute_type' => 'technische_daten', 'value_list' => 'farben', 'is_mandatory' => true, 'is_searchable' => true],
+            ['technical_name' => 'material', 'name_de' => 'Material', 'name_en' => 'Material', 'data_type' => 'Selection', 'attribute_type' => 'technische_daten', 'value_list' => 'materialien', 'is_searchable' => true, 'is_inheritable' => true],
+            ['technical_name' => 'energieeffizienzklasse', 'name_de' => 'Energieeffizienzklasse', 'name_en' => 'Energy Class', 'data_type' => 'Selection', 'attribute_type' => 'technische_daten', 'value_list' => 'energieeffizienz', 'is_searchable' => true, 'is_inheritable' => true],
+            ['technical_name' => 'anschluss', 'name_de' => 'Anschluss', 'name_en' => 'Connection', 'data_type' => 'Selection', 'attribute_type' => 'konnektivitaet', 'value_list' => 'anschlusstypen', 'is_multipliable' => true, 'max_multiplied' => 5, 'is_searchable' => true],
+            ['technical_name' => 'bluetooth_version', 'name_de' => 'Bluetooth Version', 'name_en' => 'Bluetooth Version', 'data_type' => 'String', 'attribute_type' => 'konnektivitaet', 'is_searchable' => true],
+            ['technical_name' => 'betriebssystem', 'name_de' => 'Betriebssystem', 'name_en' => 'Operating System', 'data_type' => 'Selection', 'attribute_type' => 'technische_daten', 'value_list' => 'betriebssysteme', 'is_searchable' => true],
+            ['technical_name' => 'speicherkapazitaet', 'name_de' => 'Speicherkapazität', 'name_en' => 'Storage Capacity', 'data_type' => 'Number', 'attribute_type' => 'technische_daten', 'unit_group' => 'speicher', 'default_unit' => 'GB', 'is_searchable' => true],
+            ['technical_name' => 'akkulaufzeit', 'name_de' => 'Akkulaufzeit', 'name_en' => 'Battery Life', 'data_type' => 'Number', 'attribute_type' => 'technische_daten', 'unit_group' => 'zeit', 'default_unit' => 'h', 'is_searchable' => true],
+            ['technical_name' => 'leistungsaufnahme', 'name_de' => 'Leistungsaufnahme', 'name_en' => 'Power Consumption', 'data_type' => 'Number', 'attribute_type' => 'technische_daten', 'unit_group' => 'leistung', 'default_unit' => 'W'],
+            ['technical_name' => 'gewicht', 'name_de' => 'Gewicht', 'name_en' => 'Weight', 'data_type' => 'Float', 'attribute_type' => 'abmessungen', 'unit_group' => 'gewicht', 'default_unit' => 'g'],
+            ['technical_name' => 'breite', 'name_de' => 'Breite', 'name_en' => 'Width', 'data_type' => 'Float', 'attribute_type' => 'abmessungen', 'unit_group' => 'laenge', 'default_unit' => 'mm'],
+            ['technical_name' => 'hoehe', 'name_de' => 'Höhe', 'name_en' => 'Height', 'data_type' => 'Float', 'attribute_type' => 'abmessungen', 'unit_group' => 'laenge', 'default_unit' => 'mm'],
+            ['technical_name' => 'tiefe', 'name_de' => 'Tiefe', 'name_en' => 'Depth', 'data_type' => 'Float', 'attribute_type' => 'abmessungen', 'unit_group' => 'laenge', 'default_unit' => 'mm'],
+            ['technical_name' => 'marketing_text', 'name_de' => 'Marketing-Text', 'name_en' => 'Marketing Copy', 'data_type' => 'String', 'attribute_type' => 'marketing', 'is_translatable' => true, 'is_inheritable' => true],
+            ['technical_name' => 'usp', 'name_de' => 'USP', 'name_en' => 'USP', 'data_type' => 'String', 'attribute_type' => 'marketing', 'is_translatable' => true, 'is_multipliable' => true, 'max_multiplied' => 3],
+        ];
+
+        $created = 0;
+        foreach ($attributes as $position => $data) {
+            $techName = self::TEST_PREFIX . $data['technical_name'];
+
+            $record = [
+                'technical_name' => $techName,
+                'name_de' => $data['name_de'],
+                'name_en' => $data['name_en'],
+                'name_json' => ['de' => $data['name_de'], 'en' => $data['name_en']],
+                'data_type' => $data['data_type'],
+                'attribute_type_id' => $attrTypes[self::TEST_PREFIX . $data['attribute_type']] ?? null,
+                'is_translatable' => $data['is_translatable'] ?? false,
+                'is_mandatory' => $data['is_mandatory'] ?? false,
+                'is_searchable' => $data['is_searchable'] ?? false,
+                'is_inheritable' => $data['is_inheritable'] ?? false,
+                'is_multipliable' => $data['is_multipliable'] ?? false,
+                'max_multiplied' => $data['max_multiplied'] ?? null,
+                'status' => 'active',
+                'position' => ($position + 1) * 10,
+            ];
+
+            if (isset($data['value_list'])) {
+                $record['value_list_id'] = $valueLists[self::TEST_PREFIX . $data['value_list']] ?? null;
+            }
+
+            if (isset($data['unit_group'])) {
+                $record['unit_group_id'] = $unitGroups[self::TEST_PREFIX . $data['unit_group']] ?? null;
+            }
+
+            if (isset($data['default_unit'])) {
+                $record['default_unit_id'] = $defaultUnits[$data['default_unit']]->id ?? null;
+            }
+
+            Attribute::firstOrCreate(
+                ['technical_name' => $techName],
+                $record,
+            );
+            $created++;
+        }
+
+        return $created;
+    }
+
+    private function ensureProductRelationTypes(): int
+    {
+        if (ProductRelationType::exists()) {
+            return 0;
+        }
+
+        $types = [
+            ['technical_name' => 'zubehoer', 'name_de' => 'Zubehör', 'name_en' => 'Accessories', 'is_bidirectional' => false],
+            ['technical_name' => 'cross_sell', 'name_de' => 'Cross-Sell', 'name_en' => 'Cross-Sell', 'is_bidirectional' => true],
+            ['technical_name' => 'up_sell', 'name_de' => 'Up-Sell', 'name_en' => 'Up-Sell', 'is_bidirectional' => false],
+        ];
+
+        $created = 0;
+        foreach ($types as $data) {
+            $techName = self::TEST_PREFIX . $data['technical_name'];
+            ProductRelationType::firstOrCreate(
+                ['technical_name' => $techName],
+                [
+                    'technical_name' => $techName,
+                    'name_de' => $data['name_de'],
+                    'name_en' => $data['name_en'],
+                    'name_json' => ['de' => $data['name_de'], 'en' => $data['name_en']],
+                    'is_bidirectional' => $data['is_bidirectional'],
+                ],
+            );
+            $created++;
+        }
+
+        return $created;
+    }
+
+    // ── Product Relations ─────────────────────────────────────────────
+
+    /**
+     * Create random relations between test products.
+     */
+    private function createTestProductRelations(): int
+    {
+        $relationTypes = ProductRelationType::all();
+        if ($relationTypes->isEmpty()) {
+            return 0;
+        }
+
+        $testProductIds = Product::where('sku', 'like', self::SKU_PREFIX . '%')
+            ->pluck('id')
+            ->toArray();
+
+        if (count($testProductIds) < 2) {
+            return 0;
+        }
+
+        $created = 0;
+        // ~20% of products get relations
+        $productsWithRelations = (int) ceil(count($testProductIds) * 0.2);
+
+        $selectedProducts = array_slice($testProductIds, 0, $productsWithRelations);
+
+        foreach ($selectedProducts as $sourceId) {
+            $relationType = $relationTypes->random();
+            $relationCount = mt_rand(1, min(3, count($testProductIds) - 1));
+            $targetIds = collect($testProductIds)
+                ->filter(fn ($id) => $id !== $sourceId)
+                ->random(min($relationCount, count($testProductIds) - 1));
+
+            foreach ($targetIds as $targetId) {
+                ProductRelation::firstOrCreate(
+                    [
+                        'source_product_id' => $sourceId,
+                        'target_product_id' => $targetId,
+                        'relation_type_id' => $relationType->id,
+                    ],
+                    [
+                        'source_product_id' => $sourceId,
+                        'target_product_id' => $targetId,
+                        'relation_type_id' => $relationType->id,
+                        'sort_order' => $created,
+                    ],
+                );
+                $created++;
+            }
+        }
+
+        return $created;
     }
 
     // ── Product Generation ──────────────────────────────────────────────
