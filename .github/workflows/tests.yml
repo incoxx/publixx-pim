@@ -24,6 +24,9 @@ jobs:
           extensions: mbstring, xml, sqlite3, pdo_sqlite
           coverage: none
 
+      - name: Prepare Laravel bootstrap cache
+        run: mkdir -p bootstrap/cache && chmod 775 bootstrap/cache
+
       - name: Install Composer dependencies
         run: composer install --no-interaction --prefer-dist --optimize-autoloader
 
@@ -67,6 +70,9 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
+
+      - name: Prepare Laravel bootstrap cache
+        run: mkdir -p bootstrap/cache && chmod 775 bootstrap/cache
 
       - name: Install Composer dependencies
         run: composer install --no-interaction --prefer-dist
