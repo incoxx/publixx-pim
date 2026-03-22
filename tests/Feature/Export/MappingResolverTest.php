@@ -156,7 +156,7 @@ class MappingResolverTest extends TestCase
         $product = Product::factory()->create();
         $media = Media::factory()->create(['file_path' => 'https://pim.example.com/media/prodrill-18v.jpg']);
 
-        $teaserType = MediaUsageType::factory()->create(['technical_name' => 'teaser']);
+        $teaserType = MediaUsageType::firstOrCreate(['technical_name' => 'teaser'], ['name_de' => 'Hauptbild', 'name_en' => 'Main Image', 'sort_order' => 0]);
 
         ProductMediaAssignment::factory()->create([
             'product_id' => $product->id,
@@ -184,7 +184,7 @@ class MappingResolverTest extends TestCase
         $media1 = Media::factory()->create(['file_path' => 'https://pim.example.com/media/front.jpg']);
         $media2 = Media::factory()->create(['file_path' => 'https://pim.example.com/media/side.jpg']);
 
-        $galleryType = MediaUsageType::factory()->create(['technical_name' => 'gallery']);
+        $galleryType = MediaUsageType::firstOrCreate(['technical_name' => 'gallery'], ['name_de' => 'Galleriebild', 'name_en' => 'Gallery Image', 'sort_order' => 1]);
 
         ProductMediaAssignment::factory()->create([
             'product_id' => $product->id,
