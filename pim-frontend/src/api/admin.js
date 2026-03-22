@@ -102,4 +102,13 @@ export default {
   getSystemProcesses() {
     return client.get('/admin/system-processes')
   },
+
+  // ── Database Consistency ──
+  checkConsistency() {
+    return client.get('/admin/db-consistency/check', { timeout: 60000 })
+  },
+
+  fixConsistencyIssue(issueType) {
+    return client.post(`/admin/db-consistency/fix/${issueType}`)
+  },
 }

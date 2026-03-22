@@ -351,6 +351,12 @@ const routes = [
     meta: { title: 'Datenbank' },
   },
   {
+    path: '/db-consistency',
+    name: 'database-consistency',
+    component: () => import('@/views/admin/DatabaseConsistencyView.vue'),
+    meta: { title: 'Datenkonsistenz' },
+  },
+  {
     path: '/admin/license-generator',
     name: 'license-generator',
     component: () => import('@/views/admin/LicenseGeneratorView.vue'),
