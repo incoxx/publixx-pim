@@ -292,7 +292,7 @@ class TabPermissionsTest extends TestCase
             'access_level' => 'hidden',
         ]);
 
-        $viewerRole = Role::create(['name' => 'Viewer', 'guard_name' => 'sanctum']);
+        $viewerRole = Role::firstOrCreate(['name' => 'Viewer', 'guard_name' => 'sanctum']);
         $viewerRole->givePermissionTo(['products.view']);
         // No tab permissions set for Viewer role → implicit write
 
