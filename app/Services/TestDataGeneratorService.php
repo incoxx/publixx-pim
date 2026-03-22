@@ -244,7 +244,8 @@ class TestDataGeneratorService
     }
 
     /**
-     * Delete all test data (products with TEST- prefix and the test hierarchy).
+     * Delete all test data: products (TEST- prefix), hierarchy, and all foundation
+     * data with __test__ prefix (attributes, types, value lists, units, etc.).
      */
     public function cleanup(): array
     {
