@@ -146,23 +146,24 @@ class HierarchyController extends Controller
 
         $rootNodes = $query->get();
 
-        // Temporary debug: collect diagnostic info for empty tree
-        $debug = null;
+        // TEMPORARY: Always include debug info to diagnose empty-tree issue
+        $totalNodes = $hierarchy->nodes()->count();
+        $rootNodeCount = $hierarchy->nodes()->whereNull('parent_node_id')->count();
+        $sampleNodes = $hierarchy->nodes()->limit(3)
+            ->get(['id', 'parent_node_id', 'name_de', 'depth'])
+            ->toArray();
+        $user = $request->user();
+        $debug = [
+            'hierarchy_id' => $hierarchy->id,
+            'hierarchy_name' => $hierarchy->name_de,
+            'total_nodes' => $totalNodes,
+            'root_nodes_count' => $rootNodeCount,
+            'root_nodes_returned' => $rootNodes->count(),
+            'user_is_admin' => $user?->hasRole('Admin'),
+            'sample_nodes' => $sampleNodes,
+        ];
+
         if ($rootNodes->isEmpty()) {
-            $totalNodes = $hierarchy->nodes()->count();
-            $rootNodeCount = $hierarchy->nodes()->whereNull('parent_node_id')->count();
-            $sampleNodes = $hierarchy->nodes()->limit(5)
-                ->get(['id', 'parent_node_id', 'name_de', 'depth', 'path'])
-                ->toArray();
-            $user = $request->user();
-            $debug = [
-                'hierarchy_id' => $hierarchy->id,
-                'total_nodes' => $totalNodes,
-                'root_nodes_whereNull' => $rootNodeCount,
-                'user_is_admin' => $user?->hasRole('Admin'),
-                'sample_nodes' => $sampleNodes,
-                'sql' => $query->toSql(),
-            ];
             Log::warning('HierarchyController::tree returned empty', $debug);
         }
 
@@ -182,11 +183,9 @@ class HierarchyController extends Controller
             });
         };
 
-        $response = ['data' => $buildTree($rootNodes)];
-        if ($debug !== null) {
-            $response['_debug'] = $debug;
-        }
-
-        return response()->json($response);
+        return response()->json([
+            'data' => $buildTree($rootNodes),
+            '_debug' => $debug,
+        ]);
     }
 }
