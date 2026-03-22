@@ -159,9 +159,24 @@ class HierarchyController extends Controller
             'total_nodes' => $totalNodes,
             'root_nodes_count' => $rootNodeCount,
             'root_nodes_returned' => $rootNodes->count(),
+            'user_id' => $user?->id,
+            'user_email' => $user?->email,
             'user_is_admin' => $user?->hasRole('Admin'),
+            'user_roles' => $user?->roles->pluck('name')->toArray(),
+            'has_node_restrictions' => false,
             'sample_nodes' => $sampleNodes,
         ];
+
+        // Check if instance restrictions are filtering nodes
+        if ($user && !$user->hasRole('Admin')) {
+            $roleIds = $user->roles->pluck('id');
+            $restrictions = \App\Models\RoleEntityRestriction::whereIn('role_id', $roleIds)
+                ->where('restrictable_type', \App\Models\HierarchyNode::class)
+                ->get();
+            $debug['has_node_restrictions'] = $restrictions->isNotEmpty();
+            $debug['restriction_count'] = $restrictions->count();
+            $debug['restricted_node_ids'] = $restrictions->pluck('restrictable_id')->toArray();
+        }
 
         if ($rootNodes->isEmpty()) {
             Log::warning('HierarchyController::tree returned empty', $debug);
