@@ -135,6 +135,10 @@ class TestRunnerController extends Controller
         // Migrate test database (fresh) to ensure clean state
         Process::timeout(120)->path(base_path())->run('php artisan migrate:fresh --env=testing --force 2>&1');
 
+        // Clear cached config/routes so tests use fresh config
+        Process::timeout(30)->path(base_path())->run('php artisan config:clear --env=testing 2>&1');
+        Process::timeout(30)->path(base_path())->run('php artisan route:clear 2>&1');
+
         $cmd = 'php artisan test --env=testing';
 
         if ($suite === 'unit') {
@@ -145,6 +149,10 @@ class TestRunnerController extends Controller
 
         $process = Process::timeout(300)->path(base_path())->run($cmd . ' 2>&1');
         $result = $this->parsePhpUnitOutput($process->output() . $process->errorOutput(), $process->exitCode());
+
+        // Restore production caches
+        Process::timeout(30)->path(base_path())->run('php artisan config:cache 2>&1');
+        Process::timeout(30)->path(base_path())->run('php artisan route:cache 2>&1');
 
         // Cleanup: remove dev dependencies to keep production clean
         if ($installedDevDeps) {
