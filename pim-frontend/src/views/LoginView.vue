@@ -2,12 +2,16 @@
 import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useLicenseStore } from '@/stores/license'
+import { useConnectorsStore } from '@/stores/connectors'
 import authApi from '@/api/auth'
 import AnyPimLogo from '@/components/shared/AnyPimLogo.vue'
 
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
+const licenseStore = useLicenseStore()
+const connectorsStore = useConnectorsStore()
 
 const email = ref('')
 const password = ref('')
@@ -22,6 +26,8 @@ async function handleLogin() {
   loading.value = true
   try {
     await authStore.login({ email: email.value, password: password.value })
+    licenseStore.fetchLicense()
+    connectorsStore.loadConfiguredPlugins()
     router.push(route.query.redirect || '/products')
   } catch (e) {
     error.value = e.response?.data?.detail || e.response?.data?.title || 'Anmeldung fehlgeschlagen'
@@ -63,6 +69,10 @@ async function handleSsoCallback() {
     if (!authStore.user) {
       throw new Error('User info could not be loaded')
     }
+
+    // Load license & connectors after SSO login
+    licenseStore.fetchLicense()
+    connectorsStore.loadConfiguredPlugins()
 
     // Clean URL and redirect
     const redirectPath = params.get('redirect') || '/products'
