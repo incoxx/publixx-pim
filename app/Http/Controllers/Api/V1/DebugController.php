@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Http\Resources\Api\V1\HierarchyNodeResource;
 use App\Models\Hierarchy;
 use App\Models\HierarchyNode;
 use Illuminate\Http\JsonResponse;
@@ -45,6 +46,70 @@ class DebugController extends Controller
 
         return response()->json($result, 200, [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
     }
+    /**
+     * GET /debug/simulate-tree/{hierarchyId} — run the EXACT same buildTree logic as the real endpoint (no auth).
+     */
+    public function simulateTree(Request $request, string $hierarchyId): JsonResponse
+    {
+        $hierarchy = Hierarchy::findOrFail($hierarchyId);
+
+        $rootNodes = $hierarchy->nodes()
+            ->whereNull('parent_node_id')
+            ->with('children')
+            ->orderBy('sort_order', 'asc')
+            ->get();
+
+        $errors = [];
+
+        $buildTree = function ($nodes, int $currentDepth = 0) use (&$buildTree, &$errors) {
+            return $nodes->map(function ($node) use (&$buildTree, $currentDepth, &$errors) {
+                try {
+                    $data = (new HierarchyNodeResource($node))->resolve();
+                } catch (\Throwable $e) {
+                    $errors[] = [
+                        'node_id' => $node->id,
+                        'node_name' => $node->name_de,
+                        'error' => $e->getMessage(),
+                        'file' => $e->getFile() . ':' . $e->getLine(),
+                    ];
+                    $data = ['id' => $node->id, 'name_de' => $node->name_de, '_error' => $e->getMessage()];
+                }
+
+                try {
+                    $children = $node->children()->orderBy('sort_order', 'asc')->with('children')->get();
+                    $data['children'] = $buildTree($children, $currentDepth + 1);
+                } catch (\Throwable $e) {
+                    $errors[] = [
+                        'node_id' => $node->id,
+                        'step' => 'children_load',
+                        'error' => $e->getMessage(),
+                    ];
+                    $data['children'] = [];
+                }
+
+                return $data;
+            });
+        };
+
+        try {
+            $treeData = $buildTree($rootNodes);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'status' => 'error',
+                'error' => $e->getMessage(),
+                'trace' => array_slice(explode("\n", $e->getTraceAsString()), 0, 10),
+            ], 200, [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+        }
+
+        return response()->json([
+            'status' => 'ok',
+            'root_nodes_count' => $rootNodes->count(),
+            'tree_data_count' => count($treeData),
+            'errors' => $errors,
+            'data' => $treeData,
+        ], 200, [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+    }
+
     public function logs(Request $request): Response
     {
         $channel = $request->query('channel', 'laravel');

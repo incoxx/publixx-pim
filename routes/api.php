@@ -202,6 +202,7 @@ Route::prefix('v1/debug')->middleware('throttle.pim')->group(function () {
     Route::get('logs/clear', [DebugController::class, 'clearLogs']);
     Route::delete('logs', [DebugController::class, 'clearLogs']);
     Route::get('hierarchy-tree', [DebugController::class, 'hierarchyTree']);
+    Route::get('simulate-tree/{hierarchyId}', [DebugController::class, 'simulateTree']);
 });
 
 // =========================================================================
