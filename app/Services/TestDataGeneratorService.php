@@ -10,6 +10,7 @@ use App\Models\Attribute;
 use App\Models\AttributeType;
 use App\Models\Hierarchy;
 use App\Models\HierarchyNode;
+use App\Models\HierarchyNodeAttributeAssignment;
 use App\Models\Manufacturer;
 use App\Models\PriceType;
 use App\Models\Product;
@@ -18,7 +19,6 @@ use App\Models\ProductPrice;
 use App\Models\ProductRelation;
 use App\Models\ProductRelationType;
 use App\Models\ProductType;
-use App\Models\HierarchyNodeAttributeAssignment;
 use App\Models\Unit;
 use App\Models\UnitGroup;
 use App\Models\ValueList;
@@ -30,9 +30,13 @@ use Illuminate\Support\Facades\Log;
 class TestDataGeneratorService
 {
     public const SKU_PREFIX = 'TEST-';
+
     public const HIERARCHY_TECHNICAL_NAME = '__testdata__';
+
     public const TEST_PREFIX = '__test__';
+
     private const CACHE_KEY_PROGRESS = 'testdata:progress';
+
     private const CACHE_KEY_CANCEL = 'testdata:cancel';
 
     /**
@@ -182,11 +186,11 @@ class TestDataGeneratorService
      */
     private function getNextSkuNumber(): int
     {
-        $lastSku = Product::where('sku', 'like', self::SKU_PREFIX . '%')
-            ->orderByRaw("CAST(SUBSTRING(sku, ?) AS UNSIGNED) DESC", [strlen(self::SKU_PREFIX) + 1])
+        $lastSku = Product::where('sku', 'like', self::SKU_PREFIX.'%')
+            ->orderByRaw('CAST(SUBSTRING(sku, ?) AS UNSIGNED) DESC', [strlen(self::SKU_PREFIX) + 1])
             ->value('sku');
 
-        if (!$lastSku) {
+        if (! $lastSku) {
             return 1;
         }
 
@@ -219,7 +223,7 @@ class TestDataGeneratorService
                 $neededMb = round($estimatedNeed / 1024 / 1024);
                 throw new \RuntimeException(
                     "Möglicherweise nicht genug PHP-Speicher: ~{$neededMb} MB benötigt, {$availableMb} MB verfügbar. "
-                    . "Versuche weniger Produkte oder erhöhe memory_limit."
+                    .'Versuche weniger Produkte oder erhöhe memory_limit.'
                 );
             }
         }
@@ -268,10 +272,10 @@ class TestDataGeneratorService
             &$unitGroupsDeleted, &$relationTypesDeleted, &$productTypesDeleted, &$priceTypesDeleted,
         ) {
             // Use subquery to avoid too many placeholders with large test datasets
-            $testProductIdQuery = Product::where('sku', 'like', self::SKU_PREFIX . '%')
+            $testProductIdQuery = Product::where('sku', 'like', self::SKU_PREFIX.'%')
                 ->select('id');
 
-            if (Product::where('sku', 'like', self::SKU_PREFIX . '%')->exists()) {
+            if (Product::where('sku', 'like', self::SKU_PREFIX.'%')->exists()) {
                 ProductAttributeValue::whereIn('product_id', $testProductIdQuery)->delete();
                 ProductPrice::whereIn('product_id', $testProductIdQuery)->delete();
 
@@ -324,7 +328,7 @@ class TestDataGeneratorService
             // Clean up test foundation data (order respects FK constraints)
 
             // 1. Test attributes (must go before attribute types & value lists)
-            $testAttributeIds = Attribute::where('technical_name', 'like', self::TEST_PREFIX . '%')->pluck('id');
+            $testAttributeIds = Attribute::where('technical_name', 'like', self::TEST_PREFIX.'%')->pluck('id');
             if ($testAttributeIds->isNotEmpty()) {
                 DB::table('hierarchy_node_attribute_assignments')
                     ->whereIn('attribute_id', $testAttributeIds)->delete();
@@ -336,30 +340,30 @@ class TestDataGeneratorService
             }
 
             // 2. Test attribute types
-            $attributeTypesDeleted = AttributeType::where('technical_name', 'like', self::TEST_PREFIX . '%')->delete();
+            $attributeTypesDeleted = AttributeType::where('technical_name', 'like', self::TEST_PREFIX.'%')->delete();
 
             // 3. Test value list entries, then value lists
-            $testValueListIds = ValueList::where('technical_name', 'like', self::TEST_PREFIX . '%')->pluck('id');
+            $testValueListIds = ValueList::where('technical_name', 'like', self::TEST_PREFIX.'%')->pluck('id');
             if ($testValueListIds->isNotEmpty()) {
                 ValueListEntry::whereIn('value_list_id', $testValueListIds)->delete();
                 $valueListsDeleted = ValueList::whereIn('id', $testValueListIds)->delete();
             }
 
             // 4. Test units, then unit groups
-            $testUnitGroupIds = UnitGroup::where('technical_name', 'like', self::TEST_PREFIX . '%')->pluck('id');
+            $testUnitGroupIds = UnitGroup::where('technical_name', 'like', self::TEST_PREFIX.'%')->pluck('id');
             if ($testUnitGroupIds->isNotEmpty()) {
                 Unit::whereIn('unit_group_id', $testUnitGroupIds)->delete();
                 $unitGroupsDeleted = UnitGroup::whereIn('id', $testUnitGroupIds)->delete();
             }
 
             // 5. Test product relation types
-            $relationTypesDeleted = ProductRelationType::where('technical_name', 'like', self::TEST_PREFIX . '%')->delete();
+            $relationTypesDeleted = ProductRelationType::where('technical_name', 'like', self::TEST_PREFIX.'%')->delete();
 
             // 6. Test product types
-            $productTypesDeleted = ProductType::where('technical_name', 'like', self::TEST_PREFIX . '%')->delete();
+            $productTypesDeleted = ProductType::where('technical_name', 'like', self::TEST_PREFIX.'%')->delete();
 
             // 7. Test price types
-            $priceTypesDeleted = PriceType::where('technical_name', 'like', self::TEST_PREFIX . '%')->delete();
+            $priceTypesDeleted = PriceType::where('technical_name', 'like', self::TEST_PREFIX.'%')->delete();
         });
 
         $duration = round(microtime(true) - $startTime, 2);
@@ -394,8 +398,8 @@ class TestDataGeneratorService
     public function stats(): array
     {
         // Use subquery to avoid too many placeholders
-        $testProductIdQuery = Product::where('sku', 'like', self::SKU_PREFIX . '%')->select('id');
-        $testCount = Product::where('sku', 'like', self::SKU_PREFIX . '%')->count();
+        $testProductIdQuery = Product::where('sku', 'like', self::SKU_PREFIX.'%')->select('id');
+        $testCount = Product::where('sku', 'like', self::SKU_PREFIX.'%')->count();
 
         return [
             'test_products' => $testCount,
@@ -410,13 +414,13 @@ class TestDataGeneratorService
                     ->whereIn('source_product_id', $testProductIdQuery)
                     ->count()
                 : 0,
-            'test_product_types' => ProductType::where('technical_name', 'like', self::TEST_PREFIX . '%')->count(),
-            'test_attribute_types' => AttributeType::where('technical_name', 'like', self::TEST_PREFIX . '%')->count(),
-            'test_attributes' => Attribute::where('technical_name', 'like', self::TEST_PREFIX . '%')->count(),
-            'test_value_lists' => ValueList::where('technical_name', 'like', self::TEST_PREFIX . '%')->count(),
-            'test_unit_groups' => UnitGroup::where('technical_name', 'like', self::TEST_PREFIX . '%')->count(),
-            'test_price_types' => PriceType::where('technical_name', 'like', self::TEST_PREFIX . '%')->count(),
-            'test_relation_types' => ProductRelationType::where('technical_name', 'like', self::TEST_PREFIX . '%')->count(),
+            'test_product_types' => ProductType::where('technical_name', 'like', self::TEST_PREFIX.'%')->count(),
+            'test_attribute_types' => AttributeType::where('technical_name', 'like', self::TEST_PREFIX.'%')->count(),
+            'test_attributes' => Attribute::where('technical_name', 'like', self::TEST_PREFIX.'%')->count(),
+            'test_value_lists' => ValueList::where('technical_name', 'like', self::TEST_PREFIX.'%')->count(),
+            'test_unit_groups' => UnitGroup::where('technical_name', 'like', self::TEST_PREFIX.'%')->count(),
+            'test_price_types' => PriceType::where('technical_name', 'like', self::TEST_PREFIX.'%')->count(),
+            'test_relation_types' => ProductRelationType::where('technical_name', 'like', self::TEST_PREFIX.'%')->count(),
             'total_products' => Product::count(),
             'test_hierarchy_exists' => Hierarchy::where('technical_name', self::HIERARCHY_TECHNICAL_NAME)->exists(),
         ];
@@ -507,7 +511,7 @@ class TestDataGeneratorService
 
         $created = 0;
         foreach ($types as $data) {
-            $techName = self::TEST_PREFIX . $data['technical_name'];
+            $techName = self::TEST_PREFIX.$data['technical_name'];
             ProductType::firstOrCreate(
                 ['technical_name' => $techName],
                 array_merge($data, ['technical_name' => $techName]),
@@ -584,14 +588,14 @@ class TestDataGeneratorService
             $units = $groupData['units'];
             unset($groupData['units']);
 
-            $techName = self::TEST_PREFIX . $groupData['technical_name'];
+            $techName = self::TEST_PREFIX.$groupData['technical_name'];
             $group = UnitGroup::firstOrCreate(
                 ['technical_name' => $techName],
                 array_merge($groupData, ['technical_name' => $techName]),
             );
 
             foreach ($units as $unitData) {
-                $unitTechName = self::TEST_PREFIX . $unitData['technical_name'];
+                $unitTechName = self::TEST_PREFIX.$unitData['technical_name'];
                 Unit::firstOrCreate(
                     ['unit_group_id' => $group->id, 'technical_name' => $unitTechName],
                     array_merge($unitData, [
@@ -686,14 +690,14 @@ class TestDataGeneratorService
             $entries = $listData['entries'];
             unset($listData['entries']);
 
-            $techName = self::TEST_PREFIX . $listData['technical_name'];
+            $techName = self::TEST_PREFIX.$listData['technical_name'];
             $list = ValueList::firstOrCreate(
                 ['technical_name' => $techName],
                 array_merge($listData, ['technical_name' => $techName]),
             );
 
             foreach ($entries as $sortOrder => $entryData) {
-                $entryTechName = self::TEST_PREFIX . $entryData['technical_name'];
+                $entryTechName = self::TEST_PREFIX.$entryData['technical_name'];
                 ValueListEntry::firstOrCreate(
                     ['value_list_id' => $list->id, 'technical_name' => $entryTechName],
                     [
@@ -739,7 +743,7 @@ class TestDataGeneratorService
 
         $created = 0;
         foreach ($types as $data) {
-            $techName = self::TEST_PREFIX . $data['technical_name'];
+            $techName = self::TEST_PREFIX.$data['technical_name'];
             PriceType::firstOrCreate(
                 ['technical_name' => $techName],
                 array_merge($data, ['technical_name' => $techName]),
@@ -766,7 +770,7 @@ class TestDataGeneratorService
 
         $created = 0;
         foreach ($types as $data) {
-            $techName = self::TEST_PREFIX . $data['technical_name'];
+            $techName = self::TEST_PREFIX.$data['technical_name'];
             AttributeType::firstOrCreate(
                 ['technical_name' => $techName],
                 [
@@ -790,15 +794,15 @@ class TestDataGeneratorService
         }
 
         // Look up created foundation entities by technical_name
-        $attrTypes = AttributeType::where('technical_name', 'like', self::TEST_PREFIX . '%')
+        $attrTypes = AttributeType::where('technical_name', 'like', self::TEST_PREFIX.'%')
             ->pluck('id', 'technical_name');
-        $valueLists = ValueList::where('technical_name', 'like', self::TEST_PREFIX . '%')
+        $valueLists = ValueList::where('technical_name', 'like', self::TEST_PREFIX.'%')
             ->pluck('id', 'technical_name');
-        $unitGroups = UnitGroup::where('technical_name', 'like', self::TEST_PREFIX . '%')
+        $unitGroups = UnitGroup::where('technical_name', 'like', self::TEST_PREFIX.'%')
             ->pluck('id', 'technical_name');
 
         // Look up default units by abbreviation within test unit groups
-        $defaultUnits = Unit::where('technical_name', 'like', self::TEST_PREFIX . '%')
+        $defaultUnits = Unit::where('technical_name', 'like', self::TEST_PREFIX.'%')
             ->get()
             ->keyBy('abbreviation');
 
@@ -826,7 +830,7 @@ class TestDataGeneratorService
 
         $created = 0;
         foreach ($attributes as $position => $data) {
-            $techName = self::TEST_PREFIX . $data['technical_name'];
+            $techName = self::TEST_PREFIX.$data['technical_name'];
 
             $record = [
                 'technical_name' => $techName,
@@ -834,7 +838,7 @@ class TestDataGeneratorService
                 'name_en' => $data['name_en'],
                 'name_json' => ['de' => $data['name_de'], 'en' => $data['name_en']],
                 'data_type' => $data['data_type'],
-                'attribute_type_id' => $attrTypes[self::TEST_PREFIX . $data['attribute_type']] ?? null,
+                'attribute_type_id' => $attrTypes[self::TEST_PREFIX.$data['attribute_type']] ?? null,
                 'is_translatable' => $data['is_translatable'] ?? false,
                 'is_mandatory' => $data['is_mandatory'] ?? false,
                 'is_searchable' => $data['is_searchable'] ?? false,
@@ -846,11 +850,11 @@ class TestDataGeneratorService
             ];
 
             if (isset($data['value_list'])) {
-                $record['value_list_id'] = $valueLists[self::TEST_PREFIX . $data['value_list']] ?? null;
+                $record['value_list_id'] = $valueLists[self::TEST_PREFIX.$data['value_list']] ?? null;
             }
 
             if (isset($data['unit_group'])) {
-                $record['unit_group_id'] = $unitGroups[self::TEST_PREFIX . $data['unit_group']] ?? null;
+                $record['unit_group_id'] = $unitGroups[self::TEST_PREFIX.$data['unit_group']] ?? null;
             }
 
             if (isset($data['default_unit'])) {
@@ -881,7 +885,7 @@ class TestDataGeneratorService
 
         $created = 0;
         foreach ($types as $data) {
-            $techName = self::TEST_PREFIX . $data['technical_name'];
+            $techName = self::TEST_PREFIX.$data['technical_name'];
             ProductRelationType::firstOrCreate(
                 ['technical_name' => $techName],
                 [
@@ -910,7 +914,7 @@ class TestDataGeneratorService
             return 0;
         }
 
-        $testProductIds = Product::where('sku', 'like', self::SKU_PREFIX . '%')
+        $testProductIds = Product::where('sku', 'like', self::SKU_PREFIX.'%')
             ->pluck('id')
             ->toArray();
 
@@ -983,12 +987,12 @@ class TestDataGeneratorService
 
             $skuNumber = $startSkuNumber + $i;
             $productType = $productTypes->random();
-            $node = !empty($nodes) ? $nodes[array_rand($nodes)] : null;
-            $manufacturer = !empty($manufacturers) ? $manufacturers[array_rand($manufacturers)] : null;
+            $node = ! empty($nodes) ? $nodes[array_rand($nodes)] : null;
+            $manufacturer = ! empty($manufacturers) ? $manufacturers[array_rand($manufacturers)] : null;
 
             // Create product via Eloquent (triggers ProductObserver)
             $product = Product::create([
-                'sku' => self::SKU_PREFIX . str_pad((string) $skuNumber, 6, '0', STR_PAD_LEFT),
+                'sku' => self::SKU_PREFIX.str_pad((string) $skuNumber, 6, '0', STR_PAD_LEFT),
                 'name' => $this->generateProductName($i),
                 'ean' => $this->generateEan($skuNumber),
                 'status' => $statuses[array_rand($statuses)],
@@ -1030,7 +1034,7 @@ class TestDataGeneratorService
                 $attributeValuesCreated++;
             }
 
-            if (!empty($changedAttributeIds)) {
+            if (! empty($changedAttributeIds)) {
                 try {
                     event(new AttributeValuesChanged($product->id, $changedAttributeIds));
                 } catch (\Throwable $e) {
@@ -1099,7 +1103,7 @@ class TestDataGeneratorService
             'multiselect' => $this->generateSelectValue($attribute, $base),
             'composite' => null,
             default => array_merge($base, [
-                'value_string' => 'Test-' . $attribute->technical_name . '-' . ($index + 1),
+                'value_string' => 'Test-'.$attribute->technical_name.'-'.($index + 1),
             ]),
         };
     }
@@ -1110,7 +1114,7 @@ class TestDataGeneratorService
             'Ultra', 'Classic', 'Modern', 'Eco', 'Industrial'];
         $prefix = $prefixes[$index % count($prefixes)];
 
-        return $prefix . ' ' . ($attribute->name_de ?? $attribute->technical_name) . ' ' . ($index + 1);
+        return $prefix.' '.($attribute->name_de ?? $attribute->technical_name).' '.($index + 1);
     }
 
     private function generateTextareaValue(Attribute $attribute, int $index): string
@@ -1131,9 +1135,9 @@ class TestDataGeneratorService
 
     private function generateHtmlValue(Attribute $attribute, int $index): string
     {
-        return '<p><strong>' . ($attribute->name_de ?? 'Beschreibung') . '</strong></p>'
-            . '<p>Testprodukt Nr. ' . ($index + 1) . ' mit umfangreichen Eigenschaften.</p>'
-            . '<ul><li>Eigenschaft A</li><li>Eigenschaft B</li><li>Eigenschaft C</li></ul>';
+        return '<p><strong>'.($attribute->name_de ?? 'Beschreibung').'</strong></p>'
+            .'<p>Testprodukt Nr. '.($index + 1).' mit umfangreichen Eigenschaften.</p>'
+            .'<ul><li>Eigenschaft A</li><li>Eigenschaft B</li><li>Eigenschaft C</li></ul>';
     }
 
     private function generateNumberValue(Attribute $attribute): float
@@ -1154,7 +1158,7 @@ class TestDataGeneratorService
 
     private function generateSelectValue(Attribute $attribute, array $base): ?array
     {
-        if (!$attribute->valueList || $attribute->valueList->entries->isEmpty()) {
+        if (! $attribute->valueList || $attribute->valueList->entries->isEmpty()) {
             return null;
         }
 
@@ -1199,20 +1203,20 @@ class TestDataGeneratorService
 
         for ($i = 0; $i < $rootCount && count($nodes) < $categoryCount; $i++) {
             $catName = $categories[$i % count($categories)];
-            $suffix = $i >= count($categories) ? ' ' . ($i + 1) : '';
+            $suffix = $i >= count($categories) ? ' '.($i + 1) : '';
 
             $rootNode = HierarchyNode::create([
                 'hierarchy_id' => $hierarchy->id,
                 'parent_node_id' => null,
-                'name_de' => $catName . $suffix,
-                'name_en' => $catName . $suffix,
-                'name_json' => ['de' => $catName . $suffix, 'en' => $catName . $suffix],
+                'name_de' => $catName.$suffix,
+                'name_en' => $catName.$suffix,
+                'name_json' => ['de' => $catName.$suffix, 'en' => $catName.$suffix],
                 'path' => '',
                 'depth' => 0,
                 'sort_order' => $i,
                 'is_active' => true,
             ]);
-            $rootNode->update(['path' => $rootNode->id . '/']);
+            $rootNode->update(['path' => $rootNode->id.'/']);
             $nodes[] = $rootNode;
 
             $this->createChildNodes($hierarchy, $rootNode, 1, $maxDepth, $nodes, $categoryCount);
@@ -1245,12 +1249,12 @@ class TestDataGeneratorService
                 'name_de' => $name,
                 'name_en' => $name,
                 'name_json' => ['de' => $name, 'en' => $name],
-                'path' => $parent->path . '/',
+                'path' => $parent->path.'/',
                 'depth' => $currentDepth,
                 'sort_order' => $i,
                 'is_active' => true,
             ]);
-            $childNode->update(['path' => $parent->path . $childNode->id . '/']);
+            $childNode->update(['path' => $parent->path.$childNode->id.'/']);
             $nodes[] = $childNode;
 
             $this->createChildNodes($hierarchy, $childNode, $currentDepth + 1, $maxDepth, $nodes, $maxTotal);
@@ -1333,19 +1337,19 @@ class TestDataGeneratorService
         $noun = $nouns[($index / count($adjectives)) % count($nouns)];
         $ser = $series[($index / (count($adjectives) * count($nouns))) % count($series)];
 
-        return $adj . ' ' . $noun . ' ' . $ser . ' ' . ($index + 1);
+        return $adj.' '.$noun.' '.$ser.' '.($index + 1);
     }
 
     private function generateEan(int $index): string
     {
-        $ean12 = '400' . str_pad((string) ($index + 1), 9, '0', STR_PAD_LEFT);
+        $ean12 = '400'.str_pad((string) ($index + 1), 9, '0', STR_PAD_LEFT);
 
         $sum = 0;
         for ($i = 0; $i < 12; $i++) {
             $sum += (int) $ean12[$i] * ($i % 2 === 0 ? 1 : 3);
         }
 
-        return $ean12 . ((10 - ($sum % 10)) % 10);
+        return $ean12.((10 - ($sum % 10)) % 10);
     }
 
     // ── Test Manufacturers ──────────────────────────────────────────────
