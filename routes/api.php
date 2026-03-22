@@ -33,6 +33,7 @@ use App\Http\Controllers\Api\V1\ExportJobController;
 use App\Http\Controllers\Api\V1\ExportProfileController;
 use App\Http\Controllers\Api\V1\BmecatImportController;
 use App\Http\Controllers\Api\V1\BmecatExportController;
+use App\Http\Controllers\Api\V1\EtimController;
 use App\Http\Controllers\Api\V1\JsonExportImportController;
 use App\Http\Controllers\Api\V1\ImportProfileController;
 use App\Http\Controllers\Api\V1\LoadDemoDataController;
@@ -627,6 +628,26 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
             Route::post('upload-complete', [BmecatImportController::class, 'uploadComplete']);
         });
         Route::post('bmecat-export', [BmecatExportController::class, 'export']);
+
+        // ETIM-Klassifikation
+        Route::prefix('etim')->group(function () {
+            Route::get('versions', [EtimController::class, 'versions']);
+            Route::get('classes', [EtimController::class, 'classes']);
+            Route::get('classes/{id}/features', [EtimController::class, 'classFeatures']);
+            Route::post('import', [EtimController::class, 'import']);
+
+            Route::get('mappings/classes', [EtimController::class, 'classMappings']);
+            Route::post('mappings/classes', [EtimController::class, 'storeClassMapping']);
+            Route::delete('mappings/classes/{id}', [EtimController::class, 'destroyClassMapping']);
+
+            Route::get('mappings/features', [EtimController::class, 'featureMappings']);
+            Route::post('mappings/features', [EtimController::class, 'storeFeatureMapping']);
+            Route::delete('mappings/features/{id}', [EtimController::class, 'destroyFeatureMapping']);
+
+            Route::post('mappings/suggest/class', [EtimController::class, 'suggestClassMapping']);
+            Route::post('mappings/suggest/features', [EtimController::class, 'suggestFeatureMappings']);
+            Route::post('mappings/auto-map', [EtimController::class, 'autoMap']);
+        });
     });
 
     // =====================================================================

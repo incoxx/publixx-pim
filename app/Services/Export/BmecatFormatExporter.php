@@ -5,12 +5,16 @@ declare(strict_types=1);
 namespace App\Services\Export;
 
 use App\Models\AttributeType;
+use App\Models\Etim\EtimClassMapping;
+use App\Models\Etim\EtimFeatureMapping;
+use App\Models\Etim\EtimVersion;
 use App\Models\Hierarchy;
 use App\Models\HierarchyNode;
 use App\Models\MediaUsageType;
 use App\Models\OutputHierarchyProductAssignment;
 use App\Models\Product;
 use App\Models\ProductAttributeValue;
+use App\Services\Etim\EtimMappingService;
 use App\Services\Import\BmecatElementMap;
 use Illuminate\Support\Collection;
 
@@ -37,6 +41,15 @@ class BmecatFormatExporter
 
     /** @var array<string, string> usage_type_id → technical_name */
     private array $usageTypeMap = [];
+
+    /** ETIM-Klassifikation: Version-ID für den Export */
+    private ?string $etimVersionId = null;
+
+    /** @var array<string, EtimClassMapping> hierarchy_node_id → mapping (Cache) */
+    private array $etimClassMappingCache = [];
+
+    /** @var array<string, EtimFeatureMapping> attribute_id → mapping (Lookup) */
+    private array $etimFeatureMappingLookup = [];
 
     /** @var string[] Attribute technical_names die als PRODUCT_DETAILS-Felder gemappt werden */
     private const DETAIL_ATTRIBUTES = [
@@ -75,6 +88,11 @@ class BmecatFormatExporter
         $this->relationTypeIds = $ids;
     }
 
+    public function setEtimVersionId(?string $id): void
+    {
+        $this->etimVersionId = $id;
+    }
+
     /**
      * Exportiert PIM-Daten als BMEcat-XML-String.
      */
@@ -90,6 +108,13 @@ class BmecatFormatExporter
         $this->udxAttributeTypeIds = AttributeType::where('technical_name', 'like', 'udx_%')
             ->pluck('id')
             ->toArray();
+
+        // ETIM-Mapping-Lookup laden wenn eine ETIM-Version gesetzt ist
+        if ($this->etimVersionId) {
+            $mappingService = app(EtimMappingService::class);
+            $this->etimFeatureMappingLookup = $mappingService->getFeatureMappingLookup($this->etimVersionId);
+            $this->etimClassMappingCache = [];
+        }
 
         $xml = new \XMLWriter();
         $xml->openMemory();
@@ -374,6 +399,15 @@ class BmecatFormatExporter
         $el = $this->elementMap;
         $xml->startElement($el['product_features']);
 
+        // ETIM-Klassifikationsreferenz ausgeben wenn verfügbar
+        $etimClassMapping = $this->resolveEtimClassMapping($product);
+        if ($etimClassMapping) {
+            $xml->writeElement('REFERENCE_FEATURE_SYSTEM_NAME',
+                'ETIM-' . $etimClassMapping->etimClass->etimVersion->version);
+            $xml->writeElement('REFERENCE_FEATURE_GROUP_ID',
+                $etimClassMapping->etimClass->code);
+        }
+
         $order = 1;
         foreach ($values as $av) {
             $xml->startElement('FEATURE');
@@ -395,6 +429,29 @@ class BmecatFormatExporter
         }
 
         $xml->endElement(); // PRODUCT_FEATURES
+    }
+
+    /**
+     * Löst das ETIM-Klassen-Mapping für ein Produkt auf (über Kategorie-Hierarchie).
+     * Ergebnisse werden gecacht um N+1-Queries zu vermeiden.
+     */
+    private function resolveEtimClassMapping(Product $product): ?EtimClassMapping
+    {
+        if (!$this->etimVersionId || !$product->master_hierarchy_node_id) {
+            return null;
+        }
+
+        $nodeId = $product->master_hierarchy_node_id;
+
+        if (array_key_exists($nodeId, $this->etimClassMappingCache)) {
+            return $this->etimClassMappingCache[$nodeId];
+        }
+
+        $mappingService = app(EtimMappingService::class);
+        $mapping = $mappingService->resolveClassMappingForProduct($nodeId, $this->etimVersionId);
+        $this->etimClassMappingCache[$nodeId] = $mapping;
+
+        return $mapping;
     }
 
     private function writeProductOrderDetails(\XMLWriter $xml, Product $product): void

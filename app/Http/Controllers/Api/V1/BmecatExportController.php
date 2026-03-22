@@ -24,6 +24,7 @@ class BmecatExportController extends Controller
             'price_type_ids.*' => 'string',
             'relation_type_ids' => 'sometimes|array',
             'relation_type_ids.*' => 'string',
+            'etim_version_id' => 'sometimes|nullable|string|exists:etim_versions,id',
         ]);
 
         $exporter->setVersion($request->input('version', '2005'));
@@ -42,6 +43,9 @@ class BmecatExportController extends Controller
         }
         if ($request->has('relation_type_ids')) {
             $exporter->setRelationTypeIds($request->input('relation_type_ids', []));
+        }
+        if ($request->filled('etim_version_id')) {
+            $exporter->setEtimVersionId($request->input('etim_version_id'));
         }
 
         $xml = $exporter->export();
