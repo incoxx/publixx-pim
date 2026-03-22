@@ -27,12 +27,16 @@ export const useHierarchyStore = defineStore('hierarchies', () => {
 
   async function fetchTree(hierarchyId, options = {}) {
     loading.value = true
+    error.value = null
     try {
       const { data } = await hierarchiesApi.getTree(hierarchyId, options)
       tree.value = data.data || data
       currentHierarchy.value = hierarchies.value.find(h => h.id === hierarchyId) || null
+      console.log('[HierarchyStore] fetchTree result:', { hierarchyId, treeLength: tree.value.length, debug: data._debug })
     } catch (e) {
-      error.value = e.response?.data?.title || 'Fehler'
+      const msg = e.response?.data?.title || e.response?.data?.message || e.message || 'Fehler'
+      error.value = `${msg} (Status: ${e.response?.status || 'unknown'})`
+      console.error('[HierarchyStore] fetchTree error:', { hierarchyId, status: e.response?.status, data: e.response?.data, error: e.message })
     } finally {
       loading.value = false
     }
