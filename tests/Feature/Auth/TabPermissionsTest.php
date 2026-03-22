@@ -24,14 +24,14 @@ class TabPermissionsTest extends TestCase
         parent::setUp();
 
         // Create Admin role & user
-        $adminRole = Role::create(['name' => 'Admin', 'guard_name' => 'web']);
+        $adminRole = Role::create(['name' => 'Admin', 'guard_name' => 'sanctum']);
         $this->admin = User::factory()->create();
         $this->admin->assignRole($adminRole);
 
         // Create Editor role with basic permissions
-        $this->editorRole = Role::create(['name' => 'Editor', 'guard_name' => 'web']);
+        $this->editorRole = Role::create(['name' => 'Editor', 'guard_name' => 'sanctum']);
         foreach (['products.view', 'products.edit', 'products.create', 'roles.view', 'roles.edit'] as $perm) {
-            Permission::findOrCreate($perm, 'web');
+            Permission::findOrCreate($perm, 'sanctum');
         }
         $this->editorRole->givePermissionTo(['products.view', 'products.edit', 'roles.view']);
 
@@ -244,7 +244,7 @@ class TabPermissionsTest extends TestCase
     public function test_multi_role_highest_access_wins(): void
     {
         // Create a second role with different tab permissions
-        $designerRole = Role::create(['name' => 'Designer', 'guard_name' => 'web']);
+        $designerRole = Role::create(['name' => 'Designer', 'guard_name' => 'sanctum']);
         $designerRole->givePermissionTo(['products.view']);
 
         // Editor: prices=hidden, media=read
@@ -292,7 +292,7 @@ class TabPermissionsTest extends TestCase
             'access_level' => 'hidden',
         ]);
 
-        $viewerRole = Role::create(['name' => 'Viewer', 'guard_name' => 'web']);
+        $viewerRole = Role::create(['name' => 'Viewer', 'guard_name' => 'sanctum']);
         $viewerRole->givePermissionTo(['products.view']);
         // No tab permissions set for Viewer role → implicit write
 
