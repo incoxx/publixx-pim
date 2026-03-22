@@ -8,7 +8,7 @@ use App\Models\Role;
 use App\Models\RoleTabPermission;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Spatie\Permission\Models\Permission;
+use App\Models\Permission;
 use Tests\TestCase;
 
 class TabPermissionsTest extends TestCase
