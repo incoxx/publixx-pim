@@ -24,12 +24,12 @@ class TabPermissionsTest extends TestCase
         parent::setUp();
 
         // Create Admin role & user
-        $adminRole = Role::create(['name' => 'Admin', 'guard_name' => 'sanctum']);
+        $adminRole = Role::firstOrCreate(['name' => 'Admin', 'guard_name' => 'sanctum']);
         $this->admin = User::factory()->create();
         $this->admin->assignRole($adminRole);
 
         // Create Editor role with basic permissions
-        $this->editorRole = Role::create(['name' => 'Editor', 'guard_name' => 'sanctum']);
+        $this->editorRole = Role::firstOrCreate(['name' => 'Editor', 'guard_name' => 'sanctum']);
         foreach (['products.view', 'products.edit', 'products.create', 'roles.view', 'roles.edit'] as $perm) {
             Permission::findOrCreate($perm, 'sanctum');
         }
