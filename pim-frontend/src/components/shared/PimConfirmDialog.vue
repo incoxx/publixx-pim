@@ -3,9 +3,9 @@ const props = defineProps({
   open: { type: Boolean, default: false },
   title: { type: String, default: 'Bestätigung' },
   message: { type: String, default: '' },
-  confirmLabel: { type: String, default: 'Löschen' },
+  confirmLabel: { type: String, default: 'Bestätigen' },
   cancelLabel: { type: String, default: 'Abbrechen' },
-  danger: { type: Boolean, default: true },
+  danger: { type: Boolean, default: false },
   loading: { type: Boolean, default: false },
 })
 

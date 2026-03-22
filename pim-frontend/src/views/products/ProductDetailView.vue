@@ -1557,16 +1557,15 @@ const showMandatoryConfirm = ref(false)
 
 function validateMandatoryAttributes() {
   const missing = []
+  const primaryLang = localeStore.activeDataLocales[0] || 'de'
   for (const attr of schemaAttributes.value) {
     if (!attr.is_mandatory) continue
     if (attr.is_translatable) {
-      for (const lang of localeStore.activeDataLocales) {
-        const key = `${attr.id}_${lang}`
-        const val = translatedValues.value[key]
-        if (val === null || val === undefined || val === '') {
-          missing.push(attr)
-          break
-        }
+      // Only check the primary language for mandatory fields
+      const key = `${attr.id}_${primaryLang}`
+      const val = translatedValues.value[key]
+      if (val === null || val === undefined || val === '') {
+        missing.push(attr)
       }
     } else {
       const val = attributeValues.value[attr.id]
@@ -2849,6 +2848,8 @@ watch(() => route.params.id, async (newId, oldId) => {
         :open="!!priceDeleteTarget"
         title="Preis löschen?"
         message="Dieser Preis wird unwiderruflich gelöscht."
+        confirm-label="Löschen"
+        :danger="true"
         :loading="priceDeleting"
         @confirm="confirmDeletePrice"
         @cancel="priceDeleteTarget = null"
@@ -3001,6 +3002,8 @@ watch(() => route.params.id, async (newId, oldId) => {
         :open="!!relationDeleteTarget"
         title="Beziehung löschen?"
         message="Diese Produktbeziehung wird entfernt."
+        confirm-label="Löschen"
+        :danger="true"
         :loading="relationDeleting"
         @confirm="confirmDeleteRelation"
         @cancel="relationDeleteTarget = null"
@@ -3084,6 +3087,8 @@ watch(() => route.params.id, async (newId, oldId) => {
         :open="!!outputHierarchyDeleteTarget"
         title="Zuordnung entfernen?"
         message="Die Zuordnung dieses Produkts zum Ausgabehierarchie-Knoten wird entfernt."
+        confirm-label="Entfernen"
+        :danger="true"
         :loading="outputHierarchyDeleting"
         @confirm="confirmDeleteOutputHierarchyAssignment"
         @cancel="outputHierarchyDeleteTarget = null"
@@ -3500,6 +3505,7 @@ watch(() => route.params.id, async (newId, oldId) => {
       :open="showMandatoryConfirm"
       title="Pflichtfelder nicht ausgefüllt"
       :message="`${mandatoryWarnings.size} Pflichtfeld(er) sind leer. Trotzdem speichern?`"
+      confirm-label="Speichern"
       @confirm="confirmSaveDespiteWarnings"
       @cancel="showMandatoryConfirm = false"
     />

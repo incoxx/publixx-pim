@@ -7,7 +7,6 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Requests\Api\V1\StoreHierarchyRequest;
 use App\Http\Requests\Api\V1\UpdateHierarchyRequest;
 use App\Http\Resources\Api\V1\HierarchyResource;
-use App\Http\Resources\Api\V1\HierarchyNodeResource;
 use App\Http\Traits\ChecksDeletionConstraints;
 use App\Http\Traits\FiltersByInstanceRestrictions;
 use App\Models\Hierarchy;
@@ -17,7 +16,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 
 class HierarchyController extends Controller
 {
@@ -139,68 +137,42 @@ class HierarchyController extends Controller
 
         $query = $hierarchy->nodes()
             ->whereNull('parent_node_id')
-            ->with('children')
             ->orderBy('sort_order', 'asc');
 
         $this->applyNodeInstanceRestrictionFilter($query);
 
         $rootNodes = $query->get();
 
-        // TEMPORARY: Always include debug info to diagnose empty-tree issue
-        $totalNodes = $hierarchy->nodes()->count();
-        $rootNodeCount = $hierarchy->nodes()->whereNull('parent_node_id')->count();
-        $sampleNodes = $hierarchy->nodes()->limit(3)
-            ->get(['id', 'parent_node_id', 'name_de', 'depth'])
-            ->toArray();
-        $user = $request->user();
-        $debug = [
-            'hierarchy_id' => $hierarchy->id,
-            'hierarchy_name' => $hierarchy->name_de,
-            'total_nodes' => $totalNodes,
-            'root_nodes_count' => $rootNodeCount,
-            'root_nodes_returned' => $rootNodes->count(),
-            'user_id' => $user?->id,
-            'user_email' => $user?->email,
-            'user_is_admin' => $user?->hasRole('Admin'),
-            'user_roles' => $user?->roles->pluck('name')->toArray(),
-            'has_node_restrictions' => false,
-            'sample_nodes' => $sampleNodes,
-        ];
-
-        // Check if instance restrictions are filtering nodes
-        if ($user && !$user->hasRole('Admin')) {
-            $roleIds = $user->roles->pluck('id');
-            $restrictions = \App\Models\RoleEntityRestriction::whereIn('role_id', $roleIds)
-                ->where('restrictable_type', \App\Models\HierarchyNode::class)
-                ->get();
-            $debug['has_node_restrictions'] = $restrictions->isNotEmpty();
-            $debug['restriction_count'] = $restrictions->count();
-            $debug['restricted_node_ids'] = $restrictions->pluck('restrictable_id')->toArray();
-        }
-
-        if ($rootNodes->isEmpty()) {
-            Log::warning('HierarchyController::tree returned empty', $debug);
-        }
-
-        // Recursive tree building
         $buildTree = function ($nodes, int $currentDepth = 0) use (&$buildTree, $maxDepth) {
-            return $nodes->map(function ($node) use (&$buildTree, $maxDepth, $currentDepth) {
-                $data = (new HierarchyNodeResource($node))->resolve();
+            return $nodes->map(function (HierarchyNode $node) use (&$buildTree, $maxDepth, $currentDepth) {
+                $data = [
+                    'id' => $node->id,
+                    'hierarchy_id' => $node->hierarchy_id,
+                    'parent_node_id' => $node->parent_node_id,
+                    'name_de' => $node->name_de,
+                    'name_en' => $node->name_en,
+                    'name_json' => $node->name_json,
+                    'path' => $node->path,
+                    'depth' => $node->depth,
+                    'sort_order' => $node->sort_order,
+                    'is_active' => $node->is_active,
+                    'created_at' => $node->created_at,
+                    'updated_at' => $node->updated_at,
+                ];
 
                 if ($maxDepth > 0 && $currentDepth >= $maxDepth) {
                     $data['children'] = [];
                 } else {
-                    $children = $node->children()->orderBy('sort_order', 'asc')->with('children')->get();
+                    $children = $node->children()->orderBy('sort_order', 'asc')->get();
                     $data['children'] = $buildTree($children, $currentDepth + 1);
                 }
 
                 return $data;
-            });
+            })->values();
         };
 
         return response()->json([
             'data' => $buildTree($rootNodes),
-            '_debug' => $debug,
         ]);
     }
 }
