@@ -568,7 +568,7 @@ class TestDataGeneratorService
                 'name_json' => ['de' => 'Zeit', 'en' => 'Time'],
                 'units' => [
                     ['technical_name' => 'stunde', 'abbreviation' => 'h', 'conversion_factor' => 1, 'is_base_unit' => true],
-                    ['technical_name' => 'minute', 'abbreviation' => 'min', 'conversion_factor' => null, 'is_base_unit' => false],
+                    ['technical_name' => 'minute', 'abbreviation' => 'min', 'conversion_factor' => 0.0166666667, 'is_base_unit' => false],
                 ],
             ],
             [
