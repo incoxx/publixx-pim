@@ -1178,7 +1178,22 @@ class TestDataGeneratorService
     {
         $existing = Hierarchy::where('technical_name', self::HIERARCHY_TECHNICAL_NAME)->first();
         if ($existing) {
+            $nodeIds = HierarchyNode::where('hierarchy_id', $existing->id)->pluck('id');
+            if ($nodeIds->isNotEmpty()) {
+                // Clean up related records before deleting nodes (same order as cleanup method)
+                DB::table('hierarchy_node_attribute_values')
+                    ->whereIn('hierarchy_node_id', $nodeIds)->delete();
+                DB::table('hierarchy_node_attribute_assignments')
+                    ->whereIn('hierarchy_node_id', $nodeIds)->delete();
+                DB::table('output_hierarchy_product_assignments')
+                    ->whereIn('hierarchy_node_id', $nodeIds)->delete();
+                // Nullify product references to these nodes
+                Product::whereIn('master_hierarchy_node_id', $nodeIds)
+                    ->update(['master_hierarchy_node_id' => null]);
+            }
             HierarchyNode::where('hierarchy_id', $existing->id)->delete();
+            DB::table('hierarchy_attribute_assignments')
+                ->where('hierarchy_id', $existing->id)->delete();
             $existing->delete();
         }
 
@@ -1211,12 +1226,12 @@ class TestDataGeneratorService
                 'name_de' => $catName.$suffix,
                 'name_en' => $catName.$suffix,
                 'name_json' => ['de' => $catName.$suffix, 'en' => $catName.$suffix],
-                'path' => '',
+                'path' => '/',
                 'depth' => 0,
                 'sort_order' => $i,
                 'is_active' => true,
             ]);
-            $rootNode->update(['path' => $rootNode->id.'/']);
+            $rootNode->update(['path' => '/'.$rootNode->id.'/']);
             $nodes[] = $rootNode;
 
             $this->createChildNodes($hierarchy, $rootNode, 1, $maxDepth, $nodes, $categoryCount);
@@ -1249,7 +1264,7 @@ class TestDataGeneratorService
                 'name_de' => $name,
                 'name_en' => $name,
                 'name_json' => ['de' => $name, 'en' => $name],
-                'path' => $parent->path.'/',
+                'path' => '/',
                 'depth' => $currentDepth,
                 'sort_order' => $i,
                 'is_active' => true,
