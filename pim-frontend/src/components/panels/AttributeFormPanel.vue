@@ -67,8 +67,13 @@ const formData = ref(
 )
 
 // Load units when unit group changes
+let isInitialUnitLoad = !!props.attribute?.unit_group_id
 watch(() => formData.value.unit_group_id, async (newGroupId) => {
-  formData.value.default_unit_id = ''
+  // Beim initialen Laden den gespeicherten default_unit_id nicht überschreiben
+  if (!isInitialUnitLoad) {
+    formData.value.default_unit_id = ''
+  }
+  isInitialUnitLoad = false
   if (newGroupId) {
     try {
       const { data } = await unitsApi.list(newGroupId)
