@@ -179,11 +179,11 @@ watch(() => props.open, async (isOpen) => {
           <!-- Search -->
           <div class="px-5 py-3 border-b border-[var(--color-border)] shrink-0">
             <div class="relative">
-              <Search class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--color-text-tertiary)]" />
+              <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--color-text-tertiary)]" />
               <input
                 v-model="search"
                 type="text"
-                class="pim-input w-full text-xs pl-8"
+                class="pim-input w-full text-xs pl-9"
                 placeholder="Berechtigung suchen..."
               />
             </div>

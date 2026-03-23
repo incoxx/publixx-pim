@@ -242,7 +242,7 @@ function facetFilterCount(attributeId) {
           <template v-if="facet.data_type === 'ValueList' || facet.data_type === 'Text'">
             <!-- Search (when > 8 values) -->
             <div v-if="(facet.values || []).length > 8" class="relative mb-2">
-              <Search class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-base-content/40" />
+              <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-base-content/40" />
               <input
                 v-model="searchText[facet.attribute_id]"
                 type="text"

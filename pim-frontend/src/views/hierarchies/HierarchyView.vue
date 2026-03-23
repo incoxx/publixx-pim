@@ -839,7 +839,7 @@ onMounted(async () => {
       <!-- Node search -->
       <div ref="nodeSearchRef" class="px-3 py-2 border-b border-[var(--color-border)] relative">
         <div class="relative">
-          <Search class="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--color-text-tertiary)]" :stroke-width="2" />
+          <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--color-text-tertiary)]" :stroke-width="2" />
           <input
             v-model="nodeSearchQuery"
             type="text"
@@ -985,7 +985,7 @@ onMounted(async () => {
               <Search class="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)]" :stroke-width="1.75" />
               <input
                 v-model="productSearchQuery"
-                class="pim-input text-xs w-full pl-8"
+                class="pim-input text-xs w-full pl-9"
                 placeholder="Produkt suchen (SKU, Name)..."
                 @input="searchProducts"
                 @keyup.escape="showProductSearch = false"
@@ -1137,7 +1137,7 @@ onMounted(async () => {
               <Search class="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)]" :stroke-width="1.75" />
               <input
                 v-model="attrPickerSearch"
-                class="pim-input text-xs w-full pl-8"
+                class="pim-input text-xs w-full pl-9"
                 placeholder="Attribut suchen (Name, Technischer Name)…"
                 @input="onAttrPickerSearchInput"
                 @keyup.escape="showAttrPicker = false"
@@ -1196,7 +1196,7 @@ onMounted(async () => {
                 <Search class="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)]" :stroke-width="1.75" />
                 <input
                   v-model="nodeAttrSearch"
-                  class="pim-input text-xs w-full pl-8"
+                  class="pim-input text-xs w-full pl-9"
                   placeholder="Zugeordnete Attribute filtern…"
                 />
               </div>

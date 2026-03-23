@@ -130,11 +130,11 @@ function getExtension(fileName) {
           <div class="flex items-center gap-2 px-4 py-2 border-b border-[var(--color-border)] bg-[var(--color-bg)]">
             <!-- Search -->
             <div class="relative flex-1">
-              <Search class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--color-text-tertiary)]" :stroke-width="2" />
+              <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--color-text-tertiary)]" :stroke-width="2" />
               <input
                 v-model="searchQuery"
                 type="text"
-                class="pim-input text-xs pl-8 w-full"
+                class="pim-input text-xs pl-9 w-full"
                 placeholder="Medien durchsuchen…"
               />
             </div>
