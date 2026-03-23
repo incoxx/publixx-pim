@@ -148,6 +148,7 @@ const sections = computed(() => {
           label: () => 'Preise & Einheiten',
           children: [
             { icon: Ruler, label: () => 'Einheiten', to: '/units' },
+            { icon: ArrowRightLeft, label: () => 'Vergleichsoperatoren', to: '/comparison-operators' },
             { icon: DollarSign, label: () => t('nav.prices'), to: '/prices' },
             { icon: Globe, label: () => t('nav.priceRegions'), to: '/price-regions' },
           ],

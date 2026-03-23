@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import attributesApi, { attributeTypes, valueLists, productTypes } from '@/api/attributes'
 import { unitGroups as unitGroupsApi } from '@/api/units'
+import { comparisonOperatorGroups as compOpGroupsApi } from '@/api/comparisonOperators'
 
 export const useAttributeStore = defineStore('attributes', () => {
   const items = ref([])
@@ -10,6 +11,7 @@ export const useAttributeStore = defineStore('attributes', () => {
   const lists = ref([])
   const prodTypes = ref([])
   const unitGroupsList = ref([])
+  const compOpGroupsList = ref([])
   const loading = ref(false)
   const error = ref(null)
   const meta = ref({ current_page: 1, last_page: 1, total: 0, per_page: 50 })
@@ -18,6 +20,23 @@ export const useAttributeStore = defineStore('attributes', () => {
     'text', 'textarea', 'richtext', 'number', 'decimal', 'boolean',
     'date', 'datetime', 'select', 'multiselect', 'url', 'email', 'json',
   ])
+
+  // Dropdown-Optionen für Formular-Selects
+  const attributeTypeOptions = computed(() =>
+    types.value.map(t => ({ value: t.id, label: t.name_de || t.technical_name }))
+  )
+
+  const valueListOptions = computed(() =>
+    lists.value.map(l => ({ value: l.id, label: l.name_de || l.technical_name }))
+  )
+
+  const unitGroupOptions = computed(() =>
+    unitGroupsList.value.map(g => ({ value: g.id, label: g.name_de || g.technical_name }))
+  )
+
+  const comparisonOperatorGroupOptions = computed(() =>
+    compOpGroupsList.value.map(g => ({ value: g.id, label: g.name_de || g.technical_name }))
+  )
 
   async function fetchAttributes(options = {}) {
     loading.value = true
@@ -78,10 +97,19 @@ export const useAttributeStore = defineStore('attributes', () => {
 
   async function fetchUnitGroups() {
     try {
-      const { data } = await unitGroupsApi.list({ include: 'units' })
+      const { data } = await unitGroupsApi.list({ include: 'units', perPage: 200 })
       unitGroupsList.value = data.data || data
     } catch (e) {
       console.error('Failed to fetch unit groups', e)
+    }
+  }
+
+  async function fetchComparisonOperatorGroups() {
+    try {
+      const { data } = await compOpGroupsApi.list({ include: 'operators', perPage: 200 })
+      compOpGroupsList.value = data.data || data
+    } catch (e) {
+      console.error('Failed to fetch comparison operator groups', e)
     }
   }
 
@@ -121,8 +149,9 @@ export const useAttributeStore = defineStore('attributes', () => {
   }
 
   return {
-    items, allItems, types, lists, prodTypes, unitGroupsList, loading, error, meta, dataTypes,
-    fetchAttributes, fetchAllAttributes, fetchTypes, fetchValueLists, fetchProductTypes, fetchUnitGroups,
+    items, allItems, types, lists, prodTypes, unitGroupsList, compOpGroupsList, loading, error, meta, dataTypes,
+    attributeTypeOptions, valueListOptions, unitGroupOptions, comparisonOperatorGroupOptions,
+    fetchAttributes, fetchAllAttributes, fetchTypes, fetchValueLists, fetchProductTypes, fetchUnitGroups, fetchComparisonOperatorGroups,
     createAttribute, updateAttribute, copyAttribute, deleteAttribute, setPage, bulkUpdate, bulkDelete,
   }
 })

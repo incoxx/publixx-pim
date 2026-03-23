@@ -8,8 +8,11 @@ use App\Http\Requests\Api\V1\BulkUpdateAttributeValuesRequest;
 use App\Http\Requests\Api\V1\BulkUpdateOutputHierarchyAttributeValuesRequest;
 use App\Http\Resources\Api\V1\ProductAttributeValueResource;
 use App\Models\Attribute;
+use App\Models\ComparisonOperatorGroup;
+use App\Models\HierarchyNode;
 use App\Models\Product;
 use App\Models\ProductAttributeValue;
+use App\Models\UnitGroup;
 use App\Services\Inheritance\AttributeValueResolver;
 use App\Services\Inheritance\HierarchyInheritanceService;
 use Illuminate\Http\JsonResponse;
@@ -71,7 +74,7 @@ class ProductAttributeValueController extends Controller
         $overrideNodeId = $request->query('hierarchy_node_id');
 
         if ($overrideNodeId) {
-            $node = \App\Models\HierarchyNode::find($overrideNodeId);
+            $node = HierarchyNode::find($overrideNodeId);
             $effectiveAttributes = $node
                 ? $hierarchyService->getEffectiveAttributes($node)
                 : collect();
@@ -82,7 +85,7 @@ class ProductAttributeValueController extends Controller
         // Load existing master attribute values for this product (exclude channel-specific)
         // Use groupBy to support multipliable attributes with multiple values
         $allExistingValues = $product->attributeValues()
-            ->with('attribute')
+            ->with(['attribute', 'unit'])
             ->whereNull('output_hierarchy_id')
             ->where(function ($q) use ($language) {
                 $q->whereNull('language')->orWhere('language', $language);
@@ -143,7 +146,29 @@ class ProductAttributeValueController extends Controller
             }
         }
 
-        $result = $effectiveAttributes->map(function ($assignment) use ($existingValues, $multipliedValues) {
+        // Einheitengruppen mit Einheiten vorladen (für Number/Float-Attribute)
+        $unitGroupIds = $effectiveAttributes
+            ->pluck('unit_group_id')
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+        $unitGroups = !empty($unitGroupIds)
+            ? UnitGroup::with('units')->whereIn('id', $unitGroupIds)->get()->keyBy('id')
+            : collect();
+
+        // Vergleichsoperator-Gruppen mit Operatoren vorladen
+        $compOpGroupIds = $effectiveAttributes
+            ->pluck('comparison_operator_group_id')
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+        $compOpGroups = !empty($compOpGroupIds)
+            ? ComparisonOperatorGroup::with('operators')->whereIn('id', $compOpGroupIds)->get()->keyBy('id')
+            : collect();
+
+        $result = $effectiveAttributes->map(function ($assignment) use ($existingValues, $multipliedValues, $unitGroups, $compOpGroups) {
             $pav = $existingValues->get($assignment->attribute_id);
             $value = null;
             $source = 'none';
@@ -151,6 +176,27 @@ class ProductAttributeValueController extends Controller
             if ($pav) {
                 $value = $pav->value_string ?? $pav->value_number ?? $pav->value_date ?? $pav->value_flag ?? $pav->value_selection_id;
                 $source = $pav->is_inherited ? 'hierarchy_inheritance' : 'own';
+            }
+
+            // Einheit: gespeicherte unit_id oder default_unit_id des Attributs
+            $unitId = $pav?->unit_id ?? $assignment->default_unit_id ?? null;
+
+            // Einheitengruppe mit Einheiten für Dropdown
+            $unitGroupData = null;
+            if (!empty($assignment->unit_group_id)) {
+                $ug = $unitGroups->get($assignment->unit_group_id);
+                if ($ug) {
+                    $unitGroupData = [
+                        'id' => $ug->id,
+                        'name_de' => $ug->name_de,
+                        'units' => $ug->units->map(fn ($u) => [
+                            'id' => $u->id,
+                            'abbreviation' => $u->abbreviation,
+                            'name_de' => $u->name_de,
+                            'is_base_unit' => (bool) $u->is_base_unit,
+                        ])->values()->all(),
+                    ];
+                }
             }
 
             $result = [
@@ -175,12 +221,17 @@ class ProductAttributeValueController extends Controller
                 'access_product' => $assignment->access_product ?? 'editable',
                 'access_variant' => $assignment->access_variant ?? 'editable',
                 'value' => $value,
+                'unit_id' => $unitId,
+                'unit_group' => $unitGroupData,
+                'comparison_operator_id' => $pav?->comparison_operator_id ?? null,
+                'comparison_operators' => $this->buildComparisonOperators($assignment, $compOpGroups),
                 'source' => $source,
                 'is_inherited' => $source !== 'own' && $source !== 'none',
             ];
 
             // Include all multiplied values for multipliable attributes
             if ($assignment->is_multipliable ?? false) {
+                $defaultUnitId = $assignment->default_unit_id ?? null;
                 $attrMultiplied = $multipliedValues->get($assignment->attribute_id, collect());
                 $result['multiplied_values'] = $attrMultiplied
                     ->sortBy('multiplied_index')
@@ -188,6 +239,7 @@ class ProductAttributeValueController extends Controller
                     ->map(fn ($pav) => [
                         'multiplied_index' => $pav->multiplied_index,
                         'value' => $pav->value_string ?? $pav->value_number ?? $pav->value_date ?? $pav->value_flag ?? $pav->value_selection_id,
+                        'unit_id' => $pav->unit_id ?? $defaultUnitId,
                         'language' => $pav->language,
                     ])
                     ->all();
@@ -467,6 +519,28 @@ class ProductAttributeValueController extends Controller
         event(new \App\Events\AttributeValuesChanged($product->id, array_unique($changedAttributeIds), $outputHierarchyId));
 
         return response()->json(['message' => 'Output hierarchy attribute values updated.', 'count' => count($values)]);
+    }
+
+    /**
+     * Vergleichsoperatoren für ein Attribut aufbereiten (falls comparison_operator_group_id gesetzt).
+     */
+    private function buildComparisonOperators(object $assignment, \Illuminate\Support\Collection $compOpGroups): ?array
+    {
+        if (empty($assignment->comparison_operator_group_id)) {
+            return null;
+        }
+
+        $group = $compOpGroups->get($assignment->comparison_operator_group_id);
+        if (!$group) {
+            return null;
+        }
+
+        return $group->operators->map(fn ($op) => [
+            'id' => $op->id,
+            'symbol' => $op->symbol,
+            'technical_name' => $op->technical_name,
+            'description_de' => $op->description_de,
+        ])->values()->all();
     }
 
     /**

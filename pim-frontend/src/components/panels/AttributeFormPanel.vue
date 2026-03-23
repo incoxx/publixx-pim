@@ -26,7 +26,10 @@ let pendingSubmitData = null
 
 onMounted(() => {
   if (!store.allItems.length) store.fetchAllAttributes()
+  if (!store.types.length) store.fetchTypes()
+  if (!store.lists.length) store.fetchValueLists()
   if (!store.unitGroupsList.length) store.fetchUnitGroups()
+  if (!store.compOpGroupsList.length) store.fetchComparisonOperatorGroups()
 })
 
 const isEdit = computed(() => !!props.attribute)
@@ -46,6 +49,7 @@ const formData = ref(
         value_list_id: '',
         unit_group_id: '',
         default_unit_id: '',
+        comparison_operator_group_id: '',
         child_attribute_ids: [],
         is_translatable: false,
         is_multipliable: false,
@@ -77,11 +81,12 @@ watch(() => formData.value.unit_group_id, async (newGroupId) => {
   }
 }, { immediate: !!props.attribute?.unit_group_id })
 
-// Clear unit fields when data type changes away from numeric
+// Clear unit + comparison operator fields when data type changes away from numeric
 watch(() => formData.value.data_type, (newType) => {
   if (!['Number', 'Float'].includes(newType)) {
     formData.value.unit_group_id = ''
     formData.value.default_unit_id = ''
+    formData.value.comparison_operator_group_id = ''
     unitOptions.value = []
   }
 })

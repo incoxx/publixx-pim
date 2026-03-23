@@ -4,13 +4,15 @@ import { Plus, Trash2, GripVertical, ChevronUp, ChevronDown } from 'lucide-vue-n
 import PimAttributeInput from './PimAttributeInput.vue'
 
 const props = defineProps({
-  /** Array of { value, multiplied_index } entries */
+  /** Array of { value, multiplied_index, unit_id? } entries */
   modelValue: { type: Array, default: () => [] },
   type: { type: String, default: 'text' },
   options: { type: Array, default: () => [] },
   disabled: { type: Boolean, default: false },
   maxMultiplied: { type: Number, default: null },
   placeholder: { type: String, default: '' },
+  /** Unit group with units array for unit selector: { id, units: [{ id, abbreviation }] } */
+  unitGroup: { type: Object, default: null },
 })
 
 const emit = defineEmits(['update:modelValue'])
@@ -35,10 +37,19 @@ function updateValue(index, newValue) {
   emit('update:modelValue', updated)
 }
 
+function updateUnit(index, unitId) {
+  const updated = entries.value.map((e, i) =>
+    i === index ? { ...e, unit_id: unitId || null } : { ...e }
+  )
+  emit('update:modelValue', updated)
+}
+
 function addEntry() {
   if (!canAdd.value) return
   const maxIdx = entries.value.reduce((max, e) => Math.max(max, e.multiplied_index), -1)
-  const updated = [...entries.value, { value: null, multiplied_index: maxIdx + 1 }]
+  // Einheit vom letzten Eintrag übernehmen (falls vorhanden)
+  const lastUnit = entries.value.length > 0 ? entries.value[entries.value.length - 1].unit_id : null
+  const updated = [...entries.value, { value: null, multiplied_index: maxIdx + 1, unit_id: lastUnit || null }]
   emit('update:modelValue', updated)
 }
 
@@ -104,9 +115,10 @@ function moveDown(index) {
         class="mt-2 text-[10px] font-mono text-[var(--color-text-tertiary)] tabular-nums min-w-[16px] text-center"
       >{{ index + 1 }}</span>
 
-      <!-- Input -->
-      <div class="flex-1">
+      <!-- Input + optional Unit -->
+      <div class="flex-1 flex gap-1.5 items-start">
         <PimAttributeInput
+          class="flex-1 min-w-0"
           :type="type"
           :modelValue="entry.value"
           :options="options"
@@ -114,6 +126,16 @@ function moveDown(index) {
           :placeholder="placeholder"
           @update:modelValue="updateValue(index, $event)"
         />
+        <select
+          v-if="unitGroup?.units?.length"
+          class="pim-input text-[12px] w-20 shrink-0"
+          :value="entry.unit_id || ''"
+          :disabled="disabled"
+          @change="updateUnit(index, $event.target.value)"
+        >
+          <option value="">—</option>
+          <option v-for="u in unitGroup.units" :key="u.id" :value="u.id">{{ u.abbreviation }}</option>
+        </select>
       </div>
 
       <!-- Remove button -->
