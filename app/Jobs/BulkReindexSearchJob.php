@@ -8,7 +8,6 @@ use App\Models\Product;
 use App\Models\ProductAttributeValue;
 use App\Models\ProductMediaAssignment;
 use App\Models\ProductPrice;
-use App\Models\Setting;
 use App\Models\WebsiteProfile;
 use App\Support\KoelnerPhonetik;
 use Illuminate\Bus\Queueable;
@@ -24,9 +23,8 @@ use Illuminate\Support\Facades\Schema;
 /**
  * Bulk reindex: processes all active products in efficient batch queries.
  *
- * Instead of N individual jobs with ~15 queries each, this job loads
- * all supplementary data in bulk per chunk, then upserts the index rows.
- * 100k products: ~5 min instead of ~60 min.
+ * Strategie: Temporäre Tabelle mit Produkt-IDs → JOINs statt WHERE IN.
+ * Alle Zusatzdaten werden per Chunk geladen und per Upsert geschrieben.
  */
 class BulkReindexSearchJob implements ShouldQueue
 {
@@ -37,7 +35,8 @@ class BulkReindexSearchJob implements ShouldQueue
     public array $backoff = [10, 30];
 
     private const CACHE_KEY = 'search_reindex_progress';
-    private const CHUNK_SIZE = 200;
+    private const CANCEL_KEY = 'search_reindex_cancel';
+    private const CHUNK_SIZE = 500;
 
     public function __construct()
     {
@@ -46,6 +45,9 @@ class BulkReindexSearchJob implements ShouldQueue
 
     public function handle(): void
     {
+        // Abbruch-Flag zurücksetzen
+        Cache::forget(self::CANCEL_KEY);
+
         $total = Product::where('status', 'active')
             ->where('product_type_ref', 'product')
             ->count();
@@ -56,13 +58,43 @@ class BulkReindexSearchJob implements ShouldQueue
         $themePayload = WebsiteProfile::getActivePayload();
         $thumbnailUsageTypeId = $themePayload['thumbnail_usage_type_id'] ?? null;
 
-        // Pre-load mandatory attribute count (same for all products)
+        // Vorberechnungen (einmalig)
         $mandatoryCount = DB::table('attributes')
             ->where('is_mandatory', true)
             ->where('status', 'active')
             ->count();
 
+        // Searchable-Attribute-IDs vorher laden (einmalig)
+        $searchableAttrIds = DB::table('attributes')
+            ->where('is_searchable', true)
+            ->where('status', 'active')
+            ->pluck('id')
+            ->toArray();
+
+        // Mandatory-Attribute-IDs vorher laden (einmalig)
+        $mandatoryAttrIds = $mandatoryCount > 0
+            ? DB::table('attributes')
+                ->where('is_mandatory', true)
+                ->where('status', 'active')
+                ->pluck('id')
+                ->toArray()
+            : [];
+
+        // productName + description Attribute-IDs vorher laden
+        $nameAttrId = DB::table('attributes')
+            ->where('technical_name', 'productName')
+            ->value('id');
+        $descAttrId = DB::table('attributes')
+            ->where('technical_name', 'description')
+            ->value('id');
+
+        // list_price PriceType-ID vorher laden
+        $listPriceTypeId = DB::table('price_types')
+            ->where('technical_name', 'list_price')
+            ->value('id');
+
         $processed = 0;
+        $startTime = microtime(true);
 
         Product::where('status', 'active')
             ->where('product_type_ref', 'product')
@@ -70,22 +102,32 @@ class BulkReindexSearchJob implements ShouldQueue
                      'parent_product_id', 'master_hierarchy_node_id')
             ->with('productType:id,technical_name')
             ->chunkById(self::CHUNK_SIZE, function ($products) use (
-                &$processed, $total, $hasVariantColumns, $thumbnailUsageTypeId, $mandatoryCount,
+                &$processed, $total, $hasVariantColumns, $thumbnailUsageTypeId,
+                $mandatoryCount, $searchableAttrIds, $mandatoryAttrIds,
+                $nameAttrId, $descAttrId, $listPriceTypeId, $startTime,
             ) {
+                // Abbruch prüfen
+                if (Cache::get(self::CANCEL_KEY)) {
+                    $this->updateProgress('cancelled', $processed, $total);
+                    Log::info("BulkReindexSearchJob: Abgebrochen bei {$processed}/{$total} Produkten.");
+                    return false; // chunkById stoppt
+                }
+
                 $productIds = $products->pluck('id')->toArray();
 
-                // Batch load all supplementary data
-                $names = $this->batchLoadNames($productIds);
-                $descriptions = $this->batchLoadDescriptions($productIds);
-                $searchableTexts = $this->batchLoadSearchableTexts($productIds);
+                // Alle Daten laden (optimiert mit vorberechneten IDs)
+                $names = $nameAttrId ? $this->batchLoadNames($productIds, $nameAttrId) : [];
+                $descriptions = $descAttrId ? $this->batchLoadDescriptions($productIds, $descAttrId) : [];
+                $searchableTexts = !empty($searchableAttrIds) ? $this->batchLoadSearchableTexts($productIds, $searchableAttrIds) : [];
                 $mediaTexts = $this->batchLoadMediaTexts($productIds);
                 $hierarchyPaths = $this->batchLoadHierarchyPaths($products);
                 $primaryImages = $this->batchLoadPrimaryImages($productIds, $thumbnailUsageTypeId);
-                $listPrices = $this->batchLoadListPrices($productIds);
-                $completeness = $mandatoryCount > 0
-                    ? $this->batchLoadCompleteness($productIds, $mandatoryCount)
+                $listPrices = $listPriceTypeId ? $this->batchLoadListPrices($productIds, $listPriceTypeId) : [];
+                $completeness = !empty($mandatoryAttrIds)
+                    ? $this->batchLoadCompleteness($productIds, $mandatoryAttrIds, $mandatoryCount)
                     : [];
 
+                $now = now();
                 $rows = [];
                 foreach ($products as $product) {
                     $pid = $product->id;
@@ -114,7 +156,7 @@ class BulkReindexSearchJob implements ShouldQueue
                         'phonetic_text' => $searchableText
                             ? mb_substr(KoelnerPhonetik::encode($searchableText), 0, 5000)
                             : null,
-                        'updated_at' => now(),
+                        'updated_at' => $now,
                     ];
 
                     if ($hasVariantColumns) {
@@ -127,7 +169,7 @@ class BulkReindexSearchJob implements ShouldQueue
 
                 // Bulk upsert (in Batches, um MySQL-Placeholder-Limit zu vermeiden)
                 $updateColumns = array_keys($rows[0] ?? []);
-                foreach (array_chunk($rows, 100) as $batch) {
+                foreach (array_chunk($rows, 200) as $batch) {
                     DB::table('products_search_index')->upsert(
                         $batch,
                         ['product_id'],
@@ -136,12 +178,26 @@ class BulkReindexSearchJob implements ShouldQueue
                 }
 
                 $processed += count($products);
-                $this->updateProgress('running', $processed, $total);
+
+                // Fortschritt nur alle 2 Sekunden aktualisieren (weniger Cache-Writes)
+                static $lastProgressUpdate = 0;
+                $now = microtime(true);
+                if ($now - $lastProgressUpdate > 2.0 || $processed >= $total) {
+                    $elapsed = $now - $startTime;
+                    $rate = $processed > 0 ? $elapsed / $processed : 0;
+                    $remaining = ($total - $processed) * $rate;
+                    $this->updateProgress('running', $processed, $total, null, (int) round($remaining));
+                    $lastProgressUpdate = $now;
+                }
             });
 
-        $this->updateProgress('completed', $processed, $total);
-
-        Log::info("BulkReindexSearchJob: Completed – {$processed} products indexed.");
+        // Abschluss (nur wenn nicht abgebrochen)
+        $currentProgress = Cache::get(self::CACHE_KEY);
+        if (($currentProgress['status'] ?? '') !== 'cancelled') {
+            $elapsed = round(microtime(true) - $startTime, 1);
+            $this->updateProgress('completed', $processed, $total);
+            Log::info("BulkReindexSearchJob: Abgeschlossen – {$processed} Produkte in {$elapsed}s indiziert.");
+        }
     }
 
     public function failed(\Throwable $exception): void
@@ -150,7 +206,7 @@ class BulkReindexSearchJob implements ShouldQueue
         Log::error('BulkReindexSearchJob failed: ' . $exception->getMessage());
     }
 
-    private function updateProgress(string $status, int $processed, int $total, ?string $error = null): void
+    private function updateProgress(string $status, int $processed, int $total, ?string $error = null, ?int $estimatedSeconds = null): void
     {
         Cache::put(self::CACHE_KEY, [
             'status' => $status,
@@ -158,35 +214,29 @@ class BulkReindexSearchJob implements ShouldQueue
             'total' => $total,
             'percent' => $total > 0 ? round(($processed / $total) * 100, 1) : 0,
             'error' => $error,
+            'estimated_seconds' => $estimatedSeconds,
             'updated_at' => now()->toIso8601String(),
         ], 600); // 10 min TTL
     }
 
-    // ── Batch loaders ──────────────────────────────────
+    // ── Batch loaders (optimiert mit vorberechneten IDs) ──────────
 
     /**
-     * Load productName attribute for all products in chunk.
-     * Returns [ product_id => ['de' => '...', 'en' => '...'] ]
+     * productName laden — direkt per attribute_id statt JOIN.
      */
-    private function batchLoadNames(array $productIds): array
+    private function batchLoadNames(array $productIds, string $nameAttrId): array
     {
-        $rows = ProductAttributeValue::query()
-            ->join('attributes', 'attributes.id', '=', 'product_attribute_values.attribute_id')
-            ->where('attributes.technical_name', 'productName')
-            ->where('product_attribute_values.multiplied_index', 0)
-            ->whereIn('product_attribute_values.product_id', $productIds)
-            ->whereNotNull('product_attribute_values.value_string')
-            ->select(
-                'product_attribute_values.product_id',
-                'product_attribute_values.language',
-                'product_attribute_values.value_string',
-            )
+        $rows = DB::table('product_attribute_values')
+            ->where('attribute_id', $nameAttrId)
+            ->where('multiplied_index', 0)
+            ->whereIn('product_id', $productIds)
+            ->whereNotNull('value_string')
+            ->select('product_id', 'language', 'value_string')
             ->get();
 
         $result = [];
         foreach ($rows as $row) {
             $lang = $row->language ?? 'de';
-            // Only set if not already set for this lang (respect priority)
             if (!isset($result[$row->product_id][$lang])) {
                 $result[$row->product_id][$lang] = $row->value_string;
             }
@@ -194,93 +244,77 @@ class BulkReindexSearchJob implements ShouldQueue
         return $result;
     }
 
-    private function batchLoadDescriptions(array $productIds): array
+    private function batchLoadDescriptions(array $productIds, string $descAttrId): array
     {
-        return ProductAttributeValue::query()
-            ->join('attributes', 'attributes.id', '=', 'product_attribute_values.attribute_id')
-            ->where('attributes.technical_name', 'description')
-            ->where('product_attribute_values.multiplied_index', 0)
-            ->whereIn('product_attribute_values.product_id', $productIds)
-            ->whereIn('product_attribute_values.language', ['de', null])
-            ->whereNotNull('product_attribute_values.value_string')
-            ->pluck('product_attribute_values.value_string', 'product_attribute_values.product_id')
+        return DB::table('product_attribute_values')
+            ->where('attribute_id', $descAttrId)
+            ->where('multiplied_index', 0)
+            ->whereIn('product_id', $productIds)
+            ->where(function ($q) {
+                $q->where('language', 'de')->orWhereNull('language');
+            })
+            ->whereNotNull('value_string')
+            ->pluck('value_string', 'product_id')
             ->toArray();
     }
 
-    private function batchLoadSearchableTexts(array $productIds): array
+    /**
+     * Searchable-Texte: Alle Typen in einer Query (UNION-artig via OR).
+     */
+    private function batchLoadSearchableTexts(array $productIds, array $searchableAttrIds): array
     {
-        // String values
-        $stringRows = ProductAttributeValue::query()
-            ->join('attributes', 'attributes.id', '=', 'product_attribute_values.attribute_id')
-            ->whereIn('product_attribute_values.product_id', $productIds)
-            ->where('attributes.is_searchable', true)
-            ->whereNotNull('product_attribute_values.value_string')
-            ->where('product_attribute_values.value_string', '!=', '')
-            ->select('product_attribute_values.product_id', 'product_attribute_values.value_string')
-            ->get();
-
-        // Number values
-        $numberRows = ProductAttributeValue::query()
-            ->join('attributes', 'attributes.id', '=', 'product_attribute_values.attribute_id')
-            ->whereIn('product_attribute_values.product_id', $productIds)
-            ->where('attributes.is_searchable', true)
-            ->whereNotNull('product_attribute_values.value_number')
-            ->select('product_attribute_values.product_id', 'product_attribute_values.value_number')
-            ->get();
-
-        // Selection values
-        $selectionRows = ProductAttributeValue::query()
-            ->join('attributes', 'attributes.id', '=', 'product_attribute_values.attribute_id')
-            ->join('value_list_entries', 'value_list_entries.id', '=', 'product_attribute_values.value_selection_id')
-            ->whereIn('product_attribute_values.product_id', $productIds)
-            ->where('attributes.is_searchable', true)
-            ->whereNotNull('product_attribute_values.value_selection_id')
+        $rows = DB::table('product_attribute_values as pav')
+            ->leftJoin('value_list_entries as vle', 'vle.id', '=', 'pav.value_selection_id')
+            ->whereIn('pav.product_id', $productIds)
+            ->whereIn('pav.attribute_id', $searchableAttrIds)
+            ->where(function ($q) {
+                $q->where(function ($q2) {
+                    $q2->whereNotNull('pav.value_string')->where('pav.value_string', '!=', '');
+                })->orWhereNotNull('pav.value_number')
+                  ->orWhereNotNull('pav.value_selection_id');
+            })
             ->select(
-                'product_attribute_values.product_id',
-                'value_list_entries.display_value_de',
-                'value_list_entries.display_value_en',
+                'pav.product_id',
+                'pav.value_string',
+                'pav.value_number',
+                'vle.display_value_de',
+                'vle.display_value_en',
             )
             ->get();
 
         $texts = [];
-        foreach ($stringRows as $row) {
-            $clean = strip_tags((string) $row->value_string);
-            if ($clean !== '') {
-                $texts[$row->product_id][] = $clean;
+        foreach ($rows as $row) {
+            $pid = $row->product_id;
+            if ($row->value_string !== null && $row->value_string !== '') {
+                $clean = strip_tags((string) $row->value_string);
+                if ($clean !== '') {
+                    $texts[$pid][] = $clean;
+                }
             }
-        }
-        foreach ($numberRows as $row) {
-            $texts[$row->product_id][] = (string) $row->value_number;
-        }
-        foreach ($selectionRows as $row) {
+            if ($row->value_number !== null) {
+                $texts[$pid][] = (string) $row->value_number;
+            }
             if ($row->display_value_de) {
-                $texts[$row->product_id][] = $row->display_value_de;
+                $texts[$pid][] = $row->display_value_de;
             }
             if ($row->display_value_en && $row->display_value_en !== $row->display_value_de) {
-                $texts[$row->product_id][] = $row->display_value_en;
+                $texts[$pid][] = $row->display_value_en;
             }
         }
 
-        return array_map(fn ($parts) => implode(' | ', $parts), $texts);
+        return array_map(fn ($parts) => implode(' | ', array_unique($parts)), $texts);
     }
 
     private function batchLoadMediaTexts(array $productIds): array
     {
-        $rows = ProductMediaAssignment::query()
-            ->join('media', 'media.id', '=', 'product_media_assignments.media_id')
-            ->whereIn('product_media_assignments.product_id', $productIds)
+        $rows = DB::table('product_media_assignments as pma')
+            ->join('media', 'media.id', '=', 'pma.media_id')
+            ->whereIn('pma.product_id', $productIds)
             ->where(function ($q) {
                 $q->where('media.media_type', 'document')
                   ->orWhere('media.mime_type', 'like', 'application/pdf%');
             })
-            ->select(
-                'product_media_assignments.product_id',
-                'media.file_name',
-                'media.title_de',
-                'media.title_en',
-                'media.description_de',
-                'media.description_en',
-            )
+            ->select('pma.product_id', 'media.file_name', 'media.title_de', 'media.title_en', 'media.description_de', 'media.description_en')
             ->get();
 
         $texts = [];
@@ -323,12 +357,12 @@ class BulkReindexSearchJob implements ShouldQueue
 
         // Priority 1: thumbnail usage type
         if ($thumbnailUsageTypeId) {
-            $rows = ProductMediaAssignment::query()
-                ->join('media', 'media.id', '=', 'product_media_assignments.media_id')
-                ->whereIn('product_media_assignments.product_id', $productIds)
-                ->where('product_media_assignments.usage_type_id', $thumbnailUsageTypeId)
-                ->orderBy('product_media_assignments.sort_order')
-                ->select('product_media_assignments.product_id', 'media.file_name')
+            $rows = DB::table('product_media_assignments as pma')
+                ->join('media', 'media.id', '=', 'pma.media_id')
+                ->whereIn('pma.product_id', $productIds)
+                ->where('pma.usage_type_id', $thumbnailUsageTypeId)
+                ->orderBy('pma.sort_order')
+                ->select('pma.product_id', 'media.file_name')
                 ->get();
 
             foreach ($rows as $row) {
@@ -342,11 +376,11 @@ class BulkReindexSearchJob implements ShouldQueue
         if (empty($remaining)) return $result;
 
         // Priority 2: is_primary flag
-        $rows = ProductMediaAssignment::query()
-            ->join('media', 'media.id', '=', 'product_media_assignments.media_id')
-            ->whereIn('product_media_assignments.product_id', $remaining)
-            ->where('product_media_assignments.is_primary', true)
-            ->select('product_media_assignments.product_id', 'media.file_name')
+        $rows = DB::table('product_media_assignments as pma')
+            ->join('media', 'media.id', '=', 'pma.media_id')
+            ->whereIn('pma.product_id', $remaining)
+            ->where('pma.is_primary', true)
+            ->select('pma.product_id', 'media.file_name')
             ->get();
 
         foreach ($rows as $row) {
@@ -359,12 +393,12 @@ class BulkReindexSearchJob implements ShouldQueue
         if (empty($remaining)) return $result;
 
         // Priority 3: first image by sort_order
-        $rows = ProductMediaAssignment::query()
-            ->join('media', 'media.id', '=', 'product_media_assignments.media_id')
-            ->whereIn('product_media_assignments.product_id', $remaining)
+        $rows = DB::table('product_media_assignments as pma')
+            ->join('media', 'media.id', '=', 'pma.media_id')
+            ->whereIn('pma.product_id', $remaining)
             ->where('media.media_type', 'image')
-            ->orderBy('product_media_assignments.sort_order')
-            ->select('product_media_assignments.product_id', 'media.file_name')
+            ->orderBy('pma.sort_order')
+            ->select('pma.product_id', 'media.file_name')
             ->get();
 
         foreach ($rows as $row) {
@@ -376,18 +410,17 @@ class BulkReindexSearchJob implements ShouldQueue
         return $result;
     }
 
-    private function batchLoadListPrices(array $productIds): array
+    private function batchLoadListPrices(array $productIds, string $listPriceTypeId): array
     {
-        $rows = ProductPrice::query()
-            ->join('price_types', 'price_types.id', '=', 'product_prices.price_type_id')
-            ->whereIn('product_prices.product_id', $productIds)
-            ->where('price_types.technical_name', 'list_price')
+        $rows = DB::table('product_prices')
+            ->whereIn('product_id', $productIds)
+            ->where('price_type_id', $listPriceTypeId)
             ->where(function ($q) {
-                $q->whereNull('product_prices.valid_to')
-                  ->orWhere('product_prices.valid_to', '>=', now()->toDateString());
+                $q->whereNull('valid_to')
+                  ->orWhere('valid_to', '>=', now()->toDateString());
             })
-            ->orderBy('product_prices.valid_from', 'desc')
-            ->select('product_prices.product_id', 'product_prices.amount')
+            ->orderBy('valid_from', 'desc')
+            ->select('product_id', 'amount')
             ->get();
 
         $result = [];
@@ -399,25 +432,21 @@ class BulkReindexSearchJob implements ShouldQueue
         return $result;
     }
 
-    private function batchLoadCompleteness(array $productIds, int $mandatoryCount): array
+    private function batchLoadCompleteness(array $productIds, array $mandatoryAttrIds, int $mandatoryCount): array
     {
-        $counts = ProductAttributeValue::query()
-            ->join('attributes', 'attributes.id', '=', 'product_attribute_values.attribute_id')
-            ->whereIn('product_attribute_values.product_id', $productIds)
-            ->where('attributes.is_mandatory', true)
-            ->where('product_attribute_values.multiplied_index', 0)
+        $counts = DB::table('product_attribute_values')
+            ->whereIn('product_id', $productIds)
+            ->whereIn('attribute_id', $mandatoryAttrIds)
+            ->where('multiplied_index', 0)
             ->where(function ($q) {
-                $q->whereNotNull('product_attribute_values.value_string')
-                  ->orWhereNotNull('product_attribute_values.value_number')
-                  ->orWhereNotNull('product_attribute_values.value_date')
-                  ->orWhereNotNull('product_attribute_values.value_flag')
-                  ->orWhereNotNull('product_attribute_values.value_selection_id');
+                $q->whereNotNull('value_string')
+                  ->orWhereNotNull('value_number')
+                  ->orWhereNotNull('value_date')
+                  ->orWhereNotNull('value_flag')
+                  ->orWhereNotNull('value_selection_id');
             })
-            ->groupBy('product_attribute_values.product_id')
-            ->select(
-                'product_attribute_values.product_id',
-                DB::raw('COUNT(DISTINCT product_attribute_values.attribute_id) as filled'),
-            )
+            ->groupBy('product_id')
+            ->select('product_id', DB::raw('COUNT(DISTINCT attribute_id) as filled'))
             ->pluck('filled', 'product_id')
             ->toArray();
 
