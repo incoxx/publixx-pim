@@ -94,6 +94,7 @@ use App\Http\Controllers\Api\V1\UserAuditController;
 use App\Http\Controllers\Api\V1\UserController;
 use App\Http\Controllers\Api\V1\ValueListController;
 use App\Http\Controllers\Api\V1\ValueListEntryController;
+use App\Http\Controllers\Api\V1\AttributeMappingController;
 use App\Http\Controllers\Api\V1\ConnectorController;
 use Illuminate\Support\Facades\Route;
 
@@ -628,6 +629,16 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
         });
         Route::post('bmecat-export', [BmecatExportController::class, 'export']);
     });
+
+    // =====================================================================
+    // Attribut-Mappings (Klassifikations-Zuordnung)
+    // =====================================================================
+    Route::apiResource('attribute-mappings', AttributeMappingController::class);
+    Route::post('attribute-mappings/bulk', [AttributeMappingController::class, 'bulkStore']);
+    Route::get('attribute-mapping-rules', [AttributeMappingController::class, 'rules']);
+    Route::post('attribute-mapping-rules', [AttributeMappingController::class, 'storeRule']);
+    Route::put('attribute-mapping-rules/{rule}', [AttributeMappingController::class, 'updateRule']);
+    Route::delete('attribute-mapping-rules/{rule}', [AttributeMappingController::class, 'destroyRule']);
 
     // =====================================================================
     // Export-Job-Steuerung (Enterprise: advanced_export)
