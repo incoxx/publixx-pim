@@ -22,7 +22,7 @@ import { useTabStore } from '@/stores/tabs'
 import { useAuthStore } from '@/stores/auth'
 import { useLocaleStore } from '@/stores/locale'
 import { useI18n } from 'vue-i18n'
-import { ArrowLeft, Save, Plus, Trash2, Image, Star, X, Search, Download, Languages, Copy, Sparkles, Tags, LayoutGrid, List, FileText, GitBranch, CheckCircle2, Eye, RotateCcw } from 'lucide-vue-next'
+import { ArrowLeft, Save, Plus, Trash2, Image, Star, X, Search, Download, Languages, Copy, Sparkles, Tags, LayoutGrid, List, FileText, GitBranch, CheckCircle2, Eye, RotateCcw, ArrowRightLeft } from 'lucide-vue-next'
 import productsApi from '@/api/products'
 import projectsApi from '@/api/projects'
 import usersApi from '@/api/users'
@@ -2352,6 +2352,9 @@ watch(() => route.params.id, async (newId, oldId) => {
                 <span v-if="attr.is_mandatory" class="text-[var(--color-error)]">*</span>
                 <span v-if="attr.is_translatable" class="ml-1 text-[10px] text-[var(--color-accent)] font-normal">
                   <Languages class="inline w-3 h-3 -mt-0.5" :stroke-width="1.75" /> {{ activeDataLang.toUpperCase() }}
+                </span>
+                <span v-if="attr.is_mapped" class="ml-1 text-[10px] text-amber-600 font-normal inline-flex items-center gap-0.5" title="Wert per Mapping berechnet">
+                  <ArrowRightLeft class="inline w-3 h-3" :stroke-width="1.75" /> Mapping
                 </span>
                 <span v-if="attr.is_inherited" class="ml-1 text-[10px] text-blue-500 font-normal">(Master-Fallback)</span>
               </label>
