@@ -8,8 +8,11 @@ use App\Http\Requests\Api\V1\BulkUpdateAttributeValuesRequest;
 use App\Http\Requests\Api\V1\BulkUpdateOutputHierarchyAttributeValuesRequest;
 use App\Http\Resources\Api\V1\ProductAttributeValueResource;
 use App\Models\Attribute;
+use App\Models\ComparisonOperatorGroup;
+use App\Models\HierarchyNode;
 use App\Models\Product;
 use App\Models\ProductAttributeValue;
+use App\Models\UnitGroup;
 use App\Services\Inheritance\AttributeValueResolver;
 use App\Services\Inheritance\HierarchyInheritanceService;
 use Illuminate\Http\JsonResponse;
@@ -71,7 +74,7 @@ class ProductAttributeValueController extends Controller
         $overrideNodeId = $request->query('hierarchy_node_id');
 
         if ($overrideNodeId) {
-            $node = \App\Models\HierarchyNode::find($overrideNodeId);
+            $node = HierarchyNode::find($overrideNodeId);
             $effectiveAttributes = $node
                 ? $hierarchyService->getEffectiveAttributes($node)
                 : collect();
@@ -151,7 +154,7 @@ class ProductAttributeValueController extends Controller
             ->values()
             ->all();
         $unitGroups = !empty($unitGroupIds)
-            ? \App\Models\UnitGroup::with('units')->whereIn('id', $unitGroupIds)->get()->keyBy('id')
+            ? UnitGroup::with('units')->whereIn('id', $unitGroupIds)->get()->keyBy('id')
             : collect();
 
         // Vergleichsoperator-Gruppen mit Operatoren vorladen
@@ -162,7 +165,7 @@ class ProductAttributeValueController extends Controller
             ->values()
             ->all();
         $compOpGroups = !empty($compOpGroupIds)
-            ? \App\Models\ComparisonOperatorGroup::with('operators')->whereIn('id', $compOpGroupIds)->get()->keyBy('id')
+            ? ComparisonOperatorGroup::with('operators')->whereIn('id', $compOpGroupIds)->get()->keyBy('id')
             : collect();
 
         $result = $effectiveAttributes->map(function ($assignment) use ($existingValues, $multipliedValues, $unitGroups, $compOpGroups) {

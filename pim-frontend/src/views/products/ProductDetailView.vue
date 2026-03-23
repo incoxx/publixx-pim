@@ -2390,7 +2390,7 @@ watch(() => route.params.id, async (newId, oldId) => {
           <!-- Translatable attribute: bind to translatedValues -->
           <div v-else-if="attr.is_translatable" class="flex gap-1.5 items-start">
             <select
-              v-if="attr.comparison_operators?.length"
+              v-if="['Number', 'Float'].includes(attr.data_type) && attr.comparison_operators?.length"
               class="pim-input text-[12px] w-14 shrink-0 text-center"
               :value="comparisonOperatorValues[attr.id] || ''"
               :disabled="attr._access === 'read_only' || attr.is_readonly || isAttributeInherited(attr.id) || isTabReadOnly"
@@ -2408,7 +2408,7 @@ watch(() => route.params.id, async (newId, oldId) => {
               @update:modelValue="translatedValues[`${attr.id}_${activeDataLang}`] = $event"
             />
             <select
-              v-if="attr.unit_group?.units?.length"
+              v-if="['Number', 'Float'].includes(attr.data_type) && attr.unit_group?.units?.length"
               class="pim-input text-[12px] w-20 shrink-0"
               :value="unitValues[attr.id] || ''"
               :disabled="attr._access === 'read_only' || attr.is_readonly || isAttributeInherited(attr.id) || isTabReadOnly"
@@ -2421,7 +2421,7 @@ watch(() => route.params.id, async (newId, oldId) => {
           <!-- Normal (non-translatable) attribute -->
           <div v-else class="flex gap-1.5 items-start">
             <select
-              v-if="attr.comparison_operators?.length"
+              v-if="['Number', 'Float'].includes(attr.data_type) && attr.comparison_operators?.length"
               class="pim-input text-[12px] w-14 shrink-0 text-center"
               :value="comparisonOperatorValues[attr.id] || ''"
               :disabled="attr._access === 'read_only' || attr.is_readonly || isAttributeInherited(attr.id) || isTabReadOnly"
@@ -2439,7 +2439,7 @@ watch(() => route.params.id, async (newId, oldId) => {
               @update:modelValue="attributeValues[attr.id] = $event"
             />
             <select
-              v-if="attr.unit_group?.units?.length"
+              v-if="['Number', 'Float'].includes(attr.data_type) && attr.unit_group?.units?.length"
               class="pim-input text-[12px] w-20 shrink-0"
               :value="unitValues[attr.id] || ''"
               :disabled="attr._access === 'read_only' || attr.is_readonly || isAttributeInherited(attr.id) || isTabReadOnly"

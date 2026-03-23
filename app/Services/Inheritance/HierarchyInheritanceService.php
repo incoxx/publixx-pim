@@ -252,6 +252,7 @@ class HierarchyInheritanceService
                 'a.default_unit_id',
                 'a.comparison_operator_group_id',
                 'a.composite_format',
+                'a.composite_expression',
                 'hnaa.parent_assignment_id',
                 'hn.depth as node_depth',
                 DB::raw('MIN(av.name_de) as attribute_view_name_de'),
@@ -265,7 +266,8 @@ class HierarchyInheritanceService
                 'a.is_variant_attribute', 'a.is_internal', 'a.is_multipliable', 'a.max_multiplied',
                 'a.attribute_type_id', 'a.parent_attribute_id',
                 'a.value_list_id', 'a.unit_group_id', 'a.default_unit_id',
-                'a.comparison_operator_group_id', 'a.composite_format', 'hnaa.parent_assignment_id', 'hn.depth',
+                'a.comparison_operator_group_id', 'a.composite_format', 'a.composite_expression',
+                'hnaa.parent_assignment_id', 'hn.depth',
             ])
             ->orderBy('hn.depth', 'asc')
             ->get();
