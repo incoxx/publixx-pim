@@ -6,6 +6,7 @@ namespace App\Providers;
 
 use App\Models\AccessLink;
 use App\Models\Attribute;
+use App\Models\AttributeMapping;
 use App\Models\AttributeType;
 use App\Models\AttributeView;
 use App\Models\Hierarchy;
@@ -35,6 +36,7 @@ use App\Models\Team;
 use App\Models\Workflow;
 use App\Models\WorkflowStatus;
 use App\Policies\AccessLinkPolicy;
+use App\Policies\AttributeMappingPolicy;
 use App\Policies\AttributePolicy;
 use App\Policies\AttributeTypePolicy;
 use App\Policies\AttributeViewPolicy;
@@ -128,6 +130,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(WorkflowStatus::class, WorkflowStatusPolicy::class);
         Gate::policy(WorkflowTask::class, WorkflowTaskPolicy::class);
         Gate::policy(ConnectorConnection::class, ConnectorConnectionPolicy::class);
+        Gate::policy(AttributeMapping::class, AttributeMappingPolicy::class);
 
         // ExportPolicy — no model, registered as Gates
         Gate::define('export.view', [ExportPolicy::class, 'viewAny']);

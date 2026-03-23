@@ -55,6 +55,8 @@ class RoleAndPermissionSeeder extends Seeder
             'export.view', 'export.execute', 'export.mappings.edit',
             // Publixx-Mappings
             'publixx-mappings.view', 'publixx-mappings.create', 'publixx-mappings.edit', 'publixx-mappings.delete',
+            // Attribut-Mappings (Klassifikations-Zuordnung)
+            'attribute-mappings.view', 'attribute-mappings.create', 'attribute-mappings.edit', 'attribute-mappings.delete',
             // Benutzerverwaltung
             'users.view', 'users.create', 'users.edit', 'users.delete',
             'roles.view', 'roles.create', 'roles.edit', 'roles.delete',
@@ -183,6 +185,7 @@ class RoleAndPermissionSeeder extends Seeder
         $exportManager->syncPermissions([
             'export.view', 'export.execute', 'export.mappings.edit',
             'publixx-mappings.view', 'publixx-mappings.create', 'publixx-mappings.edit', 'publixx-mappings.delete',
+            'attribute-mappings.view', 'attribute-mappings.create', 'attribute-mappings.edit', 'attribute-mappings.delete',
             'products.view',
             'product-types.view',
             'attributes.view',
