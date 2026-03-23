@@ -21,7 +21,8 @@ const attributes = ref([])
 const hierarchies = ref([])
 
 // Filter
-const selectedHierarchyId = ref(null)
+const sourceHierarchyId = ref(null)
+const targetHierarchyId = ref(null)
 const searchQuery = ref('')
 
 // Neues Mapping
@@ -34,20 +35,13 @@ const newRule = ref(createEmptyRule())
 
 // ─── Computed ────────────────────────────────────────────
 
-const outputHierarchies = computed(() =>
-  hierarchies.value.filter(h => h.hierarchy_type === 'output')
+const hierarchyPairSelected = computed(() =>
+  sourceHierarchyId.value && targetHierarchyId.value
 )
 
-const sourceAttributes = computed(() =>
-  attributes.value.filter(a => !a.source_system || a.source_system === null)
-)
+const sourceAttributes = computed(() => attributes.value)
 
-const targetAttributes = computed(() => {
-  if (!selectedHierarchyId.value) return attributes.value.filter(a => a.source_system)
-  const hierarchy = hierarchies.value.find(h => h.id === selectedHierarchyId.value)
-  if (!hierarchy) return []
-  return attributes.value.filter(a => a.source_system)
-})
+const targetAttributes = computed(() => attributes.value)
 
 const filteredMappings = computed(() => {
   let result = mappings.value
@@ -70,8 +64,8 @@ onMounted(async () => {
   loading.value = false
 })
 
-watch(selectedHierarchyId, () => {
-  if (selectedHierarchyId.value) {
+watch([sourceHierarchyId, targetHierarchyId], () => {
+  if (hierarchyPairSelected.value) {
     loadMappings()
     loadRules()
   }
@@ -102,7 +96,8 @@ async function loadMappings() {
   error.value = ''
   try {
     const res = await attributeMappingsApi.list({
-      output_hierarchy_id: selectedHierarchyId.value,
+      source_hierarchy_id: sourceHierarchyId.value,
+      target_hierarchy_id: targetHierarchyId.value,
       per_page: 200,
     })
     mappings.value = res.data.data || res.data
@@ -116,7 +111,8 @@ async function loadMappings() {
 async function loadRules() {
   try {
     const res = await attributeMappingsApi.listRules({
-      output_hierarchy_id: selectedHierarchyId.value,
+      source_hierarchy_id: sourceHierarchyId.value,
+      target_hierarchy_id: targetHierarchyId.value,
     })
     rules.value = res.data.data || res.data
   } catch (e) {
@@ -133,7 +129,8 @@ async function addMapping() {
   try {
     await attributeMappingsApi.create({
       ...newMapping.value,
-      output_hierarchy_id: selectedHierarchyId.value,
+      source_hierarchy_id: sourceHierarchyId.value,
+      target_hierarchy_id: targetHierarchyId.value,
     })
     newMapping.value = createEmptyMapping()
     showAddRow.value = false
@@ -163,7 +160,8 @@ async function addRule() {
   try {
     await attributeMappingsApi.createRule({
       ...newRule.value,
-      output_hierarchy_id: selectedHierarchyId.value,
+      source_hierarchy_id: sourceHierarchyId.value,
+      target_hierarchy_id: targetHierarchyId.value,
     })
     newRule.value = createEmptyRule()
     showAddRule.value = false
@@ -266,23 +264,32 @@ const operators = [
       <span>{{ successMsg }}</span>
     </div>
 
-    <!-- Hierarchie-Auswahl -->
+    <!-- Hierarchie-Auswahl: Quelle → Ziel -->
     <div class="card bg-base-200 mb-6">
       <div class="card-body py-4">
-        <div class="flex items-center gap-4">
-          <label class="font-semibold whitespace-nowrap">Ziel-Klassifikation:</label>
-          <select
-            v-model="selectedHierarchyId"
-            class="select select-bordered flex-1"
-          >
-            <option :value="null" disabled>Bitte Klassifikation wählen...</option>
-            <option v-for="h in outputHierarchies" :key="h.id" :value="h.id">
-              {{ h.name_de || h.technical_name }}
-            </option>
-          </select>
+        <div class="flex items-center gap-3">
+          <div class="flex-1">
+            <label class="text-xs font-semibold text-base-content/60 mb-1 block">Quell-Schema</label>
+            <select v-model="sourceHierarchyId" class="select select-bordered w-full">
+              <option :value="null" disabled>Quell-Hierarchie...</option>
+              <option v-for="h in hierarchies" :key="h.id" :value="h.id">
+                {{ h.name_de || h.technical_name }} ({{ h.hierarchy_type }})
+              </option>
+            </select>
+          </div>
+          <ArrowRight class="w-5 h-5 mt-5 text-base-content/30 shrink-0" />
+          <div class="flex-1">
+            <label class="text-xs font-semibold text-base-content/60 mb-1 block">Ziel-Schema</label>
+            <select v-model="targetHierarchyId" class="select select-bordered w-full">
+              <option :value="null" disabled>Ziel-Hierarchie...</option>
+              <option v-for="h in hierarchies" :key="h.id" :value="h.id">
+                {{ h.name_de || h.technical_name }} ({{ h.hierarchy_type }})
+              </option>
+            </select>
+          </div>
           <button
-            v-if="selectedHierarchyId"
-            class="btn btn-ghost btn-sm"
+            v-if="hierarchyPairSelected"
+            class="btn btn-ghost btn-sm mt-5"
             @click="loadMappings(); loadRules()"
             title="Aktualisieren"
           >
@@ -292,10 +299,10 @@ const operators = [
       </div>
     </div>
 
-    <!-- Kein Hierarchie gewählt -->
-    <div v-if="!selectedHierarchyId" class="text-center py-20 text-base-content/40">
+    <!-- Kein Hierarchie-Paar gewählt -->
+    <div v-if="!hierarchyPairSelected" class="text-center py-20 text-base-content/40">
       <Filter class="w-12 h-12 mx-auto mb-3 opacity-30" />
-      <p>Wähle eine Ziel-Klassifikation, um die Mappings zu bearbeiten.</p>
+      <p>Wähle Quell- und Ziel-Schema, um die Attribut-Zuordnungen zu bearbeiten.</p>
     </div>
 
     <!-- Mapping-Tabelle -->

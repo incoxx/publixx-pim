@@ -14,9 +14,10 @@ class AttributeMapping extends Model
     use HasFactory, HasUuids;
 
     protected $fillable = [
+        'source_hierarchy_id',
         'source_attribute_id',
+        'target_hierarchy_id',
         'target_attribute_id',
-        'output_hierarchy_id',
         'transform_type',
         'transform_config',
         'ai_suggested',
@@ -35,9 +36,19 @@ class AttributeMapping extends Model
         ];
     }
 
+    public function sourceHierarchy(): BelongsTo
+    {
+        return $this->belongsTo(Hierarchy::class, 'source_hierarchy_id');
+    }
+
     public function sourceAttribute(): BelongsTo
     {
         return $this->belongsTo(Attribute::class, 'source_attribute_id');
+    }
+
+    public function targetHierarchy(): BelongsTo
+    {
+        return $this->belongsTo(Hierarchy::class, 'target_hierarchy_id');
     }
 
     public function targetAttribute(): BelongsTo
@@ -45,14 +56,8 @@ class AttributeMapping extends Model
         return $this->belongsTo(Attribute::class, 'target_attribute_id');
     }
 
-    public function outputHierarchy(): BelongsTo
-    {
-        return $this->belongsTo(Hierarchy::class, 'output_hierarchy_id');
-    }
-
     public function confirmedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'ai_confirmed_by');
     }
-
 }

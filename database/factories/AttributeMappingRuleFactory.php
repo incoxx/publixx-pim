@@ -16,7 +16,8 @@ class AttributeMappingRuleFactory extends Factory
     public function definition(): array
     {
         return [
-            'output_hierarchy_id' => Hierarchy::factory(),
+            'source_hierarchy_id' => Hierarchy::factory(),
+            'target_hierarchy_id' => Hierarchy::factory(),
             'name' => fake()->sentence(3),
             'condition_attribute_id' => Attribute::factory(),
             'condition_operator' => '=',

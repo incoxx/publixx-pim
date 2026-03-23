@@ -14,7 +14,8 @@ class AttributeMappingRule extends Model
     use HasFactory, HasUuids;
 
     protected $fillable = [
-        'output_hierarchy_id',
+        'source_hierarchy_id',
+        'target_hierarchy_id',
         'name',
         'condition_attribute_id',
         'condition_operator',
@@ -34,9 +35,14 @@ class AttributeMappingRule extends Model
         ];
     }
 
-    public function outputHierarchy(): BelongsTo
+    public function sourceHierarchy(): BelongsTo
     {
-        return $this->belongsTo(Hierarchy::class, 'output_hierarchy_id');
+        return $this->belongsTo(Hierarchy::class, 'source_hierarchy_id');
+    }
+
+    public function targetHierarchy(): BelongsTo
+    {
+        return $this->belongsTo(Hierarchy::class, 'target_hierarchy_id');
     }
 
     public function conditionAttribute(): BelongsTo

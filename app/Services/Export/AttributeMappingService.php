@@ -22,27 +22,34 @@ use Illuminate\Support\Collection;
 class AttributeMappingService
 {
     /**
-     * Gecachete Mappings pro Hierarchie (innerhalb eines Request-Lifecycle).
+     * Gecachete Mappings pro Hierarchie-Paar (innerhalb eines Request-Lifecycle).
      */
     private array $mappingCache = [];
     private array $ruleCache = [];
     private array $attributeCache = [];
 
     /**
-     * Alle Ziel-Attributwerte für ein Produkt in einer Klassifikation ermitteln.
+     * Alle Ziel-Attributwerte für ein Produkt ermitteln.
      *
+     * @param  string $sourceHierarchyId  Quell-Hierarchie (z.B. Master)
+     * @param  string $targetHierarchyId  Ziel-Hierarchie (z.B. ETIM)
      * @return array<string, mixed> Assoziatives Array: target_attribute_technical_name => resolved_value
      */
-    public function resolveForProduct(Product $product, string $outputHierarchyId, ?string $language = null): array
-    {
-        $mappings = $this->getMappingsForHierarchy($outputHierarchyId);
-        $rules = $this->getRulesForHierarchy($outputHierarchyId);
+    public function resolveForProduct(
+        Product $product,
+        string $sourceHierarchyId,
+        string $targetHierarchyId,
+        ?string $language = null
+    ): array {
+        $cacheKey = "{$sourceHierarchyId}:{$targetHierarchyId}";
+        $mappings = $this->getMappings($sourceHierarchyId, $targetHierarchyId);
+        $rules = $this->getRules($sourceHierarchyId, $targetHierarchyId);
         $result = [];
 
         // 1. Einfache Mappings (source → target)
         foreach ($mappings as $mapping) {
             $targetTechName = $mapping->targetAttribute->technical_name;
-            $value = $this->resolveMapping($product, $mapping, $outputHierarchyId, $language);
+            $value = $this->resolveMapping($product, $mapping, $targetHierarchyId, $language);
 
             if ($value !== null) {
                 $result[$targetTechName] = $value;
@@ -63,7 +70,7 @@ class AttributeMappingService
                     $actionValue = $this->resolveActionValue($action, $product, $language);
                     if ($actionValue !== null) {
                         // Bedingte Regel überschreibt NICHT einen direkten Override
-                        $directValue = $this->getDirectValue($product, $targetAttr->id, $outputHierarchyId, $language);
+                        $directValue = $this->getDirectValue($product, $targetAttr->id, $targetHierarchyId, $language);
                         if ($directValue === null) {
                             $result[$targetAttr->technical_name] = $actionValue;
                         }
@@ -83,14 +90,14 @@ class AttributeMappingService
     public function resolveMapping(
         Product $product,
         AttributeMapping $mapping,
-        string $outputHierarchyId,
+        string $targetHierarchyId,
         ?string $language = null
     ): mixed {
         // 1. Direkter Wert? (manuell gepflegt, output_hierarchy_id-scoped)
         $directValue = $this->getDirectValue(
             $product,
             $mapping->target_attribute_id,
-            $outputHierarchyId,
+            $targetHierarchyId,
             $language
         );
 
@@ -114,19 +121,19 @@ class AttributeMappingService
     }
 
     /**
-     * Direkten Wert für ein Ziel-Attribut in einer Output-Hierarchie holen.
+     * Direkten Wert für ein Ziel-Attribut in einer Ziel-Hierarchie holen.
      */
     protected function getDirectValue(
         Product $product,
         string $attributeId,
-        string $outputHierarchyId,
+        string $targetHierarchyId,
         ?string $language
     ): mixed {
         $values = $product->attributeValues ?? collect();
 
-        $av = $values->first(function (ProductAttributeValue $val) use ($attributeId, $outputHierarchyId, $language) {
+        $av = $values->first(function (ProductAttributeValue $val) use ($attributeId, $targetHierarchyId, $language) {
             return $val->attribute_id === $attributeId
-                && $val->output_hierarchy_id === $outputHierarchyId
+                && $val->output_hierarchy_id === $targetHierarchyId
                 && ($val->language === $language || $val->language === null);
         });
 
@@ -241,33 +248,37 @@ class AttributeMappingService
     }
 
     /**
-     * Mappings für eine Hierarchie laden (gecacht).
+     * Mappings für ein Hierarchie-Paar laden (gecacht).
      */
-    protected function getMappingsForHierarchy(string $hierarchyId): Collection
+    protected function getMappings(string $sourceHierarchyId, string $targetHierarchyId): Collection
     {
-        if (!isset($this->mappingCache[$hierarchyId])) {
-            $this->mappingCache[$hierarchyId] = AttributeMapping::with(['sourceAttribute', 'targetAttribute'])
-                ->where('output_hierarchy_id', $hierarchyId)
+        $key = "{$sourceHierarchyId}:{$targetHierarchyId}";
+        if (!isset($this->mappingCache[$key])) {
+            $this->mappingCache[$key] = AttributeMapping::with(['sourceAttribute', 'targetAttribute'])
+                ->where('source_hierarchy_id', $sourceHierarchyId)
+                ->where('target_hierarchy_id', $targetHierarchyId)
                 ->get();
         }
 
-        return $this->mappingCache[$hierarchyId];
+        return $this->mappingCache[$key];
     }
 
     /**
-     * Bedingte Regeln für eine Hierarchie laden (gecacht).
+     * Bedingte Regeln für ein Hierarchie-Paar laden (gecacht).
      */
-    protected function getRulesForHierarchy(string $hierarchyId): Collection
+    protected function getRules(string $sourceHierarchyId, string $targetHierarchyId): Collection
     {
-        if (!isset($this->ruleCache[$hierarchyId])) {
-            $this->ruleCache[$hierarchyId] = AttributeMappingRule::with('conditionAttribute')
-                ->where('output_hierarchy_id', $hierarchyId)
+        $key = "{$sourceHierarchyId}:{$targetHierarchyId}";
+        if (!isset($this->ruleCache[$key])) {
+            $this->ruleCache[$key] = AttributeMappingRule::with('conditionAttribute')
+                ->where('source_hierarchy_id', $sourceHierarchyId)
+                ->where('target_hierarchy_id', $targetHierarchyId)
                 ->where('is_active', true)
                 ->orderBy('sort_order')
                 ->get();
         }
 
-        return $this->ruleCache[$hierarchyId];
+        return $this->ruleCache[$key];
     }
 
     /**

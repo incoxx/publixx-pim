@@ -16,9 +16,10 @@ class StoreAttributeMappingRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'source_hierarchy_id' => 'required|uuid|exists:hierarchies,id',
             'source_attribute_id' => 'required|uuid|exists:attributes,id',
+            'target_hierarchy_id' => 'required|uuid|exists:hierarchies,id',
             'target_attribute_id' => 'required|uuid|exists:attributes,id',
-            'output_hierarchy_id' => 'required|uuid|exists:hierarchies,id',
             'transform_type' => 'sometimes|string|in:direct,unit_convert,value_map',
             'transform_config' => 'nullable|array',
             'ai_suggested' => 'sometimes|boolean',

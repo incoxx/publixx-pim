@@ -16,9 +16,10 @@ class AttributeMappingFactory extends Factory
     public function definition(): array
     {
         return [
+            'source_hierarchy_id' => Hierarchy::factory(),
             'source_attribute_id' => Attribute::factory(),
+            'target_hierarchy_id' => Hierarchy::factory(),
             'target_attribute_id' => Attribute::factory(),
-            'output_hierarchy_id' => Hierarchy::factory(),
             'transform_type' => 'direct',
             'transform_config' => null,
             'ai_suggested' => false,

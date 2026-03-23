@@ -17,16 +17,22 @@ use Illuminate\Support\Facades\DB;
 class AttributeMappingController extends Controller
 {
     /**
-     * Alle Mappings auflisten (optional gefiltert nach Hierarchie).
+     * Alle Mappings auflisten (gefiltert nach Quell- und/oder Ziel-Hierarchie).
      */
     public function index(Request $request): AnonymousResourceCollection
     {
         $this->authorize('viewAny', AttributeMapping::class);
 
-        $query = AttributeMapping::with(['sourceAttribute', 'targetAttribute', 'outputHierarchy']);
+        $query = AttributeMapping::with([
+            'sourceHierarchy', 'sourceAttribute',
+            'targetHierarchy', 'targetAttribute',
+        ]);
 
-        if ($request->filled('output_hierarchy_id')) {
-            $query->where('output_hierarchy_id', $request->input('output_hierarchy_id'));
+        if ($request->filled('source_hierarchy_id')) {
+            $query->where('source_hierarchy_id', $request->input('source_hierarchy_id'));
+        }
+        if ($request->filled('target_hierarchy_id')) {
+            $query->where('target_hierarchy_id', $request->input('target_hierarchy_id'));
         }
 
         $this->applySorting($query, $request, 'created_at', 'desc');
@@ -44,7 +50,7 @@ class AttributeMappingController extends Controller
         $this->authorize('create', AttributeMapping::class);
 
         $mapping = AttributeMapping::create($request->validated());
-        $mapping->load(['sourceAttribute', 'targetAttribute', 'outputHierarchy']);
+        $mapping->load(['sourceHierarchy', 'sourceAttribute', 'targetHierarchy', 'targetAttribute']);
 
         return (new AttributeMappingResource($mapping))
             ->response()
@@ -58,7 +64,7 @@ class AttributeMappingController extends Controller
     {
         $this->authorize('view', $attributeMapping);
 
-        $attributeMapping->load(['sourceAttribute', 'targetAttribute', 'outputHierarchy']);
+        $attributeMapping->load(['sourceHierarchy', 'sourceAttribute', 'targetHierarchy', 'targetAttribute']);
 
         return new AttributeMappingResource($attributeMapping);
     }
@@ -72,7 +78,9 @@ class AttributeMappingController extends Controller
 
         $attributeMapping->update($request->validated());
 
-        return new AttributeMappingResource($attributeMapping->fresh(['sourceAttribute', 'targetAttribute', 'outputHierarchy']));
+        return new AttributeMappingResource(
+            $attributeMapping->fresh(['sourceHierarchy', 'sourceAttribute', 'targetHierarchy', 'targetAttribute'])
+        );
     }
 
     /**
@@ -96,9 +104,10 @@ class AttributeMappingController extends Controller
 
         $request->validate([
             'mappings' => 'required|array|min:1|max:500',
+            'mappings.*.source_hierarchy_id' => 'required|uuid|exists:hierarchies,id',
             'mappings.*.source_attribute_id' => 'required|uuid|exists:attributes,id',
+            'mappings.*.target_hierarchy_id' => 'required|uuid|exists:hierarchies,id',
             'mappings.*.target_attribute_id' => 'required|uuid|exists:attributes,id',
-            'mappings.*.output_hierarchy_id' => 'required|uuid|exists:hierarchies,id',
             'mappings.*.transform_type' => 'sometimes|string|in:direct,unit_convert,value_map',
             'mappings.*.transform_config' => 'nullable|array',
         ]);
@@ -110,9 +119,10 @@ class AttributeMappingController extends Controller
             foreach ($request->input('mappings') as $data) {
                 $mapping = AttributeMapping::updateOrCreate(
                     [
+                        'source_hierarchy_id' => $data['source_hierarchy_id'],
                         'source_attribute_id' => $data['source_attribute_id'],
+                        'target_hierarchy_id' => $data['target_hierarchy_id'],
                         'target_attribute_id' => $data['target_attribute_id'],
-                        'output_hierarchy_id' => $data['output_hierarchy_id'],
                     ],
                     [
                         'transform_type' => $data['transform_type'] ?? 'direct',
@@ -137,7 +147,7 @@ class AttributeMappingController extends Controller
     // ─── Bedingte Regeln ─────────────────────────────────────
 
     /**
-     * Alle Regeln für eine Hierarchie auflisten.
+     * Alle Regeln auflisten (gefiltert nach Hierarchie-Paar).
      */
     public function rules(Request $request): JsonResponse
     {
@@ -145,8 +155,11 @@ class AttributeMappingController extends Controller
 
         $query = AttributeMappingRule::with('conditionAttribute');
 
-        if ($request->filled('output_hierarchy_id')) {
-            $query->where('output_hierarchy_id', $request->input('output_hierarchy_id'));
+        if ($request->filled('source_hierarchy_id')) {
+            $query->where('source_hierarchy_id', $request->input('source_hierarchy_id'));
+        }
+        if ($request->filled('target_hierarchy_id')) {
+            $query->where('target_hierarchy_id', $request->input('target_hierarchy_id'));
         }
 
         $rules = $query->orderBy('sort_order')->get();
@@ -162,7 +175,8 @@ class AttributeMappingController extends Controller
         $this->authorize('create', AttributeMapping::class);
 
         $request->validate([
-            'output_hierarchy_id' => 'required|uuid|exists:hierarchies,id',
+            'source_hierarchy_id' => 'required|uuid|exists:hierarchies,id',
+            'target_hierarchy_id' => 'required|uuid|exists:hierarchies,id',
             'name' => 'required|string|max:255',
             'condition_attribute_id' => 'required|uuid|exists:attributes,id',
             'condition_operator' => 'required|string|in:=,!=,>,<,>=,<=,in,not_in,contains,is_empty,is_not_empty',
@@ -176,9 +190,9 @@ class AttributeMappingController extends Controller
         ]);
 
         $rule = AttributeMappingRule::create($request->only([
-            'output_hierarchy_id', 'name', 'condition_attribute_id',
-            'condition_operator', 'condition_value', 'actions',
-            'is_active', 'sort_order',
+            'source_hierarchy_id', 'target_hierarchy_id', 'name',
+            'condition_attribute_id', 'condition_operator', 'condition_value',
+            'actions', 'is_active', 'sort_order',
         ]));
 
         return response()->json(['data' => $rule->load('conditionAttribute')], 201);

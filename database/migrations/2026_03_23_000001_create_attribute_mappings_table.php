@@ -12,9 +12,14 @@ return new class extends Migration
     {
         Schema::create('attribute_mappings', function (Blueprint $table) {
             $table->uuid('id')->primary();
+
+            // Quell-Schema (z.B. Master-Hierarchie)
+            $table->foreignUuid('source_hierarchy_id')->constrained('hierarchies')->cascadeOnDelete();
             $table->foreignUuid('source_attribute_id')->constrained('attributes')->cascadeOnDelete();
+
+            // Ziel-Schema (z.B. ETIM-Klassifikation)
+            $table->foreignUuid('target_hierarchy_id')->constrained('hierarchies')->cascadeOnDelete();
             $table->foreignUuid('target_attribute_id')->constrained('attributes')->cascadeOnDelete();
-            $table->foreignUuid('output_hierarchy_id')->constrained('hierarchies')->cascadeOnDelete();
 
             // Transformation
             $table->string('transform_type', 50)->default('direct'); // direct, unit_convert, value_map
@@ -28,14 +33,15 @@ return new class extends Migration
 
             $table->timestamps();
 
-            // Ein Quell-Attribut kann pro Hierarchie nur einmal auf ein Ziel-Attribut gemappt werden
+            // Ein Quell-Attribut kann pro Hierarchie-Paar nur einmal auf ein Ziel-Attribut gemappt werden
             $table->unique(
-                ['source_attribute_id', 'target_attribute_id', 'output_hierarchy_id'],
-                'attr_map_src_tgt_hierarchy_unique'
+                ['source_hierarchy_id', 'source_attribute_id', 'target_hierarchy_id', 'target_attribute_id'],
+                'attr_map_src_tgt_unique'
             );
 
-            // Schnelle Lookups beim Export: alle Mappings für eine Hierarchie
-            $table->index(['output_hierarchy_id', 'target_attribute_id'], 'idx_attr_map_hierarchy_target');
+            // Schnelle Lookups beim Export: alle Mappings für ein Hierarchie-Paar
+            $table->index(['source_hierarchy_id', 'target_hierarchy_id'], 'idx_attr_map_hierarchies');
+            $table->index(['target_hierarchy_id', 'target_attribute_id'], 'idx_attr_map_target');
         });
     }
 

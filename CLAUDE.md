@@ -115,9 +115,10 @@ behandelt, sondern als native PIM-Objekte:
 ```sql
 CREATE TABLE attribute_mappings (
     id                   UUID PRIMARY KEY,
+    source_hierarchy_id  UUID REFERENCES hierarchies(id),  -- Quell-Schema (z.B. Master)
     source_attribute_id  UUID REFERENCES attributes(id),
+    target_hierarchy_id  UUID REFERENCES hierarchies(id),  -- Ziel-Schema (z.B. ETIM)
     target_attribute_id  UUID REFERENCES attributes(id),
-    output_hierarchy_id  UUID REFERENCES hierarchies(id),
 
     -- Transformation
     transform_type       VARCHAR(50) DEFAULT 'direct',  -- direct, unit_convert, value_map
