@@ -128,7 +128,7 @@ function moveDown(index) {
         />
         <select
           v-if="unitGroup?.units?.length"
-          class="pim-input text-[12px] w-20 shrink-0"
+          class="pim-input text-[12px] !w-16 !min-w-0 shrink-0 !px-1"
           :value="entry.unit_id || ''"
           :disabled="disabled"
           @change="updateUnit(index, $event.target.value)"
