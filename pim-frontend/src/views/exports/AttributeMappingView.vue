@@ -390,7 +390,7 @@ const operators = [
         <div class="flex items-center gap-3">
           <div class="flex-1">
             <label class="text-xs font-semibold text-[var(--color-text-tertiary)] mb-1 block">Quell-Schema</label>
-            <select v-model="sourceHierarchyId" class="select select-bordered w-full">
+            <select v-model="sourceHierarchyId" class="pim-input w-full">
               <option :value="null" disabled>Quell-Hierarchie...</option>
               <option v-for="h in hierarchies" :key="h.id" :value="h.id">
                 {{ h.name_de || h.technical_name }} ({{ h.hierarchy_type }})
@@ -400,7 +400,7 @@ const operators = [
           <ArrowRight class="w-5 h-5 mt-5 text-[var(--color-border-strong)] shrink-0" />
           <div class="flex-1">
             <label class="text-xs font-semibold text-[var(--color-text-tertiary)] mb-1 block">Ziel-Schema</label>
-            <select v-model="targetHierarchyId" class="select select-bordered w-full">
+            <select v-model="targetHierarchyId" class="pim-input w-full">
               <option :value="null" disabled>Ziel-Hierarchie...</option>
               <option v-for="h in hierarchies" :key="h.id" :value="h.id">
                 {{ h.name_de || h.technical_name }} ({{ h.hierarchy_type }})
@@ -436,7 +436,7 @@ const operators = [
                 v-model="searchQuery"
                 type="text"
                 placeholder="Suchen..."
-                class="input input-bordered input-sm w-48"
+                class="pim-input text-sm w-48"
               />
               <button class="btn btn-outline btn-sm" @click="exportExcel" :disabled="exporting" title="Als Excel exportieren">
                 <Download class="w-4 h-4" :class="{ 'animate-pulse': exporting }" /> Export
@@ -473,7 +473,7 @@ const operators = [
               <!-- Neue Zeile -->
               <tr v-if="showAddRow" class="bg-[color-mix(in_srgb,var(--color-accent)_5%,transparent)]">
                 <td>
-                  <select v-model="newMapping.source_attribute_id" class="select select-bordered select-sm w-full">
+                  <select v-model="newMapping.source_attribute_id" class="pim-input text-sm w-full">
                     <option :value="null" disabled>Quell-Attribut...</option>
                     <option v-for="a in sourceAttributes" :key="a.id" :value="a.id">
                       {{ a.name_de }} ({{ a.technical_name }})
@@ -484,7 +484,7 @@ const operators = [
                   <ArrowRight class="w-4 h-4 mx-auto" />
                 </td>
                 <td>
-                  <select v-model="newMapping.target_attribute_id" class="select select-bordered select-sm w-full">
+                  <select v-model="newMapping.target_attribute_id" class="pim-input text-sm w-full">
                     <option :value="null" disabled>Ziel-Attribut...</option>
                     <option v-for="a in targetAttributes" :key="a.id" :value="a.id">
                       {{ a.name_de }} ({{ a.technical_name }})
@@ -492,7 +492,7 @@ const operators = [
                   </select>
                 </td>
                 <td>
-                  <select v-model="newMapping.transform_type" class="select select-bordered select-sm">
+                  <select v-model="newMapping.transform_type" class="pim-input text-sm">
                     <option v-for="t in transformTypes" :key="t.value" :value="t.value">{{ t.label }}</option>
                   </select>
                 </td>
@@ -565,27 +565,27 @@ const operators = [
           <!-- Regel-Formular -->
           <div v-if="showAddRule" class="p-4 bg-[color-mix(in_srgb,var(--color-accent)_5%,transparent)] border-b border-[var(--color-border)]">
             <div class="grid grid-cols-2 gap-3 mb-3">
-              <input v-model="newRule.name" type="text" placeholder="Regelname" class="input input-bordered input-sm" />
+              <input v-model="newRule.name" type="text" placeholder="Regelname" class="pim-input text-sm" />
               <div class="flex gap-2">
-                <select v-model="newRule.condition_attribute_id" class="select select-bordered select-sm flex-1">
+                <select v-model="newRule.condition_attribute_id" class="pim-input text-sm flex-1">
                   <option :value="null" disabled>Bedingung: Attribut...</option>
                   <option v-for="a in sourceAttributes" :key="a.id" :value="a.id">{{ a.name_de }}</option>
                 </select>
-                <select v-model="newRule.condition_operator" class="select select-bordered select-sm w-24">
+                <select v-model="newRule.condition_operator" class="pim-input text-sm w-24">
                   <option v-for="op in operators" :key="op.value" :value="op.value">{{ op.label }}</option>
                 </select>
-                <input v-model="newRule.condition_value" type="text" placeholder="Wert" class="input input-bordered input-sm w-32" />
+                <input v-model="newRule.condition_value" type="text" placeholder="Wert" class="pim-input text-sm w-32" />
               </div>
             </div>
 
             <div class="text-sm font-semibold mb-2">Dann setze:</div>
             <div v-for="(action, i) in newRule.actions" :key="i" class="flex gap-2 mb-2">
-              <select v-model="action.target_attribute_id" class="select select-bordered select-sm flex-1">
+              <select v-model="action.target_attribute_id" class="pim-input text-sm flex-1">
                 <option :value="null" disabled>Ziel-Attribut...</option>
                 <option v-for="a in targetAttributes" :key="a.id" :value="a.id">{{ a.name_de }}</option>
               </select>
               <span class="self-center">=</span>
-              <input v-model="action.value" type="text" placeholder="Wert" class="input input-bordered input-sm w-40" />
+              <input v-model="action.value" type="text" placeholder="Wert" class="pim-input text-sm w-40" />
               <button v-if="newRule.actions.length > 1" class="btn btn-ghost btn-xs" @click="removeRuleAction(i)">×</button>
             </div>
 
