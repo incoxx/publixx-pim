@@ -364,7 +364,7 @@ const operators = [
 </script>
 
 <template>
-  <div class="p-6 max-w-7xl mx-auto">
+  <div class="p-3 sm:p-6 max-w-7xl mx-auto">
     <!-- Header -->
     <div class="flex items-center justify-between mb-6">
       <div>
@@ -387,8 +387,8 @@ const operators = [
     <!-- Hierarchie-Auswahl: Quelle → Ziel -->
     <div class="card bg-[var(--color-surface-nav)] border border-[var(--color-border)] mb-6">
       <div class="card-body py-4">
-        <div class="flex items-center gap-3">
-          <div class="flex-1">
+        <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+          <div class="flex-1 min-w-0">
             <label class="text-xs font-semibold text-[var(--color-text-tertiary)] mb-1 block">Quell-Schema</label>
             <select v-model="sourceHierarchyId" class="pim-input w-full">
               <option :value="null" disabled>Quell-Hierarchie...</option>
@@ -397,8 +397,8 @@ const operators = [
               </option>
             </select>
           </div>
-          <ArrowRight class="w-5 h-5 mt-5 text-[var(--color-border-strong)] shrink-0" />
-          <div class="flex-1">
+          <ArrowRight class="w-5 h-5 text-[var(--color-border-strong)] shrink-0 hidden sm:block sm:mt-5" />
+          <div class="flex-1 min-w-0">
             <label class="text-xs font-semibold text-[var(--color-text-tertiary)] mb-1 block">Ziel-Schema</label>
             <select v-model="targetHierarchyId" class="pim-input w-full">
               <option :value="null" disabled>Ziel-Hierarchie...</option>
@@ -409,7 +409,7 @@ const operators = [
           </div>
           <button
             v-if="hierarchyPairSelected"
-            class="btn btn-ghost btn-sm mt-5"
+            class="btn btn-ghost btn-sm sm:mt-5 self-end"
             @click="loadMappings(); loadRules()"
             title="Aktualisieren"
           >
@@ -429,27 +429,27 @@ const operators = [
     <template v-else>
       <div class="card bg-[var(--color-surface)] border border-[var(--color-border)] shadow-sm mb-6">
         <div class="card-body p-0">
-          <div class="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)]">
-            <h2 class="font-semibold">Attribut-Zuordnungen ({{ filteredMappings.length }})</h2>
-            <div class="flex gap-2">
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 py-3 border-b border-[var(--color-border)]">
+            <h2 class="font-semibold whitespace-nowrap">Attribut-Zuordnungen ({{ filteredMappings.length }})</h2>
+            <div class="flex flex-wrap gap-2">
               <input
                 v-model="searchQuery"
                 type="text"
                 placeholder="Suchen..."
-                class="pim-input text-sm w-48"
+                class="pim-input text-sm w-full sm:w-48"
               />
               <button class="btn btn-outline btn-sm" @click="exportExcel" :disabled="exporting" title="Als Excel exportieren">
-                <Download class="w-4 h-4" :class="{ 'animate-pulse': exporting }" /> Export
+                <Download class="w-4 h-4" :class="{ 'animate-pulse': exporting }" /> <span class="hidden sm:inline">Export</span>
               </button>
               <button class="btn btn-outline btn-sm" @click="triggerImport" :disabled="importing" title="Aus Excel importieren">
-                <Upload class="w-4 h-4" :class="{ 'animate-pulse': importing }" /> Import
+                <Upload class="w-4 h-4" :class="{ 'animate-pulse': importing }" /> <span class="hidden sm:inline">Import</span>
               </button>
               <input ref="importFileInput" type="file" accept=".xlsx,.xls" class="hidden" @change="handleImportFile" />
               <button class="btn btn-outline btn-sm" @click="syncAll" :disabled="syncing">
-                <RefreshCw class="w-4 h-4" :class="{ 'animate-spin': syncing }" /> Alle synchronisieren
+                <RefreshCw class="w-4 h-4" :class="{ 'animate-spin': syncing }" /> <span class="hidden sm:inline">Sync</span>
               </button>
               <button class="btn btn-primary btn-sm" @click="showAddRow = true">
-                <Plus class="w-4 h-4" /> Mapping
+                <Plus class="w-4 h-4" /> <span class="hidden sm:inline">Mapping</span>
               </button>
             </div>
           </div>
@@ -458,7 +458,8 @@ const operators = [
             <Loader2 class="w-6 h-6 animate-spin" />
           </div>
 
-          <table v-else class="table table-sm">
+          <div v-else class="overflow-x-auto">
+          <table class="table table-sm">
             <thead>
               <tr>
                 <th>Quell-Attribut</th>
@@ -549,13 +550,14 @@ const operators = [
               </tr>
             </tbody>
           </table>
+          </div>
         </div>
       </div>
 
       <!-- Bedingte Regeln -->
       <div class="card bg-[var(--color-surface)] border border-[var(--color-border)] shadow-sm">
         <div class="card-body p-0">
-          <div class="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)]">
+          <div class="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-[var(--color-border)]">
             <h2 class="font-semibold">Bedingte Regeln ({{ rules.length }})</h2>
             <button class="btn btn-primary btn-sm" @click="showAddRule = true">
               <Plus class="w-4 h-4" /> Regel
@@ -563,29 +565,29 @@ const operators = [
           </div>
 
           <!-- Regel-Formular -->
-          <div v-if="showAddRule" class="p-4 bg-[color-mix(in_srgb,var(--color-accent)_5%,transparent)] border-b border-[var(--color-border)]">
-            <div class="grid grid-cols-2 gap-3 mb-3">
+          <div v-if="showAddRule" class="p-3 sm:p-4 bg-[color-mix(in_srgb,var(--color-accent)_5%,transparent)] border-b border-[var(--color-border)]">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
               <input v-model="newRule.name" type="text" placeholder="Regelname" class="pim-input text-sm" />
-              <div class="flex gap-2">
-                <select v-model="newRule.condition_attribute_id" class="pim-input text-sm flex-1">
+              <div class="flex flex-wrap gap-2">
+                <select v-model="newRule.condition_attribute_id" class="pim-input text-sm flex-1 min-w-[120px]">
                   <option :value="null" disabled>Bedingung: Attribut...</option>
                   <option v-for="a in sourceAttributes" :key="a.id" :value="a.id">{{ a.name_de }}</option>
                 </select>
-                <select v-model="newRule.condition_operator" class="pim-input text-sm w-24">
+                <select v-model="newRule.condition_operator" class="pim-input text-sm w-20 sm:w-24">
                   <option v-for="op in operators" :key="op.value" :value="op.value">{{ op.label }}</option>
                 </select>
-                <input v-model="newRule.condition_value" type="text" placeholder="Wert" class="pim-input text-sm w-32" />
+                <input v-model="newRule.condition_value" type="text" placeholder="Wert" class="pim-input text-sm w-full sm:w-32" />
               </div>
             </div>
 
             <div class="text-sm font-semibold mb-2">Dann setze:</div>
-            <div v-for="(action, i) in newRule.actions" :key="i" class="flex gap-2 mb-2">
+            <div v-for="(action, i) in newRule.actions" :key="i" class="flex flex-wrap gap-2 mb-2">
               <select v-model="action.target_attribute_id" class="pim-input text-sm flex-1">
                 <option :value="null" disabled>Ziel-Attribut...</option>
                 <option v-for="a in targetAttributes" :key="a.id" :value="a.id">{{ a.name_de }}</option>
               </select>
               <span class="self-center">=</span>
-              <input v-model="action.value" type="text" placeholder="Wert" class="pim-input text-sm w-40" />
+              <input v-model="action.value" type="text" placeholder="Wert" class="pim-input text-sm w-full sm:w-40" />
               <button v-if="newRule.actions.length > 1" class="btn btn-ghost btn-xs" @click="removeRuleAction(i)">×</button>
             </div>
 
@@ -616,7 +618,7 @@ const operators = [
                 <Trash2 class="w-3 h-3" />
               </button>
             </div>
-            <div class="text-sm text-[var(--color-text-secondary)] mt-1">
+            <div class="text-sm text-[var(--color-text-secondary)] mt-1 break-words">
               WENN <strong>{{ getAttributeName(rule.condition_attribute_id) }}</strong>
               {{ operators.find(o => o.value === rule.condition_operator)?.label || rule.condition_operator }}
               <strong>{{ rule.condition_value }}</strong>

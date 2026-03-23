@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Observers;
 
-use App\Jobs\SyncAttributeMappings;
 use App\Jobs\UpdateSearchIndex;
 use App\Models\Product;
 use App\Models\ProductAttributeValue;
@@ -57,13 +56,9 @@ class AttributeValueObserver
         //    müssen deren Caches auch invalidiert werden (Vererbung).
         $this->invalidateVariantCascade($productId);
 
-        // 4. Attribut-Mapping Auto-Sync: Wenn dieses Attribut als Mapping-Quelle
-        //    konfiguriert ist, Ziel-Werte async aktualisieren.
-        //    Nur Master-Werte (ohne output_hierarchy_id) triggern Sync.
-        if ($value->output_hierarchy_id === null) {
-            SyncAttributeMappings::dispatch(productId: $productId)
-                ->afterCommit();
-        }
+        // 4. Attribut-Mapping Sync wird jetzt synchron im
+        //    ProductAttributeValueController::bulkUpdate() ausgeführt,
+        //    damit die Ergebnisse sofort sichtbar sind.
 
         Log::debug('AttributeValueObserver::change', [
             'product_id' => $productId,
