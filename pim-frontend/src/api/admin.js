@@ -41,6 +41,10 @@ export default {
     return client.get('/admin/search-reindex/progress')
   },
 
+  cancelReindex() {
+    return client.post('/admin/search-reindex/cancel')
+  },
+
   getEnvInfo() {
     return client.get('/admin/env-info')
   },

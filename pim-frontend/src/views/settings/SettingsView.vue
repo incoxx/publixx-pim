@@ -1303,6 +1303,7 @@ const showConfirmDeploy = ref(false)
 
 // Search reindex
 const reindexing = ref(false)
+const reindexCancelling = ref(false)
 const reindexResult = ref(null)
 const reindexError = ref(null)
 const reindexProgress = ref(null)
@@ -1337,10 +1338,17 @@ function startReindexPolling() {
       if (data.progress.status === 'completed') {
         stopReindexPolling()
         reindexing.value = false
+        reindexCancelling.value = false
         reindexResult.value = { message: `Suchindex aktualisiert: ${data.progress.total.toLocaleString('de-DE')} Produkte indiziert.` }
+      } else if (data.progress.status === 'cancelled') {
+        stopReindexPolling()
+        reindexing.value = false
+        reindexCancelling.value = false
+        reindexResult.value = { message: `Suchindex-Aufbau abgebrochen bei ${data.progress.processed.toLocaleString('de-DE')} von ${data.progress.total.toLocaleString('de-DE')} Produkten.`, cancelled: true }
       } else if (data.progress.status === 'failed') {
         stopReindexPolling()
         reindexing.value = false
+        reindexCancelling.value = false
         reindexError.value = data.progress.error || 'Reindex fehlgeschlagen'
       }
     } catch {
@@ -1353,6 +1361,15 @@ function stopReindexPolling() {
   if (reindexPollTimer) {
     clearInterval(reindexPollTimer)
     reindexPollTimer = null
+  }
+}
+
+async function cancelReindex() {
+  reindexCancelling.value = true
+  try {
+    await adminApi.cancelReindex()
+  } catch {
+    reindexCancelling.value = false
   }
 }
 
@@ -1403,6 +1420,9 @@ async function triggerCombinedProcess() {
           const { data } = await adminApi.reindexProgress()
           reindexProgress.value = data.progress
           if (data.progress.status === 'completed') {
+            clearInterval(poll)
+            resolve()
+          } else if (data.progress.status === 'cancelled') {
             clearInterval(poll)
             resolve()
           } else if (data.progress.status === 'failed') {
@@ -2989,16 +3009,28 @@ onUnmounted(() => {
       <!-- Progress indicator -->
       <div v-if="combinedProcessing || reindexing" class="space-y-2">
         <div class="flex items-center gap-3 text-xs text-[var(--color-text-secondary)]">
-          <Loader2 class="w-3.5 h-3.5 animate-spin" />
-          <span v-if="combinedStep === 'pdf'">Schritt 1/2 — PDF-Vorschaubilder werden erzeugt…</span>
+          <Loader2 v-if="!reindexCancelling" class="w-3.5 h-3.5 animate-spin" />
+          <span v-if="reindexCancelling">Abbruch angefordert, wird beim nächsten Chunk gestoppt…</span>
+          <span v-else-if="combinedStep === 'pdf'">Schritt 1/2 — PDF-Vorschaubilder werden erzeugt…</span>
           <span v-else-if="reindexProgress && reindexProgress.status === 'running'">
             {{ combinedStep === 'reindex' ? 'Schritt 2/2 — ' : '' }}Suchindex: {{ reindexProgress.processed?.toLocaleString('de-DE') }} / {{ reindexProgress.total?.toLocaleString('de-DE') }} Produkte ({{ reindexProgress.percent }}%)
+            <template v-if="reindexProgress.estimated_seconds > 0">
+              — ca. {{ reindexProgress.estimated_seconds >= 60 ? Math.ceil(reindexProgress.estimated_seconds / 60) + ' Min.' : reindexProgress.estimated_seconds + ' Sek.' }} verbleibend
+            </template>
           </span>
           <span v-else>Suchindex wird vorbereitet…</span>
+          <button
+            v-if="!reindexCancelling && reindexProgress?.status === 'running'"
+            @click="cancelReindex"
+            class="ml-auto pim-btn pim-btn-secondary !py-0.5 !px-2 !text-[11px] text-[var(--color-error)] border-[var(--color-error)]/30 hover:bg-[var(--color-error)]/5"
+          >
+            Abbrechen
+          </button>
         </div>
         <div v-if="reindexProgress && reindexProgress.status === 'running'" class="w-full bg-[var(--color-border)] rounded-full h-2 overflow-hidden">
           <div
-            class="h-full bg-[var(--color-accent)] rounded-full transition-all duration-500 ease-out"
+            class="h-full rounded-full transition-all duration-500 ease-out"
+            :class="reindexCancelling ? 'bg-amber-400' : 'bg-[var(--color-accent)]'"
             :style="{ width: reindexProgress.percent + '%' }"
           />
         </div>
@@ -3069,8 +3101,8 @@ onUnmounted(() => {
             </button>
           </div>
 
-          <div v-if="reindexResult && !combinedProcessing" class="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg p-3">
-            <div class="flex items-center gap-2 text-green-700 dark:text-green-400 text-sm font-medium">
+          <div v-if="reindexResult && !combinedProcessing" :class="reindexResult.cancelled ? 'bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800' : 'bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800'" class="rounded-lg p-3">
+            <div :class="reindexResult.cancelled ? 'text-amber-700 dark:text-amber-400' : 'text-green-700 dark:text-green-400'" class="flex items-center gap-2 text-sm font-medium">
               <CheckCircle class="w-4 h-4" />
               {{ reindexResult.message }}
             </div>

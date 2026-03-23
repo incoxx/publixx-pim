@@ -465,7 +465,27 @@ class SettingController extends Controller
                 'total' => 0,
                 'percent' => 0,
                 'error' => null,
+                'estimated_seconds' => null,
             ],
         ]);
+    }
+
+    /**
+     * POST /api/v1/admin/search-reindex/cancel
+     */
+    public function cancelReindex(Request $request): JsonResponse
+    {
+        if (!$request->user()?->hasRole('Admin')) {
+            return response()->json(['message' => 'Forbidden'], 403);
+        }
+
+        $progress = Cache::get('search_reindex_progress');
+        if (!$progress || $progress['status'] !== 'running') {
+            return response()->json(['message' => 'Kein laufender Reindex.'], 404);
+        }
+
+        Cache::put('search_reindex_cancel', true, 600);
+
+        return response()->json(['message' => 'Abbruch angefordert. Der Job wird beim nächsten Chunk gestoppt.']);
     }
 }
