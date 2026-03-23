@@ -322,7 +322,7 @@ const sidebarStyle = computed(() => ({
 
   <aside
     :class="[
-      'fixed top-0 left-0 h-screen bg-[var(--color-surface)] border-r border-[var(--color-border)] z-40 flex flex-col transition-[width,transform] duration-200',
+      'fixed top-0 left-0 h-screen bg-[var(--color-surface-nav)] border-r border-[var(--color-border)] z-40 flex flex-col transition-[width,transform] duration-200',
       // Mobile: hidden by default, slide in when open
       authStore.sidebarMobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
     ]"

@@ -24,7 +24,7 @@ function switchLocale(code) {
 </script>
 
 <template>
-  <header class="sticky top-0 z-20 flex items-center justify-between h-14 px-3 sm:px-6 bg-[var(--color-surface)]/80 backdrop-blur-md border-b border-[var(--color-border)]">
+  <header class="sticky top-0 z-20 flex items-center justify-between h-14 px-3 sm:px-6 bg-[var(--color-surface-nav)]/90 backdrop-blur-md border-b border-[var(--color-border)]">
     <!-- Left: Hamburger (mobile) + Title -->
     <div class="flex items-center gap-3">
       <button
