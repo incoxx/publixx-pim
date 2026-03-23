@@ -13,6 +13,8 @@ use App\Models\HierarchyNode;
 use App\Models\Product;
 use App\Models\ProductAttributeValue;
 use App\Models\UnitGroup;
+use App\Models\AttributeMapping;
+use App\Services\Export\AttributeMappingSyncService;
 use App\Services\Inheritance\AttributeValueResolver;
 use App\Services\Inheritance\HierarchyInheritanceService;
 use Illuminate\Http\JsonResponse;
@@ -338,7 +340,20 @@ class ProductAttributeValueController extends Controller
         // Dispatch event for Performance / Inheritance agents
         event(new \App\Events\AttributeValuesChanged($product->id, array_unique($changedAttributeIds)));
 
-        return response()->json(['message' => 'Attribute values updated.', 'count' => count($values)]);
+        // Synchroner Attribut-Mapping-Sync: Wenn Mappings vorhanden sind,
+        // Ziel-Werte sofort aktualisieren (nicht über Queue).
+        $syncStats = null;
+        $hasMappings = AttributeMapping::whereIn('source_attribute_id', array_unique($changedAttributeIds))->exists();
+        if ($hasMappings) {
+            $syncService = app(AttributeMappingSyncService::class);
+            $syncStats = $syncService->syncProduct($product);
+        }
+
+        return response()->json([
+            'message' => 'Attribute values updated.',
+            'count' => count($values),
+            'sync' => $syncStats,
+        ]);
     }
 
     /**
