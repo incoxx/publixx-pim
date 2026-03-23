@@ -57,6 +57,7 @@ const localeStore = useLocaleStore()
 const { t } = useI18n()
 
 const activeTab = ref('base-data')
+const activeAttrSubTab = ref('master')  // 'master' oder hierarchy_id
 const saving = ref(false)
 const activeDataLang = ref(localeStore.activeDataLocales[0] || 'de')
 
@@ -1805,6 +1806,7 @@ watch(() => route.params.id, async (newId, oldId) => {
   outputHierarchyAttributes.value = []
   outputHierarchyAttrValues.value = {}
   outputHierarchyTranslatedValues.value = {}
+  activeAttrSubTab.value = 'master'
   variants.value = []
   variantAttributeDefs.value = []
   variantAttrValuesMap.value = {}
@@ -2171,6 +2173,36 @@ watch(() => route.params.id, async (newId, oldId) => {
 
     <!-- ═══ Attributes Tab ═══ -->
     <div v-else-if="activeTab === 'attributes' && product" class="space-y-3" :class="{ 'pointer-events-none opacity-75': isTabReadOnly }">
+      <!-- Sub-Tabs: Master | ETIM | ONYX | ... -->
+      <div v-if="outputHierarchyAttributes.length > 0" class="flex gap-0 border border-[var(--color-border)] rounded-lg overflow-hidden">
+        <button
+          :class="[
+            'px-4 py-1.5 text-xs font-medium transition-colors',
+            activeAttrSubTab === 'master'
+              ? 'bg-[var(--color-accent)] text-white'
+              : 'bg-[var(--color-card)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg)]',
+          ]"
+          @click="activeAttrSubTab = 'master'"
+        >
+          Attribute
+        </button>
+        <button
+          v-for="h in outputHierarchyAttributes"
+          :key="h.hierarchy_id"
+          :class="[
+            'px-4 py-1.5 text-xs font-medium transition-colors border-l border-[var(--color-border)]',
+            activeAttrSubTab === h.hierarchy_id
+              ? 'bg-[var(--color-accent)] text-white'
+              : 'bg-[var(--color-card)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg)]',
+          ]"
+          @click="activeAttrSubTab = h.hierarchy_id"
+        >
+          {{ h.hierarchy_name_de || h.hierarchy_technical_name }}
+        </button>
+      </div>
+
+      <!-- ══ Master Attributes (Sub-Tab) ══ -->
+      <template v-if="activeAttrSubTab === 'master'">
       <!-- Filter bar -->
       <div class="pim-card p-3">
         <div class="flex flex-wrap items-center gap-3">
@@ -2284,41 +2316,64 @@ watch(() => route.params.id, async (newId, oldId) => {
         </div>
       </div>
 
-      <!-- Output Hierarchy (Channel) Attributes -->
-      <template v-if="outputHierarchyAttributes.length > 0">
-        <div v-for="h in outputHierarchyAttributes" :key="h.hierarchy_id" class="pim-card p-4 space-y-4">
-          <div class="flex items-center gap-2 pb-2 border-b border-[var(--color-border)]">
-            <Tags class="w-4 h-4 text-[var(--color-accent)]" :stroke-width="1.75" />
-            <h4 class="text-sm font-semibold text-[var(--color-text-primary)]">{{ h.hierarchy_name_de || h.hierarchy_technical_name }}</h4>
-            <span class="text-[10px] text-[var(--color-text-tertiary)] bg-[var(--color-bg)] px-1.5 py-0.5 rounded">Ausgabehierarchie</span>
-          </div>
-          <div v-for="attr in (h.attributes || [])" :key="attr.attribute_id">
-            <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">
-              {{ attr.attribute_name_de || attr.attribute_technical_name }}
-              <span v-if="attr.is_mandatory" class="text-[var(--color-error)]">*</span>
-              <span v-if="attr.is_translatable" class="ml-1 text-[10px] text-[var(--color-accent)] font-normal">
-                <Languages class="inline w-3 h-3 -mt-0.5" :stroke-width="1.75" /> {{ activeDataLang.toUpperCase() }}
-              </span>
-              <span v-if="attr.is_inherited" class="ml-1 text-[10px] text-blue-500 font-normal">(Master-Fallback)</span>
-            </label>
-            <PimAttributeInput
-              v-if="attr.is_translatable"
-              :type="mapDataTypeToInput(attr.data_type)"
-              :modelValue="outputHierarchyTranslatedValues[`${h.hierarchy_id}_${attr.attribute_id}_${activeDataLang}`]"
-              :options="getSelectionOptions(attr)"
-              @update:modelValue="outputHierarchyTranslatedValues[`${h.hierarchy_id}_${attr.attribute_id}_${activeDataLang}`] = $event"
-            />
-            <PimAttributeInput
-              v-else
-              :type="mapDataTypeToInput(attr.data_type)"
-              :modelValue="outputHierarchyAttrValues[`${h.hierarchy_id}_${attr.attribute_id}`]"
-              :options="getSelectionOptions(attr)"
-              @update:modelValue="outputHierarchyAttrValues[`${h.hierarchy_id}_${attr.attribute_id}`] = $event"
-            />
-          </div>
-        </div>
       </template>
-      <div v-else-if="outputHierarchyAttrLoading" class="pim-card p-4">
+
+      <!-- ══ Output Hierarchy Sub-Tab (ETIM, ONYX, etc.) ══ -->
+      <template v-for="h in outputHierarchyAttributes" :key="h.hierarchy_id">
+        <template v-if="activeAttrSubTab === h.hierarchy_id">
+          <!-- Language switcher -->
+          <div v-if="localeStore.activeDataLocales.length > 1 && (h.attributes || []).some(a => a.is_translatable)" class="flex items-center gap-2 px-1">
+            <Languages class="w-3.5 h-3.5 text-[var(--color-text-tertiary)]" :stroke-width="1.75" />
+            <div class="flex gap-0 border border-[var(--color-border)] rounded-lg overflow-hidden">
+              <button
+                v-for="loc in localeStore.activeDataLocales"
+                :key="loc"
+                :class="[
+                  'px-3 py-1 text-[11px] font-medium transition-colors',
+                  activeDataLang === loc
+                    ? 'bg-[var(--color-accent)] text-white'
+                    : 'bg-[var(--color-card)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg)]',
+                ]"
+                @click="activeDataLang = loc"
+              >
+                {{ loc.toUpperCase() }}
+              </button>
+            </div>
+            <span class="text-[11px] text-[var(--color-text-tertiary)]">{{ t('product.dataLanguage') }}</span>
+          </div>
+
+          <div class="pim-card p-4 space-y-4">
+            <div v-if="(h.attributes || []).length === 0" class="text-center py-8">
+              <p class="text-sm text-[var(--color-text-tertiary)]">Keine Attribute in dieser Ausgabehierarchie</p>
+            </div>
+            <div v-for="attr in (h.attributes || [])" :key="attr.attribute_id">
+              <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">
+                {{ attr.attribute_name_de || attr.attribute_technical_name }}
+                <span v-if="attr.is_mandatory" class="text-[var(--color-error)]">*</span>
+                <span v-if="attr.is_translatable" class="ml-1 text-[10px] text-[var(--color-accent)] font-normal">
+                  <Languages class="inline w-3 h-3 -mt-0.5" :stroke-width="1.75" /> {{ activeDataLang.toUpperCase() }}
+                </span>
+                <span v-if="attr.is_inherited" class="ml-1 text-[10px] text-blue-500 font-normal">(Master-Fallback)</span>
+              </label>
+              <PimAttributeInput
+                v-if="attr.is_translatable"
+                :type="mapDataTypeToInput(attr.data_type)"
+                :modelValue="outputHierarchyTranslatedValues[`${h.hierarchy_id}_${attr.attribute_id}_${activeDataLang}`]"
+                :options="getSelectionOptions(attr)"
+                @update:modelValue="outputHierarchyTranslatedValues[`${h.hierarchy_id}_${attr.attribute_id}_${activeDataLang}`] = $event"
+              />
+              <PimAttributeInput
+                v-else
+                :type="mapDataTypeToInput(attr.data_type)"
+                :modelValue="outputHierarchyAttrValues[`${h.hierarchy_id}_${attr.attribute_id}`]"
+                :options="getSelectionOptions(attr)"
+                @update:modelValue="outputHierarchyAttrValues[`${h.hierarchy_id}_${attr.attribute_id}`] = $event"
+              />
+            </div>
+          </div>
+        </template>
+      </template>
+      <div v-if="outputHierarchyAttrLoading && activeAttrSubTab !== 'master'" class="pim-card p-4">
         <div class="pim-skeleton h-8 rounded" />
       </div>
 
