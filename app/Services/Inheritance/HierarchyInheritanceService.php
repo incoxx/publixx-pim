@@ -243,6 +243,8 @@ class HierarchyInheritanceService
                 'a.is_inheritable',
                 'a.is_variant_attribute',
                 'a.is_internal',
+                'a.is_multipliable',
+                'a.max_multiplied',
                 'a.attribute_type_id',
                 'a.parent_attribute_id',
                 'a.value_list_id',
@@ -257,7 +259,8 @@ class HierarchyInheritanceService
                 'hnaa.dont_inherit', 'hnaa.is_required', 'hnaa.access_hierarchy', 'hnaa.access_product',
                 'hnaa.access_variant', 'a.technical_name', 'a.name_de', 'a.name_en',
                 'a.data_type', 'a.is_translatable', 'a.is_mandatory', 'a.is_inheritable',
-                'a.is_variant_attribute', 'a.is_internal', 'a.attribute_type_id', 'a.parent_attribute_id',
+                'a.is_variant_attribute', 'a.is_internal', 'a.is_multipliable', 'a.max_multiplied',
+                'a.attribute_type_id', 'a.parent_attribute_id',
                 'a.value_list_id', 'a.composite_format', 'hnaa.parent_assignment_id', 'hn.depth',
             ])
             ->orderBy('hn.depth', 'asc')
