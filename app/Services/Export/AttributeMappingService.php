@@ -26,6 +26,7 @@ class AttributeMappingService
      */
     private array $mappingCache = [];
     private array $ruleCache = [];
+    private array $attributeCache = [];
 
     /**
      * Alle Ziel-Attributwerte für ein Produkt in einer Klassifikation ermitteln.
@@ -54,7 +55,7 @@ class AttributeMappingService
 
             if ($rule->evaluateCondition($conditionValue)) {
                 foreach ($rule->actions as $action) {
-                    $targetAttr = Attribute::find($action['target_attribute_id']);
+                    $targetAttr = $this->findAttribute($action['target_attribute_id']);
                     if (!$targetAttr) {
                         continue;
                     }
@@ -133,7 +134,7 @@ class AttributeMappingService
             return null;
         }
 
-        return $this->extractValue($av);
+        return $this->extractValue($av, $language);
     }
 
     /**
@@ -153,23 +154,39 @@ class AttributeMappingService
             return null;
         }
 
-        return $this->extractValue($av);
+        return $this->extractValue($av, $language);
     }
 
     /**
      * Wert aus einem ProductAttributeValue extrahieren.
      */
-    protected function extractValue(ProductAttributeValue $av): mixed
+    protected function extractValue(ProductAttributeValue $av, ?string $language = null): mixed
     {
         if ($av->value_selection_id !== null) {
             $entry = $av->valueListEntry;
-            return $entry?->display_value_de ?? $entry?->technical_name ?? $av->value_selection_id;
+            if ($entry) {
+                $langField = 'display_value_' . ($language ?? 'de');
+                return $entry->{$langField} ?? $entry->display_value_de ?? $entry->technical_name;
+            }
+            return $av->value_selection_id;
         }
 
         return $av->value_string
             ?? $av->value_number
             ?? $av->value_flag
             ?? $av->value_date?->format('Y-m-d');
+    }
+
+    /**
+     * Attribut per ID finden (gecacht, vermeidet N+1 Queries).
+     */
+    protected function findAttribute(string $attributeId): ?Attribute
+    {
+        if (!isset($this->attributeCache[$attributeId])) {
+            $this->attributeCache[$attributeId] = Attribute::find($attributeId);
+        }
+
+        return $this->attributeCache[$attributeId];
     }
 
     /**
@@ -260,5 +277,6 @@ class AttributeMappingService
     {
         $this->mappingCache = [];
         $this->ruleCache = [];
+        $this->attributeCache = [];
     }
 }

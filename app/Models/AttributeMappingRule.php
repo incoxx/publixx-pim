@@ -27,7 +27,7 @@ class AttributeMappingRule extends Model
     protected function casts(): array
     {
         return [
-            'condition_value' => 'array',
+            'condition_value' => 'json',
             'actions' => 'array',
             'is_active' => 'boolean',
             'sort_order' => 'integer',

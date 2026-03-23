@@ -12,6 +12,7 @@ use App\Models\AttributeMappingRule;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\DB;
 
 class AttributeMappingController extends Controller
 {
@@ -94,7 +95,7 @@ class AttributeMappingController extends Controller
         $this->authorize('create', AttributeMapping::class);
 
         $request->validate([
-            'mappings' => 'required|array|min:1',
+            'mappings' => 'required|array|min:1|max:500',
             'mappings.*.source_attribute_id' => 'required|uuid|exists:attributes,id',
             'mappings.*.target_attribute_id' => 'required|uuid|exists:attributes,id',
             'mappings.*.output_hierarchy_id' => 'required|uuid|exists:hierarchies,id',
@@ -102,32 +103,34 @@ class AttributeMappingController extends Controller
             'mappings.*.transform_config' => 'nullable|array',
         ]);
 
-        $created = [];
-        $updated = [];
+        $created = 0;
+        $updated = 0;
 
-        foreach ($request->input('mappings') as $data) {
-            $mapping = AttributeMapping::updateOrCreate(
-                [
-                    'source_attribute_id' => $data['source_attribute_id'],
-                    'target_attribute_id' => $data['target_attribute_id'],
-                    'output_hierarchy_id' => $data['output_hierarchy_id'],
-                ],
-                [
-                    'transform_type' => $data['transform_type'] ?? 'direct',
-                    'transform_config' => $data['transform_config'] ?? null,
-                ]
-            );
+        DB::transaction(function () use ($request, &$created, &$updated) {
+            foreach ($request->input('mappings') as $data) {
+                $mapping = AttributeMapping::updateOrCreate(
+                    [
+                        'source_attribute_id' => $data['source_attribute_id'],
+                        'target_attribute_id' => $data['target_attribute_id'],
+                        'output_hierarchy_id' => $data['output_hierarchy_id'],
+                    ],
+                    [
+                        'transform_type' => $data['transform_type'] ?? 'direct',
+                        'transform_config' => $data['transform_config'] ?? null,
+                    ]
+                );
 
-            if ($mapping->wasRecentlyCreated) {
-                $created[] = $mapping->id;
-            } else {
-                $updated[] = $mapping->id;
+                if ($mapping->wasRecentlyCreated) {
+                    $created++;
+                } else {
+                    $updated++;
+                }
             }
-        }
+        });
 
         return response()->json([
-            'created' => count($created),
-            'updated' => count($updated),
+            'created' => $created,
+            'updated' => $updated,
         ]);
     }
 
@@ -186,7 +189,7 @@ class AttributeMappingController extends Controller
      */
     public function updateRule(Request $request, AttributeMappingRule $rule): JsonResponse
     {
-        $this->authorize('update', AttributeMapping::first() ?? new AttributeMapping());
+        $this->authorize('create', AttributeMapping::class);
 
         $request->validate([
             'name' => 'sometimes|string|max:255',
@@ -214,7 +217,7 @@ class AttributeMappingController extends Controller
      */
     public function destroyRule(AttributeMappingRule $rule): JsonResponse
     {
-        $this->authorize('delete', AttributeMapping::first() ?? new AttributeMapping());
+        $this->authorize('delete', AttributeMapping::class);
 
         $rule->delete();
 

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Models;
 
-use App\Models\Concerns\HasDeletionConstraints;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -12,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class AttributeMapping extends Model
 {
-    use HasDeletionConstraints, HasFactory, HasUuids;
+    use HasFactory, HasUuids;
 
     protected $fillable = [
         'source_attribute_id',
@@ -56,8 +55,4 @@ class AttributeMapping extends Model
         return $this->belongsTo(User::class, 'ai_confirmed_by');
     }
 
-    public function deletionConstraints(): array
-    {
-        return [];
-    }
 }

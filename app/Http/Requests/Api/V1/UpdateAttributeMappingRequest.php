@@ -23,8 +23,6 @@ class UpdateAttributeMappingRequest extends FormRequest
             'transform_config' => 'nullable|array',
             'ai_suggested' => 'sometimes|boolean',
             'ai_confidence' => 'nullable|numeric|min:0|max:1',
-            'ai_confirmed_by' => 'nullable|uuid|exists:users,id',
-            'ai_confirmed_at' => 'nullable|date',
         ];
     }
 }
