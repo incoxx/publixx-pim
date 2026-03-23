@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowRight, Plus, Trash2, Save, Loader2, Sparkles,
   RefreshCw, Filter, ChevronDown, AlertTriangle, Check,
+  Download, Upload,
 } from 'lucide-vue-next'
 import attributeMappingsApi from '@/api/attributeMappings'
 import hierarchiesApi from '@/api/hierarchies'
@@ -15,6 +16,8 @@ const router = useRouter()
 const loading = ref(true)
 const saving = ref(false)
 const syncing = ref(false)
+const exporting = ref(false)
+const importing = ref(false)
 const error = ref('')
 const successMsg = ref('')
 
@@ -238,6 +241,69 @@ async function syncAll() {
   }
 }
 
+// ─── Excel Export / Import ───────────────────────────────
+
+async function exportExcel() {
+  exporting.value = true
+  error.value = ''
+  try {
+    const res = await attributeMappingsApi.exportExcel({
+      source_hierarchy_id: sourceHierarchyId.value,
+      target_hierarchy_id: targetHierarchyId.value,
+    })
+    // Blob-Download auslösen
+    const url = URL.createObjectURL(new Blob([res.data]))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `attribut-mappings-${new Date().toISOString().slice(0, 10)}.xlsx`
+    link.click()
+    URL.revokeObjectURL(url)
+    showSuccess('Excel exportiert')
+  } catch (e) {
+    error.value = e.response?.data?.message || 'Export fehlgeschlagen'
+  } finally {
+    exporting.value = false
+  }
+}
+
+const importFileInput = ref(null)
+
+function triggerImport() {
+  importFileInput.value?.click()
+}
+
+async function handleImportFile(event) {
+  const file = event.target.files?.[0]
+  if (!file) return
+  importing.value = true
+  error.value = ''
+  try {
+    const res = await attributeMappingsApi.importExcel(
+      file,
+      sourceHierarchyId.value,
+      targetHierarchyId.value,
+    )
+    const s = res.data.stats || {}
+    const parts = []
+    if (s.mappings_created) parts.push(`${s.mappings_created} Mappings erstellt`)
+    if (s.mappings_updated) parts.push(`${s.mappings_updated} Mappings aktualisiert`)
+    if (s.rules_created) parts.push(`${s.rules_created} Regeln erstellt`)
+    if (s.rules_updated) parts.push(`${s.rules_updated} Regeln aktualisiert`)
+    showSuccess(parts.length ? parts.join(', ') : 'Import abgeschlossen (keine Änderungen)')
+    if (s.errors?.length) {
+      error.value = s.errors.join('\n')
+    }
+    await loadMappings()
+    await loadRules()
+  } catch (e) {
+    error.value = e.response?.data?.message || 'Import fehlgeschlagen'
+  } finally {
+    importing.value = false
+    // File-Input zurücksetzen
+    if (importFileInput.value) importFileInput.value.value = ''
+  }
+}
+
 // ─── Helpers ─────────────────────────────────────────────
 
 function createEmptyMapping() {
@@ -303,7 +369,7 @@ const operators = [
     <div class="flex items-center justify-between mb-6">
       <div>
         <h1 class="text-2xl font-bold">Attribut-Mapping</h1>
-        <p class="text-base-content/60 mt-1">Quell-Attribute auf Klassifikations-Attribute zuordnen</p>
+        <p class="text-[var(--color-text-tertiary)] mt-1">Quell-Attribute auf Klassifikations-Attribute zuordnen</p>
       </div>
     </div>
 
@@ -319,11 +385,11 @@ const operators = [
     </div>
 
     <!-- Hierarchie-Auswahl: Quelle → Ziel -->
-    <div class="card bg-base-200 mb-6">
+    <div class="card bg-[var(--color-surface-nav)] border border-[var(--color-border)] mb-6">
       <div class="card-body py-4">
         <div class="flex items-center gap-3">
           <div class="flex-1">
-            <label class="text-xs font-semibold text-base-content/60 mb-1 block">Quell-Schema</label>
+            <label class="text-xs font-semibold text-[var(--color-text-tertiary)] mb-1 block">Quell-Schema</label>
             <select v-model="sourceHierarchyId" class="select select-bordered w-full">
               <option :value="null" disabled>Quell-Hierarchie...</option>
               <option v-for="h in hierarchies" :key="h.id" :value="h.id">
@@ -331,9 +397,9 @@ const operators = [
               </option>
             </select>
           </div>
-          <ArrowRight class="w-5 h-5 mt-5 text-base-content/30 shrink-0" />
+          <ArrowRight class="w-5 h-5 mt-5 text-[var(--color-border-strong)] shrink-0" />
           <div class="flex-1">
-            <label class="text-xs font-semibold text-base-content/60 mb-1 block">Ziel-Schema</label>
+            <label class="text-xs font-semibold text-[var(--color-text-tertiary)] mb-1 block">Ziel-Schema</label>
             <select v-model="targetHierarchyId" class="select select-bordered w-full">
               <option :value="null" disabled>Ziel-Hierarchie...</option>
               <option v-for="h in hierarchies" :key="h.id" :value="h.id">
@@ -354,16 +420,16 @@ const operators = [
     </div>
 
     <!-- Kein Hierarchie-Paar gewählt -->
-    <div v-if="!hierarchyPairSelected" class="text-center py-20 text-base-content/40">
+    <div v-if="!hierarchyPairSelected" class="text-center py-20 text-[var(--color-text-tertiary)]">
       <Filter class="w-12 h-12 mx-auto mb-3 opacity-30" />
       <p>Wähle Quell- und Ziel-Schema, um die Attribut-Zuordnungen zu bearbeiten.</p>
     </div>
 
     <!-- Mapping-Tabelle -->
     <template v-else>
-      <div class="card bg-base-100 shadow mb-6">
+      <div class="card bg-[var(--color-surface)] border border-[var(--color-border)] shadow-sm mb-6">
         <div class="card-body p-0">
-          <div class="flex items-center justify-between px-4 py-3 border-b border-base-300">
+          <div class="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)]">
             <h2 class="font-semibold">Attribut-Zuordnungen ({{ filteredMappings.length }})</h2>
             <div class="flex gap-2">
               <input
@@ -372,6 +438,13 @@ const operators = [
                 placeholder="Suchen..."
                 class="input input-bordered input-sm w-48"
               />
+              <button class="btn btn-outline btn-sm" @click="exportExcel" :disabled="exporting" title="Als Excel exportieren">
+                <Download class="w-4 h-4" :class="{ 'animate-pulse': exporting }" /> Export
+              </button>
+              <button class="btn btn-outline btn-sm" @click="triggerImport" :disabled="importing" title="Aus Excel importieren">
+                <Upload class="w-4 h-4" :class="{ 'animate-pulse': importing }" /> Import
+              </button>
+              <input ref="importFileInput" type="file" accept=".xlsx,.xls" class="hidden" @change="handleImportFile" />
               <button class="btn btn-outline btn-sm" @click="syncAll" :disabled="syncing">
                 <RefreshCw class="w-4 h-4" :class="{ 'animate-spin': syncing }" /> Alle synchronisieren
               </button>
@@ -398,7 +471,7 @@ const operators = [
             </thead>
             <tbody>
               <!-- Neue Zeile -->
-              <tr v-if="showAddRow" class="bg-primary/5">
+              <tr v-if="showAddRow" class="bg-[color-mix(in_srgb,var(--color-accent)_5%,transparent)]">
                 <td>
                   <select v-model="newMapping.source_attribute_id" class="select select-bordered select-sm w-full">
                     <option :value="null" disabled>Quell-Attribut...</option>
@@ -407,7 +480,7 @@ const operators = [
                     </option>
                   </select>
                 </td>
-                <td class="text-center text-base-content/30">
+                <td class="text-center text-[var(--color-border-strong)]">
                   <ArrowRight class="w-4 h-4 mx-auto" />
                 </td>
                 <td>
@@ -439,17 +512,17 @@ const operators = [
                 <td>
                   <div>
                     <span class="font-medium">{{ m.source_attribute?.name_de }}</span>
-                    <span class="text-xs text-base-content/50 ml-1">{{ m.source_attribute?.technical_name }}</span>
+                    <span class="text-xs text-[var(--color-text-tertiary)] ml-1">{{ m.source_attribute?.technical_name }}</span>
                   </div>
                   <span class="badge badge-xs badge-ghost">{{ m.source_attribute?.data_type }}</span>
                 </td>
-                <td class="text-center text-base-content/30">
+                <td class="text-center text-[var(--color-border-strong)]">
                   <ArrowRight class="w-4 h-4 mx-auto" />
                 </td>
                 <td>
                   <div>
                     <span class="font-medium">{{ m.target_attribute?.name_de }}</span>
-                    <span class="text-xs text-base-content/50 ml-1">{{ m.target_attribute?.technical_name }}</span>
+                    <span class="text-xs text-[var(--color-text-tertiary)] ml-1">{{ m.target_attribute?.technical_name }}</span>
                   </div>
                   <span class="badge badge-xs badge-outline">{{ m.target_attribute?.source_system }}</span>
                 </td>
@@ -470,7 +543,7 @@ const operators = [
               </tr>
 
               <tr v-if="!loading && filteredMappings.length === 0 && !showAddRow">
-                <td :colspan="5" class="text-center text-base-content/40 py-8">
+                <td :colspan="5" class="text-center text-[var(--color-text-tertiary)] py-8">
                   Noch keine Mappings vorhanden. Klicke auf "+ Mapping" um zu beginnen.
                 </td>
               </tr>
@@ -480,9 +553,9 @@ const operators = [
       </div>
 
       <!-- Bedingte Regeln -->
-      <div class="card bg-base-100 shadow">
+      <div class="card bg-[var(--color-surface)] border border-[var(--color-border)] shadow-sm">
         <div class="card-body p-0">
-          <div class="flex items-center justify-between px-4 py-3 border-b border-base-300">
+          <div class="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)]">
             <h2 class="font-semibold">Bedingte Regeln ({{ rules.length }})</h2>
             <button class="btn btn-primary btn-sm" @click="showAddRule = true">
               <Plus class="w-4 h-4" /> Regel
@@ -490,7 +563,7 @@ const operators = [
           </div>
 
           <!-- Regel-Formular -->
-          <div v-if="showAddRule" class="p-4 bg-primary/5 border-b border-base-300">
+          <div v-if="showAddRule" class="p-4 bg-[color-mix(in_srgb,var(--color-accent)_5%,transparent)] border-b border-[var(--color-border)]">
             <div class="grid grid-cols-2 gap-3 mb-3">
               <input v-model="newRule.name" type="text" placeholder="Regelname" class="input input-bordered input-sm" />
               <div class="flex gap-2">
@@ -528,10 +601,10 @@ const operators = [
           </div>
 
           <!-- Bestehende Regeln -->
-          <div v-if="rules.length === 0 && !showAddRule" class="text-center text-base-content/40 py-8">
+          <div v-if="rules.length === 0 && !showAddRule" class="text-center text-[var(--color-text-tertiary)] py-8">
             Noch keine bedingten Regeln vorhanden.
           </div>
-          <div v-for="rule in rules" :key="rule.id" class="px-4 py-3 border-b border-base-200 last:border-b-0">
+          <div v-for="rule in rules" :key="rule.id" class="px-4 py-3 border-b border-[var(--color-border)] last:border-b-0">
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-2">
                 <span class="badge badge-sm" :class="rule.is_active ? 'badge-success' : 'badge-ghost'">
@@ -543,7 +616,7 @@ const operators = [
                 <Trash2 class="w-3 h-3" />
               </button>
             </div>
-            <div class="text-sm text-base-content/60 mt-1">
+            <div class="text-sm text-[var(--color-text-secondary)] mt-1">
               WENN <strong>{{ getAttributeName(rule.condition_attribute_id) }}</strong>
               {{ operators.find(o => o.value === rule.condition_operator)?.label || rule.condition_operator }}
               <strong>{{ rule.condition_value }}</strong>

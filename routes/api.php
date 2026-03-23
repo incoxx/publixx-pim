@@ -650,6 +650,8 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::post('attribute-mappings/sync/product/{product}', [AttributeMappingController::class, 'syncProduct']);
     Route::post('attribute-mappings/sync/batch', [AttributeMappingController::class, 'syncBatch']);
     Route::post('attribute-mappings/sync/bulk', [AttributeMappingController::class, 'syncBulk']);
+    Route::post('attribute-mappings/export-excel', [AttributeMappingController::class, 'exportExcel']);
+    Route::post('attribute-mappings/import-excel', [AttributeMappingController::class, 'importExcel']);
 
     // =====================================================================
     // Export-Job-Steuerung (Enterprise: advanced_export)
