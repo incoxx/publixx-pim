@@ -141,6 +141,12 @@ const routes = [
     meta: { title: 'Export-Jobs' },
   },
   {
+    path: '/attribute-mappings',
+    name: 'attribute-mappings',
+    component: () => import('@/views/exports/AttributeMappingView.vue'),
+    meta: { title: 'Attribut-Mapping' },
+  },
+  {
     path: '/calendar',
     name: 'calendar',
     component: () => import('@/views/calendar/CalendarView.vue'),

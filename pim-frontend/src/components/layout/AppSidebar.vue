@@ -11,7 +11,7 @@ import {
   HelpCircle, PanelLeftClose, PanelLeft, Star, LayoutGrid, Ruler,
   FileJson, FileCode, PlayCircle, FileBarChart, FileText, BookOpen, Link2, Zap, Languages, LayoutTemplate,
   ChevronDown, ChevronRight, GripVertical, Factory, CalendarDays, ScrollText, Globe, Send,
-  LayoutDashboard, ClipboardList, Code, ExternalLink, Plug, FlaskConical,
+  LayoutDashboard, ClipboardList, Code, ExternalLink, Plug, FlaskConical, ArrowRightLeft,
 } from 'lucide-vue-next'
 import AnyPimLogo from '@/components/shared/AnyPimLogo.vue'
 
@@ -168,6 +168,7 @@ const sections = computed(() => {
             { icon: FileJson, label: () => 'JSON Export/Import', to: '/json-export-import' },
             { icon: FileCode, label: () => 'BMEcat Import/Export', to: '/bmecat-import-export', module: 'bmecat' },
             { icon: PlayCircle, label: () => 'Export-Jobs', to: '/export-jobs', module: 'advanced_export' },
+            { icon: ArrowRightLeft, label: () => 'Attribut-Mapping', to: '/attribute-mappings', permission: 'attribute-mappings.view' },
           ],
         },
         { icon: Settings, label: () => t('nav.settings'), to: '/settings', permission: 'users.view' },
