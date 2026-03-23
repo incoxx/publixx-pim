@@ -2284,8 +2284,13 @@ class BmecatFormatImporter
 
     /**
      * Parst ein einzelnes UDX-Element — flach oder als Container mit Kindern.
+     * Rekursiv: Container können beliebig tief geschachtelt sein.
+     *
+     * Bei verschachtelten Containern (z.B. MIME_INFO > MIME > MIME_SOURCE)
+     * wird der innerste wiederholte Container als Index-Geber verwendet.
+     * Beispiel: 2× UDX.DOKA.MIME → MIME_SOURCE bekommt index 0 und 1.
      */
-    private function parseUdxElement(\SimpleXMLElement $child, array &$fields, array &$seenKeys): void
+    private function parseUdxElement(\SimpleXMLElement $child, array &$fields, array &$seenKeys, ?int $inheritedIndex = null): void
     {
         $elementName = $child->getName();
         if (!preg_match('/^UDX\.([^.]+)\.(.+)$/', $elementName, $matches)) {
@@ -2299,34 +2304,20 @@ class BmecatFormatImporter
         $hasChildren = $child->children()->count() > 0;
 
         if ($hasChildren) {
-            // Container-Element (z.B. UDX.DOKA.MIME mit Kind-Elementen)
+            // Container-Element (z.B. UDX.DOKA.MIME_INFO oder UDX.DOKA.MIME)
             // Index = wie oft dieser Container schon vorkam
             $containerKey = $elementName;
             $index = $seenKeys[$containerKey] ?? 0;
             $seenKeys[$containerKey] = $index + 1;
 
+            // Der innerste wiederholte Container bestimmt den Index für Kinder.
+            // Beispiel: MIME_INFO (1×, idx=0) > MIME (2×, idx=0/1) > MIME_SOURCE
+            // → MIME_SOURCE bekommt idx 0 bzw. 1 vom MIME-Container
+            $effectiveIndex = $index;
+
+            // Rekursiv: Kinder verarbeiten (können selbst Container sein)
             foreach ($child->children() as $subChild) {
-                $subName = $subChild->getName();
-                if (!preg_match('/^UDX\.([^.]+)\.(.+)$/', $subName, $subMatches)) {
-                    Log::channel('import')->warning("UDX-Container-Kind mit ungültigem Namensformat übersprungen: {$subName}");
-                    continue;
-                }
-
-                $value = trim((string) $subChild);
-                if ($value === '') {
-                    continue;
-                }
-
-                $lang = $this->xmlLang($subChild);
-
-                $fields[] = [
-                    'key' => $subName,
-                    'namespace' => $subMatches[1],
-                    'fieldname' => $subMatches[2],
-                    'value' => $value,
-                    'language' => $lang,
-                    'index' => $index,
-                ];
+                $this->parseUdxElement($subChild, $fields, $seenKeys, $effectiveIndex);
             }
         } else {
             // Flaches Element (einfacher Textwert)
@@ -2337,10 +2328,14 @@ class BmecatFormatImporter
 
             $lang = $this->xmlLang($child);
 
-            // Gleicher Key mehrfach? → index hochzählen
-            $fieldKey = $elementName;
-            $index = $seenKeys[$fieldKey] ?? 0;
-            $seenKeys[$fieldKey] = $index + 1;
+            // Index: vom Container geerbt oder eigener Zähler
+            if ($inheritedIndex !== null) {
+                $index = $inheritedIndex;
+            } else {
+                $fieldKey = $elementName;
+                $index = $seenKeys[$fieldKey] ?? 0;
+                $seenKeys[$fieldKey] = $index + 1;
+            }
 
             $fields[] = [
                 'key' => $elementName,
