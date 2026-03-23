@@ -167,12 +167,13 @@ class DebugController extends Controller
     private function humanFileSize(int $bytes): string
     {
         $units = ['B', 'KB', 'MB', 'GB'];
+        $size = (float) $bytes;
         $i = 0;
-        while ($bytes >= 1024 && $i < count($units) - 1) {
-            $bytes = (int) ($bytes / 1024);
+        while ($size >= 1024 && $i < count($units) - 1) {
+            $size /= 1024;
             $i++;
         }
 
-        return $bytes . ' ' . $units[$i];
+        return ($i === 0 ? (string) $bytes : number_format($size, 1)) . ' ' . $units[$i];
     }
 }

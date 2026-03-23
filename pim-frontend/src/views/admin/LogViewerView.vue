@@ -23,7 +23,6 @@ let searchTimeout = null
 
 const errorCount = computed(() => entries.value.filter(e => e.level === 'ERROR').length)
 const warningCount = computed(() => entries.value.filter(e => e.level === 'WARNING').length)
-const infoCount = computed(() => entries.value.filter(e => e.level === 'INFO').length)
 
 async function fetchLogs() {
   loading.value = true
@@ -112,7 +111,12 @@ watch(activeChannel, () => {
   fetchLogs()
 })
 
-watch(levelFilter, fetchLogs)
+watch(levelFilter, (newVal, oldVal) => {
+  // Kein erneuter Fetch wenn Channel-Wechsel den Filter zurücksetzt
+  if (oldVal !== '' || newVal !== '') {
+    fetchLogs()
+  }
+})
 
 onMounted(fetchLogs)
 
