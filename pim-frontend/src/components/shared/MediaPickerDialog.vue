@@ -134,7 +134,7 @@ function getExtension(fileName) {
               <input
                 v-model="searchQuery"
                 type="text"
-                class="pim-input text-xs pl-9 w-full"
+                class="pim-input text-xs pim-input-icon w-full"
                 placeholder="Medien durchsuchen…"
               />
             </div>

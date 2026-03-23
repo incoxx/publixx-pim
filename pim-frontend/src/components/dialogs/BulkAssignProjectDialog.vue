@@ -112,7 +112,7 @@ function close() {
               <input
                 v-model="searchQuery"
                 type="text"
-                class="pim-input text-xs w-full pl-9"
+                class="pim-input text-xs w-full pim-input-icon"
                 placeholder="Projekt suchen..."
               />
             </div>

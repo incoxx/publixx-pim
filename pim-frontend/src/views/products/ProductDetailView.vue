@@ -154,7 +154,6 @@ const attrFilterSearch = ref('')
 const attrFilterView = ref(null)
 const attrFilterGroup = ref(null)
 const attrFilterMandatory = ref(false)
-const attrCompactLayout = ref(false) // true = Label links, Input rechts (horizontal)
 const availableAttrViews = ref([])
 const availableAttrGroups = ref([])
 const filterOptionsLoaded = ref(false)
@@ -323,6 +322,14 @@ const masterNodePath = computed(() => {
   const nodeId = product.value?.master_hierarchy_node_id
   if (!nodeId) return null
   return hierarchyNodes.value.find(n => n.id === nodeId)?.label || null
+})
+
+const masterNodeName = computed(() => {
+  const path = masterNodePath.value
+  if (!path) return null
+  // Last segment after last ' › '
+  const parts = path.split(' › ')
+  return parts[parts.length - 1]
 })
 
 // ─── Attribute Values ─────────────────────────────────
@@ -2078,48 +2085,29 @@ watch(() => route.params.id, async (newId, oldId) => {
 
     <!-- ═══ Base Data Tab ═══ -->
     <div v-else-if="activeTab === 'base-data' && product" class="space-y-3" :class="{ 'pointer-events-none opacity-75': isTabReadOnly }">
-      <!-- Layout toggle -->
-      <div class="flex justify-end">
-        <div class="flex border border-[var(--color-border)] rounded-lg overflow-hidden">
-          <button
-            :class="['p-1.5 transition-colors', !attrCompactLayout ? 'bg-[var(--color-accent)] text-white' : 'bg-[var(--color-card)] text-[var(--color-text-tertiary)] hover:bg-[var(--color-bg)]']"
-            @click="attrCompactLayout = false"
-            title="Vertikales Layout"
-          >
-            <List class="w-3.5 h-3.5" :stroke-width="1.75" />
-          </button>
-          <button
-            :class="['p-1.5 transition-colors', attrCompactLayout ? 'bg-[var(--color-accent)] text-white' : 'bg-[var(--color-card)] text-[var(--color-text-tertiary)] hover:bg-[var(--color-bg)]']"
-            @click="attrCompactLayout = true"
-            title="Kompaktes Layout (Label links)"
-          >
-            <LayoutGrid class="w-3.5 h-3.5" :stroke-width="1.75" />
-          </button>
-        </div>
-      </div>
       <PimCollectionGroup title="Stammdaten" :filledCount="3" :totalCount="5">
-        <div :class="attrCompactLayout ? 'space-y-2 pt-3' : 'space-y-3 pt-3'">
-          <div :class="attrCompactLayout ? 'md:flex md:items-center md:gap-4' : ''">
-            <label :class="['text-[12px] font-medium text-[var(--color-text-secondary)]', attrCompactLayout ? 'md:w-48 md:shrink-0 md:text-right md:mb-0 mb-1 block' : 'block mb-1']">SKU</label>
-            <div :class="attrCompactLayout ? 'md:flex-1 md:min-w-0' : ''">
+        <div class="space-y-2 pt-3">
+          <div class="md:flex md:items-center md:gap-4">
+            <label class="text-[12px] font-medium text-[var(--color-text-secondary)] md:w-48 md:shrink-0 md:text-right md:mb-0 mb-1 block">SKU</label>
+            <div class="md:flex-1 md:min-w-0">
               <input class="pim-input font-mono" :value="product.sku" readonly />
             </div>
           </div>
-          <div :class="attrCompactLayout ? 'md:flex md:items-center md:gap-4' : ''">
-            <label :class="['text-[12px] font-medium text-[var(--color-text-secondary)]', attrCompactLayout ? 'md:w-48 md:shrink-0 md:text-right md:mb-0 mb-1 block' : 'block mb-1']">Name</label>
-            <div :class="attrCompactLayout ? 'md:flex-1 md:min-w-0' : ''">
+          <div class="md:flex md:items-center md:gap-4">
+            <label class="text-[12px] font-medium text-[var(--color-text-secondary)] md:w-48 md:shrink-0 md:text-right md:mb-0 mb-1 block">Name</label>
+            <div class="md:flex-1 md:min-w-0">
               <input class="pim-input" v-model="product.name" />
             </div>
           </div>
-          <div v-if="!product.product_type || product.product_type.has_ean !== false" :class="attrCompactLayout ? 'md:flex md:items-center md:gap-4' : ''">
-            <label :class="['text-[12px] font-medium text-[var(--color-text-secondary)]', attrCompactLayout ? 'md:w-48 md:shrink-0 md:text-right md:mb-0 mb-1 block' : 'block mb-1']">EAN</label>
-            <div :class="attrCompactLayout ? 'md:flex-1 md:min-w-0' : ''">
+          <div v-if="!product.product_type || product.product_type.has_ean !== false" class="md:flex md:items-center md:gap-4">
+            <label class="text-[12px] font-medium text-[var(--color-text-secondary)] md:w-48 md:shrink-0 md:text-right md:mb-0 mb-1 block">EAN</label>
+            <div class="md:flex-1 md:min-w-0">
               <input class="pim-input font-mono" v-model="product.ean" />
             </div>
           </div>
-          <div :class="attrCompactLayout ? 'md:flex md:items-center md:gap-4' : ''">
-            <label :class="['text-[12px] font-medium text-[var(--color-text-secondary)]', attrCompactLayout ? 'md:w-48 md:shrink-0 md:text-right md:mb-0 mb-1 block' : 'block mb-1']">Status</label>
-            <div :class="attrCompactLayout ? 'md:flex-1 md:min-w-0' : ''">
+          <div class="md:flex md:items-center md:gap-4">
+            <label class="text-[12px] font-medium text-[var(--color-text-secondary)] md:w-48 md:shrink-0 md:text-right md:mb-0 mb-1 block">Status</label>
+            <div class="md:flex-1 md:min-w-0">
               <PimAttributeInput
                 type="select"
                 v-model="product.status"
@@ -2127,17 +2115,17 @@ watch(() => route.params.id, async (newId, oldId) => {
               />
             </div>
           </div>
-          <div :class="attrCompactLayout ? 'md:flex md:items-center md:gap-4' : ''">
-            <label :class="['text-[12px] font-medium text-[var(--color-text-secondary)]', attrCompactLayout ? 'md:w-48 md:shrink-0 md:text-right md:mb-0 mb-1 block' : 'block mb-1']">Produkttyp</label>
-            <div :class="attrCompactLayout ? 'md:flex-1 md:min-w-0' : ''">
+          <div class="md:flex md:items-center md:gap-4">
+            <label class="text-[12px] font-medium text-[var(--color-text-secondary)] md:w-48 md:shrink-0 md:text-right md:mb-0 mb-1 block">Produkttyp</label>
+            <div class="md:flex-1 md:min-w-0">
               <select class="pim-input text-xs" :value="product.product_type_id || ''" @change="product.product_type_id = $event.target.value || null">
                 <option v-for="pt in productTypesList" :key="pt.id" :value="pt.id">{{ pt.name_de || pt.technical_name }}</option>
               </select>
             </div>
           </div>
-          <div v-if="product.product_type_ref !== 'variant'" :class="attrCompactLayout ? 'md:flex md:items-start md:gap-4' : ''">
-            <label :class="['text-[12px] font-medium text-[var(--color-text-secondary)]', attrCompactLayout ? 'md:w-48 md:shrink-0 md:text-right md:mb-0 md:mt-2 mb-1 block' : 'block mb-1']">Master-Hierarchie-Knoten</label>
-            <div :class="attrCompactLayout ? 'md:flex-1 md:min-w-0' : ''">
+          <div v-if="product.product_type_ref !== 'variant'" class="md:flex md:items-start md:gap-4">
+            <label class="text-[12px] font-medium text-[var(--color-text-secondary)] md:w-48 md:shrink-0 md:text-right md:mb-0 md:mt-2 mb-1 block">Master-Hierarchie-Knoten</label>
+            <div class="md:flex-1 md:min-w-0">
               <div class="flex flex-col sm:flex-row gap-2">
                 <select v-if="hierarchies.length > 1" class="pim-input text-xs w-full sm:w-36 shrink-0" :value="selectedHierarchyId" @change="onHierarchyChange($event.target.value)">
                   <option v-for="h in hierarchies" :key="h.id" :value="h.id">{{ h.name_de || h.technical_name }}</option>
@@ -2150,9 +2138,9 @@ watch(() => route.params.id, async (newId, oldId) => {
               <p v-if="masterNodePath" class="text-[11px] text-[var(--color-text-tertiary)] mt-1 font-mono">{{ masterNodePath }}</p>
             </div>
           </div>
-          <div :class="attrCompactLayout ? 'md:flex md:items-center md:gap-4' : ''">
-            <label :class="['text-[12px] font-medium text-[var(--color-text-secondary)]', attrCompactLayout ? 'md:w-48 md:shrink-0 md:text-right md:mb-0 mb-1 block' : 'block mb-1']">Hersteller</label>
-            <div :class="attrCompactLayout ? 'md:flex-1 md:min-w-0' : ''">
+          <div class="md:flex md:items-center md:gap-4">
+            <label class="text-[12px] font-medium text-[var(--color-text-secondary)] md:w-48 md:shrink-0 md:text-right md:mb-0 mb-1 block">Hersteller</label>
+            <div class="md:flex-1 md:min-w-0">
               <select class="pim-input text-xs" :value="product.manufacturer_id || ''" @change="product.manufacturer_id = $event.target.value || null">
                 <option value="">— Kein Hersteller —</option>
                 <option v-for="m in manufacturers" :key="m.id" :value="m.id">{{ m.name }}</option>
@@ -2163,10 +2151,10 @@ watch(() => route.params.id, async (newId, oldId) => {
       </PimCollectionGroup>
 
       <PimCollectionGroup title="Beschreibung" :filledCount="1" :totalCount="3" :defaultOpen="false">
-        <div :class="attrCompactLayout ? 'space-y-2 pt-3' : 'space-y-3 pt-3'">
-          <div :class="attrCompactLayout ? 'md:flex md:items-start md:gap-4' : ''">
-            <label :class="['text-[12px] font-medium text-[var(--color-text-secondary)]', attrCompactLayout ? 'md:w-48 md:shrink-0 md:text-right md:mb-0 md:mt-2 mb-1 block' : 'block mb-1']">Kurzbeschreibung</label>
-            <div :class="attrCompactLayout ? 'md:flex-1 md:min-w-0' : ''">
+        <div class="space-y-2 pt-3">
+          <div class="md:flex md:items-start md:gap-4">
+            <label class="text-[12px] font-medium text-[var(--color-text-secondary)] md:w-48 md:shrink-0 md:text-right md:mb-0 md:mt-2 mb-1 block">Kurzbeschreibung</label>
+            <div class="md:flex-1 md:min-w-0">
               <PimAttributeInput type="textarea" v-model="product.description_short" />
             </div>
           </div>
@@ -2209,18 +2197,19 @@ watch(() => route.params.id, async (newId, oldId) => {
 
     <!-- ═══ Attributes Tab ═══ -->
     <div v-else-if="activeTab === 'attributes' && product" class="space-y-3" :class="{ 'pointer-events-none opacity-75': isTabReadOnly }">
-      <!-- Sub-Tabs: Master | ETIM | ONYX | ... -->
-      <div v-if="outputHierarchyAttributes.length > 0" class="flex gap-0 border border-[var(--color-border)] rounded-lg overflow-hidden">
+      <!-- Sub-Tabs: Master Node Name | ETIM | ONYX | ... -->
+      <div class="flex gap-0 border border-[var(--color-border)] rounded-lg overflow-hidden">
         <button
           :class="[
             'px-4 py-1.5 text-xs font-medium transition-colors',
             activeAttrSubTab === 'master'
-              ? 'bg-[var(--color-accent)] text-white'
+              ? 'bg-indigo-600 text-white'
               : 'bg-[var(--color-card)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg)]',
           ]"
+          :title="masterNodePath || 'Attribute'"
           @click="activeAttrSubTab = 'master'"
         >
-          Attribute
+          {{ masterNodeName || 'Attribute' }}
         </button>
         <button
           v-for="h in outputHierarchyAttributes"
@@ -2228,7 +2217,7 @@ watch(() => route.params.id, async (newId, oldId) => {
           :class="[
             'px-4 py-1.5 text-xs font-medium transition-colors border-l border-[var(--color-border)]',
             activeAttrSubTab === h.hierarchy_id
-              ? 'bg-[var(--color-accent)] text-white'
+              ? 'bg-indigo-600 text-white'
               : 'bg-[var(--color-card)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg)]',
           ]"
           @click="activeAttrSubTab = h.hierarchy_id"
@@ -2244,7 +2233,7 @@ watch(() => route.params.id, async (newId, oldId) => {
         <div class="flex flex-wrap items-center gap-3">
           <div class="relative flex-1 min-w-[200px] max-w-sm">
             <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--color-text-tertiary)] z-10 pointer-events-none" :stroke-width="1.75" />
-            <input v-model="attrFilterSearch" class="pim-input text-xs pl-9 w-full" placeholder="Attribut suchen (Name)…" />
+            <input v-model="attrFilterSearch" class="pim-input text-xs pim-input-icon w-full" placeholder="Attribut suchen (Name)…" />
           </div>
           <select v-model="attrFilterView" class="pim-select text-xs">
             <option :value="null">Alle Sichten</option>
@@ -2262,22 +2251,6 @@ watch(() => route.params.id, async (newId, oldId) => {
             <input type="checkbox" v-model="attrFilterMandatory" class="w-3.5 h-3.5 rounded border-[var(--color-border)] accent-[var(--color-error)]" />
             <span class="text-xs text-[var(--color-text-secondary)]">Nur Pflichtfelder</span>
           </label>
-          <div class="flex border border-[var(--color-border)] rounded-lg overflow-hidden ml-auto">
-            <button
-              :class="['p-1.5 transition-colors', !attrCompactLayout ? 'bg-[var(--color-accent)] text-white' : 'bg-[var(--color-card)] text-[var(--color-text-tertiary)] hover:bg-[var(--color-bg)]']"
-              @click="attrCompactLayout = false"
-              title="Vertikales Layout"
-            >
-              <List class="w-3.5 h-3.5" :stroke-width="1.75" />
-            </button>
-            <button
-              :class="['p-1.5 transition-colors', attrCompactLayout ? 'bg-[var(--color-accent)] text-white' : 'bg-[var(--color-card)] text-[var(--color-text-tertiary)] hover:bg-[var(--color-bg)]']"
-              @click="attrCompactLayout = true"
-              title="Kompaktes Layout (Label links)"
-            >
-              <LayoutGrid class="w-3.5 h-3.5" :stroke-width="1.75" />
-            </button>
-          </div>
         </div>
         <div v-if="attrFilterSearch || attrFilterView || attrFilterGroup || attrFilterMandatory" class="flex items-center gap-2 mt-2">
           <span class="text-[11px] text-[var(--color-text-tertiary)]">{{ filteredAttributes.length }} Attribute</span>
@@ -2309,7 +2282,7 @@ watch(() => route.params.id, async (newId, oldId) => {
       </div>
 
       <!-- Flat attribute list -->
-      <div class="pim-card p-4" :class="attrCompactLayout ? 'space-y-2' : 'space-y-4'">
+      <div class="pim-card p-4 space-y-2">
         <div v-if="filteredAttributes.length === 0" class="text-center py-8">
           <p class="text-sm text-[var(--color-text-tertiary)]">Keine Attribute gefunden</p>
         </div>
@@ -2317,28 +2290,23 @@ watch(() => route.params.id, async (newId, oldId) => {
           v-for="attr in filteredAttributes"
           :key="attr.id"
           :class="[
+            'md:flex md:items-center md:gap-4',
             { 'ring-1 ring-red-400 rounded-lg p-2 -m-2': mandatoryWarnings.has(attr.id) },
-            attrCompactLayout ? 'md:flex md:items-center md:gap-4' : '',
           ]"
         >
           <label
-            :class="[
-              'text-[12px] font-medium text-[var(--color-text-secondary)]',
-              attrCompactLayout ? 'md:w-48 md:shrink-0 md:text-right md:mb-0 mb-1 block truncate' : 'block mb-1',
-            ]"
+            class="text-[12px] font-medium text-[var(--color-text-secondary)] md:w-48 md:shrink-0 md:text-right md:mb-0 mb-1 block truncate"
             :title="attr.name_de || attr.technical_name"
           >
             {{ attr.name_de || attr.technical_name }}
             <span v-if="attr.is_mandatory" class="text-[var(--color-error)]">*</span>
-            <span v-if="attr.attribute_type?.name_de && !attrCompactLayout" class="ml-1 text-[10px] text-[var(--color-text-tertiary)] font-normal">{{ attr.attribute_type.name_de }}</span>
             <span v-if="attr.is_translatable" class="ml-1 text-[10px] text-[var(--color-accent)] font-normal">
               <Languages class="inline w-3 h-3 -mt-0.5" :stroke-width="1.75" /> {{ activeDataLang.toUpperCase() }}
             </span>
-            <span v-if="attr.is_multipliable && !attrCompactLayout" class="ml-1 text-[10px] text-emerald-600 font-normal">(vermehrbar)</span>
             <span v-if="attr._is_inherited" class="ml-1 text-[10px] text-blue-500 font-normal">(vererbt)</span>
             <span v-if="isAttributeInherited(attr.id)" class="ml-1 text-[10px] text-purple-500 font-normal">(vererbt vom Elternprodukt)</span>
           </label>
-          <div :class="attrCompactLayout ? 'md:flex-1 md:min-w-0' : ''">
+          <div class="md:flex-1 md:min-w-0">
           <!-- Composite: Button with summary -->
           <button
             v-if="attr.data_type === 'Composite'"
@@ -2409,20 +2377,17 @@ watch(() => route.params.id, async (newId, oldId) => {
             <span class="text-[11px] text-[var(--color-text-tertiary)]">{{ t('product.dataLanguage') }}</span>
           </div>
 
-          <div class="pim-card p-4" :class="attrCompactLayout ? 'space-y-2' : 'space-y-4'">
+          <div class="pim-card p-4 space-y-2">
             <div v-if="(h.attributes || []).length === 0" class="text-center py-8">
               <p class="text-sm text-[var(--color-text-tertiary)]">Keine Attribute in dieser Ausgabehierarchie</p>
             </div>
             <div
               v-for="attr in (h.attributes || [])"
               :key="attr.attribute_id"
-              :class="attrCompactLayout ? 'md:flex md:items-center md:gap-4' : ''"
+              class="md:flex md:items-center md:gap-4"
             >
               <label
-                :class="[
-                  'text-[12px] font-medium text-[var(--color-text-secondary)]',
-                  attrCompactLayout ? 'md:w-48 md:shrink-0 md:text-right md:mb-0 mb-1 block truncate' : 'block mb-1',
-                ]"
+                class="text-[12px] font-medium text-[var(--color-text-secondary)] md:w-48 md:shrink-0 md:text-right md:mb-0 mb-1 block truncate"
                 :title="attr.attribute_name_de || attr.attribute_technical_name"
               >
                 {{ attr.attribute_name_de || attr.attribute_technical_name }}
@@ -2435,7 +2400,7 @@ watch(() => route.params.id, async (newId, oldId) => {
                 </span>
                 <span v-if="attr.is_inherited" class="ml-1 text-[10px] text-blue-500 font-normal">(Master-Fallback)</span>
               </label>
-              <div :class="attrCompactLayout ? 'md:flex-1 md:min-w-0' : ''">
+              <div class="md:flex-1 md:min-w-0">
               <PimAttributeInput
                 v-if="attr.is_translatable"
                 :type="mapDataTypeToInput(attr.data_type)"
@@ -2823,7 +2788,7 @@ watch(() => route.params.id, async (newId, oldId) => {
           <input
             v-model="mediaFilter"
             type="text"
-            class="pim-input text-xs pl-8 w-44"
+            class="pim-input text-xs pim-input-icon w-44"
             placeholder="Filtern…"
           />
         </div>
@@ -3056,7 +3021,7 @@ watch(() => route.params.id, async (newId, oldId) => {
             <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Zielprodukt <span class="text-[var(--color-error)]">*</span></label>
             <div class="relative">
               <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--color-text-tertiary)] z-10 pointer-events-none" :stroke-width="1.75" />
-              <input class="pim-input pl-9" v-model="productSearch" placeholder="SKU oder Name suchen…" @input="searchProducts" />
+              <input class="pim-input pim-input-icon" v-model="productSearch" placeholder="SKU oder Name suchen…" @input="searchProducts" />
             </div>
             <p v-if="relationErrors.target_product_id" class="text-[11px] text-[var(--color-error)] mt-0.5">{{ relationErrors.target_product_id }}</p>
             <!-- Search results dropdown -->

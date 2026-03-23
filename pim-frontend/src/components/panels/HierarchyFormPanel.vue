@@ -185,7 +185,7 @@ onMounted(() => {
             <Search class="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)]" :stroke-width="1.75" />
             <input
               v-model="pickerSearch"
-              class="pim-input text-xs w-full pl-9"
+              class="pim-input text-xs w-full pim-input-icon"
               placeholder="Attribut suchen…"
               @input="debouncedPickerSearch"
               @keyup.escape="showPicker = false"

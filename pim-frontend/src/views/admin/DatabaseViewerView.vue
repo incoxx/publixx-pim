@@ -138,7 +138,7 @@ function backToList() {
           <input
             v-model="tableSearch"
             type="text"
-            class="pim-input text-xs w-full pl-9"
+            class="pim-input text-xs w-full pim-input-icon"
             placeholder="Tabelle suchen..."
           />
         </div>
@@ -190,7 +190,7 @@ function backToList() {
         <input
           v-model="rowSearch"
           type="text"
-          class="pim-input text-xs w-full pl-9"
+          class="pim-input text-xs w-full pim-input-icon"
           placeholder="In Textfeldern suchen..."
           @input="onRowSearch"
         />
