@@ -33,10 +33,11 @@ class BulkReindexSearchJob implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public int $timeout = 1800; // 30 min max
-    public int $tries = 1;
+    public int $tries = 3;
+    public array $backoff = [10, 30];
 
     private const CACHE_KEY = 'search_reindex_progress';
-    private const CHUNK_SIZE = 500;
+    private const CHUNK_SIZE = 200;
 
     public function __construct()
     {
@@ -124,12 +125,15 @@ class BulkReindexSearchJob implements ShouldQueue
                     $rows[] = $row;
                 }
 
-                // Bulk upsert
-                DB::table('products_search_index')->upsert(
-                    $rows,
-                    ['product_id'],
-                    array_keys($rows[0] ?? []),
-                );
+                // Bulk upsert (in Batches, um MySQL-Placeholder-Limit zu vermeiden)
+                $updateColumns = array_keys($rows[0] ?? []);
+                foreach (array_chunk($rows, 100) as $batch) {
+                    DB::table('products_search_index')->upsert(
+                        $batch,
+                        ['product_id'],
+                        $updateColumns,
+                    );
+                }
 
                 $processed += count($products);
                 $this->updateProgress('running', $processed, $total);

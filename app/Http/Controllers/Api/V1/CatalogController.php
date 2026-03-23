@@ -119,9 +119,9 @@ class CatalogController extends BaseController
                         ->toArray();
 
                     if ($hierarchyType === 'output') {
-                        $productIds = OutputHierarchyProductAssignment::whereIn('hierarchy_node_id', $descendantIds)
-                            ->pluck('product_id');
-                        $query->whereIn('products_search_index.product_id', $productIds);
+                        $outputProductQuery = OutputHierarchyProductAssignment::whereIn('hierarchy_node_id', $descendantIds)
+                            ->select('product_id');
+                        $query->whereIn('products_search_index.product_id', $outputProductQuery);
                     } else {
                         $query->whereIn('products.master_hierarchy_node_id', $descendantIds);
                     }
@@ -137,13 +137,13 @@ class CatalogController extends BaseController
                 if ($linkedOnly && $settingsHierarchyId) {
                     $hierarchy = Hierarchy::find($settingsHierarchyId);
                     if ($hierarchy) {
-                        $allNodeIds = HierarchyNode::where('hierarchy_id', $hierarchy->id)->pluck('id');
+                        $allNodeQuery = HierarchyNode::where('hierarchy_id', $hierarchy->id)->select('id');
                         if ($hierarchy->hierarchy_type === 'output') {
-                            $linkedProductIds = OutputHierarchyProductAssignment::whereIn('hierarchy_node_id', $allNodeIds)
-                                ->pluck('product_id');
-                            $query->whereIn('products_search_index.product_id', $linkedProductIds);
+                            $linkedProductQuery = OutputHierarchyProductAssignment::whereIn('hierarchy_node_id', $allNodeQuery)
+                                ->select('product_id');
+                            $query->whereIn('products_search_index.product_id', $linkedProductQuery);
                         } else {
-                            $query->whereIn('products.master_hierarchy_node_id', $allNodeIds);
+                            $query->whereIn('products.master_hierarchy_node_id', $allNodeQuery);
                         }
                     }
                 }
@@ -1062,24 +1062,21 @@ class CatalogController extends BaseController
         // Category filter — restrict facet counts to selected category
         $categoryId = $request->query('category');
         $hierarchyType = $request->query('hierarchy_type', 'master');
-        $categoryProductIds = null;
+        $categoryProductQuery = null;
 
         if ($categoryId) {
             $node = HierarchyNode::find($categoryId);
             if ($node) {
-                $descendantIds = HierarchyNode::where('hierarchy_id', $node->hierarchy_id)
+                $descendantQuery = HierarchyNode::where('hierarchy_id', $node->hierarchy_id)
                     ->where('path', 'like', $node->path . '%')
-                    ->pluck('id')
-                    ->toArray();
+                    ->select('id');
 
                 if ($hierarchyType === 'output') {
-                    $categoryProductIds = OutputHierarchyProductAssignment::whereIn('hierarchy_node_id', $descendantIds)
-                        ->pluck('product_id')
-                        ->toArray();
+                    $categoryProductQuery = OutputHierarchyProductAssignment::whereIn('hierarchy_node_id', $descendantQuery)
+                        ->select('product_id');
                 } else {
-                    $categoryProductIds = Product::whereIn('master_hierarchy_node_id', $descendantIds)
-                        ->pluck('id')
-                        ->toArray();
+                    $categoryProductQuery = Product::whereIn('master_hierarchy_node_id', $descendantQuery)
+                        ->select('id');
                 }
             }
         } else {
@@ -1090,15 +1087,13 @@ class CatalogController extends BaseController
             if ($linkedOnly && $settingsHierarchyId) {
                 $hierarchy = Hierarchy::find($settingsHierarchyId);
                 if ($hierarchy) {
-                    $allNodeIds = HierarchyNode::where('hierarchy_id', $hierarchy->id)->pluck('id');
+                    $allNodeQuery = HierarchyNode::where('hierarchy_id', $hierarchy->id)->select('id');
                     if ($hierarchy->hierarchy_type === 'output') {
-                        $categoryProductIds = OutputHierarchyProductAssignment::whereIn('hierarchy_node_id', $allNodeIds)
-                            ->pluck('product_id')
-                            ->toArray();
+                        $categoryProductQuery = OutputHierarchyProductAssignment::whereIn('hierarchy_node_id', $allNodeQuery)
+                            ->select('product_id');
                     } else {
-                        $categoryProductIds = Product::whereIn('master_hierarchy_node_id', $allNodeIds)
-                            ->pluck('id')
-                            ->toArray();
+                        $categoryProductQuery = Product::whereIn('master_hierarchy_node_id', $allNodeQuery)
+                            ->select('id');
                     }
                 }
             }
@@ -1126,8 +1121,8 @@ class CatalogController extends BaseController
             // but facet A still shows all its available values.
             $filteredProductQuery = clone $activeProductQuery;
 
-            if ($categoryProductIds !== null) {
-                $filteredProductQuery->whereIn('id', $categoryProductIds);
+            if ($categoryProductQuery !== null) {
+                $filteredProductQuery->whereIn('id', $categoryProductQuery);
             }
 
             $otherFilters = array_diff_key($filters, [$attrId => true]);
