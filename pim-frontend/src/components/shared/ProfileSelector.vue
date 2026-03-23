@@ -64,7 +64,7 @@ function deleteProfile() {
     <div class="relative flex-1 min-w-0">
       <FolderOpen class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--color-text-tertiary)]" :stroke-width="1.75" />
       <select
-        class="pim-input text-xs pl-8 pr-3 py-1.5 w-full"
+        class="pim-input text-xs pim-input-icon pr-3 py-1.5 w-full"
         :value="modelValue"
         @change="onSelect"
       >

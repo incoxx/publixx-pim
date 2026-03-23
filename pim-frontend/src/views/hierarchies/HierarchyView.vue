@@ -843,7 +843,7 @@ onMounted(async () => {
           <input
             v-model="nodeSearchQuery"
             type="text"
-            class="pim-input text-xs w-full pl-7"
+            class="pim-input text-xs w-full pim-input-icon"
             placeholder="Knoten suchen..."
             @input="searchNodes"
           />
@@ -985,7 +985,7 @@ onMounted(async () => {
               <Search class="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)]" :stroke-width="1.75" />
               <input
                 v-model="productSearchQuery"
-                class="pim-input text-xs w-full pl-9"
+                class="pim-input text-xs w-full pim-input-icon"
                 placeholder="Produkt suchen (SKU, Name)..."
                 @input="searchProducts"
                 @keyup.escape="showProductSearch = false"
@@ -1137,7 +1137,7 @@ onMounted(async () => {
               <Search class="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)]" :stroke-width="1.75" />
               <input
                 v-model="attrPickerSearch"
-                class="pim-input text-xs w-full pl-9"
+                class="pim-input text-xs w-full pim-input-icon"
                 placeholder="Attribut suchen (Name, Technischer Name)…"
                 @input="onAttrPickerSearchInput"
                 @keyup.escape="showAttrPicker = false"
@@ -1196,7 +1196,7 @@ onMounted(async () => {
                 <Search class="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)]" :stroke-width="1.75" />
                 <input
                   v-model="nodeAttrSearch"
-                  class="pim-input text-xs w-full pl-9"
+                  class="pim-input text-xs w-full pim-input-icon"
                   placeholder="Zugeordnete Attribute filtern…"
                 />
               </div>

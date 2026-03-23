@@ -63,7 +63,7 @@ const hasFocus = computed(() => !!store.focusedSection.groupId)
       <Search class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-[var(--color-text-tertiary)]" :stroke-width="2" />
       <input
         v-model="searchQuery"
-        class="pim-input text-[11px] w-full pl-8"
+        class="pim-input text-[11px] w-full pim-input-icon"
         placeholder="Attribute suchen..."
       />
     </div>

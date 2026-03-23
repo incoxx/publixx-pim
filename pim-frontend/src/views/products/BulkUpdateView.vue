@@ -636,7 +636,7 @@ onMounted(() => {
                   <Search class="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)]" :stroke-width="1.75" />
                   <input
                     v-model="attrPickerSearch"
-                    class="pim-input text-xs w-full pl-9"
+                    class="pim-input text-xs w-full pim-input-icon"
                     placeholder="Attribut suchen…"
                     @input="debouncedAttrSearch"
                   />
@@ -782,7 +782,7 @@ onMounted(() => {
                       <Search class="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)]" :stroke-width="1.75" />
                       <input
                         v-model="op.search"
-                        class="pim-input text-xs w-full pl-9"
+                        class="pim-input text-xs w-full pim-input-icon"
                         placeholder="Produkt suchen (SKU, Name)…"
                         @input="debouncedRelProductSearch(idx)"
                       />
@@ -983,7 +983,7 @@ onMounted(() => {
                       <Search class="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)]" :stroke-width="1.75" />
                       <input
                         v-model="op.search"
-                        class="pim-input text-xs w-full pl-9"
+                        class="pim-input text-xs w-full pim-input-icon"
                         placeholder="Medium suchen (Dateiname)…"
                         @input="debouncedMediaSearch(idx)"
                       />

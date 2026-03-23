@@ -666,7 +666,7 @@ onMounted(() => {
             <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--color-text-tertiary)] z-10 pointer-events-none" />
             <input
               v-model="searchTerm"
-              class="pim-input text-xs pl-7 w-36 sm:w-48"
+              class="pim-input text-xs pim-input-icon w-36 sm:w-48"
               placeholder="Suchen…"
             />
           </div>

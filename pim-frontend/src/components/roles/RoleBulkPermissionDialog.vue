@@ -183,7 +183,7 @@ watch(() => props.open, async (isOpen) => {
               <input
                 v-model="search"
                 type="text"
-                class="pim-input w-full text-xs pl-9"
+                class="pim-input w-full text-xs pim-input-icon"
                 placeholder="Berechtigung suchen..."
               />
             </div>
