@@ -80,14 +80,18 @@ class ProductAttributeValueController extends Controller
         }
 
         // Load existing master attribute values for this product (exclude channel-specific)
-        $existingValues = $product->attributeValues()
+        // Use groupBy to support multipliable attributes with multiple values
+        $allExistingValues = $product->attributeValues()
             ->with('attribute')
             ->whereNull('output_hierarchy_id')
             ->where(function ($q) use ($language) {
                 $q->whereNull('language')->orWhere('language', $language);
             })
-            ->get()
-            ->keyBy('attribute_id');
+            ->orderBy('multiplied_index')
+            ->get();
+
+        $existingValues = $allExistingValues->keyBy('attribute_id');
+        $multipliedValues = $allExistingValues->groupBy('attribute_id');
 
         // Ensure child attributes of any Composite in the effective list are included,
         // even when they are not explicitly assigned to the hierarchy node.
@@ -139,7 +143,7 @@ class ProductAttributeValueController extends Controller
             }
         }
 
-        $result = $effectiveAttributes->map(function ($assignment) use ($existingValues) {
+        $result = $effectiveAttributes->map(function ($assignment) use ($existingValues, $multipliedValues) {
             $pav = $existingValues->get($assignment->attribute_id);
             $value = null;
             $source = 'none';
@@ -149,7 +153,7 @@ class ProductAttributeValueController extends Controller
                 $source = $pav->is_inherited ? 'hierarchy_inheritance' : 'own';
             }
 
-            return [
+            $result = [
                 'attribute_id' => $assignment->attribute_id,
                 'attribute_technical_name' => $assignment->attribute_technical_name,
                 'attribute_name_de' => $assignment->attribute_name_de,
@@ -159,6 +163,8 @@ class ProductAttributeValueController extends Controller
                 'is_translatable' => (bool) $assignment->is_translatable,
                 'is_mandatory' => (bool) ($assignment->is_mandatory || !empty($assignment->is_required)),
                 'is_variant_attribute' => (bool) ($assignment->is_variant_attribute ?? false),
+                'is_multipliable' => (bool) ($assignment->is_multipliable ?? false),
+                'max_multiplied' => $assignment->max_multiplied ?? null,
                 'attribute_type_id' => $assignment->attribute_type_id ?? null,
                 'parent_attribute_id' => $assignment->parent_attribute_id ?? null,
                 'composite_format' => $assignment->composite_format ?? null,
@@ -172,6 +178,22 @@ class ProductAttributeValueController extends Controller
                 'source' => $source,
                 'is_inherited' => $source !== 'own' && $source !== 'none',
             ];
+
+            // Include all multiplied values for multipliable attributes
+            if ($assignment->is_multipliable ?? false) {
+                $attrMultiplied = $multipliedValues->get($assignment->attribute_id, collect());
+                $result['multiplied_values'] = $attrMultiplied
+                    ->sortBy('multiplied_index')
+                    ->values()
+                    ->map(fn ($pav) => [
+                        'multiplied_index' => $pav->multiplied_index,
+                        'value' => $pav->value_string ?? $pav->value_number ?? $pav->value_date ?? $pav->value_flag ?? $pav->value_selection_id,
+                        'language' => $pav->language,
+                    ])
+                    ->all();
+            }
+
+            return $result;
         });
 
         return response()->json(['data' => $result->values()]);
@@ -235,6 +257,29 @@ class ProductAttributeValueController extends Controller
                 );
 
                 $changedAttributeIds[] = $attribute->id;
+            }
+
+            // Clean up removed multiplied entries for multipliable attributes.
+            // Collect the max multiplied_index sent per attribute, then delete any
+            // entries with a higher index that are left over from a previous save.
+            $multipliableIndices = [];
+            foreach ($values as $entry) {
+                $attrId = $entry['attribute_id'];
+                $idx = $entry['multiplied_index'] ?? 0;
+                if (!isset($multipliableIndices[$attrId]) || $idx > $multipliableIndices[$attrId]) {
+                    $multipliableIndices[$attrId] = $idx;
+                }
+            }
+
+            foreach ($multipliableIndices as $attrId => $maxIdx) {
+                $attr = Attribute::find($attrId);
+                if ($attr && $attr->is_multipliable) {
+                    ProductAttributeValue::where('product_id', $product->id)
+                        ->where('attribute_id', $attrId)
+                        ->whereNull('output_hierarchy_id')
+                        ->where('multiplied_index', '>', $maxIdx)
+                        ->delete();
+                }
             }
         });
 

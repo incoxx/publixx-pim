@@ -36,6 +36,7 @@ import hierarchiesApi from '@/api/hierarchies'
 import manufacturersApi from '@/api/manufacturers'
 import PimCollectionGroup from '@/components/shared/PimCollectionGroup.vue'
 import PimAttributeInput from '@/components/shared/PimAttributeInput.vue'
+import PimMultipliableInput from '@/components/shared/PimMultipliableInput.vue'
 import PimTable from '@/components/shared/PimTable.vue'
 import PimConfirmDialog from '@/components/shared/PimConfirmDialog.vue'
 import PimDeleteConfirmDialog from '@/components/shared/PimDeleteConfirmDialog.vue'
@@ -326,6 +327,7 @@ const masterNodePath = computed(() => {
 const schema = ref(null)
 const attributeValues = ref({})       // non-translatable: { attrId: value }
 const translatedValues = ref({})      // translatable: { `${attrId}_${lang}`: value }
+const multipliableValues = ref({})    // multipliable: { attrId: [{ value, multiplied_index }, ...] }
 const attrLoaded = ref(false)
 const valueListMap = ref({})
 const dictionaryEntries = ref([])
@@ -401,6 +403,8 @@ async function loadAttributeData(overrideNodeId = null) {
         is_mandatory: !!(ra.is_mandatory || ra.is_required),
         is_translatable: ra.is_translatable,
         is_variant_attribute: ra.is_variant_attribute || false,
+        is_multipliable: ra.is_multipliable || false,
+        max_multiplied: ra.max_multiplied || null,
         attribute_type_id: ra.attribute_type_id || null,
         parent_attribute_id: ra.parent_attribute_id || null,
         composite_format: ra.composite_format || null,
@@ -411,7 +415,12 @@ async function loadAttributeData(overrideNodeId = null) {
       }))
       // Populate values from resolved data (primary language)
       for (const ra of resolvedAttrs) {
-        if (ra.value !== null && ra.value !== undefined) {
+        if (ra.is_multipliable && ra.multiplied_values) {
+          // Multipliable: store array of { value, multiplied_index }
+          multipliableValues.value[ra.attribute_id] = ra.multiplied_values.length > 0
+            ? ra.multiplied_values.map(mv => ({ value: mv.value, multiplied_index: mv.multiplied_index }))
+            : [{ value: null, multiplied_index: 0 }]
+        } else if (ra.value !== null && ra.value !== undefined) {
           if (ra.is_translatable) {
             const lang = activeDataLang.value || 'de'
             translatedValues.value[`${ra.attribute_id}_${lang}`] = ra.value
@@ -430,7 +439,14 @@ async function loadAttributeData(overrideNodeId = null) {
           const attrId = val.attribute_id || val.attribute?.id
           if (!attrId) continue
           const rawValue = val.value_string ?? val.value_number ?? val.value_date ?? val.value_flag ?? val.value_selection_id ?? ''
-          if (val.language) {
+          const mIdx = val.multiplied_index ?? 0
+          if (mIdx > 0 || (val.attribute && val.attribute.is_multipliable)) {
+            // Multipliable value — collect into array
+            if (!multipliableValues.value[attrId]) {
+              multipliableValues.value[attrId] = []
+            }
+            multipliableValues.value[attrId].push({ value: rawValue, multiplied_index: mIdx })
+          } else if (val.language) {
             translatedValues.value[`${attrId}_${val.language}`] = rawValue
           } else {
             attributeValues.value[attrId] = rawValue
@@ -1630,6 +1646,17 @@ async function save() {
       values.push({ attribute_id, value, language })
     }
 
+    // Multipliable attribute values (one entry per multiplied_index)
+    for (const [attribute_id, entries] of Object.entries(multipliableValues.value)) {
+      for (const entry of entries) {
+        values.push({
+          attribute_id,
+          value: entry.value,
+          multiplied_index: entry.multiplied_index,
+        })
+      }
+    }
+
     if (values.length > 0) {
       await store.saveAttributeValues(product.value.id, values)
     }
@@ -2210,6 +2237,7 @@ watch(() => route.params.id, async (newId, oldId) => {
             <span v-if="attr.is_translatable" class="ml-1 text-[10px] text-[var(--color-accent)] font-normal">
               <Languages class="inline w-3 h-3 -mt-0.5" :stroke-width="1.75" /> {{ activeDataLang.toUpperCase() }}
             </span>
+            <span v-if="attr.is_multipliable" class="ml-1 text-[10px] text-emerald-600 font-normal">(vermehrbar)</span>
             <span v-if="attr._is_inherited" class="ml-1 text-[10px] text-blue-500 font-normal">(vererbt)</span>
             <span v-if="isAttributeInherited(attr.id)" class="ml-1 text-[10px] text-purple-500 font-normal">(vererbt vom Elternprodukt)</span>
           </label>
@@ -2225,6 +2253,16 @@ watch(() => route.params.id, async (newId, oldId) => {
             </span>
             <span class="text-[10px] text-[var(--color-text-tertiary)] shrink-0 ml-2">{{ (attr._children || []).length }} Felder</span>
           </button>
+          <!-- Multipliable attribute: multiple values with +/- and reordering -->
+          <PimMultipliableInput
+            v-else-if="attr.is_multipliable"
+            :type="mapDataTypeToInput(attr.data_type)"
+            :modelValue="multipliableValues[attr.id] || [{ value: null, multiplied_index: 0 }]"
+            :options="attr.data_type === 'Dictionary' ? dictionaryEntries : (attr.value_list?.entries?.map(e => ({ value: e.id, label: e.value_de || e.label_de || e.code })) || [])"
+            :disabled="attr._access === 'read_only' || attr.is_readonly || isAttributeInherited(attr.id) || isTabReadOnly"
+            :maxMultiplied="attr.max_multiplied"
+            @update:modelValue="multipliableValues[attr.id] = $event"
+          />
           <!-- Translatable attribute: bind to translatedValues -->
           <PimAttributeInput
             v-else-if="attr.is_translatable"
