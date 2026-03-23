@@ -2078,62 +2078,97 @@ watch(() => route.params.id, async (newId, oldId) => {
 
     <!-- ═══ Base Data Tab ═══ -->
     <div v-else-if="activeTab === 'base-data' && product" class="space-y-3" :class="{ 'pointer-events-none opacity-75': isTabReadOnly }">
+      <!-- Layout toggle -->
+      <div class="flex justify-end">
+        <div class="flex border border-[var(--color-border)] rounded-lg overflow-hidden">
+          <button
+            :class="['p-1.5 transition-colors', !attrCompactLayout ? 'bg-[var(--color-accent)] text-white' : 'bg-[var(--color-card)] text-[var(--color-text-tertiary)] hover:bg-[var(--color-bg)]']"
+            @click="attrCompactLayout = false"
+            title="Vertikales Layout"
+          >
+            <List class="w-3.5 h-3.5" :stroke-width="1.75" />
+          </button>
+          <button
+            :class="['p-1.5 transition-colors', attrCompactLayout ? 'bg-[var(--color-accent)] text-white' : 'bg-[var(--color-card)] text-[var(--color-text-tertiary)] hover:bg-[var(--color-bg)]']"
+            @click="attrCompactLayout = true"
+            title="Kompaktes Layout (Label links)"
+          >
+            <LayoutGrid class="w-3.5 h-3.5" :stroke-width="1.75" />
+          </button>
+        </div>
+      </div>
       <PimCollectionGroup title="Stammdaten" :filledCount="3" :totalCount="5">
-        <div class="space-y-3 pt-3">
-          <div>
-            <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">SKU</label>
-            <input class="pim-input font-mono" :value="product.sku" readonly />
+        <div :class="attrCompactLayout ? 'space-y-2 pt-3' : 'space-y-3 pt-3'">
+          <div :class="attrCompactLayout ? 'md:flex md:items-center md:gap-4' : ''">
+            <label :class="['text-[12px] font-medium text-[var(--color-text-secondary)]', attrCompactLayout ? 'md:w-48 md:shrink-0 md:text-right md:mb-0 mb-1 block' : 'block mb-1']">SKU</label>
+            <div :class="attrCompactLayout ? 'md:flex-1 md:min-w-0' : ''">
+              <input class="pim-input font-mono" :value="product.sku" readonly />
+            </div>
           </div>
-          <div>
-            <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Name</label>
-            <input class="pim-input" v-model="product.name" />
+          <div :class="attrCompactLayout ? 'md:flex md:items-center md:gap-4' : ''">
+            <label :class="['text-[12px] font-medium text-[var(--color-text-secondary)]', attrCompactLayout ? 'md:w-48 md:shrink-0 md:text-right md:mb-0 mb-1 block' : 'block mb-1']">Name</label>
+            <div :class="attrCompactLayout ? 'md:flex-1 md:min-w-0' : ''">
+              <input class="pim-input" v-model="product.name" />
+            </div>
           </div>
-          <div v-if="!product.product_type || product.product_type.has_ean !== false">
-            <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">EAN</label>
-            <input class="pim-input font-mono" v-model="product.ean" />
+          <div v-if="!product.product_type || product.product_type.has_ean !== false" :class="attrCompactLayout ? 'md:flex md:items-center md:gap-4' : ''">
+            <label :class="['text-[12px] font-medium text-[var(--color-text-secondary)]', attrCompactLayout ? 'md:w-48 md:shrink-0 md:text-right md:mb-0 mb-1 block' : 'block mb-1']">EAN</label>
+            <div :class="attrCompactLayout ? 'md:flex-1 md:min-w-0' : ''">
+              <input class="pim-input font-mono" v-model="product.ean" />
+            </div>
           </div>
-          <div>
-            <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Status</label>
-            <PimAttributeInput
-              type="select"
-              v-model="product.status"
-              :options="[{ value: 'active', label: 'Aktiv' }, { value: 'draft', label: 'Entwurf' }, { value: 'inactive', label: 'Inaktiv' }, { value: 'discontinued', label: 'Auslaufend' }]"
-            />
+          <div :class="attrCompactLayout ? 'md:flex md:items-center md:gap-4' : ''">
+            <label :class="['text-[12px] font-medium text-[var(--color-text-secondary)]', attrCompactLayout ? 'md:w-48 md:shrink-0 md:text-right md:mb-0 mb-1 block' : 'block mb-1']">Status</label>
+            <div :class="attrCompactLayout ? 'md:flex-1 md:min-w-0' : ''">
+              <PimAttributeInput
+                type="select"
+                v-model="product.status"
+                :options="[{ value: 'active', label: 'Aktiv' }, { value: 'draft', label: 'Entwurf' }, { value: 'inactive', label: 'Inaktiv' }, { value: 'discontinued', label: 'Auslaufend' }]"
+              />
+            </div>
           </div>
-          <div>
-            <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Produkttyp</label>
-            <select class="pim-input text-xs" :value="product.product_type_id || ''" @change="product.product_type_id = $event.target.value || null">
-              <option v-for="pt in productTypesList" :key="pt.id" :value="pt.id">{{ pt.name_de || pt.technical_name }}</option>
-            </select>
-          </div>
-          <div v-if="product.product_type_ref !== 'variant'">
-            <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Master-Hierarchie-Knoten</label>
-            <div class="flex flex-col sm:flex-row gap-2">
-              <select v-if="hierarchies.length > 1" class="pim-input text-xs w-full sm:w-36 shrink-0" :value="selectedHierarchyId" @change="onHierarchyChange($event.target.value)">
-                <option v-for="h in hierarchies" :key="h.id" :value="h.id">{{ h.name_de || h.technical_name }}</option>
-              </select>
-              <select class="pim-input text-xs flex-1" :value="product.master_hierarchy_node_id || ''" @change="product.master_hierarchy_node_id = $event.target.value || null">
-                <option value="">— Kein Knoten —</option>
-                <option v-for="node in hierarchyNodes.filter(n => !selectedHierarchyId || n._hierarchyId === selectedHierarchyId)" :key="node.id" :value="node.id">{{ node.label }}</option>
+          <div :class="attrCompactLayout ? 'md:flex md:items-center md:gap-4' : ''">
+            <label :class="['text-[12px] font-medium text-[var(--color-text-secondary)]', attrCompactLayout ? 'md:w-48 md:shrink-0 md:text-right md:mb-0 mb-1 block' : 'block mb-1']">Produkttyp</label>
+            <div :class="attrCompactLayout ? 'md:flex-1 md:min-w-0' : ''">
+              <select class="pim-input text-xs" :value="product.product_type_id || ''" @change="product.product_type_id = $event.target.value || null">
+                <option v-for="pt in productTypesList" :key="pt.id" :value="pt.id">{{ pt.name_de || pt.technical_name }}</option>
               </select>
             </div>
-            <p v-if="masterNodePath" class="text-[11px] text-[var(--color-text-tertiary)] mt-1 font-mono">{{ masterNodePath }}</p>
           </div>
-          <div>
-            <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Hersteller</label>
-            <select class="pim-input text-xs" :value="product.manufacturer_id || ''" @change="product.manufacturer_id = $event.target.value || null">
-              <option value="">— Kein Hersteller —</option>
-              <option v-for="m in manufacturers" :key="m.id" :value="m.id">{{ m.name }}</option>
-            </select>
+          <div v-if="product.product_type_ref !== 'variant'" :class="attrCompactLayout ? 'md:flex md:items-start md:gap-4' : ''">
+            <label :class="['text-[12px] font-medium text-[var(--color-text-secondary)]', attrCompactLayout ? 'md:w-48 md:shrink-0 md:text-right md:mb-0 md:mt-2 mb-1 block' : 'block mb-1']">Master-Hierarchie-Knoten</label>
+            <div :class="attrCompactLayout ? 'md:flex-1 md:min-w-0' : ''">
+              <div class="flex flex-col sm:flex-row gap-2">
+                <select v-if="hierarchies.length > 1" class="pim-input text-xs w-full sm:w-36 shrink-0" :value="selectedHierarchyId" @change="onHierarchyChange($event.target.value)">
+                  <option v-for="h in hierarchies" :key="h.id" :value="h.id">{{ h.name_de || h.technical_name }}</option>
+                </select>
+                <select class="pim-input text-xs flex-1" :value="product.master_hierarchy_node_id || ''" @change="product.master_hierarchy_node_id = $event.target.value || null">
+                  <option value="">— Kein Knoten —</option>
+                  <option v-for="node in hierarchyNodes.filter(n => !selectedHierarchyId || n._hierarchyId === selectedHierarchyId)" :key="node.id" :value="node.id">{{ node.label }}</option>
+                </select>
+              </div>
+              <p v-if="masterNodePath" class="text-[11px] text-[var(--color-text-tertiary)] mt-1 font-mono">{{ masterNodePath }}</p>
+            </div>
+          </div>
+          <div :class="attrCompactLayout ? 'md:flex md:items-center md:gap-4' : ''">
+            <label :class="['text-[12px] font-medium text-[var(--color-text-secondary)]', attrCompactLayout ? 'md:w-48 md:shrink-0 md:text-right md:mb-0 mb-1 block' : 'block mb-1']">Hersteller</label>
+            <div :class="attrCompactLayout ? 'md:flex-1 md:min-w-0' : ''">
+              <select class="pim-input text-xs" :value="product.manufacturer_id || ''" @change="product.manufacturer_id = $event.target.value || null">
+                <option value="">— Kein Hersteller —</option>
+                <option v-for="m in manufacturers" :key="m.id" :value="m.id">{{ m.name }}</option>
+              </select>
+            </div>
           </div>
         </div>
       </PimCollectionGroup>
 
       <PimCollectionGroup title="Beschreibung" :filledCount="1" :totalCount="3" :defaultOpen="false">
-        <div class="space-y-3 pt-3">
-          <div>
-            <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Kurzbeschreibung</label>
-            <PimAttributeInput type="textarea" v-model="product.description_short" />
+        <div :class="attrCompactLayout ? 'space-y-2 pt-3' : 'space-y-3 pt-3'">
+          <div :class="attrCompactLayout ? 'md:flex md:items-start md:gap-4' : ''">
+            <label :class="['text-[12px] font-medium text-[var(--color-text-secondary)]', attrCompactLayout ? 'md:w-48 md:shrink-0 md:text-right md:mb-0 md:mt-2 mb-1 block' : 'block mb-1']">Kurzbeschreibung</label>
+            <div :class="attrCompactLayout ? 'md:flex-1 md:min-w-0' : ''">
+              <PimAttributeInput type="textarea" v-model="product.description_short" />
+            </div>
           </div>
         </div>
       </PimCollectionGroup>
