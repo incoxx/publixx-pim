@@ -22,7 +22,7 @@ import { useTabStore } from '@/stores/tabs'
 import { useAuthStore } from '@/stores/auth'
 import { useLocaleStore } from '@/stores/locale'
 import { useI18n } from 'vue-i18n'
-import { ArrowLeft, Save, Plus, Trash2, Image, Star, X, Search, Download, Languages, Copy, Sparkles, Tags, LayoutGrid, List, FileText, GitBranch, CheckCircle2, Eye, RotateCcw, ArrowRightLeft } from 'lucide-vue-next'
+import { ArrowLeft, Save, Plus, Trash2, Image, Star, X, Search, Download, Languages, Copy, Sparkles, Tags, LayoutGrid, List, FileText, GitBranch, CheckCircle2, Eye, RotateCcw, ArrowRightLeft, RefreshCw } from 'lucide-vue-next'
 import productsApi from '@/api/products'
 import projectsApi from '@/api/projects'
 import usersApi from '@/api/users'
@@ -33,6 +33,7 @@ import { priceRegions } from '@/api/priceRegions'
 import attributesApiDefault, { productTypes, valueLists, attributeViews, attributeTypes } from '@/api/attributes'
 import dictionaryApi from '@/api/dictionary'
 import hierarchiesApi from '@/api/hierarchies'
+import attributeMappingsApi from '@/api/attributeMappings'
 import manufacturersApi from '@/api/manufacturers'
 import PimCollectionGroup from '@/components/shared/PimCollectionGroup.vue'
 import PimAttributeInput from '@/components/shared/PimAttributeInput.vue'
@@ -1420,6 +1421,24 @@ const outputHierarchyAttrValues = ref({})  // { `${hierarchyId}_${attrId}`: valu
 const outputHierarchyTranslatedValues = ref({})  // { `${hierarchyId}_${attrId}_${lang}`: value }
 const outputHierarchyAttrLoaded = ref(false)
 const outputHierarchyAttrLoading = ref(false)
+const outputHierarchySyncing = ref(false)
+
+async function syncOutputHierarchyMappings(hierarchyId) {
+  if (!product.value || outputHierarchySyncing.value) return
+  outputHierarchySyncing.value = true
+  try {
+    await attributeMappingsApi.syncProduct(product.value.id, {
+      target_hierarchy_id: hierarchyId,
+    })
+    // Reload output hierarchy attributes to show new synced values
+    outputHierarchyAttrLoaded.value = false
+    await loadOutputHierarchyAttributes()
+  } catch (e) {
+    console.error('Mapping-Sync fehlgeschlagen:', e.message)
+  } finally {
+    outputHierarchySyncing.value = false
+  }
+}
 
 async function loadOutputHierarchyAttributes() {
   if (outputHierarchyAttrLoaded.value || !product.value) return
@@ -2377,7 +2396,20 @@ watch(() => route.params.id, async (newId, oldId) => {
             <span class="text-[11px] text-[var(--color-text-tertiary)]">{{ t('product.dataLanguage') }}</span>
           </div>
 
+          <!-- Sync button -->
           <div class="pim-card p-4 space-y-2">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-[11px] text-[var(--color-text-tertiary)]">{{ (h.attributes || []).length }} Attribute</span>
+              <button
+                class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-indigo-200 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition-colors"
+                :disabled="outputHierarchySyncing"
+                @click="syncOutputHierarchyMappings(h.hierarchy_id)"
+                title="Mapping-Werte für dieses Produkt synchronisieren"
+              >
+                <RefreshCw class="w-3.5 h-3.5" :class="{ 'animate-spin': outputHierarchySyncing }" :stroke-width="1.75" />
+                {{ outputHierarchySyncing ? 'Synchronisiere…' : 'Mapping sync' }}
+              </button>
+            </div>
             <div v-if="(h.attributes || []).length === 0" class="text-center py-8">
               <p class="text-sm text-[var(--color-text-tertiary)]">Keine Attribute in dieser Ausgabehierarchie</p>
             </div>
