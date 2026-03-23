@@ -2218,16 +2218,10 @@ class BmecatFormatImporter
                     continue;
                 }
                 // Nur hinzufügen wenn nicht bereits per NS gefunden
-                $alreadyFound = false;
-                foreach ($fields as $f) {
-                    if ($f['key'] === $elementName && $f['index'] === 0) {
-                        $alreadyFound = true;
-                        break;
-                    }
+                if (isset($seenKeys[$elementName])) {
+                    continue;
                 }
-                if (!$alreadyFound) {
-                    $this->parseUdxElement($child, $fields, $seenKeys);
-                }
+                $this->parseUdxElement($child, $fields, $seenKeys);
             }
         }
 
@@ -2248,12 +2242,7 @@ class BmecatFormatImporter
         $parentNs = $matches[1];
 
         // Prüfen ob das Element Kind-Elemente hat (= Container)
-        $childElements = $child->children();
-        $hasChildren = false;
-        foreach ($childElements as $_) {
-            $hasChildren = true;
-            break;
-        }
+        $hasChildren = $child->children()->count() > 0;
 
         if ($hasChildren) {
             // Container-Element (z.B. UDX.DOKA.MIME mit Kind-Elementen)
@@ -2262,7 +2251,7 @@ class BmecatFormatImporter
             $index = $seenKeys[$containerKey] ?? 0;
             $seenKeys[$containerKey] = $index + 1;
 
-            foreach ($childElements as $subChild) {
+            foreach ($child->children() as $subChild) {
                 $subName = $subChild->getName();
                 if (!preg_match('/^UDX\.([^.]+)\.(.+)$/', $subName, $subMatches)) {
                     Log::channel('import')->warning("UDX-Container-Kind mit ungültigem Namensformat übersprungen: {$subName}");
@@ -2283,7 +2272,6 @@ class BmecatFormatImporter
                     'value' => $value,
                     'language' => $lang,
                     'index' => $index,
-                    'container' => $containerKey,
                 ];
             }
         } else {
@@ -2307,7 +2295,6 @@ class BmecatFormatImporter
                 'value' => $value,
                 'language' => $lang,
                 'index' => $index,
-                'container' => null,
             ];
         }
     }
