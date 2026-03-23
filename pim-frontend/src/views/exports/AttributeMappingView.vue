@@ -11,6 +11,7 @@ import hierarchiesApi from '@/api/hierarchies'
 // ─── State ───────────────────────────────────────────────
 const loading = ref(true)
 const saving = ref(false)
+const syncing = ref(false)
 const error = ref('')
 const successMsg = ref('')
 
@@ -185,6 +186,25 @@ async function deleteRule(id) {
   }
 }
 
+// ─── Sync ────────────────────────────────────────────────
+
+async function syncAll() {
+  if (!confirm('Alle aktiven Produkte für dieses Mapping synchronisieren?')) return
+  syncing.value = true
+  error.value = ''
+  try {
+    const res = await attributeMappingsApi.syncBatch({
+      source_hierarchy_id: sourceHierarchyId.value,
+      target_hierarchy_id: targetHierarchyId.value,
+    })
+    showSuccess(`Sync gestartet: ${res.data.product_count} Produkte`)
+  } catch (e) {
+    error.value = e.response?.data?.message || 'Sync fehlgeschlagen'
+  } finally {
+    syncing.value = false
+  }
+}
+
 // ─── Helpers ─────────────────────────────────────────────
 
 function createEmptyMapping() {
@@ -318,6 +338,9 @@ const operators = [
                 placeholder="Suchen..."
                 class="input input-bordered input-sm w-48"
               />
+              <button class="btn btn-outline btn-sm" @click="syncAll" :disabled="syncing">
+                <RefreshCw class="w-4 h-4" :class="{ 'animate-spin': syncing }" /> Alle synchronisieren
+              </button>
               <button class="btn btn-primary btn-sm" @click="showAddRow = true">
                 <Plus class="w-4 h-4" /> Mapping
               </button>

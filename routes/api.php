@@ -639,6 +639,9 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::post('attribute-mapping-rules', [AttributeMappingController::class, 'storeRule']);
     Route::put('attribute-mapping-rules/{rule}', [AttributeMappingController::class, 'updateRule']);
     Route::delete('attribute-mapping-rules/{rule}', [AttributeMappingController::class, 'destroyRule']);
+    Route::post('attribute-mappings/sync/product/{product}', [AttributeMappingController::class, 'syncProduct']);
+    Route::post('attribute-mappings/sync/batch', [AttributeMappingController::class, 'syncBatch']);
+    Route::post('attribute-mappings/sync/bulk', [AttributeMappingController::class, 'syncBulk']);
 
     // =====================================================================
     // Export-Job-Steuerung (Enterprise: advanced_export)

@@ -7,8 +7,11 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Requests\Api\V1\StoreAttributeMappingRequest;
 use App\Http\Requests\Api\V1\UpdateAttributeMappingRequest;
 use App\Http\Resources\Api\V1\AttributeMappingResource;
+use App\Jobs\SyncAttributeMappings;
 use App\Models\AttributeMapping;
 use App\Models\AttributeMappingRule;
+use App\Models\Product;
+use App\Services\Export\AttributeMappingSyncService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -236,5 +239,102 @@ class AttributeMappingController extends Controller
         $rule->delete();
 
         return response()->json(null, 204);
+    }
+
+    // ─── Sync ────────────────────────────────────────────────
+
+    /**
+     * Manueller Sync: Einzelnes Produkt synchronisieren.
+     *
+     * POST /attribute-mappings/sync/product/{product}
+     */
+    public function syncProduct(Request $request, Product $product, AttributeMappingSyncService $syncService): JsonResponse
+    {
+        $this->authorize('create', AttributeMapping::class);
+
+        $request->validate([
+            'source_hierarchy_id' => 'nullable|uuid|exists:hierarchies,id',
+            'target_hierarchy_id' => 'nullable|uuid|exists:hierarchies,id',
+        ]);
+
+        $stats = $syncService->syncProduct(
+            $product,
+            $request->input('source_hierarchy_id'),
+            $request->input('target_hierarchy_id')
+        );
+
+        return response()->json([
+            'message' => 'Sync abgeschlossen',
+            'stats' => $stats,
+        ]);
+    }
+
+    /**
+     * Manueller Sync: Mehrere Produkte synchronisieren (async via Job).
+     *
+     * POST /attribute-mappings/sync/batch
+     */
+    public function syncBatch(Request $request): JsonResponse
+    {
+        $this->authorize('create', AttributeMapping::class);
+
+        $request->validate([
+            'source_hierarchy_id' => 'required|uuid|exists:hierarchies,id',
+            'target_hierarchy_id' => 'required|uuid|exists:hierarchies,id',
+            'product_ids' => 'nullable|array|max:5000',
+            'product_ids.*' => 'uuid|exists:products,id',
+        ]);
+
+        SyncAttributeMappings::dispatch(
+            productIds: $request->input('product_ids'),
+            sourceHierarchyId: $request->input('source_hierarchy_id'),
+            targetHierarchyId: $request->input('target_hierarchy_id'),
+        );
+
+        return response()->json([
+            'message' => 'Sync-Job gestartet',
+            'product_count' => $request->input('product_ids')
+                ? count($request->input('product_ids'))
+                : 'alle aktiven Produkte',
+        ]);
+    }
+
+    /**
+     * Bulk-Aktion: Klassifikation synchronisieren für Produktauswahl.
+     *
+     * POST /attribute-mappings/sync/bulk
+     * Verwendet von Produktliste → Aktion → "Klassifikation synchronisieren"
+     */
+    public function syncBulk(Request $request, AttributeMappingSyncService $syncService): JsonResponse
+    {
+        $this->authorize('create', AttributeMapping::class);
+
+        $request->validate([
+            'product_ids' => 'required|array|min:1|max:500',
+            'product_ids.*' => 'uuid|exists:products,id',
+        ]);
+
+        $productIds = $request->input('product_ids');
+        $totalStats = ['products' => 0, 'created' => 0, 'updated' => 0, 'skipped' => 0];
+
+        // Synchron für kleine Auswahlen (≤500), damit der User sofort Ergebnis sieht
+        $products = Product::with([
+            'attributeValues.attribute',
+            'attributeValues.valueListEntry',
+            'attributeValues.unit',
+        ])->whereIn('id', $productIds)->get();
+
+        foreach ($products as $product) {
+            $stats = $syncService->syncProduct($product);
+            $totalStats['products']++;
+            $totalStats['created'] += $stats['created'];
+            $totalStats['updated'] += $stats['updated'];
+            $totalStats['skipped'] += $stats['skipped'];
+        }
+
+        return response()->json([
+            'message' => 'Klassifikation synchronisiert',
+            'stats' => $totalStats,
+        ]);
     }
 }
