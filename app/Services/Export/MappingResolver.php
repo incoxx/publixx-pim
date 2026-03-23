@@ -5,6 +5,11 @@ declare(strict_types=1);
 namespace App\Services\Export;
 
 use App\Models\Attribute;
+use App\Models\Etim\EtimClassMapping;
+use App\Models\Etim\EtimFeatureMapping;
+use App\Models\Etim\EtimUnitMapping;
+use App\Models\Etim\EtimValueMapping;
+use App\Models\HierarchyNode;
 use App\Models\Product;
 use App\Models\ProductAttributeValue;
 use App\Models\PublixxExportMapping;
@@ -20,6 +25,57 @@ use Illuminate\Support\Str;
  */
 class MappingResolver
 {
+    // ─── ETIM-Kontext (einmal pro Export gesetzt) ────────────────────
+
+    private ?string $etimVersionId = null;
+
+    /** @var array<string, EtimFeatureMapping> attribute_id → mapping */
+    private array $etimFeatureMappings = [];
+
+    /** @var array<string, EtimValueMapping> value_list_entry_id → mapping */
+    private array $etimValueMappings = [];
+
+    /** @var array<string, EtimUnitMapping> unit_id → mapping */
+    private array $etimUnitMappings = [];
+
+    /** @var array<string, EtimClassMapping|null> hierarchy_node_id → mapping (Cache) */
+    private array $etimClassMappingCache = [];
+
+    /**
+     * ETIM-Kontext setzen: Lädt alle Mappings für eine ETIM-Version.
+     * Muss einmal vor dem Export-Lauf aufgerufen werden.
+     */
+    public function setEtimContext(?string $etimVersionId): void
+    {
+        $this->etimVersionId = $etimVersionId;
+        $this->etimClassMappingCache = [];
+
+        if (!$etimVersionId) {
+            $this->etimFeatureMappings = [];
+            $this->etimValueMappings = [];
+            $this->etimUnitMappings = [];
+            return;
+        }
+
+        $this->etimFeatureMappings = EtimFeatureMapping::where('etim_version_id', $etimVersionId)
+            ->with('etimFeature')
+            ->get()
+            ->keyBy('attribute_id')
+            ->all();
+
+        $this->etimValueMappings = EtimValueMapping::where('etim_version_id', $etimVersionId)
+            ->with('etimValue')
+            ->get()
+            ->keyBy('value_list_entry_id')
+            ->all();
+
+        $this->etimUnitMappings = EtimUnitMapping::where('etim_version_id', $etimVersionId)
+            ->with('etimUnit')
+            ->get()
+            ->keyBy('unit_id')
+            ->all();
+    }
+
     /**
      * Resolve all mapping rules for a product and return a flat key=>value map.
      *
@@ -76,6 +132,8 @@ class MappingResolver
             'variant_array' => $this->resolveVariantArray($product, $options),
             'relation_array' => $this->resolveRelationArray($source, $product, $options),
             'group' => $this->resolveGroup($source, $product, $language, $options),
+            'etim_class' => $this->resolveEtimClass($product),
+            'etim_features' => $this->resolveEtimFeatures($product, $language, $options),
             default => null,
         };
     }
@@ -372,6 +430,152 @@ class MappingResolver
         }
 
         return !empty(array_filter($result, fn ($v) => $v !== null)) ? $result : null;
+    }
+
+    // ─── ETIM-Resolution ─────────────────────────────────────────
+
+    /**
+     * etim_class: Löst die ETIM-Klassifikation für ein Produkt auf (über Hierarchie-Knoten).
+     * Gibt {system_name, group_id, group_name} zurück oder null.
+     */
+    protected function resolveEtimClass(Product $product): ?array
+    {
+        if (!$this->etimVersionId || !$product->master_hierarchy_node_id) {
+            return null;
+        }
+
+        $mapping = $this->resolveEtimClassMapping($product->master_hierarchy_node_id);
+        if (!$mapping || !$mapping->etimClass) {
+            return null;
+        }
+
+        $class = $mapping->etimClass;
+        $version = $class->etimVersion;
+
+        return [
+            'system_name' => 'ETIM-' . ($version->version ?? ''),
+            'group_id' => $class->code,
+            'group_name' => $class->name_de,
+        ];
+    }
+
+    /**
+     * etim_features: Löst alle Produkt-Attribute mit ETIM-Codes auf.
+     * Gibt Array von {fname, fvalue, funit, forder} zurück.
+     * Nutzt ETIM Feature/Value/Unit-Mappings wo verfügbar, sonst Raw-Werte.
+     */
+    protected function resolveEtimFeatures(Product $product, string $language, array $options): array
+    {
+        $values = $options['attributeValues'] ?? $product->attributeValues ?? collect();
+        $features = [];
+        $order = 1;
+
+        foreach ($values as $av) {
+            if (!$av->attribute) {
+                continue;
+            }
+
+            // Feature-Name: ETIM-Code oder Attribut-Name
+            $fname = $av->attribute->name_de ?? $av->attribute->technical_name;
+            if (isset($this->etimFeatureMappings[$av->attribute_id])) {
+                $etimFeature = $this->etimFeatureMappings[$av->attribute_id]->etimFeature;
+                if ($etimFeature) {
+                    $fname = $etimFeature->code;
+                }
+            }
+
+            // Feature-Value: ETIM-Value-Code oder Raw-Value
+            $fvalue = $this->resolveEtimFeatureValue($av);
+
+            // Feature-Unit: ETIM-Unit-Code oder Raw-Unit
+            $funit = null;
+            if ($av->unit_id && $av->unit) {
+                if (isset($this->etimUnitMappings[$av->unit_id])) {
+                    $etimUnit = $this->etimUnitMappings[$av->unit_id]->etimUnit;
+                    $funit = $etimUnit ? $etimUnit->code : ($av->unit->symbol ?? $av->unit->technical_name);
+                } else {
+                    $funit = $av->unit->symbol ?? $av->unit->technical_name;
+                }
+            }
+
+            if ($fvalue !== null) {
+                $features[] = [
+                    'fname' => $fname,
+                    'fvalue' => $fvalue,
+                    'funit' => $funit,
+                    'forder' => $order,
+                ];
+                $order++;
+            }
+        }
+
+        return $features;
+    }
+
+    /**
+     * Löst den Wert eines Attributs auf, mit ETIM-Value-Mapping wenn vorhanden.
+     */
+    private function resolveEtimFeatureValue(ProductAttributeValue $av): ?string
+    {
+        // Selection-Werte: ETIM-Value-Code verwenden wenn gemappt
+        if ($av->value_selection_id && $av->valueListEntry) {
+            if (isset($this->etimValueMappings[$av->value_selection_id])) {
+                $etimValue = $this->etimValueMappings[$av->value_selection_id]->etimValue;
+                if ($etimValue) {
+                    return $etimValue->code;
+                }
+            }
+            return $av->valueListEntry->display_value_de ?? $av->valueListEntry->technical_name;
+        }
+
+        // Sonstige Werte als String
+        if ($av->value_string !== null && $av->value_string !== '') {
+            return $av->value_string;
+        }
+        if ($av->value_number !== null) {
+            return rtrim(rtrim(number_format((float) $av->value_number, 6, '.', ''), '0'), '.');
+        }
+        if ($av->value_flag !== null) {
+            return $av->value_flag ? 'true' : 'false';
+        }
+        if ($av->value_date !== null) {
+            return $av->value_date instanceof \DateTimeInterface
+                ? $av->value_date->format('Y-m-d')
+                : (string) $av->value_date;
+        }
+
+        return null;
+    }
+
+    /**
+     * Löst das ETIM-Klassen-Mapping für einen Hierarchie-Knoten auf (mit Vererbung).
+     */
+    private function resolveEtimClassMapping(string $hierarchyNodeId): ?EtimClassMapping
+    {
+        if (array_key_exists($hierarchyNodeId, $this->etimClassMappingCache)) {
+            return $this->etimClassMappingCache[$hierarchyNodeId];
+        }
+
+        $mapping = EtimClassMapping::where('hierarchy_node_id', $hierarchyNodeId)
+            ->where('etim_version_id', $this->etimVersionId)
+            ->with('etimClass.etimVersion')
+            ->first();
+
+        if ($mapping) {
+            $this->etimClassMappingCache[$hierarchyNodeId] = $mapping;
+            return $mapping;
+        }
+
+        // Vererbung: Eltern-Knoten prüfen
+        $node = HierarchyNode::find($hierarchyNodeId);
+        if ($node && $node->parent_node_id) {
+            $mapping = $this->resolveEtimClassMapping($node->parent_node_id);
+            $this->etimClassMappingCache[$hierarchyNodeId] = $mapping;
+            return $mapping;
+        }
+
+        $this->etimClassMappingCache[$hierarchyNodeId] = null;
+        return null;
     }
 
     // ─── Helpers ────────────────────────────────────────────────
