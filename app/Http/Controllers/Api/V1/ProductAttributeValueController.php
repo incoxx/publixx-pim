@@ -322,26 +322,29 @@ class ProductAttributeValueController extends Controller
             $attributes = $hierarchyData['attributes'];
 
             // Load existing channel-specific values for this product + hierarchy
-            $existingValues = ProductAttributeValue::where('product_id', $product->id)
+            $existingValuesRaw = ProductAttributeValue::where('product_id', $product->id)
                 ->where('output_hierarchy_id', $hierarchyId)
                 ->with('attribute')
                 ->where(function ($q) use ($language) {
                     $q->whereNull('language')->orWhere('language', $language);
                 })
-                ->get()
-                ->keyBy('attribute_id');
+                ->get();
+            $existingValues = $existingValuesRaw->keyBy('attribute_id');
+            $existingValuesGrouped = $existingValuesRaw->groupBy('attribute_id');
 
             // Also load master values as fallback
-            $masterValues = ProductAttributeValue::where('product_id', $product->id)
+            $masterValuesRaw = ProductAttributeValue::where('product_id', $product->id)
                 ->whereNull('output_hierarchy_id')
                 ->with('attribute')
                 ->where(function ($q) use ($language) {
                     $q->whereNull('language')->orWhere('language', $language);
                 })
-                ->get()
-                ->keyBy('attribute_id');
+                ->get();
+            $masterValues = $masterValuesRaw->keyBy('attribute_id');
+            $masterValuesGrouped = $masterValuesRaw->groupBy('attribute_id');
 
-            $attributeData = $attributes->map(function ($assignment) use ($existingValues, $masterValues, $hierarchyId) {
+            $attributeData = $attributes->map(function ($assignment) use ($existingValues, $existingValuesGrouped, $masterValues, $masterValuesGrouped, $hierarchyId) {
+                $isMultipliable = (bool) ($assignment->is_multipliable ?? false);
                 $channelPav = $existingValues->get($assignment->attribute_id);
                 $masterPav = $masterValues->get($assignment->attribute_id);
                 $value = null;
@@ -365,6 +368,8 @@ class ProductAttributeValueController extends Controller
                     'data_type' => $assignment->data_type,
                     'value_list_id' => $assignment->value_list_id ?? null,
                     'is_translatable' => (bool) $assignment->is_translatable,
+                    'is_multipliable' => (bool) ($assignment->is_multipliable ?? false),
+                    'max_multiplied' => $assignment->max_multiplied ?? null,
                     'is_mandatory' => (bool) ($assignment->is_mandatory || !empty($assignment->is_required)),
                     'is_variant_attribute' => (bool) ($assignment->is_variant_attribute ?? false),
                     'attribute_type_id' => $assignment->attribute_type_id ?? null,
@@ -376,6 +381,11 @@ class ProductAttributeValueController extends Controller
                     'access_product' => $assignment->access_product ?? 'editable',
                     'access_variant' => $assignment->access_variant ?? 'editable',
                     'value' => $value,
+                    'multiplied_values' => $isMultipliable ? collect($existingValuesGrouped->get($assignment->attribute_id, collect()))
+                        ->map(fn ($pav) => [
+                            'value' => $pav->value_string ?? $pav->value_number ?? $pav->value_date ?? $pav->value_flag ?? $pav->value_selection_id,
+                            'multiplied_index' => $pav->multiplied_index ?? 0,
+                        ])->values()->all() : null,
                     'source' => $source,
                     'is_inherited' => $source !== 'own' && $source !== 'none',
                     'is_mapped' => $isMapped,
