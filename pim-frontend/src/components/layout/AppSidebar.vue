@@ -194,6 +194,7 @@ const sections = computed(() => {
             { icon: Zap, label: () => 'API Tester', to: '/api-tester', permission: 'users.view' },
             { icon: Database, label: () => 'Datenbank', to: '/db', permission: 'users.view' },
             { icon: Shield, label: () => 'Datenkonsistenz', to: '/db-consistency', permission: 'users.view' },
+            { icon: FileText, label: () => 'Log Viewer', to: '/logs', permission: 'users.view' },
             { icon: ScrollText, label: () => 'Journal', to: '/journal', permission: 'users.view' },
           ],
         },

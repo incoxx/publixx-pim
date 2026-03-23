@@ -202,6 +202,7 @@ Route::get('v1/health', HealthController::class);
 // =========================================================================
 Route::prefix('v1/debug')->middleware('throttle.pim')->group(function () {
     Route::get('logs', [DebugController::class, 'logs']);
+    Route::get('logs/parsed', [DebugController::class, 'parsedLogs']);
     Route::get('logs/clear', [DebugController::class, 'clearLogs']);
     Route::delete('logs', [DebugController::class, 'clearLogs']);
 });
