@@ -222,11 +222,11 @@ function close() {
             <!-- Node tree -->
             <template v-if="selectedHierarchyId">
               <div class="relative">
-                <Search class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--color-text-tertiary)]" :stroke-width="1.75" />
+                <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--color-text-tertiary)]" :stroke-width="1.75" />
                 <input
                   v-model="searchQuery"
                   type="text"
-                  class="pim-input text-xs w-full pl-8"
+                  class="pim-input text-xs w-full pl-9"
                   placeholder="Knoten suchen..."
                 />
               </div>

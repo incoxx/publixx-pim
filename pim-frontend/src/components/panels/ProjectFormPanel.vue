@@ -198,8 +198,8 @@ onMounted(() => loadData())
       </div>
 
       <div class="relative mb-2">
-        <Search class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--color-text-tertiary)] pointer-events-none" :stroke-width="1.75" />
-        <input v-model="productSearch" class="pim-input text-xs pl-8 w-full" placeholder="Produkt suchen (Name, SKU)…" />
+        <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--color-text-tertiary)] pointer-events-none" :stroke-width="1.75" />
+        <input v-model="productSearch" class="pim-input text-xs pl-9 w-full" placeholder="Produkt suchen (Name, SKU)…" />
       </div>
 
       <div class="max-h-48 overflow-y-auto border border-[var(--color-border)] rounded">
