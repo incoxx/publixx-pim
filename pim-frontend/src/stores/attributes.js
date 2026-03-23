@@ -19,6 +19,19 @@ export const useAttributeStore = defineStore('attributes', () => {
     'date', 'datetime', 'select', 'multiselect', 'url', 'email', 'json',
   ])
 
+  // Dropdown-Optionen für Formular-Selects
+  const attributeTypeOptions = computed(() =>
+    types.value.map(t => ({ value: t.id, label: t.name_de || t.technical_name }))
+  )
+
+  const valueListOptions = computed(() =>
+    lists.value.map(l => ({ value: l.id, label: l.name_de || l.technical_name }))
+  )
+
+  const unitGroupOptions = computed(() =>
+    unitGroupsList.value.map(g => ({ value: g.id, label: g.name_de || g.technical_name }))
+  )
+
   async function fetchAttributes(options = {}) {
     loading.value = true
     try {
@@ -78,7 +91,7 @@ export const useAttributeStore = defineStore('attributes', () => {
 
   async function fetchUnitGroups() {
     try {
-      const { data } = await unitGroupsApi.list({ include: 'units' })
+      const { data } = await unitGroupsApi.list({ include: 'units', perPage: 200 })
       unitGroupsList.value = data.data || data
     } catch (e) {
       console.error('Failed to fetch unit groups', e)
@@ -122,6 +135,7 @@ export const useAttributeStore = defineStore('attributes', () => {
 
   return {
     items, allItems, types, lists, prodTypes, unitGroupsList, loading, error, meta, dataTypes,
+    attributeTypeOptions, valueListOptions, unitGroupOptions,
     fetchAttributes, fetchAllAttributes, fetchTypes, fetchValueLists, fetchProductTypes, fetchUnitGroups,
     createAttribute, updateAttribute, copyAttribute, deleteAttribute, setPage, bulkUpdate, bulkDelete,
   }

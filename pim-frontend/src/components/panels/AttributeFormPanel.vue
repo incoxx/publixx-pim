@@ -26,6 +26,8 @@ let pendingSubmitData = null
 
 onMounted(() => {
   if (!store.allItems.length) store.fetchAllAttributes()
+  if (!store.types.length) store.fetchTypes()
+  if (!store.lists.length) store.fetchValueLists()
   if (!store.unitGroupsList.length) store.fetchUnitGroups()
 })
 
