@@ -1435,6 +1435,8 @@ class BmecatFormatImporter
             }
 
             // --- UDX-Felder ---
+            // Maximalen Index pro Attribut tracken (für is_multipliable)
+            $udxMaxIndex = [];
             foreach ($product['udx_fields'] as $udxField) {
                 $ns = $udxField['namespace'];
                 $key = $udxField['key'];
@@ -1452,6 +1454,10 @@ class BmecatFormatImporter
 
                 $attrTechName = $this->sanitizeTechnicalName($key);
                 $udxLang = $udxField['language'] ?? null;
+                $fieldIndex = $udxField['index'] ?? 0;
+
+                // Maximalen Index pro Attribut tracken
+                $udxMaxIndex[$attrTechName] = max($udxMaxIndex[$attrTechName] ?? 0, $fieldIndex);
 
                 if (!isset($udxAttributeMap[$attrTechName])) {
                     $dataType = $this->inferDataType([$udxField['value']], null);
@@ -1487,8 +1493,15 @@ class BmecatFormatImporter
                     'value' => $udxField['value'],
                     'unit' => null,
                     'language' => $udxLang,
-                    'index' => 0,
+                    'index' => $fieldIndex,
                 ];
+            }
+            // Attribute als vermehrbar markieren, wenn index > 0 vorkam
+            foreach ($udxMaxIndex as $techName => $maxIdx) {
+                if ($maxIdx > 0 && isset($udxAttributeMap[$techName])) {
+                    $udxAttributeMap[$techName]['is_multipliable'] = true;
+                    $udxAttributeMap[$techName]['max_multiplied'] = 20;
+                }
             }
 
             // --- Preistypen + Preise ---
@@ -2179,37 +2192,22 @@ class BmecatFormatImporter
      * Erwartet Elementnamen im Format UDX.{NAMESPACE}.{FELDNAME}.
      * Elemente ohne gültiges UDX-Muster werden geloggt und übersprungen.
      *
-     * @return array<array{key: string, namespace: string, fieldname: string, value: string}>
+     * Unterstützt geschachtelte Container-Elemente (z.B. UDX.DOKA.MIME),
+     * die selbst Kind-Elemente enthalten. Wiederholte Container werden
+     * als vermehrbare Attribute mit multiplied_index importiert.
+     *
+     * @return array<array{key: string, namespace: string, fieldname: string, value: string, language: ?string, index: int}>
      */
     private function parseUdxFields(\SimpleXMLElement $udxBlock, ?string $ns): array
     {
         $fields = [];
+        $seenKeys = [];
 
         // Kind-Elemente iterieren (mit oder ohne Namespace)
         $children = $ns ? $udxBlock->children($ns) : $udxBlock->children();
 
         foreach ($children as $child) {
-            $elementName = $child->getName();
-            // UDX-Elementnamen können Punkte enthalten — wir erwarten UDX.{NS}.{FELD}
-            if (!preg_match('/^UDX\.([^.]+)\.(.+)$/', $elementName, $matches)) {
-                Log::channel('import')->warning("UDX-Element mit ungültigem Namensformat übersprungen: {$elementName}");
-                continue;
-            }
-
-            $value = trim((string) $child);
-            if ($value === '') {
-                continue;
-            }
-
-            $lang = $this->xmlLang($child);
-
-            $fields[] = [
-                'key' => $elementName,
-                'namespace' => $matches[1],
-                'fieldname' => $matches[2],
-                'value' => $value,
-                'language' => $lang,
-            ];
+            $this->parseUdxElement($child, $fields, $seenKeys);
         }
 
         // Fallback: Auch nicht-namespace-qualifizierte Kinder prüfen, wenn mit NS geparst
@@ -2219,35 +2217,99 @@ class BmecatFormatImporter
                 if (!preg_match('/^UDX\.([^.]+)\.(.+)$/', $elementName, $matches)) {
                     continue;
                 }
-
-                $value = trim((string) $child);
-                if ($value === '') {
-                    continue;
-                }
-
                 // Nur hinzufügen wenn nicht bereits per NS gefunden
                 $alreadyFound = false;
                 foreach ($fields as $f) {
-                    if ($f['key'] === $elementName) {
+                    if ($f['key'] === $elementName && $f['index'] === 0) {
                         $alreadyFound = true;
                         break;
                     }
                 }
                 if (!$alreadyFound) {
-                    $lang = $this->xmlLang($child);
-
-                    $fields[] = [
-                        'key' => $elementName,
-                        'namespace' => $matches[1],
-                        'fieldname' => $matches[2],
-                        'value' => $value,
-                        'language' => $lang,
-                    ];
+                    $this->parseUdxElement($child, $fields, $seenKeys);
                 }
             }
         }
 
         return $fields;
+    }
+
+    /**
+     * Parst ein einzelnes UDX-Element — flach oder als Container mit Kindern.
+     */
+    private function parseUdxElement(\SimpleXMLElement $child, array &$fields, array &$seenKeys): void
+    {
+        $elementName = $child->getName();
+        if (!preg_match('/^UDX\.([^.]+)\.(.+)$/', $elementName, $matches)) {
+            Log::channel('import')->warning("UDX-Element mit ungültigem Namensformat übersprungen: {$elementName}");
+            return;
+        }
+
+        $parentNs = $matches[1];
+
+        // Prüfen ob das Element Kind-Elemente hat (= Container)
+        $childElements = $child->children();
+        $hasChildren = false;
+        foreach ($childElements as $_) {
+            $hasChildren = true;
+            break;
+        }
+
+        if ($hasChildren) {
+            // Container-Element (z.B. UDX.DOKA.MIME mit Kind-Elementen)
+            // Index = wie oft dieser Container schon vorkam
+            $containerKey = $elementName;
+            $index = $seenKeys[$containerKey] ?? 0;
+            $seenKeys[$containerKey] = $index + 1;
+
+            foreach ($childElements as $subChild) {
+                $subName = $subChild->getName();
+                if (!preg_match('/^UDX\.([^.]+)\.(.+)$/', $subName, $subMatches)) {
+                    Log::channel('import')->warning("UDX-Container-Kind mit ungültigem Namensformat übersprungen: {$subName}");
+                    continue;
+                }
+
+                $value = trim((string) $subChild);
+                if ($value === '') {
+                    continue;
+                }
+
+                $lang = $this->xmlLang($subChild);
+
+                $fields[] = [
+                    'key' => $subName,
+                    'namespace' => $subMatches[1],
+                    'fieldname' => $subMatches[2],
+                    'value' => $value,
+                    'language' => $lang,
+                    'index' => $index,
+                    'container' => $containerKey,
+                ];
+            }
+        } else {
+            // Flaches Element (einfacher Textwert)
+            $value = trim((string) $child);
+            if ($value === '') {
+                return;
+            }
+
+            $lang = $this->xmlLang($child);
+
+            // Gleicher Key mehrfach? → index hochzählen
+            $fieldKey = $elementName;
+            $index = $seenKeys[$fieldKey] ?? 0;
+            $seenKeys[$fieldKey] = $index + 1;
+
+            $fields[] = [
+                'key' => $elementName,
+                'namespace' => $parentNs,
+                'fieldname' => $matches[2],
+                'value' => $value,
+                'language' => $lang,
+                'index' => $index,
+                'container' => null,
+            ];
+        }
     }
 
     /**
