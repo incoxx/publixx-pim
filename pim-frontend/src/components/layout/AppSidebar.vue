@@ -39,7 +39,7 @@ const sections = computed(() => {
   const all = [
     {
       key: 'daily',
-      label: null, // no header for the top section
+      label: 'Daily Business',
       items: [
         { icon: LayoutDashboard, label: () => 'Dashboard', to: '/dashboard' },
         { icon: Search, label: () => t('nav.search'), to: '/search' },
@@ -231,7 +231,8 @@ const sections = computed(() => {
 })
 
 function isSectionCollapsed(key) {
-  // All sections and sub-groups default to collapsed on start
+  // 'daily' defaults to open, all others default to collapsed
+  if (key === 'daily' && authStore.sidebarCollapsedSections[key] === undefined) return false
   return authStore.sidebarCollapsedSections[key] !== false
 }
 

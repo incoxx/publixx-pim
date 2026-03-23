@@ -1419,6 +1419,7 @@ async function confirmDeleteOutputHierarchyAssignment() {
 const outputHierarchyAttributes = ref([])  // Array of { hierarchy_id, hierarchy_name_de, attributes: [...] }
 const outputHierarchyAttrValues = ref({})  // { `${hierarchyId}_${attrId}`: value }
 const outputHierarchyTranslatedValues = ref({})  // { `${hierarchyId}_${attrId}_${lang}`: value }
+const outputHierarchyMultipliableValues = ref({})  // { `${hierarchyId}_${attrId}`: [{ value, multiplied_index }] }
 const outputHierarchyAttrLoaded = ref(false)
 const outputHierarchyAttrLoading = ref(false)
 const outputHierarchySyncing = ref(false)
@@ -1450,12 +1451,15 @@ async function loadOutputHierarchyAttributes() {
     // Populate values
     for (const h of hierarchies) {
       for (const attr of (h.attributes || [])) {
-        if (attr.value !== null && attr.value !== undefined) {
+        const key = `${h.hierarchy_id}_${attr.attribute_id}`
+        if (attr.is_multipliable && attr.multiplied_values?.length) {
+          outputHierarchyMultipliableValues.value[key] = attr.multiplied_values
+        } else if (attr.value !== null && attr.value !== undefined) {
           if (attr.is_translatable) {
             const lang = activeDataLang.value || 'de'
-            outputHierarchyTranslatedValues.value[`${h.hierarchy_id}_${attr.attribute_id}_${lang}`] = attr.value
+            outputHierarchyTranslatedValues.value[`${key}_${lang}`] = attr.value
           } else {
-            outputHierarchyAttrValues.value[`${h.hierarchy_id}_${attr.attribute_id}`] = attr.value
+            outputHierarchyAttrValues.value[key] = attr.value
           }
         }
       }
@@ -1470,7 +1474,15 @@ async function saveOutputHierarchyAttributes() {
   for (const h of outputHierarchyAttributes.value) {
     const values = []
     for (const attr of (h.attributes || [])) {
-      if (attr.is_translatable) {
+      if (attr.is_multipliable) {
+        const key = `${h.hierarchy_id}_${attr.attribute_id}`
+        const entries = outputHierarchyMultipliableValues.value[key]
+        if (entries?.length) {
+          for (const entry of entries) {
+            values.push({ attribute_id: attr.attribute_id, value: entry.value, multiplied_index: entry.multiplied_index })
+          }
+        }
+      } else if (attr.is_translatable) {
         for (const lang of localeStore.activeDataLocales) {
           const key = `${h.hierarchy_id}_${attr.attribute_id}_${lang}`
           const val = outputHierarchyTranslatedValues.value[key]
@@ -2433,8 +2445,16 @@ watch(() => route.params.id, async (newId, oldId) => {
                 <span v-if="attr.is_inherited" class="ml-1 text-[10px] text-blue-500 font-normal">(Master-Fallback)</span>
               </label>
               <div class="md:flex-1 md:min-w-0">
+              <PimMultipliableInput
+                v-if="attr.is_multipliable"
+                :type="mapDataTypeToInput(attr.data_type)"
+                :modelValue="outputHierarchyMultipliableValues[`${h.hierarchy_id}_${attr.attribute_id}`] || [{ value: null, multiplied_index: 0 }]"
+                :options="getSelectionOptions(attr)"
+                :maxMultiplied="attr.max_multiplied"
+                @update:modelValue="outputHierarchyMultipliableValues[`${h.hierarchy_id}_${attr.attribute_id}`] = $event"
+              />
               <PimAttributeInput
-                v-if="attr.is_translatable"
+                v-else-if="attr.is_translatable"
                 :type="mapDataTypeToInput(attr.data_type)"
                 :modelValue="outputHierarchyTranslatedValues[`${h.hierarchy_id}_${attr.attribute_id}_${activeDataLang}`]"
                 :options="getSelectionOptions(attr)"
