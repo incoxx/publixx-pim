@@ -369,6 +369,12 @@ const routes = [
     meta: { title: 'Datenkonsistenz' },
   },
   {
+    path: '/logs',
+    name: 'log-viewer',
+    component: () => import('@/views/admin/LogViewerView.vue'),
+    meta: { title: 'Log Viewer' },
+  },
+  {
     path: '/admin/license-generator',
     name: 'license-generator',
     component: () => import('@/views/admin/LicenseGeneratorView.vue'),
