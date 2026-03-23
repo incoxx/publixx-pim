@@ -2397,19 +2397,19 @@ watch(() => route.params.id, async (newId, oldId) => {
           </div>
 
           <!-- Sync button -->
-          <div class="flex justify-end">
-            <button
-              class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg)] hover:border-[var(--color-accent)] transition-colors"
-              :disabled="outputHierarchySyncing"
-              @click="syncOutputHierarchyMappings(h.hierarchy_id)"
-              title="Mapping-Werte für dieses Produkt synchronisieren"
-            >
-              <RefreshCw class="w-3.5 h-3.5" :class="{ 'animate-spin': outputHierarchySyncing }" :stroke-width="1.75" />
-              {{ outputHierarchySyncing ? 'Synchronisiere…' : 'Mapping synchronisieren' }}
-            </button>
-          </div>
-
           <div class="pim-card p-4 space-y-2">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-[11px] text-[var(--color-text-tertiary)]">{{ (h.attributes || []).length }} Attribute</span>
+              <button
+                class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-indigo-200 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition-colors"
+                :disabled="outputHierarchySyncing"
+                @click="syncOutputHierarchyMappings(h.hierarchy_id)"
+                title="Mapping-Werte für dieses Produkt synchronisieren"
+              >
+                <RefreshCw class="w-3.5 h-3.5" :class="{ 'animate-spin': outputHierarchySyncing }" :stroke-width="1.75" />
+                {{ outputHierarchySyncing ? 'Synchronisiere…' : 'Mapping sync' }}
+              </button>
+            </div>
             <div v-if="(h.attributes || []).length === 0" class="text-center py-8">
               <p class="text-sm text-[var(--color-text-tertiary)]">Keine Attribute in dieser Ausgabehierarchie</p>
             </div>
