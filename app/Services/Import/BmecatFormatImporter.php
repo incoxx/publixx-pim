@@ -16,7 +16,7 @@ use Illuminate\Support\Str;
  * Parst BMEcat-XML via XMLReader (Streaming) + SimpleXMLElement (pro Element)
  * und wandelt die Daten in das vom ImportExecutor erwartete ParseResult-Format um.
  *
- * Unterstützte Transaktionstypen: T_NEW_CATALOG
+ * Unterstützte Transaktionstypen: T_NEW_CATALOG, T_UPDATE_PRODUCTS
  *
  * Import-Reihenfolge (via ParseResult → ImportExecutor):
  *   1. Produkttypen
@@ -242,7 +242,6 @@ class BmecatFormatImporter
             'file_size_mb' => $fileSizeMb,
         ]);
 
-        $this->executor->setMode($this->mode);
         $this->checkCancelled();
 
         try {
@@ -256,6 +255,14 @@ class BmecatFormatImporter
             ]);
             throw new \RuntimeException('BMEcat-XML konnte nicht geparst werden: ' . $e->getMessage(), 0, $e);
         }
+
+        // T_UPDATE_PRODUCTS erzwingt update-Modus (bestehende Daten nicht löschen)
+        $effectiveMode = $this->mode;
+        if (($parsed['transaction_type'] ?? '') === 'T_UPDATE_PRODUCTS') {
+            $effectiveMode = 'update';
+            Log::channel('import')->info('T_UPDATE_PRODUCTS erkannt — Modus auf "update" gesetzt (bestehende Zuordnungen bleiben erhalten).');
+        }
+        $this->executor->setMode($effectiveMode);
 
         $this->checkCancelled();
 
@@ -307,7 +314,6 @@ class BmecatFormatImporter
             'product_type' => $productType ?? 'bmecat_product',
         ]);
 
-        $this->executor->setMode($this->mode);
         $this->checkCancelled();
 
         try {
@@ -321,6 +327,14 @@ class BmecatFormatImporter
             ]);
             throw new \RuntimeException('BMEcat-XML konnte nicht geparst werden: ' . $e->getMessage(), 0, $e);
         }
+
+        // T_UPDATE_PRODUCTS erzwingt update-Modus (bestehende Daten nicht löschen)
+        $effectiveMode = $this->mode;
+        if (($parsed['transaction_type'] ?? '') === 'T_UPDATE_PRODUCTS') {
+            $effectiveMode = 'update';
+            Log::channel('import')->info('T_UPDATE_PRODUCTS erkannt — Modus auf "update" gesetzt (bestehende Zuordnungen bleiben erhalten).');
+        }
+        $this->executor->setMode($effectiveMode);
 
         $this->checkCancelled();
 
@@ -443,8 +457,8 @@ class BmecatFormatImporter
 
         if ($transactionType === null) {
             $errors[] = 'Kein Transaktionstyp gefunden (T_NEW_CATALOG, T_UPDATE_PRODUCTS, T_UPDATE_PRICES)';
-        } elseif ($transactionType !== 'T_NEW_CATALOG') {
-            $errors[] = "Transaktionstyp {$transactionType} wird aktuell nicht unterstützt. Nur T_NEW_CATALOG ist verfügbar.";
+        } elseif (!in_array($transactionType, ['T_NEW_CATALOG', 'T_UPDATE_PRODUCTS'])) {
+            $errors[] = "Transaktionstyp {$transactionType} wird aktuell nicht unterstützt. Verfügbar: T_NEW_CATALOG, T_UPDATE_PRODUCTS.";
         }
 
         // Produkte zählen (beide Varianten: PRODUCT und ARTICLE)
@@ -656,6 +670,7 @@ class BmecatFormatImporter
             'catalog_structures' => [],
             'products' => [],
             'product_to_group_maps' => [],
+            'transaction_type' => 'T_NEW_CATALOG',
         ];
 
         $reader = new \XMLReader();
@@ -677,6 +692,12 @@ class BmecatFormatImporter
             }
 
             $localName = strtoupper($reader->localName);
+
+            // Transaktionstyp erkennen
+            if (in_array($localName, ['T_NEW_CATALOG', 'T_UPDATE_PRODUCTS', 'T_UPDATE_PRICES'])) {
+                $parsed['transaction_type'] = $localName;
+                continue;
+            }
 
             if ($localName === 'HEADER') {
                 $parsed['header'] = $this->parseHeader($reader, $ns);
@@ -748,6 +769,7 @@ class BmecatFormatImporter
             'catalog_structures' => [],
             'products' => [],
             'product_to_group_maps' => [],
+            'transaction_type' => 'T_NEW_CATALOG',
         ];
 
         $reader = new \XMLReader();
@@ -765,6 +787,12 @@ class BmecatFormatImporter
             }
 
             $localName = strtoupper($reader->localName);
+
+            // Transaktionstyp erkennen
+            if (in_array($localName, ['T_NEW_CATALOG', 'T_UPDATE_PRODUCTS', 'T_UPDATE_PRICES'])) {
+                $parsed['transaction_type'] = $localName;
+                continue;
+            }
 
             if ($localName === 'HEADER') {
                 $parsed['header'] = $this->parseHeader($reader, $ns);
@@ -1202,16 +1230,42 @@ class BmecatFormatImporter
 
         // 2. Hierarchien aus CATALOG_GROUP_SYSTEM
         $catalogGroupTree = $this->buildCatalogGroupTree($parsed['catalog_structures'] ?? []);
-        if (!empty($catalogGroupTree)) {
-            $sheets['06_Hierarchien'] = $this->buildHierarchyRows($catalogGroupTree, $hierarchyTechName);
-        }
-        $hasTree = !empty($catalogGroupTree);
 
         // Standalone Maps → skuToGroupIds (vor Haupt-Loop)
         $skuToGroupIds = [];
         foreach ($parsed['product_to_group_maps'] as $map) {
             $skuToGroupIds[$map['prod_id']][$map['group_id']] = true;
         }
+
+        // Fehlende Gruppen aus Maps in den Tree einfügen (wenn kein CATALOG_GROUP_SYSTEM)
+        $allGroupIds = [];
+        foreach ($parsed['product_to_group_maps'] as $map) {
+            $allGroupIds[$map['group_id']] = true;
+        }
+        foreach ($parsed['products'] as $product) {
+            foreach ($product['catalog_group_maps'] ?? [] as $map) {
+                $allGroupIds[$map['group_id']] = true;
+            }
+        }
+        foreach ($allGroupIds as $groupId => $_) {
+            if (!isset($catalogGroupTree[$groupId])) {
+                // Gruppe fehlt im CATALOG_GROUP_SYSTEM → als flachen Knoten anlegen
+                $catalogGroupTree[$groupId] = [
+                    'group_id' => $groupId,
+                    'group_name' => $groupId,
+                    'parent_id' => '0',
+                    'type' => 'node',
+                    'order' => 0,
+                    'children' => [],
+                ];
+                Log::channel('import')->info("Kataloggruppe '{$groupId}' aus PRODUCT_TO_CATALOGGROUP_MAP als Knoten angelegt (kein CATALOG_GROUP_SYSTEM).");
+            }
+        }
+
+        if (!empty($catalogGroupTree)) {
+            $sheets['06_Hierarchien'] = $this->buildHierarchyRows($catalogGroupTree, $hierarchyTechName);
+        }
+        $hasTree = !empty($catalogGroupTree);
 
         // =====================================================================
         // Single-Pass: Alle Produktdaten in einem Durchlauf sammeln.
