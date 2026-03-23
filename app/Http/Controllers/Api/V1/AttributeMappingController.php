@@ -11,11 +11,13 @@ use App\Jobs\SyncAttributeMappings;
 use App\Models\AttributeMapping;
 use App\Models\AttributeMappingRule;
 use App\Models\Product;
+use App\Services\Export\AttributeMappingExcelService;
 use App\Services\Export\AttributeMappingSyncService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\DB;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AttributeMappingController extends Controller
 {
@@ -335,6 +337,62 @@ class AttributeMappingController extends Controller
         return response()->json([
             'message' => 'Klassifikation synchronisiert',
             'stats' => $totalStats,
+        ]);
+    }
+
+    // ─── Excel Export / Import ────────────────────────────────
+
+    /**
+     * Attribut-Mappings und Regeln als Excel exportieren.
+     */
+    public function exportExcel(Request $request, AttributeMappingExcelService $excelService): StreamedResponse
+    {
+        $this->authorize('viewAny', AttributeMapping::class);
+
+        $request->validate([
+            'source_hierarchy_id' => 'required|uuid|exists:hierarchies,id',
+            'target_hierarchy_id' => 'required|uuid|exists:hierarchies,id',
+        ]);
+
+        $content = $excelService->export(
+            $request->input('source_hierarchy_id'),
+            $request->input('target_hierarchy_id')
+        );
+
+        $fileName = 'attribut-mappings-' . date('Y-m-d') . '.xlsx';
+
+        return new StreamedResponse(function () use ($content) {
+            echo $content;
+        }, 200, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition' => "attachment; filename=\"{$fileName}\"",
+            'Content-Length' => strlen($content),
+            'Cache-Control' => 'no-store',
+        ]);
+    }
+
+    /**
+     * Attribut-Mappings und Regeln aus Excel importieren.
+     */
+    public function importExcel(Request $request, AttributeMappingExcelService $excelService): JsonResponse
+    {
+        $this->authorize('create', AttributeMapping::class);
+
+        $request->validate([
+            'file' => 'required|file|mimes:xlsx,xls|max:10240',
+            'source_hierarchy_id' => 'required|uuid|exists:hierarchies,id',
+            'target_hierarchy_id' => 'required|uuid|exists:hierarchies,id',
+        ]);
+
+        $stats = $excelService->import(
+            $request->file('file'),
+            $request->input('source_hierarchy_id'),
+            $request->input('target_hierarchy_id')
+        );
+
+        return response()->json([
+            'message' => 'Import abgeschlossen',
+            'stats' => $stats,
         ]);
     }
 }

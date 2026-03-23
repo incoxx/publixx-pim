@@ -55,4 +55,19 @@ export default {
   syncBulk(productIds) {
     return client.post('/attribute-mappings/sync/bulk', { product_ids: productIds })
   },
+
+  // ─── Excel Export / Import ──────────────────────────────
+  exportExcel(params) {
+    return client.post('/attribute-mappings/export-excel', params, { responseType: 'blob' })
+  },
+
+  importExcel(file, sourceHierarchyId, targetHierarchyId) {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('source_hierarchy_id', sourceHierarchyId)
+    formData.append('target_hierarchy_id', targetHierarchyId)
+    return client.post('/attribute-mappings/import-excel', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
 }
