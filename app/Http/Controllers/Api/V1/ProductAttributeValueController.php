@@ -347,9 +347,11 @@ class ProductAttributeValueController extends Controller
                 $value = null;
                 $source = 'none';
 
+                $isMapped = false;
                 if ($channelPav) {
                     $value = $channelPav->value_string ?? $channelPav->value_number ?? $channelPav->value_date ?? $channelPav->value_flag ?? $channelPav->value_selection_id;
                     $source = 'own';
+                    $isMapped = (bool) $channelPav->is_inherited; // is_inherited=true → vom Mapping erzeugt
                 } elseif ($masterPav) {
                     $value = $masterPav->value_string ?? $masterPav->value_number ?? $masterPav->value_date ?? $masterPav->value_flag ?? $masterPav->value_selection_id;
                     $source = 'master_fallback';
@@ -376,6 +378,7 @@ class ProductAttributeValueController extends Controller
                     'value' => $value,
                     'source' => $source,
                     'is_inherited' => $source !== 'own' && $source !== 'none',
+                    'is_mapped' => $isMapped,
                     'output_hierarchy_id' => $hierarchyId,
                 ];
             });

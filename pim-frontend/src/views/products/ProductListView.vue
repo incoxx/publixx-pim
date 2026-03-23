@@ -7,7 +7,7 @@ import { useAttributeStore } from '@/stores/attributes'
 import { useAuthStore } from '@/stores/auth'
 import { useFilters } from '@/composables/useFilters'
 import { useLocaleStore } from '@/stores/locale'
-import { Plus, Languages, Upload, Download, X, GitCompareArrows, Star, Pencil, FileSpreadsheet, ListFilter, Settings, Package, FolderTree, Trash2, CheckCheck } from 'lucide-vue-next'
+import { Plus, Languages, Upload, Download, X, GitCompareArrows, Star, Pencil, FileSpreadsheet, ListFilter, Settings, Package, FolderTree, Trash2, CheckCheck, ArrowRightLeft } from 'lucide-vue-next'
 import mediaApi from '@/api/media'
 import PimTable from '@/components/shared/PimTable.vue'
 import ColumnConfigPopover from '@/components/shared/ColumnConfigPopover.vue'
@@ -25,6 +25,7 @@ import manufacturersApi from '@/api/manufacturers'
 import { useLicenseStore } from '@/stores/license'
 import BulkAssignProjectDialog from '@/components/dialogs/BulkAssignProjectDialog.vue'
 import BulkAssignHierarchyNodeDialog from '@/components/dialogs/BulkAssignHierarchyNodeDialog.vue'
+import attributeMappingsApi from '@/api/attributeMappings'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -369,6 +370,21 @@ function openBulkUpdate() {
   router.push({ path: '/products/bulk-update', query: { ids } })
 }
 
+const syncingClassification = ref(false)
+async function bulkSyncClassification() {
+  if (selectedProductIds.value.length === 0) return
+  syncingClassification.value = true
+  try {
+    const res = await attributeMappingsApi.syncBulk(selectedProductIds.value)
+    const s = res.data.stats
+    alert(`Klassifikation synchronisiert: ${s.created} erstellt, ${s.updated} aktualisiert, ${s.skipped} übersprungen`)
+  } catch (e) {
+    alert('Sync fehlgeschlagen: ' + (e.response?.data?.message || e.message))
+  } finally {
+    syncingClassification.value = false
+  }
+}
+
 // ─── Bulk Assign to Project ──────────────────────────
 const showAssignProject = ref(false)
 const showAssignHierarchy = ref(false)
@@ -567,6 +583,15 @@ onMounted(async () => {
         >
           <FolderTree class="w-3.5 h-3.5" :stroke-width="1.75" />
           <span class="hidden sm:inline">Hierarchie zuordnen</span>
+        </button>
+
+        <button
+          class="pim-btn pim-btn-secondary text-xs"
+          @click="bulkSyncClassification"
+          :disabled="syncingClassification"
+        >
+          <ArrowRightLeft class="w-3.5 h-3.5" :stroke-width="1.75" />
+          <span class="hidden sm:inline">Klassifikation sync</span>
         </button>
 
         <!-- Admin: Bulk Delete -->

@@ -42,4 +42,17 @@ export default {
   removeRule(id) {
     return client.delete(`/attribute-mapping-rules/${id}`)
   },
+
+  // ─── Sync ──────────────────────────────────────────────
+  syncProduct(productId, params = {}) {
+    return client.post(`/attribute-mappings/sync/product/${productId}`, params)
+  },
+
+  syncBatch(data) {
+    return client.post('/attribute-mappings/sync/batch', data)
+  },
+
+  syncBulk(productIds) {
+    return client.post('/attribute-mappings/sync/bulk', { product_ids: productIds })
+  },
 }
