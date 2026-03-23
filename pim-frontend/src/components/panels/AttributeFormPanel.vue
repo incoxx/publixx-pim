@@ -29,6 +29,7 @@ onMounted(() => {
   if (!store.types.length) store.fetchTypes()
   if (!store.lists.length) store.fetchValueLists()
   if (!store.unitGroupsList.length) store.fetchUnitGroups()
+  if (!store.compOpGroupsList.length) store.fetchComparisonOperatorGroups()
 })
 
 const isEdit = computed(() => !!props.attribute)

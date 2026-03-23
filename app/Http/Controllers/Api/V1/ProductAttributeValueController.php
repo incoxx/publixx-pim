@@ -154,7 +154,18 @@ class ProductAttributeValueController extends Controller
             ? \App\Models\UnitGroup::with('units')->whereIn('id', $unitGroupIds)->get()->keyBy('id')
             : collect();
 
-        $result = $effectiveAttributes->map(function ($assignment) use ($existingValues, $multipliedValues, $unitGroups) {
+        // Vergleichsoperator-Gruppen mit Operatoren vorladen
+        $compOpGroupIds = $effectiveAttributes
+            ->pluck('comparison_operator_group_id')
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+        $compOpGroups = !empty($compOpGroupIds)
+            ? \App\Models\ComparisonOperatorGroup::with('operators')->whereIn('id', $compOpGroupIds)->get()->keyBy('id')
+            : collect();
+
+        $result = $effectiveAttributes->map(function ($assignment) use ($existingValues, $multipliedValues, $unitGroups, $compOpGroups) {
             $pav = $existingValues->get($assignment->attribute_id);
             $value = null;
             $source = 'none';
@@ -209,6 +220,8 @@ class ProductAttributeValueController extends Controller
                 'value' => $value,
                 'unit_id' => $unitId,
                 'unit_group' => $unitGroupData,
+                'comparison_operator_id' => $pav?->comparison_operator_id ?? null,
+                'comparison_operators' => $this->buildComparisonOperators($assignment, $compOpGroups),
                 'source' => $source,
                 'is_inherited' => $source !== 'own' && $source !== 'none',
             ];
@@ -503,6 +516,28 @@ class ProductAttributeValueController extends Controller
         event(new \App\Events\AttributeValuesChanged($product->id, array_unique($changedAttributeIds), $outputHierarchyId));
 
         return response()->json(['message' => 'Output hierarchy attribute values updated.', 'count' => count($values)]);
+    }
+
+    /**
+     * Vergleichsoperatoren für ein Attribut aufbereiten (falls comparison_operator_group_id gesetzt).
+     */
+    private function buildComparisonOperators(object $assignment, \Illuminate\Support\Collection $compOpGroups): ?array
+    {
+        if (empty($assignment->comparison_operator_group_id)) {
+            return null;
+        }
+
+        $group = $compOpGroups->get($assignment->comparison_operator_group_id);
+        if (!$group) {
+            return null;
+        }
+
+        return $group->operators->map(fn ($op) => [
+            'id' => $op->id,
+            'symbol' => $op->symbol,
+            'technical_name' => $op->technical_name,
+            'description_de' => $op->description_de,
+        ])->values()->all();
     }
 
     /**

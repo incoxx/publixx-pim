@@ -339,6 +339,7 @@ const attributeValues = ref({})       // non-translatable: { attrId: value }
 const translatedValues = ref({})      // translatable: { `${attrId}_${lang}`: value }
 const multipliableValues = ref({})    // multipliable: { attrId: [{ value, multiplied_index }, ...] }
 const unitValues = ref({})            // unit per attribute: { attrId: unitId }
+const comparisonOperatorValues = ref({})  // comparison operator per attribute: { attrId: operatorId }
 const attrLoaded = ref(false)
 const valueListMap = ref({})
 const dictionaryEntries = ref([])
@@ -420,6 +421,7 @@ async function loadAttributeData(overrideNodeId = null) {
         parent_attribute_id: ra.parent_attribute_id || null,
         composite_format: ra.composite_format || null,
         unit_group: ra.unit_group || null,
+        comparison_operators: ra.comparison_operators || null,
         group: ra.collection_name || 'Vererbte Attribute',
         _source: ra.source,
         _is_inherited: ra.is_inherited,
@@ -430,6 +432,10 @@ async function loadAttributeData(overrideNodeId = null) {
         // Einheit setzen (gespeicherte unit_id oder default)
         if (ra.unit_id) {
           unitValues.value[ra.attribute_id] = ra.unit_id
+        }
+        // Vergleichsoperator setzen
+        if (ra.comparison_operator_id) {
+          comparisonOperatorValues.value[ra.attribute_id] = ra.comparison_operator_id
         }
         if (ra.is_multipliable && ra.multiplied_values) {
           // Multipliable: store array of { value, multiplied_index, unit_id }
@@ -1683,6 +1689,7 @@ async function save() {
     for (const [attribute_id, value] of Object.entries(attributeValues.value)) {
       const entry = { attribute_id, value }
       if (unitValues.value[attribute_id]) entry.unit_id = unitValues.value[attribute_id]
+      if (comparisonOperatorValues.value[attribute_id]) entry.comparison_operator_id = comparisonOperatorValues.value[attribute_id]
       values.push(entry)
     }
 
@@ -1693,6 +1700,7 @@ async function save() {
       const language = key.substring(lastUnderscore + 1)
       const entry = { attribute_id, value, language }
       if (unitValues.value[attribute_id]) entry.unit_id = unitValues.value[attribute_id]
+      if (comparisonOperatorValues.value[attribute_id]) entry.comparison_operator_id = comparisonOperatorValues.value[attribute_id]
       values.push(entry)
     }
 
@@ -1706,6 +1714,7 @@ async function save() {
         }
         if (e.unit_id) entry.unit_id = e.unit_id
         else if (unitValues.value[attribute_id]) entry.unit_id = unitValues.value[attribute_id]
+        if (comparisonOperatorValues.value[attribute_id]) entry.comparison_operator_id = comparisonOperatorValues.value[attribute_id]
         values.push(entry)
       }
     }
@@ -1790,6 +1799,7 @@ watch(() => product.value?.master_hierarchy_node_id, async (newNodeId, oldNodeId
   attributeValues.value = {}
   translatedValues.value = {}
   unitValues.value = {}
+  comparisonOperatorValues.value = {}
   valueListMap.value = {}
   await loadAttributeData(newNodeId || null)
 })
@@ -1857,6 +1867,7 @@ watch(() => route.params.id, async (newId, oldId) => {
   attributeValues.value = {}
   translatedValues.value = {}
   unitValues.value = {}
+  comparisonOperatorValues.value = {}
   outputHierarchyAttributes.value = []
   outputHierarchyAttrValues.value = {}
   outputHierarchyTranslatedValues.value = {}
@@ -2378,6 +2389,16 @@ watch(() => route.params.id, async (newId, oldId) => {
           />
           <!-- Translatable attribute: bind to translatedValues -->
           <div v-else-if="attr.is_translatable" class="flex gap-1.5 items-start">
+            <select
+              v-if="attr.comparison_operators?.length"
+              class="pim-input text-[12px] w-14 shrink-0 text-center"
+              :value="comparisonOperatorValues[attr.id] || ''"
+              :disabled="attr._access === 'read_only' || attr.is_readonly || isAttributeInherited(attr.id) || isTabReadOnly"
+              @change="comparisonOperatorValues[attr.id] = $event.target.value || null"
+            >
+              <option value="">=</option>
+              <option v-for="op in attr.comparison_operators" :key="op.id" :value="op.id" :title="op.description_de">{{ op.symbol }}</option>
+            </select>
             <PimAttributeInput
               class="flex-1 min-w-0"
               :type="mapDataTypeToInput(attr.data_type)"
@@ -2399,6 +2420,16 @@ watch(() => route.params.id, async (newId, oldId) => {
           </div>
           <!-- Normal (non-translatable) attribute -->
           <div v-else class="flex gap-1.5 items-start">
+            <select
+              v-if="attr.comparison_operators?.length"
+              class="pim-input text-[12px] w-14 shrink-0 text-center"
+              :value="comparisonOperatorValues[attr.id] || ''"
+              :disabled="attr._access === 'read_only' || attr.is_readonly || isAttributeInherited(attr.id) || isTabReadOnly"
+              @change="comparisonOperatorValues[attr.id] = $event.target.value || null"
+            >
+              <option value="">=</option>
+              <option v-for="op in attr.comparison_operators" :key="op.id" :value="op.id" :title="op.description_de">{{ op.symbol }}</option>
+            </select>
             <PimAttributeInput
               class="flex-1 min-w-0"
               :type="mapDataTypeToInput(attr.data_type)"

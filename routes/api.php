@@ -88,6 +88,8 @@ use App\Http\Controllers\Api\V1\PermissionController;
 use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\UnitController;
 use App\Http\Controllers\Api\V1\UnitGroupController;
+use App\Http\Controllers\Api\V1\ComparisonOperatorGroupController;
+use App\Http\Controllers\Api\V1\ComparisonOperatorController;
 use App\Http\Controllers\Api\V1\AccessLinkController;
 use App\Http\Controllers\Api\V1\AuditLogController;
 use App\Http\Controllers\Api\V1\UserAuditController;
@@ -314,6 +316,12 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::get('unit-groups/{unit_group}/dependencies', [UnitGroupController::class, 'dependencies']);
     Route::apiResource('unit-groups.units', UnitController::class)->shallow();
     Route::get('units/{unit}/dependencies', [UnitController::class, 'dependencies']);
+
+    // Comparison Operator Groups & Operators
+    Route::apiResource('comparison-operator-groups', ComparisonOperatorGroupController::class);
+    Route::get('comparison-operator-groups/{comparison_operator_group}/dependencies', [ComparisonOperatorGroupController::class, 'dependencies']);
+    Route::apiResource('comparison-operator-groups.comparison-operators', ComparisonOperatorController::class)->shallow();
+    Route::get('comparison-operators/{comparison_operator}/dependencies', [ComparisonOperatorController::class, 'dependencies']);
 
     // =====================================================================
     // Agent 3: Value Lists & Entries

@@ -111,6 +111,12 @@ const routes = [
     meta: { title: 'Einheiten' },
   },
   {
+    path: '/comparison-operators',
+    name: 'comparison-operators',
+    component: () => import('@/views/comparisonOperators/ComparisonOperatorGroupView.vue'),
+    meta: { title: 'Vergleichsoperatoren' },
+  },
+  {
     path: '/imports',
     name: 'imports',
     component: () => import('@/views/imports/ImportView.vue'),
