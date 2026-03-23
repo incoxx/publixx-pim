@@ -89,25 +89,11 @@ class OfflineCatalogExportService
             $hierarchy = $hierarchyId ? Hierarchy::find($hierarchyId) : null;
             $excludedNodeIds = $themePayload['catalog_excluded_node_ids'] ?? [];
 
-            if ($hierarchy && $hierarchy->hierarchy_type === 'output') {
-                // Output hierarchy: products linked via output_hierarchy_product_assignments
-                $visibleNodeIds = HierarchyNode::where('hierarchy_id', $hierarchy->id)
-                    ->where('is_active', true)
-                    ->when(!empty($excludedNodeIds), fn ($q) => $q->whereNotIn('id', $excludedNodeIds))
-                    ->pluck('id');
-                $outputProductIds = OutputHierarchyProductAssignment::whereIn('hierarchy_node_id', $visibleNodeIds)
-                    ->pluck('product_id');
-                $hierarchyQuery = (clone $baseQuery)->whereIn('id', $outputProductIds);
-            } elseif ($hierarchy) {
-                // Master hierarchy: products with master_hierarchy_node_id pointing to a visible node
-                $visibleNodeIds = HierarchyNode::where('hierarchy_id', $hierarchy->id)
-                    ->where('is_active', true)
-                    ->when(!empty($excludedNodeIds), fn ($q) => $q->whereNotIn('id', $excludedNodeIds))
-                    ->pluck('id');
-                $hierarchyQuery = (clone $baseQuery)->whereIn('master_hierarchy_node_id', $visibleNodeIds);
+            $hierarchyQuery = clone $baseQuery;
+            if ($hierarchy) {
+                $this->applyHierarchyFilter($hierarchyQuery, $hierarchy, $excludedNodeIds);
             } else {
-                // No hierarchy configured: fall back to master_hierarchy_node_id presence
-                $hierarchyQuery = (clone $baseQuery)->whereNotNull('master_hierarchy_node_id');
+                $hierarchyQuery->whereNotNull('master_hierarchy_node_id');
             }
 
             $hierarchyCount = $hierarchyQuery->count();
@@ -522,6 +508,30 @@ class OfflineCatalogExportService
 
     // ─── Query & Data Building ────────────────────────────────────
 
+    /**
+     * Hierarchie-Filter auf eine Query anwenden (Subquery statt pluck, vermeidet too-many-placeholders).
+     */
+    private function applyHierarchyFilter(
+        \Illuminate\Database\Eloquent\Builder $query,
+        Hierarchy $hierarchy,
+        array $excludedNodeIds = [],
+    ): \Illuminate\Database\Eloquent\Builder {
+        $visibleNodeQuery = HierarchyNode::where('hierarchy_id', $hierarchy->id)
+            ->where('is_active', true)
+            ->when(!empty($excludedNodeIds), fn ($q) => $q->whereNotIn('id', $excludedNodeIds))
+            ->select('id');
+
+        if ($hierarchy->hierarchy_type === 'output') {
+            $outputProductQuery = OutputHierarchyProductAssignment::whereIn('hierarchy_node_id', $visibleNodeQuery)
+                ->select('product_id');
+            $query->whereIn('id', $outputProductQuery);
+        } else {
+            $query->whereIn('master_hierarchy_node_id', $visibleNodeQuery);
+        }
+
+        return $query;
+    }
+
     private function buildProductQuery(array $themePayload): \Illuminate\Database\Eloquent\Builder
     {
         $query = $this->buildBaseProductQuery();
@@ -534,18 +544,7 @@ class OfflineCatalogExportService
             $hierarchy = Hierarchy::find($hierarchyId);
             $excludedNodeIds = $themePayload['catalog_excluded_node_ids'] ?? [];
             if ($hierarchy) {
-                // Only consider active, non-excluded hierarchy nodes
-                $visibleNodeIds = HierarchyNode::where('hierarchy_id', $hierarchy->id)
-                    ->where('is_active', true)
-                    ->when(!empty($excludedNodeIds), fn ($q) => $q->whereNotIn('id', $excludedNodeIds))
-                    ->pluck('id');
-                if ($hierarchy->hierarchy_type === 'output') {
-                    $linkedProductIds = OutputHierarchyProductAssignment::whereIn('hierarchy_node_id', $visibleNodeIds)
-                        ->pluck('product_id');
-                    $query->whereIn('id', $linkedProductIds);
-                } else {
-                    $query->whereIn('master_hierarchy_node_id', $visibleNodeIds);
-                }
+                $this->applyHierarchyFilter($query, $hierarchy, $excludedNodeIds);
             }
         }
 
@@ -570,20 +569,8 @@ class OfflineCatalogExportService
         $hierarchy = $hierarchyId ? Hierarchy::find($hierarchyId) : null;
         $excludedNodeIds = $themePayload['catalog_excluded_node_ids'] ?? [];
 
-        if ($hierarchy && $hierarchy->hierarchy_type === 'output') {
-            $visibleNodeIds = HierarchyNode::where('hierarchy_id', $hierarchy->id)
-                ->where('is_active', true)
-                ->when(!empty($excludedNodeIds), fn ($q) => $q->whereNotIn('id', $excludedNodeIds))
-                ->pluck('id');
-            $outputProductIds = OutputHierarchyProductAssignment::whereIn('hierarchy_node_id', $visibleNodeIds)
-                ->pluck('product_id');
-            $query->whereIn('id', $outputProductIds);
-        } elseif ($hierarchy) {
-            $visibleNodeIds = HierarchyNode::where('hierarchy_id', $hierarchy->id)
-                ->where('is_active', true)
-                ->when(!empty($excludedNodeIds), fn ($q) => $q->whereNotIn('id', $excludedNodeIds))
-                ->pluck('id');
-            $query->whereIn('master_hierarchy_node_id', $visibleNodeIds);
+        if ($hierarchy) {
+            $this->applyHierarchyFilter($query, $hierarchy, $excludedNodeIds);
         } else {
             $query->whereNotNull('master_hierarchy_node_id');
         }
@@ -995,19 +982,19 @@ class OfflineCatalogExportService
         $excludedNodeIds = $themePayload['catalog_excluded_node_ids'] ?? [];
 
         if ($hierarchy && $hierarchy->hierarchy_type === 'output') {
-            $visibleNodeIds = HierarchyNode::where('hierarchy_id', $hierarchy->id)
+            $visibleNodeQuery = HierarchyNode::where('hierarchy_id', $hierarchy->id)
                 ->where('is_active', true)
                 ->when(!empty($excludedNodeIds), fn ($q) => $q->whereNotIn('id', $excludedNodeIds))
-                ->pluck('id');
-            $outputProductIds = OutputHierarchyProductAssignment::whereIn('hierarchy_node_id', $visibleNodeIds)
-                ->pluck('product_id');
-            $facetQuery->whereIn('id', $outputProductIds);
+                ->select('id');
+            $outputProductQuery = OutputHierarchyProductAssignment::whereIn('hierarchy_node_id', $visibleNodeQuery)
+                ->select('product_id');
+            $facetQuery->whereIn('id', $outputProductQuery);
         } elseif ($hierarchy) {
-            $visibleNodeIds = HierarchyNode::where('hierarchy_id', $hierarchy->id)
+            $visibleNodeQuery = HierarchyNode::where('hierarchy_id', $hierarchy->id)
                 ->where('is_active', true)
                 ->when(!empty($excludedNodeIds), fn ($q) => $q->whereNotIn('id', $excludedNodeIds))
-                ->pluck('id');
-            $facetQuery->whereIn('master_hierarchy_node_id', $visibleNodeIds);
+                ->select('id');
+            $facetQuery->whereIn('master_hierarchy_node_id', $visibleNodeQuery);
         } else {
             $facetQuery->whereNotNull('master_hierarchy_node_id');
         }
