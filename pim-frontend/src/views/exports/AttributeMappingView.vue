@@ -1,12 +1,15 @@
 <script setup>
 import { ref, onMounted, computed, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowRight, Plus, Trash2, Save, Loader2, Sparkles,
   RefreshCw, Filter, ChevronDown, AlertTriangle, Check,
 } from 'lucide-vue-next'
 import attributeMappingsApi from '@/api/attributeMappings'
-import attributesApi from '@/api/attributes'
 import hierarchiesApi from '@/api/hierarchies'
+
+const route = useRoute()
+const router = useRouter()
 
 // ─── State ───────────────────────────────────────────────
 const loading = ref(true)
@@ -18,8 +21,9 @@ const successMsg = ref('')
 // Daten
 const mappings = ref([])
 const rules = ref([])
-const attributes = ref([])
 const hierarchies = ref([])
+const sourceHierarchyAttributes = ref([])
+const targetHierarchyAttributes = ref([])
 
 // Filter
 const sourceHierarchyId = ref(null)
@@ -40,9 +44,9 @@ const hierarchyPairSelected = computed(() =>
   sourceHierarchyId.value && targetHierarchyId.value
 )
 
-const sourceAttributes = computed(() => attributes.value)
+const sourceAttributes = computed(() => sourceHierarchyAttributes.value)
 
-const targetAttributes = computed(() => attributes.value)
+const targetAttributes = computed(() => targetHierarchyAttributes.value)
 
 const filteredMappings = computed(() => {
   let result = mappings.value
@@ -61,14 +65,52 @@ const filteredMappings = computed(() => {
 // ─── Lifecycle ───────────────────────────────────────────
 
 onMounted(async () => {
-  await Promise.all([loadHierarchies(), loadAttributes()])
+  await loadHierarchies()
+
+  // Restore hierarchy selection from query params
+  if (route.query.source) sourceHierarchyId.value = route.query.source
+  if (route.query.target) targetHierarchyId.value = route.query.target
+
   loading.value = false
 })
 
 watch([sourceHierarchyId, targetHierarchyId], () => {
+  // Persist selection to URL query params
+  router.replace({
+    query: {
+      ...(sourceHierarchyId.value ? { source: sourceHierarchyId.value } : {}),
+      ...(targetHierarchyId.value ? { target: targetHierarchyId.value } : {}),
+    },
+  })
+
   if (hierarchyPairSelected.value) {
     loadMappings()
     loadRules()
+  }
+})
+
+// Load hierarchy-scoped attributes when source/target changes
+watch(sourceHierarchyId, async (id) => {
+  sourceHierarchyAttributes.value = []
+  if (id) {
+    try {
+      const res = await hierarchiesApi.allNodeAttributes(id)
+      sourceHierarchyAttributes.value = res.data.data || res.data
+    } catch (e) {
+      console.error('Quell-Attribute konnten nicht geladen werden', e)
+    }
+  }
+})
+
+watch(targetHierarchyId, async (id) => {
+  targetHierarchyAttributes.value = []
+  if (id) {
+    try {
+      const res = await hierarchiesApi.allNodeAttributes(id)
+      targetHierarchyAttributes.value = res.data.data || res.data
+    } catch (e) {
+      console.error('Ziel-Attribute konnten nicht geladen werden', e)
+    }
   }
 })
 
@@ -80,15 +122,6 @@ async function loadHierarchies() {
     hierarchies.value = res.data.data || res.data
   } catch (e) {
     error.value = 'Hierarchien konnten nicht geladen werden'
-  }
-}
-
-async function loadAttributes() {
-  try {
-    const res = await attributesApi.list({ per_page: 500, sort: 'technical_name', direction: 'asc' })
-    attributes.value = res.data.data || res.data
-  } catch (e) {
-    error.value = 'Attribute konnten nicht geladen werden'
   }
 }
 
@@ -236,7 +269,8 @@ function removeRuleAction(index) {
 }
 
 function getAttributeName(id) {
-  const attr = attributes.value.find(a => a.id === id)
+  const attr = sourceHierarchyAttributes.value.find(a => a.id === id)
+    || targetHierarchyAttributes.value.find(a => a.id === id)
   return attr ? `${attr.name_de} (${attr.technical_name})` : id
 }
 
@@ -462,7 +496,7 @@ const operators = [
               <div class="flex gap-2">
                 <select v-model="newRule.condition_attribute_id" class="select select-bordered select-sm flex-1">
                   <option :value="null" disabled>Bedingung: Attribut...</option>
-                  <option v-for="a in attributes" :key="a.id" :value="a.id">{{ a.name_de }}</option>
+                  <option v-for="a in sourceAttributes" :key="a.id" :value="a.id">{{ a.name_de }}</option>
                 </select>
                 <select v-model="newRule.condition_operator" class="select select-bordered select-sm w-24">
                   <option v-for="op in operators" :key="op.value" :value="op.value">{{ op.label }}</option>
