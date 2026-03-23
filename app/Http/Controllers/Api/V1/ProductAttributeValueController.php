@@ -82,7 +82,7 @@ class ProductAttributeValueController extends Controller
         // Load existing master attribute values for this product (exclude channel-specific)
         // Use groupBy to support multipliable attributes with multiple values
         $allExistingValues = $product->attributeValues()
-            ->with('attribute')
+            ->with(['attribute', 'unit'])
             ->whereNull('output_hierarchy_id')
             ->where(function ($q) use ($language) {
                 $q->whereNull('language')->orWhere('language', $language);
@@ -143,7 +143,18 @@ class ProductAttributeValueController extends Controller
             }
         }
 
-        $result = $effectiveAttributes->map(function ($assignment) use ($existingValues, $multipliedValues) {
+        // Einheitengruppen mit Einheiten vorladen (für Number/Float-Attribute)
+        $unitGroupIds = $effectiveAttributes
+            ->pluck('unit_group_id')
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+        $unitGroups = !empty($unitGroupIds)
+            ? \App\Models\UnitGroup::with('units')->whereIn('id', $unitGroupIds)->get()->keyBy('id')
+            : collect();
+
+        $result = $effectiveAttributes->map(function ($assignment) use ($existingValues, $multipliedValues, $unitGroups) {
             $pav = $existingValues->get($assignment->attribute_id);
             $value = null;
             $source = 'none';
@@ -151,6 +162,27 @@ class ProductAttributeValueController extends Controller
             if ($pav) {
                 $value = $pav->value_string ?? $pav->value_number ?? $pav->value_date ?? $pav->value_flag ?? $pav->value_selection_id;
                 $source = $pav->is_inherited ? 'hierarchy_inheritance' : 'own';
+            }
+
+            // Einheit: gespeicherte unit_id oder default_unit_id des Attributs
+            $unitId = $pav?->unit_id ?? $assignment->default_unit_id ?? null;
+
+            // Einheitengruppe mit Einheiten für Dropdown
+            $unitGroupData = null;
+            if (!empty($assignment->unit_group_id)) {
+                $ug = $unitGroups->get($assignment->unit_group_id);
+                if ($ug) {
+                    $unitGroupData = [
+                        'id' => $ug->id,
+                        'name_de' => $ug->name_de,
+                        'units' => $ug->units->map(fn ($u) => [
+                            'id' => $u->id,
+                            'abbreviation' => $u->abbreviation,
+                            'name_de' => $u->name_de,
+                            'is_base_unit' => (bool) $u->is_base_unit,
+                        ])->values()->all(),
+                    ];
+                }
             }
 
             $result = [
@@ -175,12 +207,15 @@ class ProductAttributeValueController extends Controller
                 'access_product' => $assignment->access_product ?? 'editable',
                 'access_variant' => $assignment->access_variant ?? 'editable',
                 'value' => $value,
+                'unit_id' => $unitId,
+                'unit_group' => $unitGroupData,
                 'source' => $source,
                 'is_inherited' => $source !== 'own' && $source !== 'none',
             ];
 
             // Include all multiplied values for multipliable attributes
             if ($assignment->is_multipliable ?? false) {
+                $defaultUnitId = $assignment->default_unit_id ?? null;
                 $attrMultiplied = $multipliedValues->get($assignment->attribute_id, collect());
                 $result['multiplied_values'] = $attrMultiplied
                     ->sortBy('multiplied_index')
@@ -188,6 +223,7 @@ class ProductAttributeValueController extends Controller
                     ->map(fn ($pav) => [
                         'multiplied_index' => $pav->multiplied_index,
                         'value' => $pav->value_string ?? $pav->value_number ?? $pav->value_date ?? $pav->value_flag ?? $pav->value_selection_id,
+                        'unit_id' => $pav->unit_id ?? $defaultUnitId,
                         'language' => $pav->language,
                     ])
                     ->all();

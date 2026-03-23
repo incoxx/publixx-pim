@@ -248,6 +248,8 @@ class HierarchyInheritanceService
                 'a.attribute_type_id',
                 'a.parent_attribute_id',
                 'a.value_list_id',
+                'a.unit_group_id',
+                'a.default_unit_id',
                 'a.composite_format',
                 'hnaa.parent_assignment_id',
                 'hn.depth as node_depth',
@@ -261,7 +263,8 @@ class HierarchyInheritanceService
                 'a.data_type', 'a.is_translatable', 'a.is_mandatory', 'a.is_inheritable',
                 'a.is_variant_attribute', 'a.is_internal', 'a.is_multipliable', 'a.max_multiplied',
                 'a.attribute_type_id', 'a.parent_attribute_id',
-                'a.value_list_id', 'a.composite_format', 'hnaa.parent_assignment_id', 'hn.depth',
+                'a.value_list_id', 'a.unit_group_id', 'a.default_unit_id',
+                'a.composite_format', 'hnaa.parent_assignment_id', 'hn.depth',
             ])
             ->orderBy('hn.depth', 'asc')
             ->get();
