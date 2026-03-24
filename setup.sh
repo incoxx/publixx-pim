@@ -847,8 +847,7 @@ step "10/10 — Apache VHost, Supervisor, Cron & Berechtigungen"
 # --- Dateiberechtigungen (final, nach Frontend-Build) ---
 info "Setze finale Dateiberechtigungen..."
 chown -R www-data:www-data "$INSTALL_DIR"
-find "$INSTALL_DIR" -type f -exec chmod 644 {} \;
-find "$INSTALL_DIR" -type d -exec chmod 755 {} \;
+chmod -R u=rwX,g=rX,o=rX "$INSTALL_DIR"
 chmod -R 775 "${INSTALL_DIR}/storage"
 chmod -R 775 "${INSTALL_DIR}/bootstrap/cache"
 
