@@ -20,6 +20,7 @@ const generating = ref(false)
 const generatedKey = ref('')
 const generatedPayload = ref(null)
 const generateError = ref(null)
+const generateWarning = ref(null)
 const copied = ref(false)
 
 const generatingKeypair = ref(false)
@@ -35,6 +36,7 @@ const availableModules = [
   { key: 'sso', name: 'Single Sign-On', description: 'Azure AD / OAuth SSO-Integration' },
   { key: 'workflow', name: 'Workflow-Management', description: 'Konfigurierbare Workflows, Teams und Projekte' },
   { key: 'api_designer', name: 'API-Designer', description: 'Visueller API-Designer mit JSON-Streaming-Endpoints' },
+  { key: 'connectors', name: 'Connectoren', description: 'Externe API-Connectoren (Canva, DeepL, Adobe u.a.)' },
 ]
 
 const allSelected = computed(() => selectedModules.value.length === availableModules.length)
@@ -93,6 +95,7 @@ async function validateKey() {
 async function generate() {
   generating.value = true
   generateError.value = null
+  generateWarning.value = null
   generatedKey.value = ''
   generatedPayload.value = null
 
@@ -106,6 +109,7 @@ async function generate() {
     })
     generatedKey.value = data.license_key
     generatedPayload.value = data.payload
+    generateWarning.value = data.warning || null
   } catch (e) {
     generateError.value = e.response?.data?.error || 'Generierung fehlgeschlagen'
   } finally {
@@ -340,6 +344,12 @@ async function generateKeypair() {
           <Check v-if="copied" class="w-4 h-4 text-green-400" />
           <Copy v-else class="w-4 h-4" />
         </button>
+      </div>
+
+      <!-- Warning bei Public-Key-Mismatch -->
+      <div v-if="generateWarning" class="flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-800">
+        <AlertTriangle class="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
+        <span>{{ generateWarning }}</span>
       </div>
 
       <p class="text-xs text-gray-500">
