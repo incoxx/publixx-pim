@@ -231,6 +231,18 @@ const routes = [
     meta: { title: 'API-Designer', tabable: true, tabTitle: 'API' },
   },
   {
+    path: '/excel-designer',
+    name: 'excel-designer-list',
+    component: () => import('@/views/excelDesigner/ExcelDesignerListView.vue'),
+    meta: { title: 'Sheet Designer' },
+  },
+  {
+    path: '/excel-designer/:id',
+    name: 'excel-designer-edit',
+    component: () => import('@/views/excelDesigner/ExcelDesignerView.vue'),
+    meta: { title: 'Sheet Designer', tabable: true, tabTitle: 'Excel' },
+  },
+  {
     path: '/pdf-templates',
     name: 'pdf-templates',
     component: () => import('@/views/pdf-templates/PdfTemplateListView.vue'),

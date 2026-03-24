@@ -758,6 +758,21 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     });
 
     // =====================================================================
+    // Excel Sheet Designer
+    // =====================================================================
+    Route::prefix('excel-templates')->group(function () {
+        Route::get('fields', [\App\Http\Controllers\Api\V1\ExcelTemplateController::class, 'fields']);
+        Route::get('/', [\App\Http\Controllers\Api\V1\ExcelTemplateController::class, 'index']);
+        Route::post('/', [\App\Http\Controllers\Api\V1\ExcelTemplateController::class, 'store']);
+        Route::post('import', [\App\Http\Controllers\Api\V1\ExcelTemplateController::class, 'import']);
+        Route::get('{id}', [\App\Http\Controllers\Api\V1\ExcelTemplateController::class, 'show']);
+        Route::put('{id}', [\App\Http\Controllers\Api\V1\ExcelTemplateController::class, 'update']);
+        Route::delete('{excelTemplate}', [\App\Http\Controllers\Api\V1\ExcelTemplateController::class, 'destroy']);
+        Route::post('{id}/download', [\App\Http\Controllers\Api\V1\ExcelTemplateController::class, 'download']);
+        Route::post('{id}/preview', [\App\Http\Controllers\Api\V1\ExcelTemplateController::class, 'preview']);
+    });
+
+    // =====================================================================
     // Catalog Templates
     // =====================================================================
     Route::get('catalog-templates/presets', [CatalogTemplateController::class, 'presets']);

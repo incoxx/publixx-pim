@@ -12,6 +12,7 @@ import {
   FileJson, FileCode, PlayCircle, FileBarChart, FileText, BookOpen, Link2, Zap, Languages, LayoutTemplate,
   ChevronDown, ChevronRight, GripVertical, Factory, CalendarDays, ScrollText, Globe, Send,
   LayoutDashboard, ClipboardList, Code, ExternalLink, Plug, FlaskConical, ArrowRightLeft,
+  FileSpreadsheet,
 } from 'lucide-vue-next'
 import AnyPimLogo from '@/components/shared/AnyPimLogo.vue'
 
@@ -191,6 +192,7 @@ const sections = computed(() => {
           children: [
             { icon: FlaskConical, label: () => 'Test anyPIM', to: '/test-runner', permission: 'users.view' },
             { icon: Code, label: () => 'API-Designer', to: '/api-designer', module: 'api_designer' },
+            { icon: FileSpreadsheet, label: () => 'Sheet Designer', to: '/excel-designer' },
             { icon: Zap, label: () => 'API Tester', to: '/api-tester', permission: 'users.view' },
             { icon: Database, label: () => 'Datenbank', to: '/db', permission: 'users.view' },
             { icon: Shield, label: () => 'Datenkonsistenz', to: '/db-consistency', permission: 'users.view' },
