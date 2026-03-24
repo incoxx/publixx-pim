@@ -71,6 +71,10 @@ return [
             'name' => 'API-Designer',
             'description' => 'Visueller API-Designer mit JSON-Streaming-Endpoints',
         ],
+        'excel_designer' => [
+            'name' => 'Sheet Designer',
+            'description' => 'Excel-Sheet-Designer für konfigurierbare .xlsx-Produktlisten mit Thumbnails',
+        ],
         'connectors' => [
             'name' => 'Connectoren',
             'description' => 'Externe API-Connectoren (Canva, DeepL, Adobe u.a.)',

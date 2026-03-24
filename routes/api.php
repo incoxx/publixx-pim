@@ -760,7 +760,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // =====================================================================
     // Excel Sheet Designer
     // =====================================================================
-    Route::prefix('excel-templates')->group(function () {
+    Route::middleware('module:excel_designer')->prefix('excel-templates')->group(function () {
         Route::get('fields', [\App\Http\Controllers\Api\V1\ExcelTemplateController::class, 'fields']);
         Route::get('/', [\App\Http\Controllers\Api\V1\ExcelTemplateController::class, 'index']);
         Route::post('/', [\App\Http\Controllers\Api\V1\ExcelTemplateController::class, 'store']);
