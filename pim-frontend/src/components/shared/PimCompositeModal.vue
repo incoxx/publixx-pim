@@ -36,11 +36,27 @@ const formatPreview = computed(() => {
   if (!props.compositeAttribute?.composite_format) return null
   let result = props.compositeAttribute.composite_format
   children.value.forEach((child, i) => {
-    const val = localValues.value[child.id]
+    const val = child.data_type === 'Composite' ? '…' : localValues.value[child.id]
     result = result.replace(`{${i}}`, val !== undefined && val !== null ? String(val) : '…')
   })
   return result
 })
+
+function getSubCompositeValue(childId, grandchildId) {
+  const sub = localValues.value[childId]
+  if (sub && typeof sub === 'object' && sub.children) {
+    return sub.children[grandchildId] ?? null
+  }
+  return null
+}
+
+function setSubCompositeValue(childId, grandchildId, newValue) {
+  const existing = localValues.value[childId] || { data_type: 'Composite', children: {} }
+  localValues.value[childId] = {
+    ...existing,
+    children: { ...(existing.children || {}), [grandchildId]: newValue },
+  }
+}
 
 function close() {
   emit('update:open', false)
@@ -82,18 +98,43 @@ function onKeydown(e) {
 
           <!-- Body -->
           <div class="px-5 py-4 space-y-3 max-h-[50vh] overflow-y-auto">
-            <div v-for="child in children" :key="child.id">
-              <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">
-                {{ child.name_de || child.technical_name }}
-                <span v-if="child.is_mandatory" class="text-[var(--color-error)]">*</span>
-              </label>
-              <PimAttributeInput
-                :type="mapType(child.data_type)"
-                :modelValue="localValues[child.id]"
-                :disabled="disabled"
-                @update:modelValue="localValues[child.id] = $event"
-              />
-            </div>
+            <template v-for="child in children" :key="child.id">
+              <!-- Sub-Composite: inline Fieldset -->
+              <fieldset
+                v-if="child.data_type === 'Composite'"
+                class="border border-dashed border-[var(--color-border)] rounded-md px-3 py-2 space-y-2"
+              >
+                <legend class="text-[11px] font-medium text-[var(--color-text-tertiary)] px-1">
+                  {{ child.name_de || child.technical_name }}
+                </legend>
+                <div v-for="gc in (child._children || child.children || [])" :key="gc.id">
+                  <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-0.5">
+                    {{ gc.name_de || gc.technical_name }}
+                    <span v-if="gc.is_mandatory" class="text-[var(--color-error)]">*</span>
+                  </label>
+                  <PimAttributeInput
+                    :type="mapType(gc.data_type)"
+                    :modelValue="getSubCompositeValue(child.id, gc.id)"
+                    :disabled="disabled"
+                    @update:modelValue="setSubCompositeValue(child.id, gc.id, $event)"
+                  />
+                </div>
+              </fieldset>
+
+              <!-- Einfaches Kind-Attribut -->
+              <div v-else>
+                <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">
+                  {{ child.name_de || child.technical_name }}
+                  <span v-if="child.is_mandatory" class="text-[var(--color-error)]">*</span>
+                </label>
+                <PimAttributeInput
+                  :type="mapType(child.data_type)"
+                  :modelValue="localValues[child.id]"
+                  :disabled="disabled"
+                  @update:modelValue="localValues[child.id] = $event"
+                />
+              </div>
+            </template>
             <p v-if="children.length === 0" class="text-sm text-[var(--color-text-tertiary)] text-center py-4">
               Keine Kind-Attribute definiert
             </p>

@@ -86,18 +86,22 @@ class DemoHierarchySeeder extends Seeder
             'product-sku-source-str', 'product-customs-tariff-str',
             'product-color-sel', 'product-material-sel',
             'product-voltage-num', 'product-length-num',
+            'product-dimensions', 'product-lieferumfang', 'product-zertifizierungen',
         ])->get()->keyBy('technical_name');
 
         // Root gets base attributes (inherited by ALL products)
         $this->assignAttributes($root, [
-            ['attr' => $allAttrs['product-name-str'] ?? null,           'collection' => 'Basisdaten',  'cSort' => 10, 'aSort' => 10],
-            ['attr' => $allAttrs['product-description-str'] ?? null,    'collection' => 'Basisdaten',  'cSort' => 10, 'aSort' => 20],
-            ['attr' => $allAttrs['product-weight-num'] ?? null,         'collection' => 'Technisch',   'cSort' => 20, 'aSort' => 10],
-            ['attr' => $allAttrs['product-norm-str'] ?? null,           'collection' => 'Technisch',   'cSort' => 20, 'aSort' => 20],
-            ['attr' => $allAttrs['product-is-new-flag'] ?? null,        'collection' => 'Marketing',   'cSort' => 40, 'aSort' => 10],
-            ['attr' => $allAttrs['product-release-date'] ?? null,       'collection' => 'Marketing',   'cSort' => 40, 'aSort' => 20],
-            ['attr' => $allAttrs['product-sku-source-str'] ?? null,     'collection' => 'Logistik',    'cSort' => 50, 'aSort' => 10],
-            ['attr' => $allAttrs['product-customs-tariff-str'] ?? null, 'collection' => 'Logistik',    'cSort' => 50, 'aSort' => 20],
+            ['attr' => $allAttrs['product-name-str'] ?? null,            'collection' => 'Basisdaten',      'cSort' => 10, 'aSort' => 10],
+            ['attr' => $allAttrs['product-description-str'] ?? null,     'collection' => 'Basisdaten',      'cSort' => 10, 'aSort' => 20],
+            ['attr' => $allAttrs['product-weight-num'] ?? null,          'collection' => 'Technisch',       'cSort' => 20, 'aSort' => 10],
+            ['attr' => $allAttrs['product-norm-str'] ?? null,            'collection' => 'Technisch',       'cSort' => 20, 'aSort' => 20],
+            ['attr' => $allAttrs['product-dimensions'] ?? null,          'collection' => 'Technisch',       'cSort' => 20, 'aSort' => 30],
+            ['attr' => $allAttrs['product-zertifizierungen'] ?? null,    'collection' => 'Technisch',       'cSort' => 20, 'aSort' => 40],
+            ['attr' => $allAttrs['product-is-new-flag'] ?? null,         'collection' => 'Marketing',       'cSort' => 40, 'aSort' => 10],
+            ['attr' => $allAttrs['product-release-date'] ?? null,        'collection' => 'Marketing',       'cSort' => 40, 'aSort' => 20],
+            ['attr' => $allAttrs['product-lieferumfang'] ?? null,        'collection' => 'Marketing',       'cSort' => 40, 'aSort' => 30],
+            ['attr' => $allAttrs['product-sku-source-str'] ?? null,      'collection' => 'Logistik',        'cSort' => 50, 'aSort' => 10],
+            ['attr' => $allAttrs['product-customs-tariff-str'] ?? null,  'collection' => 'Logistik',        'cSort' => 50, 'aSort' => 20],
         ]);
 
         // Bohren & Schrauben: adds category-specific attributes

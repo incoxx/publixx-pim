@@ -283,6 +283,164 @@ class DemoAttributeSeeder extends Seeder
             );
         }
 
+        // ----- Composite Attributes -----
+
+        // 1) Einfaches Composite: Abmessungen (Breite × Höhe × Tiefe)
+        $dimComposite = Attribute::firstOrCreate(
+            ['technical_name' => 'product-dimensions'],
+            [
+                'name_de' => 'Abmessungen',
+                'name_en' => 'Dimensions',
+                'data_type' => 'Composite',
+                'attribute_type_id' => $atTechnical->id,
+                'composite_format' => '{breite} × {hoehe} × {tiefe} mm',
+                'position' => 130,
+            ]
+        );
+        $createdAttrs[] = $dimComposite;
+
+        foreach ([
+            ['technical_name' => 'dim-breite', 'name_de' => 'Breite', 'name_en' => 'Width', 'position' => 10],
+            ['technical_name' => 'dim-hoehe', 'name_de' => 'Höhe', 'name_en' => 'Height', 'position' => 20],
+            ['technical_name' => 'dim-tiefe', 'name_de' => 'Tiefe', 'name_en' => 'Depth', 'position' => 30],
+        ] as $child) {
+            Attribute::firstOrCreate(
+                ['technical_name' => $child['technical_name']],
+                [
+                    'name_de' => $child['name_de'],
+                    'name_en' => $child['name_en'],
+                    'data_type' => 'Float',
+                    'attribute_type_id' => $atTechnical->id,
+                    'parent_attribute_id' => $dimComposite->id,
+                    'unit_group_id' => $ugLength->id,
+                    'default_unit_id' => $unitMm->id,
+                    'comparison_operator_group_id' => $copNumeric->id,
+                    'max_pre_decimal' => 5,
+                    'max_post_decimal' => 1,
+                    'position' => $child['position'],
+                ]
+            );
+        }
+
+        // 2) Vermehrbares Composite: Lieferumfang
+        $lieferComposite = Attribute::firstOrCreate(
+            ['technical_name' => 'product-lieferumfang'],
+            [
+                'name_de' => 'Lieferumfang',
+                'name_en' => 'Scope of Delivery',
+                'data_type' => 'Composite',
+                'attribute_type_id' => $atMarketing->id,
+                'is_multipliable' => true,
+                'max_multiplied' => 10,
+                'composite_format' => '{menge}× {bezeichnung}',
+                'position' => 140,
+            ]
+        );
+        $createdAttrs[] = $lieferComposite;
+
+        Attribute::firstOrCreate(
+            ['technical_name' => 'lieferumfang-bezeichnung'],
+            [
+                'name_de' => 'Bezeichnung',
+                'name_en' => 'Description',
+                'data_type' => 'String',
+                'attribute_type_id' => $atMarketing->id,
+                'parent_attribute_id' => $lieferComposite->id,
+                'is_translatable' => true,
+                'max_characters' => 200,
+                'position' => 10,
+            ]
+        );
+        Attribute::firstOrCreate(
+            ['technical_name' => 'lieferumfang-menge'],
+            [
+                'name_de' => 'Menge',
+                'name_en' => 'Quantity',
+                'data_type' => 'Number',
+                'attribute_type_id' => $atMarketing->id,
+                'parent_attribute_id' => $lieferComposite->id,
+                'position' => 20,
+            ]
+        );
+
+        // 3) Geschachteltes vermehrbares Composite: Zertifizierungen
+        $zertComposite = Attribute::firstOrCreate(
+            ['technical_name' => 'product-zertifizierungen'],
+            [
+                'name_de' => 'Zertifizierungen',
+                'name_en' => 'Certifications',
+                'data_type' => 'Composite',
+                'attribute_type_id' => $atTechnical->id,
+                'is_multipliable' => true,
+                'max_multiplied' => 5,
+                'composite_format' => '{name} ({nummer})',
+                'position' => 150,
+            ]
+        );
+        $createdAttrs[] = $zertComposite;
+
+        Attribute::firstOrCreate(
+            ['technical_name' => 'zert-name'],
+            [
+                'name_de' => 'Zertifikatsname',
+                'name_en' => 'Certificate Name',
+                'data_type' => 'String',
+                'attribute_type_id' => $atTechnical->id,
+                'parent_attribute_id' => $zertComposite->id,
+                'max_characters' => 200,
+                'position' => 10,
+            ]
+        );
+        Attribute::firstOrCreate(
+            ['technical_name' => 'zert-nummer'],
+            [
+                'name_de' => 'Zertifikatsnummer',
+                'name_en' => 'Certificate Number',
+                'data_type' => 'String',
+                'attribute_type_id' => $atTechnical->id,
+                'parent_attribute_id' => $zertComposite->id,
+                'max_characters' => 100,
+                'position' => 20,
+            ]
+        );
+
+        // Sub-Composite: Gültigkeitszeitraum
+        $zertGueltig = Attribute::firstOrCreate(
+            ['technical_name' => 'zert-gueltigkeit'],
+            [
+                'name_de' => 'Gültigkeitszeitraum',
+                'name_en' => 'Validity Period',
+                'data_type' => 'Composite',
+                'attribute_type_id' => $atTechnical->id,
+                'parent_attribute_id' => $zertComposite->id,
+                'composite_format' => '{von} – {bis}',
+                'position' => 30,
+            ]
+        );
+
+        Attribute::firstOrCreate(
+            ['technical_name' => 'zert-gueltig-von'],
+            [
+                'name_de' => 'Gültig von',
+                'name_en' => 'Valid From',
+                'data_type' => 'Date',
+                'attribute_type_id' => $atTechnical->id,
+                'parent_attribute_id' => $zertGueltig->id,
+                'position' => 10,
+            ]
+        );
+        Attribute::firstOrCreate(
+            ['technical_name' => 'zert-gueltig-bis'],
+            [
+                'name_de' => 'Gültig bis',
+                'name_en' => 'Valid Until',
+                'data_type' => 'Date',
+                'attribute_type_id' => $atTechnical->id,
+                'parent_attribute_id' => $zertGueltig->id,
+                'position' => 20,
+            ]
+        );
+
         // Assign all attributes to "All Attributes" view
         foreach ($createdAttrs as $attr) {
             AttributeViewAssignment::firstOrCreate([
@@ -295,6 +453,7 @@ class DemoAttributeSeeder extends Seeder
         $eshopAttrNames = [
             'product-name-str', 'product-description-str',
             'product-color-sel', 'product-is-new-flag', 'product-release-date',
+            'product-lieferumfang',
         ];
         foreach ($createdAttrs as $attr) {
             if (in_array($attr->technical_name, $eshopAttrNames)) {

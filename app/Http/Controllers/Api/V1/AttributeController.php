@@ -57,7 +57,17 @@ class AttributeController extends Controller
     {
         $this->authorize('create', Attribute::class);
 
-        $attribute = Attribute::create($request->validated());
+        $validated = $request->validated();
+
+        // Composite-Nesting: max. Tiefe 2
+        if (!empty($validated['parent_attribute_id'])) {
+            $parent = Attribute::find($validated['parent_attribute_id']);
+            if ($parent && $parent->parent_attribute_id !== null) {
+                abort(422, 'Maximale Composite-Tiefe erreicht: Ein Kind-Composite darf nicht selbst Kind eines anderen Composites sein.');
+            }
+        }
+
+        $attribute = Attribute::create($validated);
 
         return (new AttributeResource($attribute))
             ->response()
@@ -77,7 +87,26 @@ class AttributeController extends Controller
     {
         $this->authorize('update', $attribute);
 
-        $attribute->update($request->validated());
+        // Composite-Nesting: max. Tiefe 2 (Root-Composite → Kind-Composite → einfach)
+        $validated = $request->validated();
+        if (isset($validated['parent_attribute_id']) && $validated['parent_attribute_id'] !== null) {
+            $parent = Attribute::find($validated['parent_attribute_id']);
+            if ($parent && $parent->parent_attribute_id !== null) {
+                abort(422, 'Maximale Composite-Tiefe erreicht: Ein Kind-Composite darf nicht selbst Kind eines anderen Composites sein.');
+            }
+            // Wenn dieses Attribut ein Composite ist und einem Composite zugewiesen wird,
+            // darf es selbst keine Kind-Composites haben (sonst Tiefe > 2)
+            if ($attribute->data_type === 'Composite') {
+                $hasCompositeChildren = Attribute::where('parent_attribute_id', $attribute->id)
+                    ->where('data_type', 'Composite')
+                    ->exists();
+                if ($hasCompositeChildren) {
+                    abort(422, 'Dieses Composite hat bereits Kind-Composites und kann nicht als Kind eines anderen Composites verwendet werden.');
+                }
+            }
+        }
+
+        $attribute->update($validated);
 
         return new AttributeResource($attribute->fresh());
     }

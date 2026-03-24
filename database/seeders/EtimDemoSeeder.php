@@ -10,6 +10,9 @@ use App\Models\AttributeType;
 use App\Models\Hierarchy;
 use App\Models\HierarchyNode;
 use App\Models\HierarchyNodeAttributeAssignment;
+use App\Models\OutputHierarchyProductAssignment;
+use App\Models\Product;
+use App\Models\ProductAttributeValue;
 use App\Models\Unit;
 use App\Models\UnitGroup;
 use App\Models\ValueList;
@@ -307,11 +310,104 @@ class EtimDemoSeeder extends Seeder
             );
         }
 
+        // ─── 8. Produkte ETIM-Klassen zuordnen ────────────────
+
+        $productAssignments = [
+            // Akkubohrschrauber → EC000200 Bohrmaschine/Schrauber
+            ['sku' => 'PD-18V-001', 'node' => $ecBohrmaschine, 'sort' => 10],
+            ['sku' => 'PD-18V-002', 'node' => $ecBohrmaschine, 'sort' => 20],
+            // Schlagbohrmaschinen → EC000201
+            ['sku' => 'HD-18V-001', 'node' => $ecSchlagbohr, 'sort' => 10],
+            ['sku' => 'HD-36V-001', 'node' => $ecSchlagbohr, 'sort' => 20],
+        ];
+
+        $assignmentCount = 0;
+        foreach ($productAssignments as $pa) {
+            $product = Product::where('sku', $pa['sku'])->first();
+            if ($product && $pa['node']) {
+                OutputHierarchyProductAssignment::firstOrCreate(
+                    ['hierarchy_node_id' => $pa['node']->id, 'product_id' => $product->id],
+                    ['sort_order' => $pa['sort']]
+                );
+                $assignmentCount++;
+            }
+        }
+
+        // ─── 9. ETIM-Attributwerte (output_hierarchy_id-scoped) ───
+
+        $evIP20 = ValueListEntry::where('technical_name', 'EV000073')->first();
+        $evIP44 = ValueListEntry::where('technical_name', 'EV000074')->first();
+        $evLiIon = ValueListEntry::where('technical_name', 'EV000201')->first();
+
+        $etimValues = [
+            // PD-18V-001: Akkubohrschrauber ProDrill 18V
+            ['sku' => 'PD-18V-001', 'attr' => $efGewicht,     'number' => 1.800, 'unit' => $unitKg],
+            ['sku' => 'PD-18V-001', 'attr' => $efSpannung,    'number' => 18.0,  'unit' => $unitV],
+            ['sku' => 'PD-18V-001', 'attr' => $efSchutzart,   'selection' => $evIP20],
+            ['sku' => 'PD-18V-001', 'attr' => $efAkkutyp,     'selection' => $evLiIon],
+            ['sku' => 'PD-18V-001', 'attr' => $efAkkubetrieb, 'flag' => true],
+
+            // PD-18V-002: CompactDrill 12V
+            ['sku' => 'PD-18V-002', 'attr' => $efGewicht,     'number' => 1.100, 'unit' => $unitKg],
+            ['sku' => 'PD-18V-002', 'attr' => $efSpannung,    'number' => 12.0,  'unit' => $unitV],
+            ['sku' => 'PD-18V-002', 'attr' => $efAkkutyp,     'selection' => $evLiIon],
+            ['sku' => 'PD-18V-002', 'attr' => $efAkkubetrieb, 'flag' => true],
+
+            // HD-18V-001: Schlagbohrmaschine PowerHammer 18V
+            ['sku' => 'HD-18V-001', 'attr' => $efGewicht,     'number' => 2.500, 'unit' => $unitKg],
+            ['sku' => 'HD-18V-001', 'attr' => $efSpannung,    'number' => 18.0,  'unit' => $unitV],
+            ['sku' => 'HD-18V-001', 'attr' => $efSchutzart,   'selection' => $evIP44],
+            ['sku' => 'HD-18V-001', 'attr' => $efAkkubetrieb, 'flag' => true],
+
+            // HD-36V-001: Bohrhammer ProForce 36V SDS+
+            ['sku' => 'HD-36V-001', 'attr' => $efGewicht,     'number' => 3.800, 'unit' => $unitKg],
+            ['sku' => 'HD-36V-001', 'attr' => $efSpannung,    'number' => 36.0,  'unit' => $unitV],
+            ['sku' => 'HD-36V-001', 'attr' => $efSchutzart,   'selection' => $evIP44],
+            ['sku' => 'HD-36V-001', 'attr' => $efAkkutyp,     'selection' => $evLiIon],
+            ['sku' => 'HD-36V-001', 'attr' => $efAkkubetrieb, 'flag' => true],
+        ];
+
+        $valueCount = 0;
+        foreach ($etimValues as $ev) {
+            $product = Product::where('sku', $ev['sku'])->first();
+            if (!$product || !$ev['attr']) {
+                continue;
+            }
+
+            $data = [
+                'product_id' => $product->id,
+                'attribute_id' => $ev['attr']->id,
+                'language' => null,
+                'multiplied_index' => 0,
+                'output_hierarchy_id' => $etim->id,
+            ];
+
+            $valueData = [];
+            if (isset($ev['number'])) {
+                $valueData['value_number'] = $ev['number'];
+                if (isset($ev['unit'])) {
+                    $valueData['unit_id'] = $ev['unit']->id;
+                }
+            }
+            if (isset($ev['selection']) && $ev['selection']) {
+                $valueData['value_selection_id'] = $ev['selection']->id;
+                $valueData['value_string'] = $ev['selection']->technical_name;
+            }
+            if (isset($ev['flag'])) {
+                $valueData['value_flag'] = $ev['flag'];
+            }
+
+            ProductAttributeValue::firstOrCreate($data, $valueData);
+            $valueCount++;
+        }
+
         $this->command->info('ETIM Demo-Daten erstellt:');
         $this->command->info('  - 1 ETIM Output-Hierarchie mit 4 Klassen');
         $this->command->info('  - 6 ETIM-Features (EF-Codes)');
-        $this->command->info('  - 2 ETIM-Wertlisten mit ' . count($schutzartEntries) + count($akkutypEntries) . ' Einträgen');
+        $this->command->info('  - 2 ETIM-Wertlisten mit ' . (count($schutzartEntries) + count($akkutypEntries)) . ' Einträgen');
         $this->command->info('  - ' . count($mappings) . ' Attribut-Mappings (Master → ETIM)');
+        $this->command->info('  - ' . $assignmentCount . ' Produkt-Zuordnungen zu ETIM-Klassen');
+        $this->command->info('  - ' . $valueCount . ' ETIM-Attributwerte (output_hierarchy_id-scoped)');
     }
 
     private function createNode(Hierarchy $hierarchy, HierarchyNode $parent, string $nameDe, string $nameEn, int $sort): HierarchyNode

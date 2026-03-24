@@ -306,7 +306,9 @@ class MappingResolver
 
     /**
      * composite: attribute:tech_name → JSON object with child attribute values
-     * e.g. { "width": 10, "height": 20, "depth": 30, "_formatted": "10 x 20 x 30 mm" }
+     * Nicht-vermehrbar: { "width": 10, "height": 20, "_formatted": "10 x 20 x 30 mm" }
+     * Vermehrbar: [ { "width": 10, ... }, { "width": 5, ... } ]
+     * Geschachtelt: { "text": "...", "hyperlinks": { "link": "...", "target": "..." } }
      */
     protected function resolveComposite(string $source, Product $product, string $language, array $options): ?array
     {
@@ -327,12 +329,84 @@ class MappingResolver
             return null;
         }
 
+        // Vermehrbares Composite: Array von Instanzen
+        if ($attribute->is_multipliable) {
+            return $this->resolveMultipliedComposite($attribute, $children, $product, $language, $options);
+        }
+
+        // Einfaches Composite (ggf. mit Sub-Composites)
+        return $this->resolveCompositeInstance($attribute, $children, $product, $language, $options, 0);
+    }
+
+    /** Cache für Grandchildren, um N+1-Queries zu vermeiden */
+    private array $grandchildrenCache = [];
+
+    /** Indexierter Lookup-Cache: "attrId:multipliedIndex:language" → ProductAttributeValue */
+    private array $valueIndexCache = [];
+    private ?string $valueIndexProductId = null;
+
+    /**
+     * Baut einen indexierten Lookup für schnellen Zugriff auf Attributwerte.
+     */
+    private function getIndexedValue(string $attrId, int $multipliedIndex, string $language, $allValues): ?ProductAttributeValue
+    {
+        // Cache pro Produkt aufbauen (beim Produktwechsel Reset)
+        $currentProductId = $allValues->first()?->product_id;
+        if ($currentProductId !== $this->valueIndexProductId) {
+            $this->valueIndexCache = [];
+            $this->valueIndexProductId = $currentProductId;
+            foreach ($allValues as $val) {
+                $attr = $val->attribute ?? null;
+                if (!$attr) continue;
+                $key = $attr->id . ':' . $val->multiplied_index . ':' . ($val->language ?? '_');
+                $this->valueIndexCache[$key] = $val;
+            }
+        }
+
+        // Exakter Match mit Sprache
+        $key = $attrId . ':' . $multipliedIndex . ':' . $language;
+        if (isset($this->valueIndexCache[$key])) {
+            return $this->valueIndexCache[$key];
+        }
+        // Fallback: sprachunabhängig
+        $key = $attrId . ':' . $multipliedIndex . ':_';
+        return $this->valueIndexCache[$key] ?? null;
+    }
+
+    /**
+     * Löst eine einzelne Composite-Instanz auf (für einen bestimmten multiplied_index).
+     */
+    protected function resolveCompositeInstance(Attribute $attribute, $children, Product $product, string $language, array $options, int $multipliedIndex): ?array
+    {
         $result = [];
         $values = [];
+        $allValues = $options['attributeValues'] ?? $product->attributeValues ?? collect();
+
         foreach ($children as $child) {
-            $attrValue = $this->findAttributeValueByTechName($child->technical_name, $product, $language, $options);
-            $childLabel = $language === 'en' && $child->name_en ? $child->name_en : $child->name_de;
             $childKey = $child->technical_name;
+
+            if ($child->data_type === 'Composite') {
+                // Sub-Composite: Grandchildren aus Cache oder DB laden
+                if (!isset($this->grandchildrenCache[$child->id])) {
+                    $this->grandchildrenCache[$child->id] = Attribute::where('parent_attribute_id', $child->id)
+                        ->orderBy('position')
+                        ->get();
+                }
+                $grandchildren = $this->grandchildrenCache[$child->id];
+
+                if ($grandchildren->isNotEmpty()) {
+                    $subResult = $this->resolveCompositeInstance($child, $grandchildren, $product, $language, $options, $multipliedIndex);
+                    $result[$childKey] = $subResult;
+                    $values[] = $subResult['_formatted'] ?? '';
+                } else {
+                    $result[$childKey] = null;
+                    $values[] = '';
+                }
+                continue;
+            }
+
+            // Einfaches Kind: Wert für den angegebenen multiplied_index finden (indexierter O(1) Lookup)
+            $attrValue = $this->getIndexedValue($child->id, $multipliedIndex, $language, $allValues);
 
             if ($attrValue === null) {
                 $result[$childKey] = null;
@@ -349,7 +423,7 @@ class MappingResolver
             $values[] = $val !== null ? (string) $val : '';
         }
 
-        // Add formatted summary if composite_format is defined
+        // Formatierte Zusammenfassung
         if ($attribute->composite_format) {
             $formatted = $attribute->composite_format;
             foreach ($values as $i => $v) {
@@ -358,12 +432,12 @@ class MappingResolver
             $result['_formatted'] = trim($formatted);
         }
 
-        // Add computed value if composite_expression is defined
+        // Berechneter Wert
         if ($attribute->composite_expression) {
             $computedValue = ProductAttributeValue::where('product_id', $product->id)
                 ->where('attribute_id', $attribute->id)
                 ->whereNull('language')
-                ->where('multiplied_index', 0)
+                ->where('multiplied_index', $multipliedIndex)
                 ->first();
 
             $result['_computed'] = $computedValue?->value_number !== null
@@ -372,6 +446,51 @@ class MappingResolver
         }
 
         return !empty(array_filter($result, fn ($v) => $v !== null)) ? $result : null;
+    }
+
+    /**
+     * Löst ein vermehrbares Composite auf: Array von Instanzen.
+     */
+    protected function resolveMultipliedComposite(Attribute $attribute, $children, Product $product, string $language, array $options): ?array
+    {
+        $allValues = $options['attributeValues'] ?? $product->attributeValues ?? collect();
+        $childIds = $children->pluck('id')->all();
+
+        // Auch Enkel-IDs sammeln (für Sub-Composites), Cache nutzen
+        $grandchildIds = [];
+        foreach ($children as $child) {
+            if ($child->data_type === 'Composite') {
+                if (!isset($this->grandchildrenCache[$child->id])) {
+                    $this->grandchildrenCache[$child->id] = Attribute::where('parent_attribute_id', $child->id)
+                        ->orderBy('position')
+                        ->get();
+                }
+                $grandchildIds = array_merge($grandchildIds, $this->grandchildrenCache[$child->id]->pluck('id')->all());
+            }
+        }
+
+        $allChildIds = array_merge($childIds, $grandchildIds);
+
+        // Finde alle distinkte multiplied_index Werte
+        $indices = $allValues->filter(function ($val) use ($allChildIds) {
+            $attr = $val->attribute ?? null;
+            return $attr && in_array($attr->id, $allChildIds);
+        })->pluck('multiplied_index')->unique()->sort()->values();
+
+        if ($indices->isEmpty()) {
+            return null;
+        }
+
+        $instances = [];
+        foreach ($indices as $idx) {
+            $instance = $this->resolveCompositeInstance($attribute, $children, $product, $language, $options, $idx);
+            if ($instance !== null) {
+                $instance['_index'] = $idx;
+                $instances[] = $instance;
+            }
+        }
+
+        return !empty($instances) ? $instances : null;
     }
 
     // ─── Helpers ────────────────────────────────────────────────

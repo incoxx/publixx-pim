@@ -43,6 +43,7 @@ import PimConfirmDialog from '@/components/shared/PimConfirmDialog.vue'
 import PimDeleteConfirmDialog from '@/components/shared/PimDeleteConfirmDialog.vue'
 import PdfPreview from '@/components/shared/PdfPreview.vue'
 import PimCompositeModal from '@/components/shared/PimCompositeModal.vue'
+import PimMultipliableComposite from '@/components/shared/PimMultipliableComposite.vue'
 import ProductVersionsTab from '@/components/products/ProductVersionsTab.vue'
 import ProductScheduledActionsTab from '@/components/products/ProductScheduledActionsTab.vue'
 import MediaPickerDialog from '@/components/shared/MediaPickerDialog.vue'
@@ -338,6 +339,7 @@ const schema = ref(null)
 const attributeValues = ref({})       // non-translatable: { attrId: value }
 const translatedValues = ref({})      // translatable: { `${attrId}_${lang}`: value }
 const multipliableValues = ref({})    // multipliable: { attrId: [{ value, multiplied_index }, ...] }
+const multipliableCompositeValues = ref({})  // multipliable composites: { attrId: [{ multiplied_index, children: { childId: value } }] }
 const unitValues = ref({})            // unit per attribute: { attrId: unitId }
 const comparisonOperatorValues = ref({})  // comparison operator per attribute: { attrId: operatorId }
 const attrLoaded = ref(false)
@@ -355,7 +357,14 @@ function openCompositeModal(compositeAttr) {
 
 function onCompositeValuesUpdate(newValues) {
   for (const [childId, value] of Object.entries(newValues)) {
-    attributeValues.value[childId] = value
+    if (value && typeof value === 'object' && value.data_type === 'Composite') {
+      // Sub-Composite: Enkel-Werte flach speichern
+      for (const [gcId, gcValue] of Object.entries(value.children || {})) {
+        attributeValues.value[gcId] = gcValue
+      }
+    } else {
+      attributeValues.value[childId] = value
+    }
   }
 }
 
@@ -437,7 +446,15 @@ async function loadAttributeData(overrideNodeId = null) {
         if (ra.comparison_operator_id) {
           comparisonOperatorValues.value[ra.attribute_id] = ra.comparison_operator_id
         }
-        if (ra.is_multipliable && ra.multiplied_values) {
+        if (ra.is_multipliable && ra.data_type === 'Composite' && ra.multiplied_composites) {
+          // Vermehrbares Composite: Array von Instanzen mit Kind-Werten
+          multipliableCompositeValues.value[ra.attribute_id] = ra.multiplied_composites.length > 0
+            ? ra.multiplied_composites.map(mc => ({
+                multiplied_index: mc.multiplied_index,
+                children: mc.children || {},
+              }))
+            : [{ multiplied_index: 0, children: {} }]
+        } else if (ra.is_multipliable && ra.multiplied_values) {
           // Multipliable: store array of { value, multiplied_index, unit_id }
           multipliableValues.value[ra.attribute_id] = ra.multiplied_values.length > 0
             ? ra.multiplied_values.map(mv => ({ value: mv.value, multiplied_index: mv.multiplied_index, unit_id: mv.unit_id || ra.unit_id || null }))
@@ -555,16 +572,24 @@ const attributeGroups = computed(() => {
   const compositeIds = new Set(allAttrs.filter(a => a.data_type === 'Composite').map(a => a.id))
 
   // Filter out child attributes whose parent composite is also in the schema
-  // (they will only appear inside the composite modal)
+  // (they will only appear inside the composite modal/inline editor)
+  // Auch Enkel-Attribute (Kinder von Sub-Composites) herausfiltern
   const attrs = allAttrs.filter(a => {
     if (a.parent_attribute_id && compositeIds.has(a.parent_attribute_id)) return false
     return true
   })
 
   // Enrich composite attributes with their children for the modal
+  // Rekursiv: Sub-Composites erhalten ebenfalls _children (Tiefe 2)
   for (const attr of attrs) {
     if (attr.data_type === 'Composite') {
-      attr._children = allAttrs.filter(c => c.parent_attribute_id === attr.id)
+      attr._children = allAttrs.filter(c => c.parent_attribute_id === attr.id).map(child => {
+        if (child.data_type === 'Composite') {
+          // Sub-Composite: Enkel-Attribute anhängen
+          return { ...child, _children: allAttrs.filter(gc => gc.parent_attribute_id === child.id) }
+        }
+        return child
+      })
     }
   }
 
@@ -603,7 +628,12 @@ const filteredAttributes = computed(() => {
 
   for (const attr of attrs) {
     if (attr.data_type === 'Composite') {
-      attr._children = allAttrs.filter(c => c.parent_attribute_id === attr.id)
+      attr._children = allAttrs.filter(c => c.parent_attribute_id === attr.id).map(child => {
+        if (child.data_type === 'Composite') {
+          return { ...child, _children: allAttrs.filter(gc => gc.parent_attribute_id === child.id) }
+        }
+        return child
+      })
     }
   }
 
@@ -1719,6 +1749,57 @@ async function save() {
       }
     }
 
+    // Vermehrbare Composite-Werte: pro Instanz pro Kind einen Eintrag
+    for (const [compositeId, instances] of Object.entries(multipliableCompositeValues.value)) {
+      // Schema-Attribute für Übersetzbarkeit nachschlagen
+      const compositeSchema = schemaAttributes.value.find(a => a.id === compositeId)
+      const childSchemaMap = {}
+      for (const child of compositeSchema?._children || []) {
+        childSchemaMap[child.id] = child
+        if (child._children) {
+          for (const gc of child._children) {
+            childSchemaMap[gc.id] = gc
+          }
+        }
+      }
+
+      for (const inst of instances) {
+        for (const [childId, childValue] of Object.entries(inst.children || {})) {
+          if (childValue && typeof childValue === 'object' && childValue.data_type === 'Composite') {
+            // Sub-Composite: Enkel-Werte flach speichern
+            for (const [gcId, gcValue] of Object.entries(childValue.children || {})) {
+              const entry = {
+                attribute_id: gcId,
+                value: gcValue,
+                multiplied_index: inst.multiplied_index,
+              }
+              // Übersetzbare Kinder: aktuelle Sprache mitgeben
+              if (childSchemaMap[gcId]?.is_translatable) {
+                entry.language = activeDataLang.value || 'de'
+              }
+              values.push(entry)
+            }
+          } else {
+            const entry = {
+              attribute_id: childId,
+              value: childValue,
+              multiplied_index: inst.multiplied_index,
+            }
+            if (childSchemaMap[childId]?.is_translatable) {
+              entry.language = activeDataLang.value || 'de'
+            }
+            values.push(entry)
+          }
+        }
+        // Auch den Composite-Parent selbst mit Index speichern (für Cleanup-Logik)
+        values.push({
+          attribute_id: compositeId,
+          value: null,
+          multiplied_index: inst.multiplied_index,
+        })
+      }
+    }
+
     if (values.length > 0) {
       await store.saveAttributeValues(product.value.id, values)
     }
@@ -2364,9 +2445,19 @@ watch(() => route.params.id, async (newId, oldId) => {
             <span v-if="isAttributeInherited(attr.id)" class="ml-1 text-[10px] text-purple-500 font-normal">(vererbt vom Elternprodukt)</span>
           </label>
           <div class="md:flex-1 md:min-w-0">
-          <!-- Composite: Button with summary -->
+          <!-- Vermehrbares Composite: Instanzen als Accordion -->
+          <PimMultipliableComposite
+            v-if="attr.data_type === 'Composite' && attr.is_multipliable"
+            :compositeAttribute="attr"
+            :modelValue="multipliableCompositeValues[attr.id] || [{ multiplied_index: 0, children: {} }]"
+            :maxMultiplied="attr.max_multiplied"
+            :disabled="attr._access === 'read_only' || attr.is_readonly || isAttributeInherited(attr.id) || isTabReadOnly"
+            :mapType="mapDataTypeToInput"
+            @update:modelValue="multipliableCompositeValues[attr.id] = $event"
+          />
+          <!-- Composite (nicht vermehrbar): Button with summary -->
           <button
-            v-if="attr.data_type === 'Composite'"
+            v-else-if="attr.data_type === 'Composite'"
             class="w-full flex items-center justify-between pim-input text-left cursor-pointer hover:border-[var(--color-accent)] transition-colors"
             :disabled="attr._access === 'read_only' || attr.is_readonly || isAttributeInherited(attr.id) || isTabReadOnly"
             @click="openCompositeModal(attr)"
@@ -3474,35 +3565,85 @@ watch(() => route.params.id, async (newId, oldId) => {
               <template v-if="!attr.parent_attribute_id">
                 <!-- Composite attribute -->
                 <div v-if="attr.data_type === 'Composite'">
-                  <div :class="[
-                    'grid grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_24px] gap-x-3 px-2 py-2 border-b border-[var(--color-border)] items-center',
-                    !getPreviewCompositeSummary(attr, section.attributes) ? 'bg-red-50/60' : ''
-                  ]">
-                    <span class="text-[12px] font-medium text-[var(--color-text-secondary)]">
-                      {{ attr.label }}
-                      <span class="pim-badge bg-[var(--color-bg)] text-[var(--color-text-tertiary)] text-[9px] ml-1">Composite</span>
-                    </span>
-                    <span class="text-[12px] text-[var(--color-text-primary)]">
-                      {{ getPreviewCompositeSummary(attr, section.attributes) || '—' }}
-                    </span>
-                    <span :class="['inline-block w-2 h-2 rounded-full mx-auto', getPreviewCompositeSummary(attr, section.attributes) ? 'bg-[var(--color-success)]' : 'border-2 border-[var(--color-text-tertiary)]']" />
-                  </div>
-                  <!-- Child attributes -->
-                  <div
-                    v-for="child in section.attributes.filter(a => a.parent_attribute_id === attr.attribute_id)"
-                    :key="child.attribute_id"
-                    :class="[
-                      'grid grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_24px] gap-x-3 px-2 py-1.5 border-b border-[var(--color-border)] items-center',
-                      !child.display_value ? 'bg-red-50/60' : ''
-                    ]"
-                  >
-                    <span class="text-[11px] text-[var(--color-text-tertiary)] pl-4">{{ child.label }}</span>
-                    <span class="text-[11px] text-[var(--color-text-secondary)]">
-                      {{ child.display_value || '—' }}
-                      <span v-if="child.unit" class="text-[var(--color-text-tertiary)]"> {{ child.unit }}</span>
-                    </span>
-                    <span :class="['inline-block w-1.5 h-1.5 rounded-full mx-auto', child.display_value ? 'bg-[var(--color-success)]' : 'border border-[var(--color-text-tertiary)]']" />
-                  </div>
+                  <!-- Vermehrbares Composite: Instanzen als nummerierte Liste -->
+                  <template v-if="attr.is_multipliable && attr.multiplied_instances?.length > 0">
+                    <div class="grid grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_24px] gap-x-3 px-2 py-2 border-b border-[var(--color-border)] items-center">
+                      <span class="text-[12px] font-medium text-[var(--color-text-secondary)]">
+                        {{ attr.label }}
+                        <span class="pim-badge bg-[var(--color-bg)] text-[var(--color-text-tertiary)] text-[9px] ml-1">{{ attr.multiplied_instances.length }}×</span>
+                      </span>
+                      <span class="text-[12px] text-[var(--color-text-primary)]">
+                        {{ attr.multiplied_instances.length }} Einträge
+                      </span>
+                      <span class="inline-block w-2 h-2 rounded-full mx-auto bg-[var(--color-success)]" />
+                    </div>
+                    <div
+                      v-for="(inst, instIdx) in attr.multiplied_instances"
+                      :key="instIdx"
+                      class="border-b border-[var(--color-border)]"
+                    >
+                      <div class="grid grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_24px] gap-x-3 px-2 py-1 items-center bg-[var(--color-bg)]/50">
+                        <span class="text-[10px] font-mono text-[var(--color-text-tertiary)] pl-4">#{{ instIdx + 1 }}</span>
+                        <span class="text-[11px] text-[var(--color-text-secondary)]">{{ inst._formatted || '' }}</span>
+                        <span></span>
+                      </div>
+                      <div
+                        v-for="child in inst.children || []"
+                        :key="child.attribute_id"
+                        class="grid grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_24px] gap-x-3 px-2 py-1 items-center"
+                      >
+                        <span class="text-[11px] text-[var(--color-text-tertiary)] pl-8">{{ child.label }}</span>
+                        <span class="text-[11px] text-[var(--color-text-secondary)]">{{ child.display_value || '—' }}</span>
+                        <span :class="['inline-block w-1.5 h-1.5 rounded-full mx-auto', child.display_value ? 'bg-[var(--color-success)]' : 'border border-[var(--color-text-tertiary)]']" />
+                      </div>
+                    </div>
+                  </template>
+                  <!-- Einfaches Composite (nicht vermehrbar) -->
+                  <template v-else>
+                    <div :class="[
+                      'grid grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_24px] gap-x-3 px-2 py-2 border-b border-[var(--color-border)] items-center',
+                      !getPreviewCompositeSummary(attr, section.attributes) ? 'bg-red-50/60' : ''
+                    ]">
+                      <span class="text-[12px] font-medium text-[var(--color-text-secondary)]">
+                        {{ attr.label }}
+                        <span class="pim-badge bg-[var(--color-bg)] text-[var(--color-text-tertiary)] text-[9px] ml-1">Composite</span>
+                      </span>
+                      <span class="text-[12px] text-[var(--color-text-primary)]">
+                        {{ getPreviewCompositeSummary(attr, section.attributes) || '—' }}
+                      </span>
+                      <span :class="['inline-block w-2 h-2 rounded-full mx-auto', getPreviewCompositeSummary(attr, section.attributes) ? 'bg-[var(--color-success)]' : 'border-2 border-[var(--color-text-tertiary)]']" />
+                    </div>
+                    <!-- Child attributes (inkl. Sub-Composite Kinder) -->
+                    <template v-for="child in section.attributes.filter(a => a.parent_attribute_id === attr.attribute_id)" :key="child.attribute_id">
+                      <div v-if="child.data_type === 'Composite'" class="border-b border-[var(--color-border)]">
+                        <div class="grid grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_24px] gap-x-3 px-2 py-1.5 items-center">
+                          <span class="text-[11px] text-[var(--color-text-tertiary)] pl-4 font-medium">{{ child.label }}</span>
+                          <span></span>
+                          <span></span>
+                        </div>
+                        <div
+                          v-for="gc in section.attributes.filter(a => a.parent_attribute_id === child.attribute_id)"
+                          :key="gc.attribute_id"
+                          :class="['grid grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_24px] gap-x-3 px-2 py-1 items-center', !gc.display_value ? 'bg-red-50/60' : '']"
+                        >
+                          <span class="text-[11px] text-[var(--color-text-tertiary)] pl-8">{{ gc.label }}</span>
+                          <span class="text-[11px] text-[var(--color-text-secondary)]">{{ gc.display_value || '—' }}</span>
+                          <span :class="['inline-block w-1.5 h-1.5 rounded-full mx-auto', gc.display_value ? 'bg-[var(--color-success)]' : 'border border-[var(--color-text-tertiary)]']" />
+                        </div>
+                      </div>
+                      <div
+                        v-else
+                        :class="['grid grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_24px] gap-x-3 px-2 py-1.5 border-b border-[var(--color-border)] items-center', !child.display_value ? 'bg-red-50/60' : '']"
+                      >
+                        <span class="text-[11px] text-[var(--color-text-tertiary)] pl-4">{{ child.label }}</span>
+                        <span class="text-[11px] text-[var(--color-text-secondary)]">
+                          {{ child.display_value || '—' }}
+                          <span v-if="child.unit" class="text-[var(--color-text-tertiary)]"> {{ child.unit }}</span>
+                        </span>
+                        <span :class="['inline-block w-1.5 h-1.5 rounded-full mx-auto', child.display_value ? 'bg-[var(--color-success)]' : 'border border-[var(--color-text-tertiary)]']" />
+                      </div>
+                    </template>
+                  </template>
                 </div>
                 <!-- Normal attribute -->
                 <div v-else :class="[
