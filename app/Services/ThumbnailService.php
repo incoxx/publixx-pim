@@ -149,6 +149,12 @@ class ThumbnailService
 
     private function saveImage(\GdImage $image, string $path, string $mimeType): void
     {
+        // Zielverzeichnis sicherstellen (makeDirectory über Storage reicht nicht immer)
+        $dir = dirname($path);
+        if (!is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
         match ($mimeType) {
             'image/png' => imagepng($image, $path, 8),
             'image/gif' => imagegif($image, $path),
