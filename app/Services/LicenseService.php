@@ -234,12 +234,16 @@ class LicenseService
         $payloadJson = base64_decode(strtr($payloadB64, '-_', '+/'), true);
 
         if ($payloadJson === false) {
+            Log::warning('LicenseService: Base64-Dekodierung des Payloads fehlgeschlagen.');
+
             return null;
         }
 
         $payload = json_decode($payloadJson, true);
 
         if (! is_array($payload)) {
+            Log::warning('LicenseService: JSON-Dekodierung des Payloads fehlgeschlagen.');
+
             return null;
         }
 
@@ -257,6 +261,8 @@ class LicenseService
             $pubKeyBin = base64_decode($publicKey, true);
 
             if ($signature === false || $pubKeyBin === false) {
+                Log::warning('LicenseService: Base64-Dekodierung von Signatur oder Public Key fehlgeschlagen.');
+
                 return null;
             }
 
@@ -275,6 +281,8 @@ class LicenseService
 
         // Basic structure validation
         if (! isset($payload['modules']) || ! is_array($payload['modules'])) {
+            Log::warning('LicenseService: Payload enthält kein gültiges modules-Array.');
+
             return null;
         }
 

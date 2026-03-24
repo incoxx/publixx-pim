@@ -108,10 +108,33 @@ class LicenseGeneratorController extends Controller
         $b64Signature = rtrim(strtr(base64_encode($signature), '+/', '-_'), '=');
         $licenseKey = "ANYPIM-{$b64Payload}.{$b64Signature}";
 
-        return response()->json([
+        // Prüfen ob der konfigurierte Public Key zum verwendeten Private Key passt
+        $warning = null;
+        $configuredPublicKey = config('license.public_key');
+
+        if (! empty($configuredPublicKey)) {
+            try {
+                $derivedPublicKey = sodium_crypto_sign_publickey_from_secretkey($privateKeyBin);
+                $configuredPubBin = base64_decode($configuredPublicKey, true);
+
+                if ($configuredPubBin === false || $derivedPublicKey !== $configuredPubBin) {
+                    $warning = 'Der konfigurierte ANYPIM_LICENSE_PUBLIC_KEY in .env stimmt nicht mit diesem Private Key überein. Der generierte Schlüssel wird bei der Aktivierung abgelehnt. Bitte den passenden Public Key in der .env hinterlegen: ' . base64_encode($derivedPublicKey);
+                }
+            } catch (\SodiumException) {
+                // Ignorieren — Validierung bereits oben erfolgt
+            }
+        }
+
+        $response = [
             'license_key' => $licenseKey,
             'payload' => $payload,
-        ]);
+        ];
+
+        if ($warning !== null) {
+            $response['warning'] = $warning;
+        }
+
+        return response()->json($response);
     }
 
     /**
