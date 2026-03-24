@@ -299,6 +299,9 @@ function getDocIcon(mimeType) {
                               <template v-else-if="attr.data_type === 'Hyperlink'">
                                 <a :href="attr.value" target="_blank" rel="noopener">{{ attr.value }}</a>
                               </template>
+                              <template v-else-if="attr.value && attr.value.includes('\n')">
+                                <div v-for="(line, li) in attr.value.split('\n')" :key="li">{{ line }}</div>
+                              </template>
                               <template v-else>{{ attr.value || '—' }}</template>
                               <span v-if="attr.unit" class="pxc-text-muted"> {{ attr.unit }}</span>
                             </td>

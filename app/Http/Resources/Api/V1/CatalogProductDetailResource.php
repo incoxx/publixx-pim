@@ -33,11 +33,19 @@ class CatalogProductDetailResource extends JsonResource
             ];
         })->values();
 
-        $prices = $this->resource->prices->map(function ($p) {
+        $prices = $this->resource->prices->map(function ($p) use ($lang) {
+            $typeName = null;
+            if ($p->priceType) {
+                $typeName = $lang === 'en' && $p->priceType->name_en
+                    ? $p->priceType->name_en
+                    : $p->priceType->name_de;
+            }
+
             return [
                 'amount' => $p->amount,
                 'currency' => $p->currency,
                 'type_id' => $p->price_type_id,
+                'type_name' => $typeName,
             ];
         })->values();
 
@@ -238,6 +246,7 @@ class CatalogProductDetailResource extends JsonResource
 
     /**
      * Inject composite parent entries for any child attributes present in the list.
+     * Handles multipliable composites by building formatted values per instance.
      */
     private function injectCompositeParents($attributes, string $lang, ?array $allowedAttributeIds)
     {
@@ -254,6 +263,11 @@ class CatalogProductDetailResource extends JsonResource
             ->where('data_type', 'Composite')
             ->get();
 
+        // Pre-load raw attribute values for multipliable composites (grouped by attribute_id)
+        $rawValues = $this->resource->attributeValues
+            ->whereIn('attribute.parent_attribute_id', $composites->pluck('id')->all())
+            ->groupBy('attribute_id');
+
         $newEntries = [];
         foreach ($composites as $composite) {
             if ($allowedAttributeIds !== null && !in_array($composite->id, $allowedAttributeIds)) {
@@ -262,27 +276,75 @@ class CatalogProductDetailResource extends JsonResource
 
             $label = $lang === 'en' && $composite->name_en ? $composite->name_en : $composite->name_de;
 
-            // Build formatted value from children — use DB models for technical_name resolution
             $childModels = Attribute::where('parent_attribute_id', $composite->id)
                 ->orderBy('position')
                 ->get();
-            $childResponseEntries = $attributes->where('parent_attribute_id', $composite->id);
-            $values = [];
-            foreach ($childModels as $childModel) {
-                $entry = $childResponseEntries->firstWhere('attribute_id', $childModel->id);
-                $values[] = $entry ? ((string) ($entry['value'] ?? '')) : '';
-            }
-            $formattedValue = null;
 
-            if ($composite->composite_format) {
-                $formattedValue = CompositeFormatResolver::resolve(
-                    $composite->composite_format,
-                    $childModels->all(),
-                    $values
-                ) ?: null;
+            // Detect multipliable: check if any child has multiple values (multiplied_index)
+            $childIds = $childModels->pluck('id')->all();
+            $hasMultipleInstances = false;
+            $indices = collect([0]); // Default: single instance at index 0
+
+            foreach ($childIds as $childId) {
+                $childRawValues = $rawValues->get($childId, collect());
+                if ($childRawValues->count() > 1) {
+                    $hasMultipleInstances = true;
+                }
+                $childRawValues->each(function ($v) use (&$indices) {
+                    $indices->push($v->multiplied_index ?? 0);
+                });
+            }
+            $indices = $indices->unique()->sort()->values();
+
+            if ($hasMultipleInstances && $indices->count() > 1) {
+                // Vermehrbares Composite: Wert pro Instanz berechnen und zusammenführen
+                $instanceValues = [];
+                foreach ($indices as $idx) {
+                    $values = [];
+                    foreach ($childModels as $childModel) {
+                        $childRawValues = $rawValues->get($childModel->id, collect());
+                        $av = $childRawValues->first(fn ($v) => ($v->multiplied_index ?? 0) === $idx);
+                        $values[] = $av ? ($this->resolveAttributeDisplayValue($av, $childModel, $lang) ?? '') : '';
+                    }
+
+                    $formatted = null;
+                    if ($composite->composite_format) {
+                        $formatted = CompositeFormatResolver::resolve(
+                            $composite->composite_format,
+                            $childModels->all(),
+                            $values
+                        ) ?: null;
+                    } else {
+                        $filled = array_filter($values, fn ($v) => $v !== '');
+                        $formatted = !empty($filled) ? implode(' × ', $filled) : null;
+                    }
+
+                    if ($formatted) {
+                        $instanceValues[] = $formatted;
+                    }
+                }
+
+                $formattedValue = !empty($instanceValues) ? implode("\n", $instanceValues) : null;
             } else {
-                $filled = array_filter($values, fn ($v) => $v !== '');
-                $formattedValue = !empty($filled) ? implode(' × ', $filled) : null;
+                // Einfaches Composite: einzelne Instanz
+                $childResponseEntries = $attributes->where('parent_attribute_id', $composite->id);
+                $values = [];
+                foreach ($childModels as $childModel) {
+                    $entry = $childResponseEntries->firstWhere('attribute_id', $childModel->id);
+                    $values[] = $entry ? ((string) ($entry['value'] ?? '')) : '';
+                }
+                $formattedValue = null;
+
+                if ($composite->composite_format) {
+                    $formattedValue = CompositeFormatResolver::resolve(
+                        $composite->composite_format,
+                        $childModels->all(),
+                        $values
+                    ) ?: null;
+                } else {
+                    $filled = array_filter($values, fn ($v) => $v !== '');
+                    $formattedValue = !empty($filled) ? implode(' × ', $filled) : null;
+                }
             }
 
             $newEntries[] = [

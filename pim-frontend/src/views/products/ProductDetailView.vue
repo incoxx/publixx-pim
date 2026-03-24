@@ -1561,19 +1561,26 @@ function getPreviewVideoEmbedUrl(url) {
 const previewData = ref(null)
 const previewLoading = ref(false)
 const completenessData = ref(null)
+const previewLang = ref(null) // null = alle Sprachen (kein Filter)
 
 async function loadPreview() {
   if (!product.value) return
   previewLoading.value = true
   try {
+    const params = previewLang.value ? { lang: previewLang.value } : {}
     const [prevResp, compResp] = await Promise.all([
-      productsApi.getPreview(product.value.id),
+      productsApi.getPreview(product.value.id, params),
       productsApi.getCompleteness(product.value.id),
     ])
     previewData.value = prevResp.data.data || prevResp.data
     completenessData.value = compResp.data.data || compResp.data
   } catch (e) { console.error('Failed to load preview:', e.message) }
   finally { previewLoading.value = false }
+}
+
+function switchPreviewLang(lang) {
+  previewLang.value = lang
+  loadPreview()
 }
 
 const previewVariantColumns = computed(() => {
@@ -3452,9 +3459,29 @@ watch(() => route.params.id, async (newId, oldId) => {
 
     <!-- ═══ Preview Tab (Generic) ═══ -->
     <div v-else-if="activeTab === 'preview' && product" class="space-y-3">
-      <!-- Header with export buttons -->
+      <!-- Header with language switcher + export buttons -->
       <div class="flex items-center justify-between">
-        <h3 class="text-sm font-medium text-[var(--color-text-primary)]">Produktvorschau</h3>
+        <div class="flex items-center gap-3">
+          <h3 class="text-sm font-medium text-[var(--color-text-primary)]">Produktvorschau</h3>
+          <div v-if="localeStore.activeDataLocales.length > 1" class="flex items-center gap-1">
+            <button
+              class="px-2 py-0.5 text-[11px] rounded-md font-medium transition-colors"
+              :class="previewLang === null
+                ? 'bg-[var(--color-accent)] text-white'
+                : 'bg-[var(--color-bg)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'"
+              @click="switchPreviewLang(null)"
+            >Alle</button>
+            <button
+              v-for="loc in localeStore.activeDataLocales"
+              :key="loc"
+              class="px-2 py-0.5 text-[11px] rounded-md font-medium transition-colors"
+              :class="previewLang === loc
+                ? 'bg-[var(--color-accent)] text-white'
+                : 'bg-[var(--color-bg)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'"
+              @click="switchPreviewLang(loc)"
+            >{{ loc.toUpperCase() }}</button>
+          </div>
+        </div>
         <div class="flex gap-2">
           <button class="pim-btn pim-btn-secondary text-xs" :disabled="excelLoading" @click="downloadExcel">
             <Download v-if="!excelLoading" class="w-3.5 h-3.5" :stroke-width="1.75" />

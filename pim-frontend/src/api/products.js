@@ -141,8 +141,8 @@ export default {
   },
 
   // Preview
-  getPreview(id) {
-    return client.get(`/products/${id}/preview`)
+  getPreview(id, params = {}) {
+    return client.get(`/products/${id}/preview`, { params })
   },
 
   getCompleteness(id) {
