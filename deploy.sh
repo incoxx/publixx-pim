@@ -134,15 +134,33 @@ if [ "$MODE" = "full" ] || [ "$MODE" = "frontend" ]; then
             # Ensure Apache alias for docs exists
             if [ -d "${DOCS_DIR}/.vitepress/dist" ]; then
                 DOCS_ALIAS_FOUND=false
-                for vhost in /etc/apache2/sites-enabled/*.conf /etc/apache2/conf-available/publixx-pim.conf; do
+                for vhost in /etc/apache2/sites-enabled/*.conf /etc/apache2/sites-available/*.conf /etc/apache2/conf-available/publixx-pim.conf; do
                     if [ -f "$vhost" ] && grep -q "Alias.*/web/help\|Alias.*/help" "$vhost" 2>/dev/null; then
                         DOCS_ALIAS_FOUND=true
                         break
                     fi
                 done
-                if [ "$DOCS_ALIAS_FOUND" = false ] && [ -f "${APP_DIR}/setup-docs-vhost.sh" ]; then
+                if [ "$DOCS_ALIAS_FOUND" = false ]; then
                     info "Setting up docs Apache alias..."
-                    bash "${APP_DIR}/setup-docs-vhost.sh" || warn "Could not set up docs alias — run setup-docs-vhost.sh manually."
+                    # VHost finden die auf APP_DIR zeigt
+                    VHOST_FILE=""
+                    for vf in /etc/apache2/sites-enabled/*.conf /etc/apache2/sites-available/*.conf; do
+                        if [ -f "$vf" ] && grep -q "${APP_DIR}" "$vf" 2>/dev/null; then
+                            VHOST_FILE="$(readlink -f "$vf")"
+                            break
+                        fi
+                    done
+                    if [ -n "$VHOST_FILE" ]; then
+                        DOCS_BLOCK="\\n    # anyPIM Documentation (VitePress)\\n    Alias /web/help ${DOCS_DIR}/.vitepress/dist\\n\\n    <Directory ${DOCS_DIR}/.vitepress/dist>\\n        Options -Indexes\\n        AllowOverride None\\n        Require all granted\\n        FallbackResource /web/help/index.html\\n    </Directory>"
+                        sed -i "0,/<\/VirtualHost>/s|</VirtualHost>|${DOCS_BLOCK}\n</VirtualHost>|" "$VHOST_FILE" 2>/dev/null \
+                            && info "Docs alias added to ${VHOST_FILE}." \
+                            || warn "Could not add docs alias to VHost."
+                        if apache2ctl configtest 2>&1 | grep -q "Syntax OK"; then
+                            systemctl reload apache2 2>/dev/null || true
+                        fi
+                    else
+                        warn "No VHost found for ${APP_DIR} — set up docs alias manually."
+                    fi
                 fi
             fi
         fi

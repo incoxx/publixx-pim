@@ -203,8 +203,8 @@ fi
 for build_dir in catalog-embed/dist pim-frontend/dist; do
     if [ -d "$build_dir" ]; then
         # Reset index first (handles "needs merge" state), then restore files
-        git reset HEAD -- "$build_dir" 2>/dev/null || true
-        git checkout -- "$build_dir" 2>/dev/null || true
+        git reset -q HEAD -- "$build_dir" 2>/dev/null || true
+        git checkout -q -- "$build_dir" 2>/dev/null || true
         info "Build-Artefakte in ${build_dir}/ zurueckgesetzt (werden spaeter neu gebaut)."
     fi
 done
@@ -273,7 +273,7 @@ else
     export COMPOSER_ALLOW_SUPERUSER=1
     export COMPOSER_NO_INTERACTION=1
 
-    php -d memory_limit=-1 "$(which composer)" install \
+    php -d memory_limit=-1 -d error_reporting=E_ALL\&~E_DEPRECATED "$(which composer)" install \
         --no-dev \
         --optimize-autoloader \
         --no-interaction \
@@ -317,7 +317,7 @@ elif [ -d "$FRONTEND_DIR" ]; then
     cd "$FRONTEND_DIR"
 
     info "Installiere Frontend-Abhaengigkeiten..."
-    npm ci 2>&1
+    npm ci --fund=false --loglevel=warn 2>&1
 
     # Bekannte Sicherheitsluecken automatisch patchen
     npm audit fix 2>/dev/null || true
@@ -356,7 +356,7 @@ elif [ -d "$FRONTEND_DIR" ]; then
     if [ -d "$CATALOG_EMBED_DIR" ] && [ -f "${CATALOG_EMBED_DIR}/package.json" ]; then
         cd "$CATALOG_EMBED_DIR"
         info "Installiere catalog-embed Abhaengigkeiten..."
-        npm ci 2>&1
+        npm ci --fund=false --loglevel=warn 2>&1
 
         info "Baue Online-Katalog Bundle..."
         npx vite build 2>&1
@@ -396,7 +396,7 @@ elif [ -d "$DOCS_DIR" ] && [ -f "${DOCS_DIR}/package.json" ]; then
     cd "$DOCS_DIR"
 
     info "Installiere Dokumentations-Abhaengigkeiten..."
-    npm ci 2>&1
+    npm ci --fund=false --loglevel=warn 2>&1
 
     info "Baue Dokumentation (VitePress)..."
     npm run build 2>&1
@@ -442,12 +442,35 @@ Alias ${WEB_PATH}/help ${INSTALL_DIR}/static-content/.vitepress/dist
 DOCSALIAS
                 info "Docs-Alias zu ${ALIAS_CONF} hinzugefuegt."
             else
-                # Root-Modus: setup-docs-vhost.sh aufrufen falls vorhanden
-                if [ -f "${INSTALL_DIR}/setup-docs-vhost.sh" ]; then
-                    bash "${INSTALL_DIR}/setup-docs-vhost.sh" && info "Docs-Alias via setup-docs-vhost.sh eingerichtet." \
-                        || warn "setup-docs-vhost.sh fehlgeschlagen — bitte manuell einrichten."
+                # Root-Modus: Alias direkt in VHost-Datei einfuegen
+                VHOST_FILE=""
+                # VHost-Datei finden die auf unser Verzeichnis zeigt
+                for vf in /etc/apache2/sites-enabled/*.conf /etc/apache2/sites-available/publixx-pim.conf /etc/apache2/sites-available/anypim.conf; do
+                    if [ -f "$vf" ] && grep -q "${INSTALL_DIR}" "$vf" 2>/dev/null; then
+                        # Symlinks aufloesen (sites-enabled verlinkt auf sites-available)
+                        VHOST_FILE="$(readlink -f "$vf")"
+                        break
+                    fi
+                done
+
+                if [ -n "$VHOST_FILE" ]; then
+                    info "VHost gefunden: ${VHOST_FILE}"
+                    # Docs-Block vor dem letzten </VirtualHost> einfuegen
+                    DOCS_BLOCK="\\n    # anyPIM — Dokumentation (VitePress)\\n    Alias /web/help ${INSTALL_DIR}/static-content/.vitepress/dist\\n\\n    <Directory ${INSTALL_DIR}/static-content/.vitepress/dist>\\n        Options -Indexes\\n        AllowOverride None\\n        Require all granted\\n        FallbackResource /web/help/index.html\\n    </Directory>"
+                    # Vor dem ersten </VirtualHost> einfuegen
+                    sed -i "0,/<\/VirtualHost>/s|</VirtualHost>|${DOCS_BLOCK}\n</VirtualHost>|" "$VHOST_FILE" 2>/dev/null \
+                        && info "Docs-Alias in ${VHOST_FILE} eingefuegt." \
+                        || warn "Konnte Docs-Alias nicht in VHost einfuegen."
+
+                    # Apache neu laden
+                    if apache2ctl configtest 2>&1 | grep -q "Syntax OK"; then
+                        systemctl reload apache2 2>/dev/null || true
+                        info "Apache neu geladen."
+                    else
+                        warn "Apache-Konfiguration fehlerhaft — bitte manuell pruefen."
+                    fi
                 else
-                    warn "Bitte Docs-Alias manuell einrichten oder setup.sh erneut ausfuehren."
+                    warn "Kein VHost fuer ${INSTALL_DIR} gefunden — bitte Docs-Alias manuell einrichten."
                 fi
             fi
         else
@@ -500,7 +523,7 @@ elif [ -d "$TMS_DIR" ] && [ -f "${TMS_DIR}/artisan" ]; then
     # Composer Install
     if [ "$SKIP_COMPOSER" = false ]; then
         info "TMS: Installiere PHP-Abhaengigkeiten..."
-        php -d memory_limit=-1 "$(which composer)" install \
+        php -d memory_limit=-1 -d error_reporting=E_ALL\&~E_DEPRECATED "$(which composer)" install \
             --no-dev \
             --optimize-autoloader \
             --no-interaction \

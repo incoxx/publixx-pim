@@ -26,6 +26,9 @@ export default defineConfig({
     rollupOptions: {
       // Bundle everything — no external dependencies
       external: [],
+      output: {
+        exports: 'named',
+      },
     },
     cssCodeSplit: false,
     minify: 'esbuild',
