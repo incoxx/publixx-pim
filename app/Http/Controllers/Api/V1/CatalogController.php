@@ -479,6 +479,7 @@ class CatalogController extends BaseController
                            ->orWhere('valid_to', '>=', now());
                     })->orderBy('amount');
                 },
+                'prices.priceType',
                 'searchIndex',
                 'masterHierarchyNode',
                 'attributeValues' => function ($q) use ($lang) {

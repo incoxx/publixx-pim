@@ -184,9 +184,12 @@ function formatPrice(price) {
               <span v-if="product.ean">{{ t('catalog.ean') }}: <span class="font-mono text-base-content/70">{{ product.ean }}</span></span>
             </div>
 
-            <!-- Price -->
-            <div v-if="product.prices?.length" class="text-2xl font-bold text-primary">
-              {{ formatPrice(product.prices[0]) }}
+            <!-- Prices -->
+            <div v-if="product.prices?.length" class="flex flex-wrap gap-4">
+              <div v-for="(price, idx) in product.prices" :key="idx">
+                <span v-if="price.type_name" class="text-xs font-medium text-base-content/50 uppercase block">{{ price.type_name }}</span>
+                <span class="text-2xl font-bold text-primary">{{ formatPrice(price) }}</span>
+              </div>
             </div>
 
             <!-- Description -->
@@ -210,11 +213,16 @@ function formatPrice(price) {
                     <td class="text-base-content/60 font-medium w-2/5 align-top">{{ attr.label }}</td>
                     <td class="text-base-content">
                       <template v-if="attr.data_type === 'Composite'">
-                        {{ formatCompositeSummary({
-                          compositeFormat: attr.composite_format,
-                          children: product.attributes.filter(a => a.parent_attribute_id === attr.attribute_id),
-                          getValue: c => c.value,
-                        }) || '—' }}
+                        <template v-if="attr.value && attr.value.includes('\n')">
+                          <div v-for="(line, li) in attr.value.split('\n')" :key="li">{{ line }}</div>
+                        </template>
+                        <template v-else>
+                          {{ attr.value || formatCompositeSummary({
+                            compositeFormat: attr.composite_format,
+                            children: product.attributes.filter(a => a.parent_attribute_id === attr.attribute_id),
+                            getValue: c => c.value,
+                          }) || '—' }}
+                        </template>
                       </template>
                       <template v-else-if="attr.link_data">
                         <a :href="attr.link_data.url" :target="attr.link_data.target || '_blank'" class="link link-primary text-sm" rel="noopener noreferrer">{{ attr.link_data.title || attr.link_data.url }}</a>
