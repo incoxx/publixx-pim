@@ -273,12 +273,13 @@ else
     export COMPOSER_ALLOW_SUPERUSER=1
     export COMPOSER_NO_INTERACTION=1
 
+    # PHP 8.4 Deprecation Notices vom System-Composer unterdruecken
     php -d memory_limit=-1 -d error_reporting=E_ALL\&~E_DEPRECATED "$(which composer)" install \
         --no-dev \
         --optimize-autoloader \
         --no-interaction \
         --prefer-dist \
-        2>&1
+        2>&1 | grep -v "^Deprecation Notice:"
 
     info "Composer-Abhaengigkeiten aktualisiert."
 fi
@@ -528,7 +529,7 @@ elif [ -d "$TMS_DIR" ] && [ -f "${TMS_DIR}/artisan" ]; then
             --optimize-autoloader \
             --no-interaction \
             --prefer-dist \
-            2>&1
+            2>&1 | grep -v "^Deprecation Notice:"
         info "TMS: Composer-Abhaengigkeiten aktualisiert."
     fi
 
