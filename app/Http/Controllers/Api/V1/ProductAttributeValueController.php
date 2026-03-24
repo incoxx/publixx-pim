@@ -237,7 +237,7 @@ class ProductAttributeValueController extends Controller
             ? ComparisonOperatorGroup::with('operators')->whereIn('id', $compOpGroupIds)->get()->keyBy('id')
             : collect();
 
-        $result = $effectiveAttributes->map(function ($assignment) use ($existingValues, $multipliedValues, $unitGroups, $compOpGroups) {
+        $result = $effectiveAttributes->map(function ($assignment) use ($existingValues, $multipliedValues, $unitGroups, $compOpGroups, $effectiveAttributes) {
             $pav = $existingValues->get($assignment->attribute_id);
             $value = null;
             $source = 'none';
