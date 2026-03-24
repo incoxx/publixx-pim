@@ -199,6 +199,14 @@ if [ -f .git/MERGE_HEAD ]; then
     info "Merge-Zustand bereinigt."
 fi
 
+# "needs merge" Zustand im Index bereinigen (z.B. nach fehlgeschlagenem stash pop)
+if [ -n "$(git ls-files -u 2>/dev/null)" ]; then
+    warn "Unaufgeloeste Merge-Konflikte im Index erkannt — bereinige..."
+    git reset HEAD . 2>/dev/null || true
+    git checkout -- . 2>/dev/null || true
+    info "Index-Konflikte bereinigt (Remote-Version beibehalten)."
+fi
+
 # Build-Artefakte zuruecksetzen (werden in Schritt 5 ohnehin neu gebaut)
 for build_dir in catalog-embed/dist pim-frontend/dist; do
     if [ -d "$build_dir" ]; then
