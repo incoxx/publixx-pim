@@ -335,7 +335,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 step "1/10 — System aktualisieren"
 
 export DEBIAN_FRONTEND=noninteractive
-apt-get update -qq
+apt-get update -qq --allow-releaseinfo-change
 apt-get upgrade -y -qq
 info "System aktualisiert."
 
@@ -347,7 +347,7 @@ step "2/10 — PHP 8.4 installieren"
 # PPA hinzufuegen falls noch nicht vorhanden
 if ! grep -q "ondrej/php" /etc/apt/sources.list.d/*.list 2>/dev/null; then
     add-apt-repository ppa:ondrej/php -y
-    apt-get update -qq
+    apt-get update -qq --allow-releaseinfo-change
 fi
 
 apt-get install -y -qq \
@@ -847,8 +847,7 @@ step "10/10 — Apache VHost, Supervisor, Cron & Berechtigungen"
 # --- Dateiberechtigungen (final, nach Frontend-Build) ---
 info "Setze finale Dateiberechtigungen..."
 chown -R www-data:www-data "$INSTALL_DIR"
-find "$INSTALL_DIR" -type f -exec chmod 644 {} \;
-find "$INSTALL_DIR" -type d -exec chmod 755 {} \;
+chmod -R u=rwX,g=rX,o=rX "$INSTALL_DIR"
 chmod -R 775 "${INSTALL_DIR}/storage"
 chmod -R 775 "${INSTALL_DIR}/bootstrap/cache"
 
