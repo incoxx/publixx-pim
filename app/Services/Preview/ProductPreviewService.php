@@ -23,7 +23,11 @@ class ProductPreviewService
      *
      * @return array{stammdaten: array, attribute_sections: array, relations: array, prices: array, media: array, variants: array}
      */
-    public function buildPreviewData(Product $product, string $lang): array
+    /**
+     * @param string      $lang       Sprache für Labels (name_de/name_en)
+     * @param string|null $filterLang Wenn gesetzt, nur Attributwerte dieser Sprache anzeigen. null = alle.
+     */
+    public function buildPreviewData(Product $product, string $lang, ?string $filterLang = null): array
     {
         $product->load([
             'productType',
@@ -44,7 +48,7 @@ class ProductPreviewService
 
         return [
             'stammdaten' => $this->buildStammdaten($product, $lang),
-            'attribute_sections' => $this->buildAttributeSections($product, $lang),
+            'attribute_sections' => $this->buildAttributeSections($product, $lang, $filterLang),
             'relations' => $this->buildRelations($product, $lang),
             'prices' => $this->buildPrices($product, $lang),
             'media' => $this->buildMedia($product, $lang),
@@ -85,14 +89,19 @@ class ProductPreviewService
     /**
      * Build attribute sections grouped by collection_name from hierarchy inheritance.
      */
-    private function buildAttributeSections(Product $product, string $lang): array
+    private function buildAttributeSections(Product $product, string $lang, ?string $filterLang = null): array
     {
         $effectiveAttributes = $this->hierarchyService->getProductAttributes($product);
 
         // Index existing master values (output_hierarchy_id IS NULL) by attribute_id
-        $existingValues = $product->attributeValues
-            ->whereNull('output_hierarchy_id')
-            ->groupBy('attribute_id');
+        // Wenn filterLang gesetzt: nur sprachlose + passende Sprachwerte
+        $masterValues = $product->attributeValues->whereNull('output_hierarchy_id');
+        if ($filterLang !== null) {
+            $masterValues = $masterValues->filter(
+                fn ($v) => $v->language === null || $v->language === $filterLang
+            );
+        }
+        $existingValues = $masterValues->groupBy('attribute_id');
 
         $sections = [];
         $sectionMap = [];
@@ -357,11 +366,13 @@ class ProductPreviewService
                 : $hierarchy->name_de;
 
             // Load channel-specific values for this hierarchy
-            $channelValues = ProductAttributeValue::where('product_id', $product->id)
+            $channelQuery = ProductAttributeValue::where('product_id', $product->id)
                 ->where('output_hierarchy_id', $hierarchyId)
-                ->with(['attribute', 'valueListEntry', 'dictionaryEntry', 'unit'])
-                ->get()
-                ->groupBy('attribute_id');
+                ->with(['attribute', 'valueListEntry', 'dictionaryEntry', 'unit']);
+            if ($filterLang !== null) {
+                $channelQuery->where(fn ($q) => $q->whereNull('language')->orWhere('language', $filterLang));
+            }
+            $channelValues = $channelQuery->get()->groupBy('attribute_id');
 
             foreach ($outputAttributes as $assignment) {
                 if (!empty($assignment->is_internal)) {
