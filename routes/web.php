@@ -18,4 +18,4 @@ Route::get('/catalog-embed-assets/{file}', [CatalogEmbedController::class, 'asse
 // Serve SPA for all non-API routes
 Route::get('/{any?}', function () {
     return file_get_contents(public_path('spa.html'));
-})->where('any', '^(?!api|horizon|up|docs|catalog-embed|catalog-embed-assets).*$');
+})->where('any', '^(?!api|horizon|up|docs|web/help|catalog-embed|catalog-embed-assets).*$');

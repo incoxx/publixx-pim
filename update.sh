@@ -403,6 +403,56 @@ elif [ -d "$DOCS_DIR" ] && [ -f "${DOCS_DIR}/package.json" ]; then
 
     if [ -d "${DOCS_DIR}/.vitepress/dist" ]; then
         info "Dokumentation erfolgreich gebaut (${DOCS_DIR}/.vitepress/dist)."
+
+        # Apache-Alias fuer Dokumentation sicherstellen
+        # Pruefen ob bereits ein Alias /web/help existiert
+        DOCS_ALIAS_EXISTS=false
+        if [ -n "$WEB_PATH" ]; then
+            # Subdirectory-Modus: Alias in conf-available
+            ALIAS_CONF="/etc/apache2/conf-available/publixx-pim.conf"
+            if [ -f "$ALIAS_CONF" ] && grep -q "Alias.*help" "$ALIAS_CONF" 2>/dev/null; then
+                DOCS_ALIAS_EXISTS=true
+            fi
+        else
+            # Root-Modus: Alias im VHost
+            for vhost in /etc/apache2/sites-enabled/*.conf /etc/apache2/sites-available/publixx-pim.conf; do
+                if [ -f "$vhost" ] && grep -q "Alias.*/web/help" "$vhost" 2>/dev/null; then
+                    DOCS_ALIAS_EXISTS=true
+                    break
+                fi
+            done
+        fi
+
+        if [ "$DOCS_ALIAS_EXISTS" = false ]; then
+            warn "Apache-Alias fuer Dokumentation (/web/help) fehlt."
+
+            if [ -n "$WEB_PATH" ] && [ -f "$ALIAS_CONF" ]; then
+                # Subdirectory-Modus: Alias an bestehende Konfiguration anhaengen
+                cat >> "$ALIAS_CONF" <<DOCSALIAS
+
+# anyPIM — Dokumentation (VitePress)
+Alias ${WEB_PATH}/help ${INSTALL_DIR}/static-content/.vitepress/dist
+
+<Directory ${INSTALL_DIR}/static-content/.vitepress/dist>
+    Options -Indexes
+    AllowOverride None
+    Require all granted
+    FallbackResource ${WEB_PATH}/help/index.html
+</Directory>
+DOCSALIAS
+                info "Docs-Alias zu ${ALIAS_CONF} hinzugefuegt."
+            else
+                # Root-Modus: setup-docs-vhost.sh aufrufen falls vorhanden
+                if [ -f "${INSTALL_DIR}/setup-docs-vhost.sh" ]; then
+                    bash "${INSTALL_DIR}/setup-docs-vhost.sh" && info "Docs-Alias via setup-docs-vhost.sh eingerichtet." \
+                        || warn "setup-docs-vhost.sh fehlgeschlagen — bitte manuell einrichten."
+                else
+                    warn "Bitte Docs-Alias manuell einrichten oder setup.sh erneut ausfuehren."
+                fi
+            fi
+        else
+            info "Apache-Alias fuer Dokumentation bereits konfiguriert."
+        fi
     else
         warn "Dokumentation dist/ nicht gefunden — Build moeglicherweise fehlgeschlagen."
     fi

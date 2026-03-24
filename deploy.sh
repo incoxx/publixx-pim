@@ -130,6 +130,21 @@ if [ "$MODE" = "full" ] || [ "$MODE" = "frontend" ]; then
             sudo -u "$APP_USER" npm run build
             echo ""
             cd "$APP_DIR"
+
+            # Ensure Apache alias for docs exists
+            if [ -d "${DOCS_DIR}/.vitepress/dist" ]; then
+                DOCS_ALIAS_FOUND=false
+                for vhost in /etc/apache2/sites-enabled/*.conf /etc/apache2/conf-available/publixx-pim.conf; do
+                    if [ -f "$vhost" ] && grep -q "Alias.*/web/help\|Alias.*/help" "$vhost" 2>/dev/null; then
+                        DOCS_ALIAS_FOUND=true
+                        break
+                    fi
+                done
+                if [ "$DOCS_ALIAS_FOUND" = false ] && [ -f "${APP_DIR}/setup-docs-vhost.sh" ]; then
+                    info "Setting up docs Apache alias..."
+                    bash "${APP_DIR}/setup-docs-vhost.sh" || warn "Could not set up docs alias — run setup-docs-vhost.sh manually."
+                fi
+            fi
         fi
     else
         if [ ! -d "$FRONTEND_DIR" ]; then
