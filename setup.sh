@@ -839,6 +839,26 @@ else
     warn "Frontend-Verzeichnis nicht gefunden — ueberspringe Frontend-Build."
 fi
 
+# ── Dokumentation bauen (VitePress) ──
+DOCS_DIR="${INSTALL_DIR}/static-content"
+if [ -d "$DOCS_DIR" ] && [ -f "${DOCS_DIR}/package.json" ]; then
+    info "Installiere Dokumentations-Abhaengigkeiten..."
+    cd "$DOCS_DIR"
+    npm ci 2>&1
+
+    info "Baue Dokumentation (VitePress)..."
+    npm run build 2>&1
+
+    if [ -d "${DOCS_DIR}/.vitepress/dist" ]; then
+        info "Dokumentation erfolgreich gebaut."
+    else
+        warn "Dokumentation dist/ nicht gefunden — Build moeglicherweise fehlgeschlagen."
+    fi
+    cd "$INSTALL_DIR"
+else
+    warn "Dokumentations-Verzeichnis nicht gefunden — ueberspringe Docs-Build."
+fi
+
 # ═════════════════════════════════════════════════════════════════════════════
 #  10. WEBSERVER, SERVICES & BERECHTIGUNGEN
 # ═════════════════════════════════════════════════════════════════════════════
@@ -918,6 +938,16 @@ Alias ${WEB_PATH} ${INSTALL_DIR}/public
     Header always set X-XSS-Protection "1; mode=block"
     Header always set Referrer-Policy "strict-origin-when-cross-origin"
 </Directory>
+
+# anyPIM — Dokumentation (VitePress)
+Alias ${WEB_PATH}/help ${INSTALL_DIR}/static-content/.vitepress/dist
+
+<Directory ${INSTALL_DIR}/static-content/.vitepress/dist>
+    Options -Indexes
+    AllowOverride None
+    Require all granted
+    FallbackResource ${WEB_PATH}/help/index.html
+</Directory>
 ALIASCONF
 
         a2enconf publixx-pim > /dev/null 2>&1
@@ -968,6 +998,16 @@ else
         AllowOverride All
         Require all granted
         Options -Indexes +FollowSymLinks
+    </Directory>
+
+    # anyPIM — Dokumentation (VitePress)
+    Alias /web/help ${INSTALL_DIR}/static-content/.vitepress/dist
+
+    <Directory ${INSTALL_DIR}/static-content/.vitepress/dist>
+        Options -Indexes
+        AllowOverride None
+        Require all granted
+        FallbackResource /web/help/index.html
     </Directory>
 
     # Sicherheits-Header
@@ -1023,6 +1063,16 @@ VHOST
         AllowOverride All
         Require all granted
         Options -Indexes +FollowSymLinks
+    </Directory>
+
+    # anyPIM — Dokumentation (VitePress)
+    Alias /web/help ${INSTALL_DIR}/static-content/.vitepress/dist
+
+    <Directory ${INSTALL_DIR}/static-content/.vitepress/dist>
+        Options -Indexes
+        AllowOverride None
+        Require all granted
+        FallbackResource /web/help/index.html
     </Directory>
 
     Header always set X-Frame-Options "SAMEORIGIN"
@@ -1088,6 +1138,16 @@ SSLEXISTING
         AllowOverride All
         Require all granted
         Options -Indexes +FollowSymLinks
+    </Directory>
+
+    # anyPIM — Dokumentation (VitePress)
+    Alias /web/help ${INSTALL_DIR}/static-content/.vitepress/dist
+
+    <Directory ${INSTALL_DIR}/static-content/.vitepress/dist>
+        Options -Indexes
+        AllowOverride None
+        Require all granted
+        FallbackResource /web/help/index.html
     </Directory>
 
     Header always set X-Frame-Options "SAMEORIGIN"
