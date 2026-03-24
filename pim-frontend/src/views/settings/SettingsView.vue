@@ -213,7 +213,7 @@ async function activateLicense() {
   licenseError.value = null
   licenseSuccess.value = false
   try {
-    await licenseStore.activateLicense(licenseKeyInput.value)
+    await licenseStore.activateLicense(licenseKeyInput.value.replace(/\s+/g, '').trim())
     licenseSuccess.value = true
     licenseKeyInput.value = ''
     setTimeout(() => { licenseSuccess.value = false }, 3000)
@@ -3788,13 +3788,13 @@ onUnmounted(() => {
       <!-- License key input -->
       <div class="pt-3 border-t border-[var(--color-border)] space-y-2">
         <label class="block text-[12px] font-medium text-[var(--color-text-secondary)]">Lizenzschlüssel</label>
+        <textarea
+          v-model="licenseKeyInput"
+          rows="3"
+          class="pim-input w-full text-xs font-mono"
+          placeholder="ANYPIM-..."
+        />
         <div class="flex gap-2">
-          <input
-            v-model="licenseKeyInput"
-            type="text"
-            class="pim-input flex-1 text-xs font-mono"
-            placeholder="ANYPIM-..."
-          />
           <button
             class="pim-btn pim-btn-primary text-xs"
             :disabled="!licenseKeyInput.trim() || licenseActivating"

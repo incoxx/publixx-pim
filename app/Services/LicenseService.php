@@ -136,10 +136,17 @@ class LicenseService
             return ['valid' => true, 'license' => null];
         }
 
+        Log::info('LicenseService: Aktivierungsversuch.', [
+            'key_length' => strlen($licenseKey),
+            'has_prefix' => str_starts_with($licenseKey, 'ANYPIM-'),
+            'has_dot' => str_contains($licenseKey, '.'),
+            'public_key_configured' => ! empty(config('license.public_key')),
+        ]);
+
         $decoded = $this->decodeLicenseKey($licenseKey);
 
         if ($decoded === null) {
-            return ['valid' => false, 'error' => 'Der Lizenzschlüssel ist ungültig.'];
+            return ['valid' => false, 'error' => 'Der Lizenzschlüssel ist ungültig. Details im Server-Log.'];
         }
 
         // Store in settings
@@ -219,22 +226,41 @@ class LicenseService
      */
     private function decodeLicenseKey(string $key): ?array
     {
+        // Whitespace entfernen (Zeilenumbrüche, Leerzeichen aus Copy-Paste)
+        $key = preg_replace('/\s+/', '', $key);
+
         // Strip the ANYPIM- prefix if present
         $key = preg_replace('/^ANYPIM-/', '', $key);
 
         $parts = explode('.', $key, 2);
 
-        if (count($parts) < 1) {
+        if (count($parts) < 2 || $parts[0] === '' || $parts[1] === '') {
+            Log::warning('LicenseService: Ungültiges Key-Format (erwartet: payload.signature).', [
+                'parts_count' => count($parts),
+                'key_length' => strlen($key),
+                'key_prefix' => substr($key, 0, 20) . '...',
+            ]);
+
             return null;
         }
 
         $payloadB64 = $parts[0];
-        $signatureB64 = $parts[1] ?? null;
+        $signatureB64 = $parts[1];
 
-        $payloadJson = base64_decode(strtr($payloadB64, '-_', '+/'), true);
+        // Base64url → Standard-Base64, Padding wiederherstellen
+        $payloadB64Std = strtr($payloadB64, '-_', '+/');
+        $payloadB64Std = match (strlen($payloadB64Std) % 4) {
+            2 => $payloadB64Std . '==',
+            3 => $payloadB64Std . '=',
+            default => $payloadB64Std,
+        };
+
+        $payloadJson = base64_decode($payloadB64Std, true);
 
         if ($payloadJson === false) {
-            Log::warning('LicenseService: Base64-Dekodierung des Payloads fehlgeschlagen.');
+            Log::warning('LicenseService: Base64-Dekodierung des Payloads fehlgeschlagen.', [
+                'payload_b64_length' => strlen($payloadB64),
+            ]);
 
             return null;
         }
@@ -242,7 +268,11 @@ class LicenseService
         $payload = json_decode($payloadJson, true);
 
         if (! is_array($payload)) {
-            Log::warning('LicenseService: JSON-Dekodierung des Payloads fehlgeschlagen.');
+            Log::warning('LicenseService: JSON-Dekodierung des Payloads fehlgeschlagen.', [
+                'json_error' => json_last_error_msg(),
+                'payload_length' => strlen($payloadJson),
+                'payload_preview' => substr($payloadJson, 0, 100) . (strlen($payloadJson) > 100 ? '...' : ''),
+            ]);
 
             return null;
         }
@@ -251,29 +281,48 @@ class LicenseService
         $publicKey = config('license.public_key');
 
         if (! empty($publicKey) && function_exists('sodium_crypto_sign_verify_detached')) {
-            if ($signatureB64 === null) {
-                Log::warning('LicenseService: License key has no signature but public key is configured.');
+            // Signatur-Base64url → Standard-Base64, Padding wiederherstellen
+            $sigB64Std = strtr($signatureB64, '-_', '+/');
+            $sigB64Std = match (strlen($sigB64Std) % 4) {
+                2 => $sigB64Std . '==',
+                3 => $sigB64Std . '=',
+                default => $sigB64Std,
+            };
+
+            $signature = base64_decode($sigB64Std, true);
+            $pubKeyBin = base64_decode($publicKey, true);
+
+            if ($signature === false || $pubKeyBin === false) {
+                Log::warning('LicenseService: Base64-Dekodierung von Signatur oder Public Key fehlgeschlagen.', [
+                    'sig_decode_ok' => $signature !== false,
+                    'pubkey_decode_ok' => $pubKeyBin !== false,
+                    'pubkey_length' => $pubKeyBin !== false ? strlen($pubKeyBin) : 0,
+                ]);
 
                 return null;
             }
 
-            $signature = base64_decode(strtr($signatureB64, '-_', '+/'), true);
-            $pubKeyBin = base64_decode($publicKey, true);
-
-            if ($signature === false || $pubKeyBin === false) {
-                Log::warning('LicenseService: Base64-Dekodierung von Signatur oder Public Key fehlgeschlagen.');
+            if (strlen($pubKeyBin) !== SODIUM_CRYPTO_SIGN_PUBLICKEYBYTES) {
+                Log::warning('LicenseService: Public Key hat falsche Länge.', [
+                    'expected' => SODIUM_CRYPTO_SIGN_PUBLICKEYBYTES,
+                    'actual' => strlen($pubKeyBin),
+                ]);
 
                 return null;
             }
 
             try {
                 $valid = sodium_crypto_sign_verify_detached($signature, $payloadJson, $pubKeyBin);
-            } catch (\SodiumException) {
+            } catch (\SodiumException $e) {
+                Log::warning('LicenseService: Sodium-Exception bei Signaturprüfung.', [
+                    'error' => $e->getMessage(),
+                ]);
+
                 return null;
             }
 
             if (! $valid) {
-                Log::warning('LicenseService: License signature verification failed.');
+                Log::warning('LicenseService: Signaturprüfung fehlgeschlagen — Public Key stimmt nicht mit Signatur überein.');
 
                 return null;
             }
@@ -281,7 +330,9 @@ class LicenseService
 
         // Basic structure validation
         if (! isset($payload['modules']) || ! is_array($payload['modules'])) {
-            Log::warning('LicenseService: Payload enthält kein gültiges modules-Array.');
+            Log::warning('LicenseService: Payload enthält kein gültiges modules-Array.', [
+                'keys' => array_keys($payload),
+            ]);
 
             return null;
         }

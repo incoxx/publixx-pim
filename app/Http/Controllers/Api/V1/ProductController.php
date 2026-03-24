@@ -543,7 +543,9 @@ class ProductController extends Controller
         $this->authorize('view', $product);
 
         $lang = $this->getPrimaryLanguage($request);
-        $data = $previewService->buildPreviewData($product, $lang);
+        // Wenn ?lang= explizit gesetzt → nur diese Sprache anzeigen, sonst alle
+        $filterLang = $request->query('lang') ? $lang : null;
+        $data = $previewService->buildPreviewData($product, $lang, $filterLang);
 
         return response()->json(['data' => $data]);
     }
