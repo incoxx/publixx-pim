@@ -100,6 +100,7 @@ class ProductAttributeValueController extends Controller
 
         // Ensure child attributes of any Composite in the effective list are included,
         // even when they are not explicitly assigned to the hierarchy node.
+        // Supports 2-level nesting: Root-Composite → Kind-Composite → einfache Attribute.
         $compositeIds = $effectiveAttributes
             ->filter(fn ($a) => $a->data_type === 'Composite')
             ->pluck('attribute_id')
@@ -111,6 +112,9 @@ class ProductAttributeValueController extends Controller
                 ->whereNotIn('id', $existingAttrIds)
                 ->get();
 
+            // Sammle IDs von Kind-Composites für Ebene 2
+            $childCompositeIds = [];
+
             foreach ($missingChildren as $child) {
                 $parent = $effectiveAttributes->firstWhere('attribute_id', $child->parent_attribute_id);
                 $effectiveAttributes->push((object) [
@@ -121,6 +125,8 @@ class ProductAttributeValueController extends Controller
                     'data_type' => $child->data_type,
                     'value_list_id' => $child->value_list_id,
                     'is_translatable' => $child->is_translatable,
+                    'is_multipliable' => $child->is_multipliable ?? false,
+                    'max_multiplied' => $child->max_multiplied,
                     'is_mandatory' => $child->is_mandatory,
                     'is_variant_attribute' => $child->is_variant_attribute ?? false,
                     'parent_attribute_id' => $child->parent_attribute_id,
@@ -134,6 +140,10 @@ class ProductAttributeValueController extends Controller
                     'attribute_view_name_de' => $parent->attribute_view_name_de ?? null,
                 ]);
 
+                if ($child->data_type === 'Composite') {
+                    $childCompositeIds[] = $child->id;
+                }
+
                 // Also load existing values for these children (master context only)
                 $childValues = $product->attributeValues()
                     ->where('attribute_id', $child->id)
@@ -141,9 +151,62 @@ class ProductAttributeValueController extends Controller
                     ->where(function ($q) use ($language) {
                         $q->whereNull('language')->orWhere('language', $language);
                     })
-                    ->first();
-                if ($childValues) {
-                    $existingValues->put($child->id, $childValues);
+                    ->get();
+                foreach ($childValues as $cv) {
+                    $existingValues->put($child->id, $cv);
+                    // Auch in multipliedValues aufnehmen
+                    if (!$multipliedValues->has($child->id)) {
+                        $multipliedValues->put($child->id, collect());
+                    }
+                    $multipliedValues->get($child->id)->push($cv);
+                }
+            }
+
+            // Ebene 2: Enkel-Attribute (Kinder von Kind-Composites) laden
+            if (!empty($childCompositeIds)) {
+                $grandchildren = Attribute::whereIn('parent_attribute_id', $childCompositeIds)
+                    ->whereNotIn('id', $effectiveAttributes->pluck('attribute_id')->all())
+                    ->get();
+
+                foreach ($grandchildren as $gc) {
+                    $gcParent = $effectiveAttributes->firstWhere('attribute_id', $gc->parent_attribute_id);
+                    $effectiveAttributes->push((object) [
+                        'attribute_id' => $gc->id,
+                        'attribute_technical_name' => $gc->technical_name,
+                        'attribute_name_de' => $gc->name_de,
+                        'attribute_name_en' => $gc->name_en,
+                        'data_type' => $gc->data_type,
+                        'value_list_id' => $gc->value_list_id,
+                        'is_translatable' => $gc->is_translatable,
+                        'is_multipliable' => $gc->is_multipliable ?? false,
+                        'max_multiplied' => $gc->max_multiplied,
+                        'is_mandatory' => $gc->is_mandatory,
+                        'is_variant_attribute' => $gc->is_variant_attribute ?? false,
+                        'parent_attribute_id' => $gc->parent_attribute_id,
+                        'composite_format' => $gc->composite_format ?? null,
+                        'composite_expression' => $gc->composite_expression ?? null,
+                        'collection_name' => $gcParent->collection_name ?? null,
+                        'collection_sort' => $gcParent->collection_sort ?? 0,
+                        'attribute_sort' => $gc->position ?? 999,
+                        'access_product' => $gcParent->access_product ?? 'editable',
+                        'access_variant' => $gcParent->access_variant ?? 'editable',
+                        'attribute_view_name_de' => $gcParent->attribute_view_name_de ?? null,
+                    ]);
+
+                    $gcValues = $product->attributeValues()
+                        ->where('attribute_id', $gc->id)
+                        ->whereNull('output_hierarchy_id')
+                        ->where(function ($q) use ($language) {
+                            $q->whereNull('language')->orWhere('language', $language);
+                        })
+                        ->get();
+                    foreach ($gcValues as $gv) {
+                        $existingValues->put($gc->id, $gv);
+                        if (!$multipliedValues->has($gc->id)) {
+                            $multipliedValues->put($gc->id, collect());
+                        }
+                        $multipliedValues->get($gc->id)->push($gv);
+                    }
                 }
             }
         }
@@ -233,18 +296,27 @@ class ProductAttributeValueController extends Controller
 
             // Include all multiplied values for multipliable attributes
             if ($assignment->is_multipliable ?? false) {
-                $defaultUnitId = $assignment->default_unit_id ?? null;
-                $attrMultiplied = $multipliedValues->get($assignment->attribute_id, collect());
-                $result['multiplied_values'] = $attrMultiplied
-                    ->sortBy('multiplied_index')
-                    ->values()
-                    ->map(fn ($pav) => [
-                        'multiplied_index' => $pav->multiplied_index,
-                        'value' => $pav->value_string ?? $pav->value_number ?? $pav->value_date ?? $pav->value_flag ?? $pav->value_selection_id,
-                        'unit_id' => $pav->unit_id ?? $defaultUnitId,
-                        'language' => $pav->language,
-                    ])
-                    ->all();
+                if ($assignment->data_type === 'Composite') {
+                    // Vermehrbares Composite: Kind-Werte nach multiplied_index gruppiert
+                    $result['multiplied_composites'] = $this->buildMultipliedCompositeValues(
+                        $assignment->attribute_id,
+                        $effectiveAttributes,
+                        $multipliedValues
+                    );
+                } else {
+                    $defaultUnitId = $assignment->default_unit_id ?? null;
+                    $attrMultiplied = $multipliedValues->get($assignment->attribute_id, collect());
+                    $result['multiplied_values'] = $attrMultiplied
+                        ->sortBy('multiplied_index')
+                        ->values()
+                        ->map(fn ($pav) => [
+                            'multiplied_index' => $pav->multiplied_index,
+                            'value' => $pav->value_string ?? $pav->value_number ?? $pav->value_date ?? $pav->value_flag ?? $pav->value_selection_id,
+                            'unit_id' => $pav->unit_id ?? $defaultUnitId,
+                            'language' => $pav->language,
+                        ])
+                        ->all();
+                }
             }
 
             return $result;
@@ -333,6 +405,28 @@ class ProductAttributeValueController extends Controller
                         ->whereNull('output_hierarchy_id')
                         ->where('multiplied_index', '>', $maxIdx)
                         ->delete();
+
+                    // Vermehrbares Composite: auch Kind- und Enkel-Werte aufräumen
+                    if ($attr->data_type === 'Composite') {
+                        $childIds = Attribute::where('parent_attribute_id', $attrId)->pluck('id')->all();
+                        if (!empty($childIds)) {
+                            ProductAttributeValue::where('product_id', $product->id)
+                                ->whereIn('attribute_id', $childIds)
+                                ->whereNull('output_hierarchy_id')
+                                ->where('multiplied_index', '>', $maxIdx)
+                                ->delete();
+
+                            // Enkel-Attribute (Kinder von Kind-Composites)
+                            $grandchildIds = Attribute::whereIn('parent_attribute_id', $childIds)->pluck('id')->all();
+                            if (!empty($grandchildIds)) {
+                                ProductAttributeValue::where('product_id', $product->id)
+                                    ->whereIn('attribute_id', $grandchildIds)
+                                    ->whereNull('output_hierarchy_id')
+                                    ->where('multiplied_index', '>', $maxIdx)
+                                    ->delete();
+                            }
+                        }
+                    }
                 }
             }
         });
@@ -534,6 +628,89 @@ class ProductAttributeValueController extends Controller
         event(new \App\Events\AttributeValuesChanged($product->id, array_unique($changedAttributeIds), $outputHierarchyId));
 
         return response()->json(['message' => 'Output hierarchy attribute values updated.', 'count' => count($values)]);
+    }
+
+    /**
+     * Baut die multiplied_composites Struktur für ein vermehrbares Composite.
+     * Gruppiert Kind-Werte nach multiplied_index.
+     */
+    private function buildMultipliedCompositeValues(
+        string $compositeAttrId,
+        \Illuminate\Support\Collection $effectiveAttributes,
+        \Illuminate\Support\Collection $multipliedValues
+    ): array {
+        // Finde alle direkten Kind-Attribute dieses Composites
+        $children = $effectiveAttributes->filter(
+            fn ($a) => ($a->parent_attribute_id ?? null) === $compositeAttrId
+        );
+
+        if ($children->isEmpty()) {
+            return [];
+        }
+
+        // Sammle alle multiplied_index Werte die für Kind-Attribute existieren
+        $allIndices = collect();
+        foreach ($children as $child) {
+            $childValues = $multipliedValues->get($child->attribute_id, collect());
+            foreach ($childValues as $pav) {
+                $allIndices->push($pav->multiplied_index);
+            }
+            // Für Sub-Composites: auch deren Kinder-Indizes berücksichtigen
+            if ($child->data_type === 'Composite') {
+                $grandchildren = $effectiveAttributes->filter(
+                    fn ($a) => ($a->parent_attribute_id ?? null) === $child->attribute_id
+                );
+                foreach ($grandchildren as $gc) {
+                    $gcValues = $multipliedValues->get($gc->attribute_id, collect());
+                    foreach ($gcValues as $pav) {
+                        $allIndices->push($pav->multiplied_index);
+                    }
+                }
+            }
+        }
+
+        $uniqueIndices = $allIndices->unique()->sort()->values();
+
+        if ($uniqueIndices->isEmpty()) {
+            return [];
+        }
+
+        $instances = [];
+        foreach ($uniqueIndices as $idx) {
+            $childrenData = [];
+            foreach ($children as $child) {
+                if ($child->data_type === 'Composite') {
+                    // Sub-Composite: Enkel-Werte für diesen Index sammeln
+                    $grandchildren = $effectiveAttributes->filter(
+                        fn ($a) => ($a->parent_attribute_id ?? null) === $child->attribute_id
+                    );
+                    $subChildren = [];
+                    foreach ($grandchildren as $gc) {
+                        $gcValues = $multipliedValues->get($gc->attribute_id, collect());
+                        $gcPav = $gcValues->firstWhere('multiplied_index', $idx);
+                        $subChildren[$gc->attribute_id] = $gcPav
+                            ? ($gcPav->value_string ?? $gcPav->value_number ?? $gcPav->value_date ?? $gcPav->value_flag ?? $gcPav->value_selection_id)
+                            : null;
+                    }
+                    $childrenData[$child->attribute_id] = [
+                        'data_type' => 'Composite',
+                        'children' => $subChildren,
+                    ];
+                } else {
+                    $childValues = $multipliedValues->get($child->attribute_id, collect());
+                    $pav = $childValues->firstWhere('multiplied_index', $idx);
+                    $childrenData[$child->attribute_id] = $pav
+                        ? ($pav->value_string ?? $pav->value_number ?? $pav->value_date ?? $pav->value_flag ?? $pav->value_selection_id)
+                        : null;
+                }
+            }
+            $instances[] = [
+                'multiplied_index' => $idx,
+                'children' => $childrenData,
+            ];
+        }
+
+        return $instances;
     }
 
     /**

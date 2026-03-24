@@ -145,9 +145,26 @@ const fields = computed(() => {
   }
 
   if (formData.value.data_type === 'Composite') {
+    // Erlaubt einfache Attribute und Composites als Kinder, aber max. Tiefe 2:
+    // Ein Kind-Composite darf nicht selbst schon ein Kind eines anderen Composites sein.
     const childOptions = store.allItems
-      .filter(a => a.id !== props.attribute?.id && a.data_type !== 'Composite' && !a.parent_attribute_id)
-      .map(a => ({ value: a.id, label: a.name_de || a.technical_name }))
+      .filter(a => {
+        if (a.id === props.attribute?.id) return false
+        // Bereits einem anderen Composite zugeordnet (außer diesem hier)
+        if (a.parent_attribute_id && a.parent_attribute_id !== props.attribute?.id) return false
+        // Kind-Composite erlaubt, ABER nur wenn es kein Enkel wäre (max. Tiefe 2)
+        if (a.data_type === 'Composite') {
+          // Prüfe ob dieses Composite selbst schon Kind-Composites hat die wiederum Composites enthalten
+          // → nicht nötig, da wir nur Tiefe 2 erlauben: Root-Composite → Kind-Composite → einfach
+          // Aber: das aktuelle Attribut darf kein Kind eines anderen Composites sein
+          if (a.parent_attribute_id) return false
+        }
+        return true
+      })
+      .map(a => ({
+        value: a.id,
+        label: (a.name_de || a.technical_name) + (a.data_type === 'Composite' ? ' ⬡' : ''),
+      }))
     base.push({
       key: 'child_attribute_ids', label: 'Kind-Attribute', type: 'multi-select',
       options: childOptions,
