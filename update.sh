@@ -236,6 +236,9 @@ if [ "$STASHED" = true ]; then
         info "Lokale Aenderungen wiederhergestellt."
     else
         warn "Lokale Aenderungen konnten nicht automatisch gemergt werden."
+        warn "Bereinige Merge-Konflikte (behalte Remote-Version)..."
+        git reset HEAD . 2>/dev/null || true
+        git checkout -- . 2>/dev/null || true
         warn "Gesichert als: $(git stash list | head -1)"
         warn "Manuell wiederherstellen mit: git stash pop"
     fi
