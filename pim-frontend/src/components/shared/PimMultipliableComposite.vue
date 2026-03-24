@@ -80,29 +80,65 @@ function addEntry() {
   emit('update:modelValue', updated)
 }
 
+function rebuildExpandedSet(updatedEntries) {
+  // expandedInstances nach Re-Indexierung aktualisieren
+  const newExpanded = new Set()
+  updatedEntries.forEach(e => {
+    // Alle bisher aufgeklappten bleiben offen, da wir nach Position tracken
+    newExpanded.add(e.multiplied_index)
+  })
+  expandedInstances.value = newExpanded
+}
+
 function removeEntry(index) {
   if (entries.value.length <= 1) {
+    expandedInstances.value = new Set([0])
     emit('update:modelValue', [{ multiplied_index: 0, children: {} }])
     return
   }
+  // Merken welche Positionen offen waren (nach Array-Index, nicht multiplied_index)
+  const wasExpanded = new Set()
+  entries.value.forEach((e, i) => {
+    if (expandedInstances.value.has(e.multiplied_index) && i !== index) wasExpanded.add(i < index ? i : i - 1)
+  })
   const updated = entries.value
     .filter((_, i) => i !== index)
     .map((e, i) => ({ ...e, multiplied_index: i }))
+  expandedInstances.value = new Set(updated.filter((_, i) => wasExpanded.has(i)).map(e => e.multiplied_index))
   emit('update:modelValue', updated)
 }
 
 function moveUp(index) {
   if (index <= 0) return
   const updated = [...entries.value]
+  const wasTopExpanded = expandedInstances.value.has(updated[index - 1].multiplied_index)
+  const wasBotExpanded = expandedInstances.value.has(updated[index].multiplied_index)
   ;[updated[index - 1], updated[index]] = [updated[index], updated[index - 1]]
-  emit('update:modelValue', updated.map((e, i) => ({ ...e, multiplied_index: i })))
+  const remapped = updated.map((e, i) => ({ ...e, multiplied_index: i }))
+  // Expanded-Status wandert mit den Einträgen
+  const newExpanded = new Set(expandedInstances.value)
+  newExpanded.delete(remapped[index - 1].multiplied_index)
+  newExpanded.delete(remapped[index].multiplied_index)
+  if (wasBotExpanded) newExpanded.add(remapped[index - 1].multiplied_index)
+  if (wasTopExpanded) newExpanded.add(remapped[index].multiplied_index)
+  expandedInstances.value = newExpanded
+  emit('update:modelValue', remapped)
 }
 
 function moveDown(index) {
   if (index >= entries.value.length - 1) return
   const updated = [...entries.value]
+  const wasTopExpanded = expandedInstances.value.has(updated[index].multiplied_index)
+  const wasBotExpanded = expandedInstances.value.has(updated[index + 1].multiplied_index)
   ;[updated[index], updated[index + 1]] = [updated[index + 1], updated[index]]
-  emit('update:modelValue', updated.map((e, i) => ({ ...e, multiplied_index: i })))
+  const remapped = updated.map((e, i) => ({ ...e, multiplied_index: i }))
+  const newExpanded = new Set(expandedInstances.value)
+  newExpanded.delete(remapped[index].multiplied_index)
+  newExpanded.delete(remapped[index + 1].multiplied_index)
+  if (wasBotExpanded) newExpanded.add(remapped[index].multiplied_index)
+  if (wasTopExpanded) newExpanded.add(remapped[index + 1].multiplied_index)
+  expandedInstances.value = newExpanded
+  emit('update:modelValue', remapped)
 }
 
 function getFormatPreview(entry) {

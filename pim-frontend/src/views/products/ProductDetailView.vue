@@ -1751,23 +1751,44 @@ async function save() {
 
     // Vermehrbare Composite-Werte: pro Instanz pro Kind einen Eintrag
     for (const [compositeId, instances] of Object.entries(multipliableCompositeValues.value)) {
+      // Schema-Attribute für Übersetzbarkeit nachschlagen
+      const compositeSchema = schemaAttributes.value.find(a => a.id === compositeId)
+      const childSchemaMap = {}
+      for (const child of compositeSchema?._children || []) {
+        childSchemaMap[child.id] = child
+        if (child._children) {
+          for (const gc of child._children) {
+            childSchemaMap[gc.id] = gc
+          }
+        }
+      }
+
       for (const inst of instances) {
         for (const [childId, childValue] of Object.entries(inst.children || {})) {
           if (childValue && typeof childValue === 'object' && childValue.data_type === 'Composite') {
             // Sub-Composite: Enkel-Werte flach speichern
             for (const [gcId, gcValue] of Object.entries(childValue.children || {})) {
-              values.push({
+              const entry = {
                 attribute_id: gcId,
                 value: gcValue,
                 multiplied_index: inst.multiplied_index,
-              })
+              }
+              // Übersetzbare Kinder: aktuelle Sprache mitgeben
+              if (childSchemaMap[gcId]?.is_translatable) {
+                entry.language = activeDataLang.value || 'de'
+              }
+              values.push(entry)
             }
           } else {
-            values.push({
+            const entry = {
               attribute_id: childId,
               value: childValue,
               multiplied_index: inst.multiplied_index,
-            })
+            }
+            if (childSchemaMap[childId]?.is_translatable) {
+              entry.language = activeDataLang.value || 'de'
+            }
+            values.push(entry)
           }
         }
         // Auch den Composite-Parent selbst mit Index speichern (für Cleanup-Logik)

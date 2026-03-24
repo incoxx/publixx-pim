@@ -57,7 +57,17 @@ class AttributeController extends Controller
     {
         $this->authorize('create', Attribute::class);
 
-        $attribute = Attribute::create($request->validated());
+        $validated = $request->validated();
+
+        // Composite-Nesting: max. Tiefe 2
+        if (!empty($validated['parent_attribute_id'])) {
+            $parent = Attribute::find($validated['parent_attribute_id']);
+            if ($parent && $parent->parent_attribute_id !== null) {
+                abort(422, 'Maximale Composite-Tiefe erreicht: Ein Kind-Composite darf nicht selbst Kind eines anderen Composites sein.');
+            }
+        }
+
+        $attribute = Attribute::create($validated);
 
         return (new AttributeResource($attribute))
             ->response()

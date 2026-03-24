@@ -152,11 +152,13 @@ class ProductAttributeValueController extends Controller
                         $q->whereNull('language')->orWhere('language', $language);
                     })
                     ->get();
+                if (!$multipliedValues->has($child->id)) {
+                    $multipliedValues->put($child->id, collect());
+                }
                 foreach ($childValues as $cv) {
-                    $existingValues->put($child->id, $cv);
-                    // Auch in multipliedValues aufnehmen
-                    if (!$multipliedValues->has($child->id)) {
-                        $multipliedValues->put($child->id, collect());
+                    // existingValues: nur den ersten Wert (index 0) für das top-level value Feld
+                    if (!$existingValues->has($child->id)) {
+                        $existingValues->put($child->id, $cv);
                     }
                     $multipliedValues->get($child->id)->push($cv);
                 }
@@ -200,10 +202,12 @@ class ProductAttributeValueController extends Controller
                             $q->whereNull('language')->orWhere('language', $language);
                         })
                         ->get();
+                    if (!$multipliedValues->has($gc->id)) {
+                        $multipliedValues->put($gc->id, collect());
+                    }
                     foreach ($gcValues as $gv) {
-                        $existingValues->put($gc->id, $gv);
-                        if (!$multipliedValues->has($gc->id)) {
-                            $multipliedValues->put($gc->id, collect());
+                        if (!$existingValues->has($gc->id)) {
+                            $existingValues->put($gc->id, $gv);
                         }
                         $multipliedValues->get($gc->id)->push($gv);
                     }
@@ -397,34 +401,41 @@ class ProductAttributeValueController extends Controller
                 }
             }
 
-            foreach ($multipliableIndices as $attrId => $maxIdx) {
-                $attr = Attribute::find($attrId);
-                if ($attr && $attr->is_multipliable) {
-                    ProductAttributeValue::where('product_id', $product->id)
-                        ->where('attribute_id', $attrId)
-                        ->whereNull('output_hierarchy_id')
-                        ->where('multiplied_index', '>', $maxIdx)
-                        ->delete();
+            // Batch: alle relevanten Attribute in einem Query laden statt N+1
+            $attrIdsToCheck = array_keys($multipliableIndices);
+            $multipliableAttrs = Attribute::whereIn('id', $attrIdsToCheck)
+                ->where('is_multipliable', true)
+                ->get()
+                ->keyBy('id');
 
-                    // Vermehrbares Composite: auch Kind- und Enkel-Werte aufräumen
-                    if ($attr->data_type === 'Composite') {
-                        $childIds = Attribute::where('parent_attribute_id', $attrId)->pluck('id')->all();
-                        if (!empty($childIds)) {
+            foreach ($multipliableIndices as $attrId => $maxIdx) {
+                $attr = $multipliableAttrs->get($attrId);
+                if (!$attr) continue;
+
+                ProductAttributeValue::where('product_id', $product->id)
+                    ->where('attribute_id', $attrId)
+                    ->whereNull('output_hierarchy_id')
+                    ->where('multiplied_index', '>', $maxIdx)
+                    ->delete();
+
+                // Vermehrbares Composite: auch Kind- und Enkel-Werte aufräumen
+                if ($attr->data_type === 'Composite') {
+                    $childIds = Attribute::where('parent_attribute_id', $attrId)->pluck('id')->all();
+                    if (!empty($childIds)) {
+                        ProductAttributeValue::where('product_id', $product->id)
+                            ->whereIn('attribute_id', $childIds)
+                            ->whereNull('output_hierarchy_id')
+                            ->where('multiplied_index', '>', $maxIdx)
+                            ->delete();
+
+                        // Enkel-Attribute (Kinder von Kind-Composites)
+                        $grandchildIds = Attribute::whereIn('parent_attribute_id', $childIds)->pluck('id')->all();
+                        if (!empty($grandchildIds)) {
                             ProductAttributeValue::where('product_id', $product->id)
-                                ->whereIn('attribute_id', $childIds)
+                                ->whereIn('attribute_id', $grandchildIds)
                                 ->whereNull('output_hierarchy_id')
                                 ->where('multiplied_index', '>', $maxIdx)
                                 ->delete();
-
-                            // Enkel-Attribute (Kinder von Kind-Composites)
-                            $grandchildIds = Attribute::whereIn('parent_attribute_id', $childIds)->pluck('id')->all();
-                            if (!empty($grandchildIds)) {
-                                ProductAttributeValue::where('product_id', $product->id)
-                                    ->whereIn('attribute_id', $grandchildIds)
-                                    ->whereNull('output_hierarchy_id')
-                                    ->where('multiplied_index', '>', $maxIdx)
-                                    ->delete();
-                            }
                         }
                     }
                 }
