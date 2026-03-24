@@ -8,6 +8,7 @@ use App\Models\Attribute;
 use App\Models\AttributeType;
 use App\Models\CatalogTemplate;
 use App\Models\DictionaryEntry;
+use App\Services\CompositeFormatResolver;
 use App\Models\Hierarchy;
 use App\Models\HierarchyNode;
 use App\Models\OutputHierarchyProductAssignment;
@@ -767,11 +768,57 @@ class OfflineCatalogExportService
             ];
         }
 
-        // Attributes
+        // Attributes — Composite-Kinder aggregieren
         $attributes = [];
+        $compositeChildIds = [];
+        $writtenComposites = [];
+
+        // Erst Composite-Kinder identifizieren
+        foreach ($product->attributeValues as $av) {
+            $attr = $av->attribute;
+            if ($attr && $attr->parent_attribute_id) {
+                $compositeChildIds[$attr->id] = $attr->parent_attribute_id;
+            }
+        }
+
         foreach ($product->attributeValues as $av) {
             $attr = $av->attribute;
             if (!$attr || $attr->is_internal) continue;
+
+            // Kind-Attribute überspringen (werden über Parent ausgegeben)
+            if (isset($compositeChildIds[$attr->id])) {
+                $parentId = $compositeChildIds[$attr->id];
+                if (!isset($writtenComposites[$parentId])) {
+                    $composite = Attribute::find($parentId);
+                    if ($composite && $composite->data_type === 'Composite') {
+                        $children = Attribute::where('parent_attribute_id', $composite->id)
+                            ->orderBy('position')->get();
+                        $childValues = [];
+                        foreach ($children as $child) {
+                            $childAv = $product->attributeValues->first(fn ($v) => $v->attribute_id === $child->id);
+                            $childValues[] = $childAv ? ($this->resolveAttributeValue($childAv, $child, $lang) ?? '') : '';
+                        }
+                        $formattedValue = $composite->composite_format
+                            ? CompositeFormatResolver::resolve($composite->composite_format, $children->all(), $childValues)
+                            : implode(' × ', array_filter($childValues, fn ($v) => $v !== ''));
+
+                        if ($formattedValue !== '') {
+                            $attributes[] = [
+                                'attribute_id' => $composite->id,
+                                'technical_name' => $composite->technical_name,
+                                'label' => $lang === 'en' && $composite->name_en ? $composite->name_en : $composite->name_de,
+                                'data_type' => 'Composite',
+                                'value' => $formattedValue,
+                                'raw_value' => $formattedValue,
+                                'unit' => null,
+                                'group_id' => $composite->attribute_type_id,
+                            ];
+                        }
+                    }
+                    $writtenComposites[$parentId] = true;
+                }
+                continue;
+            }
 
             $value = $this->resolveAttributeValue($av, $attr, $lang);
             if ($value === null || $value === '') continue;

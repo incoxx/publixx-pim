@@ -18,6 +18,7 @@ class DatabaseSeeder extends Seeder
             DemoAttributeSeeder::class,
             DemoHierarchySeeder::class,
             DemoProductSeeder::class,
+            DemoMediaSeeder::class,
             EtimDemoSeeder::class,
         ]);
     }

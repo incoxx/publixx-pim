@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import { Plus, Trash2, ChevronUp, ChevronDown, ChevronRight } from 'lucide-vue-next'
 import PimAttributeInput from './PimAttributeInput.vue'
+import { resolveCompositeFormat } from '@/utils/formatting'
 
 const props = defineProps({
   /**
@@ -143,14 +144,10 @@ function moveDown(index) {
 
 function getFormatPreview(entry) {
   if (!props.compositeAttribute?.composite_format) return null
-  let result = props.compositeAttribute.composite_format
-  children.value.forEach((child, i) => {
-    const val = child.data_type === 'Composite'
-      ? '…'
-      : entry.children?.[child.id]
-    result = result.replace(`{${i}}`, val !== undefined && val !== null ? String(val) : '…')
-  })
-  return result
+  const vals = children.value.map(child =>
+    child.data_type === 'Composite' ? '…' : entry.children?.[child.id]
+  )
+  return resolveCompositeFormat(props.compositeAttribute.composite_format, children.value, vals, '…') || null
 }
 
 function getInstanceSummary(entry) {

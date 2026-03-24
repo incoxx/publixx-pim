@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\V1\Traits\ProductSearchFilters;
 use App\Models\Attribute;
 use App\Models\Product;
 use App\Models\ProductAttributeValue;
+use App\Services\CompositeFormatResolver;
 use Illuminate\Http\Request;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
@@ -108,15 +109,27 @@ class ProductExportController extends Controller
         $attrValues = [];
         $attrMap = [];
         if (!empty($attrColumns)) {
-            $attrMap = Attribute::whereIn('id', $attrColumns)->pluck('name_de', 'id')->toArray();
+            $attrModels = Attribute::whereIn('id', $attrColumns)->get()->keyBy('id');
+            $attrMap = $attrModels->pluck('name_de', 'id')->toArray();
             // Log missing attributes
-            $missingAttrs = array_diff($attrColumns, array_map('strval', array_keys($attrMap)));
+            $missingAttrs = array_diff($attrColumns, array_map('strval', $attrModels->keys()->all()));
             if (!empty($missingAttrs)) {
                 \Illuminate\Support\Facades\Log::warning('Export: unknown attribute IDs requested', ['ids' => $missingAttrs]);
             }
             $productIds = $products->pluck('id');
+
+            // Für Composites auch Kind-Attribut-Werte laden
+            $compositeAttrIds = $attrModels->filter(fn ($a) => $a->data_type === 'Composite')->pluck('id')->all();
+            $childAttrs = collect();
+            if (!empty($compositeAttrIds)) {
+                $childAttrs = Attribute::whereIn('parent_attribute_id', $compositeAttrIds)
+                    ->orderBy('position')
+                    ->get();
+            }
+            $allNeededAttrIds = array_merge($attrColumns, $childAttrs->pluck('id')->all());
+
             $values = ProductAttributeValue::whereIn('product_id', $productIds)
-                ->whereIn('attribute_id', $attrColumns)
+                ->whereIn('attribute_id', $allNeededAttrIds)
                 ->where(fn ($q) => $q->where('language', $language)->orWhereNull('language'))
                 ->get();
 
@@ -127,6 +140,24 @@ class ProductExportController extends Controller
                     ?? ($v->value_flag !== null ? ($v->value_flag ? 'Ja' : 'Nein') : null)
                     ?? $v->value_selection_id
                     ?? '';
+            }
+
+            // Composite-Werte auflösen: Kind-Werte zu formatiertem String zusammensetzen
+            foreach ($compositeAttrIds as $compositeId) {
+                $composite = $attrModels[$compositeId] ?? null;
+                if (!$composite) continue;
+                $children = $childAttrs->where('parent_attribute_id', $compositeId)->values();
+                if ($children->isEmpty()) continue;
+
+                foreach ($productIds as $pid) {
+                    $childValues = $children->map(fn ($c) => (string) ($attrValues[$pid][$c->id] ?? ''))->all();
+                    $formatted = $composite->composite_format
+                        ? CompositeFormatResolver::resolve($composite->composite_format, $children->all(), $childValues)
+                        : implode(' × ', array_filter($childValues, fn ($v) => $v !== ''));
+                    if ($formatted !== '') {
+                        $attrValues[$pid][$compositeId] = $formatted;
+                    }
+                }
             }
         }
 

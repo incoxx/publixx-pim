@@ -8,6 +8,7 @@ use App\Models\Attribute;
 use App\Models\Product;
 use App\Models\ProductAttributeValue;
 use App\Models\PublixxExportMapping;
+use App\Services\CompositeFormatResolver;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -425,11 +426,11 @@ class MappingResolver
 
         // Formatierte Zusammenfassung
         if ($attribute->composite_format) {
-            $formatted = $attribute->composite_format;
-            foreach ($values as $i => $v) {
-                $formatted = str_replace("{" . $i . "}", $v, $formatted);
-            }
-            $result['_formatted'] = trim($formatted);
+            $result['_formatted'] = CompositeFormatResolver::resolve(
+                $attribute->composite_format,
+                $children->all(),
+                $values
+            );
         }
 
         // Berechneter Wert

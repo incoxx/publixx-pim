@@ -6,6 +6,7 @@ namespace App\Http\Resources\Api\V1;
 
 use App\Models\Attribute;
 use App\Models\ProductAttributeValue;
+use App\Services\CompositeFormatResolver;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -266,11 +267,11 @@ class CatalogProductDetailResource extends JsonResource
             $formattedValue = null;
 
             if ($composite->composite_format) {
-                $result = $composite->composite_format;
-                foreach ($values as $i => $v) {
-                    $result = str_replace('{' . $i . '}', $v !== null ? (string) $v : '', $result);
-                }
-                $formattedValue = trim($result) ?: null;
+                $formattedValue = CompositeFormatResolver::resolve(
+                    $composite->composite_format,
+                    $children->all(),
+                    array_map(fn ($v) => $v !== null ? (string) $v : '', $values)
+                ) ?: null;
             } else {
                 $filled = array_filter($values, fn ($v) => $v !== null && $v !== '');
                 $formattedValue = !empty($filled) ? implode(' × ', $filled) : null;

@@ -11,6 +11,7 @@ use App\Models\MediaUsageType;
 use App\Models\OutputHierarchyProductAssignment;
 use App\Models\Product;
 use App\Models\ProductAttributeValue;
+use App\Services\CompositeFormatResolver;
 use App\Services\Import\BmecatElementMap;
 use Illuminate\Support\Collection;
 
@@ -371,13 +372,71 @@ class BmecatFormatExporter
             return;
         }
 
+        // Composite-Parents erkennen und Kind-IDs sammeln
+        $compositeChildIds = [];
+        $compositeParents = [];
+        foreach ($values as $av) {
+            $attr = $av->attribute;
+            if ($attr && $attr->parent_attribute_id) {
+                $compositeChildIds[$attr->id] = $attr->parent_attribute_id;
+            }
+        }
+
+        // Composite-Parents laden die Kinder in dieser Produkt-Werte-Liste haben
+        $parentIds = array_unique(array_values($compositeChildIds));
+        if (!empty($parentIds)) {
+            $compositeParents = \App\Models\Attribute::whereIn('id', $parentIds)
+                ->where('data_type', 'Composite')
+                ->get()
+                ->keyBy('id');
+        }
+
         $el = $this->elementMap;
         $xml->startElement($el['product_features']);
 
         $order = 1;
+        $writtenComposites = [];
+
         foreach ($values as $av) {
+            $attr = $av->attribute;
+
+            // Kind-Attribute eines Composites überspringen (werden über Parent ausgegeben)
+            if ($attr && isset($compositeChildIds[$attr->id])) {
+                $parentId = $compositeChildIds[$attr->id];
+
+                // Composite-Parent nur einmal schreiben
+                if (!isset($writtenComposites[$parentId]) && isset($compositeParents[$parentId])) {
+                    $composite = $compositeParents[$parentId];
+                    $children = \App\Models\Attribute::where('parent_attribute_id', $composite->id)
+                        ->orderBy('position')
+                        ->get();
+
+                    $childValues = [];
+                    foreach ($children as $child) {
+                        $childAv = $values->first(fn ($v) => $v->attribute_id === $child->id);
+                        $childValues[] = $childAv ? ($this->resolveAttributeValue($childAv) ?? '') : '';
+                    }
+
+                    $formattedValue = $composite->composite_format
+                        ? CompositeFormatResolver::resolve($composite->composite_format, $children->all(), $childValues)
+                        : implode(' × ', array_filter($childValues, fn ($v) => $v !== ''));
+
+                    if ($formattedValue !== '') {
+                        $xml->startElement('FEATURE');
+                        $xml->writeElement('FNAME', $composite->name_de ?? $composite->technical_name);
+                        $xml->writeElement('FVALUE', $formattedValue);
+                        $xml->writeElement('FORDER', (string) $order);
+                        $order++;
+                        $xml->endElement();
+                    }
+
+                    $writtenComposites[$parentId] = true;
+                }
+                continue;
+            }
+
             $xml->startElement('FEATURE');
-            $xml->writeElement('FNAME', $av->attribute->name_de ?? $av->attribute->technical_name);
+            $xml->writeElement('FNAME', $attr->name_de ?? $attr->technical_name);
 
             $value = $this->resolveAttributeValue($av);
             if ($value !== null) {

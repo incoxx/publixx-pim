@@ -2,6 +2,7 @@
 import { ref, watch, computed } from 'vue'
 import { X } from 'lucide-vue-next'
 import PimAttributeInput from './PimAttributeInput.vue'
+import { resolveCompositeFormat } from '@/utils/formatting'
 
 const props = defineProps({
   open: { type: Boolean, default: false },
@@ -34,12 +35,10 @@ const title = computed(() => {
 
 const formatPreview = computed(() => {
   if (!props.compositeAttribute?.composite_format) return null
-  let result = props.compositeAttribute.composite_format
-  children.value.forEach((child, i) => {
-    const val = child.data_type === 'Composite' ? '…' : localValues.value[child.id]
-    result = result.replace(`{${i}}`, val !== undefined && val !== null ? String(val) : '…')
-  })
-  return result
+  const vals = children.value.map(child =>
+    child.data_type === 'Composite' ? '…' : localValues.value[child.id]
+  )
+  return resolveCompositeFormat(props.compositeAttribute.composite_format, children.value, vals, '…') || null
 })
 
 function getSubCompositeValue(childId, grandchildId) {
