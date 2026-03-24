@@ -11,7 +11,8 @@
 
 set -euo pipefail
 
-APP_DIR="/var/www/publixx-pim"
+# Installationsverzeichnis dynamisch ermitteln (Verzeichnis dieses Scripts)
+APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DOCS_DIST="${APP_DIR}/static-content/.vitepress/dist"
 
 RED='\033[0;31m'
@@ -73,12 +74,12 @@ cp "$VHOST_CONF" "$BACKUP"
 info "Backup created: $BACKUP"
 
 # ─── Inject docs config before closing </VirtualHost> ───────────────────────
-DOCS_BLOCK=$(cat <<'APACHE'
+DOCS_BLOCK=$(cat <<APACHE
 
     # ─── anyPIM Documentation (VitePress) ──────────────────────
-    Alias /web/help /var/www/publixx-pim/static-content/.vitepress/dist
+    Alias /web/help ${DOCS_DIST}
 
-    <Directory /var/www/publixx-pim/static-content/.vitepress/dist>
+    <Directory ${DOCS_DIST}>
         Options -Indexes
         AllowOverride None
         Require all granted

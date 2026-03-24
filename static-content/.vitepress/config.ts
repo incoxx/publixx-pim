@@ -7,6 +7,12 @@ export default defineConfig({
   cleanUrls: true,
   lastUpdated: true,
 
+  vite: {
+    build: {
+      chunkSizeWarningLimit: 1000,
+    },
+  },
+
   head: [
     ['link', { rel: 'icon', type: 'image/svg+xml', href: '/web/help/logo.svg' }],
   ],

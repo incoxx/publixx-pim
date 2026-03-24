@@ -58,7 +58,7 @@ composer require typesense/typesense-php
 
 The Typesense connection is configured via environment variables in `.env`:
 
-```env
+```ini
 TYPESENSE_HOST=localhost
 TYPESENSE_PORT=8108
 TYPESENSE_PROTOCOL=http
