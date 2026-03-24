@@ -6,6 +6,7 @@ namespace App\Services\Report;
 
 use App\Models\Attribute;
 use App\Models\Product;
+use App\Services\CompositeFormatResolver;
 
 class ElementRenderer
 {
@@ -118,11 +119,11 @@ class ElementRenderer
         }
 
         if ($composite->composite_format) {
-            $result = $composite->composite_format;
-            foreach ($values as $i => $v) {
-                $result = str_replace('{' . $i . '}', $v, $result);
-            }
-            return trim($result);
+            return CompositeFormatResolver::resolve(
+                $composite->composite_format,
+                $children->all(),
+                $values
+            );
         }
 
         $filled = array_filter($values, fn ($v) => $v !== '');

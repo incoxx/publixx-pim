@@ -6,6 +6,7 @@ import { units as unitsApi } from '@/api/units'
 import attributesApi from '@/api/attributes'
 import { translationLanguages } from '@/config/languages'
 import PimForm from '@/components/shared/PimForm.vue'
+import PimCompositeChildPicker from '@/components/shared/PimCompositeChildPicker.vue'
 
 const props = defineProps({
   attribute: { type: Object, default: null },
@@ -145,30 +146,32 @@ const fields = computed(() => {
   }
 
   if (formData.value.data_type === 'Composite') {
-    // Erlaubt einfache Attribute und Composites als Kinder, aber max. Tiefe 2:
-    // Ein Kind-Composite darf nicht selbst schon ein Kind eines anderen Composites sein.
-    const childOptions = store.allItems
-      .filter(a => {
-        if (a.id === props.attribute?.id) return false
-        // Bereits einem anderen Composite zugeordnet (außer diesem hier)
-        if (a.parent_attribute_id && a.parent_attribute_id !== props.attribute?.id) return false
-        // Kind-Composite erlaubt, ABER nur wenn es kein Enkel wäre (max. Tiefe 2)
-        if (a.data_type === 'Composite') {
-          // Prüfe ob dieses Composite selbst schon Kind-Composites hat die wiederum Composites enthalten
-          // → nicht nötig, da wir nur Tiefe 2 erlauben: Root-Composite → Kind-Composite → einfach
-          // Aber: das aktuelle Attribut darf kein Kind eines anderen Composites sein
-          if (a.parent_attribute_id) return false
-        }
-        return true
-      })
-      .map(a => ({
-        value: a.id,
-        label: (a.name_de || a.technical_name) + (a.data_type === 'Composite' ? ' ⬡' : ''),
-      }))
-    base.push({
-      key: 'child_attribute_ids', label: 'Kind-Attribute', type: 'multi-select',
-      options: childOptions,
-    })
+    // composite_format und composite_expression als reguläre Felder
+    const selectedChildren = (formData.value.child_attribute_ids || [])
+      .map(id => store.allItems.find(a => a.id === id))
+      .filter(Boolean)
+    const placeholderHints = selectedChildren.map(a => {
+      const tn = a.technical_name || ''
+      const lastDash = tn.lastIndexOf('-')
+      return '{' + (lastDash >= 0 ? tn.substring(lastDash + 1) : tn) + '}'
+    }).join(', ')
+
+    base.push(
+      {
+        key: 'composite_format',
+        label: 'Vorschau-Format',
+        type: 'text',
+        placeholder: 'z.B. {breite} × {hoehe} × {tiefe} mm',
+        hint: placeholderHints ? `Verfügbare Platzhalter: ${placeholderHints}` : 'Zuerst Kind-Attribute zuordnen',
+      },
+      {
+        key: 'composite_expression',
+        label: 'Berechnungsformel (optional)',
+        type: 'text',
+        placeholder: 'z.B. {0} * {1} * {2} / 1000000',
+        hint: 'Mathematischer Ausdruck mit {0}, {1}, {2}… für Kind-Werte',
+      },
+    )
   }
 
   if (formData.value.data_type === 'Number' || formData.value.data_type === 'Float') {
@@ -199,7 +202,29 @@ const fields = computed(() => {
   return base
 })
 
+// Verfügbare Kind-Attribute für den Composite-Picker
+const compositeChildOptions = computed(() => {
+  if (formData.value.data_type !== 'Composite') return []
+  return store.allItems
+    .filter(a => {
+      if (a.id === props.attribute?.id) return false
+      if (a.parent_attribute_id && a.parent_attribute_id !== props.attribute?.id) return false
+      if (a.data_type === 'Composite' && a.parent_attribute_id) return false
+      return true
+    })
+    .map(a => ({
+      value: a.id,
+      label: (a.name_de || a.technical_name) + (a.data_type === 'Composite' ? ' ⬡' : ''),
+      technical_name: a.technical_name,
+    }))
+})
+
 async function handleSubmit(data) {
+  // Composite-spezifische Felder aus formData mergen (werden außerhalb von PimForm verwaltet)
+  if (formData.value.data_type === 'Composite') {
+    data.child_attribute_ids = formData.value.child_attribute_ids || []
+  }
+
   // Check if is_translatable was toggled from false to true
   if (isEdit.value && !props.attribute.is_translatable && data.is_translatable) {
     pendingSubmitData = data
@@ -301,6 +326,18 @@ function cancelMigrate() {
     <h3 class="text-sm font-semibold text-[var(--color-text-primary)] mb-4">
       {{ isEdit ? 'Attribut bearbeiten' : 'Neues Attribut' }}
     </h3>
+    <!-- Composite: Kind-Attribute Picker (außerhalb PimForm, da eigene Komponente) -->
+    <div v-if="formData.data_type === 'Composite'" class="mb-4 max-w-lg">
+      <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">
+        Kind-Attribute
+      </label>
+      <PimCompositeChildPicker
+        :modelValue="formData.child_attribute_ids"
+        :options="compositeChildOptions"
+        @update:modelValue="formData = { ...formData, child_attribute_ids: $event }"
+      />
+    </div>
+
     <PimForm
       :fields="fields"
       :modelValue="formData"
