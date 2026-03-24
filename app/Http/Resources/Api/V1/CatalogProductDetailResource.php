@@ -80,6 +80,7 @@ class CatalogProductDetailResource extends JsonResource
 
                 $entry = [
                     'attribute_id' => $attr->id,
+                    'technical_name' => $attr->technical_name,
                     'label' => $label,
                     'value' => $displayValue,
                     'unit' => $unit,
@@ -261,19 +262,26 @@ class CatalogProductDetailResource extends JsonResource
 
             $label = $lang === 'en' && $composite->name_en ? $composite->name_en : $composite->name_de;
 
-            // Build formatted value from children in the attributes list
-            $children = $attributes->where('parent_attribute_id', $composite->id)->values();
-            $values = $children->pluck('value')->toArray();
+            // Build formatted value from children — use DB models for technical_name resolution
+            $childModels = Attribute::where('parent_attribute_id', $composite->id)
+                ->orderBy('position')
+                ->get();
+            $childResponseEntries = $attributes->where('parent_attribute_id', $composite->id);
+            $values = [];
+            foreach ($childModels as $childModel) {
+                $entry = $childResponseEntries->firstWhere('attribute_id', $childModel->id);
+                $values[] = $entry ? ((string) ($entry['value'] ?? '')) : '';
+            }
             $formattedValue = null;
 
             if ($composite->composite_format) {
                 $formattedValue = CompositeFormatResolver::resolve(
                     $composite->composite_format,
-                    $children->all(),
-                    array_map(fn ($v) => $v !== null ? (string) $v : '', $values)
+                    $childModels->all(),
+                    $values
                 ) ?: null;
             } else {
-                $filled = array_filter($values, fn ($v) => $v !== null && $v !== '');
+                $filled = array_filter($values, fn ($v) => $v !== '');
                 $formattedValue = !empty($filled) ? implode(' × ', $filled) : null;
             }
 

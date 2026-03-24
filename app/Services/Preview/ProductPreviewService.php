@@ -8,6 +8,7 @@ use App\Models\Attribute;
 use App\Models\HierarchyNode;
 use App\Models\Product;
 use App\Models\ProductAttributeValue;
+use App\Services\CompositeFormatResolver;
 use App\Services\Inheritance\HierarchyInheritanceService;
 use Illuminate\Support\Collection;
 
@@ -134,6 +135,7 @@ class ProductPreviewService
                     'unit' => null,
                     'data_type' => $assignment->data_type,
                     'is_mandatory' => (bool) ($assignment->is_mandatory || !empty($assignment->is_required)),
+                    'is_multipliable' => (bool) ($assignment->is_multipliable ?? false),
                     'language' => null,
                     'parent_attribute_id' => $assignment->parent_attribute_id ?? null,
                     'composite_format' => $assignment->composite_format ?? null,
@@ -166,10 +168,11 @@ class ProductPreviewService
                         'unit' => $unit,
                         'data_type' => $assignment->data_type,
                         'is_mandatory' => (bool) ($assignment->is_mandatory || !empty($assignment->is_required)),
+                        'is_multipliable' => (bool) ($assignment->is_multipliable ?? false),
                         'language' => $attrValue->language,
                         'parent_attribute_id' => $assignment->parent_attribute_id ?? null,
                         'composite_format' => $assignment->composite_format ?? null,
-                    'composite_expression' => $assignment->composite_expression ?? null,
+                        'composite_expression' => $assignment->composite_expression ?? null,
                     ];
 
                     if ($linkData) {
@@ -180,6 +183,166 @@ class ProductPreviewService
                 }
             }
         }
+
+        // ── Composite-Kinder injizieren ──────────────────────────────────
+        // Kind-Attribute von Composites sind nicht separat der Hierarchie zugewiesen,
+        // müssen aber für die Vorschau-Auflösung vorhanden sein.
+        foreach ($sections as &$section) {
+            $compositeParentIds = [];
+            foreach ($section['attributes'] as $attr) {
+                if ($attr['data_type'] === 'Composite') {
+                    $compositeParentIds[] = $attr['attribute_id'];
+                }
+            }
+
+            if (empty($compositeParentIds)) {
+                continue;
+            }
+
+            // Kind-Attribute laden (inkl. Sub-Composites)
+            $children = Attribute::whereIn('parent_attribute_id', $compositeParentIds)
+                ->orderBy('position')
+                ->get();
+
+            // Auch Enkel laden (für Sub-Composites)
+            $subCompositeIds = $children->where('data_type', 'Composite')->pluck('id')->all();
+            $grandchildren = collect();
+            if (!empty($subCompositeIds)) {
+                $grandchildren = Attribute::whereIn('parent_attribute_id', $subCompositeIds)
+                    ->orderBy('position')
+                    ->get();
+            }
+
+            $allChildren = $children->merge($grandchildren);
+
+            foreach ($allChildren as $child) {
+                $childLabel = $lang === 'en' && $child->name_en ? $child->name_en : $child->name_de;
+                $childValues = $existingValues->get($child->id, collect());
+
+                if ($childValues->isEmpty()) {
+                    $section['attributes'][] = [
+                        'attribute_id' => $child->id,
+                        'technical_name' => $child->technical_name,
+                        'label' => $childLabel,
+                        'value' => null,
+                        'display_value' => null,
+                        'unit' => null,
+                        'data_type' => $child->data_type,
+                        'is_mandatory' => false,
+                        'language' => null,
+                        'parent_attribute_id' => $child->parent_attribute_id,
+                        'composite_format' => $child->composite_format,
+                        'composite_expression' => $child->composite_expression,
+                    ];
+                } else {
+                    foreach ($childValues as $childValue) {
+                        $section['attributes'][] = [
+                            'attribute_id' => $child->id,
+                            'technical_name' => $child->technical_name,
+                            'label' => $childLabel,
+                            'value' => $this->resolveRawValue($childValue),
+                            'display_value' => $this->resolveDisplayValue($childValue, $lang),
+                            'unit' => $childValue->unit?->abbreviation,
+                            'data_type' => $child->data_type,
+                            'is_mandatory' => false,
+                            'language' => $childValue->language,
+                            'parent_attribute_id' => $child->parent_attribute_id,
+                            'composite_format' => $child->composite_format,
+                            'composite_expression' => $child->composite_expression,
+                        ];
+                    }
+                }
+            }
+        }
+        unset($section);
+
+        // ── Composite-Vorschauwerte berechnen ────────────────────────────
+        foreach ($sections as &$section) {
+            foreach ($section['attributes'] as &$attr) {
+                if ($attr['data_type'] !== 'Composite' || !empty($attr['parent_attribute_id'])) {
+                    continue;
+                }
+
+                $children = array_values(array_filter(
+                    $section['attributes'],
+                    fn ($a) => ($a['parent_attribute_id'] ?? null) === $attr['attribute_id']
+                ));
+
+                if (empty($children)) {
+                    continue;
+                }
+
+                $isMultipliable = !empty($attr['is_multipliable']);
+
+                if ($isMultipliable) {
+                    // Vermehrbares Composite: multiplied_instances aufbauen
+                    $childAttrs = Attribute::where('parent_attribute_id', $attr['attribute_id'])
+                        ->orderBy('position')->get();
+                    $childIds = $childAttrs->pluck('id')->all();
+
+                    // Alle multiplied_index Werte sammeln
+                    $allChildValues = $existingValues->filter(fn ($vals, $key) => in_array($key, $childIds));
+                    $indices = $allChildValues->flatten()->pluck('multiplied_index')->unique()->sort()->values();
+
+                    $instances = [];
+                    foreach ($indices as $idx) {
+                        $instanceChildren = [];
+                        $childValues = [];
+                        foreach ($childAttrs as $childAttr) {
+                            $childLabel = $lang === 'en' && $childAttr->name_en ? $childAttr->name_en : $childAttr->name_de;
+                            $av = $existingValues->get($childAttr->id, collect())
+                                ->first(fn ($v) => $v->multiplied_index === $idx);
+                            $dv = $av ? $this->resolveDisplayValue($av, $lang) : null;
+                            $childValues[] = $dv ?? '';
+                            $instanceChildren[] = [
+                                'attribute_id' => $childAttr->id,
+                                'label' => $childLabel,
+                                'display_value' => $dv,
+                                'unit' => $av?->unit?->abbreviation,
+                            ];
+                        }
+
+                        $formatted = null;
+                        if ($attr['composite_format']) {
+                            $formatted = CompositeFormatResolver::resolve(
+                                $attr['composite_format'],
+                                $childAttrs->all(),
+                                $childValues
+                            );
+                        }
+
+                        $instances[] = [
+                            '_formatted' => $formatted ?: null,
+                            '_index' => $idx,
+                            'children' => $instanceChildren,
+                        ];
+                    }
+
+                    $attr['multiplied_instances'] = $instances;
+                } else {
+                    // Einfaches Composite: display_value direkt berechnen
+                    $childAttrs = Attribute::where('parent_attribute_id', $attr['attribute_id'])
+                        ->orderBy('position')->get();
+                    $childValues = [];
+                    foreach ($childAttrs as $childAttr) {
+                        $av = $existingValues->get($childAttr->id, collect())->first();
+                        $childValues[] = $av ? ($this->resolveDisplayValue($av, $lang) ?? '') : '';
+                    }
+
+                    if ($attr['composite_format']) {
+                        $attr['display_value'] = CompositeFormatResolver::resolve(
+                            $attr['composite_format'],
+                            $childAttrs->all(),
+                            $childValues
+                        ) ?: null;
+                    } elseif (!empty(array_filter($childValues, fn ($v) => $v !== ''))) {
+                        $attr['display_value'] = implode(' × ', array_filter($childValues, fn ($v) => $v !== ''));
+                    }
+                }
+            }
+            unset($attr);
+        }
+        unset($section);
 
         // ── Output hierarchy attributes ──────────────────────────────────
         $outputHierarchyData = $this->hierarchyService->getProductOutputHierarchyAttributes($product);
