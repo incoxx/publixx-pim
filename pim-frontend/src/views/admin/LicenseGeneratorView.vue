@@ -36,6 +36,7 @@ const availableModules = [
   { key: 'sso', name: 'Single Sign-On', description: 'Azure AD / OAuth SSO-Integration' },
   { key: 'workflow', name: 'Workflow-Management', description: 'Konfigurierbare Workflows, Teams und Projekte' },
   { key: 'api_designer', name: 'API-Designer', description: 'Visueller API-Designer mit JSON-Streaming-Endpoints' },
+  { key: 'excel_designer', name: 'Sheet Designer', description: 'Excel-Sheet-Designer für konfigurierbare .xlsx-Produktlisten mit Thumbnails' },
   { key: 'connectors', name: 'Connectoren', description: 'Externe API-Connectoren (Canva, DeepL, Adobe u.a.)' },
 ]
 

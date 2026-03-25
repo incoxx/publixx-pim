@@ -168,6 +168,7 @@ const sections = computed(() => {
             { icon: Upload, label: () => t('nav.imports'), to: '/imports' },
             { icon: Download, label: () => t('nav.exports'), to: '/exports' },
             { icon: FileJson, label: () => 'JSON Export/Import', to: '/json-export-import' },
+            { icon: FileSpreadsheet, label: () => 'Sheet Designer', to: '/excel-designer', module: 'excel_designer' },
             { icon: FileCode, label: () => 'BMEcat Import/Export', to: '/bmecat-import-export', module: 'bmecat' },
             { icon: PlayCircle, label: () => 'Export-Jobs', to: '/export-jobs', module: 'advanced_export' },
             { icon: ArrowRightLeft, label: () => 'Attribut-Mapping', to: '/attribute-mappings', permission: 'attribute-mappings.view' },
@@ -192,7 +193,6 @@ const sections = computed(() => {
           children: [
             { icon: FlaskConical, label: () => 'Test anyPIM', to: '/test-runner', permission: 'users.view' },
             { icon: Code, label: () => 'API-Designer', to: '/api-designer', module: 'api_designer' },
-            { icon: FileSpreadsheet, label: () => 'Sheet Designer', to: '/excel-designer' },
             { icon: Zap, label: () => 'API Tester', to: '/api-tester', permission: 'users.view' },
             { icon: Database, label: () => 'Datenbank', to: '/db', permission: 'users.view' },
             { icon: Shield, label: () => 'Datenkonsistenz', to: '/db-consistency', permission: 'users.view' },
