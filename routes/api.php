@@ -781,11 +781,17 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
         Route::get('/', [\App\Http\Controllers\Api\V1\ExcelTemplateController::class, 'index']);
         Route::post('/', [\App\Http\Controllers\Api\V1\ExcelTemplateController::class, 'store']);
         Route::post('import', [\App\Http\Controllers\Api\V1\ExcelTemplateController::class, 'import']);
+        // Export-Aktionen (vor {id} registrieren, sonst Route-Conflict)
+        Route::get('export-progress/{exportKey}', [\App\Http\Controllers\Api\V1\ExcelTemplateController::class, 'exportProgress']);
+        Route::post('export-cancel/{exportKey}', [\App\Http\Controllers\Api\V1\ExcelTemplateController::class, 'cancelExport']);
+        Route::get('export-download/{exportKey}', [\App\Http\Controllers\Api\V1\ExcelTemplateController::class, 'downloadExport']);
+        // Template-CRUD (Wildcard {id} muss nach statischen Routen kommen)
         Route::get('{id}', [\App\Http\Controllers\Api\V1\ExcelTemplateController::class, 'show']);
         Route::put('{id}', [\App\Http\Controllers\Api\V1\ExcelTemplateController::class, 'update']);
         Route::delete('{excelTemplate}', [\App\Http\Controllers\Api\V1\ExcelTemplateController::class, 'destroy']);
         Route::post('{id}/download', [\App\Http\Controllers\Api\V1\ExcelTemplateController::class, 'download']);
         Route::post('{id}/preview', [\App\Http\Controllers\Api\V1\ExcelTemplateController::class, 'preview']);
+        Route::post('{id}/export', [\App\Http\Controllers\Api\V1\ExcelTemplateController::class, 'startExport']);
     });
 
     // =====================================================================

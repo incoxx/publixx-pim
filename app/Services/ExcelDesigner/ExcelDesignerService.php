@@ -131,7 +131,7 @@ class ExcelDesignerService
                 ->resolveFieldValue($product, $column['field'] ?? '', $language),
             'attribute' => $this->resolvePreviewAttribute($product, $column, $language),
             'price' => $this->resolvePreviewPrice($product, $column),
-            'image' => $column['renderMode'] ?? 'embedded' === 'url'
+            'image' => ($column['renderMode'] ?? 'embedded') === 'url'
                 ? '[Bild-URL]' : '[Thumbnail]',
             'media' => '[Medien]',
             'relation' => '[Relationen]',

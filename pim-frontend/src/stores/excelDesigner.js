@@ -27,6 +27,11 @@ export const useExcelDesignerStore = defineStore('excelDesigner', () => {
   const previewData = ref(null)
   const previewLoading = ref(false)
 
+  // Async-Export
+  const exportProgress = ref(null)
+  const exportKey = ref(null)
+  const exportPolling = ref(false)
+
   // --- Template-Liste ---
 
   async function loadTemplates() {
@@ -297,18 +302,87 @@ export const useExcelDesignerStore = defineStore('excelDesigner', () => {
       params.search_profile_id = currentTemplate.value.search_profile_id
     }
 
-    const response = await excelTemplatesApi.download(currentTemplate.value.id, params)
-    const blob = new Blob([response.data], {
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    const customName = excelSettings.value?.fileName?.trim()
-    const baseName = customName || currentTemplate.value.name || 'excel-export'
-    link.download = `${baseName}-${new Date().toISOString().slice(0, 10)}.xlsx`
-    link.click()
-    URL.revokeObjectURL(url)
+    // Async-Export starten
+    const { data } = await excelTemplatesApi.startExport(currentTemplate.value.id, params)
+    const key = (data.data || data).export_key
+    exportKey.value = key
+    exportProgress.value = { status: 'queued', processed: 0, total: 0, percent: 0 }
+    exportPolling.value = true
+
+    // Polling starten
+    pollExportProgress()
+  }
+
+  let pollTimeout = null
+
+  function pollExportProgress() {
+    if (!exportKey.value || !exportPolling.value) return
+
+    pollTimeout = setTimeout(async () => {
+      pollTimeout = null
+      if (!exportKey.value || !exportPolling.value) return
+
+      try {
+        const { data } = await excelTemplatesApi.exportProgress(exportKey.value)
+        exportProgress.value = data.data || data
+
+        const status = exportProgress.value.status
+        if (status === 'completed') {
+          exportPolling.value = false
+          // Datei herunterladen
+          await downloadExportResult()
+        } else if (status === 'failed' || status === 'cancelled') {
+          exportPolling.value = false
+        } else {
+          // Weiter pollen
+          pollExportProgress()
+        }
+      } catch {
+        exportPolling.value = false
+        exportProgress.value = { ...exportProgress.value, status: 'failed', error: 'Verbindungsfehler' }
+      }
+    }, 1500)
+  }
+
+  async function downloadExportResult() {
+    if (!exportKey.value) return
+    try {
+      const response = await excelTemplatesApi.downloadExport(exportKey.value)
+      const blob = new Blob([response.data], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      const customName = excelSettings.value?.fileName?.trim()
+      const baseName = customName || currentTemplate.value?.name || 'excel-export'
+      link.download = `${baseName}-${new Date().toISOString().slice(0, 10)}.xlsx`
+      link.click()
+      URL.revokeObjectURL(url)
+    } finally {
+      exportKey.value = null
+      exportProgress.value = null
+    }
+  }
+
+  async function cancelExport() {
+    if (!exportKey.value) return
+    try {
+      await excelTemplatesApi.cancelExport(exportKey.value)
+      exportProgress.value = { ...exportProgress.value, status: 'cancelling' }
+    } catch {
+      // ignore
+    }
+  }
+
+  function dismissExport() {
+    exportPolling.value = false
+    if (pollTimeout) {
+      clearTimeout(pollTimeout)
+      pollTimeout = null
+    }
+    exportKey.value = null
+    exportProgress.value = null
   }
 
   async function importFromExcel(file) {
@@ -362,6 +436,7 @@ export const useExcelDesignerStore = defineStore('excelDesigner', () => {
     selectedSheetId, selectedColumnId, selectedSheet, selectedColumn,
     isDirty,
     previewData, previewLoading,
+    exportProgress, exportKey, exportPolling,
 
     // Actions
     loadTemplates, loadTemplate, saveTemplate, saveTemplateAs, createTemplate, deleteTemplate,
@@ -370,7 +445,7 @@ export const useExcelDesignerStore = defineStore('excelDesigner', () => {
     addColumn, removeColumn, updateColumn, moveColumn,
     addHeaderRow, removeHeaderRow, addFooterRow, removeFooterRow,
     selectSheet, selectColumn, clearSelection,
-    loadPreview, downloadExcel, importFromExcel,
+    loadPreview, downloadExcel, cancelExport, dismissExport, importFromExcel,
   }
 })
 

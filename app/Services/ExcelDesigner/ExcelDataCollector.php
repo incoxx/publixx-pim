@@ -41,6 +41,57 @@ class ExcelDataCollector
         ];
     }
 
+    /**
+     * Gesamtanzahl der Produkte ermitteln (ohne Relations zu laden).
+     */
+    public function countProducts(ExcelTemplate $template, ?SearchProfile $searchProfile = null): int
+    {
+        return $this->buildQuery($searchProfile)->count();
+    }
+
+    /**
+     * Produkte chunk-weise laden und gruppieren.
+     * Spart Speicher bei großen Datenmengen.
+     *
+     * @param  callable|null  $onChunk  fn(int $chunkCount): bool — false = abbrechen
+     * @return array{grouped: array, total: int}
+     */
+    public function collectChunked(
+        ExcelTemplate $template,
+        ?SearchProfile $searchProfile = null,
+        int $chunkSize = 500,
+        ?callable $onChunk = null,
+    ): array {
+        $query = $this->buildQuery($searchProfile);
+        $relations = $this->determineRelations($template->template_json);
+
+        $allProducts = new Collection();
+        $cancelled = false;
+
+        $query->with($relations)->chunkById($chunkSize, function (Collection $chunk) use (&$allProducts, &$cancelled, $onChunk) {
+            $allProducts = $allProducts->concat($chunk);
+
+            if ($onChunk) {
+                $continue = $onChunk($chunk->count());
+                if ($continue === false) {
+                    $cancelled = true;
+                    return false;
+                }
+            }
+        });
+
+        if ($cancelled) {
+            return ['grouped' => [], 'total' => $allProducts->count()];
+        }
+
+        $grouped = $this->groupProducts($allProducts, $template->template_json, $template->language ?? 'de');
+
+        return [
+            'grouped' => $grouped,
+            'total' => $allProducts->count(),
+        ];
+    }
+
     private function buildQuery(?SearchProfile $searchProfile): Builder
     {
         $query = Product::query();

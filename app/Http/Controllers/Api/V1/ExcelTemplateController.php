@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Traits\ChecksDeletionConstraints;
+use App\Jobs\ExcelExportJob;
 use App\Models\Attribute;
 use App\Models\ExcelTemplate;
 use App\Models\MediaUsageType;
@@ -15,6 +16,9 @@ use App\Services\ExcelDesigner\ExcelDesignerService;
 use App\Services\ExcelDesigner\ExcelTemplateImporter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Str;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ExcelTemplateController extends Controller
@@ -257,11 +261,105 @@ class ExcelTemplateController extends Controller
         ]);
     }
 
+    /**
+     * POST /api/v1/excel-templates/{id}/export — Async-Export starten.
+     */
+    public function startExport(Request $request, string $id): JsonResponse
+    {
+        $template = ExcelTemplate::findOrFail($id);
+        $this->authorizeAccess($request, $template);
+
+        $validated = $request->validate([
+            'search_profile_id' => 'sometimes|string|nullable|exists:search_profiles,id',
+        ]);
+
+        $searchProfileId = $validated['search_profile_id'] ?? null;
+        $exportKey = 'excel_' . Str::random(16);
+        $userId = $request->user()?->id;
+
+        ExcelExportJob::dispatch($template->id, $searchProfileId, $exportKey);
+
+        // User-ID im Cache speichern für Auth-Check bei Progress/Download
+        Cache::put(ExcelExportJob::cacheKey($exportKey) . ':owner', $userId, 1800);
+
+        return response()->json([
+            'data' => [
+                'export_key' => $exportKey,
+                'status' => 'queued',
+            ],
+        ]);
+    }
+
+    /**
+     * GET /api/v1/excel-templates/export-progress/{exportKey} — Progress abfragen.
+     */
+    public function exportProgress(Request $request, string $exportKey): JsonResponse
+    {
+        $this->authorizeExportAccess($request, $exportKey);
+
+        $progress = Cache::get(ExcelExportJob::cacheKey($exportKey));
+
+        if (!$progress) {
+            return response()->json([
+                'data' => ['status' => 'queued', 'processed' => 0, 'total' => 0, 'percent' => 0],
+            ]);
+        }
+
+        return response()->json(['data' => $progress]);
+    }
+
+    /**
+     * POST /api/v1/excel-templates/export-cancel/{exportKey} — Export abbrechen.
+     */
+    public function cancelExport(Request $request, string $exportKey): JsonResponse
+    {
+        $this->authorizeExportAccess($request, $exportKey);
+
+        ExcelExportJob::cancel($exportKey);
+
+        return response()->json(['data' => ['status' => 'cancelling']]);
+    }
+
+    /**
+     * GET /api/v1/excel-templates/export-download/{exportKey} — Fertige Datei herunterladen.
+     */
+    public function downloadExport(Request $request, string $exportKey): BinaryFileResponse|JsonResponse
+    {
+        $this->authorizeExportAccess($request, $exportKey);
+
+        $progress = Cache::get(ExcelExportJob::cacheKey($exportKey));
+
+        if (!$progress || $progress['status'] !== 'completed') {
+            return response()->json(['error' => 'Export nicht bereit.'], 404);
+        }
+
+        $path = $progress['output_path'] ?? null;
+        if (!$path || !file_exists($path)) {
+            return response()->json(['error' => 'Export-Datei nicht gefunden.'], 404);
+        }
+
+        $fileName = $progress['file_name'] ?? 'export.xlsx';
+
+        return response()->download($path, $fileName, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ])->deleteFileAfterSend(true);
+    }
+
     private function authorizeAccess(Request $request, ExcelTemplate $template): void
     {
         $userId = $request->user()?->id;
         if (!$template->is_shared && $template->user_id && $userId !== $template->user_id) {
             abort(403, 'Kein Zugriff auf dieses Excel-Template.');
+        }
+    }
+
+    private function authorizeExportAccess(Request $request, string $exportKey): void
+    {
+        $ownerId = Cache::get(ExcelExportJob::cacheKey($exportKey) . ':owner');
+        $userId = $request->user()?->id;
+
+        if ($ownerId && $userId !== $ownerId) {
+            abort(403, 'Kein Zugriff auf diesen Export.');
         }
     }
 }

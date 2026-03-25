@@ -33,6 +33,22 @@ export default {
     return client.post(`/excel-templates/${id}/download`, params, { responseType: 'blob' })
   },
 
+  startExport(id, params = {}) {
+    return client.post(`/excel-templates/${id}/export`, params)
+  },
+
+  exportProgress(exportKey) {
+    return client.get(`/excel-templates/export-progress/${exportKey}`)
+  },
+
+  cancelExport(exportKey) {
+    return client.post(`/excel-templates/export-cancel/${exportKey}`)
+  },
+
+  downloadExport(exportKey) {
+    return client.get(`/excel-templates/export-download/${exportKey}`, { responseType: 'blob' })
+  },
+
   import(file, name = null) {
     const formData = new FormData()
     formData.append('file', file)
