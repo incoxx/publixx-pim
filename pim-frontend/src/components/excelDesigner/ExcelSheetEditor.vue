@@ -111,7 +111,7 @@ const groupFieldLabels = {
           <input
             v-model="store.selectedSheet.label"
             class="pim-input text-sm font-medium flex-1"
-            placeholder="Sheet-Name (wird als Tab-Name verwendet)"
+            placeholder="Sheet-Name (z.B. Produkte, Preisliste...)"
             @input="store.isDirty = true"
           />
 

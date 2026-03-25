@@ -71,8 +71,11 @@ class ExcelSheetWriter
      */
     private function writeGroupSheet(Spreadsheet $spreadsheet, array $group, string $language, array $settings, int $index): void
     {
+        // Label hat Vorrang, wenn vom Nutzer gesetzt. Sonst Gruppenwert, sonst Fallback.
+        $label = $group['label'] ?? '';
+        $value = $group['value'] ?? '';
         $sheetTitle = $this->sanitizeSheetTitle(
-            $group['value'] ?: $group['label'] ?: 'Blatt ' . ($index + 1),
+            $label ?: $value ?: 'Blatt ' . ($index + 1),
             $spreadsheet
         );
         $sheet = $spreadsheet->createSheet();

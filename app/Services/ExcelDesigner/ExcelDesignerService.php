@@ -21,6 +21,11 @@ class ExcelDesignerService
      */
     public function download(ExcelTemplate $template, ?SearchProfile $searchProfile = null): StreamedResponse
     {
+        // Fallback: Suchprofil vom Template nutzen
+        if (!$searchProfile && $template->search_profile_id) {
+            $searchProfile = SearchProfile::find($template->search_profile_id);
+        }
+
         $data = $this->dataCollector->collect($template, $searchProfile);
 
         $spreadsheet = $this->sheetWriter->build(
@@ -30,7 +35,9 @@ class ExcelDesignerService
             $template->excel_settings ?? [],
         );
 
-        $fileName = Str::slug($template->name) . '-' . date('Y-m-d');
+        $customFileName = $template->excel_settings['fileName'] ?? null;
+        $baseName = !empty($customFileName) ? Str::slug($customFileName) : Str::slug($template->name);
+        $fileName = $baseName . '-' . date('Y-m-d');
 
         return $this->sheetWriter->buildResponse($spreadsheet, $fileName);
     }
@@ -40,6 +47,11 @@ class ExcelDesignerService
      */
     public function preview(ExcelTemplate $template, ?SearchProfile $searchProfile = null, int $limit = 5): array
     {
+        // Fallback: Suchprofil vom Template nutzen
+        if (!$searchProfile && $template->search_profile_id) {
+            $searchProfile = SearchProfile::find($template->search_profile_id);
+        }
+
         $data = $this->dataCollector->collect($template, $searchProfile, $limit);
         $language = $template->language ?? 'de';
 
@@ -59,7 +71,7 @@ class ExcelDesignerService
         foreach ($grouped as $group) {
             $columns = $group['definition']['columns'] ?? [];
             $sheetPreview = [
-                'label' => $group['value'] ?: $group['label'] ?: 'Blatt',
+                'label' => $group['label'] ?: $group['value'] ?: 'Blatt',
                 'columns' => array_map(fn ($col) => [
                     'id' => $col['id'] ?? '',
                     'label' => $col['label'] ?? '',

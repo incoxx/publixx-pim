@@ -42,8 +42,11 @@ const displayFieldOptions = [
 
     <!-- Label -->
     <div>
-      <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">Spaltenüberschrift</label>
-      <input :value="col.label" @input="update('label', $event.target.value)" class="pim-input text-xs w-full" />
+      <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">Spaltenüberschrift (Excel-Kopf)</label>
+      <input :value="col.label" @input="update('label', $event.target.value)" class="pim-input text-xs w-full" placeholder="z.B. SKU, Bezeichnung, Preis..." />
+      <p class="text-[10px] text-[var(--color-text-tertiary)] mt-1">
+        Dieser Text erscheint als Spaltenkopf in der Excel-Datei.
+      </p>
     </div>
 
     <!-- Typ-spezifische Einstellungen -->
