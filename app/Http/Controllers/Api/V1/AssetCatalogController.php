@@ -10,6 +10,7 @@ use App\Models\HierarchyNode;
 use App\Models\HierarchyNodeMediaAssignment;
 use App\Models\Media;
 use App\Models\MediaAttributeValue;
+use App\Models\ProductMediaAssignment;
 use App\Support\KoelnerPhonetik;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -146,42 +147,97 @@ class AssetCatalogController extends BaseController
             });
         }
 
-        // Sorting
+        // Sortierung: bei Relevanz kein DB-Sort (Post-Query in PHP)
+        $useRelevanceSort = $isSearchActive && ($sortField === 'relevance' || $sortField === 'created_at');
         $sortColumn = match ($sortField) {
             'name' => $lang === 'en' ? 'title_en' : 'title_de',
             'file_size' => 'file_size',
             'file_name' => 'file_name',
+            'relevance' => 'created_at', // Fallback-Sort für DB, wird in PHP überschrieben
             default => 'created_at',
         };
         $query->orderBy($sortColumn, $sortOrder);
 
         $paginated = $query->paginate($perPage);
 
-        // Compute match_sources for search results
+        // Compute match_sources, snippets, relevance_score und references
         if ($isSearchActive) {
             $term = mb_strtolower(trim($search));
-            $phoneticTerm = KoelnerPhonetik::encode(trim($search));
+            $rawTerm = trim($search);
+            $phoneticTerm = KoelnerPhonetik::encode($rawTerm);
+
+            // Produkt-Referenzen vorladen
+            $mediaIds = collect($paginated->items())->pluck('id')->toArray();
+            $productRefsByMedia = [];
+            if (!empty($mediaIds)) {
+                $hasSearchIndex = DB::getSchemaBuilder()->hasTable('products_search_index');
+                $assignments = ProductMediaAssignment::whereIn('media_id', $mediaIds)
+                    ->with(['product' => fn ($q) => $q->where('status', 'active')->select('id', 'sku')])
+                    ->get();
+
+                $productNames = [];
+                if ($hasSearchIndex) {
+                    $productIds = $assignments->pluck('product_id')->unique()->values()->toArray();
+                    if (!empty($productIds)) {
+                        $nameField = $lang === 'en' ? 'name_en' : 'name_de';
+                        $productNames = DB::table('products_search_index')
+                            ->whereIn('product_id', $productIds)
+                            ->pluck($nameField, 'product_id')
+                            ->toArray();
+                    }
+                }
+
+                foreach ($assignments->groupBy('media_id') as $mId => $group) {
+                    $productRefsByMedia[$mId] = $group
+                        ->filter(fn ($a) => $a->product !== null)
+                        ->map(fn ($a) => [
+                            'id' => $a->product->id,
+                            'sku' => $a->product->sku,
+                            'name' => $productNames[$a->product->id] ?? $a->product->sku,
+                        ])
+                        ->unique('id')
+                        ->values()
+                        ->toArray();
+                }
+            }
 
             foreach ($paginated->items() as $item) {
                 $sources = [];
+                $score = 0;
 
-                if (str_contains(mb_strtolower($item->file_name ?? ''), $term)) {
-                    $sources[] = ['type' => 'filename', 'label' => $lang === 'en' ? 'Filename' : 'Dateiname'];
+                // Dateiname
+                $fileNameLower = mb_strtolower($item->file_name ?? '');
+                if ($fileNameLower === $term) {
+                    $sources[] = ['type' => 'filename', 'label' => $lang === 'en' ? 'Filename' : 'Dateiname', 'snippet' => $this->extractSnippet($item->file_name, $rawTerm)];
+                    $score += 100;
+                } elseif (str_contains($fileNameLower, $term)) {
+                    $sources[] = ['type' => 'filename', 'label' => $lang === 'en' ? 'Filename' : 'Dateiname', 'snippet' => $this->extractSnippet($item->file_name, $rawTerm)];
+                    $score += 50;
                 }
 
+                // Titel
                 $titleDe = mb_strtolower($item->title_de ?? '');
                 $titleEn = mb_strtolower($item->title_en ?? '');
-                if (str_contains($titleDe, $term) || str_contains($titleEn, $term)) {
-                    $sources[] = ['type' => 'title', 'label' => $lang === 'en' ? 'Title' : 'Titel'];
+                if (str_contains($titleDe, $term)) {
+                    $sources[] = ['type' => 'title', 'label' => $lang === 'en' ? 'Title' : 'Titel', 'snippet' => $this->extractSnippet($item->title_de, $rawTerm)];
+                    $score += 40;
+                } elseif (str_contains($titleEn, $term)) {
+                    $sources[] = ['type' => 'title', 'label' => $lang === 'en' ? 'Title' : 'Titel', 'snippet' => $this->extractSnippet($item->title_en, $rawTerm)];
+                    $score += 35;
                 }
 
+                // Beschreibung
                 $descDe = mb_strtolower($item->description_de ?? '');
                 $descEn = mb_strtolower($item->description_en ?? '');
-                if (str_contains($descDe, $term) || str_contains($descEn, $term)) {
-                    $sources[] = ['type' => 'description', 'label' => $lang === 'en' ? 'Description' : 'Beschreibung'];
+                if (str_contains($descDe, $term)) {
+                    $sources[] = ['type' => 'description', 'label' => $lang === 'en' ? 'Description' : 'Beschreibung', 'snippet' => $this->extractSnippet($item->description_de, $rawTerm)];
+                    $score += 20;
+                } elseif (str_contains($descEn, $term)) {
+                    $sources[] = ['type' => 'description', 'label' => $lang === 'en' ? 'Description' : 'Beschreibung', 'snippet' => $this->extractSnippet($item->description_en, $rawTerm)];
+                    $score += 20;
                 }
 
-                // Check attribute matches
+                // Attribut-Match
                 if ($item->relationLoaded('attributeValues')) {
                     foreach ($item->attributeValues as $attrValue) {
                         $attr = $attrValue->attribute;
@@ -189,13 +245,14 @@ class AssetCatalogController extends BaseController
                         $valueStr = mb_strtolower($attrValue->value_string ?? '');
                         if ($valueStr !== '' && str_contains($valueStr, $term)) {
                             $attrName = $lang === 'en' && $attr->name_en ? $attr->name_en : $attr->name_de;
-                            $sources[] = ['type' => 'attribute', 'label' => $attrName];
-                            break; // One attribute match is enough
+                            $sources[] = ['type' => 'attribute', 'label' => $attrName, 'snippet' => $this->extractSnippet($attrValue->value_string, $rawTerm)];
+                            $score += 25;
+                            break;
                         }
                     }
                 }
 
-                // Check hierarchy node matches
+                // Hierarchieknoten-Match
                 if ($item->relationLoaded('hierarchyNodeAssignments')) {
                     foreach ($item->hierarchyNodeAssignments as $nodeAssignment) {
                         $node = $nodeAssignment->hierarchyNode;
@@ -209,38 +266,72 @@ class AssetCatalogController extends BaseController
                             if ($hierarchyName) {
                                 $label .= " ({$hierarchyName})";
                             }
-                            $sources[] = ['type' => 'hierarchy_node', 'label' => $label];
+                            $sources[] = ['type' => 'hierarchy_node', 'label' => $label, 'snippet' => $displayName];
+                            $score += 25;
                             break;
                         }
                     }
                 }
 
-                // Phonetic match (only if no other matches found)
+                // Phonetisch (niedrigste Relevanz, nur wenn keine anderen Treffer)
                 if (empty($sources) && $phoneticTerm !== '') {
+                    $phoneticSnippet = null;
                     $isPhoneticMatch = false;
                     if ($item->file_name) {
                         $filePhonetic = KoelnerPhonetik::encode($item->file_name);
                         if ($filePhonetic !== '' && str_contains($filePhonetic, $phoneticTerm)) {
                             $isPhoneticMatch = true;
+                            $phoneticSnippet = $item->file_name;
                         }
                     }
                     if (!$isPhoneticMatch && $item->title_de) {
                         $titlePhonetic = KoelnerPhonetik::encode($item->title_de);
                         if ($titlePhonetic !== '' && str_contains($titlePhonetic, $phoneticTerm)) {
                             $isPhoneticMatch = true;
+                            $phoneticSnippet = $item->title_de;
                         }
                     }
                     if ($isPhoneticMatch) {
-                        $sources[] = ['type' => 'phonetic', 'label' => $lang === 'en' ? 'Sounds similar' : 'Ähnlich klingend'];
+                        $sources[] = ['type' => 'phonetic', 'label' => $lang === 'en' ? 'Sounds similar' : 'Ähnlich klingend', 'snippet' => $phoneticSnippet];
+                        $score += 5;
                     }
                 }
 
                 // Fallback
                 if (empty($sources)) {
-                    $sources[] = ['type' => 'filename', 'label' => $lang === 'en' ? 'Filename' : 'Dateiname'];
+                    $sources[] = ['type' => 'filename', 'label' => $lang === 'en' ? 'Filename' : 'Dateiname', 'snippet' => null];
                 }
 
                 $item->match_sources = $sources;
+                $item->relevance_score = $score;
+
+                // Referenzen (Produkte + Knoten)
+                $refs = [];
+                $refs['products'] = $productRefsByMedia[$item->id] ?? [];
+                if ($item->relationLoaded('hierarchyNodeAssignments')) {
+                    $refs['hierarchy_nodes'] = $item->hierarchyNodeAssignments
+                        ->map(function ($a) use ($lang) {
+                            $node = $a->hierarchyNode;
+                            if (!$node) return null;
+                            return [
+                                'node_id' => $node->id,
+                                'node_name' => $lang === 'en' && $node->name_en ? $node->name_en : $node->name_de,
+                            ];
+                        })
+                        ->filter()
+                        ->values()
+                        ->toArray();
+                }
+                $item->references = $refs;
+            }
+
+            // Relevanz-Sortierung innerhalb der Seite
+            if ($useRelevanceSort) {
+                $items = collect($paginated->items())
+                    ->sortByDesc('relevance_score')
+                    ->values();
+                // Items im Paginator ersetzen
+                $paginated->setCollection($items);
             }
         }
 
@@ -565,5 +656,39 @@ class AssetCatalogController extends BaseController
         }, 'pim-assets-' . date('Y-m-d-His') . '.zip', [
             'Content-Type' => 'application/zip',
         ]);
+    }
+
+    /**
+     * Extrahiert einen Textausschnitt um den Suchbegriff mit <mark>-Highlighting.
+     */
+    private function extractSnippet(?string $text, string $term, int $contextChars = 40): ?string
+    {
+        if ($text === null || $text === '' || $term === '') {
+            return null;
+        }
+
+        $pos = mb_stripos($text, $term);
+        if ($pos === false) {
+            return null;
+        }
+
+        $termLen = mb_strlen($term);
+        $textLen = mb_strlen($text);
+
+        $start = max(0, $pos - $contextChars);
+        $end = min($textLen, $pos + $termLen + $contextChars);
+
+        $before = mb_substr($text, $start, $pos - $start);
+        $match = mb_substr($text, $pos, $termLen);
+        $after = mb_substr($text, $pos + $termLen, $end - $pos - $termLen);
+
+        $snippet = '';
+        if ($start > 0) $snippet .= '…';
+        $snippet .= htmlspecialchars($before, ENT_QUOTES, 'UTF-8');
+        $snippet .= '<mark>' . htmlspecialchars($match, ENT_QUOTES, 'UTF-8') . '</mark>';
+        $snippet .= htmlspecialchars($after, ENT_QUOTES, 'UTF-8');
+        if ($end < $textLen) $snippet .= '…';
+
+        return $snippet;
     }
 }

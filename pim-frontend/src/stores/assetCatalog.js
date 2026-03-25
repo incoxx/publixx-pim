@@ -70,6 +70,15 @@ export const useAssetCatalogStore = defineStore('assetCatalog', () => {
   const isEmpty = computed(() => assets.value.length === 0 && !loading.value)
   const wishlistCount = computed(() => wishlistIds.value.length)
 
+  // Automatisch Relevanz-Sort bei aktiver Suche, wenn der User keinen anderen Sort gewählt hat
+  const _userChangedSort = ref(false)
+  const effectiveSort = computed(() => {
+    if (search.value && search.value.trim() && !_userChangedSort.value) {
+      return { field: 'relevance', order: 'desc' }
+    }
+    return sort.value
+  })
+
   function isInWishlist(assetId) {
     return wishlistIds.value.includes(assetId)
   }
@@ -123,11 +132,12 @@ export const useAssetCatalogStore = defineStore('assetCatalog', () => {
     loading.value = true
     error.value = null
     try {
+      const activeSort = effectiveSort.value
       const { data } = await assetCatalogApi.getAssets({
         page: meta.value.current_page,
         perPage: meta.value.per_page,
-        sort: sort.value.field,
-        order: sort.value.order,
+        sort: activeSort.field,
+        order: activeSort.order,
         search: search.value || undefined,
         folder: selectedFolderId.value || undefined,
         usagePurpose: usagePurposeFilter.value || undefined,
@@ -214,6 +224,7 @@ export const useAssetCatalogStore = defineStore('assetCatalog', () => {
   function setSearch(term) {
     search.value = term
     meta.value.current_page = 1
+    _userChangedSort.value = false
   }
 
   function setFolder(nodeId, nodeName = null) {
@@ -244,6 +255,7 @@ export const useAssetCatalogStore = defineStore('assetCatalog', () => {
 
   function setSort(field, order) {
     sort.value = { field, order }
+    _userChangedSort.value = true
     meta.value.current_page = 1
   }
 
@@ -273,6 +285,7 @@ export const useAssetCatalogStore = defineStore('assetCatalog', () => {
     usagePurposeFilter,
     mediaTypeFilter,
     sort,
+    effectiveSort,
     viewMode,
     locale,
     wishlistIds,

@@ -133,9 +133,12 @@ class PdfController extends Controller
             $hasSearchIndex = \Illuminate\Support\Facades\DB::getSchemaBuilder()->hasTable('products_search_index');
 
             $mediaItems = Media::whereIn('id', $mediaIds)
-                ->with(['productAssignments.product' => function ($q) {
-                    $q->where('status', 'active')->select('id', 'sku');
-                }])
+                ->with([
+                    'productAssignments.product' => function ($q) {
+                        $q->where('status', 'active')->select('id', 'sku');
+                    },
+                    'hierarchyNodeAssignments.hierarchyNode',
+                ])
                 ->get()
                 ->keyBy('id');
 
@@ -173,9 +176,23 @@ class PdfController extends Controller
                         ->unique('id')
                         ->values()
                         ->toArray();
+
+                    $group['hierarchy_nodes'] = $media->hierarchyNodeAssignments
+                        ->map(function ($a) use ($lang) {
+                            $node = $a->hierarchyNode;
+                            if (!$node) return null;
+                            return [
+                                'node_id' => $node->id,
+                                'node_name' => $lang === 'en' && $node->name_en ? $node->name_en : $node->name_de,
+                            ];
+                        })
+                        ->filter()
+                        ->values()
+                        ->toArray();
                 } else {
                     $group['metadata'] = null;
                     $group['products'] = [];
+                    $group['hierarchy_nodes'] = [];
                 }
             }
             unset($group);

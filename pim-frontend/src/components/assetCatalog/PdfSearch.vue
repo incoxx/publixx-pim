@@ -2,7 +2,7 @@
 import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useDebounceFn } from '@vueuse/core'
-import { Search, FileText, Loader2, ChevronDown, ChevronRight, BookOpen, Package, Globe, Calendar, HardDrive } from 'lucide-vue-next'
+import { Search, FileText, Loader2, ChevronDown, ChevronRight, BookOpen, Package, Globe, Calendar, HardDrive, FolderTree } from 'lucide-vue-next'
 import pdfApi from '@/api/pdf'
 
 const emit = defineEmits(['select-result'])
@@ -221,6 +221,26 @@ function selectResult(group, hit) {
                   class="inline-flex items-center px-1.5 py-0.5 text-[10px] text-base-content/40"
                 >
                   +{{ group.products.length - 5 }} {{ t('pdf.moreProducts', 'weitere') }}
+                </span>
+              </div>
+            </div>
+
+            <!-- Knoten-Referenzen -->
+            <div v-if="group.hierarchy_nodes && group.hierarchy_nodes.length > 0" class="flex items-start gap-2">
+              <FolderTree class="w-3.5 h-3.5 text-base-content/40 mt-0.5 shrink-0" />
+              <div class="flex flex-wrap gap-1">
+                <span
+                  v-for="node in group.hierarchy_nodes.slice(0, 5)"
+                  :key="node.node_id"
+                  class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-secondary/10 text-[10px] text-secondary"
+                >
+                  {{ node.node_name }}
+                </span>
+                <span
+                  v-if="group.hierarchy_nodes.length > 5"
+                  class="inline-flex items-center px-1.5 py-0.5 text-[10px] text-base-content/40"
+                >
+                  +{{ group.hierarchy_nodes.length - 5 }} weitere
                 </span>
               </div>
             </div>
