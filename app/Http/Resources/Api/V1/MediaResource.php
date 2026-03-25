@@ -30,7 +30,7 @@ class MediaResource extends JsonResource
             'asset_folder_id' => $this->asset_folder_id,
             'usage_purpose' => $this->usage_purpose,
             'last_uploaded_at' => $this->last_uploaded_at,
-            'revision_count' => $this->revisions_count ?? $this->revisions()->count(),
+            'revision_count' => $this->revisions_count ?? 0,
             'url' => url('api/v1/media/file/' . rawurlencode($this->file_name)),
             'file_url' => url('api/v1/media/file/' . rawurlencode($this->file_name)),
             'thumb_url' => url("api/v1/media/thumb/{$this->id}?w=300&h=300"),

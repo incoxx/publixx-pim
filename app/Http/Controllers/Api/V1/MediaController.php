@@ -10,6 +10,7 @@ use App\Http\Resources\Api\V1\MediaResource;
 use App\Http\Traits\ChecksDeletionConstraints;
 use App\Models\Media;
 use App\Models\MediaRevision;
+use Illuminate\Support\Facades\DB;
 use App\Models\Product;
 use App\Models\ProductMediaAssignment;
 use App\Models\MediaUsageType;
@@ -36,7 +37,7 @@ class MediaController extends Controller
     {
         $this->authorize('viewAny', Media::class);
 
-        $query = Media::query();
+        $query = Media::query()->withCount('revisions');
 
         $filters = $request->query('filter', []);
 
@@ -117,25 +118,31 @@ class MediaController extends Controller
 
         [$width, $height] = $this->detectDimensions($request, $file, $storedPath);
 
-        $media = Media::create([
-            'file_name' => $safeFilename,
-            'original_file_name' => $originalFileName,
-            'file_path' => $path,
-            'mime_type' => $file->getMimeType(),
-            'file_size' => $file->getSize(),
-            'media_type' => $this->detectMediaType($file->getMimeType()),
-            'title_de' => $request->input('title_de', $originalFileName),
-            'title_en' => $request->input('title_en'),
-            'description_de' => $request->input('description_de'),
-            'description_en' => $request->input('description_en'),
-            'alt_text_de' => $request->input('alt_text_de'),
-            'alt_text_en' => $request->input('alt_text_en'),
-            'width' => $width,
-            'height' => $height,
-            'asset_folder_id' => $request->input('asset_folder_id'),
-            'usage_purpose' => $request->input('usage_purpose', 'both'),
-            'last_uploaded_at' => now(),
-        ]);
+        try {
+            $media = Media::create([
+                'file_name' => $safeFilename,
+                'original_file_name' => $originalFileName,
+                'file_path' => $path,
+                'mime_type' => $file->getMimeType(),
+                'file_size' => $file->getSize(),
+                'media_type' => $this->detectMediaType($file->getMimeType()),
+                'title_de' => $request->input('title_de', $originalFileName),
+                'title_en' => $request->input('title_en'),
+                'description_de' => $request->input('description_de'),
+                'description_en' => $request->input('description_en'),
+                'alt_text_de' => $request->input('alt_text_de'),
+                'alt_text_en' => $request->input('alt_text_en'),
+                'width' => $width,
+                'height' => $height,
+                'asset_folder_id' => $request->input('asset_folder_id'),
+                'usage_purpose' => $request->input('usage_purpose', 'both'),
+                'last_uploaded_at' => now(),
+            ]);
+        } catch (\Throwable $e) {
+            // Cleanup: Datei auf Disk löschen wenn DB-Insert fehlschlägt
+            Storage::disk('public')->delete($path);
+            throw $e;
+        }
 
         $this->generateEagerThumbnail($media);
 
@@ -156,49 +163,57 @@ class MediaController extends Controller
 
         $disk = Storage::disk('public');
 
-        // 1. Alte Datei als Revision archivieren
-        $nextRevision = ($existing->revisions()->max('revision_number') ?? 0) + 1;
-        $archiveDir = 'media-revisions/' . $existing->id;
-        $archivePath = $archiveDir . '/rev-' . $nextRevision . '-' . $existing->file_name;
+        // DB-Transaktion mit Row-Lock gegen Race Conditions bei parallelen Uploads
+        $nextRevision = DB::transaction(function () use ($existing, $request, $file, $disk) {
+            // Row-Lock: verhindert gleichzeitiges Replace desselben Assets
+            $existing = Media::lockForUpdate()->find($existing->id);
 
-        if ($disk->exists($existing->file_path)) {
-            $disk->copy($existing->file_path, $archivePath);
-        }
+            // 1. Alte Datei als Revision archivieren
+            $nextRevision = ($existing->revisions()->max('revision_number') ?? 0) + 1;
+            $archiveDir = 'media-revisions/' . $existing->id;
+            $archivePath = $archiveDir . '/rev-' . $nextRevision . '-' . $existing->file_name;
 
-        MediaRevision::create([
-            'media_id' => $existing->id,
-            'revision_number' => $nextRevision,
-            'file_name' => $existing->file_name,
-            'file_path' => $archivePath,
-            'original_file_name' => $existing->original_file_name,
-            'mime_type' => $existing->mime_type,
-            'file_size' => $existing->file_size,
-            'width' => $existing->width,
-            'height' => $existing->height,
-            'replaced_by' => $request->user()?->id,
-            'replaced_at' => now(),
-        ]);
+            if ($disk->exists($existing->file_path)) {
+                $disk->copy($existing->file_path, $archivePath);
+            }
 
-        // 2. Neue Datei unter gleichem Pfad speichern
-        $disk->delete($existing->file_path);
-        $file->storeAs('media', $existing->file_name, 'public');
+            MediaRevision::create([
+                'media_id' => $existing->id,
+                'revision_number' => $nextRevision,
+                'file_name' => $existing->file_name,
+                'file_path' => $archivePath,
+                'original_file_name' => $existing->original_file_name,
+                'mime_type' => $existing->mime_type,
+                'file_size' => $existing->file_size,
+                'width' => $existing->width,
+                'height' => $existing->height,
+                'replaced_by' => $request->user()?->id,
+                'replaced_at' => now(),
+            ]);
 
-        $storedPath = $disk->path($existing->file_path);
-        $this->processUploadedImage($file, $storedPath);
+            // 2. Neue Datei unter gleichem Pfad speichern
+            $disk->delete($existing->file_path);
+            $file->storeAs('media', $existing->file_name, 'public');
 
-        [$width, $height] = $this->detectDimensions($request, $file, $storedPath);
+            $storedPath = $disk->path($existing->file_path);
+            $this->processUploadedImage($file, $storedPath);
 
-        // 3. Media-Record updaten
-        $existing->update([
-            'mime_type' => $file->getMimeType(),
-            'file_size' => $file->getSize(),
-            'media_type' => $this->detectMediaType($file->getMimeType()),
-            'width' => $width,
-            'height' => $height,
-            'last_uploaded_at' => now(),
-        ]);
+            [$width, $height] = $this->detectDimensions($request, $file, $storedPath);
 
-        // 4. Thumbnail-Cache löschen und neu generieren
+            // 3. Media-Record updaten
+            $existing->update([
+                'mime_type' => $file->getMimeType(),
+                'file_size' => $file->getSize(),
+                'media_type' => $this->detectMediaType($file->getMimeType()),
+                'width' => $width,
+                'height' => $height,
+                'last_uploaded_at' => now(),
+            ]);
+
+            return $nextRevision;
+        });
+
+        // 4. Thumbnail-Cache löschen und neu generieren (außerhalb Transaction)
         app(ThumbnailService::class)->clearCache($existing);
         $this->generateEagerThumbnail($existing);
 
@@ -417,26 +432,31 @@ class MediaController extends Controller
                 continue;
             }
 
-            // Thumbnail-Cache löschen
             try {
-                app(ThumbnailService::class)->clearCache($media);
-            } catch (\Throwable) {
-                // Nicht-kritisch
-            }
+                // Thumbnail-Cache löschen
+                try {
+                    app(ThumbnailService::class)->clearCache($media);
+                } catch (\Throwable) {
+                    // Nicht-kritisch
+                }
 
-            // Revisions-Dateien löschen
-            $disk = Storage::disk('public');
-            if ($disk->exists('media-revisions/' . $media->id)) {
-                $disk->deleteDirectory('media-revisions/' . $media->id);
-            }
+                // Revisions-Dateien löschen
+                $disk = Storage::disk('public');
+                if ($disk->exists('media-revisions/' . $media->id)) {
+                    $disk->deleteDirectory('media-revisions/' . $media->id);
+                }
 
-            // Datei auf Disk löschen
-            if ($disk->exists($media->file_path)) {
-                $disk->delete($media->file_path);
-            }
+                // Datei auf Disk löschen
+                if ($disk->exists($media->file_path)) {
+                    $disk->delete($media->file_path);
+                }
 
-            $media->delete();
-            $deleted++;
+                $media->delete();
+                $deleted++;
+            } catch (\Throwable $e) {
+                $skipped++;
+                $errors[] = "{$media->file_name}: {$e->getMessage()}";
+            }
         }
 
         return response()->json([
@@ -632,15 +652,17 @@ class MediaController extends Controller
 
             $media = Media::create([
                 'file_name' => $safeFilename,
+                'original_file_name' => $originalName,
                 'file_path' => 'media/' . $safeFilename,
                 'mime_type' => $actualMime,
-                'file_size' => strlen($response->body()),
+                'file_size' => Storage::disk('public')->size('media/' . $safeFilename),
                 'media_type' => $this->detectMediaType($actualMime),
                 'title_de' => pathinfo($originalName, PATHINFO_FILENAME),
                 'width' => $width,
                 'height' => $height,
                 'asset_folder_id' => $validated['asset_folder_id'] ?? null,
                 'usage_purpose' => $validated['usage_purpose'] ?? 'both',
+                'last_uploaded_at' => now(),
             ]);
 
             return (new MediaResource($media))
