@@ -802,10 +802,13 @@ onMounted(() => {
                 <Image class="w-8 h-8 text-[var(--color-text-tertiary)]/30" :stroke-width="1.5" />
               </div>
             </template>
-            <div v-else-if="isItemPdf(item)" class="flex flex-col items-center gap-1 text-[var(--color-error)]/60">
-              <FileText class="w-10 h-10" :stroke-width="1.25" />
-              <span class="text-[9px] text-[var(--color-text-tertiary)]">PDF</span>
-            </div>
+            <template v-else-if="isItemPdf(item)">
+              <img v-if="item.pdf_preview_url" :src="item.pdf_preview_url" class="w-full h-full object-contain" loading="lazy" alt="PDF" @error="(e) => { e.target.style.display = 'none'; e.target.nextElementSibling.style.display = 'flex' }" />
+              <div :class="['flex-col items-center gap-1 text-[var(--color-error)]/60', item.pdf_preview_url ? 'absolute inset-0 bg-[var(--color-bg)] justify-center' : 'flex']" :style="item.pdf_preview_url ? 'display: none' : ''">
+                <FileText class="w-10 h-10" :stroke-width="1.25" />
+                <span class="text-[9px] text-[var(--color-text-tertiary)]">PDF</span>
+              </div>
+            </template>
             <Image v-else class="w-8 h-8 text-[var(--color-text-tertiary)]" :stroke-width="1.5" />
           </div>
           <div class="p-2 flex items-center justify-between">

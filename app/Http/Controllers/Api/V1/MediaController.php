@@ -37,7 +37,7 @@ class MediaController extends Controller
     {
         $this->authorize('viewAny', Media::class);
 
-        $query = Media::query()->withCount('revisions');
+        $query = Media::query()->with('pdfDocument:id,media_id,status')->withCount('revisions');
 
         $filters = $request->query('filter', []);
 
