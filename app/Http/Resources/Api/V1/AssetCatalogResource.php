@@ -115,6 +115,8 @@ class AssetCatalogResource extends JsonResource
             'original_url' => url('api/v1/media/file/' . rawurlencode($this->file_name)),
             'metadata' => $metadata,
             'match_sources' => $this->match_sources ?? null,
+            'relevance_score' => $this->relevance_score ?? null,
+            'references' => $this->references ?? null,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

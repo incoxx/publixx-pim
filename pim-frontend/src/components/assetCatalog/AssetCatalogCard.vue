@@ -24,6 +24,13 @@ function toggleWishlist(e) {
 }
 
 const staggerDelay = computed(() => `${Math.min(props.index * 40, 400)}ms`)
+
+// Erstes Snippet aus match_sources extrahieren
+const firstSnippet = computed(() => {
+  if (!props.asset.match_sources) return null
+  const source = props.asset.match_sources.find(s => s.snippet)
+  return source?.snippet || null
+})
 </script>
 
 <template>
@@ -81,12 +88,13 @@ const staggerDelay = computed(() => `${Math.min(props.index * 40, 400)}ms`)
       <h3 class="text-xs font-semibold line-clamp-1">{{ asset.title || asset.file_name }}</h3>
       <p class="text-[10px] text-base-content/50 truncate">{{ asset.file_name }}</p>
 
-      <!-- Match sources (search hit badges) -->
+      <!-- Match sources (search hit badges) — truncated mit Tooltip -->
       <div v-if="asset.match_sources?.length" class="flex flex-wrap gap-1 mt-1">
         <span
           v-for="(source, i) in asset.match_sources.slice(0, 3)"
           :key="i"
-          class="badge badge-xs"
+          class="badge badge-xs max-w-[140px] truncate"
+          :title="source.label"
           :class="{
             'badge-primary': source.type === 'filename' || source.type === 'title',
             'badge-accent': source.type === 'attribute',
@@ -97,10 +105,39 @@ const staggerDelay = computed(() => `${Math.min(props.index * 40, 400)}ms`)
         >
           {{ source.label }}
         </span>
+        <span v-if="asset.match_sources.length > 3" class="badge badge-xs badge-ghost">
+          +{{ asset.match_sources.length - 3 }}
+        </span>
       </div>
 
-      <!-- Hierarchy node badges -->
-      <div v-if="asset.hierarchy_nodes?.length" class="flex flex-wrap gap-1 mt-0.5">
+      <!-- Snippet (erster Trefferkontext) -->
+      <p v-if="firstSnippet" class="text-[10px] text-base-content/50 line-clamp-1 mt-0.5" v-html="firstSnippet" />
+
+      <!-- Referenzen (Produkte + Knoten) bei Suchergebnissen -->
+      <div v-if="asset.references && (asset.references.products?.length || asset.references.hierarchy_nodes?.length)" class="flex flex-wrap gap-0.5 mt-0.5">
+        <span
+          v-for="p in (asset.references.products || []).slice(0, 2)"
+          :key="'p-' + p.id"
+          class="text-[9px] bg-base-200 text-base-content/60 px-1 py-0.5 rounded"
+          :title="p.name"
+        >
+          {{ p.sku }}
+        </span>
+        <span
+          v-for="n in (asset.references.hierarchy_nodes || []).slice(0, 2)"
+          :key="'n-' + n.node_id"
+          class="text-[9px] bg-secondary/10 text-secondary px-1 py-0.5 rounded"
+        >
+          {{ n.node_name }}
+        </span>
+        <span
+          v-if="(asset.references.products?.length || 0) + (asset.references.hierarchy_nodes?.length || 0) > 4"
+          class="text-[9px] text-base-content/40 px-0.5"
+        >…</span>
+      </div>
+
+      <!-- Hierarchy node badges (wenn keine Suchergebnisse, also kein references) -->
+      <div v-else-if="asset.hierarchy_nodes?.length" class="flex flex-wrap gap-1 mt-0.5">
         <span
           v-for="hn in asset.hierarchy_nodes.slice(0, 2)"
           :key="hn.node_id"

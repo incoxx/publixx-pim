@@ -79,9 +79,10 @@ function clearFolder() {
 
       <select
         class="select select-bordered select-xs"
-        :value="`${store.sort.field}:${store.sort.order}`"
+        :value="`${store.effectiveSort.field}:${store.effectiveSort.order}`"
         @change="changeSort"
       >
+        <option v-if="store.search" value="relevance:desc">Relevanz</option>
         <option value="created_at:desc">{{ t('assetCatalog.sortDate') }} ↓</option>
         <option value="created_at:asc">{{ t('assetCatalog.sortDate') }} ↑</option>
         <option value="name:asc">{{ t('assetCatalog.sortName') }} A-Z</option>
