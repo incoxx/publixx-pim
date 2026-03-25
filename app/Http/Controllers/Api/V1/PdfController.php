@@ -117,12 +117,69 @@ class PdfController extends Controller
             'page' => 'nullable|integer|min:1',
         ]);
 
+        $lang = $request->input('lang', 'de');
+
         $result = $typesense->search(
             $request->input('q'),
             $request->input('lang'),
             (int) $request->input('per_page', 20),
             (int) $request->input('page', 1),
         );
+
+        // Suchergebnisse mit Media-Metadaten und Produkt-Referenzen anreichern
+        $mediaIds = collect($result['groups'] ?? [])->pluck('media_id')->filter()->unique()->values()->toArray();
+
+        if (!empty($mediaIds)) {
+            $hasSearchIndex = \Illuminate\Support\Facades\DB::getSchemaBuilder()->hasTable('products_search_index');
+
+            $mediaItems = Media::whereIn('id', $mediaIds)
+                ->with(['productAssignments.product' => function ($q) {
+                    $q->where('status', 'active')->select('id', 'sku');
+                }])
+                ->get()
+                ->keyBy('id');
+
+            // Produkt-Namen aus Search-Index holen wenn verfügbar
+            $productNames = [];
+            if ($hasSearchIndex) {
+                $productIds = $mediaItems->flatMap(fn ($m) => $m->productAssignments->pluck('product_id'))->unique()->values()->toArray();
+                if (!empty($productIds)) {
+                    $nameField = $lang === 'en' ? 'name_en' : 'name_de';
+                    $productNames = \Illuminate\Support\Facades\DB::table('products_search_index')
+                        ->whereIn('product_id', $productIds)
+                        ->pluck($nameField, 'product_id')
+                        ->toArray();
+                }
+            }
+
+            foreach ($result['groups'] as &$group) {
+                $media = $mediaItems->get($group['media_id']);
+                if ($media) {
+                    $group['metadata'] = [
+                        'description' => $lang === 'en' ? ($media->description_en ?? $media->description_de) : ($media->description_de ?? $media->description_en),
+                        'media_type' => $media->media_type,
+                        'usage_purpose' => $media->usage_purpose,
+                        'file_size' => $media->file_size,
+                        'original_file_name' => $media->original_file_name,
+                        'created_at' => $media->created_at,
+                    ];
+                    $group['products'] = $media->productAssignments
+                        ->filter(fn ($a) => $a->product !== null)
+                        ->map(fn ($a) => [
+                            'id' => $a->product->id,
+                            'sku' => $a->product->sku,
+                            'name' => $productNames[$a->product->id] ?? $a->product->sku,
+                        ])
+                        ->unique('id')
+                        ->values()
+                        ->toArray();
+                } else {
+                    $group['metadata'] = null;
+                    $group['products'] = [];
+                }
+            }
+            unset($group);
+        }
 
         return $this->successResponse($result);
     }

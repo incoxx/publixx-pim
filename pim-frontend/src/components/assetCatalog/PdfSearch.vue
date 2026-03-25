@@ -2,7 +2,7 @@
 import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useDebounceFn } from '@vueuse/core'
-import { Search, FileText, Loader2, ChevronDown, ChevronRight, BookOpen } from 'lucide-vue-next'
+import { Search, FileText, Loader2, ChevronDown, ChevronRight, BookOpen, Package, Globe, Calendar, HardDrive } from 'lucide-vue-next'
 import pdfApi from '@/api/pdf'
 
 const emit = defineEmits(['select-result'])
@@ -18,12 +18,10 @@ const lastPageDocCount = ref(0)
 const perPage = 20
 const expandedGroups = ref(new Set())
 
-// Pagination: "Mehr laden" nur wenn letzte Seite voll war (= es gibt vermutlich mehr)
 const hasMore = computed(() => lastPageDocCount.value >= perPage)
 
 function sanitizeSnippet(html) {
   if (!html) return ''
-  // Exakter Match auf <mark> und </mark> — alles andere wird entfernt (XSS-sicher)
   return html.replace(/<[^>]*>/g, (tag) => {
     if (/^<mark>$/i.test(tag)) return tag
     if (/^<\/mark>$/i.test(tag)) return tag
@@ -37,6 +35,18 @@ function toggleGroup(pdfDocumentId) {
   } else {
     expandedGroups.value.add(pdfDocumentId)
   }
+}
+
+function formatFileSize(bytes) {
+  if (!bytes) return ''
+  if (bytes < 1024) return bytes + ' B'
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + ' KB'
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return ''
+  return new Date(dateStr).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
 async function performSearch(append = false) {
@@ -66,7 +76,6 @@ async function performSearch(append = false) {
     totalFound.value = data.found || 0
     lastPageDocCount.value = newGroups.length
 
-    // Erstes Ergebnis automatisch aufklappen (nur bei neuer Suche)
     if (!append && newGroups.length > 0) {
       expandedGroups.value = new Set([newGroups[0].pdf_document_id])
     }
@@ -167,8 +176,57 @@ function selectResult(group, hit) {
           </div>
         </button>
 
-        <!-- Seiten-Snippets (aufklappbar) -->
+        <!-- Aufklappbarer Bereich: Metadaten + Produkte + Snippets -->
         <div v-if="expandedGroups.has(group.pdf_document_id)" class="border-t border-base-300">
+
+          <!-- Metadaten + Produkt-Referenzen -->
+          <div v-if="group.metadata || (group.products && group.products.length > 0)" class="px-4 py-2.5 bg-base-200/30 border-b border-base-200 space-y-2">
+
+            <!-- Metadaten-Zeile -->
+            <div v-if="group.metadata" class="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-base-content/50">
+              <span v-if="group.metadata.file_size" class="flex items-center gap-1">
+                <HardDrive class="w-3 h-3" />
+                {{ formatFileSize(group.metadata.file_size) }}
+              </span>
+              <span v-if="group.metadata.usage_purpose && group.metadata.usage_purpose !== 'both'" class="flex items-center gap-1">
+                <Globe class="w-3 h-3" />
+                {{ group.metadata.usage_purpose }}
+              </span>
+              <span v-if="group.metadata.created_at" class="flex items-center gap-1">
+                <Calendar class="w-3 h-3" />
+                {{ formatDate(group.metadata.created_at) }}
+              </span>
+              <span v-if="group.metadata.description" class="text-base-content/40 truncate max-w-xs">
+                {{ group.metadata.description }}
+              </span>
+            </div>
+
+            <!-- Produkt-Referenzen -->
+            <div v-if="group.products && group.products.length > 0" class="flex items-start gap-2">
+              <Package class="w-3.5 h-3.5 text-base-content/40 mt-0.5 shrink-0" />
+              <div class="flex flex-wrap gap-1">
+                <span
+                  v-for="product in group.products.slice(0, 5)"
+                  :key="product.id"
+                  class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-base-300/50 text-[10px] text-base-content/60"
+                  :title="product.name"
+                >
+                  {{ product.sku }}
+                  <span v-if="product.name !== product.sku" class="text-base-content/40 truncate max-w-[120px]">
+                    {{ product.name }}
+                  </span>
+                </span>
+                <span
+                  v-if="group.products.length > 5"
+                  class="inline-flex items-center px-1.5 py-0.5 text-[10px] text-base-content/40"
+                >
+                  +{{ group.products.length - 5 }} {{ t('pdf.moreProducts', 'weitere') }}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Seiten-Snippets -->
           <button
             v-for="hit in group.hits"
             :key="`${group.pdf_document_id}-${hit.page_number}`"

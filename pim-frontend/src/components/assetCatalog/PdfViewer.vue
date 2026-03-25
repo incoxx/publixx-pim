@@ -23,6 +23,7 @@ const errorMessage = ref('')
 const currentPage = ref(props.initialPage)
 const loadedPages = ref(new Set())
 const pageRefs = ref([])
+const scrollContainer = ref(null)
 const observerCleanups = ref([])
 
 let pollInterval = null
@@ -90,8 +91,13 @@ function scrollToPage(pageNumber) {
   loadedPages.value.add(pageNumber)
   nextTick(() => {
     const el = pageRefs.value[pageNumber - 1]
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    const container = scrollContainer.value
+    if (el && container) {
+      // Innerhalb des Scroll-Containers scrollen
+      container.scrollTo({
+        top: el.offsetTop - container.offsetTop,
+        behavior: 'smooth',
+      })
     }
   })
 }
@@ -227,13 +233,13 @@ onUnmounted(() => {
       <p class="text-sm text-error">{{ errorMessage }}</p>
     </div>
 
-    <!-- Pages -->
-    <div v-else-if="status === 'ready'" class="flex flex-col gap-2">
+    <!-- Pages (scrollbarer Container) -->
+    <div v-else-if="status === 'ready'" ref="scrollContainer" class="overflow-y-auto flex flex-col gap-2" style="max-height: calc(100vh - 180px);">
       <div
         v-for="(page, index) in pages"
         :key="page.page_number"
         :ref="el => { if (el) pageRefs[index] = el }"
-        class="relative bg-white rounded-lg shadow-sm border border-base-300 overflow-hidden"
+        class="relative bg-white rounded-lg shadow-sm border border-base-300 overflow-hidden shrink-0"
       >
         <!-- Seitennummer -->
         <div class="absolute top-2 right-2 badge badge-ghost badge-xs z-10">
