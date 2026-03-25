@@ -6,6 +6,7 @@ const props = defineProps({
   nodes: { type: Array, default: () => [] },
   selectedId: { type: String, default: null },
   expandedIds: { type: Set, default: () => new Set() },
+  highlightedIds: { type: Set, default: () => new Set() },
   level: { type: Number, default: 0 },
   draggable: { type: Boolean, default: true },
 })
@@ -14,6 +15,10 @@ const emit = defineEmits(['select', 'toggle', 'create', 'delete', 'move', 'conte
 
 function isExpanded(node) {
   return props.expandedIds.has(node.id)
+}
+
+function isHighlighted(node) {
+  return props.highlightedIds.has(node.id)
 }
 
 function hasChildren(node) {
@@ -61,7 +66,9 @@ function handleDragOver(e) {
           'group flex items-center gap-1 px-2 py-[5px] rounded-md cursor-pointer transition-colors text-[13px]',
           selectedId === node.id
             ? 'bg-[color-mix(in_srgb,var(--color-accent)_10%,transparent)] text-[var(--color-accent)]'
-            : 'text-[var(--color-text-primary)] hover:bg-[var(--color-bg)]',
+            : isHighlighted(node)
+              ? 'bg-[color-mix(in_srgb,var(--color-warning)_12%,transparent)] text-[var(--color-text-primary)] ring-1 ring-inset ring-[var(--color-warning)]/30'
+              : 'text-[var(--color-text-primary)] hover:bg-[var(--color-bg)]',
         ]"
         :style="{ paddingLeft: (level * 20 + 8) + 'px' }"
         :draggable="draggable"
@@ -120,6 +127,7 @@ function handleDragOver(e) {
           :nodes="node.children"
           :selectedId="selectedId"
           :expandedIds="expandedIds"
+          :highlightedIds="highlightedIds"
           :level="level + 1"
           :draggable="draggable"
           @select="$emit('select', $event)"

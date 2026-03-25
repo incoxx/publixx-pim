@@ -59,11 +59,42 @@ const hierarchyAttrValues = ref({})
 const hierarchyAttrSaving = ref(false)
 const hierarchyAttrsLoaded = ref(null) // track which hierarchy was loaded
 
+// Tree panel resize
+const treePanelWidth = ref(320)
+const isTreeResizing = ref(false)
+const TREE_MIN_WIDTH = 240
+const TREE_MAX_WIDTH = 600
+
+function startTreeResize(e) {
+  e.preventDefault()
+  isTreeResizing.value = true
+  const startX = e.clientX
+  const startWidth = treePanelWidth.value
+
+  function onMove(ev) {
+    treePanelWidth.value = Math.min(TREE_MAX_WIDTH, Math.max(TREE_MIN_WIDTH, startWidth + (ev.clientX - startX)))
+  }
+
+  function onUp() {
+    isTreeResizing.value = false
+    document.removeEventListener('mousemove', onMove)
+    document.removeEventListener('mouseup', onUp)
+    document.body.style.cursor = ''
+    document.body.style.userSelect = ''
+  }
+
+  document.body.style.cursor = 'col-resize'
+  document.body.style.userSelect = 'none'
+  document.addEventListener('mousemove', onMove)
+  document.addEventListener('mouseup', onUp)
+}
+
 // Node search
 const nodeSearchQuery = ref('')
 const nodeSearchResults = ref([])
 const nodeSearching = ref(false)
 const nodeSearchRef = ref(null)
+const highlightedNodeIds = ref(new Set())
 let nodeSearchTimer = null
 
 onClickOutside(nodeSearchRef, () => {
@@ -74,6 +105,7 @@ function searchNodes() {
   clearTimeout(nodeSearchTimer)
   if (nodeSearchQuery.value.length < 2) {
     nodeSearchResults.value = []
+    highlightedNodeIds.value = new Set()
     return
   }
   nodeSearchTimer = setTimeout(async () => {
@@ -100,6 +132,21 @@ function searchNodes() {
         }
       }
       nodeSearchResults.value = results
+      // Auto-expand ancestor paths and highlight all matching nodes
+      const newHighlighted = new Set()
+      for (const result of results) {
+        newHighlighted.add(result.id)
+        if (result.path) {
+          const ids = result.path.split('/').filter(Boolean)
+          for (const id of ids) {
+            store.expandedNodes.add(id)
+          }
+        }
+        if (result.parent_node_id) {
+          store.expandedNodes.add(result.parent_node_id)
+        }
+      }
+      highlightedNodeIds.value = newHighlighted
     } catch {
       nodeSearchResults.value = []
     } finally {
@@ -125,9 +172,10 @@ function navigateToNode(node) {
   // Find the full node object in the tree for selection
   const fullNode = findNodeInTree(store.tree, node.id)
   store.selectNode(fullNode || node)
-  // Clear search
+  // Clear search and highlights
   nodeSearchQuery.value = ''
   nodeSearchResults.value = []
+  highlightedNodeIds.value = new Set()
 }
 
 function findNodeInTree(nodes, id) {
@@ -799,7 +847,10 @@ onMounted(async () => {
 <template>
   <div class="flex flex-col lg:flex-row gap-4 h-auto lg:h-[calc(100vh-140px)]">
     <!-- Left: Tree -->
-    <div class="w-full lg:w-[320px] shrink-0 pim-card flex flex-col overflow-hidden max-h-[50vh] lg:max-h-none">
+    <div
+      class="w-full shrink-0 pim-card flex flex-col overflow-hidden max-h-[50vh] lg:max-h-none relative"
+      :style="{ width: treePanelWidth + 'px', maxWidth: '100%' }"
+    >
       <div class="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)]">
         <h3 class="text-sm font-semibold text-[var(--color-text-primary)]">{{ t('hierarchy.title') }}</h3>
         <button v-if="authStore.hasPermission('hierarchies.create')" class="pim-btn pim-btn-ghost p-1" title="Neue Hierarchie" @click="openCreateHierarchy">
@@ -847,7 +898,7 @@ onMounted(async () => {
             placeholder="Knoten suchen..."
             @input="searchNodes"
           />
-          <button v-if="nodeSearchQuery" class="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-[var(--color-bg)]" @click="nodeSearchQuery = ''; nodeSearchResults.length = 0">
+          <button v-if="nodeSearchQuery" class="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-[var(--color-bg)]" @click="nodeSearchQuery = ''; nodeSearchResults.length = 0; highlightedNodeIds = new Set()">
             <X class="w-3 h-3 text-[var(--color-text-tertiary)]" />
           </button>
         </div>
@@ -878,6 +929,7 @@ onMounted(async () => {
           :nodes="store.tree"
           :selectedId="store.selectedNode?.id"
           :expandedIds="store.expandedNodes"
+          :highlightedIds="highlightedNodeIds"
           @select="handleSelect"
           @toggle="handleToggle"
           @move="handleMove"
@@ -890,6 +942,16 @@ onMounted(async () => {
         <p v-else-if="!store.loading && store.tree.length === 0" class="text-xs text-center text-[var(--color-text-tertiary)] py-8">
           Keine Knoten vorhanden.
         </p>
+      </div>
+      <!-- Resize handle (desktop only) -->
+      <div
+        class="absolute top-0 right-0 w-[5px] h-full cursor-col-resize group z-10 items-center justify-center hidden lg:flex"
+        @mousedown="startTreeResize"
+      >
+        <div
+          class="w-[2px] h-full transition-colors"
+          :class="isTreeResizing ? 'bg-[var(--color-accent)]' : 'bg-transparent group-hover:bg-[var(--color-accent)]/40'"
+        />
       </div>
     </div>
 
