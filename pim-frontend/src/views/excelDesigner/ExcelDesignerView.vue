@@ -162,7 +162,7 @@ if (typeof window !== 'undefined') {
 
       <select
         v-model="store.currentTemplate.language"
-        class="pim-input text-xs w-16"
+        class="pim-input text-xs w-12 shrink-0"
         @change="store.isDirty = true"
       >
         <option value="de">DE</option>
@@ -170,12 +170,12 @@ if (typeof window !== 'undefined') {
       </select>
 
       <!-- Suchprofil-Auswahl -->
-      <div class="flex items-center gap-1.5">
+      <div class="flex items-center gap-1.5 min-w-0 flex-1 max-w-xs">
         <Search class="w-3 h-3 text-[var(--color-text-tertiary)] shrink-0" :stroke-width="2" />
         <select
           :value="store.currentTemplate.search_profile_id || ''"
           @change="onSearchProfileChange"
-          class="pim-input text-xs w-44"
+          class="pim-input text-xs w-full"
           title="Suchprofil für Export"
         >
           <option value="">Alle aktiven Produkte</option>
