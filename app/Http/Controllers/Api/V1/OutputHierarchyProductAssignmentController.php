@@ -8,12 +8,16 @@ use App\Http\Requests\Api\V1\StoreOutputHierarchyProductAssignmentRequest;
 use App\Http\Resources\Api\V1\OutputHierarchyProductAssignmentResource;
 use App\Http\Resources\Api\V1\ProductResource;
 use App\Http\Traits\ChecksTabPermissions;
+use App\Models\Attribute;
+use App\Models\HierarchyAttributeAssignment;
 use App\Models\HierarchyNode;
 use App\Models\OutputHierarchyProductAssignment;
+use App\Models\OutputHierarchyProductAttributeValue;
 use App\Models\Product;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\DB;
 
 class OutputHierarchyProductAssignmentController extends Controller
 {
@@ -211,5 +215,171 @@ class OutputHierarchyProductAssignmentController extends Controller
         }
 
         return response()->json(['message' => 'Sort order updated']);
+    }
+
+    /**
+     * GET /output-hierarchy-product-assignments/{assignment}/relationship-attributes
+     *
+     * Liefert Beziehungs-Attribute (scope=relationship|both) der Hierarchie
+     * inkl. aktueller Werte für diese Zuordnung.
+     */
+    public function relationshipAttributes(Request $request, OutputHierarchyProductAssignment $assignment): JsonResponse
+    {
+        $this->authorize('view', $assignment->hierarchyNode);
+
+        $language = $request->query('language', 'de');
+        $hierarchyId = $assignment->hierarchyNode->hierarchy_id;
+
+        // Beziehungs-Attribute der Hierarchie laden (scope = relationship oder both)
+        $attrs = HierarchyAttributeAssignment::where('hierarchy_id', $hierarchyId)
+            ->whereIn('scope', ['relationship', 'both'])
+            ->with('attribute')
+            ->orderBy('sort_order')
+            ->get();
+
+        if ($attrs->isEmpty()) {
+            return response()->json(['data' => []]);
+        }
+
+        // Aktuelle Werte für diese Zuordnung laden
+        $valuesRaw = $assignment->attributeValues()
+            ->where(function ($q) use ($language) {
+                $q->whereNull('language')->orWhere('language', $language);
+            })
+            ->get();
+        $valuesByAttr = $valuesRaw->groupBy('attribute_id');
+
+        $result = $attrs->map(function (HierarchyAttributeAssignment $haa) use ($valuesByAttr) {
+            $attr = $haa->attribute;
+            $attrValues = $valuesByAttr->get($attr->id, collect());
+            $firstValue = $attrValues->first();
+
+            return [
+                'assignment_attribute_id' => $haa->id,
+                'attribute_id' => $attr->id,
+                'attribute_technical_name' => $attr->technical_name,
+                'attribute_name_de' => $attr->name_de,
+                'attribute_name_en' => $attr->name_en,
+                'data_type' => $attr->data_type,
+                'value_list_id' => $attr->value_list_id,
+                'is_translatable' => (bool) $attr->is_translatable,
+                'is_multipliable' => (bool) $attr->is_multipliable,
+                'max_multiplied' => $attr->max_multiplied,
+                'value' => $firstValue
+                    ? ($firstValue->value_string ?? $firstValue->value_number ?? $firstValue->value_date ?? $firstValue->value_flag ?? $firstValue->value_selection_id)
+                    : null,
+                'value_selection_id' => $firstValue?->value_selection_id,
+                'unit_id' => $firstValue?->unit_id,
+                'multiplied_values' => $attr->is_multipliable
+                    ? $attrValues->map(fn ($v) => [
+                        'value' => $v->value_string ?? $v->value_number ?? $v->value_date ?? $v->value_flag ?? $v->value_selection_id,
+                        'value_selection_id' => $v->value_selection_id,
+                        'unit_id' => $v->unit_id,
+                        'multiplied_index' => $v->multiplied_index,
+                    ])->values()->all()
+                    : null,
+                'scope' => $haa->scope,
+                'sort_order' => $haa->sort_order,
+            ];
+        });
+
+        return response()->json(['data' => $result->values()]);
+    }
+
+    /**
+     * PUT /output-hierarchy-product-assignments/{assignment}/relationship-attributes
+     *
+     * Speichert Beziehungs-Attributwerte für eine Produkt↔Knoten-Zuordnung.
+     */
+    public function updateRelationshipAttributes(Request $request, OutputHierarchyProductAssignment $assignment): JsonResponse
+    {
+        $this->authorize('update', $assignment->hierarchyNode);
+        $this->assertTabWriteAccess('output-hierarchies');
+
+        $request->validate([
+            'values' => 'required|array',
+            'values.*.attribute_id' => 'required|uuid|exists:attributes,id',
+            'values.*.value' => 'nullable',
+            'values.*.value_selection_id' => 'sometimes|nullable|uuid',
+            'values.*.unit_id' => 'sometimes|nullable|uuid',
+            'values.*.language' => 'sometimes|nullable|string|max:5',
+            'values.*.multiplied_index' => 'sometimes|integer|min:0',
+        ]);
+
+        $values = $request->input('values');
+        $hierarchyId = $assignment->hierarchyNode->hierarchy_id;
+
+        // Sicherstellen, dass nur Beziehungs-Attribute gespeichert werden
+        $allowedAttrIds = HierarchyAttributeAssignment::where('hierarchy_id', $hierarchyId)
+            ->whereIn('scope', ['relationship', 'both'])
+            ->pluck('attribute_id')
+            ->toArray();
+
+        DB::transaction(function () use ($assignment, $values, $allowedAttrIds) {
+            foreach ($values as $entry) {
+                $attribute = Attribute::findOrFail($entry['attribute_id']);
+
+                if (!in_array($attribute->id, $allowedAttrIds)) {
+                    continue;
+                }
+
+                if ($attribute->data_type === 'Composite' || $attribute->is_readonly) {
+                    continue;
+                }
+
+                $language = $entry['language'] ?? null;
+                $multipliedIndex = $entry['multiplied_index'] ?? 0;
+
+                if ($attribute->is_translatable && $language === null) {
+                    abort(422, "Attribut '{$attribute->technical_name}' ist übersetzbar — 'language' ist erforderlich.");
+                }
+
+                $valueData = $this->resolveValueColumns($attribute, $entry);
+
+                OutputHierarchyProductAttributeValue::updateOrCreate(
+                    [
+                        'assignment_id' => $assignment->id,
+                        'attribute_id' => $attribute->id,
+                        'language' => $language,
+                        'multiplied_index' => $multipliedIndex,
+                    ],
+                    array_merge($valueData, [
+                        'unit_id' => $entry['unit_id'] ?? null,
+                    ])
+                );
+            }
+        });
+
+        return response()->json(['message' => 'Beziehungs-Attributwerte gespeichert.', 'count' => count($values)]);
+    }
+
+    /**
+     * Ermittelt die korrekten Wert-Spalten basierend auf dem Attribut-Datentyp.
+     */
+    private function resolveValueColumns(Attribute $attribute, array $entry): array
+    {
+        $columns = [
+            'value_string' => null,
+            'value_number' => null,
+            'value_date' => null,
+            'value_flag' => null,
+            'value_selection_id' => null,
+        ];
+
+        $value = $entry['value'] ?? null;
+
+        return match ($attribute->data_type) {
+            'String' => array_merge($columns, ['value_string' => $value !== null ? (string) $value : null]),
+            'Number', 'Float' => array_merge($columns, ['value_number' => $value !== null ? (float) $value : null]),
+            'Date' => array_merge($columns, ['value_date' => $value]),
+            'Flag' => array_merge($columns, ['value_flag' => $value !== null ? (bool) $value : null]),
+            'Selection', 'Dictionary' => array_merge($columns, [
+                'value_string' => $value,
+                'value_selection_id' => $entry['value_selection_id'] ?? null,
+            ]),
+            'RichText', 'Hyperlink', 'ImageLink', 'PdfLink', 'VideoLink' => array_merge($columns, ['value_string' => $value !== null ? (string) $value : null]),
+            'Composite' => $columns,
+            default => array_merge($columns, ['value_string' => $value !== null ? (string) $value : null]),
+        };
     }
 }

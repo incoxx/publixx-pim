@@ -367,6 +367,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::get('hierarchies/{hierarchy}/attributes', [HierarchyAttributeAssignmentController::class, 'index']);
     Route::get('hierarchies/{hierarchy}/all-node-attributes', [HierarchyAttributeAssignmentController::class, 'allNodeAttributes']);
     Route::post('hierarchies/{hierarchy}/attributes', [HierarchyAttributeAssignmentController::class, 'store']);
+    Route::patch('hierarchy-attribute-assignments/{hierarchy_attribute_assignment}', [HierarchyAttributeAssignmentController::class, 'update']);
     Route::delete('hierarchy-attribute-assignments/{hierarchy_attribute_assignment}', [HierarchyAttributeAssignmentController::class, 'destroy']);
 
     Route::apiResource('hierarchies.nodes', HierarchyNodeController::class)
@@ -410,6 +411,8 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::post('hierarchy-nodes/{hierarchy_node}/output-products/bulk-assign', [OutputHierarchyProductAssignmentController::class, 'bulkAssign']);
     Route::post('hierarchy-nodes/{hierarchy_node}/master-products/bulk-assign', [OutputHierarchyProductAssignmentController::class, 'bulkAssignMaster']);
     Route::delete('output-hierarchy-product-assignments/{assignment}', [OutputHierarchyProductAssignmentController::class, 'destroy']);
+    Route::get('output-hierarchy-product-assignments/{assignment}/relationship-attributes', [OutputHierarchyProductAssignmentController::class, 'relationshipAttributes']);
+    Route::put('output-hierarchy-product-assignments/{assignment}/relationship-attributes', [OutputHierarchyProductAssignmentController::class, 'updateRelationshipAttributes']);
     Route::get('products/{product}/output-hierarchy-assignments', [OutputHierarchyProductAssignmentController::class, 'productAssignments']);
 
     // Master Hierarchy Product Assignments

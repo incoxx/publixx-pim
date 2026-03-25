@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class OutputHierarchyProductAssignment extends Model
 {
@@ -34,5 +35,10 @@ class OutputHierarchyProductAssignment extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    public function attributeValues(): HasMany
+    {
+        return $this->hasMany(OutputHierarchyProductAttributeValue::class, 'assignment_id');
     }
 }
