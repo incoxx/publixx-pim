@@ -36,7 +36,10 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
-  // Cleanup
+  // Polling stoppen wenn Export läuft
+  if (store.exportPolling) {
+    store.dismissExport()
+  }
 })
 
 async function loadSearchProfiles() {

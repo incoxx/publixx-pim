@@ -269,10 +269,18 @@ class ExcelTemplateController extends Controller
         $template = ExcelTemplate::findOrFail($id);
         $this->authorizeAccess($request, $template);
 
-        $searchProfileId = $request->input('search_profile_id');
+        $validated = $request->validate([
+            'search_profile_id' => 'sometimes|string|nullable|exists:search_profiles,id',
+        ]);
+
+        $searchProfileId = $validated['search_profile_id'] ?? null;
         $exportKey = 'excel_' . Str::random(16);
+        $userId = $request->user()?->id;
 
         ExcelExportJob::dispatch($template->id, $searchProfileId, $exportKey);
+
+        // User-ID im Cache speichern für Auth-Check bei Progress/Download
+        Cache::put(ExcelExportJob::cacheKey($exportKey) . ':owner', $userId, 1800);
 
         return response()->json([
             'data' => [
@@ -285,8 +293,10 @@ class ExcelTemplateController extends Controller
     /**
      * GET /api/v1/excel-templates/export-progress/{exportKey} — Progress abfragen.
      */
-    public function exportProgress(string $exportKey): JsonResponse
+    public function exportProgress(Request $request, string $exportKey): JsonResponse
     {
+        $this->authorizeExportAccess($request, $exportKey);
+
         $progress = Cache::get(ExcelExportJob::cacheKey($exportKey));
 
         if (!$progress) {
@@ -301,8 +311,10 @@ class ExcelTemplateController extends Controller
     /**
      * POST /api/v1/excel-templates/export-cancel/{exportKey} — Export abbrechen.
      */
-    public function cancelExport(string $exportKey): JsonResponse
+    public function cancelExport(Request $request, string $exportKey): JsonResponse
     {
+        $this->authorizeExportAccess($request, $exportKey);
+
         ExcelExportJob::cancel($exportKey);
 
         return response()->json(['data' => ['status' => 'cancelling']]);
@@ -311,8 +323,10 @@ class ExcelTemplateController extends Controller
     /**
      * GET /api/v1/excel-templates/export-download/{exportKey} — Fertige Datei herunterladen.
      */
-    public function downloadExport(string $exportKey): BinaryFileResponse|JsonResponse
+    public function downloadExport(Request $request, string $exportKey): BinaryFileResponse|JsonResponse
     {
+        $this->authorizeExportAccess($request, $exportKey);
+
         $progress = Cache::get(ExcelExportJob::cacheKey($exportKey));
 
         if (!$progress || $progress['status'] !== 'completed') {
@@ -336,6 +350,16 @@ class ExcelTemplateController extends Controller
         $userId = $request->user()?->id;
         if (!$template->is_shared && $template->user_id && $userId !== $template->user_id) {
             abort(403, 'Kein Zugriff auf dieses Excel-Template.');
+        }
+    }
+
+    private function authorizeExportAccess(Request $request, string $exportKey): void
+    {
+        $ownerId = Cache::get(ExcelExportJob::cacheKey($exportKey) . ':owner');
+        $userId = $request->user()?->id;
+
+        if ($ownerId && $userId !== $ownerId) {
+            abort(403, 'Kein Zugriff auf diesen Export.');
         }
     }
 }

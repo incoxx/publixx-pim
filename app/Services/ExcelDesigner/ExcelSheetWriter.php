@@ -337,7 +337,7 @@ class ExcelSheetWriter
         $value = match (true) {
             $expandIndex !== null => $values->get($expandIndex, ''),
             $arrayMode === 'single' => $values->first() ?? '',
-            'join' => $values->implode(', '),
+            $arrayMode === 'join' => $values->implode(', '),
             default => $values->first() ?? '',
         };
 

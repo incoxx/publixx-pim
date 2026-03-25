@@ -52,9 +52,12 @@ class ExcelExportJob implements ShouldQueue
         $total = $dataCollector->countProducts($template, $searchProfile);
         $this->updateProgress('collecting', 0, $total);
 
-        // Prüfe ob sich ein Async-Export lohnt (unter 1000 → sofort)
+        $customFileName = $template->excel_settings['fileName'] ?? null;
+        $baseName = !empty($customFileName) ? Str::slug($customFileName) : Str::slug($template->name);
+        $fileName = $baseName . '-' . date('Y-m-d') . '.xlsx';
+
         if ($total === 0) {
-            $this->updateProgress('completed', 0, 0, outputPath: $this->buildEmptyFile($template));
+            $this->updateProgress('completed', 0, 0, outputPath: $this->buildEmptyFile($template), fileName: $fileName);
             return;
         }
 
@@ -95,9 +98,6 @@ class ExcelExportJob implements ShouldQueue
         );
 
         // In Temp-Datei schreiben
-        $customFileName = $template->excel_settings['fileName'] ?? null;
-        $baseName = !empty($customFileName) ? Str::slug($customFileName) : Str::slug($template->name);
-        $fileName = $baseName . '-' . date('Y-m-d') . '.xlsx';
         $outputPath = storage_path('app/exports/' . $this->exportKey . '.xlsx');
 
         $dir = dirname($outputPath);
@@ -117,6 +117,12 @@ class ExcelExportJob implements ShouldQueue
     {
         $this->updateProgress('failed', 0, 0, error: $exception->getMessage());
         Log::error('ExcelExportJob failed: ' . $exception->getMessage(), ['key' => $this->exportKey]);
+
+        // Datei aufräumen
+        $outputPath = storage_path('app/exports/' . $this->exportKey . '.xlsx');
+        if (file_exists($outputPath)) {
+            @unlink($outputPath);
+        }
     }
 
     private function updateProgress(
