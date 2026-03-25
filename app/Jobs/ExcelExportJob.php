@@ -22,19 +22,33 @@ class ExcelExportJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public int $timeout = 600; // 10 Minuten
+    /**
+     * Nur bei echten Exceptions abbrechen, nicht bei Timeout.
+     */
+    public int $maxExceptions = 1;
 
-    public int $tries = 1;
+    /**
+     * Job darf bis zu 30 Minuten laufen.
+     */
+    public int $timeout = 1800;
 
     private const CACHE_PREFIX = 'excel_export:';
 
     private const CANCEL_PREFIX = 'excel_export_cancel:';
 
     public function __construct(
-        private readonly string $templateId,
-        private readonly ?string $searchProfileId,
-        private readonly string $exportKey,
+        public readonly string $templateId,
+        public readonly ?string $searchProfileId,
+        public readonly string $exportKey,
     ) {}
+
+    /**
+     * Job darf bis zu 45 Minuten nach Dispatch versucht werden.
+     */
+    public function retryUntil(): \DateTimeInterface
+    {
+        return now()->addMinutes(45);
+    }
 
     public function handle(ExcelDataCollector $dataCollector, ExcelSheetWriter $sheetWriter): void
     {
@@ -50,19 +64,114 @@ class ExcelExportJob implements ShouldQueue
 
         // Gesamtanzahl ermitteln
         $total = $dataCollector->countProducts($template, $searchProfile);
-        $this->updateProgress('collecting', 0, $total);
 
         $customFileName = $template->excel_settings['fileName'] ?? null;
         $baseName = !empty($customFileName) ? Str::slug($customFileName) : Str::slug($template->name);
         $fileName = $baseName . '-' . date('Y-m-d') . '.xlsx';
 
+        $outputPath = storage_path('app/exports/' . $this->exportKey . '.xlsx');
+        $dir = dirname($outputPath);
+        if (!is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
         if ($total === 0) {
-            $this->updateProgress('completed', 0, 0, outputPath: $this->buildEmptyFile($template), fileName: $fileName);
+            $this->updateProgress('completed', 0, 0, outputPath: $this->buildEmptyFile($outputPath), fileName: $fileName);
             return;
         }
 
-        // Daten sammeln mit Progress-Callback
+        $this->updateProgress('collecting', 0, $total);
+
+        // Prüfe ob Gruppierung aktiv ist
+        $hasGrouping = $this->hasGrouping($template->template_json);
+
+        if ($hasGrouping) {
+            // Gruppierung: Muss alle Produkte laden für groupBy
+            $this->exportGrouped($dataCollector, $sheetWriter, $template, $searchProfile, $total, $outputPath, $fileName);
+        } else {
+            // Kein Grouping: Chunk-weise direkt ins Spreadsheet schreiben
+            $this->exportStreaming($dataCollector, $sheetWriter, $template, $searchProfile, $total, $outputPath, $fileName);
+        }
+    }
+
+    /**
+     * Streaming-Export: Chunk-weise Produkte laden und direkt Zeilen schreiben.
+     * Hält nur einen Chunk (500 Produkte) gleichzeitig im RAM.
+     */
+    private function exportStreaming(
+        ExcelDataCollector $dataCollector,
+        ExcelSheetWriter $sheetWriter,
+        ExcelTemplate $template,
+        ?SearchProfile $searchProfile,
+        int $total,
+        string $outputPath,
+        string $fileName,
+    ): void {
+        $language = $template->language ?? 'de';
+        $excelSettings = $template->excel_settings ?? [];
+        $sheetDef = $template->template_json['sheets'][0] ?? [];
+        $columns = $sheetDef['columns'] ?? [];
+
+        // Spreadsheet vorbereiten mit Header
+        $spreadsheet = $sheetWriter->buildShell($sheetDef, $columns, $language, $excelSettings);
+        $worksheet = $spreadsheet->getActiveSheet();
+
+        // Startzeile nach Header bestimmen
+        $row = $sheetWriter->getDataStartRow($sheetDef, $excelSettings);
+
         $processed = 0;
+
+        $dataCollector->streamProducts(
+            $template,
+            $searchProfile,
+            chunkSize: 500,
+            callback: function ($products) use ($sheetWriter, $worksheet, $columns, $language, &$row, &$processed, $total) {
+                foreach ($products as $product) {
+                    $row = $sheetWriter->writeProductRowDirect($worksheet, $product, $columns, $language, $row);
+                    $processed++;
+                }
+
+                $this->updateProgress('writing', min($processed, $total), $total);
+
+                // Abbruch prüfen
+                if (Cache::get(self::CANCEL_PREFIX . $this->exportKey)) {
+                    return false;
+                }
+                return true;
+            },
+        );
+
+        // Abgebrochen?
+        if (Cache::get(self::CANCEL_PREFIX . $this->exportKey)) {
+            $this->handleCancellation($spreadsheet, $processed, $total);
+            return;
+        }
+
+        // Footer-Zeilen
+        $sheetWriter->writeFooterRowsDirect($worksheet, $sheetDef, $columns, $language, $row, $total);
+
+        // Spaltenbreite setzen
+        $sheetWriter->applyColumnWidthsDirect($worksheet, $columns);
+
+        // Datei schreiben
+        $this->writeAndFinish($spreadsheet, $outputPath, $fileName, $total);
+    }
+
+    /**
+     * Gruppierter Export: Sammelt alle Produkte für groupBy-Logik.
+     * Nutzt collectChunked mit Progress-Callback.
+     */
+    private function exportGrouped(
+        ExcelDataCollector $dataCollector,
+        ExcelSheetWriter $sheetWriter,
+        ExcelTemplate $template,
+        ?SearchProfile $searchProfile,
+        int $total,
+        string $outputPath,
+        string $fileName,
+    ): void {
+        $processed = 0;
+
         $data = $dataCollector->collectChunked(
             $template,
             $searchProfile,
@@ -71,7 +180,6 @@ class ExcelExportJob implements ShouldQueue
                 $processed += $chunkCount;
                 $this->updateProgress('collecting', min($processed, $total), $total);
 
-                // Abbruch prüfen
                 if (Cache::get(self::CANCEL_PREFIX . $this->exportKey)) {
                     return false;
                 }
@@ -89,7 +197,6 @@ class ExcelExportJob implements ShouldQueue
 
         $this->updateProgress('writing', $processed, $total);
 
-        // Spreadsheet bauen
         $spreadsheet = $sheetWriter->build(
             $data['grouped'],
             $template->template_json,
@@ -97,14 +204,11 @@ class ExcelExportJob implements ShouldQueue
             $template->excel_settings ?? [],
         );
 
-        // In Temp-Datei schreiben
-        $outputPath = storage_path('app/exports/' . $this->exportKey . '.xlsx');
+        $this->writeAndFinish($spreadsheet, $outputPath, $fileName, $total);
+    }
 
-        $dir = dirname($outputPath);
-        if (!is_dir($dir)) {
-            mkdir($dir, 0755, true);
-        }
-
+    private function writeAndFinish(\PhpOffice\PhpSpreadsheet\Spreadsheet $spreadsheet, string $outputPath, string $fileName, int $total): void
+    {
         $writer = new Xlsx($spreadsheet);
         $writer->save($outputPath);
         $spreadsheet->disconnectWorksheets();
@@ -113,12 +217,29 @@ class ExcelExportJob implements ShouldQueue
         Log::info("ExcelExportJob: Fertig – {$total} Produkte.", ['key' => $this->exportKey, 'file' => $outputPath]);
     }
 
+    private function handleCancellation(\PhpOffice\PhpSpreadsheet\Spreadsheet $spreadsheet, int $processed, int $total): void
+    {
+        $spreadsheet->disconnectWorksheets();
+        $this->updateProgress('cancelled', $processed, $total);
+        Cache::forget(self::CANCEL_PREFIX . $this->exportKey);
+        Log::info("ExcelExportJob: Abgebrochen bei {$processed}/{$total}.", ['key' => $this->exportKey]);
+    }
+
+    private function hasGrouping(array $templateJson): bool
+    {
+        foreach ($templateJson['sheets'] ?? [] as $sheet) {
+            if (($sheet['field'] ?? 'none') !== 'none') {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public function failed(\Throwable $exception): void
     {
         $this->updateProgress('failed', 0, 0, error: $exception->getMessage());
         Log::error('ExcelExportJob failed: ' . $exception->getMessage(), ['key' => $this->exportKey]);
 
-        // Datei aufräumen
         $outputPath = storage_path('app/exports/' . $this->exportKey . '.xlsx');
         if (file_exists($outputPath)) {
             @unlink($outputPath);
@@ -142,17 +263,12 @@ class ExcelExportJob implements ShouldQueue
             'output_path' => $outputPath,
             'file_name' => $fileName,
             'updated_at' => now()->toIso8601String(),
-        ], 1800); // 30 min TTL
+        ], 3600); // 1h TTL
+
     }
 
-    private function buildEmptyFile(ExcelTemplate $template): string
+    private function buildEmptyFile(string $outputPath): string
     {
-        $outputPath = storage_path('app/exports/' . $this->exportKey . '.xlsx');
-        $dir = dirname($outputPath);
-        if (!is_dir($dir)) {
-            mkdir($dir, 0755, true);
-        }
-
         $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
         $spreadsheet->getActiveSheet()->setTitle('Leer');
         $spreadsheet->getActiveSheet()->setCellValue('A1', 'Keine Produkte gefunden.');
@@ -164,17 +280,11 @@ class ExcelExportJob implements ShouldQueue
         return $outputPath;
     }
 
-    /**
-     * Cache-Key für Progress-Abfrage.
-     */
     public static function cacheKey(string $exportKey): string
     {
         return self::CACHE_PREFIX . $exportKey;
     }
 
-    /**
-     * Cancel-Key setzen.
-     */
     public static function cancel(string $exportKey): void
     {
         Cache::put(self::CANCEL_PREFIX . $exportKey, true, 600);

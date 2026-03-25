@@ -50,8 +50,33 @@ class ExcelDataCollector
     }
 
     /**
+     * Produkte chunk-weise streamen, ohne sie im RAM zu akkumulieren.
+     * Für nicht-gruppierte Exports — jeder Chunk wird direkt verarbeitet und freigegeben.
+     *
+     * @param  callable  $callback  fn(Collection $products): bool — false = abbrechen
+     */
+    public function streamProducts(
+        ExcelTemplate $template,
+        ?SearchProfile $searchProfile = null,
+        int $chunkSize = 500,
+        callable $callback = null,
+    ): void {
+        $query = $this->buildQuery($searchProfile);
+        $relations = $this->determineRelations($template->template_json);
+
+        $query->with($relations)->chunkById($chunkSize, function ($chunk) use ($callback) {
+            if ($callback) {
+                $continue = $callback($chunk);
+                if ($continue === false) {
+                    return false;
+                }
+            }
+        });
+    }
+
+    /**
      * Produkte chunk-weise laden und gruppieren.
-     * Spart Speicher bei großen Datenmengen.
+     * Für gruppierte Exports — Produkte müssen im RAM bleiben für groupBy.
      *
      * @param  callable|null  $onChunk  fn(int $chunkCount): bool — false = abbrechen
      * @return array{grouped: array, total: int}
