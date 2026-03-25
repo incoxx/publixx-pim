@@ -114,11 +114,12 @@ class MediaController extends Controller
         }
 
         $storedPath = Storage::disk('public')->path($path);
-        $this->processUploadedImage($file, $storedPath);
-
-        [$width, $height] = $this->detectDimensions($request, $file, $storedPath);
 
         try {
+            $this->processUploadedImage($file, $storedPath);
+
+            [$width, $height] = $this->detectDimensions($request, $file, $storedPath);
+
             $media = Media::create([
                 'file_name' => $safeFilename,
                 'original_file_name' => $originalFileName,
@@ -418,8 +419,11 @@ class MediaController extends Controller
         $skipped = 0;
         $errors = [];
 
+        // Alle Medien in 1 Query laden statt N einzelne find()-Aufrufe
+        $mediaItems = Media::whereIn('id', $validated['media_ids'])->get()->keyBy('id');
+
         foreach ($validated['media_ids'] as $mediaId) {
-            $media = Media::find($mediaId);
+            $media = $mediaItems->get($mediaId);
             if (!$media) {
                 $skipped++;
                 continue;
@@ -511,6 +515,73 @@ class MediaController extends Controller
         return response()->file($path, [
             'Content-Type' => $revision->mime_type ?? 'application/octet-stream',
             'Content-Disposition' => 'attachment; filename="' . $revision->file_name . '"',
+        ]);
+    }
+
+    /**
+     * GET /media/processing-status — Hintergrund-Verarbeitungsstatus (PDF-Jobs, Thumbnails).
+     * Zeigt aktive, wartende und kürzlich abgeschlossene Verarbeitungen.
+     */
+    public function processingStatus(): JsonResponse
+    {
+        $this->authorize('viewAny', Media::class);
+
+        // PDF-Status in 1 Query statt 4 separate COUNT-Queries
+        $statusCounts = \App\Models\PdfDocument::query()
+            ->selectRaw("status, COUNT(*) as cnt")
+            ->where(function ($q) {
+                $q->whereIn('status', ['pending', 'processing'])
+                  ->orWhere(function ($q2) {
+                      $q2->where('status', 'ready')->where('updated_at', '>=', now()->subMinutes(5));
+                  })
+                  ->orWhere(function ($q2) {
+                      $q2->where('status', 'error')->where('updated_at', '>=', now()->subHour());
+                  });
+            })
+            ->groupBy('status')
+            ->pluck('cnt', 'status');
+
+        $pdfPending = $statusCounts->get('pending', 0);
+        $pdfProcessing = $statusCounts->get('processing', 0);
+        $pdfReady = $statusCounts->get('ready', 0);
+        $pdfError = $statusCounts->get('error', 0);
+
+        // Kürzlich verarbeitete PDFs (letzte 10 Minuten)
+        $recentPdfs = \App\Models\PdfDocument::with('media:id,file_name,original_file_name')
+            ->whereIn('status', ['ready', 'error', 'processing', 'pending'])
+            ->where('updated_at', '>=', now()->subMinutes(10))
+            ->orderByDesc('updated_at')
+            ->limit(20)
+            ->get()
+            ->map(fn ($doc) => [
+                'id' => $doc->id,
+                'media_id' => $doc->media_id,
+                'file_name' => $doc->media?->original_file_name ?? $doc->media?->file_name ?? '—',
+                'status' => $doc->status,
+                'page_count' => $doc->page_count,
+                'error_message' => $doc->error_message,
+                'updated_at' => $doc->updated_at,
+            ]);
+
+        // Kürzlich hochgeladene Medien (letzte 5 Minuten)
+        $recentUploads = Media::where('last_uploaded_at', '>=', now()->subMinutes(5))
+            ->orderByDesc('last_uploaded_at')
+            ->limit(10)
+            ->get(['id', 'file_name', 'original_file_name', 'media_type', 'last_uploaded_at']);
+
+        return response()->json([
+            'data' => [
+                'pdf' => [
+                    'pending' => $pdfPending,
+                    'processing' => $pdfProcessing,
+                    'recently_ready' => $pdfReady,
+                    'recent_errors' => $pdfError,
+                    'active' => $pdfPending + $pdfProcessing > 0,
+                    'items' => $recentPdfs,
+                ],
+                'recent_uploads' => $recentUploads,
+                'has_activity' => ($pdfPending + $pdfProcessing) > 0 || $recentUploads->isNotEmpty(),
+            ],
         ]);
     }
 
