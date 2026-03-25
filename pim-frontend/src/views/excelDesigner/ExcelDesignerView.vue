@@ -148,21 +148,21 @@ if (typeof window !== 'undefined') {
 <template>
   <div class="h-full flex flex-col" v-if="store.currentTemplate">
     <!-- Toolbar -->
-    <div class="pim-card rounded-none border-x-0 border-t-0 px-4 py-2 flex items-center gap-3 shrink-0">
-      <button class="pim-btn pim-btn-secondary text-xs px-2 py-1" @click="router.push('/excel-designer')" title="Zurück zur Liste">
+    <div class="pim-card rounded-none border-x-0 border-t-0 px-4 py-2 flex items-center gap-2 shrink-0 flex-wrap">
+      <button class="pim-btn pim-btn-secondary text-xs px-2 py-1 shrink-0" @click="router.push('/excel-designer')" title="Zurück zur Liste">
         <ChevronLeft class="w-3.5 h-3.5" :stroke-width="2" />
       </button>
 
       <input
         v-model="store.currentTemplate.name"
-        class="pim-input text-sm font-medium flex-1 max-w-xs"
+        class="pim-input text-sm font-medium w-48 shrink-0"
         placeholder="Template-Name"
         @input="store.isDirty = true"
       />
 
       <select
         v-model="store.currentTemplate.language"
-        class="pim-input text-xs w-12 shrink-0"
+        class="pim-input text-xs !w-14 shrink-0"
         @change="store.isDirty = true"
       >
         <option value="de">DE</option>
@@ -170,12 +170,12 @@ if (typeof window !== 'undefined') {
       </select>
 
       <!-- Suchprofil-Auswahl -->
-      <div class="flex items-center gap-1.5 min-w-0 flex-1 max-w-xs">
+      <div class="flex items-center gap-1 shrink-0">
         <Search class="w-3 h-3 text-[var(--color-text-tertiary)] shrink-0" :stroke-width="2" />
         <select
           :value="store.currentTemplate.search_profile_id || ''"
           @change="onSearchProfileChange"
-          class="pim-input text-xs w-full"
+          class="pim-input text-xs w-52"
           title="Suchprofil für Export"
         >
           <option value="">Alle aktiven Produkte</option>
@@ -183,10 +183,10 @@ if (typeof window !== 'undefined') {
         </select>
       </div>
 
-      <div class="flex-1" />
+      <div class="flex-1 min-w-0" />
 
       <!-- Template-Menü (Laden/Speichern unter/Löschen) -->
-      <div class="relative template-menu-container">
+      <div class="relative template-menu-container shrink-0">
         <button
           class="pim-btn pim-btn-secondary text-xs"
           @click.stop="showTemplateMenu = !showTemplateMenu"
@@ -245,21 +245,21 @@ if (typeof window !== 'undefined') {
         </div>
       </div>
 
-      <button class="pim-btn pim-btn-secondary text-xs" @click="showSettings = true" title="Excel-Einstellungen">
+      <button class="pim-btn pim-btn-secondary text-xs shrink-0" @click="showSettings = true" title="Excel-Einstellungen">
         <Settings class="w-3.5 h-3.5" :stroke-width="2" />
       </button>
 
-      <button class="pim-btn pim-btn-secondary text-xs" @click="showFieldPicker = !showFieldPicker">
+      <button class="pim-btn pim-btn-secondary text-xs shrink-0" @click="showFieldPicker = !showFieldPicker">
         Felder
       </button>
 
-      <button class="pim-btn pim-btn-secondary text-xs" @click="preview" :disabled="store.previewLoading">
+      <button class="pim-btn pim-btn-secondary text-xs shrink-0" @click="preview" :disabled="store.previewLoading">
         <Eye class="w-3.5 h-3.5" :stroke-width="2" />
         Vorschau
       </button>
 
       <button
-        class="pim-btn pim-btn-secondary text-xs"
+        class="pim-btn pim-btn-secondary text-xs shrink-0"
         @click="download"
         :disabled="downloading || store.exportPolling"
       >
@@ -268,7 +268,7 @@ if (typeof window !== 'undefined') {
       </button>
 
       <button
-        class="pim-btn pim-btn-primary text-xs"
+        class="pim-btn pim-btn-primary text-xs shrink-0"
         @click="save"
         :disabled="saving"
       >
