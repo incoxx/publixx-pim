@@ -494,6 +494,8 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::apiResource('media', MediaController::class);
     Route::get('media/{medium}/dependencies', [MediaController::class, 'dependencies']);
     Route::get('media/{medium}/revisions', [MediaController::class, 'revisions']);
+    Route::get('media/{medium}/relink-preview', [MediaController::class, 'relinkPreview']);
+    Route::post('media/relink', [MediaController::class, 'relink']);
     // media/file/{filename} and media/thumb/{medium} are registered outside auth group (public access)
     Route::get('media/{medium}/attribute-values', [MediaAttributeValueController::class, 'index']);
     Route::put('media/{medium}/attribute-values', [MediaAttributeValueController::class, 'bulkUpdate']);

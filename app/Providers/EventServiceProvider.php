@@ -21,10 +21,12 @@ use App\Models\Attribute;
 use App\Models\HierarchyNode;
 use App\Models\Product;
 use App\Models\ProductAttributeValue;
+use App\Models\ProductMediaAssignment;
 use App\Observers\AttributeObserver;
 use App\Observers\AttributeValueObserver;
 use App\Observers\HierarchyNodeObserver;
 use App\Observers\ProductObserver;
+use App\Observers\ProductMediaAssignmentObserver;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
 
 /**
@@ -100,6 +102,7 @@ class EventServiceProvider extends ServiceProvider
         HierarchyNode::observe(HierarchyNodeObserver::class);
         ProductAttributeValue::observe(AttributeValueObserver::class);
         Attribute::observe(AttributeObserver::class);
+        ProductMediaAssignment::observe(ProductMediaAssignmentObserver::class);
     }
 
     /**

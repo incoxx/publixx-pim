@@ -7,4 +7,5 @@ return [
     App\Providers\PqlServiceProvider::class,           // Agent 5: PQL-Engine
     App\Providers\ExportServiceProvider::class,        // Agent 7: Export + Publixx
     App\Providers\ConnectorServiceProvider::class,     // Externe API-Connectoren (Canva, DeepL, etc.)
+    App\Providers\HorizonServiceProvider::class,      // Horizon Dashboard Auth-Gate
 ];

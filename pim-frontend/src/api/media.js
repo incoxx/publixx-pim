@@ -79,6 +79,14 @@ export default {
     return client.put(`/media/${mediaId}/attribute-values`, { values })
   },
 
+  relink(mediaIds) {
+    return client.post('/media/relink', { media_ids: mediaIds })
+  },
+
+  relinkPreview(mediaId) {
+    return client.get(`/media/${mediaId}/relink-preview`)
+  },
+
   processingStatus() {
     return client.get('/media/processing-status')
   },

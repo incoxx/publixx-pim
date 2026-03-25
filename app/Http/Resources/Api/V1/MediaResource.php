@@ -34,8 +34,41 @@ class MediaResource extends JsonResource
             'url' => url('api/v1/media/file/' . rawurlencode($this->file_name)),
             'file_url' => url('api/v1/media/file/' . rawurlencode($this->file_name)),
             'thumb_url' => url("api/v1/media/thumb/{$this->id}?w=300&h=300"),
+            'pdf_preview_url' => $this->getPdfPreviewUrl(),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];
+    }
+
+    /**
+     * URL der ersten PDF-Seite als Vorschaubild (WebP).
+     * Null wenn kein PDF oder noch nicht verarbeitet.
+     */
+    private function getPdfPreviewUrl(): ?string
+    {
+        if (!$this->isPdf()) {
+            return null;
+        }
+
+        $pdfDoc = $this->relationLoaded('pdfDocument')
+            ? $this->pdfDocument
+            : $this->pdfDocument()->first();
+
+        if (!$pdfDoc || $pdfDoc->status !== 'ready') {
+            return null;
+        }
+
+        return url("api/v1/pdf/{$pdfDoc->id}/page/1");
+    }
+
+    private function isPdf(): bool
+    {
+        if ($this->mime_type === 'application/pdf') {
+            return true;
+        }
+        if ($this->file_name && str_ends_with(strtolower($this->file_name), '.pdf')) {
+            return true;
+        }
+        return false;
     }
 }
