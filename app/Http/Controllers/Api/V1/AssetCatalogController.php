@@ -147,16 +147,54 @@ class AssetCatalogController extends BaseController
             });
         }
 
-        // Sortierung: bei Relevanz kein DB-Sort (Post-Query in PHP)
+        // Sortierung: FULLTEXT-Scoring bei MySQL, Post-Query-Fallback bei SQLite
         $useRelevanceSort = $isSearchActive && ($sortField === 'relevance' || $sortField === 'created_at');
-        $sortColumn = match ($sortField) {
-            'name' => $lang === 'en' ? 'title_en' : 'title_de',
-            'file_size' => 'file_size',
-            'file_name' => 'file_name',
-            'relevance' => 'created_at', // Fallback-Sort für DB, wird in PHP überschrieben
-            default => 'created_at',
-        };
-        $query->orderBy($sortColumn, $sortOrder);
+        $hasFulltext = $isSearchActive && $useRelevanceSort && DB::getDriverName() === 'mysql';
+
+        if ($hasFulltext) {
+            // MATCH AGAINST mit gewichtetem Scoring (Name 10×, Beschreibung 3×)
+            $quoted = DB::getPdo()->quote(trim($search) . '*');
+            $query->addSelect(['media.*']);
+            $query->addSelect(DB::raw(
+                '(MATCH(file_name, title_de, title_en) AGAINST(' . $quoted . ' IN BOOLEAN MODE)) * 10 '
+                . '+ (MATCH(description_de, description_en) AGAINST(' . $quoted . ' IN BOOLEAN MODE)) * 3 '
+                . 'as ft_score'
+            ));
+
+            // Boost für Treffer aus Attributen/Knoten/Phonetik (CASE-Expression)
+            $boostParts = [];
+            foreach ($mediaIdsFromAttributes as $id) {
+                $boostParts[$id] = ($boostParts[$id] ?? 0) + 5;
+            }
+            foreach ($mediaIdsFromNodes as $id) {
+                $boostParts[$id] = ($boostParts[$id] ?? 0) + 5;
+            }
+            foreach ($mediaIdsFromPhonetic as $id) {
+                $boostParts[$id] = ($boostParts[$id] ?? 0) + 1;
+            }
+
+            if (!empty($boostParts)) {
+                $caseParts = [];
+                foreach ($boostParts as $id => $boost) {
+                    $caseParts[] = 'WHEN id = ' . DB::getPdo()->quote($id) . ' THEN ' . $boost;
+                }
+                $boostExpr = 'CASE ' . implode(' ', $caseParts) . ' ELSE 0 END';
+                $query->addSelect(DB::raw("({$boostExpr}) as boost_score"));
+                $query->orderByRaw('(ft_score + boost_score) DESC, created_at DESC');
+            } else {
+                $query->addSelect(DB::raw('0 as boost_score'));
+                $query->orderByRaw('ft_score DESC, created_at DESC');
+            }
+        } else {
+            $sortColumn = match ($sortField) {
+                'name' => $lang === 'en' ? 'title_en' : 'title_de',
+                'file_size' => 'file_size',
+                'file_name' => 'file_name',
+                'relevance' => 'created_at',
+                default => 'created_at',
+            };
+            $query->orderBy($sortColumn, $sortOrder);
+        }
 
         $paginated = $query->paginate($perPage);
 
@@ -303,7 +341,10 @@ class AssetCatalogController extends BaseController
                 }
 
                 $item->match_sources = $sources;
-                $item->relevance_score = $score;
+
+                // Kombinierter Score: FULLTEXT (DB) + PHP-Score
+                $ftScore = $hasFulltext ? (float) ($item->ft_score ?? 0) + (float) ($item->boost_score ?? 0) : 0;
+                $item->relevance_score = $hasFulltext ? round($ftScore + ($score / 100), 2) : $score;
 
                 // Referenzen (Produkte + Knoten)
                 $refs = [];
@@ -325,12 +366,11 @@ class AssetCatalogController extends BaseController
                 $item->references = $refs;
             }
 
-            // Relevanz-Sortierung innerhalb der Seite
-            if ($useRelevanceSort) {
+            // PHP-Fallback-Sortierung (nur wenn kein FULLTEXT verfügbar)
+            if ($useRelevanceSort && !$hasFulltext) {
                 $items = collect($paginated->items())
                     ->sortByDesc('relevance_score')
                     ->values();
-                // Items im Paginator ersetzen
                 $paginated->setCollection($items);
             }
         }
