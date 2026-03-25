@@ -77,6 +77,23 @@ class AssetCatalogResource extends JsonResource
                 : $this->assetFolder->name_de;
         }
 
+        // Zugeordnete Hierarchieknoten
+        $hierarchyNodes = [];
+        if ($this->relationLoaded('hierarchyNodeAssignments')) {
+            foreach ($this->hierarchyNodeAssignments as $assignment) {
+                $node = $assignment->hierarchyNode;
+                if (!$node) continue;
+                $hierarchyNodes[] = [
+                    'node_id' => $node->id,
+                    'node_name' => $lang === 'en' && $node->name_en ? $node->name_en : $node->name_de,
+                    'hierarchy_name' => $lang === 'en' && $node->hierarchy?->name_en
+                        ? $node->hierarchy->name_en
+                        : ($node->hierarchy?->name_de ?? ''),
+                    'hierarchy_type' => $node->hierarchy?->hierarchy_type,
+                ];
+            }
+        }
+
         return [
             'id' => $this->id,
             'file_name' => $this->file_name,
@@ -91,6 +108,7 @@ class AssetCatalogResource extends JsonResource
             'height' => $this->height,
             'asset_folder_id' => $this->asset_folder_id,
             'folder_name' => $folderPath,
+            'hierarchy_nodes' => $hierarchyNodes,
             'thumb_url' => url("api/v1/media/thumb/{$this->id}?w=300&h=300"),
             'preview_url' => url("api/v1/media/thumb/{$this->id}?w=800&h=800"),
             'pdf_preview_url' => $pdfPreviewUrl,

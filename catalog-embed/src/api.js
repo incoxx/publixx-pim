@@ -168,6 +168,17 @@ export const catalogApi = {
     return result
   },
 
+  async getCategoryAssets(nodeId, options = {}) {
+    const path = `/catalog/categories/${nodeId}/assets${buildQuery(options)}`
+    const cached = getCached(path)
+    if (cached) return cached
+    const resp = await request(path)
+    const data = await resp.json()
+    const result = data.data || data
+    setCache(path, result)
+    return result
+  },
+
   async getSettings() {
     const path = '/catalog/settings'
     const cached = getCached(path)

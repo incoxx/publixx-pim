@@ -56,6 +56,10 @@ export default {
     return catalogClient.get('/catalog/categories', { params: buildParams(options) })
   },
 
+  getCategoryAssets(nodeId, options = {}) {
+    return catalogClient.get(`/catalog/categories/${nodeId}/assets`, { params: buildParams(options) })
+  },
+
   getSettings() {
     return catalogClient.get('/catalog/settings')
   },

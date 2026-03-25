@@ -44,6 +44,7 @@ use App\Http\Controllers\Api\V1\ColumnProfileController;
 use App\Http\Controllers\Api\V1\WebsiteProfileController;
 use App\Http\Controllers\Api\V1\HierarchyAttributeAssignmentController;
 use App\Http\Controllers\Api\V1\HierarchyController;
+use App\Http\Controllers\Api\V1\HierarchyNodeMediaController;
 use App\Http\Controllers\Api\V1\OutputHierarchyProductAssignmentController;
 use App\Http\Controllers\Api\V1\HierarchyNodeAttributeValueController;
 use App\Http\Controllers\Api\V1\HierarchyNodeController;
@@ -141,6 +142,7 @@ Route::prefix('v1/asset-catalog')->middleware(['throttle.pim', 'catalog.access']
     Route::get('assets', [AssetCatalogController::class, 'assets']);
     Route::get('assets/{medium}', [AssetCatalogController::class, 'asset']);
     Route::get('assets/{medium}/products', [AssetCatalogController::class, 'assetProducts']);
+    Route::get('assets/{medium}/nodes', [AssetCatalogController::class, 'assetNodes']);
     Route::get('folders', [AssetCatalogController::class, 'folders']);
     Route::post('download', [AssetCatalogController::class, 'download']);
 });
@@ -173,6 +175,7 @@ Route::prefix('v1/catalog')->middleware('throttle.pim')->group(function () {
         Route::get('products/{product}', [CatalogController::class, 'product']);
         Route::get('products/{product}/json', [CatalogController::class, 'productJson']);
         Route::get('categories', [CatalogController::class, 'categories']);
+        Route::get('categories/{nodeId}/assets', [CatalogController::class, 'categoryAssets']);
         Route::get('facets', [CatalogController::class, 'facets']);
         Route::get('attribute-groups', [CatalogController::class, 'attributeGroups']);
 
@@ -390,6 +393,13 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::get('hierarchy-nodes/{hierarchy_node}/attribute-values', [HierarchyNodeAttributeValueController::class, 'index']);
     Route::put('hierarchy-nodes/{hierarchy_node}/attribute-values', [HierarchyNodeAttributeValueController::class, 'bulkUpdate']);
     Route::delete('hierarchy-node-attribute-values/{hierarchy_node_attribute_value}', [HierarchyNodeAttributeValueController::class, 'destroy']);
+
+    // =====================================================================
+    // Hierarchy Node — Media Assignments
+    // =====================================================================
+    Route::get('hierarchy-nodes/{hierarchy_node}/media', [HierarchyNodeMediaController::class, 'index']);
+    Route::post('hierarchy-nodes/{hierarchy_node}/media', [HierarchyNodeMediaController::class, 'store']);
+    Route::delete('hierarchy-node-media/{hierarchy_node_medium}', [HierarchyNodeMediaController::class, 'destroy']);
 
     // =====================================================================
     // Output Hierarchy Product Assignments

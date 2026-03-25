@@ -306,6 +306,26 @@ export const useCatalogStore = defineStore('catalog', () => {
 
   const activeFilterCount = computed(() => Object.keys(activeFilters).length)
 
+  // --- Category Assets ---
+  const categoryAssets = ref([])
+  const categoryAssetsLoading = ref(false)
+
+  async function fetchCategoryAssets(nodeId) {
+    if (!nodeId) {
+      categoryAssets.value = []
+      return
+    }
+    categoryAssetsLoading.value = true
+    try {
+      const { data } = await catalogApi.getCategoryAssets(nodeId, { lang: locale.value, perPage: 12 })
+      categoryAssets.value = data.data || data
+    } catch {
+      categoryAssets.value = []
+    } finally {
+      categoryAssetsLoading.value = false
+    }
+  }
+
   return {
     products,
     currentProduct,
@@ -351,5 +371,8 @@ export const useCatalogStore = defineStore('catalog', () => {
     setFilter,
     clearFilter,
     clearAllFilters,
+    categoryAssets,
+    categoryAssetsLoading,
+    fetchCategoryAssets,
   }
 })

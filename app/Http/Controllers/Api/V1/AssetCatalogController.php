@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Resources\Api\V1\AssetCatalogResource;
 use App\Models\Hierarchy;
 use App\Models\HierarchyNode;
+use App\Models\HierarchyNodeMediaAssignment;
 use App\Models\Media;
 use App\Models\MediaAttributeValue;
 use App\Support\KoelnerPhonetik;
@@ -44,6 +45,7 @@ class AssetCatalogController extends BaseController
             'attributeValues.unit',
             'assetFolder',
             'pdfDocument',
+            'hierarchyNodeAssignments.hierarchyNode.hierarchy',
         ]);
 
         $isSearchActive = $search && trim($search) !== '';
@@ -114,7 +116,16 @@ class AssetCatalogController extends BaseController
                     ->toArray();
             }
 
-            $query->where(function ($q) use ($likeTerm, $mediaIdsFromAttributes, $mediaIdsFromPhonetic) {
+            // Medien, die an Hierarchieknoten hängen deren Name matcht
+            $mediaIdsFromNodes = HierarchyNodeMediaAssignment::whereHas('hierarchyNode', function ($nq) use ($likeTerm) {
+                $nq->where('name_de', 'like', $likeTerm)
+                    ->orWhere('name_en', 'like', $likeTerm);
+            })
+                ->pluck('media_id')
+                ->unique()
+                ->toArray();
+
+            $query->where(function ($q) use ($likeTerm, $mediaIdsFromAttributes, $mediaIdsFromPhonetic, $mediaIdsFromNodes) {
                 $q->where('file_name', 'like', $likeTerm)
                     ->orWhere('title_de', 'like', $likeTerm)
                     ->orWhere('title_en', 'like', $likeTerm)
@@ -127,6 +138,10 @@ class AssetCatalogController extends BaseController
 
                 if (!empty($mediaIdsFromPhonetic)) {
                     $q->orWhereIn('id', $mediaIdsFromPhonetic);
+                }
+
+                if (!empty($mediaIdsFromNodes)) {
+                    $q->orWhereIn('id', $mediaIdsFromNodes);
                 }
             });
         }
@@ -176,6 +191,26 @@ class AssetCatalogController extends BaseController
                             $attrName = $lang === 'en' && $attr->name_en ? $attr->name_en : $attr->name_de;
                             $sources[] = ['type' => 'attribute', 'label' => $attrName];
                             break; // One attribute match is enough
+                        }
+                    }
+                }
+
+                // Check hierarchy node matches
+                if ($item->relationLoaded('hierarchyNodeAssignments')) {
+                    foreach ($item->hierarchyNodeAssignments as $nodeAssignment) {
+                        $node = $nodeAssignment->hierarchyNode;
+                        if (!$node) continue;
+                        $nodeName = mb_strtolower($node->name_de ?? '');
+                        $nodeNameEn = mb_strtolower($node->name_en ?? '');
+                        if (($nodeName !== '' && str_contains($nodeName, $term)) || ($nodeNameEn !== '' && str_contains($nodeNameEn, $term))) {
+                            $displayName = $lang === 'en' && $node->name_en ? $node->name_en : $node->name_de;
+                            $hierarchyName = $node->hierarchy?->name_de ?? '';
+                            $label = $lang === 'en' ? "Category: {$displayName}" : "Kategorie: {$displayName}";
+                            if ($hierarchyName) {
+                                $label .= " ({$hierarchyName})";
+                            }
+                            $sources[] = ['type' => 'hierarchy_node', 'label' => $label];
+                            break;
                         }
                     }
                 }
@@ -238,6 +273,7 @@ class AssetCatalogController extends BaseController
             'attributeValues.unit',
             'assetFolder',
             'pdfDocument',
+            'hierarchyNodeAssignments.hierarchyNode.hierarchy',
         ]);
 
         // Build folder breadcrumb
@@ -260,9 +296,38 @@ class AssetCatalogController extends BaseController
             ];
         }
 
+        // Hierarchieknoten-Zuordnungen mit Pfad
+        $hierarchyNodes = [];
+        if ($medium->relationLoaded('hierarchyNodeAssignments')) {
+            foreach ($medium->hierarchyNodeAssignments as $assignment) {
+                $node = $assignment->hierarchyNode;
+                if (!$node) continue;
+
+                // Pfad-Breadcrumb für diesen Knoten aufbauen
+                $nodePath = [];
+                $ancestors = HierarchyNode::ancestorsOf($node->path)
+                    ->orderBy('depth')
+                    ->get();
+                foreach ($ancestors as $ancestor) {
+                    $nodePath[] = $lang === 'en' && $ancestor->name_en ? $ancestor->name_en : $ancestor->name_de;
+                }
+                $nodePath[] = $lang === 'en' && $node->name_en ? $node->name_en : $node->name_de;
+
+                $hierarchyNodes[] = [
+                    'node_id' => $node->id,
+                    'node_name' => $lang === 'en' && $node->name_en ? $node->name_en : $node->name_de,
+                    'hierarchy_id' => $node->hierarchy_id,
+                    'hierarchy_name' => $lang === 'en' && $node->hierarchy?->name_en ? $node->hierarchy->name_en : ($node->hierarchy?->name_de ?? ''),
+                    'hierarchy_type' => $node->hierarchy?->hierarchy_type,
+                    'path' => $nodePath,
+                    'path_string' => implode(' > ', $nodePath),
+                ];
+            }
+        }
+
         return response()->json([
             'data' => (new AssetCatalogResource($medium))
-                ->additional(['lang' => $lang, 'breadcrumb' => $breadcrumb])
+                ->additional(['lang' => $lang, 'breadcrumb' => $breadcrumb, 'hierarchy_nodes' => $hierarchyNodes])
                 ->resolve(),
         ]);
     }
@@ -327,6 +392,54 @@ class AssetCatalogController extends BaseController
                 'total' => $paginated->total(),
             ],
         ]);
+    }
+
+    /**
+     * GET /api/v1/asset-catalog/assets/{media}/nodes
+     *
+     * Hierarchieknoten, an denen dieses Asset zugeordnet ist.
+     */
+    public function assetNodes(Request $request, Media $medium): JsonResponse
+    {
+        $lang = $request->query('lang', 'de');
+
+        $assignments = $medium->hierarchyNodeAssignments()
+            ->with(['hierarchyNode.hierarchy'])
+            ->orderBy('sort_order')
+            ->get();
+
+        $data = $assignments->map(function ($assignment) use ($lang) {
+            $node = $assignment->hierarchyNode;
+            if (!$node) return null;
+
+            $nodePath = [];
+            $ancestors = HierarchyNode::ancestorsOf($node->path)
+                ->orderBy('depth')
+                ->get();
+            foreach ($ancestors as $ancestor) {
+                $nodePath[] = [
+                    'id' => $ancestor->id,
+                    'name' => $lang === 'en' && $ancestor->name_en ? $ancestor->name_en : $ancestor->name_de,
+                ];
+            }
+            $nodePath[] = [
+                'id' => $node->id,
+                'name' => $lang === 'en' && $node->name_en ? $node->name_en : $node->name_de,
+            ];
+
+            return [
+                'assignment_id' => $assignment->id,
+                'node_id' => $node->id,
+                'node_name' => $lang === 'en' && $node->name_en ? $node->name_en : $node->name_de,
+                'hierarchy_id' => $node->hierarchy_id,
+                'hierarchy_name' => $lang === 'en' && $node->hierarchy?->name_en ? $node->hierarchy->name_en : ($node->hierarchy?->name_de ?? ''),
+                'hierarchy_type' => $node->hierarchy?->hierarchy_type,
+                'path' => $nodePath,
+                'path_string' => collect($nodePath)->pluck('name')->implode(' > '),
+            ];
+        })->filter()->values();
+
+        return response()->json(['data' => $data]);
     }
 
     /**

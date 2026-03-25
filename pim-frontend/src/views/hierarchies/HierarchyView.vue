@@ -7,16 +7,19 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import {
   Plus, Edit3, Trash2, FolderPlus, Package, Search,
-  Copy, ChevronUp, ChevronDown, Settings, GripVertical, X, Save,
+  Copy, ChevronUp, ChevronDown, Settings, GripVertical, X, Save, Image,
 } from 'lucide-vue-next'
 import hierarchiesApi from '@/api/hierarchies'
 import attributesApi from '@/api/attributes'
 import productsApi from '@/api/products'
+import { mediaUsageTypes } from '@/api/mediaUsageTypes'
 import PimTree from '@/components/shared/PimTree.vue'
 import PimAttributeInput from '@/components/shared/PimAttributeInput.vue'
 import PimDeleteConfirmDialog from '@/components/shared/PimDeleteConfirmDialog.vue'
 import HierarchyFormPanel from '@/components/panels/HierarchyFormPanel.vue'
 import HierarchyNodeFormPanel from '@/components/panels/HierarchyNodeFormPanel.vue'
+import MediaPickerDialog from '@/components/shared/MediaPickerDialog.vue'
+import PdfPreview from '@/components/shared/PdfPreview.vue'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -52,6 +55,83 @@ const showProductSearch = ref(false)
 const productSearchQuery = ref('')
 const productSearchResults = ref([])
 let productSearchTimer = null
+
+// Node media assignments
+const nodeMediaItems = ref([])
+const nodeMediaLoading = ref(false)
+const showMediaPicker = ref(false)
+const availableUsageTypes = ref([])
+
+async function loadNodeMedia(nodeId) {
+  nodeMediaLoading.value = true
+  try {
+    const { data } = await hierarchiesApi.getNodeMedia(nodeId, { perPage: 100 })
+    const items = data.data || data
+    nodeMediaItems.value = items.map(a => ({
+      id: a.id,
+      media_id: a.media_id || a.media?.id,
+      file_name: a.media?.file_name || a.file_name,
+      mime_type: a.media?.mime_type || a.mime_type,
+      usage_type: a.usage_type,
+      sort_order: a.sort_order,
+      is_primary: a.is_primary,
+      thumb_url: a.media?.thumb_url,
+      file_url: a.media?.file_url || a.media?.url,
+    }))
+  } catch {
+    nodeMediaItems.value = []
+  } finally {
+    nodeMediaLoading.value = false
+  }
+}
+
+async function loadUsageTypes() {
+  if (availableUsageTypes.value.length > 0) return
+  try {
+    const { data } = await mediaUsageTypes.list()
+    availableUsageTypes.value = data.data || data
+  } catch { /* ignore */ }
+}
+
+function openMediaPicker() {
+  loadUsageTypes()
+  showMediaPicker.value = true
+}
+
+async function onMediaSelected(media, usageTypeId) {
+  if (!store.selectedNode) return
+  try {
+    await hierarchiesApi.assignNodeMedia(store.selectedNode.id, {
+      media_id: media.id,
+      usage_type_id: usageTypeId || null,
+      sort_order: nodeMediaItems.value.length,
+    })
+    showMediaPicker.value = false
+    await loadNodeMedia(store.selectedNode.id)
+    showFeedback('Medium zugeordnet')
+  } catch (e) {
+    showFeedback(e.response?.data?.message || 'Fehler beim Zuordnen', 'error')
+  }
+}
+
+async function detachNodeMedia(item) {
+  if (!store.selectedNode) return
+  try {
+    await hierarchiesApi.removeNodeMedia(item.id)
+    nodeMediaItems.value = nodeMediaItems.value.filter(m => m.id !== item.id)
+    showFeedback('Zuordnung entfernt')
+  } catch (e) {
+    showFeedback(e.response?.data?.message || 'Fehler beim Entfernen', 'error')
+  }
+}
+
+function getNodeMediaUrl(item) {
+  return item.thumb_url || item.file_url || ''
+}
+
+function isNodeMediaPdf(item) {
+  return item.mime_type === 'application/pdf' || (item.file_name && item.file_name.toLowerCase().endsWith('.pdf'))
+}
 
 // Hierarchy-level attributes (values editable per node)
 const hierarchyLevelAttrs = ref([])
@@ -819,6 +899,7 @@ watch(() => store.selectedNode, async (node) => {
     loadNodeAttributes(node.id)
     loadNodeProducts(node.id)
     loadNodeAttrValues(node.id)
+    loadNodeMedia(node.id)
     // Load hierarchy-level attrs if needed, then load values for this node
     await loadHierarchyLevelAttrs(selectedHierarchyId.value)
     loadHierarchyAttrValues(node.id)
@@ -828,9 +909,11 @@ watch(() => store.selectedNode, async (node) => {
     outputProductAssignments.value = []
     hierarchyAttrValues.value = {}
     nodeAttrValues.value = {}
+    nodeMediaItems.value = []
   }
   showProductSearch.value = false
   showAttrPicker.value = false
+  showMediaPicker.value = false
   productSearchQuery.value = ''
   productSearchResults.value = []
   nodeAttrSearch.value = ''
@@ -1154,6 +1237,48 @@ onMounted(async () => {
           </template>
         </div>
 
+        <!-- Node Media -->
+        <div class="border-t border-[var(--color-border)] pt-4">
+          <div class="flex items-center justify-between mb-3">
+            <h4 class="text-sm font-medium text-[var(--color-text-secondary)]">
+              <Image class="w-3.5 h-3.5 inline-block mr-1 -mt-0.5" :stroke-width="1.75" />
+              Medien
+              <span v-if="nodeMediaItems.length > 0" class="text-[11px] text-[var(--color-text-tertiary)] ml-1">({{ nodeMediaItems.length }})</span>
+            </h4>
+            <button v-if="authStore.hasPermission('hierarchies.edit')" class="pim-btn pim-btn-secondary text-xs" @click="openMediaPicker">
+              <Plus class="w-3 h-3" :stroke-width="2" /> Zuordnen
+            </button>
+          </div>
+
+          <div v-if="nodeMediaLoading" class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <div v-for="i in 3" :key="i" class="pim-skeleton aspect-square rounded-lg" />
+          </div>
+
+          <div v-else-if="nodeMediaItems.length > 0" class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <div v-for="m in nodeMediaItems" :key="m.id" class="pim-card overflow-hidden group relative">
+              <div class="aspect-square bg-[var(--color-bg)] flex items-center justify-center overflow-hidden">
+                <PdfPreview v-if="isNodeMediaPdf(m)" :url="getNodeMediaUrl(m)" :media-id="m.media_id || m.id" :title="m.file_name || ''" max-height="100%" />
+                <img v-else :src="getNodeMediaUrl(m)" class="w-full h-full object-cover" loading="lazy" alt="" />
+              </div>
+              <div class="p-1.5">
+                <div class="flex items-center justify-between">
+                  <span class="text-[10px] text-[var(--color-text-primary)] truncate flex-1">{{ m.file_name || '—' }}</span>
+                  <button
+                    v-if="authStore.hasPermission('hierarchies.edit')"
+                    class="p-0.5 rounded hover:bg-[var(--color-error-light)] text-[var(--color-text-tertiary)] hover:text-[var(--color-error)] transition-colors"
+                    @click="detachNodeMedia(m)"
+                  >
+                    <X class="w-3 h-3" :stroke-width="2" />
+                  </button>
+                </div>
+                <span v-if="m.usage_type" class="text-[9px] text-[var(--color-text-tertiary)]">{{ m.usage_type?.name_de || '' }}</span>
+              </div>
+            </div>
+          </div>
+
+          <p v-else class="text-xs text-[var(--color-text-tertiary)]">Keine Medien zugeordnet</p>
+        </div>
+
         <!-- Hierarchy-level Attribute Values -->
         <div v-if="hierarchyLevelAttrs.length > 0" class="border-t border-[var(--color-border)] pt-4">
           <div class="flex items-center justify-between mb-3">
@@ -1395,6 +1520,14 @@ onMounted(async () => {
       :entityId="deleteHierarchyTarget?.id"
       @confirm="confirmDeleteHierarchy"
       @cancel="deleteHierarchyTarget = null"
+    />
+
+    <!-- Media Picker Dialog -->
+    <MediaPickerDialog
+      v-model="showMediaPicker"
+      :usageTypes="availableUsageTypes"
+      :excludeMediaIds="nodeMediaItems.map(m => m.media_id)"
+      @select="onMediaSelected"
     />
 
     <!-- Action Feedback Toast -->

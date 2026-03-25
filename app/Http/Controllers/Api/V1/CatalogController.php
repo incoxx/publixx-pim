@@ -12,6 +12,7 @@ use App\Models\AttributeViewAssignment;
 use App\Models\DictionaryEntry;
 use App\Models\Hierarchy;
 use App\Models\HierarchyNode;
+use App\Models\HierarchyNodeMediaAssignment;
 use App\Models\Media;
 use App\Models\OutputHierarchyProductAssignment;
 use App\Models\Product;
@@ -978,17 +979,26 @@ class CatalogController extends BaseController
         // Count active products per node (including descendants)
         $productCounts = $this->getProductCounts($allNodes, $type);
 
+        // Knoten mit Medien-Zuordnungen ermitteln
+        $nodeIds = $allNodes->pluck('id')->toArray();
+        $nodesWithAssets = HierarchyNodeMediaAssignment::whereIn('hierarchy_node_id', $nodeIds)
+            ->distinct()
+            ->pluck('hierarchy_node_id')
+            ->flip()
+            ->toArray();
+
         // Build nested tree
         $rootNodes = $allNodes->whereNull('parent_node_id');
         $nodesByParent = $allNodes->groupBy('parent_node_id');
 
-        $buildTree = function ($nodes) use (&$buildTree, $nodesByParent, $productCounts, $lang) {
-            return $nodes->map(function ($node) use (&$buildTree, $nodesByParent, $productCounts, $lang) {
+        $buildTree = function ($nodes) use (&$buildTree, $nodesByParent, $productCounts, $nodesWithAssets, $lang) {
+            return $nodes->map(function ($node) use (&$buildTree, $nodesByParent, $productCounts, $nodesWithAssets, $lang) {
                 $children = $nodesByParent->get($node->id, collect());
                 return [
                     'id' => $node->id,
                     'name' => $lang === 'en' && $node->name_en ? $node->name_en : $node->name_de,
                     'product_count' => $productCounts[$node->id] ?? 0,
+                    'has_assets' => isset($nodesWithAssets[$node->id]),
                     'children' => $buildTree($children)->values()->toArray(),
                 ];
             })->values();
@@ -1687,6 +1697,58 @@ class CatalogController extends BaseController
                 'rows' => $rows,
                 'total_differences' => collect($rows)->where('is_different', true)->count(),
                 'total_attributes' => count($rows),
+            ],
+        ]);
+    }
+
+    /**
+     * GET /api/v1/catalog/categories/{nodeId}/assets
+     *
+     * Assets einer Kategorie (Hierarchieknoten) für den Katalog.
+     */
+    public function categoryAssets(Request $request, string $nodeId): JsonResponse
+    {
+        $lang = $request->query('lang', 'de');
+        $perPage = min(max(1, (int) $request->query('per_page', '24')), 100);
+
+        $node = HierarchyNode::where('id', $nodeId)
+            ->where('is_active', true)
+            ->firstOrFail();
+
+        $query = $node->media()
+            ->orderByPivot('sort_order');
+
+        $paginated = $query->paginate($perPage);
+
+        $data = collect($paginated->items())->map(function ($media) use ($lang) {
+            $title = $lang === 'en' && $media->title_en ? $media->title_en : $media->title_de;
+
+            return [
+                'id' => $media->id,
+                'file_name' => $media->file_name,
+                'mime_type' => $media->mime_type,
+                'file_size' => $media->file_size,
+                'media_type' => $media->media_type,
+                'title' => $title,
+                'alt_text' => $lang === 'en' && $media->alt_text_en ? $media->alt_text_en : $media->alt_text_de,
+                'width' => $media->width,
+                'height' => $media->height,
+                'usage_type_id' => $media->pivot->usage_type_id,
+                'is_primary' => $media->pivot->is_primary,
+                'sort_order' => $media->pivot->sort_order,
+                'thumb_url' => url("api/v1/media/thumb/{$media->id}?w=300&h=300"),
+                'preview_url' => url("api/v1/media/thumb/{$media->id}?w=800&h=800"),
+                'original_url' => url('api/v1/media/file/' . rawurlencode($media->file_name)),
+            ];
+        });
+
+        return response()->json([
+            'data' => $data,
+            'meta' => [
+                'current_page' => $paginated->currentPage(),
+                'last_page' => $paginated->lastPage(),
+                'per_page' => $paginated->perPage(),
+                'total' => $paginated->total(),
             ],
         ]);
     }

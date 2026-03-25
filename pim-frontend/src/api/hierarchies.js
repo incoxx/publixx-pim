@@ -138,4 +138,17 @@ export default {
   removeMasterProduct(nodeId, productId) {
     return client.delete(`/hierarchy-nodes/${nodeId}/master-products/${productId}`)
   },
+
+  // Node media assignments
+  getNodeMedia(nodeId, options = {}) {
+    return client.get(`/hierarchy-nodes/${nodeId}/media`, { params: buildParams(options) })
+  },
+
+  assignNodeMedia(nodeId, data) {
+    return client.post(`/hierarchy-nodes/${nodeId}/media`, data)
+  },
+
+  removeNodeMedia(assignmentId) {
+    return client.delete(`/hierarchy-node-media/${assignmentId}`)
+  },
 }

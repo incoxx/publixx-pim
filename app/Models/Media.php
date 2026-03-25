@@ -80,11 +80,23 @@ class Media extends Model
         return $this->hasMany(MediaRevision::class)->orderByDesc('revision_number');
     }
 
+    public function hierarchyNodeAssignments(): HasMany
+    {
+        return $this->hasMany(HierarchyNodeMediaAssignment::class);
+    }
+
+    public function hierarchyNodes(): BelongsToMany
+    {
+        return $this->belongsToMany(HierarchyNode::class, 'hierarchy_node_media_assignments')
+            ->withPivot(['usage_type_id', 'sort_order', 'is_primary']);
+    }
+
     public function deletionConstraints(): array
     {
         return [
-            'productAssignments' => 'Produkt-Zuordnungen',
-            'attributeValues'    => 'Attributwerte',
+            'productAssignments'        => 'Produkt-Zuordnungen',
+            'hierarchyNodeAssignments'  => 'Knoten-Zuordnungen',
+            'attributeValues'           => 'Attributwerte',
         ];
     }
 }

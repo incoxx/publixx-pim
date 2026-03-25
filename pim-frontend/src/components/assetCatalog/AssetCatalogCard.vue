@@ -92,9 +92,25 @@ const staggerDelay = computed(() => `${Math.min(props.index * 40, 400)}ms`)
             'badge-accent': source.type === 'attribute',
             'badge-info': source.type === 'description',
             'badge-warning': source.type === 'phonetic',
+            'badge-secondary': source.type === 'hierarchy_node',
           }"
         >
           {{ source.label }}
+        </span>
+      </div>
+
+      <!-- Hierarchy node badges -->
+      <div v-if="asset.hierarchy_nodes?.length" class="flex flex-wrap gap-1 mt-0.5">
+        <span
+          v-for="hn in asset.hierarchy_nodes.slice(0, 2)"
+          :key="hn.node_id"
+          class="badge badge-xs badge-outline badge-secondary"
+          :title="hn.hierarchy_name"
+        >
+          {{ hn.node_name }}
+        </span>
+        <span v-if="asset.hierarchy_nodes.length > 2" class="badge badge-xs badge-ghost">
+          +{{ asset.hierarchy_nodes.length - 2 }}
         </span>
       </div>
 
