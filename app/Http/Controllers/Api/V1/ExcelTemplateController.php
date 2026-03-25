@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Traits\ChecksDeletionConstraints;
+use App\Jobs\ExcelExportJob;
 use App\Models\Attribute;
 use App\Models\ExcelTemplate;
 use App\Models\MediaUsageType;
@@ -15,6 +16,9 @@ use App\Services\ExcelDesigner\ExcelDesignerService;
 use App\Services\ExcelDesigner\ExcelTemplateImporter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Str;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ExcelTemplateController extends Controller
@@ -255,6 +259,76 @@ class ExcelTemplateController extends Controller
         return response()->json([
             'data' => $templateJson,
         ]);
+    }
+
+    /**
+     * POST /api/v1/excel-templates/{id}/export — Async-Export starten.
+     */
+    public function startExport(Request $request, string $id): JsonResponse
+    {
+        $template = ExcelTemplate::findOrFail($id);
+        $this->authorizeAccess($request, $template);
+
+        $searchProfileId = $request->input('search_profile_id');
+        $exportKey = 'excel_' . Str::random(16);
+
+        ExcelExportJob::dispatch($template->id, $searchProfileId, $exportKey);
+
+        return response()->json([
+            'data' => [
+                'export_key' => $exportKey,
+                'status' => 'queued',
+            ],
+        ]);
+    }
+
+    /**
+     * GET /api/v1/excel-templates/export-progress/{exportKey} — Progress abfragen.
+     */
+    public function exportProgress(string $exportKey): JsonResponse
+    {
+        $progress = Cache::get(ExcelExportJob::cacheKey($exportKey));
+
+        if (!$progress) {
+            return response()->json([
+                'data' => ['status' => 'queued', 'processed' => 0, 'total' => 0, 'percent' => 0],
+            ]);
+        }
+
+        return response()->json(['data' => $progress]);
+    }
+
+    /**
+     * POST /api/v1/excel-templates/export-cancel/{exportKey} — Export abbrechen.
+     */
+    public function cancelExport(string $exportKey): JsonResponse
+    {
+        ExcelExportJob::cancel($exportKey);
+
+        return response()->json(['data' => ['status' => 'cancelling']]);
+    }
+
+    /**
+     * GET /api/v1/excel-templates/export-download/{exportKey} — Fertige Datei herunterladen.
+     */
+    public function downloadExport(string $exportKey): BinaryFileResponse|JsonResponse
+    {
+        $progress = Cache::get(ExcelExportJob::cacheKey($exportKey));
+
+        if (!$progress || $progress['status'] !== 'completed') {
+            return response()->json(['error' => 'Export nicht bereit.'], 404);
+        }
+
+        $path = $progress['output_path'] ?? null;
+        if (!$path || !file_exists($path)) {
+            return response()->json(['error' => 'Export-Datei nicht gefunden.'], 404);
+        }
+
+        $fileName = $progress['file_name'] ?? 'export.xlsx';
+
+        return response()->download($path, $fileName, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ])->deleteFileAfterSend(true);
     }
 
     private function authorizeAccess(Request $request, ExcelTemplate $template): void

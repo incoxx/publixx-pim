@@ -8,6 +8,7 @@ import ExcelSheetEditor from '@/components/excelDesigner/ExcelSheetEditor.vue'
 import ExcelFieldPicker from '@/components/excelDesigner/ExcelFieldPicker.vue'
 import ExcelPreview from '@/components/excelDesigner/ExcelPreview.vue'
 import ExcelSettingsModal from '@/components/excelDesigner/ExcelSettingsModal.vue'
+import ExcelExportProgress from '@/components/excelDesigner/ExcelExportProgress.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -257,10 +258,10 @@ if (typeof window !== 'undefined') {
       <button
         class="pim-btn pim-btn-secondary text-xs"
         @click="download"
-        :disabled="downloading"
+        :disabled="downloading || store.exportPolling"
       >
         <Download class="w-3.5 h-3.5" :stroke-width="2" />
-        {{ downloading ? 'Wird erstellt...' : 'Download .xlsx' }}
+        {{ downloading || store.exportPolling ? 'Exportiere...' : 'Download .xlsx' }}
       </button>
 
       <button
@@ -294,6 +295,9 @@ if (typeof window !== 'undefined') {
 
     <!-- Settings Modal -->
     <ExcelSettingsModal v-if="showSettings" @close="showSettings = false" />
+
+    <!-- Export Progress Modal -->
+    <ExcelExportProgress v-if="store.exportProgress" />
   </div>
 
   <!-- Loading state -->

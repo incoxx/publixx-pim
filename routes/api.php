@@ -786,6 +786,10 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
         Route::delete('{excelTemplate}', [\App\Http\Controllers\Api\V1\ExcelTemplateController::class, 'destroy']);
         Route::post('{id}/download', [\App\Http\Controllers\Api\V1\ExcelTemplateController::class, 'download']);
         Route::post('{id}/preview', [\App\Http\Controllers\Api\V1\ExcelTemplateController::class, 'preview']);
+        Route::post('{id}/export', [\App\Http\Controllers\Api\V1\ExcelTemplateController::class, 'startExport']);
+        Route::get('export-progress/{exportKey}', [\App\Http\Controllers\Api\V1\ExcelTemplateController::class, 'exportProgress']);
+        Route::post('export-cancel/{exportKey}', [\App\Http\Controllers\Api\V1\ExcelTemplateController::class, 'cancelExport']);
+        Route::get('export-download/{exportKey}', [\App\Http\Controllers\Api\V1\ExcelTemplateController::class, 'downloadExport']);
     });
 
     // =====================================================================
