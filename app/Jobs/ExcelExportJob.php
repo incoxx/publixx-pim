@@ -225,10 +225,24 @@ class ExcelExportJob implements ShouldQueue
         Log::info("ExcelExportJob: Abgebrochen bei {$processed}/{$total}.", ['key' => $this->exportKey]);
     }
 
+    /**
+     * Prüft ob der grouped-Pfad (alle Produkte im RAM) nötig ist.
+     * Das ist der Fall bei: Gruppierung oder arrayMode=expand Spalten.
+     */
     private function hasGrouping(array $templateJson): bool
     {
         foreach ($templateJson['sheets'] ?? [] as $sheet) {
             if (($sheet['field'] ?? 'none') !== 'none') {
+                return true;
+            }
+            // expand-Spalten brauchen alle Produkte für max-count Berechnung
+            foreach ($sheet['columns'] ?? [] as $column) {
+                if (($column['arrayMode'] ?? null) === 'expand') {
+                    return true;
+                }
+            }
+            // Verschachtelte Sheets prüfen
+            if (!empty($sheet['sheets']) && $this->hasGrouping(['sheets' => $sheet['sheets']])) {
                 return true;
             }
         }

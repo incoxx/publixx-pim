@@ -59,6 +59,7 @@ class ExcelSheetWriter
         return new StreamedResponse(function () use ($spreadsheet) {
             $writer = new Xlsx($spreadsheet);
             $writer->save('php://output');
+            $spreadsheet->disconnectWorksheets();
         }, 200, [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             'Content-Disposition' => "attachment; filename=\"{$fullName}\"",
