@@ -10,6 +10,9 @@ return new class extends Migration
 {
     public function up(): void
     {
+        // Falls vorheriger Migrationsversuch die Tabelle ohne FKs/Indizes erstellt hat
+        Schema::dropIfExists('output_hierarchy_product_attribute_values');
+
         Schema::create('output_hierarchy_product_attribute_values', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->uuid('assignment_id');
