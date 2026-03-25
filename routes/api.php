@@ -485,11 +485,14 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // =====================================================================
     Route::get('media/diagnostics', [MediaController::class, 'diagnostics']);
     Route::post('media/bulk-move', [MediaController::class, 'bulkMove']);
+    Route::post('media/bulk-delete', [MediaController::class, 'bulkDelete']);
+    Route::get('media/revision/{revision}/download', [MediaController::class, 'downloadRevision']);
     Route::post('media/import-url', [MediaController::class, 'importFromUrl']);
     Route::post('media/bulk-import-urls', [MediaController::class, 'bulkImportFromUrls']);
     Route::post('media/auto-match', [MediaController::class, 'autoMatch']);
     Route::apiResource('media', MediaController::class);
     Route::get('media/{medium}/dependencies', [MediaController::class, 'dependencies']);
+    Route::get('media/{medium}/revisions', [MediaController::class, 'revisions']);
     // media/file/{filename} and media/thumb/{medium} are registered outside auth group (public access)
     Route::get('media/{medium}/attribute-values', [MediaAttributeValueController::class, 'index']);
     Route::put('media/{medium}/attribute-values', [MediaAttributeValueController::class, 'bulkUpdate']);

@@ -9,6 +9,7 @@ use App\Http\Requests\Api\V1\UpdateMediaRequest;
 use App\Http\Resources\Api\V1\MediaResource;
 use App\Http\Traits\ChecksDeletionConstraints;
 use App\Models\Media;
+use App\Models\MediaRevision;
 use App\Models\Product;
 use App\Models\ProductMediaAssignment;
 use App\Models\MediaUsageType;
@@ -76,10 +77,29 @@ class MediaController extends Controller
         $this->authorize('create', Media::class);
 
         $file = $request->file('file');
+        $originalFileName = $file->getClientOriginalName();
+        $folderId = $request->input('asset_folder_id');
+
+        // Prüfen ob ein Asset mit identischem original_file_name im selben Ordner existiert
+        $existing = Media::where('original_file_name', $originalFileName)
+            ->where('asset_folder_id', $folderId)
+            ->first();
+
+        if ($existing) {
+            return $this->replaceExistingMedia($request, $existing, $file, $originalFileName);
+        }
+
+        return $this->createNewMedia($request, $file, $originalFileName);
+    }
+
+    /**
+     * Neues Media-Asset erstellen (kein Duplikat im Ordner).
+     */
+    private function createNewMedia(StoreMediaRequest $request, UploadedFile $file, string $originalFileName): JsonResponse
+    {
         $safeFilename = $this->generateSafeFilename($file);
 
-        // Ensure media directory exists
-        $disk = \Illuminate\Support\Facades\Storage::disk('public');
+        $disk = Storage::disk('public');
         if (!$disk->exists('media')) {
             $disk->makeDirectory('media');
         }
@@ -92,30 +112,19 @@ class MediaController extends Controller
             ], 500);
         }
 
-        // Fix EXIF orientation for JPEG images (portrait photos rotated by camera)
-        $storedPath = \Illuminate\Support\Facades\Storage::disk('public')->path($path);
-        if (in_array($file->getMimeType(), ['image/jpeg', 'image/jpg']) && function_exists('exif_read_data')) {
-            $this->fixExifOrientation($storedPath);
-        }
+        $storedPath = Storage::disk('public')->path($path);
+        $this->processUploadedImage($file, $storedPath);
 
-        // Auto-detect image dimensions (after EXIF fix)
-        $width = $request->input('width');
-        $height = $request->input('height');
-        if (($width === null || $height === null) && str_starts_with($file->getMimeType(), 'image/')) {
-            $dimensions = @getimagesize($storedPath);
-            if ($dimensions) {
-                $width = $width ?? $dimensions[0];
-                $height = $height ?? $dimensions[1];
-            }
-        }
+        [$width, $height] = $this->detectDimensions($request, $file, $storedPath);
 
         $media = Media::create([
             'file_name' => $safeFilename,
+            'original_file_name' => $originalFileName,
             'file_path' => $path,
             'mime_type' => $file->getMimeType(),
             'file_size' => $file->getSize(),
             'media_type' => $this->detectMediaType($file->getMimeType()),
-            'title_de' => $request->input('title_de', $file->getClientOriginalName()),
+            'title_de' => $request->input('title_de', $originalFileName),
             'title_en' => $request->input('title_en'),
             'description_de' => $request->input('description_de'),
             'description_en' => $request->input('description_en'),
@@ -125,11 +134,122 @@ class MediaController extends Controller
             'height' => $height,
             'asset_folder_id' => $request->input('asset_folder_id'),
             'usage_purpose' => $request->input('usage_purpose', 'both'),
+            'last_uploaded_at' => now(),
         ]);
 
+        $this->generateEagerThumbnail($media);
+
         return (new MediaResource($media))
+            ->additional(['replaced' => false])
             ->response()
             ->setStatusCode(201);
+    }
+
+    /**
+     * Bestehendes Media-Asset ersetzen (gleicher original_file_name im selben Ordner).
+     * Alte Datei wird als Revision archiviert.
+     */
+    private function replaceExistingMedia(StoreMediaRequest $request, Media $existing, UploadedFile $file, string $originalFileName): JsonResponse
+    {
+        // Berechtigung zum Bearbeiten prüfen
+        $this->authorize('update', $existing);
+
+        $disk = Storage::disk('public');
+
+        // 1. Alte Datei als Revision archivieren
+        $nextRevision = ($existing->revisions()->max('revision_number') ?? 0) + 1;
+        $archiveDir = 'media-revisions/' . $existing->id;
+        $archivePath = $archiveDir . '/rev-' . $nextRevision . '-' . $existing->file_name;
+
+        if ($disk->exists($existing->file_path)) {
+            $disk->copy($existing->file_path, $archivePath);
+        }
+
+        MediaRevision::create([
+            'media_id' => $existing->id,
+            'revision_number' => $nextRevision,
+            'file_name' => $existing->file_name,
+            'file_path' => $archivePath,
+            'original_file_name' => $existing->original_file_name,
+            'mime_type' => $existing->mime_type,
+            'file_size' => $existing->file_size,
+            'width' => $existing->width,
+            'height' => $existing->height,
+            'replaced_by' => $request->user()?->id,
+            'replaced_at' => now(),
+        ]);
+
+        // 2. Neue Datei unter gleichem Pfad speichern
+        $disk->delete($existing->file_path);
+        $file->storeAs('media', $existing->file_name, 'public');
+
+        $storedPath = $disk->path($existing->file_path);
+        $this->processUploadedImage($file, $storedPath);
+
+        [$width, $height] = $this->detectDimensions($request, $file, $storedPath);
+
+        // 3. Media-Record updaten
+        $existing->update([
+            'mime_type' => $file->getMimeType(),
+            'file_size' => $file->getSize(),
+            'media_type' => $this->detectMediaType($file->getMimeType()),
+            'width' => $width,
+            'height' => $height,
+            'last_uploaded_at' => now(),
+        ]);
+
+        // 4. Thumbnail-Cache löschen und neu generieren
+        app(ThumbnailService::class)->clearCache($existing);
+        $this->generateEagerThumbnail($existing);
+
+        return (new MediaResource($existing->fresh()))
+            ->additional(['replaced' => true, 'revision_number' => $nextRevision])
+            ->response();
+    }
+
+    /**
+     * EXIF-Korrektur und Image-Processing nach Upload.
+     */
+    private function processUploadedImage(UploadedFile $file, string $storedPath): void
+    {
+        if (in_array($file->getMimeType(), ['image/jpeg', 'image/jpg']) && function_exists('exif_read_data')) {
+            $this->fixExifOrientation($storedPath);
+        }
+    }
+
+    /**
+     * Bild-Dimensionen ermitteln (aus Request oder automatisch).
+     */
+    private function detectDimensions(StoreMediaRequest $request, UploadedFile $file, string $storedPath): array
+    {
+        $width = $request->input('width');
+        $height = $request->input('height');
+        if (($width === null || $height === null) && str_starts_with($file->getMimeType(), 'image/')) {
+            $dimensions = @getimagesize($storedPath);
+            if ($dimensions) {
+                $width = $width ?? $dimensions[0];
+                $height = $height ?? $dimensions[1];
+            }
+        }
+        return [$width, $height];
+    }
+
+    /**
+     * Thumbnail sofort nach Upload generieren (für sofortige Vorschau).
+     */
+    private function generateEagerThumbnail(Media $media): void
+    {
+        if (!str_starts_with($media->mime_type ?? '', 'image/') || !extension_loaded('gd')) {
+            return;
+        }
+        try {
+            app(ThumbnailService::class)->generate($media, 300, 300, 'contain');
+        } catch (\Throwable $e) {
+            \Log::debug('Eager thumbnail generation failed', [
+                'media_id' => $media->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     public function show(Media $medium): MediaResource
@@ -262,6 +382,115 @@ class MediaController extends Controller
         return response()->json([
             'message' => 'Medien erfolgreich verschoben.',
             'moved' => count($validated['media_ids']),
+        ]);
+    }
+
+    /**
+     * POST /media/bulk-delete — mehrere Medien löschen.
+     */
+    public function bulkDelete(Request $request): JsonResponse
+    {
+        $this->authorize('delete', Media::class);
+
+        $validated = $request->validate([
+            'media_ids' => ['required', 'array', 'min:1', 'max:100'],
+            'media_ids.*' => ['required', 'uuid', 'exists:media,id'],
+            'force' => ['nullable', 'boolean'],
+        ]);
+
+        $force = $request->boolean('force');
+        $deleted = 0;
+        $skipped = 0;
+        $errors = [];
+
+        foreach ($validated['media_ids'] as $mediaId) {
+            $media = Media::find($mediaId);
+            if (!$media) {
+                $skipped++;
+                continue;
+            }
+
+            // Constraint-Check (Produkt-Zuordnungen etc.)
+            if (!$force && $media->productAssignments()->exists()) {
+                $skipped++;
+                $errors[] = "{$media->file_name}: Hat Produkt-Zuordnungen";
+                continue;
+            }
+
+            // Thumbnail-Cache löschen
+            try {
+                app(ThumbnailService::class)->clearCache($media);
+            } catch (\Throwable) {
+                // Nicht-kritisch
+            }
+
+            // Revisions-Dateien löschen
+            $disk = Storage::disk('public');
+            if ($disk->exists('media-revisions/' . $media->id)) {
+                $disk->deleteDirectory('media-revisions/' . $media->id);
+            }
+
+            // Datei auf Disk löschen
+            if ($disk->exists($media->file_path)) {
+                $disk->delete($media->file_path);
+            }
+
+            $media->delete();
+            $deleted++;
+        }
+
+        return response()->json([
+            'message' => "{$deleted} Medien gelöscht" . ($skipped > 0 ? ", {$skipped} übersprungen." : '.'),
+            'deleted' => $deleted,
+            'skipped' => $skipped,
+            'errors' => $errors,
+        ]);
+    }
+
+    /**
+     * GET /media/{media}/revisions — Datei-Historie abrufen.
+     */
+    public function revisions(Media $medium): JsonResponse
+    {
+        $this->authorize('view', $medium);
+
+        $revisions = $medium->revisions()
+            ->with('replacedByUser:id,name')
+            ->get()
+            ->map(fn (MediaRevision $rev) => [
+                'id' => $rev->id,
+                'revision_number' => $rev->revision_number,
+                'file_name' => $rev->file_name,
+                'original_file_name' => $rev->original_file_name,
+                'file_size' => $rev->file_size,
+                'mime_type' => $rev->mime_type,
+                'width' => $rev->width,
+                'height' => $rev->height,
+                'replaced_by' => $rev->replacedByUser?->name,
+                'replaced_at' => $rev->replaced_at,
+                'reason' => $rev->reason,
+                'download_url' => url('api/v1/media/revision/' . $rev->id . '/download'),
+            ]);
+
+        return response()->json(['data' => $revisions]);
+    }
+
+    /**
+     * GET /media/revision/{revision}/download — Revisions-Datei herunterladen.
+     */
+    public function downloadRevision(MediaRevision $revision): BinaryFileResponse
+    {
+        $this->authorize('view', $revision->media);
+
+        $path = Storage::disk('public')->path($revision->file_path);
+
+        if (!file_exists($path)) {
+            abort(404, 'Revisions-Datei nicht gefunden.');
+        }
+
+        return response()->file($path, [
+            'Content-Type' => $revision->mime_type ?? 'application/octet-stream',
+            'Content-Disposition' => 'attachment; filename="' . $revision->file_name . '"',
         ]);
     }
 

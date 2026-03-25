@@ -21,6 +21,7 @@ class Media extends Model
 
     protected $fillable = [
         'file_name',
+        'original_file_name',
         'file_path',
         'mime_type',
         'file_size',
@@ -35,6 +36,7 @@ class Media extends Model
         'height',
         'asset_folder_id',
         'usage_purpose',
+        'last_uploaded_at',
     ];
 
     protected function casts(): array
@@ -43,6 +45,7 @@ class Media extends Model
             'file_size' => 'integer',
             'width' => 'integer',
             'height' => 'integer',
+            'last_uploaded_at' => 'datetime',
         ];
     }
 
@@ -70,6 +73,11 @@ class Media extends Model
     public function pdfDocument(): HasOne
     {
         return $this->hasOne(PdfDocument::class);
+    }
+
+    public function revisions(): HasMany
+    {
+        return $this->hasMany(MediaRevision::class)->orderByDesc('revision_number');
     }
 
     public function deletionConstraints(): array

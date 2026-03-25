@@ -14,6 +14,7 @@ class MediaResource extends JsonResource
         return [
             'id' => $this->id,
             'file_name' => $this->file_name,
+            'original_file_name' => $this->original_file_name,
             'file_path' => $this->file_path,
             'mime_type' => $this->mime_type,
             'file_size' => $this->file_size,
@@ -28,6 +29,8 @@ class MediaResource extends JsonResource
             'height' => $this->height,
             'asset_folder_id' => $this->asset_folder_id,
             'usage_purpose' => $this->usage_purpose,
+            'last_uploaded_at' => $this->last_uploaded_at,
+            'revision_count' => $this->revisions_count ?? $this->revisions()->count(),
             'url' => url('api/v1/media/file/' . rawurlencode($this->file_name)),
             'file_url' => url('api/v1/media/file/' . rawurlencode($this->file_name)),
             'thumb_url' => url("api/v1/media/thumb/{$this->id}?w=300&h=300"),

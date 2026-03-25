@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { Upload, Image, Grid, List, Trash2, FolderOpen, FolderPlus, Search, X, Plus, MoveRight, CheckSquare, Link, FileSpreadsheet, FileText, Wand2, Loader2, ChevronLeft, ChevronRight, Download, Copy } from 'lucide-vue-next'
+import { Upload, Image, Grid, List, Trash2, FolderOpen, FolderPlus, Search, X, Plus, MoveRight, CheckSquare, Link, FileSpreadsheet, FileText, Wand2, Loader2, ChevronLeft, ChevronRight, Download, Copy, History } from 'lucide-vue-next'
 import mediaApi from '@/api/media'
 import { mediaUsageTypes as mediaUsageTypesApi } from '@/api/mediaUsageTypes'
 import hierarchiesApi from '@/api/hierarchies'
@@ -9,6 +9,7 @@ import PimDeleteConfirmDialog from '@/components/shared/PimDeleteConfirmDialog.v
 import PimTree from '@/components/shared/PimTree.vue'
 import PimAttributeInput from '@/components/shared/PimAttributeInput.vue'
 import PdfPreview from '@/components/shared/PdfPreview.vue'
+import MediaUploadQueue from '@/components/media/MediaUploadQueue.vue'
 
 const authStore = useAuthStore()
 
@@ -103,45 +104,71 @@ async function fetchFolders() {
 
 const uploading = ref(false)
 const uploadError = ref('')
+const uploadQueueRef = ref(null)
+
+// Bulk-Delete
+const showBulkDeleteConfirm = ref(false)
+const bulkDeleting = ref(false)
+
+// Revisions im Detail-Panel
+const detailRevisions = ref([])
+const detailRevisionsLoading = ref(false)
+const detailTab = ref('info')
 
 async function handleUpload(e) {
   const files = Array.from(e.target.files || [])
   if (!files.length) return
-
-  uploading.value = true
-  uploadError.value = ''
-  let successCount = 0
-  const errors = []
-
-  for (const file of files) {
-    try {
-      const metadata = {}
-      if (selectedFolderId.value) metadata.asset_folder_id = selectedFolderId.value
-      await mediaApi.upload(file, metadata)
-      successCount++
-    } catch (err) {
-      const msg = err.response?.data?.message || err.message || 'Unbekannter Fehler'
-      errors.push(`"${file.name}": ${msg}`)
-      console.error('Upload failed:', file.name, err)
-    }
-  }
-
-  if (errors.length) {
-    uploadError.value = `Upload fehlgeschlagen: ${errors.join('; ')}`
-  }
-
   if (e.target?.value !== undefined) e.target.value = ''
-  uploading.value = false
-  if (successCount > 0) await fetchMedia()
+
+  // Dateien an Upload-Queue delegieren
+  if (uploadQueueRef.value) {
+    uploadQueueRef.value.addFiles(files)
+  }
 }
 
 function handleDrop(e) {
   e.preventDefault()
   const files = e.dataTransfer?.files
-  if (files?.length) {
-    const fakeEvent = { target: { files, value: '' } }
-    handleUpload(fakeEvent)
+  if (files?.length && uploadQueueRef.value) {
+    uploadQueueRef.value.addFiles(files)
   }
+}
+
+function onUploadCompleted() {
+  fetchMedia()
+}
+
+async function bulkDeleteSelected() {
+  if (selectedIds.value.size === 0) return
+  bulkDeleting.value = true
+  try {
+    await mediaApi.bulkDelete([...selectedIds.value])
+    showBulkDeleteConfirm.value = false
+    clearSelection()
+    await fetchMedia()
+  } catch (err) {
+    uploadError.value = err.response?.data?.message || err.message || 'Löschen fehlgeschlagen'
+  } finally {
+    bulkDeleting.value = false
+  }
+}
+
+async function loadRevisions(mediaId) {
+  detailRevisions.value = []
+  detailRevisionsLoading.value = true
+  try {
+    const { data } = await mediaApi.revisions(mediaId)
+    detailRevisions.value = data.data || data || []
+  } catch (e) {
+    console.error('Failed to load revisions:', e)
+  } finally {
+    detailRevisionsLoading.value = false
+  }
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return '—'
+  return new Date(dateStr).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
 function getImageUrl(item) {
@@ -320,7 +347,13 @@ function openDetail(item) {
   detailOpen.value = true
   copiedUrl.value = false
   saveError.value = ''
+  detailTab.value = 'info'
   loadAssetAttributes(item)
+  if (item.revision_count > 0) {
+    loadRevisions(item.id)
+  } else {
+    detailRevisions.value = []
+  }
 }
 
 function closeDetail() {
@@ -720,6 +753,14 @@ onMounted(() => {
             <MoveRight class="w-3.5 h-3.5" :stroke-width="2" />
             In Ordner verschieben
           </button>
+          <button
+            v-if="authStore.hasPermission('media.delete')"
+            class="pim-btn pim-btn-sm flex items-center gap-1.5 text-[var(--color-error)] border-[var(--color-error)]/30 hover:bg-[var(--color-error)]/10"
+            @click="showBulkDeleteConfirm = true"
+          >
+            <Trash2 class="w-3.5 h-3.5" :stroke-width="2" />
+            {{ selectedIds.size }} löschen
+          </button>
           <button class="pim-btn pim-btn-ghost pim-btn-sm ml-auto" @click="clearSelection">
             <X class="w-3.5 h-3.5" :stroke-width="2" />
             Auswahl aufheben
@@ -949,6 +990,49 @@ onMounted(() => {
               @update:modelValue="assetAttributeValues[assignment.attribute?.id || assignment.attribute_id] = $event"
             />
           </div>
+        </div>
+
+        <!-- Upload-Info -->
+        <div v-if="detailItem.last_uploaded_at" class="border-t border-[var(--color-border)] pt-3">
+          <label class="text-[10px] font-medium text-[var(--color-text-secondary)] uppercase">Letzter Upload</label>
+          <p class="text-xs text-[var(--color-text-primary)]">{{ formatDate(detailItem.last_uploaded_at) }}</p>
+        </div>
+
+        <!-- Revisions-Historie -->
+        <div v-if="detailRevisions.length > 0" class="border-t border-[var(--color-border)] pt-3 space-y-2">
+          <div class="flex items-center gap-1.5">
+            <History class="w-3.5 h-3.5 text-[var(--color-text-tertiary)]" :stroke-width="2" />
+            <h4 class="text-[10px] font-medium text-[var(--color-text-secondary)] uppercase tracking-wider">
+              Dateiversionen ({{ detailRevisions.length }})
+            </h4>
+          </div>
+          <div class="space-y-1.5">
+            <div
+              v-for="rev in detailRevisions"
+              :key="rev.id"
+              class="flex items-center justify-between gap-2 px-2 py-1.5 rounded bg-[var(--color-bg)] text-[10px]"
+            >
+              <div class="min-w-0">
+                <p class="text-[var(--color-text-primary)] font-medium">
+                  Rev. {{ rev.revision_number }} — {{ formatDate(rev.replaced_at) }}
+                </p>
+                <p class="text-[var(--color-text-tertiary)] truncate">
+                  {{ rev.replaced_by || 'System' }}
+                  <template v-if="rev.file_size"> · {{ (rev.file_size / 1024).toFixed(0) }} KB</template>
+                </p>
+              </div>
+              <a
+                :href="rev.download_url"
+                class="shrink-0 p-1 rounded hover:bg-[var(--color-surface)] text-[var(--color-text-tertiary)]"
+                title="Download"
+              >
+                <Download class="w-3 h-3" />
+              </a>
+            </div>
+          </div>
+        </div>
+        <div v-else-if="detailRevisionsLoading" class="border-t border-[var(--color-border)] pt-3">
+          <div class="pim-skeleton h-8 rounded" />
         </div>
 
         <p v-if="saveError" class="text-[11px] text-[var(--color-error,#ef4444)]">{{ saveError }}</p>
@@ -1186,6 +1270,43 @@ onMounted(() => {
       @confirm="confirmDeleteFolder"
       @cancel="deleteFolderTarget = null"
     />
+
+    <!-- Upload Queue -->
+    <MediaUploadQueue
+      ref="uploadQueueRef"
+      :metadata="selectedFolderId ? { asset_folder_id: selectedFolderId } : {}"
+      @completed="onUploadCompleted"
+    />
+
+    <!-- Bulk Delete Confirm -->
+    <Teleport to="body">
+      <Transition name="fade">
+        <div v-if="showBulkDeleteConfirm" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div class="absolute inset-0 bg-black/50" @click="showBulkDeleteConfirm = false" />
+          <div class="relative bg-[var(--color-surface)] rounded-xl shadow-2xl p-6 max-w-sm w-full space-y-4">
+            <h3 class="text-lg font-semibold text-[var(--color-text-primary)]">Medien löschen</h3>
+            <p class="text-sm text-[var(--color-text-secondary)]">
+              {{ selectedIds.size }} {{ selectedIds.size === 1 ? 'Medium' : 'Medien' }} endgültig löschen?
+              Dieser Vorgang kann nicht rückgängig gemacht werden.
+            </p>
+            <div class="flex justify-end gap-2">
+              <button class="pim-btn pim-btn-ghost pim-btn-sm" @click="showBulkDeleteConfirm = false" :disabled="bulkDeleting">
+                Abbrechen
+              </button>
+              <button
+                class="pim-btn pim-btn-sm text-white bg-[var(--color-error)] hover:bg-[var(--color-error)]/80"
+                @click="bulkDeleteSelected"
+                :disabled="bulkDeleting"
+              >
+                <Loader2 v-if="bulkDeleting" class="w-4 h-4 animate-spin" />
+                <Trash2 v-else class="w-4 h-4" />
+                Löschen
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
