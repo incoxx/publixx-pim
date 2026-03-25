@@ -12,21 +12,25 @@ return new class extends Migration
     {
         Schema::create('output_hierarchy_product_attribute_values', function (Blueprint $table) {
             $table->uuid('id')->primary();
-            $table->foreignUuid('assignment_id')
-                ->constrained('output_hierarchy_product_assignments')
+            $table->uuid('assignment_id');
+            $table->foreign('assignment_id', 'ohpav_assignment_id_foreign')
+                ->references('id')->on('output_hierarchy_product_assignments')
                 ->cascadeOnDelete();
-            $table->foreignUuid('attribute_id')
-                ->constrained('attributes')
+            $table->uuid('attribute_id');
+            $table->foreign('attribute_id', 'ohpav_attribute_id_foreign')
+                ->references('id')->on('attributes')
                 ->cascadeOnDelete();
             $table->text('value_string')->nullable();
             $table->decimal('value_number', 20, 6)->nullable();
             $table->date('value_date')->nullable();
             $table->boolean('value_flag')->nullable();
-            $table->foreignUuid('value_selection_id')->nullable()
-                ->constrained('value_list_entries')
+            $table->uuid('value_selection_id')->nullable();
+            $table->foreign('value_selection_id', 'ohpav_value_selection_id_foreign')
+                ->references('id')->on('value_list_entries')
                 ->nullOnDelete();
-            $table->foreignUuid('unit_id')->nullable()
-                ->constrained('units')
+            $table->uuid('unit_id')->nullable();
+            $table->foreign('unit_id', 'ohpav_unit_id_foreign')
+                ->references('id')->on('units')
                 ->nullOnDelete();
             $table->string('language', 5)->nullable();
             $table->integer('multiplied_index')->default(0);
