@@ -40,11 +40,15 @@ class TypesenseService
         return [
             'name' => 'pdf_pages',
             'fields' => [
-                ['name' => 'pdf_document_id', 'type' => 'string'],
+                ['name' => 'pdf_document_id', 'type' => 'string', 'facet' => true],
                 ['name' => 'media_id', 'type' => 'string'],
                 ['name' => 'page_number', 'type' => 'int32'],
                 ['name' => 'text', 'type' => 'string'],
                 ['name' => 'title', 'type' => 'string'],
+                ['name' => 'file_name', 'type' => 'string', 'optional' => true],
+                ['name' => 'description', 'type' => 'string', 'optional' => true],
+                ['name' => 'folder_name', 'type' => 'string', 'optional' => true],
+                ['name' => 'page_count', 'type' => 'int32', 'optional' => true],
                 ['name' => 'language', 'type' => 'string', 'facet' => true, 'optional' => true],
             ],
         ];
@@ -80,6 +84,9 @@ class TypesenseService
     {
         $media = $document->media;
         $title = $media->title_de ?? $media->title_en ?? $media->file_name ?? '';
+        $fileName = $media->file_name ?? '';
+        $description = $media->description_de ?? $media->description_en ?? '';
+        $folderName = $media->assetFolder?->name_de ?? '';
 
         $documents = [];
         foreach ($document->pages as $page) {
@@ -90,6 +97,10 @@ class TypesenseService
                 'page_number' => $page->page_number,
                 'text' => $page->extracted_text ?? '',
                 'title' => $title,
+                'file_name' => $fileName,
+                'description' => $description,
+                'folder_name' => $folderName,
+                'page_count' => $document->page_count ?? 0,
             ];
         }
 
@@ -128,19 +139,25 @@ class TypesenseService
     }
 
     /**
-     * Volltextsuche über alle PDF-Seiten.
+     * Volltextsuche über alle PDF-Seiten — gruppiert nach Dokument, gewichtet nach Feld.
+     *
+     * Gewichtung: title (3x) > file_name (2x) > text (1x)
+     * Ergebnisse werden nach pdf_document_id gruppiert (max 3 Seiten-Snippets pro Dokument).
      */
     public function search(string $query, ?string $language = null, int $perPage = 20, int $page = 1): array
     {
         $searchParams = [
             'q' => $query,
-            'query_by' => 'text,title',
+            'query_by' => 'title,file_name,text',
+            'query_by_weights' => '3,2,1',
             'highlight_full_fields' => 'text',
             'highlight_start_tag' => '<mark>',
             'highlight_end_tag' => '</mark>',
             'per_page' => $perPage,
             'page' => $page,
             'snippet_threshold' => 60,
+            'group_by' => 'pdf_document_id',
+            'group_limit' => 3,
         ];
 
         if ($language) {
@@ -150,30 +167,50 @@ class TypesenseService
         try {
             $result = $this->client()->collections['pdf_pages']->documents->search($searchParams);
 
-            $hits = [];
-            foreach ($result['hits'] ?? [] as $hit) {
-                $doc = $hit['document'];
-                $highlights = $hit['highlights'] ?? [];
-                $snippet = '';
-                foreach ($highlights as $h) {
-                    if ($h['field'] === 'text') {
-                        $snippet = $h['snippet'] ?? '';
-                        break;
+            $groups = [];
+            foreach ($result['grouped_hits'] ?? [] as $group) {
+                $groupHits = [];
+                $firstDoc = null;
+
+                foreach ($group['hits'] ?? [] as $hit) {
+                    $doc = $hit['document'];
+                    $firstDoc ??= $doc;
+
+                    // Bestes Snippet aus den Highlights extrahieren
+                    $snippet = '';
+                    foreach ($hit['highlights'] ?? [] as $h) {
+                        if ($h['field'] === 'text') {
+                            $snippet = $h['snippet'] ?? '';
+                            break;
+                        }
                     }
+
+                    $groupHits[] = [
+                        'page_number' => $doc['page_number'],
+                        'snippet' => $snippet,
+                        'score' => $hit['text_match_info']['score'] ?? null,
+                    ];
                 }
 
-                $hits[] = [
-                    'pdf_document_id' => $doc['pdf_document_id'],
-                    'media_id' => $doc['media_id'],
-                    'page_number' => $doc['page_number'],
-                    'title' => $doc['title'],
-                    'snippet' => $snippet,
+                if (!$firstDoc) {
+                    continue;
+                }
+
+                $groups[] = [
+                    'pdf_document_id' => $firstDoc['pdf_document_id'],
+                    'media_id' => $firstDoc['media_id'],
+                    'title' => $firstDoc['title'],
+                    'file_name' => $firstDoc['file_name'] ?? '',
+                    'page_count' => $firstDoc['page_count'] ?? 0,
+                    'total_hits' => $group['found'] ?? count($groupHits),
+                    'hits' => $groupHits,
                 ];
             }
 
             return [
-                'hits' => $hits,
+                'groups' => $groups,
                 'found' => $result['found'] ?? 0,
+                'found_docs' => count($groups),
                 'page' => $page,
                 'per_page' => $perPage,
             ];
@@ -184,8 +221,9 @@ class TypesenseService
             ]);
 
             return [
-                'hits' => [],
+                'groups' => [],
                 'found' => 0,
+                'found_docs' => 0,
                 'page' => $page,
                 'per_page' => $perPage,
             ];
