@@ -11,7 +11,7 @@ export default {
     return client.get(`/media/${id}`)
   },
 
-  upload(file, metadata = {}) {
+  upload(file, metadata = {}, onProgress = null) {
     const formData = new FormData()
     formData.append('file', file)
     for (const [key, val] of Object.entries(metadata)) {
@@ -19,6 +19,9 @@ export default {
     }
     return client.post('/media', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
+      onUploadProgress: onProgress
+        ? (e) => onProgress({ loaded: e.loaded, total: e.total, percent: Math.round((e.loaded / (e.total || 1)) * 100) })
+        : undefined,
     })
   },
 
@@ -32,6 +35,14 @@ export default {
 
   delete(id, { force = false } = {}) {
     return client.delete(`/media/${id}`, { params: force ? { force: true } : {} })
+  },
+
+  bulkDelete(mediaIds, { force = false } = {}) {
+    return client.post('/media/bulk-delete', { media_ids: mediaIds, force })
+  },
+
+  revisions(mediaId) {
+    return client.get(`/media/${mediaId}/revisions`)
   },
 
   importFromUrl(url, options = {}) {
