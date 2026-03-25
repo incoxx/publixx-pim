@@ -51,8 +51,8 @@ class ProcessPdfDocument implements ShouldQueue
     {
         return [
             (new WithoutOverlapping($this->pdfDocumentId))
-                ->releaseAfter(60)
-                ->expireAfter(300),
+                ->releaseAfter(300)
+                ->expireAfter(600),
         ];
     }
 
@@ -89,8 +89,8 @@ class ProcessPdfDocument implements ShouldQueue
             // 3+4. Seiten rendern und Text extrahieren
             $storageDir = 'pdf-pages/' . $document->id;
 
-            // Alte Seiten entfernen
-            $document->pages()->delete();
+            // Alte Seiten-IDs merken — erst NACH erfolgreicher Neuanlage löschen
+            $oldPageIds = $document->pages()->pluck('id')->toArray();
 
             for ($n = 1; $n <= $pageCount; $n++) {
                 // PNG rendern via pdftoppm
@@ -116,8 +116,13 @@ class ProcessPdfDocument implements ShouldQueue
                 @unlink($pngPath);
             }
 
-            // 5. In Typesense indexieren
-            $document->load('pages', 'media');
+            // Alte Seiten erst NACH erfolgreicher Neuanlage löschen (Crash-Sicherheit)
+            if (!empty($oldPageIds)) {
+                PdfPage::whereIn('id', $oldPageIds)->delete();
+            }
+
+            // 5. In Typesense indexieren (pages werden per chunk() geladen)
+            $document->load('media');
             try {
                 $typesense->upsertPages($document);
             } catch (\Throwable $e) {

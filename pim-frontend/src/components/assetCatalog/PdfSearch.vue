@@ -1,8 +1,8 @@
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useDebounceFn } from '@vueuse/core'
-import { Search, FileText, Loader2 } from 'lucide-vue-next'
+import { Search, FileText, Loader2, ChevronDown, ChevronRight, BookOpen } from 'lucide-vue-next'
 import pdfApi from '@/api/pdf'
 
 const emit = defineEmits(['select-result'])
@@ -10,25 +10,41 @@ const emit = defineEmits(['select-result'])
 const { t } = useI18n()
 
 const query = ref('')
-const results = ref([])
+const groups = ref([])
 const loading = ref(false)
 const totalFound = ref(0)
 const currentPage = ref(1)
+const lastPageDocCount = ref(0)
 const perPage = 20
+const expandedGroups = ref(new Set())
+
+// Pagination: "Mehr laden" nur wenn letzte Seite voll war (= es gibt vermutlich mehr)
+const hasMore = computed(() => lastPageDocCount.value >= perPage)
 
 function sanitizeSnippet(html) {
   if (!html) return ''
-  // Only allow <mark> tags for search highlighting, strip everything else
-  return html
-    .replace(/<(?!\/?(mark)\b)[^>]*>/gi, '')
-    .replace(/<\/(?!mark\b)[^>]*>/gi, '')
+  // Exakter Match auf <mark> und </mark> — alles andere wird entfernt (XSS-sicher)
+  return html.replace(/<[^>]*>/g, (tag) => {
+    if (/^<mark>$/i.test(tag)) return tag
+    if (/^<\/mark>$/i.test(tag)) return tag
+    return ''
+  })
+}
+
+function toggleGroup(pdfDocumentId) {
+  if (expandedGroups.value.has(pdfDocumentId)) {
+    expandedGroups.value.delete(pdfDocumentId)
+  } else {
+    expandedGroups.value.add(pdfDocumentId)
+  }
 }
 
 async function performSearch(append = false) {
   const q = query.value.trim()
   if (q.length < 2) {
-    results.value = []
+    groups.value = []
     totalFound.value = 0
+    lastPageDocCount.value = 0
     return
   }
 
@@ -39,19 +55,29 @@ async function performSearch(append = false) {
       perPage,
       page: currentPage.value,
     })
-    const hits = (data.hits || []).map(hit => ({
-      ...hit,
-      snippet: sanitizeSnippet(hit.snippet),
+    const newGroups = (data.groups || []).map(group => ({
+      ...group,
+      hits: (group.hits || []).map(hit => ({
+        ...hit,
+        snippet: sanitizeSnippet(hit.snippet),
+      })),
     }))
-    results.value = append ? [...results.value, ...hits] : hits
+    groups.value = append ? [...groups.value, ...newGroups] : newGroups
     totalFound.value = data.found || 0
+    lastPageDocCount.value = newGroups.length
+
+    // Erstes Ergebnis automatisch aufklappen (nur bei neuer Suche)
+    if (!append && newGroups.length > 0) {
+      expandedGroups.value = new Set([newGroups[0].pdf_document_id])
+    }
   } catch (e) {
     console.error('PDF search failed:', e)
     if (!append) {
-      results.value = []
+      groups.value = []
       totalFound.value = 0
+      lastPageDocCount.value = 0
     } else {
-      currentPage.value-- // Rollback on pagination error
+      currentPage.value--
     }
   } finally {
     loading.value = false
@@ -68,18 +94,18 @@ watch(query, () => {
 })
 
 function loadMore() {
-  if (results.value.length < totalFound.value && !loading.value) {
+  if (hasMore.value && !loading.value) {
     currentPage.value++
     performSearch(true)
   }
 }
 
-function selectResult(hit) {
+function selectResult(group, hit) {
   emit('select-result', {
-    pdfDocumentId: hit.pdf_document_id,
-    mediaId: hit.media_id,
+    pdfDocumentId: group.pdf_document_id,
+    mediaId: group.media_id,
     pageNumber: hit.page_number,
-    title: hit.title,
+    title: group.title,
   })
 }
 </script>
@@ -92,6 +118,7 @@ function selectResult(hit) {
       <input
         v-model="query"
         type="text"
+        aria-label="PDF-Inhalte durchsuchen"
         :placeholder="t('pdf.searchPlaceholder', 'PDF-Inhalte durchsuchen…')"
         class="input input-bordered w-full pl-10 input-sm"
       />
@@ -104,36 +131,77 @@ function selectResult(hit) {
     <!-- Ergebnisanzahl -->
     <p v-if="query.trim().length >= 2 && !loading" class="text-xs text-base-content/50">
       {{ totalFound }} {{ t('pdf.resultsFound', 'Treffer') }}
+      {{ t('pdf.inDocuments', 'in') }} {{ groups.length }} {{ t('pdf.documents', 'Dokumenten') }}
     </p>
 
-    <!-- Ergebnisliste -->
-    <div v-if="results.length > 0" class="flex flex-col gap-1">
-      <button
-        v-for="(hit, index) in results"
-        :key="`${hit.pdf_document_id}-${hit.page_number}`"
-        class="flex items-start gap-3 p-3 rounded-lg hover:bg-base-200 transition-colors text-left w-full"
-        @click="selectResult(hit)"
+    <!-- Gruppierte Ergebnisliste -->
+    <div v-if="groups.length > 0" class="flex flex-col gap-2">
+      <div
+        v-for="group in groups"
+        :key="group.pdf_document_id"
+        class="border border-base-300 rounded-lg overflow-hidden"
       >
-        <FileText class="w-5 h-5 text-primary mt-0.5 shrink-0" />
-        <div class="flex flex-col gap-1 min-w-0">
-          <div class="flex items-center gap-2">
-            <span class="text-sm font-medium truncate">{{ hit.title }}</span>
-            <span class="badge badge-ghost badge-xs shrink-0">
-              {{ t('pdf.page', 'Seite') }} {{ hit.page_number }}
+        <!-- Dokument-Header -->
+        <button
+          class="flex items-center gap-3 p-3 w-full text-left hover:bg-base-200 transition-colors"
+          @click="toggleGroup(group.pdf_document_id)"
+        >
+          <component
+            :is="expandedGroups.has(group.pdf_document_id) ? ChevronDown : ChevronRight"
+            class="w-4 h-4 text-base-content/40 shrink-0"
+          />
+          <BookOpen class="w-5 h-5 text-primary shrink-0" />
+          <div class="flex flex-col gap-0.5 min-w-0 flex-1">
+            <span class="text-sm font-medium truncate">{{ group.title || group.file_name }}</span>
+            <span v-if="group.title && group.file_name" class="text-xs text-base-content/40 truncate">
+              {{ group.file_name }}
             </span>
           </div>
-          <p
-            v-if="hit.snippet"
-            class="text-xs text-base-content/60 line-clamp-2"
-            v-html="hit.snippet"
-          />
+          <div class="flex items-center gap-1.5 shrink-0">
+            <span class="badge badge-primary badge-xs">
+              {{ group.total_hits }} {{ t('pdf.hits', 'Treffer') }}
+            </span>
+            <span v-if="group.page_count" class="badge badge-ghost badge-xs">
+              {{ group.page_count }} {{ t('pdf.pages', 'Seiten') }}
+            </span>
+          </div>
+        </button>
+
+        <!-- Seiten-Snippets (aufklappbar) -->
+        <div v-if="expandedGroups.has(group.pdf_document_id)" class="border-t border-base-300">
+          <button
+            v-for="hit in group.hits"
+            :key="`${group.pdf_document_id}-${hit.page_number}`"
+            class="flex items-start gap-3 p-3 pl-11 hover:bg-base-200 transition-colors text-left w-full border-b border-base-200 last:border-b-0"
+            @click="selectResult(group, hit)"
+          >
+            <FileText class="w-4 h-4 text-base-content/30 mt-0.5 shrink-0" />
+            <div class="flex flex-col gap-1 min-w-0">
+              <span class="text-xs font-medium text-base-content/60">
+                {{ t('pdf.page', 'Seite') }} {{ hit.page_number }}
+              </span>
+              <p
+                v-if="hit.snippet"
+                class="text-xs text-base-content/60 line-clamp-2"
+                v-html="hit.snippet"
+              />
+            </div>
+          </button>
+
+          <!-- Hinweis auf weitere Treffer -->
+          <div
+            v-if="group.total_hits > group.hits.length"
+            class="px-3 py-2 pl-11 text-xs text-base-content/40 bg-base-200/50"
+          >
+            + {{ group.total_hits - group.hits.length }} {{ t('pdf.moreHits', 'weitere Treffer in diesem Dokument') }}
+          </div>
         </div>
-      </button>
+      </div>
     </div>
 
     <!-- Leer-Zustand -->
     <div
-      v-else-if="query.trim().length >= 2 && !loading && results.length === 0"
+      v-else-if="query.trim().length >= 2 && !loading && groups.length === 0"
       class="flex flex-col items-center py-8 gap-2"
     >
       <Search class="w-8 h-8 text-base-content/15" />
@@ -142,7 +210,7 @@ function selectResult(hit) {
 
     <!-- Mehr laden -->
     <button
-      v-if="results.length > 0 && results.length < totalFound"
+      v-if="groups.length > 0 && hasMore"
       class="btn btn-ghost btn-sm mx-auto"
       :disabled="loading"
       @click="loadMore"
