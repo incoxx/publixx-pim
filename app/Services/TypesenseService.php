@@ -88,37 +88,38 @@ class TypesenseService
         $description = $media->description_de ?? $media->description_en ?? '';
         $folderName = $media->assetFolder?->name_de ?? '';
 
-        $documents = [];
-        foreach ($document->pages as $page) {
-            $documents[] = [
-                'id' => $document->id . '-' . $page->page_number,
-                'pdf_document_id' => $document->id,
-                'media_id' => $document->media_id,
-                'page_number' => $page->page_number,
-                'text' => $page->extracted_text ?? '',
-                'title' => $title,
-                'file_name' => $fileName,
-                'description' => $description,
-                'folder_name' => $folderName,
-                'page_count' => $document->page_count ?? 0,
-            ];
-        }
+        // Seiten in Chunks indexieren um Memory bei großen PDFs zu begrenzen
+        $document->pages()->orderBy('page_number')->chunk(50, function ($pages) use ($document, $title, $fileName, $description, $folderName) {
+            $documents = [];
+            foreach ($pages as $page) {
+                $documents[] = [
+                    'id' => $document->id . '-' . $page->page_number,
+                    'pdf_document_id' => $document->id,
+                    'media_id' => $document->media_id,
+                    'page_number' => $page->page_number,
+                    'text' => $page->extracted_text ?? '',
+                    'title' => $title,
+                    'file_name' => $fileName,
+                    'description' => $description,
+                    'folder_name' => $folderName,
+                    'page_count' => $document->page_count ?? 0,
+                ];
+            }
 
-        if (empty($documents)) {
-            return;
-        }
-
-        try {
-            $this->client()->collections['pdf_pages']->documents->import(
-                $documents,
-                ['action' => 'upsert']
-            );
-        } catch (\Throwable $e) {
-            Log::warning('TypesenseService: Failed to upsert pages', [
-                'pdf_document_id' => $document->id,
-                'error' => $e->getMessage(),
-            ]);
-        }
+            if (!empty($documents)) {
+                try {
+                    $this->client()->collections['pdf_pages']->documents->import(
+                        $documents,
+                        ['action' => 'upsert']
+                    );
+                } catch (\Throwable $e) {
+                    Log::warning('TypesenseService: Failed to upsert pages chunk', [
+                        'pdf_document_id' => $document->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+        });
     }
 
     /**
@@ -160,9 +161,10 @@ class TypesenseService
             'group_limit' => 3,
         ];
 
-        if ($language) {
-            $searchParams['filter_by'] = 'language:=' . $language;
-        }
+        // Language-Filter nur anwenden wenn Feld tatsächlich befüllt wird (aktuell nicht)
+        // if ($language) {
+        //     $searchParams['filter_by'] = 'language:=' . $language;
+        // }
 
         try {
             $result = $this->client()->collections['pdf_pages']->documents->search($searchParams);

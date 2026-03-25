@@ -1,7 +1,7 @@
 <script setup>
 import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Loader2, CheckCircle, AlertCircle, Clock } from 'lucide-vue-next'
+import { Loader2, CheckCircle, AlertCircle } from 'lucide-vue-next'
 import pdfApi from '@/api/pdf'
 
 const props = defineProps({
@@ -13,11 +13,16 @@ const { t } = useI18n()
 const status = ref(null)
 const pageCount = ref(null)
 const loading = ref(true)
-let pollInterval = null
+let pollTimeout = null
+let currentMediaId = null
 
 async function fetchStatus() {
+  const mediaId = props.mediaId
+  currentMediaId = mediaId
   try {
-    const { data } = await pdfApi.getByMedia(props.mediaId)
+    const { data } = await pdfApi.getByMedia(mediaId)
+    // Stale Response ignorieren wenn mediaId sich zwischenzeitlich geändert hat
+    if (currentMediaId !== mediaId) return
     status.value = data.status
     pageCount.value = data.page_count
     loading.value = false
@@ -28,6 +33,7 @@ async function fetchStatus() {
       stopPolling()
     }
   } catch (e) {
+    if (currentMediaId !== mediaId) return
     if (e.response?.status === 404) {
       status.value = null
       loading.value = false
@@ -35,15 +41,26 @@ async function fetchStatus() {
   }
 }
 
+// setTimeout-Chain statt setInterval — verhindert Stacking bei langsamen Requests
 function startPolling() {
-  if (pollInterval) return
-  pollInterval = setInterval(fetchStatus, 3000)
+  if (pollTimeout) return
+  scheduleNextPoll()
+}
+
+function scheduleNextPoll() {
+  pollTimeout = setTimeout(async () => {
+    pollTimeout = null
+    await fetchStatus()
+    if (status.value === 'pending' || status.value === 'processing') {
+      scheduleNextPoll()
+    }
+  }, 3000)
 }
 
 function stopPolling() {
-  if (pollInterval) {
-    clearInterval(pollInterval)
-    pollInterval = null
+  if (pollTimeout) {
+    clearTimeout(pollTimeout)
+    pollTimeout = null
   }
 }
 

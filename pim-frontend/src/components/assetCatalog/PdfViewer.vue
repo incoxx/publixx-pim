@@ -23,7 +23,7 @@ const errorMessage = ref('')
 const currentPage = ref(props.initialPage)
 const loadedPages = ref(new Set())
 const pageRefs = ref([])
-const observerCleanups = []
+const observerCleanups = ref([])
 
 let pollInterval = null
 let pollErrorCount = 0
@@ -73,15 +73,16 @@ function setupLazyLoading() {
     const { stop } = useIntersectionObserver(el, ([{ isIntersecting }]) => {
       if (isIntersecting) {
         loadedPages.value.add(pageNumber)
+        stop()
       }
     }, { rootMargin: '200px' })
-    observerCleanups.push(stop)
+    observerCleanups.value.push(stop)
   })
 }
 
 function cleanupObservers() {
-  observerCleanups.forEach(stop => stop())
-  observerCleanups.length = 0
+  observerCleanups.value.forEach(stop => stop())
+  observerCleanups.value = []
 }
 
 function scrollToPage(pageNumber) {

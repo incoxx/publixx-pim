@@ -83,6 +83,19 @@ class MediaObserver
         }
 
         try {
+            // Alte Typesense-Einträge bereinigen falls PdfDocument bereits existiert
+            $existing = PdfDocument::where('media_id', $media->id)->first();
+            if ($existing) {
+                try {
+                    app(TypesenseService::class)->deletePagesForDocument($existing->id);
+                } catch (\Throwable $e) {
+                    Log::warning('MediaObserver: Typesense cleanup failed', [
+                        'pdf_document_id' => $existing->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+
             $pdfDocument = PdfDocument::updateOrCreate(
                 ['media_id' => $media->id],
                 [

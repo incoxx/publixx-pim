@@ -43,7 +43,7 @@ class AssetCatalogController extends BaseController
             'attributeValues.dictionaryEntry',
             'attributeValues.unit',
             'assetFolder',
-            'pdfDocument.pages',
+            'pdfDocument',
         ]);
 
         $isSearchActive = $search && trim($search) !== '';
@@ -237,7 +237,7 @@ class AssetCatalogController extends BaseController
             'attributeValues.dictionaryEntry',
             'attributeValues.unit',
             'assetFolder',
-            'pdfDocument.pages',
+            'pdfDocument',
         ]);
 
         // Build folder breadcrumb

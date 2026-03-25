@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useDebounceFn } from '@vueuse/core'
 import { Search, FileText, Loader2, ChevronDown, ChevronRight, BookOpen } from 'lucide-vue-next'
@@ -13,17 +13,22 @@ const query = ref('')
 const groups = ref([])
 const loading = ref(false)
 const totalFound = ref(0)
-const totalDocs = ref(0)
 const currentPage = ref(1)
+const lastPageDocCount = ref(0)
 const perPage = 20
 const expandedGroups = ref(new Set())
 
+// Pagination: "Mehr laden" nur wenn letzte Seite voll war (= es gibt vermutlich mehr)
+const hasMore = computed(() => lastPageDocCount.value >= perPage)
+
 function sanitizeSnippet(html) {
   if (!html) return ''
-  // Only allow <mark> tags for search highlighting, strip everything else
-  return html
-    .replace(/<(?!\/?(mark)\b)[^>]*>/gi, '')
-    .replace(/<\/(?!mark\b)[^>]*>/gi, '')
+  // Exakter Match auf <mark> und </mark> — alles andere wird entfernt (XSS-sicher)
+  return html.replace(/<[^>]*>/g, (tag) => {
+    if (/^<mark>$/i.test(tag)) return tag
+    if (/^<\/mark>$/i.test(tag)) return tag
+    return ''
+  })
 }
 
 function toggleGroup(pdfDocumentId) {
@@ -39,7 +44,7 @@ async function performSearch(append = false) {
   if (q.length < 2) {
     groups.value = []
     totalFound.value = 0
-    totalDocs.value = 0
+    lastPageDocCount.value = 0
     return
   }
 
@@ -59,9 +64,9 @@ async function performSearch(append = false) {
     }))
     groups.value = append ? [...groups.value, ...newGroups] : newGroups
     totalFound.value = data.found || 0
-    totalDocs.value = data.found_docs || 0
+    lastPageDocCount.value = newGroups.length
 
-    // Erstes Ergebnis automatisch aufklappen
+    // Erstes Ergebnis automatisch aufklappen (nur bei neuer Suche)
     if (!append && newGroups.length > 0) {
       expandedGroups.value = new Set([newGroups[0].pdf_document_id])
     }
@@ -70,7 +75,7 @@ async function performSearch(append = false) {
     if (!append) {
       groups.value = []
       totalFound.value = 0
-      totalDocs.value = 0
+      lastPageDocCount.value = 0
     } else {
       currentPage.value--
     }
@@ -89,7 +94,7 @@ watch(query, () => {
 })
 
 function loadMore() {
-  if (groups.value.length < totalDocs.value && !loading.value) {
+  if (hasMore.value && !loading.value) {
     currentPage.value++
     performSearch(true)
   }
@@ -113,6 +118,7 @@ function selectResult(group, hit) {
       <input
         v-model="query"
         type="text"
+        aria-label="PDF-Inhalte durchsuchen"
         :placeholder="t('pdf.searchPlaceholder', 'PDF-Inhalte durchsuchen…')"
         class="input input-bordered w-full pl-10 input-sm"
       />
@@ -125,7 +131,7 @@ function selectResult(group, hit) {
     <!-- Ergebnisanzahl -->
     <p v-if="query.trim().length >= 2 && !loading" class="text-xs text-base-content/50">
       {{ totalFound }} {{ t('pdf.resultsFound', 'Treffer') }}
-      {{ t('pdf.inDocuments', 'in') }} {{ totalDocs }} {{ t('pdf.documents', 'Dokumenten') }}
+      {{ t('pdf.inDocuments', 'in') }} {{ groups.length }} {{ t('pdf.documents', 'Dokumenten') }}
     </p>
 
     <!-- Gruppierte Ergebnisliste -->
@@ -204,7 +210,7 @@ function selectResult(group, hit) {
 
     <!-- Mehr laden -->
     <button
-      v-if="groups.length > 0 && groups.length < totalDocs"
+      v-if="groups.length > 0 && hasMore"
       class="btn btn-ghost btn-sm mx-auto"
       :disabled="loading"
       @click="loadMore"
