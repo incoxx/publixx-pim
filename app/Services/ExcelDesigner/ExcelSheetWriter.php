@@ -59,6 +59,7 @@ class ExcelSheetWriter
         return new StreamedResponse(function () use ($spreadsheet) {
             $writer = new Xlsx($spreadsheet);
             $writer->save('php://output');
+            $spreadsheet->disconnectWorksheets();
         }, 200, [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             'Content-Disposition' => "attachment; filename=\"{$fullName}\"",
@@ -453,6 +454,111 @@ class ExcelSheetWriter
         }
 
         return $row;
+    }
+
+    // --- Streaming-Methoden für chunk-weisen Export ---
+
+    /**
+     * Leeres Spreadsheet mit Header-Zeilen + Spaltenköpfen vorbereiten.
+     * Für den Streaming-Modus (ohne Gruppierung).
+     */
+    public function buildShell(array $sheetDef, array $columns, string $language, array $settings): Spreadsheet
+    {
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle($this->sanitizeSheetTitle($sheetDef['label'] ?? 'Blatt 1', $spreadsheet));
+
+        $row = 1;
+
+        // Header-Zeilen
+        $headerRows = $sheetDef['headerRows'] ?? [];
+        if (!empty($headerRows)) {
+            $colCount = max(count($columns), 1);
+            $lastCol = $this->colLetter($colCount);
+            foreach ($headerRows as $headerRow) {
+                $cell = "A{$row}";
+                $sheet->setCellValue($cell, $headerRow['content'] ?? '');
+                if ($colCount > 1) {
+                    $sheet->mergeCells("{$cell}:{$lastCol}{$row}");
+                }
+                $sheet->getStyle($cell)->getFont()->setBold(true)->setSize(12);
+                $row++;
+            }
+        }
+
+        // Spaltenköpfe
+        $headerRow = $row;
+        $this->writeColumnHeaders($sheet, $columns, $row, $settings);
+
+        // Freeze Panes
+        if ($settings['freezeHeader'] ?? true) {
+            $sheet->freezePane('A' . ($headerRow + 1));
+        }
+
+        // Auto-Filter
+        if (($settings['autoFilter'] ?? true) && count($columns) > 0) {
+            $lastCol = $this->colLetter(count($columns));
+            $sheet->setAutoFilter("A{$headerRow}:{$lastCol}{$headerRow}");
+        }
+
+        return $spreadsheet;
+    }
+
+    /**
+     * Startzeile für Produktdaten berechnen (nach Header-Rows + Column-Headers).
+     */
+    public function getDataStartRow(array $sheetDef, array $settings): int
+    {
+        $row = 1;
+        $row += count($sheetDef['headerRows'] ?? []);
+        $row += 1; // Spaltenköpfe
+        return $row;
+    }
+
+    /**
+     * Eine Produktzeile direkt ins Worksheet schreiben (für Streaming).
+     */
+    public function writeProductRowDirect(Worksheet $sheet, Product $product, array $columns, string $language, int $row): int
+    {
+        return $this->writeProductRow($sheet, $product, $columns, $language, $row);
+    }
+
+    /**
+     * Footer-Zeilen direkt ins Worksheet schreiben (für Streaming).
+     */
+    public function writeFooterRowsDirect(Worksheet $sheet, array $sheetDef, array $columns, string $language, int $row, int $count): int
+    {
+        $footerRows = $sheetDef['footerRows'] ?? [];
+        if (empty($footerRows)) {
+            return $row;
+        }
+
+        $colCount = max(count($columns), 1);
+        $lastCol = $this->colLetter($colCount);
+
+        foreach ($footerRows as $footerRow) {
+            $content = $footerRow['content'] ?? '';
+            // Platzhalter ersetzen
+            $content = str_replace(['{count}'], [(string) $count], $content);
+
+            $cell = "A{$row}";
+            $sheet->setCellValue($cell, $content);
+            if ($colCount > 1) {
+                $sheet->mergeCells("{$cell}:{$lastCol}{$row}");
+            }
+            $sheet->getStyle($cell)->getFont()->setItalic(true);
+            $row++;
+        }
+
+        return $row;
+    }
+
+    /**
+     * Spaltenbreiten direkt anwenden (für Streaming).
+     */
+    public function applyColumnWidthsDirect(Worksheet $sheet, array $columns): void
+    {
+        $this->applyColumnWidths($sheet, $columns);
     }
 
     // --- Hilfsmethoden ---

@@ -279,8 +279,8 @@ class ExcelTemplateController extends Controller
 
         ExcelExportJob::dispatch($template->id, $searchProfileId, $exportKey);
 
-        // User-ID im Cache speichern für Auth-Check bei Progress/Download
-        Cache::put(ExcelExportJob::cacheKey($exportKey) . ':owner', $userId, 1800);
+        // User-ID im Cache speichern für Auth-Check bei Progress/Download (TTL = Export-TTL)
+        Cache::put(ExcelExportJob::cacheKey($exportKey) . ':owner', $userId, 3600);
 
         return response()->json([
             'data' => [
@@ -338,6 +338,13 @@ class ExcelTemplateController extends Controller
             return response()->json(['error' => 'Export-Datei nicht gefunden.'], 404);
         }
 
+        // Path-Traversal verhindern
+        $realPath = realpath($path);
+        $allowedDir = storage_path('app/exports');
+        if (!$realPath || !str_starts_with($realPath, $allowedDir)) {
+            return response()->json(['error' => 'Ungültiger Export-Pfad.'], 403);
+        }
+
         $fileName = $progress['file_name'] ?? 'export.xlsx';
 
         return response()->download($path, $fileName, [
@@ -358,7 +365,8 @@ class ExcelTemplateController extends Controller
         $ownerId = Cache::get(ExcelExportJob::cacheKey($exportKey) . ':owner');
         $userId = $request->user()?->id;
 
-        if ($ownerId && $userId !== $ownerId) {
+        // Deny wenn Owner unbekannt (Cache abgelaufen) oder User nicht übereinstimmt
+        if ($ownerId === null || $userId !== $ownerId) {
             abort(403, 'Kein Zugriff auf diesen Export.');
         }
     }

@@ -6,8 +6,12 @@ const emit = defineEmits(['close'])
 const store = useExcelDesignerStore()
 const settings = store.excelSettings
 
+// Sicherstellen dass headerStyle existiert (alte Templates können null haben)
+if (!settings.headerStyle) {
+  settings.headerStyle = { bgColor: '4472C4', fontColor: 'FFFFFF', bold: true }
+}
+
 function updateHeaderStyle(field, value) {
-  if (!settings.headerStyle) settings.headerStyle = {}
   settings.headerStyle[field] = value
   store.isDirty = true
 }
