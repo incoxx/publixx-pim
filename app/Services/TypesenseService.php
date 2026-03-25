@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Log;
 class TypesenseService
 {
     private ?Client $client = null;
+    private ?string $searchFields = null;
 
     private function client(): Client
     {
@@ -140,6 +141,34 @@ class TypesenseService
     }
 
     /**
+     * Felder und Gewichte für die Suche ermitteln.
+     * Prüft welche Felder in der Collection existieren (Kompatibilität mit altem Schema).
+     */
+    private function resolveSearchFields(): string
+    {
+        if ($this->searchFields !== null) {
+            return $this->searchFields;
+        }
+
+        try {
+            $collection = $this->client()->collections['pdf_pages']->retrieve();
+            $fieldNames = array_column($collection['fields'] ?? [], 'name');
+
+            // Volle Gewichtung wenn alle Felder vorhanden
+            if (in_array('file_name', $fieldNames)) {
+                $this->searchFields = 'title,file_name,text';
+            } else {
+                // Fallback: alte Collection ohne file_name
+                $this->searchFields = 'title,text';
+            }
+        } catch (\Throwable) {
+            $this->searchFields = 'title,text';
+        }
+
+        return $this->searchFields;
+    }
+
+    /**
      * Volltextsuche über alle PDF-Seiten — gruppiert nach Dokument, gewichtet nach Feld.
      *
      * Gewichtung: title (3x) > file_name (2x) > text (1x)
@@ -149,8 +178,7 @@ class TypesenseService
     {
         $searchParams = [
             'q' => $query,
-            'query_by' => 'title,file_name,text',
-            'query_by_weights' => '3,2,1',
+            'query_by' => $this->resolveSearchFields(),
             'highlight_full_fields' => 'text',
             'highlight_start_tag' => '<mark>',
             'highlight_end_tag' => '</mark>',
