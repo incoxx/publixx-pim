@@ -81,6 +81,44 @@ const groupFieldLabels = {
   master_hierarchy_node: 'Nach Kategorie',
   status: 'Nach Status',
 }
+
+/**
+ * Quellenhinweis für eine Spalte: zeigt woher die Daten kommen.
+ */
+function columnSourceHint(col) {
+  const fields = store.availableFields
+  switch (col.type) {
+    case 'field': {
+      const f = (fields?.base_fields || []).find(b => b.field === col.field)
+      return f?.label_de || col.field || ''
+    }
+    case 'attribute': {
+      const a = (fields?.attributes || []).find(attr => attr.attributeId === col.attributeId)
+      return a ? `${a.label_de} (${a.technical_name})` : col.attributeId || ''
+    }
+    case 'price': {
+      const pt = (fields?.price_types || []).find(p => p.priceType === col.priceType)
+      return pt?.label_de || col.priceType || ''
+    }
+    case 'image':
+    case 'media': {
+      const mut = (fields?.media_usage_types || []).find(m => m.mediaUsageType === col.mediaUsageType)
+      return mut?.label_de || col.mediaUsageType || 'Erstes Bild'
+    }
+    case 'relation': {
+      const rt = (fields?.relation_types || []).find(r => r.relationType === col.relationType)
+      return rt?.label_de || col.relationType || 'Alle'
+    }
+    case 'variant':
+      return 'Varianten'
+    case 'static':
+      return col.defaultValue ? `= ${col.defaultValue}` : 'leer'
+    case 'text':
+      return col.content || 'Textvorlage'
+    default:
+      return ''
+  }
+}
 </script>
 
 <template>
@@ -211,11 +249,9 @@ const groupFieldLabels = {
                 @click.stop
               />
 
-              <span v-if="col.type === 'static' && col.defaultValue" class="text-[10px] text-[var(--color-text-tertiary)] truncate max-w-[100px]">
-                = {{ col.defaultValue }}
-              </span>
-              <span v-else-if="col.type === 'static' && !col.defaultValue" class="text-[10px] text-[var(--color-text-tertiary)] italic">
-                leer
+              <!-- Datenquelle -->
+              <span class="text-[10px] text-[var(--color-text-tertiary)] truncate max-w-[160px] shrink-0 italic" :title="columnSourceHint(col)">
+                ← {{ columnSourceHint(col) }}
               </span>
 
               <button
