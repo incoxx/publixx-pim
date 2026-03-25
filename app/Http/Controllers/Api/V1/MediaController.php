@@ -114,11 +114,12 @@ class MediaController extends Controller
         }
 
         $storedPath = Storage::disk('public')->path($path);
-        $this->processUploadedImage($file, $storedPath);
-
-        [$width, $height] = $this->detectDimensions($request, $file, $storedPath);
 
         try {
+            $this->processUploadedImage($file, $storedPath);
+
+            [$width, $height] = $this->detectDimensions($request, $file, $storedPath);
+
             $media = Media::create([
                 'file_name' => $safeFilename,
                 'original_file_name' => $originalFileName,
@@ -418,8 +419,11 @@ class MediaController extends Controller
         $skipped = 0;
         $errors = [];
 
+        // Alle Medien in 1 Query laden statt N einzelne find()-Aufrufe
+        $mediaItems = Media::whereIn('id', $validated['media_ids'])->get()->keyBy('id');
+
         foreach ($validated['media_ids'] as $mediaId) {
-            $media = Media::find($mediaId);
+            $media = $mediaItems->get($mediaId);
             if (!$media) {
                 $skipped++;
                 continue;
@@ -522,17 +526,27 @@ class MediaController extends Controller
     {
         $this->authorize('viewAny', Media::class);
 
-        // PDF-Verarbeitungsstatus
-        $pdfPending = \App\Models\PdfDocument::where('status', 'pending')->count();
-        $pdfProcessing = \App\Models\PdfDocument::where('status', 'processing')->count();
-        $pdfReady = \App\Models\PdfDocument::where('status', 'ready')
-            ->where('updated_at', '>=', now()->subMinutes(5))
-            ->count();
-        $pdfError = \App\Models\PdfDocument::where('status', 'error')
-            ->where('updated_at', '>=', now()->subHour())
-            ->count();
+        // PDF-Status in 1 Query statt 4 separate COUNT-Queries
+        $statusCounts = \App\Models\PdfDocument::query()
+            ->selectRaw("status, COUNT(*) as cnt")
+            ->where(function ($q) {
+                $q->whereIn('status', ['pending', 'processing'])
+                  ->orWhere(function ($q2) {
+                      $q2->where('status', 'ready')->where('updated_at', '>=', now()->subMinutes(5));
+                  })
+                  ->orWhere(function ($q2) {
+                      $q2->where('status', 'error')->where('updated_at', '>=', now()->subHour());
+                  });
+            })
+            ->groupBy('status')
+            ->pluck('cnt', 'status');
 
-        // Kürzlich verarbeitete PDFs (letzte 5 Minuten)
+        $pdfPending = $statusCounts->get('pending', 0);
+        $pdfProcessing = $statusCounts->get('processing', 0);
+        $pdfReady = $statusCounts->get('ready', 0);
+        $pdfError = $statusCounts->get('error', 0);
+
+        // Kürzlich verarbeitete PDFs (letzte 10 Minuten)
         $recentPdfs = \App\Models\PdfDocument::with('media:id,file_name,original_file_name')
             ->whereIn('status', ['ready', 'error', 'processing', 'pending'])
             ->where('updated_at', '>=', now()->subMinutes(10))
