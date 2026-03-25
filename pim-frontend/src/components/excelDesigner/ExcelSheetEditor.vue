@@ -106,45 +106,56 @@ const groupFieldLabels = {
     <!-- Aktives Sheet -->
     <template v-if="store.selectedSheet">
       <div class="pim-card p-4 space-y-4">
-        <!-- Sheet-Header -->
-        <div class="flex items-center gap-3">
-          <input
-            v-model="store.selectedSheet.label"
-            class="pim-input text-sm font-medium flex-1"
-            placeholder="Sheet-Name (z.B. Produkte, Preisliste...)"
-            @input="store.isDirty = true"
-          />
+        <!-- Sheet-Header: Name + Grouping in eigenen Zeilen -->
+        <div class="space-y-3">
+          <!-- Sheet-Name -->
+          <div>
+            <label class="block text-[11px] font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide mb-1">Sheet-Name</label>
+            <div class="flex items-center gap-3">
+              <input
+                v-model="store.selectedSheet.label"
+                class="pim-input text-sm font-medium flex-1"
+                placeholder="z.B. Produkte, Preisliste, Technische Daten..."
+                @input="store.isDirty = true"
+              />
 
-          <select
-            v-model="store.selectedSheet.field"
-            class="pim-input text-xs w-52"
-            @change="store.isDirty = true"
-          >
-            <option v-for="(label, field) in groupFieldLabels" :key="field" :value="field">{{ label }}</option>
-            <option
-              v-for="attr in (store.availableFields?.attributes || [])"
-              :key="'attr:' + attr.attributeId"
-              :value="'attribute:' + attr.attributeId"
+              <button
+                class="pim-btn pim-btn-secondary text-[11px] px-2 py-1"
+                @click="store.duplicateSheet(store.selectedSheet.id)"
+                title="Sheet duplizieren"
+              >
+                <Copy class="w-3 h-3" :stroke-width="2" />
+              </button>
+              <button
+                v-if="store.templateJson.sheets.length > 1"
+                class="pim-btn pim-btn-secondary text-[11px] px-2 py-1 text-[var(--color-error)]"
+                @click="store.removeSheet(store.selectedSheet.id)"
+                title="Sheet löschen"
+              >
+                <Trash2 class="w-3 h-3" :stroke-width="2" />
+              </button>
+            </div>
+            <p class="text-[10px] text-[var(--color-text-tertiary)] mt-1">Dieser Name wird als Excel-Tab angezeigt.</p>
+          </div>
+
+          <!-- Grouping -->
+          <div>
+            <label class="block text-[11px] font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide mb-1">Gruppierung</label>
+            <select
+              v-model="store.selectedSheet.field"
+              class="pim-input text-xs w-full max-w-xs"
+              @change="store.isDirty = true"
             >
-              Attribut: {{ attr.label_de }}
-            </option>
-          </select>
-
-          <button
-            class="pim-btn pim-btn-secondary text-[11px] px-2 py-1"
-            @click="store.duplicateSheet(store.selectedSheet.id)"
-            title="Sheet duplizieren"
-          >
-            <Copy class="w-3 h-3" :stroke-width="2" />
-          </button>
-          <button
-            v-if="store.templateJson.sheets.length > 1"
-            class="pim-btn pim-btn-secondary text-[11px] px-2 py-1 text-[var(--color-error)]"
-            @click="store.removeSheet(store.selectedSheet.id)"
-            title="Sheet löschen"
-          >
-            <Trash2 class="w-3 h-3" :stroke-width="2" />
-          </button>
+              <option v-for="(label, field) in groupFieldLabels" :key="field" :value="field">{{ label }}</option>
+              <option
+                v-for="attr in (store.availableFields?.attributes || [])"
+                :key="'attr:' + attr.attributeId"
+                :value="'attribute:' + attr.attributeId"
+              >
+                Attribut: {{ attr.label_de }}
+              </option>
+            </select>
+          </div>
         </div>
 
         <p v-if="store.selectedSheet.field !== 'none'" class="text-[11px] text-[var(--color-text-tertiary)]">
@@ -154,7 +165,10 @@ const groupFieldLabels = {
         <!-- Spalten -->
         <div class="space-y-1">
           <div class="flex items-center justify-between mb-2">
-            <h3 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">Spalten</h3>
+            <div>
+              <h3 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">Spalten</h3>
+              <p class="text-[10px] text-[var(--color-text-tertiary)] mt-0.5">Spaltenköpfe direkt im Textfeld umbenennen (z.B. "Artikelnummer" → "SKU")</p>
+            </div>
             <span class="text-[11px] text-[var(--color-text-tertiary)]">{{ store.selectedSheet.columns.length }} Spalten</span>
           </div>
 
@@ -190,8 +204,9 @@ const groupFieldLabels = {
 
               <input
                 v-model="col.label"
-                class="pim-input text-xs flex-1 min-w-0"
-                placeholder="Spaltenüberschrift"
+                class="pim-input text-xs flex-1 min-w-0 font-medium"
+                placeholder="Spaltenüberschrift eingeben..."
+                title="Excel-Spaltenkopf — klicken zum Umbenennen"
                 @input="store.isDirty = true"
                 @click.stop
               />
