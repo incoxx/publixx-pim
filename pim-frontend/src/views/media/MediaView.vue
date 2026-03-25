@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { Upload, Image, Grid, List, Trash2, FolderOpen, FolderPlus, Search, X, Plus, MoveRight, CheckSquare, Link, FileSpreadsheet, FileText, Wand2, Loader2, ChevronLeft, ChevronRight, Download, Copy, History } from 'lucide-vue-next'
+import { Upload, Image, Grid, List, Trash2, FolderOpen, FolderPlus, Search, X, Plus, MoveRight, CheckSquare, Link, FileSpreadsheet, FileText, Wand2, Loader2, ChevronLeft, ChevronRight, Download, Copy, History, RefreshCw } from 'lucide-vue-next'
 import mediaApi from '@/api/media'
 import { mediaUsageTypes as mediaUsageTypesApi } from '@/api/mediaUsageTypes'
 import hierarchiesApi from '@/api/hierarchies'
@@ -167,6 +167,40 @@ async function loadRevisions(mediaId) {
     console.error('Failed to load revisions:', e)
   } finally {
     detailRevisionsLoading.value = false
+  }
+}
+
+// Re-Link
+const relinking = ref(false)
+const relinkResult = ref(null)
+
+async function relinkSelected() {
+  if (selectedIds.value.size === 0) return
+  relinking.value = true
+  relinkResult.value = null
+  try {
+    const { data } = await mediaApi.relink([...selectedIds.value])
+    relinkResult.value = data
+    if (data.total_relinked > 0) {
+      uploadError.value = ''
+    }
+  } catch (err) {
+    uploadError.value = err.response?.data?.message || 'Re-Link fehlgeschlagen'
+  } finally {
+    relinking.value = false
+  }
+}
+
+async function relinkSingle(mediaId) {
+  relinking.value = true
+  relinkResult.value = null
+  try {
+    const { data } = await mediaApi.relink([mediaId])
+    relinkResult.value = data
+  } catch (err) {
+    uploadError.value = err.response?.data?.message || 'Re-Link fehlgeschlagen'
+  } finally {
+    relinking.value = false
   }
 }
 
@@ -749,6 +783,17 @@ onMounted(() => {
         <button class="p-0.5 hover:opacity-70" @click="uploadError = ''"><X class="w-4 h-4" /></button>
       </div>
 
+      <!-- Re-Link Ergebnis -->
+      <div v-if="relinkResult" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm"
+        :class="relinkResult.total_relinked > 0
+          ? 'bg-[var(--color-success,#22c55e)]/10 border border-[var(--color-success,#22c55e)]/20 text-[var(--color-success,#22c55e)]'
+          : 'bg-[var(--color-bg)] border border-[var(--color-border)] text-[var(--color-text-secondary)]'"
+      >
+        <RefreshCw class="w-4 h-4 shrink-0" :stroke-width="2" />
+        <span class="flex-1">{{ relinkResult.message }}</span>
+        <button class="p-0.5 hover:opacity-70" @click="relinkResult = null"><X class="w-4 h-4" /></button>
+      </div>
+
       <!-- Hintergrund-Verarbeitungsstatus (PDF-Jobs etc.) -->
       <MediaProcessingStatus ref="processingStatusRef" />
 
@@ -772,6 +817,16 @@ onMounted(() => {
           >
             <Trash2 class="w-3.5 h-3.5" :stroke-width="2" />
             {{ selectedIds.size }} löschen
+          </button>
+          <button
+            v-if="authStore.hasPermission('media.edit')"
+            class="pim-btn pim-btn-sm flex items-center gap-1.5 text-[var(--color-primary)] border-[var(--color-primary)]/30 hover:bg-[var(--color-primary)]/10"
+            :disabled="relinking"
+            @click="relinkSelected"
+          >
+            <Loader2 v-if="relinking" class="w-3.5 h-3.5 animate-spin" :stroke-width="2" />
+            <RefreshCw v-else class="w-3.5 h-3.5" :stroke-width="2" />
+            Re-Link
           </button>
           <button class="pim-btn pim-btn-ghost pim-btn-sm ml-auto" @click="clearSelection">
             <X class="w-3.5 h-3.5" :stroke-width="2" />
@@ -1010,6 +1065,22 @@ onMounted(() => {
               @update:modelValue="assetAttributeValues[assignment.attribute?.id || assignment.attribute_id] = $event"
             />
           </div>
+        </div>
+
+        <!-- Re-Link Aktion -->
+        <div v-if="authStore.hasPermission('media.edit')" class="border-t border-[var(--color-border)] pt-3">
+          <button
+            class="pim-btn pim-btn-ghost text-xs w-full justify-center gap-1.5"
+            :disabled="relinking"
+            @click="relinkSingle(detailItem.id)"
+          >
+            <Loader2 v-if="relinking" class="w-3.5 h-3.5 animate-spin" :stroke-width="2" />
+            <RefreshCw v-else class="w-3.5 h-3.5" :stroke-width="2" />
+            Produkt-Zuordnungen wiederherstellen
+          </button>
+          <p v-if="relinkResult && !relinking" class="text-[10px] text-center mt-1.5" :class="relinkResult.total_relinked > 0 ? 'text-[var(--color-success)]' : 'text-[var(--color-text-tertiary)]'">
+            {{ relinkResult.message }}
+          </p>
         </div>
 
         <!-- Upload-Info -->

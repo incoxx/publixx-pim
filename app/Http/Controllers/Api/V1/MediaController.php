@@ -9,6 +9,7 @@ use App\Http\Requests\Api\V1\UpdateMediaRequest;
 use App\Http\Resources\Api\V1\MediaResource;
 use App\Http\Traits\ChecksDeletionConstraints;
 use App\Models\Media;
+use App\Models\MediaAssignmentHistory;
 use App\Models\MediaRevision;
 use Illuminate\Support\Facades\DB;
 use App\Models\Product;
@@ -81,16 +82,25 @@ class MediaController extends Controller
         $originalFileName = $file->getClientOriginalName();
         $folderId = $request->input('asset_folder_id');
 
-        // Prüfen ob ein Asset mit identischem original_file_name im selben Ordner existiert
-        $existing = Media::where('original_file_name', $originalFileName)
-            ->where('asset_folder_id', $folderId)
+        // Prüfen ob ein Asset mit identischem Dateinamen im selben Ordner existiert
+        // Match auf original_file_name ODER file_name (für Legacy-Daten vor Migration)
+        $existing = Media::where('asset_folder_id', $folderId)
+            ->where(function ($q) use ($originalFileName) {
+                $q->where('original_file_name', $originalFileName)
+                  ->orWhere('file_name', $originalFileName);
+            })
             ->first();
 
         if ($existing) {
             return $this->replaceExistingMedia($request, $existing, $file, $originalFileName);
         }
 
-        return $this->createNewMedia($request, $file, $originalFileName);
+        $response = $this->createNewMedia($request, $file, $originalFileName);
+
+        // Auto-Relink: Prüfen ob die History Zuordnungen für diesen Dateinamen hat
+        $this->autoRelinkFromHistory($originalFileName, $folderId);
+
+        return $response;
     }
 
     /**
@@ -266,6 +276,162 @@ class MediaController extends Controller
                 'error' => $e->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * Auto-Relink: Nach Upload eines neuen Assets prüfen ob die History
+     * Produkt-Zuordnungen für diesen Dateinamen enthält und wiederherstellen.
+     */
+    private function autoRelinkFromHistory(string $originalFileName, ?string $folderId): int
+    {
+        $media = Media::where('original_file_name', $originalFileName)
+            ->where('asset_folder_id', $folderId)
+            ->first();
+
+        if (!$media) {
+            return 0;
+        }
+
+        return $this->relinkMediaFromHistory($media);
+    }
+
+    /**
+     * Für ein Media-Asset: History-Einträge mit passendem Dateinamen finden
+     * und Produkt-Zuordnungen wiederherstellen.
+     */
+    private function relinkMediaFromHistory(Media $media): int
+    {
+        $fileName = $media->original_file_name ?? $media->file_name;
+
+        // History-Einträge finden die zum Dateinamen passen
+        $historyEntries = MediaAssignmentHistory::where(function ($q) use ($fileName) {
+                $q->where('original_file_name', $fileName)
+                  ->orWhere('file_name', $fileName);
+            })
+            ->where(function ($q) use ($media) {
+                // Gleicher Ordner oder kein Ordner-Filter
+                $q->where('asset_folder_id', $media->asset_folder_id)
+                  ->orWhereNull('asset_folder_id');
+            })
+            ->get();
+
+        if ($historyEntries->isEmpty()) {
+            return 0;
+        }
+
+        $relinked = 0;
+
+        foreach ($historyEntries as $entry) {
+            // Prüfen ob Zuordnung bereits existiert
+            $exists = ProductMediaAssignment::where('product_id', $entry->product_id)
+                ->where('media_id', $media->id)
+                ->where('usage_type_id', $entry->usage_type_id)
+                ->exists();
+
+            if ($exists) {
+                continue;
+            }
+
+            // Prüfen ob Produkt noch existiert
+            if (!\App\Models\Product::where('id', $entry->product_id)->exists()) {
+                continue;
+            }
+
+            ProductMediaAssignment::create([
+                'product_id' => $entry->product_id,
+                'media_id' => $media->id,
+                'usage_type_id' => $entry->usage_type_id,
+                'sort_order' => $entry->sort_order,
+                'is_primary' => $entry->is_primary,
+            ]);
+
+            $relinked++;
+
+            // History-Eintrag als wiederhergestellt markieren (löschen)
+            $entry->delete();
+        }
+
+        if ($relinked > 0) {
+            \Log::info('Media auto-relinked from history', [
+                'media_id' => $media->id,
+                'file_name' => $fileName,
+                'relinked_count' => $relinked,
+            ]);
+        }
+
+        return $relinked;
+    }
+
+    /**
+     * POST /media/relink — Für ausgewählte Medien die History durchsuchen
+     * und Produkt-Zuordnungen wiederherstellen.
+     */
+    public function relink(Request $request): JsonResponse
+    {
+        $this->authorize('update', Media::class);
+
+        $validated = $request->validate([
+            'media_ids' => ['required', 'array', 'min:1', 'max:100'],
+            'media_ids.*' => ['required', 'uuid', 'exists:media,id'],
+        ]);
+
+        $mediaItems = Media::whereIn('id', $validated['media_ids'])->get();
+        $totalRelinked = 0;
+        $results = [];
+
+        foreach ($mediaItems as $media) {
+            $count = $this->relinkMediaFromHistory($media);
+            $totalRelinked += $count;
+            if ($count > 0) {
+                $results[] = [
+                    'media_id' => $media->id,
+                    'file_name' => $media->original_file_name ?? $media->file_name,
+                    'relinked' => $count,
+                ];
+            }
+        }
+
+        return response()->json([
+            'message' => $totalRelinked > 0
+                ? "{$totalRelinked} Zuordnungen wiederhergestellt."
+                : 'Keine passenden History-Einträge gefunden.',
+            'total_relinked' => $totalRelinked,
+            'details' => $results,
+        ]);
+    }
+
+    /**
+     * GET /media/{media}/relink-preview — Zeigt welche Zuordnungen
+     * aus der History wiederhergestellt werden könnten.
+     */
+    public function relinkPreview(Media $medium): JsonResponse
+    {
+        $this->authorize('view', $medium);
+
+        $fileName = $medium->original_file_name ?? $medium->file_name;
+
+        $historyEntries = MediaAssignmentHistory::where(function ($q) use ($fileName) {
+                $q->where('original_file_name', $fileName)
+                  ->orWhere('file_name', $fileName);
+            })
+            ->where(function ($q) use ($medium) {
+                $q->where('asset_folder_id', $medium->asset_folder_id)
+                  ->orWhereNull('asset_folder_id');
+            })
+            ->with('product:id,sku')
+            ->get()
+            ->map(fn ($entry) => [
+                'product_id' => $entry->product_id,
+                'product_sku' => $entry->product?->sku,
+                'usage_type_id' => $entry->usage_type_id,
+                'is_primary' => $entry->is_primary,
+                'deleted_at' => $entry->deleted_at,
+            ]);
+
+        return response()->json([
+            'data' => $historyEntries,
+            'count' => $historyEntries->count(),
+        ]);
     }
 
     public function show(Media $medium): MediaResource
