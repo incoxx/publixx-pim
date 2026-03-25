@@ -71,6 +71,10 @@ export default {
     return client.post(`/hierarchies/${hierarchyId}/attributes`, data)
   },
 
+  updateHierarchyAttribute(assignmentId, data) {
+    return client.patch(`/hierarchy-attribute-assignments/${assignmentId}`, data)
+  },
+
   removeHierarchyAttribute(assignmentId) {
     return client.delete(`/hierarchy-attribute-assignments/${assignmentId}`)
   },
@@ -116,6 +120,14 @@ export default {
 
   removeOutputProductAssignment(assignmentId) {
     return client.delete(`/output-hierarchy-product-assignments/${assignmentId}`)
+  },
+
+  getRelationshipAttributes(assignmentId, options = {}) {
+    return client.get(`/output-hierarchy-product-assignments/${assignmentId}/relationship-attributes`, { params: buildParams(options) })
+  },
+
+  saveRelationshipAttributes(assignmentId, values) {
+    return client.put(`/output-hierarchy-product-assignments/${assignmentId}/relationship-attributes`, { values })
   },
 
   sortOutputProducts(nodeId, items) {

@@ -22,7 +22,7 @@ import { useTabStore } from '@/stores/tabs'
 import { useAuthStore } from '@/stores/auth'
 import { useLocaleStore } from '@/stores/locale'
 import { useI18n } from 'vue-i18n'
-import { ArrowLeft, Save, Plus, Trash2, Image, Star, X, Search, Download, Languages, Copy, Sparkles, Tags, LayoutGrid, List, FileText, GitBranch, CheckCircle2, Eye, RotateCcw, ArrowRightLeft, RefreshCw } from 'lucide-vue-next'
+import { ArrowLeft, Save, Plus, Trash2, Image, Star, X, Search, Download, Languages, Copy, Sparkles, Tags, LayoutGrid, List, FileText, GitBranch, CheckCircle2, Eye, RotateCcw, ArrowRightLeft, RefreshCw, ChevronDown, ChevronRight } from 'lucide-vue-next'
 import productsApi from '@/api/products'
 import projectsApi from '@/api/projects'
 import usersApi from '@/api/users'
@@ -1455,6 +1455,54 @@ async function confirmDeleteOutputHierarchyAssignment() {
     await loadOutputHierarchyAssignments()
   } catch (e) { console.error('Failed to remove output hierarchy assignment:', e.message) }
   finally { outputHierarchyDeleting.value = false }
+}
+
+// ─── Relationship Attributes (Beziehungs-Attribute auf Kante Produkt↔Knoten) ──
+const expandedAssignmentId = ref(null)
+const relationshipAttrs = ref([])
+const relationshipAttrValues = ref({})
+const relationshipAttrLoading = ref(false)
+const relationshipAttrSaving = ref(false)
+
+async function toggleRelationshipAttrs(assignmentId) {
+  if (expandedAssignmentId.value === assignmentId) {
+    expandedAssignmentId.value = null
+    return
+  }
+  expandedAssignmentId.value = assignmentId
+  relationshipAttrLoading.value = true
+  relationshipAttrs.value = []
+  relationshipAttrValues.value = {}
+  try {
+    const { data } = await hierarchiesApi.getRelationshipAttributes(assignmentId)
+    const attrs = data.data || data
+    relationshipAttrs.value = attrs
+    // Werte in reaktives Objekt laden
+    for (const attr of attrs) {
+      relationshipAttrValues.value[attr.attribute_id] = attr.value ?? ''
+    }
+  } catch (e) {
+    console.error('Failed to load relationship attributes:', e.message)
+  } finally {
+    relationshipAttrLoading.value = false
+  }
+}
+
+async function saveRelationshipAttrs() {
+  if (!expandedAssignmentId.value) return
+  relationshipAttrSaving.value = true
+  try {
+    const values = relationshipAttrs.value.map(attr => ({
+      attribute_id: attr.attribute_id,
+      value: relationshipAttrValues.value[attr.attribute_id] ?? null,
+      language: attr.is_translatable ? 'de' : null,
+    }))
+    await hierarchiesApi.saveRelationshipAttributes(expandedAssignmentId.value, values)
+  } catch (e) {
+    console.error('Failed to save relationship attributes:', e.message)
+  } finally {
+    relationshipAttrSaving.value = false
+  }
 }
 
 // ─── Output Hierarchy Attributes (Channel Attributes) ──
@@ -3417,6 +3465,7 @@ watch(() => route.params.id, async (newId, oldId) => {
         <table class="w-full text-xs">
           <thead>
             <tr class="bg-[var(--color-bg)] text-[var(--color-text-secondary)] text-[10px] uppercase tracking-wider">
+              <th class="px-3 py-2 text-left w-6"></th>
               <th class="px-3 py-2 text-left">Hierarchie</th>
               <th class="px-3 py-2 text-left">Knoten</th>
               <th class="px-3 py-2 text-right w-12">#</th>
@@ -3424,20 +3473,86 @@ watch(() => route.params.id, async (newId, oldId) => {
             </tr>
           </thead>
           <tbody>
-            <tr
-              v-for="assignment in outputHierarchyAssignments"
-              :key="assignment.id"
-              class="border-t border-[var(--color-border)] hover:bg-[var(--color-bg)] transition-colors"
-            >
-              <td class="px-3 py-2 text-[var(--color-text-secondary)]">{{ assignment.hierarchy_node?.hierarchy?.name_de || '—' }}</td>
-              <td class="px-3 py-2 font-medium text-[var(--color-text-primary)]">{{ assignment.hierarchy_node?.name_de || '—' }}</td>
-              <td class="px-3 py-2 text-right font-mono text-[var(--color-text-tertiary)]">{{ assignment.sort_order ?? 0 }}</td>
-              <td class="px-3 py-2 text-right">
-                <button class="p-1 rounded hover:bg-[var(--color-error-light)] text-[var(--color-text-tertiary)] hover:text-[var(--color-error)]" @click="outputHierarchyDeleteTarget = assignment" title="Entfernen">
-                  <Trash2 class="w-3.5 h-3.5" :stroke-width="2" />
-                </button>
-              </td>
-            </tr>
+            <template v-for="assignment in outputHierarchyAssignments" :key="assignment.id">
+              <tr
+                class="border-t border-[var(--color-border)] hover:bg-[var(--color-bg)] transition-colors cursor-pointer"
+                @click="toggleRelationshipAttrs(assignment.id)"
+              >
+                <td class="px-2 py-2 text-[var(--color-text-tertiary)]">
+                  <component :is="expandedAssignmentId === assignment.id ? ChevronDown : ChevronRight" class="w-3.5 h-3.5" :stroke-width="2" />
+                </td>
+                <td class="px-3 py-2 text-[var(--color-text-secondary)]">{{ assignment.hierarchy_node?.hierarchy?.name_de || '—' }}</td>
+                <td class="px-3 py-2 font-medium text-[var(--color-text-primary)]">{{ assignment.hierarchy_node?.name_de || '—' }}</td>
+                <td class="px-3 py-2 text-right font-mono text-[var(--color-text-tertiary)]">{{ assignment.sort_order ?? 0 }}</td>
+                <td class="px-3 py-2 text-right">
+                  <button class="p-1 rounded hover:bg-[var(--color-error-light)] text-[var(--color-text-tertiary)] hover:text-[var(--color-error)]" @click.stop="outputHierarchyDeleteTarget = assignment" title="Entfernen">
+                    <Trash2 class="w-3.5 h-3.5" :stroke-width="2" />
+                  </button>
+                </td>
+              </tr>
+              <!-- Beziehungs-Attribute (aufklappbar) -->
+              <tr v-if="expandedAssignmentId === assignment.id">
+                <td :colspan="5" class="px-4 py-3 bg-[var(--color-bg)]">
+                  <div v-if="relationshipAttrLoading" class="space-y-2">
+                    <div v-for="i in 2" :key="i" class="pim-skeleton h-8 rounded" />
+                  </div>
+                  <div v-else-if="relationshipAttrs.length === 0" class="text-xs text-[var(--color-text-tertiary)] py-2 text-center">
+                    Keine Beziehungs-Attribute definiert. Attribute mit Scope "Beziehung" oder "Beide" in der Hierarchie-Konfiguration zuordnen.
+                  </div>
+                  <div v-else class="space-y-2">
+                    <div v-for="attr in relationshipAttrs" :key="attr.attribute_id" class="flex items-center gap-3">
+                      <label class="text-xs text-[var(--color-text-secondary)] w-36 shrink-0 truncate" :title="attr.attribute_name_de">
+                        {{ attr.attribute_name_de || attr.attribute_technical_name }}
+                      </label>
+                      <template v-if="attr.data_type === 'Flag'">
+                        <input
+                          type="checkbox"
+                          class="pim-checkbox"
+                          :checked="!!relationshipAttrValues[attr.attribute_id]"
+                          @change="relationshipAttrValues[attr.attribute_id] = $event.target.checked"
+                        />
+                      </template>
+                      <template v-else-if="attr.data_type === 'Number' || attr.data_type === 'Float'">
+                        <input
+                          type="number"
+                          class="pim-input text-xs flex-1"
+                          :value="relationshipAttrValues[attr.attribute_id]"
+                          @input="relationshipAttrValues[attr.attribute_id] = $event.target.value"
+                          step="any"
+                        />
+                      </template>
+                      <template v-else-if="attr.data_type === 'Date'">
+                        <input
+                          type="date"
+                          class="pim-input text-xs flex-1"
+                          :value="relationshipAttrValues[attr.attribute_id]"
+                          @input="relationshipAttrValues[attr.attribute_id] = $event.target.value"
+                        />
+                      </template>
+                      <template v-else>
+                        <input
+                          type="text"
+                          class="pim-input text-xs flex-1"
+                          :value="relationshipAttrValues[attr.attribute_id]"
+                          @input="relationshipAttrValues[attr.attribute_id] = $event.target.value"
+                          :placeholder="attr.attribute_technical_name"
+                        />
+                      </template>
+                    </div>
+                    <div class="flex justify-end pt-1">
+                      <button
+                        class="pim-btn pim-btn-primary text-xs"
+                        :disabled="relationshipAttrSaving"
+                        @click.stop="saveRelationshipAttrs"
+                      >
+                        <Save class="w-3 h-3" :stroke-width="2" />
+                        {{ relationshipAttrSaving ? 'Speichert...' : 'Speichern' }}
+                      </button>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            </template>
           </tbody>
         </table>
       </div>

@@ -40,6 +40,7 @@ class HierarchyAttributeAssignmentController extends Controller
         $data = $request->validate([
             'attribute_id' => 'required|uuid|exists:attributes,id',
             'sort_order' => 'sometimes|integer|min:0',
+            'scope' => 'sometimes|string|in:node,relationship,both',
         ]);
 
         $exists = $hierarchy->attributeAssignments()
@@ -56,6 +57,7 @@ class HierarchyAttributeAssignmentController extends Controller
             'hierarchy_id' => $hierarchy->id,
             'attribute_id' => $data['attribute_id'],
             'sort_order' => $data['sort_order'] ?? $maxSort + 1,
+            'scope' => $data['scope'] ?? 'node',
         ]);
 
         $assignment->load('attribute');
@@ -91,6 +93,24 @@ class HierarchyAttributeAssignmentController extends Controller
             ->get();
 
         return response()->json(['data' => $attributes]);
+    }
+
+    /**
+     * PATCH /hierarchy-attribute-assignments/{hierarchy_attribute_assignment}
+     */
+    public function update(Request $request, HierarchyAttributeAssignment $hierarchyAttributeAssignment): JsonResponse
+    {
+        $this->authorize('update', $hierarchyAttributeAssignment->hierarchy);
+
+        $data = $request->validate([
+            'sort_order' => 'sometimes|integer|min:0',
+            'scope' => 'sometimes|string|in:node,relationship,both',
+        ]);
+
+        $hierarchyAttributeAssignment->update($data);
+        $hierarchyAttributeAssignment->load('attribute');
+
+        return (new JsonResource($hierarchyAttributeAssignment))->response();
     }
 
     /**

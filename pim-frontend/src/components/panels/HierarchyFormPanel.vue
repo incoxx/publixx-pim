@@ -139,6 +139,18 @@ async function removeAttribute(assignment) {
   } catch { /* ignore */ }
 }
 
+const scopeLabels = { node: 'Knoten', relationship: 'Beziehung', both: 'Beide' }
+
+async function toggleScope(assignment) {
+  const order = ['node', 'relationship', 'both']
+  const currentIdx = order.indexOf(assignment.scope || 'node')
+  const nextScope = order[(currentIdx + 1) % order.length]
+  try {
+    await hierarchiesApi.updateHierarchyAttribute(assignment.id, { scope: nextScope })
+    assignment.scope = nextScope
+  } catch { /* ignore */ }
+}
+
 watch(showPicker, (open) => {
   if (open) {
     pickerSearch.value = ''
@@ -245,17 +257,31 @@ onMounted(() => {
               :key="assignment.id"
               class="flex items-center justify-between px-3 py-2 rounded-lg bg-[var(--color-bg)] group"
             >
-              <div class="flex items-center gap-2">
-                <span class="text-xs font-medium">{{ assignment.attribute?.name_de || assignment.attribute?.technical_name || '—' }}</span>
+              <div class="flex items-center gap-2 min-w-0">
+                <span class="text-xs font-medium truncate">{{ assignment.attribute?.name_de || assignment.attribute?.technical_name || '—' }}</span>
                 <span class="text-[10px] text-[var(--color-text-tertiary)]">{{ assignment.attribute?.data_type }}</span>
               </div>
-              <button
-                class="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-[var(--color-error-light)] text-[var(--color-text-tertiary)] hover:text-[var(--color-error)] transition-all"
-                @click="removeAttribute(assignment)"
-                title="Entfernen"
-              >
-                <Trash2 class="w-3.5 h-3.5" :stroke-width="2" />
-              </button>
+              <div class="flex items-center gap-1.5 shrink-0">
+                <button
+                  class="px-1.5 py-0.5 text-[10px] font-medium rounded-full transition-colors cursor-pointer"
+                  :class="{
+                    'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300': (assignment.scope || 'node') === 'node',
+                    'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300': assignment.scope === 'relationship',
+                    'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300': assignment.scope === 'both',
+                  }"
+                  @click="toggleScope(assignment)"
+                  :title="'Scope: ' + scopeLabels[assignment.scope || 'node'] + ' (klicken zum Wechseln)'"
+                >
+                  {{ scopeLabels[assignment.scope || 'node'] }}
+                </button>
+                <button
+                  class="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-[var(--color-error-light)] text-[var(--color-text-tertiary)] hover:text-[var(--color-error)] transition-all"
+                  @click="removeAttribute(assignment)"
+                  title="Entfernen"
+                >
+                  <Trash2 class="w-3.5 h-3.5" :stroke-width="2" />
+                </button>
+              </div>
             </div>
           </div>
           <p class="text-[11px] text-[var(--color-text-tertiary)] mt-1">{{ assignedAttrs.length }} Attribute zugeordnet</p>

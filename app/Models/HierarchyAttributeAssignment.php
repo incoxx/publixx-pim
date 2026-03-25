@@ -18,6 +18,7 @@ class HierarchyAttributeAssignment extends Model
         'hierarchy_id',
         'attribute_id',
         'sort_order',
+        'scope',
     ];
 
     protected function casts(): array
