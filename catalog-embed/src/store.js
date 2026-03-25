@@ -75,6 +75,10 @@ function createStore() {
 
     // Mobile sidebar
     sidebarOpen: false,
+
+    // Category assets
+    categoryAssets: [],
+    categoryAssetsLoading: false,
   })
 
   // Persist wishlist
@@ -220,11 +224,29 @@ function createStore() {
       state.selectedCategoryId = nodeId
       state.selectedCategoryName = nodeName
       state.meta.current_page = 1
+      actions.fetchCategoryAssets(nodeId)
+    },
+
+    async fetchCategoryAssets(nodeId) {
+      if (!nodeId) {
+        state.categoryAssets = []
+        return
+      }
+      state.categoryAssetsLoading = true
+      try {
+        const data = await _api.getCategoryAssets(nodeId, { lang: state.locale, per_page: 12 })
+        state.categoryAssets = data.data || data || []
+      } catch {
+        state.categoryAssets = []
+      } finally {
+        state.categoryAssetsLoading = false
+      }
     },
 
     clearCategory() {
       state.selectedCategoryId = null
       state.selectedCategoryName = null
+      state.categoryAssets = []
       state.meta.current_page = 1
     },
 

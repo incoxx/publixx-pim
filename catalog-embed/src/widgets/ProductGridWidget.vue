@@ -1,6 +1,7 @@
 <script setup>
 import { onMounted, watch } from 'vue'
 import { useStore } from '../store.js'
+import { resolveMediaUrl } from '../api.js'
 import { icons } from '../icons.js'
 
 const { state, actions, getters } = useStore()
@@ -34,6 +35,31 @@ function onWishlist(e, productId) {
 
 <template>
   <div class="pxc-product-grid">
+    <!-- Category Assets -->
+    <div v-if="state.categoryAssets.length > 0 && !getters.searchActive.value" class="pxc-category-assets">
+      <h3 class="pxc-category-assets__title">
+        {{ state.selectedCategoryName ? state.selectedCategoryName + ' — ' : '' }}Medien
+      </h3>
+      <div class="pxc-category-assets__scroll">
+        <a
+          v-for="asset in state.categoryAssets"
+          :key="asset.id"
+          :href="resolveMediaUrl(asset.original_url)"
+          target="_blank"
+          class="pxc-category-assets__item"
+          :title="asset.title || asset.file_name"
+        >
+          <img
+            v-if="asset.thumb_url"
+            :src="resolveMediaUrl(asset.thumb_url)"
+            :alt="asset.alt_text || asset.title || asset.file_name"
+            loading="lazy"
+          />
+          <span v-else style="font-size:10px;opacity:0.3;text-transform:uppercase">{{ (asset.mime_type || '').split('/')[1] }}</span>
+        </a>
+      </div>
+    </div>
+
     <!-- Loading -->
     <div v-if="state.loading && state.products.length === 0" class="pxc-product-grid__loading">
       <div v-for="i in 8" :key="i" class="pxc-skeleton pxc-skeleton--card"></div>

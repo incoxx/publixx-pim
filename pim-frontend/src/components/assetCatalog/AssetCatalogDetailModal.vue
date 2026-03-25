@@ -3,7 +3,7 @@ import { watch, ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAssetCatalogStore } from '@/stores/assetCatalog'
 import { useCatalogStore } from '@/stores/catalog'
-import { X, Download, Heart, Image, FileText, Info, Package, ChevronLeft, ChevronRight } from 'lucide-vue-next'
+import { X, Download, Heart, Image, FileText, Info, Package, ChevronLeft, ChevronRight, FolderTree } from 'lucide-vue-next'
 import { formatFileSize } from '@/utils/formatting'
 import CatalogProductModal from '@/components/catalog/CatalogProductModal.vue'
 import PdfStatusBadge from '@/components/assetCatalog/PdfStatusBadge.vue'
@@ -62,11 +62,30 @@ watch(isPdf, async (val) => {
   }
 }, { immediate: true })
 
+const assetNodes = ref([])
+const assetNodesLoading = ref(false)
+
 watch(activeTab, (tab) => {
   if (tab === 'usedBy' && props.assetId) {
     store.fetchAssetProducts(props.assetId)
   }
+  if (tab === 'categories' && props.assetId) {
+    loadAssetNodes(props.assetId)
+  }
 })
+
+async function loadAssetNodes(assetId) {
+  assetNodesLoading.value = true
+  try {
+    const { default: assetCatalogApi } = await import('@/api/assetCatalog')
+    const { data } = await assetCatalogApi.getAssetNodes(assetId, { lang: store.locale })
+    assetNodes.value = data.data || data
+  } catch {
+    assetNodes.value = []
+  } finally {
+    assetNodesLoading.value = false
+  }
+}
 
 function usageLabel(purpose) {
   const map = { print: t('assetCatalog.usagePrint'), web: t('assetCatalog.usageWeb'), both: t('assetCatalog.usageBoth') }
@@ -181,6 +200,17 @@ const productPages = computed(() => {
                 {{ store.assetProductsMeta.total }}
               </span>
             </button>
+            <button
+              v-if="store.currentAsset?.hierarchy_nodes?.length"
+              class="tab"
+              :class="{ 'tab-active': activeTab === 'categories' }"
+              @click="activeTab = 'categories'"
+            >
+              Kategorien
+              <span class="badge badge-xs badge-secondary ml-1">
+                {{ store.currentAsset.hierarchy_nodes.length }}
+              </span>
+            </button>
           </div>
 
           <!-- Loading -->
@@ -239,6 +269,19 @@ const productPages = computed(() => {
                     <span class="text-xs font-medium text-base-content/50">{{ t('assetCatalog.folders') }}</span>
                     <p class="text-sm">{{ store.currentAsset.folder_name }}</p>
                   </div>
+                  <div v-if="store.currentAsset.hierarchy_nodes?.length">
+                    <span class="text-xs font-medium text-base-content/50">Kategorien</span>
+                    <div class="flex flex-wrap gap-1 mt-0.5">
+                      <span
+                        v-for="hn in store.currentAsset.hierarchy_nodes"
+                        :key="hn.node_id"
+                        class="badge badge-sm badge-secondary badge-outline"
+                        :title="hn.hierarchy_name"
+                      >
+                        {{ hn.node_name }}
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
                 <!-- Metadata from EAV -->
@@ -272,6 +315,33 @@ const productPages = computed(() => {
               <div v-else class="flex flex-col items-center py-16 gap-2">
                 <FileText class="w-12 h-12 text-base-content/15" />
                 <p class="text-sm text-base-content/40">{{ t('pdf.notProcessed', 'PDF wird verarbeitet oder nicht verfügbar.') }}</p>
+              </div>
+            </div>
+
+            <!-- ═══ Kategorien Tab ═══ -->
+            <div v-if="activeTab === 'categories'" class="p-4 md:p-6">
+              <div v-if="assetNodesLoading" class="flex justify-center py-12">
+                <span class="loading loading-spinner loading-lg text-primary"></span>
+              </div>
+              <div v-else-if="assetNodes.length === 0" class="flex flex-col items-center justify-center py-16 text-center">
+                <FolderTree class="w-12 h-12 text-base-content/15 mb-3" />
+                <p class="text-sm text-base-content/50">Keine Kategorie-Zuordnungen</p>
+              </div>
+              <div v-else class="space-y-3">
+                <div
+                  v-for="node in assetNodes"
+                  :key="node.node_id"
+                  class="bg-base-200 rounded-lg p-3"
+                >
+                  <div class="flex items-center gap-2 mb-1">
+                    <FolderTree class="w-4 h-4 text-secondary shrink-0" />
+                    <span class="text-sm font-semibold">{{ node.node_name }}</span>
+                    <span class="badge badge-xs badge-outline">{{ node.hierarchy_name }}</span>
+                  </div>
+                  <div class="text-xs text-base-content/50 ml-6">
+                    {{ node.path_string }}
+                  </div>
+                </div>
               </div>
             </div>
 

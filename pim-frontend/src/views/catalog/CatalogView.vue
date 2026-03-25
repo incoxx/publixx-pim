@@ -1,8 +1,9 @@
 <script setup>
-import { onMounted, ref, computed } from 'vue'
+import { onMounted, ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useCatalogStore } from '@/stores/catalog'
-import { X } from 'lucide-vue-next'
+import { resolveMediaUrl } from '@/api/catalog'
+import { X, Image, Download } from 'lucide-vue-next'
 import CatalogToolbar from '@/components/catalog/CatalogToolbar.vue'
 import CatalogProductGrid from '@/components/catalog/CatalogProductGrid.vue'
 import CatalogProductList from '@/components/catalog/CatalogProductList.vue'
@@ -68,8 +69,16 @@ function closeDetail() {
   modalProductId.value = null
 }
 
+// Kategorie-Assets laden wenn Kategorie gewechselt wird
+watch(() => store.selectedCategoryId, (id) => {
+  store.fetchCategoryAssets(id)
+})
+
 onMounted(() => {
   store.fetchProducts()
+  if (store.selectedCategoryId) {
+    store.fetchCategoryAssets(store.selectedCategoryId)
+  }
 })
 </script>
 
@@ -99,6 +108,43 @@ onMounted(() => {
       >
         {{ t('catalog.clearAllFilters') }}
       </button>
+    </div>
+
+    <!-- Category Assets -->
+    <div
+      v-if="store.categoryAssets.length > 0 && !store.searchActive"
+      class="px-4 py-3"
+    >
+      <h3 class="text-sm font-semibold text-base-content/70 mb-2 flex items-center gap-1.5">
+        <Image class="w-4 h-4" />
+        {{ store.selectedCategoryName ? store.selectedCategoryName + ' — ' : '' }}Medien
+      </h3>
+      <div class="flex gap-3 overflow-x-auto pb-2">
+        <a
+          v-for="asset in store.categoryAssets"
+          :key="asset.id"
+          :href="resolveMediaUrl(asset.original_url)"
+          target="_blank"
+          class="shrink-0 group relative rounded-lg overflow-hidden border border-base-300 hover:shadow-lg transition-all duration-300"
+          :title="asset.title || asset.file_name"
+        >
+          <div class="w-28 h-28 bg-base-200 flex items-center justify-center">
+            <img
+              v-if="asset.thumb_url"
+              :src="resolveMediaUrl(asset.thumb_url)"
+              :alt="asset.alt_text || asset.title || asset.file_name"
+              class="w-full h-full object-contain p-1 group-hover:scale-105 transition-transform duration-300"
+              loading="lazy"
+            />
+            <Image v-else class="w-8 h-8 text-base-content/15" />
+          </div>
+          <div class="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-end justify-center opacity-0 group-hover:opacity-100 pb-1">
+            <span class="text-[10px] text-white bg-black/50 rounded px-1.5 py-0.5 truncate max-w-[100px]">
+              {{ asset.title || asset.file_name }}
+            </span>
+          </div>
+        </a>
+      </div>
     </div>
 
     <!-- Loading skeleton -->

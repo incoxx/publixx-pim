@@ -83,6 +83,18 @@ class HierarchyNode extends Model
         return $this->hasMany(OutputHierarchyProductAssignment::class);
     }
 
+    public function mediaAssignments(): HasMany
+    {
+        return $this->hasMany(HierarchyNodeMediaAssignment::class);
+    }
+
+    public function media(): BelongsToMany
+    {
+        return $this->belongsToMany(Media::class, 'hierarchy_node_media_assignments')
+            ->withPivot(['usage_type_id', 'sort_order', 'is_primary'])
+            ->orderByPivot('sort_order');
+    }
+
     public function deletionConstraints(): array
     {
         return [
@@ -91,6 +103,7 @@ class HierarchyNode extends Model
             'attributeAssignments'      => 'Attribut-Zuordnungen',
             'attributeValues'           => 'Attributwerte',
             'outputProductAssignments'  => 'Ausgabe-Zuordnungen',
+            'mediaAssignments'          => 'Medien-Zuordnungen',
         ];
     }
 
