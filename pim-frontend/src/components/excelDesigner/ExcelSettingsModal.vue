@@ -78,6 +78,21 @@ function updateHeaderStyle(field, value) {
           </label>
         </div>
 
+        <!-- Dateiname -->
+        <div>
+          <h4 class="font-semibold text-[var(--color-text-secondary)] mb-2">Export-Dateiname</h4>
+          <label class="block text-[11px] text-[var(--color-text-tertiary)] mb-1">Dateiname (ohne Endung)</label>
+          <input
+            v-model="settings.fileName"
+            class="pim-input text-xs w-full"
+            :placeholder="store.currentTemplate?.name || 'excel-export'"
+            @input="store.isDirty = true"
+          />
+          <p class="text-[10px] text-[var(--color-text-tertiary)] mt-1">
+            Leer = Template-Name. Das Datum wird automatisch angehängt.
+          </p>
+        </div>
+
         <!-- Thumbnail-Standardgröße -->
         <div>
           <h4 class="font-semibold text-[var(--color-text-secondary)] mb-2">Thumbnails</h4>

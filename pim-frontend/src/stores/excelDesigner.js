@@ -59,7 +59,7 @@ export const useExcelDesignerStore = defineStore('excelDesigner', () => {
     const payload = {
       name: currentTemplate.value.name,
       description: currentTemplate.value.description,
-      search_profile_id: currentTemplate.value.search_profile_id,
+      search_profile_id: currentTemplate.value.search_profile_id || null,
       template_json: templateJson.value,
       excel_settings: excelSettings.value,
       language: currentTemplate.value.language || 'de',
@@ -67,8 +67,34 @@ export const useExcelDesignerStore = defineStore('excelDesigner', () => {
     }
 
     const { data } = await excelTemplatesApi.update(currentTemplate.value.id, payload)
-    currentTemplate.value = data.data || data
+    const tmpl = data.data || data
+    currentTemplate.value = tmpl
+    templateJson.value = tmpl.template_json || templateJson.value
+    excelSettings.value = tmpl.excel_settings || excelSettings.value
     isDirty.value = false
+  }
+
+  async function saveTemplateAs(name) {
+    if (!currentTemplate.value) return null
+
+    const payload = {
+      name,
+      description: currentTemplate.value.description,
+      search_profile_id: currentTemplate.value.search_profile_id || null,
+      template_json: templateJson.value,
+      excel_settings: excelSettings.value,
+      language: currentTemplate.value.language || 'de',
+      is_shared: currentTemplate.value.is_shared || false,
+    }
+
+    const { data } = await excelTemplatesApi.create(payload)
+    const tmpl = data.data || data
+    templates.value.push(tmpl)
+    currentTemplate.value = tmpl
+    templateJson.value = tmpl.template_json || templateJson.value
+    excelSettings.value = tmpl.excel_settings || excelSettings.value
+    isDirty.value = false
+    return tmpl
   }
 
   async function createTemplate(name) {
@@ -251,7 +277,11 @@ export const useExcelDesignerStore = defineStore('excelDesigner', () => {
     previewLoading.value = true
     try {
       if (isDirty.value) await saveTemplate()
-      const { data } = await excelTemplatesApi.preview(currentTemplate.value.id, { limit: 5 })
+      const params = { limit: 5 }
+      if (currentTemplate.value.search_profile_id) {
+        params.search_profile_id = currentTemplate.value.search_profile_id
+      }
+      const { data } = await excelTemplatesApi.preview(currentTemplate.value.id, params)
       previewData.value = data.data || data
     } finally {
       previewLoading.value = false
@@ -262,14 +292,21 @@ export const useExcelDesignerStore = defineStore('excelDesigner', () => {
     if (!currentTemplate.value) return
     if (isDirty.value) await saveTemplate()
 
-    const response = await excelTemplatesApi.download(currentTemplate.value.id)
+    const params = {}
+    if (currentTemplate.value.search_profile_id) {
+      params.search_profile_id = currentTemplate.value.search_profile_id
+    }
+
+    const response = await excelTemplatesApi.download(currentTemplate.value.id, params)
     const blob = new Blob([response.data], {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = `${currentTemplate.value.name || 'excel-export'}-${new Date().toISOString().slice(0, 10)}.xlsx`
+    const customName = excelSettings.value?.fileName?.trim()
+    const baseName = customName || currentTemplate.value.name || 'excel-export'
+    link.download = `${baseName}-${new Date().toISOString().slice(0, 10)}.xlsx`
     link.click()
     URL.revokeObjectURL(url)
   }
@@ -327,7 +364,7 @@ export const useExcelDesignerStore = defineStore('excelDesigner', () => {
     previewData, previewLoading,
 
     // Actions
-    loadTemplates, loadTemplate, saveTemplate, createTemplate, deleteTemplate,
+    loadTemplates, loadTemplate, saveTemplate, saveTemplateAs, createTemplate, deleteTemplate,
     loadFields,
     addSheet, removeSheet, updateSheet, duplicateSheet,
     addColumn, removeColumn, updateColumn, moveColumn,
