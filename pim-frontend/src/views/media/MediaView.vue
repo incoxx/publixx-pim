@@ -10,6 +10,7 @@ import PimTree from '@/components/shared/PimTree.vue'
 import PimAttributeInput from '@/components/shared/PimAttributeInput.vue'
 import PdfPreview from '@/components/shared/PdfPreview.vue'
 import MediaUploadQueue from '@/components/media/MediaUploadQueue.vue'
+import MediaProcessingStatus from '@/components/media/MediaProcessingStatus.vue'
 
 const authStore = useAuthStore()
 
@@ -105,6 +106,7 @@ async function fetchFolders() {
 const uploading = ref(false)
 const uploadError = ref('')
 const uploadQueueRef = ref(null)
+const processingStatusRef = ref(null)
 
 // Bulk-Delete
 const showBulkDeleteConfirm = ref(false)
@@ -136,6 +138,8 @@ function handleDrop(e) {
 
 function onUploadCompleted() {
   fetchMedia()
+  // Hintergrund-Status aktualisieren (PDF-Jobs etc.)
+  processingStatusRef.value?.refresh()
 }
 
 async function bulkDeleteSelected() {
@@ -214,6 +218,11 @@ function handleImgError(e) {
   if (originalSrc && img.src !== originalSrc) {
     img.dataset.fallback = ''
     img.src = originalSrc
+  } else {
+    // Alle Fallbacks fehlgeschlagen → Placeholder anzeigen
+    img.style.display = 'none'
+    const placeholder = img.parentElement?.querySelector('.img-fallback')
+    if (placeholder) placeholder.style.display = 'flex'
   }
 }
 
@@ -740,6 +749,9 @@ onMounted(() => {
         <button class="p-0.5 hover:opacity-70" @click="uploadError = ''"><X class="w-4 h-4" /></button>
       </div>
 
+      <!-- Hintergrund-Verarbeitungsstatus (PDF-Jobs etc.) -->
+      <MediaProcessingStatus ref="processingStatusRef" />
+
       <!-- Selection toolbar -->
       <Transition name="slide-down">
         <div v-if="selectedIds.size > 0" class="flex items-center gap-3 px-3 py-2 rounded-lg bg-[var(--color-bg)] border border-[var(--color-border)] text-sm">
@@ -784,7 +796,12 @@ onMounted(() => {
               :class="{ '!opacity-100': selectedIds.has(item.id) }"
               @click.stop="toggleSelect(item.id)"
             />
-            <img v-if="item.media_type === 'image'" :src="getImageUrl(item)" :data-fallback="item.url || mediaApi.fileUrl(item.file_name)" class="w-full h-full object-cover" loading="lazy" alt="" @error="handleImgError" />
+            <template v-if="item.media_type === 'image'">
+              <img :src="getImageUrl(item)" :data-fallback="item.url || mediaApi.fileUrl(item.file_name)" class="w-full h-full object-cover" loading="lazy" alt="" @error="handleImgError" />
+              <div class="img-fallback items-center justify-center absolute inset-0 bg-[var(--color-bg)]" style="display: none">
+                <Image class="w-8 h-8 text-[var(--color-text-tertiary)]/30" :stroke-width="1.5" />
+              </div>
+            </template>
             <div v-else-if="isItemPdf(item)" class="flex flex-col items-center gap-1 text-[var(--color-error)]/60">
               <FileText class="w-10 h-10" :stroke-width="1.25" />
               <span class="text-[9px] text-[var(--color-text-tertiary)]">PDF</span>

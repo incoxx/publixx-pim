@@ -23,6 +23,7 @@ class RateLimitMiddleware
     public function handle(Request $request, Closure $next, string $tier = 'standard'): Response
     {
         $maxAttempts = match ($tier) {
+            'media' => 600,    // Dateien/Thumbnails — <img> Tags laden viele gleichzeitig
             'export' => 600,
             'auth' => 10,
             default => 60,

@@ -79,6 +79,10 @@ export default {
     return client.put(`/media/${mediaId}/attribute-values`, { values })
   },
 
+  processingStatus() {
+    return client.get('/media/processing-status')
+  },
+
   fileUrl(filename) {
     return `${base}/media/file/${encodeURIComponent(filename)}`
   },

@@ -515,6 +515,63 @@ class MediaController extends Controller
     }
 
     /**
+     * GET /media/processing-status — Hintergrund-Verarbeitungsstatus (PDF-Jobs, Thumbnails).
+     * Zeigt aktive, wartende und kürzlich abgeschlossene Verarbeitungen.
+     */
+    public function processingStatus(): JsonResponse
+    {
+        $this->authorize('viewAny', Media::class);
+
+        // PDF-Verarbeitungsstatus
+        $pdfPending = \App\Models\PdfDocument::where('status', 'pending')->count();
+        $pdfProcessing = \App\Models\PdfDocument::where('status', 'processing')->count();
+        $pdfReady = \App\Models\PdfDocument::where('status', 'ready')
+            ->where('updated_at', '>=', now()->subMinutes(5))
+            ->count();
+        $pdfError = \App\Models\PdfDocument::where('status', 'error')
+            ->where('updated_at', '>=', now()->subHour())
+            ->count();
+
+        // Kürzlich verarbeitete PDFs (letzte 5 Minuten)
+        $recentPdfs = \App\Models\PdfDocument::with('media:id,file_name,original_file_name')
+            ->whereIn('status', ['ready', 'error', 'processing', 'pending'])
+            ->where('updated_at', '>=', now()->subMinutes(10))
+            ->orderByDesc('updated_at')
+            ->limit(20)
+            ->get()
+            ->map(fn ($doc) => [
+                'id' => $doc->id,
+                'media_id' => $doc->media_id,
+                'file_name' => $doc->media?->original_file_name ?? $doc->media?->file_name ?? '—',
+                'status' => $doc->status,
+                'page_count' => $doc->page_count,
+                'error_message' => $doc->error_message,
+                'updated_at' => $doc->updated_at,
+            ]);
+
+        // Kürzlich hochgeladene Medien (letzte 5 Minuten)
+        $recentUploads = Media::where('last_uploaded_at', '>=', now()->subMinutes(5))
+            ->orderByDesc('last_uploaded_at')
+            ->limit(10)
+            ->get(['id', 'file_name', 'original_file_name', 'media_type', 'last_uploaded_at']);
+
+        return response()->json([
+            'data' => [
+                'pdf' => [
+                    'pending' => $pdfPending,
+                    'processing' => $pdfProcessing,
+                    'recently_ready' => $pdfReady,
+                    'recent_errors' => $pdfError,
+                    'active' => $pdfPending + $pdfProcessing > 0,
+                    'items' => $recentPdfs,
+                ],
+                'recent_uploads' => $recentUploads,
+                'has_activity' => ($pdfPending + $pdfProcessing) > 0 || $recentUploads->isNotEmpty(),
+            ],
+        ]);
+    }
+
+    /**
      * GET /media/diagnostics — check storage, GD, file integrity (admin only).
      */
     public function diagnostics(): JsonResponse

@@ -129,7 +129,7 @@ Route::prefix('v1/auth/sso')->middleware(['web', 'throttle.pim:auth', 'module:ss
 // =========================================================================
 // Public media file serving (no auth — used by <img src> tags)
 // =========================================================================
-Route::prefix('v1')->middleware('throttle.pim')->group(function () {
+Route::prefix('v1')->middleware('throttle.pim:media')->group(function () {
     Route::get('media/file/{filename}', [MediaController::class, 'serve'])->name('media.serve');
     Route::get('media/thumb/{medium}', [MediaController::class, 'thumb'])->name('media.thumb');
 });
@@ -484,6 +484,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // Agent 3: Media
     // =====================================================================
     Route::get('media/diagnostics', [MediaController::class, 'diagnostics']);
+    Route::get('media/processing-status', [MediaController::class, 'processingStatus']);
     Route::post('media/bulk-move', [MediaController::class, 'bulkMove']);
     Route::post('media/bulk-delete', [MediaController::class, 'bulkDelete']);
     Route::get('media/revision/{revision}/download', [MediaController::class, 'downloadRevision']);
