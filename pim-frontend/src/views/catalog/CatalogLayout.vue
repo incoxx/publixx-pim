@@ -44,7 +44,7 @@ function startSidebarResize(e) {
 }
 
 // Facet panel (right side)
-const facetPanelOpen = ref(false)
+const facetPanelOpen = ref(true)
 const facetPanelWidth = ref(300)
 const isResizingFacets = ref(false)
 
@@ -92,6 +92,7 @@ onMounted(async () => {
   store.importWishlistFromUrl()
   await store.fetchThemeSettings()
   store.fetchCategories()
+  store.fetchFacets()
 })
 </script>
 
