@@ -25,6 +25,10 @@ const syncType = ref('product')
 const syncEntityId = ref('')
 const syncLanguage = ref('de')
 
+// Preview / Dry Run
+const previewData = ref(null)
+const previewing = ref(false)
+
 // Produkt-Suche für Einzel-Sync
 const productSearch = ref('')
 const productSearchResults = ref([])
@@ -159,6 +163,7 @@ function selectProduct(product) {
 function clearSelectedProduct() {
   selectedProduct.value = null
   syncEntityId.value = ''
+  previewData.value = null
 }
 
 async function saveExportProfile() {
@@ -209,6 +214,20 @@ async function executeProfileSync() {
   } finally {
     profileSyncing.value = false
     await loadConnection()
+  }
+}
+
+async function previewProduct() {
+  if (!syncEntityId.value.trim()) return
+  previewing.value = true
+  previewData.value = null
+  try {
+    const res = await connectorsApi.previewProduct(connectionId.value, syncEntityId.value.trim(), syncLanguage.value)
+    previewData.value = res.data.data || res.data
+  } catch (e) {
+    syncError.value = e.response?.data?.message || 'Vorschau fehlgeschlagen'
+  } finally {
+    previewing.value = false
   }
 }
 
@@ -613,6 +632,15 @@ const statusColors = {
             <div class="flex-1"></div>
             <button class="btn btn-ghost btn-sm" @click="showSyncDialog = false">Abbrechen</button>
             <button
+              v-if="syncType === 'product' && isShopware"
+              class="btn btn-outline btn-sm"
+              :disabled="previewing || !syncEntityId.trim()"
+              @click="previewProduct"
+            >
+              <span v-if="previewing" class="loading loading-spinner loading-xs"></span>
+              Vorschau
+            </button>
+            <button
               class="btn btn-primary btn-sm"
               :disabled="syncing || !syncEntityId.trim()"
               @click="executeSyncSingle"
@@ -620,6 +648,65 @@ const statusColors = {
               <span v-if="syncing" class="loading loading-spinner loading-xs"></span>
               Synchronisieren
             </button>
+          </div>
+
+          <!-- Preview-Anzeige -->
+          <div v-if="previewData" class="mt-4 space-y-3">
+            <div class="flex items-center justify-between">
+              <h4 class="text-sm font-semibold">Vorschau: Shopware-Payload</h4>
+              <button class="btn btn-ghost btn-xs" @click="previewData = null"><X class="w-3 h-3" /></button>
+            </div>
+
+            <!-- Felder als Tabelle -->
+            <div class="overflow-x-auto rounded-lg border border-base-200">
+              <table class="table table-xs w-full">
+                <thead>
+                  <tr class="bg-base-200/40">
+                    <th class="w-48 font-medium">Shopware-Feld</th>
+                    <th class="font-medium">Wert</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(value, key) in previewData.product_payload" :key="key" class="hover:bg-base-200/20">
+                    <td class="font-mono text-xs font-medium">{{ key }}</td>
+                    <td class="text-sm">
+                      <template v-if="key === 'price' && Array.isArray(value)">
+                        <span v-for="(p, i) in value" :key="i">
+                          {{ p.gross }} brutto / {{ p.net }} netto ({{ p.currencyId?.substring(0, 8) }}...)
+                        </span>
+                      </template>
+                      <template v-else-if="key === 'description'">
+                        <div class="max-h-20 overflow-y-auto text-xs" v-html="value"></div>
+                      </template>
+                      <template v-else-if="key === 'customFields' && typeof value === 'object'">
+                        <div class="text-xs space-y-0.5">
+                          <div v-for="(v, k) in value" :key="k">
+                            <span class="font-mono text-base-content/50">{{ k }}:</span> {{ v }}
+                          </div>
+                        </div>
+                      </template>
+                      <template v-else-if="typeof value === 'object'">
+                        <pre class="text-xs whitespace-pre-wrap">{{ JSON.stringify(value, null, 2) }}</pre>
+                      </template>
+                      <template v-else>{{ value }}</template>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Properties -->
+            <div v-if="previewData.properties?.length" class="rounded-lg border border-base-200 p-3">
+              <div class="text-xs font-semibold mb-2">Properties (Spezifikationen)</div>
+              <div class="flex flex-wrap gap-2">
+                <span
+                  v-for="(prop, idx) in previewData.properties" :key="idx"
+                  class="badge badge-outline badge-sm"
+                >
+                  {{ prop.group }}: {{ prop.option }}
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       </div>

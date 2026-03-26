@@ -424,6 +424,71 @@ class ConnectorController extends Controller
     }
 
     /**
+     * POST /connectors/connections/{connection}/preview-product — Dry Run: zeigt was an Shopware gesendet würde.
+     */
+    public function previewProduct(Request $request, ConnectorConnection $connection): JsonResponse
+    {
+        $this->authorize('view', $connection);
+
+        $validated = $request->validate([
+            'product_id' => 'required|uuid|exists:products,id',
+            'language'   => 'sometimes|string|in:de,en,fr,es,it',
+        ]);
+
+        $settings = $connection->settings ?? [];
+        $shopwareFields = $settings['shopware_fields'] ?? [];
+        $profileId = $settings['website_profile_id'] ?? null;
+
+        $profilePayload = [];
+        if ($profileId) {
+            $profile = \App\Models\WebsiteProfile::find($profileId);
+            $profilePayload = $profile?->payload ?? [];
+        }
+
+        $language = $validated['language'] ?? $profilePayload['default_locale'] ?? 'de';
+        $product = Product::with(['media', 'masterHierarchyNode'])->findOrFail($validated['product_id']);
+
+        // Tax-ID Default auflösen (ohne API-Call — nur Platzhalter anzeigen)
+        $taxIdMapping = $shopwareFields['tax_id'] ?? [];
+        if (empty($taxIdMapping) || ($taxIdMapping['mode'] ?? '') === 'default') {
+            $shopwareFields['tax_id'] = ['mode' => 'fixed', 'value' => '(auto: Standard-Steuer aus Shopware)'];
+        }
+
+        $productService = app(\App\Services\Connectors\Shopware\ShopwareProductService::class);
+
+        // Properties auflösen (nur Lookup, kein API-Call)
+        $properties = [];
+        $propertyAttrIds = $shopwareFields['_property_attribute_ids'] ?? [];
+        if (!empty($propertyAttrIds)) {
+            $propertyService = app(\App\Services\Connectors\Shopware\ShopwarePropertyService::class);
+            // Zeige was als Properties gesendet würde (mit PIM-Attributnamen statt Shopware-UUIDs)
+            $selectionValues = \App\Models\ProductAttributeValue::where('product_id', $product->id)
+                ->whereIn('attribute_id', $propertyAttrIds)
+                ->whereNotNull('value_selection_id')
+                ->with(['attribute', 'valueListEntry'])
+                ->get();
+
+            foreach ($selectionValues as $val) {
+                $properties[] = [
+                    'group'  => $val->attribute?->name_de ?? $val->attribute_id,
+                    'option' => $val->valueListEntry?->display_value_de ?? $val->value_selection_id,
+                ];
+            }
+        }
+
+        $payload = $productService->previewProductData($product, $profilePayload, $shopwareFields, $language, []);
+
+        return response()->json([
+            'data' => [
+                'product_payload' => $payload,
+                'properties'      => $properties,
+                'language'        => $language,
+                'profile'         => $profileId ? ($profilePayload['hierarchy_id'] ?? null) : null,
+            ],
+        ]);
+    }
+
+    /**
      * POST /connectors/connections/{connection}/sync-profile — Profil-basierter Komplett-Sync.
      */
     public function syncFromProfile(Request $request, ConnectorConnection $connection): JsonResponse

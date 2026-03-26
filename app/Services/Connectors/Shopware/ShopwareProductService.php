@@ -86,6 +86,27 @@ class ShopwareProductService
     }
 
     /**
+     * Erstellt eine Vorschau der Produktdaten ohne API-Aufruf (Dry Run).
+     *
+     * @return array  Das Shopware-Payload das gesendet würde
+     */
+    public function previewProductData(
+        Product $product,
+        array $profilePayload,
+        array $shopwareFields,
+        string $language = 'de',
+        array $properties = [],
+    ): array {
+        $data = $this->collectProfileProductData($product, $profilePayload, $shopwareFields, $language);
+
+        if (!empty($properties)) {
+            $data['properties'] = $properties;
+        }
+
+        return $data;
+    }
+
+    /**
      * Sammelt Produktdaten anhand des Export-Profils.
      */
     private function collectProfileProductData(
