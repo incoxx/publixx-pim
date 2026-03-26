@@ -195,6 +195,12 @@ const routes = [
     meta: { title: 'Canva' },
   },
   {
+    path: '/connectors/canva/export',
+    name: 'connector-canva-export',
+    component: () => import('@/views/connectors/CanvaExportView.vue'),
+    meta: { title: 'Canva Export' },
+  },
+  {
     path: '/connectors/deepl',
     name: 'connector-deepl',
     component: () => import('@/views/connectors/ConnectorDeepLView.vue'),

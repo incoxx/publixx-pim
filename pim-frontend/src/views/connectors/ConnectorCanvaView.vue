@@ -125,6 +125,20 @@ async function deleteConnection(id) {
         </div>
       </div>
 
+      <!-- Export -->
+      <div v-if="connections.length > 0" class="card bg-base-100 shadow-sm border border-base-200">
+        <div class="card-body p-4 flex-row items-center justify-between">
+          <div>
+            <h2 class="font-semibold text-base">Produkte an Canva senden</h2>
+            <p class="text-sm text-base-content/50">Wähle Produkte, Attribute und Sprache für den Export</p>
+          </div>
+          <button class="btn btn-sm btn-primary" @click="router.push('/connectors/canva/export')">
+            <ArrowUpRight class="w-4 h-4" />
+            Export öffnen
+          </button>
+        </div>
+      </div>
+
       <!-- Verbindungen -->
       <div class="space-y-3">
         <div class="flex items-center justify-between">
