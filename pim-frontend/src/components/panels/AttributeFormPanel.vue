@@ -62,6 +62,7 @@ const formData = ref(
         is_internal: false,
         is_readonly: false,
         is_hidden: false,
+        is_quick_search: false,
         description_de: '',
         status: 'active',
       }
@@ -196,6 +197,7 @@ const fields = computed(() => {
     { key: 'is_internal', label: 'Intern', type: 'boolean' },
     { key: 'is_readonly', label: 'Schreibgeschützt', type: 'boolean', hint: 'Im Produkteditor und bei Massenoperationen nicht bearbeitbar' },
     { key: 'is_hidden', label: 'Versteckt', type: 'boolean', hint: 'Nicht sichtbar im Editor, aber in Exporten enthalten' },
+    { key: 'is_quick_search', label: 'Schnellsuche', type: 'boolean', hint: 'Attribut-Werte als Teaser in der Schnellsuche anzeigen' },
     { key: 'description_de', label: 'Beschreibung', type: 'textarea' },
   )
 
