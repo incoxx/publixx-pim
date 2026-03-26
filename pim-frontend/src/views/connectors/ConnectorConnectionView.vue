@@ -53,15 +53,23 @@ const expandedLogId = ref(null)
 // Shopware-Pflichtfelder
 const SHOPWARE_FIELD_DEFINITIONS = [
   { key: 'name', label: 'Produktname', description: 'Standard: product.name', defaultMode: 'default', defaultInfo: 'Produktname aus PIM' },
-  { key: 'description', label: 'Beschreibung', description: 'Standard: Description-Attribute aus Profil', defaultMode: 'default', defaultInfo: 'Aus Vorschau-Profil', modes: ['default', 'fixed', 'attribute', 'attributes'] },
-  { key: 'price', label: 'Preis', description: 'Standard: Preis aus Vorschau-Profil', defaultMode: 'default', defaultInfo: 'Preis aus Profil oder erster Preis' },
-  { key: 'tax_id', label: 'Steuer-ID (taxId)', description: 'Leer = Standard-Steuer aus Shopware', defaultMode: 'default', defaultInfo: 'Erste Steuer aus Shopware' },
-  { key: 'manufacturer_id', label: 'Hersteller (manufacturerId)', description: 'Optional', defaultMode: 'default', defaultInfo: 'Kein Hersteller (optional)' },
-  { key: 'currency_id', label: 'Währung (currencyId)', description: 'Shopware-UUID der Währung', defaultMode: 'fixed', defaultValue: 'b7d2554b0ce847cd82f3ac9bd1c0dfca' },
+  { key: 'description', label: 'Beschreibung', description: 'Standard: aus Profil', defaultMode: 'default', defaultInfo: 'Aus Vorschau-Profil', modes: ['default', 'fixed', 'attribute', 'attributes'] },
   { key: 'ean', label: 'EAN', description: 'Standard: product.ean', defaultMode: 'default', defaultInfo: 'EAN aus PIM-Stammdaten' },
-  { key: 'weight', label: 'Gewicht', description: 'Produktgewicht in kg', defaultMode: 'attribute' },
-  { key: 'meta_title', label: 'SEO-Titel', description: 'Meta-Title für Shopware', defaultMode: 'attribute' },
-  { key: 'meta_description', label: 'SEO-Beschreibung', description: 'Meta-Description für Shopware', defaultMode: 'attribute' },
+  { key: 'tax_id', label: 'Steuer-ID', description: 'Standard-Steuer aus Shopware', defaultMode: 'default', defaultInfo: 'Automatisch von Shopware' },
+  { key: 'currency_id', label: 'Währung', description: 'Shopware-UUID', defaultMode: 'fixed', defaultValue: 'b7d2554b0ce847cd82f3ac9bd1c0dfca' },
+  { key: 'manufacturer_id', label: 'Hersteller', description: 'Optional', defaultMode: 'default', defaultInfo: 'Kein Hersteller (optional)' },
+  // Preise
+  { key: 'price', label: 'Preis (brutto)', description: 'Standard: aus Profil', defaultMode: 'default', defaultInfo: 'Preis aus Profil oder erster Preis' },
+  { key: 'purchase_price', label: 'Einkaufspreis', description: 'Purchase price', defaultMode: 'attribute' },
+  { key: 'list_price', label: 'UVP (Listenpreis)', description: 'List price / UVP', defaultMode: 'attribute' },
+  // Maße
+  { key: 'width', label: 'Breite', description: 'Width in mm', defaultMode: 'attribute' },
+  { key: 'height', label: 'Höhe', description: 'Height in mm', defaultMode: 'attribute' },
+  { key: 'length', label: 'Länge', description: 'Length in mm', defaultMode: 'attribute' },
+  { key: 'weight', label: 'Gewicht', description: 'Weight in kg', defaultMode: 'attribute' },
+  // SEO
+  { key: 'meta_title', label: 'SEO-Titel', description: 'Meta-Title', defaultMode: 'attribute' },
+  { key: 'meta_description', label: 'SEO-Beschreibung', description: 'Meta-Description', defaultMode: 'attribute' },
 ]
 
 const connectionId = computed(() => route.params.id)
@@ -103,9 +111,12 @@ async function loadConnection() {
         }
       }
 
-      // Property-Attribute-IDs und Description-Attribute-IDs initialisieren
+      // Property-Attribute-IDs und Medien-Toggle initialisieren
       if (!shopwareFields.value._property_attribute_ids) {
         shopwareFields.value._property_attribute_ids = connection.value.settings?.shopware_fields?._property_attribute_ids || []
+      }
+      if (shopwareFields.value._sync_media === undefined) {
+        shopwareFields.value._sync_media = connection.value.settings?.shopware_fields?._sync_media ?? { enabled: true }
       }
 
       await Promise.all([loadProfiles(), loadAttributes()])
@@ -174,6 +185,10 @@ async function saveExportProfile() {
     for (const [key, mapping] of Object.entries(shopwareFields.value)) {
       if (key === '_property_attribute_ids') {
         cleanedFields[key] = Array.isArray(mapping) ? mapping : []
+        continue
+      }
+      if (key === '_sync_media') {
+        cleanedFields[key] = { enabled: mapping?.enabled ?? true }
         continue
       }
       if (mapping.mode === 'default') {
@@ -525,6 +540,23 @@ const statusColors = {
                 class="btn btn-ghost btn-xs text-primary mt-2"
                 @click="shopwareFields._property_attribute_ids.push('')"
               >+ Manuell überschreiben</button>
+            </div>
+
+            <!-- Medien -->
+            <div>
+              <label class="label"><span class="label-text font-medium">Medien / Bilder</span></label>
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  class="toggle toggle-sm toggle-primary"
+                  :checked="shopwareFields._sync_media?.enabled ?? true"
+                  @change="shopwareFields._sync_media = { enabled: $event.target.checked }"
+                />
+                <span class="text-sm">Produktbilder an Shopware übertragen</span>
+              </label>
+              <p class="text-xs text-base-content/40 mt-1">
+                Alle dem Produkt zugeordneten Medien werden hochgeladen und als Produktbilder zugewiesen.
+              </p>
             </div>
 
             <!-- Speichern -->

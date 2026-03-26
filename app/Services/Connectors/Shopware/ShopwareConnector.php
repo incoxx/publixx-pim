@@ -131,6 +131,23 @@ class ShopwareConnector extends AbstractConnector
                 $result = $this->productService->syncProductFromProfile(
                     $http, $shopUrl, $product, $profilePayload, $shopwareFields, $language, $properties,
                 );
+
+                // Medien synchronisieren (wenn aktiviert)
+                $syncMedia = $shopwareFields['_sync_media']['enabled'] ?? true;
+                if ($syncMedia && $product->media && $product->media->isNotEmpty()) {
+                    $externalProductId = $result['product_id'] ?? $product->sku;
+                    $position = 0;
+                    foreach ($product->media as $media) {
+                        try {
+                            $mediaId = $this->mediaService->uploadMedia($http, $shopUrl, $media);
+                            $this->mediaService->assignMediaToProduct($http, $shopUrl, $externalProductId, $mediaId, $position);
+                            $this->logSync($connection, 'media_sync', 'media', $media->id, 'success', $mediaId);
+                            $position++;
+                        } catch (\Throwable $e) {
+                            $this->logSync($connection, 'media_sync', 'media', $media->id, 'failed', null, $e->getMessage());
+                        }
+                    }
+                }
             } else {
                 // Legacy-Pfad ohne Profil
                 if (empty($options['tax_id'])) {
