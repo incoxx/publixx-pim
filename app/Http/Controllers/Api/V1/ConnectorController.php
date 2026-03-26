@@ -343,7 +343,7 @@ class ConnectorController extends Controller
             return response()->json(['message' => 'Connector nicht gefunden'], 422);
         }
 
-        $products = Product::whereIn('id', $validated['product_ids'])->get()->all();
+        $products = Product::with('media')->whereIn('id', $validated['product_ids'])->get()->all();
         $options = array_diff_key($validated, ['product_ids' => true]);
 
         $results = $connector->pushProductDataBulk($connection, $products, $options);

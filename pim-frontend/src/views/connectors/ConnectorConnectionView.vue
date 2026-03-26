@@ -246,20 +246,27 @@ async function executeProfileSync() {
       return
     }
 
-    // 2. Produkte einzeln synchronisieren
-    for (const productId of productIds) {
+    // 2. Produkte in 10er-Paketen synchronisieren
+    const batchSize = 10
+    for (let i = 0; i < productIds.length; i += batchSize) {
       if (profileCancelled.value) break
 
-      profileProgress.value.current++
-      profileProgress.value.currentSku = productId.substring(0, 8) + '...'
+      const batch = productIds.slice(i, i + batchSize)
+      profileProgress.value.current = Math.min(i + batchSize, productIds.length)
+      profileProgress.value.currentSku = `Paket ${Math.floor(i / batchSize) + 1}`
 
       try {
-        await connectorsApi.syncProduct(connectionId.value, productId, {
+        const res = await connectorsApi.syncProductBulk(connectionId.value, batch, {
           language: 'de',
         })
-        profileProgress.value.success++
+        const results = res.data.data || res.data || {}
+        for (const [, r] of Object.entries(results)) {
+          if (r.status === 'success') profileProgress.value.success++
+          else profileProgress.value.failed++
+        }
       } catch (e) {
-        profileProgress.value.failed++
+        // Ganzer Batch fehlgeschlagen
+        profileProgress.value.failed += batch.length
       }
     }
 
