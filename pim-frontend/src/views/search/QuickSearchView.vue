@@ -1,14 +1,17 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useQuickSearchStore } from '@/stores/quickSearch'
+import { useTabStore } from '@/stores/tabs'
 import {
   Search, Package, Image, GitBranch, Sliders, X, ChevronRight,
   FolderTree, ArrowRight, Sparkles, Link2,
 } from 'lucide-vue-next'
 
 const router = useRouter()
+const route = useRoute()
 const store = useQuickSearchStore()
+const tabStore = useTabStore()
 const inputRef = ref(null)
 const sentinelRef = ref(null)
 
@@ -23,6 +26,9 @@ const tabs = [
 let observer = null
 
 onMounted(() => {
+  // Schnellsuche als fixen Tab pinnen (bleibt erhalten beim Navigieren)
+  tabStore.openTab(route, 'Schnellsuche')
+
   nextTick(() => inputRef.value?.focus())
 
   observer = new IntersectionObserver(
@@ -46,7 +52,7 @@ watch(sentinelRef, (el, oldEl) => {
 
 onBeforeUnmount(() => {
   if (observer) observer.disconnect()
-  store.clear()
+  // store.clear() bewusst NICHT aufrufen — Suche bleibt im Tab erhalten
 })
 
 // ─── Eingabe-Handler ─────────────────────────────────
@@ -80,22 +86,33 @@ function scrollToSelected() {
   })
 }
 
-// ─── Navigation ──────────────────────────────────────
+// ─── Navigation (öffnet Ergebnis in neuem Tab) ──────
 function openResult(item) {
   if (!item?.id) return
+
   if (item.type === 'product') {
+    // Produkt: eigene Detailseite als Tab (tabable Route)
     router.push(`/products/${item.id}`)
     return
   }
+
+  // Medien, Hierarchien, Attribute → Listenseite mit Suchfilter
   const routes = {
     media: '/media',
     hierarchy: '/hierarchies',
     attribute: '/attributes',
   }
   const path = routes[item.type]
-  if (path) {
-    router.push({ path, query: { search: item.title } })
-  }
+  if (!path) return
+
+  const fullPath = `${path}?search=${encodeURIComponent(item.title)}`
+
+  // Als Tab öffnen damit Schnellsuche erhalten bleibt
+  tabStore.openTab(
+    { name: item.type, params: {}, fullPath, meta: { title: item.title } },
+    item.title
+  )
+  router.push({ path, query: { search: item.title } })
 }
 
 // ─── Drill-Down (Querverweis-Klick) ──────────────────
