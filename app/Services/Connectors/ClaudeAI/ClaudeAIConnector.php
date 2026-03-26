@@ -50,7 +50,7 @@ class ClaudeAIConnector extends AbstractConnector
         ];
     }
 
-    public function handleCallback(string $code, ?string $codeVerifier = null): array
+    public function handleCallback(string $code, ?string $codeVerifier = null, string $shopUrl = ''): array
     {
         // Validate the API key with a lightweight request
         $response = \Illuminate\Support\Facades\Http::withHeaders([

@@ -47,7 +47,7 @@ class CanvaConnector extends AbstractConnector
         return $this->authService->getAuthorizationUrl();
     }
 
-    public function handleCallback(string $code, ?string $codeVerifier = null): array
+    public function handleCallback(string $code, ?string $codeVerifier = null, string $shopUrl = ''): array
     {
         return $this->authService->exchangeCode($code, $codeVerifier ?? '');
     }

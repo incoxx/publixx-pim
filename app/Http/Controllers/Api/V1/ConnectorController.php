@@ -194,11 +194,17 @@ class ConnectorController extends Controller
             'code'          => 'required|string',
             'code_verifier' => 'sometimes|string|nullable',
             'name'          => 'sometimes|string|max:255',
+            'settings'      => 'sometimes|array|nullable',
         ]);
+
+        // Shopware: shop_url aus settings an authenticate übergeben
+        $settings = $validated['settings'] ?? null;
+        $shopUrl = $settings['shop_url'] ?? '';
 
         $tokens = $connector->handleCallback(
             $validated['code'],
             $validated['code_verifier'] ?? null,
+            $shopUrl,
         );
 
         $connection = ConnectorConnection::create([
@@ -209,6 +215,7 @@ class ConnectorController extends Controller
             'token_expires_at' => isset($tokens['expires_in'])
                 ? now()->addSeconds($tokens['expires_in'])
                 : null,
+            'settings'     => $settings,
             'is_active'    => true,
             'connected_by' => $request->user()->id,
         ]);

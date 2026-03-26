@@ -58,9 +58,9 @@ class ShopwareConnector extends AbstractConnector
         ];
     }
 
-    public function handleCallback(string $code, ?string $codeVerifier = null): array
+    public function handleCallback(string $code, ?string $codeVerifier = null, string $shopUrl = ''): array
     {
-        return $this->authService->authenticate($code, $codeVerifier ?? '');
+        return $this->authService->authenticate($code, $codeVerifier ?? '', $shopUrl);
     }
 
     public function refreshToken(ConnectorConnection $connection): void
