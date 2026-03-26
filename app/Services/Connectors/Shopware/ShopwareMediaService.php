@@ -20,7 +20,7 @@ class ShopwareMediaService
         $shopUrl = rtrim($shopUrl, '/');
 
         // 1. Media-Eintrag in Shopware erstellen
-        $mediaId = Str::uuid()->toString();
+        $mediaId = str_replace('-', '', Str::uuid()->toString());
         $http->post("{$shopUrl}/api/media", [
             'id'      => $mediaId,
             'name'    => pathinfo($media->file_name, PATHINFO_FILENAME),
