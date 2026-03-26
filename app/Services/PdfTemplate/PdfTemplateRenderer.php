@@ -44,6 +44,7 @@ class PdfTemplateRenderer
             'variant_table' => $this->resolveVariantTableElement($element, $product, $language),
             'relation_table' => $this->resolveRelationTableElement($element, $product, $language),
             'attribute_table' => $this->resolveAttributeTableElement($element, $product, $language),
+            'smart_table' => $this->resolveSmartTableElement($element, $product, $language),
             'shape' => $element,
             default => $element,
         };
@@ -402,6 +403,301 @@ class PdfTemplateRenderer
         }
 
         return array_merge($element, ['variantTableData' => ['headers' => $headers, 'rows' => $rows]]);
+    }
+
+    private function resolveSmartTableElement(array $element, Product $product, string $language): array
+    {
+        $ptl = $element['ptl'] ?? [];
+        $bind = $element['bind'] ?? '';
+        $mode = $ptl['mode'] ?? 'normal';
+
+        // Resolve the bound array data from the product
+        $arrayData = $this->resolveSmartTableDataSource($bind, $product, $language);
+
+        if (empty($arrayData)) {
+            return array_merge($element, ['smartTableData' => ['headerRows' => [], 'bodyRows' => [], 'columns' => []]]);
+        }
+
+        if ($mode === 'pivot') {
+            $tableData = $this->buildPivotTable($arrayData, $ptl);
+        } else {
+            $tableData = $this->buildNormalSmartTable($arrayData, $ptl);
+        }
+
+        return array_merge($element, ['smartTableData' => $tableData]);
+    }
+
+    /**
+     * Resolve array data source for smart table binding.
+     */
+    private function resolveSmartTableDataSource(string $bind, Product $product, string $language): array
+    {
+        if ($bind === 'variants') {
+            $variants = $product->variants ?? collect();
+            return $variants->map(function ($variant) use ($language) {
+                $row = [
+                    'sku' => $variant->sku ?? '',
+                    'name' => $variant->name ?? '',
+                    'ean' => $variant->ean ?? '',
+                    'status' => $variant->status ?? '',
+                ];
+                // Varianten-Attribute als flache Felder hinzufügen
+                $attrValues = $variant->attributeValues ?? collect();
+                foreach ($attrValues as $av) {
+                    $attr = $av->attribute;
+                    if (!$attr) {
+                        continue;
+                    }
+                    $key = $attr->technical_name;
+                    $resolved = $this->elementRenderer->resolveAttributeValue($variant, $attr->id, $language);
+                    $parts = [];
+                    if ($resolved['value'] !== '') {
+                        $parts[] = $resolved['value'];
+                    }
+                    if ($resolved['unit'] !== '') {
+                        $parts[] = $resolved['unit'];
+                    }
+                    $row[$key] = implode(' ', $parts);
+                }
+                return $row;
+            })->values()->toArray();
+        }
+
+        if ($bind === 'relations') {
+            $relations = $product->outgoingRelations ?? collect();
+            return $relations->map(function ($relation) use ($language) {
+                $target = $relation->targetProduct;
+                return [
+                    'relation_type' => $relation->relationType?->{"name_{$language}"} ?? $relation->relationType?->name_de ?? '',
+                    'sku' => $target?->sku ?? '',
+                    'name' => $target?->name ?? '',
+                    'ean' => $target?->ean ?? '',
+                ];
+            })->values()->toArray();
+        }
+
+        if ($bind === 'attributes') {
+            $attrValues = $product->attributeValues ?? collect();
+            return $attrValues->map(function ($av) use ($product, $language) {
+                $attr = $av->attribute;
+                if (!$attr || $attr->is_internal) {
+                    return null;
+                }
+                $resolved = $this->elementRenderer->resolveAttributeValue($product, $attr->id, $language);
+                return [
+                    'name' => $attr->{"name_{$language}"} ?? $attr->name_de ?? $attr->technical_name,
+                    'technical_name' => $attr->technical_name,
+                    'value' => $resolved['value'] ?? '',
+                    'unit' => $resolved['unit'] ?? '',
+                    'group' => $attr->attributeType?->{"name_{$language}"} ?? $attr->attributeType?->name_de ?? '',
+                ];
+            })->filter()->values()->toArray();
+        }
+
+        return [];
+    }
+
+    /**
+     * Normale Smart Table: Spalten-Definitionen auf Array-Daten anwenden.
+     */
+    private function buildNormalSmartTable(array $arrayData, array $ptl): array
+    {
+        $columns = $ptl['columns'] ?? [];
+        if (empty($columns)) {
+            return ['headerRows' => [], 'bodyRows' => [], 'columns' => []];
+        }
+
+        // Flache Spalten extrahieren (Gruppen auflösen)
+        $flatColumns = [];
+        $headerRows = $this->buildSmartTableHeaderRows($columns);
+        $this->flattenColumns($columns, $flatColumns);
+
+        // Datenzeilen aufbauen
+        $bodyRows = [];
+        foreach ($arrayData as $item) {
+            $row = [];
+            foreach ($flatColumns as $col) {
+                $field = $col['field'] ?? '';
+                $value = $item[$field] ?? '';
+                $row[] = $this->formatSmartTableValue($value, $col);
+            }
+            $bodyRows[] = $row;
+        }
+
+        return [
+            'headerRows' => $headerRows,
+            'bodyRows' => $bodyRows,
+            'columns' => $flatColumns,
+        ];
+    }
+
+    /**
+     * Header-Zeilen für gruppierte Spalten aufbauen.
+     * Gibt ein Array von Zeilen zurück, jede Zeile enthält Zellen mit label, colspan, rowspan.
+     */
+    private function buildSmartTableHeaderRows(array $columns): array
+    {
+        $maxDepth = $this->getColumnDepth($columns);
+        $rows = [];
+        for ($i = 0; $i < $maxDepth; $i++) {
+            $rows[] = [];
+        }
+        $this->collectHeaderCells($columns, $rows, 0, $maxDepth);
+        return $rows;
+    }
+
+    private function getColumnDepth(array $columns): int
+    {
+        $max = 1;
+        foreach ($columns as $col) {
+            if (!empty($col['children'])) {
+                $childDepth = 1 + $this->getColumnDepth($col['children']);
+                $max = max($max, $childDepth);
+            }
+        }
+        return $max;
+    }
+
+    private function collectHeaderCells(array $columns, array &$rows, int $level, int $maxDepth): void
+    {
+        foreach ($columns as $col) {
+            if (!empty($col['children'])) {
+                $colspan = $this->countLeafColumns($col['children']);
+                $rows[$level][] = [
+                    'label' => $col['label'] ?? '',
+                    'colspan' => $colspan,
+                    'rowspan' => 1,
+                ];
+                $this->collectHeaderCells($col['children'], $rows, $level + 1, $maxDepth);
+            } else {
+                $rowspan = $maxDepth - $level;
+                $rows[$level][] = [
+                    'label' => $col['label'] ?? ($col['field'] ?? ''),
+                    'colspan' => 1,
+                    'rowspan' => $rowspan,
+                ];
+            }
+        }
+    }
+
+    private function countLeafColumns(array $columns): int
+    {
+        $count = 0;
+        foreach ($columns as $col) {
+            if (!empty($col['children'])) {
+                $count += $this->countLeafColumns($col['children']);
+            } else {
+                $count++;
+            }
+        }
+        return $count;
+    }
+
+    private function flattenColumns(array $columns, array &$flat): void
+    {
+        foreach ($columns as $col) {
+            if (!empty($col['children'])) {
+                $this->flattenColumns($col['children'], $flat);
+            } else {
+                $flat[] = $col;
+            }
+        }
+    }
+
+    /**
+     * Pivot-Tabelle: Zeilen-/Spalten-Felder umstrukturieren.
+     */
+    private function buildPivotTable(array $arrayData, array $ptl): array
+    {
+        $pivot = $ptl['pivot'] ?? [];
+        $rowField = $pivot['rowField'] ?? '';
+        $colField = $pivot['colField'] ?? '';
+        $valueField = $pivot['valueField'] ?? '';
+        $aggregation = $pivot['aggregation'] ?? 'first';
+
+        if (!$rowField || !$colField || !$valueField) {
+            return ['headerRows' => [], 'bodyRows' => [], 'columns' => []];
+        }
+
+        // Eindeutige Spalten- und Zeilenwerte sammeln
+        $colValues = [];
+        $rowValues = [];
+        $matrix = [];
+
+        foreach ($arrayData as $item) {
+            $rv = (string) ($item[$rowField] ?? '');
+            $cv = (string) ($item[$colField] ?? '');
+            $val = $item[$valueField] ?? '';
+
+            if (!in_array($cv, $colValues)) {
+                $colValues[] = $cv;
+            }
+            if (!in_array($rv, $rowValues)) {
+                $rowValues[] = $rv;
+            }
+
+            $matrix[$rv][$cv][] = $val;
+        }
+
+        // Flat columns für Pivot
+        $flatColumns = [['field' => $rowField, 'label' => $rowField, 'align' => 'left']];
+        foreach ($colValues as $cv) {
+            $flatColumns[] = ['field' => $cv, 'label' => $cv, 'align' => 'right'];
+        }
+
+        // Header: eine Zeile
+        $headerRow = [];
+        foreach ($flatColumns as $col) {
+            $headerRow[] = ['label' => $col['label'], 'colspan' => 1, 'rowspan' => 1];
+        }
+
+        // Body-Zeilen
+        $bodyRows = [];
+        foreach ($rowValues as $rv) {
+            $row = [$rv];
+            foreach ($colValues as $cv) {
+                $vals = $matrix[$rv][$cv] ?? [];
+                $row[] = $this->aggregateValue($vals, $aggregation);
+            }
+            $bodyRows[] = $row;
+        }
+
+        return [
+            'headerRows' => [$headerRow],
+            'bodyRows' => $bodyRows,
+            'columns' => $flatColumns,
+        ];
+    }
+
+    private function aggregateValue(array $values, string $aggregation): string
+    {
+        if (empty($values)) {
+            return '';
+        }
+
+        return match ($aggregation) {
+            'sum' => (string) array_sum(array_map('floatval', $values)),
+            'avg' => (string) round(array_sum(array_map('floatval', $values)) / count($values), 2),
+            'count' => (string) count($values),
+            'min' => (string) min(array_map('floatval', $values)),
+            'max' => (string) max(array_map('floatval', $values)),
+            default => (string) $values[0], // 'first'
+        };
+    }
+
+    private function formatSmartTableValue(mixed $value, array $column): string
+    {
+        $format = $column['format'] ?? 'text';
+        if ($value === '' || $value === null) {
+            return '';
+        }
+
+        return match ($format) {
+            'number' => is_numeric($value) ? number_format((float) $value, (int) ($column['decimals'] ?? 0), ',', '.') : (string) $value,
+            'currency' => is_numeric($value) ? number_format((float) $value, 2, ',', '.') . ' €' : (string) $value,
+            'percent' => is_numeric($value) ? number_format((float) $value, 1, ',', '.') . ' %' : (string) $value,
+            default => (string) $value,
+        };
     }
 
     private function getMediaPath($media): string

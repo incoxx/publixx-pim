@@ -270,6 +270,16 @@ function getElementDefaults(item) {
       style: { ...base.style, padding: 0 },
     }
   }
+  if (item.type === 'smart_table') {
+    return {
+      ...base,
+      width: 190,
+      height: 60,
+      bind: item.bind || 'variants',
+      ptl: item.ptl || {},
+      style: { ...base.style, padding: 0 },
+    }
+  }
   return base
 }
 

@@ -3,6 +3,7 @@ import { computed, ref, onMounted } from 'vue'
 import { usePdfTemplateDesignerStore } from '@/stores/pdfTemplateDesigner'
 import { Settings, Trash2, Copy, ArrowUpToLine, ArrowDownToLine } from 'lucide-vue-next'
 import { fontFamilies } from './fontList'
+import SmartTableEditor from './SmartTableEditor.vue'
 import client from '@/api/client'
 
 const store = usePdfTemplateDesignerStore()
@@ -12,6 +13,7 @@ const attributeTypes = ref([])
 const allAttributes = ref([])
 const attrSearchQuery = ref('')
 const attrTableSearchQuery = ref('')
+const smartTableEditorOpen = ref(false)
 
 onMounted(async () => {
   try {
@@ -134,7 +136,7 @@ function updateColumnWidth(index, value) {
 // fontFamilies imported from fontList.js
 
 const canAutofit = computed(() => {
-  if (!sel.value || sel.value.type === 'shape' || sel.value.type === 'image' || sel.value.type === 'variant_table' || sel.value.type === 'relation_table' || sel.value.type === 'attribute_table') return false
+  if (!sel.value || sel.value.type === 'shape' || sel.value.type === 'image' || sel.value.type === 'variant_table' || sel.value.type === 'relation_table' || sel.value.type === 'attribute_table' || sel.value.type === 'smart_table') return false
   return !!store.referenceProductId && store.resolvedElements.length > 0
 })
 
@@ -149,6 +151,11 @@ function autofitHeight() {
   }
 }
 
+function onSaveSmartTablePtl(ptl) {
+  if (!sel.value) return
+  store.updateElement(sel.value.id, { ptl })
+}
+
 const typeLabels = {
   text: 'Statischer Text',
   field: 'Datenfeld',
@@ -158,6 +165,7 @@ const typeLabels = {
   variant_table: 'Variantentabelle',
   relation_table: 'Beziehungstabelle',
   attribute_table: 'Attribut-Tabelle',
+  smart_table: 'Smart Table',
 }
 </script>
 
@@ -575,6 +583,39 @@ const typeLabels = {
           </div>
         </div>
       </template>
+
+      <!-- SMART TABLE -->
+      <template v-if="sel.type === 'smart_table'">
+        <div>
+          <label class="block text-[10px] font-medium text-[var(--color-text-tertiary)] mb-0.5">Datenquelle</label>
+          <select :value="sel.bind || 'variants'" class="pim-input text-xs w-full" @change="updateElement('bind', $event.target.value)">
+            <option value="variants">Varianten</option>
+            <option value="relations">Beziehungen</option>
+            <option value="attributes">Attribute</option>
+          </select>
+        </div>
+        <div>
+          <div class="text-[10px] text-[var(--color-text-tertiary)] mb-1">
+            Modus: <span class="font-semibold text-[var(--color-text-secondary)]">{{ (sel.ptl?.mode || 'normal') === 'pivot' ? 'Pivot-Tabelle' : 'Normale Tabelle' }}</span>
+          </div>
+          <div class="text-[10px] text-[var(--color-text-tertiary)] mb-2">
+            Spalten: <span class="font-semibold text-[var(--color-text-secondary)]">{{ (sel.ptl?.columns || []).length || '–' }}</span>
+          </div>
+          <button
+            class="pim-btn pim-btn-primary text-[11px] w-full py-1.5"
+            @click="smartTableEditorOpen = true"
+          >
+            Tabelle konfigurieren...
+          </button>
+        </div>
+      </template>
+
+      <SmartTableEditor
+        v-model="smartTableEditorOpen"
+        :ptl="sel?.ptl || {}"
+        :bind="sel?.bind || 'variants'"
+        @save="onSaveSmartTablePtl"
+      />
 
       <!-- Typography (for text, field, attribute) -->
       <template v-if="['text', 'field', 'attribute'].includes(sel.type)">

@@ -143,6 +143,7 @@ class InDesignJsxWriter
             'field', 'attribute', 'text' => $this->convertTextElement($base, $element, $style),
             'image' => $this->convertImageElement($base, $element, $style),
             'variant_table', 'relation_table', 'attribute_table' => $this->convertVariantTableElement($base, $element, $style),
+            'smart_table' => $this->convertSmartTableElement($base, $element, $style),
             'shape' => $this->convertShapeElement($base, $element, $style),
             default => null,
         };
@@ -220,6 +221,65 @@ class InDesignJsxWriter
             'zebraRows' => true,
             'borderColor' => $tStyle['borderColor'] ?? '#e5e7eb',
             'borderWidth' => (float) ($tStyle['borderWeight'] ?? 0.5),
+            'borderVisible' => true,
+            'cellPadding' => 4,
+        ]);
+    }
+
+    private function convertSmartTableElement(array $base, array $element, array $style): array
+    {
+        $stData = $element['smartTableData'] ?? ['headerRows' => [], 'bodyRows' => [], 'columns' => []];
+        $ptl = $element['ptl'] ?? [];
+        $hStyle = $ptl['headerStyle'] ?? [];
+        $rStyle = $ptl['rowStyle'] ?? [];
+
+        // Header-Zeilen konvertieren
+        $headerRows = [];
+        foreach ($stData['headerRows'] ?? [] as $headerRow) {
+            $cells = [];
+            foreach ($headerRow as $cell) {
+                $cells[] = [
+                    'value' => (string) ($cell['label'] ?? ''),
+                    'colspan' => $cell['colspan'] ?? 1,
+                    'rowspan' => $cell['rowspan'] ?? 1,
+                ];
+            }
+            $headerRows[] = $cells;
+        }
+
+        // Body-Zeilen konvertieren
+        $rows = [];
+        $flatCols = $stData['columns'] ?? [];
+        foreach ($stData['bodyRows'] ?? [] as $row) {
+            $cells = [];
+            foreach ($row as $ci => $cellValue) {
+                $cells[] = [
+                    'value' => (string) $cellValue,
+                    'colspan' => 1,
+                    'rowspan' => 1,
+                    'skip' => false,
+                    'align' => $flatCols[$ci]['align'] ?? 'left',
+                ];
+            }
+            $rows[] = $cells;
+        }
+
+        return array_merge($base, [
+            'type' => 'smartTable',
+            'tableData' => [
+                'headerRows' => $headerRows,
+                'rows' => $rows,
+            ],
+            'fontSize' => (float) ($rStyle['fontSize'] ?? $style['fontSize'] ?? 8),
+            'fontFamily' => $style['fontFamily'] ?? 'Arial',
+            'headerBg' => $hStyle['backgroundColor'] ?? '#f3f4f6',
+            'headerColor' => $hStyle['color'] ?? '#374151',
+            'headerBold' => true,
+            'altRowBg' => $ptl['zebraColor'] ?? '#f9fafb',
+            'textColor' => '#374151',
+            'zebraRows' => $ptl['zebraStripes'] ?? true,
+            'borderColor' => $ptl['borderColor'] ?? '#e5e7eb',
+            'borderWidth' => 0.5,
             'borderVisible' => true,
             'cellPadding' => 4,
         ]);

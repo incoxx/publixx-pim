@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { usePdfTemplateDesignerStore } from '@/stores/pdfTemplateDesigner'
-import { Type, Hash, Tag, Image, Square, Table2, List } from 'lucide-vue-next'
+import { Type, Hash, Tag, Image, Square, Table2, List, LayoutGrid } from 'lucide-vue-next'
 
 const props = defineProps({
   element: { type: Object, required: true },
@@ -154,6 +154,112 @@ const attributeTableData = computed(() => {
   return { headers, rows }
 })
 
+const smartTableData = computed(() => {
+  const el = props.element
+  if (el.type !== 'smart_table') return null
+
+  // Preview mode: echte Daten vom Backend
+  if (store.previewMode && store.resolvedElements.length > 0) {
+    const resolved = store.getResolvedElement(el.id)
+    if (resolved?.smartTableData) return resolved.smartTableData
+  }
+
+  // Design mode: Placeholder basierend auf PTL-Konfiguration
+  const ptl = el.ptl || {}
+  const mode = ptl.mode || 'normal'
+
+  if (mode === 'pivot') {
+    const p = ptl.pivot || {}
+    return {
+      headerRows: [[
+        { label: p.rowField || 'Zeile', colspan: 1, rowspan: 1 },
+        { label: 'Wert A', colspan: 1, rowspan: 1 },
+        { label: 'Wert B', colspan: 1, rowspan: 1 },
+      ]],
+      bodyRows: [
+        ['Zeile 1', '10', '20'],
+        ['Zeile 2', '15', '25'],
+      ],
+      columns: [
+        { align: 'left' },
+        { align: 'right' },
+        { align: 'right' },
+      ],
+    }
+  }
+
+  // Normal mode
+  const columns = ptl.columns || []
+  if (columns.length === 0) {
+    return {
+      headerRows: [[
+        { label: 'Spalte 1', colspan: 1, rowspan: 1 },
+        { label: 'Spalte 2', colspan: 1, rowspan: 1 },
+      ]],
+      bodyRows: [
+        ['Beispiel', 'Wert'],
+        ['Beispiel', 'Wert'],
+      ],
+      columns: [{ align: 'left' }, { align: 'left' }],
+    }
+  }
+
+  // Header-Zeilen aus Spalten-Definitionen aufbauen
+  const maxDepth = getColumnDepth(columns)
+  const headerRows = []
+  for (let i = 0; i < maxDepth; i++) headerRows.push([])
+  collectHeaderCells(columns, headerRows, 0, maxDepth)
+
+  // Flache Spalten
+  const flat = []
+  flattenCols(columns, flat)
+
+  // Placeholder-Zeilen
+  const bodyRows = [
+    flat.map(() => 'Beispiel'),
+    flat.map(() => 'Wert'),
+  ]
+
+  return { headerRows, bodyRows, columns: flat }
+})
+
+function getColumnDepth(columns) {
+  let max = 1
+  for (const col of columns) {
+    if (col.children?.length) {
+      max = Math.max(max, 1 + getColumnDepth(col.children))
+    }
+  }
+  return max
+}
+
+function collectHeaderCells(columns, rows, level, maxDepth) {
+  for (const col of columns) {
+    if (col.children?.length) {
+      const colspan = countLeaves(col.children)
+      rows[level].push({ label: col.label || '', colspan, rowspan: 1 })
+      collectHeaderCells(col.children, rows, level + 1, maxDepth)
+    } else {
+      rows[level].push({ label: col.label || col.field || '', colspan: 1, rowspan: maxDepth - level })
+    }
+  }
+}
+
+function countLeaves(columns) {
+  let c = 0
+  for (const col of columns) {
+    c += col.children?.length ? countLeaves(col.children) : 1
+  }
+  return c
+}
+
+function flattenCols(columns, flat) {
+  for (const col of columns) {
+    if (col.children?.length) flattenCols(col.children, flat)
+    else flat.push(col)
+  }
+}
+
 const previewImageUrl = computed(() => {
   if (!store.previewMode || !store.resolvedElements.length) return null
   const el = props.element
@@ -166,7 +272,7 @@ const previewImageUrl = computed(() => {
 })
 
 const typeIcon = computed(() => {
-  const icons = { text: Type, field: Hash, attribute: Tag, image: Image, shape: Square, variant_table: Table2, attribute_table: List }
+  const icons = { text: Type, field: Hash, attribute: Tag, image: Image, shape: Square, variant_table: Table2, attribute_table: List, smart_table: LayoutGrid }
   return icons[props.element.type] || Type
 })
 
@@ -421,6 +527,63 @@ function onResizeStart(e, handle) {
           </tbody>
         </table>
       </template>
+      <template v-else-if="element.type === 'smart_table' && smartTableData">
+        <table
+          :style="{
+            width: '100%',
+            borderCollapse: 'collapse',
+            fontSize: ((element.ptl?.rowStyle?.fontSize || 8) * (25.4 / 72) * scale) + 'px',
+            tableLayout: 'auto',
+          }"
+        >
+          <thead>
+            <tr
+              v-for="(headerRow, hri) in smartTableData.headerRows"
+              :key="'hr' + hri"
+              :style="{
+                background: element.ptl?.headerStyle?.backgroundColor || '#f3f4f6',
+                color: element.ptl?.headerStyle?.color || '#374151',
+              }"
+            >
+              <th
+                v-for="(cell, ci) in headerRow"
+                :key="ci"
+                :colspan="cell.colspan"
+                :rowspan="cell.rowspan"
+                :style="{
+                  border: '1px solid ' + (element.ptl?.borderColor || '#e5e7eb'),
+                  padding: (1 * scale) + 'px ' + (2 * scale) + 'px',
+                  textAlign: cell.colspan > 1 ? 'center' : 'left',
+                  fontWeight: element.ptl?.headerStyle?.fontWeight || 700,
+                  fontSize: ((element.ptl?.headerStyle?.fontSize || 9) * (25.4 / 72) * scale) + 'px',
+                  whiteSpace: 'nowrap',
+                }"
+              >{{ cell.label }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="(row, ri) in smartTableData.bodyRows"
+              :key="ri"
+              :style="{
+                background: (element.ptl?.zebraStripes && ri % 2 === 1)
+                  ? (element.ptl?.zebraColor || '#f9fafb')
+                  : 'transparent',
+              }"
+            >
+              <td
+                v-for="(cell, ci) in row"
+                :key="ci"
+                :style="{
+                  border: '1px solid ' + (element.ptl?.borderColor || '#e5e7eb'),
+                  padding: (element.ptl?.rowStyle?.padding || 4) * scale * 0.25 + 'px ' + (2 * scale) + 'px',
+                  textAlign: (smartTableData.columns[ci]?.align) || 'left',
+                }"
+              >{{ cell }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </template>
       <template v-else-if="element.type === 'shape'">
         <!-- Shape: purely visual box, content comes from background/border -->
       </template>
@@ -434,7 +597,7 @@ function onResizeStart(e, handle) {
       v-if="selected && !store.previewMode"
       class="absolute -top-4 left-0 text-[8px] font-medium px-1 py-0.5 rounded bg-[var(--color-accent)] text-white whitespace-nowrap"
     >
-      {{ { text: 'Text', field: 'Feld', attribute: 'Attribut', image: 'Bild', shape: 'Form', variant_table: 'Varianten', relation_table: 'Beziehungen', attribute_table: 'Attr.-Tabelle' }[element.type] || element.type }}
+      {{ { text: 'Text', field: 'Feld', attribute: 'Attribut', image: 'Bild', shape: 'Form', variant_table: 'Varianten', relation_table: 'Beziehungen', attribute_table: 'Attr.-Tabelle', smart_table: 'Smart Table' }[element.type] || element.type }}
     </div>
 
     <!-- Resize handles (only when single-selected and not in preview mode) -->

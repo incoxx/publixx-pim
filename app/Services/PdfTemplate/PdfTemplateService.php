@@ -274,6 +274,16 @@ class PdfTemplateService
             if (($element['type'] ?? '') === 'attribute_table') {
                 $hasAttributes = true;
             }
+            if (($element['type'] ?? '') === 'smart_table') {
+                $bind = $element['bind'] ?? 'variants';
+                if ($bind === 'variants') {
+                    $hasVariantTable = true;
+                } elseif ($bind === 'relations') {
+                    $hasRelationTable = true;
+                } elseif ($bind === 'attributes') {
+                    $hasAttributes = true;
+                }
+            }
         }
 
         if ($hasAttributes) {
