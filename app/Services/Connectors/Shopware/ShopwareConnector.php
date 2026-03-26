@@ -82,6 +82,11 @@ class ShopwareConnector extends AbstractConnector
         $shopUrl = $connection->settings['shop_url'] ?? config('connectors.shopware.shop_url');
         $language = $options['language'] ?? 'de';
 
+        // Tax-ID automatisch von Shopware holen, wenn nicht konfiguriert
+        if (empty($options['tax_id'])) {
+            $options['_default_tax_id'] = $this->productService->fetchDefaultTaxId($http, $shopUrl);
+        }
+
         $result = $this->productService->syncProduct($http, $shopUrl, $product, $language, $options);
 
         $externalId = $result['product_id'] ?? null;

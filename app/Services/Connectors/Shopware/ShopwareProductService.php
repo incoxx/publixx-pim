@@ -93,10 +93,19 @@ class ShopwareProductService
         ];
 
         // Shopware-Pflichtfelder auflösen (tax_id, manufacturer_id, ean, etc.)
+        // Keys werden von snake_case in camelCase konvertiert (Shopware API erwartet camelCase)
+        $fieldKeyMap = [
+            'tax_id'          => 'taxId',
+            'manufacturer_id' => 'manufacturerId',
+            'currency_id'     => 'currencyId',
+            'meta_title'      => 'metaTitle',
+            'meta_description' => 'metaDescription',
+        ];
         foreach ($shopwareFields as $swField => $mapping) {
             $value = $this->resolveFieldMapping($product, $mapping, $language);
             if ($value !== null && $value !== '') {
-                $data[$swField] = $value;
+                $apiField = $fieldKeyMap[$swField] ?? $swField;
+                $data[$apiField] = $value;
             }
         }
 
@@ -298,6 +307,27 @@ class ShopwareProductService
     }
 
     /**
+     * Holt die Standard-Steuer-ID von Shopware (erste verfügbare Tax).
+     */
+    public function fetchDefaultTaxId(PendingRequest $http, string $shopUrl): ?string
+    {
+        $shopUrl = rtrim($shopUrl, '/');
+
+        try {
+            $response = $http->post("{$shopUrl}/api/search/tax", [
+                'limit' => 1,
+                'sort'  => [['field' => 'position', 'order' => 'ASC']],
+            ]);
+            $response->throw();
+            $data = $response->json();
+
+            return $data['data'][0]['id'] ?? null;
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    /**
      * Sammelt Produktdaten für das Shopware-Format (Legacy ohne Profil).
      */
     private function collectProductData(Product $product, string $language, array $options): array
@@ -307,7 +337,7 @@ class ShopwareProductService
             'name'          => $product->name,
             'active'        => true,
             'stock'         => 0,
-            'taxId'         => $options['tax_id'] ?? null,
+            'taxId'         => $options['tax_id'] ?? $options['_default_tax_id'] ?? null,
         ];
 
         // EAN
