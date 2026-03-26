@@ -1,17 +1,18 @@
 <script setup>
-import { ref, onMounted, nextTick, watch, computed } from 'vue'
+import { ref, onMounted, onBeforeUnmount, nextTick, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useQuickSearchStore } from '@/stores/quickSearch'
 import {
   Search, Package, Image, GitBranch, Sliders, X, ChevronRight,
-  FolderTree, ArrowRight, Sparkles,
+  FolderTree, ArrowRight, Sparkles, Loader2,
 } from 'lucide-vue-next'
 
 const router = useRouter()
 const { t } = useI18n()
 const store = useQuickSearchStore()
 const inputRef = ref(null)
+const sentinelRef = ref(null)
 
 const tabs = [
   { key: 'products', label: 'Produkte', icon: Package },
@@ -20,9 +21,31 @@ const tabs = [
   { key: 'attributes', label: 'Attribute', icon: Sliders },
 ]
 
-// ─── Autofocus ───────────────────────────────────────
+// ─── Infinite Scroll via IntersectionObserver ────────
+let observer = null
+
 onMounted(() => {
   nextTick(() => inputRef.value?.focus())
+
+  // Sentinel beobachten: wenn sichtbar → nachladen
+  observer = new IntersectionObserver(
+    (entries) => {
+      if (entries[0]?.isIntersecting && store.hasMore && !store.loadingMore) {
+        store.loadMore()
+      }
+    },
+    { rootMargin: '200px' } // 200px vor dem Ende nachladen
+  )
+  if (sentinelRef.value) observer.observe(sentinelRef.value)
+})
+
+// Sentinel bei Änderung neu beobachten
+watch(sentinelRef, (el) => {
+  if (observer && el) observer.observe(el)
+})
+
+onBeforeUnmount(() => {
+  if (observer) observer.disconnect()
 })
 
 // ─── Eingabe-Handler ─────────────────────────────────
@@ -235,8 +258,8 @@ function badgeClass(type) {
       </span>
     </div>
 
-    <!-- Ladeindikator -->
-    <div v-if="store.loading" class="max-w-2xl w-full">
+    <!-- Ladeindikator (nur bei initialer Suche, nicht beim Nachladen) -->
+    <div v-if="store.loading && store.results.length === 0" class="max-w-2xl w-full">
       <div class="flex items-center gap-3 py-8 justify-center text-base-content/50">
         <span class="loading loading-spinner loading-sm"></span>
         Suche läuft...
@@ -244,7 +267,7 @@ function badgeClass(type) {
     </div>
 
     <!-- Ergebnisse -->
-    <div v-else-if="store.hasQuery && store.results.length > 0" class="max-w-2xl w-full space-y-2">
+    <div v-if="store.results.length > 0" class="max-w-2xl w-full space-y-2">
       <div
         v-for="(item, idx) in store.results"
         :key="item.id"
@@ -290,15 +313,26 @@ function badgeClass(type) {
       </div>
     </div>
 
+    <!-- Infinite Scroll: Sentinel + Lade-Indikator -->
+    <div v-if="store.results.length > 0" ref="sentinelRef" class="max-w-2xl w-full">
+      <div v-if="store.loadingMore" class="flex items-center justify-center gap-2 py-4 text-base-content/40">
+        <span class="loading loading-spinner loading-xs"></span>
+        <span class="text-sm">Lade weitere Ergebnisse...</span>
+      </div>
+      <div v-else-if="!store.hasMore && store.results.length >= 20" class="text-center py-3 text-xs text-base-content/30">
+        Alle {{ store.counts[store.activeTab] }} Ergebnisse geladen
+      </div>
+    </div>
+
     <!-- Leerer Zustand: Keine Ergebnisse -->
-    <div v-else-if="store.hasQuery && !store.loading" class="max-w-2xl w-full text-center py-12">
+    <div v-else-if="store.hasQuery && !store.loading && store.results.length === 0" class="max-w-2xl w-full text-center py-12">
       <Search class="w-12 h-12 mx-auto mb-3 text-base-content/20" />
       <p class="text-base-content/50">Keine Ergebnisse gefunden</p>
       <p class="text-xs text-base-content/30 mt-1">Versuche einen anderen Begriff oder wechsle den Tab</p>
     </div>
 
     <!-- Leerer Zustand: Kein Suchbegriff -->
-    <div v-else class="max-w-2xl w-full text-center py-16">
+    <div v-if="!store.hasQuery && !store.loading && store.results.length === 0" class="max-w-2xl w-full text-center py-16">
       <Sparkles class="w-16 h-16 mx-auto mb-4 text-primary/30" />
       <h2 class="text-xl font-semibold text-base-content/60 mb-2">Schnellsuche</h2>
       <p class="text-base-content/40 text-sm">

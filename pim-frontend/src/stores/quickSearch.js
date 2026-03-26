@@ -9,6 +9,8 @@ export const useQuickSearchStore = defineStore('quickSearch', () => {
   const counts = ref({ products: 0, media: 0, hierarchies: 0, attributes: 0 })
   const results = ref([])
   const loading = ref(false)
+  const loadingMore = ref(false)
+  const hasMore = ref(false)
   const selectedIndex = ref(-1)
 
   // Drill-Down-Filter
@@ -81,6 +83,7 @@ export const useQuickSearchStore = defineStore('quickSearch', () => {
           counts.value = countsResp.data.counts
         }
         results.value = resultsResp.data.results || []
+        hasMore.value = resultsResp.data.has_more ?? false
         // Count für aktiven Tab aus dem Results-Request aktualisieren (exakter)
         if (resultsResp.data.counts?.[activeTab.value] !== undefined) {
           counts.value = { ...counts.value, [activeTab.value]: resultsResp.data.counts[activeTab.value] }
@@ -127,6 +130,7 @@ export const useQuickSearchStore = defineStore('quickSearch', () => {
       if (currentRequestId !== requestId) return
 
       results.value = data.results || []
+      hasMore.value = data.has_more ?? false
       if (data.counts?.[activeTab.value] !== undefined) {
         counts.value = { ...counts.value, [activeTab.value]: data.counts[activeTab.value] }
       }
@@ -136,6 +140,37 @@ export const useQuickSearchStore = defineStore('quickSearch', () => {
     } finally {
       if (currentRequestId === requestId) {
         loading.value = false
+      }
+    }
+  }
+
+  /** Infinite Scroll: nächste Seite nachladen und an results anhängen. */
+  async function loadMore() {
+    if (loadingMore.value || !hasMore.value) return
+
+    loadingMore.value = true
+    const currentRequestId = ++requestId
+
+    try {
+      const term = query.value.trim()
+      const params = buildParams({
+        q: term,
+        type: activeTab.value,
+        limit: 20,
+        offset: results.value.length,
+      })
+      const { data } = await quickSearchApi.search(params)
+      if (currentRequestId !== requestId) return
+
+      const newItems = data.results || []
+      results.value = [...results.value, ...newItems]
+      hasMore.value = data.has_more ?? false
+    } catch (err) {
+      if (err.name === 'CanceledError' || err.code === 'ERR_CANCELED') return
+      console.error('Nachladen fehlgeschlagen:', err)
+    } finally {
+      if (currentRequestId === requestId) {
+        loadingMore.value = false
       }
     }
   }
@@ -186,6 +221,8 @@ export const useQuickSearchStore = defineStore('quickSearch', () => {
     counts.value = { products: 0, media: 0, hierarchies: 0, attributes: 0 }
     results.value = []
     loading.value = false
+    loadingMore.value = false
+    hasMore.value = false
     selectedIndex.value = -1
     filters.value = { category_id: null, attribute_id: null, media_id: null }
     history.value = []
@@ -201,8 +238,8 @@ export const useQuickSearchStore = defineStore('quickSearch', () => {
   }
 
   return {
-    query, activeTab, counts, results, loading, selectedIndex, filters, history,
+    query, activeTab, counts, results, loading, loadingMore, hasMore, selectedIndex, filters, history,
     hasQuery, hasActiveFilter, activeFilterLabel,
-    search, switchTab, drillDown, jumpToHistory, clearFilters, clear,
+    search, switchTab, loadMore, drillDown, jumpToHistory, clearFilters, clear,
   }
 })

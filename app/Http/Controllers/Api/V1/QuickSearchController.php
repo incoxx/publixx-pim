@@ -43,6 +43,7 @@ class QuickSearchController extends Controller
             'q' => 'nullable|string|max:500',
             'type' => 'nullable|string|in:products,media,hierarchies,attributes',
             'limit' => 'nullable|integer|min:0|max:50',
+            'offset' => 'nullable|integer|min:0',
             'category_id' => 'nullable|string|uuid',
             'attribute_id' => 'nullable|string|uuid',
             'media_id' => 'nullable|string|uuid',
@@ -51,6 +52,7 @@ class QuickSearchController extends Controller
         $query = trim($validated['q'] ?? '');
         $type = $validated['type'] ?? null;
         $limit = $validated['limit'] ?? 20;
+        $offset = $validated['offset'] ?? 0;
         $categoryId = $validated['category_id'] ?? null;
         $attributeId = $validated['attribute_id'] ?? null;
         $mediaId = $validated['media_id'] ?? null;
@@ -69,16 +71,17 @@ class QuickSearchController extends Controller
 
         // Mit Typ: Ergebnisse + Count für diesen Typ
         $result = match ($type) {
-            'products' => $this->searchProducts($query, $limit, $categoryId, $attributeId, $mediaId),
-            'media' => $this->searchMedia($query, $limit),
-            'hierarchies' => $this->searchHierarchies($query, $limit, $attributeId),
-            'attributes' => $this->searchAttributes($query, $limit),
+            'products' => $this->searchProducts($query, $limit, $offset, $categoryId, $attributeId, $mediaId),
+            'media' => $this->searchMedia($query, $limit, $offset),
+            'hierarchies' => $this->searchHierarchies($query, $limit, $offset, $attributeId),
+            'attributes' => $this->searchAttributes($query, $limit, $offset),
         };
 
         return response()->json([
             'query' => $query,
             'counts' => [$type => $result['total']],
             'results' => $result['items'],
+            'has_more' => ($offset + $limit) < $result['total'],
         ]);
     }
 
@@ -161,7 +164,7 @@ class QuickSearchController extends Controller
 
     // ─── Produkte ────────────────────────────────────────
 
-    private function searchProducts(string $query, int $limit, ?string $categoryId, ?string $attributeId, ?string $mediaId): array
+    private function searchProducts(string $query, int $limit, int $offset, ?string $categoryId, ?string $attributeId, ?string $mediaId): array
     {
         if ($limit === 0) {
             return ['total' => $this->countProducts($query, $categoryId, $attributeId, $mediaId), 'items' => []];
@@ -202,9 +205,9 @@ class QuickSearchController extends Controller
             $builder->orderBy('products_search_index.name_de');
         }
 
-        // Count + Ergebnisse: Limit erst nach Count anwenden
+        // Count + Ergebnisse: Offset/Limit für Infinite Scroll
         $total = (clone $builder)->count('products.id');
-        $items = $builder->limit($limit)->get();
+        $items = $builder->offset($offset)->limit($limit)->get();
 
         // Querverweise: Kategorienamen batch-laden (max 20 IDs)
         $nodeIds = $items->pluck('master_hierarchy_node_id')->filter()->unique()->values();
@@ -311,7 +314,7 @@ class QuickSearchController extends Controller
 
     // ─── Medien ──────────────────────────────────────────
 
-    private function searchMedia(string $query, int $limit): array
+    private function searchMedia(string $query, int $limit, int $offset = 0): array
     {
         if ($limit === 0) {
             return ['total' => $this->countMedia($query), 'items' => []];
@@ -334,6 +337,7 @@ class QuickSearchController extends Controller
         $items = $builder
             ->select(['id', 'file_name', 'original_file_name', 'title_de', 'title_en', 'mime_type', 'media_type'])
             ->orderBy('title_de')
+            ->offset($offset)
             ->limit($limit)
             ->get();
 
@@ -375,7 +379,7 @@ class QuickSearchController extends Controller
 
     // ─── Hierarchien ─────────────────────────────────────
 
-    private function searchHierarchies(string $query, int $limit, ?string $attributeId = null): array
+    private function searchHierarchies(string $query, int $limit, int $offset = 0, ?string $attributeId = null): array
     {
         if ($limit === 0) {
             return ['total' => $this->countHierarchies($query, $attributeId), 'items' => []];
@@ -415,6 +419,7 @@ class QuickSearchController extends Controller
                 'hierarchies.name_de as hierarchy_name',
             ])
             ->orderBy('hierarchy_nodes.name_de')
+            ->offset($offset)
             ->limit($limit)
             ->get();
 
@@ -490,7 +495,7 @@ class QuickSearchController extends Controller
 
     // ─── Attribute ───────────────────────────────────────
 
-    private function searchAttributes(string $query, int $limit): array
+    private function searchAttributes(string $query, int $limit, int $offset = 0): array
     {
         if ($limit === 0) {
             return ['total' => $this->countAttributes($query), 'items' => []];
@@ -513,6 +518,7 @@ class QuickSearchController extends Controller
         $items = $builder
             ->select(['id', 'name_de', 'name_en', 'technical_name', 'data_type'])
             ->orderBy('name_de')
+            ->offset($offset)
             ->limit($limit)
             ->get();
 
