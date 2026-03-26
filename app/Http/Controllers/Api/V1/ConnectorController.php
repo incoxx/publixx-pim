@@ -492,6 +492,41 @@ class ConnectorController extends Controller
     }
 
     /**
+     * POST /connectors/connections/{connection}/sync-hierarchy — Hierarchie-Baum synchronisieren.
+     */
+    public function syncHierarchy(Request $request, ConnectorConnection $connection): JsonResponse
+    {
+        $this->authorize('sync', $connection);
+
+        if ($connection->connector_type !== 'shopware') {
+            return response()->json(['message' => 'Nur für Shopware-Verbindungen.'], 422);
+        }
+
+        $connector = $this->registry->get($connection->connector_type);
+        if (! $connector instanceof ShopwareConnector) {
+            return response()->json(['message' => 'Shopware-Connector nicht gefunden.'], 422);
+        }
+
+        try {
+            $result = $connector->syncHierarchy($connection);
+
+            return response()->json([
+                'data' => [
+                    'status'         => 'completed',
+                    'hierarchy_name' => $result['hierarchy_name'],
+                    'total_nodes'    => $result['total_nodes'],
+                    'synced'         => $result['synced'],
+                    'errors'         => $result['errors'],
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'message' => 'Hierarchie-Sync fehlgeschlagen: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
      * POST /connectors/connections/{connection}/sync-profile — Profil-basierter Komplett-Sync.
      */
     public function syncFromProfile(Request $request, ConnectorConnection $connection): JsonResponse

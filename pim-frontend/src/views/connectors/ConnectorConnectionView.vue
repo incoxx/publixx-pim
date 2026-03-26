@@ -45,6 +45,8 @@ const shopwareFields = ref({})
 const savingProfile = ref(false)
 const profileSaveSuccess = ref(false)
 const profileSyncing = ref(false)
+const hierarchySyncing = ref(false)
+const hierarchySyncResult = ref(null)
 const profileSyncResult = ref(null)
 
 // Fehler-Detail-Anzeige
@@ -232,6 +234,21 @@ async function executeProfileSync() {
   }
 }
 
+async function executeHierarchySync() {
+  hierarchySyncing.value = true
+  hierarchySyncResult.value = null
+  syncError.value = ''
+  try {
+    const res = await connectorsApi.syncHierarchy(connectionId.value)
+    hierarchySyncResult.value = res.data.data || res.data
+  } catch (e) {
+    syncError.value = e.response?.data?.message || 'Hierarchie-Sync fehlgeschlagen'
+  } finally {
+    hierarchySyncing.value = false
+    await loadConnection()
+  }
+}
+
 async function previewProduct() {
   if (!syncEntityId.value.trim()) return
   previewing.value = true
@@ -365,16 +382,36 @@ const statusColors = {
                 <span v-if="selectedProfile?.is_active" class="badge badge-success badge-xs ml-1">aktiv</span>
               </span>
             </div>
-            <button
-              v-if="selectedProfileId"
-              class="btn btn-primary btn-sm gap-1"
-              :disabled="profileSyncing"
-              @click="executeProfileSync"
-            >
-              <span v-if="profileSyncing" class="loading loading-spinner loading-xs"></span>
-              <Play v-else class="w-4 h-4" />
-              Sync starten
-            </button>
+            <div v-if="selectedProfileId" class="flex gap-2">
+              <button
+                class="btn btn-outline btn-sm gap-1"
+                :disabled="hierarchySyncing"
+                @click="executeHierarchySync"
+              >
+                <span v-if="hierarchySyncing" class="loading loading-spinner loading-xs"></span>
+                Hierarchie übertragen
+              </button>
+              <button
+                class="btn btn-primary btn-sm gap-1"
+                :disabled="profileSyncing"
+                @click="executeProfileSync"
+              >
+                <span v-if="profileSyncing" class="loading loading-spinner loading-xs"></span>
+                <Play v-else class="w-4 h-4" />
+                Komplett-Sync
+              </button>
+            </div>
+          </div>
+
+          <!-- Hierarchie-Sync Ergebnis -->
+          <div v-if="hierarchySyncResult" class="alert mt-3" :class="hierarchySyncResult.errors ? 'alert-warning' : 'alert-success'">
+            <div>
+              <div class="font-semibold">Hierarchie: {{ hierarchySyncResult.hierarchy_name }}</div>
+              <div class="text-sm">
+                {{ hierarchySyncResult.synced }} von {{ hierarchySyncResult.total_nodes }} Kategorien synchronisiert
+                <span v-if="hierarchySyncResult.errors" class="text-error">({{ hierarchySyncResult.errors }} Fehler)</span>
+              </div>
+            </div>
           </div>
 
           <!-- Sync-Ergebnis -->

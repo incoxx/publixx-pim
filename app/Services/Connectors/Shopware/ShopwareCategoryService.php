@@ -20,6 +20,7 @@ class ShopwareCategoryService
     public function syncHierarchy(
         PendingRequest $http,
         string $shopUrl,
+        string $connectionId,
         string $hierarchyId,
         string $language = 'de',
         array $excludedNodeIds = [],
@@ -28,7 +29,7 @@ class ShopwareCategoryService
 
         $hierarchy = Hierarchy::find($hierarchyId);
         if (!$hierarchy) {
-            return ['synced' => 0, 'errors' => 0, 'category_map' => []];
+            return ['synced' => 0, 'errors' => 0, 'category_map' => [], 'hierarchy_name' => ''];
         }
 
         // Alle aktiven Knoten laden
@@ -43,8 +44,9 @@ class ShopwareCategoryService
 
         $allNodes = $nodesQuery->get();
 
-        // Bestehende Shopware-Kategorie-IDs aus Sync-Logs laden
-        $existingMap = ConnectorSyncLog::where('action', 'category_sync')
+        // Bestehende Shopware-Kategorie-IDs aus Sync-Logs laden (pro Connection!)
+        $existingMap = ConnectorSyncLog::where('connector_connection_id', $connectionId)
+            ->where('action', 'category_sync')
             ->where('entity_type', 'hierarchy_node')
             ->where('status', 'success')
             ->whereNotNull('external_id')
@@ -98,9 +100,11 @@ class ShopwareCategoryService
         }
 
         return [
-            'synced'       => $synced,
-            'errors'       => $errors,
-            'category_map' => $categoryMap,
+            'synced'         => $synced,
+            'errors'         => $errors,
+            'category_map'   => $categoryMap,
+            'hierarchy_name' => $language === 'en' && $hierarchy->name_en ? $hierarchy->name_en : $hierarchy->name_de,
+            'total_nodes'    => $allNodes->count(),
         ];
     }
 
