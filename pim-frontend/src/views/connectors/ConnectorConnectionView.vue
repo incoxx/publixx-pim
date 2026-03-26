@@ -60,11 +60,6 @@ const SHOPWARE_FIELD_DEFINITIONS = [
   { key: 'meta_description', label: 'SEO-Beschreibung', description: 'Meta-Description für Shopware', defaultMode: 'attribute' },
 ]
 
-// Selection-Attribute für Properties (gefiltert)
-const selectionAttributes = computed(() =>
-  allAttributes.value.filter(a => a.data_type === 'Selection')
-)
-
 const connectionId = computed(() => route.params.id)
 const isShopware = computed(() => connection.value?.connector_type === 'shopware')
 const selectedProfile = computed(() => profiles.value.find(p => p.id === selectedProfileId.value))
@@ -479,28 +474,41 @@ const statusColors = {
                 Selection-Attribute werden als Shopware Property Groups mit Options angelegt.
                 Produktwerte werden automatisch zugeordnet.
               </p>
-              <div class="space-y-1">
-                <div v-for="(attrId, idx) in shopwareFields._property_attribute_ids" :key="idx" class="flex items-center gap-2">
+
+              <!-- Ausgewählte Properties -->
+              <div class="space-y-1.5">
+                <div
+                  v-for="(attrId, idx) in shopwareFields._property_attribute_ids"
+                  :key="idx"
+                  class="flex items-center gap-2"
+                >
                   <select
                     :value="attrId"
                     @change="shopwareFields._property_attribute_ids[idx] = $event.target.value"
                     class="select select-bordered select-xs flex-1"
                   >
-                    <option value="">— Selection-Attribut wählen —</option>
-                    <option v-for="attr in selectionAttributes" :key="attr.id" :value="attr.id">
+                    <option value="">— Attribut wählen —</option>
+                    <option
+                      v-for="attr in allAttributes"
+                      :key="attr.id"
+                      :value="attr.id"
+                    >
                       {{ attr.name_de || attr.technical_name }}
+                      {{ attr.data_type ? `(${attr.data_type})` : '' }}
                     </option>
                   </select>
                   <button class="btn btn-ghost btn-xs" @click="shopwareFields._property_attribute_ids.splice(idx, 1)">
                     <X class="w-3 h-3" />
                   </button>
                 </div>
-                <button
-                  class="btn btn-ghost btn-xs text-primary"
-                  @click="shopwareFields._property_attribute_ids.push('')"
-                >+ Property hinzufügen</button>
               </div>
-              <div v-if="shopwareFields._property_attribute_ids?.length === 0" class="text-xs text-base-content/40 italic mt-1">
+
+              <button
+                class="btn btn-ghost btn-xs text-primary mt-2"
+                @click="shopwareFields._property_attribute_ids.push('')"
+              >+ Property hinzufügen</button>
+
+              <div v-if="!shopwareFields._property_attribute_ids?.length" class="text-xs text-base-content/40 italic mt-1">
                 Keine Properties konfiguriert — Produkte werden ohne Spezifikationen synchronisiert.
               </div>
             </div>
