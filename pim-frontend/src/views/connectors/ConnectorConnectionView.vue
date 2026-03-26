@@ -49,9 +49,10 @@ const expandedLogId = ref(null)
 // Shopware-Pflichtfelder
 const SHOPWARE_FIELD_DEFINITIONS = [
   { key: 'name', label: 'Produktname', description: 'Standard: product.name', defaultMode: 'default', defaultInfo: 'Produktname aus PIM' },
+  { key: 'price', label: 'Preis', description: 'Standard: Preis aus Vorschau-Profil', defaultMode: 'default', defaultInfo: 'Preis aus Profil oder erster Preis' },
   { key: 'tax_id', label: 'Steuer-ID (taxId)', description: 'Leer = Standard-Steuer aus Shopware', defaultMode: 'default', defaultInfo: 'Erste Steuer aus Shopware' },
   { key: 'manufacturer_id', label: 'Hersteller (manufacturerId)', description: 'Optional — leer lassen wenn nicht benötigt', defaultMode: 'default', defaultInfo: 'Kein Hersteller (optional)' },
-  { key: 'currency_id', label: 'Währung (currencyId)', description: 'Standard: EUR', defaultMode: 'fixed', defaultValue: 'b7d2554b0ce847cd82f3ac9bd1c0dfca' },
+  { key: 'currency_id', label: 'Währung (currencyId)', description: 'Shopware-UUID der Währung', defaultMode: 'fixed', defaultValue: 'b7d2554b0ce847cd82f3ac9bd1c0dfca' },
   { key: 'ean', label: 'EAN', description: 'Standard: product.ean', defaultMode: 'default', defaultInfo: 'EAN aus PIM-Stammdaten' },
   { key: 'weight', label: 'Gewicht', description: 'Produktgewicht in kg', defaultMode: 'attribute' },
   { key: 'meta_title', label: 'SEO-Titel', description: 'Meta-Title für Shopware', defaultMode: 'attribute' },
@@ -359,66 +360,63 @@ const statusColors = {
                 Standard nutzt den PIM-Wert, oder einen festen Wert bzw. ein Attribut zuweisen.
               </p>
 
-              <div class="space-y-2">
-                <div
-                  v-for="field in SHOPWARE_FIELD_DEFINITIONS"
-                  :key="field.key"
-                  class="flex items-start gap-3 p-3 rounded-lg bg-base-200/30 border border-base-200"
-                >
-                  <!-- Feld-Info -->
-                  <div class="w-40 shrink-0">
-                    <div class="font-medium text-sm">{{ field.label }}</div>
-                    <div class="text-xs text-base-content/40 mt-0.5">{{ field.description }}</div>
-                  </div>
-
-                  <!-- Modus-Auswahl -->
-                  <div class="flex gap-3 shrink-0 pt-0.5">
-                    <label v-if="field.defaultInfo" class="flex items-center gap-1 cursor-pointer">
-                      <input type="radio" :name="'mode-' + field.key" value="default"
-                        v-model="shopwareFields[field.key].mode" class="radio radio-xs radio-primary" />
-                      <span class="text-xs">Standard</span>
-                    </label>
-                    <label class="flex items-center gap-1 cursor-pointer">
-                      <input type="radio" :name="'mode-' + field.key" value="fixed"
-                        v-model="shopwareFields[field.key].mode" class="radio radio-xs radio-primary" />
-                      <span class="text-xs">Fix</span>
-                    </label>
-                    <label class="flex items-center gap-1 cursor-pointer">
-                      <input type="radio" :name="'mode-' + field.key" value="attribute"
-                        v-model="shopwareFields[field.key].mode" class="radio radio-xs radio-primary" />
-                      <span class="text-xs">Attribut</span>
-                    </label>
-                  </div>
-
-                  <!-- Wert-Eingabe -->
-                  <div class="flex-1 min-w-0">
-                    <span
-                      v-if="shopwareFields[field.key].mode === 'default'"
-                      class="text-sm text-base-content/40 italic"
-                    >{{ field.defaultInfo }}</span>
-
-                    <input
-                      v-else-if="shopwareFields[field.key].mode === 'fixed'"
-                      v-model="shopwareFields[field.key].value"
-                      type="text"
-                      class="input input-bordered input-sm w-full"
-                      :placeholder="field.defaultValue || 'Wert eingeben...'"
-                    />
-
-                    <!-- Attribut-Dropdown -->
-                    <select
-                      v-else
-                      v-model="shopwareFields[field.key].attribute_id"
-                      class="select select-bordered select-sm w-full"
+              <div class="overflow-x-auto rounded-lg border border-base-200">
+                <table class="table table-sm w-full">
+                  <thead>
+                    <tr class="bg-base-200/40">
+                      <th class="w-44 font-medium text-xs">Shopware-Feld</th>
+                      <th class="w-48 font-medium text-xs">Quelle</th>
+                      <th class="font-medium text-xs">Wert</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr
+                      v-for="field in SHOPWARE_FIELD_DEFINITIONS"
+                      :key="field.key"
+                      class="hover:bg-base-200/20"
                     >
-                      <option value="">— Attribut wählen —</option>
-                      <option v-for="attr in allAttributes" :key="attr.id" :value="attr.id">
-                        {{ attr.name_de || attr.technical_name }}
-                        <template v-if="attr.technical_name"> ({{ attr.technical_name }})</template>
-                      </option>
-                    </select>
-                  </div>
-                </div>
+                      <td class="py-2.5">
+                        <div class="font-medium text-sm">{{ field.label }}</div>
+                        <div class="text-xs text-base-content/40 leading-tight">{{ field.description }}</div>
+                      </td>
+                      <td class="py-2.5">
+                        <select
+                          v-model="shopwareFields[field.key].mode"
+                          class="select select-bordered select-xs w-full max-w-36"
+                        >
+                          <option v-if="field.defaultInfo" value="default">Standard</option>
+                          <option value="fixed">Fester Wert</option>
+                          <option value="attribute">Attribut</option>
+                        </select>
+                      </td>
+                      <td class="py-2.5">
+                        <span
+                          v-if="shopwareFields[field.key].mode === 'default'"
+                          class="text-xs text-base-content/40 italic"
+                        >{{ field.defaultInfo }}</span>
+
+                        <input
+                          v-else-if="shopwareFields[field.key].mode === 'fixed'"
+                          v-model="shopwareFields[field.key].value"
+                          type="text"
+                          class="input input-bordered input-xs w-full"
+                          :placeholder="field.defaultValue || 'Wert eingeben...'"
+                        />
+
+                        <select
+                          v-else
+                          v-model="shopwareFields[field.key].attribute_id"
+                          class="select select-bordered select-xs w-full"
+                        >
+                          <option value="">— Attribut wählen —</option>
+                          <option v-for="attr in allAttributes" :key="attr.id" :value="attr.id">
+                            {{ attr.name_de || attr.technical_name }}
+                          </option>
+                        </select>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
             </div>
 

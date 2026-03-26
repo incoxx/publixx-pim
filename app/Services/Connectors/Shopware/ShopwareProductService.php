@@ -108,6 +108,11 @@ class ShopwareProductService
             'meta_description' => 'metaDescription',
         ];
         foreach ($shopwareFields as $swField => $mapping) {
+            // price wird separat behandelt (eigener Block weiter unten)
+            if ($swField === 'price') {
+                continue;
+            }
+
             $mode = $mapping['mode'] ?? 'default';
 
             if ($mode === 'default') {
@@ -150,24 +155,56 @@ class ShopwareProductService
             }
         }
 
-        // Preis aus card_price_type_id des Profils
-        $priceTypeId = $profilePayload['card_price_type_id'] ?? null;
-        $priceCountry = $profilePayload['card_price_country'] ?? null;
-        if ($priceTypeId) {
-            $price = $this->resolvePrice($product, $priceTypeId, $priceCountry);
-            if ($price) {
-                // Steuer-ID aus shopware_fields für Brutto/Netto-Berechnung
-                $taxRate = 19; // Standard-MwSt
-                $currencyId = $shopwareFields['currency_id']['value'] ?? 'b7d2554b0ce847cd82f3ac9bd1c0dfca';
-                $data['price'] = [
-                    [
-                        'currencyId' => $currencyId,
-                        'gross'      => $price['amount'],
-                        'net'        => round($price['amount'] / (1 + $taxRate / 100), 2),
-                        'linked'     => true,
-                    ],
-                ];
+        // Preis — steuerbar über shopware_fields['price']
+        $priceMapping = $shopwareFields['price'] ?? ['mode' => 'default'];
+        $priceMode = $priceMapping['mode'] ?? 'default';
+
+        $price = null;
+        if ($priceMode === 'default') {
+            // Standard: Preis aus Vorschau-Profil, dann Fallback auf ersten Preis
+            $priceTypeId = $profilePayload['card_price_type_id'] ?? null;
+            $priceCountry = $profilePayload['card_price_country'] ?? null;
+            if ($priceTypeId) {
+                $price = $this->resolvePrice($product, $priceTypeId, $priceCountry);
             }
+            if (!$price) {
+                $firstPrice = $product->prices()->first();
+                if ($firstPrice) {
+                    $price = [
+                        'amount'   => (float) $firstPrice->amount,
+                        'currency' => $firstPrice->currency ?? 'EUR',
+                    ];
+                }
+            }
+        } elseif ($priceMode === 'fixed') {
+            // Fester Preis
+            $fixedAmount = (float) ($priceMapping['value'] ?? 0);
+            if ($fixedAmount > 0) {
+                $price = ['amount' => $fixedAmount, 'currency' => 'EUR'];
+            }
+        } elseif ($priceMode === 'attribute') {
+            // Preis aus einem Attribut lesen
+            $attrId = $priceMapping['attribute_id'] ?? null;
+            if ($attrId) {
+                $attrValue = $this->resolveFieldMapping($product, $priceMapping, $language);
+                $amount = is_numeric($attrValue) ? (float) $attrValue : 0;
+                if ($amount > 0) {
+                    $price = ['amount' => $amount, 'currency' => 'EUR'];
+                }
+            }
+        }
+
+        if ($price) {
+            $taxRate = 19; // Standard-MwSt
+            $currencyId = $shopwareFields['currency_id']['value'] ?? 'b7d2554b0ce847cd82f3ac9bd1c0dfca';
+            $data['price'] = [
+                [
+                    'currencyId' => $currencyId,
+                    'gross'      => $price['amount'],
+                    'net'        => round($price['amount'] / (1 + $taxRate / 100), 2),
+                    'linked'     => true,
+                ],
+            ];
         }
 
         return array_filter($data, fn ($v) => $v !== null);
