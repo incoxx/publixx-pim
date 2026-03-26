@@ -276,7 +276,7 @@ class ShopwareConnector extends AbstractConnector
             $http, $shopUrl, $connection->id, $hierarchyId, $language, $excludedNodeIds,
         );
 
-        // Sync-Logs für Kategorien
+        // Sync-Logs nur für erfolgreich synchronisierte Kategorien
         foreach ($catResult['category_map'] as $nodeId => $shopwareCategoryId) {
             $this->logSync(
                 $connection, 'category_sync', 'hierarchy_node',
@@ -284,9 +284,18 @@ class ShopwareConnector extends AbstractConnector
             );
         }
 
+        // Fehler loggen
+        foreach ($catResult['error_details'] ?? [] as $errorDetail) {
+            $this->logSync(
+                $connection, 'category_sync', 'hierarchy',
+                $hierarchyId, 'failed', null, $errorDetail,
+            );
+        }
+
         return [
             'synced'         => $catResult['synced'],
             'errors'         => $catResult['errors'],
+            'error_details'  => $catResult['error_details'] ?? [],
             'total_nodes'    => $catResult['total_nodes'],
             'hierarchy_name' => $catResult['hierarchy_name'],
         ];

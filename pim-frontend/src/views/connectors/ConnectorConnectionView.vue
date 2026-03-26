@@ -295,8 +295,11 @@ async function clearSyncLogs() {
   try {
     await connectorsApi.clearSyncLogs(connectionId.value)
     syncLogs.value = []
+    expandedLogId.value = null
+    await loadConnection()
   } catch (e) {
-    syncError.value = e.response?.data?.message || 'Löschen fehlgeschlagen'
+    console.error('clearSyncLogs error:', e)
+    syncError.value = e.response?.data?.message || 'Löschen fehlgeschlagen: ' + (e.message || 'Unbekannter Fehler')
   }
 }
 
@@ -410,6 +413,11 @@ const statusColors = {
               <div class="text-sm">
                 {{ hierarchySyncResult.synced }} von {{ hierarchySyncResult.total_nodes }} Kategorien synchronisiert
                 <span v-if="hierarchySyncResult.errors" class="text-error">({{ hierarchySyncResult.errors }} Fehler)</span>
+              </div>
+              <div v-if="hierarchySyncResult.error_details?.length" class="mt-2 text-xs space-y-1">
+                <div v-for="(err, idx) in hierarchySyncResult.error_details" :key="idx" class="text-error bg-error/5 p-1.5 rounded font-mono whitespace-pre-wrap">
+                  {{ err }}
+                </div>
               </div>
             </div>
           </div>
