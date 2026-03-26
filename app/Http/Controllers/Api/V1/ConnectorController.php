@@ -303,7 +303,7 @@ class ConnectorController extends Controller
             return response()->json(['message' => 'Connector nicht gefunden'], 422);
         }
 
-        $product = Product::findOrFail($validated['product_id']);
+        $product = Product::with('media')->findOrFail($validated['product_id']);
         $options = array_diff_key($validated, ['product_id' => true]);
 
         try {
@@ -370,17 +370,23 @@ class ConnectorController extends Controller
     /**
      * DELETE /connectors/connections/{connection}/sync-logs — Sync-Protokoll löschen.
      */
-    public function clearSyncLogs(ConnectorConnection $connection): JsonResponse
+    public function clearSyncLogs(Request $request, ConnectorConnection $connection): JsonResponse
     {
-        $this->authorize('update', $connection);
+        $this->authorize('sync', $connection);
 
-        $count = $connection->syncLogs()->count();
-        $connection->syncLogs()->delete();
+        try {
+            $count = $connection->syncLogs()->count();
+            $connection->syncLogs()->delete();
 
-        return response()->json([
-            'message' => "{$count} Sync-Einträge gelöscht.",
-            'deleted' => $count,
-        ]);
+            return response()->json([
+                'message' => "{$count} Sync-Einträge gelöscht.",
+                'deleted' => $count,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'message' => 'Fehler beim Löschen: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 
     /**
@@ -517,6 +523,7 @@ class ConnectorController extends Controller
                     'total_nodes'    => $result['total_nodes'],
                     'synced'         => $result['synced'],
                     'errors'         => $result['errors'],
+                    'error_details'  => $result['error_details'] ?? [],
                 ],
             ]);
         } catch (\Throwable $e) {
