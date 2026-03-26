@@ -309,14 +309,17 @@ class ShopwareProductService
         }
 
         // Sales Channel Sichtbarkeit — ohne visibilities ist das Produkt im Frontend unsichtbar
+        // Die ID muss deterministisch sein damit upsert funktioniert (kein Duplikat beim Re-Sync)
         $salesChannelId = $shopwareFields['_sales_channel_id']['value'] ?? null;
         if ($salesChannelId) {
-            $visibilityId = md5($shopwareProductId . $salesChannelId);  // Deterministische ID
+            // Deterministische 32-Hex-Zeichen UUID aus Produkt + Sales Channel
+            $visibilityId = substr(md5($shopwareProductId . $salesChannelId . 'visibility'), 0, 32);
             $data['visibilities'] = [
                 [
                     'id'             => $visibilityId,
+                    'productId'      => $shopwareProductId,
                     'salesChannelId' => $salesChannelId,
-                    'visibility'     => 30,  // 30 = überall sichtbar (Suche + Listing)
+                    'visibility'     => 30,
                 ],
             ];
         }

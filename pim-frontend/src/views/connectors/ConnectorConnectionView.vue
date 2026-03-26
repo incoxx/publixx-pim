@@ -45,6 +45,8 @@ const shopwareFields = ref({})
 const savingProfile = ref(false)
 const profileSaveSuccess = ref(false)
 const profileSyncing = ref(false)
+const profileCancelled = ref(false)
+const profileProgress = ref({ current: 0, total: 0, success: 0, failed: 0, currentSku: '' })
 const hierarchySyncing = ref(false)
 const hierarchySyncResult = ref(null)
 const profileSyncResult = ref(null)
@@ -228,17 +230,54 @@ async function saveExportProfile() {
 
 async function executeProfileSync() {
   profileSyncing.value = true
+  profileCancelled.value = false
   profileSyncResult.value = null
   syncError.value = ''
+  profileProgress.value = { current: 0, total: 0, success: 0, failed: 0, currentSku: '' }
+
   try {
-    const res = await connectorsApi.syncFromProfile(connectionId.value)
-    profileSyncResult.value = res.data.data || res.data
+    // 1. Produkt-IDs ermitteln
+    const idsRes = await connectorsApi.syncProductIds(connectionId.value)
+    const productIds = idsRes.data.data?.product_ids || idsRes.data.product_ids || []
+    profileProgress.value.total = productIds.length
+
+    if (productIds.length === 0) {
+      profileSyncResult.value = { products: { success: 0, failed: 0 }, media: { success: 0, failed: 0 } }
+      return
+    }
+
+    // 2. Produkte einzeln synchronisieren
+    for (const productId of productIds) {
+      if (profileCancelled.value) break
+
+      profileProgress.value.current++
+      profileProgress.value.currentSku = productId.substring(0, 8) + '...'
+
+      try {
+        await connectorsApi.syncProduct(connectionId.value, productId, {
+          language: 'de',
+        })
+        profileProgress.value.success++
+      } catch (e) {
+        profileProgress.value.failed++
+      }
+    }
+
+    profileSyncResult.value = {
+      products: { success: profileProgress.value.success, failed: profileProgress.value.failed },
+      media: { success: 0, failed: 0 },
+      cancelled: profileCancelled.value,
+    }
   } catch (e) {
     syncError.value = e.response?.data?.message || 'Sync fehlgeschlagen'
   } finally {
     profileSyncing.value = false
     await loadConnection()
   }
+}
+
+function cancelProfileSync() {
+  profileCancelled.value = true
 }
 
 async function executeHierarchySync() {
@@ -429,10 +468,30 @@ const statusColors = {
             </div>
           </div>
 
+          <!-- Progress -->
+          <div v-if="profileSyncing && profileProgress.total > 0" class="mt-3 p-3 bg-base-200/30 rounded-lg border border-base-200">
+            <div class="flex items-center justify-between mb-2">
+              <div class="text-sm font-medium">
+                Produkt {{ profileProgress.current }} / {{ profileProgress.total }}
+                <span class="text-base-content/50 ml-2">{{ profileProgress.currentSku }}</span>
+              </div>
+              <button class="btn btn-ghost btn-xs text-error" @click="cancelProfileSync">Abbrechen</button>
+            </div>
+            <progress
+              class="progress progress-primary w-full"
+              :value="profileProgress.current"
+              :max="profileProgress.total"
+            ></progress>
+            <div class="flex gap-3 mt-1 text-xs text-base-content/50">
+              <span class="text-success">{{ profileProgress.success }} OK</span>
+              <span v-if="profileProgress.failed" class="text-error">{{ profileProgress.failed }} Fehler</span>
+            </div>
+          </div>
+
           <!-- Sync-Ergebnis -->
-          <div v-if="profileSyncResult" class="alert alert-success mt-3">
+          <div v-if="profileSyncResult" class="alert mt-3" :class="profileSyncResult.cancelled ? 'alert-warning' : 'alert-success'">
             <div>
-              <div class="font-semibold">Sync abgeschlossen</div>
+              <div class="font-semibold">{{ profileSyncResult.cancelled ? 'Sync abgebrochen' : 'Sync abgeschlossen' }}</div>
               <div class="text-sm mt-1">
                 Produkte: {{ profileSyncResult.products?.success || 0 }} OK
                 <span v-if="profileSyncResult.products?.failed" class="text-error">({{ profileSyncResult.products.failed }} Fehler)</span>

@@ -517,6 +517,60 @@ class ConnectorController extends Controller
     }
 
     /**
+     * GET /connectors/connections/{connection}/sync-product-ids — Produkt-IDs für Sync ermitteln.
+     */
+    public function syncProductIds(ConnectorConnection $connection): JsonResponse
+    {
+        $this->authorize('view', $connection);
+
+        $settings = $connection->settings ?? [];
+        $profileId = $settings['website_profile_id'] ?? null;
+
+        if (!$profileId) {
+            return response()->json(['data' => ['product_ids' => [], 'total' => 0]]);
+        }
+
+        $profile = WebsiteProfile::find($profileId);
+        $payload = $profile?->payload ?? [];
+
+        // Gleiche Logik wie loadProductsFromProfile
+        $hierarchyId = $payload['hierarchy_id'] ?? null;
+        $linkedOnly = !empty($payload['catalog_linked_products_only']);
+        $excludedNodeIds = $payload['catalog_excluded_node_ids'] ?? [];
+
+        $query = Product::query();
+
+        if ($hierarchyId && $linkedOnly) {
+            $hierarchy = \App\Models\Hierarchy::find($hierarchyId);
+            if ($hierarchy) {
+                $nodeQuery = \App\Models\HierarchyNode::where('hierarchy_id', $hierarchy->id)
+                    ->where('is_active', true);
+                if (!empty($excludedNodeIds)) {
+                    $nodeQuery->whereNotIn('id', $excludedNodeIds);
+                }
+                $nodeIds = $nodeQuery->pluck('id');
+
+                if ($hierarchy->hierarchy_type === 'output') {
+                    $productIds = \App\Models\OutputHierarchyProductAssignment::whereIn('hierarchy_node_id', $nodeIds)
+                        ->pluck('product_id');
+                    $query->whereIn('id', $productIds);
+                } else {
+                    $query->whereIn('master_hierarchy_node_id', $nodeIds);
+                }
+            }
+        }
+
+        $ids = $query->pluck('id')->toArray();
+
+        return response()->json([
+            'data' => [
+                'product_ids' => $ids,
+                'total'       => count($ids),
+            ],
+        ]);
+    }
+
+    /**
      * POST /connectors/connections/{connection}/sync-hierarchy — Hierarchie-Baum synchronisieren.
      */
     public function syncHierarchy(Request $request, ConnectorConnection $connection): JsonResponse

@@ -59,6 +59,11 @@ export default {
     return client.post(`/connectors/connections/${connectionId}/preview-product`, { product_id: productId, language })
   },
 
+  // Produkt-IDs für Sync ermitteln (ohne zu syncen)
+  syncProductIds(connectionId) {
+    return client.get(`/connectors/connections/${connectionId}/sync-product-ids`)
+  },
+
   // Profil-basierter Sync (Shopware)
   syncFromProfile(connectionId) {
     return client.post(`/connectors/connections/${connectionId}/sync-profile`)
