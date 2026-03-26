@@ -43,6 +43,7 @@ class StoreAttributeRequest extends FormRequest
             'is_internal' => 'boolean',
             'is_readonly' => 'boolean',
             'is_hidden' => 'boolean',
+            'is_quick_search' => 'boolean',
             'parent_attribute_id' => 'nullable|uuid|exists:attributes,id',
             'composite_format' => 'nullable|string|max:500',
             'composite_expression' => 'nullable|string|max:500',
