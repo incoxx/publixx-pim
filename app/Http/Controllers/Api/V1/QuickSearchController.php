@@ -355,7 +355,7 @@ class QuickSearchController extends Controller
                 DB::raw($lang === 'en'
                     ? "COALESCE(vle.display_value_en, vle.display_value_de) as selection_value"
                     : "COALESCE(vle.display_value_de, vle.display_value_en) as selection_value"),
-                DB::raw("COALESCE(u.abbreviation, u.name_de) as unit_abbr"),
+                DB::raw("u.abbreviation as unit_abbr"),
             ])
             ->orderBy('a.position')
             ->get();
