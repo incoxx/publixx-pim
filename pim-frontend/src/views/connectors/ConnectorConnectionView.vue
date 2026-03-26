@@ -2,10 +2,12 @@
 import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  ArrowLeft, RefreshCw, Image, Package, CheckCircle, XCircle, AlertCircle, Clock,
-  Play, Settings, Save,
+  ArrowLeft, RefreshCw, Image, Package, CheckCircle, XCircle, Clock,
+  Play, Settings, Save, Search, ChevronDown, ChevronUp, X,
 } from 'lucide-vue-next'
 import connectorsApi from '@/api/connectors'
+import productsApi from '@/api/products'
+import attributesApi from '@/api/attributes'
 
 const route = useRoute()
 const router = useRouter()
@@ -19,14 +21,21 @@ const syncError = ref('')
 
 // Sync-Dialog
 const showSyncDialog = ref(false)
-const syncType = ref('media') // 'media' | 'product'
+const syncType = ref('product')
 const syncEntityId = ref('')
 const syncLanguage = ref('de')
+
+// Produkt-Suche für Einzel-Sync
+const productSearch = ref('')
+const productSearchResults = ref([])
+const productSearching = ref(false)
+const selectedProduct = ref(null)
+let productSearchTimeout = null
 
 // Export-Profil Konfiguration
 const showProfileConfig = ref(false)
 const profiles = ref([])
-const attributes = ref([])
+const allAttributes = ref([])
 const selectedProfileId = ref(null)
 const shopwareFields = ref({})
 const savingProfile = ref(false)
@@ -34,11 +43,14 @@ const profileSaveSuccess = ref(false)
 const profileSyncing = ref(false)
 const profileSyncResult = ref(null)
 
-// Standard Shopware-Pflichtfelder
+// Fehler-Detail-Anzeige
+const expandedLogId = ref(null)
+
+// Shopware-Pflichtfelder
 const SHOPWARE_FIELD_DEFINITIONS = [
   { key: 'name', label: 'Produktname', description: 'Standard: product.name', defaultMode: 'default', defaultInfo: 'Produktname aus PIM' },
   { key: 'tax_id', label: 'Steuer-ID (taxId)', description: 'Leer = Standard-Steuer aus Shopware', defaultMode: 'default', defaultInfo: 'Erste Steuer aus Shopware' },
-  { key: 'manufacturer_id', label: 'Hersteller-ID (manufacturerId)', description: 'Optional — leer lassen wenn nicht benötigt', defaultMode: 'default', defaultInfo: 'Kein Hersteller (optional)' },
+  { key: 'manufacturer_id', label: 'Hersteller (manufacturerId)', description: 'Optional — leer lassen wenn nicht benötigt', defaultMode: 'default', defaultInfo: 'Kein Hersteller (optional)' },
   { key: 'currency_id', label: 'Währung (currencyId)', description: 'Standard: EUR', defaultMode: 'fixed', defaultValue: 'b7d2554b0ce847cd82f3ac9bd1c0dfca' },
   { key: 'ean', label: 'EAN', description: 'Standard: product.ean', defaultMode: 'default', defaultInfo: 'EAN aus PIM-Stammdaten' },
   { key: 'weight', label: 'Gewicht', description: 'Produktgewicht in kg', defaultMode: 'attribute' },
@@ -49,6 +61,13 @@ const SHOPWARE_FIELD_DEFINITIONS = [
 const connectionId = computed(() => route.params.id)
 const isShopware = computed(() => connection.value?.connector_type === 'shopware')
 const selectedProfile = computed(() => profiles.value.find(p => p.id === selectedProfileId.value))
+
+// Attribut-Name für Anzeige auflösen
+function attributeName(attrId) {
+  if (!attrId) return ''
+  const attr = allAttributes.value.find(a => a.id === attrId)
+  return attr ? `${attr.name_de || attr.technical_name}` : attrId.substring(0, 8) + '...'
+}
 
 onMounted(loadConnection)
 
@@ -63,12 +82,10 @@ async function loadConnection() {
     connection.value = connRes.data.data || connRes.data
     syncLogs.value = logsRes.data.data || logsRes.data
 
-    // Shopware-spezifisch: Profil-Einstellungen laden
     if (isShopware.value) {
       selectedProfileId.value = connection.value.settings?.website_profile_id || null
       shopwareFields.value = connection.value.settings?.shopware_fields || {}
 
-      // Defaults für nicht konfigurierte Felder setzen
       for (const field of SHOPWARE_FIELD_DEFINITIONS) {
         if (!shopwareFields.value[field.key]) {
           shopwareFields.value[field.key] = {
@@ -79,7 +96,7 @@ async function loadConnection() {
         }
       }
 
-      await loadProfiles()
+      await Promise.all([loadProfiles(), loadAttributes()])
     }
   } catch (e) {
     error.value = 'Fehler beim Laden der Verbindung'
@@ -92,16 +109,54 @@ async function loadProfiles() {
   try {
     const res = await connectorsApi.websiteProfiles()
     profiles.value = res.data.data || res.data || []
-  } catch (e) {
-    // Ignore — profiles optional
+  } catch (e) { /* optional */ }
+}
+
+async function loadAttributes() {
+  try {
+    const res = await attributesApi.list({ perPage: 500, sort: 'name_de' })
+    const data = res.data.data || res.data || []
+    allAttributes.value = Array.isArray(data) ? data : (data.data || [])
+  } catch (e) { /* optional */ }
+}
+
+// Produkt-Suche (debounced)
+function onProductSearchInput() {
+  clearTimeout(productSearchTimeout)
+  if (productSearch.value.length < 2) {
+    productSearchResults.value = []
+    return
   }
+  productSearchTimeout = setTimeout(async () => {
+    productSearching.value = true
+    try {
+      const res = await productsApi.list({ search: productSearch.value, perPage: 8 })
+      const data = res.data.data || res.data || []
+      productSearchResults.value = Array.isArray(data) ? data : (data.data || [])
+    } catch (e) {
+      productSearchResults.value = []
+    } finally {
+      productSearching.value = false
+    }
+  }, 300)
+}
+
+function selectProduct(product) {
+  selectedProduct.value = product
+  syncEntityId.value = product.id
+  productSearch.value = ''
+  productSearchResults.value = []
+}
+
+function clearSelectedProduct() {
+  selectedProduct.value = null
+  syncEntityId.value = ''
 }
 
 async function saveExportProfile() {
   savingProfile.value = true
   profileSaveSuccess.value = false
   try {
-    // shopware_fields bereinigen: nur relevante Daten pro Modus speichern
     const cleanedFields = {}
     for (const [key, mapping] of Object.entries(shopwareFields.value)) {
       if (mapping.mode === 'default') {
@@ -157,6 +212,7 @@ async function executeSyncSingle() {
     }
     showSyncDialog.value = false
     syncEntityId.value = ''
+    selectedProduct.value = null
     await loadConnection()
   } catch (e) {
     syncError.value = e.response?.data?.message || e.message
@@ -165,16 +221,14 @@ async function executeSyncSingle() {
   }
 }
 
+function toggleLogDetail(logId) {
+  expandedLogId.value = expandedLogId.value === logId ? null : logId
+}
+
 const statusColors = {
   success: 'badge-success',
   failed: 'badge-error',
   pending: 'badge-warning',
-}
-
-const statusIcons = {
-  success: CheckCircle,
-  failed: XCircle,
-  pending: Clock,
 }
 </script>
 
@@ -189,10 +243,8 @@ const statusIcons = {
       <span v-if="connection" class="badge badge-ghost">{{ connection.connector_type }}</span>
     </div>
 
-    <!-- Error -->
     <div v-if="error" class="alert alert-error">{{ error }}</div>
 
-    <!-- Loading -->
     <div v-if="loading" class="flex justify-center py-8">
       <span class="loading loading-spinner loading-lg"></span>
     </div>
@@ -233,7 +285,7 @@ const statusIcons = {
         </div>
       </div>
 
-      <!-- Export-Profil Konfiguration (nur Shopware) -->
+      <!-- Export-Profil (nur Shopware) -->
       <div v-if="isShopware" class="card bg-base-100 shadow-sm border border-base-200">
         <div class="card-body">
           <div class="flex items-center justify-between">
@@ -241,15 +293,12 @@ const statusIcons = {
               <Settings class="w-4 h-4" />
               Export-Profil
             </h2>
-            <button
-              class="btn btn-ghost btn-sm"
-              @click="showProfileConfig = !showProfileConfig"
-            >
+            <button class="btn btn-ghost btn-sm" @click="showProfileConfig = !showProfileConfig">
               {{ showProfileConfig ? 'Einklappen' : 'Konfigurieren' }}
             </button>
           </div>
 
-          <!-- Profil-Vorschau (immer sichtbar) -->
+          <!-- Profil-Vorschau -->
           <div class="flex items-center gap-4 mt-2">
             <div class="flex-1">
               <span class="text-sm text-base-content/50">Vorschau-Profil:</span>
@@ -275,7 +324,7 @@ const statusIcons = {
             <div>
               <div class="font-semibold">Sync abgeschlossen</div>
               <div class="text-sm mt-1">
-                Kategorien: {{ profileSyncResult.categories?.synced || 0 }} synchronisiert
+                Kategorien: {{ profileSyncResult.categories?.synced || 0 }}
                 <span v-if="profileSyncResult.categories?.errors" class="text-error">({{ profileSyncResult.categories.errors }} Fehler)</span>
                 &middot;
                 Produkte: {{ profileSyncResult.products?.success || 0 }} OK
@@ -288,12 +337,12 @@ const statusIcons = {
           </div>
 
           <!-- Konfiguration (aufklappbar) -->
-          <div v-if="showProfileConfig" class="mt-4 space-y-4">
+          <div v-if="showProfileConfig" class="mt-4 space-y-5">
             <!-- Profil-Auswahl -->
             <div class="form-control">
-              <label class="label"><span class="label-text font-medium">Vorschau-Profil auswählen</span></label>
+              <label class="label"><span class="label-text font-medium">Vorschau-Profil</span></label>
               <p class="text-xs text-base-content/50 mb-2">
-                Das Profil bestimmt Hierarchie, Sprache, Attribute, Preistyp und Produktfilter für den Export.
+                Bestimmt Hierarchie, Sprache, Attribute, Preistyp und Produktfilter.
               </p>
               <select v-model="selectedProfileId" class="select select-bordered select-sm w-full max-w-md">
                 <option :value="null">— Kein Profil —</option>
@@ -303,97 +352,79 @@ const statusIcons = {
               </select>
             </div>
 
-            <!-- Shopware-Pflichtfelder -->
+            <!-- Shopware-Felder -->
             <div>
               <label class="label"><span class="label-text font-medium">Shopware-Felder</span></label>
               <p class="text-xs text-base-content/50 mb-3">
-                Felder für Shopware — Standard nutzt den PIM-Wert, oder einen festen Wert bzw. ein Attribut zuweisen.
+                Standard nutzt den PIM-Wert, oder einen festen Wert bzw. ein Attribut zuweisen.
               </p>
 
-              <div class="overflow-x-auto">
-                <table class="table table-sm">
-                  <thead>
-                    <tr>
-                      <th class="w-48">Feld</th>
-                      <th class="w-40">Modus</th>
-                      <th>Wert / Attribut</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="field in SHOPWARE_FIELD_DEFINITIONS" :key="field.key">
-                      <td>
-                        <div class="font-medium text-sm">{{ field.label }}</div>
-                        <div class="text-xs text-base-content/40">{{ field.description }}</div>
-                      </td>
-                      <td>
-                        <div class="flex gap-2 flex-wrap">
-                          <label v-if="field.defaultInfo" class="label cursor-pointer gap-1 p-0">
-                            <input
-                              type="radio"
-                              :name="'mode-' + field.key"
-                              value="default"
-                              v-model="shopwareFields[field.key].mode"
-                              class="radio radio-xs"
-                            />
-                            <span class="label-text text-xs">Standard</span>
-                          </label>
-                          <label class="label cursor-pointer gap-1 p-0">
-                            <input
-                              type="radio"
-                              :name="'mode-' + field.key"
-                              value="fixed"
-                              v-model="shopwareFields[field.key].mode"
-                              class="radio radio-xs"
-                            />
-                            <span class="label-text text-xs">Fix</span>
-                          </label>
-                          <label class="label cursor-pointer gap-1 p-0">
-                            <input
-                              type="radio"
-                              :name="'mode-' + field.key"
-                              value="attribute"
-                              v-model="shopwareFields[field.key].mode"
-                              class="radio radio-xs"
-                            />
-                            <span class="label-text text-xs">Attribut</span>
-                          </label>
-                        </div>
-                      </td>
-                      <td>
-                        <span
-                          v-if="shopwareFields[field.key].mode === 'default'"
-                          class="text-sm text-base-content/40 italic"
-                        >
-                          {{ field.defaultInfo }}
-                        </span>
-                        <input
-                          v-else-if="shopwareFields[field.key].mode === 'fixed'"
-                          v-model="shopwareFields[field.key].value"
-                          type="text"
-                          class="input input-bordered input-sm w-full"
-                          :placeholder="field.defaultValue || 'Wert eingeben...'"
-                        />
-                        <input
-                          v-else
-                          v-model="shopwareFields[field.key].attribute_id"
-                          type="text"
-                          class="input input-bordered input-sm w-full"
-                          placeholder="Attribut-UUID eingeben..."
-                        />
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+              <div class="space-y-2">
+                <div
+                  v-for="field in SHOPWARE_FIELD_DEFINITIONS"
+                  :key="field.key"
+                  class="flex items-start gap-3 p-3 rounded-lg bg-base-200/30 border border-base-200"
+                >
+                  <!-- Feld-Info -->
+                  <div class="w-40 shrink-0">
+                    <div class="font-medium text-sm">{{ field.label }}</div>
+                    <div class="text-xs text-base-content/40 mt-0.5">{{ field.description }}</div>
+                  </div>
+
+                  <!-- Modus-Auswahl -->
+                  <div class="flex gap-3 shrink-0 pt-0.5">
+                    <label v-if="field.defaultInfo" class="flex items-center gap-1 cursor-pointer">
+                      <input type="radio" :name="'mode-' + field.key" value="default"
+                        v-model="shopwareFields[field.key].mode" class="radio radio-xs radio-primary" />
+                      <span class="text-xs">Standard</span>
+                    </label>
+                    <label class="flex items-center gap-1 cursor-pointer">
+                      <input type="radio" :name="'mode-' + field.key" value="fixed"
+                        v-model="shopwareFields[field.key].mode" class="radio radio-xs radio-primary" />
+                      <span class="text-xs">Fix</span>
+                    </label>
+                    <label class="flex items-center gap-1 cursor-pointer">
+                      <input type="radio" :name="'mode-' + field.key" value="attribute"
+                        v-model="shopwareFields[field.key].mode" class="radio radio-xs radio-primary" />
+                      <span class="text-xs">Attribut</span>
+                    </label>
+                  </div>
+
+                  <!-- Wert-Eingabe -->
+                  <div class="flex-1 min-w-0">
+                    <span
+                      v-if="shopwareFields[field.key].mode === 'default'"
+                      class="text-sm text-base-content/40 italic"
+                    >{{ field.defaultInfo }}</span>
+
+                    <input
+                      v-else-if="shopwareFields[field.key].mode === 'fixed'"
+                      v-model="shopwareFields[field.key].value"
+                      type="text"
+                      class="input input-bordered input-sm w-full"
+                      :placeholder="field.defaultValue || 'Wert eingeben...'"
+                    />
+
+                    <!-- Attribut-Dropdown -->
+                    <select
+                      v-else
+                      v-model="shopwareFields[field.key].attribute_id"
+                      class="select select-bordered select-sm w-full"
+                    >
+                      <option value="">— Attribut wählen —</option>
+                      <option v-for="attr in allAttributes" :key="attr.id" :value="attr.id">
+                        {{ attr.name_de || attr.technical_name }}
+                        <template v-if="attr.technical_name"> ({{ attr.technical_name }})</template>
+                      </option>
+                    </select>
+                  </div>
+                </div>
               </div>
             </div>
 
             <!-- Speichern -->
-            <div class="flex items-center gap-3">
-              <button
-                class="btn btn-primary btn-sm gap-1"
-                :disabled="savingProfile"
-                @click="saveExportProfile"
-              >
+            <div class="flex items-center gap-3 pt-2">
+              <button class="btn btn-primary btn-sm gap-1" :disabled="savingProfile" @click="saveExportProfile">
                 <span v-if="savingProfile" class="loading loading-spinner loading-xs"></span>
                 <Save v-else class="w-4 h-4" />
                 Export-Profil speichern
@@ -406,15 +437,15 @@ const statusIcons = {
         </div>
       </div>
 
-      <!-- Sync Actions -->
-      <div class="flex gap-2">
-        <button class="btn btn-ghost btn-sm" @click="showSyncDialog = true; syncType = 'media'">
-          <Image class="w-4 h-4" />
-          Einzelnes Media
-        </button>
-        <button class="btn btn-ghost btn-sm" @click="showSyncDialog = true; syncType = 'product'">
+      <!-- Einzel-Sync Aktionen -->
+      <div class="flex gap-2 items-center">
+        <button class="btn btn-ghost btn-sm" @click="showSyncDialog = true; syncType = 'product'; clearSelectedProduct()">
           <Package class="w-4 h-4" />
           Einzelnes Produkt
+        </button>
+        <button class="btn btn-ghost btn-sm" @click="showSyncDialog = true; syncType = 'media'; clearSelectedProduct()">
+          <Image class="w-4 h-4" />
+          Einzelnes Media
         </button>
         <button class="btn btn-ghost btn-sm ml-auto" @click="loadConnection">
           <RefreshCw class="w-4 h-4" />
@@ -423,7 +454,12 @@ const statusIcons = {
       </div>
 
       <!-- Sync Error -->
-      <div v-if="syncError" class="alert alert-error">{{ syncError }}</div>
+      <div v-if="syncError" class="alert alert-error alert-sm">
+        <div>
+          <span>{{ syncError }}</span>
+          <button class="btn btn-ghost btn-xs ml-2" @click="syncError = ''"><X class="w-3 h-3" /></button>
+        </div>
+      </div>
 
       <!-- Sync Dialog -->
       <div v-if="showSyncDialog" class="card bg-base-100 shadow-sm border border-primary/20">
@@ -431,23 +467,60 @@ const statusIcons = {
           <h3 class="font-semibold">
             {{ syncType === 'media' ? 'Media-Asset' : 'Produkt' }} synchronisieren
           </h3>
-          <div class="flex gap-3 items-end">
-            <div class="form-control flex-1">
-              <label class="label"><span class="label-text">{{ syncType === 'media' ? 'Media-ID' : 'Produkt-ID' }} (UUID)</span></label>
-              <input
-                v-model="syncEntityId"
-                type="text"
-                class="input input-bordered input-sm"
-                placeholder="UUID eingeben..."
-              />
+
+          <!-- Produkt-Suche -->
+          <div v-if="syncType === 'product'" class="space-y-2">
+            <div v-if="selectedProduct" class="flex items-center gap-2 p-2 bg-base-200/50 rounded-lg">
+              <Package class="w-4 h-4 text-primary shrink-0" />
+              <div class="flex-1 min-w-0">
+                <span class="font-mono text-xs text-base-content/50">{{ selectedProduct.sku }}</span>
+                <span class="ml-2 text-sm font-medium">{{ selectedProduct.name }}</span>
+              </div>
+              <button class="btn btn-ghost btn-xs" @click="clearSelectedProduct">
+                <X class="w-3 h-3" />
+              </button>
             </div>
+            <div v-else class="relative">
+              <div class="relative">
+                <Search class="absolute left-2.5 top-2 w-4 h-4 text-base-content/30" />
+                <input
+                  v-model="productSearch"
+                  type="text"
+                  class="input input-bordered input-sm w-full pl-8"
+                  placeholder="SKU oder Name suchen..."
+                  @input="onProductSearchInput"
+                />
+                <span v-if="productSearching" class="loading loading-spinner loading-xs absolute right-2.5 top-2"></span>
+              </div>
+              <!-- Suchergebnisse -->
+              <div v-if="productSearchResults.length > 0" class="absolute z-10 mt-1 w-full bg-base-100 border border-base-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                <button
+                  v-for="p in productSearchResults" :key="p.id"
+                  class="flex items-center gap-2 w-full px-3 py-2 text-left hover:bg-base-200/50 transition-colors text-sm"
+                  @click="selectProduct(p)"
+                >
+                  <span class="font-mono text-xs text-base-content/50 w-28 shrink-0 truncate">{{ p.sku }}</span>
+                  <span class="truncate">{{ p.name }}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Media-ID Eingabe -->
+          <div v-if="syncType === 'media'" class="form-control">
+            <label class="label"><span class="label-text">Media-ID (UUID)</span></label>
+            <input v-model="syncEntityId" type="text" class="input input-bordered input-sm" placeholder="UUID eingeben..." />
+          </div>
+
+          <div class="flex gap-3 items-center mt-2">
             <div v-if="syncType === 'product'" class="form-control w-24">
-              <label class="label"><span class="label-text">Sprache</span></label>
               <select v-model="syncLanguage" class="select select-bordered select-sm">
                 <option value="de">DE</option>
                 <option value="en">EN</option>
               </select>
             </div>
+            <div class="flex-1"></div>
+            <button class="btn btn-ghost btn-sm" @click="showSyncDialog = false">Abbrechen</button>
             <button
               class="btn btn-primary btn-sm"
               :disabled="syncing || !syncEntityId.trim()"
@@ -456,12 +529,11 @@ const statusIcons = {
               <span v-if="syncing" class="loading loading-spinner loading-xs"></span>
               Synchronisieren
             </button>
-            <button class="btn btn-ghost btn-sm" @click="showSyncDialog = false">Abbrechen</button>
           </div>
         </div>
       </div>
 
-      <!-- Sync Logs -->
+      <!-- Sync-Protokoll -->
       <div class="space-y-2">
         <h2 class="text-sm font-semibold text-base-content/60 uppercase tracking-wider">Sync-Protokoll</h2>
         <div v-if="syncLogs.length === 0" class="text-center py-6 text-base-content/40">
@@ -473,27 +545,73 @@ const statusIcons = {
               <tr>
                 <th>Zeitpunkt</th>
                 <th>Aktion</th>
-                <th>Typ</th>
-                <th>Entity-ID</th>
+                <th>Produkt</th>
                 <th>Externe ID</th>
                 <th>Status</th>
-                <th>Fehler</th>
+                <th>Details</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="log in syncLogs" :key="log.id">
-                <td class="text-xs">{{ new Date(log.created_at).toLocaleString('de-DE') }}</td>
-                <td><span class="badge badge-ghost badge-xs">{{ log.action }}</span></td>
-                <td>{{ log.entity_type }}</td>
-                <td class="font-mono text-xs">{{ log.entity_id?.substring(0, 8) }}...</td>
-                <td class="font-mono text-xs">{{ log.external_id || '–' }}</td>
-                <td>
-                  <span :class="statusColors[log.status]" class="badge badge-xs">
-                    {{ log.status }}
-                  </span>
-                </td>
-                <td class="text-xs text-error max-w-xs truncate">{{ log.error_message || '–' }}</td>
-              </tr>
+              <template v-for="log in syncLogs" :key="log.id">
+                <tr
+                  class="cursor-pointer hover:bg-base-200/30"
+                  :class="{ 'bg-error/5': log.status === 'failed' }"
+                  @click="toggleLogDetail(log.id)"
+                >
+                  <td class="text-xs whitespace-nowrap">{{ new Date(log.created_at).toLocaleString('de-DE') }}</td>
+                  <td><span class="badge badge-ghost badge-xs">{{ log.action }}</span></td>
+                  <td>
+                    <div class="text-sm">
+                      <span v-if="log.meta?.sku" class="font-mono text-xs">{{ log.meta.sku }}</span>
+                      <span v-else class="font-mono text-xs text-base-content/40">{{ log.entity_id?.substring(0, 8) }}...</span>
+                      <span v-if="log.meta?.product_name" class="ml-1 text-base-content/60">{{ log.meta.product_name }}</span>
+                    </div>
+                  </td>
+                  <td class="font-mono text-xs">{{ log.external_id || '–' }}</td>
+                  <td>
+                    <span :class="statusColors[log.status]" class="badge badge-xs">{{ log.status }}</span>
+                  </td>
+                  <td class="text-xs">
+                    <div v-if="log.error_message && expandedLogId !== log.id" class="text-error truncate max-w-xs">
+                      {{ log.error_message }}
+                    </div>
+                    <span v-else-if="!log.error_message" class="text-base-content/30">–</span>
+                    <ChevronUp v-if="expandedLogId === log.id" class="w-3 h-3 inline" />
+                    <ChevronDown v-else-if="log.error_message" class="w-3 h-3 inline text-base-content/30" />
+                  </td>
+                </tr>
+                <!-- Erweitertes Detail -->
+                <tr v-if="expandedLogId === log.id">
+                  <td colspan="6" class="bg-base-200/20 px-4 py-3">
+                    <div v-if="log.error_message" class="mb-2">
+                      <div class="text-xs font-semibold text-error mb-1">Fehlermeldung:</div>
+                      <div class="text-sm text-error bg-error/5 p-2 rounded font-mono whitespace-pre-wrap break-all">{{ log.error_message }}</div>
+                    </div>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                      <div>
+                        <span class="text-base-content/50">Entity-ID:</span>
+                        <div class="font-mono break-all">{{ log.entity_id }}</div>
+                      </div>
+                      <div>
+                        <span class="text-base-content/50">Entity-Typ:</span>
+                        <div>{{ log.entity_type }}</div>
+                      </div>
+                      <div v-if="log.meta?.language">
+                        <span class="text-base-content/50">Sprache:</span>
+                        <div>{{ log.meta.language }}</div>
+                      </div>
+                      <div v-if="log.meta?.http_status">
+                        <span class="text-base-content/50">HTTP-Status:</span>
+                        <div>{{ log.meta.http_status }}</div>
+                      </div>
+                      <div v-if="log.meta?.synced_fields">
+                        <span class="text-base-content/50">Synchronisierte Felder:</span>
+                        <div>{{ Array.isArray(log.meta.synced_fields) ? log.meta.synced_fields.join(', ') : log.meta.synced_fields }}</div>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              </template>
             </tbody>
           </table>
         </div>
