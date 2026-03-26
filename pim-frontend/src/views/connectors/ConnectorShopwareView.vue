@@ -22,14 +22,23 @@ async function loadData() {
   loading.value = true
   error.value = ''
   try {
-    const [listRes, connRes] = await Promise.all([
+    const [listRes, connRes, credRes] = await Promise.all([
       connectorsApi.list(),
       connectorsApi.connections(),
+      connectorsApi.getCredentials().catch(() => null),
     ])
     const allConnectors = listRes.data.data || listRes.data
     connectorInfo.value = allConnectors.find(c => c.type === 'shopware')
     const allConns = connRes.data.data || connRes.data
     connections.value = allConns.filter(c => c.connector_type === 'shopware')
+
+    // Plugin-Einstellungen als Vorauswahl ins Formular übernehmen
+    const creds = credRes?.data?.data?.shopware || credRes?.data?.shopware
+    if (creds) {
+      formData.value.shop_url = creds.shop_url || ''
+      formData.value.client_id = creds.client_id || ''
+      formData.value.client_secret = creds.client_secret || ''
+    }
   } catch (e) {
     error.value = 'Fehler beim Laden'
   } finally {
