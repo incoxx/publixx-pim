@@ -485,12 +485,31 @@ class ConnectorController extends Controller
             }
         }
 
+        // Kategorie-Zuordnung aus Sync-Logs
+        $categoryName = null;
+        if ($product->master_hierarchy_node_id) {
+            $shopwareCategoryId = \App\Models\ConnectorSyncLog::where('connector_connection_id', $connection->id)
+                ->where('action', 'category_sync')
+                ->where('entity_type', 'hierarchy_node')
+                ->where('entity_id', $product->master_hierarchy_node_id)
+                ->where('status', 'success')
+                ->whereNotNull('external_id')
+                ->latest()
+                ->value('external_id');
+            if ($shopwareCategoryId) {
+                $node = $product->masterHierarchyNode;
+                $categoryName = $node?->name_de ?? $node?->name_en ?? $product->master_hierarchy_node_id;
+            }
+        }
+
         $payload = $productService->previewProductData($product, $profilePayload, $shopwareFields, $language, []);
 
         return response()->json([
             'data' => [
                 'product_payload' => $payload,
                 'properties'      => $properties,
+                'category'        => $categoryName,
+                'media_count'     => $product->media()->count(),
                 'language'        => $language,
                 'profile'         => $profileId ? ($profilePayload['hierarchy_id'] ?? null) : null,
             ],

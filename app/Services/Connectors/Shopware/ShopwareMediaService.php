@@ -52,8 +52,10 @@ class ShopwareMediaService
         int $position = 0,
     ): void {
         $shopUrl = rtrim($shopUrl, '/');
+        $assignmentId = str_replace('-', '', Str::uuid()->toString());
 
         $http->post("{$shopUrl}/api/product-media", [
+            'id'        => $assignmentId,
             'productId' => $productId,
             'mediaId'   => $mediaId,
             'position'  => $position,
