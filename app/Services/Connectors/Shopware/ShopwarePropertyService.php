@@ -100,7 +100,7 @@ class ShopwarePropertyService
         Attribute $attribute,
         string $language,
     ): ?string {
-        $groupId = Str::uuid()->toString();
+        $groupId = str_replace('-', '', Str::uuid()->toString());
         $name = $language === 'en' && $attribute->name_en
             ? $attribute->name_en
             : $attribute->name_de;
@@ -187,7 +187,7 @@ class ShopwarePropertyService
 
         $payload = [];
         foreach ($entries as $entry) {
-            $optionId = $existingLogs[$entry->id] ?? Str::uuid()->toString();
+            $optionId = $existingLogs[$entry->id] ?? str_replace('-', '', Str::uuid()->toString());
             $optionMap[$entry->id] = $optionId;
 
             $name = $language === 'en' && $entry->display_value_en

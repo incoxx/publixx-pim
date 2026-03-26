@@ -116,7 +116,11 @@ class ShopwareProductService
         array $shopwareFields,
         string $language,
     ): array {
+        // Deterministische Shopware-UUID aus PIM-Product-ID (ohne Bindestriche)
+        $shopwareProductId = str_replace('-', '', $product->id);
+
         $data = [
+            'id'            => $shopwareProductId,
             'productNumber' => $product->sku,
             'name'          => $product->name,
             'active'        => true,
@@ -541,6 +545,7 @@ class ShopwareProductService
     private function collectProductData(Product $product, string $language, array $options): array
     {
         $data = [
+            'id'            => str_replace('-', '', $product->id),
             'productNumber' => $product->sku,
             'name'          => $product->name,
             'active'        => true,

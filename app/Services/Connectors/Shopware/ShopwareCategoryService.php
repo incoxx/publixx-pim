@@ -75,7 +75,7 @@ class ShopwareCategoryService
         $errorDetails = [];
 
         foreach ($allNodes as $node) {
-            $shopwareCategoryId = $categoryMap[$node->id] ?? Str::uuid()->toString();
+            $shopwareCategoryId = $categoryMap[$node->id] ?? str_replace('-', '', Str::uuid()->toString());
             $categoryMap[$node->id] = $shopwareCategoryId;
 
             $name = $language === 'en' && $node->name_en ? $node->name_en : $node->name_de;
