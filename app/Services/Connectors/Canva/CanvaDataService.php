@@ -89,21 +89,44 @@ class CanvaDataService
     }
 
     /**
-     * Erstellt ein Canva-Design mit Autofill-Daten aus dem Produkt.
+     * Erstellt ein Canva-Design mit Produktdaten.
+     *
+     * Ohne Brand-Template: Erstellt ein leeres Design (A4-Format).
+     * Mit Brand-Template: Erstellt ein Autofill-Design (Enterprise).
      */
     public function createDesignFromProduct(PendingRequest $http, array $productData, ?string $brandTemplateId = null): array
     {
-        $payload = [
-            'title' => $productData['name'] ?? $productData['sku'] ?? 'PIM-Produkt',
-        ];
+        $title = $productData['name'] ?? $productData['sku'] ?? 'PIM-Produkt';
 
-        // Wenn Brand-Template vorhanden, Autofill nutzen
+        // Mit Brand-Template: Autofill-Endpunkt (Enterprise)
         if ($brandTemplateId) {
-            $payload['brand_template_id'] = $brandTemplateId;
-            $payload['data'] = $this->mapToCanvaAutofillData($productData);
+            return $this->createAutofillDesign($http, $brandTemplateId, $productData, $title);
         }
 
-        $response = $http->post("{$this->baseUrl}/designs", $payload);
+        // Ohne Template: Normales Design erstellen (A4 Hochformat)
+        $response = $http->post("{$this->baseUrl}/designs", [
+            'design_type' => [
+                'type'   => 'custom',
+                'width'  => 2480,
+                'height' => 3508,
+            ],
+            'title' => $title,
+        ]);
+        $response->throw();
+
+        return $response->json();
+    }
+
+    /**
+     * Erstellt ein Design via Autofill-API (erfordert Canva Enterprise).
+     */
+    private function createAutofillDesign(PendingRequest $http, string $brandTemplateId, array $productData, string $title): array
+    {
+        $response = $http->post("{$this->baseUrl}/autofills", [
+            'brand_template_id' => $brandTemplateId,
+            'title'             => $title,
+            'data'              => $this->mapToCanvaAutofillData($productData),
+        ]);
         $response->throw();
 
         return $response->json();
