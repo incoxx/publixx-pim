@@ -29,8 +29,10 @@ export const useQuickSearchStore = defineStore('quickSearch', () => {
     return null
   })
 
-  // ─── Debounce ──────────────────────────────────────
+  // ─── Request-Cancellation ─────────────────────────
   let debounceTimer = null
+  let abortController = null
+  let requestId = 0 // Race-Condition-Schutz
 
   // ─── Actions ───────────────────────────────────────
 
@@ -40,63 +42,58 @@ export const useQuickSearchStore = defineStore('quickSearch', () => {
     }
     selectedIndex.value = -1
 
-    // Debounce abbrechen wenn noch aktiv
+    // Laufenden Debounce abbrechen
     if (debounceTimer) clearTimeout(debounceTimer)
 
     const term = query.value.trim()
     if (!term && !hasActiveFilter.value) {
       counts.value = { products: 0, media: 0, hierarchies: 0, attributes: 0 }
       results.value = []
+      loading.value = false
       return
     }
 
     loading.value = true
 
     debounceTimer = setTimeout(async () => {
+      // Vorherigen Request abbrechen
+      if (abortController) abortController.abort()
+      abortController = new AbortController()
+
+      const currentRequestId = ++requestId
+
       try {
-        const params = { q: term, type: activeTab.value, limit: 20 }
-        if (filters.value.category_id) params.category_id = filters.value.category_id
-        if (filters.value.attribute_id) params.attribute_id = filters.value.attribute_id
-        if (filters.value.media_id) params.media_id = filters.value.media_id
+        // 1. Counts für alle Tabs holen (ohne type → nur Counts, keine Ergebnisse)
+        const countParams = buildParams({ q: term })
+        const countsPromise = quickSearchApi.search(countParams, abortController.signal)
 
-        const { data } = await quickSearchApi.search(params)
-        results.value = data.results || []
+        // 2. Ergebnisse für aktiven Tab holen
+        const resultParams = buildParams({ q: term, type: activeTab.value, limit: 20 })
+        const resultsPromise = quickSearchApi.search(resultParams, abortController.signal)
 
-        // Counts aktualisieren — bei type-spezifischer Suche nur diesen Typ
-        if (data.counts) {
-          if (data.counts[activeTab.value] !== undefined) {
-            counts.value = { ...counts.value, [activeTab.value]: data.counts[activeTab.value] }
-          } else {
-            counts.value = data.counts
-          }
+        // Parallel ausführen
+        const [countsResp, resultsResp] = await Promise.all([countsPromise, resultsPromise])
+
+        // Race-Condition: nur aktuellsten Request verarbeiten
+        if (currentRequestId !== requestId) return
+
+        if (countsResp.data.counts) {
+          counts.value = countsResp.data.counts
         }
-
-        // Auch andere Tabs zählen (Hintergrund-Request ohne type)
-        if (term || hasActiveFilter.value) {
-          fetchAllCounts(term)
+        results.value = resultsResp.data.results || []
+        // Count für aktiven Tab aus dem Results-Request aktualisieren (exakter)
+        if (resultsResp.data.counts?.[activeTab.value] !== undefined) {
+          counts.value = { ...counts.value, [activeTab.value]: resultsResp.data.counts[activeTab.value] }
         }
       } catch (err) {
+        if (err.name === 'CanceledError' || err.code === 'ERR_CANCELED') return
         console.error('Schnellsuche fehlgeschlagen:', err)
       } finally {
-        loading.value = false
+        if (currentRequestId === requestId) {
+          loading.value = false
+        }
       }
     }, 300)
-  }
-
-  async function fetchAllCounts(term) {
-    try {
-      const params = { q: term, limit: 0 }
-      if (filters.value.category_id) params.category_id = filters.value.category_id
-      if (filters.value.attribute_id) params.attribute_id = filters.value.attribute_id
-      if (filters.value.media_id) params.media_id = filters.value.media_id
-
-      const { data } = await quickSearchApi.search(params)
-      if (data.counts) {
-        counts.value = data.counts
-      }
-    } catch {
-      // Counts-Fehler ignorieren
-    }
   }
 
   function switchTab(tab) {
@@ -104,11 +101,46 @@ export const useQuickSearchStore = defineStore('quickSearch', () => {
     activeTab.value = tab
     selectedIndex.value = -1
     results.value = []
-    search()
+    // Sofort suchen (kein Debounce beim Tab-Wechsel)
+    executeImmediateSearch()
+  }
+
+  /** Tab-Wechsel: nur Ergebnisse für neuen Tab laden (Counts bleiben). */
+  async function executeImmediateSearch() {
+    if (debounceTimer) clearTimeout(debounceTimer)
+    if (abortController) abortController.abort()
+    abortController = new AbortController()
+
+    const currentRequestId = ++requestId
+    const term = query.value.trim()
+
+    if (!term && !hasActiveFilter.value) {
+      results.value = []
+      loading.value = false
+      return
+    }
+
+    loading.value = true
+    try {
+      const params = buildParams({ q: term, type: activeTab.value, limit: 20 })
+      const { data } = await quickSearchApi.search(params, abortController.signal)
+      if (currentRequestId !== requestId) return
+
+      results.value = data.results || []
+      if (data.counts?.[activeTab.value] !== undefined) {
+        counts.value = { ...counts.value, [activeTab.value]: data.counts[activeTab.value] }
+      }
+    } catch (err) {
+      if (err.name === 'CanceledError' || err.code === 'ERR_CANCELED') return
+      console.error('Schnellsuche fehlgeschlagen:', err)
+    } finally {
+      if (currentRequestId === requestId) {
+        loading.value = false
+      }
+    }
   }
 
   function drillDown({ tab, filter, label }) {
-    // Aktuellen Zustand in Verlauf speichern
     history.value.push({
       query: query.value,
       tab: activeTab.value,
@@ -116,7 +148,6 @@ export const useQuickSearchStore = defineStore('quickSearch', () => {
       label,
     })
 
-    // Neuen Filter + Tab setzen
     if (filter.category_id !== undefined) filters.value.category_id = filter.category_id
     if (filter.attribute_id !== undefined) filters.value.attribute_id = filter.attribute_id
     if (filter.media_id !== undefined) filters.value.media_id = filter.media_id
@@ -133,10 +164,8 @@ export const useQuickSearchStore = defineStore('quickSearch', () => {
     if (index < 0 || index >= history.value.length) return
 
     const entry = history.value[index]
-    // Alles nach diesem Index entfernen
     history.value = history.value.slice(0, index)
 
-    // Zustand wiederherstellen
     query.value = entry.query
     activeTab.value = entry.tab
     filters.value = { ...entry.filters }
@@ -150,6 +179,8 @@ export const useQuickSearchStore = defineStore('quickSearch', () => {
   }
 
   function clear() {
+    if (debounceTimer) clearTimeout(debounceTimer)
+    if (abortController) abortController.abort()
     query.value = ''
     activeTab.value = 'products'
     counts.value = { products: 0, media: 0, hierarchies: 0, attributes: 0 }
@@ -158,29 +189,20 @@ export const useQuickSearchStore = defineStore('quickSearch', () => {
     selectedIndex.value = -1
     filters.value = { category_id: null, attribute_id: null, media_id: null }
     history.value = []
-    if (debounceTimer) clearTimeout(debounceTimer)
+  }
+
+  /** Filter-Parameter zusammenbauen */
+  function buildParams(base) {
+    const params = { ...base }
+    if (filters.value.category_id) params.category_id = filters.value.category_id
+    if (filters.value.attribute_id) params.attribute_id = filters.value.attribute_id
+    if (filters.value.media_id) params.media_id = filters.value.media_id
+    return params
   }
 
   return {
-    // State
-    query,
-    activeTab,
-    counts,
-    results,
-    loading,
-    selectedIndex,
-    filters,
-    history,
-    // Computed
-    hasQuery,
-    hasActiveFilter,
-    activeFilterLabel,
-    // Actions
-    search,
-    switchTab,
-    drillDown,
-    jumpToHistory,
-    clearFilters,
-    clear,
+    query, activeTab, counts, results, loading, selectedIndex, filters, history,
+    hasQuery, hasActiveFilter, activeFilterLabel,
+    search, switchTab, drillDown, jumpToHistory, clearFilters, clear,
   }
 })

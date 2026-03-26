@@ -6,8 +6,11 @@ export default {
    *
    * Schnellsuche über Produkte, Medien, Hierarchien und Attribute.
    * Params: q, type, limit, category_id, attribute_id, media_id
+   *
+   * @param {Object} params - Query-Parameter
+   * @param {AbortSignal} [signal] - AbortController-Signal für Request-Cancellation
    */
-  search(params = {}) {
-    return client.get('/quick-search', { params })
+  search(params = {}, signal = undefined) {
+    return client.get('/quick-search', { params, signal })
   },
 }
