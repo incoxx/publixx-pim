@@ -47,7 +47,7 @@ interface ConnectorInterface
      *
      * @return array{access_token: string, refresh_token: string|null, expires_in: int|null}
      */
-    public function handleCallback(string $code, ?string $codeVerifier = null): array;
+    public function handleCallback(string $code, ?string $codeVerifier = null, string $shopUrl = ''): array;
 
     /**
      * Erneuert den Access-Token.

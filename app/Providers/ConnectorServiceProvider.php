@@ -16,6 +16,7 @@ use App\Services\Connectors\ConnectorRegistry;
 use App\Services\Connectors\DeepL\DeepLConnector;
 use App\Services\Connectors\DeepL\DeepLTranslationService;
 use App\Services\Connectors\Shopware\ShopwareAuthService;
+use App\Services\Connectors\Shopware\ShopwareCategoryService;
 use App\Services\Connectors\Shopware\ShopwareConnector;
 use App\Services\Connectors\Shopware\ShopwareMediaService;
 use App\Services\Connectors\Shopware\ShopwareProductService;
@@ -85,6 +86,7 @@ class ConnectorServiceProvider extends ServiceProvider
         $this->app->singleton(ShopwareAuthService::class);
         $this->app->singleton(ShopwareProductService::class);
         $this->app->singleton(ShopwareMediaService::class);
+        $this->app->singleton(ShopwareCategoryService::class);
         $this->app->singleton(ShopwareConnector::class);
 
         // Cloudinary

@@ -30,15 +30,21 @@ class ShopwareAuthService
      *
      * @param  string  $clientId      Client-ID (oder aus Config)
      * @param  string  $clientSecret  Client-Secret (oder aus Config)
+     * @param  string  $shopUrl       Shop-URL (oder aus Config)
      * @return array{access_token: string, refresh_token: string|null, expires_in: int|null}
      */
-    public function authenticate(string $clientId = '', string $clientSecret = ''): array
+    public function authenticate(string $clientId = '', string $clientSecret = '', string $shopUrl = ''): array
     {
         $id = $clientId ?: $this->clientId;
         $secret = $clientSecret ?: $this->clientSecret;
+        $url = rtrim($shopUrl ?: $this->shopUrl, '/');
+
+        if (empty($url)) {
+            throw new \RuntimeException('Shopware Shop-URL ist nicht konfiguriert. Bitte in den Verbindungseinstellungen oder .env hinterlegen.');
+        }
 
         $response = Http::timeout(15)
-            ->post("{$this->shopUrl}/api/oauth/token", [
+            ->post("{$url}/api/oauth/token", [
                 'grant_type'    => 'client_credentials',
                 'client_id'     => $id,
                 'client_secret' => $secret,

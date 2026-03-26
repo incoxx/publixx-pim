@@ -50,7 +50,7 @@ class DeepLConnector extends AbstractConnector
         ];
     }
 
-    public function handleCallback(string $code, ?string $codeVerifier = null): array
+    public function handleCallback(string $code, ?string $codeVerifier = null, string $shopUrl = ''): array
     {
         // API key-based: token is set directly via settings
         return [

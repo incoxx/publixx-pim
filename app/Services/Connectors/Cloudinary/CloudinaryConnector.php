@@ -52,7 +52,7 @@ class CloudinaryConnector extends AbstractConnector
         ];
     }
 
-    public function handleCallback(string $code, ?string $codeVerifier = null): array
+    public function handleCallback(string $code, ?string $codeVerifier = null, string $shopUrl = ''): array
     {
         // API key-based: credentials stored in settings
         return [
