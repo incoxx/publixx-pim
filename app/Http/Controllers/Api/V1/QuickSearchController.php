@@ -37,6 +37,7 @@ class QuickSearchController extends Controller
             'type' => 'nullable|string|in:products,media,hierarchies,attributes',
             'limit' => 'nullable|integer|min:0|max:50',
             'offset' => 'nullable|integer|min:0',
+            'lang' => 'nullable|string|max:5',
             'category_id' => 'nullable|string|uuid',
             'attribute_id' => 'nullable|string|uuid',
             'media_id' => 'nullable|string|uuid',
@@ -46,6 +47,7 @@ class QuickSearchController extends Controller
         $type = $validated['type'] ?? null;
         $limit = (int) ($validated['limit'] ?? 20);
         $offset = (int) ($validated['offset'] ?? 0);
+        $lang = $validated['lang'] ?? 'de';
         $categoryId = $validated['category_id'] ?? null;
         $attributeId = $validated['attribute_id'] ?? null;
         $mediaId = $validated['media_id'] ?? null;
@@ -59,7 +61,7 @@ class QuickSearchController extends Controller
         }
 
         $result = match ($type) {
-            'products' => $this->searchProducts($query, $limit, $offset, $categoryId, $attributeId, $mediaId),
+            'products' => $this->searchProducts($query, $limit, $offset, $lang, $categoryId, $attributeId, $mediaId),
             'media' => $this->searchMedia($query, $limit, $offset),
             'hierarchies' => $this->searchHierarchies($query, $limit, $offset, $attributeId),
             'attributes' => $this->searchAttributes($query, $limit, $offset),
@@ -224,7 +226,7 @@ class QuickSearchController extends Controller
     //  PRODUKTE — FULLTEXT + Relevanz-Score
     // ═══════════════════════════════════════════════════════
 
-    private function searchProducts(string $query, int $limit, int $offset, ?string $categoryId, ?string $attributeId, ?string $mediaId): array
+    private function searchProducts(string $query, int $limit, int $offset, string $lang, ?string $categoryId, ?string $attributeId, ?string $mediaId): array
     {
         $builder = ProductSearchIndex::query()
             ->join('products', 'products.id', '=', 'products_search_index.product_id')
@@ -262,40 +264,177 @@ class QuickSearchController extends Controller
             $builder->orderBy('products_search_index.name_de');
         }
 
-        // LIMIT N+1 Trick: holt 1 Extra-Zeile um has_more zu prüfen — kein count() nötig
-        // Nur bei offset>0 (Nachladen). Bei offset=0 kommt der Count aus fetchAllCountsFast.
         if ($offset > 0) {
             $items = $builder->offset($offset)->limit($limit + 1)->get();
             $hasMoreItems = $items->count() > $limit;
             if ($hasMoreItems) { $items = $items->slice(0, $limit)->values(); }
-            // Total schätzen: wenn has_more, dann mindestens offset+limit+1
             $total = $hasMoreItems ? $offset + $limit + 1 : $offset + $items->count();
         } else {
             $items = $builder->limit($limit)->get();
-            $total = 0; // wird von fetchAllCountsFast befüllt
+            $total = 0;
         }
 
-        // Querverweise: Kategorienamen batch
+        $productIds = $items->pluck('id')->toArray();
+
+        // ── Querverweise: Kategorienamen batch ──
         $nodeIds = $items->pluck('master_hierarchy_node_id')->filter()->unique()->values();
+        $nodeCol = $lang === 'en' ? 'name_en' : 'name_de';
         $nodeNames = $nodeIds->isNotEmpty()
-            ? HierarchyNode::whereIn('id', $nodeIds)->pluck('name_de', 'id')->toArray()
+            ? HierarchyNode::whereIn('id', $nodeIds)->pluck($nodeCol, 'id')->toArray()
             : [];
+
+        // ── Schnellsuche-Attribute: Snippet (Google-Teaser) ──
+        $snippets = $this->loadQuickSearchSnippets($productIds, $lang);
+
+        // ── Produktbeziehungen batch ──
+        $relations = $this->loadProductRelations($productIds, $lang);
 
         return [
             'total' => $total,
-            'items' => $items->map(fn ($p) => [
-                'type' => 'product',
-                'id' => $p->id,
-                'title' => $p->name_de ?: $p->name_en ?: $p->sku,
-                'subtitle' => $p->sku ? "SKU: {$p->sku}" : null,
-                'image' => $p->primary_image,
-                'badge_refs' => $p->master_hierarchy_node_id && isset($nodeNames[$p->master_hierarchy_node_id]) ? [[
-                    'type' => 'category',
-                    'id' => $p->master_hierarchy_node_id,
-                    'label' => $nodeNames[$p->master_hierarchy_node_id],
-                ]] : [],
-            ])->values()->toArray(),
+            'items' => $items->map(function ($p) use ($lang, $nodeNames, $snippets, $relations) {
+                // Produktname sprachabhängig
+                $title = $lang === 'en'
+                    ? ($p->name_en ?: $p->name_de ?: $p->sku)
+                    : ($p->name_de ?: $p->name_en ?: $p->sku);
+
+                $badges = [];
+                if ($p->master_hierarchy_node_id && isset($nodeNames[$p->master_hierarchy_node_id])) {
+                    $badges[] = ['type' => 'category', 'id' => $p->master_hierarchy_node_id, 'label' => $nodeNames[$p->master_hierarchy_node_id]];
+                }
+
+                return [
+                    'type' => 'product',
+                    'id' => $p->id,
+                    'title' => $title,
+                    'subtitle' => $p->sku ? "SKU: {$p->sku}" : null,
+                    'image' => $p->primary_image,
+                    'snippet' => $snippets[$p->id] ?? null,
+                    'relations' => $relations[$p->id] ?? [],
+                    'badge_refs' => $badges,
+                ];
+            })->values()->toArray(),
         ];
+    }
+
+    /**
+     * Schnellsuche-Attribute laden: Kurzer Teaser (Google-Stil).
+     *
+     * Holt nur Attribute mit is_quick_search=true, max 120 Zeichen.
+     * Batch-Query für alle Produkte gleichzeitig.
+     */
+    private function loadQuickSearchSnippets(array $productIds, string $lang): array
+    {
+        if (empty($productIds)) { return []; }
+
+        $nameCol = $lang === 'en' ? 'a.name_en' : 'a.name_de';
+        $valueCol = 'pav.value_string';
+
+        // Attributwerte für is_quick_search=true holen (inkl. Number + Selection)
+        $rows = DB::table('product_attribute_values as pav')
+            ->join('attributes as a', 'a.id', '=', 'pav.attribute_id')
+            ->leftJoin('value_list_entries as vle', 'vle.id', '=', 'pav.value_selection_id')
+            ->leftJoin('units as u', 'u.id', '=', 'pav.unit_id')
+            ->whereIn('pav.product_id', $productIds)
+            ->where('a.is_quick_search', true)
+            ->where('a.status', 'active')
+            ->where(function ($q) use ($lang) {
+                // Sprachfilter: nicht-übersetzbare oder passende Sprache
+                $q->whereNull('pav.language')
+                  ->orWhere('pav.language', $lang);
+            })
+            ->where('pav.multiplied_index', 0) // Nur Hauptwert
+            ->where('pav.is_inherited', false) // Nur direkte Werte
+            ->select([
+                'pav.product_id',
+                DB::raw("COALESCE({$nameCol}, a.name_de) as attr_name"),
+                'a.data_type',
+                'a.position',
+                $valueCol,
+                'pav.value_number',
+                'pav.value_flag',
+                DB::raw($lang === 'en'
+                    ? "COALESCE(vle.display_value_en, vle.display_value_de) as selection_value"
+                    : "COALESCE(vle.display_value_de, vle.display_value_en) as selection_value"),
+                DB::raw("COALESCE(u.abbreviation, u.name_de) as unit_abbr"),
+            ])
+            ->orderBy('a.position')
+            ->get();
+
+        // Pro Produkt: "Attributname: Wert · Attributname: Wert" — max 120 Zeichen
+        $snippets = [];
+        foreach ($rows as $row) {
+            $pid = $row->product_id;
+            if (!isset($snippets[$pid])) { $snippets[$pid] = []; }
+
+            // Wert bestimmen
+            $value = match (true) {
+                $row->selection_value !== null => $row->selection_value,
+                $row->value_string !== null => strip_tags($row->value_string),
+                $row->value_number !== null => rtrim(rtrim(number_format((float) $row->value_number, 4, ',', '.'), '0'), ',')
+                    . ($row->unit_abbr ? ' ' . $row->unit_abbr : ''),
+                $row->value_flag !== null => ($row->value_flag ? 'Ja' : 'Nein'),
+                default => null,
+            };
+
+            if ($value !== null && $value !== '') {
+                $snippets[$pid][] = $row->attr_name . ': ' . $value;
+            }
+        }
+
+        // Zusammenbauen + kürzen
+        $result = [];
+        foreach ($snippets as $pid => $parts) {
+            $text = implode(' · ', $parts);
+            if (mb_strlen($text) > 120) {
+                $text = mb_substr($text, 0, 117) . '...';
+            }
+            $result[$pid] = $text;
+        }
+        return $result;
+    }
+
+    /**
+     * Produktbeziehungen batch laden.
+     *
+     * Gibt pro Produkt: [{type_name, target_name, target_id, target_sku}]
+     * Max 3 Relationen pro Produkt (Teaser).
+     */
+    private function loadProductRelations(array $productIds, string $lang): array
+    {
+        if (empty($productIds)) { return []; }
+
+        $nameCol = $lang === 'en' ? 'psi.name_en' : 'psi.name_de';
+        $typeNameCol = $lang === 'en' ? 'COALESCE(prt.name_en, prt.name_de)' : 'COALESCE(prt.name_de, prt.name_en)';
+
+        $rows = DB::table('product_relations as pr')
+            ->join('product_relation_types as prt', 'prt.id', '=', 'pr.relation_type_id')
+            ->join('products as tp', 'tp.id', '=', 'pr.target_product_id')
+            ->leftJoin('products_search_index as psi', 'psi.product_id', '=', 'pr.target_product_id')
+            ->whereIn('pr.source_product_id', $productIds)
+            ->where('tp.status', 'active')
+            ->select([
+                'pr.source_product_id',
+                'pr.target_product_id',
+                DB::raw("{$typeNameCol} as relation_type"),
+                DB::raw("COALESCE({$nameCol}, psi.name_de, tp.name, psi.sku) as target_name"),
+                'psi.sku as target_sku',
+            ])
+            ->orderBy('pr.sort_order')
+            ->get();
+
+        $relations = [];
+        foreach ($rows as $row) {
+            $pid = $row->source_product_id;
+            if (!isset($relations[$pid])) { $relations[$pid] = []; }
+            if (count($relations[$pid]) >= 3) { continue; } // Max 3 pro Produkt
+            $relations[$pid][] = [
+                'type' => $row->relation_type,
+                'id' => $row->target_product_id,
+                'name' => $row->target_name,
+                'sku' => $row->target_sku,
+            ];
+        }
+        return $relations;
     }
 
     private function applyProductDrillDown($builder, ?string $categoryId, ?string $attributeId, ?string $mediaId): void
