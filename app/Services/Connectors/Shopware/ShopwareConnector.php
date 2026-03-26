@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Connectors\Shopware;
 
 use App\Models\ConnectorConnection;
+use App\Models\ConnectorSyncLog;
 use App\Models\Hierarchy;
 use App\Models\HierarchyNode;
 use App\Models\Media;

@@ -576,7 +576,6 @@ class ConnectorController extends Controller
             return response()->json([
                 'data' => [
                     'status'     => 'completed',
-                    'categories' => $result['categories'],
                     'products'   => $result['products'],
                     'media'      => $result['media'],
                 ],
