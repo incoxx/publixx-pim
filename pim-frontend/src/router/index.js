@@ -189,6 +189,12 @@ const routes = [
     meta: { title: 'Connectoren' },
   },
   {
+    path: '/oauth/:provider/callback',
+    name: 'oauth-callback',
+    component: () => import('@/views/connectors/OAuthCallbackView.vue'),
+    meta: { title: 'OAuth Callback', guest: true },
+  },
+  {
     path: '/connectors/canva',
     name: 'connector-canva',
     component: () => import('@/views/connectors/ConnectorCanvaView.vue'),
