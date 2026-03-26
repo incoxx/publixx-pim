@@ -101,6 +101,15 @@ class ShopwareConnector extends AbstractConnector
                     }
                 }
 
+                // Sales Channel ID automatisch holen wenn nicht konfiguriert
+                $salesChannelMapping = $shopwareFields['_sales_channel_id'] ?? [];
+                if (empty($salesChannelMapping) || empty($salesChannelMapping['value'])) {
+                    $defaultSalesChannelId = $this->productService->fetchDefaultSalesChannelId($http, $shopUrl);
+                    if ($defaultSalesChannelId) {
+                        $shopwareFields['_sales_channel_id'] = ['value' => $defaultSalesChannelId];
+                    }
+                }
+
                 $profilePayload = [];
                 if ($profileId) {
                     $profile = \App\Models\WebsiteProfile::find($profileId);
@@ -335,12 +344,20 @@ class ShopwareConnector extends AbstractConnector
         $http = $this->authenticatedRequest($connection);
         $shopUrl = $settings['shop_url'] ?? config('connectors.shopware.shop_url');
 
-        // Tax-ID aus Shopware holen für "default"-Modus (einmal pro Sync)
+        // Tax-ID + Sales Channel ID aus Shopware holen (einmal pro Sync)
         $taxIdMapping = $shopwareFields['tax_id'] ?? [];
         if (empty($taxIdMapping) || ($taxIdMapping['mode'] ?? '') === 'default') {
             $defaultTaxId = $this->productService->fetchDefaultTaxId($http, $shopUrl);
             if ($defaultTaxId) {
                 $shopwareFields['tax_id'] = ['mode' => 'fixed', 'value' => $defaultTaxId];
+            }
+        }
+
+        $salesChannelMapping = $shopwareFields['_sales_channel_id'] ?? [];
+        if (empty($salesChannelMapping) || empty($salesChannelMapping['value'])) {
+            $defaultSalesChannelId = $this->productService->fetchDefaultSalesChannelId($http, $shopUrl);
+            if ($defaultSalesChannelId) {
+                $shopwareFields['_sales_channel_id'] = ['value' => $defaultSalesChannelId];
             }
         }
 
