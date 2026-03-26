@@ -306,9 +306,18 @@ class ConnectorController extends Controller
         $product = Product::findOrFail($validated['product_id']);
         $options = array_diff_key($validated, ['product_id' => true]);
 
-        $result = $connector->pushProductData($connection, $product, $options);
+        try {
+            $result = $connector->pushProductData($connection, $product, $options);
+            return response()->json(['data' => $result]);
+        } catch (\Illuminate\Http\Client\RequestException $e) {
+            $body = $e->response?->json();
+            $errors = $body['errors'] ?? [];
+            $details = collect($errors)->map(fn ($err) => $err['detail'] ?? $err['code'] ?? '')->filter()->implode(' | ');
 
-        return response()->json(['data' => $result]);
+            return response()->json([
+                'message' => 'Shopware hat den Sync abgelehnt: ' . ($details ?: $e->getMessage()),
+            ], $e->response?->status() ?? 500);
+        }
     }
 
     /**

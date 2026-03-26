@@ -82,22 +82,85 @@ class ShopwareConnector extends AbstractConnector
         $shopUrl = $connection->settings['shop_url'] ?? config('connectors.shopware.shop_url');
         $language = $options['language'] ?? 'de';
 
-        $result = $this->productService->syncProduct($http, $shopUrl, $product, $language, $options);
+        // Tax-ID automatisch von Shopware holen, wenn nicht konfiguriert
+        if (empty($options['tax_id'])) {
+            $options['_default_tax_id'] = $this->productService->fetchDefaultTaxId($http, $shopUrl);
+        }
 
-        $externalId = $result['product_id'] ?? null;
+        try {
+            $result = $this->productService->syncProduct($http, $shopUrl, $product, $language, $options);
 
-        $this->logSync(
-            $connection,
-            'product_push',
-            'product',
-            $product->id,
-            'success',
-            $externalId,
-            null,
-            ['language' => $language, 'synced_fields' => array_keys($result)],
-        );
+            $externalId = $result['product_id'] ?? null;
 
-        return $result;
+            $this->logSync(
+                $connection,
+                'product_push',
+                'product',
+                $product->id,
+                'success',
+                $externalId,
+                null,
+                [
+                    'language'      => $language,
+                    'sku'           => $product->sku,
+                    'product_name'  => $product->name,
+                    'synced_fields' => $result['synced_data'] ?? array_keys($result),
+                ],
+            );
+
+            return $result;
+        } catch (\Illuminate\Http\Client\RequestException $e) {
+            $errorDetail = $this->parseShopwareError($e);
+
+            $this->logSync(
+                $connection,
+                'product_push',
+                'product',
+                $product->id,
+                'failed',
+                null,
+                $errorDetail,
+                [
+                    'language'     => $language,
+                    'sku'          => $product->sku,
+                    'product_name' => $product->name,
+                    'http_status'  => $e->response?->status(),
+                ],
+            );
+
+            throw $e;
+        }
+    }
+
+    /**
+     * Parst Shopware API-Fehler in eine lesbare Meldung.
+     */
+    private function parseShopwareError(\Illuminate\Http\Client\RequestException $e): string
+    {
+        $body = $e->response?->json();
+
+        if (isset($body['errors']) && is_array($body['errors'])) {
+            $messages = [];
+            foreach ($body['errors'] as $error) {
+                $detail = $error['detail'] ?? '';
+                $source = $error['source']['pointer'] ?? '';
+                $code = $error['code'] ?? '';
+
+                if ($source && $detail) {
+                    $messages[] = "{$source}: {$detail}";
+                } elseif ($detail) {
+                    $messages[] = $detail;
+                } elseif ($code) {
+                    $messages[] = $code;
+                }
+            }
+
+            if (!empty($messages)) {
+                return 'Shopware: ' . implode(' | ', $messages);
+            }
+        }
+
+        return 'Shopware HTTP ' . ($e->response?->status() ?? '?') . ': ' . $e->getMessage();
     }
 
     /**
@@ -206,19 +269,35 @@ class ShopwareConnector extends AbstractConnector
                     $this->logSync(
                         $connection, 'profile_sync', 'product',
                         $product->id, 'success', $externalId, null,
-                        ['language' => $language, 'synced_fields' => $productResult['synced_data'] ?? []],
+                        [
+                            'language'      => $language,
+                            'sku'           => $product->sku,
+                            'product_name'  => $product->name,
+                            'synced_fields' => $productResult['synced_data'] ?? [],
+                        ],
                     );
 
                     $result['products']['success']++;
                 } catch (\Throwable $e) {
+                    $errorDetail = $e instanceof \Illuminate\Http\Client\RequestException
+                        ? $this->parseShopwareError($e)
+                        : $e->getMessage();
+
                     $this->logSync(
                         $connection, 'profile_sync', 'product',
-                        $product->id, 'failed', null, $e->getMessage(),
+                        $product->id, 'failed', null, $errorDetail,
+                        [
+                            'sku'          => $product->sku,
+                            'product_name' => $product->name,
+                            'http_status'  => $e instanceof \Illuminate\Http\Client\RequestException
+                                ? $e->response?->status()
+                                : null,
+                        ],
                     );
                     $result['products']['failed']++;
 
-                    Log::channel('connectors')->error("Profil-Sync fehlgeschlagen: {$product->id}", [
-                        'error' => $e->getMessage(),
+                    Log::channel('connectors')->error("Profil-Sync fehlgeschlagen: {$product->sku}", [
+                        'error' => $errorDetail,
                     ]);
                 }
             }
