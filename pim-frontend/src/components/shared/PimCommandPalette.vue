@@ -50,6 +50,7 @@ const allItems = computed(() => {
       description: t('cmd.desc.dashboard'),
       keywords: ['dashboard', 'startseite', 'übersicht', 'home', 'start', 'statistik', 'overview'],
       section: 'navigation', action: () => router.push('/dashboard'),
+      permission: 'dashboard.view',
     },
     {
       id: 'nav-quick-search', icon: Zap,
@@ -57,6 +58,7 @@ const allItems = computed(() => {
       description: t('cmd.desc.quickSearch'),
       keywords: ['schnellsuche', 'quick search', 'instant', 'sofort', 'schnell', 'fast', 'google', 'finden', 'suche'],
       section: 'navigation', action: () => router.push('/quick-search'),
+      permission: 'search.view',
     },
     {
       id: 'nav-search', icon: Search,
@@ -64,6 +66,7 @@ const allItems = computed(() => {
       description: t('cmd.desc.search'),
       keywords: ['profisuche', 'suche', 'search', 'finden', 'find', 'pql', 'query', 'abfrage', 'filtern', 'erweitert'],
       section: 'navigation', action: () => router.push('/search'),
+      permission: 'search.view',
     },
     {
       id: 'nav-products', icon: Package,
@@ -71,6 +74,7 @@ const allItems = computed(() => {
       description: t('cmd.desc.products'),
       keywords: ['produkt', 'product', 'artikel', 'item', 'ware', 'produkte', 'produktliste', 'sku'],
       section: 'navigation', action: () => router.push('/products'),
+      permission: 'products.view',
     },
     {
       id: 'nav-watchlist', icon: Star,
@@ -78,6 +82,7 @@ const allItems = computed(() => {
       description: t('cmd.desc.watchlist'),
       keywords: ['merkliste', 'watchlist', 'favorit', 'bookmark', 'gemerkt', 'vorgemerkt'],
       section: 'navigation', action: () => router.push('/watchlist'),
+      permission: 'watchlist.view',
     },
     {
       id: 'nav-workflow', icon: ClipboardList,
@@ -85,6 +90,7 @@ const allItems = computed(() => {
       description: t('cmd.desc.workflow'),
       keywords: ['workflow', 'aufgabe', 'task', 'freigabe', 'approval', 'todo', 'genehmigung'],
       section: 'navigation', action: () => router.push('/workflow'),
+      permission: 'workflow.view',
     },
     {
       id: 'nav-hierarchies', icon: GitBranch,
@@ -92,6 +98,7 @@ const allItems = computed(() => {
       description: t('cmd.desc.hierarchies'),
       keywords: ['hierarchie', 'hierarchy', 'kategorie', 'category', 'baum', 'tree', 'struktur', 'navigation', 'zuordnung'],
       section: 'navigation', action: () => router.push('/hierarchies'),
+      permission: 'hierarchies.view',
     },
     {
       id: 'nav-media', icon: Image,
@@ -99,6 +106,7 @@ const allItems = computed(() => {
       description: t('cmd.desc.media'),
       keywords: ['medien', 'media', 'bild', 'image', 'foto', 'photo', 'datei', 'file', 'dokument', 'document', 'asset', 'upload'],
       section: 'navigation', action: () => router.push('/media'),
+      permission: 'media.view',
     },
     {
       id: 'nav-media-usage-types', icon: Tags,
@@ -106,6 +114,7 @@ const allItems = computed(() => {
       description: t('cmd.desc.mediaUsageTypes'),
       keywords: ['bildtyp', 'image type', 'usage', 'verwendung', 'kanal', 'channel', 'web', 'print'],
       section: 'navigation', action: () => router.push('/media-usage-types'),
+      permission: 'media-usage-types.view',
     },
     {
       id: 'nav-reports', icon: FileBarChart,
@@ -113,7 +122,7 @@ const allItems = computed(() => {
       description: t('cmd.desc.reports'),
       keywords: ['bericht', 'report', 'auswertung', 'analyse', 'analysis', 'statistik', 'chart'],
       section: 'navigation', action: () => router.push('/reports'),
-      module: 'reports',
+      module: 'reports', permission: 'reports.view',
     },
     {
       id: 'nav-pdf-templates', icon: FileText,
@@ -121,7 +130,7 @@ const allItems = computed(() => {
       description: t('cmd.desc.pdfTemplates'),
       keywords: ['pdf', 'vorlage', 'template', 'datenblatt', 'datasheet', 'drucken', 'print'],
       section: 'navigation', action: () => router.push('/pdf-templates'),
-      module: 'pdf_templates',
+      module: 'pdf_templates', permission: 'pdf-templates.view',
     },
     {
       id: 'nav-catalog-templates', icon: LayoutTemplate,
@@ -136,7 +145,7 @@ const allItems = computed(() => {
       description: t('cmd.desc.apiDesigner'),
       keywords: ['api', 'designer', 'endpoint', 'schnittstelle', 'rest', 'json'],
       section: 'navigation', action: () => router.push('/api-designer'),
-      module: 'api_designer',
+      module: 'api_designer', permission: 'api-templates.view',
     },
     {
       id: 'nav-calendar', icon: CalendarDays,
@@ -144,6 +153,7 @@ const allItems = computed(() => {
       description: t('cmd.desc.calendar'),
       keywords: ['kalender', 'calendar', 'planung', 'schedule', 'termin', 'datum', 'zeitplan'],
       section: 'navigation', action: () => router.push('/calendar'),
+      permission: 'calendar.view',
     },
 
     // ── Navigation: Projektmanagement ──
@@ -153,6 +163,7 @@ const allItems = computed(() => {
       description: t('cmd.desc.projectDashboard'),
       keywords: ['projekt', 'project', 'dashboard', 'übersicht', 'fortschritt', 'progress'],
       section: 'navigation', action: () => router.push('/project-dashboard'),
+      permission: 'dashboard.view',
     },
     {
       id: 'nav-workflows', icon: GitBranch,
@@ -160,6 +171,7 @@ const allItems = computed(() => {
       description: t('cmd.desc.workflows'),
       keywords: ['workflow', 'prozess', 'process', 'regel', 'rule', 'automatisierung', 'automation'],
       section: 'navigation', action: () => router.push('/workflows'),
+      permission: 'workflows.view',
     },
     {
       id: 'nav-workflow-statuses', icon: Zap,
@@ -167,6 +179,7 @@ const allItems = computed(() => {
       description: t('cmd.desc.workflowStatuses'),
       keywords: ['workflow', 'status', 'zustand', 'state', 'phase'],
       section: 'navigation', action: () => router.push('/workflow-statuses'),
+      permission: 'workflow-statuses.view',
     },
     {
       id: 'nav-teams', icon: Users,
@@ -174,6 +187,7 @@ const allItems = computed(() => {
       description: t('cmd.desc.teams'),
       keywords: ['team', 'gruppe', 'group', 'mitarbeiter', 'member'],
       section: 'navigation', action: () => router.push('/teams'),
+      permission: 'teams.view',
     },
     {
       id: 'nav-projects', icon: FolderTree,
@@ -181,6 +195,7 @@ const allItems = computed(() => {
       description: t('cmd.desc.projects'),
       keywords: ['projekt', 'project', 'vorhaben', 'aufgabe'],
       section: 'navigation', action: () => router.push('/projects'),
+      permission: 'projects.view',
     },
 
     // ── Plugins & Connectoren ──
@@ -240,6 +255,7 @@ const allItems = computed(() => {
       description: t('cmd.desc.manufacturers'),
       keywords: ['hersteller', 'manufacturer', 'marke', 'brand', 'lieferant', 'supplier'],
       section: 'config', action: () => router.push('/manufacturers'),
+      permission: 'manufacturers.view',
     },
     {
       id: 'cfg-product-types', icon: Layers,
@@ -247,6 +263,7 @@ const allItems = computed(() => {
       description: t('cmd.desc.productTypes'),
       keywords: ['produkttyp', 'product type', 'schablone', 'template', 'typ', 'type', 'kategorie'],
       section: 'config', action: () => router.push('/product-types'),
+      permission: 'product-types.view',
     },
     {
       id: 'cfg-relation-types', icon: Link2,
@@ -254,6 +271,7 @@ const allItems = computed(() => {
       description: t('cmd.desc.relationTypes'),
       keywords: ['beziehung', 'relation', 'verknüpfung', 'link', 'cross-sell', 'upsell', 'zubehör', 'accessory'],
       section: 'config', action: () => router.push('/relation-types'),
+      permission: 'relation-types.view',
     },
     {
       id: 'cfg-attribute-views', icon: LayoutGrid,
@@ -261,6 +279,7 @@ const allItems = computed(() => {
       description: t('cmd.desc.attributeViews'),
       keywords: ['attribut-sicht', 'attribute view', 'sicht', 'view', 'ansicht', 'rolle', 'role'],
       section: 'config', action: () => router.push('/attribute-views'),
+      permission: 'attribute-views.view',
     },
     {
       id: 'cfg-attribute-types', icon: FolderTree,
@@ -268,6 +287,7 @@ const allItems = computed(() => {
       description: t('cmd.desc.attributeTypes'),
       keywords: ['attributgruppe', 'attribute group', 'gruppe', 'group', 'kategorie', 'strukturierung'],
       section: 'config', action: () => router.push('/attribute-types'),
+      permission: 'attribute-types.view',
     },
     {
       id: 'cfg-attributes', icon: Sliders,
@@ -275,6 +295,7 @@ const allItems = computed(() => {
       description: t('cmd.desc.attributes'),
       keywords: ['attribut', 'attribute', 'eigenschaft', 'property', 'merkmal', 'feld', 'field', 'stammdaten', 'master data'],
       section: 'config', action: () => router.push('/attributes'),
+      permission: 'attributes.view',
     },
     {
       id: 'cfg-value-lists', icon: Database,
@@ -282,6 +303,7 @@ const allItems = computed(() => {
       description: t('cmd.desc.valueLists'),
       keywords: ['werteliste', 'value list', 'auswahl', 'dropdown', 'select', 'option', 'liste', 'list', 'enum'],
       section: 'config', action: () => router.push('/value-lists'),
+      permission: 'value-lists.view',
     },
     {
       id: 'cfg-dictionary', icon: BookOpen,
@@ -289,6 +311,7 @@ const allItems = computed(() => {
       description: t('cmd.desc.dictionary'),
       keywords: ['wörterbuch', 'dictionary', 'glossar', 'glossary', 'begriff', 'term', 'übersetzung', 'translation'],
       section: 'config', action: () => router.push('/dictionary'),
+      permission: 'dictionary.view',
     },
     {
       id: 'cfg-units', icon: Ruler,
@@ -296,6 +319,7 @@ const allItems = computed(() => {
       description: t('cmd.desc.units'),
       keywords: ['einheit', 'unit', 'maß', 'measurement', 'kg', 'mm', 'cm', 'liter', 'meter', 'stück'],
       section: 'config', action: () => router.push('/units'),
+      permission: 'units.view',
     },
     {
       id: 'cfg-comparison-operators', icon: ArrowRightLeft,
@@ -303,6 +327,7 @@ const allItems = computed(() => {
       description: 'Vergleichsoperatoren und -gruppen für Produktvergleiche',
       keywords: ['vergleich', 'comparison', 'operator', 'größer', 'kleiner', 'gleich', 'filter'],
       section: 'config', action: () => router.push('/comparison-operators'),
+      permission: 'units.view',
     },
     {
       id: 'cfg-prices', icon: DollarSign,
@@ -310,6 +335,7 @@ const allItems = computed(() => {
       description: t('cmd.desc.prices'),
       keywords: ['preis', 'price', 'kosten', 'cost', 'betrag', 'amount', 'währung', 'currency', 'eur', 'euro'],
       section: 'config', action: () => router.push('/prices'),
+      permission: 'prices.view',
     },
     {
       id: 'cfg-price-regions', icon: Globe,
@@ -317,6 +343,7 @@ const allItems = computed(() => {
       description: t('cmd.desc.priceRegions'),
       keywords: ['preisregion', 'price region', 'region', 'zone', 'markt', 'market', 'land', 'country'],
       section: 'config', action: () => router.push('/price-regions'),
+      permission: 'price-regions.view',
     },
     {
       id: 'cfg-translations', icon: Languages,
@@ -324,6 +351,7 @@ const allItems = computed(() => {
       description: t('cmd.desc.translations'),
       keywords: ['übersetzung', 'translation', 'sprache', 'language', 'i18n', 'mehrsprachig', 'multilingual', 'lokalisierung', 'tms', 'memory'],
       section: 'config', action: () => router.push('/translations'),
+      permission: 'translations.view',
     },
     {
       id: 'cfg-translation-jobs', icon: Languages,
@@ -331,6 +359,7 @@ const allItems = computed(() => {
       description: 'Übersetzungsjobs erstellen, verwalten und freigeben',
       keywords: ['übersetzungsjob', 'translation job', 'deepl', 'übersetzen', 'translate', 'batch'],
       section: 'config', action: () => router.push('/translation-jobs'),
+      permission: 'translations.view',
     },
 
     // ── Administration ──
@@ -340,7 +369,7 @@ const allItems = computed(() => {
       description: t('cmd.desc.imports'),
       keywords: ['import', 'hochladen', 'upload', 'einlesen', 'csv', 'excel', 'xlsx', 'daten laden', 'datei'],
       section: 'admin', action: () => router.push('/imports'),
-      permission: 'users.view',
+      permission: 'imports.view',
     },
     {
       id: 'adm-exports', icon: Download,
@@ -348,7 +377,7 @@ const allItems = computed(() => {
       description: t('cmd.desc.exports'),
       keywords: ['export', 'herunterladen', 'download', 'ausgeben', 'csv', 'excel', 'xlsx', 'daten'],
       section: 'admin', action: () => router.push('/exports'),
-      permission: 'users.view',
+      permission: 'export.view',
     },
     {
       id: 'adm-json-export-import', icon: FileJson,
@@ -356,6 +385,7 @@ const allItems = computed(() => {
       description: t('cmd.desc.jsonExportImport'),
       keywords: ['json', 'backup', 'sicherung', 'restore', 'wiederherstellen', 'konfiguration', 'config'],
       section: 'admin', action: () => router.push('/json-export-import'),
+      permission: 'json-export-import.view',
     },
     {
       id: 'adm-bmecat', icon: FileCode,
@@ -363,7 +393,7 @@ const allItems = computed(() => {
       description: t('cmd.desc.bmecatExportImport'),
       keywords: ['bmecat', 'bme', 'standard', 'etim', 'eclass', 'klassifikation'],
       section: 'admin', action: () => router.push('/bmecat-import-export'),
-      module: 'bmecat',
+      module: 'bmecat', permission: 'bmecat.view',
     },
     {
       id: 'adm-excel-designer', icon: FileSpreadsheet,
@@ -371,7 +401,7 @@ const allItems = computed(() => {
       description: 'Excel-Vorlagen und Spaltenzuordnungen gestalten',
       keywords: ['excel', 'sheet', 'designer', 'vorlage', 'template', 'spalte', 'column', 'xlsx', 'tabelle'],
       section: 'admin', action: () => router.push('/excel-designer'),
-      module: 'excel_designer',
+      module: 'excel_designer', permission: 'export.view',
     },
     {
       id: 'adm-export-jobs', icon: PlayCircle,
@@ -379,7 +409,7 @@ const allItems = computed(() => {
       description: t('cmd.desc.exportJobs'),
       keywords: ['export-job', 'export job', 'automatisch', 'automatic', 'zeitgesteuert', 'scheduled', 'cron'],
       section: 'admin', action: () => router.push('/export-jobs'),
-      module: 'advanced_export',
+      module: 'advanced_export', permission: 'export-jobs.view',
     },
     {
       id: 'adm-attribute-mappings', icon: ArrowRightLeft,
@@ -402,7 +432,7 @@ const allItems = computed(() => {
       description: t('cmd.desc.settings'),
       keywords: ['einstellung', 'setting', 'config', 'konfiguration', 'option', 'sprache', 'language', 'darstellung', 'theme', 'system'],
       section: 'admin', action: () => router.push('/settings'),
-      permission: 'users.view',
+      permission: 'settings.view',
     },
     {
       id: 'adm-users', icon: Users,
@@ -482,7 +512,7 @@ const allItems = computed(() => {
       description: t('cmd.desc.journal'),
       keywords: ['journal', 'änderung', 'change', 'protokoll', 'log', 'history', 'historie', 'verlauf'],
       section: 'admin', action: () => router.push('/journal'),
-      permission: 'users.view',
+      permission: 'journal.view',
     },
     {
       id: 'nav-help', icon: HelpCircle,
