@@ -14,7 +14,7 @@ use Illuminate\Http\Client\PendingRequest;
 class ShopwareProductService
 {
     /**
-     * Synchronisiert ein PIM-Produkt nach Shopware 6.
+     * Synchronisiert ein PIM-Produkt nach Shopware 6 (Legacy-Pfad ohne Profil).
      */
     public function syncProduct(
         PendingRequest $http,
@@ -26,7 +26,6 @@ class ShopwareProductService
         $shopUrl = rtrim($shopUrl, '/');
         $productData = $this->collectProductData($product, $language, $options);
 
-        // Upsert via Shopware Sync API (requires named operations)
         $response = $http->post("{$shopUrl}/api/_action/sync", [
             'write-product' => [
                 'action'  => 'upsert',
@@ -47,9 +46,9 @@ class ShopwareProductService
 
     /**
      * Synchronisiert ein Produkt anhand des Export-Profils (WebsiteProfile + shopware_fields).
-     */
-    /**
-     * @param  array  $properties  Shopware-Properties: [['id' => 'option-uuid'], ...]
+     *
+     * @param  array       $properties  Shopware-Properties: [['id' => 'option-uuid'], ...]
+     * @param  string|null $categoryId  Shopware-Kategorie-UUID für die Zuordnung
      */
     public function syncProductFromProfile(
         PendingRequest $http,
@@ -64,12 +63,10 @@ class ShopwareProductService
         $shopUrl = rtrim($shopUrl, '/');
         $productData = $this->collectProfileProductData($product, $profilePayload, $shopwareFields, $language);
 
-        // Properties (aus ShopwarePropertyService)
         if (!empty($properties)) {
             $productData['properties'] = $properties;
         }
 
-        // Kategorie-Zuordnung direkt im Product-Payload (funktioniert mit upsert)
         if ($categoryId) {
             $productData['categories'] = [['id' => $categoryId]];
         }
@@ -94,8 +91,6 @@ class ShopwareProductService
 
     /**
      * Erstellt eine Vorschau der Produktdaten ohne API-Aufruf (Dry Run).
-     *
-     * @return array  Das Shopware-Payload das gesendet würde
      */
     public function previewProductData(
         Product $product,
@@ -122,7 +117,6 @@ class ShopwareProductService
         array $shopwareFields,
         string $language,
     ): array {
-        // Deterministische Shopware-UUID aus PIM-Product-ID (ohne Bindestriche)
         $shopwareProductId = str_replace('-', '', $product->id);
 
         $data = [
@@ -139,7 +133,10 @@ class ShopwareProductService
             'ean'    => $product->ean,
         ];
 
-        // Shopware-Pflichtfelder auflösen (name, tax_id, manufacturer_id, ean, etc.)
+        // Keys die intern sind und nicht als Shopware-Felder behandelt werden
+        $internalKeys = ['_property_attribute_ids', '_sync_media', 'price', 'description', 'list_price', 'purchase_price'];
+
+        // Shopware-Pflichtfelder auflösen
         // Keys werden von snake_case in camelCase konvertiert (Shopware API erwartet camelCase)
         $fieldKeyMap = [
             'tax_id'           => 'taxId',
@@ -147,18 +144,22 @@ class ShopwareProductService
             'currency_id'      => 'currencyId',
             'meta_title'       => 'metaTitle',
             'meta_description' => 'metaDescription',
-            'purchase_price'   => 'purchasePrice',
         ];
+
         foreach ($shopwareFields as $swField => $mapping) {
-            // price, description, list_price werden separat behandelt
-            if (in_array($swField, ['price', 'description', 'list_price'], true)) {
+            // Interne Keys und separat behandelte Felder überspringen
+            if (in_array($swField, $internalKeys, true) || str_starts_with($swField, '_')) {
                 continue;
             }
 
-            $mode = $mapping['mode'] ?? 'default';
+            // Mapping muss ein Array mit 'mode' sein
+            if (!is_array($mapping) || !isset($mapping['mode'])) {
+                continue;
+            }
+
+            $mode = $mapping['mode'];
 
             if ($mode === 'default') {
-                // Standard-Wert aus PIM-Stammdaten verwenden
                 $value = $fieldDefaults[$swField] ?? null;
             } else {
                 $value = $this->resolveFieldMapping($product, $mapping, $language);
@@ -172,10 +173,9 @@ class ShopwareProductService
 
         // Beschreibung — steuerbar über shopware_fields['description']
         $descMapping = $shopwareFields['description'] ?? ['mode' => 'default'];
-        $descMode = $descMapping['mode'] ?? 'default';
+        $descMode = is_array($descMapping) ? ($descMapping['mode'] ?? 'default') : 'default';
 
         if ($descMode === 'default') {
-            // Standard: description_attributes aus Vorschau-Profil
             $descriptionAttrs = $profilePayload['description_attributes'] ?? [];
             if (!empty($descriptionAttrs)) {
                 $descAttrIds = array_column($descriptionAttrs, 'attribute_id');
@@ -193,7 +193,6 @@ class ShopwareProductService
                 $data['description'] = $fixedDesc;
             }
         } elseif ($descMode === 'attributes') {
-            // Mehrere Attribute verketten
             $descAttrIds = $descMapping['attribute_ids'] ?? [];
             if (!empty($descAttrIds)) {
                 $descParts = $this->resolveAttributeValues($product, $descAttrIds, $language);
@@ -205,7 +204,6 @@ class ShopwareProductService
                 }
             }
         } elseif ($descMode === 'attribute') {
-            // Einzelnes Attribut als Beschreibung
             $value = $this->resolveFieldMapping($product, $descMapping, $language);
             if ($value) {
                 $data['description'] = $value;
@@ -218,7 +216,6 @@ class ShopwareProductService
             ->with(['attribute', 'valueListEntry', 'unit']);
 
         if ($allowedAttributeIds !== null) {
-            // Nur Attribute aus den konfigurierten Sichten
             $customFieldQuery->whereIn('attribute_id', $allowedAttributeIds);
         }
 
@@ -242,11 +239,10 @@ class ShopwareProductService
 
         // Preis — steuerbar über shopware_fields['price']
         $priceMapping = $shopwareFields['price'] ?? ['mode' => 'default'];
-        $priceMode = $priceMapping['mode'] ?? 'default';
+        $priceMode = is_array($priceMapping) ? ($priceMapping['mode'] ?? 'default') : 'default';
 
         $price = null;
         if ($priceMode === 'default') {
-            // Standard: Preis aus Vorschau-Profil, dann Fallback auf ersten Preis
             $priceTypeId = $profilePayload['card_price_type_id'] ?? null;
             $priceCountry = $profilePayload['card_price_country'] ?? null;
             if ($priceTypeId) {
@@ -262,26 +258,23 @@ class ShopwareProductService
                 }
             }
         } elseif ($priceMode === 'fixed') {
-            // Fester Preis
             $fixedAmount = (float) ($priceMapping['value'] ?? 0);
             if ($fixedAmount > 0) {
                 $price = ['amount' => $fixedAmount, 'currency' => 'EUR'];
             }
         } elseif ($priceMode === 'attribute') {
-            // Preis aus einem Attribut lesen
-            $attrId = $priceMapping['attribute_id'] ?? null;
-            if ($attrId) {
-                $attrValue = $this->resolveFieldMapping($product, $priceMapping, $language);
-                $amount = is_numeric($attrValue) ? (float) $attrValue : 0;
-                if ($amount > 0) {
-                    $price = ['amount' => $amount, 'currency' => 'EUR'];
-                }
+            $attrValue = $this->resolveFieldMapping($product, $priceMapping, $language);
+            $amount = is_numeric($attrValue) ? (float) $attrValue : 0;
+            if ($amount > 0) {
+                $price = ['amount' => $amount, 'currency' => 'EUR'];
             }
         }
 
         if ($price) {
-            $taxRate = 19; // Standard-MwSt
-            $currencyId = $shopwareFields['currency_id']['value'] ?? 'b7d2554b0ce847cd82f3ac9bd1c0dfca';
+            $taxRate = 19;
+            $currencyMapping = $shopwareFields['currency_id'] ?? [];
+            $currencyId = is_array($currencyMapping) ? ($currencyMapping['value'] ?? 'b7d2554b0ce847cd82f3ac9bd1c0dfca') : 'b7d2554b0ce847cd82f3ac9bd1c0dfca';
+
             $priceEntry = [
                 'currencyId' => $currencyId,
                 'gross'      => $price['amount'],
@@ -289,9 +282,9 @@ class ShopwareProductService
                 'linked'     => true,
             ];
 
-            // Listenpreis (UVP) — optional
+            // Listenpreis (UVP)
             $listPriceMapping = $shopwareFields['list_price'] ?? null;
-            if ($listPriceMapping) {
+            if (is_array($listPriceMapping) && isset($listPriceMapping['mode'])) {
                 $listAmount = $this->resolveNumericField($product, $listPriceMapping, $language);
                 if ($listAmount > 0) {
                     $priceEntry['listPrice'] = [
@@ -305,9 +298,9 @@ class ShopwareProductService
 
             $data['price'] = [$priceEntry];
 
-            // Einkaufspreis — separates Feld auf dem Produkt, nicht im price-Array
+            // Einkaufspreis
             $purchaseMapping = $shopwareFields['purchase_price'] ?? null;
-            if ($purchaseMapping) {
+            if (is_array($purchaseMapping) && isset($purchaseMapping['mode'])) {
                 $purchaseAmount = $this->resolveNumericField($product, $purchaseMapping, $language);
                 if ($purchaseAmount > 0) {
                     $data['purchasePrice'] = $purchaseAmount;
@@ -345,7 +338,10 @@ class ShopwareProductService
             return $mapping['value'] ?? null;
         }
 
-        // mode === 'attribute'
+        if ($mode !== 'attribute') {
+            return null;
+        }
+
         $attributeId = $mapping['attribute_id'] ?? null;
         if (!$attributeId) {
             return null;
@@ -365,8 +361,6 @@ class ShopwareProductService
 
     /**
      * Löst mehrere Attribut-Werte für ein Produkt auf.
-     *
-     * @return array<array{attribute_id: string, technical_name: string, label: string, value: string}>
      */
     private function resolveAttributeValues(Product $product, array $attributeIds, string $language): array
     {
@@ -401,7 +395,6 @@ class ShopwareProductService
             ];
         }
 
-        // Konfigurierte Reihenfolge beibehalten
         usort($result, fn ($a, $b) => $a['order'] - $b['order']);
 
         return $result;
@@ -440,7 +433,7 @@ class ShopwareProductService
     }
 
     /**
-     * Attribut-Wert als String auflösen (analog CatalogController::resolveExportAttributeValue).
+     * Attribut-Wert als String auflösen.
      */
     private function resolveAttributeValueString($attrValue, $attr, string $lang): ?string
     {
@@ -482,49 +475,6 @@ class ShopwareProductService
     }
 
     /**
-     * Ermittelt die erlaubten Attribut-IDs basierend auf Profil-Einstellungen.
-     *
-     * Nutzt die gleiche Logik wie der Katalog: attribute_view_ids → Attribute aus diesen Sichten.
-     * Wenn keine Views konfiguriert sind → alle Attribute (return null).
-     *
-     * @return array<string>|null  null = alle Attribute erlaubt
-     */
-    public function resolveAllowedAttributeIds(Product $product, array $profilePayload): ?array
-    {
-        $attributeViewIds = $profilePayload['attribute_view_ids'] ?? [];
-
-        if (empty($attributeViewIds)) {
-            return null; // Alle Attribute
-        }
-
-        $viewAttributeIds = AttributeViewAssignment::whereIn('attribute_view_id', $attributeViewIds)
-            ->pluck('attribute_id')
-            ->unique();
-
-        return $viewAttributeIds->toArray();
-    }
-
-    /**
-     * Ermittelt die Selection-Attribut-IDs aus den erlaubten Attributen (für Properties).
-     *
-     * @return array<string>  IDs der Selection-Attribute
-     */
-    public function resolvePropertyAttributeIds(Product $product, array $profilePayload): array
-    {
-        $allowedIds = $this->resolveAllowedAttributeIds($product, $profilePayload);
-
-        $query = Attribute::where('data_type', 'Selection')
-            ->whereNotNull('value_list_id')
-            ->where('is_internal', false);
-
-        if ($allowedIds !== null) {
-            $query->whereIn('id', $allowedIds);
-        }
-
-        return $query->pluck('id')->toArray();
-    }
-
-    /**
      * Holt die Standard-Steuer-ID von Shopware (erste verfügbare Tax).
      */
     public function fetchDefaultTaxId(PendingRequest $http, string $shopUrl): ?string
@@ -546,7 +496,44 @@ class ShopwareProductService
     }
 
     /**
-     * Sammelt Produktdaten für das Shopware-Format (Legacy ohne Profil).
+     * Ermittelt die erlaubten Attribut-IDs basierend auf Profil-Einstellungen.
+     *
+     * @return array<string>|null  null = alle Attribute erlaubt
+     */
+    public function resolveAllowedAttributeIds(Product $product, array $profilePayload): ?array
+    {
+        $attributeViewIds = $profilePayload['attribute_view_ids'] ?? [];
+
+        if (empty($attributeViewIds)) {
+            return null;
+        }
+
+        return AttributeViewAssignment::whereIn('attribute_view_id', $attributeViewIds)
+            ->pluck('attribute_id')
+            ->unique()
+            ->toArray();
+    }
+
+    /**
+     * Ermittelt die Selection-Attribut-IDs aus den erlaubten Attributen (für Properties).
+     */
+    public function resolvePropertyAttributeIds(Product $product, array $profilePayload): array
+    {
+        $allowedIds = $this->resolveAllowedAttributeIds($product, $profilePayload);
+
+        $query = Attribute::where('data_type', 'Selection')
+            ->whereNotNull('value_list_id')
+            ->where('is_internal', false);
+
+        if ($allowedIds !== null) {
+            $query->whereIn('id', $allowedIds);
+        }
+
+        return $query->pluck('id')->toArray();
+    }
+
+    /**
+     * Legacy: Sammelt Produktdaten ohne Profil.
      */
     private function collectProductData(Product $product, string $language, array $options): array
     {
@@ -559,12 +546,10 @@ class ShopwareProductService
             'taxId'         => $options['tax_id'] ?? $options['_default_tax_id'] ?? null,
         ];
 
-        // EAN
         if ($product->ean) {
             $data['ean'] = $product->ean;
         }
 
-        // Attribute als customFields
         $attributeCodes = $options['attributes'] ?? null;
         $query = $product->attributeValues()
             ->with('attribute')
@@ -580,7 +565,9 @@ class ShopwareProductService
 
         foreach ($query->get() as $av) {
             $code = $av->attribute->code ?? null;
-            if (! $code) continue;
+            if (!$code) {
+                continue;
+            }
 
             if (in_array($code, ['description', 'beschreibung', 'long_description'])) {
                 $description = $av->value_string;
@@ -594,15 +581,12 @@ class ShopwareProductService
             $data['description'] = $description;
         }
 
-        if (! empty($customFields)) {
+        if (!empty($customFields)) {
             $data['customFields'] = $customFields;
         }
 
-        // Preise
         if ($options['include_prices'] ?? true) {
-            $prices = $product->prices()
-                ->with(['priceType', 'priceRegion'])
-                ->get();
+            $prices = $product->prices()->get();
 
             if ($prices->isNotEmpty()) {
                 $price = $prices->first();
