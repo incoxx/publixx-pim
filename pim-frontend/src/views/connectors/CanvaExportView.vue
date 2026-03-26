@@ -286,7 +286,7 @@ async function executeExport() {
         <button class="pim-btn pim-btn-ghost px-2 py-1.5" @click="router.push('/connectors/canva')">
           <ArrowLeft class="w-4 h-4" :stroke-width="1.75" />
         </button>
-        <Send class="w-5 h-5 text-purple-500" :stroke-width="1.75" />
+        <Send class="w-5 h-5 text-primary" :stroke-width="1.75" />
         <div>
           <h1 class="text-base font-bold text-[var(--color-text-primary)]">Canva Export</h1>
           <p class="text-[11px] text-[var(--color-text-tertiary)]">Produkte an Canva senden und Designs erstellen</p>
@@ -295,7 +295,7 @@ async function executeExport() {
     </div>
 
     <!-- Fehler -->
-    <div v-if="error" class="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+    <div v-if="error" class="alert alert-error text-sm">
       {{ error }}
       <button class="ml-2 underline text-xs" @click="error = ''">schließen</button>
     </div>
@@ -426,7 +426,7 @@ async function executeExport() {
                     <span class="ml-2 text-[var(--color-text-tertiary)]">{{ p.sku }}</span>
                   </div>
                   <button
-                    class="text-[var(--color-error)] hover:text-red-700 p-1"
+                    class="text-error hover:text-error/80 p-1"
                     @click="removeProduct(p.id)"
                   >
                     <XCircle class="w-3.5 h-3.5" :stroke-width="1.75" />

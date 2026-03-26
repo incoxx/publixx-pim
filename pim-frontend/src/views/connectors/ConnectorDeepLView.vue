@@ -73,7 +73,7 @@ async function deleteConnection(id) {
   <div class="space-y-6 max-w-5xl mx-auto">
     <div class="flex items-center justify-between">
       <div class="flex items-center gap-3">
-        <Languages class="w-6 h-6 text-blue-500" />
+        <Languages class="w-6 h-6 text-primary" />
         <div>
           <h1 class="text-xl font-bold">DeepL</h1>
           <p class="text-sm text-[var(--color-text-secondary)]">Automatische Übersetzung von Produkttexten</p>

@@ -87,7 +87,7 @@ async function deleteConnection(id) {
   <div class="space-y-6 max-w-5xl mx-auto">
     <div class="flex items-center justify-between">
       <div class="flex items-center gap-3">
-        <Package class="w-6 h-6 text-blue-600" />
+        <Package class="w-6 h-6 text-primary" />
         <div>
           <h1 class="text-xl font-bold">Shopware 6</h1>
           <p class="text-sm text-base-content/60">Produkte und Medien in den Shop synchronisieren</p>

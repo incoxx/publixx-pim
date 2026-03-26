@@ -79,7 +79,7 @@ async function deleteConnection(id) {
     <!-- Header -->
     <div class="flex items-center justify-between">
       <div class="flex items-center gap-3">
-        <Send class="w-6 h-6 text-purple-500" />
+        <Send class="w-6 h-6 text-primary" />
         <div>
           <h1 class="text-xl font-bold">Canva</h1>
           <p class="text-sm text-base-content/60">Assets hochladen und Designs erstellen</p>
