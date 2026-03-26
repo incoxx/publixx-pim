@@ -33,6 +33,10 @@ export default {
     return client.get(`/media/${id}/dependencies`)
   },
 
+  usage(id, { page = 1, perPage = 20 } = {}) {
+    return client.get(`/media/${id}/usage`, { params: { page, per_page: perPage } })
+  },
+
   delete(id, { force = false } = {}) {
     return client.delete(`/media/${id}`, { params: force ? { force: true } : {} })
   },

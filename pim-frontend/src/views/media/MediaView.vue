@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { Upload, Image, Grid, List, Trash2, FolderOpen, FolderPlus, Search, X, Plus, MoveRight, CheckSquare, Link, FileSpreadsheet, FileText, Wand2, Loader2, ChevronLeft, ChevronRight, Download, Copy, History, RefreshCw } from 'lucide-vue-next'
+import { Upload, Image, Grid, List, Trash2, FolderOpen, FolderPlus, Search, X, Plus, MoveRight, CheckSquare, Link, FileSpreadsheet, FileText, Wand2, Loader2, ChevronLeft, ChevronRight, Download, Copy, History, RefreshCw, ExternalLink, Package, FolderTree } from 'lucide-vue-next'
 import mediaApi from '@/api/media'
 import { mediaUsageTypes as mediaUsageTypesApi } from '@/api/mediaUsageTypes'
 import hierarchiesApi from '@/api/hierarchies'
@@ -55,6 +55,32 @@ const contextMenu = ref({ show: false, x: 0, y: 0, node: null })
 const assetAttributes = ref([])
 const assetAttributeValues = ref({})
 const assetAttrsLoading = ref(false)
+
+// Verwendungsnachweis (usage references)
+const usageProducts = ref([])
+const usageNodes = ref([])
+const usageLoading = ref(false)
+const usageProductsTotal = ref(0)
+const usageProductsPage = ref(1)
+const usageProductsLastPage = ref(1)
+
+async function fetchUsage(mediaId, page = 1) {
+  usageLoading.value = true
+  try {
+    const { data } = await mediaApi.usage(mediaId, { page, perPage: 10 })
+    usageProducts.value = data.data.products || []
+    usageNodes.value = data.data.nodes || []
+    usageProductsTotal.value = data.meta.products_total || 0
+    usageProductsPage.value = data.meta.products_current_page || 1
+    usageProductsLastPage.value = data.meta.products_last_page || 1
+  } catch {
+    usageProducts.value = []
+    usageNodes.value = []
+    usageProductsTotal.value = 0
+  } finally {
+    usageLoading.value = false
+  }
+}
 
 // Build filter options
 const filterOptions = computed(() => {
@@ -394,6 +420,7 @@ function openDetail(item) {
   saveError.value = ''
   detailTab.value = 'info'
   loadAssetAttributes(item)
+  fetchUsage(item.id)
   if (item.revision_count > 0) {
     loadRevisions(item.id)
   } else {
@@ -1048,6 +1075,94 @@ onMounted(() => {
             <label class="text-[10px] font-medium text-[var(--color-text-secondary)] uppercase">Abmessungen</label>
             <p class="text-xs text-[var(--color-text-primary)]">{{ detailItem.width }} × {{ detailItem.height }} px</p>
           </div>
+        </div>
+
+        <!-- Verwendungsnachweis -->
+        <div class="border-t border-[var(--color-border)] pt-3 space-y-2">
+          <div class="flex items-center gap-1.5">
+            <Link class="w-3.5 h-3.5 text-[var(--color-text-tertiary)]" :stroke-width="2" />
+            <h4 class="text-[10px] font-medium text-[var(--color-text-secondary)] uppercase tracking-wider">
+              Verwendungsnachweis
+            </h4>
+          </div>
+
+          <!-- Loading -->
+          <div v-if="usageLoading" class="space-y-1.5">
+            <div v-for="i in 3" :key="i" class="pim-skeleton h-8 rounded" />
+          </div>
+
+          <template v-else>
+            <!-- Produkte -->
+            <div v-if="usageProducts.length > 0">
+              <p class="text-[10px] text-[var(--color-text-tertiary)] mb-1">
+                Produkte ({{ usageProductsTotal }})
+              </p>
+              <div class="space-y-1">
+                <a
+                  v-for="prod in usageProducts"
+                  :key="prod.id"
+                  :href="`/web/products/${prod.id}`"
+                  target="_blank"
+                  class="flex items-center gap-2 px-2 py-1.5 rounded bg-[var(--color-bg)] hover:bg-[var(--color-primary)]/5 transition-colors group cursor-pointer text-decoration-none"
+                >
+                  <div class="w-7 h-7 shrink-0 rounded bg-[var(--color-surface)] flex items-center justify-center overflow-hidden">
+                    <img v-if="prod.image_url" :src="prod.image_url" class="w-full h-full object-contain" />
+                    <Package v-else class="w-3.5 h-3.5 text-[var(--color-text-tertiary)]" />
+                  </div>
+                  <div class="min-w-0 flex-1">
+                    <p class="text-[11px] font-medium text-[var(--color-text-primary)] truncate">{{ prod.name || prod.sku }}</p>
+                    <p v-if="prod.sku" class="text-[10px] text-[var(--color-text-tertiary)] truncate">{{ prod.sku }}</p>
+                  </div>
+                  <ExternalLink class="w-3 h-3 text-[var(--color-text-tertiary)] opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                </a>
+              </div>
+              <!-- Pagination -->
+              <div v-if="usageProductsLastPage > 1" class="flex items-center justify-center gap-2 mt-2">
+                <button
+                  class="pim-btn pim-btn-ghost p-1"
+                  :disabled="usageProductsPage <= 1"
+                  @click="fetchUsage(detailItem.id, usageProductsPage - 1)"
+                >
+                  <ChevronLeft class="w-3 h-3" />
+                </button>
+                <span class="text-[10px] text-[var(--color-text-tertiary)]">
+                  {{ usageProductsPage }} / {{ usageProductsLastPage }}
+                </span>
+                <button
+                  class="pim-btn pim-btn-ghost p-1"
+                  :disabled="usageProductsPage >= usageProductsLastPage"
+                  @click="fetchUsage(detailItem.id, usageProductsPage + 1)"
+                >
+                  <ChevronRight class="w-3 h-3" />
+                </button>
+              </div>
+            </div>
+
+            <!-- Hierarchieknoten -->
+            <div v-if="usageNodes.length > 0">
+              <p class="text-[10px] text-[var(--color-text-tertiary)] mb-1">
+                Kategorien / Knoten ({{ usageNodes.length }})
+              </p>
+              <div class="space-y-1">
+                <div
+                  v-for="node in usageNodes"
+                  :key="node.node_id"
+                  class="flex items-center gap-2 px-2 py-1.5 rounded bg-[var(--color-bg)] text-[11px]"
+                >
+                  <FolderTree class="w-3.5 h-3.5 text-[var(--color-text-tertiary)] shrink-0" />
+                  <div class="min-w-0">
+                    <p class="text-[var(--color-text-primary)] truncate">{{ node.node_name }}</p>
+                    <p v-if="node.hierarchy_name" class="text-[10px] text-[var(--color-text-tertiary)] truncate">{{ node.hierarchy_name }}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Keine Verwendung -->
+            <p v-if="usageProducts.length === 0 && usageNodes.length === 0" class="text-[11px] text-[var(--color-text-tertiary)] italic">
+              Nicht verwendet
+            </p>
+          </template>
         </div>
 
         <!-- Asset Attributes (from hierarchy node) -->
