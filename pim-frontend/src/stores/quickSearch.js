@@ -147,7 +147,11 @@ export const useQuickSearchStore = defineStore('quickSearch', () => {
           hasMore: data.has_more ?? false,
           counts: data.counts,
         })
-      }).catch(() => {})
+      }).catch(err => {
+        if (err.name !== 'CanceledError' && err.code !== 'ERR_CANCELED') {
+          console.debug(`Prefetch ${tab} fehlgeschlagen:`, err.message)
+        }
+      })
     }
   }
 
@@ -231,22 +235,22 @@ export const useQuickSearchStore = defineStore('quickSearch', () => {
         limit: 20,
         offset: results.value.length,
       })
-      const { data } = await quickSearchApi.search(params)
+      const loadAbort = new AbortController()
+      const { data } = await quickSearchApi.search(params, loadAbort.signal)
       if (currentRequestId !== requestId) return
 
       const newItems = data.results || []
       results.value = [...results.value, ...newItems]
       hasMore.value = data.has_more ?? false
 
-      // Cache aktualisieren
       cacheSet(activeTab.value, term, {
         items: results.value,
         hasMore: hasMore.value,
-        counts: null, // Counts nicht überschreiben
+        counts: null,
       })
     } catch (err) {
       if (err.name === 'CanceledError' || err.code === 'ERR_CANCELED') return
-      console.error('Nachladen fehlgeschlagen:', err)
+      console.warn('Nachladen fehlgeschlagen:', err)
     } finally {
       if (currentRequestId === requestId) loadingMore.value = false
     }

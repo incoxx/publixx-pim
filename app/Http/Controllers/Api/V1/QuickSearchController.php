@@ -343,7 +343,6 @@ class QuickSearchController extends Controller
                   ->orWhere('pav.language', $lang);
             })
             ->where('pav.multiplied_index', 0) // Nur Hauptwert
-            ->where('pav.is_inherited', false) // Nur direkte Werte
             ->select([
                 'pav.product_id',
                 DB::raw("COALESCE({$nameCol}, a.name_de) as attr_name"),

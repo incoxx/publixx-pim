@@ -36,12 +36,17 @@ onMounted(() => {
   if (sentinelRef.value) observer.observe(sentinelRef.value)
 })
 
-watch(sentinelRef, (el) => {
-  if (observer && el) observer.observe(el)
-})
+// Sentinel bei Änderung: alten unobserven, neuen observen
+watch(sentinelRef, (el, oldEl) => {
+  if (observer) {
+    if (oldEl) observer.unobserve(oldEl)
+    if (el) observer.observe(el)
+  }
+}, { flush: 'post' })
 
 onBeforeUnmount(() => {
   if (observer) observer.disconnect()
+  store.clear()
 })
 
 // ─── Eingabe-Handler ─────────────────────────────────
@@ -77,7 +82,7 @@ function scrollToSelected() {
 
 // ─── Navigation ──────────────────────────────────────
 function openResult(item) {
-  if (!item) return
+  if (!item?.id) return
   const routes = {
     product: `/products/${item.id}`,
     media: `/media`,
@@ -89,42 +94,42 @@ function openResult(item) {
 }
 
 // ─── Drill-Down (Querverweis-Klick) ──────────────────
-function onBadgeClick(item, badgeRef) {
-  if (!badgeRef) return
+function onBadgeClick(item, badge) {
+  if (!badge) return
 
   const drillMap = {
     category: {
       tab: 'hierarchies',
       filter: { category_id: null, attribute_id: null, media_id: null },
-      queryOverride: badgeRef.label,
+      queryOverride: badge.label,
     },
     category_products: {
       tab: 'products',
-      filter: { category_id: badgeRef.id, attribute_id: null, media_id: null },
+      filter: { category_id: badge.id, attribute_id: null, media_id: null },
     },
     attribute_products: {
       tab: 'products',
-      filter: { category_id: null, attribute_id: badgeRef.id, media_id: null },
+      filter: { category_id: null, attribute_id: badge.id, media_id: null },
     },
     attribute_categories: {
       tab: 'hierarchies',
-      filter: { category_id: null, attribute_id: badgeRef.id, media_id: null },
+      filter: { category_id: null, attribute_id: badge.id, media_id: null },
     },
     media_products: {
       tab: 'products',
-      filter: { category_id: null, attribute_id: null, media_id: badgeRef.id },
+      filter: { category_id: null, attribute_id: null, media_id: badge.id },
     },
   }
 
-  const drill = drillMap[badgeRef.type]
+  const drill = drillMap[badge.type]
   if (!drill) return
 
   if (drill.queryOverride) {
-    store.drillDown({ tab: drill.tab, filter: drill.filter, label: badgeRef.label })
+    store.drillDown({ tab: drill.tab, filter: drill.filter, label: badge.label })
     store.query = drill.queryOverride
     store.search()
   } else {
-    store.drillDown({ tab: drill.tab, filter: drill.filter, label: badgeRef.label })
+    store.drillDown({ tab: drill.tab, filter: drill.filter, label: badge.label })
   }
 }
 
@@ -177,7 +182,7 @@ function typeIcon(type) {
         {{ store.activeTab === 'products' ? 'Produkte' : store.activeTab === 'media' ? 'Medien' : store.activeTab === 'hierarchies' ? 'Hierarchien' : 'Attribute' }}
         <span
           v-if="store.hasActiveFilter"
-          class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700 ml-1"
+          class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[color-mix(in_srgb,var(--color-warning,#f59e0b)_20%,transparent)] text-[var(--color-warning,#d97706)] ml-1"
         >Filter</span>
       </span>
       <button class="pim-btn pim-btn-ghost p-1 rounded-full ml-auto" @click="clearAll" title="Verlauf löschen">
@@ -236,9 +241,9 @@ function typeIcon(type) {
       v-if="store.hasActiveFilter"
       class="flex items-center gap-2 text-sm mb-4 max-w-2xl w-full"
     >
-      <span class="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-amber-100 text-amber-700">
+      <span class="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-[color-mix(in_srgb,var(--color-warning,#f59e0b)_20%,transparent)] text-[var(--color-warning,#d97706)]">
         {{ store.activeFilterLabel }}
-        <button @click="store.clearFilters(); store.search()" class="ml-1 hover:text-amber-900">&times;</button>
+        <button @click="store.clearFilters(); store.search()" class="ml-1 opacity-70 hover:opacity-100">&times;</button>
       </span>
     </div>
 
@@ -268,7 +273,7 @@ function typeIcon(type) {
               :src="thumbUrl(item)"
               class="w-full h-full object-cover"
               loading="lazy"
-              @error="$event.target.style.display = 'none'"
+              @error="$event.target.classList.add('hidden')"
             />
             <component v-else :is="typeIcon(item.type)" class="w-5 h-5 text-[var(--color-text-tertiary)]" :stroke-width="1.75" />
           </div>
@@ -282,14 +287,14 @@ function typeIcon(type) {
           <!-- Badges (Querverweise) -->
           <div v-if="item.badge_refs && item.badge_refs.length" class="flex gap-1 flex-wrap justify-end shrink-0">
             <button
-              v-for="(ref, bIdx) in item.badge_refs"
-              :key="bIdx"
+              v-for="badge in item.badge_refs"
+              :key="`${item.id}-${badge.type}-${badge.id}`"
               class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-[color-mix(in_srgb,var(--color-accent)_12%,transparent)] text-[var(--color-accent)] hover:bg-[color-mix(in_srgb,var(--color-accent)_20%,transparent)] transition-colors cursor-pointer"
-              @click.stop="onBadgeClick(item, ref)"
-              :title="'Drill-Down: ' + ref.label"
+              @click.stop="onBadgeClick(item, badge)"
+              :title="'Drill-Down: ' + badge.label"
             >
               <ArrowRight class="w-3 h-3" :stroke-width="2" />
-              {{ ref.label }}
+              {{ badge.label }}
             </button>
           </div>
         </div>
@@ -303,21 +308,21 @@ function typeIcon(type) {
         <div v-if="item.relations && item.relations.length" class="mt-1.5 ml-[52px] flex items-center gap-1.5 flex-wrap">
           <Link2 class="w-3 h-3 text-[var(--color-text-tertiary)] shrink-0" :stroke-width="1.75" />
           <button
-            v-for="(rel, rIdx) in item.relations"
-            :key="rIdx"
+            v-for="rel in item.relations"
+            :key="`${item.id}-rel-${rel.id}`"
             class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-[var(--color-bg)] text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] hover:bg-[color-mix(in_srgb,var(--color-accent)_8%,transparent)] transition-colors cursor-pointer"
-            @click.stop="openResult({ type: 'product', id: rel.id })"
-            :title="rel.type + ': ' + rel.name"
+            @click.stop="rel.id && openResult({ type: 'product', id: rel.id })"
+            :title="(rel.type || '') + ': ' + (rel.name || rel.sku || '')"
           >
-            <span class="text-[var(--color-text-tertiary)]">{{ rel.type }}:</span>
-            {{ rel.name || rel.sku }}
+            <span v-if="rel.type" class="text-[var(--color-text-tertiary)]">{{ rel.type }}:</span>
+            {{ rel.name || rel.sku || '(ohne Name)' }}
           </button>
         </div>
       </div>
     </div>
 
-    <!-- Infinite Scroll: Sentinel + Lade-Indikator -->
-    <div v-if="store.results.length > 0" ref="sentinelRef" class="max-w-2xl w-full">
+    <!-- Infinite Scroll: Sentinel (immer gemountet wenn Ergebnisse da) -->
+    <div v-if="store.results.length > 0" ref="sentinelRef" class="max-w-2xl w-full pt-1">
       <div v-if="store.loadingMore" class="flex items-center justify-center gap-2 py-4 text-[var(--color-text-tertiary)]">
         <div class="w-3.5 h-3.5 border-2 border-[var(--color-accent)] border-t-transparent rounded-full animate-spin"></div>
         <span class="text-sm">Lade weitere Ergebnisse...</span>
