@@ -25,6 +25,10 @@ const syncType = ref('product')
 const syncEntityId = ref('')
 const syncLanguage = ref('de')
 
+// Preview / Dry Run
+const previewData = ref(null)
+const previewing = ref(false)
+
 // Produkt-Suche für Einzel-Sync
 const productSearch = ref('')
 const productSearchResults = ref([])
@@ -59,11 +63,6 @@ const SHOPWARE_FIELD_DEFINITIONS = [
   { key: 'meta_title', label: 'SEO-Titel', description: 'Meta-Title für Shopware', defaultMode: 'attribute' },
   { key: 'meta_description', label: 'SEO-Beschreibung', description: 'Meta-Description für Shopware', defaultMode: 'attribute' },
 ]
-
-// Selection-Attribute für Properties (gefiltert)
-const selectionAttributes = computed(() =>
-  allAttributes.value.filter(a => a.data_type === 'Selection')
-)
 
 const connectionId = computed(() => route.params.id)
 const isShopware = computed(() => connection.value?.connector_type === 'shopware')
@@ -164,6 +163,7 @@ function selectProduct(product) {
 function clearSelectedProduct() {
   selectedProduct.value = null
   syncEntityId.value = ''
+  previewData.value = null
 }
 
 async function saveExportProfile() {
@@ -214,6 +214,20 @@ async function executeProfileSync() {
   } finally {
     profileSyncing.value = false
     await loadConnection()
+  }
+}
+
+async function previewProduct() {
+  if (!syncEntityId.value.trim()) return
+  previewing.value = true
+  previewData.value = null
+  try {
+    const res = await connectorsApi.previewProduct(connectionId.value, syncEntityId.value.trim(), syncLanguage.value)
+    previewData.value = res.data.data || res.data
+  } catch (e) {
+    syncError.value = e.response?.data?.message || 'Vorschau fehlgeschlagen'
+  } finally {
+    previewing.value = false
   }
 }
 
@@ -475,34 +489,42 @@ const statusColors = {
             <!-- Properties (Selection-Attribute → Shopware Specifications) -->
             <div>
               <label class="label"><span class="label-text font-medium">Properties (Spezifikationen)</span></label>
-              <p class="text-xs text-base-content/50 mb-3">
-                Selection-Attribute werden als Shopware Property Groups mit Options angelegt.
-                Produktwerte werden automatisch zugeordnet.
+              <p class="text-xs text-base-content/50 mb-2">
+                Selection-Attribute werden automatisch als Shopware Property Groups angelegt.
               </p>
-              <div class="space-y-1">
-                <div v-for="(attrId, idx) in shopwareFields._property_attribute_ids" :key="idx" class="flex items-center gap-2">
+
+              <div v-if="!shopwareFields._property_attribute_ids?.length" class="text-xs p-2.5 bg-base-200/30 rounded-lg border border-base-200">
+                <strong>Automatisch:</strong> Alle Selection-Attribute aus den Attribut-Sichten des Vorschau-Profils werden als Properties synchronisiert.
+              </div>
+
+              <!-- Manuelle Überschreibung -->
+              <div v-if="shopwareFields._property_attribute_ids?.length" class="space-y-1.5 mt-2">
+                <div class="text-xs text-base-content/50 font-medium">Manuelle Auswahl (überschreibt Automatik):</div>
+                <div
+                  v-for="(attrId, idx) in shopwareFields._property_attribute_ids"
+                  :key="idx"
+                  class="flex items-center gap-2"
+                >
                   <select
                     :value="attrId"
                     @change="shopwareFields._property_attribute_ids[idx] = $event.target.value"
                     class="select select-bordered select-xs flex-1"
                   >
-                    <option value="">— Selection-Attribut wählen —</option>
-                    <option v-for="attr in selectionAttributes" :key="attr.id" :value="attr.id">
-                      {{ attr.name_de || attr.technical_name }}
+                    <option value="">— Attribut wählen —</option>
+                    <option v-for="attr in allAttributes" :key="attr.id" :value="attr.id">
+                      {{ attr.name_de || attr.technical_name }} {{ attr.data_type ? `(${attr.data_type})` : '' }}
                     </option>
                   </select>
                   <button class="btn btn-ghost btn-xs" @click="shopwareFields._property_attribute_ids.splice(idx, 1)">
                     <X class="w-3 h-3" />
                   </button>
                 </div>
-                <button
-                  class="btn btn-ghost btn-xs text-primary"
-                  @click="shopwareFields._property_attribute_ids.push('')"
-                >+ Property hinzufügen</button>
               </div>
-              <div v-if="shopwareFields._property_attribute_ids?.length === 0" class="text-xs text-base-content/40 italic mt-1">
-                Keine Properties konfiguriert — Produkte werden ohne Spezifikationen synchronisiert.
-              </div>
+
+              <button
+                class="btn btn-ghost btn-xs text-primary mt-2"
+                @click="shopwareFields._property_attribute_ids.push('')"
+              >+ Manuell überschreiben</button>
             </div>
 
             <!-- Speichern -->
@@ -605,6 +627,15 @@ const statusColors = {
             <div class="flex-1"></div>
             <button class="btn btn-ghost btn-sm" @click="showSyncDialog = false">Abbrechen</button>
             <button
+              v-if="syncType === 'product' && isShopware"
+              class="btn btn-outline btn-sm"
+              :disabled="previewing || !syncEntityId.trim()"
+              @click="previewProduct"
+            >
+              <span v-if="previewing" class="loading loading-spinner loading-xs"></span>
+              Vorschau
+            </button>
+            <button
               class="btn btn-primary btn-sm"
               :disabled="syncing || !syncEntityId.trim()"
               @click="executeSyncSingle"
@@ -612,6 +643,65 @@ const statusColors = {
               <span v-if="syncing" class="loading loading-spinner loading-xs"></span>
               Synchronisieren
             </button>
+          </div>
+
+          <!-- Preview-Anzeige -->
+          <div v-if="previewData" class="mt-4 space-y-3">
+            <div class="flex items-center justify-between">
+              <h4 class="text-sm font-semibold">Vorschau: Shopware-Payload</h4>
+              <button class="btn btn-ghost btn-xs" @click="previewData = null"><X class="w-3 h-3" /></button>
+            </div>
+
+            <!-- Felder als Tabelle -->
+            <div class="overflow-x-auto rounded-lg border border-base-200">
+              <table class="table table-xs w-full">
+                <thead>
+                  <tr class="bg-base-200/40">
+                    <th class="w-48 font-medium">Shopware-Feld</th>
+                    <th class="font-medium">Wert</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(value, key) in previewData.product_payload" :key="key" class="hover:bg-base-200/20">
+                    <td class="font-mono text-xs font-medium">{{ key }}</td>
+                    <td class="text-sm">
+                      <template v-if="key === 'price' && Array.isArray(value)">
+                        <span v-for="(p, i) in value" :key="i">
+                          {{ p.gross }} brutto / {{ p.net }} netto ({{ p.currencyId?.substring(0, 8) }}...)
+                        </span>
+                      </template>
+                      <template v-else-if="key === 'description'">
+                        <div class="max-h-20 overflow-y-auto text-xs" v-html="value"></div>
+                      </template>
+                      <template v-else-if="key === 'customFields' && typeof value === 'object'">
+                        <div class="text-xs space-y-0.5">
+                          <div v-for="(v, k) in value" :key="k">
+                            <span class="font-mono text-base-content/50">{{ k }}:</span> {{ v }}
+                          </div>
+                        </div>
+                      </template>
+                      <template v-else-if="typeof value === 'object'">
+                        <pre class="text-xs whitespace-pre-wrap">{{ JSON.stringify(value, null, 2) }}</pre>
+                      </template>
+                      <template v-else>{{ value }}</template>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Properties -->
+            <div v-if="previewData.properties?.length" class="rounded-lg border border-base-200 p-3">
+              <div class="text-xs font-semibold mb-2">Properties (Spezifikationen)</div>
+              <div class="flex flex-wrap gap-2">
+                <span
+                  v-for="(prop, idx) in previewData.properties" :key="idx"
+                  class="badge badge-outline badge-sm"
+                >
+                  {{ prop.group }}: {{ prop.option }}
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       </div>

@@ -107,8 +107,13 @@ class ShopwareConnector extends AbstractConnector
                 }
 
                 // Properties synchronisieren (Selection-Attribute → Shopware Property Groups)
+                // Manuell konfiguriert oder automatisch aus Profil-Attributsichten
                 $properties = [];
                 $propertyAttrIds = $shopwareFields['_property_attribute_ids'] ?? [];
+                if (empty($propertyAttrIds)) {
+                    // Automatisch: alle Selection-Attribute aus den Profil-Attributsichten
+                    $propertyAttrIds = $this->productService->resolvePropertyAttributeIds($product, $profilePayload);
+                }
                 if (!empty($propertyAttrIds)) {
                     $propertyMap = $this->propertyService->syncPropertyGroups(
                         $http, $shopUrl, $connection->id, $propertyAttrIds, $language,
@@ -243,8 +248,14 @@ class ShopwareConnector extends AbstractConnector
         }
 
         // Property Groups einmal vorab synchronisieren (Performance: nicht pro Produkt)
+        // Manuell konfiguriert oder automatisch aus Profil-Attributsichten
         $propertyMap = [];
         $propertyAttrIds = $shopwareFields['_property_attribute_ids'] ?? [];
+        if (empty($propertyAttrIds)) {
+            // Automatisch: alle Selection-Attribute aus den Profil-Attributsichten
+            // Dummy-Product für die Auflösung (wir brauchen nur die Profil-Logik)
+            $propertyAttrIds = $this->productService->resolvePropertyAttributeIds(new \App\Models\Product(), $payload);
+        }
         if (!empty($propertyAttrIds)) {
             $propertyMap = $this->propertyService->syncPropertyGroups(
                 $http, $shopUrl, $connection->id, $propertyAttrIds, $language,

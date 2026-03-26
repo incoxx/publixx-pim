@@ -944,6 +944,9 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
         // Profil-basierter Sync (Shopware)
         Route::post('/connections/{connection}/sync-profile', [ConnectorController::class, 'syncFromProfile']);
 
+        // Vorschau/Dry Run
+        Route::post('/connections/{connection}/preview-product', [ConnectorController::class, 'previewProduct']);
+
         // Verbindung aktualisieren (Settings + Export-Profil)
         Route::put('/connections/{connection}', [ConnectorController::class, 'update']);
 

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Connectors\Shopware;
 
 use App\Models\Attribute;
+use App\Models\AttributeViewAssignment;
 use App\Models\Product;
 use App\Models\ProductAttributeValue;
 use App\Models\ProductPrice;
@@ -83,6 +84,27 @@ class ShopwareProductService
             'synced_data'    => array_keys($productData),
             'response'       => $response->json(),
         ];
+    }
+
+    /**
+     * Erstellt eine Vorschau der Produktdaten ohne API-Aufruf (Dry Run).
+     *
+     * @return array  Das Shopware-Payload das gesendet würde
+     */
+    public function previewProductData(
+        Product $product,
+        array $profilePayload,
+        array $shopwareFields,
+        string $language = 'de',
+        array $properties = [],
+    ): array {
+        $data = $this->collectProfileProductData($product, $profilePayload, $shopwareFields, $language);
+
+        if (!empty($properties)) {
+            $data['properties'] = $properties;
+        }
+
+        return $data;
     }
 
     /**
@@ -179,18 +201,32 @@ class ShopwareProductService
             }
         }
 
-        // Card-Attribute als customFields
-        $cardAttributeIds = $profilePayload['card_attribute_ids'] ?? [];
-        if (!empty($cardAttributeIds)) {
-            $cardParts = $this->resolveAttributeValues($product, $cardAttributeIds, $language);
-            $customFields = [];
-            foreach ($cardParts as $part) {
-                $key = 'pim_' . ($part['technical_name'] ?? $part['attribute_id']);
-                $customFields[$key] = $part['value'];
+        // Attribute als customFields — basierend auf Profil-Einstellungen (Attribut-Sichten)
+        $allowedAttributeIds = $this->resolveAllowedAttributeIds($product, $profilePayload);
+        $customFieldQuery = ProductAttributeValue::where('product_id', $product->id)
+            ->with(['attribute', 'valueListEntry', 'unit']);
+
+        if ($allowedAttributeIds !== null) {
+            // Nur Attribute aus den konfigurierten Sichten
+            $customFieldQuery->whereIn('attribute_id', $allowedAttributeIds);
+        }
+
+        $customFields = [];
+        foreach ($customFieldQuery->get() as $av) {
+            $attr = $av->attribute;
+            if (!$attr || $attr->is_internal) {
+                continue;
             }
-            if (!empty($customFields)) {
-                $data['customFields'] = $customFields;
+            $value = $this->resolveAttributeValueString($av, $attr, $language);
+            if ($value === null || $value === '') {
+                continue;
             }
+            $unit = $av->unit?->abbreviation;
+            $key = 'pim_' . $attr->technical_name;
+            $customFields[$key] = $unit ? $value . ' ' . $unit : $value;
+        }
+        if (!empty($customFields)) {
+            $data['customFields'] = $customFields;
         }
 
         // Preis — steuerbar über shopware_fields['price']
@@ -393,6 +429,49 @@ class ShopwareProductService
         return $lang === 'en' && $entry->short_text_en
             ? $entry->short_text_en
             : $entry->short_text_de;
+    }
+
+    /**
+     * Ermittelt die erlaubten Attribut-IDs basierend auf Profil-Einstellungen.
+     *
+     * Nutzt die gleiche Logik wie der Katalog: attribute_view_ids → Attribute aus diesen Sichten.
+     * Wenn keine Views konfiguriert sind → alle Attribute (return null).
+     *
+     * @return array<string>|null  null = alle Attribute erlaubt
+     */
+    public function resolveAllowedAttributeIds(Product $product, array $profilePayload): ?array
+    {
+        $attributeViewIds = $profilePayload['attribute_view_ids'] ?? [];
+
+        if (empty($attributeViewIds)) {
+            return null; // Alle Attribute
+        }
+
+        $viewAttributeIds = AttributeViewAssignment::whereIn('attribute_view_id', $attributeViewIds)
+            ->pluck('attribute_id')
+            ->unique();
+
+        return $viewAttributeIds->toArray();
+    }
+
+    /**
+     * Ermittelt die Selection-Attribut-IDs aus den erlaubten Attributen (für Properties).
+     *
+     * @return array<string>  IDs der Selection-Attribute
+     */
+    public function resolvePropertyAttributeIds(Product $product, array $profilePayload): array
+    {
+        $allowedIds = $this->resolveAllowedAttributeIds($product, $profilePayload);
+
+        $query = Attribute::where('data_type', 'Selection')
+            ->whereNotNull('value_list_id')
+            ->where('is_internal', false);
+
+        if ($allowedIds !== null) {
+            $query->whereIn('id', $allowedIds);
+        }
+
+        return $query->pluck('id')->toArray();
     }
 
     /**

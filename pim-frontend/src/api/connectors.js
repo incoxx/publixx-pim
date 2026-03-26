@@ -54,6 +54,11 @@ export default {
     return client.post(`/connectors/connections/${connectionId}/sync-product-bulk`, { product_ids: productIds, ...options })
   },
 
+  // Vorschau/Dry Run
+  previewProduct(connectionId, productId, language = 'de') {
+    return client.post(`/connectors/connections/${connectionId}/preview-product`, { product_id: productId, language })
+  },
+
   // Profil-basierter Sync (Shopware)
   syncFromProfile(connectionId) {
     return client.post(`/connectors/connections/${connectionId}/sync-profile`)
