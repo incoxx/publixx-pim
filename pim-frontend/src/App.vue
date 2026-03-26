@@ -44,6 +44,26 @@ function handleKeydown(e) {
     e.preventDefault()
     window.dispatchEvent(new CustomEvent('pim:focus-search'))
   }
+
+  // Navigation-Shortcuts: Ctrl+Shift+Buchstabe (kein Konflikt mit Browser-Shortcuts)
+  if (isMeta && e.shiftKey && !['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) {
+    const navMap = {
+      f: '/quick-search',    // F = Finden (Schnellsuche)
+      p: '/products',        // P = Produkte
+      h: '/hierarchies',     // H = Hierarchien
+      m: '/media',           // M = Medien
+      a: '/attributes',      // A = Attribute
+      e: '/exports',         // E = Export
+      i: '/imports',         // I = Import
+      d: '/dashboard',       // D = Dashboard
+      w: '/workflow',        // W = Workflow
+    }
+    const target = navMap[e.key.toLowerCase()]
+    if (target) {
+      e.preventDefault()
+      router.push(target)
+    }
+  }
 }
 
 onMounted(async () => {

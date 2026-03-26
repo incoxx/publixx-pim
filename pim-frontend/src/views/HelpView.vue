@@ -117,9 +117,20 @@ const sections = [
 ]
 
 const shortcuts = [
-  { keys: ['Ctrl', 'K'], action: 'Globale Suche öffnen' },
+  { keys: ['Ctrl', 'K'], action: 'Command Palette öffnen' },
   { keys: ['Ctrl', 'S'], action: 'Speichern (im Produkteditor)' },
+  { keys: ['Ctrl', 'N'], action: 'Neues Element anlegen' },
+  { keys: ['/'], action: 'Suche fokussieren (außerhalb von Eingabefeldern)' },
   { keys: ['Esc'], action: 'Dialog/Panel schließen' },
+  { keys: ['Ctrl', 'Shift', 'F'], action: 'Schnellsuche' },
+  { keys: ['Ctrl', 'Shift', 'P'], action: 'Produkte' },
+  { keys: ['Ctrl', 'Shift', 'H'], action: 'Hierarchien' },
+  { keys: ['Ctrl', 'Shift', 'M'], action: 'Medien' },
+  { keys: ['Ctrl', 'Shift', 'A'], action: 'Attribute' },
+  { keys: ['Ctrl', 'Shift', 'E'], action: 'Export' },
+  { keys: ['Ctrl', 'Shift', 'I'], action: 'Import' },
+  { keys: ['Ctrl', 'Shift', 'D'], action: 'Dashboard' },
+  { keys: ['Ctrl', 'Shift', 'W'], action: 'Workflow' },
 ]
 </script>
 
