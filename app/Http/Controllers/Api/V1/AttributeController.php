@@ -335,7 +335,7 @@ class AttributeController extends Controller
     private const BULK_ALLOWED_FIELDS = [
         'is_translatable', 'is_multipliable', 'is_searchable', 'is_mandatory',
         'is_unique', 'is_inheritable', 'is_variant_attribute', 'is_internal',
-        'is_readonly', 'is_hidden', 'attribute_type_id', 'status',
+        'is_readonly', 'is_hidden', 'is_quick_search', 'attribute_type_id', 'status',
     ];
 
     public function bulkUpdate(Request $request): JsonResponse
@@ -354,6 +354,9 @@ class AttributeController extends Controller
             'fields.is_inheritable' => 'boolean',
             'fields.is_variant_attribute' => 'boolean',
             'fields.is_internal' => 'boolean',
+            'fields.is_readonly' => 'boolean',
+            'fields.is_hidden' => 'boolean',
+            'fields.is_quick_search' => 'boolean',
             'fields.attribute_type_id' => 'nullable|uuid|exists:attribute_types,id',
             'fields.status' => 'in:active,inactive',
         ]);
