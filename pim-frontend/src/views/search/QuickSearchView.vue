@@ -83,14 +83,19 @@ function scrollToSelected() {
 // ─── Navigation ──────────────────────────────────────
 function openResult(item) {
   if (!item?.id) return
+  if (item.type === 'product') {
+    router.push(`/products/${item.id}`)
+    return
+  }
   const routes = {
-    product: `/products/${item.id}`,
-    media: `/media`,
-    hierarchy: `/hierarchies`,
-    attribute: `/attributes`,
+    media: '/media',
+    hierarchy: '/hierarchies',
+    attribute: '/attributes',
   }
   const path = routes[item.type]
-  if (path) router.push(path)
+  if (path) {
+    router.push({ path, query: { search: item.title } })
+  }
 }
 
 // ─── Drill-Down (Querverweis-Klick) ──────────────────

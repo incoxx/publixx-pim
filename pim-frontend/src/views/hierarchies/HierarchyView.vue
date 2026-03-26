@@ -4,7 +4,7 @@ import { useDebounceFn, onClickOutside } from '@vueuse/core'
 import { useHierarchyStore } from '@/stores/hierarchies'
 import { useAuthStore } from '@/stores/auth'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import {
   Plus, Edit3, Trash2, FolderPlus, Package, Search,
   Copy, ChevronUp, ChevronDown, Settings, GripVertical, X, Save, Image,
@@ -23,6 +23,7 @@ import PdfPreview from '@/components/shared/PdfPreview.vue'
 
 const { t } = useI18n()
 const router = useRouter()
+const _route = useRoute()
 const store = useHierarchyStore()
 const authStore = useAuthStore()
 const selectedHierarchyId = ref(null)
@@ -923,6 +924,11 @@ onMounted(async () => {
   await store.fetchHierarchies()
   if (store.hierarchies.length > 0) {
     await selectHierarchy(store.hierarchies[0].id)
+  }
+  // Schnellsuche: Query-Parameter auslesen und Knotensuche triggern
+  if (_route.query.search) {
+    nodeSearchQuery.value = _route.query.search
+    searchNodes()
   }
 })
 </script>

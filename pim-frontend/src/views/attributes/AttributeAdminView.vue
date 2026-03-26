@@ -1,5 +1,6 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount, markRaw, computed } from 'vue'
+import { useRoute } from 'vue-router'
 import { useAttributeStore } from '@/stores/attributes'
 import { useAuthStore } from '@/stores/auth'
 import { useI18n } from 'vue-i18n'
@@ -15,6 +16,7 @@ import attributesApi from '@/api/attributes'
 import hierarchiesApi from '@/api/hierarchies'
 
 const { t } = useI18n()
+const _route = useRoute()
 const store = useAttributeStore()
 const authStore = useAuthStore()
 
@@ -359,7 +361,11 @@ function onClickOutside(e) {
 }
 
 onMounted(() => {
-  store.fetchAttributes({ include: 'attributeType,valueList,unitGroup,children,attributeViews' })
+  if (_route.query.search) {
+    setSearch(_route.query.search)
+  } else {
+    store.fetchAttributes({ include: 'attributeType,valueList,unitGroup,children,attributeViews' })
+  }
   store.fetchTypes()
   store.fetchValueLists()
   fetchHierarchies()
