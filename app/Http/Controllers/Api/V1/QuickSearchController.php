@@ -69,7 +69,7 @@ class QuickSearchController extends Controller
             ]);
         }
 
-        // Mit Typ: Ergebnisse + Count für diesen Typ
+        // Mit Typ: Ergebnisse für diesen Typ + Counts für alle Tabs (1 Request statt 2)
         $result = match ($type) {
             'products' => $this->searchProducts($query, $limit, $offset, $categoryId, $attributeId, $mediaId),
             'media' => $this->searchMedia($query, $limit, $offset),
@@ -77,9 +77,17 @@ class QuickSearchController extends Controller
             'attributes' => $this->searchAttributes($query, $limit, $offset),
         };
 
+        // Counts für alle Tabs mitliefern (nur bei erster Seite, spart DB-Last beim Nachladen)
+        $counts = $offset === 0
+            ? $this->fetchAllCounts($query, $categoryId, $attributeId, $mediaId)
+            : [$type => $result['total']];
+
+        // Aktiven Tab-Count immer aus dem exakten Search-Result nehmen
+        $counts[$type] = $result['total'];
+
         return response()->json([
             'query' => $query,
-            'counts' => [$type => $result['total']],
+            'counts' => $counts,
             'results' => $result['items'],
             'has_more' => ($offset + $limit) < $result['total'],
         ]);

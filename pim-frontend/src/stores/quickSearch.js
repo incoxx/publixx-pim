@@ -57,7 +57,7 @@ export const useQuickSearchStore = defineStore('quickSearch', () => {
 
     loading.value = true
 
-    debounceTimer = setTimeout(async () => {
+    debounceTimer = setTimeout(async () => { // 150ms Debounce
       // Vorherigen Request abbrechen
       if (abortController) abortController.abort()
       abortController = new AbortController()
@@ -65,28 +65,16 @@ export const useQuickSearchStore = defineStore('quickSearch', () => {
       const currentRequestId = ++requestId
 
       try {
-        // 1. Counts für alle Tabs holen (ohne type → nur Counts, keine Ergebnisse)
-        const countParams = buildParams({ q: term })
-        const countsPromise = quickSearchApi.search(countParams, abortController.signal)
+        // 1 Request: Ergebnisse + Counts für alle Tabs (Backend liefert beides)
+        const params = buildParams({ q: term, type: activeTab.value, limit: 20 })
+        const { data } = await quickSearchApi.search(params, abortController.signal)
 
-        // 2. Ergebnisse für aktiven Tab holen
-        const resultParams = buildParams({ q: term, type: activeTab.value, limit: 20 })
-        const resultsPromise = quickSearchApi.search(resultParams, abortController.signal)
-
-        // Parallel ausführen
-        const [countsResp, resultsResp] = await Promise.all([countsPromise, resultsPromise])
-
-        // Race-Condition: nur aktuellsten Request verarbeiten
         if (currentRequestId !== requestId) return
 
-        if (countsResp.data.counts) {
-          counts.value = countsResp.data.counts
-        }
-        results.value = resultsResp.data.results || []
-        hasMore.value = resultsResp.data.has_more ?? false
-        // Count für aktiven Tab aus dem Results-Request aktualisieren (exakter)
-        if (resultsResp.data.counts?.[activeTab.value] !== undefined) {
-          counts.value = { ...counts.value, [activeTab.value]: resultsResp.data.counts[activeTab.value] }
+        results.value = data.results || []
+        hasMore.value = data.has_more ?? false
+        if (data.counts) {
+          counts.value = { ...counts.value, ...data.counts }
         }
       } catch (err) {
         if (err.name === 'CanceledError' || err.code === 'ERR_CANCELED') return
@@ -96,7 +84,7 @@ export const useQuickSearchStore = defineStore('quickSearch', () => {
           loading.value = false
         }
       }
-    }, 300)
+    }, 150)
   }
 
   function switchTab(tab) {
