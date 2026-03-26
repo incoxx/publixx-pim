@@ -189,6 +189,15 @@ class ShopwareConnector extends AbstractConnector
         $http = $this->authenticatedRequest($connection);
         $shopUrl = $settings['shop_url'] ?? config('connectors.shopware.shop_url');
 
+        // Tax-ID aus Shopware holen für "default"-Modus (einmal pro Sync)
+        $taxIdMapping = $shopwareFields['tax_id'] ?? [];
+        if (empty($taxIdMapping) || ($taxIdMapping['mode'] ?? '') === 'default') {
+            $defaultTaxId = $this->productService->fetchDefaultTaxId($http, $shopUrl);
+            if ($defaultTaxId) {
+                $shopwareFields['tax_id'] = ['mode' => 'fixed', 'value' => $defaultTaxId];
+            }
+        }
+
         $result = [
             'categories' => ['synced' => 0, 'errors' => 0],
             'products'   => ['success' => 0, 'failed' => 0],
