@@ -35,40 +35,43 @@ class CanvaDataService
             'name' => $product->name,
         ];
 
-        // Attributwerte sammeln
+        // Attributwerte sammeln (inkl. Selection-Werte und Einheiten)
         $query = $product->attributeValues()
-            ->with('attribute')
+            ->with(['attribute', 'valueListEntry', 'unit'])
             ->where('language', $language);
 
         if ($includeAttributes) {
             $query->whereHas('attribute', function ($q) use ($includeAttributes) {
-                $q->whereIn('code', $includeAttributes);
+                // Unterstützt sowohl UUIDs (IDs) als auch technical_names
+                $isUuid = preg_match('/^[0-9a-f]{8}-/', $includeAttributes[0] ?? '');
+                $q->whereIn($isUuid ? 'id' : 'technical_name', $includeAttributes);
             });
         }
 
         foreach ($query->get() as $attributeValue) {
-            $code = $attributeValue->attribute->code ?? null;
-            if ($code) {
-                $data['attributes'][$code] = $this->resolveAttributeValue($attributeValue);
+            $key = $attributeValue->attribute->technical_name ?? null;
+            if ($key) {
+                $data['attributes'][$key] = $this->resolveAttributeValue($attributeValue);
             }
         }
 
-        // Preise
+        // Preise (Spalte heißt 'amount', currency liegt auf ProductPrice)
         if ($includePrices) {
             $data['prices'] = $product->prices()
                 ->with(['priceType', 'priceRegion'])
                 ->get()
                 ->map(fn ($price) => [
-                    'type'   => $price->priceType?->name,
-                    'region' => $price->priceRegion?->name,
-                    'value'  => $price->value,
-                    'currency' => $price->priceRegion?->currency ?? 'EUR',
+                    'type'     => $price->priceType?->name,
+                    'region'   => $price->priceRegion?->name,
+                    'value'    => (float) $price->amount,
+                    'currency' => $price->currency ?? 'EUR',
                 ])
                 ->toArray();
         }
 
-        // Media-URLs
+        // Media-URLs (nur title_de und title_en vorhanden)
         if ($includeMedia) {
+            $titleField = in_array($language, ['de', 'en']) ? "title_{$language}" : 'title_de';
             $data['media'] = $product->media()
                 ->orderByPivot('sort_order')
                 ->get()
@@ -77,7 +80,7 @@ class CanvaDataService
                     'file_name' => $media->file_name,
                     'mime_type' => $media->mime_type,
                     'url'       => url("/api/v1/media/file/{$media->file_name}"),
-                    'title'     => $media->{"title_{$language}"} ?? $media->title_de,
+                    'title'     => $media->{$titleField} ?? $media->title_de,
                 ])
                 ->toArray();
         }
@@ -150,20 +153,34 @@ class CanvaDataService
 
     /**
      * Löst den Wert eines ProductAttributeValue auf.
+     * Berücksichtigt Selection-Werte, Einheiten und alle Werttypen.
      */
     private function resolveAttributeValue(ProductAttributeValue $attributeValue): mixed
     {
+        // Selection-Wert (Auswahlliste)
+        if ($attributeValue->value_selection_id !== null) {
+            return $attributeValue->valueListEntry?->value
+                ?? $attributeValue->valueListEntry?->name
+                ?? $attributeValue->value_selection_id;
+        }
+
+        // Zahlenwert mit optionaler Einheit
+        if ($attributeValue->value_number !== null) {
+            $unit = $attributeValue->unit?->abbreviation ?? $attributeValue->unit?->name;
+            if ($unit) {
+                return $attributeValue->value_number . ' ' . $unit;
+            }
+            return $attributeValue->value_number;
+        }
+
         if ($attributeValue->value_string !== null) {
             return $attributeValue->value_string;
-        }
-        if ($attributeValue->value_number !== null) {
-            return $attributeValue->value_number;
         }
         if ($attributeValue->value_date !== null) {
             return $attributeValue->value_date;
         }
         if ($attributeValue->value_flag !== null) {
-            return (bool) $attributeValue->value_flag;
+            return (bool) $attributeValue->value_flag ? 'Ja' : 'Nein';
         }
 
         return null;
