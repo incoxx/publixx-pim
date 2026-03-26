@@ -4,9 +4,11 @@ import { useCatalogStore } from '@/stores/catalog'
 import { useThemeApplicator } from '@/composables/useThemeApplicator'
 import CatalogHeader from '@/components/catalog/CatalogHeader.vue'
 import CatalogSidebar from '@/components/catalog/CatalogSidebar.vue'
+import CatalogFacets from '@/components/catalog/CatalogFacets.vue'
 import CatalogWishlistDrawer from '@/components/catalog/CatalogWishlistDrawer.vue'
 import CatalogCompareModal from '@/components/catalog/CatalogCompareModal.vue'
 import CatalogFooter from '@/components/catalog/CatalogFooter.vue'
+import { SlidersHorizontal } from 'lucide-vue-next'
 
 const store = useCatalogStore()
 const sidebarOpen = ref(false)
@@ -14,6 +16,64 @@ const wishlistOpen = ref(false)
 const showCompare = ref(false)
 const compareProductIds = ref([])
 const themeRoot = ref(null)
+
+// Resizable sidebar
+const sidebarWidth = ref(288) // 18rem = 288px default
+const isResizingSidebar = ref(false)
+
+function startSidebarResize(e) {
+  isResizingSidebar.value = true
+  const startX = e.clientX
+  const startWidth = sidebarWidth.value
+
+  function onMouseMove(e) {
+    const delta = e.clientX - startX
+    sidebarWidth.value = Math.max(200, Math.min(500, startWidth + delta))
+  }
+  function onMouseUp() {
+    isResizingSidebar.value = false
+    document.removeEventListener('mousemove', onMouseMove)
+    document.removeEventListener('mouseup', onMouseUp)
+    document.body.style.cursor = ''
+    document.body.style.userSelect = ''
+  }
+  document.body.style.cursor = 'col-resize'
+  document.body.style.userSelect = 'none'
+  document.addEventListener('mousemove', onMouseMove)
+  document.addEventListener('mouseup', onMouseUp)
+}
+
+// Facet panel (right side)
+const facetPanelOpen = ref(false)
+const facetPanelWidth = ref(300)
+const isResizingFacets = ref(false)
+
+function toggleFacetPanel() {
+  facetPanelOpen.value = !facetPanelOpen.value
+}
+
+function startFacetResize(e) {
+  isResizingFacets.value = true
+  const startX = e.clientX
+  const startWidth = facetPanelWidth.value
+
+  function onMouseMove(e) {
+    // Dragging left increases width
+    const delta = startX - e.clientX
+    facetPanelWidth.value = Math.max(220, Math.min(500, startWidth + delta))
+  }
+  function onMouseUp() {
+    isResizingFacets.value = false
+    document.removeEventListener('mousemove', onMouseMove)
+    document.removeEventListener('mouseup', onMouseUp)
+    document.body.style.cursor = ''
+    document.body.style.userSelect = ''
+  }
+  document.body.style.cursor = 'col-resize'
+  document.body.style.userSelect = 'none'
+  document.addEventListener('mousemove', onMouseMove)
+  document.addEventListener('mouseup', onMouseUp)
+}
 
 function handleOpenCompare(ids) {
   compareProductIds.value = ids
@@ -42,9 +102,19 @@ onMounted(async () => {
 
     <!-- Body: Sidebar + Main -->
     <div class="flex flex-1">
-      <!-- Desktop sidebar (always visible on lg+) -->
-      <aside class="hidden lg:flex flex-col w-72 flex-none bg-base-100 border-r border-base-300">
+      <!-- Desktop sidebar (always visible on lg+, resizable) -->
+      <aside
+        class="hidden lg:flex flex-col flex-none bg-base-100 border-r border-base-300 relative"
+        :style="{ width: sidebarWidth + 'px' }"
+      >
         <CatalogSidebar />
+        <!-- Resize handle -->
+        <div
+          class="absolute top-0 right-0 w-1.5 h-full cursor-col-resize hover:bg-primary/20 active:bg-primary/30 transition-colors z-10 group"
+          @mousedown.prevent="startSidebarResize"
+        >
+          <div class="absolute right-0 top-1/2 -translate-y-1/2 w-1 h-8 rounded-full bg-base-content/10 group-hover:bg-primary/40 transition-colors"></div>
+        </div>
       </aside>
 
       <!-- Main content -->
@@ -55,6 +125,51 @@ onMounted(async () => {
           </transition>
         </router-view>
       </main>
+
+      <!-- Facet filter toggle button (visible when panel is closed) -->
+      <button
+        v-if="!facetPanelOpen && store.facets.length > 0 && !store.searchActive"
+        class="hidden lg:flex items-center gap-1.5 px-3 py-2 bg-primary text-primary-content rounded-l-lg fixed right-0 top-1/3 z-30 shadow-lg hover:bg-primary/90 transition-colors cursor-pointer"
+        style="writing-mode: vertical-rl; text-orientation: mixed;"
+        @click="toggleFacetPanel"
+      >
+        <SlidersHorizontal class="w-4 h-4 rotate-90" />
+        <span class="text-xs font-medium">Filter</span>
+        <span v-if="store.activeFilterCount > 0" class="badge badge-xs badge-accent">{{ store.activeFilterCount }}</span>
+      </button>
+
+      <!-- Facet panel (right side, collapsible + resizable) -->
+      <aside
+        v-if="facetPanelOpen && !store.searchActive"
+        class="hidden lg:flex flex-col flex-none bg-base-100 border-l border-base-300 relative"
+        :style="{ width: facetPanelWidth + 'px' }"
+      >
+        <!-- Resize handle (left edge) -->
+        <div
+          class="absolute top-0 left-0 w-1.5 h-full cursor-col-resize hover:bg-primary/20 active:bg-primary/30 transition-colors z-10 group"
+          @mousedown.prevent="startFacetResize"
+        >
+          <div class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 rounded-full bg-base-content/10 group-hover:bg-primary/40 transition-colors"></div>
+        </div>
+
+        <!-- Panel header -->
+        <div class="p-3 border-b border-base-300 flex items-center justify-between">
+          <h3 class="font-semibold text-sm text-base-content/80 flex items-center gap-2">
+            <SlidersHorizontal class="w-4 h-4" />
+            Filter
+          </h3>
+          <button
+            class="btn btn-ghost btn-xs btn-circle"
+            @click="facetPanelOpen = false"
+            title="Filter schließen"
+          >✕</button>
+        </div>
+
+        <!-- Facets content (scrollable) -->
+        <div class="flex-1 overflow-y-auto">
+          <CatalogFacets />
+        </div>
+      </aside>
     </div>
 
     <!-- Footer -->
@@ -68,8 +183,9 @@ onMounted(async () => {
       >
         <div class="absolute inset-0 bg-black/40" @click="sidebarOpen = false"></div>
         <Transition name="sidebar-slide" appear>
-          <div class="absolute inset-y-0 left-0 w-72 shadow-2xl">
+          <div class="absolute inset-y-0 left-0 w-72 shadow-2xl overflow-y-auto bg-base-100">
             <CatalogSidebar />
+            <CatalogFacets v-if="!store.searchActive" />
           </div>
         </Transition>
       </div>

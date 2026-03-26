@@ -2,7 +2,6 @@
 import { useI18n } from 'vue-i18n'
 import { useCatalogStore } from '@/stores/catalog'
 import CatalogCategoryTree from './CatalogCategoryTree.vue'
-import CatalogFacets from './CatalogFacets.vue'
 import { FolderTree } from 'lucide-vue-next'
 
 const { t } = useI18n()
@@ -16,7 +15,7 @@ function selectAll() {
 
 <template>
   <aside
-    class="bg-base-100 w-72 min-h-full border-r border-base-300 flex flex-col"
+    class="bg-base-100 w-full min-h-full flex flex-col"
     :style="{
       backgroundColor: store.themeSettings.color_mobile_menu_bg || undefined,
       color: store.themeSettings.color_mobile_menu_text || undefined,
@@ -61,7 +60,5 @@ function selectAll() {
       />
     </div>
 
-    <!-- Facet filters (hidden when search is active) -->
-    <CatalogFacets v-if="!store.searchActive" />
   </aside>
 </template>

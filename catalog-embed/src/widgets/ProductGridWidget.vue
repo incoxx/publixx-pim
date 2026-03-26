@@ -6,6 +6,12 @@ import { icons } from '../icons.js'
 
 const { state, actions, getters } = useStore()
 
+function isPdf(asset) {
+  const mime = (asset.mime_type || '').toLowerCase()
+  const name = (asset.file_name || '').toLowerCase()
+  return mime.includes('pdf') || name.endsWith('.pdf')
+}
+
 onMounted(() => {
   if (state.products.length === 0 && !state.loading) {
     actions.fetchProducts()
@@ -49,13 +55,19 @@ function onWishlist(e, productId) {
           class="pxc-category-assets__item"
           :title="asset.title || asset.file_name"
         >
-          <img
-            v-if="asset.thumb_url"
-            :src="resolveMediaUrl(asset.thumb_url)"
-            :alt="asset.alt_text || asset.title || asset.file_name"
-            loading="lazy"
-          />
-          <span v-else style="font-size:10px;opacity:0.3;text-transform:uppercase">{{ (asset.mime_type || '').split('/')[1] }}</span>
+          <template v-if="isPdf(asset)">
+            <span v-html="icons.fileDown" style="width:28px;height:28px;opacity:0.6;color:var(--pxc-accent,#ef4444)"></span>
+            <span style="font-size:9px;opacity:0.5;font-weight:500;text-transform:uppercase">PDF</span>
+          </template>
+          <template v-else>
+            <img
+              v-if="asset.thumb_url"
+              :src="resolveMediaUrl(asset.thumb_url)"
+              :alt="asset.alt_text || asset.title || asset.file_name"
+              loading="lazy"
+            />
+            <span v-else style="font-size:10px;opacity:0.3;text-transform:uppercase">{{ (asset.mime_type || '').split('/')[1] }}</span>
+          </template>
         </a>
       </div>
     </div>

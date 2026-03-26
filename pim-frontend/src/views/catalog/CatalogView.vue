@@ -3,7 +3,7 @@ import { onMounted, ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useCatalogStore } from '@/stores/catalog'
 import { resolveMediaUrl } from '@/api/catalog'
-import { X, Image, Download } from 'lucide-vue-next'
+import { X, Image, Download, FileText } from 'lucide-vue-next'
 import CatalogToolbar from '@/components/catalog/CatalogToolbar.vue'
 import CatalogProductGrid from '@/components/catalog/CatalogProductGrid.vue'
 import CatalogProductList from '@/components/catalog/CatalogProductList.vue'
@@ -69,6 +69,12 @@ function closeDetail() {
   modalProductId.value = null
 }
 
+function isPdf(asset) {
+  const mime = (asset.mime_type || '').toLowerCase()
+  const name = (asset.file_name || '').toLowerCase()
+  return mime.includes('pdf') || name.endsWith('.pdf')
+}
+
 // Kategorie-Assets laden wenn Kategorie gewechselt wird
 watch(() => store.selectedCategoryId, (id) => {
   store.fetchCategoryAssets(id)
@@ -129,14 +135,23 @@ onMounted(() => {
           :title="asset.title || asset.file_name"
         >
           <div class="w-28 h-28 bg-base-200 flex items-center justify-center">
-            <img
-              v-if="asset.thumb_url"
-              :src="resolveMediaUrl(asset.thumb_url)"
-              :alt="asset.alt_text || asset.title || asset.file_name"
-              class="w-full h-full object-contain p-1 group-hover:scale-105 transition-transform duration-300"
-              loading="lazy"
-            />
-            <Image v-else class="w-8 h-8 text-base-content/15" />
+            <!-- PDF: Icon statt Thumbnail -->
+            <template v-if="isPdf(asset)">
+              <div class="flex flex-col items-center gap-1">
+                <FileText class="w-10 h-10 text-error/60" />
+                <span class="text-[9px] text-base-content/50 font-medium uppercase">PDF</span>
+              </div>
+            </template>
+            <template v-else>
+              <img
+                v-if="asset.thumb_url"
+                :src="resolveMediaUrl(asset.thumb_url)"
+                :alt="asset.alt_text || asset.title || asset.file_name"
+                class="w-full h-full object-contain p-1 group-hover:scale-105 transition-transform duration-300"
+                loading="lazy"
+              />
+              <Image v-else class="w-8 h-8 text-base-content/15" />
+            </template>
           </div>
           <div class="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-end justify-center opacity-0 group-hover:opacity-100 pb-1">
             <span class="text-[10px] text-white bg-black/50 rounded px-1.5 py-0.5 truncate max-w-[100px]">
