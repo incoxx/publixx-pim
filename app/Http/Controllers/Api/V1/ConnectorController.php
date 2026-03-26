@@ -456,11 +456,14 @@ class ConnectorController extends Controller
 
         $productService = app(\App\Services\Connectors\Shopware\ShopwareProductService::class);
 
-        // Properties auflösen (nur Lookup, kein API-Call)
+        // Properties auflösen — manuell oder automatisch aus Profil-Attributsichten
         $properties = [];
         $propertyAttrIds = $shopwareFields['_property_attribute_ids'] ?? [];
+        if (empty($propertyAttrIds)) {
+            // Automatisch: alle Selection-Attribute aus den Profil-Attributsichten
+            $propertyAttrIds = $productService->resolvePropertyAttributeIds($product, $profilePayload);
+        }
         if (!empty($propertyAttrIds)) {
-            $propertyService = app(\App\Services\Connectors\Shopware\ShopwarePropertyService::class);
             // Zeige was als Properties gesendet würde (mit PIM-Attributnamen statt Shopware-UUIDs)
             $selectionValues = \App\Models\ProductAttributeValue::where('product_id', $product->id)
                 ->whereIn('attribute_id', $propertyAttrIds)
