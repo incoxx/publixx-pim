@@ -49,6 +49,7 @@ const expandedLogId = ref(null)
 // Shopware-Pflichtfelder
 const SHOPWARE_FIELD_DEFINITIONS = [
   { key: 'name', label: 'Produktname', description: 'Standard: product.name', defaultMode: 'default', defaultInfo: 'Produktname aus PIM' },
+  { key: 'price', label: 'Preis', description: 'Standard: Preis aus Vorschau-Profil', defaultMode: 'default', defaultInfo: 'Preis aus Profil oder erster Preis' },
   { key: 'tax_id', label: 'Steuer-ID (taxId)', description: 'Leer = Standard-Steuer aus Shopware', defaultMode: 'default', defaultInfo: 'Erste Steuer aus Shopware' },
   { key: 'manufacturer_id', label: 'Hersteller (manufacturerId)', description: 'Optional — leer lassen wenn nicht benötigt', defaultMode: 'default', defaultInfo: 'Kein Hersteller (optional)' },
   { key: 'currency_id', label: 'Währung (currencyId)', description: 'Shopware-UUID der Währung', defaultMode: 'fixed', defaultValue: 'b7d2554b0ce847cd82f3ac9bd1c0dfca' },
