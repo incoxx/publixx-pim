@@ -143,7 +143,8 @@ class ShopwareConnector extends AbstractConnector
 
                 // Medien synchronisieren (wenn aktiviert)
                 $syncMedia = $shopwareFields['_sync_media']['enabled'] ?? true;
-                if ($syncMedia && $product->media && $product->media->isNotEmpty()) {
+                if ($syncMedia) {
+                    $product->loadMissing('media');
                     $position = 0;
                     foreach ($product->media as $media) {
                         try {
@@ -310,11 +311,12 @@ class ShopwareConnector extends AbstractConnector
     }
 
     /**
-     * Vollständiger Sync basierend auf einem WebsiteProfile.
+     * Produkt-Sync basierend auf einem WebsiteProfile.
      *
-     * Synchronisiert Kategorien, Produkte und Medien anhand der Profil-Einstellungen.
+     * Synchronisiert Produkte und Medien anhand der Profil-Einstellungen.
+     * Hierarchie-Sync wird separat über syncHierarchy() ausgeführt.
      *
-     * @return array{categories: array, products: array{success: int, failed: int}, media: array{success: int, failed: int}}
+     * @return array{products: array{success: int, failed: int}, media: array{success: int, failed: int}}
      */
     public function syncFromProfile(ConnectorConnection $connection): array
     {
@@ -328,9 +330,7 @@ class ShopwareConnector extends AbstractConnector
 
         $profile = WebsiteProfile::findOrFail($profileId);
         $payload = $profile->payload ?? [];
-        $hierarchyId = $payload['hierarchy_id'] ?? null;
         $language = $payload['default_locale'] ?? 'de';
-        $excludedNodeIds = $payload['catalog_excluded_node_ids'] ?? [];
 
         $http = $this->authenticatedRequest($connection);
         $shopUrl = $settings['shop_url'] ?? config('connectors.shopware.shop_url');

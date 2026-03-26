@@ -27,7 +27,9 @@ class ShopwareMediaService
         ])->throw();
 
         // 2. Datei per URL hochladen (extension + fileName als Query-Parameter erforderlich)
-        $publicUrl = url("/api/v1/media/file/{$media->file_name}");
+        // config('app.url') statt url() — muss die öffentliche URL sein die Shopware erreichen kann
+        $baseUrl = rtrim(config('app.url', url('/')), '/');
+        $publicUrl = "{$baseUrl}/api/v1/media/file/{$media->file_name}";
         $extension = pathinfo($media->file_name, PATHINFO_EXTENSION) ?: 'jpg';
         $fileName = pathinfo($media->file_name, PATHINFO_FILENAME);
 
