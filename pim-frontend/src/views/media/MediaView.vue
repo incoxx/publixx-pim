@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { Upload, Image, Grid, List, Trash2, FolderOpen, FolderPlus, Search, X, Plus, MoveRight, CheckSquare, Link, FileSpreadsheet, FileText, Wand2, Loader2, ChevronLeft, ChevronRight, Download, Copy, History, RefreshCw } from 'lucide-vue-next'
 import mediaApi from '@/api/media'
 import { mediaUsageTypes as mediaUsageTypesApi } from '@/api/mediaUsageTypes'
@@ -20,7 +21,8 @@ const sidebarOpen = ref(false)
 const viewMode = ref('grid')
 const deleteTarget = ref(null)
 const deleting = ref(false)
-const searchTerm = ref('')
+const _route = useRoute()
+const searchTerm = ref(_route.query.search || '')
 const selectedFolderId = ref(null)
 const usagePurposeFilter = ref('')
 const detailItem = ref(null)
