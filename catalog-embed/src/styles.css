@@ -363,10 +363,14 @@
   border: 1px solid var(--pxc-border, #e5e7eb);
   overflow: hidden;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 4px;
   background: var(--pxc-surface, #fff);
   transition: box-shadow 0.2s, transform 0.2s;
+  text-decoration: none;
+  color: var(--pxc-text, inherit);
 }
 .pxc-category-assets__item:hover {
   box-shadow: var(--pxc-shadow, 0 2px 8px rgba(0,0,0,0.1));
@@ -1211,6 +1215,48 @@
   .pxc-sidebar--open {
     transform: translateX(0) !important;
   }
+}
+
+/* ===== Resizable Sidebar ===== */
+[data-catalog-sidebar] {
+  resize: horizontal;
+  overflow: auto;
+  min-width: 200px;
+  max-width: 500px;
+  position: relative;
+}
+
+/* Resize handle visual hint */
+[data-catalog-sidebar]::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: 0;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 32px;
+  border-radius: 2px;
+  background: var(--pxc-border, #e2e8f0);
+  opacity: 0;
+  transition: opacity 0.2s;
+  pointer-events: none;
+}
+
+[data-catalog-sidebar]:hover::after {
+  opacity: 1;
+}
+
+/* ===== Resizable Facets Panel ===== */
+[data-catalog-facets-panel] {
+  resize: horizontal;
+  overflow: auto;
+  min-width: 220px;
+  max-width: 500px;
+  direction: rtl; /* resize handle appears on left */
+}
+
+[data-catalog-facets-panel] > * {
+  direction: ltr; /* restore text direction for children */
 }
 
 /* ===== Responsive ===== */

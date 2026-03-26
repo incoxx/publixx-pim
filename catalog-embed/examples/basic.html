@@ -44,8 +44,8 @@
 
     .layout {
       display: grid;
-      grid-template-columns: 280px 1fr;
-      max-width: 1400px;
+      grid-template-columns: 280px 1fr 300px;
+      max-width: 1600px;
       margin: 0 auto;
       gap: 0;
       min-height: calc(100vh - 64px);
@@ -61,11 +61,23 @@
       padding: 24px;
     }
 
+    .facets-panel {
+      background: white;
+      border-left: 1px solid #e5e7eb;
+      overflow-y: auto;
+    }
+
     .page-footer {
       text-align: center;
       padding: 24px;
       color: #9ca3af;
       font-size: 0.75rem;
+    }
+
+    /* Tablet: hide facets panel */
+    @media (max-width: 1024px) {
+      .layout { grid-template-columns: 280px 1fr; }
+      .facets-panel { display: none; }
     }
 
     /* Mobile: sidebar collapsed */
@@ -93,10 +105,9 @@
   </header>
 
   <div class="layout">
-    <!-- Sidebar: Kategorien + Facetten -->
+    <!-- Sidebar: Kategorien -->
     <aside class="sidebar" data-catalog-sidebar>
       <div data-catalog="categories"></div>
-      <div data-catalog="facets"></div>
     </aside>
 
     <!-- Main Content -->
@@ -106,6 +117,11 @@
       <div data-catalog="product-grid"></div>
       <div data-catalog="pagination"></div>
     </main>
+
+    <!-- Facetten-Panel (rechts, vergrößerbar) -->
+    <aside class="facets-panel" data-catalog-facets-panel>
+      <div data-catalog="facets"></div>
+    </aside>
   </div>
 
   <footer class="page-footer">
