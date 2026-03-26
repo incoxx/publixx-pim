@@ -92,17 +92,31 @@ class ShopwareProductService
             'stock'         => 0,
         ];
 
-        // Shopware-Pflichtfelder auflösen (tax_id, manufacturer_id, ean, etc.)
+        // Standard-Defaults für Felder im "default"-Modus
+        $fieldDefaults = [
+            'name'   => $product->name,
+            'ean'    => $product->ean,
+        ];
+
+        // Shopware-Pflichtfelder auflösen (name, tax_id, manufacturer_id, ean, etc.)
         // Keys werden von snake_case in camelCase konvertiert (Shopware API erwartet camelCase)
         $fieldKeyMap = [
-            'tax_id'          => 'taxId',
-            'manufacturer_id' => 'manufacturerId',
-            'currency_id'     => 'currencyId',
-            'meta_title'      => 'metaTitle',
+            'tax_id'           => 'taxId',
+            'manufacturer_id'  => 'manufacturerId',
+            'currency_id'      => 'currencyId',
+            'meta_title'       => 'metaTitle',
             'meta_description' => 'metaDescription',
         ];
         foreach ($shopwareFields as $swField => $mapping) {
-            $value = $this->resolveFieldMapping($product, $mapping, $language);
+            $mode = $mapping['mode'] ?? 'default';
+
+            if ($mode === 'default') {
+                // Standard-Wert aus PIM-Stammdaten verwenden
+                $value = $fieldDefaults[$swField] ?? null;
+            } else {
+                $value = $this->resolveFieldMapping($product, $mapping, $language);
+            }
+
             if ($value !== null && $value !== '') {
                 $apiField = $fieldKeyMap[$swField] ?? $swField;
                 $data[$apiField] = $value;

@@ -36,10 +36,11 @@ const profileSyncResult = ref(null)
 
 // Standard Shopware-Pflichtfelder
 const SHOPWARE_FIELD_DEFINITIONS = [
-  { key: 'tax_id', label: 'Steuer-ID (taxId)', description: 'Shopware Tax-UUID', defaultMode: 'fixed' },
+  { key: 'name', label: 'Produktname', description: 'Standard: product.name', defaultMode: 'default', defaultInfo: 'Produktname aus PIM' },
+  { key: 'tax_id', label: 'Steuer-ID (taxId)', description: 'Leer = Standard-Steuer aus Shopware', defaultMode: 'default', defaultInfo: 'Erste Steuer aus Shopware' },
   { key: 'manufacturer_id', label: 'Hersteller-ID (manufacturerId)', description: 'Shopware Manufacturer-UUID', defaultMode: 'fixed' },
   { key: 'currency_id', label: 'Währung (currencyId)', description: 'Standard: EUR', defaultMode: 'fixed', defaultValue: 'b7d2554b0ce847cd82f3ac9bd1c0dfca' },
-  { key: 'ean', label: 'EAN', description: 'European Article Number', defaultMode: 'attribute' },
+  { key: 'ean', label: 'EAN', description: 'Standard: product.ean', defaultMode: 'default', defaultInfo: 'EAN aus PIM-Stammdaten' },
   { key: 'weight', label: 'Gewicht', description: 'Produktgewicht in kg', defaultMode: 'attribute' },
   { key: 'meta_title', label: 'SEO-Titel', description: 'Meta-Title für Shopware', defaultMode: 'attribute' },
   { key: 'meta_description', label: 'SEO-Beschreibung', description: 'Meta-Description für Shopware', defaultMode: 'attribute' },
@@ -100,10 +101,12 @@ async function saveExportProfile() {
   savingProfile.value = true
   profileSaveSuccess.value = false
   try {
-    // shopware_fields bereinigen: bei mode=fixed kein attribute_id, bei mode=attribute kein value
+    // shopware_fields bereinigen: nur relevante Daten pro Modus speichern
     const cleanedFields = {}
     for (const [key, mapping] of Object.entries(shopwareFields.value)) {
-      if (mapping.mode === 'fixed') {
+      if (mapping.mode === 'default') {
+        cleanedFields[key] = { mode: 'default' }
+      } else if (mapping.mode === 'fixed') {
         cleanedFields[key] = { mode: 'fixed', value: mapping.value || '' }
       } else {
         cleanedFields[key] = { mode: 'attribute', attribute_id: mapping.attribute_id || '' }
@@ -304,7 +307,7 @@ const statusIcons = {
             <div>
               <label class="label"><span class="label-text font-medium">Shopware-Felder</span></label>
               <p class="text-xs text-base-content/50 mb-3">
-                Pflichtfelder für Shopware — entweder einen festen Wert oder ein PIM-Attribut zuweisen.
+                Felder für Shopware — Standard nutzt den PIM-Wert, oder einen festen Wert bzw. ein Attribut zuweisen.
               </p>
 
               <div class="overflow-x-auto">
@@ -312,7 +315,7 @@ const statusIcons = {
                   <thead>
                     <tr>
                       <th class="w-48">Feld</th>
-                      <th class="w-32">Modus</th>
+                      <th class="w-40">Modus</th>
                       <th>Wert / Attribut</th>
                     </tr>
                   </thead>
@@ -323,7 +326,17 @@ const statusIcons = {
                         <div class="text-xs text-base-content/40">{{ field.description }}</div>
                       </td>
                       <td>
-                        <div class="flex gap-2">
+                        <div class="flex gap-2 flex-wrap">
+                          <label v-if="field.defaultInfo" class="label cursor-pointer gap-1 p-0">
+                            <input
+                              type="radio"
+                              :name="'mode-' + field.key"
+                              value="default"
+                              v-model="shopwareFields[field.key].mode"
+                              class="radio radio-xs"
+                            />
+                            <span class="label-text text-xs">Standard</span>
+                          </label>
                           <label class="label cursor-pointer gap-1 p-0">
                             <input
                               type="radio"
@@ -347,8 +360,14 @@ const statusIcons = {
                         </div>
                       </td>
                       <td>
+                        <span
+                          v-if="shopwareFields[field.key].mode === 'default'"
+                          class="text-sm text-base-content/40 italic"
+                        >
+                          {{ field.defaultInfo }}
+                        </span>
                         <input
-                          v-if="shopwareFields[field.key].mode === 'fixed'"
+                          v-else-if="shopwareFields[field.key].mode === 'fixed'"
                           v-model="shopwareFields[field.key].value"
                           type="text"
                           class="input input-bordered input-sm w-full"
