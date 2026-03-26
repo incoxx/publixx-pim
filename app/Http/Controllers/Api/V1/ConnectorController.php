@@ -7,7 +7,9 @@ namespace App\Http\Controllers\Api\V1;
 use App\Models\ConnectorConnection;
 use App\Models\Media;
 use App\Models\Product;
+use App\Models\WebsiteProfile;
 use App\Services\Connectors\ConnectorRegistry;
+use App\Services\Connectors\Shopware\ShopwareConnector;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -26,6 +28,9 @@ use Illuminate\Http\Request;
  *   POST   /api/v1/connectors/connections/{id}/sync-product      — Einzelnes Produkt synchronisieren
  *   POST   /api/v1/connectors/connections/{id}/sync-product-bulk — Bulk Produkt-Sync
  *   GET    /api/v1/connectors/connections/{id}/sync-logs        — Sync-Protokoll
+ *   PUT    /api/v1/connectors/connections/{id}                — Verbindung aktualisieren (Settings/Profil)
+ *   POST   /api/v1/connectors/connections/{id}/sync-profile   — Profil-basierter Komplett-Sync
+ *   GET    /api/v1/connectors/website-profiles                — Verfügbare Vorschau-Profile
  */
 class ConnectorController extends Controller
 {
@@ -344,5 +349,101 @@ class ConnectorController extends Controller
             ->paginate($request->input('per_page', 50));
 
         return response()->json($logs);
+    }
+
+    /**
+     * PUT /connectors/connections/{connection} — Verbindung aktualisieren (Settings + Export-Profil).
+     */
+    public function update(Request $request, ConnectorConnection $connection): JsonResponse
+    {
+        $this->authorize('update', $connection);
+
+        $validated = $request->validate([
+            'name'     => 'sometimes|string|max:255',
+            'settings' => 'sometimes|array',
+            'settings.shop_url'            => 'sometimes|string|url',
+            'settings.client_id'           => 'sometimes|string',
+            'settings.client_secret'       => 'sometimes|string',
+            'settings.website_profile_id'  => 'sometimes|nullable|string',
+            'settings.shopware_fields'     => 'sometimes|array',
+            'settings.shopware_fields.*'   => 'sometimes|array',
+        ]);
+
+        if (isset($validated['name'])) {
+            $connection->name = $validated['name'];
+        }
+
+        if (isset($validated['settings'])) {
+            $existingSettings = $connection->settings ?? [];
+            $connection->settings = array_merge($existingSettings, $validated['settings']);
+        }
+
+        $connection->save();
+
+        return response()->json([
+            'data' => [
+                'id'             => $connection->id,
+                'connector_type' => $connection->connector_type,
+                'name'           => $connection->name,
+                'settings'       => $connection->settings,
+                'updated_at'     => $connection->updated_at,
+            ],
+        ]);
+    }
+
+    /**
+     * POST /connectors/connections/{connection}/sync-profile — Profil-basierter Komplett-Sync.
+     */
+    public function syncFromProfile(Request $request, ConnectorConnection $connection): JsonResponse
+    {
+        $this->authorize('sync', $connection);
+
+        if ($connection->connector_type !== 'shopware') {
+            return response()->json([
+                'message' => 'Profil-Sync ist nur für Shopware-Verbindungen verfügbar.',
+            ], 422);
+        }
+
+        $connector = $this->registry->get($connection->connector_type);
+        if (! $connector instanceof ShopwareConnector) {
+            return response()->json(['message' => 'Shopware-Connector nicht gefunden.'], 422);
+        }
+
+        try {
+            $result = $connector->syncFromProfile($connection);
+
+            return response()->json([
+                'data' => [
+                    'status'     => 'completed',
+                    'categories' => $result['categories'],
+                    'products'   => $result['products'],
+                    'media'      => $result['media'],
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'message' => 'Sync fehlgeschlagen: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * GET /connectors/website-profiles — Verfügbare Vorschau-Profile für Connector-Konfiguration.
+     */
+    public function websiteProfiles(): JsonResponse
+    {
+        $profiles = WebsiteProfile::query()
+            ->orderByDesc('is_active')
+            ->orderBy('name')
+            ->get()
+            ->map(fn (WebsiteProfile $p) => [
+                'id'        => $p->id,
+                'name'      => $p->name,
+                'is_active' => $p->is_active,
+                'hierarchy_id' => $p->payload['hierarchy_id'] ?? null,
+                'locale'       => $p->payload['default_locale'] ?? 'de',
+            ]);
+
+        return response()->json(['data' => $profiles]);
     }
 }

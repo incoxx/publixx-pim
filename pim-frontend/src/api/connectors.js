@@ -54,6 +54,21 @@ export default {
     return client.post(`/connectors/connections/${connectionId}/sync-product-bulk`, { product_ids: productIds, ...options })
   },
 
+  // Profil-basierter Sync (Shopware)
+  syncFromProfile(connectionId) {
+    return client.post(`/connectors/connections/${connectionId}/sync-profile`)
+  },
+
+  // Verbindung aktualisieren (Settings + Export-Profil)
+  updateConnection(connectionId, data) {
+    return client.put(`/connectors/connections/${connectionId}`, data)
+  },
+
+  // Vorschau-Profile für Connector-Konfiguration
+  websiteProfiles() {
+    return client.get('/connectors/website-profiles')
+  },
+
   // Sync-Logs
   syncLogs(connectionId, params = {}) {
     return client.get(`/connectors/connections/${connectionId}/sync-logs`, { params })
