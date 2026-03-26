@@ -98,6 +98,7 @@ use App\Http\Controllers\Api\V1\UserController;
 use App\Http\Controllers\Api\V1\ValueListController;
 use App\Http\Controllers\Api\V1\ValueListEntryController;
 use App\Http\Controllers\Api\V1\AttributeMappingController;
+use App\Http\Controllers\Api\V1\CanvaExportProfileController;
 use App\Http\Controllers\Api\V1\ConnectorController;
 use App\Http\Controllers\Api\V1\QuickSearchController;
 use Illuminate\Support\Facades\Route;
@@ -941,5 +942,10 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
 
         // Logs
         Route::get('/connections/{connection}/sync-logs', [ConnectorController::class, 'syncLogs']);
+
+        // Canva Export-Profile (CRUD + Execute)
+        Route::apiResource('canva-export-profiles', CanvaExportProfileController::class)
+            ->parameters(['canva-export-profiles' => 'canvaExportProfile']);
+        Route::post('canva-export-profiles/{canvaExportProfile}/execute', [CanvaExportProfileController::class, 'execute']);
     });
 });

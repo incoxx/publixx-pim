@@ -77,6 +77,8 @@ use App\Models\WebsiteProfile;
 use App\Models\WorkflowTask;
 use App\Models\ConnectorConnection;
 use App\Policies\ConnectorConnectionPolicy;
+use App\Models\CanvaExportProfile;
+use App\Policies\CanvaExportProfilePolicy;
 use App\Observers\MediaObserver;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
@@ -136,6 +138,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(WorkflowStatus::class, WorkflowStatusPolicy::class);
         Gate::policy(WorkflowTask::class, WorkflowTaskPolicy::class);
         Gate::policy(ConnectorConnection::class, ConnectorConnectionPolicy::class);
+        Gate::policy(CanvaExportProfile::class, CanvaExportProfilePolicy::class);
         Gate::policy(AttributeMapping::class, AttributeMappingPolicy::class);
 
         // ExportPolicy — no model, registered as Gates
