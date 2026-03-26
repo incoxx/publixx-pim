@@ -58,6 +58,13 @@ const allItems = computed(() => {
       section: 'navigation', action: () => router.push('/search'),
     },
     {
+      id: 'nav-quick-search', icon: Zap,
+      label: t('nav.quickSearch'),
+      description: t('cmd.desc.quickSearch'),
+      keywords: ['schnellsuche', 'quick search', 'instant', 'sofort', 'schnell', 'fast', 'google', 'finden'],
+      section: 'navigation', action: () => router.push('/quick-search'),
+    },
+    {
       id: 'nav-products', icon: Package,
       label: t('nav.products'),
       description: t('cmd.desc.products'),

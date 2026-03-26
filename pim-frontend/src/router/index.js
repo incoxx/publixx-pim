@@ -27,6 +27,12 @@ const routes = [
     meta: { title: 'Suche' },
   },
   {
+    path: '/quick-search',
+    name: 'quick-search',
+    component: () => import('@/views/search/QuickSearchView.vue'),
+    meta: { title: 'Schnellsuche' },
+  },
+  {
     path: '/products',
     name: 'products',
     component: () => import('@/views/products/ProductListView.vue'),
