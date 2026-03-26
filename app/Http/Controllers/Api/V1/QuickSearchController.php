@@ -51,8 +51,8 @@ class QuickSearchController extends Controller
 
         $query = trim($validated['q'] ?? '');
         $type = $validated['type'] ?? null;
-        $limit = $validated['limit'] ?? 20;
-        $offset = $validated['offset'] ?? 0;
+        $limit = (int) ($validated['limit'] ?? 20);
+        $offset = (int) ($validated['offset'] ?? 0);
         $categoryId = $validated['category_id'] ?? null;
         $attributeId = $validated['attribute_id'] ?? null;
         $mediaId = $validated['media_id'] ?? null;
