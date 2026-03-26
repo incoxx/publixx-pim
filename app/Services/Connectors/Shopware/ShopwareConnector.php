@@ -131,6 +131,38 @@ class ShopwareConnector extends AbstractConnector
                 $result = $this->productService->syncProductFromProfile(
                     $http, $shopUrl, $product, $profilePayload, $shopwareFields, $language, $properties,
                 );
+
+                $externalProductId = $result['product_id'] ?? $product->sku;
+
+                // Kategorie-Zuordnung (wenn Hierarchie synchronisiert wurde)
+                if ($product->master_hierarchy_node_id) {
+                    $shopwareCategoryId = $this->getCategoryIdForNode($connection->id, $product->master_hierarchy_node_id);
+                    if ($shopwareCategoryId) {
+                        try {
+                            $this->categoryService->assignProductToCategory(
+                                $http, $shopUrl, $externalProductId, $shopwareCategoryId,
+                            );
+                        } catch (\Throwable $e) {
+                            Log::channel('connectors')->warning("Kategorie-Zuordnung: {$product->sku}", ['error' => $e->getMessage()]);
+                        }
+                    }
+                }
+
+                // Medien synchronisieren (wenn aktiviert)
+                $syncMedia = $shopwareFields['_sync_media']['enabled'] ?? true;
+                if ($syncMedia && $product->media && $product->media->isNotEmpty()) {
+                    $position = 0;
+                    foreach ($product->media as $media) {
+                        try {
+                            $mediaId = $this->mediaService->uploadMedia($http, $shopUrl, $media);
+                            $this->mediaService->assignMediaToProduct($http, $shopUrl, $externalProductId, $mediaId, $position);
+                            $this->logSync($connection, 'media_sync', 'media', $media->id, 'success', $mediaId);
+                            $position++;
+                        } catch (\Throwable $e) {
+                            $this->logSync($connection, 'media_sync', 'media', $media->id, 'failed', null, $e->getMessage());
+                        }
+                    }
+                }
             } else {
                 // Legacy-Pfad ohne Profil
                 if (empty($options['tax_id'])) {
@@ -213,6 +245,69 @@ class ShopwareConnector extends AbstractConnector
     }
 
     /**
+     * Synchronisiert den Hierarchie-Baum aus dem Vorschau-Profil als Shopware-Kategorien.
+     *
+     * @return array{synced: int, errors: int, total_nodes: int, hierarchy_name: string}
+     */
+    public function syncHierarchy(ConnectorConnection $connection): array
+    {
+        $settings = $connection->settings ?? [];
+        $profileId = $settings['website_profile_id'] ?? null;
+
+        if (!$profileId) {
+            throw new \RuntimeException('Kein Vorschau-Profil konfiguriert.');
+        }
+
+        $profile = WebsiteProfile::findOrFail($profileId);
+        $payload = $profile->payload ?? [];
+        $hierarchyId = $payload['hierarchy_id'] ?? null;
+
+        if (!$hierarchyId) {
+            throw new \RuntimeException('Keine Hierarchie im Vorschau-Profil konfiguriert.');
+        }
+
+        $language = $payload['default_locale'] ?? 'de';
+        $excludedNodeIds = $payload['catalog_excluded_node_ids'] ?? [];
+
+        $http = $this->authenticatedRequest($connection);
+        $shopUrl = $settings['shop_url'] ?? config('connectors.shopware.shop_url');
+
+        $catResult = $this->categoryService->syncHierarchy(
+            $http, $shopUrl, $connection->id, $hierarchyId, $language, $excludedNodeIds,
+        );
+
+        // Sync-Logs für Kategorien
+        foreach ($catResult['category_map'] as $nodeId => $shopwareCategoryId) {
+            $this->logSync(
+                $connection, 'category_sync', 'hierarchy_node',
+                $nodeId, 'success', $shopwareCategoryId,
+            );
+        }
+
+        return [
+            'synced'         => $catResult['synced'],
+            'errors'         => $catResult['errors'],
+            'total_nodes'    => $catResult['total_nodes'],
+            'hierarchy_name' => $catResult['hierarchy_name'],
+        ];
+    }
+
+    /**
+     * Ermittelt die Shopware-Kategorie-ID für einen PIM-Hierarchie-Knoten.
+     */
+    public function getCategoryIdForNode(string $connectionId, string $nodeId): ?string
+    {
+        return ConnectorSyncLog::where('connector_connection_id', $connectionId)
+            ->where('action', 'category_sync')
+            ->where('entity_type', 'hierarchy_node')
+            ->where('entity_id', $nodeId)
+            ->where('status', 'success')
+            ->whereNotNull('external_id')
+            ->latest()
+            ->value('external_id');
+    }
+
+    /**
      * Vollständiger Sync basierend auf einem WebsiteProfile.
      *
      * Synchronisiert Kategorien, Produkte und Medien anhand der Profil-Einstellungen.
@@ -279,7 +374,7 @@ class ShopwareConnector extends AbstractConnector
         $categoryMap = [];
         if ($hierarchyId) {
             $catResult = $this->categoryService->syncHierarchy(
-                $http, $shopUrl, $hierarchyId, $language, $excludedNodeIds,
+                $http, $shopUrl, $connection->id, $hierarchyId, $language, $excludedNodeIds,
             );
             $result['categories'] = [
                 'synced' => $catResult['synced'],

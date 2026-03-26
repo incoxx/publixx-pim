@@ -45,6 +45,8 @@ const shopwareFields = ref({})
 const savingProfile = ref(false)
 const profileSaveSuccess = ref(false)
 const profileSyncing = ref(false)
+const hierarchySyncing = ref(false)
+const hierarchySyncResult = ref(null)
 const profileSyncResult = ref(null)
 
 // Fehler-Detail-Anzeige
@@ -53,15 +55,23 @@ const expandedLogId = ref(null)
 // Shopware-Pflichtfelder
 const SHOPWARE_FIELD_DEFINITIONS = [
   { key: 'name', label: 'Produktname', description: 'Standard: product.name', defaultMode: 'default', defaultInfo: 'Produktname aus PIM' },
-  { key: 'description', label: 'Beschreibung', description: 'Standard: Description-Attribute aus Profil', defaultMode: 'default', defaultInfo: 'Aus Vorschau-Profil', modes: ['default', 'fixed', 'attribute', 'attributes'] },
-  { key: 'price', label: 'Preis', description: 'Standard: Preis aus Vorschau-Profil', defaultMode: 'default', defaultInfo: 'Preis aus Profil oder erster Preis' },
-  { key: 'tax_id', label: 'Steuer-ID (taxId)', description: 'Leer = Standard-Steuer aus Shopware', defaultMode: 'default', defaultInfo: 'Erste Steuer aus Shopware' },
-  { key: 'manufacturer_id', label: 'Hersteller (manufacturerId)', description: 'Optional', defaultMode: 'default', defaultInfo: 'Kein Hersteller (optional)' },
-  { key: 'currency_id', label: 'Währung (currencyId)', description: 'Shopware-UUID der Währung', defaultMode: 'fixed', defaultValue: 'b7d2554b0ce847cd82f3ac9bd1c0dfca' },
+  { key: 'description', label: 'Beschreibung', description: 'Standard: aus Profil', defaultMode: 'default', defaultInfo: 'Aus Vorschau-Profil', modes: ['default', 'fixed', 'attribute', 'attributes'] },
   { key: 'ean', label: 'EAN', description: 'Standard: product.ean', defaultMode: 'default', defaultInfo: 'EAN aus PIM-Stammdaten' },
-  { key: 'weight', label: 'Gewicht', description: 'Produktgewicht in kg', defaultMode: 'attribute' },
-  { key: 'meta_title', label: 'SEO-Titel', description: 'Meta-Title für Shopware', defaultMode: 'attribute' },
-  { key: 'meta_description', label: 'SEO-Beschreibung', description: 'Meta-Description für Shopware', defaultMode: 'attribute' },
+  { key: 'tax_id', label: 'Steuer-ID', description: 'Standard-Steuer aus Shopware', defaultMode: 'default', defaultInfo: 'Automatisch von Shopware' },
+  { key: 'currency_id', label: 'Währung', description: 'Shopware-UUID', defaultMode: 'fixed', defaultValue: 'b7d2554b0ce847cd82f3ac9bd1c0dfca' },
+  { key: 'manufacturer_id', label: 'Hersteller', description: 'Optional', defaultMode: 'default', defaultInfo: 'Kein Hersteller (optional)' },
+  // Preise
+  { key: 'price', label: 'Preis (brutto)', description: 'Standard: aus Profil', defaultMode: 'default', defaultInfo: 'Preis aus Profil oder erster Preis' },
+  { key: 'purchase_price', label: 'Einkaufspreis', description: 'Purchase price', defaultMode: 'attribute' },
+  { key: 'list_price', label: 'UVP (Listenpreis)', description: 'List price / UVP', defaultMode: 'attribute' },
+  // Maße
+  { key: 'width', label: 'Breite', description: 'Width in mm', defaultMode: 'attribute' },
+  { key: 'height', label: 'Höhe', description: 'Height in mm', defaultMode: 'attribute' },
+  { key: 'length', label: 'Länge', description: 'Length in mm', defaultMode: 'attribute' },
+  { key: 'weight', label: 'Gewicht', description: 'Weight in kg', defaultMode: 'attribute' },
+  // SEO
+  { key: 'meta_title', label: 'SEO-Titel', description: 'Meta-Title', defaultMode: 'attribute' },
+  { key: 'meta_description', label: 'SEO-Beschreibung', description: 'Meta-Description', defaultMode: 'attribute' },
 ]
 
 const connectionId = computed(() => route.params.id)
@@ -103,9 +113,12 @@ async function loadConnection() {
         }
       }
 
-      // Property-Attribute-IDs und Description-Attribute-IDs initialisieren
+      // Property-Attribute-IDs und Medien-Toggle initialisieren
       if (!shopwareFields.value._property_attribute_ids) {
         shopwareFields.value._property_attribute_ids = connection.value.settings?.shopware_fields?._property_attribute_ids || []
+      }
+      if (shopwareFields.value._sync_media === undefined) {
+        shopwareFields.value._sync_media = connection.value.settings?.shopware_fields?._sync_media ?? { enabled: true }
       }
 
       await Promise.all([loadProfiles(), loadAttributes()])
@@ -176,6 +189,10 @@ async function saveExportProfile() {
         cleanedFields[key] = Array.isArray(mapping) ? mapping : []
         continue
       }
+      if (key === '_sync_media') {
+        cleanedFields[key] = { enabled: mapping?.enabled ?? true }
+        continue
+      }
       if (mapping.mode === 'default') {
         cleanedFields[key] = { mode: 'default' }
       } else if (mapping.mode === 'fixed') {
@@ -213,6 +230,21 @@ async function executeProfileSync() {
     syncError.value = e.response?.data?.message || 'Sync fehlgeschlagen'
   } finally {
     profileSyncing.value = false
+    await loadConnection()
+  }
+}
+
+async function executeHierarchySync() {
+  hierarchySyncing.value = true
+  hierarchySyncResult.value = null
+  syncError.value = ''
+  try {
+    const res = await connectorsApi.syncHierarchy(connectionId.value)
+    hierarchySyncResult.value = res.data.data || res.data
+  } catch (e) {
+    syncError.value = e.response?.data?.message || 'Hierarchie-Sync fehlgeschlagen'
+  } finally {
+    hierarchySyncing.value = false
     await loadConnection()
   }
 }
@@ -350,16 +382,36 @@ const statusColors = {
                 <span v-if="selectedProfile?.is_active" class="badge badge-success badge-xs ml-1">aktiv</span>
               </span>
             </div>
-            <button
-              v-if="selectedProfileId"
-              class="btn btn-primary btn-sm gap-1"
-              :disabled="profileSyncing"
-              @click="executeProfileSync"
-            >
-              <span v-if="profileSyncing" class="loading loading-spinner loading-xs"></span>
-              <Play v-else class="w-4 h-4" />
-              Sync starten
-            </button>
+            <div v-if="selectedProfileId" class="flex gap-2">
+              <button
+                class="btn btn-outline btn-sm gap-1"
+                :disabled="hierarchySyncing"
+                @click="executeHierarchySync"
+              >
+                <span v-if="hierarchySyncing" class="loading loading-spinner loading-xs"></span>
+                Hierarchie übertragen
+              </button>
+              <button
+                class="btn btn-primary btn-sm gap-1"
+                :disabled="profileSyncing"
+                @click="executeProfileSync"
+              >
+                <span v-if="profileSyncing" class="loading loading-spinner loading-xs"></span>
+                <Play v-else class="w-4 h-4" />
+                Komplett-Sync
+              </button>
+            </div>
+          </div>
+
+          <!-- Hierarchie-Sync Ergebnis -->
+          <div v-if="hierarchySyncResult" class="alert mt-3" :class="hierarchySyncResult.errors ? 'alert-warning' : 'alert-success'">
+            <div>
+              <div class="font-semibold">Hierarchie: {{ hierarchySyncResult.hierarchy_name }}</div>
+              <div class="text-sm">
+                {{ hierarchySyncResult.synced }} von {{ hierarchySyncResult.total_nodes }} Kategorien synchronisiert
+                <span v-if="hierarchySyncResult.errors" class="text-error">({{ hierarchySyncResult.errors }} Fehler)</span>
+              </div>
+            </div>
           </div>
 
           <!-- Sync-Ergebnis -->
@@ -525,6 +577,23 @@ const statusColors = {
                 class="btn btn-ghost btn-xs text-primary mt-2"
                 @click="shopwareFields._property_attribute_ids.push('')"
               >+ Manuell überschreiben</button>
+            </div>
+
+            <!-- Medien -->
+            <div>
+              <label class="label"><span class="label-text font-medium">Medien / Bilder</span></label>
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  class="toggle toggle-sm toggle-primary"
+                  :checked="shopwareFields._sync_media?.enabled ?? true"
+                  @change="shopwareFields._sync_media = { enabled: $event.target.checked }"
+                />
+                <span class="text-sm">Produktbilder an Shopware übertragen</span>
+              </label>
+              <p class="text-xs text-base-content/40 mt-1">
+                Alle dem Produkt zugeordneten Medien werden hochgeladen und als Produktbilder zugewiesen.
+              </p>
             </div>
 
             <!-- Speichern -->

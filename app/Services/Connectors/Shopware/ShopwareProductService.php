@@ -137,10 +137,11 @@ class ShopwareProductService
             'currency_id'      => 'currencyId',
             'meta_title'       => 'metaTitle',
             'meta_description' => 'metaDescription',
+            'purchase_price'   => 'purchasePrice',
         ];
         foreach ($shopwareFields as $swField => $mapping) {
-            // price und description werden separat behandelt (eigene Blöcke weiter unten)
-            if (in_array($swField, ['price', 'description'], true)) {
+            // price, description, list_price werden separat behandelt
+            if (in_array($swField, ['price', 'description', 'list_price'], true)) {
                 continue;
             }
 
@@ -271,17 +272,56 @@ class ShopwareProductService
         if ($price) {
             $taxRate = 19; // Standard-MwSt
             $currencyId = $shopwareFields['currency_id']['value'] ?? 'b7d2554b0ce847cd82f3ac9bd1c0dfca';
-            $data['price'] = [
-                [
-                    'currencyId' => $currencyId,
-                    'gross'      => $price['amount'],
-                    'net'        => round($price['amount'] / (1 + $taxRate / 100), 2),
-                    'linked'     => true,
-                ],
+            $priceEntry = [
+                'currencyId' => $currencyId,
+                'gross'      => $price['amount'],
+                'net'        => round($price['amount'] / (1 + $taxRate / 100), 2),
+                'linked'     => true,
             ];
+
+            // Listenpreis (UVP) — optional
+            $listPriceMapping = $shopwareFields['list_price'] ?? null;
+            if ($listPriceMapping) {
+                $listAmount = $this->resolveNumericField($product, $listPriceMapping, $language);
+                if ($listAmount > 0) {
+                    $priceEntry['listPrice'] = [
+                        'currencyId' => $currencyId,
+                        'gross'      => $listAmount,
+                        'net'        => round($listAmount / (1 + $taxRate / 100), 2),
+                        'linked'     => true,
+                    ];
+                }
+            }
+
+            $data['price'] = [$priceEntry];
+
+            // Einkaufspreis — separates Feld auf dem Produkt, nicht im price-Array
+            $purchaseMapping = $shopwareFields['purchase_price'] ?? null;
+            if ($purchaseMapping) {
+                $purchaseAmount = $this->resolveNumericField($product, $purchaseMapping, $language);
+                if ($purchaseAmount > 0) {
+                    $data['purchasePrice'] = $purchaseAmount;
+                }
+            }
         }
 
         return array_filter($data, fn ($v) => $v !== null);
+    }
+
+    /**
+     * Löst ein numerisches Feld auf (für Preise, Maße, etc.).
+     */
+    private function resolveNumericField(Product $product, array $mapping, string $language): float
+    {
+        $mode = $mapping['mode'] ?? 'fixed';
+        if ($mode === 'fixed') {
+            return (float) ($mapping['value'] ?? 0);
+        }
+        if ($mode === 'attribute') {
+            $value = $this->resolveFieldMapping($product, $mapping, $language);
+            return is_numeric($value) ? (float) $value : 0;
+        }
+        return 0;
     }
 
     /**

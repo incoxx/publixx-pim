@@ -64,6 +64,11 @@ export default {
     return client.post(`/connectors/connections/${connectionId}/sync-profile`)
   },
 
+  // Hierarchie-Sync (Kategorien an Shopware)
+  syncHierarchy(connectionId) {
+    return client.post(`/connectors/connections/${connectionId}/sync-hierarchy`)
+  },
+
   // Verbindung aktualisieren (Settings + Export-Profil)
   updateConnection(connectionId, data) {
     return client.put(`/connectors/connections/${connectionId}`, data)

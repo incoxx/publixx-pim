@@ -456,11 +456,14 @@ class ConnectorController extends Controller
 
         $productService = app(\App\Services\Connectors\Shopware\ShopwareProductService::class);
 
-        // Properties auflösen (nur Lookup, kein API-Call)
+        // Properties auflösen — manuell oder automatisch aus Profil-Attributsichten
         $properties = [];
         $propertyAttrIds = $shopwareFields['_property_attribute_ids'] ?? [];
+        if (empty($propertyAttrIds)) {
+            // Automatisch: alle Selection-Attribute aus den Profil-Attributsichten
+            $propertyAttrIds = $productService->resolvePropertyAttributeIds($product, $profilePayload);
+        }
         if (!empty($propertyAttrIds)) {
-            $propertyService = app(\App\Services\Connectors\Shopware\ShopwarePropertyService::class);
             // Zeige was als Properties gesendet würde (mit PIM-Attributnamen statt Shopware-UUIDs)
             $selectionValues = \App\Models\ProductAttributeValue::where('product_id', $product->id)
                 ->whereIn('attribute_id', $propertyAttrIds)
@@ -486,6 +489,41 @@ class ConnectorController extends Controller
                 'profile'         => $profileId ? ($profilePayload['hierarchy_id'] ?? null) : null,
             ],
         ]);
+    }
+
+    /**
+     * POST /connectors/connections/{connection}/sync-hierarchy — Hierarchie-Baum synchronisieren.
+     */
+    public function syncHierarchy(Request $request, ConnectorConnection $connection): JsonResponse
+    {
+        $this->authorize('sync', $connection);
+
+        if ($connection->connector_type !== 'shopware') {
+            return response()->json(['message' => 'Nur für Shopware-Verbindungen.'], 422);
+        }
+
+        $connector = $this->registry->get($connection->connector_type);
+        if (! $connector instanceof ShopwareConnector) {
+            return response()->json(['message' => 'Shopware-Connector nicht gefunden.'], 422);
+        }
+
+        try {
+            $result = $connector->syncHierarchy($connection);
+
+            return response()->json([
+                'data' => [
+                    'status'         => 'completed',
+                    'hierarchy_name' => $result['hierarchy_name'],
+                    'total_nodes'    => $result['total_nodes'],
+                    'synced'         => $result['synced'],
+                    'errors'         => $result['errors'],
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'message' => 'Hierarchie-Sync fehlgeschlagen: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 
     /**
