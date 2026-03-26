@@ -69,7 +69,42 @@
                 @endphp
 
                 <div class="element" style="{{ $css }}">
-                    @if (in_array($el['type'] ?? '', ['variant_table', 'relation_table', 'attribute_table']) && !empty($el['variantTableData']))
+                    @if (($el['type'] ?? '') === 'smart_table' && !empty($el['smartTableData']))
+                        @php
+                            $ptl = $el['ptl'] ?? [];
+                            $stData = $el['smartTableData'];
+                            $hStyle = $ptl['headerStyle'] ?? [];
+                            $rStyle = $ptl['rowStyle'] ?? [];
+                            $bColor = $ptl['borderColor'] ?? '#e5e7eb';
+                            $zebra = $ptl['zebraStripes'] ?? false;
+                            $zebraColor = $ptl['zebraColor'] ?? '#f9fafb';
+                            $flatCols = $stData['columns'] ?? [];
+                        @endphp
+                        <table style="width:100%; border-collapse:collapse; font-size:{{ $rStyle['fontSize'] ?? 8 }}pt; font-family: inherit;">
+                            <thead>
+                                @foreach ($stData['headerRows'] as $headerRow)
+                                    <tr style="background:{{ e($hStyle['backgroundColor'] ?? '#f3f4f6') }}; color:{{ e($hStyle['color'] ?? '#374151') }};">
+                                        @foreach ($headerRow as $cell)
+                                            <th
+                                                @if (($cell['colspan'] ?? 1) > 1) colspan="{{ $cell['colspan'] }}" @endif
+                                                @if (($cell['rowspan'] ?? 1) > 1) rowspan="{{ $cell['rowspan'] }}" @endif
+                                                style="border:1px solid {{ e($bColor) }}; padding:1mm 2mm; text-align:{{ ($cell['colspan'] ?? 1) > 1 ? 'center' : 'left' }}; font-weight:{{ $hStyle['fontWeight'] ?? 700 }}; font-size:{{ $hStyle['fontSize'] ?? 9 }}pt;"
+                                            >{{ e($cell['label'] ?? '') }}</th>
+                                        @endforeach
+                                    </tr>
+                                @endforeach
+                            </thead>
+                            <tbody>
+                                @foreach ($stData['bodyRows'] as $ri => $row)
+                                    <tr @if ($zebra && $ri % 2 === 1) style="background:{{ e($zebraColor) }};" @endif>
+                                        @foreach ($row as $ci => $cell)
+                                            <td style="border:1px solid {{ e($bColor) }}; padding:1mm 2mm; text-align:{{ $flatCols[$ci]['align'] ?? 'left' }};">{{ e($cell) }}</td>
+                                        @endforeach
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    @elseif (in_array($el['type'] ?? '', ['variant_table', 'relation_table', 'attribute_table']) && !empty($el['variantTableData']))
                         @php $tStyle = $el['tableStyle'] ?? []; $tData = $el['variantTableData']; $colWidths = $el['columnWidths'] ?? []; @endphp
                         <table style="width:100%; border-collapse:collapse; font-size:{{ $tStyle['fontSize'] ?? 8 }}pt; font-family: inherit; table-layout: {{ !empty($colWidths) ? 'fixed' : 'auto' }};">
                             <thead>
