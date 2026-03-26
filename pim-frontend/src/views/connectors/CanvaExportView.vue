@@ -257,9 +257,7 @@ async function executeExport() {
       const options = {
         language: selectedLanguages.value[0],
         attributes: selectedAttributeIds.value.length
-          ? allAttributes.value
-              .filter(a => selectedAttributeIds.value.includes(a.id))
-              .map(a => a.code || a.technical_name)
+          ? selectedAttributeIds.value
           : undefined,
         include_prices: includePrices.value,
         include_media: includeMedia.value,

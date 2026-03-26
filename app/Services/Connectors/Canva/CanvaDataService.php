@@ -42,14 +42,16 @@ class CanvaDataService
 
         if ($includeAttributes) {
             $query->whereHas('attribute', function ($q) use ($includeAttributes) {
-                $q->whereIn('code', $includeAttributes);
+                // Unterstützt sowohl UUIDs (IDs) als auch technical_names
+                $isUuid = preg_match('/^[0-9a-f]{8}-/', $includeAttributes[0] ?? '');
+                $q->whereIn($isUuid ? 'id' : 'technical_name', $includeAttributes);
             });
         }
 
         foreach ($query->get() as $attributeValue) {
-            $code = $attributeValue->attribute->code ?? null;
-            if ($code) {
-                $data['attributes'][$code] = $this->resolveAttributeValue($attributeValue);
+            $key = $attributeValue->attribute->technical_name ?? null;
+            if ($key) {
+                $data['attributes'][$key] = $this->resolveAttributeValue($attributeValue);
             }
         }
 
