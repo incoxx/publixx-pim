@@ -51,18 +51,18 @@ const allItems = computed(() => {
       section: 'navigation', action: () => router.push('/dashboard'),
     },
     {
-      id: 'nav-search', icon: Search,
-      label: t('nav.search'),
-      description: t('cmd.desc.search'),
-      keywords: ['suche', 'search', 'finden', 'find', 'pql', 'query', 'abfrage', 'filtern'],
-      section: 'navigation', action: () => router.push('/search'),
-    },
-    {
       id: 'nav-quick-search', icon: Zap,
       label: t('nav.quickSearch'),
       description: t('cmd.desc.quickSearch'),
-      keywords: ['schnellsuche', 'quick search', 'instant', 'sofort', 'schnell', 'fast', 'google', 'finden'],
+      keywords: ['schnellsuche', 'quick search', 'instant', 'sofort', 'schnell', 'fast', 'google', 'finden', 'suche'],
       section: 'navigation', action: () => router.push('/quick-search'),
+    },
+    {
+      id: 'nav-search', icon: Search,
+      label: t('nav.search'),
+      description: t('cmd.desc.search'),
+      keywords: ['profisuche', 'suche', 'search', 'finden', 'find', 'pql', 'query', 'abfrage', 'filtern', 'erweitert'],
+      section: 'navigation', action: () => router.push('/search'),
     },
     {
       id: 'nav-products', icon: Package,

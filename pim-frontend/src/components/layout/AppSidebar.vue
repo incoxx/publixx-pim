@@ -43,8 +43,8 @@ const sections = computed(() => {
       label: 'Daily Business',
       items: [
         { icon: LayoutDashboard, label: () => 'Dashboard', to: '/dashboard' },
-        { icon: Search, label: () => t('nav.search'), to: '/search' },
         { icon: Zap, label: () => t('nav.quickSearch'), to: '/quick-search' },
+        { icon: Search, label: () => t('nav.search'), to: '/search' },
         { icon: Package, label: () => t('nav.products'), to: '/products' },
         { icon: GitBranch, label: () => t('nav.hierarchies'), to: '/hierarchies' },
         { icon: Star, label: () => 'Merkliste', to: '/watchlist' },

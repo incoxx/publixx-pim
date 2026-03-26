@@ -9,8 +9,8 @@ import './assets/main.css'
 const messages = {
   de: {
     nav: {
-      search: 'Suche',
       quickSearch: 'Schnellsuche',
+      search: 'Profisuche',
       products: 'Produkte',
       hierarchies: 'Hierarchien',
       attributes: 'Attribute',
@@ -174,8 +174,8 @@ const messages = {
       },
       desc: {
         dashboard: 'Übersicht, Statistiken und Schnellzugriff',
-        search: 'Erweiterte Produktsuche mit Filtern und PQL',
         quickSearch: 'Schnelle Suche über Produkte, Medien, Hierarchien und Attribute',
+        search: 'Erweiterte Produktsuche mit Filtern, Attributen und PQL',
         products: 'Alle Produkte anzeigen, bearbeiten und verwalten',
         watchlist: 'Gemerkte Produkte und persönliche Auswahl',
         workflow: 'Offene Workflow-Aufgaben und Freigaben',

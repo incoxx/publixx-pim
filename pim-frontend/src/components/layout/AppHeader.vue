@@ -54,7 +54,7 @@ function switchLocale(code) {
         @click="authStore.toggleCommandPalette()"
       >
         <Command class="w-3.5 h-3.5" :stroke-width="1.75" />
-        <span class="hidden sm:inline">{{ t('nav.search') }}</span>
+        <span class="hidden sm:inline">Suche</span>
         <span class="pim-kbd text-[10px] hidden sm:inline-flex">⌘K</span>
       </button>
 
