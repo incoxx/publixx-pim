@@ -191,11 +191,11 @@ async function executeProfileSync() {
   try {
     const res = await connectorsApi.syncFromProfile(connectionId.value)
     profileSyncResult.value = res.data.data || res.data
-    await loadConnection()
   } catch (e) {
     syncError.value = e.response?.data?.message || 'Sync fehlgeschlagen'
   } finally {
     profileSyncing.value = false
+    await loadConnection()
   }
 }
 
@@ -214,16 +214,26 @@ async function executeSyncSingle() {
     showSyncDialog.value = false
     syncEntityId.value = ''
     selectedProduct.value = null
-    await loadConnection()
   } catch (e) {
     syncError.value = e.response?.data?.message || e.message
   } finally {
     syncing.value = false
+    await loadConnection()
   }
 }
 
 function toggleLogDetail(logId) {
   expandedLogId.value = expandedLogId.value === logId ? null : logId
+}
+
+async function clearSyncLogs() {
+  if (!confirm('Alle Sync-Einträge dieser Verbindung löschen?')) return
+  try {
+    await connectorsApi.clearSyncLogs(connectionId.value)
+    syncLogs.value = []
+  } catch (e) {
+    syncError.value = e.response?.data?.message || 'Löschen fehlgeschlagen'
+  }
 }
 
 const statusColors = {
@@ -533,7 +543,14 @@ const statusColors = {
 
       <!-- Sync-Protokoll -->
       <div class="space-y-2">
-        <h2 class="text-sm font-semibold text-base-content/60 uppercase tracking-wider">Sync-Protokoll</h2>
+        <div class="flex items-center justify-between">
+          <h2 class="text-sm font-semibold text-base-content/60 uppercase tracking-wider">Sync-Protokoll</h2>
+          <button
+            v-if="syncLogs.length > 0"
+            class="btn btn-ghost btn-xs text-error"
+            @click="clearSyncLogs"
+          >Protokoll löschen</button>
+        </div>
         <div v-if="syncLogs.length === 0" class="text-center py-6 text-base-content/40">
           Noch keine Sync-Einträge.
         </div>

@@ -951,6 +951,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
 
         // Logs
         Route::get('/connections/{connection}/sync-logs', [ConnectorController::class, 'syncLogs']);
+        Route::delete('/connections/{connection}/sync-logs', [ConnectorController::class, 'clearSyncLogs']);
 
         // Canva Export-Profile (CRUD + Execute)
         Route::apiResource('canva-export-profiles', CanvaExportProfileController::class)
