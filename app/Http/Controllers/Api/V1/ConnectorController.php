@@ -368,6 +368,22 @@ class ConnectorController extends Controller
     }
 
     /**
+     * DELETE /connectors/connections/{connection}/sync-logs — Sync-Protokoll löschen.
+     */
+    public function clearSyncLogs(ConnectorConnection $connection): JsonResponse
+    {
+        $this->authorize('update', $connection);
+
+        $count = $connection->syncLogs()->count();
+        $connection->syncLogs()->delete();
+
+        return response()->json([
+            'message' => "{$count} Sync-Einträge gelöscht.",
+            'deleted' => $count,
+        ]);
+    }
+
+    /**
      * PUT /connectors/connections/{connection} — Verbindung aktualisieren (Settings + Export-Profil).
      */
     public function update(Request $request, ConnectorConnection $connection): JsonResponse

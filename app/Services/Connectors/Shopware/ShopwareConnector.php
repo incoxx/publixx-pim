@@ -81,14 +81,40 @@ class ShopwareConnector extends AbstractConnector
         $http = $this->authenticatedRequest($connection);
         $shopUrl = $connection->settings['shop_url'] ?? config('connectors.shopware.shop_url');
         $language = $options['language'] ?? 'de';
+        $settings = $connection->settings ?? [];
+        $shopwareFields = $settings['shopware_fields'] ?? [];
+        $profileId = $settings['website_profile_id'] ?? null;
 
-        // Tax-ID automatisch von Shopware holen, wenn nicht konfiguriert
-        if (empty($options['tax_id'])) {
-            $options['_default_tax_id'] = $this->productService->fetchDefaultTaxId($http, $shopUrl);
-        }
+        // Wenn Export-Profil konfiguriert ist → profil-basierten Pfad nutzen
+        $useProfileSync = !empty($shopwareFields) || $profileId;
 
         try {
-            $result = $this->productService->syncProduct($http, $shopUrl, $product, $language, $options);
+            if ($useProfileSync) {
+                // Tax-ID für default-Modus vorab holen
+                $taxIdMapping = $shopwareFields['tax_id'] ?? [];
+                if (empty($taxIdMapping) || ($taxIdMapping['mode'] ?? '') === 'default') {
+                    $defaultTaxId = $this->productService->fetchDefaultTaxId($http, $shopUrl);
+                    if ($defaultTaxId) {
+                        $shopwareFields['tax_id'] = ['mode' => 'fixed', 'value' => $defaultTaxId];
+                    }
+                }
+
+                $profilePayload = [];
+                if ($profileId) {
+                    $profile = \App\Models\WebsiteProfile::find($profileId);
+                    $profilePayload = $profile?->payload ?? [];
+                }
+
+                $result = $this->productService->syncProductFromProfile(
+                    $http, $shopUrl, $product, $profilePayload, $shopwareFields, $language,
+                );
+            } else {
+                // Legacy-Pfad ohne Profil
+                if (empty($options['tax_id'])) {
+                    $options['_default_tax_id'] = $this->productService->fetchDefaultTaxId($http, $shopUrl);
+                }
+                $result = $this->productService->syncProduct($http, $shopUrl, $product, $language, $options);
+            }
 
             $externalId = $result['product_id'] ?? null;
 
