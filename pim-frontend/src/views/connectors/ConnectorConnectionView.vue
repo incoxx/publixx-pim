@@ -120,6 +120,9 @@ async function loadConnection() {
       if (shopwareFields.value._sync_media === undefined) {
         shopwareFields.value._sync_media = connection.value.settings?.shopware_fields?._sync_media ?? { enabled: true }
       }
+      if (!shopwareFields.value._sales_channel_id) {
+        shopwareFields.value._sales_channel_id = connection.value.settings?.shopware_fields?._sales_channel_id ?? { value: '' }
+      }
 
       await Promise.all([loadProfiles(), loadAttributes()])
     }
@@ -191,6 +194,10 @@ async function saveExportProfile() {
       }
       if (key === '_sync_media') {
         cleanedFields[key] = { enabled: mapping?.enabled ?? true }
+        continue
+      }
+      if (key === '_sales_channel_id') {
+        cleanedFields[key] = { value: mapping?.value || '' }
         continue
       }
       if (mapping.mode === 'default') {
@@ -599,6 +606,21 @@ const statusColors = {
               <p class="text-xs text-base-content/40 mt-1">
                 Alle dem Produkt zugeordneten Medien werden hochgeladen und als Produktbilder zugewiesen.
               </p>
+            </div>
+
+            <!-- Sales Channel -->
+            <div>
+              <label class="label"><span class="label-text font-medium">Sales Channel</span></label>
+              <p class="text-xs text-base-content/50 mb-2">
+                Shopware-UUID des Sales Channels. Ohne diese werden Produkte nicht im Frontend angezeigt.
+                Leer = automatisch der erste aktive Storefront.
+              </p>
+              <input
+                v-model="shopwareFields._sales_channel_id.value"
+                type="text"
+                class="input input-bordered input-sm w-full max-w-md"
+                placeholder="Leer = automatisch erster aktiver Storefront"
+              />
             </div>
 
             <!-- Speichern -->

@@ -134,7 +134,7 @@ class ShopwareProductService
         ];
 
         // Keys die intern sind und nicht als Shopware-Felder behandelt werden
-        $internalKeys = ['_property_attribute_ids', '_sync_media', 'price', 'description', 'list_price', 'purchase_price'];
+        $internalKeys = ['_property_attribute_ids', '_sync_media', '_sales_channel_id', 'price', 'description', 'list_price', 'purchase_price'];
 
         // Shopware-Pflichtfelder auflösen
         // Keys werden von snake_case in camelCase konvertiert (Shopware API erwartet camelCase)
@@ -308,7 +308,58 @@ class ShopwareProductService
             }
         }
 
+        // Sales Channel Sichtbarkeit — ohne visibilities ist das Produkt im Frontend unsichtbar
+        $salesChannelId = $shopwareFields['_sales_channel_id']['value'] ?? null;
+        if ($salesChannelId) {
+            $visibilityId = md5($shopwareProductId . $salesChannelId);  // Deterministische ID
+            $data['visibilities'] = [
+                [
+                    'id'             => $visibilityId,
+                    'salesChannelId' => $salesChannelId,
+                    'visibility'     => 30,  // 30 = überall sichtbar (Suche + Listing)
+                ],
+            ];
+        }
+
         return array_filter($data, fn ($v) => $v !== null);
+    }
+
+    /**
+     * Holt die Standard-Sales-Channel-ID von Shopware.
+     */
+    public function fetchDefaultSalesChannelId(PendingRequest $http, string $shopUrl): ?string
+    {
+        $shopUrl = rtrim($shopUrl, '/');
+
+        try {
+            $response = $http->post("{$shopUrl}/api/search/sales-channel", [
+                'limit'  => 1,
+                'filter' => [
+                    ['type' => 'equals', 'field' => 'active', 'value' => true],
+                    ['type' => 'equals', 'field' => 'typeId', 'value' => '8a243080f92e4c719546314b577cf82b'],  // Storefront type
+                ],
+            ]);
+            $response->throw();
+            $data = $response->json();
+
+            return $data['data'][0]['id'] ?? null;
+        } catch (\Throwable) {
+            // Fallback: jeden aktiven Sales Channel nehmen
+            try {
+                $response = $http->post("{$shopUrl}/api/search/sales-channel", [
+                    'limit'  => 1,
+                    'filter' => [
+                        ['type' => 'equals', 'field' => 'active', 'value' => true],
+                    ],
+                ]);
+                $response->throw();
+                $data = $response->json();
+
+                return $data['data'][0]['id'] ?? null;
+            } catch (\Throwable) {
+                return null;
+            }
+        }
     }
 
     /**
