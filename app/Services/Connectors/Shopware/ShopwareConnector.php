@@ -128,25 +128,17 @@ class ShopwareConnector extends AbstractConnector
                     $properties = $this->propertyService->resolveProductProperties($product, $propertyMap, $language);
                 }
 
+                // Kategorie-Zuordnung (aus vorherigem Hierarchie-Sync)
+                $categoryId = null;
+                if ($product->master_hierarchy_node_id) {
+                    $categoryId = $this->getCategoryIdForNode($connection->id, $product->master_hierarchy_node_id);
+                }
+
                 $result = $this->productService->syncProductFromProfile(
-                    $http, $shopUrl, $product, $profilePayload, $shopwareFields, $language, $properties,
+                    $http, $shopUrl, $product, $profilePayload, $shopwareFields, $language, $properties, $categoryId,
                 );
 
                 $externalProductId = $result['product_id'] ?? $product->sku;
-
-                // Kategorie-Zuordnung (wenn Hierarchie synchronisiert wurde)
-                if ($product->master_hierarchy_node_id) {
-                    $shopwareCategoryId = $this->getCategoryIdForNode($connection->id, $product->master_hierarchy_node_id);
-                    if ($shopwareCategoryId) {
-                        try {
-                            $this->categoryService->assignProductToCategory(
-                                $http, $shopUrl, $externalProductId, $shopwareCategoryId,
-                            );
-                        } catch (\Throwable $e) {
-                            Log::channel('connectors')->warning("Kategorie-Zuordnung: {$product->sku}", ['error' => $e->getMessage()]);
-                        }
-                    }
-                }
 
                 // Medien synchronisieren (wenn aktiviert)
                 $syncMedia = $shopwareFields['_sync_media']['enabled'] ?? true;
@@ -373,82 +365,54 @@ class ShopwareConnector extends AbstractConnector
         }
 
         $result = [
-            'categories'  => ['synced' => 0, 'errors' => 0],
             'products'    => ['success' => 0, 'failed' => 0],
             'media'       => ['success' => 0, 'failed' => 0],
             'properties'  => ['groups' => count($propertyMap), 'options' => collect($propertyMap)->sum(fn ($m) => count($m['options']))],
         ];
 
-        // 1. Kategorien synchronisieren
-        $categoryMap = [];
-        if ($hierarchyId) {
-            $catResult = $this->categoryService->syncHierarchy(
-                $http, $shopUrl, $connection->id, $hierarchyId, $language, $excludedNodeIds,
-            );
-            $result['categories'] = [
-                'synced' => $catResult['synced'],
-                'errors' => $catResult['errors'],
-            ];
-            $categoryMap = $catResult['category_map'];
-
-            // Sync-Logs für Kategorien
-            foreach ($categoryMap as $nodeId => $shopwareCategoryId) {
-                $this->logSync(
-                    $connection, 'category_sync', 'hierarchy_node',
-                    $nodeId, 'success', $shopwareCategoryId,
-                );
-            }
-        }
-
-        // 2. Produkte aus Hierarchie laden
+        // Produkte aus Hierarchie laden (mit Medien!)
         $products = $this->loadProductsFromProfile($payload);
 
-        // 3. Produkte synchronisieren (in Chunks)
+        // Produkte synchronisieren (in Chunks)
         $products->chunk(50, function ($chunk) use (
             $http, $shopUrl, $connection, $payload, $shopwareFields,
-            $language, $categoryMap, $propertyMap, &$result,
+            $language, $propertyMap, &$result,
         ) {
             foreach ($chunk as $product) {
                 try {
                     // Properties pro Produkt auflösen (nur Lookup, kein API-Call)
                     $properties = $this->propertyService->resolveProductProperties($product, $propertyMap, $language);
 
-                    // Produkt-Daten synchronisieren
+                    // Kategorie-Zuordnung (aus vorherigem Hierarchie-Sync)
+                    $categoryId = null;
+                    if ($product->master_hierarchy_node_id) {
+                        $categoryId = $this->getCategoryIdForNode($connection->id, $product->master_hierarchy_node_id);
+                    }
+
+                    // Produkt-Daten synchronisieren (inkl. Kategorie im Payload)
                     $productResult = $this->productService->syncProductFromProfile(
-                        $http, $shopUrl, $product, $payload, $shopwareFields, $language, $properties,
+                        $http, $shopUrl, $product, $payload, $shopwareFields, $language, $properties, $categoryId,
                     );
 
                     $externalId = $productResult['product_id'] ?? null;
 
-                    // Produkt-Kategorie-Zuordnung
-                    if ($product->masterHierarchyNode && isset($categoryMap[$product->master_hierarchy_node_id])) {
-                        try {
-                            $this->categoryService->assignProductToCategory(
-                                $http, $shopUrl,
-                                $externalId,
-                                $categoryMap[$product->master_hierarchy_node_id],
-                            );
-                        } catch (\Throwable $e) {
-                            Log::channel('connectors')->warning("Kategorie-Zuordnung fehlgeschlagen: {$product->id}", [
-                                'error' => $e->getMessage(),
-                            ]);
-                        }
-                    }
-
-                    // Medien synchronisieren
-                    if (!empty($product->media)) {
-                        $position = 0;
-                        foreach ($product->media as $media) {
-                            try {
-                                $mediaId = $this->mediaService->uploadMedia($http, $shopUrl, $media);
-                                $this->mediaService->assignMediaToProduct($http, $shopUrl, $externalId, $mediaId, $position);
-                                $result['media']['success']++;
-                                $position++;
-                            } catch (\Throwable $e) {
-                                $result['media']['failed']++;
-                                Log::channel('connectors')->warning("Media-Upload fehlgeschlagen: {$media->id}", [
-                                    'error' => $e->getMessage(),
-                                ]);
+                    // Medien synchronisieren (wenn aktiviert)
+                    $syncMedia = $shopwareFields['_sync_media']['enabled'] ?? true;
+                    if ($syncMedia) {
+                        $product->loadMissing('media');
+                        if ($product->media->isNotEmpty()) {
+                            $position = 0;
+                            foreach ($product->media as $media) {
+                                try {
+                                    $mediaId = $this->mediaService->uploadMedia($http, $shopUrl, $media);
+                                    $this->mediaService->assignMediaToProduct($http, $shopUrl, $externalId, $mediaId, $position);
+                                    $result['media']['success']++;
+                                    $this->logSync($connection, 'media_sync', 'media', $media->id, 'success', $mediaId);
+                                    $position++;
+                                } catch (\Throwable $e) {
+                                    $result['media']['failed']++;
+                                    $this->logSync($connection, 'media_sync', 'media', $media->id, 'failed', null, $e->getMessage());
+                                }
                             }
                         }
                     }

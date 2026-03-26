@@ -427,9 +427,6 @@ const statusColors = {
             <div>
               <div class="font-semibold">Sync abgeschlossen</div>
               <div class="text-sm mt-1">
-                Kategorien: {{ profileSyncResult.categories?.synced || 0 }}
-                <span v-if="profileSyncResult.categories?.errors" class="text-error">({{ profileSyncResult.categories.errors }} Fehler)</span>
-                &middot;
                 Produkte: {{ profileSyncResult.products?.success || 0 }} OK
                 <span v-if="profileSyncResult.products?.failed" class="text-error">({{ profileSyncResult.products.failed }} Fehler)</span>
                 &middot;

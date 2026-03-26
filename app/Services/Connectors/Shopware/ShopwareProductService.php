@@ -59,6 +59,7 @@ class ShopwareProductService
         array $shopwareFields,
         string $language = 'de',
         array $properties = [],
+        ?string $categoryId = null,
     ): array {
         $shopUrl = rtrim($shopUrl, '/');
         $productData = $this->collectProfileProductData($product, $profilePayload, $shopwareFields, $language);
@@ -66,6 +67,11 @@ class ShopwareProductService
         // Properties (aus ShopwarePropertyService)
         if (!empty($properties)) {
             $productData['properties'] = $properties;
+        }
+
+        // Kategorie-Zuordnung direkt im Product-Payload (funktioniert mit upsert)
+        if ($categoryId) {
+            $productData['categories'] = [['id' => $categoryId]];
         }
 
         $response = $http->post("{$shopUrl}/api/_action/sync", [
