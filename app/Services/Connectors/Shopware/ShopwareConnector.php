@@ -21,6 +21,7 @@ class ShopwareConnector extends AbstractConnector
         private readonly ShopwareProductService $productService,
         private readonly ShopwareMediaService $mediaService,
         private readonly ShopwareCategoryService $categoryService,
+        private readonly ShopwarePropertyService $propertyService,
     ) {}
 
     public function getType(): string
@@ -105,8 +106,25 @@ class ShopwareConnector extends AbstractConnector
                     $profilePayload = $profile?->payload ?? [];
                 }
 
+                // Properties synchronisieren (Selection-Attribute → Shopware Property Groups)
+                $properties = [];
+                $propertyAttrIds = $shopwareFields['_property_attribute_ids'] ?? [];
+                if (!empty($propertyAttrIds)) {
+                    $propertyMap = $this->propertyService->syncPropertyGroups(
+                        $http, $shopUrl, $connection->id, $propertyAttrIds, $language,
+                    );
+                    // Sync-Logs für Property Groups + Options schreiben
+                    foreach ($propertyMap as $attrId => $mapping) {
+                        $this->logSync($connection, 'property_group_sync', 'attribute', $attrId, 'success', $mapping['group_id']);
+                        foreach ($mapping['options'] as $entryId => $optionId) {
+                            $this->logSync($connection, 'property_option_sync', 'value_list_entry', $entryId, 'success', $optionId);
+                        }
+                    }
+                    $properties = $this->propertyService->resolveProductProperties($product, $propertyMap, $language);
+                }
+
                 $result = $this->productService->syncProductFromProfile(
-                    $http, $shopUrl, $product, $profilePayload, $shopwareFields, $language,
+                    $http, $shopUrl, $product, $profilePayload, $shopwareFields, $language, $properties,
                 );
             } else {
                 // Legacy-Pfad ohne Profil
@@ -224,10 +242,26 @@ class ShopwareConnector extends AbstractConnector
             }
         }
 
+        // Property Groups einmal vorab synchronisieren (Performance: nicht pro Produkt)
+        $propertyMap = [];
+        $propertyAttrIds = $shopwareFields['_property_attribute_ids'] ?? [];
+        if (!empty($propertyAttrIds)) {
+            $propertyMap = $this->propertyService->syncPropertyGroups(
+                $http, $shopUrl, $connection->id, $propertyAttrIds, $language,
+            );
+            foreach ($propertyMap as $attrId => $mapping) {
+                $this->logSync($connection, 'property_group_sync', 'attribute', $attrId, 'success', $mapping['group_id']);
+                foreach ($mapping['options'] as $entryId => $optionId) {
+                    $this->logSync($connection, 'property_option_sync', 'value_list_entry', $entryId, 'success', $optionId);
+                }
+            }
+        }
+
         $result = [
-            'categories' => ['synced' => 0, 'errors' => 0],
-            'products'   => ['success' => 0, 'failed' => 0],
-            'media'      => ['success' => 0, 'failed' => 0],
+            'categories'  => ['synced' => 0, 'errors' => 0],
+            'products'    => ['success' => 0, 'failed' => 0],
+            'media'       => ['success' => 0, 'failed' => 0],
+            'properties'  => ['groups' => count($propertyMap), 'options' => collect($propertyMap)->sum(fn ($m) => count($m['options']))],
         ];
 
         // 1. Kategorien synchronisieren
@@ -257,13 +291,16 @@ class ShopwareConnector extends AbstractConnector
         // 3. Produkte synchronisieren (in Chunks)
         $products->chunk(50, function ($chunk) use (
             $http, $shopUrl, $connection, $payload, $shopwareFields,
-            $language, $categoryMap, &$result,
+            $language, $categoryMap, $propertyMap, &$result,
         ) {
             foreach ($chunk as $product) {
                 try {
+                    // Properties pro Produkt auflösen (nur Lookup, kein API-Call)
+                    $properties = $this->propertyService->resolveProductProperties($product, $propertyMap, $language);
+
                     // Produkt-Daten synchronisieren
                     $productResult = $this->productService->syncProductFromProfile(
-                        $http, $shopUrl, $product, $payload, $shopwareFields, $language,
+                        $http, $shopUrl, $product, $payload, $shopwareFields, $language, $properties,
                     );
 
                     $externalId = $productResult['product_id'] ?? null;

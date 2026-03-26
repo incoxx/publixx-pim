@@ -49,15 +49,21 @@ const expandedLogId = ref(null)
 // Shopware-Pflichtfelder
 const SHOPWARE_FIELD_DEFINITIONS = [
   { key: 'name', label: 'Produktname', description: 'Standard: product.name', defaultMode: 'default', defaultInfo: 'Produktname aus PIM' },
+  { key: 'description', label: 'Beschreibung', description: 'Standard: Description-Attribute aus Profil', defaultMode: 'default', defaultInfo: 'Aus Vorschau-Profil', modes: ['default', 'fixed', 'attribute', 'attributes'] },
   { key: 'price', label: 'Preis', description: 'Standard: Preis aus Vorschau-Profil', defaultMode: 'default', defaultInfo: 'Preis aus Profil oder erster Preis' },
   { key: 'tax_id', label: 'Steuer-ID (taxId)', description: 'Leer = Standard-Steuer aus Shopware', defaultMode: 'default', defaultInfo: 'Erste Steuer aus Shopware' },
-  { key: 'manufacturer_id', label: 'Hersteller (manufacturerId)', description: 'Optional — leer lassen wenn nicht benötigt', defaultMode: 'default', defaultInfo: 'Kein Hersteller (optional)' },
+  { key: 'manufacturer_id', label: 'Hersteller (manufacturerId)', description: 'Optional', defaultMode: 'default', defaultInfo: 'Kein Hersteller (optional)' },
   { key: 'currency_id', label: 'Währung (currencyId)', description: 'Shopware-UUID der Währung', defaultMode: 'fixed', defaultValue: 'b7d2554b0ce847cd82f3ac9bd1c0dfca' },
   { key: 'ean', label: 'EAN', description: 'Standard: product.ean', defaultMode: 'default', defaultInfo: 'EAN aus PIM-Stammdaten' },
   { key: 'weight', label: 'Gewicht', description: 'Produktgewicht in kg', defaultMode: 'attribute' },
   { key: 'meta_title', label: 'SEO-Titel', description: 'Meta-Title für Shopware', defaultMode: 'attribute' },
   { key: 'meta_description', label: 'SEO-Beschreibung', description: 'Meta-Description für Shopware', defaultMode: 'attribute' },
 ]
+
+// Selection-Attribute für Properties (gefiltert)
+const selectionAttributes = computed(() =>
+  allAttributes.value.filter(a => a.data_type === 'Selection')
+)
 
 const connectionId = computed(() => route.params.id)
 const isShopware = computed(() => connection.value?.connector_type === 'shopware')
@@ -93,8 +99,14 @@ async function loadConnection() {
             mode: field.defaultMode,
             value: field.defaultValue || '',
             attribute_id: '',
+            attribute_ids: [],
           }
         }
+      }
+
+      // Property-Attribute-IDs und Description-Attribute-IDs initialisieren
+      if (!shopwareFields.value._property_attribute_ids) {
+        shopwareFields.value._property_attribute_ids = connection.value.settings?.shopware_fields?._property_attribute_ids || []
       }
 
       await Promise.all([loadProfiles(), loadAttributes()])
@@ -160,10 +172,16 @@ async function saveExportProfile() {
   try {
     const cleanedFields = {}
     for (const [key, mapping] of Object.entries(shopwareFields.value)) {
+      if (key === '_property_attribute_ids') {
+        cleanedFields[key] = Array.isArray(mapping) ? mapping : []
+        continue
+      }
       if (mapping.mode === 'default') {
         cleanedFields[key] = { mode: 'default' }
       } else if (mapping.mode === 'fixed') {
         cleanedFields[key] = { mode: 'fixed', value: mapping.value || '' }
+      } else if (mapping.mode === 'attributes') {
+        cleanedFields[key] = { mode: 'attributes', attribute_ids: mapping.attribute_ids || [] }
       } else {
         cleanedFields[key] = { mode: 'attribute', attribute_id: mapping.attribute_id || '' }
       }
@@ -397,6 +415,7 @@ const statusColors = {
                           <option v-if="field.defaultInfo" value="default">Standard</option>
                           <option value="fixed">Fester Wert</option>
                           <option value="attribute">Attribut</option>
+                          <option v-if="field.modes?.includes('attributes')" value="attributes">Mehrere Attribute</option>
                         </select>
                       </td>
                       <td class="py-2.5">
@@ -413,6 +432,29 @@ const statusColors = {
                           :placeholder="field.defaultValue || 'Wert eingeben...'"
                         />
 
+                        <!-- Mehrere Attribute (für Description) -->
+                        <div v-else-if="shopwareFields[field.key].mode === 'attributes'" class="space-y-1">
+                          <div v-for="(attrId, idx) in (shopwareFields[field.key].attribute_ids || [])" :key="idx" class="flex items-center gap-1">
+                            <select
+                              :value="attrId"
+                              @change="shopwareFields[field.key].attribute_ids[idx] = $event.target.value"
+                              class="select select-bordered select-xs flex-1"
+                            >
+                              <option value="">— Attribut wählen —</option>
+                              <option v-for="attr in allAttributes" :key="attr.id" :value="attr.id">
+                                {{ attr.name_de || attr.technical_name }}
+                              </option>
+                            </select>
+                            <button class="btn btn-ghost btn-xs" @click="shopwareFields[field.key].attribute_ids.splice(idx, 1)">
+                              <X class="w-3 h-3" />
+                            </button>
+                          </div>
+                          <button
+                            class="btn btn-ghost btn-xs text-primary"
+                            @click="shopwareFields[field.key].attribute_ids = [...(shopwareFields[field.key].attribute_ids || []), '']"
+                          >+ Attribut hinzufügen</button>
+                        </div>
+
                         <select
                           v-else
                           v-model="shopwareFields[field.key].attribute_id"
@@ -427,6 +469,39 @@ const statusColors = {
                     </tr>
                   </tbody>
                 </table>
+              </div>
+            </div>
+
+            <!-- Properties (Selection-Attribute → Shopware Specifications) -->
+            <div>
+              <label class="label"><span class="label-text font-medium">Properties (Spezifikationen)</span></label>
+              <p class="text-xs text-base-content/50 mb-3">
+                Selection-Attribute werden als Shopware Property Groups mit Options angelegt.
+                Produktwerte werden automatisch zugeordnet.
+              </p>
+              <div class="space-y-1">
+                <div v-for="(attrId, idx) in shopwareFields._property_attribute_ids" :key="idx" class="flex items-center gap-2">
+                  <select
+                    :value="attrId"
+                    @change="shopwareFields._property_attribute_ids[idx] = $event.target.value"
+                    class="select select-bordered select-xs flex-1"
+                  >
+                    <option value="">— Selection-Attribut wählen —</option>
+                    <option v-for="attr in selectionAttributes" :key="attr.id" :value="attr.id">
+                      {{ attr.name_de || attr.technical_name }}
+                    </option>
+                  </select>
+                  <button class="btn btn-ghost btn-xs" @click="shopwareFields._property_attribute_ids.splice(idx, 1)">
+                    <X class="w-3 h-3" />
+                  </button>
+                </div>
+                <button
+                  class="btn btn-ghost btn-xs text-primary"
+                  @click="shopwareFields._property_attribute_ids.push('')"
+                >+ Property hinzufügen</button>
+              </div>
+              <div v-if="shopwareFields._property_attribute_ids?.length === 0" class="text-xs text-base-content/40 italic mt-1">
+                Keine Properties konfiguriert — Produkte werden ohne Spezifikationen synchronisiert.
               </div>
             </div>
 

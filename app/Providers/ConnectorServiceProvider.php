@@ -20,6 +20,7 @@ use App\Services\Connectors\Shopware\ShopwareCategoryService;
 use App\Services\Connectors\Shopware\ShopwareConnector;
 use App\Services\Connectors\Shopware\ShopwareMediaService;
 use App\Services\Connectors\Shopware\ShopwareProductService;
+use App\Services\Connectors\Shopware\ShopwarePropertyService;
 use App\Models\Setting;
 use Illuminate\Support\ServiceProvider;
 
@@ -87,6 +88,7 @@ class ConnectorServiceProvider extends ServiceProvider
         $this->app->singleton(ShopwareProductService::class);
         $this->app->singleton(ShopwareMediaService::class);
         $this->app->singleton(ShopwareCategoryService::class);
+        $this->app->singleton(ShopwarePropertyService::class);
         $this->app->singleton(ShopwareConnector::class);
 
         // Cloudinary

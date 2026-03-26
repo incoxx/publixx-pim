@@ -47,6 +47,9 @@ class ShopwareProductService
     /**
      * Synchronisiert ein Produkt anhand des Export-Profils (WebsiteProfile + shopware_fields).
      */
+    /**
+     * @param  array  $properties  Shopware-Properties: [['id' => 'option-uuid'], ...]
+     */
     public function syncProductFromProfile(
         PendingRequest $http,
         string $shopUrl,
@@ -54,9 +57,15 @@ class ShopwareProductService
         array $profilePayload,
         array $shopwareFields,
         string $language = 'de',
+        array $properties = [],
     ): array {
         $shopUrl = rtrim($shopUrl, '/');
         $productData = $this->collectProfileProductData($product, $profilePayload, $shopwareFields, $language);
+
+        // Properties (aus ShopwarePropertyService)
+        if (!empty($properties)) {
+            $productData['properties'] = $properties;
+        }
 
         $response = $http->post("{$shopUrl}/api/_action/sync", [
             'write-product' => [
@@ -108,8 +117,8 @@ class ShopwareProductService
             'meta_description' => 'metaDescription',
         ];
         foreach ($shopwareFields as $swField => $mapping) {
-            // price wird separat behandelt (eigener Block weiter unten)
-            if ($swField === 'price') {
+            // price und description werden separat behandelt (eigene Blöcke weiter unten)
+            if (in_array($swField, ['price', 'description'], true)) {
                 continue;
             }
 
@@ -128,16 +137,45 @@ class ShopwareProductService
             }
         }
 
-        // Beschreibung aus description_attributes des Profils
-        $descriptionAttrs = $profilePayload['description_attributes'] ?? [];
-        if (!empty($descriptionAttrs)) {
-            $descAttrIds = array_column($descriptionAttrs, 'attribute_id');
-            $descParts = $this->resolveAttributeValues($product, $descAttrIds, $language);
-            $descriptionHtml = collect($descParts)
-                ->map(fn ($part) => "<p><strong>{$part['label']}</strong>: {$part['value']}</p>")
-                ->implode("\n");
-            if ($descriptionHtml) {
-                $data['description'] = $descriptionHtml;
+        // Beschreibung — steuerbar über shopware_fields['description']
+        $descMapping = $shopwareFields['description'] ?? ['mode' => 'default'];
+        $descMode = $descMapping['mode'] ?? 'default';
+
+        if ($descMode === 'default') {
+            // Standard: description_attributes aus Vorschau-Profil
+            $descriptionAttrs = $profilePayload['description_attributes'] ?? [];
+            if (!empty($descriptionAttrs)) {
+                $descAttrIds = array_column($descriptionAttrs, 'attribute_id');
+                $descParts = $this->resolveAttributeValues($product, $descAttrIds, $language);
+                $descriptionHtml = collect($descParts)
+                    ->map(fn ($part) => "<p><strong>{$part['label']}</strong>: {$part['value']}</p>")
+                    ->implode("\n");
+                if ($descriptionHtml) {
+                    $data['description'] = $descriptionHtml;
+                }
+            }
+        } elseif ($descMode === 'fixed') {
+            $fixedDesc = $descMapping['value'] ?? '';
+            if ($fixedDesc) {
+                $data['description'] = $fixedDesc;
+            }
+        } elseif ($descMode === 'attributes') {
+            // Mehrere Attribute verketten
+            $descAttrIds = $descMapping['attribute_ids'] ?? [];
+            if (!empty($descAttrIds)) {
+                $descParts = $this->resolveAttributeValues($product, $descAttrIds, $language);
+                $descriptionHtml = collect($descParts)
+                    ->map(fn ($part) => "<p><strong>{$part['label']}</strong>: {$part['value']}</p>")
+                    ->implode("\n");
+                if ($descriptionHtml) {
+                    $data['description'] = $descriptionHtml;
+                }
+            }
+        } elseif ($descMode === 'attribute') {
+            // Einzelnes Attribut als Beschreibung
+            $value = $this->resolveFieldMapping($product, $descMapping, $language);
+            if ($value) {
+                $data['description'] = $value;
             }
         }
 
