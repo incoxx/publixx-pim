@@ -11,7 +11,8 @@ import {
   HelpCircle, Star, LayoutGrid, Ruler, Plus,
   FileJson, FileCode, PlayCircle, FileBarChart, FileText, BookOpen, Link2, Zap, Languages, LayoutTemplate,
   Factory, CalendarDays, ScrollText, Globe, ExternalLink,
-  LayoutDashboard, ClipboardList, Code, ArrowRight,
+  LayoutDashboard, ClipboardList, Code, ArrowRight, ArrowRightLeft,
+  FlaskConical, FileSpreadsheet, Send, Plug,
 } from 'lucide-vue-next'
 
 const router = useRouter()
@@ -182,6 +183,56 @@ const allItems = computed(() => {
       section: 'navigation', action: () => router.push('/projects'),
     },
 
+    // ── Plugins & Connectoren ──
+    {
+      id: 'nav-plugin-settings', icon: Settings,
+      label: 'Plugin-Einstellungen',
+      description: 'Plugins verwalten und konfigurieren',
+      keywords: ['plugin', 'einstellung', 'setting', 'erweiterung', 'extension', 'addon'],
+      section: 'config', action: () => router.push('/plugin-settings'),
+      permission: 'users.view',
+    },
+    {
+      id: 'nav-connector-canva', icon: Send,
+      label: 'Canva',
+      description: 'Canva-Connector für Design-Integration',
+      keywords: ['canva', 'design', 'connector', 'grafik', 'bild'],
+      section: 'config', action: () => router.push('/connectors/canva'),
+      module: 'connectors',
+    },
+    {
+      id: 'nav-connector-shopware', icon: Package,
+      label: 'Shopware',
+      description: 'Shopware-Connector für Shop-Anbindung',
+      keywords: ['shopware', 'shop', 'connector', 'ecommerce', 'onlineshop'],
+      section: 'config', action: () => router.push('/connectors/shopware'),
+      module: 'connectors',
+    },
+    {
+      id: 'nav-connector-cloudinary', icon: Image,
+      label: 'Cloudinary',
+      description: 'Cloudinary-Connector für Medien-CDN',
+      keywords: ['cloudinary', 'cdn', 'cloud', 'medien', 'connector', 'bild'],
+      section: 'config', action: () => router.push('/connectors/cloudinary'),
+      module: 'connectors',
+    },
+    {
+      id: 'nav-connector-claude-ai', icon: Zap,
+      label: 'Claude AI',
+      description: 'Claude AI-Connector für KI-gestützte Textgenerierung',
+      keywords: ['claude', 'ai', 'ki', 'anthropic', 'connector', 'text', 'generierung', 'künstliche intelligenz'],
+      section: 'config', action: () => router.push('/connectors/claude-ai'),
+      module: 'connectors',
+    },
+    {
+      id: 'nav-connector-deepl', icon: Languages,
+      label: 'DeepL Einstellungen',
+      description: 'DeepL-Connector für automatische Übersetzungen',
+      keywords: ['deepl', 'übersetzen', 'translate', 'connector', 'sprache', 'automatisch'],
+      section: 'config', action: () => router.push('/connectors/deepl'),
+      module: 'connectors',
+    },
+
     // ── Konfiguration ──
     {
       id: 'cfg-manufacturers', icon: Factory,
@@ -247,6 +298,13 @@ const allItems = computed(() => {
       section: 'config', action: () => router.push('/units'),
     },
     {
+      id: 'cfg-comparison-operators', icon: ArrowRightLeft,
+      label: 'Vergleichsoperatoren',
+      description: 'Vergleichsoperatoren und -gruppen für Produktvergleiche',
+      keywords: ['vergleich', 'comparison', 'operator', 'größer', 'kleiner', 'gleich', 'filter'],
+      section: 'config', action: () => router.push('/comparison-operators'),
+    },
+    {
       id: 'cfg-prices', icon: DollarSign,
       label: t('nav.prices'),
       description: t('cmd.desc.prices'),
@@ -308,12 +366,28 @@ const allItems = computed(() => {
       module: 'bmecat',
     },
     {
+      id: 'adm-excel-designer', icon: FileSpreadsheet,
+      label: 'Sheet Designer',
+      description: 'Excel-Vorlagen und Spaltenzuordnungen gestalten',
+      keywords: ['excel', 'sheet', 'designer', 'vorlage', 'template', 'spalte', 'column', 'xlsx', 'tabelle'],
+      section: 'admin', action: () => router.push('/excel-designer'),
+      module: 'excel_designer',
+    },
+    {
       id: 'adm-export-jobs', icon: PlayCircle,
       label: 'Export-Jobs',
       description: t('cmd.desc.exportJobs'),
       keywords: ['export-job', 'export job', 'automatisch', 'automatic', 'zeitgesteuert', 'scheduled', 'cron'],
       section: 'admin', action: () => router.push('/export-jobs'),
       module: 'advanced_export',
+    },
+    {
+      id: 'adm-attribute-mappings', icon: ArrowRightLeft,
+      label: 'Attribut-Mapping',
+      description: 'Attribut-Zuordnungen zwischen Quell- und Zielschema verwalten',
+      keywords: ['attribut-mapping', 'mapping', 'zuordnung', 'quelle', 'ziel', 'etim', 'eclass', 'transformation'],
+      section: 'admin', action: () => router.push('/attribute-mappings'),
+      permission: 'attribute-mappings.view',
     },
     {
       id: 'adm-catalog-demo', icon: ExternalLink,
@@ -371,11 +445,35 @@ const allItems = computed(() => {
       permission: 'users.view',
     },
     {
+      id: 'adm-test-runner', icon: FlaskConical,
+      label: 'Test anyPIM',
+      description: 'Systemtests und Integrationstests ausführen',
+      keywords: ['test', 'testen', 'prüfen', 'check', 'validierung', 'integration', 'unit'],
+      section: 'admin', action: () => router.push('/test-runner'),
+      permission: 'users.view',
+    },
+    {
       id: 'adm-database', icon: Database,
       label: 'Datenbank',
       description: t('cmd.desc.database'),
       keywords: ['datenbank', 'database', 'db', 'tabelle', 'table', 'sql', 'schema'],
       section: 'admin', action: () => router.push('/db'),
+      permission: 'users.view',
+    },
+    {
+      id: 'adm-db-consistency', icon: Shield,
+      label: 'Datenkonsistenz',
+      description: 'Datenbank-Konsistenzprüfungen und Reparaturen',
+      keywords: ['konsistenz', 'consistency', 'prüfung', 'check', 'reparatur', 'repair', 'integrität', 'integrity', 'orphan'],
+      section: 'admin', action: () => router.push('/db-consistency'),
+      permission: 'users.view',
+    },
+    {
+      id: 'adm-logs', icon: FileText,
+      label: 'Log Viewer',
+      description: 'Anwendungs-Logs und Fehlerprotokolle einsehen',
+      keywords: ['log', 'logs', 'fehler', 'error', 'protokoll', 'debug', 'viewer', 'laravel'],
+      section: 'admin', action: () => router.push('/logs'),
       permission: 'users.view',
     },
     {
