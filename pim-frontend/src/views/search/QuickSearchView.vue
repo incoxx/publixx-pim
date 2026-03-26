@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router'
 import { useQuickSearchStore } from '@/stores/quickSearch'
 import {
   Search, Package, Image, GitBranch, Sliders, X, ChevronRight,
-  FolderTree, ArrowRight, Sparkles,
+  FolderTree, ArrowRight, Sparkles, Link2,
 } from 'lucide-vue-next'
 
 const router = useRouter()
@@ -256,39 +256,61 @@ function typeIcon(type) {
         v-for="(item, idx) in store.results"
         :key="item.id"
         :data-result-index="idx"
-        class="pim-card flex items-center gap-3 p-3 cursor-pointer hover:border-[var(--color-accent)] transition-colors"
+        class="pim-card p-3 cursor-pointer hover:border-[var(--color-accent)] transition-colors"
         :class="{ 'border-[var(--color-accent)] ring-1 ring-[var(--color-accent)]/30': store.selectedIndex === idx }"
         @click="openResult(item)"
       >
-        <!-- Thumbnail / Icon -->
-        <div class="shrink-0 w-10 h-10 rounded-lg bg-[var(--color-bg)] flex items-center justify-center overflow-hidden">
-          <img
-            v-if="thumbUrl(item)"
-            :src="thumbUrl(item)"
-            class="w-full h-full object-cover"
-            loading="lazy"
-            @error="$event.target.style.display = 'none'"
-          />
-          <component v-else :is="typeIcon(item.type)" class="w-5 h-5 text-[var(--color-text-tertiary)]" :stroke-width="1.75" />
+        <div class="flex items-center gap-3">
+          <!-- Thumbnail / Icon -->
+          <div class="shrink-0 w-10 h-10 rounded-lg bg-[var(--color-bg)] flex items-center justify-center overflow-hidden">
+            <img
+              v-if="thumbUrl(item)"
+              :src="thumbUrl(item)"
+              class="w-full h-full object-cover"
+              loading="lazy"
+              @error="$event.target.style.display = 'none'"
+            />
+            <component v-else :is="typeIcon(item.type)" class="w-5 h-5 text-[var(--color-text-tertiary)]" :stroke-width="1.75" />
+          </div>
+
+          <!-- Text -->
+          <div class="flex-1 min-w-0">
+            <div class="font-medium text-sm text-[var(--color-text-primary)] truncate">{{ item.title }}</div>
+            <div v-if="item.subtitle" class="text-xs text-[var(--color-text-tertiary)] truncate">{{ item.subtitle }}</div>
+          </div>
+
+          <!-- Badges (Querverweise) -->
+          <div v-if="item.badge_refs && item.badge_refs.length" class="flex gap-1 flex-wrap justify-end shrink-0">
+            <button
+              v-for="(ref, bIdx) in item.badge_refs"
+              :key="bIdx"
+              class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-[color-mix(in_srgb,var(--color-accent)_12%,transparent)] text-[var(--color-accent)] hover:bg-[color-mix(in_srgb,var(--color-accent)_20%,transparent)] transition-colors cursor-pointer"
+              @click.stop="onBadgeClick(item, ref)"
+              :title="'Drill-Down: ' + ref.label"
+            >
+              <ArrowRight class="w-3 h-3" :stroke-width="2" />
+              {{ ref.label }}
+            </button>
+          </div>
         </div>
 
-        <!-- Text -->
-        <div class="flex-1 min-w-0">
-          <div class="font-medium text-sm text-[var(--color-text-primary)] truncate">{{ item.title }}</div>
-          <div v-if="item.subtitle" class="text-xs text-[var(--color-text-tertiary)] truncate">{{ item.subtitle }}</div>
+        <!-- Snippet: Schnellsuche-Attribute (Google-Teaser) -->
+        <div v-if="item.snippet" class="mt-1.5 ml-[52px] text-xs text-[var(--color-text-secondary)] leading-relaxed truncate">
+          {{ item.snippet }}
         </div>
 
-        <!-- Badges (Querverweise) -->
-        <div v-if="item.badge_refs && item.badge_refs.length" class="flex gap-1 flex-wrap justify-end">
+        <!-- Produktbeziehungen -->
+        <div v-if="item.relations && item.relations.length" class="mt-1.5 ml-[52px] flex items-center gap-1.5 flex-wrap">
+          <Link2 class="w-3 h-3 text-[var(--color-text-tertiary)] shrink-0" :stroke-width="1.75" />
           <button
-            v-for="(ref, bIdx) in item.badge_refs"
-            :key="bIdx"
-            class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-[color-mix(in_srgb,var(--color-accent)_12%,transparent)] text-[var(--color-accent)] hover:bg-[color-mix(in_srgb,var(--color-accent)_20%,transparent)] transition-colors cursor-pointer"
-            @click.stop="onBadgeClick(item, ref)"
-            :title="'Drill-Down: ' + ref.label"
+            v-for="(rel, rIdx) in item.relations"
+            :key="rIdx"
+            class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-[var(--color-bg)] text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] hover:bg-[color-mix(in_srgb,var(--color-accent)_8%,transparent)] transition-colors cursor-pointer"
+            @click.stop="openResult({ type: 'product', id: rel.id })"
+            :title="rel.type + ': ' + rel.name"
           >
-            <ArrowRight class="w-3 h-3" :stroke-width="2" />
-            {{ ref.label }}
+            <span class="text-[var(--color-text-tertiary)]">{{ rel.type }}:</span>
+            {{ rel.name || rel.sku }}
           </button>
         </div>
       </div>

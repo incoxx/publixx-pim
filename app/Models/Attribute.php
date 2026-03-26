@@ -44,6 +44,7 @@ class Attribute extends Model
         'is_internal',
         'is_readonly',
         'is_hidden',
+        'is_quick_search',
         'parent_attribute_id',
         'composite_format',
         'composite_expression',
@@ -73,6 +74,7 @@ class Attribute extends Model
             'is_internal' => 'boolean',
             'is_readonly' => 'boolean',
             'is_hidden' => 'boolean',
+            'is_quick_search' => 'boolean',
             'position' => 'integer',
         ];
     }

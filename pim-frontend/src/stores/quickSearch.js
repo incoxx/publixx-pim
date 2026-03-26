@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import quickSearchApi from '@/api/quickSearch'
+import { useLocaleStore } from '@/stores/locale'
 
 export const useQuickSearchStore = defineStore('quickSearch', () => {
   // ─── State ─────────────────────────────────────────
@@ -305,7 +306,8 @@ export const useQuickSearchStore = defineStore('quickSearch', () => {
   }
 
   function buildParams(base) {
-    const params = { ...base }
+    const localeStore = useLocaleStore()
+    const params = { ...base, lang: localeStore.currentLocale }
     if (filters.value.category_id) params.category_id = filters.value.category_id
     if (filters.value.attribute_id) params.attribute_id = filters.value.attribute_id
     if (filters.value.media_id) params.media_id = filters.value.media_id
