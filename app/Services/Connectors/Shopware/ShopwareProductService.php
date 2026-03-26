@@ -153,21 +153,35 @@ class ShopwareProductService
         // Preis aus card_price_type_id des Profils
         $priceTypeId = $profilePayload['card_price_type_id'] ?? null;
         $priceCountry = $profilePayload['card_price_country'] ?? null;
+        $price = null;
+
         if ($priceTypeId) {
             $price = $this->resolvePrice($product, $priceTypeId, $priceCountry);
-            if ($price) {
-                // Steuer-ID aus shopware_fields für Brutto/Netto-Berechnung
-                $taxRate = 19; // Standard-MwSt
-                $currencyId = $shopwareFields['currency_id']['value'] ?? 'b7d2554b0ce847cd82f3ac9bd1c0dfca';
-                $data['price'] = [
-                    [
-                        'currencyId' => $currencyId,
-                        'gross'      => $price['amount'],
-                        'net'        => round($price['amount'] / (1 + $taxRate / 100), 2),
-                        'linked'     => true,
-                    ],
+        }
+
+        // Fallback: ersten verfügbaren Preis nehmen
+        if (!$price) {
+            $firstPrice = $product->prices()->first();
+            if ($firstPrice) {
+                $price = [
+                    'amount'   => (float) $firstPrice->amount,
+                    'currency' => $firstPrice->currency ?? 'EUR',
                 ];
             }
+        }
+
+        if ($price) {
+            $taxRate = 19; // Standard-MwSt
+            // currency_id aus shopware_fields — muss Shopware-UUID sein
+            $currencyId = $shopwareFields['currency_id']['value'] ?? 'b7d2554b0ce847cd82f3ac9bd1c0dfca';
+            $data['price'] = [
+                [
+                    'currencyId' => $currencyId,
+                    'gross'      => $price['amount'],
+                    'net'        => round($price['amount'] / (1 + $taxRate / 100), 2),
+                    'linked'     => true,
+                ],
+            ];
         }
 
         return array_filter($data, fn ($v) => $v !== null);
