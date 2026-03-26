@@ -511,6 +511,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::post('media/auto-match', [MediaController::class, 'autoMatch']);
     Route::apiResource('media', MediaController::class);
     Route::get('media/{medium}/dependencies', [MediaController::class, 'dependencies']);
+    Route::get('media/{medium}/usage', [MediaController::class, 'usage']);
     Route::get('media/{medium}/revisions', [MediaController::class, 'revisions']);
     Route::get('media/{medium}/relink-preview', [MediaController::class, 'relinkPreview']);
     Route::post('media/relink', [MediaController::class, 'relink']);

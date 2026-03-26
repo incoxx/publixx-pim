@@ -457,6 +457,75 @@ class MediaController extends Controller
         return $this->dependenciesResponse($medium);
     }
 
+    /**
+     * GET /media/{medium}/usage — Verwendungsnachweis: Produkte + Hierarchieknoten.
+     */
+    public function usage(Request $request, Media $medium): JsonResponse
+    {
+        $this->authorize('view', $medium);
+
+        $perPage = min(max(1, (int) $request->query('per_page', '20')), 100);
+        $page = max(1, (int) $request->query('page', '1'));
+
+        // Produkte, die dieses Medium verwenden
+        $productsQuery = $medium->products()
+            ->select('products.id', 'products.sku', 'products.ean');
+
+        $hasSearchIndex = DB::getSchemaBuilder()->hasTable('products_search_index');
+        if ($hasSearchIndex) {
+            $productsQuery->leftJoin('products_search_index', 'products_search_index.product_id', '=', 'products.id')
+                ->addSelect('products_search_index.name_de', 'products_search_index.name_en', 'products_search_index.primary_image');
+        }
+
+        $paginated = $productsQuery->paginate($perPage, ['*'], 'page', $page);
+
+        $products = collect($paginated->items())->map(function ($product) use ($hasSearchIndex) {
+            $imageUrl = null;
+            if ($hasSearchIndex && $product->primary_image) {
+                $imageUrl = url('api/v1/media/thumb/' . $product->primary_image . '?w=80&h=80');
+            }
+
+            return [
+                'id' => $product->id,
+                'name' => $product->name_de ?? $product->sku,
+                'sku' => $product->sku,
+                'ean' => $product->ean,
+                'image_url' => $imageUrl,
+            ];
+        });
+
+        // Hierarchieknoten, an denen dieses Medium zugeordnet ist
+        $nodeAssignments = $medium->hierarchyNodeAssignments()
+            ->with(['hierarchyNode.hierarchy'])
+            ->get();
+
+        $nodes = $nodeAssignments->map(function ($assignment) {
+            $node = $assignment->hierarchyNode;
+            if (!$node) {
+                return null;
+            }
+
+            return [
+                'node_id' => $node->id,
+                'node_name' => $node->name_de,
+                'hierarchy_name' => $node->hierarchy?->name_de,
+            ];
+        })->filter()->values();
+
+        return response()->json([
+            'data' => [
+                'products' => $products,
+                'nodes' => $nodes,
+            ],
+            'meta' => [
+                'products_total' => $paginated->total(),
+                'products_current_page' => $paginated->currentPage(),
+                'products_last_page' => $paginated->lastPage(),
+                'nodes_total' => $nodes->count(),
+            ],
+        ]);
+    }
+
     public function destroy(Request $request, Media $medium): JsonResponse
     {
         $this->authorize('delete', $medium);
