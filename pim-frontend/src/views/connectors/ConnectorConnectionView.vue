@@ -489,13 +489,17 @@ const statusColors = {
             <!-- Properties (Selection-Attribute → Shopware Specifications) -->
             <div>
               <label class="label"><span class="label-text font-medium">Properties (Spezifikationen)</span></label>
-              <p class="text-xs text-base-content/50 mb-3">
-                Selection-Attribute werden als Shopware Property Groups mit Options angelegt.
-                Produktwerte werden automatisch zugeordnet.
+              <p class="text-xs text-base-content/50 mb-2">
+                Selection-Attribute werden automatisch als Shopware Property Groups angelegt.
               </p>
 
-              <!-- Ausgewählte Properties -->
-              <div class="space-y-1.5">
+              <div v-if="!shopwareFields._property_attribute_ids?.length" class="text-xs p-2.5 bg-base-200/30 rounded-lg border border-base-200">
+                <strong>Automatisch:</strong> Alle Selection-Attribute aus den Attribut-Sichten des Vorschau-Profils werden als Properties synchronisiert.
+              </div>
+
+              <!-- Manuelle Überschreibung -->
+              <div v-if="shopwareFields._property_attribute_ids?.length" class="space-y-1.5 mt-2">
+                <div class="text-xs text-base-content/50 font-medium">Manuelle Auswahl (überschreibt Automatik):</div>
                 <div
                   v-for="(attrId, idx) in shopwareFields._property_attribute_ids"
                   :key="idx"
@@ -507,13 +511,8 @@ const statusColors = {
                     class="select select-bordered select-xs flex-1"
                   >
                     <option value="">— Attribut wählen —</option>
-                    <option
-                      v-for="attr in allAttributes"
-                      :key="attr.id"
-                      :value="attr.id"
-                    >
-                      {{ attr.name_de || attr.technical_name }}
-                      {{ attr.data_type ? `(${attr.data_type})` : '' }}
+                    <option v-for="attr in allAttributes" :key="attr.id" :value="attr.id">
+                      {{ attr.name_de || attr.technical_name }} {{ attr.data_type ? `(${attr.data_type})` : '' }}
                     </option>
                   </select>
                   <button class="btn btn-ghost btn-xs" @click="shopwareFields._property_attribute_ids.splice(idx, 1)">
@@ -525,11 +524,7 @@ const statusColors = {
               <button
                 class="btn btn-ghost btn-xs text-primary mt-2"
                 @click="shopwareFields._property_attribute_ids.push('')"
-              >+ Property hinzufügen</button>
-
-              <div v-if="!shopwareFields._property_attribute_ids?.length" class="text-xs text-base-content/40 italic mt-1">
-                Keine Properties konfiguriert — Produkte werden ohne Spezifikationen synchronisiert.
-              </div>
+              >+ Manuell überschreiben</button>
             </div>
 
             <!-- Speichern -->
