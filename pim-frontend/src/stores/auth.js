@@ -116,6 +116,16 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.setItem('pim_sidebar_sections', JSON.stringify(sections))
   }
 
+  function collapseAllSections() {
+    const sections = {}
+    // Set all to collapsed (true = collapsed)
+    for (const key of Object.keys(sidebarCollapsedSections.value)) {
+      sections[key] = true
+    }
+    sidebarCollapsedSections.value = sections
+    localStorage.setItem('pim_sidebar_sections', JSON.stringify(sections))
+  }
+
   function openPanel(component, props = {}) {
     panelComponent.value = component
     panelProps.value = props
@@ -134,7 +144,7 @@ export const useAuthStore = defineStore('auth', () => {
     panelOpen, panelComponent, panelProps,
     isAuthenticated, userName, userRole, permissions, entityRestrictions, tabPermissions,
     hasPermission, hasInstanceAccess, getTabAccess, login, logout, checkAuth, setLocale,
-    toggleCommandPalette, toggleSidebar, toggleMobileSidebar, closeMobileSidebar, setSidebarWidth, toggleSidebarSection,
+    toggleCommandPalette, toggleSidebar, toggleMobileSidebar, closeMobileSidebar, setSidebarWidth, toggleSidebarSection, collapseAllSections,
     openPanel, closePanel,
   }
 })
