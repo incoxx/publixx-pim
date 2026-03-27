@@ -79,6 +79,8 @@ const SHOPWARE_FIELD_DEFINITIONS = [
   // SEO
   { key: 'meta_title', label: 'SEO-Titel', description: 'Meta-Title', defaultMode: 'attribute' },
   { key: 'meta_description', label: 'SEO-Beschreibung', description: 'Meta-Description', defaultMode: 'attribute' },
+  // Lagerbestand
+  { key: 'stock', label: 'Lagerbestand', description: 'Standard: 0 — Shopware zeigt Produkte mit Stock=0 ggf. nicht an', defaultMode: 'fixed', defaultValue: '0' },
 ]
 
 const connectionId = computed(() => route.params.id)
@@ -836,7 +838,7 @@ const statusColors = {
 
             <!-- Speichern -->
             <div class="flex items-center gap-3 pt-2">
-              <button class="btn btn-primary btn-sm gap-1" :disabled="savingProfile" @click="saveExportProfile">
+              <button class="btn btn-outline btn-sm gap-1" :disabled="savingProfile" @click="saveExportProfile">
                 <span v-if="savingProfile" class="loading loading-spinner loading-xs"></span>
                 <Save v-else class="w-4 h-4" />
                 Export-Profil speichern

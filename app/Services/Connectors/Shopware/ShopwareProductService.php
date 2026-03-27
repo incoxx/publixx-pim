@@ -119,12 +119,26 @@ class ShopwareProductService
     ): array {
         $shopwareProductId = str_replace('-', '', $product->id);
 
+        // Stock: konfigurierbar über shopware_fields['stock'], Default = 0
+        $stockMapping = $shopwareFields['stock'] ?? ['mode' => 'default'];
+        $stockMode = is_array($stockMapping) ? ($stockMapping['mode'] ?? 'default') : 'default';
+        $stockValue = 0;
+
+        if ($stockMode === 'default') {
+            $stockValue = 0;
+        } elseif ($stockMode === 'fixed') {
+            $stockValue = (int) ($stockMapping['value'] ?? 0);
+        } elseif ($stockMode === 'attribute') {
+            $attrValue = $this->resolveFieldMapping($product, $stockMapping, $language);
+            $stockValue = is_numeric($attrValue) ? (int) $attrValue : 0;
+        }
+
         $data = [
             'id'            => $shopwareProductId,
             'productNumber' => $product->sku,
             'name'          => $product->name,
             'active'        => true,
-            'stock'         => 0,
+            'stock'         => $stockValue,
         ];
 
         // Standard-Defaults für Felder im "default"-Modus
@@ -134,7 +148,7 @@ class ShopwareProductService
         ];
 
         // Keys die intern sind und nicht als Shopware-Felder behandelt werden
-        $internalKeys = ['_property_attribute_ids', '_sync_media', '_sales_channel_id', 'price', 'description', 'list_price', 'purchase_price'];
+        $internalKeys = ['_property_attribute_ids', '_sync_media', '_sales_channel_id', 'price', 'description', 'list_price', 'purchase_price', 'stock'];
 
         // Shopware-Pflichtfelder auflösen
         // Keys werden von snake_case in camelCase konvertiert (Shopware API erwartet camelCase)
