@@ -155,18 +155,7 @@ class ShopwareConnector extends AbstractConnector
                 // Medien synchronisieren (wenn aktiviert)
                 $syncMedia = $shopwareFields['_sync_media']['enabled'] ?? true;
                 if ($syncMedia) {
-                    $product->loadMissing('media');
-                    $position = 0;
-                    foreach ($product->media as $media) {
-                        try {
-                            $mediaId = $this->mediaService->uploadMedia($http, $shopUrl, $media);
-                            $this->mediaService->assignMediaToProduct($http, $shopUrl, $externalProductId, $mediaId, $position);
-                            $this->logSync($connection, 'media_sync', 'media', $media->id, 'success', $mediaId);
-                            $position++;
-                        } catch (\Throwable $e) {
-                            $this->logSync($connection, 'media_sync', 'media', $media->id, 'failed', null, $e->getMessage());
-                        }
-                    }
+                    $this->syncProductMedia($http, $shopUrl, $connection, $product, $externalProductId);
                 }
             } else {
                 // Legacy-Pfad ohne Profil
@@ -419,22 +408,9 @@ class ShopwareConnector extends AbstractConnector
                     // Medien synchronisieren (wenn aktiviert)
                     $syncMedia = $shopwareFields['_sync_media']['enabled'] ?? true;
                     if ($syncMedia) {
-                        $product->loadMissing('media');
-                        if ($product->media->isNotEmpty()) {
-                            $position = 0;
-                            foreach ($product->media as $media) {
-                                try {
-                                    $mediaId = $this->mediaService->uploadMedia($http, $shopUrl, $media);
-                                    $this->mediaService->assignMediaToProduct($http, $shopUrl, $externalId, $mediaId, $position);
-                                    $result['media']['success']++;
-                                    $this->logSync($connection, 'media_sync', 'media', $media->id, 'success', $mediaId);
-                                    $position++;
-                                } catch (\Throwable $e) {
-                                    $result['media']['failed']++;
-                                    $this->logSync($connection, 'media_sync', 'media', $media->id, 'failed', null, $e->getMessage());
-                                }
-                            }
-                        }
+                        $mediaResult = $this->syncProductMedia($http, $shopUrl, $connection, $product, $externalId);
+                        $result['media']['success'] += $mediaResult['success'];
+                        $result['media']['failed'] += $mediaResult['failed'];
                     }
 
                     $this->logSync(
@@ -589,22 +565,9 @@ class ShopwareConnector extends AbstractConnector
                     // Medien synchronisieren
                     $syncMedia = $shopwareFields['_sync_media']['enabled'] ?? true;
                     if ($syncMedia) {
-                        $product->loadMissing('media');
-                        if ($product->media->isNotEmpty()) {
-                            $position = 0;
-                            foreach ($product->media as $media) {
-                                try {
-                                    $mediaId = $this->mediaService->uploadMedia($http, $shopUrl, $media);
-                                    $this->mediaService->assignMediaToProduct($http, $shopUrl, $externalId, $mediaId, $position);
-                                    $result['media']['success']++;
-                                    $this->logSync($connection, 'media_sync', 'media', $media->id, 'success', $mediaId);
-                                    $position++;
-                                } catch (\Throwable $e) {
-                                    $result['media']['failed']++;
-                                    $this->logSync($connection, 'media_sync', 'media', $media->id, 'failed', null, $e->getMessage());
-                                }
-                            }
-                        }
+                        $mediaResult = $this->syncProductMedia($http, $shopUrl, $connection, $product, $externalId);
+                        $result['media']['success'] += $mediaResult['success'];
+                        $result['media']['failed'] += $mediaResult['failed'];
                     }
 
                     // Checksum speichern/aktualisieren
@@ -897,5 +860,80 @@ class ShopwareConnector extends AbstractConnector
         }
 
         return $query;
+    }
+
+    /**
+     * Synchronisiert Produktbilder nach Shopware und setzt das Cover-Bild.
+     *
+     * Filtert auf media_type = 'image', nutzt is_primary für das Hauptbild,
+     * erzeugt deterministische IDs um Duplikate bei Re-Sync zu vermeiden.
+     *
+     * @return array{success: int, failed: int}
+     */
+    private function syncProductMedia(
+        \Illuminate\Http\Client\PendingRequest $http,
+        string $shopUrl,
+        ConnectorConnection $connection,
+        Product $product,
+        string $externalProductId,
+    ): array {
+        $result = ['success' => 0, 'failed' => 0];
+
+        $product->loadMissing('media');
+
+        // Nur Bilder synchronisieren
+        $images = $product->media->filter(fn ($m) => $m->media_type === 'image');
+        if ($images->isEmpty()) {
+            return $result;
+        }
+
+        $coverAssignmentId = null;
+        $position = 0;
+
+        // Hauptbild (is_primary) zuerst, dann nach sort_order
+        $sorted = $images->sortBy(function ($media) {
+            $isPrimary = $media->pivot->is_primary ?? false;
+            $sortOrder = $media->pivot->sort_order ?? 999;
+            return ($isPrimary ? 0 : 1) . '-' . str_pad((string) $sortOrder, 5, '0', STR_PAD_LEFT);
+        });
+
+        foreach ($sorted as $media) {
+            try {
+                // Deterministische Media-ID (kein Duplikat bei Re-Sync)
+                $mediaId = substr(md5($media->id . 'shopware-media'), 0, 32);
+
+                // Media-Eintrag upsert (erstellt oder aktualisiert)
+                $this->mediaService->uploadMedia($http, $shopUrl, $media, $mediaId);
+
+                $assignmentId = $this->mediaService->assignMediaToProduct(
+                    $http, $shopUrl, $externalProductId, $mediaId, $position,
+                );
+
+                // Erstes Bild (= Hauptbild) als Cover merken
+                if ($position === 0) {
+                    $coverAssignmentId = $assignmentId;
+                }
+
+                $this->logSync($connection, 'media_sync', 'media', $media->id, 'success', $mediaId);
+                $result['success']++;
+                $position++;
+            } catch (\Throwable $e) {
+                $this->logSync($connection, 'media_sync', 'media', $media->id, 'failed', null, $e->getMessage());
+                $result['failed']++;
+            }
+        }
+
+        // Cover-Bild setzen
+        if ($coverAssignmentId) {
+            try {
+                $this->mediaService->setProductCover($http, $shopUrl, $externalProductId, $coverAssignmentId);
+            } catch (\Throwable $e) {
+                Log::channel('connectors')->warning("Cover setzen fehlgeschlagen: {$product->sku}", [
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return $result;
     }
 }
