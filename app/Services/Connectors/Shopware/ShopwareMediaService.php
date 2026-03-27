@@ -6,12 +6,17 @@ namespace App\Services\Connectors\Shopware;
 
 use App\Models\Media;
 use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class ShopwareMediaService
 {
     /**
      * Lädt ein Media-Asset nach Shopware 6 hoch.
+     *
+     * Versucht zuerst einen direkten Binär-Upload (PIM liest Datei vom Disk
+     * und sendet sie direkt an Shopware). Fallback auf URL-basiertes Upload
+     * falls die Datei nicht lokal verfügbar ist.
      *
      * @param  string|null $deterministicId  Wenn gesetzt, wird diese ID verwendet (Upsert, kein Duplikat bei Re-Sync)
      * @return string Shopware Media-ID
@@ -36,18 +41,32 @@ class ShopwareMediaService
             ],
         ])->throw();
 
-        // 2. Datei per URL hochladen
-        // config('app.url') muss die öffentliche URL sein die Shopware erreichen kann
-        $baseUrl = rtrim(config('app.url', url('/')), '/');
-        $publicUrl = "{$baseUrl}/api/v1/media/file/{$media->file_name}";
+        // 2. Datei hochladen — direkt als Binary (kein Netzwerk-Zugriff vom Shop auf PIM nötig)
+        $uploadUrl = "{$shopUrl}/api/_action/media/{$mediaId}/upload?" . http_build_query([
+            'extension' => $extension,
+            'fileName'  => $fileName,
+        ]);
 
         try {
-            $http->post("{$shopUrl}/api/_action/media/{$mediaId}/upload?" . http_build_query([
-                'extension' => $extension,
-                'fileName'  => $fileName,
-            ]), [
-                'url' => $publicUrl,
-            ])->throw();
+            $localPath = Storage::disk('public')->path($media->file_path);
+
+            if (file_exists($localPath)) {
+                // Direkter Binär-Upload: PIM sendet Datei-Inhalt direkt an Shopware
+                $fileContent = file_get_contents($localPath);
+                $contentType = $media->mime_type ?: ('image/' . $extension);
+
+                $http->withBody($fileContent, $contentType)
+                    ->post($uploadUrl)
+                    ->throw();
+            } else {
+                // Fallback: URL-basierter Upload (wenn Datei nicht lokal liegt)
+                $baseUrl = rtrim(config('app.url', url('/')), '/');
+                $publicUrl = "{$baseUrl}/api/v1/media/file/{$media->file_name}";
+
+                $http->post($uploadUrl, [
+                    'url' => $publicUrl,
+                ])->throw();
+            }
         } catch (\Illuminate\Http\Client\RequestException $e) {
             // CONTENT__MEDIA_DUPLICATED_FILE_NAME bei Re-Sync ignorieren — Datei existiert bereits
             $body = $e->response?->json();

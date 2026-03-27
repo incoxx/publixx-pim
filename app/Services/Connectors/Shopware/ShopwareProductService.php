@@ -119,13 +119,14 @@ class ShopwareProductService
     ): array {
         $shopwareProductId = str_replace('-', '', $product->id);
 
-        // Stock: konfigurierbar über shopware_fields['stock'], Default = 0
+        // Stock: konfigurierbar über shopware_fields['stock'], Default = 999
+        // (Shopware zeigt Produkte mit Stock=0 standardmäßig nicht im Frontend an)
         $stockMapping = $shopwareFields['stock'] ?? ['mode' => 'default'];
         $stockMode = is_array($stockMapping) ? ($stockMapping['mode'] ?? 'default') : 'default';
-        $stockValue = 0;
+        $stockValue = 999;
 
         if ($stockMode === 'default') {
-            $stockValue = 0;
+            $stockValue = 999;
         } elseif ($stockMode === 'fixed') {
             $stockValue = (int) ($stockMapping['value'] ?? 0);
         } elseif ($stockMode === 'attribute') {
