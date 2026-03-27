@@ -1,10 +1,11 @@
 <script setup>
-import { onMounted, watch } from 'vue'
+import { onMounted, watch, reactive } from 'vue'
 import { useStore } from '../store.js'
 import { resolveMediaUrl } from '../api.js'
 import { icons } from '../icons.js'
 
 const { state, actions, getters } = useStore()
+const brokenImages = reactive({})
 
 function isPdf(asset) {
   const mime = (asset.mime_type || '').toLowerCase()
@@ -61,10 +62,11 @@ function onWishlist(e, productId) {
           </template>
           <template v-else>
             <img
-              v-if="asset.thumb_url"
+              v-if="asset.thumb_url && !brokenImages['asset-' + asset.id]"
               :src="resolveMediaUrl(asset.thumb_url)"
               :alt="asset.alt_text || asset.title || asset.file_name"
               loading="lazy"
+              @error="brokenImages['asset-' + asset.id] = true"
             />
             <span v-else style="font-size:10px;opacity:0.3;text-transform:uppercase">{{ (asset.mime_type || '').split('/')[1] }}</span>
           </template>
@@ -94,10 +96,11 @@ function onWishlist(e, productId) {
         <!-- Image -->
         <div class="pxc-product-card__image">
           <img
-            v-if="product.image_url"
+            v-if="product.image_url && !brokenImages[product.id]"
             :src="product.image_url"
             :alt="product.name"
             loading="lazy"
+            @error="brokenImages[product.id] = true"
           />
           <div v-else class="pxc-product-card__no-image">
             <span v-html="icons.package"></span>

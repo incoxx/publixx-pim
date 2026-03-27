@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref, computed, watch } from 'vue'
+import { onMounted, ref, reactive, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useCatalogStore } from '@/stores/catalog'
 import { resolveMediaUrl } from '@/api/catalog'
@@ -75,6 +75,8 @@ function isPdf(asset) {
   return mime.includes('pdf') || name.endsWith('.pdf')
 }
 
+const brokenAssets = reactive({})
+
 // Kategorie-Assets laden wenn Kategorie gewechselt wird
 watch(() => store.selectedCategoryId, (id) => {
   store.fetchCategoryAssets(id)
@@ -144,11 +146,12 @@ onMounted(() => {
             </template>
             <template v-else>
               <img
-                v-if="asset.thumb_url"
+                v-if="asset.thumb_url && !brokenAssets[asset.id]"
                 :src="resolveMediaUrl(asset.thumb_url)"
                 :alt="asset.alt_text || asset.title || asset.file_name"
                 class="w-full h-full object-contain p-1 group-hover:scale-105 transition-transform duration-300"
                 loading="lazy"
+                @error="brokenAssets[asset.id] = true"
               />
               <Image v-else class="w-8 h-8 text-base-content/15" />
             </template>

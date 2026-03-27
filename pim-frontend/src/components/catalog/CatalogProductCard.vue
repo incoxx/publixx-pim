@@ -52,6 +52,9 @@ const formattedPrice = computed(() => {
   }).format(props.product.price)
 })
 
+const imgBroken = ref(false)
+function onImgError() { imgBroken.value = true }
+
 const staggerDelay = computed(() => `${Math.min(props.index * 50, 400)}ms`)
 </script>
 
@@ -64,11 +67,12 @@ const staggerDelay = computed(() => `${Math.min(props.index * 50, 400)}ms`)
     <!-- Image -->
     <figure class="relative overflow-hidden bg-base-200" :style="{ aspectRatio: imageRatio }">
       <img
-        v-if="product.image_url"
+        v-if="product.image_url && !imgBroken"
         :src="product.image_url"
         :alt="product.name"
         class="object-contain w-full h-full p-4 group-hover:scale-105 transition-transform duration-500"
         loading="lazy"
+        @error="onImgError"
       />
       <div v-else class="flex items-center justify-center w-full h-full">
         <Package class="w-12 h-12 text-base-content/15" />

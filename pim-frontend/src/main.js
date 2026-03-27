@@ -226,7 +226,7 @@ const messages = {
     },
     catalog: {
       title: 'Produktkatalog',
-      search: 'Produkte suchen\u2026',
+      search: 'Produkte suchen (Name, Artikelnr., EAN)\u2026',
       allCategories: 'Alle Kategorien',
       categories: 'Kategorien',
       products: 'Produkte',
@@ -542,7 +542,7 @@ const messages = {
     },
     catalog: {
       title: 'Product Catalog',
-      search: 'Search products\u2026',
+      search: 'Search products (name, article no., EAN)\u2026',
       allCategories: 'All Categories',
       categories: 'Categories',
       products: 'Products',
