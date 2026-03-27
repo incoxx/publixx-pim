@@ -3,7 +3,8 @@ import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowLeft, RefreshCw, Image, Package, CheckCircle, XCircle, Clock,
-  Play, Settings, Save, Search, ChevronDown, ChevronUp, X,
+  Play, Settings, Save, Search, ChevronDown, ChevronUp, X, Zap, Download, Trash2,
+  RotateCcw, AlertTriangle,
 } from 'lucide-vue-next'
 import connectorsApi from '@/api/connectors'
 import productsApi from '@/api/products'
@@ -50,6 +51,10 @@ const profileProgress = ref({ current: 0, total: 0, success: 0, failed: 0, curre
 const hierarchySyncing = ref(false)
 const hierarchySyncResult = ref(null)
 const profileSyncResult = ref(null)
+
+// Delta-Sync
+const deltaSyncing = ref(false)
+const deltaSyncResult = ref(null)
 
 // Fehler-Detail-Anzeige
 const expandedLogId = ref(null)
@@ -356,6 +361,57 @@ async function clearSyncLogs() {
   }
 }
 
+async function executeDeltaSync() {
+  deltaSyncing.value = true
+  deltaSyncResult.value = null
+  syncError.value = ''
+  try {
+    const res = await connectorsApi.deltaSync(connectionId.value)
+    deltaSyncResult.value = res.data.data || res.data
+  } catch (e) {
+    syncError.value = e.response?.data?.message || 'Delta-Sync fehlgeschlagen'
+  } finally {
+    deltaSyncing.value = false
+    await loadConnection()
+  }
+}
+
+async function deleteSingleSyncLog(logId) {
+  try {
+    await connectorsApi.deleteSyncLog(connectionId.value, logId)
+    syncLogs.value = syncLogs.value.filter(l => l.id !== logId)
+    if (expandedLogId.value === logId) expandedLogId.value = null
+  } catch (e) {
+    syncError.value = e.response?.data?.message || 'Löschen fehlgeschlagen'
+  }
+}
+
+async function exportSyncLogsExcel() {
+  try {
+    const res = await connectorsApi.exportSyncLogs(connectionId.value)
+    const url = window.URL.createObjectURL(new Blob([res.data]))
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `sync-logs-${connection.value?.name || 'export'}-${new Date().toISOString().slice(0, 10)}.xlsx`)
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(url)
+  } catch (e) {
+    syncError.value = 'Excel-Export fehlgeschlagen'
+  }
+}
+
+async function clearChecksums() {
+  if (!confirm('Alle Checksums löschen? Der nächste Delta-Sync überträgt dann alle Produkte neu.')) return
+  try {
+    await connectorsApi.clearChecksums(connectionId.value)
+    deltaSyncResult.value = null
+  } catch (e) {
+    syncError.value = e.response?.data?.message || 'Löschen fehlgeschlagen'
+  }
+}
+
 const statusColors = {
   success: 'badge-success',
   failed: 'badge-error',
@@ -449,12 +505,22 @@ const statusColors = {
               </button>
               <button
                 class="btn btn-primary btn-sm gap-1"
-                :disabled="profileSyncing"
+                :disabled="profileSyncing || deltaSyncing"
                 @click="executeProfileSync"
               >
                 <span v-if="profileSyncing" class="loading loading-spinner loading-xs"></span>
                 <Play v-else class="w-4 h-4" />
                 Komplett-Sync
+              </button>
+              <button
+                class="btn btn-accent btn-sm gap-1"
+                :disabled="deltaSyncing || profileSyncing"
+                @click="executeDeltaSync"
+                title="Nur neue und geänderte Produkte übertragen"
+              >
+                <span v-if="deltaSyncing" class="loading loading-spinner loading-xs"></span>
+                <Zap v-else class="w-4 h-4" />
+                Delta Sync
               </button>
             </div>
           </div>
@@ -505,6 +571,85 @@ const statusColors = {
                 &middot;
                 Medien: {{ profileSyncResult.media?.success || 0 }} OK
                 <span v-if="profileSyncResult.media?.failed" class="text-error">({{ profileSyncResult.media.failed }} Fehler)</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Delta-Sync Ergebnis -->
+          <div v-if="deltaSyncResult" class="mt-3 space-y-3">
+            <div class="alert alert-info">
+              <div class="w-full">
+                <div class="font-semibold flex items-center gap-1">
+                  <Zap class="w-4 h-4" />
+                  Delta Sync abgeschlossen
+                </div>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mt-2 text-sm">
+                  <div>
+                    <span class="text-base-content/50">Neu:</span>
+                    <span class="font-semibold ml-1">{{ deltaSyncResult.products?.new || 0 }}</span>
+                  </div>
+                  <div>
+                    <span class="text-base-content/50">Geändert:</span>
+                    <span class="font-semibold ml-1">{{ deltaSyncResult.products?.updated || 0 }}</span>
+                  </div>
+                  <div>
+                    <span class="text-base-content/50">Unverändert:</span>
+                    <span class="font-semibold ml-1 text-success">{{ deltaSyncResult.products?.unchanged || 0 }}</span>
+                  </div>
+                  <div v-if="deltaSyncResult.products?.failed">
+                    <span class="text-base-content/50">Fehler:</span>
+                    <span class="font-semibold ml-1 text-error">{{ deltaSyncResult.products.failed }}</span>
+                  </div>
+                </div>
+                <div v-if="deltaSyncResult.media" class="text-sm mt-1">
+                  Medien: {{ deltaSyncResult.media.success || 0 }} OK
+                  <span v-if="deltaSyncResult.media.failed" class="text-error">({{ deltaSyncResult.media.failed }} Fehler)</span>
+                </div>
+                <div class="flex gap-2 mt-2">
+                  <button class="btn btn-ghost btn-xs" @click="deltaSyncResult = null">
+                    <X class="w-3 h-3" /> Schließen
+                  </button>
+                  <button class="btn btn-ghost btn-xs text-warning" @click="clearChecksums" title="Checksums zurücksetzen — nächster Delta-Sync überträgt alles neu">
+                    <RotateCcw class="w-3 h-3" /> Checksums zurücksetzen
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Orphan-Warnung -->
+            <div v-if="deltaSyncResult.orphans?.length" class="alert alert-warning">
+              <div class="w-full">
+                <div class="font-semibold flex items-center gap-1">
+                  <AlertTriangle class="w-4 h-4" />
+                  {{ deltaSyncResult.orphans.length }} Produkt(e) nur noch im Shop
+                </div>
+                <p class="text-xs mt-1 text-base-content/60">
+                  Diese Produkte wurden synchronisiert, sind aber nicht mehr im PIM-Profil enthalten.
+                  Bitte im Shopware-Backend prüfen und ggf. deaktivieren/löschen.
+                </p>
+                <div class="mt-2 overflow-x-auto">
+                  <table class="table table-xs">
+                    <thead>
+                      <tr>
+                        <th>SKU</th>
+                        <th>Name</th>
+                        <th>Shopware-ID</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="orphan in deltaSyncResult.orphans" :key="orphan.id">
+                        <td class="font-mono text-xs">{{ orphan.sku }}</td>
+                        <td class="text-sm">{{ orphan.name }}</td>
+                        <td class="font-mono text-xs">{{ orphan.external_id?.substring(0, 12) }}...</td>
+                        <td>
+                          <span v-if="orphan.deleted" class="badge badge-error badge-xs">Gelöscht</span>
+                          <span v-else class="badge badge-warning badge-xs">Nicht im Profil</span>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           </div>
@@ -872,11 +1017,21 @@ const statusColors = {
       <div class="space-y-2">
         <div class="flex items-center justify-between">
           <h2 class="text-sm font-semibold text-base-content/60 uppercase tracking-wider">Sync-Protokoll</h2>
-          <button
-            v-if="syncLogs.length > 0"
-            class="btn btn-ghost btn-xs text-error"
-            @click="clearSyncLogs"
-          >Protokoll löschen</button>
+          <div class="flex gap-1">
+            <button
+              v-if="syncLogs.length > 0"
+              class="btn btn-ghost btn-xs gap-1"
+              @click="exportSyncLogsExcel"
+              title="Sync-Logs als Excel exportieren"
+            >
+              <Download class="w-3 h-3" /> Excel
+            </button>
+            <button
+              v-if="syncLogs.length > 0"
+              class="btn btn-ghost btn-xs text-error"
+              @click="clearSyncLogs"
+            >Protokoll löschen</button>
+          </div>
         </div>
         <div v-if="syncLogs.length === 0" class="text-center py-6 text-base-content/40">
           Noch keine Sync-Einträge.
@@ -950,6 +1105,18 @@ const statusColors = {
                         <span class="text-base-content/50">Synchronisierte Felder:</span>
                         <div>{{ Array.isArray(log.meta.synced_fields) ? log.meta.synced_fields.join(', ') : log.meta.synced_fields }}</div>
                       </div>
+                      <div v-if="log.meta?.delta_status">
+                        <span class="text-base-content/50">Delta-Status:</span>
+                        <div>{{ log.meta.delta_status === 'new' ? 'Neu' : 'Geändert' }}</div>
+                      </div>
+                    </div>
+                    <div class="mt-2 flex justify-end">
+                      <button
+                        class="btn btn-ghost btn-xs text-error gap-1"
+                        @click.stop="deleteSingleSyncLog(log.id)"
+                      >
+                        <Trash2 class="w-3 h-3" /> Eintrag löschen
+                      </button>
                     </div>
                   </td>
                 </tr>

@@ -47,39 +47,145 @@ class ShopwarePropertyService
             ->with(['valueList.entries' => fn ($q) => $q->where('is_active', true)->orderBy('sort_order')])
             ->get();
 
+        if ($attributes->isEmpty()) {
+            return [];
+        }
+
+        // Batch: Alle bestehenden Group-Logs in einer Query laden (statt N+1)
+        $existingGroupLogs = ConnectorSyncLog::where('connector_connection_id', $connectionId)
+            ->where('action', 'property_group_sync')
+            ->where('entity_type', 'attribute')
+            ->where('status', 'success')
+            ->whereNotNull('external_id')
+            ->whereIn('entity_id', $attributes->pluck('id'))
+            ->get()
+            ->groupBy('entity_id')
+            ->map(fn ($logs) => $logs->sortByDesc('created_at')->first()->external_id);
+
+        // Property Groups gebündelt anlegen/aktualisieren
+        $newGroups = [];
+        $updateGroups = [];
+        $groupIdMap = []; // attribute_id → groupId
+
         foreach ($attributes as $attribute) {
             $valueList = $attribute->valueList;
             if (!$valueList || $valueList->entries->isEmpty()) {
                 continue;
             }
 
-            // Prüfen ob bereits synchronisiert (aus Sync-Logs)
-            $existingGroupLog = ConnectorSyncLog::where('connector_connection_id', $connectionId)
-                ->where('action', 'property_group_sync')
-                ->where('entity_type', 'attribute')
-                ->where('entity_id', $attribute->id)
+            $existingGroupId = $existingGroupLogs->get($attribute->id);
+            $name = $language === 'en' && $attribute->name_en
+                ? $attribute->name_en
+                : ($attribute->name_de ?: $attribute->technical_name);
+
+            if (!$existingGroupId) {
+                $groupId = str_replace('-', '', Str::uuid()->toString());
+                $newGroups[] = [
+                    'id'          => $groupId,
+                    'name'        => $name,
+                    'sortingType' => 'alphanumeric',
+                    'displayType' => 'text',
+                ];
+                $groupIdMap[$attribute->id] = $groupId;
+            } else {
+                $updateGroups[] = [
+                    'id'   => $existingGroupId,
+                    'name' => $name,
+                ];
+                $groupIdMap[$attribute->id] = $existingGroupId;
+            }
+        }
+
+        // Neue Groups in einem API-Call anlegen
+        if (!empty($newGroups)) {
+            try {
+                $http->post("{$shopUrl}/api/_action/sync", [
+                    'write-property-groups' => [
+                        'action'  => 'upsert',
+                        'entity'  => 'property_group',
+                        'payload' => $newGroups,
+                    ],
+                ])->throw();
+            } catch (\Throwable) {
+                // Fallback: einzeln anlegen bei Batch-Fehler
+                foreach ($newGroups as $group) {
+                    try {
+                        $http->post("{$shopUrl}/api/_action/sync", [
+                            'write-property-group' => [
+                                'action'  => 'upsert',
+                                'entity'  => 'property_group',
+                                'payload' => [$group],
+                            ],
+                        ])->throw();
+                    } catch (\Throwable) {
+                        // Group konnte nicht angelegt werden — aus Map entfernen
+                        $attrId = array_search($group['id'], $groupIdMap, true);
+                        if ($attrId !== false) {
+                            unset($groupIdMap[$attrId]);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Bestehende Groups aktualisieren (gebündelt)
+        if (!empty($updateGroups)) {
+            try {
+                $http->post("{$shopUrl}/api/_action/sync", [
+                    'update-property-groups' => [
+                        'action'  => 'upsert',
+                        'entity'  => 'property_group',
+                        'payload' => $updateGroups,
+                    ],
+                ])->throw();
+            } catch (\Throwable) {
+                // Nicht kritisch — Gruppen existieren bereits
+            }
+        }
+
+        // Options für alle Attribute synchronisieren
+        // Zunächst alle Entry-IDs sammeln für Batch-Log-Query
+        $allEntryIds = [];
+        foreach ($attributes as $attribute) {
+            if (!isset($groupIdMap[$attribute->id])) {
+                continue;
+            }
+            $entries = $attribute->valueList?->entries;
+            if ($entries) {
+                foreach ($entries as $entry) {
+                    $allEntryIds[] = $entry->id;
+                }
+            }
+        }
+
+        // Batch: Alle bestehenden Option-Logs in einer Query laden
+        $existingOptionLogs = [];
+        if (!empty($allEntryIds)) {
+            $existingOptionLogs = ConnectorSyncLog::where('connector_connection_id', $connectionId)
+                ->where('action', 'property_option_sync')
+                ->where('entity_type', 'value_list_entry')
                 ->where('status', 'success')
                 ->whereNotNull('external_id')
-                ->latest()
-                ->first();
+                ->whereIn('entity_id', $allEntryIds)
+                ->get()
+                ->mapWithKeys(fn ($log) => [$log->entity_id => $log->external_id])
+                ->toArray();
+        }
 
-            $groupId = $existingGroupLog?->external_id;
-
-            // Property Group anlegen oder bestätigen
-            if (!$groupId) {
-                $groupId = $this->createPropertyGroup($http, $shopUrl, $attribute, $language);
-            } else {
-                // Bestehende Group aktualisieren (Name könnte sich geändert haben)
-                $this->updatePropertyGroup($http, $shopUrl, $groupId, $attribute, $language);
-            }
-
+        // Options pro Attribute synchronisieren
+        foreach ($attributes as $attribute) {
+            $groupId = $groupIdMap[$attribute->id] ?? null;
             if (!$groupId) {
                 continue;
             }
 
-            // Options synchronisieren
+            $entries = $attribute->valueList?->entries;
+            if (!$entries || $entries->isEmpty()) {
+                continue;
+            }
+
             $optionMap = $this->syncPropertyOptions(
-                $http, $shopUrl, $connectionId, $groupId, $valueList->entries, $language,
+                $http, $shopUrl, $groupId, $entries, $language, $existingOptionLogs,
             );
 
             $propertyMap[$attribute->id] = [
@@ -92,102 +198,24 @@ class ShopwarePropertyService
     }
 
     /**
-     * Erstellt eine Property Group in Shopware.
-     */
-    private function createPropertyGroup(
-        PendingRequest $http,
-        string $shopUrl,
-        Attribute $attribute,
-        string $language,
-    ): ?string {
-        $groupId = str_replace('-', '', Str::uuid()->toString());
-        $name = $language === 'en' && $attribute->name_en
-            ? $attribute->name_en
-            : $attribute->name_de;
-
-        try {
-            $http->post("{$shopUrl}/api/_action/sync", [
-                'write-property-group' => [
-                    'action'  => 'upsert',
-                    'entity'  => 'property_group',
-                    'payload' => [
-                        [
-                            'id'           => $groupId,
-                            'name'         => $name ?: $attribute->technical_name,
-                            'sortingType'  => 'alphanumeric',
-                            'displayType'  => 'text',
-                        ],
-                    ],
-                ],
-            ])->throw();
-
-            return $groupId;
-        } catch (\Throwable) {
-            return null;
-        }
-    }
-
-    /**
-     * Aktualisiert den Namen einer bestehenden Property Group.
-     */
-    private function updatePropertyGroup(
-        PendingRequest $http,
-        string $shopUrl,
-        string $groupId,
-        Attribute $attribute,
-        string $language,
-    ): void {
-        $name = $language === 'en' && $attribute->name_en
-            ? $attribute->name_en
-            : $attribute->name_de;
-
-        try {
-            $http->post("{$shopUrl}/api/_action/sync", [
-                'update-property-group' => [
-                    'action'  => 'upsert',
-                    'entity'  => 'property_group',
-                    'payload' => [
-                        [
-                            'id'   => $groupId,
-                            'name' => $name ?: $attribute->technical_name,
-                        ],
-                    ],
-                ],
-            ])->throw();
-        } catch (\Throwable) {
-            // Nicht kritisch — Gruppe existiert bereits
-        }
-    }
-
-    /**
      * Synchronisiert ValueList-Entries als Property Group Options.
      *
+     * @param  array<string, string>  $existingOptionLogs  Vorgeladene Option-Log-Map (entry_id → external_id)
      * @return array<string, string>  Map: PIM-ValueListEntry-ID → Shopware-Option-ID
      */
     private function syncPropertyOptions(
         PendingRequest $http,
         string $shopUrl,
-        string $connectionId,
         string $groupId,
         $entries,
         string $language,
+        array $existingOptionLogs = [],
     ): array {
         $optionMap = [];
 
-        // Bestehende Option-IDs aus Sync-Logs laden
-        $existingLogs = ConnectorSyncLog::where('connector_connection_id', $connectionId)
-            ->where('action', 'property_option_sync')
-            ->where('entity_type', 'value_list_entry')
-            ->where('status', 'success')
-            ->whereNotNull('external_id')
-            ->whereIn('entity_id', $entries->pluck('id'))
-            ->get()
-            ->mapWithKeys(fn ($log) => [$log->entity_id => $log->external_id])
-            ->toArray();
-
         $payload = [];
         foreach ($entries as $entry) {
-            $optionId = $existingLogs[$entry->id] ?? str_replace('-', '', Str::uuid()->toString());
+            $optionId = $existingOptionLogs[$entry->id] ?? str_replace('-', '', Str::uuid()->toString());
             $optionMap[$entry->id] = $optionId;
 
             $name = $language === 'en' && $entry->display_value_en
@@ -251,11 +279,57 @@ class ShopwarePropertyService
                 continue;
             }
 
-            // Shopware Option-ID für diesen ValueList-Eintrag
             $shopwareOptionId = $propertyMap[$attrId]['options'][$entryId];
             $properties[] = ['id' => $shopwareOptionId];
         }
 
         return $properties;
+    }
+
+    /**
+     * Ermittelt die Property-Option-IDs für mehrere Produkte in einem Batch (Performance).
+     *
+     * @param  array<string>  $productIds
+     * @param  array<string, array{group_id: string, options: array<string, string>}>  $propertyMap
+     * @return array<string, array<array{id: string}>>  Map: product_id → properties array
+     */
+    public function resolveProductPropertiesBulk(
+        array $productIds,
+        array $propertyMap,
+    ): array {
+        if (empty($propertyMap) || empty($productIds)) {
+            return [];
+        }
+
+        $attributeIds = array_keys($propertyMap);
+
+        // Eine Query für alle Produkte + alle Property-Attribute
+        $values = ProductAttributeValue::whereIn('product_id', $productIds)
+            ->whereIn('attribute_id', $attributeIds)
+            ->whereNotNull('value_selection_id')
+            ->get()
+            ->groupBy('product_id');
+
+        $result = [];
+        foreach ($productIds as $productId) {
+            $productValues = $values->get($productId, collect());
+            $properties = [];
+
+            foreach ($productValues as $value) {
+                $attrId = $value->attribute_id;
+                $entryId = $value->value_selection_id;
+
+                if (!isset($propertyMap[$attrId]['options'][$entryId])) {
+                    continue;
+                }
+
+                $shopwareOptionId = $propertyMap[$attrId]['options'][$entryId];
+                $properties[] = ['id' => $shopwareOptionId];
+            }
+
+            $result[$productId] = $properties;
+        }
+
+        return $result;
     }
 }
