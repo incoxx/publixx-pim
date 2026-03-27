@@ -55,9 +55,12 @@ class ShopwareMediaService
                 $fileContent = file_get_contents($localPath);
                 $contentType = $media->mime_type ?: ('image/' . $extension);
 
-                $http->withBody($fileContent, $contentType)
-                    ->post($uploadUrl)
-                    ->throw();
+                // Shopware erwartet Raw-Binary mit Content-Type Header — nicht JSON
+                $http->withHeaders([
+                    'Content-Type' => $contentType,
+                ])->send('POST', $uploadUrl, [
+                    'body' => $fileContent,
+                ])->throw();
             } else {
                 // Fallback: URL-basierter Upload (wenn Datei nicht lokal liegt)
                 $baseUrl = rtrim(config('app.url', url('/')), '/');
