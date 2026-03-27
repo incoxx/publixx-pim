@@ -732,15 +732,24 @@ class ShopwareConnector extends AbstractConnector
             }
         }
 
-        // 2. Kategorien löschen — aus Sync-Logs (Blätter zuerst → umgekehrte Reihenfolge)
-        $categoryExternalIds = ConnectorSyncLog::where('connector_connection_id', $connection->id)
+        // 2. Kategorien löschen — Blätter zuerst (tiefste Knoten zuerst, dann aufsteigend)
+        $categoryLogs = ConnectorSyncLog::where('connector_connection_id', $connection->id)
             ->where('action', 'category_sync')
             ->where('entity_type', 'hierarchy_node')
             ->where('status', 'success')
             ->whereNotNull('external_id')
-            ->orderByDesc('created_at')
+            ->select('entity_id', 'external_id')
+            ->get()
+            ->unique('external_id');
+
+        // Tiefe der Knoten aus der Hierarchie holen (tiefste zuerst → sicheres Löschen)
+        $nodeDepths = HierarchyNode::whereIn('id', $categoryLogs->pluck('entity_id'))
+            ->pluck('depth', 'id')
+            ->toArray();
+
+        $categoryExternalIds = $categoryLogs
+            ->sortByDesc(fn ($log) => $nodeDepths[$log->entity_id] ?? 0)
             ->pluck('external_id')
-            ->unique()
             ->values()
             ->toArray();
 
