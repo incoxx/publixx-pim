@@ -809,6 +809,106 @@ class ShopwareConnector extends AbstractConnector
     }
 
     /**
+     * Löscht ALLE Kategorien aus Shopware (außer Root).
+     *
+     * Holt die Kategorie-Liste direkt aus der Shopware-API und löscht
+     * von den tiefsten Blättern aufwärts bis zur Root-Kategorie.
+     */
+    public function purgeCategories(ConnectorConnection $connection): array
+    {
+        $http = $this->authenticatedRequest($connection);
+        $shopUrl = rtrim($connection->settings['shop_url'] ?? config('connectors.shopware.shop_url'), '/');
+
+        $result = ['deleted' => 0, 'failed' => 0, 'total' => 0];
+
+        // Alle Kategorien aus Shopware laden (mit level für Sortierung)
+        $allCategories = [];
+        $page = 1;
+        $limit = 500;
+
+        do {
+            $response = $http->post("{$shopUrl}/api/search/category", [
+                'limit'  => $limit,
+                'page'   => $page,
+                'filter' => [
+                    // Root-Kategorie hat parentId = null → nur Kinder laden
+                    ['type' => 'not', 'queries' => [
+                        ['type' => 'equals', 'field' => 'parentId', 'value' => null],
+                    ]],
+                ],
+                'sort' => [
+                    ['field' => 'level', 'order' => 'DESC'],
+                ],
+            ]);
+            $response->throw();
+            $data = $response->json();
+
+            $categories = $data['data'] ?? [];
+            foreach ($categories as $cat) {
+                $allCategories[] = [
+                    'id'    => $cat['id'],
+                    'level' => $cat['level'] ?? 0,
+                ];
+            }
+
+            $total = $data['total'] ?? 0;
+            $page++;
+        } while (count($allCategories) < $total && !empty($categories));
+
+        // Nach Level absteigend sortieren (Blätter zuerst)
+        usort($allCategories, fn ($a, $b) => $b['level'] <=> $a['level']);
+
+        $result['total'] = count($allCategories);
+
+        // In Chunks löschen
+        $ids = array_map(fn ($c) => $c['id'], $allCategories);
+
+        foreach (array_chunk($ids, 50) as $chunk) {
+            $payload = array_map(fn (string $id) => ['id' => $id], $chunk);
+
+            try {
+                $response = $http->post("{$shopUrl}/api/_action/sync", [
+                    'delete-categories' => [
+                        'action'  => 'delete',
+                        'entity'  => 'category',
+                        'payload' => $payload,
+                    ],
+                ]);
+                $response->throw();
+                $result['deleted'] += count($chunk);
+            } catch (\Throwable) {
+                foreach ($chunk as $categoryId) {
+                    try {
+                        $http->post("{$shopUrl}/api/_action/sync", [
+                            'delete-categories' => [
+                                'action'  => 'delete',
+                                'entity'  => 'category',
+                                'payload' => [['id' => $categoryId]],
+                            ],
+                        ])->throw();
+                        $result['deleted']++;
+                    } catch (\Throwable) {
+                        $result['failed']++;
+                    }
+                }
+            }
+        }
+
+        // Kategorie-Sync-Logs bereinigen
+        ConnectorSyncLog::where('connector_connection_id', $connection->id)
+            ->where('action', 'category_sync')
+            ->delete();
+
+        $this->logSync(
+            $connection, 'purge_categories', 'connection',
+            $connection->id, 'success', null, null,
+            ['deleted' => $result['deleted'], 'failed' => $result['failed']],
+        );
+
+        return $result;
+    }
+
+    /**
      * Löst Shopware-Defaults auf (Tax-ID, Sales Channel ID) — einmal pro Sync.
      */
     private function resolveShopwareDefaults(

@@ -792,6 +792,40 @@ class ConnectorController extends Controller
     }
 
     /**
+     * POST /connectors/connections/{connection}/purge-categories — Alle Kategorien aus Shopware löschen.
+     */
+    public function purgeCategories(Request $request, ConnectorConnection $connection): JsonResponse
+    {
+        $this->authorize('sync', $connection);
+
+        if ($connection->connector_type !== 'shopware') {
+            return response()->json(['message' => 'Nur für Shopware-Verbindungen.'], 422);
+        }
+
+        $connector = $this->registry->get($connection->connector_type);
+        if (! $connector instanceof ShopwareConnector) {
+            return response()->json(['message' => 'Shopware-Connector nicht gefunden.'], 422);
+        }
+
+        try {
+            $result = $connector->purgeCategories($connection);
+
+            return response()->json([
+                'data' => [
+                    'status'  => 'completed',
+                    'deleted' => $result['deleted'],
+                    'failed'  => $result['failed'],
+                    'total'   => $result['total'],
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'message' => 'Kategorie-Löschung fehlgeschlagen: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
      * GET /connectors/connections/{connection}/sync-logs/export — Sync-Logs als Excel exportieren.
      */
     public function exportSyncLogs(Request $request, ConnectorConnection $connection): StreamedResponse
