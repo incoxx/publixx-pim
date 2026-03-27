@@ -424,6 +424,26 @@ async function executeReset() {
   }
 }
 
+// Alle Kategorien aus Shopware löschen
+const purgingCategories = ref(false)
+const purgeCategoriesResult = ref(null)
+
+async function executePurgeCategories() {
+  if (!confirm('Alle Kategorien aus Shopware löschen (außer Root)?\n\nDas betrifft ALLE Kategorien im Shop, nicht nur PIM-synchronisierte.')) return
+  purgingCategories.value = true
+  purgeCategoriesResult.value = null
+  syncError.value = ''
+  try {
+    const res = await connectorsApi.purgeCategories(connectionId.value)
+    purgeCategoriesResult.value = res.data.data || res.data
+  } catch (e) {
+    syncError.value = e.response?.data?.message || 'Kategorie-Löschung fehlgeschlagen'
+  } finally {
+    purgingCategories.value = false
+    await loadConnection()
+  }
+}
+
 async function clearChecksums() {
   if (!confirm('Alle Checksums löschen? Der nächste Delta-Sync überträgt dann alle Produkte neu.')) return
   try {
@@ -554,6 +574,16 @@ const statusColors = {
                 <Trash2 v-else class="w-3.5 h-3.5" />
                 Shop Reset
               </button>
+              <button
+                class="btn btn-outline btn-error btn-sm gap-1"
+                :disabled="purgingCategories || profileSyncing || deltaSyncing"
+                @click="executePurgeCategories"
+                title="Alle Kategorien aus Shopware löschen (außer Root)"
+              >
+                <span v-if="purgingCategories" class="loading loading-spinner loading-xs"></span>
+                <Trash2 v-else class="w-3.5 h-3.5" />
+                Kategorien löschen
+              </button>
             </div>
           </div>
 
@@ -582,6 +612,17 @@ const statusColors = {
                 <span v-if="resetResult.products?.failed" class="text-error">({{ resetResult.products.failed }} fehlgeschlagen)</span>
                 — Kategorien: {{ resetResult.categories?.deleted || 0 }} gelöscht
                 <span v-if="resetResult.categories?.failed" class="text-error">({{ resetResult.categories.failed }} fehlgeschlagen)</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Purge Categories Ergebnis -->
+          <div v-if="purgeCategoriesResult" class="alert mt-3" :class="purgeCategoriesResult.failed ? 'alert-warning' : 'alert-success'">
+            <div>
+              <div class="font-semibold">Kategorien gelöscht</div>
+              <div class="text-sm">
+                {{ purgeCategoriesResult.deleted }} von {{ purgeCategoriesResult.total }} Kategorien gelöscht
+                <span v-if="purgeCategoriesResult.failed" class="text-error">({{ purgeCategoriesResult.failed }} fehlgeschlagen)</span>
               </div>
             </div>
           </div>

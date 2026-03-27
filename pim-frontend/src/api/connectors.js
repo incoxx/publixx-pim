@@ -94,6 +94,11 @@ export default {
     return client.post(`/connectors/connections/${connectionId}/reset`)
   },
 
+  // Purge: Alle Kategorien aus Shopware löschen
+  purgeCategories(connectionId) {
+    return client.post(`/connectors/connections/${connectionId}/purge-categories`)
+  },
+
   // Produkt-Checksums (Delta-Sync Verwaltung)
   checksums(connectionId, params = {}) {
     return client.get(`/connectors/connections/${connectionId}/checksums`, { params })
