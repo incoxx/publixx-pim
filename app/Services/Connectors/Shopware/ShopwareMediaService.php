@@ -41,12 +41,21 @@ class ShopwareMediaService
         $baseUrl = rtrim(config('app.url', url('/')), '/');
         $publicUrl = "{$baseUrl}/api/v1/media/file/{$media->file_name}";
 
-        $http->post("{$shopUrl}/api/_action/media/{$mediaId}/upload?" . http_build_query([
-            'extension' => $extension,
-            'fileName'  => $fileName,
-        ]), [
-            'url' => $publicUrl,
-        ])->throw();
+        try {
+            $http->post("{$shopUrl}/api/_action/media/{$mediaId}/upload?" . http_build_query([
+                'extension' => $extension,
+                'fileName'  => $fileName,
+            ]), [
+                'url' => $publicUrl,
+            ])->throw();
+        } catch (\Illuminate\Http\Client\RequestException $e) {
+            // CONTENT__MEDIA_DUPLICATED_FILE_NAME bei Re-Sync ignorieren — Datei existiert bereits
+            $body = $e->response?->json();
+            $errorCode = $body['errors'][0]['code'] ?? '';
+            if ($errorCode !== 'CONTENT__MEDIA_DUPLICATED_FILE_NAME') {
+                throw $e;
+            }
+        }
 
         return $mediaId;
     }
