@@ -464,8 +464,8 @@ const statusColors = {
             <div v-if="connection.sync_stats">
               <div class="text-sm text-base-content/50">Sync-Statistik</div>
               <div class="flex gap-2 mt-1">
-                <span class="badge badge-success badge-sm">{{ connection.sync_stats.success }} OK</span>
-                <span class="badge badge-error badge-sm">{{ connection.sync_stats.failed }} Fehler</span>
+                <span class="text-sm text-base-content/70">{{ connection.sync_stats.success }} OK</span>
+                <span v-if="connection.sync_stats.failed" class="text-sm text-base-content/50">{{ connection.sync_stats.failed }} Fehler</span>
               </div>
             </div>
           </div>
@@ -486,40 +486,40 @@ const statusColors = {
           </div>
 
           <!-- Profil-Vorschau -->
-          <div class="flex items-center gap-4 mt-2">
-            <div class="flex-1">
+          <div class="flex flex-col sm:flex-row sm:items-center gap-3 mt-2">
+            <div class="flex-1 min-w-0">
               <span class="text-sm text-base-content/50">Vorschau-Profil:</span>
               <span class="font-medium ml-1">
                 {{ selectedProfile?.name || 'Nicht konfiguriert' }}
-                <span v-if="selectedProfile?.is_active" class="badge badge-success badge-xs ml-1">aktiv</span>
+                <span v-if="selectedProfile?.is_active" class="badge badge-ghost badge-xs ml-1">aktiv</span>
               </span>
             </div>
-            <div v-if="selectedProfileId" class="flex gap-2">
+            <div v-if="selectedProfileId" class="flex flex-wrap gap-2">
               <button
-                class="btn btn-outline btn-sm gap-1"
+                class="btn btn-ghost btn-sm gap-1"
                 :disabled="hierarchySyncing"
                 @click="executeHierarchySync"
               >
                 <span v-if="hierarchySyncing" class="loading loading-spinner loading-xs"></span>
-                Hierarchie übertragen
+                Hierarchie
               </button>
               <button
-                class="btn btn-primary btn-sm gap-1"
+                class="btn btn-outline btn-sm gap-1"
                 :disabled="profileSyncing || deltaSyncing"
                 @click="executeProfileSync"
               >
                 <span v-if="profileSyncing" class="loading loading-spinner loading-xs"></span>
-                <Play v-else class="w-4 h-4" />
+                <Play v-else class="w-3.5 h-3.5" />
                 Komplett-Sync
               </button>
               <button
-                class="btn btn-accent btn-sm gap-1"
+                class="btn btn-outline btn-sm gap-1"
                 :disabled="deltaSyncing || profileSyncing"
                 @click="executeDeltaSync"
                 title="Nur neue und geänderte Produkte übertragen"
               >
                 <span v-if="deltaSyncing" class="loading loading-spinner loading-xs"></span>
-                <Zap v-else class="w-4 h-4" />
+                <Zap v-else class="w-3.5 h-3.5" />
                 Delta Sync
               </button>
             </div>
@@ -577,7 +577,7 @@ const statusColors = {
 
           <!-- Delta-Sync Ergebnis -->
           <div v-if="deltaSyncResult" class="mt-3 space-y-3">
-            <div class="alert alert-info">
+            <div class="p-4 bg-base-200/40 rounded-lg border border-base-200">
               <div class="w-full">
                 <div class="font-semibold flex items-center gap-1">
                   <Zap class="w-4 h-4" />
@@ -617,7 +617,7 @@ const statusColors = {
             </div>
 
             <!-- Orphan-Warnung -->
-            <div v-if="deltaSyncResult.orphans?.length" class="alert alert-warning">
+            <div v-if="deltaSyncResult.orphans?.length" class="p-4 bg-base-200/40 rounded-lg border border-base-300">
               <div class="w-full">
                 <div class="font-semibold flex items-center gap-1">
                   <AlertTriangle class="w-4 h-4" />
@@ -850,7 +850,7 @@ const statusColors = {
       </div>
 
       <!-- Einzel-Sync Aktionen -->
-      <div class="flex gap-2 items-center">
+      <div class="flex flex-wrap gap-2 items-center">
         <button class="btn btn-ghost btn-sm" @click="showSyncDialog = true; syncType = 'product'; clearSelectedProduct()">
           <Package class="w-4 h-4" />
           Einzelnes Produkt
@@ -859,7 +859,7 @@ const statusColors = {
           <Image class="w-4 h-4" />
           Einzelnes Media
         </button>
-        <button class="btn btn-ghost btn-sm ml-auto" @click="loadConnection">
+        <button class="btn btn-ghost btn-sm sm:ml-auto" @click="loadConnection">
           <RefreshCw class="w-4 h-4" />
           Aktualisieren
         </button>
@@ -1028,7 +1028,7 @@ const statusColors = {
             </button>
             <button
               v-if="syncLogs.length > 0"
-              class="btn btn-ghost btn-xs text-error"
+              class="btn btn-ghost btn-xs text-base-content/50"
               @click="clearSyncLogs"
             >Protokoll löschen</button>
           </div>
