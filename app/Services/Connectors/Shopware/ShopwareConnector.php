@@ -813,6 +813,7 @@ class ShopwareConnector extends AbstractConnector
      *
      * Holt die Kategorie-Liste direkt aus der Shopware-API und löscht
      * von den tiefsten Blättern aufwärts bis zur Root-Kategorie.
+     * Entfernt vorher Sales-Channel-Navigationsreferenzen die eine Löschung blockieren.
      */
     public function purgeCategories(ConnectorConnection $connection): array
     {
@@ -821,7 +822,46 @@ class ShopwareConnector extends AbstractConnector
 
         $result = ['deleted' => 0, 'failed' => 0, 'total' => 0];
 
-        // Alle Kategorien aus Shopware laden (mit level für Sortierung)
+        // Root-Kategorie-ID ermitteln (wird als Fallback für Sales Channel Entry Points benötigt)
+        $rootCategoryId = null;
+        try {
+            $rootRes = $http->post("{$shopUrl}/api/search/category", [
+                'limit'  => 1,
+                'filter' => [['type' => 'equals', 'field' => 'parentId', 'value' => null]],
+            ]);
+            $rootRes->throw();
+            $rootCategoryId = $rootRes->json()['data'][0]['id'] ?? null;
+        } catch (\Throwable) {}
+
+        // Sales Channels laden und deren Navigations-Referenzen auf Root umbiegen
+        // Sonst blockiert Shopware die Löschung der referenzierten Kategorien
+        if ($rootCategoryId) {
+            try {
+                $scRes = $http->post("{$shopUrl}/api/search/sales-channel", [
+                    'limit' => 100,
+                ]);
+                $scRes->throw();
+                $salesChannels = $scRes->json()['data'] ?? [];
+
+                foreach ($salesChannels as $sc) {
+                    $updates = [];
+                    $navFields = ['navigationCategoryId', 'serviceCategoryId', 'footerCategoryId'];
+                    foreach ($navFields as $field) {
+                        if (isset($sc[$field]) && $sc[$field] !== $rootCategoryId) {
+                            $updates[$field] = $rootCategoryId;
+                        }
+                    }
+                    if (!empty($updates)) {
+                        $updates['id'] = $sc['id'];
+                        $http->patch("{$shopUrl}/api/sales-channel/{$sc['id']}", $updates)->throw();
+                    }
+                }
+            } catch (\Throwable $e) {
+                Log::channel('connectors')->warning('Sales-Channel-Navigation Reset fehlgeschlagen: ' . $e->getMessage());
+            }
+        }
+
+        // Alle Kategorien aus Shopware laden (außer Root)
         $allCategories = [];
         $page = 1;
         $limit = 500;
@@ -831,7 +871,6 @@ class ShopwareConnector extends AbstractConnector
                 'limit'  => $limit,
                 'page'   => $page,
                 'filter' => [
-                    // Root-Kategorie hat parentId = null → nur Kinder laden
                     ['type' => 'not', 'queries' => [
                         ['type' => 'equals', 'field' => 'parentId', 'value' => null],
                     ]],
