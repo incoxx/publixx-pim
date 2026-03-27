@@ -833,12 +833,14 @@ class ShopwareConnector extends AbstractConnector
             $rootCategoryId = $rootRes->json()['data'][0]['id'] ?? null;
         } catch (\Throwable) {}
 
-        // Sales Channels laden und deren Navigations-Referenzen auf Root umbiegen
+        // Sales Channels UND deren Domains laden — Navigations-Referenzen auf Root umbiegen
         // Sonst blockiert Shopware die Löschung der referenzierten Kategorien
         if ($rootCategoryId) {
             try {
+                // 1. Sales Channels selbst
                 $scRes = $http->post("{$shopUrl}/api/search/sales-channel", [
-                    'limit' => 100,
+                    'limit'        => 100,
+                    'associations'  => ['domains' => []],
                 ]);
                 $scRes->throw();
                 $salesChannels = $scRes->json()['data'] ?? [];
@@ -855,83 +857,114 @@ class ShopwareConnector extends AbstractConnector
                         $updates['id'] = $sc['id'];
                         $http->patch("{$shopUrl}/api/sales-channel/{$sc['id']}", $updates)->throw();
                     }
+
+                    // 2. Domains des Sales Channels — haben eigene navigationCategoryId
+                    $domains = $sc['domains'] ?? [];
+                    foreach ($domains as $domain) {
+                        $domainUpdates = [];
+                        foreach ($navFields as $field) {
+                            // Domains verwenden Felder wie navigationCategoryId, serviceCategoryId, footerCategoryId (falls gesetzt)
+                            if (!empty($domain[$field]) && $domain[$field] !== $rootCategoryId) {
+                                $domainUpdates[$field] = $rootCategoryId;
+                            }
+                        }
+                        if (!empty($domainUpdates)) {
+                            $domainUpdates['id'] = $domain['id'];
+                            $http->patch("{$shopUrl}/api/sales-channel-domain/{$domain['id']}", $domainUpdates)->throw();
+                        }
+                    }
                 }
             } catch (\Throwable $e) {
                 Log::channel('connectors')->warning('Sales-Channel-Navigation Reset fehlgeschlagen: ' . $e->getMessage());
             }
         }
 
-        // Alle Kategorien aus Shopware laden (außer Root)
-        $allCategories = [];
-        $page = 1;
-        $limit = 500;
+        // Kategorien laden und löschen — bis zu 3 Durchläufe
+        // (beim ersten Durchlauf können Eltern-Kategorien fehlschlagen, die beim nächsten klappen)
+        for ($round = 1; $round <= 3; $round++) {
+            $allCategories = [];
+            $page = 1;
+            $limit = 500;
 
-        do {
-            $response = $http->post("{$shopUrl}/api/search/category", [
-                'limit'  => $limit,
-                'page'   => $page,
-                'filter' => [
-                    ['type' => 'not', 'queries' => [
-                        ['type' => 'equals', 'field' => 'parentId', 'value' => null],
-                    ]],
-                ],
-                'sort' => [
-                    ['field' => 'level', 'order' => 'DESC'],
-                ],
-            ]);
-            $response->throw();
-            $data = $response->json();
-
-            $categories = $data['data'] ?? [];
-            foreach ($categories as $cat) {
-                $allCategories[] = [
-                    'id'    => $cat['id'],
-                    'level' => $cat['level'] ?? 0,
-                ];
-            }
-
-            $total = $data['total'] ?? 0;
-            $page++;
-        } while (count($allCategories) < $total && !empty($categories));
-
-        // Nach Level absteigend sortieren (Blätter zuerst)
-        usort($allCategories, fn ($a, $b) => $b['level'] <=> $a['level']);
-
-        $result['total'] = count($allCategories);
-
-        // In Chunks löschen
-        $ids = array_map(fn ($c) => $c['id'], $allCategories);
-
-        foreach (array_chunk($ids, 50) as $chunk) {
-            $payload = array_map(fn (string $id) => ['id' => $id], $chunk);
-
-            try {
-                $response = $http->post("{$shopUrl}/api/_action/sync", [
-                    'delete-categories' => [
-                        'action'  => 'delete',
-                        'entity'  => 'category',
-                        'payload' => $payload,
+            do {
+                $response = $http->post("{$shopUrl}/api/search/category", [
+                    'limit'  => $limit,
+                    'page'   => $page,
+                    'filter' => [
+                        ['type' => 'not', 'queries' => [
+                            ['type' => 'equals', 'field' => 'parentId', 'value' => null],
+                        ]],
+                    ],
+                    'sort' => [
+                        ['field' => 'level', 'order' => 'DESC'],
                     ],
                 ]);
                 $response->throw();
-                $result['deleted'] += count($chunk);
-            } catch (\Throwable) {
-                foreach ($chunk as $categoryId) {
-                    try {
-                        $http->post("{$shopUrl}/api/_action/sync", [
-                            'delete-categories' => [
-                                'action'  => 'delete',
-                                'entity'  => 'category',
-                                'payload' => [['id' => $categoryId]],
-                            ],
-                        ])->throw();
-                        $result['deleted']++;
-                    } catch (\Throwable) {
-                        $result['failed']++;
+                $data = $response->json();
+
+                $categories = $data['data'] ?? [];
+                foreach ($categories as $cat) {
+                    $allCategories[] = [
+                        'id'    => $cat['id'],
+                        'level' => $cat['level'] ?? 0,
+                    ];
+                }
+
+                $total = $data['total'] ?? 0;
+                $page++;
+            } while (count($allCategories) < $total && !empty($categories));
+
+            if (empty($allCategories)) {
+                break; // Alles gelöscht
+            }
+
+            if ($round === 1) {
+                $result['total'] = count($allCategories);
+            }
+
+            // Nach Level absteigend sortieren (Blätter zuerst)
+            usort($allCategories, fn ($a, $b) => $b['level'] <=> $a['level']);
+
+            $ids = array_map(fn ($c) => $c['id'], $allCategories);
+            $roundFailed = 0;
+
+            foreach (array_chunk($ids, 50) as $chunk) {
+                $payload = array_map(fn (string $id) => ['id' => $id], $chunk);
+
+                try {
+                    $http->post("{$shopUrl}/api/_action/sync", [
+                        'delete-categories' => [
+                            'action'  => 'delete',
+                            'entity'  => 'category',
+                            'payload' => $payload,
+                        ],
+                    ])->throw();
+                    $result['deleted'] += count($chunk);
+                } catch (\Throwable) {
+                    foreach ($chunk as $categoryId) {
+                        try {
+                            $http->post("{$shopUrl}/api/_action/sync", [
+                                'delete-categories' => [
+                                    'action'  => 'delete',
+                                    'entity'  => 'category',
+                                    'payload' => [['id' => $categoryId]],
+                                ],
+                            ])->throw();
+                            $result['deleted']++;
+                        } catch (\Throwable) {
+                            $roundFailed++;
+                        }
                     }
                 }
             }
+
+            // Wenn nichts mehr fehlschlägt, aufhören
+            if ($roundFailed === 0) {
+                break;
+            }
         }
+
+        $result['failed'] = max(0, $result['total'] - $result['deleted']);
 
         // Kategorie-Sync-Logs bereinigen
         ConnectorSyncLog::where('connector_connection_id', $connection->id)
