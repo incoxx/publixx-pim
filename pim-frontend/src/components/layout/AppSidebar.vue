@@ -10,7 +10,7 @@ import {
   Upload, Download, Image, Tags, DollarSign, Users, Settings, Shield,
   HelpCircle, PanelLeftClose, PanelLeft, Star, LayoutGrid, Ruler,
   FileJson, FileCode, PlayCircle, FileBarChart, FileText, BookOpen, Link2, Zap, Languages, LayoutTemplate,
-  ChevronDown, ChevronRight, GripVertical, Factory, CalendarDays, ScrollText, Globe, Send,
+  ChevronDown, ChevronRight, ChevronsDownUp, GripVertical, Factory, CalendarDays, ScrollText, Globe, Send,
   LayoutDashboard, ClipboardList, Code, ExternalLink, Plug, FlaskConical, ArrowRightLeft,
   FileSpreadsheet,
 } from 'lucide-vue-next'
@@ -235,6 +235,15 @@ const sections = computed(() => {
   }))
 })
 
+const hasAnySectionOpen = computed(() => {
+  return sections.value.some(section => {
+    if (!section.label || section.key === 'help') return false
+    if (!isSectionCollapsed(section.key)) return true
+    // Check sub-groups
+    return section.items.some(item => item.children && !isSectionCollapsed(item.key))
+  })
+})
+
 function isSectionCollapsed(key) {
   // 'daily' defaults to open, all others default to collapsed
   if (key === 'daily' && authStore.sidebarCollapsedSections[key] === undefined) return false
@@ -337,6 +346,14 @@ const sidebarStyle = computed(() => ({
     <!-- Logo -->
     <div class="flex items-center px-3 h-14 border-b border-[var(--color-border)] shrink-0">
       <AnyPimLogo :showText="!authStore.sidebarCollapsed" size="sm" />
+      <button
+        v-if="!authStore.sidebarCollapsed && hasAnySectionOpen"
+        class="ml-auto p-1 rounded text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-bg)] transition-colors cursor-pointer"
+        title="Alle Menüs schließen"
+        @click="authStore.collapseAllSections()"
+      >
+        <ChevronsDownUp class="w-4 h-4" :stroke-width="1.75" />
+      </button>
     </div>
 
     <!-- Nav -->
