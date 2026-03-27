@@ -80,7 +80,6 @@ class ShopwareCategoryService
 
         foreach ($allNodes as $node) {
             $shopwareCategoryId = $categoryMap[$node->id] ?? str_replace('-', '', Str::uuid()->toString());
-            $categoryMap[$node->id] = $shopwareCategoryId;
 
             $name = $language === 'en' && $node->name_en ? $node->name_en : $node->name_de;
 
@@ -91,13 +90,20 @@ class ShopwareCategoryService
             ];
 
             // Eltern-Kategorie zuordnen
-            if ($node->parent_node_id && isset($categoryMap[$node->parent_node_id])) {
+            if (!$node->parent_node_id) {
+                // Echter Top-Level-Knoten (kein Parent im PIM) → unter Shopware Root
+                if ($rootCategoryId) {
+                    $categoryData['parentId'] = $rootCategoryId;
+                }
+            } elseif (isset($categoryMap[$node->parent_node_id])) {
+                // Parent ist in der Map → normaler Kindknoten
                 $categoryData['parentId'] = $categoryMap[$node->parent_node_id];
-            } elseif ($rootCategoryId) {
-                // Top-Level-Knoten → unter Shopware Root-Kategorie hängen
-                $categoryData['parentId'] = $rootCategoryId;
+            } else {
+                // Parent nicht in der Map (excluded/inaktiv) → Knoten überspringen
+                continue;
             }
 
+            $categoryMap[$node->id] = $shopwareCategoryId;
             $payload[] = $categoryData;
         }
 
