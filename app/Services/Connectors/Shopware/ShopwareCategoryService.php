@@ -56,6 +56,10 @@ class ShopwareCategoryService
             ];
         }
 
+        // Shopware Root-Kategorie ermitteln (parentId = null)
+        // Alle PIM-Kategorien werden als Kinder der Root-Kategorie angelegt
+        $rootCategoryId = $this->fetchRootCategoryId($http, $shopUrl);
+
         // Bestehende Shopware-Kategorie-IDs aus Sync-Logs laden (pro Connection!)
         $existingMap = ConnectorSyncLog::where('connector_connection_id', $connectionId)
             ->where('action', 'category_sync')
@@ -89,6 +93,9 @@ class ShopwareCategoryService
             // Eltern-Kategorie zuordnen
             if ($node->parent_node_id && isset($categoryMap[$node->parent_node_id])) {
                 $categoryData['parentId'] = $categoryMap[$node->parent_node_id];
+            } elseif ($rootCategoryId) {
+                // Top-Level-Knoten → unter Shopware Root-Kategorie hängen
+                $categoryData['parentId'] = $rootCategoryId;
             }
 
             $payload[] = $categoryData;
@@ -167,6 +174,28 @@ class ShopwareCategoryService
                 ],
             ],
         ])->throw();
+    }
+
+    /**
+     * Holt die Root-Kategorie-ID aus Shopware (parentId = null).
+     */
+    private function fetchRootCategoryId(PendingRequest $http, string $shopUrl): ?string
+    {
+        try {
+            $response = $http->post("{$shopUrl}/api/search/category", [
+                'limit'  => 1,
+                'filter' => [
+                    ['type' => 'equals', 'field' => 'parentId', 'value' => null],
+                ],
+            ]);
+            $response->throw();
+            $data = $response->json();
+
+            return $data['data'][0]['id'] ?? null;
+        } catch (\Throwable $e) {
+            Log::channel('connectors')->warning('Root-Kategorie konnte nicht ermittelt werden: ' . $e->getMessage());
+            return null;
+        }
     }
 
     /**
