@@ -23,7 +23,7 @@ const filterChips = computed(() => {
     if (!facet) continue
     const label = facet.label
     if (facet.data_type === 'ValueList' || facet.data_type === 'Text') {
-      const selectedIds = String(value).split(',')
+      const selectedIds = String(value).split(',').map(v => decodeURIComponent(v))
       for (const id of selectedIds) {
         const entry = (facet.values || []).find(v => String(v.value_id || v.value) === id)
         chips.push({ attrId, valueId: id, label, value: entry?.value || id })
@@ -42,13 +42,13 @@ const filterChips = computed(() => {
 function removeChip(chip) {
   if (chip.valueId && (chip.valueId !== null)) {
     // Remove single value from multi-select
-    const current = String(store.activeFilters[chip.attrId] || '').split(',').filter(Boolean)
+    const current = String(store.activeFilters[chip.attrId] || '').split(',').filter(Boolean).map(v => decodeURIComponent(v))
     const idx = current.indexOf(String(chip.valueId))
     if (idx !== -1) current.splice(idx, 1)
     if (current.length === 0) {
       store.clearFilter(chip.attrId)
     } else {
-      store.setFilter(chip.attrId, current.join(','))
+      store.setFilter(chip.attrId, current.map(v => encodeURIComponent(v)).join(','))
     }
   } else {
     store.clearFilter(chip.attrId)

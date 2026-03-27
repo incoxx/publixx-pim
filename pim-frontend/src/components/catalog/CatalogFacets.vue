@@ -48,7 +48,7 @@ function isExpanded(attributeId) {
 function getSelectedValues(attributeId) {
   const raw = store.activeFilters[attributeId]
   if (!raw) return []
-  return String(raw).split(',').filter(Boolean)
+  return String(raw).split(',').filter(Boolean).map(decodeURIComponent)
 }
 
 function toggleValueSelection(attributeId, valueId) {
@@ -62,7 +62,7 @@ function toggleValueSelection(attributeId, valueId) {
   if (current.length === 0) {
     store.clearFilter(attributeId)
   } else {
-    store.setFilter(attributeId, current.join(','))
+    store.setFilter(attributeId, current.map(encodeURIComponent).join(','))
   }
   store.fetchProducts()
   store.fetchFacets()

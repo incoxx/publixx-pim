@@ -201,7 +201,7 @@ export function createOfflineApi(dataPath, options = {}) {
           if (val !== expected) return false
         } else {
           // Value list filter (comma-separated IDs)
-          const selectedIds = filterValue.split(',').filter(Boolean)
+          const selectedIds = filterValue.split(',').filter(Boolean).map(v => decodeURIComponent(v))
           if (selectedIds.length === 0) continue
           if (!selectedIds.includes(String(val))) return false
         }

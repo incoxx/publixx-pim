@@ -38,7 +38,7 @@ function isExpanded(id) { return !!expanded.value[id] }
 function getSelected(attrId) {
   const raw = state.activeFilters[attrId]
   if (!raw) return []
-  return String(raw).split(',').filter(Boolean)
+  return String(raw).split(',').filter(Boolean).map(decodeURIComponent)
 }
 
 function toggleValue(attrId, valId) {
@@ -47,7 +47,7 @@ function toggleValue(attrId, valId) {
   if (idx === -1) current.push(String(valId))
   else current.splice(idx, 1)
   if (current.length === 0) actions.clearFilter(attrId)
-  else actions.setFilter(attrId, current.join(','))
+  else actions.setFilter(attrId, current.map(encodeURIComponent).join(','))
   actions.fetchProducts()
   actions.fetchFacets()
 }
