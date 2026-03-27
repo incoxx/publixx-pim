@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Connectors\Shopware;
 
 use App\Models\ConnectorConnection;
+use App\Models\ConnectorProductChecksum;
 use App\Models\ConnectorSyncLog;
 use App\Models\Hierarchy;
 use App\Models\HierarchyNode;
@@ -23,6 +24,7 @@ class ShopwareConnector extends AbstractConnector
         private readonly ShopwareMediaService $mediaService,
         private readonly ShopwareCategoryService $categoryService,
         private readonly ShopwarePropertyService $propertyService,
+        private readonly ShopwareChecksumService $checksumService,
     ) {}
 
     public function getType(): string
@@ -473,6 +475,252 @@ class ShopwareConnector extends AbstractConnector
         });
 
         return $result;
+    }
+
+    /**
+     * Delta-Sync: Nur neue und geänderte Produkte synchronisieren.
+     *
+     * Vergleicht Checksums der aktuellen Produktdaten mit den gespeicherten Checksums
+     * aus dem letzten Sync. Erkennt auch Orphans (Produkte im Shop, nicht mehr im PIM).
+     *
+     * @return array{products: array{new: int, updated: int, unchanged: int, failed: int}, media: array{success: int, failed: int}, orphans: array, properties: array}
+     */
+    public function deltaSyncFromProfile(ConnectorConnection $connection): array
+    {
+        $settings = $connection->settings ?? [];
+        $profileId = $settings['website_profile_id'] ?? null;
+        $shopwareFields = $settings['shopware_fields'] ?? [];
+
+        if (!$profileId) {
+            throw new \RuntimeException('Kein Vorschau-Profil konfiguriert. Bitte ein Profil in den Verbindungseinstellungen auswählen.');
+        }
+
+        $profile = WebsiteProfile::findOrFail($profileId);
+        $payload = $profile->payload ?? [];
+        $language = $payload['default_locale'] ?? 'de';
+
+        $http = $this->authenticatedRequest($connection);
+        $shopUrl = $settings['shop_url'] ?? config('connectors.shopware.shop_url');
+
+        // Setup: Tax-ID + Sales Channel ID (einmal pro Sync)
+        $shopwareFields = $this->resolveShopwareDefaults($http, $shopUrl, $shopwareFields);
+
+        // Property Groups einmal vorab synchronisieren
+        $propertyMap = [];
+        $propertyAttrIds = $shopwareFields['_property_attribute_ids'] ?? [];
+        if (empty($propertyAttrIds)) {
+            $propertyAttrIds = $this->productService->resolvePropertyAttributeIds(new Product(), $payload);
+        }
+        if (!empty($propertyAttrIds)) {
+            $propertyMap = $this->propertyService->syncPropertyGroups(
+                $http, $shopUrl, $connection->id, $propertyAttrIds, $language,
+            );
+            foreach ($propertyMap as $attrId => $mapping) {
+                $this->logSync($connection, 'property_group_sync', 'attribute', $attrId, 'success', $mapping['group_id']);
+                foreach ($mapping['options'] as $entryId => $optionId) {
+                    $this->logSync($connection, 'property_option_sync', 'value_list_entry', $entryId, 'success', $optionId);
+                }
+            }
+        }
+
+        // Erlaubte Attribut-IDs aus Profil auflösen (für Checksum-Berechnung)
+        $allowedAttributeIds = $this->productService->resolveAllowedAttributeIds(new Product(), $payload);
+
+        $result = [
+            'products'   => ['new' => 0, 'updated' => 0, 'unchanged' => 0, 'failed' => 0],
+            'media'      => ['success' => 0, 'failed' => 0],
+            'orphans'    => [],
+            'properties' => ['groups' => count($propertyMap), 'options' => collect($propertyMap)->sum(fn ($m) => count($m['options']))],
+        ];
+
+        // Bestehende Checksums laden
+        $existingChecksums = ConnectorProductChecksum::where('connection_id', $connection->id)
+            ->pluck('checksum', 'product_id')
+            ->toArray();
+
+        // Produkte aus Profil laden
+        $productQuery = $this->loadProductsFromProfile($payload);
+        $currentProductIds = [];
+
+        // Produkte synchronisieren (in Chunks)
+        $productQuery->chunk(50, function ($chunk) use (
+            $http, $shopUrl, $connection, $payload, $shopwareFields,
+            $language, $propertyMap, $allowedAttributeIds, $propertyAttrIds,
+            &$existingChecksums, &$currentProductIds, &$result,
+        ) {
+            // Batch: Checksums für den gesamten Chunk berechnen
+            $chunkChecksums = $this->checksumService->computeChecksumsBatch(
+                $chunk, $payload, $shopwareFields, $language, $allowedAttributeIds, $propertyAttrIds,
+            );
+
+            // Batch: Properties für den gesamten Chunk auflösen
+            $chunkProductIds = $chunk->pluck('id')->toArray();
+            $currentProductIds = array_merge($currentProductIds, $chunkProductIds);
+            $bulkProperties = $this->propertyService->resolveProductPropertiesBulk($chunkProductIds, $propertyMap);
+
+            foreach ($chunk as $product) {
+                $newChecksum = $chunkChecksums[$product->id] ?? '';
+                $oldChecksum = $existingChecksums[$product->id] ?? null;
+
+                // Delta-Vergleich: überspringen wenn Checksum identisch
+                if ($oldChecksum !== null && $oldChecksum === $newChecksum) {
+                    $result['products']['unchanged']++;
+                    continue;
+                }
+
+                $isNew = $oldChecksum === null;
+
+                try {
+                    $properties = $bulkProperties[$product->id] ?? [];
+
+                    // Kategorie-Zuordnung
+                    $categoryId = null;
+                    if ($product->master_hierarchy_node_id) {
+                        $categoryId = $this->getCategoryIdForNode($connection->id, $product->master_hierarchy_node_id);
+                    }
+
+                    // Produkt synchronisieren
+                    $productResult = $this->productService->syncProductFromProfile(
+                        $http, $shopUrl, $product, $payload, $shopwareFields, $language, $properties, $categoryId,
+                    );
+
+                    $externalId = $productResult['product_id'] ?? null;
+
+                    // Medien synchronisieren
+                    $syncMedia = $shopwareFields['_sync_media']['enabled'] ?? true;
+                    if ($syncMedia) {
+                        $product->loadMissing('media');
+                        if ($product->media->isNotEmpty()) {
+                            $position = 0;
+                            foreach ($product->media as $media) {
+                                try {
+                                    $mediaId = $this->mediaService->uploadMedia($http, $shopUrl, $media);
+                                    $this->mediaService->assignMediaToProduct($http, $shopUrl, $externalId, $mediaId, $position);
+                                    $result['media']['success']++;
+                                    $this->logSync($connection, 'media_sync', 'media', $media->id, 'success', $mediaId);
+                                    $position++;
+                                } catch (\Throwable $e) {
+                                    $result['media']['failed']++;
+                                    $this->logSync($connection, 'media_sync', 'media', $media->id, 'failed', null, $e->getMessage());
+                                }
+                            }
+                        }
+                    }
+
+                    // Checksum speichern/aktualisieren
+                    ConnectorProductChecksum::updateOrCreate(
+                        ['connection_id' => $connection->id, 'product_id' => $product->id],
+                        ['checksum' => $newChecksum, 'synced_at' => now(), 'external_id' => $externalId],
+                    );
+
+                    $this->logSync(
+                        $connection, 'delta_sync', 'product',
+                        $product->id, 'success', $externalId, null,
+                        [
+                            'language'      => $language,
+                            'sku'           => $product->sku,
+                            'product_name'  => $product->name,
+                            'delta_status'  => $isNew ? 'new' : 'updated',
+                            'synced_fields' => $productResult['synced_data'] ?? [],
+                        ],
+                    );
+
+                    $result['products'][$isNew ? 'new' : 'updated']++;
+                } catch (\Throwable $e) {
+                    $errorDetail = $e instanceof \Illuminate\Http\Client\RequestException
+                        ? $this->parseShopwareError($e)
+                        : $e->getMessage();
+
+                    $this->logSync(
+                        $connection, 'delta_sync', 'product',
+                        $product->id, 'failed', null, $errorDetail,
+                        [
+                            'sku'          => $product->sku,
+                            'product_name' => $product->name,
+                            'delta_status' => $isNew ? 'new' : 'updated',
+                            'http_status'  => $e instanceof \Illuminate\Http\Client\RequestException
+                                ? $e->response?->status()
+                                : null,
+                        ],
+                    );
+                    $result['products']['failed']++;
+
+                    Log::channel('connectors')->error("Delta-Sync fehlgeschlagen: {$product->sku}", [
+                        'error' => $errorDetail,
+                    ]);
+                }
+            }
+        });
+
+        // Orphan-Erkennung: Produkte mit Checksum aber nicht mehr im Profil
+        $syncedProductIds = array_keys($existingChecksums);
+        $orphanIds = array_diff($syncedProductIds, $currentProductIds);
+
+        if (!empty($orphanIds)) {
+            // Produkte laden die noch existieren (gelöschte Produkte fehlen → als 'deleted' markieren)
+            $orphanProducts = Product::whereIn('id', $orphanIds)->get(['id', 'sku', 'name']);
+            $foundIds = $orphanProducts->pluck('id')->toArray();
+            $deletedIds = array_diff($orphanIds, $foundIds);
+
+            $result['orphans'] = $orphanProducts->map(fn ($p) => [
+                'id'      => $p->id,
+                'sku'     => $p->sku,
+                'name'    => $p->name,
+                'deleted' => false,
+                'external_id' => null,
+            ])->values()->toArray();
+
+            // Gelöschte Produkte hinzufügen (nur ID bekannt)
+            foreach ($deletedIds as $deletedId) {
+                $result['orphans'][] = [
+                    'id'          => $deletedId,
+                    'sku'         => '(gelöscht)',
+                    'name'        => '(Produkt gelöscht)',
+                    'deleted'     => true,
+                    'external_id' => null,
+                ];
+            }
+
+            // External IDs für Orphans aus der Checksum-Tabelle holen
+            $orphanExternalIds = ConnectorProductChecksum::where('connection_id', $connection->id)
+                ->whereIn('product_id', $orphanIds)
+                ->pluck('external_id', 'product_id')
+                ->toArray();
+
+            foreach ($result['orphans'] as &$orphan) {
+                $orphan['external_id'] = $orphanExternalIds[$orphan['id']] ?? null;
+            }
+            unset($orphan);
+        }
+
+        return $result;
+    }
+
+    /**
+     * Löst Shopware-Defaults auf (Tax-ID, Sales Channel ID) — einmal pro Sync.
+     */
+    private function resolveShopwareDefaults(
+        \Illuminate\Http\Client\PendingRequest $http,
+        string $shopUrl,
+        array $shopwareFields,
+    ): array {
+        $taxIdMapping = $shopwareFields['tax_id'] ?? [];
+        if (empty($taxIdMapping) || ($taxIdMapping['mode'] ?? '') === 'default') {
+            $defaultTaxId = $this->productService->fetchDefaultTaxId($http, $shopUrl);
+            if ($defaultTaxId) {
+                $shopwareFields['tax_id'] = ['mode' => 'fixed', 'value' => $defaultTaxId];
+            }
+        }
+
+        $salesChannelMapping = $shopwareFields['_sales_channel_id'] ?? [];
+        if (empty($salesChannelMapping) || empty($salesChannelMapping['value'])) {
+            $defaultSalesChannelId = $this->productService->fetchDefaultSalesChannelId($http, $shopUrl);
+            if ($defaultSalesChannelId) {
+                $shopwareFields['_sales_channel_id'] = ['value' => $defaultSalesChannelId];
+            }
+        }
+
+        return $shopwareFields;
     }
 
     /**

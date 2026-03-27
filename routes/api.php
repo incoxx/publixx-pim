@@ -955,9 +955,18 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
         // Vorschau-Profile für Connector-Konfiguration
         Route::get('/website-profiles', [ConnectorController::class, 'websiteProfiles']);
 
+        // Delta-Sync (Shopware)
+        Route::post('/connections/{connection}/delta-sync', [ConnectorController::class, 'deltaSync']);
+
+        // Produkt-Checksums (Delta-Sync Verwaltung)
+        Route::get('/connections/{connection}/checksums', [ConnectorController::class, 'checksums']);
+        Route::delete('/connections/{connection}/checksums', [ConnectorController::class, 'clearChecksums']);
+
         // Logs
+        Route::get('/connections/{connection}/sync-logs/export', [ConnectorController::class, 'exportSyncLogs']);
         Route::get('/connections/{connection}/sync-logs', [ConnectorController::class, 'syncLogs']);
         Route::delete('/connections/{connection}/sync-logs', [ConnectorController::class, 'clearSyncLogs']);
+        Route::delete('/connections/{connection}/sync-logs/{syncLog}', [ConnectorController::class, 'deleteSyncLog']);
 
         // Canva Export-Profile (CRUD + Execute)
         Route::apiResource('canva-export-profiles', CanvaExportProfileController::class)

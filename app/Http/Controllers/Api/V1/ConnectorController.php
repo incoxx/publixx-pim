@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Models\ConnectorConnection;
+use App\Models\ConnectorProductChecksum;
+use App\Models\ConnectorSyncLog;
 use App\Models\Media;
 use App\Models\Product;
 use App\Models\WebsiteProfile;
@@ -12,6 +14,9 @@ use App\Services\Connectors\ConnectorRegistry;
 use App\Services\Connectors\Shopware\ShopwareConnector;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * REST-API für externe Connectoren (Canva, DeepL, Adobe u.a.).
@@ -659,5 +664,154 @@ class ConnectorController extends Controller
             ]);
 
         return response()->json(['data' => $profiles]);
+    }
+
+    /**
+     * POST /connectors/connections/{connection}/delta-sync — Delta-Sync (nur neue/geänderte Produkte).
+     */
+    public function deltaSync(Request $request, ConnectorConnection $connection): JsonResponse
+    {
+        $this->authorize('sync', $connection);
+
+        if ($connection->connector_type !== 'shopware') {
+            return response()->json([
+                'message' => 'Delta-Sync ist nur für Shopware-Verbindungen verfügbar.',
+            ], 422);
+        }
+
+        $connector = $this->registry->get($connection->connector_type);
+        if (! $connector instanceof ShopwareConnector) {
+            return response()->json(['message' => 'Shopware-Connector nicht gefunden.'], 422);
+        }
+
+        try {
+            $result = $connector->deltaSyncFromProfile($connection);
+
+            return response()->json([
+                'data' => [
+                    'status'     => 'completed',
+                    'products'   => $result['products'],
+                    'media'      => $result['media'],
+                    'orphans'    => $result['orphans'],
+                    'properties' => $result['properties'] ?? [],
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'message' => 'Delta-Sync fehlgeschlagen: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * GET /connectors/connections/{connection}/checksums — Produkt-Checksums anzeigen.
+     */
+    public function checksums(Request $request, ConnectorConnection $connection): JsonResponse
+    {
+        $this->authorize('view', $connection);
+
+        $checksums = ConnectorProductChecksum::where('connection_id', $connection->id)
+            ->join('products', 'products.id', '=', 'connector_product_checksums.product_id')
+            ->select([
+                'connector_product_checksums.product_id',
+                'connector_product_checksums.checksum',
+                'connector_product_checksums.synced_at',
+                'connector_product_checksums.external_id',
+                'products.sku',
+                'products.name',
+            ])
+            ->orderByDesc('connector_product_checksums.synced_at')
+            ->paginate($request->input('per_page', 50));
+
+        return response()->json($checksums);
+    }
+
+    /**
+     * DELETE /connectors/connections/{connection}/checksums — Alle Checksums löschen (erzwingt Full-Sync).
+     */
+    public function clearChecksums(Request $request, ConnectorConnection $connection): JsonResponse
+    {
+        $this->authorize('sync', $connection);
+
+        $count = ConnectorProductChecksum::where('connection_id', $connection->id)->count();
+        ConnectorProductChecksum::where('connection_id', $connection->id)->delete();
+
+        return response()->json([
+            'message' => "{$count} Checksums gelöscht. Der nächste Delta-Sync wird alle Produkte übertragen.",
+            'deleted' => $count,
+        ]);
+    }
+
+    /**
+     * DELETE /connectors/connections/{connection}/sync-logs/{syncLog} — Einzelnen Sync-Log löschen.
+     */
+    public function deleteSyncLog(Request $request, ConnectorConnection $connection, ConnectorSyncLog $syncLog): JsonResponse
+    {
+        $this->authorize('sync', $connection);
+
+        if ($syncLog->connector_connection_id !== $connection->id) {
+            return response()->json(['message' => 'Sync-Log gehört nicht zu dieser Verbindung.'], 403);
+        }
+
+        $syncLog->delete();
+
+        return response()->json(null, 204);
+    }
+
+    /**
+     * GET /connectors/connections/{connection}/sync-logs/export — Sync-Logs als Excel exportieren.
+     */
+    public function exportSyncLogs(Request $request, ConnectorConnection $connection): StreamedResponse
+    {
+        $this->authorize('view', $connection);
+
+        $logs = $connection->syncLogs()
+            ->when($request->input('status'), fn ($q, $status) => $q->where('status', $status))
+            ->when($request->input('action'), fn ($q, $action) => $q->where('action', $action))
+            ->orderByDesc('created_at')
+            ->limit(10000)
+            ->get();
+
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Sync-Logs');
+
+        // Header
+        $headers = ['Datum', 'Aktion', 'Entity-Typ', 'Entity-ID', 'External-ID', 'Status', 'Fehler', 'SKU', 'Produktname'];
+        foreach ($headers as $col => $header) {
+            $sheet->setCellValue([$col + 1, 1], $header);
+        }
+
+        // Zeilen mit Daten
+        $row = 2;
+        foreach ($logs as $log) {
+            $meta = $log->meta ?? [];
+            $sheet->setCellValue([1, $row], $log->created_at?->format('Y-m-d H:i:s'));
+            $sheet->setCellValue([2, $row], $log->action);
+            $sheet->setCellValue([3, $row], $log->entity_type);
+            $sheet->setCellValue([4, $row], $log->entity_id);
+            $sheet->setCellValue([5, $row], $log->external_id);
+            $sheet->setCellValue([6, $row], $log->status);
+            $sheet->setCellValue([7, $row], $log->error_message);
+            $sheet->setCellValue([8, $row], $meta['sku'] ?? '');
+            $sheet->setCellValue([9, $row], $meta['product_name'] ?? '');
+            $row++;
+        }
+
+        // Auto-Breite
+        foreach (range(1, 9) as $col) {
+            $sheet->getColumnDimensionByColumn($col)->setAutoSize(true);
+        }
+
+        $fileName = "sync-logs-{$connection->name}-" . date('Y-m-d') . '.xlsx';
+
+        return new StreamedResponse(function () use ($spreadsheet) {
+            $writer = new Xlsx($spreadsheet);
+            $writer->save('php://output');
+        }, 200, [
+            'Content-Type'        => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition' => "attachment; filename=\"{$fileName}\"",
+            'Cache-Control'       => 'max-age=0',
+        ]);
     }
 }

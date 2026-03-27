@@ -84,6 +84,20 @@ export default {
     return client.get('/connectors/website-profiles')
   },
 
+  // Delta-Sync (nur neue/geänderte Produkte)
+  deltaSync(connectionId) {
+    return client.post(`/connectors/connections/${connectionId}/delta-sync`)
+  },
+
+  // Produkt-Checksums (Delta-Sync Verwaltung)
+  checksums(connectionId, params = {}) {
+    return client.get(`/connectors/connections/${connectionId}/checksums`, { params })
+  },
+
+  clearChecksums(connectionId) {
+    return client.delete(`/connectors/connections/${connectionId}/checksums`)
+  },
+
   // Sync-Logs
   syncLogs(connectionId, params = {}) {
     return client.get(`/connectors/connections/${connectionId}/sync-logs`, { params })
@@ -91,6 +105,17 @@ export default {
 
   clearSyncLogs(connectionId) {
     return client.delete(`/connectors/connections/${connectionId}/sync-logs`)
+  },
+
+  deleteSyncLog(connectionId, logId) {
+    return client.delete(`/connectors/connections/${connectionId}/sync-logs/${logId}`)
+  },
+
+  exportSyncLogs(connectionId, params = {}) {
+    return client.get(`/connectors/connections/${connectionId}/sync-logs/export`, {
+      params,
+      responseType: 'blob',
+    })
   },
 
   // Which plugins have API keys configured (available to all authenticated users)
