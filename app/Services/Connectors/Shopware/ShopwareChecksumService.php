@@ -179,10 +179,9 @@ class ShopwareChecksumService
     private function collectPriceFingerprint(Product $product, array $profilePayload, array $shopwareFields): array
     {
         $priceTypeId = $profilePayload['card_price_type_id'] ?? null;
-        $priceCountry = $profilePayload['card_price_country'] ?? null;
 
         $query = ProductPrice::where('product_id', $product->id)
-            ->select(['price_type_id', 'amount', 'currency', 'country', 'valid_from', 'valid_to'])
+            ->select(['price_type_id', 'amount', 'currency', 'price_region_id', 'valid_from', 'valid_to'])
             ->orderBy('price_type_id');
 
         if ($priceTypeId) {
@@ -193,7 +192,7 @@ class ShopwareChecksumService
             'type'     => $p->price_type_id,
             'amount'   => (string) $p->amount,
             'currency' => $p->currency,
-            'country'  => $p->country,
+            'region'   => $p->price_region_id,
         ])->toArray();
     }
 
@@ -208,7 +207,7 @@ class ShopwareChecksumService
             ->sortBy('id')
             ->map(fn ($m) => [
                 'id'         => $m->id,
-                'filename'   => $m->file_name ?? $m->original_filename,
+                'filename'   => $m->file_name ?? $m->original_file_name,
                 'updated_at' => $m->updated_at?->toIso8601String(),
             ])
             ->values()
