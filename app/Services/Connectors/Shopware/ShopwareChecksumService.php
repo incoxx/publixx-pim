@@ -61,7 +61,8 @@ class ShopwareChecksumService
         $data['category_node'] = $product->master_hierarchy_node_id;
 
         // Deterministisch sortieren und hashen
-        return hash('sha256', json_encode($data, JSON_SORT_KEYS | JSON_UNESCAPED_UNICODE));
+        ksort($data);
+        return hash('sha256', json_encode($data, JSON_UNESCAPED_UNICODE));
     }
 
     /**
@@ -120,7 +121,8 @@ class ShopwareChecksumService
             $data['media'] = $this->collectMediaFingerprint($product);
             $data['category_node'] = $product->master_hierarchy_node_id;
 
-            $checksums[$product->id] = hash('sha256', json_encode($data, JSON_SORT_KEYS | JSON_UNESCAPED_UNICODE));
+            ksort($data);
+            $checksums[$product->id] = hash('sha256', json_encode($data, JSON_UNESCAPED_UNICODE));
         }
 
         return $checksums;

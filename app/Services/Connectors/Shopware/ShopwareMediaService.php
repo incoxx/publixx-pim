@@ -6,6 +6,7 @@ namespace App\Services\Connectors\Shopware;
 
 use App\Models\Media;
 use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -41,45 +42,91 @@ class ShopwareMediaService
             ],
         ])->throw();
 
-        // 2. Datei hochladen — direkt als Binary (kein Netzwerk-Zugriff vom Shop auf PIM nötig)
+        // 2. Datei hochladen
+        $this->uploadFileToMedia($http, $shopUrl, $media, $mediaId, $fileName, $extension);
+
+        return $mediaId;
+    }
+
+    /**
+     * Lädt die eigentliche Datei zu einem Shopware-Media-Eintrag hoch.
+     *
+     * Bei CONTENT__MEDIA_DUPLICATED_FILE_NAME: altes Media löschen, neu erstellen, nochmal hochladen.
+     */
+    private function uploadFileToMedia(
+        PendingRequest $http,
+        string $shopUrl,
+        Media $media,
+        string $mediaId,
+        string $fileName,
+        string $extension,
+    ): void {
         $uploadUrl = "{$shopUrl}/api/_action/media/{$mediaId}/upload?" . http_build_query([
             'extension' => $extension,
             'fileName'  => $fileName,
         ]);
 
         try {
-            $localPath = Storage::disk('public')->path($media->file_path);
-
-            if (file_exists($localPath)) {
-                // Direkter Binär-Upload: PIM sendet Datei-Inhalt direkt an Shopware
-                $fileContent = file_get_contents($localPath);
-                $contentType = $media->mime_type ?: ('image/' . $extension);
-
-                // Shopware erwartet Raw-Binary mit Content-Type Header — nicht JSON
-                $http->withHeaders([
-                    'Content-Type' => $contentType,
-                ])->send('POST', $uploadUrl, [
-                    'body' => $fileContent,
-                ])->throw();
-            } else {
-                // Fallback: URL-basierter Upload (wenn Datei nicht lokal liegt)
-                $baseUrl = rtrim(config('app.url', url('/')), '/');
-                $publicUrl = "{$baseUrl}/api/v1/media/file/{$media->file_name}";
-
-                $http->post($uploadUrl, [
-                    'url' => $publicUrl,
-                ])->throw();
-            }
+            $this->doUpload($http, $uploadUrl, $media);
         } catch (\Illuminate\Http\Client\RequestException $e) {
-            // CONTENT__MEDIA_DUPLICATED_FILE_NAME bei Re-Sync ignorieren — Datei existiert bereits
             $body = $e->response?->json();
             $errorCode = $body['errors'][0]['code'] ?? '';
-            if ($errorCode !== 'CONTENT__MEDIA_DUPLICATED_FILE_NAME') {
+
+            if ($errorCode === 'CONTENT__MEDIA_DUPLICATED_FILE_NAME') {
+                // Media existiert mit kaputtem/altem Upload → löschen und neu erstellen
+                try {
+                    $http->delete("{$shopUrl}/api/media/{$mediaId}")->throw();
+                } catch (\Throwable) {
+                    // Ignorieren — vielleicht existiert es nicht mehr
+                }
+
+                // Neu erstellen
+                $http->post("{$shopUrl}/api/_action/sync", [
+                    'write-media' => [
+                        'action'  => 'upsert',
+                        'entity'  => 'media',
+                        'payload' => [[
+                            'id'   => $mediaId,
+                            'name' => $fileName,
+                        ]],
+                    ],
+                ])->throw();
+
+                // Nochmal hochladen
+                $this->doUpload($http, $uploadUrl, $media);
+            } else {
                 throw $e;
             }
         }
+    }
 
-        return $mediaId;
+    /**
+     * Führt den eigentlichen Upload aus (Binary oder URL-basiert).
+     */
+    private function doUpload(PendingRequest $http, string $uploadUrl, Media $media): void
+    {
+        $localPath = Storage::disk('public')->path($media->file_path);
+
+        if (file_exists($localPath)) {
+            $fileContent = file_get_contents($localPath);
+            $extension = pathinfo($media->file_name, PATHINFO_EXTENSION) ?: 'jpg';
+            $contentType = $media->mime_type ?: ('image/' . $extension);
+
+            // Shopware erwartet Raw-Binary mit Content-Type Header — nicht JSON
+            $http->withHeaders([
+                'Content-Type' => $contentType,
+            ])->send('POST', $uploadUrl, [
+                'body' => $fileContent,
+            ])->throw();
+        } else {
+            // Fallback: URL-basierter Upload
+            $baseUrl = rtrim(config('app.url', url('/')), '/');
+            $publicUrl = "{$baseUrl}/api/v1/media/file/{$media->file_name}";
+
+            $http->post($uploadUrl, [
+                'url' => $publicUrl,
+            ])->throw();
+        }
     }
 
     /**
