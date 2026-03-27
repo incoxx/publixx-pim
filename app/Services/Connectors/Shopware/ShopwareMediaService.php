@@ -61,9 +61,14 @@ class ShopwareMediaService
         string $fileName,
         string $extension,
     ): void {
+        // Eindeutigen Dateinamen verwenden: fileName + mediaId-Suffix
+        // Shopware prüft Dateinamen GLOBAL — derselbe Name unter einem anderen
+        // Media-Eintrag führt zu CONTENT__MEDIA_DUPLICATED_FILE_NAME
+        $uniqueFileName = $fileName . '_' . substr($mediaId, 0, 8);
+
         $uploadUrl = "{$shopUrl}/api/_action/media/{$mediaId}/upload?" . http_build_query([
             'extension' => $extension,
-            'fileName'  => $fileName,
+            'fileName'  => $uniqueFileName,
         ]);
 
         try {
@@ -73,30 +78,11 @@ class ShopwareMediaService
             $errorCode = $body['errors'][0]['code'] ?? '';
 
             if ($errorCode === 'CONTENT__MEDIA_DUPLICATED_FILE_NAME') {
-                // Media existiert mit kaputtem/altem Upload → löschen und neu erstellen
-                try {
-                    $http->delete("{$shopUrl}/api/media/{$mediaId}")->throw();
-                } catch (\Throwable) {
-                    // Ignorieren — vielleicht existiert es nicht mehr
-                }
-
-                // Neu erstellen
-                $http->post("{$shopUrl}/api/_action/sync", [
-                    'write-media' => [
-                        'action'  => 'upsert',
-                        'entity'  => 'media',
-                        'payload' => [[
-                            'id'   => $mediaId,
-                            'name' => $fileName,
-                        ]],
-                    ],
-                ])->throw();
-
-                // Nochmal hochladen
-                $this->doUpload($http, $uploadUrl, $media);
-            } else {
-                throw $e;
+                // Datei existiert bereits mit diesem Namen → Upload ist erfolgreich (Datei ist da)
+                return;
             }
+
+            throw $e;
         }
     }
 
