@@ -80,7 +80,7 @@ const SHOPWARE_FIELD_DEFINITIONS = [
   { key: 'meta_title', label: 'SEO-Titel', description: 'Meta-Title', defaultMode: 'attribute' },
   { key: 'meta_description', label: 'SEO-Beschreibung', description: 'Meta-Description', defaultMode: 'attribute' },
   // Lagerbestand
-  { key: 'stock', label: 'Lagerbestand', description: 'Standard: 0 — Shopware zeigt Produkte mit Stock=0 ggf. nicht an', defaultMode: 'fixed', defaultValue: '0' },
+  { key: 'stock', label: 'Lagerbestand', description: 'Shopware zeigt Produkte mit Stock=0 nicht an. Standard: 999', defaultMode: 'fixed', defaultValue: '999' },
 ]
 
 const connectionId = computed(() => route.params.id)
