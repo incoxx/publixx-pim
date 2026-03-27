@@ -177,7 +177,7 @@ class CatalogController extends BaseController
                     } elseif ($filterValue === '0' || $filterValue === '1') {
                         $query->where("{$alias}.value_flag", '=', $filterValue === '1');
                     } else {
-                        $values = array_filter(explode(',', $filterValue));
+                        $values = array_map('urldecode', array_filter(explode(',', $filterValue)));
                         if (!empty($values)) {
                             $query->where(function ($q) use ($alias, $values) {
                                 $q->whereIn("{$alias}.value_selection_id", $values)
@@ -1162,7 +1162,7 @@ class CatalogController extends BaseController
                         } elseif ($filterValue === '0' || $filterValue === '1') {
                             $sub->where('value_flag', '=', $filterValue === '1');
                         } else {
-                            $values = array_filter(explode(',', (string) $filterValue));
+                            $values = array_map('urldecode', array_filter(explode(',', (string) $filterValue)));
                             if (!empty($values)) {
                                 $sub->where(function ($q) use ($values) {
                                     $q->whereIn('value_selection_id', $values)

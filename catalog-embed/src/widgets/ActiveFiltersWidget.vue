@@ -26,7 +26,7 @@ const chips = computed(() => {
     // Resolve display values for ValueList facets (IDs → names)
     let displayVal = val
     if (facet?.values?.length) {
-      const selectedIds = val.split(',').filter(Boolean)
+      const selectedIds = val.split(',').filter(Boolean).map(v => decodeURIComponent(v))
       const names = selectedIds.map(id => {
         const v = facet.values.find(fv => String(fv.value_id) === id)
         return v ? v.value : id
