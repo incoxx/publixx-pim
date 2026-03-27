@@ -625,24 +625,24 @@ class ShopwareProductService
             ->whereNotNull('value_string');
 
         if ($attributeCodes) {
-            $query->whereHas('attribute', fn ($q) => $q->whereIn('code', $attributeCodes));
+            $query->whereHas('attribute', fn ($q) => $q->whereIn('technical_name', $attributeCodes));
         }
 
         $customFields = [];
         $description = null;
 
         foreach ($query->get() as $av) {
-            $code = $av->attribute->code ?? null;
-            if (!$code) {
+            $techName = $av->attribute->technical_name ?? null;
+            if (!$techName) {
                 continue;
             }
 
-            if (in_array($code, ['description', 'beschreibung', 'long_description'])) {
+            if (in_array($techName, ['description', 'beschreibung', 'long_description'])) {
                 $description = $av->value_string;
                 continue;
             }
 
-            $customFields["pim_{$code}"] = $av->value_string;
+            $customFields["pim_{$techName}"] = $av->value_string;
         }
 
         if ($description) {
@@ -661,8 +661,8 @@ class ShopwareProductService
                 $data['price'] = [
                     [
                         'currencyId' => $options['currency_id'] ?? 'b7d2554b0ce847cd82f3ac9bd1c0dfca',
-                        'gross'      => $price->value,
-                        'net'        => round($price->value / 1.19, 2),
+                        'gross'      => (float) $price->amount,
+                        'net'        => round((float) $price->amount / 1.19, 2),
                         'linked'     => true,
                     ],
                 ];

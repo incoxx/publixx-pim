@@ -155,18 +155,7 @@ class ShopwareConnector extends AbstractConnector
                 // Medien synchronisieren (wenn aktiviert)
                 $syncMedia = $shopwareFields['_sync_media']['enabled'] ?? true;
                 if ($syncMedia) {
-                    $product->loadMissing('media');
-                    $position = 0;
-                    foreach ($product->media as $media) {
-                        try {
-                            $mediaId = $this->mediaService->uploadMedia($http, $shopUrl, $media);
-                            $this->mediaService->assignMediaToProduct($http, $shopUrl, $externalProductId, $mediaId, $position);
-                            $this->logSync($connection, 'media_sync', 'media', $media->id, 'success', $mediaId);
-                            $position++;
-                        } catch (\Throwable $e) {
-                            $this->logSync($connection, 'media_sync', 'media', $media->id, 'failed', null, $e->getMessage());
-                        }
-                    }
+                    $this->syncProductMedia($http, $shopUrl, $connection, $product, $externalProductId);
                 }
             } else {
                 // Legacy-Pfad ohne Profil
@@ -419,22 +408,9 @@ class ShopwareConnector extends AbstractConnector
                     // Medien synchronisieren (wenn aktiviert)
                     $syncMedia = $shopwareFields['_sync_media']['enabled'] ?? true;
                     if ($syncMedia) {
-                        $product->loadMissing('media');
-                        if ($product->media->isNotEmpty()) {
-                            $position = 0;
-                            foreach ($product->media as $media) {
-                                try {
-                                    $mediaId = $this->mediaService->uploadMedia($http, $shopUrl, $media);
-                                    $this->mediaService->assignMediaToProduct($http, $shopUrl, $externalId, $mediaId, $position);
-                                    $result['media']['success']++;
-                                    $this->logSync($connection, 'media_sync', 'media', $media->id, 'success', $mediaId);
-                                    $position++;
-                                } catch (\Throwable $e) {
-                                    $result['media']['failed']++;
-                                    $this->logSync($connection, 'media_sync', 'media', $media->id, 'failed', null, $e->getMessage());
-                                }
-                            }
-                        }
+                        $mediaResult = $this->syncProductMedia($http, $shopUrl, $connection, $product, $externalId);
+                        $result['media']['success'] += $mediaResult['success'];
+                        $result['media']['failed'] += $mediaResult['failed'];
                     }
 
                     $this->logSync(
@@ -589,22 +565,9 @@ class ShopwareConnector extends AbstractConnector
                     // Medien synchronisieren
                     $syncMedia = $shopwareFields['_sync_media']['enabled'] ?? true;
                     if ($syncMedia) {
-                        $product->loadMissing('media');
-                        if ($product->media->isNotEmpty()) {
-                            $position = 0;
-                            foreach ($product->media as $media) {
-                                try {
-                                    $mediaId = $this->mediaService->uploadMedia($http, $shopUrl, $media);
-                                    $this->mediaService->assignMediaToProduct($http, $shopUrl, $externalId, $mediaId, $position);
-                                    $result['media']['success']++;
-                                    $this->logSync($connection, 'media_sync', 'media', $media->id, 'success', $mediaId);
-                                    $position++;
-                                } catch (\Throwable $e) {
-                                    $result['media']['failed']++;
-                                    $this->logSync($connection, 'media_sync', 'media', $media->id, 'failed', null, $e->getMessage());
-                                }
-                            }
-                        }
+                        $mediaResult = $this->syncProductMedia($http, $shopUrl, $connection, $product, $externalId);
+                        $result['media']['success'] += $mediaResult['success'];
+                        $result['media']['failed'] += $mediaResult['failed'];
                     }
 
                     // Checksum speichern/aktualisieren
@@ -697,6 +660,155 @@ class ShopwareConnector extends AbstractConnector
     }
 
     /**
+     * Löscht alle vom PIM synchronisierten Produkte und Kategorien aus Shopware.
+     *
+     * Verwendet die Sync-Logs und Checksums um nur PIM-eigene Entitäten zu entfernen.
+     *
+     * @return array{products: array{deleted: int, failed: int}, categories: array{deleted: int, failed: int}}
+     */
+    public function resetShop(ConnectorConnection $connection): array
+    {
+        $http = $this->authenticatedRequest($connection);
+        $shopUrl = rtrim($connection->settings['shop_url'] ?? config('connectors.shopware.shop_url'), '/');
+
+        $result = [
+            'products'   => ['deleted' => 0, 'failed' => 0, 'total' => 0],
+            'categories' => ['deleted' => 0, 'failed' => 0, 'total' => 0],
+        ];
+
+        // 1. Produkte löschen — aus Checksums (zuverlässigste Quelle)
+        $productExternalIds = ConnectorProductChecksum::where('connection_id', $connection->id)
+            ->whereNotNull('external_id')
+            ->pluck('external_id')
+            ->unique()
+            ->values()
+            ->toArray();
+
+        // Zusätzlich aus Sync-Logs (für Produkte ohne Checksum)
+        $logProductIds = ConnectorSyncLog::where('connector_connection_id', $connection->id)
+            ->whereIn('action', ['product_push', 'profile_sync', 'delta_sync'])
+            ->where('entity_type', 'product')
+            ->where('status', 'success')
+            ->whereNotNull('external_id')
+            ->pluck('external_id')
+            ->unique()
+            ->values()
+            ->toArray();
+
+        $allProductIds = array_values(array_unique(array_merge($productExternalIds, $logProductIds)));
+        $result['products']['total'] = count($allProductIds);
+
+        // In Chunks von 50 löschen
+        foreach (array_chunk($allProductIds, 50) as $chunk) {
+            $payload = array_map(fn (string $id) => ['id' => $id], $chunk);
+
+            try {
+                $response = $http->post("{$shopUrl}/api/_action/sync", [
+                    'delete-products' => [
+                        'action'  => 'delete',
+                        'entity'  => 'product',
+                        'payload' => $payload,
+                    ],
+                ]);
+                $response->throw();
+                $result['products']['deleted'] += count($chunk);
+            } catch (\Throwable $e) {
+                // Einzeln versuchen falls Batch fehlschlägt (manche IDs existieren ggf. nicht mehr)
+                foreach ($chunk as $productId) {
+                    try {
+                        $response = $http->post("{$shopUrl}/api/_action/sync", [
+                            'delete-products' => [
+                                'action'  => 'delete',
+                                'entity'  => 'product',
+                                'payload' => [['id' => $productId]],
+                            ],
+                        ]);
+                        $response->throw();
+                        $result['products']['deleted']++;
+                    } catch (\Throwable) {
+                        $result['products']['failed']++;
+                    }
+                }
+            }
+        }
+
+        // 2. Kategorien löschen — Blätter zuerst (tiefste Knoten zuerst, dann aufsteigend)
+        $categoryLogs = ConnectorSyncLog::where('connector_connection_id', $connection->id)
+            ->where('action', 'category_sync')
+            ->where('entity_type', 'hierarchy_node')
+            ->where('status', 'success')
+            ->whereNotNull('external_id')
+            ->select('entity_id', 'external_id')
+            ->get()
+            ->unique('external_id');
+
+        // Tiefe der Knoten aus der Hierarchie holen (tiefste zuerst → sicheres Löschen)
+        $nodeDepths = HierarchyNode::whereIn('id', $categoryLogs->pluck('entity_id'))
+            ->pluck('depth', 'id')
+            ->toArray();
+
+        $categoryExternalIds = $categoryLogs
+            ->sortByDesc(fn ($log) => $nodeDepths[$log->entity_id] ?? 0)
+            ->pluck('external_id')
+            ->values()
+            ->toArray();
+
+        $result['categories']['total'] = count($categoryExternalIds);
+
+        // Kategorien einzeln löschen (Reihenfolge wichtig wegen Eltern-Kind-Beziehungen)
+        foreach (array_chunk($categoryExternalIds, 50) as $chunk) {
+            $payload = array_map(fn (string $id) => ['id' => $id], $chunk);
+
+            try {
+                $response = $http->post("{$shopUrl}/api/_action/sync", [
+                    'delete-categories' => [
+                        'action'  => 'delete',
+                        'entity'  => 'category',
+                        'payload' => $payload,
+                    ],
+                ]);
+                $response->throw();
+                $result['categories']['deleted'] += count($chunk);
+            } catch (\Throwable) {
+                // Einzeln versuchen
+                foreach ($chunk as $categoryId) {
+                    try {
+                        $response = $http->post("{$shopUrl}/api/_action/sync", [
+                            'delete-categories' => [
+                                'action'  => 'delete',
+                                'entity'  => 'category',
+                                'payload' => [['id' => $categoryId]],
+                            ],
+                        ]);
+                        $response->throw();
+                        $result['categories']['deleted']++;
+                    } catch (\Throwable) {
+                        $result['categories']['failed']++;
+                    }
+                }
+            }
+        }
+
+        // 3. Lokale Checksums und Sync-Logs bereinigen
+        ConnectorProductChecksum::where('connection_id', $connection->id)->delete();
+        $connection->syncLogs()->delete();
+
+        // Reset-Aktion loggen
+        $this->logSync(
+            $connection, 'reset', 'connection',
+            $connection->id, 'success', null, null,
+            [
+                'products_deleted'   => $result['products']['deleted'],
+                'products_failed'    => $result['products']['failed'],
+                'categories_deleted' => $result['categories']['deleted'],
+                'categories_failed'  => $result['categories']['failed'],
+            ],
+        );
+
+        return $result;
+    }
+
+    /**
      * Löst Shopware-Defaults auf (Tax-ID, Sales Channel ID) — einmal pro Sync.
      */
     private function resolveShopwareDefaults(
@@ -757,5 +869,80 @@ class ShopwareConnector extends AbstractConnector
         }
 
         return $query;
+    }
+
+    /**
+     * Synchronisiert Produktbilder nach Shopware und setzt das Cover-Bild.
+     *
+     * Filtert auf media_type = 'image', nutzt is_primary für das Hauptbild,
+     * erzeugt deterministische IDs um Duplikate bei Re-Sync zu vermeiden.
+     *
+     * @return array{success: int, failed: int}
+     */
+    private function syncProductMedia(
+        \Illuminate\Http\Client\PendingRequest $http,
+        string $shopUrl,
+        ConnectorConnection $connection,
+        Product $product,
+        string $externalProductId,
+    ): array {
+        $result = ['success' => 0, 'failed' => 0];
+
+        $product->loadMissing('media');
+
+        // Nur Bilder synchronisieren
+        $images = $product->media->filter(fn ($m) => $m->media_type === 'image');
+        if ($images->isEmpty()) {
+            return $result;
+        }
+
+        $coverAssignmentId = null;
+        $position = 0;
+
+        // Hauptbild (is_primary) zuerst, dann nach sort_order
+        $sorted = $images->sortBy(function ($media) {
+            $isPrimary = $media->pivot->is_primary ?? false;
+            $sortOrder = $media->pivot->sort_order ?? 999;
+            return ($isPrimary ? 0 : 1) . '-' . str_pad((string) $sortOrder, 5, '0', STR_PAD_LEFT);
+        });
+
+        foreach ($sorted as $media) {
+            try {
+                // Deterministische Media-ID (kein Duplikat bei Re-Sync)
+                $mediaId = substr(md5($media->id . 'shopware-media'), 0, 32);
+
+                // Media-Eintrag upsert (erstellt oder aktualisiert)
+                $this->mediaService->uploadMedia($http, $shopUrl, $media, $mediaId);
+
+                $assignmentId = $this->mediaService->assignMediaToProduct(
+                    $http, $shopUrl, $externalProductId, $mediaId, $position,
+                );
+
+                // Erstes Bild (= Hauptbild) als Cover merken
+                if ($position === 0) {
+                    $coverAssignmentId = $assignmentId;
+                }
+
+                $this->logSync($connection, 'media_sync', 'media', $media->id, 'success', $mediaId);
+                $result['success']++;
+                $position++;
+            } catch (\Throwable $e) {
+                $this->logSync($connection, 'media_sync', 'media', $media->id, 'failed', null, $e->getMessage());
+                $result['failed']++;
+            }
+        }
+
+        // Cover-Bild setzen
+        if ($coverAssignmentId) {
+            try {
+                $this->mediaService->setProductCover($http, $shopUrl, $externalProductId, $coverAssignmentId);
+            } catch (\Throwable $e) {
+                Log::channel('connectors')->warning("Cover setzen fehlgeschlagen: {$product->sku}", [
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return $result;
     }
 }

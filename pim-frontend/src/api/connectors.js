@@ -89,6 +89,11 @@ export default {
     return client.post(`/connectors/connections/${connectionId}/delta-sync`)
   },
 
+  // Reset: Alle PIM-Daten aus Shopware löschen
+  resetShop(connectionId) {
+    return client.post(`/connectors/connections/${connectionId}/reset`)
+  },
+
   // Produkt-Checksums (Delta-Sync Verwaltung)
   checksums(connectionId, params = {}) {
     return client.get(`/connectors/connections/${connectionId}/checksums`, { params })
