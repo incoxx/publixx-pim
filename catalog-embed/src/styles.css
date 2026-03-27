@@ -1217,21 +1217,34 @@
   }
 }
 
-/* ===== Resizable Sidebar ===== */
+/* ===== Resizable Sidebar (JS drag handle) ===== */
 [data-catalog-sidebar] {
-  resize: horizontal;
-  overflow: auto;
   min-width: 200px;
   max-width: 500px;
   position: relative;
+  overflow: auto;
 }
 
-/* Resize handle visual hint */
-[data-catalog-sidebar]::after {
-  content: '';
+.pxc-sidebar-resize {
   position: absolute;
-  top: 50%;
+  top: 0;
   right: 0;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 10;
+  transition: background var(--pxc-transition);
+}
+.pxc-sidebar-resize:hover {
+  background: rgba(27,58,92,0.12);
+}
+.pxc-sidebar-resize:active {
+  background: rgba(27,58,92,0.2);
+}
+.pxc-sidebar-resize__indicator {
+  position: absolute;
+  right: 1px;
+  top: 50%;
   transform: translateY(-50%);
   width: 3px;
   height: 32px;
@@ -1239,11 +1252,14 @@
   background: var(--pxc-border, #e2e8f0);
   opacity: 0;
   transition: opacity 0.2s;
-  pointer-events: none;
+}
+.pxc-sidebar-resize:hover .pxc-sidebar-resize__indicator {
+  opacity: 1;
+  background: var(--pxc-primary, #1B3A5C);
 }
 
-[data-catalog-sidebar]:hover::after {
-  opacity: 1;
+@media (max-width: 767px) {
+  .pxc-sidebar-resize { display: none; }
 }
 
 /* ===== Resizable Facets Panel ===== */

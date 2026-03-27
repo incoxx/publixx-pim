@@ -1,5 +1,5 @@
 <script setup>
-import { watch, ref, computed } from 'vue'
+import { watch, ref, reactive, computed } from 'vue'
 import { useStore } from '../store.js'
 import { icons } from '../icons.js'
 import { resolveMediaUrl } from '../api.js'
@@ -7,6 +7,7 @@ import { resolveMediaUrl } from '../api.js'
 const { state, actions, getters } = useStore()
 const selectedImageIdx = ref(0)
 const activeTab = ref('attributes')
+const brokenImages = reactive({})
 
 // Body scroll lock when detail modal is open
 watch(() => state.detailOpen, (open) => {
@@ -192,8 +193,8 @@ function getDocIcon(mimeType) {
               <!-- Left: Gallery -->
               <div class="pxc-detail__gallery">
                 <div class="pxc-detail__main-image">
-                  <img v-if="currentImage" :src="currentImage.url" :alt="currentImage.alt || ''" />
-                  <div v-else class="pxc-detail__no-image">
+                  <img v-if="currentImage && !brokenImages[currentImage.url]" :src="currentImage.url" :alt="currentImage.alt || ''" @error="brokenImages[currentImage.url] = true" />
+                  <div v-else-if="!currentImage || brokenImages[currentImage?.url]" class="pxc-detail__no-image">
                     <span v-html="icons.package" style="width:64px;height:64px;opacity:0.1"></span>
                   </div>
                   <template v-if="images.length > 1">
@@ -209,7 +210,8 @@ function getDocIcon(mimeType) {
                     :class="{ 'pxc-detail__thumb--active': idx === selectedImageIdx }"
                     @click="selectedImageIdx = idx"
                   >
-                    <img :src="img.url" :alt="img.alt || ''" />
+                    <img v-if="!brokenImages[img.url]" :src="img.url" :alt="img.alt || ''" @error="brokenImages[img.url] = true" />
+                    <span v-else v-html="icons.package" style="width:24px;height:24px;opacity:0.15"></span>
                   </button>
                 </div>
               </div>
@@ -350,7 +352,7 @@ function getDocIcon(mimeType) {
                         @click="actions.openDetail(item.id)"
                       >
                         <div class="pxc-detail__relation-img">
-                          <img v-if="item.image_url" :src="item.image_url" :alt="item.name" />
+                          <img v-if="item.image_url && !brokenImages[item.image_url]" :src="item.image_url" :alt="item.name" @error="brokenImages[item.image_url] = true" />
                           <span v-else v-html="icons.package" class="pxc-detail__relation-placeholder"></span>
                         </div>
                         <div class="pxc-detail__relation-info">

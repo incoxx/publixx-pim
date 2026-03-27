@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, reactive, computed, watch } from 'vue'
 import { Package, ChevronLeft, ChevronRight } from 'lucide-vue-next'
 
 const props = defineProps({
@@ -12,6 +12,9 @@ const galleryItems = computed(() =>
   props.media.filter((m) => m.media_type === 'image')
 )
 const current = computed(() => galleryItems.value[selectedIndex.value])
+
+const brokenImages = reactive({})
+function onImgError(url) { brokenImages[url] = true }
 
 // Clamp selectedIndex when gallery items change
 watch(galleryItems, (items) => {
@@ -35,11 +38,12 @@ function next() {
     <div class="relative aspect-square bg-base-200 rounded-xl overflow-hidden mb-3">
       <Transition name="img-fade" mode="out-in">
         <img
-          v-if="current"
+          v-if="current && !brokenImages[current.url]"
           :key="current.url"
           :src="current.url"
           :alt="current.alt || ''"
           class="object-contain w-full h-full p-4"
+          @error="onImgError(current.url)"
         />
         <div v-else class="flex items-center justify-center w-full h-full">
           <Package class="w-16 h-16 text-base-content/10" />
@@ -72,7 +76,16 @@ function next() {
         :class="idx === selectedIndex ? 'border-primary shadow-sm' : 'border-transparent opacity-60 hover:opacity-100'"
         @click="selectedIndex = idx"
       >
-        <img :src="item.url" :alt="item.alt || ''" class="object-contain w-full h-full p-1" />
+        <img
+          v-if="!brokenImages[item.url]"
+          :src="item.url"
+          :alt="item.alt || ''"
+          class="object-contain w-full h-full p-1"
+          @error="onImgError(item.url)"
+        />
+        <div v-else class="flex items-center justify-center w-full h-full bg-base-200">
+          <Package class="w-4 h-4 text-base-content/15" />
+        </div>
       </button>
     </div>
   </div>

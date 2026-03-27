@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useCatalogStore } from '@/stores/catalog'
 import { Heart, Package } from 'lucide-vue-next'
@@ -31,6 +31,9 @@ const formattedPrice = computed(() => {
   }).format(props.product.price)
 })
 
+const imgBroken = ref(false)
+function onImgError() { imgBroken.value = true }
+
 const staggerDelay = computed(() => `${Math.min(props.index * 30, 300)}ms`)
 </script>
 
@@ -43,11 +46,12 @@ const staggerDelay = computed(() => `${Math.min(props.index * 30, 300)}ms`)
     <!-- Image -->
     <figure class="w-24 sm:w-32 flex-none bg-base-200 overflow-hidden">
       <img
-        v-if="product.image_url"
+        v-if="product.image_url && !imgBroken"
         :src="product.image_url"
         :alt="product.name"
         class="object-contain w-full h-full p-2"
         loading="lazy"
+        @error="onImgError"
       />
       <div v-else class="flex items-center justify-center w-full h-full">
         <Package class="w-8 h-8 text-base-content/15" />

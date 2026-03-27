@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, reactive, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useCatalogStore } from '@/stores/catalog'
 import { Heart, Package, ArrowUp, ArrowDown, ArrowUpDown, Search } from 'lucide-vue-next'
@@ -97,6 +97,9 @@ function toggleWishlist(e, productId) {
   e.stopPropagation()
   store.toggleWishlist(productId)
 }
+
+const brokenImages = reactive({})
+function onImgError(productId) { brokenImages[productId] = true }
 </script>
 
 <template>
@@ -230,11 +233,12 @@ function toggleWishlist(e, productId) {
             <td class="px-2 py-2">
               <div class="w-12 h-12 rounded bg-base-200 overflow-hidden flex items-center justify-center flex-none">
                 <img
-                  v-if="product.image_url"
+                  v-if="product.image_url && !brokenImages[product.id]"
                   :src="product.image_url"
                   :alt="product.name"
                   class="object-contain w-full h-full p-1"
                   loading="lazy"
+                  @error="onImgError(product.id)"
                 />
                 <Package v-else class="w-5 h-5 text-base-content/15" />
               </div>

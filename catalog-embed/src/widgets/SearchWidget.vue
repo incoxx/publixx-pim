@@ -38,7 +38,7 @@ function onSubmit(e) {
         type="text"
         class="pxc-search__input"
         :value="inputValue"
-        placeholder="Produkte suchen..."
+        placeholder="Produkte suchen (Name, Artikelnr., EAN)..."
         @input="onInput"
       />
       <button
