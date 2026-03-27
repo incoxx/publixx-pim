@@ -759,6 +759,39 @@ class ConnectorController extends Controller
     }
 
     /**
+     * POST /connectors/connections/{connection}/reset — Alle PIM-Daten aus Shopware löschen.
+     */
+    public function resetShop(Request $request, ConnectorConnection $connection): JsonResponse
+    {
+        $this->authorize('sync', $connection);
+
+        if ($connection->connector_type !== 'shopware') {
+            return response()->json(['message' => 'Nur für Shopware-Verbindungen.'], 422);
+        }
+
+        $connector = $this->registry->get($connection->connector_type);
+        if (! $connector instanceof ShopwareConnector) {
+            return response()->json(['message' => 'Shopware-Connector nicht gefunden.'], 422);
+        }
+
+        try {
+            $result = $connector->resetShop($connection);
+
+            return response()->json([
+                'data' => [
+                    'status'     => 'completed',
+                    'products'   => $result['products'],
+                    'categories' => $result['categories'],
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'message' => 'Reset fehlgeschlagen: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
      * GET /connectors/connections/{connection}/sync-logs/export — Sync-Logs als Excel exportieren.
      */
     public function exportSyncLogs(Request $request, ConnectorConnection $connection): StreamedResponse

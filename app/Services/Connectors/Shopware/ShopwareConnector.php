@@ -697,6 +697,146 @@ class ShopwareConnector extends AbstractConnector
     }
 
     /**
+     * Löscht alle vom PIM synchronisierten Produkte und Kategorien aus Shopware.
+     *
+     * Verwendet die Sync-Logs und Checksums um nur PIM-eigene Entitäten zu entfernen.
+     *
+     * @return array{products: array{deleted: int, failed: int}, categories: array{deleted: int, failed: int}}
+     */
+    public function resetShop(ConnectorConnection $connection): array
+    {
+        $http = $this->authenticatedRequest($connection);
+        $shopUrl = rtrim($connection->settings['shop_url'] ?? config('connectors.shopware.shop_url'), '/');
+
+        $result = [
+            'products'   => ['deleted' => 0, 'failed' => 0, 'total' => 0],
+            'categories' => ['deleted' => 0, 'failed' => 0, 'total' => 0],
+        ];
+
+        // 1. Produkte löschen — aus Checksums (zuverlässigste Quelle)
+        $productExternalIds = ConnectorProductChecksum::where('connection_id', $connection->id)
+            ->whereNotNull('external_id')
+            ->pluck('external_id')
+            ->unique()
+            ->values()
+            ->toArray();
+
+        // Zusätzlich aus Sync-Logs (für Produkte ohne Checksum)
+        $logProductIds = ConnectorSyncLog::where('connector_connection_id', $connection->id)
+            ->whereIn('action', ['product_push', 'profile_sync', 'delta_sync'])
+            ->where('entity_type', 'product')
+            ->where('status', 'success')
+            ->whereNotNull('external_id')
+            ->pluck('external_id')
+            ->unique()
+            ->values()
+            ->toArray();
+
+        $allProductIds = array_values(array_unique(array_merge($productExternalIds, $logProductIds)));
+        $result['products']['total'] = count($allProductIds);
+
+        // In Chunks von 50 löschen
+        foreach (array_chunk($allProductIds, 50) as $chunk) {
+            $payload = array_map(fn (string $id) => ['id' => $id], $chunk);
+
+            try {
+                $response = $http->post("{$shopUrl}/api/_action/sync", [
+                    'delete-products' => [
+                        'action'  => 'delete',
+                        'entity'  => 'product',
+                        'payload' => $payload,
+                    ],
+                ]);
+                $response->throw();
+                $result['products']['deleted'] += count($chunk);
+            } catch (\Throwable $e) {
+                // Einzeln versuchen falls Batch fehlschlägt (manche IDs existieren ggf. nicht mehr)
+                foreach ($chunk as $productId) {
+                    try {
+                        $response = $http->post("{$shopUrl}/api/_action/sync", [
+                            'delete-products' => [
+                                'action'  => 'delete',
+                                'entity'  => 'product',
+                                'payload' => [['id' => $productId]],
+                            ],
+                        ]);
+                        $response->throw();
+                        $result['products']['deleted']++;
+                    } catch (\Throwable) {
+                        $result['products']['failed']++;
+                    }
+                }
+            }
+        }
+
+        // 2. Kategorien löschen — aus Sync-Logs (Blätter zuerst → umgekehrte Reihenfolge)
+        $categoryExternalIds = ConnectorSyncLog::where('connector_connection_id', $connection->id)
+            ->where('action', 'category_sync')
+            ->where('entity_type', 'hierarchy_node')
+            ->where('status', 'success')
+            ->whereNotNull('external_id')
+            ->orderByDesc('created_at')
+            ->pluck('external_id')
+            ->unique()
+            ->values()
+            ->toArray();
+
+        $result['categories']['total'] = count($categoryExternalIds);
+
+        // Kategorien einzeln löschen (Reihenfolge wichtig wegen Eltern-Kind-Beziehungen)
+        foreach (array_chunk($categoryExternalIds, 50) as $chunk) {
+            $payload = array_map(fn (string $id) => ['id' => $id], $chunk);
+
+            try {
+                $response = $http->post("{$shopUrl}/api/_action/sync", [
+                    'delete-categories' => [
+                        'action'  => 'delete',
+                        'entity'  => 'category',
+                        'payload' => $payload,
+                    ],
+                ]);
+                $response->throw();
+                $result['categories']['deleted'] += count($chunk);
+            } catch (\Throwable) {
+                // Einzeln versuchen
+                foreach ($chunk as $categoryId) {
+                    try {
+                        $response = $http->post("{$shopUrl}/api/_action/sync", [
+                            'delete-categories' => [
+                                'action'  => 'delete',
+                                'entity'  => 'category',
+                                'payload' => [['id' => $categoryId]],
+                            ],
+                        ]);
+                        $response->throw();
+                        $result['categories']['deleted']++;
+                    } catch (\Throwable) {
+                        $result['categories']['failed']++;
+                    }
+                }
+            }
+        }
+
+        // 3. Lokale Checksums und Sync-Logs bereinigen
+        ConnectorProductChecksum::where('connection_id', $connection->id)->delete();
+        $connection->syncLogs()->delete();
+
+        // Reset-Aktion loggen
+        $this->logSync(
+            $connection, 'reset', 'connection',
+            $connection->id, 'success', null, null,
+            [
+                'products_deleted'   => $result['products']['deleted'],
+                'products_failed'    => $result['products']['failed'],
+                'categories_deleted' => $result['categories']['deleted'],
+                'categories_failed'  => $result['categories']['failed'],
+            ],
+        );
+
+        return $result;
+    }
+
+    /**
      * Löst Shopware-Defaults auf (Tax-ID, Sales Channel ID) — einmal pro Sync.
      */
     private function resolveShopwareDefaults(

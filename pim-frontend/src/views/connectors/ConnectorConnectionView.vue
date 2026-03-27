@@ -404,6 +404,26 @@ async function exportSyncLogsExcel() {
   }
 }
 
+// Shopware Reset
+const resetting = ref(false)
+const resetResult = ref(null)
+
+async function executeReset() {
+  if (!confirm('⚠️ ACHTUNG: Alle vom PIM synchronisierten Produkte und Kategorien werden aus Shopware gelöscht!\n\nDieser Vorgang kann nicht rückgängig gemacht werden.\n\nFortfahren?')) return
+  resetting.value = true
+  resetResult.value = null
+  syncError.value = ''
+  try {
+    const res = await connectorsApi.resetShop(connectionId.value)
+    resetResult.value = res.data.data || res.data
+  } catch (e) {
+    syncError.value = e.response?.data?.message || 'Reset fehlgeschlagen'
+  } finally {
+    resetting.value = false
+    await loadConnection()
+  }
+}
+
 async function clearChecksums() {
   if (!confirm('Alle Checksums löschen? Der nächste Delta-Sync überträgt dann alle Produkte neu.')) return
   try {
@@ -524,6 +544,16 @@ const statusColors = {
                 <Zap v-else class="w-3.5 h-3.5" />
                 Delta Sync
               </button>
+              <button
+                class="btn btn-outline btn-error btn-sm gap-1"
+                :disabled="resetting || profileSyncing || deltaSyncing"
+                @click="executeReset"
+                title="Alle PIM-Produkte und Kategorien aus Shopware löschen"
+              >
+                <span v-if="resetting" class="loading loading-spinner loading-xs"></span>
+                <Trash2 v-else class="w-3.5 h-3.5" />
+                Shop Reset
+              </button>
             </div>
           </div>
 
@@ -539,6 +569,19 @@ const statusColors = {
                 <div v-for="(err, idx) in hierarchySyncResult.error_details" :key="idx" class="text-error bg-error/5 p-1.5 rounded font-mono whitespace-pre-wrap">
                   {{ err }}
                 </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Reset Ergebnis -->
+          <div v-if="resetResult" class="alert mt-3" :class="(resetResult.products?.failed || resetResult.categories?.failed) ? 'alert-warning' : 'alert-success'">
+            <div>
+              <div class="font-semibold">Shop Reset abgeschlossen</div>
+              <div class="text-sm">
+                Produkte: {{ resetResult.products?.deleted || 0 }} gelöscht
+                <span v-if="resetResult.products?.failed" class="text-error">({{ resetResult.products.failed }} fehlgeschlagen)</span>
+                — Kategorien: {{ resetResult.categories?.deleted || 0 }} gelöscht
+                <span v-if="resetResult.categories?.failed" class="text-error">({{ resetResult.categories.failed }} fehlgeschlagen)</span>
               </div>
             </div>
           </div>
