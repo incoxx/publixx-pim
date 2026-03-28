@@ -207,11 +207,27 @@ class ConnectorController extends Controller
         $settings = $validated['settings'] ?? null;
         $shopUrl = $settings['shop_url'] ?? '';
 
-        $tokens = $connector->handleCallback(
-            $validated['code'],
-            $validated['code_verifier'] ?? null,
-            $shopUrl,
-        );
+        try {
+            $tokens = $connector->handleCallback(
+                $validated['code'],
+                $validated['code_verifier'] ?? null,
+                $shopUrl,
+            );
+        } catch (\Illuminate\Http\Client\RequestException $e) {
+            $body = $e->response?->json();
+            $detail = $body['errors'] ?? $body['error'] ?? $e->getMessage();
+            if (is_array($detail)) {
+                $detail = json_encode($detail, JSON_UNESCAPED_UNICODE);
+            }
+
+            return response()->json([
+                'message' => "Authentifizierung fehlgeschlagen: {$detail}",
+            ], $e->response?->status() === 401 ? 401 : 422);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'message' => 'Verbindung fehlgeschlagen: ' . $e->getMessage(),
+            ], 422);
+        }
 
         $connection = ConnectorConnection::create([
             'connector_type'   => $connector->getType(),

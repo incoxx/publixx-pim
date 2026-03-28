@@ -76,8 +76,8 @@ class ShopifyConnector extends AbstractConnector
 
     public function handleCallback(string $code, ?string $codeVerifier = null, string $shopUrl = ''): array
     {
-        // code = access_token oder client_id
-        // codeVerifier = client_secret (bei neuen Apps ab 2026)
+        // code = access_token (Legacy) oder client_id (Client Credentials)
+        // codeVerifier = client_secret (bei Client Credentials, leer bei Legacy)
         return $this->authService->authenticate($code, $codeVerifier ?? '', $shopUrl);
     }
 
