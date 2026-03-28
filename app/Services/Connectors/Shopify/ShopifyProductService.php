@@ -14,7 +14,7 @@ use Illuminate\Http\Client\PendingRequest;
 
 class ShopifyProductService
 {
-    private const API_VERSION = '2025-01';
+    private const API_VERSION = '2025-10';
 
     /**
      * Synchronisiert ein PIM-Produkt nach Shopify (Legacy-Pfad ohne Profil).

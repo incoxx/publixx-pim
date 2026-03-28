@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Storage;
 
 class ShopifyMediaService
 {
-    private const API_VERSION = '2025-01';
+    private const API_VERSION = '2025-10';
 
     /**
      * Erstellt ein Produktbild in Shopify.

@@ -20,7 +20,7 @@ use Illuminate\Http\Client\PendingRequest;
  */
 class ShopifyMetafieldService
 {
-    private const API_VERSION = '2025-01';
+    private const API_VERSION = '2025-10';
 
     /**
      * Erstellt die Metafield-Definition-Map für die gegebenen Attribute.

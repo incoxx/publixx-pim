@@ -20,7 +20,7 @@ use Illuminate\Support\Facades\Log;
 
 class ShopifyConnector extends AbstractConnector
 {
-    private const API_VERSION = '2025-01';
+    private const API_VERSION = '2025-10';
 
     public function __construct(
         private readonly ShopifyAuthService $authService,
