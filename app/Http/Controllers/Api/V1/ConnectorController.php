@@ -826,6 +826,37 @@ class ConnectorController extends Controller
     }
 
     /**
+     * POST /connectors/connections/{connection}/generate-thumbnails — Thumbnails in Shopware generieren.
+     */
+    public function generateThumbnails(Request $request, ConnectorConnection $connection): JsonResponse
+    {
+        $this->authorize('sync', $connection);
+
+        if ($connection->connector_type !== 'shopware') {
+            return response()->json(['message' => 'Nur für Shopware-Verbindungen.'], 422);
+        }
+
+        $connector = $this->registry->get($connection->connector_type);
+        if (! $connector instanceof ShopwareConnector) {
+            return response()->json(['message' => 'Shopware-Connector nicht gefunden.'], 422);
+        }
+
+        try {
+            $http = $connector->getAuthenticatedRequest($connection);
+            $shopUrl = rtrim($connection->settings['shop_url'] ?? config('connectors.shopware.shop_url'), '/');
+
+            $mediaService = app(\App\Services\Connectors\Shopware\ShopwareMediaService::class);
+            $mediaService->generateThumbnails($http, $shopUrl);
+
+            return response()->json(['data' => ['status' => 'completed']]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'message' => 'Thumbnail-Generierung fehlgeschlagen: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
      * POST /connectors/connections/{connection}/purge-media — Alle PIM-Medien aus Shopware löschen.
      */
     public function purgeMedia(Request $request, ConnectorConnection $connection): JsonResponse

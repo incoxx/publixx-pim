@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowLeft, RefreshCw, Image, Package, CheckCircle, XCircle, Clock,
   Play, Settings, Save, Search, ChevronDown, ChevronUp, X, Zap, Download, Trash2,
-  RotateCcw, AlertTriangle, FolderTree, ImageMinus,
+  RotateCcw, AlertTriangle, FolderTree, ImageMinus, ImageIcon,
 } from 'lucide-vue-next'
 import connectorsApi from '@/api/connectors'
 import productsApi from '@/api/products'
@@ -495,6 +495,23 @@ async function executePurgeMedia() {
   }
 }
 
+// Thumbnails generieren
+const generatingThumbnails = ref(false)
+
+async function executeGenerateThumbnails() {
+  generatingThumbnails.value = true
+  syncError.value = ''
+  try {
+    await connectorsApi.generateThumbnails(connectionId.value)
+    syncError.value = '' // Kein Fehler → Erfolg
+    alert('Thumbnail-Generierung wurde angestoßen.')
+  } catch (e) {
+    syncError.value = e.response?.data?.message || 'Thumbnail-Generierung fehlgeschlagen'
+  } finally {
+    generatingThumbnails.value = false
+  }
+}
+
 async function clearChecksums() {
   if (!confirm('Alle Checksums löschen? Der nächste Delta-Sync überträgt dann alle Produkte neu.')) return
   try {
@@ -619,6 +636,16 @@ const statusColors = {
                   <span v-if="deltaSyncing" class="loading loading-spinner loading-xs"></span>
                   <Zap v-else class="w-3.5 h-3.5" />
                   Delta Sync
+                </button>
+                <button
+                  class="btn btn-outline btn-sm gap-1"
+                  :disabled="generatingThumbnails"
+                  @click="executeGenerateThumbnails"
+                  title="Thumbnails in Shopware neu generieren"
+                >
+                  <span v-if="generatingThumbnails" class="loading loading-spinner loading-xs"></span>
+                  <ImageIcon v-else class="w-3.5 h-3.5" />
+                  Thumbnails
                 </button>
               </div>
               <!-- Zeile 2: Löschen -->

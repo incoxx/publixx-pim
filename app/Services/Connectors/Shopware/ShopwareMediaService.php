@@ -57,14 +57,59 @@ class ShopwareMediaService
         // 2. Datei hochladen
         $this->uploadFileToMedia($http, $shopUrl, $media, $mediaId, $fileName, $extension);
 
-        // 3. Thumbnails generieren — Shopware generiert diese nicht automatisch bei API-Upload
-        try {
-            $http->post("{$shopUrl}/api/_action/media/{$mediaId}/thumbnails")->throw();
-        } catch (\Throwable) {
-            // Nicht kritisch — Thumbnails können auch manuell generiert werden
+        return $mediaId;
+    }
+
+    /**
+     * Generiert Thumbnails für alle Medien im Product-Media-Folder.
+     *
+     * Entspricht dem CLI-Befehl: bin/console media:generate-thumbnails
+     * Sollte einmal nach allen Uploads aufgerufen werden (nicht pro Media).
+     */
+    public function generateThumbnails(PendingRequest $http, string $shopUrl): void
+    {
+        $shopUrl = rtrim($shopUrl, '/');
+
+        // Folder-ID ermitteln
+        $folderId = null;
+        if ($this->productMediaFolderId) {
+            $folderId = $this->productMediaFolderId;
+        } else {
+            $folderId = $this->fetchProductMediaFolderId($http, $shopUrl);
         }
 
-        return $mediaId;
+        if (!$folderId) {
+            return;
+        }
+
+        // Batch-Thumbnail-Generierung über den _action Endpoint
+        try {
+            $http->post("{$shopUrl}/api/_action/media/generate-thumbnails", [
+                'folderIds' => [$folderId],
+            ])->throw();
+        } catch (\Throwable) {
+            // Fallback: einzelne Media-IDs sammeln und per Batch generieren
+            try {
+                $response = $http->post("{$shopUrl}/api/search/media", [
+                    'limit'  => 500,
+                    'filter' => [
+                        ['type' => 'equals', 'field' => 'mediaFolderId', 'value' => $folderId],
+                        ['type' => 'equals', 'field' => 'thumbnails.id', 'value' => null],
+                    ],
+                    'fields' => ['id'],
+                ]);
+                $response->throw();
+                $mediaIds = array_column($response->json()['data'] ?? [], 'id');
+
+                if (!empty($mediaIds)) {
+                    $http->post("{$shopUrl}/api/_action/media/generate-thumbnails", [
+                        'mediaIds' => $mediaIds,
+                    ])->throw();
+                }
+            } catch (\Throwable) {
+                // Nicht kritisch
+            }
+        }
     }
 
     /**
