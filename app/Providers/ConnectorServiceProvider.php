@@ -120,11 +120,24 @@ class ConnectorServiceProvider extends ServiceProvider
     {
         $registry = $this->app->make(ConnectorRegistry::class);
 
-        $registry->register($this->app->make(CanvaConnector::class));
-        $registry->register($this->app->make(DeepLConnector::class));
-        $registry->register($this->app->make(ShopwareConnector::class));
-        $registry->register($this->app->make(ShopifyConnector::class));
-        $registry->register($this->app->make(CloudinaryConnector::class));
-        $registry->register($this->app->make(ClaudeAIConnector::class));
+        $connectorClasses = [
+            CanvaConnector::class,
+            DeepLConnector::class,
+            ShopwareConnector::class,
+            ShopifyConnector::class,
+            CloudinaryConnector::class,
+            ClaudeAIConnector::class,
+        ];
+
+        foreach ($connectorClasses as $class) {
+            try {
+                $registry->register($this->app->make($class));
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::channel('connectors')->error(
+                    "Connector-Registrierung fehlgeschlagen: {$class}",
+                    ['error' => $e->getMessage()],
+                );
+            }
+        }
     }
 }

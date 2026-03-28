@@ -18,10 +18,10 @@ class ShopifyAuthService
 
     public function __construct()
     {
-        $this->shopUrl      = rtrim(config('connectors.shopify.shop_url', ''), '/');
-        $this->accessToken  = config('connectors.shopify.access_token', '');
-        $this->clientId     = config('connectors.shopify.client_id', '');
-        $this->clientSecret = config('connectors.shopify.client_secret', '');
+        $this->shopUrl      = rtrim((string) config('connectors.shopify.shop_url', ''), '/');
+        $this->accessToken  = (string) config('connectors.shopify.access_token', '');
+        $this->clientId     = (string) config('connectors.shopify.client_id', '');
+        $this->clientSecret = (string) config('connectors.shopify.client_secret', '');
     }
 
     public function isConfigured(): bool
