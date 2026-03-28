@@ -658,6 +658,18 @@ const statusColors = {
                 <span v-if="selectedProfile?.is_active" class="badge badge-ghost badge-xs ml-1">aktiv</span>
               </span>
             </div>
+            <!-- Hinweis: Profil nötig für Sync -->
+            <div v-if="!selectedProfileId" class="alert alert-info mt-3">
+              <div>
+                <p class="text-sm">
+                  Wähle ein <strong>Vorschau-Profil</strong> um Sync-Funktionen freizuschalten
+                  (Komplett-Sync, Delta-Sync, {{ isShopify ? 'Collections' : 'Hierarchie' }}).
+                </p>
+                <button class="btn btn-sm btn-primary mt-2" @click="showProfileConfig = true">
+                  Profil konfigurieren
+                </button>
+              </div>
+            </div>
             <!-- Sync-Aktionen -->
             <div v-if="selectedProfileId" class="space-y-3 mt-1">
               <!-- Zeile 1: Synchronisieren -->
@@ -1200,7 +1212,7 @@ const statusColors = {
                 <span v-if="productSearching" class="loading loading-spinner loading-xs absolute right-2.5 top-2"></span>
               </div>
               <!-- Suchergebnisse -->
-              <div v-if="productSearchResults.length > 0" class="absolute z-10 mt-1 w-full bg-base-100 border border-base-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+              <div v-if="productSearchResults.length > 0" class="absolute z-50 mt-1 w-full bg-base-100 border border-base-300 rounded-lg shadow-xl max-h-48 overflow-y-auto">
                 <button
                   v-for="p in productSearchResults" :key="p.id"
                   class="flex items-center gap-2 w-full px-3 py-2 text-left hover:bg-base-200/50 transition-colors text-sm"
