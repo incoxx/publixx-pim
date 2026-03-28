@@ -965,6 +965,9 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
         // Reset: Alle PIM-Daten aus Shopware löschen
         Route::post('/connections/{connection}/reset', [ConnectorController::class, 'resetShop']);
 
+        // Thumbnails generieren
+        Route::post('/connections/{connection}/generate-thumbnails', [ConnectorController::class, 'generateThumbnails']);
+
         // Purge: Daten direkt aus Shopware löschen
         Route::post('/connections/{connection}/purge-categories', [ConnectorController::class, 'purgeCategories']);
         Route::post('/connections/{connection}/purge-media', [ConnectorController::class, 'purgeMedia']);

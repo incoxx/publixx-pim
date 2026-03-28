@@ -27,6 +27,14 @@ class ShopwareConnector extends AbstractConnector
         private readonly ShopwareChecksumService $checksumService,
     ) {}
 
+    /**
+     * Gibt einen authentifizierten HTTP-Client zurück (für Controller-Zugriff).
+     */
+    public function getAuthenticatedRequest(ConnectorConnection $connection): \Illuminate\Http\Client\PendingRequest
+    {
+        return $this->authenticatedRequest($connection);
+    }
+
     public function getType(): string
     {
         return 'shopware';
@@ -451,6 +459,12 @@ class ShopwareConnector extends AbstractConnector
             }
         });
 
+        // Thumbnails generieren (einmal nach allen Uploads)
+        $syncMedia = $shopwareFields['_sync_media']['enabled'] ?? true;
+        if ($syncMedia && $result['media']['success'] > 0) {
+            $this->mediaService->generateThumbnails($http, $shopUrl);
+        }
+
         return $result;
     }
 
@@ -655,6 +669,12 @@ class ShopwareConnector extends AbstractConnector
                 $orphan['external_id'] = $orphanExternalIds[$orphan['id']] ?? null;
             }
             unset($orphan);
+        }
+
+        // Thumbnails generieren (einmal nach allen Uploads)
+        $syncMedia = $shopwareFields['_sync_media']['enabled'] ?? true;
+        if ($syncMedia && $result['media']['success'] > 0) {
+            $this->mediaService->generateThumbnails($http, $shopUrl);
         }
 
         return $result;

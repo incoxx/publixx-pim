@@ -94,6 +94,11 @@ export default {
     return client.post(`/connectors/connections/${connectionId}/reset`)
   },
 
+  // Thumbnails in Shopware generieren
+  generateThumbnails(connectionId) {
+    return client.post(`/connectors/connections/${connectionId}/generate-thumbnails`)
+  },
+
   // Purge: Alle Kategorien aus Shopware löschen
   purgeCategories(connectionId) {
     return client.post(`/connectors/connections/${connectionId}/purge-categories`)
