@@ -13,6 +13,7 @@ import {
   ChevronDown, ChevronRight, ChevronsDownUp, GripVertical, Factory, CalendarDays, ScrollText, Globe, Send,
   LayoutDashboard, ClipboardList, Code, ExternalLink, Plug, FlaskConical, ArrowRightLeft,
   FileSpreadsheet,
+  ShoppingBag,
 } from 'lucide-vue-next'
 import AnyPimLogo from '@/components/shared/AnyPimLogo.vue'
 import { useAppearanceStore, SECTION_ICON_COLORS } from '@/stores/appearance'
@@ -86,6 +87,7 @@ const sections = computed(() => {
           children: [
             { icon: Send, label: () => 'Canva', to: '/connectors/canva', module: 'connectors' },
             { icon: Package, label: () => 'Shopware', to: '/connectors/shopware', module: 'connectors' },
+            { icon: ShoppingBag, label: () => 'Shopify', to: '/connectors/shopify', module: 'connectors' },
             { icon: Image, label: () => 'Cloudinary', to: '/connectors/cloudinary', module: 'connectors' },
             { icon: Zap, label: () => 'Claude AI', to: '/connectors/claude-ai', module: 'connectors' },
           ],

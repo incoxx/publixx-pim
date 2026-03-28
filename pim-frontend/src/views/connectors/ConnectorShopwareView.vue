@@ -72,6 +72,27 @@ async function connectShopware() {
   }
 }
 
+const refreshing = ref(null)
+
+async function refreshToken(conn) {
+  refreshing.value = conn.id
+  error.value = ''
+  try {
+    // Re-authenticate mit gespeicherten Credentials → neuer Token
+    await connectorsApi.callback('shopware', {
+      code: conn.settings?.client_id || '',
+      code_verifier: conn.settings?.client_secret || '',
+      name: conn.name,
+      settings: conn.settings,
+    })
+    await loadData()
+  } catch (e) {
+    error.value = `Token-Erneuerung fehlgeschlagen: ${e.response?.data?.message || e.message}`
+  } finally {
+    refreshing.value = null
+  }
+}
+
 async function deleteConnection(id) {
   if (!confirm('Verbindung wirklich trennen?')) return
   try {
@@ -190,6 +211,15 @@ async function deleteConnection(id) {
                 <XCircle v-else class="w-4 h-4" />
                 {{ conn.is_active && !conn.token_expired ? 'Aktiv' : 'Token abgelaufen' }}
               </span>
+              <button
+                v-if="conn.token_expired || !(conn.is_active)"
+                class="btn btn-ghost btn-xs text-warning"
+                :disabled="refreshing === conn.id"
+                @click.stop="refreshToken(conn)"
+              >
+                <RefreshCw class="w-4 h-4" :class="{ 'animate-spin': refreshing === conn.id }" />
+                Token erneuern
+              </button>
               <button class="btn btn-ghost btn-xs text-error" @click.stop="deleteConnection(conn.id)">
                 <Trash2 class="w-4 h-4" />
               </button>
