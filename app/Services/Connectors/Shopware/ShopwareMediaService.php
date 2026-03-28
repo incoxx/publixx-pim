@@ -57,6 +57,13 @@ class ShopwareMediaService
         // 2. Datei hochladen
         $this->uploadFileToMedia($http, $shopUrl, $media, $mediaId, $fileName, $extension);
 
+        // 3. Thumbnails sofort generieren (synchron, pro Media)
+        try {
+            $http->post("{$shopUrl}/api/_action/media/{$mediaId}/generate-thumbnails")->throw();
+        } catch (\Throwable) {
+            // Nicht kritisch — Fallback über Batch oder CLI
+        }
+
         return $mediaId;
     }
 
@@ -103,27 +110,11 @@ class ShopwareMediaService
             return ['method' => 'none', 'success' => false, 'message' => 'Keine Medien im Product-Folder gefunden.'];
         }
 
-        // Versuch 1: Batch-Endpoint mit mediaIds
-        try {
-            $http->post("{$shopUrl}/api/_action/media/generate-thumbnails", [
-                'mediaIds' => $mediaIds,
-            ])->throw();
-            return ['method' => 'batch-mediaIds', 'success' => true, 'message' => count($mediaIds) . ' Medien verarbeitet.'];
-        } catch (\Throwable) {}
-
-        // Versuch 2: Batch-Endpoint mit folderIds
-        try {
-            $http->post("{$shopUrl}/api/_action/media/generate-thumbnails", [
-                'folderIds' => [$folderId],
-            ])->throw();
-            return ['method' => 'batch-folderIds', 'success' => true, 'message' => count($mediaIds) . ' Medien verarbeitet.'];
-        } catch (\Throwable) {}
-
-        // Versuch 3: Einzeln pro Media
+        // Versuch 1: Einzeln pro Media (korrekter Endpoint: generate-thumbnails)
         $success = 0;
         foreach ($mediaIds as $mediaId) {
             try {
-                $http->post("{$shopUrl}/api/_action/media/{$mediaId}/thumbnails")->throw();
+                $http->post("{$shopUrl}/api/_action/media/{$mediaId}/generate-thumbnails")->throw();
                 $success++;
             } catch (\Throwable) {}
         }
@@ -131,7 +122,15 @@ class ShopwareMediaService
             return ['method' => 'single', 'success' => true, 'message' => "{$success} von " . count($mediaIds) . ' Medien verarbeitet.'];
         }
 
-        // Versuch 4: Scheduled Task triggern (media.generate_thumbnails)
+        // Versuch 2: Batch-Endpoint mit mediaIds
+        try {
+            $http->post("{$shopUrl}/api/_action/media/generate-thumbnails", [
+                'mediaIds' => $mediaIds,
+            ])->throw();
+            return ['method' => 'batch-mediaIds', 'success' => true, 'message' => count($mediaIds) . ' Medien verarbeitet.'];
+        } catch (\Throwable) {}
+
+        // Versuch 3: Scheduled Task triggern
         try {
             $http->post("{$shopUrl}/api/_action/scheduled-task/run")->throw();
             return ['method' => 'scheduled-task', 'success' => true, 'message' => 'Scheduled Tasks angestoßen. Thumbnails werden im Hintergrund generiert.'];
