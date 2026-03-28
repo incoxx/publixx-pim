@@ -587,7 +587,7 @@ const statusColors = {
   <div class="space-y-6 max-w-5xl mx-auto">
     <!-- Header -->
     <div class="flex items-center gap-3">
-      <button class="btn btn-ghost btn-sm" @click="router.push('/connectors')">
+      <button class="btn btn-ghost btn-sm" @click="router.push(`/connectors/${connection?.connector_type || 'shopware'}`)">
         <ArrowLeft class="w-4 h-4" />
       </button>
       <h1 class="text-xl font-bold">{{ connection?.name || 'Verbindung' }}</h1>

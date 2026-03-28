@@ -183,12 +183,6 @@ const routes = [
     meta: { title: 'Plugin-Einstellungen' },
   },
   {
-    path: '/connectors',
-    name: 'connector-list',
-    component: () => import('@/views/connectors/ConnectorListView.vue'),
-    meta: { title: 'Connectoren' },
-  },
-  {
     path: '/oauth/:provider/callback',
     name: 'oauth-callback',
     component: () => import('@/views/connectors/OAuthCallbackView.vue'),

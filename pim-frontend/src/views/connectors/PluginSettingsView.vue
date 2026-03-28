@@ -18,6 +18,7 @@ const connectorLabels = {
   canva: 'Canva',
   deepl: 'DeepL',
   shopware: 'Shopware 6',
+  shopify: 'Shopify',
   cloudinary: 'Cloudinary',
   claude_ai: 'Claude AI (Betextung)',
   openai: 'OpenAI / ChatGPT (Betextung)',
@@ -31,7 +32,7 @@ const sections = {
   connectors: {
     label: 'Connectoren',
     description: 'API-Zugangsdaten für externe Dienste und Integrationen.',
-    keys: ['canva', 'deepl', 'shopware', 'cloudinary'],
+    keys: ['canva', 'deepl', 'shopware', 'shopify', 'cloudinary'],
   },
   ai: {
     label: 'KI-Dienste (Betextung)',
@@ -52,6 +53,7 @@ const fieldLabels = {
   api_key: 'API Key',
   api_secret: 'API Secret',
   shop_url: 'Shop URL',
+  access_token: 'Access Token',
   cloud_name: 'Cloud Name',
   model: 'Modell',
   max_tokens: 'Max Tokens',
@@ -110,7 +112,7 @@ async function save() {
 }
 
 function isSecret(field) {
-  return ['client_secret', 'api_key', 'api_secret'].includes(field)
+  return ['client_secret', 'api_key', 'api_secret', 'access_token'].includes(field)
 }
 
 function toggleSecret(connector, field) {
