@@ -24,20 +24,20 @@ function switchLocale(code) {
 </script>
 
 <template>
-  <header class="sticky top-0 z-20 flex items-center justify-between h-14 px-3 sm:px-6 bg-[var(--color-surface-nav)]/90 backdrop-blur-md border-b border-[var(--color-border)]">
+  <header class="sticky top-0 z-20 flex items-center justify-between h-14 px-3 sm:px-6 bg-[var(--pim-toolbar-bg)]/90 backdrop-blur-md border-b border-[var(--pim-toolbar-border)]">
     <!-- Left: Hamburger (mobile) + Title -->
     <div class="flex items-center gap-3">
       <button
-        class="md:hidden pim-btn pim-btn-ghost p-1.5 -ml-1"
+        class="md:hidden pim-btn pim-btn-ghost p-1.5 -ml-1 text-[var(--pim-toolbar-text)]"
         @click="authStore.toggleMobileSidebar()"
       >
         <Menu class="w-5 h-5" :stroke-width="1.75" />
       </button>
-      <h1 class="text-sm font-semibold text-[var(--color-text-primary)]">{{ pageTitle }}</h1>
+      <h1 class="font-semibold text-[var(--pim-toolbar-text)]" :style="{ fontSize: 'var(--pim-toolbar-font-size)' }">{{ pageTitle }}</h1>
       <button
         v-if="canPin"
         class="pim-btn pim-btn-ghost p-1 rounded"
-        :class="isPinned ? 'text-[var(--color-primary)]' : 'text-[var(--color-text-tertiary)]'"
+        :class="isPinned ? 'text-[var(--pim-sidebar-active-text)]' : 'text-[var(--pim-toolbar-text)] opacity-50'"
         :title="isPinned ? 'Tab entfernen' : 'Als Tab anheften'"
         @click="tabStore.pinCurrentRoute(route)"
       >
@@ -60,7 +60,7 @@ function switchLocale(code) {
 
       <!-- Locale switcher -->
       <div class="relative group">
-        <button class="pim-btn pim-btn-ghost text-xs gap-1">
+        <button class="pim-btn pim-btn-ghost text-xs gap-1 text-[var(--pim-toolbar-text)]">
           <Globe class="w-3.5 h-3.5" :stroke-width="1.75" />
           <span class="uppercase">{{ localeStore.currentLocale }}</span>
         </button>
@@ -83,7 +83,7 @@ function switchLocale(code) {
 
       <!-- User menu -->
       <div class="relative group">
-        <button class="pim-btn pim-btn-ghost text-xs gap-1.5">
+        <button class="pim-btn pim-btn-ghost text-xs gap-1.5 text-[var(--pim-toolbar-text)]">
           <User class="w-3.5 h-3.5" :stroke-width="1.75" />
           <span class="hidden sm:inline">{{ authStore.userName }}</span>
         </button>
