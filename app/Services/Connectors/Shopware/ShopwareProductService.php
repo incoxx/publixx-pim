@@ -82,7 +82,7 @@ class ShopwareProductService
         // Properties als zusätzliche product_property Einträge für zuverlässige Verknüpfung
         if (!empty($properties)) {
             $propertyPayload = array_map(fn ($prop) => [
-                'productId'             => $shopwareProductId,
+                'productId'             => $productData['id'],
                 'optionId'              => $prop['id'],
             ], $properties);
 
