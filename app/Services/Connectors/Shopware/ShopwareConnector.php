@@ -387,14 +387,22 @@ class ShopwareConnector extends AbstractConnector
             'properties'  => ['groups' => count($propertyMap), 'options' => collect($propertyMap)->sum(fn ($m) => count($m['options']))],
         ];
 
+        // Erlaubte Attribut-IDs für Checksum-Berechnung
+        $allowedAttributeIds = $this->productService->resolveAllowedAttributeIds(new Product(), $payload);
+
         // Produkte aus Hierarchie laden (mit Medien!)
         $products = $this->loadProductsFromProfile($payload);
 
         // Produkte synchronisieren (in Chunks)
         $products->chunk(50, function ($chunk) use (
             $http, $shopUrl, $connection, $payload, $shopwareFields,
-            $language, $propertyMap, &$result,
+            $language, $propertyMap, $propertyAttrIds, $allowedAttributeIds, &$result,
         ) {
+            // Batch: Checksums für den Chunk berechnen (für späteres Delta-Sync)
+            $chunkChecksums = $this->checksumService->computeChecksumsBatch(
+                $chunk, $payload, $shopwareFields, $language, $allowedAttributeIds, $propertyAttrIds,
+            );
+
             foreach ($chunk as $product) {
                 try {
                     // Properties pro Produkt auflösen (nur Lookup, kein API-Call)
@@ -419,6 +427,15 @@ class ShopwareConnector extends AbstractConnector
                         $mediaResult = $this->syncProductMedia($http, $shopUrl, $connection, $product, $externalId);
                         $result['media']['success'] += $mediaResult['success'];
                         $result['media']['failed'] += $mediaResult['failed'];
+                    }
+
+                    // Checksum speichern (damit Delta-Sync danach funktioniert)
+                    $checksum = $chunkChecksums[$product->id] ?? null;
+                    if ($checksum) {
+                        ConnectorProductChecksum::updateOrCreate(
+                            ['connection_id' => $connection->id, 'product_id' => $product->id],
+                            ['checksum' => $checksum, 'synced_at' => now(), 'external_id' => $externalId],
+                        );
                     }
 
                     $this->logSync(

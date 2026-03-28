@@ -200,30 +200,32 @@ async function deleteConnection(id) {
         <div v-for="conn in connections" :key="conn.id"
           class="card bg-base-100 shadow-sm border border-base-200 cursor-pointer hover:border-primary/30 transition-colors"
           @click="router.push(`/connectors/${conn.id}`)">
-          <div class="card-body p-4 flex-row items-center justify-between">
-            <div>
-              <span class="font-semibold">{{ conn.name }}</span>
-              <span v-if="conn.settings?.shop_url" class="text-xs text-base-content/40 ml-2">{{ conn.settings.shop_url }}</span>
-            </div>
-            <div class="flex items-center gap-3">
-              <span :class="conn.is_active && !conn.token_expired ? 'text-success' : 'text-error'" class="flex items-center gap-1 text-sm">
-                <CheckCircle v-if="conn.is_active && !conn.token_expired" class="w-4 h-4" />
-                <XCircle v-else class="w-4 h-4" />
-                {{ conn.is_active && !conn.token_expired ? 'Aktiv' : 'Token abgelaufen' }}
-              </span>
-              <button
-                v-if="conn.token_expired || !(conn.is_active)"
-                class="btn btn-ghost btn-xs text-warning"
-                :disabled="refreshing === conn.id"
-                @click.stop="refreshToken(conn)"
-              >
-                <RefreshCw class="w-4 h-4" :class="{ 'animate-spin': refreshing === conn.id }" />
-                Token erneuern
-              </button>
-              <button class="btn btn-ghost btn-xs text-error" @click.stop="deleteConnection(conn.id)">
-                <Trash2 class="w-4 h-4" />
-              </button>
-              <ArrowUpRight class="w-4 h-4 text-base-content/30" />
+          <div class="card-body p-4">
+            <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between">
+              <div class="min-w-0">
+                <span class="font-semibold">{{ conn.name }}</span>
+                <span v-if="conn.settings?.shop_url" class="text-xs text-base-content/40 ml-2 break-all">{{ conn.settings.shop_url }}</span>
+              </div>
+              <div class="flex items-center gap-2 flex-wrap">
+                <span :class="conn.is_active && !conn.token_expired ? 'text-success' : 'text-error'" class="flex items-center gap-1 text-sm whitespace-nowrap">
+                  <CheckCircle v-if="conn.is_active && !conn.token_expired" class="w-4 h-4 shrink-0" />
+                  <XCircle v-else class="w-4 h-4 shrink-0" />
+                  {{ conn.is_active && !conn.token_expired ? 'Aktiv' : 'Token abgelaufen' }}
+                </span>
+                <button
+                  v-if="conn.token_expired || !(conn.is_active)"
+                  class="btn btn-ghost btn-xs text-warning whitespace-nowrap"
+                  :disabled="refreshing === conn.id"
+                  @click.stop="refreshToken(conn)"
+                >
+                  <RefreshCw class="w-4 h-4 shrink-0" :class="{ 'animate-spin': refreshing === conn.id }" />
+                  Token erneuern
+                </button>
+                <button class="btn btn-ghost btn-xs text-error" @click.stop="deleteConnection(conn.id)">
+                  <Trash2 class="w-4 h-4" />
+                </button>
+                <ArrowUpRight class="w-4 h-4 text-base-content/30 hidden sm:block" />
+              </div>
             </div>
           </div>
         </div>
