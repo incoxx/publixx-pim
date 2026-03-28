@@ -462,7 +462,8 @@ class ShopwareConnector extends AbstractConnector
         // Thumbnails generieren (einmal nach allen Uploads)
         $syncMedia = $shopwareFields['_sync_media']['enabled'] ?? true;
         if ($syncMedia && $result['media']['success'] > 0) {
-            $this->mediaService->generateThumbnails($http, $shopUrl);
+            $thumbResult = $this->mediaService->generateThumbnails($http, $shopUrl);
+            Log::channel('connectors')->info('Thumbnails: ' . ($thumbResult['message'] ?? 'unbekannt'));
         }
 
         return $result;
@@ -674,7 +675,8 @@ class ShopwareConnector extends AbstractConnector
         // Thumbnails generieren (einmal nach allen Uploads)
         $syncMedia = $shopwareFields['_sync_media']['enabled'] ?? true;
         if ($syncMedia && $result['media']['success'] > 0) {
-            $this->mediaService->generateThumbnails($http, $shopUrl);
+            $thumbResult = $this->mediaService->generateThumbnails($http, $shopUrl);
+            Log::channel('connectors')->info('Thumbnails: ' . ($thumbResult['message'] ?? 'unbekannt'));
         }
 
         return $result;

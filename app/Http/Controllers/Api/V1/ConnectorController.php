@@ -846,9 +846,9 @@ class ConnectorController extends Controller
             $shopUrl = rtrim($connection->settings['shop_url'] ?? config('connectors.shopware.shop_url'), '/');
 
             $mediaService = app(\App\Services\Connectors\Shopware\ShopwareMediaService::class);
-            $mediaService->generateThumbnails($http, $shopUrl);
+            $result = $mediaService->generateThumbnails($http, $shopUrl);
 
-            return response()->json(['data' => ['status' => 'completed']]);
+            return response()->json(['data' => $result]);
         } catch (\Throwable $e) {
             return response()->json([
                 'message' => 'Thumbnail-Generierung fehlgeschlagen: ' . $e->getMessage(),
