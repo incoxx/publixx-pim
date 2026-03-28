@@ -319,6 +319,7 @@ class SettingController extends Controller
             'canva'     => ['client_id', 'client_secret', 'redirect_uri'],
             'deepl'     => ['api_key'],
             'shopware'  => ['shop_url', 'client_id', 'client_secret'],
+            'shopify'   => ['shop_url', 'access_token', 'client_id', 'client_secret'],
             'cloudinary' => ['cloud_name', 'api_key', 'api_secret'],
             'claude_ai' => ['api_key', 'model', 'max_tokens'],
             'openai'    => ['api_key', 'model'],
