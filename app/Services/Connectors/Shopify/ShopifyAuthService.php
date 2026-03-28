@@ -104,10 +104,13 @@ class ShopifyAuthService
             throw new \RuntimeException('Shopify Client ID und Client Secret sind nicht konfiguriert.');
         }
 
+        // Shopify erwartet application/x-www-form-urlencoded (nicht JSON!)
         $response = Http::timeout(15)
+            ->asForm()
             ->post("{$shopUrl}/admin/oauth/access_token", [
                 'client_id'     => $clientId,
                 'client_secret' => $clientSecret,
+                'grant_type'    => 'client_credentials',
             ]);
 
         $response->throw();
