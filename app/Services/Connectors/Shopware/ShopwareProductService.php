@@ -71,13 +71,29 @@ class ShopwareProductService
             $productData['categories'] = [['id' => $categoryId]];
         }
 
-        $response = $http->post("{$shopUrl}/api/_action/sync", [
+        $syncPayload = [
             'write-product' => [
                 'action'  => 'upsert',
                 'entity'  => 'product',
                 'payload' => [$productData],
             ],
-        ]);
+        ];
+
+        // Properties als zusätzliche product_property Einträge für zuverlässige Verknüpfung
+        if (!empty($properties)) {
+            $propertyPayload = array_map(fn ($prop) => [
+                'productId'             => $shopwareProductId,
+                'optionId'              => $prop['id'],
+            ], $properties);
+
+            $syncPayload['write-product-properties'] = [
+                'action'  => 'upsert',
+                'entity'  => 'product_property',
+                'payload' => $propertyPayload,
+            ];
+        }
+
+        $response = $http->post("{$shopUrl}/api/_action/sync", $syncPayload);
 
         $response->throw();
 

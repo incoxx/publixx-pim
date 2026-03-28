@@ -417,10 +417,11 @@ class ShopwareConnector extends AbstractConnector
                         $connection, 'profile_sync', 'product',
                         $product->id, 'success', $externalId, null,
                         [
-                            'language'      => $language,
-                            'sku'           => $product->sku,
-                            'product_name'  => $product->name,
-                            'synced_fields' => $productResult['synced_data'] ?? [],
+                            'language'       => $language,
+                            'sku'            => $product->sku,
+                            'product_name'   => $product->name,
+                            'synced_fields'  => $productResult['synced_data'] ?? [],
+                            'properties_count' => count($properties),
                         ],
                     );
 
@@ -803,6 +804,73 @@ class ShopwareConnector extends AbstractConnector
                 'categories_deleted' => $result['categories']['deleted'],
                 'categories_failed'  => $result['categories']['failed'],
             ],
+        );
+
+        return $result;
+    }
+
+    /**
+     * Löscht alle vom PIM synchronisierten Medien aus Shopware.
+     */
+    public function purgeMedia(ConnectorConnection $connection): array
+    {
+        $http = $this->authenticatedRequest($connection);
+        $shopUrl = rtrim($connection->settings['shop_url'] ?? config('connectors.shopware.shop_url'), '/');
+
+        $result = ['deleted' => 0, 'failed' => 0, 'total' => 0];
+
+        // Media-IDs aus Sync-Logs holen
+        $mediaExternalIds = ConnectorSyncLog::where('connector_connection_id', $connection->id)
+            ->where('action', 'media_sync')
+            ->where('entity_type', 'media')
+            ->where('status', 'success')
+            ->whereNotNull('external_id')
+            ->pluck('external_id')
+            ->unique()
+            ->values()
+            ->toArray();
+
+        $result['total'] = count($mediaExternalIds);
+
+        foreach (array_chunk($mediaExternalIds, 50) as $chunk) {
+            $payload = array_map(fn (string $id) => ['id' => $id], $chunk);
+
+            try {
+                $http->post("{$shopUrl}/api/_action/sync", [
+                    'delete-media' => [
+                        'action'  => 'delete',
+                        'entity'  => 'media',
+                        'payload' => $payload,
+                    ],
+                ])->throw();
+                $result['deleted'] += count($chunk);
+            } catch (\Throwable) {
+                foreach ($chunk as $mediaId) {
+                    try {
+                        $http->post("{$shopUrl}/api/_action/sync", [
+                            'delete-media' => [
+                                'action'  => 'delete',
+                                'entity'  => 'media',
+                                'payload' => [['id' => $mediaId]],
+                            ],
+                        ])->throw();
+                        $result['deleted']++;
+                    } catch (\Throwable) {
+                        $result['failed']++;
+                    }
+                }
+            }
+        }
+
+        // Media-Sync-Logs bereinigen
+        ConnectorSyncLog::where('connector_connection_id', $connection->id)
+            ->where('action', 'media_sync')
+            ->delete();
+
+        $this->logSync(
+            $connection, 'purge_media', 'connection',
+            $connection->id, 'success', null, null,
+            ['deleted' => $result['deleted'], 'failed' => $result['failed']],
         );
 
         return $result;

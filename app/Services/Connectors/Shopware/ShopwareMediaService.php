@@ -12,6 +12,8 @@ use Illuminate\Support\Str;
 
 class ShopwareMediaService
 {
+    private ?string $productMediaFolderId = null;
+
     /**
      * Lädt ein Media-Asset nach Shopware 6 hoch.
      *
@@ -30,15 +32,25 @@ class ShopwareMediaService
         $fileName = pathinfo($media->file_name, PATHINFO_FILENAME);
         $extension = pathinfo($media->file_name, PATHINFO_EXTENSION) ?: 'jpg';
 
+        // Product-Media-Folder für Thumbnail-Generierung ermitteln (einmal pro Session)
+        if ($this->productMediaFolderId === null) {
+            $this->productMediaFolderId = $this->fetchProductMediaFolderId($http, $shopUrl) ?: '';
+        }
+
         // 1. Media-Eintrag in Shopware erstellen/aktualisieren (Upsert via Sync-API)
+        $mediaPayload = [
+            'id'   => $mediaId,
+            'name' => $fileName,
+        ];
+        if ($this->productMediaFolderId) {
+            $mediaPayload['mediaFolderId'] = $this->productMediaFolderId;
+        }
+
         $http->post("{$shopUrl}/api/_action/sync", [
             'write-media' => [
                 'action'  => 'upsert',
                 'entity'  => 'media',
-                'payload' => [[
-                    'id'   => $mediaId,
-                    'name' => $fileName,
-                ]],
+                'payload' => [$mediaPayload],
             ],
         ])->throw();
 
@@ -162,5 +174,32 @@ class ShopwareMediaService
         $http->patch("{$shopUrl}/api/product/{$productId}", [
             'coverId' => $coverMediaAssignmentId,
         ])->throw();
+    }
+
+    /**
+     * Ermittelt die Shopware Media-Folder-ID für Produkt-Medien.
+     *
+     * Ohne mediaFolderId generiert Shopware keine Thumbnails für hochgeladene Bilder.
+     */
+    private function fetchProductMediaFolderId(PendingRequest $http, string $shopUrl): ?string
+    {
+        try {
+            // Suche den "Product Media" Folder über den Default-Folder der product Entity
+            $response = $http->post("{$shopUrl}/api/search/media-default-folder", [
+                'limit'  => 1,
+                'filter' => [
+                    ['type' => 'equals', 'field' => 'entity', 'value' => 'product'],
+                ],
+                'associations' => [
+                    'folder' => [],
+                ],
+            ]);
+            $response->throw();
+            $data = $response->json();
+
+            return $data['data'][0]['folder']['id'] ?? null;
+        } catch (\Throwable) {
+            return null;
+        }
     }
 }

@@ -961,8 +961,9 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
         // Reset: Alle PIM-Daten aus Shopware löschen
         Route::post('/connections/{connection}/reset', [ConnectorController::class, 'resetShop']);
 
-        // Purge: Alle Kategorien direkt aus Shopware löschen (nicht nur PIM-synced)
+        // Purge: Daten direkt aus Shopware löschen
         Route::post('/connections/{connection}/purge-categories', [ConnectorController::class, 'purgeCategories']);
+        Route::post('/connections/{connection}/purge-media', [ConnectorController::class, 'purgeMedia']);
 
         // Produkt-Checksums (Delta-Sync Verwaltung)
         Route::get('/connections/{connection}/checksums', [ConnectorController::class, 'checksums']);

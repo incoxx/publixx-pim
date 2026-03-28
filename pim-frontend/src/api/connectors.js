@@ -99,6 +99,11 @@ export default {
     return client.post(`/connectors/connections/${connectionId}/purge-categories`)
   },
 
+  // Purge: Alle PIM-Medien aus Shopware löschen
+  purgeMedia(connectionId) {
+    return client.post(`/connectors/connections/${connectionId}/purge-media`)
+  },
+
   // Produkt-Checksums (Delta-Sync Verwaltung)
   checksums(connectionId, params = {}) {
     return client.get(`/connectors/connections/${connectionId}/checksums`, { params })
