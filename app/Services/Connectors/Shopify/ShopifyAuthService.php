@@ -166,7 +166,7 @@ class ShopifyAuthService
     }
 
     /**
-     * Gibt die API-Version zurück.
+     * Gibt die API-Version zurück (2025-10).
      */
     public static function apiVersion(): string
     {
