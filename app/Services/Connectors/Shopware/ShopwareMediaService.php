@@ -57,6 +57,13 @@ class ShopwareMediaService
         // 2. Datei hochladen
         $this->uploadFileToMedia($http, $shopUrl, $media, $mediaId, $fileName, $extension);
 
+        // 3. Thumbnails generieren — Shopware generiert diese nicht automatisch bei API-Upload
+        try {
+            $http->post("{$shopUrl}/api/_action/media/{$mediaId}/thumbnails")->throw();
+        } catch (\Throwable) {
+            // Nicht kritisch — Thumbnails können auch manuell generiert werden
+        }
+
         return $mediaId;
     }
 
