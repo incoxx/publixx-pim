@@ -291,12 +291,31 @@ class ShopifyConnector extends AbstractConnector
             );
         }
 
+        // Navigation Menu erstellen (hierarchischer Baum via GraphQL)
+        $menuResult = ['success' => false, 'menu_id' => null, 'error' => null];
+        if (!empty($catResult['category_map'])) {
+            $menuResult = $this->categoryService->syncNavigationMenu(
+                $http, $shopUrl, $hierarchyId, $catResult['category_map'], $language,
+            );
+
+            if ($menuResult['success']) {
+                $this->logSync(
+                    $connection, 'menu_sync', 'hierarchy',
+                    $hierarchyId, 'success', $menuResult['menu_id'],
+                );
+            } elseif ($menuResult['error']) {
+                $catResult['error_details'][] = 'Navigation Menu: ' . $menuResult['error'];
+                $catResult['errors']++;
+            }
+        }
+
         return [
             'synced'         => $catResult['synced'],
             'errors'         => $catResult['errors'],
             'error_details'  => $catResult['error_details'] ?? [],
             'total_nodes'    => $catResult['total_nodes'],
             'hierarchy_name' => $catResult['hierarchy_name'],
+            'menu'           => $menuResult,
         ];
     }
 
@@ -490,13 +509,23 @@ class ShopifyConnector extends AbstractConnector
             &$existingChecksums, &$currentProductIds, &$result,
         ) {
             // Batch: Checksums für den gesamten Chunk berechnen
-            $chunkChecksums = $this->checksumService->computeChecksumsBatch(
-                $chunk, $payload, $shopifyFields, $language, $allowedAttributeIds, $metafieldAttrIds,
-            );
-
-            // Batch: Metafields für den gesamten Chunk auflösen
             $chunkProductIds = $chunk->pluck('id')->toArray();
             $currentProductIds = array_merge($currentProductIds, $chunkProductIds);
+
+            try {
+                $chunkChecksums = $this->checksumService->computeChecksumsBatch(
+                    $chunk, $payload, $shopifyFields, $language, $allowedAttributeIds, $metafieldAttrIds,
+                );
+            } catch (\Throwable $e) {
+                Log::channel('connectors')->error('Checksum-Berechnung fehlgeschlagen', [
+                    'error'      => $e->getMessage(),
+                    'chunk_size' => $chunk->count(),
+                ]);
+                $result['products']['failed'] += $chunk->count();
+                return; // Nächster Chunk
+            }
+
+            // Batch: Metafields für den gesamten Chunk auflösen
             $bulkMetafields = $this->metafieldService->resolveProductMetafieldsBulk($chunkProductIds, $definitionMap, $language);
 
             foreach ($chunk as $product) {
@@ -637,7 +666,31 @@ class ShopifyConnector extends AbstractConnector
             'categories' => ['deleted' => 0, 'failed' => 0, 'total' => 0],
         ];
 
-        // 1. Produkte löschen — aus Checksums (zuverlässigste Quelle)
+        // 1. Collections ZUERST löschen (Produkte können nicht gelöscht werden solange sie Collections zugeordnet sind)
+        $categoryLogs = ConnectorSyncLog::where('connector_connection_id', $connection->id)
+            ->where('action', 'category_sync')
+            ->where('entity_type', 'hierarchy_node')
+            ->where('status', 'success')
+            ->whereNotNull('external_id')
+            ->pluck('external_id')
+            ->unique()
+            ->values()
+            ->toArray();
+
+        $result['categories']['total'] = count($categoryLogs);
+
+        foreach ($categoryLogs as $collectionId) {
+            try {
+                $http->delete(
+                    "{$shopUrl}/admin/api/" . self::API_VERSION . "/custom_collections/{$collectionId}.json",
+                )->throw();
+                $result['categories']['deleted']++;
+            } catch (\Throwable) {
+                $result['categories']['failed']++;
+            }
+        }
+
+        // 2. Produkte löschen — aus Checksums (zuverlässigste Quelle)
         $productExternalIds = ConnectorProductChecksum::where('connection_id', $connection->id)
             ->whereNotNull('external_id')
             ->pluck('external_id')
@@ -659,7 +712,6 @@ class ShopifyConnector extends AbstractConnector
         $allProductIds = array_values(array_unique(array_merge($productExternalIds, $logProductIds)));
         $result['products']['total'] = count($allProductIds);
 
-        // Shopify: Produkte einzeln löschen (kein Batch-Delete)
         foreach ($allProductIds as $productId) {
             try {
                 $http->delete(
@@ -668,30 +720,6 @@ class ShopifyConnector extends AbstractConnector
                 $result['products']['deleted']++;
             } catch (\Throwable) {
                 $result['products']['failed']++;
-            }
-        }
-
-        // 2. Collections löschen
-        $categoryLogs = ConnectorSyncLog::where('connector_connection_id', $connection->id)
-            ->where('action', 'category_sync')
-            ->where('entity_type', 'hierarchy_node')
-            ->where('status', 'success')
-            ->whereNotNull('external_id')
-            ->pluck('external_id')
-            ->unique()
-            ->values()
-            ->toArray();
-
-        $result['categories']['total'] = count($categoryLogs);
-
-        foreach ($categoryLogs as $collectionId) {
-            try {
-                $http->delete(
-                    "{$shopUrl}/admin/api/" . self::API_VERSION . "/custom_collections/{$collectionId}.json",
-                )->throw();
-                $result['categories']['deleted']++;
-            } catch (\Throwable) {
-                $result['categories']['failed']++;
             }
         }
 
