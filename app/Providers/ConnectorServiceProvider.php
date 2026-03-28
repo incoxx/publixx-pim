@@ -21,6 +21,13 @@ use App\Services\Connectors\Shopware\ShopwareConnector;
 use App\Services\Connectors\Shopware\ShopwareMediaService;
 use App\Services\Connectors\Shopware\ShopwareProductService;
 use App\Services\Connectors\Shopware\ShopwarePropertyService;
+use App\Services\Connectors\Shopify\ShopifyAuthService;
+use App\Services\Connectors\Shopify\ShopifyCategoryService;
+use App\Services\Connectors\Shopify\ShopifyChecksumService;
+use App\Services\Connectors\Shopify\ShopifyConnector;
+use App\Services\Connectors\Shopify\ShopifyMediaService;
+use App\Services\Connectors\Shopify\ShopifyMetafieldService;
+use App\Services\Connectors\Shopify\ShopifyProductService;
 use App\Models\Setting;
 use Illuminate\Support\ServiceProvider;
 
@@ -91,6 +98,15 @@ class ConnectorServiceProvider extends ServiceProvider
         $this->app->singleton(ShopwarePropertyService::class);
         $this->app->singleton(ShopwareConnector::class);
 
+        // Shopify
+        $this->app->singleton(ShopifyAuthService::class);
+        $this->app->singleton(ShopifyProductService::class);
+        $this->app->singleton(ShopifyMediaService::class);
+        $this->app->singleton(ShopifyCategoryService::class);
+        $this->app->singleton(ShopifyMetafieldService::class);
+        $this->app->singleton(ShopifyChecksumService::class);
+        $this->app->singleton(ShopifyConnector::class);
+
         // Cloudinary
         $this->app->singleton(CloudinaryAssetService::class);
         $this->app->singleton(CloudinaryConnector::class);
@@ -107,6 +123,7 @@ class ConnectorServiceProvider extends ServiceProvider
         $registry->register($this->app->make(CanvaConnector::class));
         $registry->register($this->app->make(DeepLConnector::class));
         $registry->register($this->app->make(ShopwareConnector::class));
+        $registry->register($this->app->make(ShopifyConnector::class));
         $registry->register($this->app->make(CloudinaryConnector::class));
         $registry->register($this->app->make(ClaudeAIConnector::class));
     }

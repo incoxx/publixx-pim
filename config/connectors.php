@@ -33,6 +33,13 @@ return [
         'client_secret' => env('SHOPWARE_CLIENT_SECRET', ''),
     ],
 
+    'shopify' => [
+        'shop_url'      => env('SHOPIFY_SHOP_URL', ''),        // z.B. https://mein-shop.myshopify.com
+        'access_token'  => env('SHOPIFY_ACCESS_TOKEN', ''),     // Legacy: statischer Admin API Access Token
+        'client_id'     => env('SHOPIFY_CLIENT_ID', ''),        // Neu (ab 2026): Client ID
+        'client_secret' => env('SHOPIFY_CLIENT_SECRET', ''),    // Neu (ab 2026): Client Secret
+    ],
+
     'cloudinary' => [
         'cloud_name' => env('CLOUDINARY_CLOUD_NAME', ''),
         'api_key'    => env('CLOUDINARY_API_KEY', ''),

@@ -89,8 +89,27 @@ const SHOPWARE_FIELD_DEFINITIONS = [
   { key: 'stock', label: 'Lagerbestand', description: 'Shopware zeigt Produkte mit Stock=0 nicht an. Standard: 999', defaultMode: 'fixed', defaultValue: '999' },
 ]
 
+// Shopify-Pflichtfelder
+const SHOPIFY_FIELD_DEFINITIONS = [
+  { key: 'description', label: 'Beschreibung', description: 'Standard: aus Profil', defaultMode: 'default', defaultInfo: 'Aus Vorschau-Profil', modes: ['default', 'fixed', 'attribute', 'attributes'] },
+  { key: 'vendor', label: 'Hersteller (Vendor)', description: 'Optional', defaultMode: 'default', defaultInfo: 'Kein Hersteller' },
+  { key: 'product_type', label: 'Produkttyp', description: 'Optional', defaultMode: 'default', defaultInfo: 'Kein Produkttyp' },
+  { key: 'tags', label: 'Tags', description: 'Kommagetrennt', defaultMode: 'default', defaultInfo: 'Keine Tags' },
+  { key: 'status', label: 'Status', description: 'active/draft/archived', defaultMode: 'default', defaultInfo: 'active' },
+  // Preise
+  { key: 'price', label: 'Preis', description: 'Standard: aus Profil', defaultMode: 'default', defaultInfo: 'Preis aus Profil oder erster Preis' },
+  { key: 'compare_at_price', label: 'UVP (Vergleichspreis)', description: 'Compare at price', defaultMode: 'attribute' },
+  // Lagerbestand
+  { key: 'stock', label: 'Lagerbestand', description: 'Standard: 999', defaultMode: 'fixed', defaultValue: '999' },
+]
+
 const connectionId = computed(() => route.params.id)
 const isShopware = computed(() => connection.value?.connector_type === 'shopware')
+const isShopify = computed(() => connection.value?.connector_type === 'shopify')
+const isShopConnector = computed(() => isShopware.value || isShopify.value)
+const activeFieldDefinitions = computed(() => isShopify.value ? SHOPIFY_FIELD_DEFINITIONS : SHOPWARE_FIELD_DEFINITIONS)
+const shopFields = computed(() => isShopify.value ? shopifyFields.value : shopwareFields.value)
+const shopifyFields = ref({})
 const selectedProfile = computed(() => profiles.value.find(p => p.id === selectedProfileId.value))
 
 // Attribut-Name für Anzeige auflösen
@@ -136,6 +155,32 @@ async function loadConnection() {
       }
       if (!shopwareFields.value._sales_channel_id) {
         shopwareFields.value._sales_channel_id = connection.value.settings?.shopware_fields?._sales_channel_id ?? { value: '' }
+      }
+
+      await Promise.all([loadProfiles(), loadAttributes()])
+    }
+
+    if (isShopify.value) {
+      selectedProfileId.value = connection.value.settings?.website_profile_id || null
+      shopifyFields.value = connection.value.settings?.shopify_fields || {}
+
+      for (const field of SHOPIFY_FIELD_DEFINITIONS) {
+        if (!shopifyFields.value[field.key]) {
+          shopifyFields.value[field.key] = {
+            mode: field.defaultMode,
+            value: field.defaultValue || '',
+            attribute_id: '',
+            attribute_ids: [],
+          }
+        }
+      }
+
+      // Metafield-Attribute-IDs und Medien-Toggle initialisieren
+      if (!shopifyFields.value._metafield_attribute_ids) {
+        shopifyFields.value._metafield_attribute_ids = connection.value.settings?.shopify_fields?._metafield_attribute_ids || []
+      }
+      if (shopifyFields.value._sync_media === undefined) {
+        shopifyFields.value._sync_media = connection.value.settings?.shopify_fields?._sync_media ?? { enabled: true }
       }
 
       await Promise.all([loadProfiles(), loadAttributes()])
@@ -222,40 +267,48 @@ function clearSelectedProduct() {
   previewData.value = null
 }
 
+function cleanFieldsForSave(fieldsObj) {
+  const cleanedFields = {}
+  for (const [key, mapping] of Object.entries(fieldsObj)) {
+    if (key === '_property_attribute_ids' || key === '_metafield_attribute_ids') {
+      cleanedFields[key] = Array.isArray(mapping) ? mapping : []
+      continue
+    }
+    if (key === '_sync_media') {
+      cleanedFields[key] = { enabled: mapping?.enabled ?? true }
+      continue
+    }
+    if (key === '_sales_channel_id') {
+      cleanedFields[key] = { value: mapping?.value || '' }
+      continue
+    }
+    if (mapping.mode === 'default') {
+      cleanedFields[key] = { mode: 'default' }
+    } else if (mapping.mode === 'fixed') {
+      cleanedFields[key] = { mode: 'fixed', value: mapping.value || '' }
+    } else if (mapping.mode === 'attributes') {
+      cleanedFields[key] = { mode: 'attributes', attribute_ids: mapping.attribute_ids || [] }
+    } else {
+      cleanedFields[key] = { mode: 'attribute', attribute_id: mapping.attribute_id || '' }
+    }
+  }
+  return cleanedFields
+}
+
 async function saveExportProfile() {
   savingProfile.value = true
   profileSaveSuccess.value = false
   try {
-    const cleanedFields = {}
-    for (const [key, mapping] of Object.entries(shopwareFields.value)) {
-      if (key === '_property_attribute_ids') {
-        cleanedFields[key] = Array.isArray(mapping) ? mapping : []
-        continue
-      }
-      if (key === '_sync_media') {
-        cleanedFields[key] = { enabled: mapping?.enabled ?? true }
-        continue
-      }
-      if (key === '_sales_channel_id') {
-        cleanedFields[key] = { value: mapping?.value || '' }
-        continue
-      }
-      if (mapping.mode === 'default') {
-        cleanedFields[key] = { mode: 'default' }
-      } else if (mapping.mode === 'fixed') {
-        cleanedFields[key] = { mode: 'fixed', value: mapping.value || '' }
-      } else if (mapping.mode === 'attributes') {
-        cleanedFields[key] = { mode: 'attributes', attribute_ids: mapping.attribute_ids || [] }
-      } else {
-        cleanedFields[key] = { mode: 'attribute', attribute_id: mapping.attribute_id || '' }
-      }
+    const settingsPayload = { website_profile_id: selectedProfileId.value }
+
+    if (isShopify.value) {
+      settingsPayload.shopify_fields = cleanFieldsForSave(shopifyFields.value)
+    } else {
+      settingsPayload.shopware_fields = cleanFieldsForSave(shopwareFields.value)
     }
 
     await connectorsApi.updateConnection(connectionId.value, {
-      settings: {
-        website_profile_id: selectedProfileId.value,
-        shopware_fields: cleanedFields,
-      },
+      settings: settingsPayload,
     })
     profileSaveSuccess.value = true
     setTimeout(() => { profileSaveSuccess.value = false }, 3000)
