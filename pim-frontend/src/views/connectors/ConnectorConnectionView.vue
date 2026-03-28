@@ -933,7 +933,7 @@ const statusColors = {
               <p class="text-xs text-base-content/50 mb-2">
                 Bestimmt Hierarchie, Sprache, Attribute, Preistyp und Produktfilter.
               </p>
-              <select v-model="selectedProfileId" class="select select-bordered select-sm w-full max-w-md">
+              <select v-model="selectedProfileId" class="pim-input text-xs w-full max-w-md">
                 <option :value="null">— Kein Profil —</option>
                 <option v-for="p in profiles" :key="p.id" :value="p.id">
                   {{ p.name }} {{ p.is_active ? '(aktiv)' : '' }} — {{ p.locale?.toUpperCase() }}
@@ -970,7 +970,7 @@ const statusColors = {
                       <td class="py-2.5">
                         <select
                           v-model="shopFields[field.key].mode"
-                          class="select select-bordered select-xs w-full max-w-36"
+                          class="pim-input text-xs w-full max-w-36"
                         >
                           <option v-if="field.defaultInfo" value="default">Standard</option>
                           <option value="fixed">Fester Wert</option>
@@ -988,7 +988,7 @@ const statusColors = {
                           v-else-if="shopFields[field.key].mode === 'fixed'"
                           v-model="shopFields[field.key].value"
                           type="text"
-                          class="input input-bordered input-xs w-full"
+                          class="pim-input text-xs w-full"
                           :placeholder="field.defaultValue || 'Wert eingeben...'"
                         />
 
@@ -998,7 +998,7 @@ const statusColors = {
                             <select
                               :value="attrId"
                               @change="shopFields[field.key].attribute_ids[idx] = $event.target.value"
-                              class="select select-bordered select-xs flex-1"
+                              class="pim-input text-xs flex-1"
                             >
                               <option value="">— Attribut wählen —</option>
                               <option v-for="attr in allAttributes" :key="attr.id" :value="attr.id">
@@ -1018,7 +1018,7 @@ const statusColors = {
                         <select
                           v-else
                           v-model="shopFields[field.key].attribute_id"
-                          class="select select-bordered select-xs w-full"
+                          class="pim-input text-xs w-full"
                         >
                           <option value="">— Attribut wählen —</option>
                           <option v-for="attr in allAttributes" :key="attr.id" :value="attr.id">
@@ -1055,7 +1055,7 @@ const statusColors = {
                   <select
                     :value="attrId"
                     @change="shopwareFields._property_attribute_ids[idx] = $event.target.value"
-                    class="select select-bordered select-xs flex-1"
+                    class="pim-input text-xs flex-1"
                   >
                     <option value="">— Attribut wählen —</option>
                     <option v-for="attr in allAttributes" :key="attr.id" :value="attr.id">
@@ -1089,7 +1089,7 @@ const statusColors = {
                   class="flex items-center gap-1"
                 >
                   <select
-                    class="select select-bordered select-xs flex-1"
+                    class="pim-input text-xs flex-1"
                     :value="attrId"
                     @change="shopifyFields._metafield_attribute_ids[idx] = $event.target.value"
                   >
@@ -1136,7 +1136,7 @@ const statusColors = {
               <input
                 v-model="shopwareFields._sales_channel_id.value"
                 type="text"
-                class="input input-bordered input-sm w-full max-w-md"
+                class="pim-input text-xs w-full max-w-md"
                 placeholder="Leer = automatisch erster aktiver Storefront"
               />
             </div>
@@ -1205,14 +1205,14 @@ const statusColors = {
                 <input
                   v-model="productSearch"
                   type="text"
-                  class="input input-bordered input-sm w-full pl-8"
+                  class="pim-input text-xs w-full pl-8"
                   placeholder="SKU oder Name suchen..."
                   @input="onProductSearchInput"
                 />
                 <span v-if="productSearching" class="loading loading-spinner loading-xs absolute right-2.5 top-2"></span>
               </div>
               <!-- Suchergebnisse -->
-              <div v-if="productSearchResults.length > 0" class="absolute z-50 mt-1 w-full bg-base-100 border border-base-300 rounded-lg shadow-xl max-h-48 overflow-y-auto">
+              <div v-if="productSearchResults.length > 0" class="absolute z-50 mt-1 w-full rounded-lg shadow-xl max-h-48 overflow-y-auto" style="background: var(--color-surface); border: 1px solid var(--color-border);">
                 <button
                   v-for="p in productSearchResults" :key="p.id"
                   class="flex items-center gap-2 w-full px-3 py-2 text-left hover:bg-base-200/50 transition-colors text-sm"
@@ -1228,12 +1228,12 @@ const statusColors = {
           <!-- Media-ID Eingabe -->
           <div v-if="syncType === 'media'" class="form-control">
             <label class="label"><span class="label-text">Media-ID (UUID)</span></label>
-            <input v-model="syncEntityId" type="text" class="input input-bordered input-sm" placeholder="UUID eingeben..." />
+            <input v-model="syncEntityId" type="text" class="pim-input text-xs" placeholder="UUID eingeben..." />
           </div>
 
           <div class="flex gap-3 items-center mt-2">
             <div v-if="syncType === 'product'" class="form-control w-24">
-              <select v-model="syncLanguage" class="select select-bordered select-sm">
+              <select v-model="syncLanguage" class="pim-input text-xs">
                 <option value="de">DE</option>
                 <option value="en">EN</option>
               </select>
