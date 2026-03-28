@@ -417,10 +417,11 @@ class ShopwareConnector extends AbstractConnector
                         $connection, 'profile_sync', 'product',
                         $product->id, 'success', $externalId, null,
                         [
-                            'language'      => $language,
-                            'sku'           => $product->sku,
-                            'product_name'  => $product->name,
-                            'synced_fields' => $productResult['synced_data'] ?? [],
+                            'language'       => $language,
+                            'sku'            => $product->sku,
+                            'product_name'   => $product->name,
+                            'synced_fields'  => $productResult['synced_data'] ?? [],
+                            'properties_count' => count($properties),
                         ],
                     );
 
