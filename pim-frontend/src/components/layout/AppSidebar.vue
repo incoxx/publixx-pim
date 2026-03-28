@@ -32,16 +32,6 @@ function sectionIconColor(sectionKey) {
   return SECTION_ICON_COLORS[sectionKey] || null
 }
 
-// Finde die Sektion, zu der ein Item gehört (für farbige Icons)
-function findSectionKey(item) {
-  for (const section of sections.value) {
-    if (section.items.some(i => i === item || (i.children && i.children.some(c => c === item)))) {
-      return section.key
-    }
-  }
-  return null
-}
-
 // Module is accessible if licensed OR if any related plugin has API keys configured
 function isModuleAccessible(module) {
   if (!module) return true
@@ -425,7 +415,7 @@ const sidebarStyle = computed(() => ({
                     :is="item.icon"
                     class="w-[18px] h-[18px] shrink-0"
                     :stroke-width="1.75"
-                    :style="sectionIconColor(findSectionKey(item)) ? { color: sectionIconColor(findSectionKey(item)) } : { color: 'var(--pim-sidebar-icon)' }"
+                    :style="sectionIconColor(section.key) ? { color: sectionIconColor(section.key) } : { color: 'var(--pim-sidebar-icon)' }"
                   />
                   <span class="truncate flex-1 text-left">{{ item.label() }}</span>
                   <ChevronDown
@@ -462,7 +452,7 @@ const sidebarStyle = computed(() => ({
                     :is="item.icon"
                     class="w-[18px] h-[18px] shrink-0"
                     :stroke-width="1.75"
-                    :style="!groupHasActiveRoute(item) && sectionIconColor(findSectionKey(item)) ? { color: sectionIconColor(findSectionKey(item)) } : {}"
+                    :style="!groupHasActiveRoute(item) && sectionIconColor(section.key) ? { color: sectionIconColor(section.key) } : {}"
                   />
                 </button>
 
