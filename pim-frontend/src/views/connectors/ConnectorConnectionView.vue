@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowLeft, RefreshCw, Image, Package, CheckCircle, XCircle, Clock,
   Play, Settings, Save, Search, ChevronDown, ChevronUp, X, Zap, Download, Trash2,
-  RotateCcw, AlertTriangle,
+  RotateCcw, AlertTriangle, FolderTree, ImageMinus,
 } from 'lucide-vue-next'
 import connectorsApi from '@/api/connectors'
 import productsApi from '@/api/products'
@@ -444,6 +444,26 @@ async function executePurgeCategories() {
   }
 }
 
+// Alle PIM-Medien aus Shopware löschen
+const purgingMedia = ref(false)
+const purgeMediaResult = ref(null)
+
+async function executePurgeMedia() {
+  if (!confirm('Alle vom PIM synchronisierten Medien aus Shopware löschen?')) return
+  purgingMedia.value = true
+  purgeMediaResult.value = null
+  syncError.value = ''
+  try {
+    const res = await connectorsApi.purgeMedia(connectionId.value)
+    purgeMediaResult.value = res.data.data || res.data
+  } catch (e) {
+    syncError.value = e.response?.data?.message || 'Media-Löschung fehlgeschlagen'
+  } finally {
+    purgingMedia.value = false
+    await loadConnection()
+  }
+}
+
 async function clearChecksums() {
   if (!confirm('Alle Checksums löschen? Der nächste Delta-Sync überträgt dann alle Produkte neu.')) return
   try {
@@ -536,54 +556,74 @@ const statusColors = {
                 <span v-if="selectedProfile?.is_active" class="badge badge-ghost badge-xs ml-1">aktiv</span>
               </span>
             </div>
-            <div v-if="selectedProfileId" class="flex flex-wrap gap-2">
-              <button
-                class="btn btn-ghost btn-sm gap-1"
-                :disabled="hierarchySyncing"
-                @click="executeHierarchySync"
-              >
-                <span v-if="hierarchySyncing" class="loading loading-spinner loading-xs"></span>
-                Hierarchie
-              </button>
-              <button
-                class="btn btn-outline btn-sm gap-1"
-                :disabled="profileSyncing || deltaSyncing"
-                @click="executeProfileSync"
-              >
-                <span v-if="profileSyncing" class="loading loading-spinner loading-xs"></span>
-                <Play v-else class="w-3.5 h-3.5" />
-                Komplett-Sync
-              </button>
-              <button
-                class="btn btn-outline btn-sm gap-1"
-                :disabled="deltaSyncing || profileSyncing"
-                @click="executeDeltaSync"
-                title="Nur neue und geänderte Produkte übertragen"
-              >
-                <span v-if="deltaSyncing" class="loading loading-spinner loading-xs"></span>
-                <Zap v-else class="w-3.5 h-3.5" />
-                Delta Sync
-              </button>
-              <button
-                class="btn btn-outline btn-error btn-sm gap-1"
-                :disabled="resetting || profileSyncing || deltaSyncing"
-                @click="executeReset"
-                title="Alle PIM-Produkte und Kategorien aus Shopware löschen"
-              >
-                <span v-if="resetting" class="loading loading-spinner loading-xs"></span>
-                <Trash2 v-else class="w-3.5 h-3.5" />
-                Shop Reset
-              </button>
-              <button
-                class="btn btn-outline btn-error btn-sm gap-1"
-                :disabled="purgingCategories || profileSyncing || deltaSyncing"
-                @click="executePurgeCategories"
-                title="Alle Kategorien aus Shopware löschen (außer Root)"
-              >
-                <span v-if="purgingCategories" class="loading loading-spinner loading-xs"></span>
-                <Trash2 v-else class="w-3.5 h-3.5" />
-                Kategorien löschen
-              </button>
+            <!-- Sync-Aktionen -->
+            <div v-if="selectedProfileId" class="space-y-3 mt-1">
+              <!-- Zeile 1: Synchronisieren -->
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="text-xs text-base-content/40 font-medium uppercase tracking-wider w-full sm:w-auto">Sync</span>
+                <button
+                  class="btn btn-outline btn-sm gap-1"
+                  :disabled="hierarchySyncing"
+                  @click="executeHierarchySync"
+                >
+                  <span v-if="hierarchySyncing" class="loading loading-spinner loading-xs"></span>
+                  <FolderTree v-else class="w-3.5 h-3.5" />
+                  Hierarchie
+                </button>
+                <button
+                  class="btn btn-outline btn-sm gap-1"
+                  :disabled="profileSyncing || deltaSyncing"
+                  @click="executeProfileSync"
+                >
+                  <span v-if="profileSyncing" class="loading loading-spinner loading-xs"></span>
+                  <Play v-else class="w-3.5 h-3.5" />
+                  Komplett-Sync
+                </button>
+                <button
+                  class="btn btn-outline btn-sm gap-1"
+                  :disabled="deltaSyncing || profileSyncing"
+                  @click="executeDeltaSync"
+                  title="Nur neue und geänderte Produkte übertragen"
+                >
+                  <span v-if="deltaSyncing" class="loading loading-spinner loading-xs"></span>
+                  <Zap v-else class="w-3.5 h-3.5" />
+                  Delta Sync
+                </button>
+              </div>
+              <!-- Zeile 2: Löschen -->
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="text-xs text-base-content/40 font-medium uppercase tracking-wider w-full sm:w-auto">Reset</span>
+                <button
+                  class="btn btn-outline btn-error btn-sm gap-1"
+                  :disabled="resetting || profileSyncing || deltaSyncing"
+                  @click="executeReset"
+                  title="Alle PIM-Produkte, Kategorien und Medien aus Shopware löschen"
+                >
+                  <span v-if="resetting" class="loading loading-spinner loading-xs"></span>
+                  <Trash2 v-else class="w-3.5 h-3.5" />
+                  Shop Reset
+                </button>
+                <button
+                  class="btn btn-outline btn-error btn-sm gap-1"
+                  :disabled="purgingCategories || profileSyncing || deltaSyncing"
+                  @click="executePurgeCategories"
+                  title="Alle Kategorien aus Shopware löschen (außer Root)"
+                >
+                  <span v-if="purgingCategories" class="loading loading-spinner loading-xs"></span>
+                  <FolderTree v-else class="w-3.5 h-3.5" />
+                  Kategorien
+                </button>
+                <button
+                  class="btn btn-outline btn-error btn-sm gap-1"
+                  :disabled="purgingMedia || profileSyncing || deltaSyncing"
+                  @click="executePurgeMedia"
+                  title="Alle PIM-Medien aus Shopware löschen"
+                >
+                  <span v-if="purgingMedia" class="loading loading-spinner loading-xs"></span>
+                  <ImageMinus v-else class="w-3.5 h-3.5" />
+                  Medien
+                </button>
+              </div>
             </div>
           </div>
 
@@ -623,6 +663,17 @@ const statusColors = {
               <div class="text-sm">
                 {{ purgeCategoriesResult.deleted }} von {{ purgeCategoriesResult.total }} Kategorien gelöscht
                 <span v-if="purgeCategoriesResult.failed" class="text-error">({{ purgeCategoriesResult.failed }} fehlgeschlagen)</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Purge Media Ergebnis -->
+          <div v-if="purgeMediaResult" class="alert mt-3" :class="purgeMediaResult.failed ? 'alert-warning' : 'alert-success'">
+            <div>
+              <div class="font-semibold">Medien gelöscht</div>
+              <div class="text-sm">
+                {{ purgeMediaResult.deleted }} von {{ purgeMediaResult.total }} Medien gelöscht
+                <span v-if="purgeMediaResult.failed" class="text-error">({{ purgeMediaResult.failed }} fehlgeschlagen)</span>
               </div>
             </div>
           </div>
