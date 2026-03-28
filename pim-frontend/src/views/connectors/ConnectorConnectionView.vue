@@ -59,6 +59,12 @@ const deltaSyncResult = ref(null)
 // Fehler-Detail-Anzeige
 const expandedLogId = ref(null)
 
+// Sync-Log Paging + Filter
+const logFilter = ref('')  // '' = alle, 'failed' = nur Fehler, 'success' = nur Erfolg
+const logPage = ref(1)
+const logLastPage = ref(1)
+const logTotal = ref(0)
+
 // Shopware-Pflichtfelder
 const SHOPWARE_FIELD_DEFINITIONS = [
   { key: 'name', label: 'Produktname', description: 'Standard: product.name', defaultMode: 'default', defaultInfo: 'Produktname aus PIM' },
@@ -100,12 +106,11 @@ async function loadConnection() {
   loading.value = true
   error.value = ''
   try {
-    const [connRes, logsRes] = await Promise.all([
+    const [connRes] = await Promise.all([
       connectorsApi.getConnection(connectionId.value),
-      connectorsApi.syncLogs(connectionId.value, { per_page: 50 }),
     ])
     connection.value = connRes.data.data || connRes.data
-    syncLogs.value = logsRes.data.data || logsRes.data
+    await loadSyncLogs()
 
     if (isShopware.value) {
       selectedProfileId.value = connection.value.settings?.website_profile_id || null
@@ -155,6 +160,32 @@ async function loadAttributes() {
     const data = res.data.data || res.data || []
     allAttributes.value = Array.isArray(data) ? data : (data.data || [])
   } catch (e) { /* optional */ }
+}
+
+async function loadSyncLogs() {
+  try {
+    const params = { per_page: 50, page: logPage.value }
+    if (logFilter.value) params.status = logFilter.value
+    const logsRes = await connectorsApi.syncLogs(connectionId.value, params)
+    const paged = logsRes.data
+    syncLogs.value = paged.data || []
+    logPage.value = paged.current_page || 1
+    logLastPage.value = paged.last_page || 1
+    logTotal.value = paged.total || syncLogs.value.length
+  } catch (e) {
+    syncLogs.value = []
+  }
+}
+
+function setLogFilter(status) {
+  logFilter.value = status
+  logPage.value = 1
+  loadSyncLogs()
+}
+
+function goLogPage(page) {
+  logPage.value = page
+  loadSyncLogs()
 }
 
 // Produkt-Suche (debounced)
@@ -1152,11 +1183,20 @@ const statusColors = {
 
       <!-- Sync-Protokoll -->
       <div class="space-y-2">
-        <div class="flex items-center justify-between">
-          <h2 class="text-sm font-semibold text-base-content/60 uppercase tracking-wider">Sync-Protokoll</h2>
-          <div class="flex gap-1">
+        <div class="flex items-center justify-between flex-wrap gap-2">
+          <h2 class="text-sm font-semibold text-base-content/60 uppercase tracking-wider">
+            Sync-Protokoll
+            <span v-if="logTotal" class="font-normal text-base-content/40">({{ logTotal }})</span>
+          </h2>
+          <div class="flex gap-1 items-center flex-wrap">
+            <!-- Filter -->
+            <div class="join">
+              <button class="join-item btn btn-xs" :class="logFilter === '' ? 'btn-active' : 'btn-ghost'" @click="setLogFilter('')">Alle</button>
+              <button class="join-item btn btn-xs" :class="logFilter === 'failed' ? 'btn-active btn-error' : 'btn-ghost'" @click="setLogFilter('failed')">Fehler</button>
+              <button class="join-item btn btn-xs" :class="logFilter === 'success' ? 'btn-active btn-success' : 'btn-ghost'" @click="setLogFilter('success')">OK</button>
+            </div>
             <button
-              v-if="syncLogs.length > 0"
+              v-if="logTotal > 0"
               class="btn btn-ghost btn-xs gap-1"
               @click="exportSyncLogsExcel"
               title="Sync-Logs als Excel exportieren"
@@ -1164,14 +1204,14 @@ const statusColors = {
               <Download class="w-3 h-3" /> Excel
             </button>
             <button
-              v-if="syncLogs.length > 0"
+              v-if="logTotal > 0"
               class="btn btn-ghost btn-xs text-base-content/50"
               @click="clearSyncLogs"
             >Protokoll löschen</button>
           </div>
         </div>
         <div v-if="syncLogs.length === 0" class="text-center py-6 text-base-content/40">
-          Noch keine Sync-Einträge.
+          {{ logFilter === 'failed' ? 'Keine Fehler gefunden.' : 'Noch keine Sync-Einträge.' }}
         </div>
         <div class="overflow-x-auto">
           <table v-if="syncLogs.length > 0" class="table table-sm">
@@ -1260,6 +1300,25 @@ const statusColors = {
               </template>
             </tbody>
           </table>
+        </div>
+
+        <!-- Paging -->
+        <div v-if="logLastPage > 1" class="flex items-center justify-center gap-1 mt-3">
+          <button class="btn btn-ghost btn-xs" :disabled="logPage <= 1" @click="goLogPage(logPage - 1)">
+            &laquo;
+          </button>
+          <template v-for="p in logLastPage" :key="p">
+            <button
+              v-if="p === 1 || p === logLastPage || (p >= logPage - 2 && p <= logPage + 2)"
+              class="btn btn-xs"
+              :class="p === logPage ? 'btn-active' : 'btn-ghost'"
+              @click="goLogPage(p)"
+            >{{ p }}</button>
+            <span v-else-if="p === logPage - 3 || p === logPage + 3" class="text-base-content/30 px-1">...</span>
+          </template>
+          <button class="btn btn-ghost btn-xs" :disabled="logPage >= logLastPage" @click="goLogPage(logPage + 1)">
+            &raquo;
+          </button>
         </div>
       </div>
     </template>

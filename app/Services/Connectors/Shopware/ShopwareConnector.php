@@ -810,7 +810,10 @@ class ShopwareConnector extends AbstractConnector
     }
 
     /**
-     * Löscht alle vom PIM synchronisierten Medien aus Shopware.
+     * Löscht alle Medien aus dem Shopware Product-Media-Folder.
+     *
+     * Holt die Medien direkt aus der Shopware-API (nicht aus Sync-Logs),
+     * damit auch Medien gelöscht werden deren Logs bereits bereinigt wurden.
      */
     public function purgeMedia(ConnectorConnection $connection): array
     {
@@ -819,16 +822,52 @@ class ShopwareConnector extends AbstractConnector
 
         $result = ['deleted' => 0, 'failed' => 0, 'total' => 0];
 
-        // Media-IDs aus Sync-Logs holen
-        $mediaExternalIds = ConnectorSyncLog::where('connector_connection_id', $connection->id)
-            ->where('action', 'media_sync')
-            ->where('entity_type', 'media')
-            ->where('status', 'success')
-            ->whereNotNull('external_id')
-            ->pluck('external_id')
-            ->unique()
-            ->values()
-            ->toArray();
+        // Product-Media-Folder-ID ermitteln
+        $folderId = null;
+        try {
+            $response = $http->post("{$shopUrl}/api/search/media-default-folder", [
+                'limit'        => 1,
+                'filter'       => [['type' => 'equals', 'field' => 'entity', 'value' => 'product']],
+                'associations' => ['folder' => []],
+            ]);
+            $response->throw();
+            $folderId = $response->json()['data'][0]['folder']['id'] ?? null;
+        } catch (\Throwable) {}
+
+        if (!$folderId) {
+            // Fallback: aus Sync-Logs
+            $mediaExternalIds = ConnectorSyncLog::where('connector_connection_id', $connection->id)
+                ->where('action', 'media_sync')
+                ->where('entity_type', 'media')
+                ->where('status', 'success')
+                ->whereNotNull('external_id')
+                ->pluck('external_id')
+                ->unique()
+                ->values()
+                ->toArray();
+        } else {
+            // Alle Medien aus dem Product-Folder laden
+            $mediaExternalIds = [];
+            $page = 1;
+            do {
+                $response = $http->post("{$shopUrl}/api/search/media", [
+                    'limit'  => 500,
+                    'page'   => $page,
+                    'filter' => [
+                        ['type' => 'equals', 'field' => 'mediaFolderId', 'value' => $folderId],
+                    ],
+                ]);
+                $response->throw();
+                $data = $response->json();
+
+                foreach ($data['data'] ?? [] as $media) {
+                    $mediaExternalIds[] = $media['id'];
+                }
+
+                $total = $data['total'] ?? 0;
+                $page++;
+            } while (count($mediaExternalIds) < $total && !empty($data['data']));
+        }
 
         $result['total'] = count($mediaExternalIds);
 
