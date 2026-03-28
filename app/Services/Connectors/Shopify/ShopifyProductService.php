@@ -14,7 +14,7 @@ use Illuminate\Http\Client\PendingRequest;
 
 class ShopifyProductService
 {
-    private const API_VERSION = '2024-01';
+    private const API_VERSION = '2025-01';
 
     /**
      * Synchronisiert ein PIM-Produkt nach Shopify (Legacy-Pfad ohne Profil).
@@ -193,6 +193,9 @@ class ShopifyProductService
             $attrValue = $this->resolveFieldMapping($product, $stockMapping, $language);
             $stockValue = is_numeric($attrValue) ? (int) $attrValue : 0;
         }
+        // Hinweis: inventory_quantity funktioniert nur bei Produkt-Erstellung.
+        // Für Updates sollte die InventoryLevel API genutzt werden:
+        // POST /admin/api/{version}/inventory_levels/set.json
         $variant['inventory_quantity'] = $stockValue;
         $variant['inventory_management'] = 'shopify';
 
@@ -516,15 +519,15 @@ class ShopifyProductService
     }
 
     /**
-     * Ermittelt die Selection-Attribut-IDs aus den erlaubten Attributen (für Metafields).
+     * Ermittelt Attribut-IDs für Metafield-Sync aus den erlaubten Attributen.
+     *
+     * Shopify Metafields unterstützen alle Datentypen (String, Number, Float, Date, Flag, Selection).
      */
     public function resolveMetafieldAttributeIds(Product $product, array $profilePayload): array
     {
         $allowedIds = $this->resolveAllowedAttributeIds($product, $profilePayload);
 
-        $query = Attribute::where('data_type', 'Selection')
-            ->whereNotNull('value_list_id')
-            ->where('is_internal', false);
+        $query = Attribute::where('is_internal', false);
 
         if ($allowedIds !== null) {
             $query->whereIn('id', $allowedIds);

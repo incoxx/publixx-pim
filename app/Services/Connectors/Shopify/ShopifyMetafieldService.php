@@ -20,14 +20,18 @@ use Illuminate\Http\Client\PendingRequest;
  */
 class ShopifyMetafieldService
 {
-    private const API_VERSION = '2024-01';
+    private const API_VERSION = '2025-01';
 
     /**
-     * Erstellt Metafield Definitions für die gegebenen Attribute (optional, für Validierung).
+     * Erstellt die Metafield-Definition-Map für die gegebenen Attribute.
+     *
+     * Metafield Definitions können in Shopify nur via GraphQL erstellt werden.
+     * Diese Methode baut nur die lokale Map auf — Metafields werden dann
+     * direkt beim Produkt-Create/Update als Array mitgegeben.
      *
      * @param  string[]  $attributeIds  PIM-Attribut-IDs die als Metafields synchronisiert werden sollen
-     * @return array<string, array{key: string, type: string}>
-     *         Map: PIM-Attribut-ID → {key: technical_name, type: metafield_type}
+     * @return array<string, array{key: string, type: string, name: string}>
+     *         Map: PIM-Attribut-ID → {key: technical_name, type: metafield_type, name: display_name}
      */
     public function syncMetafieldDefinitions(
         PendingRequest $http,
@@ -36,7 +40,6 @@ class ShopifyMetafieldService
         array $attributeIds,
         string $language = 'de',
     ): array {
-        $shopUrl = rtrim($shopUrl, '/');
         $definitionMap = [];
 
         $attributes = Attribute::whereIn('id', $attributeIds)
@@ -58,24 +61,6 @@ class ShopifyMetafieldService
                 'type' => $metafieldType,
                 'name' => $name,
             ];
-
-            // Metafield Definition in Shopify erstellen (optional, wird nicht blockierend behandelt)
-            try {
-                $http->post(
-                    "{$shopUrl}/admin/api/" . self::API_VERSION . '/metafield_definitions.json',
-                    [
-                        'metafield_definition' => [
-                            'name'        => $name,
-                            'namespace'   => 'pim',
-                            'key'         => $attribute->technical_name,
-                            'type'        => $metafieldType,
-                            'owner_type'  => 'PRODUCT',
-                        ],
-                    ],
-                )->throw();
-            } catch (\Throwable) {
-                // Definition existiert bereits oder API unterstützt es nicht — nicht kritisch
-            }
         }
 
         return $definitionMap;

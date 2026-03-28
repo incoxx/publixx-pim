@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Log;
 
 class ShopifyCategoryService
 {
-    private const API_VERSION = '2024-01';
+    private const API_VERSION = '2025-01';
 
     /**
      * Synchronisiert eine PIM-Hierarchie als Shopify Custom Collections.

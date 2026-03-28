@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Storage;
 
 class ShopifyMediaService
 {
-    private const API_VERSION = '2024-01';
+    private const API_VERSION = '2025-01';
 
     /**
      * Erstellt ein Produktbild in Shopify.
@@ -112,21 +112,4 @@ class ShopifyMediaService
         )->throw();
     }
 
-    /**
-     * Synchronisiert alle Bilder eines Produkts nach Shopify.
-     *
-     * Löscht bestehende Bilder und lädt alle neu hoch (einfachster Weg um
-     * Konsistenz zu gewährleisten, da Shopify keine deterministischen IDs hat).
-     *
-     * @return array{success: int, failed: int}
-     */
-    public function syncProductImages(
-        PendingRequest $http,
-        string $shopUrl,
-        string $shopifyProductId,
-        Product $product,
-    ): array {
-        // Wird nicht direkt aufgerufen — ShopifyConnector orchestriert den Media-Sync
-        return ['success' => 0, 'failed' => 0];
-    }
 }

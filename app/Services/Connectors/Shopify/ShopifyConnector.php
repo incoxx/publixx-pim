@@ -20,7 +20,7 @@ use Illuminate\Support\Facades\Log;
 
 class ShopifyConnector extends AbstractConnector
 {
-    private const API_VERSION = '2024-01';
+    private const API_VERSION = '2025-01';
 
     public function __construct(
         private readonly ShopifyAuthService $authService,
@@ -695,9 +695,14 @@ class ShopifyConnector extends AbstractConnector
             }
         }
 
-        // 3. Lokale Checksums und Sync-Logs bereinigen
+        // 3. Lokale Checksums bereinigen (Sync-Logs erst nach erfolgreichem Löschen)
         ConnectorProductChecksum::where('connection_id', $connection->id)->delete();
-        $connection->syncLogs()->delete();
+
+        // Sync-Logs nur bereinigen wenn keine Fehler aufgetreten sind
+        // Bei Fehlern bleiben die Logs erhalten für einen erneuten Reset-Versuch
+        if ($result['products']['failed'] === 0 && $result['categories']['failed'] === 0) {
+            $connection->syncLogs()->delete();
+        }
 
         $this->logSync(
             $connection, 'reset', 'connection',
@@ -726,6 +731,7 @@ class ShopifyConnector extends AbstractConnector
         // Alle Custom Collections laden
         $allCollections = [];
         $sinceId = 0;
+        $collections = [];
 
         do {
             $query = ['limit' => 250];

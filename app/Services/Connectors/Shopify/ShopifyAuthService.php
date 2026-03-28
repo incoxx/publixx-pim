@@ -14,7 +14,7 @@ class ShopifyAuthService
     private string $clientId;
     private string $clientSecret;
 
-    private const API_VERSION = '2024-01';
+    private const API_VERSION = '2025-01';
 
     public function __construct()
     {
