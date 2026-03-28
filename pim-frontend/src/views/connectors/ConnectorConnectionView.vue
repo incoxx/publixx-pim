@@ -636,8 +636,8 @@ const statusColors = {
         </div>
       </div>
 
-      <!-- Export-Profil (nur Shopware) -->
-      <div v-if="isShopware" class="card bg-base-100 shadow-sm border border-base-200">
+      <!-- Export-Profil (Shopware + Shopify) -->
+      <div v-if="isShopware || isShopify" class="card bg-base-100 shadow-sm border border-base-200">
         <div class="card-body">
           <div class="flex items-center justify-between">
             <h2 class="card-title text-base">
@@ -670,7 +670,7 @@ const statusColors = {
                 >
                   <span v-if="hierarchySyncing" class="loading loading-spinner loading-xs"></span>
                   <FolderTree v-else class="w-3.5 h-3.5" />
-                  Hierarchie
+                  {{ isShopify ? 'Collections' : 'Hierarchie' }}
                 </button>
                 <button
                   class="btn btn-outline btn-sm gap-1"
@@ -692,6 +692,7 @@ const statusColors = {
                   Delta Sync
                 </button>
                 <button
+                  v-if="isShopware"
                   class="btn btn-outline btn-sm gap-1"
                   :disabled="generatingThumbnails"
                   @click="executeGenerateThumbnails"
@@ -709,7 +710,7 @@ const statusColors = {
                   class="btn btn-outline btn-error btn-sm gap-1"
                   :disabled="resetting || profileSyncing || deltaSyncing"
                   @click="executeReset"
-                  title="Alle PIM-Produkte, Kategorien und Medien aus Shopware löschen"
+                  :title="`Alle PIM-Produkte und ${isShopify ? 'Collections' : 'Kategorien'} aus ${isShopify ? 'Shopify' : 'Shopware'} löschen`"
                 >
                   <span v-if="resetting" class="loading loading-spinner loading-xs"></span>
                   <Trash2 v-else class="w-3.5 h-3.5" />
@@ -719,13 +720,14 @@ const statusColors = {
                   class="btn btn-outline btn-error btn-sm gap-1"
                   :disabled="purgingCategories || profileSyncing || deltaSyncing"
                   @click="executePurgeCategories"
-                  title="Alle Kategorien aus Shopware löschen (außer Root)"
+                  :title="`Alle ${isShopify ? 'Collections' : 'Kategorien'} löschen`"
                 >
                   <span v-if="purgingCategories" class="loading loading-spinner loading-xs"></span>
                   <FolderTree v-else class="w-3.5 h-3.5" />
-                  Kategorien
+                  {{ isShopify ? 'Collections' : 'Kategorien' }}
                 </button>
                 <button
+                  v-if="isShopware"
                   class="btn btn-outline btn-error btn-sm gap-1"
                   :disabled="purgingMedia || profileSyncing || deltaSyncing"
                   @click="executePurgeMedia"
@@ -927,9 +929,9 @@ const statusColors = {
               </select>
             </div>
 
-            <!-- Shopware-Felder -->
+            <!-- Shop-Felder (Shopware / Shopify) -->
             <div>
-              <label class="label"><span class="label-text font-medium">Shopware-Felder</span></label>
+              <label class="label"><span class="label-text font-medium">{{ isShopify ? 'Shopify' : 'Shopware' }}-Felder</span></label>
               <p class="text-xs text-base-content/50 mb-3">
                 Standard nutzt den PIM-Wert, oder einen festen Wert bzw. ein Attribut zuweisen.
               </p>
@@ -938,14 +940,14 @@ const statusColors = {
                 <table class="table table-sm w-full">
                   <thead>
                     <tr class="bg-base-200/40">
-                      <th class="w-44 font-medium text-xs">Shopware-Feld</th>
+                      <th class="w-44 font-medium text-xs">{{ isShopify ? 'Shopify' : 'Shopware' }}-Feld</th>
                       <th class="w-48 font-medium text-xs">Quelle</th>
                       <th class="font-medium text-xs">Wert</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr
-                      v-for="field in SHOPWARE_FIELD_DEFINITIONS"
+                      v-for="field in activeFieldDefinitions"
                       :key="field.key"
                       class="hover:bg-base-200/20"
                     >
@@ -955,7 +957,7 @@ const statusColors = {
                       </td>
                       <td class="py-2.5">
                         <select
-                          v-model="shopwareFields[field.key].mode"
+                          v-model="shopFields[field.key].mode"
                           class="select select-bordered select-xs w-full max-w-36"
                         >
                           <option v-if="field.defaultInfo" value="default">Standard</option>
@@ -966,24 +968,24 @@ const statusColors = {
                       </td>
                       <td class="py-2.5">
                         <span
-                          v-if="shopwareFields[field.key].mode === 'default'"
+                          v-if="shopFields[field.key].mode === 'default'"
                           class="text-xs text-base-content/40 italic"
                         >{{ field.defaultInfo }}</span>
 
                         <input
-                          v-else-if="shopwareFields[field.key].mode === 'fixed'"
-                          v-model="shopwareFields[field.key].value"
+                          v-else-if="shopFields[field.key].mode === 'fixed'"
+                          v-model="shopFields[field.key].value"
                           type="text"
                           class="input input-bordered input-xs w-full"
                           :placeholder="field.defaultValue || 'Wert eingeben...'"
                         />
 
                         <!-- Mehrere Attribute (für Description) -->
-                        <div v-else-if="shopwareFields[field.key].mode === 'attributes'" class="space-y-1">
-                          <div v-for="(attrId, idx) in (shopwareFields[field.key].attribute_ids || [])" :key="idx" class="flex items-center gap-1">
+                        <div v-else-if="shopFields[field.key].mode === 'attributes'" class="space-y-1">
+                          <div v-for="(attrId, idx) in (shopFields[field.key].attribute_ids || [])" :key="idx" class="flex items-center gap-1">
                             <select
                               :value="attrId"
-                              @change="shopwareFields[field.key].attribute_ids[idx] = $event.target.value"
+                              @change="shopFields[field.key].attribute_ids[idx] = $event.target.value"
                               class="select select-bordered select-xs flex-1"
                             >
                               <option value="">— Attribut wählen —</option>
@@ -991,19 +993,19 @@ const statusColors = {
                                 {{ attr.name_de || attr.technical_name }}
                               </option>
                             </select>
-                            <button class="btn btn-ghost btn-xs" @click="shopwareFields[field.key].attribute_ids.splice(idx, 1)">
+                            <button class="btn btn-ghost btn-xs" @click="shopFields[field.key].attribute_ids.splice(idx, 1)">
                               <X class="w-3 h-3" />
                             </button>
                           </div>
                           <button
                             class="btn btn-ghost btn-xs text-primary"
-                            @click="shopwareFields[field.key].attribute_ids = [...(shopwareFields[field.key].attribute_ids || []), '']"
+                            @click="shopFields[field.key].attribute_ids = [...(shopFields[field.key].attribute_ids || []), '']"
                           >+ Attribut hinzufügen</button>
                         </div>
 
                         <select
                           v-else
-                          v-model="shopwareFields[field.key].attribute_id"
+                          v-model="shopFields[field.key].attribute_id"
                           class="select select-bordered select-xs w-full"
                         >
                           <option value="">— Attribut wählen —</option>
@@ -1018,7 +1020,8 @@ const statusColors = {
               </div>
             </div>
 
-            <!-- Properties (Selection-Attribute → Shopware Specifications) -->
+            <!-- Properties (Selection-Attribute → Shopware Specifications) — nur Shopware -->
+            <template v-if="isShopware">
             <div>
               <label class="label"><span class="label-text font-medium">Properties (Spezifikationen)</span></label>
               <p class="text-xs text-base-content/50 mb-2">
@@ -1058,6 +1061,41 @@ const statusColors = {
                 @click="shopwareFields._property_attribute_ids.push('')"
               >+ Manuell überschreiben</button>
             </div>
+            </template>
+
+            <!-- Metafields (Shopify) -->
+            <div v-if="isShopify">
+              <label class="label"><span class="label-text font-medium">Metafields</span></label>
+              <p class="text-xs text-base-content/50 mb-2">
+                Alle nicht-internen Attribute werden automatisch als Shopify-Metafields synchronisiert.
+                Optional: Manuell bestimmte Attribute auswählen.
+              </p>
+              <div v-if="shopifyFields._metafield_attribute_ids?.length" class="space-y-1.5 mt-2">
+                <div
+                  v-for="(attrId, idx) in shopifyFields._metafield_attribute_ids"
+                  :key="idx"
+                  class="flex items-center gap-1"
+                >
+                  <select
+                    class="select select-bordered select-xs flex-1"
+                    :value="attrId"
+                    @change="shopifyFields._metafield_attribute_ids[idx] = $event.target.value"
+                  >
+                    <option value="">— wählen —</option>
+                    <option v-for="attr in allAttributes" :key="attr.id" :value="attr.id">
+                      {{ attr.name_de || attr.technical_name }} ({{ attr.data_type }})
+                    </option>
+                  </select>
+                  <button class="btn btn-ghost btn-xs" @click="shopifyFields._metafield_attribute_ids.splice(idx, 1)">
+                    <Trash2 class="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+              <button
+                class="btn btn-ghost btn-xs text-primary mt-2"
+                @click="shopifyFields._metafield_attribute_ids.push('')"
+              >+ Attribut hinzufügen</button>
+            </div>
 
             <!-- Medien -->
             <div>
@@ -1066,18 +1104,18 @@ const statusColors = {
                 <input
                   type="checkbox"
                   class="toggle toggle-sm toggle-primary"
-                  :checked="shopwareFields._sync_media?.enabled ?? true"
-                  @change="shopwareFields._sync_media = { enabled: $event.target.checked }"
+                  :checked="shopFields._sync_media?.enabled ?? true"
+                  @change="shopFields._sync_media = { enabled: $event.target.checked }"
                 />
-                <span class="text-sm">Produktbilder an Shopware übertragen</span>
+                <span class="text-sm">Produktbilder an {{ isShopify ? 'Shopify' : 'Shopware' }} übertragen</span>
               </label>
               <p class="text-xs text-base-content/40 mt-1">
                 Alle dem Produkt zugeordneten Medien werden hochgeladen und als Produktbilder zugewiesen.
               </p>
             </div>
 
-            <!-- Sales Channel -->
-            <div>
+            <!-- Sales Channel (nur Shopware) -->
+            <div v-if="isShopware">
               <label class="label"><span class="label-text font-medium">Sales Channel</span></label>
               <p class="text-xs text-base-content/50 mb-2">
                 Shopware-UUID des Sales Channels. Ohne diese werden Produkte nicht im Frontend angezeigt.
