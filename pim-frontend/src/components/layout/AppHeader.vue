@@ -24,20 +24,24 @@ function switchLocale(code) {
 </script>
 
 <template>
-  <header class="sticky top-0 z-20 flex items-center justify-between h-14 px-3 sm:px-6 bg-[var(--pim-toolbar-bg)]/90 backdrop-blur-md border-b border-[var(--pim-toolbar-border)]">
+  <header
+    class="sticky top-0 z-20 flex items-center justify-between h-14 px-3 sm:px-6 bg-[var(--pim-toolbar-bg)]/90 backdrop-blur-md border-b border-[var(--pim-toolbar-border)]"
+    :style="{ color: 'var(--pim-toolbar-text)' }"
+  >
     <!-- Left: Hamburger (mobile) + Title -->
     <div class="flex items-center gap-3">
       <button
-        class="md:hidden pim-btn pim-btn-ghost p-1.5 -ml-1 text-[var(--pim-toolbar-text)]"
+        class="md:hidden p-1.5 -ml-1 rounded-md transition-colors hover:bg-white/10"
+        style="color: inherit"
         @click="authStore.toggleMobileSidebar()"
       >
         <Menu class="w-5 h-5" :stroke-width="1.75" />
       </button>
-      <h1 class="font-semibold text-[var(--pim-toolbar-text)]" :style="{ fontSize: 'var(--pim-toolbar-font-size)' }">{{ pageTitle }}</h1>
+      <h1 class="font-semibold" style="color: inherit" :style="{ fontSize: 'var(--pim-toolbar-font-size)' }">{{ pageTitle }}</h1>
       <button
         v-if="canPin"
-        class="pim-btn pim-btn-ghost p-1 rounded"
-        :class="isPinned ? 'text-[var(--pim-sidebar-active-text)]' : 'text-[var(--pim-toolbar-text)] opacity-50'"
+        class="p-1 rounded transition-colors hover:bg-white/10"
+        :style="{ color: isPinned ? 'var(--pim-sidebar-active-text)' : 'inherit', opacity: isPinned ? 1 : 0.5 }"
         :title="isPinned ? 'Tab entfernen' : 'Als Tab anheften'"
         @click="tabStore.pinCurrentRoute(route)"
       >
@@ -50,7 +54,8 @@ function switchLocale(code) {
     <div class="flex items-center gap-2">
       <!-- Command palette trigger -->
       <button
-        class="pim-btn pim-btn-secondary text-xs gap-1.5"
+        class="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md border transition-colors hover:bg-white/10"
+        :style="{ color: 'inherit', borderColor: 'var(--pim-toolbar-border)' }"
         @click="authStore.toggleCommandPalette()"
       >
         <Command class="w-3.5 h-3.5" :stroke-width="1.75" />
@@ -60,7 +65,7 @@ function switchLocale(code) {
 
       <!-- Locale switcher -->
       <div class="relative group">
-        <button class="pim-btn pim-btn-ghost text-xs gap-1 text-[var(--pim-toolbar-text)]">
+        <button class="flex items-center gap-1 px-2 py-1.5 text-xs rounded-md transition-colors hover:bg-white/10" style="color: inherit">
           <Globe class="w-3.5 h-3.5" :stroke-width="1.75" />
           <span class="uppercase">{{ localeStore.currentLocale }}</span>
         </button>
@@ -83,7 +88,7 @@ function switchLocale(code) {
 
       <!-- User menu -->
       <div class="relative group">
-        <button class="pim-btn pim-btn-ghost text-xs gap-1.5 text-[var(--pim-toolbar-text)]">
+        <button class="flex items-center gap-1.5 px-2 py-1.5 text-xs rounded-md transition-colors hover:bg-white/10" style="color: inherit">
           <User class="w-3.5 h-3.5" :stroke-width="1.75" />
           <span class="hidden sm:inline">{{ authStore.userName }}</span>
         </button>
