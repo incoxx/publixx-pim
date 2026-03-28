@@ -219,6 +219,12 @@ const routes = [
     meta: { title: 'Shopware' },
   },
   {
+    path: '/connectors/shopify',
+    name: 'connector-shopify',
+    component: () => import('@/views/connectors/ConnectorShopifyView.vue'),
+    meta: { title: 'Shopify' },
+  },
+  {
     path: '/connectors/cloudinary',
     name: 'connector-cloudinary',
     component: () => import('@/views/connectors/ConnectorCloudinaryView.vue'),

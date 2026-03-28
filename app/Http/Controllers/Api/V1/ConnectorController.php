@@ -11,6 +11,7 @@ use App\Models\Media;
 use App\Models\Product;
 use App\Models\WebsiteProfile;
 use App\Services\Connectors\ConnectorRegistry;
+use App\Services\Connectors\Shopify\ShopifyConnector;
 use App\Services\Connectors\Shopware\ShopwareConnector;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -410,6 +411,9 @@ class ConnectorController extends Controller
             'settings.website_profile_id'  => 'sometimes|nullable|string',
             'settings.shopware_fields'     => 'sometimes|array',
             'settings.shopware_fields.*'   => 'sometimes|array',
+            'settings.shopify_fields'      => 'sometimes|array',
+            'settings.shopify_fields.*'    => 'sometimes|array',
+            'settings.access_token'        => 'sometimes|string',
         ]);
 
         if (isset($validated['name'])) {
@@ -435,7 +439,7 @@ class ConnectorController extends Controller
     }
 
     /**
-     * POST /connectors/connections/{connection}/preview-product — Dry Run: zeigt was an Shopware gesendet würde.
+     * POST /connectors/connections/{connection}/preview-product — Dry Run: zeigt was an den Shop gesendet würde.
      */
     public function previewProduct(Request $request, ConnectorConnection $connection): JsonResponse
     {
@@ -447,7 +451,6 @@ class ConnectorController extends Controller
         ]);
 
         $settings = $connection->settings ?? [];
-        $shopwareFields = $settings['shopware_fields'] ?? [];
         $profileId = $settings['website_profile_id'] ?? null;
 
         $profilePayload = [];
@@ -458,6 +461,66 @@ class ConnectorController extends Controller
 
         $language = $validated['language'] ?? $profilePayload['default_locale'] ?? 'de';
         $product = Product::with(['media', 'masterHierarchyNode'])->findOrFail($validated['product_id']);
+
+        // Connector-spezifische Preview
+        if ($connection->connector_type === 'shopify') {
+            $shopifyFields = $settings['shopify_fields'] ?? [];
+            $productService = app(\App\Services\Connectors\Shopify\ShopifyProductService::class);
+
+            // Metafields auflösen
+            $metafields = [];
+            $metafieldAttrIds = $shopifyFields['_metafield_attribute_ids'] ?? [];
+            if (empty($metafieldAttrIds)) {
+                $metafieldAttrIds = $productService->resolveMetafieldAttributeIds($product, $profilePayload);
+            }
+            if (!empty($metafieldAttrIds)) {
+                $selectionValues = \App\Models\ProductAttributeValue::where('product_id', $product->id)
+                    ->whereIn('attribute_id', $metafieldAttrIds)
+                    ->whereNotNull('value_selection_id')
+                    ->with(['attribute', 'valueListEntry'])
+                    ->get();
+
+                foreach ($selectionValues as $val) {
+                    $metafields[] = [
+                        'attribute' => $val->attribute?->name_de ?? $val->attribute_id,
+                        'value'     => $val->valueListEntry?->display_value_de ?? $val->value_selection_id,
+                    ];
+                }
+            }
+
+            $payload = $productService->previewProductData($product, $profilePayload, $shopifyFields, $language, []);
+
+            // Kategorie-Zuordnung
+            $categoryName = null;
+            if ($product->master_hierarchy_node_id) {
+                $externalCatId = ConnectorSyncLog::where('connector_connection_id', $connection->id)
+                    ->where('action', 'category_sync')
+                    ->where('entity_type', 'hierarchy_node')
+                    ->where('entity_id', $product->master_hierarchy_node_id)
+                    ->where('status', 'success')
+                    ->whereNotNull('external_id')
+                    ->latest()
+                    ->value('external_id');
+                if ($externalCatId) {
+                    $node = $product->masterHierarchyNode;
+                    $categoryName = $node?->name_de ?? $node?->name_en ?? $product->master_hierarchy_node_id;
+                }
+            }
+
+            return response()->json([
+                'data' => [
+                    'product_payload' => $payload,
+                    'metafields'      => $metafields,
+                    'category'        => $categoryName,
+                    'media_count'     => $product->media()->count(),
+                    'language'        => $language,
+                    'profile'         => $profileId ? ($profilePayload['hierarchy_id'] ?? null) : null,
+                ],
+            ]);
+        }
+
+        // Shopware (default)
+        $shopwareFields = $settings['shopware_fields'] ?? [];
 
         // Tax-ID Default auflösen (ohne API-Call — nur Platzhalter anzeigen)
         $taxIdMapping = $shopwareFields['tax_id'] ?? [];
@@ -471,11 +534,9 @@ class ConnectorController extends Controller
         $properties = [];
         $propertyAttrIds = $shopwareFields['_property_attribute_ids'] ?? [];
         if (empty($propertyAttrIds)) {
-            // Automatisch: alle Selection-Attribute aus den Profil-Attributsichten
             $propertyAttrIds = $productService->resolvePropertyAttributeIds($product, $profilePayload);
         }
         if (!empty($propertyAttrIds)) {
-            // Zeige was als Properties gesendet würde (mit PIM-Attributnamen statt Shopware-UUIDs)
             $selectionValues = \App\Models\ProductAttributeValue::where('product_id', $product->id)
                 ->whereIn('attribute_id', $propertyAttrIds)
                 ->whereNotNull('value_selection_id')
@@ -493,7 +554,7 @@ class ConnectorController extends Controller
         // Kategorie-Zuordnung aus Sync-Logs
         $categoryName = null;
         if ($product->master_hierarchy_node_id) {
-            $shopwareCategoryId = \App\Models\ConnectorSyncLog::where('connector_connection_id', $connection->id)
+            $shopwareCategoryId = ConnectorSyncLog::where('connector_connection_id', $connection->id)
                 ->where('action', 'category_sync')
                 ->where('entity_type', 'hierarchy_node')
                 ->where('entity_id', $product->master_hierarchy_node_id)
@@ -582,13 +643,13 @@ class ConnectorController extends Controller
     {
         $this->authorize('sync', $connection);
 
-        if ($connection->connector_type !== 'shopware') {
-            return response()->json(['message' => 'Nur für Shopware-Verbindungen.'], 422);
+        if (!in_array($connection->connector_type, ['shopware', 'shopify'])) {
+            return response()->json(['message' => 'Nur für Shopware/Shopify-Verbindungen.'], 422);
         }
 
         $connector = $this->registry->get($connection->connector_type);
-        if (! $connector instanceof ShopwareConnector) {
-            return response()->json(['message' => 'Shopware-Connector nicht gefunden.'], 422);
+        if (! $connector instanceof ShopwareConnector && ! $connector instanceof ShopifyConnector) {
+            return response()->json(['message' => 'Connector nicht gefunden.'], 422);
         }
 
         try {
@@ -618,15 +679,15 @@ class ConnectorController extends Controller
     {
         $this->authorize('sync', $connection);
 
-        if ($connection->connector_type !== 'shopware') {
+        if (!in_array($connection->connector_type, ['shopware', 'shopify'])) {
             return response()->json([
-                'message' => 'Profil-Sync ist nur für Shopware-Verbindungen verfügbar.',
+                'message' => 'Profil-Sync ist nur für Shopware/Shopify-Verbindungen verfügbar.',
             ], 422);
         }
 
         $connector = $this->registry->get($connection->connector_type);
-        if (! $connector instanceof ShopwareConnector) {
-            return response()->json(['message' => 'Shopware-Connector nicht gefunden.'], 422);
+        if (! $connector instanceof ShopwareConnector && ! $connector instanceof ShopifyConnector) {
+            return response()->json(['message' => 'Connector nicht gefunden.'], 422);
         }
 
         try {
@@ -673,15 +734,15 @@ class ConnectorController extends Controller
     {
         $this->authorize('sync', $connection);
 
-        if ($connection->connector_type !== 'shopware') {
+        if (!in_array($connection->connector_type, ['shopware', 'shopify'])) {
             return response()->json([
-                'message' => 'Delta-Sync ist nur für Shopware-Verbindungen verfügbar.',
+                'message' => 'Delta-Sync ist nur für Shopware/Shopify-Verbindungen verfügbar.',
             ], 422);
         }
 
         $connector = $this->registry->get($connection->connector_type);
-        if (! $connector instanceof ShopwareConnector) {
-            return response()->json(['message' => 'Shopware-Connector nicht gefunden.'], 422);
+        if (! $connector instanceof ShopwareConnector && ! $connector instanceof ShopifyConnector) {
+            return response()->json(['message' => 'Connector nicht gefunden.'], 422);
         }
 
         try {
@@ -765,13 +826,13 @@ class ConnectorController extends Controller
     {
         $this->authorize('sync', $connection);
 
-        if ($connection->connector_type !== 'shopware') {
-            return response()->json(['message' => 'Nur für Shopware-Verbindungen.'], 422);
+        if (!in_array($connection->connector_type, ['shopware', 'shopify'])) {
+            return response()->json(['message' => 'Nur für Shopware/Shopify-Verbindungen.'], 422);
         }
 
         $connector = $this->registry->get($connection->connector_type);
-        if (! $connector instanceof ShopwareConnector) {
-            return response()->json(['message' => 'Shopware-Connector nicht gefunden.'], 422);
+        if (! $connector instanceof ShopwareConnector && ! $connector instanceof ShopifyConnector) {
+            return response()->json(['message' => 'Connector nicht gefunden.'], 422);
         }
 
         try {
@@ -798,13 +859,13 @@ class ConnectorController extends Controller
     {
         $this->authorize('sync', $connection);
 
-        if ($connection->connector_type !== 'shopware') {
-            return response()->json(['message' => 'Nur für Shopware-Verbindungen.'], 422);
+        if (!in_array($connection->connector_type, ['shopware', 'shopify'])) {
+            return response()->json(['message' => 'Nur für Shopware/Shopify-Verbindungen.'], 422);
         }
 
         $connector = $this->registry->get($connection->connector_type);
-        if (! $connector instanceof ShopwareConnector) {
-            return response()->json(['message' => 'Shopware-Connector nicht gefunden.'], 422);
+        if (! $connector instanceof ShopwareConnector && ! $connector instanceof ShopifyConnector) {
+            return response()->json(['message' => 'Connector nicht gefunden.'], 422);
         }
 
         try {
@@ -832,13 +893,18 @@ class ConnectorController extends Controller
     {
         $this->authorize('sync', $connection);
 
-        if ($connection->connector_type !== 'shopware') {
-            return response()->json(['message' => 'Nur für Shopware-Verbindungen.'], 422);
+        if (!in_array($connection->connector_type, ['shopware', 'shopify'])) {
+            return response()->json(['message' => 'Nur für Shopware/Shopify-Verbindungen.'], 422);
         }
 
         $connector = $this->registry->get($connection->connector_type);
-        if (! $connector instanceof ShopwareConnector) {
-            return response()->json(['message' => 'Shopware-Connector nicht gefunden.'], 422);
+        if (! $connector instanceof ShopwareConnector && ! $connector instanceof ShopifyConnector) {
+            return response()->json(['message' => 'Connector nicht gefunden.'], 422);
+        }
+
+        // Shopify generiert Thumbnails automatisch
+        if ($connection->connector_type === 'shopify') {
+            return response()->json(['data' => ['method' => 'auto', 'success' => true, 'message' => 'Shopify generiert Thumbnails automatisch.']]);
         }
 
         try {
@@ -857,19 +923,32 @@ class ConnectorController extends Controller
     }
 
     /**
-     * POST /connectors/connections/{connection}/purge-media — Alle PIM-Medien aus Shopware löschen.
+     * POST /connectors/connections/{connection}/purge-media — Alle PIM-Medien aus dem Shop löschen.
      */
     public function purgeMedia(Request $request, ConnectorConnection $connection): JsonResponse
     {
         $this->authorize('sync', $connection);
 
-        if ($connection->connector_type !== 'shopware') {
-            return response()->json(['message' => 'Nur für Shopware-Verbindungen.'], 422);
+        if (!in_array($connection->connector_type, ['shopware', 'shopify'])) {
+            return response()->json(['message' => 'Nur für Shopware/Shopify-Verbindungen.'], 422);
         }
 
         $connector = $this->registry->get($connection->connector_type);
-        if (! $connector instanceof ShopwareConnector) {
-            return response()->json(['message' => 'Shopware-Connector nicht gefunden.'], 422);
+        if (! $connector instanceof ShopwareConnector && ! $connector instanceof ShopifyConnector) {
+            return response()->json(['message' => 'Connector nicht gefunden.'], 422);
+        }
+
+        // Shopify: Bilder gehören zu Produkten und werden mit diesen gelöscht
+        if ($connection->connector_type === 'shopify') {
+            return response()->json([
+                'data' => [
+                    'status'  => 'completed',
+                    'deleted' => 0,
+                    'failed'  => 0,
+                    'total'   => 0,
+                    'message' => 'Shopify-Bilder werden beim Produkt-Reset automatisch gelöscht.',
+                ],
+            ]);
         }
 
         try {
