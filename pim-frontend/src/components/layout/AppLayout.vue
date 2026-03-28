@@ -2,11 +2,13 @@
 import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useAppearanceStore } from '@/stores/appearance'
 import AppSidebar from './AppSidebar.vue'
 import AppHeader from './AppHeader.vue'
 import AppTabBar from './AppTabBar.vue'
 
 const authStore = useAuthStore()
+const appearanceStore = useAppearanceStore()
 const route = useRoute()
 
 // Close panel when navigating to a different route (but not when switching between open tabs)
@@ -26,6 +28,9 @@ function checkMobile() {
 onMounted(() => {
   checkMobile()
   window.addEventListener('resize', checkMobile)
+  // Darstellungs-Einstellungen laden
+  appearanceStore.loadFromLocalStorage()
+  appearanceStore.loadFromApi()
 })
 
 onUnmounted(() => {

@@ -15,6 +15,9 @@ import {
   FileSpreadsheet,
 } from 'lucide-vue-next'
 import AnyPimLogo from '@/components/shared/AnyPimLogo.vue'
+import { useAppearanceStore, SECTION_ICON_COLORS } from '@/stores/appearance'
+
+const appearanceStore = useAppearanceStore()
 
 const route = useRoute()
 const router = useRouter()
@@ -22,6 +25,12 @@ const { t } = useI18n()
 const authStore = useAuthStore()
 const licenseStore = useLicenseStore()
 const connectorsStore = useConnectorsStore()
+
+// Farbige Icon-Farbe für eine Sektion (nur wenn aktiviert)
+function sectionIconColor(sectionKey) {
+  if (!appearanceStore.sidebarColoredIcons) return null
+  return SECTION_ICON_COLORS[sectionKey] || null
+}
 
 // Module is accessible if licensed OR if any related plugin has API keys configured
 function isModuleAccessible(module) {
@@ -336,7 +345,7 @@ const sidebarStyle = computed(() => ({
 
   <aside
     :class="[
-      'fixed top-0 left-0 h-screen bg-[var(--color-surface-nav)] border-r border-[var(--color-border)] z-40 flex flex-col transition-[width,transform] duration-200',
+      'fixed top-0 left-0 h-screen bg-[var(--pim-sidebar-bg)] border-r border-[var(--pim-sidebar-border)] z-40 flex flex-col transition-[width,transform] duration-200',
       // Mobile: hidden by default, slide in when open
       authStore.sidebarMobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
     ]"
@@ -344,11 +353,11 @@ const sidebarStyle = computed(() => ({
     class="max-md:!w-[280px]"
   >
     <!-- Logo -->
-    <div class="flex items-center px-3 h-14 border-b border-[var(--color-border)] shrink-0">
+    <div class="flex items-center px-3 h-14 border-b border-[var(--pim-sidebar-border)] shrink-0">
       <AnyPimLogo :showText="!authStore.sidebarCollapsed" size="sm" />
       <button
         v-if="!authStore.sidebarCollapsed && hasAnySectionOpen"
-        class="ml-auto p-1 rounded text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-bg)] transition-colors cursor-pointer"
+        class="ml-auto p-1 rounded text-[var(--pim-sidebar-icon)] hover:text-[var(--pim-sidebar-text)] hover:bg-[var(--pim-sidebar-hover-bg)] transition-colors cursor-pointer"
         title="Alle Menüs schließen"
         @click="authStore.collapseAllSections()"
       >
@@ -362,12 +371,12 @@ const sidebarStyle = computed(() => ({
         <!-- Skip 'help' section here — rendered at bottom -->
         <template v-if="section.key !== 'help'">
           <!-- Section separator (between sections) -->
-          <div v-if="si > 0" class="my-1.5 mx-3 border-t border-[var(--color-border)]" />
+          <div v-if="si > 0" class="my-1.5 mx-3 border-t border-[var(--pim-sidebar-border)]" />
 
           <!-- Section header (collapsible) -->
           <button
             v-if="section.label && !authStore.sidebarCollapsed"
-            class="w-full flex items-center gap-1 px-3 py-1.5 text-[10px] uppercase tracking-wider font-semibold text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors cursor-pointer select-none"
+            class="w-full flex items-center gap-1 px-3 py-1.5 text-[10px] uppercase tracking-wider font-semibold text-[var(--pim-sidebar-icon)] hover:text-[var(--pim-sidebar-text)] transition-colors cursor-pointer select-none"
             @click="authStore.toggleSidebarSection(section.key)"
           >
             <ChevronDown v-if="!isSectionCollapsed(section.key)" class="w-3 h-3 shrink-0" :stroke-width="2" />
@@ -375,18 +384,18 @@ const sidebarStyle = computed(() => ({
             <span>{{ section.label }}</span>
             <span
               v-if="isSectionCollapsed(section.key) && sectionHasActiveRoute(section)"
-              class="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)] ml-auto"
+              class="w-1.5 h-1.5 rounded-full bg-[var(--pim-sidebar-active-text)] ml-auto"
             />
           </button>
 
           <!-- Collapsed indicator for icon-only mode -->
-          <div v-if="section.label && authStore.sidebarCollapsed" class="my-0.5 mx-2 border-t border-[var(--color-border)]" />
+          <div v-if="section.label && authStore.sidebarCollapsed" class="my-0.5 mx-2 border-t border-[var(--pim-sidebar-border)]" />
 
           <!-- Section items -->
           <div v-show="!section.label || !isSectionCollapsed(section.key) || authStore.sidebarCollapsed">
             <template v-for="(item, j) in section.items" :key="item.key || j">
               <!-- Divider -->
-              <div v-if="item.divider && !authStore.sidebarCollapsed" class="my-1 mx-3 border-t border-[var(--color-border)] opacity-40" />
+              <div v-if="item.divider && !authStore.sidebarCollapsed" class="my-1 mx-3 border-t border-[var(--pim-sidebar-border)] opacity-40" />
 
               <!-- Sub-group (has children) -->
               <template v-else-if="item.children">
@@ -394,29 +403,35 @@ const sidebarStyle = computed(() => ({
                 <button
                   v-if="!authStore.sidebarCollapsed"
                   :class="[
-                    'w-full flex items-center gap-3 px-3 py-[7px] mx-1 rounded-md text-[13px] transition-colors duration-100 cursor-pointer',
+                    'w-full flex items-center gap-3 px-3 py-[7px] mx-1 rounded-md transition-colors duration-100 cursor-pointer',
                     groupHasActiveRoute(item) && !isSectionCollapsed(item.key)
-                      ? 'text-[var(--color-text-primary)]'
-                      : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg)] hover:text-[var(--color-text-primary)]'
+                      ? 'text-[var(--pim-sidebar-text)]'
+                      : 'text-[var(--pim-sidebar-text)] hover:bg-[var(--pim-sidebar-hover-bg)]'
                   ]"
+                  :style="{ fontSize: 'var(--pim-sidebar-font-size)' }"
                   @click="authStore.toggleSidebarSection(item.key)"
                 >
-                  <component :is="item.icon" class="w-[18px] h-[18px] shrink-0" :stroke-width="1.75" />
+                  <component
+                    :is="item.icon"
+                    class="w-[18px] h-[18px] shrink-0"
+                    :stroke-width="1.75"
+                    :style="sectionIconColor(section.key) ? { color: sectionIconColor(section.key) } : { color: 'var(--pim-sidebar-icon)' }"
+                  />
                   <span class="truncate flex-1 text-left">{{ item.label() }}</span>
                   <ChevronDown
                     v-if="!isSectionCollapsed(item.key)"
-                    class="w-3.5 h-3.5 shrink-0 text-[var(--color-text-tertiary)]"
+                    class="w-3.5 h-3.5 shrink-0 text-[var(--pim-sidebar-icon)]"
                     :stroke-width="2"
                   />
                   <ChevronRight
                     v-else
-                    class="w-3.5 h-3.5 shrink-0 text-[var(--color-text-tertiary)]"
+                    class="w-3.5 h-3.5 shrink-0 text-[var(--pim-sidebar-icon)]"
                     :stroke-width="2"
                   />
                   <!-- Active dot when group is collapsed -->
                   <span
                     v-if="isSectionCollapsed(item.key) && groupHasActiveRoute(item)"
-                    class="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)] ml-0.5"
+                    class="w-1.5 h-1.5 rounded-full bg-[var(--pim-sidebar-active-text)] ml-0.5"
                   />
                 </button>
 
@@ -424,15 +439,21 @@ const sidebarStyle = computed(() => ({
                 <button
                   v-if="authStore.sidebarCollapsed"
                   :class="[
-                    'w-full flex items-center justify-center px-3 py-[7px] mx-1.5 rounded-md text-[13px] transition-colors duration-100 cursor-pointer',
+                    'w-full flex items-center justify-center px-3 py-[7px] mx-1.5 rounded-md transition-colors duration-100 cursor-pointer',
                     groupHasActiveRoute(item)
-                      ? 'bg-[color-mix(in_srgb,var(--color-accent)_10%,transparent)] text-[var(--color-accent)] font-medium'
-                      : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg)] hover:text-[var(--color-text-primary)]'
+                      ? 'bg-[var(--pim-sidebar-active-bg)] text-[var(--pim-sidebar-active-text)] font-medium'
+                      : 'text-[var(--pim-sidebar-text)] hover:bg-[var(--pim-sidebar-hover-bg)]'
                   ]"
+                  :style="{ fontSize: 'var(--pim-sidebar-font-size)' }"
                   :title="item.label()"
                   @click="navigate(item.children[0])"
                 >
-                  <component :is="item.icon" class="w-[18px] h-[18px] shrink-0" :stroke-width="1.75" />
+                  <component
+                    :is="item.icon"
+                    class="w-[18px] h-[18px] shrink-0"
+                    :stroke-width="1.75"
+                    :style="!groupHasActiveRoute(item) && sectionIconColor(section.key) ? { color: sectionIconColor(section.key) } : {}"
+                  />
                 </button>
 
                 <!-- Group children (indented) -->
@@ -441,14 +462,20 @@ const sidebarStyle = computed(() => ({
                     v-for="(child, ci) in item.children"
                     :key="ci"
                     :class="[
-                      'w-full flex items-center gap-2.5 pl-9 pr-3 py-[6px] mx-1 rounded-md text-[13px] transition-colors duration-100 cursor-pointer',
+                      'w-full flex items-center gap-2.5 pl-9 pr-3 py-[6px] mx-1 rounded-md transition-colors duration-100 cursor-pointer',
                       isActive(typeof child.to === 'function' ? child.to() : child.to)
-                        ? 'bg-[color-mix(in_srgb,var(--color-accent)_10%,transparent)] text-[var(--color-accent)] font-medium'
-                        : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg)] hover:text-[var(--color-text-primary)]'
+                        ? 'bg-[var(--pim-sidebar-active-bg)] text-[var(--pim-sidebar-active-text)] font-medium'
+                        : 'text-[var(--pim-sidebar-text)] hover:bg-[var(--pim-sidebar-hover-bg)]'
                     ]"
+                    :style="{ fontSize: 'var(--pim-sidebar-font-size)' }"
                     @click="navigate(child)"
                   >
-                    <component :is="child.icon" class="w-4 h-4 shrink-0" :stroke-width="1.75" />
+                    <component
+                      :is="child.icon"
+                      class="w-4 h-4 shrink-0"
+                      :stroke-width="1.75"
+                      :style="!isActive(typeof child.to === 'function' ? child.to() : child.to) && sectionIconColor(section.key) ? { color: sectionIconColor(section.key) } : {}"
+                    />
                     <span class="truncate">{{ child.label() }}</span>
                   </button>
                 </div>
@@ -458,16 +485,22 @@ const sidebarStyle = computed(() => ({
               <button
                 v-else-if="!item.divider"
                 :class="[
-                  'w-full flex items-center gap-3 px-3 py-[7px] mx-1 rounded-md text-[13px] transition-colors duration-100 cursor-pointer',
+                  'w-full flex items-center gap-3 px-3 py-[7px] mx-1 rounded-md transition-colors duration-100 cursor-pointer',
                   authStore.sidebarCollapsed ? 'justify-center mx-1.5' : '',
                   isActive(typeof item.to === 'function' ? item.to() : item.to)
-                    ? 'bg-[color-mix(in_srgb,var(--color-accent)_10%,transparent)] text-[var(--color-accent)] font-medium'
-                    : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg)] hover:text-[var(--color-text-primary)]'
+                    ? 'bg-[var(--pim-sidebar-active-bg)] text-[var(--pim-sidebar-active-text)] font-medium'
+                    : 'text-[var(--pim-sidebar-text)] hover:bg-[var(--pim-sidebar-hover-bg)]'
                 ]"
+                :style="{ fontSize: 'var(--pim-sidebar-font-size)' }"
                 @click="navigate(item)"
                 :title="authStore.sidebarCollapsed ? item.label() : undefined"
               >
-                <component :is="item.icon" class="w-[18px] h-[18px] shrink-0" :stroke-width="1.75" />
+                <component
+                  :is="item.icon"
+                  class="w-[18px] h-[18px] shrink-0"
+                  :stroke-width="1.75"
+                  :style="!isActive(typeof item.to === 'function' ? item.to() : item.to) && sectionIconColor(section.key) ? { color: sectionIconColor(section.key) } : {}"
+                />
                 <span v-if="!authStore.sidebarCollapsed" class="truncate">{{ item.label() }}</span>
               </button>
             </template>
@@ -478,29 +511,35 @@ const sidebarStyle = computed(() => ({
 
     <!-- Help (pinned at bottom, above collapse toggle) -->
     <div class="shrink-0 px-0 pb-0">
-      <div class="mx-3 border-t border-[var(--color-border)]" />
+      <div class="mx-3 border-t border-[var(--pim-sidebar-border)]" />
       <template v-for="item in sections.find(s => s.key === 'help')?.items || []" :key="item.to">
         <button
           :class="[
-            'w-full flex items-center gap-3 px-3 py-[7px] mx-1 my-1 rounded-md text-[13px] transition-colors duration-100 cursor-pointer',
+            'w-full flex items-center gap-3 px-3 py-[7px] mx-1 my-1 rounded-md transition-colors duration-100 cursor-pointer',
             authStore.sidebarCollapsed ? 'justify-center mx-1.5' : '',
             isActive(typeof item.to === 'function' ? item.to() : item.to)
-              ? 'bg-[color-mix(in_srgb,var(--color-accent)_10%,transparent)] text-[var(--color-accent)] font-medium'
-              : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg)] hover:text-[var(--color-text-primary)]'
+              ? 'bg-[var(--pim-sidebar-active-bg)] text-[var(--pim-sidebar-active-text)] font-medium'
+              : 'text-[var(--pim-sidebar-text)] hover:bg-[var(--pim-sidebar-hover-bg)]'
           ]"
+          :style="{ fontSize: 'var(--pim-sidebar-font-size)' }"
           @click="navigate(item)"
           :title="authStore.sidebarCollapsed ? item.label() : undefined"
         >
-          <component :is="item.icon" class="w-[18px] h-[18px] shrink-0" :stroke-width="1.75" />
+          <component
+            :is="item.icon"
+            class="w-[18px] h-[18px] shrink-0"
+            :style="sectionIconColor('help') ? { color: sectionIconColor('help') } : { color: 'var(--pim-sidebar-icon)' }"
+            :stroke-width="1.75"
+          />
           <span v-if="!authStore.sidebarCollapsed">{{ item.label() }}</span>
         </button>
       </template>
     </div>
 
     <!-- Footer: Collapse toggle (hidden on mobile) -->
-    <div class="border-t border-[var(--color-border)] p-2 shrink-0 hidden md:block">
+    <div class="border-t border-[var(--pim-sidebar-border)] p-2 shrink-0 hidden md:block">
       <button
-        class="w-full flex items-center justify-center gap-2 py-1.5 rounded-md text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-bg)] transition-colors"
+        class="w-full flex items-center justify-center gap-2 py-1.5 rounded-md text-[var(--pim-sidebar-icon)] hover:text-[var(--pim-sidebar-text)] hover:bg-[var(--pim-sidebar-hover-bg)] transition-colors"
         @click="authStore.toggleSidebar()"
         :title="authStore.sidebarCollapsed ? 'Sidebar öffnen' : 'Sidebar schließen'"
       >
@@ -517,7 +556,7 @@ const sidebarStyle = computed(() => ({
     >
       <div
         class="w-[2px] h-full transition-colors"
-        :class="isResizing ? 'bg-[var(--color-accent)]' : 'bg-transparent group-hover:bg-[var(--color-accent)]/40'"
+        :class="isResizing ? 'bg-[var(--pim-sidebar-active-text)]' : 'bg-transparent group-hover:bg-[var(--pim-sidebar-active-text)]/40'"
       />
     </div>
   </aside>

@@ -118,10 +118,11 @@ export const useAuthStore = defineStore('auth', () => {
 
   function collapseAllSections() {
     const sections = {}
-    // Set all to collapsed (true = collapsed)
+    // Set all to collapsed (true = collapsed), including 'daily' which defaults to open
     for (const key of Object.keys(sidebarCollapsedSections.value)) {
       sections[key] = true
     }
+    sections['daily'] = true
     sidebarCollapsedSections.value = sections
     localStorage.setItem('pim_sidebar_sections', JSON.stringify(sections))
   }

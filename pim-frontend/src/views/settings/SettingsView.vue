@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useLocaleStore } from '@/stores/locale'
 import { useAuthStore } from '@/stores/auth'
 import { Globe, Palette, AlertTriangle, Server, RotateCcw, CheckCircle, XCircle, Loader2, GitBranch, Database, Upload, Trash2, Save, Filter, LayoutGrid, Columns3, Image, Settings2, Paintbrush, BookOpen, GripVertical, Plus, X, Shield, Key, Eye, Monitor, RefreshCw, FileCode2, Activity, HardDrive, Cpu, Check, Zap, Play, Clock, Ban, RotateCw, Power, Terminal, WifiOff } from 'lucide-vue-next'
+import { useAppearanceStore, PRESETS, SECTION_ICON_COLORS } from '@/stores/appearance'
 import { useLicenseStore } from '@/stores/license'
 import adminApi from '@/api/admin'
 import catalogApi from '@/api/catalog'
@@ -24,6 +25,57 @@ const localeStore = useLocaleStore()
 const authStore = useAuthStore()
 
 const isAdmin = authStore.hasPermission('*') || authStore.userRole === 'Admin'
+const appearanceStore = useAppearanceStore()
+
+// ── Darstellung (Appearance) ──
+const appearanceSaving = ref(false)
+const appearanceSaved = ref(false)
+const appearanceError = ref(null)
+
+// Lokale Kopie der Einstellungen für Live-Vorschau
+const appearanceForm = ref({ ...appearanceStore.settings })
+const appearancePreset = ref(appearanceStore.preset)
+
+function onAppearancePreset(name) {
+  appearancePreset.value = name
+  if (PRESETS[name]) {
+    appearanceForm.value = { ...PRESETS[name] }
+    // Live-Vorschau sofort anwenden
+    appearanceStore.preset = name
+    appearanceStore.settings = { ...PRESETS[name] }
+    appearanceStore.applyTheme()
+  }
+}
+
+function onAppearanceFieldChange() {
+  appearancePreset.value = 'custom'
+  // Live-Vorschau
+  appearanceStore.preset = 'custom'
+  appearanceStore.settings = { ...appearanceForm.value }
+  appearanceStore.applyTheme()
+}
+
+async function saveAppearance() {
+  appearanceSaving.value = true
+  appearanceSaved.value = false
+  appearanceError.value = null
+  try {
+    appearanceStore.preset = appearancePreset.value
+    appearanceStore.settings = { ...appearanceForm.value }
+    appearanceStore.applyTheme()
+    await appearanceStore.saveToApi()
+    appearanceSaved.value = true
+    setTimeout(() => { appearanceSaved.value = false }, 2000)
+  } catch (e) {
+    appearanceError.value = e.response?.data?.message || 'Speichern fehlgeschlagen'
+  } finally {
+    appearanceSaving.value = false
+  }
+}
+
+function resetAppearance() {
+  onAppearancePreset('light')
+}
 const licenseStore = useLicenseStore()
 
 // ── License State ──
@@ -1488,6 +1540,10 @@ async function triggerRollback() {
 
 // Lazy-load data when switching to env/system tabs
 watch(activeMainTab, (tab) => {
+  if (tab === 'appearance') {
+    appearanceForm.value = { ...appearanceStore.settings }
+    appearancePreset.value = appearanceStore.preset
+  }
   if (tab === 'env' && envGroups.value.length === 0) loadEnvInfo()
   if (tab === 'system' && !systemStatus.value) loadSystemStatus()
   if (tab === 'processes') { loadQueueJobs(); loadSystemProcesses() }
@@ -1543,6 +1599,7 @@ onUnmounted(() => {
       <button
         v-for="tab in [
           { key: 'general', label: 'Generell', icon: Settings2 },
+          { key: 'appearance', label: 'Darstellung', icon: Paintbrush },
           ...(isAdmin ? [{ key: 'catalog', label: 'Preview Katalog', icon: Eye }] : []),
           ...(isAdmin ? [{ key: 'offline', label: 'Offline', icon: WifiOff }] : []),
           ...(isAdmin ? [{ key: 'env', label: 'Umgebung', icon: FileCode2 }] : []),
@@ -1588,6 +1645,167 @@ onUnmounted(() => {
     </div>
 
     </template><!-- end TAB: Generell -->
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- TAB: DARSTELLUNG                                                    -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <template v-if="activeMainTab === 'appearance'">
+
+    <!-- Presets -->
+    <div class="pim-card p-4 sm:p-6 space-y-4">
+      <div class="flex items-center gap-3 mb-2">
+        <Paintbrush class="w-5 h-5 text-[var(--color-accent)]" :stroke-width="1.75" />
+        <h3 class="text-sm font-semibold">Darstellung</h3>
+      </div>
+
+      <p class="text-xs text-[var(--color-text-tertiary)]">
+        Passe das Erscheinungsbild von Sidebar und Toolbar an. Änderungen werden sofort als Vorschau angezeigt.
+      </p>
+
+      <!-- Preset-Auswahl -->
+      <div>
+        <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-2">Theme-Vorlage</label>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <button
+            v-for="(preset, name) in { light: 'Light', 'dark-navy': 'Dark Navy', 'dark-charcoal': 'Dark Charcoal' }"
+            :key="name"
+            class="relative p-3 rounded-lg border-2 transition-all cursor-pointer text-left"
+            :class="appearancePreset === name
+              ? 'border-[var(--color-accent)] shadow-md'
+              : 'border-[var(--color-border)] hover:border-[var(--color-border-strong)]'"
+            @click="onAppearancePreset(name)"
+          >
+            <!-- Mini-Vorschau -->
+            <div class="flex gap-2 mb-2">
+              <div class="w-8 h-16 rounded" :style="{ backgroundColor: PRESETS[name].sidebar_bg, border: '1px solid ' + (name === 'light' ? '#E5E7EB' : 'transparent') }">
+                <div class="w-4 h-1 rounded-full mx-auto mt-2" :style="{ backgroundColor: PRESETS[name].sidebar_icon }"></div>
+                <div class="w-4 h-1 rounded-full mx-auto mt-1" :style="{ backgroundColor: PRESETS[name].sidebar_icon }"></div>
+                <div class="w-4 h-1 rounded-full mx-auto mt-1" :style="{ backgroundColor: PRESETS[name].sidebar_active_text }"></div>
+                <div class="w-4 h-1 rounded-full mx-auto mt-1" :style="{ backgroundColor: PRESETS[name].sidebar_icon }"></div>
+              </div>
+              <div class="flex-1">
+                <div class="h-3 rounded" :style="{ backgroundColor: PRESETS[name].toolbar_bg, border: '1px solid ' + (name === 'light' ? '#E5E7EB' : 'transparent') }">
+                  <div class="w-8 h-1 rounded-full ml-1 mt-1" :style="{ backgroundColor: PRESETS[name].toolbar_text }"></div>
+                </div>
+                <div class="mt-1 h-12 rounded bg-[var(--color-bg)] border border-[var(--color-border)]"></div>
+              </div>
+            </div>
+            <span class="text-xs font-medium text-[var(--color-text-primary)]">{{ preset }}</span>
+            <Check v-if="appearancePreset === name" class="absolute top-2 right-2 w-4 h-4 text-[var(--color-accent)]" :stroke-width="2.5" />
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sidebar-Einstellungen -->
+    <div class="pim-card p-4 sm:p-6 space-y-4">
+      <h3 class="text-sm font-semibold">Sidebar</h3>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div>
+          <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Hintergrundfarbe</label>
+          <div class="flex items-center gap-2">
+            <input type="color" :value="appearanceForm.sidebar_bg" @input="appearanceForm.sidebar_bg = $event.target.value; onAppearanceFieldChange()" class="w-8 h-8 rounded border border-[var(--color-border)] cursor-pointer" />
+            <input type="text" :value="appearanceForm.sidebar_bg" @input="appearanceForm.sidebar_bg = $event.target.value; onAppearanceFieldChange()" class="pim-input text-xs w-24 font-mono" />
+          </div>
+        </div>
+        <div>
+          <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Textfarbe</label>
+          <div class="flex items-center gap-2">
+            <input type="color" :value="appearanceForm.sidebar_text" @input="appearanceForm.sidebar_text = $event.target.value; onAppearanceFieldChange()" class="w-8 h-8 rounded border border-[var(--color-border)] cursor-pointer" />
+            <input type="text" :value="appearanceForm.sidebar_text" @input="appearanceForm.sidebar_text = $event.target.value; onAppearanceFieldChange()" class="pim-input text-xs w-24 font-mono" />
+          </div>
+        </div>
+        <div>
+          <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Icon-Farbe</label>
+          <div class="flex items-center gap-2">
+            <input type="color" :value="appearanceForm.sidebar_icon" @input="appearanceForm.sidebar_icon = $event.target.value; onAppearanceFieldChange()" class="w-8 h-8 rounded border border-[var(--color-border)] cursor-pointer" />
+            <input type="text" :value="appearanceForm.sidebar_icon" @input="appearanceForm.sidebar_icon = $event.target.value; onAppearanceFieldChange()" class="pim-input text-xs w-24 font-mono" />
+          </div>
+        </div>
+        <div>
+          <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Aktiv-Hintergrund</label>
+          <div class="flex items-center gap-2">
+            <input type="color" :value="appearanceForm.sidebar_active_bg" @input="appearanceForm.sidebar_active_bg = $event.target.value; onAppearanceFieldChange()" class="w-8 h-8 rounded border border-[var(--color-border)] cursor-pointer" />
+            <input type="text" :value="appearanceForm.sidebar_active_bg" @input="appearanceForm.sidebar_active_bg = $event.target.value; onAppearanceFieldChange()" class="pim-input text-xs w-24 font-mono" />
+          </div>
+        </div>
+        <div>
+          <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Aktiv-Textfarbe</label>
+          <div class="flex items-center gap-2">
+            <input type="color" :value="appearanceForm.sidebar_active_text" @input="appearanceForm.sidebar_active_text = $event.target.value; onAppearanceFieldChange()" class="w-8 h-8 rounded border border-[var(--color-border)] cursor-pointer" />
+            <input type="text" :value="appearanceForm.sidebar_active_text" @input="appearanceForm.sidebar_active_text = $event.target.value; onAppearanceFieldChange()" class="pim-input text-xs w-24 font-mono" />
+          </div>
+        </div>
+        <div>
+          <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Schriftgröße ({{ appearanceForm.sidebar_font_size }}px)</label>
+          <input type="range" min="11" max="18" step="1" :value="appearanceForm.sidebar_font_size" @input="appearanceForm.sidebar_font_size = parseInt($event.target.value); onAppearanceFieldChange()" class="w-full" />
+        </div>
+      </div>
+
+      <!-- Farbige Icons Toggle -->
+      <div class="flex items-center gap-3 pt-2 border-t border-[var(--color-border)]">
+        <label class="relative inline-flex items-center cursor-pointer">
+          <input type="checkbox" :checked="appearanceForm.sidebar_colored_icons" @change="appearanceForm.sidebar_colored_icons = $event.target.checked; onAppearanceFieldChange()" class="sr-only peer" />
+          <div class="w-9 h-5 bg-[var(--color-border-strong)] peer-checked:bg-[var(--color-accent)] rounded-full peer-focus:ring-2 peer-focus:ring-[var(--color-accent)]/20 transition-colors after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-transform peer-checked:after:translate-x-4"></div>
+        </label>
+        <div>
+          <span class="text-sm font-medium text-[var(--color-text-primary)]">Farbige Icons</span>
+          <p class="text-xs text-[var(--color-text-tertiary)]">Jede Menü-Sektion erhält eine eigene Icon-Farbe</p>
+        </div>
+      </div>
+
+      <!-- Farbige Icons Vorschau -->
+      <div v-if="appearanceForm.sidebar_colored_icons" class="flex flex-wrap gap-3 pt-2">
+        <div v-for="(color, key) in SECTION_ICON_COLORS" :key="key" class="flex items-center gap-1.5">
+          <div class="w-3 h-3 rounded-full" :style="{ backgroundColor: color }"></div>
+          <span class="text-[11px] text-[var(--color-text-tertiary)]">{{ key }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toolbar-Einstellungen -->
+    <div class="pim-card p-4 sm:p-6 space-y-4">
+      <h3 class="text-sm font-semibold">Toolbar</h3>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div>
+          <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Hintergrundfarbe</label>
+          <div class="flex items-center gap-2">
+            <input type="color" :value="appearanceForm.toolbar_bg" @input="appearanceForm.toolbar_bg = $event.target.value; onAppearanceFieldChange()" class="w-8 h-8 rounded border border-[var(--color-border)] cursor-pointer" />
+            <input type="text" :value="appearanceForm.toolbar_bg" @input="appearanceForm.toolbar_bg = $event.target.value; onAppearanceFieldChange()" class="pim-input text-xs w-24 font-mono" />
+          </div>
+        </div>
+        <div>
+          <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Textfarbe</label>
+          <div class="flex items-center gap-2">
+            <input type="color" :value="appearanceForm.toolbar_text" @input="appearanceForm.toolbar_text = $event.target.value; onAppearanceFieldChange()" class="w-8 h-8 rounded border border-[var(--color-border)] cursor-pointer" />
+            <input type="text" :value="appearanceForm.toolbar_text" @input="appearanceForm.toolbar_text = $event.target.value; onAppearanceFieldChange()" class="pim-input text-xs w-24 font-mono" />
+          </div>
+        </div>
+        <div>
+          <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Schriftgröße ({{ appearanceForm.toolbar_font_size }}px)</label>
+          <input type="range" min="11" max="18" step="1" :value="appearanceForm.toolbar_font_size" @input="appearanceForm.toolbar_font_size = parseInt($event.target.value); onAppearanceFieldChange()" class="w-full" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Aktionen -->
+    <div class="flex items-center gap-3">
+      <button class="pim-btn pim-btn-primary gap-2" @click="saveAppearance" :disabled="appearanceSaving">
+        <Loader2 v-if="appearanceSaving" class="w-4 h-4 animate-spin" />
+        <Save v-else class="w-4 h-4" :stroke-width="1.75" />
+        Speichern
+      </button>
+      <button class="pim-btn pim-btn-secondary gap-2" @click="resetAppearance">
+        <RotateCcw class="w-4 h-4" :stroke-width="1.75" />
+        Zurücksetzen
+      </button>
+      <span v-if="appearanceSaved" class="text-xs text-[var(--color-success)] flex items-center gap-1">
+        <CheckCircle class="w-4 h-4" /> Gespeichert
+      </span>
+      <span v-if="appearanceError" class="text-xs text-[var(--color-error)]">{{ appearanceError }}</span>
+    </div>
+
+    </template><!-- end TAB: Darstellung -->
 
     <!-- ═══════════════════════════════════════════════════════════════════ -->
     <!-- TAB: PREVIEW KATALOG                                               -->

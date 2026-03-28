@@ -62,6 +62,25 @@
 }
 
 /* ============================================
+   Sidebar & Toolbar Appearance (überschreibbar via JS)
+   ============================================ */
+
+:root {
+  --pim-sidebar-bg: var(--color-surface-nav);
+  --pim-sidebar-text: var(--color-text-secondary);
+  --pim-sidebar-icon: var(--color-text-tertiary);
+  --pim-sidebar-active-bg: color-mix(in srgb, var(--color-accent) 10%, transparent);
+  --pim-sidebar-active-text: var(--color-accent);
+  --pim-sidebar-border: var(--color-border);
+  --pim-sidebar-hover-bg: var(--color-bg);
+  --pim-sidebar-font-size: 13px;
+  --pim-toolbar-bg: var(--color-surface-nav);
+  --pim-toolbar-text: var(--color-text-primary);
+  --pim-toolbar-border: var(--color-border);
+  --pim-toolbar-font-size: 14px;
+}
+
+/* ============================================
    Base Styles
    ============================================ */
 
