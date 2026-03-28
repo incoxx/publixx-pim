@@ -497,14 +497,15 @@ async function executePurgeMedia() {
 
 // Thumbnails generieren
 const generatingThumbnails = ref(false)
+const thumbnailResult = ref(null)
 
 async function executeGenerateThumbnails() {
   generatingThumbnails.value = true
+  thumbnailResult.value = null
   syncError.value = ''
   try {
-    await connectorsApi.generateThumbnails(connectionId.value)
-    syncError.value = '' // Kein Fehler → Erfolg
-    alert('Thumbnail-Generierung wurde angestoßen.')
+    const res = await connectorsApi.generateThumbnails(connectionId.value)
+    thumbnailResult.value = res.data.data || res.data
   } catch (e) {
     syncError.value = e.response?.data?.message || 'Thumbnail-Generierung fehlgeschlagen'
   } finally {
@@ -733,6 +734,14 @@ const statusColors = {
                 {{ purgeMediaResult.deleted }} von {{ purgeMediaResult.total }} Medien gelöscht
                 <span v-if="purgeMediaResult.failed" class="text-error">({{ purgeMediaResult.failed }} fehlgeschlagen)</span>
               </div>
+            </div>
+          </div>
+
+          <!-- Thumbnail Ergebnis -->
+          <div v-if="thumbnailResult" class="alert mt-3" :class="thumbnailResult.success ? 'alert-success' : 'alert-warning'">
+            <div>
+              <div class="font-semibold">Thumbnails: {{ thumbnailResult.method }}</div>
+              <div class="text-sm">{{ thumbnailResult.message }}</div>
             </div>
           </div>
 

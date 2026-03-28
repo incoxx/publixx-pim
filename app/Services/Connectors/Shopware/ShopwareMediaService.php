@@ -63,53 +63,85 @@ class ShopwareMediaService
     /**
      * Generiert Thumbnails für alle Medien im Product-Media-Folder.
      *
-     * Entspricht dem CLI-Befehl: bin/console media:generate-thumbnails
-     * Sollte einmal nach allen Uploads aufgerufen werden (nicht pro Media).
+     * Versucht mehrere Shopware-API-Endpoints. Wenn keiner funktioniert,
+     * muss auf dem Shopware-Server `bin/console media:generate-thumbnails` ausgeführt werden.
+     *
+     * @return array{method: string, success: bool, message: string}
      */
-    public function generateThumbnails(PendingRequest $http, string $shopUrl): void
+    public function generateThumbnails(PendingRequest $http, string $shopUrl): array
     {
         $shopUrl = rtrim($shopUrl, '/');
 
         // Folder-ID ermitteln
-        $folderId = null;
-        if ($this->productMediaFolderId) {
-            $folderId = $this->productMediaFolderId;
-        } else {
-            $folderId = $this->fetchProductMediaFolderId($http, $shopUrl);
+        $folderId = $this->productMediaFolderId ?: $this->fetchProductMediaFolderId($http, $shopUrl);
+
+        // Alle Media-IDs aus dem Folder laden
+        $mediaIds = [];
+        if ($folderId) {
+            try {
+                $page = 1;
+                do {
+                    $response = $http->post("{$shopUrl}/api/search/media", [
+                        'limit'  => 500,
+                        'page'   => $page,
+                        'filter' => [
+                            ['type' => 'equals', 'field' => 'mediaFolderId', 'value' => $folderId],
+                        ],
+                    ]);
+                    $response->throw();
+                    $data = $response->json();
+                    foreach ($data['data'] ?? [] as $m) {
+                        $mediaIds[] = $m['id'];
+                    }
+                    $total = $data['total'] ?? 0;
+                    $page++;
+                } while (count($mediaIds) < $total && !empty($data['data']));
+            } catch (\Throwable) {}
         }
 
-        if (!$folderId) {
-            return;
+        if (empty($mediaIds)) {
+            return ['method' => 'none', 'success' => false, 'message' => 'Keine Medien im Product-Folder gefunden.'];
         }
 
-        // Batch-Thumbnail-Generierung über den _action Endpoint
+        // Versuch 1: Batch-Endpoint mit mediaIds
+        try {
+            $http->post("{$shopUrl}/api/_action/media/generate-thumbnails", [
+                'mediaIds' => $mediaIds,
+            ])->throw();
+            return ['method' => 'batch-mediaIds', 'success' => true, 'message' => count($mediaIds) . ' Medien verarbeitet.'];
+        } catch (\Throwable) {}
+
+        // Versuch 2: Batch-Endpoint mit folderIds
         try {
             $http->post("{$shopUrl}/api/_action/media/generate-thumbnails", [
                 'folderIds' => [$folderId],
             ])->throw();
-        } catch (\Throwable) {
-            // Fallback: einzelne Media-IDs sammeln und per Batch generieren
-            try {
-                $response = $http->post("{$shopUrl}/api/search/media", [
-                    'limit'  => 500,
-                    'filter' => [
-                        ['type' => 'equals', 'field' => 'mediaFolderId', 'value' => $folderId],
-                        ['type' => 'equals', 'field' => 'thumbnails.id', 'value' => null],
-                    ],
-                    'fields' => ['id'],
-                ]);
-                $response->throw();
-                $mediaIds = array_column($response->json()['data'] ?? [], 'id');
+            return ['method' => 'batch-folderIds', 'success' => true, 'message' => count($mediaIds) . ' Medien verarbeitet.'];
+        } catch (\Throwable) {}
 
-                if (!empty($mediaIds)) {
-                    $http->post("{$shopUrl}/api/_action/media/generate-thumbnails", [
-                        'mediaIds' => $mediaIds,
-                    ])->throw();
-                }
-            } catch (\Throwable) {
-                // Nicht kritisch
-            }
+        // Versuch 3: Einzeln pro Media
+        $success = 0;
+        foreach ($mediaIds as $mediaId) {
+            try {
+                $http->post("{$shopUrl}/api/_action/media/{$mediaId}/thumbnails")->throw();
+                $success++;
+            } catch (\Throwable) {}
         }
+        if ($success > 0) {
+            return ['method' => 'single', 'success' => true, 'message' => "{$success} von " . count($mediaIds) . ' Medien verarbeitet.'];
+        }
+
+        // Versuch 4: Scheduled Task triggern (media.generate_thumbnails)
+        try {
+            $http->post("{$shopUrl}/api/_action/scheduled-task/run")->throw();
+            return ['method' => 'scheduled-task', 'success' => true, 'message' => 'Scheduled Tasks angestoßen. Thumbnails werden im Hintergrund generiert.'];
+        } catch (\Throwable) {}
+
+        return [
+            'method'  => 'none',
+            'success' => false,
+            'message' => 'Kein API-Endpoint verfügbar. Bitte auf dem Shopware-Server ausführen: bin/console media:generate-thumbnails',
+        ];
     }
 
     /**
