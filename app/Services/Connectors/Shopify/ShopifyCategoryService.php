@@ -168,10 +168,13 @@ class ShopifyCategoryService
     }
 
     /**
-     * Erstellt ein hierarchisches Navigation Menu in Shopify via GraphQL.
+     * Fuegt PIM-Kategorien als Unterpunkte in das bestehende Shopify Main menu ein.
      *
-     * Bildet die PIM-Hierarchie als verschachteltes Shopify-Menu ab (max 3 Ebenen).
-     * Jedes MenuItem verlinkt auf die entsprechende Custom Collection.
+     * Workflow:
+     * 1. Main menu laden (bestehende Items mit IDs)
+     * 2. Alte PIM-Items entfernen (erkennbar an pim-marker Prefix)
+     * 3. Neue PIM-Items hinzufuegen (verschachtelt, max 3 Ebenen)
+     * 4. menuUpdate mit allen Items (bestehende + neue)
      *
      * @param  array<string, string>  $categoryMap  PIM-Node-ID → Shopify-Collection-ID
      * @return array{success: bool, menu_id: string|null, error: string|null}
@@ -184,6 +187,7 @@ class ShopifyCategoryService
         string $language = 'de',
     ): array {
         $shopUrl = rtrim($shopUrl, '/');
+        $graphqlUrl = "{$shopUrl}/admin/api/" . self::API_VERSION . '/graphql.json';
 
         $hierarchy = Hierarchy::find($hierarchyId);
         if (!$hierarchy) {
@@ -192,9 +196,9 @@ class ShopifyCategoryService
 
         $hierarchyName = $language === 'en' && $hierarchy->name_en
             ? $hierarchy->name_en
-            : ($hierarchy->name_de ?: 'PIM Katalog');
+            : ($hierarchy->name_de ?: 'Katalog');
 
-        // Alle aktiven Knoten laden (nach depth + sort_order)
+        // PIM-Knoten laden
         $allNodes = $hierarchy->nodes()
             ->where('is_active', true)
             ->orderBy('depth')
@@ -205,27 +209,51 @@ class ShopifyCategoryService
             return ['success' => false, 'menu_id' => null, 'error' => 'Keine aktiven Knoten'];
         }
 
-        // Verschachtelte MenuItem-Struktur aufbauen
-        $menuItems = $this->buildMenuItemTree($allNodes, $categoryMap, $language);
+        // PIM-Items als verschachtelte Struktur aufbauen
+        $pimMenuItems = $this->buildMenuItemTree($allNodes, $categoryMap, $language);
 
-        if (empty($menuItems)) {
+        if (empty($pimMenuItems)) {
             return ['success' => false, 'menu_id' => null, 'error' => 'Keine Menu-Items erstellt'];
         }
 
-        // Handle fuer das Menu (deterministisch, damit Update statt Create moeglich)
-        $menuHandle = 'pim-' . substr(md5($hierarchyId), 0, 8);
+        // 1. Main menu laden
+        $mainMenu = $this->fetchMainMenu($http, $graphqlUrl);
+        if (!$mainMenu) {
+            // Fallback: separates Menu erstellen
+            return $this->createSeparateMenu($http, $graphqlUrl, $hierarchyName, $pimMenuItems, $hierarchyId);
+        }
 
-        // Zuerst versuchen das bestehende Menu zu loeschen (GraphQL menuDelete)
-        $this->deleteExistingMenu($http, $shopUrl, $menuHandle);
+        $menuId = $mainMenu['id'];
+        $existingItems = $mainMenu['items']['nodes'] ?? [];
 
-        // GraphQL Mutation: menuCreate
-        $graphqlQuery = <<<'GRAPHQL'
-mutation menuCreate($title: String!, $handle: String!, $items: [MenuItemCreateInput!]!) {
-  menuCreate(title: $title, handle: $handle, items: $items) {
+        // 2. Bestehende Items behalten (ohne alte PIM-Items)
+        // PIM-Items sind erkennbar: title startet mit "[PIM]" oder url enthaelt pim-collection
+        $keepItems = [];
+        foreach ($existingItems as $item) {
+            // Alte PIM-Items ueberspringen (werden durch neue ersetzt)
+            if (str_starts_with($item['title'] ?? '', '[PIM] ')) {
+                continue;
+            }
+            $keepItems[] = $this->convertExistingItemForUpdate($item);
+        }
+
+        // 3. PIM-Items als Dach-Element mit Unterpunkten hinzufuegen
+        $pimRootItem = [
+            'title' => "[PIM] {$hierarchyName}",
+            'type'  => 'HTTP',
+            'url'   => '#',
+            'items' => $pimMenuItems,
+        ];
+
+        $allItems = array_merge($keepItems, [$pimRootItem]);
+
+        // 4. Menu aktualisieren
+        $updateQuery = <<<'GRAPHQL'
+mutation menuUpdate($id: ID!, $title: String!, $handle: String!, $items: [MenuItemUpdateInput!]!) {
+  menuUpdate(id: $id, title: $title, handle: $handle, items: $items) {
     menu {
       id
       title
-      handle
     }
     userErrors {
       field
@@ -236,29 +264,24 @@ mutation menuCreate($title: String!, $handle: String!, $items: [MenuItemCreateIn
 GRAPHQL;
 
         try {
-            $response = $http->post(
-                "{$shopUrl}/admin/api/" . self::API_VERSION . '/graphql.json',
-                [
-                    'query'     => $graphqlQuery,
-                    'variables' => [
-                        'title'  => $hierarchyName,
-                        'handle' => $menuHandle,
-                        'items'  => $menuItems,
-                    ],
+            $response = $http->post($graphqlUrl, [
+                'query'     => $updateQuery,
+                'variables' => [
+                    'id'     => $menuId,
+                    'title'  => $mainMenu['title'] ?? 'Main menu',
+                    'handle' => $mainMenu['handle'] ?? 'main-menu',
+                    'items'  => $allItems,
                 ],
-            );
+            ]);
             $response->throw();
             $data = $response->json();
 
-            // GraphQL-Fehler pruefen
-            $userErrors = $data['data']['menuCreate']['userErrors'] ?? [];
+            $userErrors = $data['data']['menuUpdate']['userErrors'] ?? [];
             if (!empty($userErrors)) {
                 $errorMsg = collect($userErrors)->pluck('message')->implode(', ');
-                Log::channel('connectors')->warning('Navigation Menu userErrors', ['errors' => $userErrors]);
-                return ['success' => false, 'menu_id' => null, 'error' => $errorMsg];
+                Log::channel('connectors')->warning('Menu Update userErrors', ['errors' => $userErrors]);
+                return ['success' => false, 'menu_id' => $menuId, 'error' => $errorMsg];
             }
-
-            $menuId = $data['data']['menuCreate']['menu']['id'] ?? null;
 
             return ['success' => true, 'menu_id' => $menuId, 'error' => null];
         } catch (\Throwable $e) {
@@ -266,9 +289,184 @@ GRAPHQL;
                 ? $this->parseShopifyError($e)
                 : $e->getMessage();
 
-            Log::channel('connectors')->error('Navigation Menu Sync fehlgeschlagen', ['error' => $error]);
+            Log::channel('connectors')->error('Main Menu Update fehlgeschlagen', ['error' => $error]);
 
-            return ['success' => false, 'menu_id' => null, 'error' => $error];
+            return ['success' => false, 'menu_id' => $menuId, 'error' => $error];
+        }
+    }
+
+    /**
+     * Laedt das Main menu mit allen bestehenden Items via GraphQL.
+     */
+    private function fetchMainMenu(PendingRequest $http, string $graphqlUrl): ?array
+    {
+        $query = <<<'GRAPHQL'
+query {
+  menu(handle: "main-menu") {
+    id
+    title
+    handle
+    items(first: 50) {
+      nodes {
+        id
+        title
+        type
+        url
+        resourceId
+        items(first: 50) {
+          nodes {
+            id
+            title
+            type
+            url
+            resourceId
+            items(first: 50) {
+              nodes {
+                id
+                title
+                type
+                url
+                resourceId
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+GRAPHQL;
+
+        try {
+            $response = $http->post($graphqlUrl, ['query' => $query]);
+            $response->throw();
+            $data = $response->json();
+
+            return $data['data']['menu'] ?? null;
+        } catch (\Throwable $e) {
+            Log::channel('connectors')->warning('Main menu nicht gefunden', ['error' => $e->getMessage()]);
+            return null;
+        }
+    }
+
+    /**
+     * Konvertiert ein bestehendes MenuItem in das MenuItemUpdateInput-Format.
+     * Bestehende Items muessen ihre ID behalten damit sie nicht geloescht werden.
+     */
+    private function convertExistingItemForUpdate(array $item): array
+    {
+        $result = [
+            'id'    => $item['id'],
+            'title' => $item['title'],
+        ];
+
+        // Typ und Ressource beibehalten
+        if (!empty($item['type'])) {
+            $result['type'] = $item['type'];
+        }
+        if (!empty($item['url'])) {
+            $result['url'] = $item['url'];
+        }
+        if (!empty($item['resourceId'])) {
+            $result['resourceId'] = $item['resourceId'];
+        }
+
+        // Kinder rekursiv
+        $children = $item['items']['nodes'] ?? [];
+        if (!empty($children)) {
+            $result['items'] = array_map(
+                fn ($child) => $this->convertExistingItemForUpdate($child),
+                $children,
+            );
+        }
+
+        return $result;
+    }
+
+    /**
+     * Fallback: Erstellt ein separates Menu wenn Main menu nicht gefunden wird.
+     */
+    private function createSeparateMenu(PendingRequest $http, string $graphqlUrl, string $title, array $items, string $hierarchyId): array
+    {
+        $menuHandle = 'pim-' . substr(md5($hierarchyId), 0, 8);
+
+        // Bestehendes PIM-Menu loeschen
+        $this->deleteExistingMenu($http, $graphqlUrl, $menuHandle);
+
+        $createQuery = <<<'GRAPHQL'
+mutation menuCreate($title: String!, $handle: String!, $items: [MenuItemCreateInput!]!) {
+  menuCreate(title: $title, handle: $handle, items: $items) {
+    menu { id title handle }
+    userErrors { field message }
+  }
+}
+GRAPHQL;
+
+        try {
+            $response = $http->post($graphqlUrl, [
+                'query'     => $createQuery,
+                'variables' => [
+                    'title'  => $title,
+                    'handle' => $menuHandle,
+                    'items'  => $items,
+                ],
+            ]);
+            $response->throw();
+            $data = $response->json();
+
+            $userErrors = $data['data']['menuCreate']['userErrors'] ?? [];
+            if (!empty($userErrors)) {
+                return ['success' => false, 'menu_id' => null, 'error' => collect($userErrors)->pluck('message')->implode(', ')];
+            }
+
+            $menuId = $data['data']['menuCreate']['menu']['id'] ?? null;
+            return ['success' => true, 'menu_id' => $menuId, 'error' => null];
+        } catch (\Throwable $e) {
+            return ['success' => false, 'menu_id' => null, 'error' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Loescht ein bestehendes Menu via GraphQL (fuer Fallback-Menu).
+     */
+    private function deleteExistingMenu(PendingRequest $http, string $graphqlUrl, string $handle): void
+    {
+        $findQuery = <<<'GRAPHQL'
+query findMenu($handle: String!) {
+  menu(handle: $handle) {
+    id
+  }
+}
+GRAPHQL;
+
+        try {
+            $response = $http->post($graphqlUrl, [
+                'query'     => $findQuery,
+                'variables' => ['handle' => $handle],
+            ]);
+            $response->throw();
+            $data = $response->json();
+
+            $menuId = $data['data']['menu']['id'] ?? null;
+            if (!$menuId) {
+                return;
+            }
+
+            $deleteQuery = <<<'GRAPHQL'
+mutation menuDelete($id: ID!) {
+  menuDelete(id: $id) {
+    deletedMenuId
+    userErrors { field message }
+  }
+}
+GRAPHQL;
+
+            $http->post($graphqlUrl, [
+                'query'     => $deleteQuery,
+                'variables' => ['id' => $menuId],
+            ])->throw();
+        } catch (\Throwable) {
+            // Nicht kritisch
         }
     }
 
@@ -327,61 +525,6 @@ GRAPHQL;
         }
 
         return $items;
-    }
-
-    /**
-     * Loescht ein bestehendes Navigation Menu via GraphQL (fuer Update via Delete+Create).
-     */
-    private function deleteExistingMenu(PendingRequest $http, string $shopUrl, string $handle): void
-    {
-        // Zuerst Menu-ID per Handle finden
-        $findQuery = <<<'GRAPHQL'
-query findMenu($handle: String!) {
-  menu(handle: $handle) {
-    id
-  }
-}
-GRAPHQL;
-
-        try {
-            $response = $http->post(
-                "{$shopUrl}/admin/api/" . self::API_VERSION . '/graphql.json',
-                [
-                    'query'     => $findQuery,
-                    'variables' => ['handle' => $handle],
-                ],
-            );
-            $response->throw();
-            $data = $response->json();
-
-            $menuId = $data['data']['menu']['id'] ?? null;
-            if (!$menuId) {
-                return; // Kein bestehendes Menu
-            }
-
-            // Menu loeschen
-            $deleteQuery = <<<'GRAPHQL'
-mutation menuDelete($id: ID!) {
-  menuDelete(id: $id) {
-    deletedMenuId
-    userErrors {
-      field
-      message
-    }
-  }
-}
-GRAPHQL;
-
-            $http->post(
-                "{$shopUrl}/admin/api/" . self::API_VERSION . '/graphql.json',
-                [
-                    'query'     => $deleteQuery,
-                    'variables' => ['id' => $menuId],
-                ],
-            )->throw();
-        } catch (\Throwable) {
-            // Nicht kritisch — Menu wird einfach neu erstellt
-        }
     }
 
     /**
