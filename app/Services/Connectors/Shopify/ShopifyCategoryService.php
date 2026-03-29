@@ -297,12 +297,30 @@ GRAPHQL;
 
     /**
      * Laedt das Main menu mit allen bestehenden Items via GraphQL.
+     * Versucht mehrere gaengige Handles und faellt zurueck auf das erste Menu.
      */
     private function fetchMainMenu(PendingRequest $http, string $graphqlUrl): ?array
     {
+        // Gaengige Handles fuer das Hauptmenu
+        $handles = ['main-menu', 'main', 'header', 'navbar'];
+
+        foreach ($handles as $handle) {
+            $menu = $this->fetchMenuByHandle($http, $graphqlUrl, $handle);
+            if ($menu) {
+                Log::channel('connectors')->info("Main menu gefunden: handle={$handle}, id={$menu['id']}");
+                return $menu;
+            }
+        }
+
+        // Fallback: Erstes Menu aus der Liste nehmen
+        return $this->fetchFirstMenu($http, $graphqlUrl);
+    }
+
+    private function fetchMenuByHandle(PendingRequest $http, string $graphqlUrl, string $handle): ?array
+    {
         $query = <<<'GRAPHQL'
-query {
-  menu(handle: "main-menu") {
+query fetchMenu($handle: String!) {
+  menu(handle: $handle) {
     id
     title
     handle
@@ -338,13 +356,71 @@ query {
 GRAPHQL;
 
         try {
-            $response = $http->post($graphqlUrl, ['query' => $query]);
+            $response = $http->post($graphqlUrl, [
+                'query'     => $query,
+                'variables' => ['handle' => $handle],
+            ]);
             $response->throw();
             $data = $response->json();
 
             return $data['data']['menu'] ?? null;
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    /**
+     * Fallback: Laedt das erste verfuegbare Menu (wenn Handle unbekannt).
+     */
+    private function fetchFirstMenu(PendingRequest $http, string $graphqlUrl): ?array
+    {
+        $query = <<<'GRAPHQL'
+query {
+  menus(first: 5) {
+    nodes {
+      id
+      title
+      handle
+      items(first: 50) {
+        nodes {
+          id
+          title
+          type
+          url
+          resourceId
+          items(first: 50) {
+            nodes {
+              id
+              title
+              type
+              url
+              resourceId
+            }
+          }
+        }
+      }
+    }
+  }
+}
+GRAPHQL;
+
+        try {
+            $response = $http->post($graphqlUrl, ['query' => $query]);
+            $response->throw();
+            $data = $response->json();
+
+            $menus = $data['data']['menus']['nodes'] ?? [];
+
+            // Erstes Menu nehmen (normalerweise "Main menu")
+            if (!empty($menus)) {
+                $menu = $menus[0];
+                Log::channel('connectors')->info("Fallback: Erstes Menu verwendet: handle={$menu['handle']}, title={$menu['title']}");
+                return $menu;
+            }
+
+            return null;
         } catch (\Throwable $e) {
-            Log::channel('connectors')->warning('Main menu nicht gefunden', ['error' => $e->getMessage()]);
+            Log::channel('connectors')->warning('Menus konnten nicht geladen werden', ['error' => $e->getMessage()]);
             return null;
         }
     }
