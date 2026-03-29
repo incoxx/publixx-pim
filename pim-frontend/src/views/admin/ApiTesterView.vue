@@ -1,11 +1,16 @@
 <script setup>
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import client from '@/api/client'
-import { Send, Copy, ChevronDown, ChevronRight, Trash2, Plus, AlertCircle } from 'lucide-vue-next'
+import { Send, Copy, ChevronDown, ChevronRight, Trash2, Plus, AlertCircle, Filter } from 'lucide-vue-next'
 
 const routes = ref([])
 const loadingRoutes = ref(false)
 const search = ref('')
+
+// Group/category filter
+const activeGroup = ref(null)      // null = alle, sonst Gruppenname
+const activeCategory = ref(null)   // null = alle, 'read', 'write', 'delete'
+const collapsedGroups = ref(new Set())
 
 // Request state
 const method = ref('GET')
@@ -28,20 +33,90 @@ const history = ref([])
 const methods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE']
 
 const methodColors = {
-  GET: 'bg-green-100 text-green-700',
-  POST: 'bg-blue-100 text-blue-700',
-  PUT: 'bg-amber-100 text-amber-700',
-  PATCH: 'bg-orange-100 text-orange-700',
-  DELETE: 'bg-red-100 text-red-700',
+  GET: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
+  POST: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+  PUT: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+  PATCH: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
+  DELETE: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
 }
 
-const filteredRoutes = computed(() => {
-  if (!search.value) return routes.value
-  const q = search.value.toLowerCase()
-  return routes.value.filter(r =>
-    r.uri.toLowerCase().includes(q) || r.methods.some(m => m.toLowerCase().includes(q))
-  )
+const categoryColors = {
+  read: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
+  write: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+  delete: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
+}
+
+const categoryLabels = { read: 'Read', write: 'Write', delete: 'Delete' }
+
+// Alle vorhandenen Gruppen (dynamisch aus den Routes)
+const availableGroups = computed(() => {
+  const groups = new Map()
+  for (const r of routes.value) {
+    const g = r.group || 'Sonstiges'
+    groups.set(g, (groups.get(g) || 0) + 1)
+  }
+  return [...groups.entries()].sort((a, b) => a[0].localeCompare(b[0]))
 })
+
+// Kategorie-Counts
+const categoryCounts = computed(() => {
+  const counts = { read: 0, write: 0, delete: 0 }
+  for (const r of filteredByGroupRoutes.value) {
+    counts[r.category || 'read']++
+  }
+  return counts
+})
+
+// Erst nach Gruppe filtern
+const filteredByGroupRoutes = computed(() => {
+  let result = routes.value
+  if (activeGroup.value) {
+    result = result.filter(r => (r.group || 'Sonstiges') === activeGroup.value)
+  }
+  return result
+})
+
+// Dann nach Kategorie + Suche filtern
+const filteredRoutes = computed(() => {
+  let result = filteredByGroupRoutes.value
+  if (activeCategory.value) {
+    result = result.filter(r => r.category === activeCategory.value)
+  }
+  if (search.value) {
+    const q = search.value.toLowerCase()
+    result = result.filter(r =>
+      r.uri.toLowerCase().includes(q) || r.methods.some(m => m.toLowerCase().includes(q))
+    )
+  }
+  return result
+})
+
+// Routes nach Gruppe gruppiert
+const groupedRoutes = computed(() => {
+  const groups = new Map()
+  for (const r of filteredRoutes.value) {
+    const g = r.group || 'Sonstiges'
+    if (!groups.has(g)) groups.set(g, [])
+    groups.get(g).push(r)
+  }
+  return [...groups.entries()].sort((a, b) => a[0].localeCompare(b[0]))
+})
+
+function toggleGroup(groupName) {
+  if (collapsedGroups.value.has(groupName)) {
+    collapsedGroups.value.delete(groupName)
+  } else {
+    collapsedGroups.value.add(groupName)
+  }
+}
+
+function setGroupFilter(group) {
+  activeGroup.value = activeGroup.value === group ? null : group
+}
+
+function setCategoryFilter(cat) {
+  activeCategory.value = activeCategory.value === cat ? null : cat
+}
 
 // The API client baseURL (e.g. '/web/api/v1' or '/api/v1')
 const apiBase = (import.meta.env.VITE_API_BASE_URL || '/api/v1').replace(/\/+$/, '')
@@ -244,44 +319,112 @@ function loadFromHistory(item) {
           </button>
 
           <template v-if="showRoutes">
+            <!-- Suche -->
             <input
               v-model="search"
               type="text"
               class="pim-input text-xs w-full mb-2"
               placeholder="Route suchen..."
             />
-            <div class="max-h-[500px] overflow-y-auto space-y-0.5">
-              <div v-if="loadingRoutes" class="text-xs text-[var(--color-text-tertiary)]">Laden...</div>
-              <div
-                v-for="(route, i) in filteredRoutes"
-                :key="i"
-                class="text-[11px] leading-tight"
+
+            <!-- Kategorie-Filter (Read / Write / Delete) -->
+            <div class="flex items-center gap-1 mb-2">
+              <span class="text-[10px] text-[var(--color-text-tertiary)] mr-1">
+                <Filter class="w-3 h-3 inline" :stroke-width="2" />
+              </span>
+              <button
+                v-for="cat in ['read', 'write', 'delete']"
+                :key="cat"
+                class="px-2 py-0.5 rounded text-[10px] font-medium transition-colors"
+                :class="activeCategory === cat
+                  ? categoryColors[cat] + ' ring-1 ring-current'
+                  : 'bg-[var(--color-bg)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'"
+                @click="setCategoryFilter(cat)"
               >
-                <div
-                  :class="[
-                    'flex flex-wrap items-center gap-1 py-1 px-1 rounded cursor-pointer group transition-colors',
-                    selectedRouteUri === route.uri
-                      ? 'bg-[color-mix(in_srgb,var(--color-accent)_10%,transparent)] border border-[var(--color-accent)]/30'
-                      : 'hover:bg-[var(--color-bg)]'
-                  ]"
+                {{ categoryLabels[cat] }} ({{ categoryCounts[cat] }})
+              </button>
+              <button
+                v-if="activeCategory"
+                class="text-[10px] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] ml-1"
+                @click="activeCategory = null"
+                title="Filter zurücksetzen"
+              >
+                &times;
+              </button>
+            </div>
+
+            <!-- Gruppen-Chips -->
+            <div class="flex flex-wrap gap-1 mb-2">
+              <button
+                v-for="[group, count] in availableGroups"
+                :key="group"
+                class="px-2 py-0.5 rounded text-[10px] transition-colors"
+                :class="activeGroup === group
+                  ? 'bg-[var(--color-accent)] text-white'
+                  : 'bg-[var(--color-bg)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'"
+                @click="setGroupFilter(group)"
+              >
+                {{ group }} <span class="opacity-60">{{ count }}</span>
+              </button>
+            </div>
+
+            <!-- Gruppierte Route-Liste -->
+            <div class="max-h-[500px] overflow-y-auto space-y-1">
+              <div v-if="loadingRoutes" class="text-xs text-[var(--color-text-tertiary)]">Laden...</div>
+
+              <div v-for="[groupName, groupRoutes] in groupedRoutes" :key="groupName">
+                <!-- Gruppen-Header -->
+                <button
+                  class="w-full flex items-center gap-1.5 py-1.5 px-1 text-[11px] font-semibold text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
+                  @click="toggleGroup(groupName)"
                 >
-                  <button
-                    v-for="m in route.methods"
-                    :key="m"
-                    :class="['px-1.5 py-0.5 rounded font-mono font-bold text-[10px]', methodColors[m] || 'bg-gray-100 text-gray-600']"
-                    @click="selectRoute(route, m)"
-                    :title="`${m} ${route.uri}`"
+                  <component
+                    :is="collapsedGroups.has(groupName) ? ChevronRight : ChevronDown"
+                    class="w-3 h-3 shrink-0"
+                    :stroke-width="2"
+                  />
+                  <span>{{ groupName }}</span>
+                  <span class="text-[10px] text-[var(--color-text-tertiary)] font-normal">({{ groupRoutes.length }})</span>
+                </button>
+
+                <!-- Routes in Gruppe -->
+                <div v-if="!collapsedGroups.has(groupName)" class="space-y-0.5 ml-3 mb-1">
+                  <div
+                    v-for="(route, i) in groupRoutes"
+                    :key="i"
+                    class="text-[11px] leading-tight"
                   >
-                    {{ m }}
-                  </button>
-                  <span
-                    class="font-mono text-[var(--color-text-secondary)] truncate cursor-pointer"
-                    @click="selectRoute(route, route.methods[0])"
-                    :title="route.uri"
-                  >
-                    {{ route.uri }}
-                  </span>
+                    <div
+                      :class="[
+                        'flex flex-wrap items-center gap-1 py-1 px-1 rounded cursor-pointer group transition-colors',
+                        selectedRouteUri === route.uri
+                          ? 'bg-[color-mix(in_srgb,var(--color-accent)_10%,transparent)] border border-[var(--color-accent)]/30'
+                          : 'hover:bg-[var(--color-bg)]'
+                      ]"
+                    >
+                      <button
+                        v-for="m in route.methods"
+                        :key="m"
+                        :class="['px-1.5 py-0.5 rounded font-mono font-bold text-[10px]', methodColors[m] || 'bg-gray-100 text-gray-600']"
+                        @click="selectRoute(route, m)"
+                        :title="`${m} ${route.uri}`"
+                      >
+                        {{ m }}
+                      </button>
+                      <span
+                        class="font-mono text-[var(--color-text-secondary)] truncate cursor-pointer"
+                        @click="selectRoute(route, route.methods[0])"
+                        :title="route.uri"
+                      >
+                        {{ route.uri }}
+                      </span>
+                    </div>
+                  </div>
                 </div>
+              </div>
+
+              <div v-if="!groupedRoutes.length && !loadingRoutes" class="text-xs text-[var(--color-text-tertiary)] py-2 text-center">
+                Keine Routes gefunden
               </div>
             </div>
           </template>
