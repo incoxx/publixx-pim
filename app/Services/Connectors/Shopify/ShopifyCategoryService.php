@@ -301,15 +301,23 @@ GRAPHQL;
      */
     private function fetchMainMenu(PendingRequest $http, string $graphqlUrl): ?array
     {
-        // menus() ist eine Connection (braucht nodes/edges)
-        // Menu.items und MenuItem.items sind plain Arrays [MenuItem!]! — KEIN nodes!
-        $query = <<<'GRAPHQL'
+        // Menu.items und MenuItem.items sind plain Arrays [MenuItem!]!
+        // menu(handle:) Query laedt ein Menu direkt per Handle
+        $handles = ['main-menu', 'main', 'header'];
+
+        foreach ($handles as $handle) {
+            $query = <<<GRAPHQL
 {
-  menus(first: 10) {
-    nodes {
+  menu(handle: "{$handle}") {
+    id
+    title
+    handle
+    items {
       id
       title
-      handle
+      type
+      url
+      resourceId
       items {
         id
         title
@@ -322,13 +330,6 @@ GRAPHQL;
           type
           url
           resourceId
-          items {
-            id
-            title
-            type
-            url
-            resourceId
-          }
         }
       }
     }
@@ -336,54 +337,31 @@ GRAPHQL;
 }
 GRAPHQL;
 
-        try {
-            $response = $http->post($graphqlUrl, ['query' => $query]);
-            $response->throw();
-            $data = $response->json();
+            try {
+                $response = $http->post($graphqlUrl, ['query' => $query]);
+                $response->throw();
+                $data = $response->json();
 
-            if (!empty($data['errors'])) {
-                Log::channel('connectors')->error('GraphQL Fehler beim Menu-Laden', [
-                    'errors' => array_map(fn ($e) => $e['message'] ?? '', $data['errors']),
-                ]);
-                return null;
-            }
+                // GraphQL-Fehler loggen
+                if (!empty($data['errors'])) {
+                    Log::channel('connectors')->warning("menu(handle:{$handle}) Fehler", [
+                        'errors' => array_map(fn ($e) => $e['message'] ?? '', $data['errors']),
+                    ]);
+                    continue;
+                }
 
-            $menus = $data['data']['menus']['nodes'] ?? [];
-
-            if (empty($menus)) {
-                Log::channel('connectors')->warning('Keine Menus gefunden');
-                return null;
-            }
-
-            Log::channel('connectors')->info('Menus geladen: ' . count($menus) . ' gefunden');
-
-            return $this->findMainMenu($menus);
-        } catch (\Throwable $e) {
-            Log::channel('connectors')->error('Menus laden fehlgeschlagen', [
-                'error' => $e->getMessage(),
-            ]);
-            return null;
-        }
-    }
-
-    private function findMainMenu(array $menus): ?array
-    {
-        foreach ($menus as $menu) {
-            if (in_array($menu['handle'] ?? '', ['main-menu', 'main', 'header'])) {
-                Log::channel('connectors')->info("Main menu: handle={$menu['handle']}, id={$menu['id']}");
-                return $menu;
+                $menu = $data['data']['menu'] ?? null;
+                if ($menu && !empty($menu['id'])) {
+                    Log::channel('connectors')->info("Main menu gefunden: handle={$handle}, id={$menu['id']}, title={$menu['title']}");
+                    return $menu;
+                }
+            } catch (\Throwable $e) {
+                Log::channel('connectors')->warning("menu(handle:{$handle}) Exception: {$e->getMessage()}");
             }
         }
 
-        foreach ($menus as $menu) {
-            if (str_contains(strtolower($menu['title'] ?? ''), 'main')) {
-                Log::channel('connectors')->info("Main menu per Titel: title={$menu['title']}, id={$menu['id']}");
-                return $menu;
-            }
-        }
-
-        Log::channel('connectors')->info("Fallback: erstes Menu: handle={$menus[0]['handle']}");
-        return $menus[0];
+        Log::channel('connectors')->error('Kein Main menu gefunden (handles: ' . implode(', ', $handles) . ')');
+        return null;
     }
 
     /**
