@@ -224,7 +224,7 @@ class ShopifyCategoryService
         }
 
         $menuId = $mainMenu['id'];
-        $existingItems = $mainMenu['items']['nodes'] ?? [];
+        $existingItems = $mainMenu['items'] ?? [];
 
         // 2. Bestehende Items behalten (ohne alte PIM-Items)
         // PIM-Items sind erkennbar: title startet mit "[PIM]" oder url enthaelt pim-collection
@@ -301,73 +301,22 @@ GRAPHQL;
      */
     private function fetchMainMenu(PendingRequest $http, string $graphqlUrl): ?array
     {
-        // Versuch 1: mit edges/node Pattern (Standard GraphQL Connection)
-        $menu = $this->tryFetchMenus($http, $graphqlUrl, 'edges');
-        if ($menu) {
-            return $menu;
-        }
-
-        // Versuch 2: mit nodes Pattern (Shopify Shorthand)
-        $menu = $this->tryFetchMenus($http, $graphqlUrl, 'nodes');
-        if ($menu) {
-            return $menu;
-        }
-
-        Log::channel('connectors')->error('Main menu konnte nicht geladen werden (beide Query-Varianten fehlgeschlagen)');
-        return null;
-    }
-
-    private function tryFetchMenus(PendingRequest $http, string $graphqlUrl, string $variant): ?array
-    {
-        if ($variant === 'edges') {
-            $query = <<<'GRAPHQL'
-{
-  menus(first: 10) {
-    edges {
-      node {
-        id
-        title
-        handle
-        items(first: 50) {
-          edges {
-            node {
-              id
-              title
-              type
-              url
-              resourceId
-              items {
-                id
-                title
-                type
-                url
-                resourceId
-                items {
-                  id
-                  title
-                  type
-                  url
-                  resourceId
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-}
-GRAPHQL;
-        } else {
-            $query = <<<'GRAPHQL'
+        // menus() ist eine Connection (braucht nodes/edges)
+        // Menu.items und MenuItem.items sind plain Arrays [MenuItem!]! — KEIN nodes!
+        $query = <<<'GRAPHQL'
 {
   menus(first: 10) {
     nodes {
       id
       title
       handle
-      items(first: 50) {
-        nodes {
+      items {
+        id
+        title
+        type
+        url
+        resourceId
+        items {
           id
           title
           type
@@ -379,13 +328,6 @@ GRAPHQL;
             type
             url
             resourceId
-            items {
-              id
-              title
-              type
-              url
-              resourceId
-            }
           }
         }
       }
@@ -393,49 +335,31 @@ GRAPHQL;
   }
 }
 GRAPHQL;
-        }
 
         try {
             $response = $http->post($graphqlUrl, ['query' => $query]);
             $response->throw();
             $data = $response->json();
 
-            // GraphQL-Fehler pruefen
             if (!empty($data['errors'])) {
-                Log::channel('connectors')->warning("Menu Query ({$variant}) fehlgeschlagen", [
+                Log::channel('connectors')->error('GraphQL Fehler beim Menu-Laden', [
                     'errors' => array_map(fn ($e) => $e['message'] ?? '', $data['errors']),
                 ]);
                 return null;
             }
 
-            // Menus extrahieren (edges/node vs nodes)
-            $menus = [];
-            if ($variant === 'edges') {
-                foreach ($data['data']['menus']['edges'] ?? [] as $edge) {
-                    $menuData = $edge['node'] ?? null;
-                    if ($menuData) {
-                        // items edges zu flat array konvertieren
-                        $items = [];
-                        foreach ($menuData['items']['edges'] ?? [] as $itemEdge) {
-                            $items[] = $itemEdge['node'] ?? [];
-                        }
-                        $menuData['items'] = ['nodes' => $items];
-                        $menus[] = $menuData;
-                    }
-                }
-            } else {
-                $menus = $data['data']['menus']['nodes'] ?? [];
-            }
+            $menus = $data['data']['menus']['nodes'] ?? [];
 
             if (empty($menus)) {
+                Log::channel('connectors')->warning('Keine Menus gefunden');
                 return null;
             }
 
-            Log::channel('connectors')->info("Menu Query ({$variant}) erfolgreich: " . count($menus) . ' Menus gefunden');
+            Log::channel('connectors')->info('Menus geladen: ' . count($menus) . ' gefunden');
 
             return $this->findMainMenu($menus);
         } catch (\Throwable $e) {
-            Log::channel('connectors')->warning("Menu Query ({$variant}) Exception", [
+            Log::channel('connectors')->error('Menus laden fehlgeschlagen', [
                 'error' => $e->getMessage(),
             ]);
             return null;
@@ -444,7 +368,6 @@ GRAPHQL;
 
     private function findMainMenu(array $menus): ?array
     {
-        // Nach Handle suchen
         foreach ($menus as $menu) {
             if (in_array($menu['handle'] ?? '', ['main-menu', 'main', 'header'])) {
                 Log::channel('connectors')->info("Main menu: handle={$menu['handle']}, id={$menu['id']}");
@@ -452,7 +375,6 @@ GRAPHQL;
             }
         }
 
-        // Nach Titel suchen
         foreach ($menus as $menu) {
             if (str_contains(strtolower($menu['title'] ?? ''), 'main')) {
                 Log::channel('connectors')->info("Main menu per Titel: title={$menu['title']}, id={$menu['id']}");
@@ -460,7 +382,6 @@ GRAPHQL;
             }
         }
 
-        // Erstes Menu
         Log::channel('connectors')->info("Fallback: erstes Menu: handle={$menus[0]['handle']}");
         return $menus[0];
     }
