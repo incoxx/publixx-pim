@@ -78,15 +78,39 @@ class PimSyncExportService
      */
     public function calculateChecksums(array $filters = []): array
     {
-        $query = $this->buildQuery($filters);
+        // Leichtgewichtiger Query ohne Eager-Loading für Checksums
+        $query = Product::query();
+
+        if (! empty($filters['hierarchy_id'])) {
+            $query->where('master_hierarchy_node_id', $filters['hierarchy_id']);
+        }
+        if (! empty($filters['product_type_ids'])) {
+            $query->whereIn('product_type_id', $filters['product_type_ids']);
+        }
+        if (! empty($filters['skus'])) {
+            $query->whereIn('sku', $filters['skus']);
+        }
+
+        $query->where('product_type_ref', 'product');
 
         $checksums = [];
 
-        $query->select(['id', 'sku', 'updated_at'])
+        // Checksum basiert auf updated_at des Produkts + Anzahl der Attributwerte und Preise
+        // So werden auch Änderungen an Kind-Tabellen erkannt
+        $query->withCount(['attributeValues', 'prices', 'mediaAssignments'])
+            ->select(['id', 'sku', 'updated_at'])
+            ->orderBy('sku')
             ->chunk(1000, function ($products) use (&$checksums) {
                 foreach ($products as $product) {
+                    $fingerprint = implode('|', [
+                        $product->sku,
+                        $product->updated_at->timestamp,
+                        $product->attribute_values_count ?? 0,
+                        $product->prices_count ?? 0,
+                        $product->media_assignments_count ?? 0,
+                    ]);
                     $checksums[$product->sku] = [
-                        'checksum'   => md5($product->sku . '|' . $product->updated_at->timestamp),
+                        'checksum'   => md5($fingerprint),
                         'updated_at' => $product->updated_at->toIso8601String(),
                     ];
                 }
@@ -100,7 +124,8 @@ class PimSyncExportService
      */
     public function exportAttributes(): array
     {
-        return Attribute::orderBy('technical_name')
+        return Attribute::with(['unitGroup', 'defaultUnit'])
+            ->orderBy('technical_name')
             ->get()
             ->map(fn (Attribute $attr) => [
                 'technical_name' => $attr->technical_name,

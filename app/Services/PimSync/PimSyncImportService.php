@@ -103,7 +103,7 @@ class PimSyncImportService
 
         if ($existing && $conflictResolution === 'newer_wins') {
             $remoteUpdated = $data['_updated_at'] ?? null;
-            if ($remoteUpdated && $existing->updated_at->toIso8601String() >= $remoteUpdated) {
+            if ($remoteUpdated && $existing->updated_at->gte(new \DateTimeImmutable($remoteUpdated))) {
                 $this->stats['skipped']++;
                 return;
             }

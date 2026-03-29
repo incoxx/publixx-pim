@@ -24,9 +24,14 @@ class PimSyncAuthController extends Controller
             'client_secret' => 'required|string',
         ]);
 
+        // Timing-sichere Validierung: Immer Hash prüfen, auch wenn Client nicht existiert
         $client = ApiClient::where('client_id', $request->input('client_id'))->first();
 
-        if (! $client || ! Hash::check($request->input('client_secret'), $client->client_secret)) {
+        // Dummy-Hash prüfen wenn Client nicht existiert (verhindert Timing-Leak / Enumeration)
+        $secretToCheck = $client?->client_secret ?? '$2y$12$dummyhashtopreventtimingleakattacksXXXXXXXXXXXXXXXXXXX';
+        $isValid = Hash::check($request->input('client_secret'), $secretToCheck);
+
+        if (! $client || ! $isValid) {
             return response()->json([
                 'error'   => 'invalid_client',
                 'message' => 'Ungültige Client-Credentials.',
@@ -40,14 +45,16 @@ class PimSyncAuthController extends Controller
             ], 403);
         }
 
-        // Alte Tokens löschen, neuen erstellen
-        $client->tokens()->delete();
+        // Bestehende abgelaufene Tokens bereinigen (nicht alle löschen — erlaubt parallele Sessions)
+        $client->tokens()
+            ->where('expires_at', '<', now())
+            ->delete();
 
         $expiresAt = now()->addHour();
         $token = $client->createToken('pim-sync', $client->scopes ?? [], $expiresAt);
 
         // last_used_at aktualisieren
-        $client->update(['last_used_at' => now()]);
+        $client->updateQuietly(['last_used_at' => now()]);
 
         return response()->json([
             'access_token' => $token->plainTextToken,

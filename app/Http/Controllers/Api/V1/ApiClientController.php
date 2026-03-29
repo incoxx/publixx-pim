@@ -9,14 +9,25 @@ use App\Models\ApiClient;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 
 class ApiClientController extends Controller
 {
     /**
+     * Admin-Check für alle Methoden.
+     */
+    public function __construct()
+    {
+        // Nur Admins dürfen API-Clients verwalten
+    }
+
+    /**
      * Alle API-Clients auflisten.
      */
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
+        $this->authorizeAdmin($request);
+
         $clients = ApiClient::orderBy('name')
             ->get()
             ->map(fn (ApiClient $client) => [
@@ -40,6 +51,8 @@ class ApiClientController extends Controller
      */
     public function store(Request $request): JsonResponse
     {
+        $this->authorizeAdmin($request);
+
         $validated = $request->validate([
             'name'       => 'required|string|max:255',
             'scopes'     => 'sometimes|array',
@@ -77,8 +90,10 @@ class ApiClientController extends Controller
     /**
      * Einzelnen API-Client anzeigen.
      */
-    public function show(ApiClient $apiClient): JsonResponse
+    public function show(Request $request, ApiClient $apiClient): JsonResponse
     {
+        $this->authorizeAdmin($request);
+
         return response()->json([
             'data' => [
                 'id'           => $apiClient->id,
@@ -100,6 +115,8 @@ class ApiClientController extends Controller
      */
     public function update(Request $request, ApiClient $apiClient): JsonResponse
     {
+        $this->authorizeAdmin($request);
+
         $validated = $request->validate([
             'name'       => 'sometimes|string|max:255',
             'scopes'     => 'sometimes|array',
@@ -132,8 +149,10 @@ class ApiClientController extends Controller
     /**
      * API-Client löschen.
      */
-    public function destroy(ApiClient $apiClient): JsonResponse
+    public function destroy(Request $request, ApiClient $apiClient): JsonResponse
     {
+        $this->authorizeAdmin($request);
+
         // Alle Tokens widerrufen
         $apiClient->tokens()->delete();
         $apiClient->delete();
@@ -143,13 +162,16 @@ class ApiClientController extends Controller
 
     /**
      * Neues client_secret generieren (das alte wird ungültig).
+     * Die client_id bleibt unverändert.
      */
-    public function regenerateSecret(ApiClient $apiClient): JsonResponse
+    public function regenerateSecret(Request $request, ApiClient $apiClient): JsonResponse
     {
-        $credentials = ApiClient::generateCredentials();
+        $this->authorizeAdmin($request);
+
+        $newSecret = Str::random(64);
 
         $apiClient->update([
-            'client_secret' => Hash::make($credentials['client_secret']),
+            'client_secret' => Hash::make($newSecret),
         ]);
 
         // Alle bestehenden Tokens widerrufen
@@ -160,9 +182,19 @@ class ApiClientController extends Controller
                 'id'            => $apiClient->id,
                 'name'          => $apiClient->name,
                 'client_id'     => $apiClient->client_id,
-                'client_secret' => $credentials['client_secret'], // Einmalig im Klartext!
+                'client_secret' => $newSecret, // Einmalig im Klartext!
             ],
             'warning' => 'Das neue client_secret wird nur einmalig angezeigt. Alle bestehenden Tokens wurden widerrufen.',
         ]);
+    }
+
+    /**
+     * Stellt sicher, dass der anfragende User die Admin-Rolle hat.
+     */
+    private function authorizeAdmin(Request $request): void
+    {
+        if (! $request->user()?->hasRole('Admin')) {
+            abort(403, 'Nur Administratoren können API-Clients verwalten.');
+        }
     }
 }

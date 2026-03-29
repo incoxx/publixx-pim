@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Connectors\AnyPim;
 
 use App\Models\ConnectorConnection;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
 
 class AnyPimAuthService
@@ -45,6 +46,24 @@ class AnyPimAuthService
     }
 
     /**
+     * Client-Secret verschlüsselt in Connection-Settings speichern.
+     * Das settings-JSON-Feld ist nicht automatisch verschlüsselt,
+     * daher wird das Secret manuell mit Laravel Crypt verschlüsselt.
+     */
+    public static function encryptSecret(string $secret): string
+    {
+        return Crypt::encryptString($secret);
+    }
+
+    /**
+     * Verschlüsseltes Client-Secret aus Connection-Settings auslesen.
+     */
+    public static function decryptSecret(string $encrypted): string
+    {
+        return Crypt::decryptString($encrypted);
+    }
+
+    /**
      * Token für eine bestehende Connection erneuern.
      */
     public function refreshAccessToken(ConnectorConnection $connection): void
@@ -52,12 +71,13 @@ class AnyPimAuthService
         $settings = $connection->settings ?? [];
         $remoteUrl = $settings['remote_url'] ?? '';
         $clientId = $settings['client_id'] ?? '';
-        $clientSecret = $settings['client_secret'] ?? '';
+        $encryptedSecret = $settings['client_secret_encrypted'] ?? '';
 
-        if (empty($remoteUrl) || empty($clientId) || empty($clientSecret)) {
-            throw new \RuntimeException('anyPIM-Verbindung ist nicht vollständig konfiguriert (remote_url, client_id, client_secret).');
+        if (empty($remoteUrl) || empty($clientId) || empty($encryptedSecret)) {
+            throw new \RuntimeException('anyPIM-Verbindung ist nicht vollständig konfiguriert (remote_url, client_id, client_secret_encrypted).');
         }
 
+        $clientSecret = self::decryptSecret($encryptedSecret);
         $result = $this->authenticate($clientId, $clientSecret, $remoteUrl);
 
         $connection->update([

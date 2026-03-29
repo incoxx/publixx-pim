@@ -28,6 +28,17 @@ class PimSyncController extends Controller
      */
     public function products(Request $request): JsonResponse
     {
+        $request->validate([
+            'hierarchy_id'       => 'sometimes|nullable|uuid',
+            'product_type_ids'   => 'sometimes|array',
+            'product_type_ids.*' => 'uuid',
+            'skus'               => 'sometimes|array',
+            'skus.*'             => 'string|max:100',
+            'updated_since'      => 'sometimes|nullable|date',
+            'per_page'           => 'sometimes|integer|min:1|max:500',
+            'page'               => 'sometimes|integer|min:1',
+        ]);
+
         $filters = [
             'hierarchy_id'     => $request->input('hierarchy_id'),
             'product_type_ids' => $request->input('product_type_ids', []),
@@ -119,6 +130,7 @@ class PimSyncController extends Controller
     public function categories(Request $request): JsonResponse
     {
         $hierarchyId = $request->input('hierarchy_id');
+        $perPage = min((int) $request->input('per_page', 500), 1000);
 
         $query = HierarchyNode::with('hierarchy')
             ->orderBy('depth')
@@ -128,7 +140,9 @@ class PimSyncController extends Controller
             $query->where('hierarchy_id', $hierarchyId);
         }
 
-        $nodes = $query->get()->map(fn (HierarchyNode $node) => [
+        $paginator = $query->paginate($perPage);
+
+        $nodes = $paginator->getCollection()->map(fn (HierarchyNode $node) => [
             'id'             => $node->id,
             'hierarchy_name' => $node->hierarchy?->name,
             'parent_node_id' => $node->parent_node_id,
@@ -139,7 +153,15 @@ class PimSyncController extends Controller
             'sort_order'     => $node->sort_order,
         ]);
 
-        return response()->json(['data' => $nodes]);
+        return response()->json([
+            'data' => $nodes,
+            'meta' => [
+                'total'        => $paginator->total(),
+                'per_page'     => $paginator->perPage(),
+                'current_page' => $paginator->currentPage(),
+                'last_page'    => $paginator->lastPage(),
+            ],
+        ]);
     }
 
     /**

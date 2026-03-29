@@ -104,7 +104,8 @@ class AnyPimConnector extends AbstractConnector
 
         $result = $this->productService->pushProducts($http, $remoteUrl, $filters, $mergedOptions);
 
-        $this->logSync($connection, 'push_all', 'products', '*', 'success', null, null, $result);
+        $status = ($result['errors'] ?? 0) > 0 ? 'partial' : 'success';
+        $this->logSync($connection, 'push_all', 'products', '*', $status, null, null, $result);
 
         return $result;
     }
@@ -127,7 +128,8 @@ class AnyPimConnector extends AbstractConnector
 
         $result = $this->productService->pullProducts($http, $remoteUrl, $filters, $mergedOptions);
 
-        $this->logSync($connection, 'pull_all', 'products', '*', 'success', null, null, $result);
+        $status = ($result['errors'] ?? 0) > 0 ? 'partial' : 'success';
+        $this->logSync($connection, 'pull_all', 'products', '*', $status, null, null, $result);
 
         return $result;
     }
@@ -142,7 +144,8 @@ class AnyPimConnector extends AbstractConnector
 
         $result = $this->productService->deltaPush($http, $remoteUrl, $filters, $options);
 
-        $this->logSync($connection, 'delta_push', 'products', '*', 'success', null, null, $result);
+        $status = ($result['errors'] ?? 0) > 0 ? 'partial' : 'success';
+        $this->logSync($connection, 'delta_push', 'products', '*', $status, null, null, $result);
 
         return $result;
     }
@@ -157,7 +160,8 @@ class AnyPimConnector extends AbstractConnector
 
         $result = $this->productService->deltaPull($http, $remoteUrl, $filters, $options);
 
-        $this->logSync($connection, 'delta_pull', 'products', '*', 'success', null, null, $result);
+        $status = ($result['errors'] ?? 0) > 0 ? 'partial' : 'success';
+        $this->logSync($connection, 'delta_pull', 'products', '*', $status, null, null, $result);
 
         return $result;
     }
@@ -199,7 +203,9 @@ class AnyPimConnector extends AbstractConnector
             'direction' => $syncDirection,
         ];
 
-        $this->logSync($connection, 'sync_bidirectional', 'products', '*', 'success', null, null, $result);
+        $totalErrors = ($pushResult['errors'] ?? 0) + ($pullResult['errors'] ?? 0);
+        $status = $totalErrors > 0 ? 'partial' : 'success';
+        $this->logSync($connection, 'sync_bidirectional', 'products', '*', $status, null, null, $result);
 
         return $result;
     }

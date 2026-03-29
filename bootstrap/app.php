@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\AuthenticatePimSync;
 use App\Http\Middleware\CatalogAccessControl;
 use App\Http\Middleware\CheckModuleLicense;
 use App\Http\Middleware\RateLimitMiddleware;
@@ -24,6 +25,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'catalog.access' => CatalogAccessControl::class,
             'module' => CheckModuleLicense::class,
             'api-client-scope' => ValidateApiClientScope::class,
+            'pim-sync-auth' => AuthenticatePimSync::class,
         ]);
 
         // Agent 2: Sanctum stateful middleware for API

@@ -1007,11 +1007,12 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
 // Öffentlicher Token-Endpoint + geschützte Sync-Endpoints
 // =========================================================================
 Route::prefix('v1/pim-sync')->group(function () {
-    // Token-Endpoint: Ohne Auth (hier authentifiziert sich der Remote-Client)
-    Route::post('token', [\App\Http\Controllers\Api\V1\PimSyncAuthController::class, 'token']);
+    // Token-Endpoint: Ohne Auth, aber mit Rate-Limiting (Brute-Force-Schutz)
+    Route::post('token', [\App\Http\Controllers\Api\V1\PimSyncAuthController::class, 'token'])
+        ->middleware('throttle.pim:auth');
 
-    // Geschützte Endpoints: Durch Sanctum-Token (ApiClient) + Scope-Check
-    Route::middleware(['auth:sanctum'])->group(function () {
+    // Geschützte Endpoints: Durch PimSync-Auth (ApiClient-Token) + Scope-Check
+    Route::middleware(['pim-sync-auth'])->group(function () {
         Route::get('products', [\App\Http\Controllers\Api\V1\PimSyncController::class, 'products'])
             ->middleware('api-client-scope:products:read');
         Route::get('products/{sku}', [\App\Http\Controllers\Api\V1\PimSyncController::class, 'product'])
