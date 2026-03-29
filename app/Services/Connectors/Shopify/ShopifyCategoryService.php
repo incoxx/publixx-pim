@@ -121,7 +121,7 @@ class ShopifyCategoryService
                     : $e->getMessage();
                 $errorDetails[] = $errorMessage;
 
-                Log::channel('connectors')->error('Collection-Sync fehlgeschlagen', [
+                Log::channel('stack')->error('Collection-Sync fehlgeschlagen', [
                     'node_id' => $node->id,
                     'error'   => $errorMessage,
                 ]);
@@ -279,7 +279,7 @@ GRAPHQL;
             $userErrors = $data['data']['menuUpdate']['userErrors'] ?? [];
             if (!empty($userErrors)) {
                 $errorMsg = collect($userErrors)->pluck('message')->implode(', ');
-                Log::channel('connectors')->warning('Menu Update userErrors', ['errors' => $userErrors]);
+                Log::channel('stack')->warning('Menu Update userErrors', ['errors' => $userErrors]);
                 return ['success' => false, 'menu_id' => $menuId, 'error' => $errorMsg];
             }
 
@@ -289,7 +289,7 @@ GRAPHQL;
                 ? $this->parseShopifyError($e)
                 : $e->getMessage();
 
-            Log::channel('connectors')->error('Main Menu Update fehlgeschlagen', ['error' => $error]);
+            Log::channel('stack')->error('Main Menu Update fehlgeschlagen', ['error' => $error]);
 
             return ['success' => false, 'menu_id' => $menuId, 'error' => $error];
         }
@@ -344,7 +344,7 @@ GRAPHQL;
 
                 // GraphQL-Fehler loggen
                 if (!empty($data['errors'])) {
-                    Log::channel('connectors')->warning("menu(handle:{$handle}) Fehler", [
+                    Log::channel('stack')->warning("menu(handle:{$handle}) Fehler", [
                         'errors' => array_map(fn ($e) => $e['message'] ?? '', $data['errors']),
                     ]);
                     continue;
@@ -352,15 +352,15 @@ GRAPHQL;
 
                 $menu = $data['data']['menu'] ?? null;
                 if ($menu && !empty($menu['id'])) {
-                    Log::channel('connectors')->info("Main menu gefunden: handle={$handle}, id={$menu['id']}, title={$menu['title']}");
+                    Log::channel('stack')->info("Main menu gefunden: handle={$handle}, id={$menu['id']}, title={$menu['title']}");
                     return $menu;
                 }
             } catch (\Throwable $e) {
-                Log::channel('connectors')->warning("menu(handle:{$handle}) Exception: {$e->getMessage()}");
+                Log::channel('stack')->warning("menu(handle:{$handle}) Exception: {$e->getMessage()}");
             }
         }
 
-        Log::channel('connectors')->error('Kein Main menu gefunden (handles: ' . implode(', ', $handles) . ')');
+        Log::channel('stack')->error('Kein Main menu gefunden (handles: ' . implode(', ', $handles) . ')');
         return null;
     }
 

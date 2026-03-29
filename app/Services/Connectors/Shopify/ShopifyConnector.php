@@ -439,7 +439,7 @@ class ShopifyConnector extends AbstractConnector
                     );
                     $result['products']['failed']++;
 
-                    Log::channel('connectors')->error("Shopify Profil-Sync fehlgeschlagen: {$product->sku}", [
+                    Log::channel('stack')->error("Shopify Profil-Sync fehlgeschlagen: {$product->sku}", [
                         'error' => $errorDetail,
                     ]);
                 }
@@ -517,7 +517,7 @@ class ShopifyConnector extends AbstractConnector
                     $chunk, $payload, $shopifyFields, $language, $allowedAttributeIds, $metafieldAttrIds,
                 );
             } catch (\Throwable $e) {
-                Log::channel('connectors')->error('Checksum-Berechnung fehlgeschlagen', [
+                Log::channel('stack')->error('Checksum-Berechnung fehlgeschlagen', [
                     'error'      => $e->getMessage(),
                     'chunk_size' => $chunk->count(),
                 ]);
@@ -603,7 +603,7 @@ class ShopifyConnector extends AbstractConnector
                     );
                     $result['products']['failed']++;
 
-                    Log::channel('connectors')->error("Shopify Delta-Sync fehlgeschlagen: {$product->sku}", [
+                    Log::channel('stack')->error("Shopify Delta-Sync fehlgeschlagen: {$product->sku}", [
                         'error' => $errorDetail,
                     ]);
                 }
