@@ -776,6 +776,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
 
         // Custom Fonts
         Route::apiResource('pdf-fonts', PdfFontController::class)->only(['index', 'store', 'destroy']);
+        Route::get('pdf-fonts/{pdf_font}/file/{variant}', [PdfFontController::class, 'file']);
     });
 
     // =====================================================================

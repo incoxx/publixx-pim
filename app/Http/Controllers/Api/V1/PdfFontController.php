@@ -10,6 +10,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class PdfFontController extends Controller
 {
@@ -25,6 +26,7 @@ class PdfFontController extends Controller
                 'id' => $font->id,
                 'family_name' => $font->family_name,
                 'variants' => $font->getVariants(),
+                'files' => $this->buildFileUrls($font),
                 'created_at' => $font->created_at,
             ]),
         ]);
@@ -98,6 +100,26 @@ class PdfFontController extends Controller
     }
 
     /**
+     * Font-Datei für Browser-Vorschau ausliefern.
+     */
+    public function file(PdfFont $pdfFont, string $variant): BinaryFileResponse
+    {
+        if (!in_array($variant, ['regular', 'bold', 'italic', 'bold_italic'])) {
+            abort(404);
+        }
+
+        $path = $pdfFont->getAbsolutePath($variant);
+        if (!$path || !File::exists($path)) {
+            abort(404);
+        }
+
+        return response()->file($path, [
+            'Content-Type' => 'font/ttf',
+            'Cache-Control' => 'public, max-age=31536000',
+        ]);
+    }
+
+    /**
      * Schriftart löschen (inkl. Dateien).
      */
     public function destroy(PdfFont $pdfFont): JsonResponse
@@ -112,5 +134,17 @@ class PdfFontController extends Controller
         $pdfFont->delete();
 
         return response()->json(null, 204);
+    }
+
+    private function buildFileUrls(PdfFont $font): array
+    {
+        $urls = [];
+        foreach (['regular', 'bold', 'italic', 'bold_italic'] as $variant) {
+            $field = 'file_' . $variant;
+            if ($font->$field) {
+                $urls[$variant] = url("/api/v1/pdf-fonts/{$font->id}/file/{$variant}");
+            }
+        }
+        return $urls;
     }
 }
