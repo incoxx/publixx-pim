@@ -21,6 +21,21 @@
         @font-face { font-family: 'Source Sans 3'; src: url('{{ storage_path('fonts/SourceSans3-Regular.ttf') }}') format('truetype'); font-weight: normal; font-style: normal; }
         @font-face { font-family: 'Source Sans 3'; src: url('{{ storage_path('fonts/SourceSans3-Italic.ttf') }}') format('truetype'); font-weight: normal; font-style: italic; }
 
+        @foreach ($customFonts ?? [] as $cfont)
+            @if ($cfont->file_regular)
+                @font-face { font-family: '{{ e($cfont->family_name) }}'; src: url('{{ $cfont->getAbsolutePath('regular') }}') format('truetype'); font-weight: normal; font-style: normal; }
+            @endif
+            @if ($cfont->file_bold)
+                @font-face { font-family: '{{ e($cfont->family_name) }}'; src: url('{{ $cfont->getAbsolutePath('bold') }}') format('truetype'); font-weight: bold; font-style: normal; }
+            @endif
+            @if ($cfont->file_italic)
+                @font-face { font-family: '{{ e($cfont->family_name) }}'; src: url('{{ $cfont->getAbsolutePath('italic') }}') format('truetype'); font-weight: normal; font-style: italic; }
+            @endif
+            @if ($cfont->file_bold_italic)
+                @font-face { font-family: '{{ e($cfont->family_name) }}'; src: url('{{ $cfont->getAbsolutePath('bold_italic') }}') format('truetype'); font-weight: bold; font-style: italic; }
+            @endif
+        @endforeach
+
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: DejaVu Sans, sans-serif; }
         .page {
@@ -83,7 +98,7 @@
                         <table style="width:100%; border-collapse:collapse; font-size:{{ $rStyle['fontSize'] ?? 8 }}pt; font-family: inherit;">
                             <thead>
                                 @foreach ($stData['headerRows'] as $headerRow)
-                                    <tr style="background:{{ e($hStyle['backgroundColor'] ?? '#f3f4f6') }}; color:{{ e($hStyle['color'] ?? '#374151') }};">
+                                    <tr style="{{ !empty($hStyle['backgroundColor']) ? 'background:' . e($hStyle['backgroundColor']) . ';' : '' }} color:{{ e($hStyle['color'] ?? '#374151') }};">
                                         @foreach ($headerRow as $cell)
                                             <th
                                                 @if (($cell['colspan'] ?? 1) > 1) colspan="{{ $cell['colspan'] }}" @endif
@@ -96,7 +111,7 @@
                             </thead>
                             <tbody>
                                 @foreach ($stData['bodyRows'] as $ri => $row)
-                                    <tr @if ($zebra && $ri % 2 === 1) style="background:{{ e($zebraColor) }};" @endif>
+                                    <tr @if ($zebra && $ri % 2 === 1 && !empty($zebraColor)) style="background:{{ e($zebraColor) }};" @endif>
                                         @foreach ($row as $ci => $cell)
                                             <td style="border:1px solid {{ e($bColor) }}; padding:1mm 2mm; text-align:{{ $flatCols[$ci]['align'] ?? 'left' }};">{{ e($cell) }}</td>
                                         @endforeach

@@ -541,7 +541,7 @@ function onResizeStart(e, handle) {
               v-for="(headerRow, hri) in smartTableData.headerRows"
               :key="'hr' + hri"
               :style="{
-                background: element.ptl?.headerStyle?.backgroundColor || '#f3f4f6',
+                background: element.ptl?.headerStyle?.backgroundColor || 'transparent',
                 color: element.ptl?.headerStyle?.color || '#374151',
               }"
             >

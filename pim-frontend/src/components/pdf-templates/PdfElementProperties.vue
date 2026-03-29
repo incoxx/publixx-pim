@@ -1,12 +1,14 @@
 <script setup>
 import { computed, ref, onMounted } from 'vue'
 import { usePdfTemplateDesignerStore } from '@/stores/pdfTemplateDesigner'
-import { Settings, Trash2, Copy, ArrowUpToLine, ArrowDownToLine } from 'lucide-vue-next'
-import { fontFamilies } from './fontList'
+import { Settings, Trash2, Copy, ArrowUpToLine, ArrowDownToLine, Type } from 'lucide-vue-next'
+import { fontFamilies, builtInFontFamilies, fetchAllFonts } from './fontList'
 import SmartTableEditor from './SmartTableEditor.vue'
+import PdfFontManager from './PdfFontManager.vue'
 import client from '@/api/client'
 
 const store = usePdfTemplateDesignerStore()
+const fontManagerOpen = ref(false)
 
 const relationTypes = ref([])
 const attributeTypes = ref([])
@@ -31,6 +33,8 @@ onMounted(async () => {
   } catch (e) {
     console.warn('Failed to load data:', e.message)
   }
+  // Custom-Fonts laden
+  fetchAllFonts()
 })
 
 const sel = computed(() => store.selectedElement)
@@ -133,7 +137,7 @@ function updateColumnWidth(index, value) {
   store.updateElement(sel.value.id, { columnWidths: widths })
 }
 
-// fontFamilies imported from fontList.js
+// fontFamilies + fetchAllFonts imported from fontList.js
 
 const canAutofit = computed(() => {
   if (!sel.value || sel.value.type === 'shape' || sel.value.type === 'image' || sel.value.type === 'variant_table' || sel.value.type === 'relation_table' || sel.value.type === 'attribute_table' || sel.value.type === 'smart_table') return false
@@ -624,9 +628,17 @@ const typeLabels = {
 
           <div class="space-y-2">
             <div>
-              <label class="block text-[9px] text-[var(--color-text-tertiary)] mb-0.5">Schriftart</label>
+              <div class="flex items-center justify-between mb-0.5">
+                <label class="text-[9px] text-[var(--color-text-tertiary)]">Schriftart</label>
+                <button class="text-[9px] text-[var(--color-accent)] hover:underline" @click="fontManagerOpen = true">Verwalten</button>
+              </div>
               <select :value="sel.style?.fontFamily || 'DejaVu Sans'" class="pim-input text-xs w-full" @change="updateStyle('fontFamily', $event.target.value)">
-                <option v-for="f in fontFamilies" :key="f.value" :value="f.value">{{ f.label }}</option>
+                <optgroup label="Eingebaute Schriften">
+                  <option v-for="f in fontFamilies.filter(f => !f.custom)" :key="f.value" :value="f.value">{{ f.label }}</option>
+                </optgroup>
+                <optgroup v-if="fontFamilies.some(f => f.custom)" label="Eigene Schriften">
+                  <option v-for="f in fontFamilies.filter(f => f.custom)" :key="f.value" :value="f.value">{{ f.label }}</option>
+                </optgroup>
               </select>
             </div>
 
@@ -720,4 +732,7 @@ const typeLabels = {
       </div>
     </div>
   </div>
+
+  <!-- Font Manager Dialog -->
+  <PdfFontManager v-model="fontManagerOpen" @fonts-changed="fetchAllFonts" />
 </template>

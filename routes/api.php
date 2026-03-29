@@ -74,6 +74,7 @@ use App\Http\Controllers\Api\V1\ProductVariantController;
 use App\Http\Controllers\Api\V1\RoleRestrictionController;
 use App\Http\Controllers\Api\V1\ProductVersionController;
 use App\Http\Controllers\Api\V1\PublixxDatasetController;
+use App\Http\Controllers\Api\V1\PdfFontController;
 use App\Http\Controllers\Api\V1\PdfTemplateController;
 use App\Http\Controllers\Api\V1\ApiStreamController;
 use App\Http\Controllers\Api\V1\ApiTemplateController;
@@ -772,6 +773,9 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
         Route::post('pdf-templates/{pdf_template}/resolve-preview', [PdfTemplateController::class, 'resolvePreview']);
         Route::post('pdf-templates/{pdf_template}/preview', [PdfTemplateController::class, 'preview']);
         Route::post('pdf-templates/{pdf_template}/execute', [PdfTemplateController::class, 'execute']);
+
+        // Custom Fonts
+        Route::apiResource('pdf-fonts', PdfFontController::class)->only(['index', 'store', 'destroy']);
     });
 
     // =====================================================================
