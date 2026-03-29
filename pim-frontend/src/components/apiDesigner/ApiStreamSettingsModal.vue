@@ -154,7 +154,12 @@ function updateRateLimit(value) {
         <!-- cURL Example -->
         <div>
           <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">Beispiel-Aufruf</label>
-          <pre class="text-[10px] font-mono bg-[var(--color-bg)] p-2 rounded text-[var(--color-text-secondary)] whitespace-pre-wrap">curl -H "X-Api-Key: YOUR_KEY" \
+          <pre v-if="store.currentTemplate?.output_format === 'graphql'" class="text-[10px] font-mono bg-[var(--color-bg)] p-2 rounded text-[var(--color-text-secondary)] whitespace-pre-wrap">curl -X POST \
+  -H "X-Api-Key: YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "{ total groups { products { sku name } } }"}' \
+  {{ streamUrl }}</pre>
+          <pre v-else class="text-[10px] font-mono bg-[var(--color-bg)] p-2 rounded text-[var(--color-text-secondary)] whitespace-pre-wrap">curl -H "X-Api-Key: YOUR_KEY" \
   {{ streamUrl }}</pre>
         </div>
       </div>

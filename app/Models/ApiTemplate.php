@@ -21,6 +21,7 @@ class ApiTemplate extends Model
         'search_profile_id',
         'template_json',
         'direction',
+        'output_format',
         'language',
         'user_id',
         'is_shared',

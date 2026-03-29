@@ -193,8 +193,7 @@ Route::prefix('v1/catalog')->middleware('throttle.pim')->group(function () {
 // API Designer Stream Endpoints (own auth via API key / bearer)
 // =========================================================================
 Route::prefix('v1')->middleware('throttle.pim')->group(function () {
-    Route::get('api-streams/{slug}', [ApiStreamController::class, 'stream']);
-    Route::post('api-streams/{slug}', [ApiStreamController::class, 'import']);
+    Route::match(['get', 'post'], 'api-streams/{slug}', [ApiStreamController::class, 'stream']);
 });
 
 // =========================================================================
@@ -783,6 +782,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
         Route::apiResource('api-templates', ApiTemplateController::class);
         Route::get('api-templates/{api_template}/dependencies', [ApiTemplateController::class, 'dependencies']);
         Route::post('api-templates/{api_template}/preview', [ApiTemplateController::class, 'preview']);
+        Route::post('api-templates/{api_template}/schema-preview', [ApiTemplateController::class, 'schemaPreview']);
         Route::post('api-templates/{api_template}/regenerate-key', [ApiTemplateController::class, 'regenerateApiKey']);
     });
 
