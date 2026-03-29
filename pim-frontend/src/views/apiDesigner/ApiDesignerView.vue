@@ -9,6 +9,7 @@ import searchProfilesApi from '@/api/searchProfiles'
 import ApiTreeEditor from '@/components/apiDesigner/ApiTreeEditor.vue'
 import ApiFieldPicker from '@/components/apiDesigner/ApiFieldPicker.vue'
 import ApiJsonPreview from '@/components/apiDesigner/ApiJsonPreview.vue'
+import ApiGraphqlPreview from '@/components/apiDesigner/ApiGraphqlPreview.vue'
 import ApiStreamSettingsModal from '@/components/apiDesigner/ApiStreamSettingsModal.vue'
 
 const route = useRoute()
@@ -118,6 +119,16 @@ function onSearchProfileChange(id) {
         <option value="bidirectional">Bi-Direktional</option>
       </select>
 
+      <!-- Output Format -->
+      <select
+        v-model="store.currentTemplate.output_format"
+        class="pim-input text-xs w-28"
+        @change="store.isDirty = true"
+      >
+        <option value="json">JSON</option>
+        <option value="graphql">GraphQL</option>
+      </select>
+
       <!-- Language -->
       <select
         v-model="store.currentTemplate.language"
@@ -196,9 +207,10 @@ function onSearchProfileChange(id) {
         <ApiTreeEditor @show-field-picker="showFieldPicker = true" />
       </div>
 
-      <!-- Right: JSON Preview -->
+      <!-- Right: Preview (JSON or GraphQL) -->
       <div class="w-[45%] shrink-0 border-l border-[var(--color-border)] overflow-y-auto bg-[var(--color-surface)]">
-        <ApiJsonPreview />
+        <ApiGraphqlPreview v-if="store.currentTemplate?.output_format === 'graphql'" />
+        <ApiJsonPreview v-else />
       </div>
     </div>
 

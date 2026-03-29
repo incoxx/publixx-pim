@@ -29,6 +29,10 @@ export const useApiDesignerStore = defineStore('apiDesigner', () => {
   const previewData = ref(null)
   const previewLoading = ref(false)
 
+  // GraphQL Schema Preview
+  const schemaPreview = ref(null)
+  const schemaPreviewLoading = ref(false)
+
   // --- Template List ---
   async function loadTemplates() {
     loading.value = true
@@ -63,6 +67,7 @@ export const useApiDesignerStore = defineStore('apiDesigner', () => {
       search_profile_id: currentTemplate.value.search_profile_id,
       template_json: templateJson.value,
       direction: currentTemplate.value.direction || 'export',
+      output_format: currentTemplate.value.output_format || 'json',
       language: currentTemplate.value.language || 'de',
       is_shared: currentTemplate.value.is_shared || false,
       is_active: currentTemplate.value.is_active ?? true,
@@ -214,6 +219,11 @@ export const useApiDesignerStore = defineStore('apiDesigner', () => {
   // --- Preview ---
   async function loadPreview() {
     if (!currentTemplate.value) return
+
+    if (currentTemplate.value.output_format === 'graphql') {
+      return loadSchemaPreview()
+    }
+
     previewLoading.value = true
     try {
       if (isDirty.value) await saveTemplate()
@@ -221,6 +231,18 @@ export const useApiDesignerStore = defineStore('apiDesigner', () => {
       previewData.value = data.data || data
     } finally {
       previewLoading.value = false
+    }
+  }
+
+  async function loadSchemaPreview() {
+    if (!currentTemplate.value) return
+    schemaPreviewLoading.value = true
+    try {
+      if (isDirty.value) await saveTemplate()
+      const { data } = await apiTemplatesApi.schemaPreview(currentTemplate.value.id)
+      schemaPreview.value = data.data || data
+    } finally {
+      schemaPreviewLoading.value = false
     }
   }
 
@@ -262,6 +284,7 @@ export const useApiDesignerStore = defineStore('apiDesigner', () => {
     focusedSection,
     isDirty,
     previewData, previewLoading, jsonStructurePreview,
+    schemaPreview, schemaPreviewLoading, loadSchemaPreview,
     loadTemplates, loadTemplate, saveTemplate, createTemplate, deleteTemplate,
     loadFields,
     addGroup, removeGroup, updateGroup,

@@ -133,6 +133,12 @@ const directionColors = {
               {{ directionLabels[tmpl.direction || 'export'] }}
             </span>
             <span
+              v-if="tmpl.output_format === 'graphql'"
+              class="text-[10px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
+            >
+              GraphQL
+            </span>
+            <span
               class="text-[10px] px-1.5 py-0.5 rounded"
               :class="tmpl.is_active ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'"
             >

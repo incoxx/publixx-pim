@@ -7,6 +7,8 @@ namespace App\Http\Controllers\Api\V1;
 use App\Models\ApiTemplate;
 use App\Models\ApiTemplateAccessLog;
 use App\Services\ApiDesigner\ApiDesignerService;
+use App\Services\ApiDesigner\GraphqlDesignerService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -14,12 +16,13 @@ class ApiStreamController extends Controller
 {
     public function __construct(
         private readonly ApiDesignerService $apiDesignerService,
+        private readonly GraphqlDesignerService $graphqlDesignerService,
     ) {}
 
     /**
-     * GET /api/v1/api-streams/{slug} — Stream product data as JSON.
+     * GET|POST /api/v1/api-streams/{slug} — Stream product data as JSON or execute GraphQL query.
      */
-    public function stream(Request $request, string $slug): StreamedResponse
+    public function stream(Request $request, string $slug): StreamedResponse|JsonResponse
     {
         $template = ApiTemplate::where('slug', $slug)->active()->firstOrFail();
 
@@ -27,14 +30,48 @@ class ApiStreamController extends Controller
 
         $startTime = microtime(true);
 
-        $searchProfile = $template->searchProfile;
+        if ($template->output_format === 'graphql') {
+            $response = $this->handleGraphql($request, $template);
+        } else {
+            $response = $this->apiDesignerService->stream($template, $template->searchProfile);
+        }
 
-        $response = $this->apiDesignerService->stream($template, $searchProfile);
-
-        // Log access asynchronously
         $this->logAccess($template, $request, $startTime);
 
         return $response;
+    }
+
+    /**
+     * GraphQL-Query aus Request lesen und ausführen.
+     */
+    private function handleGraphql(Request $request, ApiTemplate $template): JsonResponse
+    {
+        // Query aus POST-Body oder GET-Parameter lesen
+        $query = $request->input('query');
+        $variables = $request->input('variables');
+
+        if (!$query) {
+            return response()->json([
+                'errors' => [['message' => 'GraphQL-Query fehlt. Sende {"query": "{ ... }"} als JSON-Body.']],
+            ], 400);
+        }
+
+        if (is_string($variables)) {
+            $variables = json_decode($variables, true);
+        }
+
+        try {
+            $result = $this->graphqlDesignerService->execute($template, $query, $variables);
+
+            return response()->json($result, 200, [
+                'Content-Type' => 'application/json; charset=utf-8',
+                'Cache-Control' => 'no-cache',
+            ]);
+        } catch (\GraphQL\Error\SyntaxError $e) {
+            return response()->json([
+                'errors' => [['message' => 'GraphQL Syntax-Fehler: ' . $e->getMessage()]],
+            ], 400);
+        }
     }
 
     /**

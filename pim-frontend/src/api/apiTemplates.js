@@ -36,4 +36,8 @@ export default {
   regenerateKey(id) {
     return client.post(`/api-templates/${id}/regenerate-key`)
   },
+
+  schemaPreview(id) {
+    return client.post(`/api-templates/${id}/schema-preview`)
+  },
 }

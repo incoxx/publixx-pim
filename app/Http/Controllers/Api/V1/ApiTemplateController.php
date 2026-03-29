@@ -9,6 +9,7 @@ use App\Models\ApiTemplate;
 use App\Models\Attribute;
 use App\Models\SearchProfile;
 use App\Services\ApiDesigner\ApiDesignerService;
+use App\Services\ApiDesigner\GraphqlDesignerService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -19,6 +20,7 @@ class ApiTemplateController extends Controller
 
     public function __construct(
         private readonly ApiDesignerService $apiDesignerService,
+        private readonly GraphqlDesignerService $graphqlDesignerService,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -42,6 +44,7 @@ class ApiTemplateController extends Controller
             'search_profile_id' => 'sometimes|string|nullable|exists:search_profiles,id',
             'template_json' => 'required|array',
             'direction' => 'sometimes|string|in:export,import,bidirectional',
+            'output_format' => 'sometimes|string|in:json,graphql',
             'language' => 'sometimes|string|max:5',
             'is_shared' => 'sometimes|boolean',
             'is_active' => 'sometimes|boolean',
@@ -90,6 +93,7 @@ class ApiTemplateController extends Controller
             'search_profile_id' => 'sometimes|string|nullable|exists:search_profiles,id',
             'template_json' => 'sometimes|array',
             'direction' => 'sometimes|string|in:export,import,bidirectional',
+            'output_format' => 'sometimes|string|in:json,graphql',
             'language' => 'sometimes|string|max:5',
             'is_shared' => 'sometimes|boolean',
             'is_active' => 'sometimes|boolean',
@@ -209,6 +213,19 @@ class ApiTemplateController extends Controller
             'data' => $template->fresh(),
             'api_key_plain' => $plainKey,
         ]);
+    }
+
+    /**
+     * POST /api/v1/api-templates/{id}/schema-preview — GraphQL-Schema SDL + Sample Query.
+     */
+    public function schemaPreview(Request $request, string $id): JsonResponse
+    {
+        $template = ApiTemplate::findOrFail($id);
+        $this->authorizeAccess($request, $template);
+
+        $result = $this->graphqlDesignerService->schemaPreview($template);
+
+        return response()->json(['data' => $result]);
     }
 
     private function authorizeAccess(Request $request, ApiTemplate $template): void

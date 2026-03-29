@@ -17,7 +17,8 @@
         "phpoffice/phpword": "^1.4",
         "socialiteproviders/microsoft-azure": "*",
         "spatie/laravel-permission": "^6.0",
-        "typesense/typesense-php": "^4.9"
+        "typesense/typesense-php": "^4.9",
+        "webonyx/graphql-php": "*"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",
