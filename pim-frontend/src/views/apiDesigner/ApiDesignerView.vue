@@ -22,6 +22,7 @@ const error = ref('')
 const loadError = ref(false)
 const showStreamSettings = ref(false)
 const showFieldPicker = ref(false)
+const mobilePanel = ref('editor') // 'editor' | 'preview' — Mobile-Tab-Toggle
 
 onMounted(async () => {
   const id = route.params.id
@@ -92,123 +93,153 @@ function onSearchProfileChange(id) {
 <template>
   <div class="h-full flex flex-col" v-if="store.currentTemplate">
     <!-- Toolbar -->
-    <div class="shrink-0 border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2.5 flex items-center gap-3">
-      <button
-        class="pim-btn pim-btn-secondary text-xs px-2 py-1"
-        @click="router.push('/api-designer')"
-        title="Zurück"
-      >
-        <ArrowLeft class="w-3.5 h-3.5" :stroke-width="2" />
-      </button>
-
-      <input
-        v-model="store.currentTemplate.name"
-        class="pim-input text-sm font-medium w-56"
-        placeholder="Template-Name"
-        @input="store.isDirty = true"
-      />
-
-      <!-- Direction -->
-      <select
-        v-model="store.currentTemplate.direction"
-        class="pim-input text-xs w-32"
-        @change="store.isDirty = true"
-      >
-        <option value="export">Export</option>
-        <option value="import">Import</option>
-        <option value="bidirectional">Bi-Direktional</option>
-      </select>
-
-      <!-- Output Format -->
-      <select
-        v-model="store.currentTemplate.output_format"
-        class="pim-input text-xs w-28"
-        @change="store.isDirty = true"
-      >
-        <option value="json">JSON</option>
-        <option value="graphql">GraphQL</option>
-      </select>
-
-      <!-- Language -->
-      <select
-        v-model="store.currentTemplate.language"
-        class="pim-input text-xs w-16"
-        @change="store.isDirty = true"
-      >
-        <option value="de">DE</option>
-        <option value="en">EN</option>
-      </select>
-
-      <!-- Active Toggle -->
-      <label class="flex items-center gap-1.5 text-[11px] cursor-pointer text-[var(--color-text-secondary)]">
-        <input
-          type="checkbox"
-          :checked="store.currentTemplate.is_active"
-          class="rounded"
-          @change="store.currentTemplate.is_active = $event.target.checked; store.isDirty = true"
-        />
-        Aktiv
-      </label>
-
-      <div class="flex-1"></div>
-
-      <!-- Search Profile -->
-      <div class="flex items-center gap-1.5">
-        <Filter class="w-3.5 h-3.5 text-[var(--color-text-secondary)]" :stroke-width="2" />
-        <span class="text-xs text-[var(--color-text-secondary)] whitespace-nowrap">Suchprofil:</span>
-        <select
-          class="pim-input text-xs w-48"
-          :value="store.currentTemplate.search_profile_id || ''"
-          @change="onSearchProfileChange($event.target.value)"
+    <div class="shrink-0 border-b border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 sm:px-4 sm:py-2.5">
+      <!-- Row 1: Back + Name + Actions -->
+      <div class="flex items-center gap-2 sm:gap-3">
+        <button
+          class="pim-btn pim-btn-secondary text-xs px-2 py-1 shrink-0"
+          @click="router.push('/api-designer')"
+          title="Zurück"
         >
-          <option value="">Alle Produkte</option>
-          <option v-for="sp in searchProfiles" :key="sp.id" :value="sp.id">{{ sp.name }}</option>
-        </select>
+          <ArrowLeft class="w-3.5 h-3.5" :stroke-width="2" />
+        </button>
+
+        <input
+          v-model="store.currentTemplate.name"
+          class="pim-input text-sm font-medium min-w-0 flex-1 sm:flex-none sm:w-56"
+          placeholder="Template-Name"
+          @input="store.isDirty = true"
+        />
+
+        <div class="flex-1 hidden sm:block"></div>
+
+        <!-- Actions (immer sichtbar) -->
+        <div class="flex items-center gap-1.5 sm:gap-2 shrink-0 ml-auto">
+          <button
+            class="pim-btn pim-btn-secondary text-xs px-2 py-1 sm:px-3"
+            @click="showStreamSettings = true"
+            title="Stream-Einstellungen"
+          >
+            <Settings class="w-3.5 h-3.5" :stroke-width="2" />
+            <span class="hidden sm:inline ml-1">Stream</span>
+          </button>
+
+          <button
+            class="pim-btn pim-btn-primary text-xs px-2 py-1 sm:px-3"
+            @click="save"
+            :disabled="saving || !store.isDirty"
+          >
+            <Save class="w-3.5 h-3.5" :stroke-width="2" />
+            <span class="hidden sm:inline ml-1">{{ saving ? 'Speichern...' : 'Speichern' }}</span>
+          </button>
+
+          <button
+            class="pim-btn pim-btn-secondary text-xs px-2 py-1 sm:px-3"
+            @click="loadPreview"
+            :disabled="store.previewLoading"
+          >
+            <Loader2 v-if="store.previewLoading" class="w-3.5 h-3.5 animate-spin" :stroke-width="2" />
+            <Eye v-else class="w-3.5 h-3.5" :stroke-width="2" />
+            <span class="hidden sm:inline ml-1">Vorschau</span>
+          </button>
+        </div>
       </div>
 
-      <!-- Stream Settings -->
-      <button
-        class="pim-btn pim-btn-secondary text-xs"
-        @click="showStreamSettings = true"
-        title="Stream-Einstellungen"
-      >
-        <Settings class="w-3.5 h-3.5" :stroke-width="2" />
-        Stream
-      </button>
+      <!-- Row 2: Settings (wraps auf Mobile) -->
+      <div class="flex flex-wrap items-center gap-2 mt-2">
+        <!-- Direction -->
+        <select
+          v-model="store.currentTemplate.direction"
+          class="pim-input text-xs w-auto min-w-[100px]"
+          @change="store.isDirty = true"
+        >
+          <option value="export">Export</option>
+          <option value="import">Import</option>
+          <option value="bidirectional">Bi-Direktional</option>
+        </select>
 
-      <!-- Actions -->
-      <button
-        class="pim-btn pim-btn-primary text-xs"
-        @click="save"
-        :disabled="saving || !store.isDirty"
-      >
-        <Save class="w-3.5 h-3.5" :stroke-width="2" />
-        {{ saving ? 'Speichern...' : 'Speichern' }}
-      </button>
+        <!-- Output Format -->
+        <select
+          v-model="store.currentTemplate.output_format"
+          class="pim-input text-xs w-auto min-w-[90px]"
+          @change="store.isDirty = true"
+        >
+          <option value="json">JSON</option>
+          <option value="graphql">GraphQL</option>
+        </select>
 
-      <button
-        class="pim-btn pim-btn-secondary text-xs"
-        @click="loadPreview"
-        :disabled="store.previewLoading"
-      >
-        <Loader2 v-if="store.previewLoading" class="w-3.5 h-3.5 animate-spin" :stroke-width="2" />
-        <Eye v-else class="w-3.5 h-3.5" :stroke-width="2" />
-        Vorschau
-      </button>
+        <!-- Language -->
+        <select
+          v-model="store.currentTemplate.language"
+          class="pim-input text-xs w-16"
+          @change="store.isDirty = true"
+        >
+          <option value="de">DE</option>
+          <option value="en">EN</option>
+        </select>
+
+        <!-- Active Toggle -->
+        <label class="flex items-center gap-1.5 text-[11px] cursor-pointer text-[var(--color-text-secondary)]">
+          <input
+            type="checkbox"
+            :checked="store.currentTemplate.is_active"
+            class="rounded"
+            @change="store.currentTemplate.is_active = $event.target.checked; store.isDirty = true"
+          />
+          Aktiv
+        </label>
+
+        <!-- Search Profile -->
+        <div class="flex items-center gap-1.5">
+          <Filter class="w-3.5 h-3.5 text-[var(--color-text-secondary)] shrink-0" :stroke-width="2" />
+          <select
+            class="pim-input text-xs w-auto min-w-[120px] max-w-[200px]"
+            :value="store.currentTemplate.search_profile_id || ''"
+            @change="onSearchProfileChange($event.target.value)"
+          >
+            <option value="">Alle Produkte</option>
+            <option v-for="sp in searchProfiles" :key="sp.id" :value="sp.id">{{ sp.name }}</option>
+          </select>
+        </div>
+      </div>
     </div>
 
     <!-- Error -->
     <div v-if="error" class="px-4 py-2 bg-[var(--color-error-light)] text-[var(--color-error)] text-xs">{{ error }}</div>
 
-    <!-- Split-View Layout -->
+    <!-- Mobile Tab Toggle (nur auf kleinen Screens) -->
+    <div class="flex sm:hidden border-b border-[var(--color-border)] bg-[var(--color-surface)]">
+      <button
+        class="flex-1 px-4 py-2 text-xs font-medium transition-colors"
+        :class="mobilePanel === 'editor' ? 'text-[var(--color-accent)] border-b-2 border-[var(--color-accent)]' : 'text-[var(--color-text-secondary)]'"
+        @click="mobilePanel = 'editor'"
+      >
+        Editor
+      </button>
+      <button
+        class="flex-1 px-4 py-2 text-xs font-medium transition-colors"
+        :class="mobilePanel === 'preview' ? 'text-[var(--color-accent)] border-b-2 border-[var(--color-accent)]' : 'text-[var(--color-text-secondary)]'"
+        @click="mobilePanel = 'preview'"
+      >
+        Vorschau
+      </button>
+    </div>
+
+    <!-- Split-View Layout (Desktop: side-by-side, Mobile: tabbed) -->
     <div class="flex-1 flex overflow-hidden">
       <!-- Left: Tree Editor -->
-      <div class="flex-1 overflow-y-auto p-4 bg-[var(--color-bg)]">
+      <div
+        class="flex-1 overflow-y-auto p-3 sm:p-4 bg-[var(--color-bg)]"
+        :class="{ 'hidden sm:block': mobilePanel !== 'editor' }"
+      >
         <ApiTreeEditor @show-field-picker="showFieldPicker = true" />
       </div>
 
       <!-- Right: Preview (JSON or GraphQL) -->
-      <div class="w-[45%] shrink-0 border-l border-[var(--color-border)] overflow-y-auto bg-[var(--color-surface)]">
+      <div
+        class="w-full sm:w-[45%] sm:shrink-0 sm:border-l border-[var(--color-border)] overflow-y-auto bg-[var(--color-surface)]"
+        :class="{ 'hidden sm:block': mobilePanel !== 'preview' }"
+      >
         <ApiGraphqlPreview v-if="store.currentTemplate?.output_format === 'graphql'" />
         <ApiJsonPreview v-else />
       </div>
