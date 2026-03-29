@@ -301,6 +301,8 @@ GRAPHQL;
      */
     private function fetchMainMenu(PendingRequest $http, string $graphqlUrl): ?array
     {
+        // Menu.items ist eine Connection (braucht nodes),
+        // MenuItem.items ist ein plain Array (KEIN nodes)
         $query = <<<'GRAPHQL'
 query {
   menus(first: 10) {
@@ -315,22 +317,18 @@ query {
           type
           url
           resourceId
-          items(first: 50) {
-            nodes {
+          items {
+            id
+            title
+            type
+            url
+            resourceId
+            items {
               id
               title
               type
               url
               resourceId
-              items(first: 50) {
-                nodes {
-                  id
-                  title
-                  type
-                  url
-                  resourceId
-                }
-              }
             }
           }
         }
@@ -345,12 +343,18 @@ GRAPHQL;
             $response->throw();
             $data = $response->json();
 
+            // GraphQL-Level Fehler pruefen
+            if (!empty($data['errors'])) {
+                Log::channel('connectors')->error('GraphQL Fehler beim Menu-Laden', [
+                    'errors' => $data['errors'],
+                ]);
+                return null;
+            }
+
             $menus = $data['data']['menus']['nodes'] ?? [];
 
             if (empty($menus)) {
-                Log::channel('connectors')->warning('Keine Menus gefunden', [
-                    'response' => $data,
-                ]);
+                Log::channel('connectors')->warning('Keine Menus gefunden');
                 return null;
             }
 
@@ -365,19 +369,19 @@ GRAPHQL;
             // Fallback: Menu mit "Main" im Titel
             foreach ($menus as $menu) {
                 if (str_contains(strtolower($menu['title'] ?? ''), 'main')) {
-                    Log::channel('connectors')->info("Main menu per Titel gefunden: title={$menu['title']}, id={$menu['id']}");
+                    Log::channel('connectors')->info("Main menu per Titel: title={$menu['title']}, id={$menu['id']}");
                     return $menu;
                 }
             }
 
             // Letzter Fallback: erstes Menu
-            Log::channel('connectors')->info("Fallback: erstes Menu verwendet: handle={$menus[0]['handle']}, title={$menus[0]['title']}");
+            Log::channel('connectors')->info("Fallback: erstes Menu: handle={$menus[0]['handle']}");
             return $menus[0];
         } catch (\Throwable $e) {
             Log::channel('connectors')->error('Menus laden fehlgeschlagen', [
                 'error'    => $e->getMessage(),
                 'response' => $e instanceof \Illuminate\Http\Client\RequestException
-                    ? $e->response?->body()
+                    ? substr($e->response?->body() ?? '', 0, 500)
                     : null,
             ]);
             return null;
@@ -406,8 +410,8 @@ GRAPHQL;
             $result['resourceId'] = $item['resourceId'];
         }
 
-        // Kinder rekursiv
-        $children = $item['items']['nodes'] ?? [];
+        // Kinder rekursiv (MenuItem.items ist ein plain Array, kein Connection)
+        $children = $item['items'] ?? [];
         if (!empty($children)) {
             $result['items'] = array_map(
                 fn ($child) => $this->convertExistingItemForUpdate($child),
