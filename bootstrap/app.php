@@ -3,6 +3,7 @@
 use App\Http\Middleware\CatalogAccessControl;
 use App\Http\Middleware\CheckModuleLicense;
 use App\Http\Middleware\RateLimitMiddleware;
+use App\Http\Middleware\ValidateApiClientScope;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -22,6 +23,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'throttle.pim' => RateLimitMiddleware::class,
             'catalog.access' => CatalogAccessControl::class,
             'module' => CheckModuleLicense::class,
+            'api-client-scope' => ValidateApiClientScope::class,
         ]);
 
         // Agent 2: Sanctum stateful middleware for API
