@@ -14,6 +14,8 @@ import {
   LayoutDashboard, ClipboardList, Code, ExternalLink, Plug, FlaskConical, ArrowRightLeft,
   FileSpreadsheet,
   ShoppingBag,
+  ArrowDownUp,
+  Key,
 } from 'lucide-vue-next'
 import AnyPimLogo from '@/components/shared/AnyPimLogo.vue'
 import { useAppearanceStore, SECTION_ICON_COLORS } from '@/stores/appearance'
@@ -90,6 +92,8 @@ const sections = computed(() => {
             { icon: ShoppingBag, label: () => 'Shopify', to: '/connectors/shopify', module: 'connectors' },
             { icon: Image, label: () => 'Cloudinary', to: '/connectors/cloudinary', module: 'connectors' },
             { icon: Zap, label: () => 'Claude AI', to: '/connectors/claude-ai', module: 'connectors' },
+            { icon: ArrowDownUp, label: () => 'anyPIM Sync', to: '/connectors/anypim', module: 'connectors' },
+            { icon: Key, label: () => 'API-Clients', to: '/connectors/api-clients', module: 'connectors' },
           ],
         },
       ],

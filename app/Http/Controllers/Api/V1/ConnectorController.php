@@ -230,6 +230,13 @@ class ConnectorController extends Controller
             ], 422);
         }
 
+        // anyPIM: client_secret in Settings verschlüsseln
+        if ($type === 'anypim' && $settings && ! empty($settings['client_secret_encrypted'])) {
+            $settings['client_secret_encrypted'] = \App\Services\Connectors\AnyPim\AnyPimAuthService::encryptSecret(
+                $settings['client_secret_encrypted']
+            );
+        }
+
         $connection = ConnectorConnection::create([
             'connector_type'   => $connector->getType(),
             'name'             => $validated['name'] ?? ucfirst($type) . '-Verbindung',
