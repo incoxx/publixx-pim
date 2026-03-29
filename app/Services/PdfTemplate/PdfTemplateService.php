@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\PdfTemplate;
 
+use App\Models\PdfFont;
 use App\Models\PdfTemplate;
 use App\Models\Product;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -32,6 +33,7 @@ class PdfTemplateService
             'templateJson' => $template->template_json,
             'pageOrientation' => $template->page_orientation ?? 'portrait',
             'pageSize' => $template->page_size ?? 'A4',
+            'customFonts' => PdfFont::all(),
         ]);
 
         $pdf->setPaper(
@@ -71,6 +73,7 @@ class PdfTemplateService
             'templateJson' => $template->template_json,
             'pageOrientation' => $template->page_orientation ?? 'portrait',
             'pageSize' => $template->page_size ?? 'A4',
+            'customFonts' => PdfFont::all(),
         ]);
 
         $pdf->setPaper(

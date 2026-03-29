@@ -223,7 +223,7 @@ const previewGroupHeaders = computed(() => {
       <div class="absolute inset-0 bg-black/50" @click="onCancel" />
 
       <!-- Dialog -->
-      <div class="relative bg-[var(--color-bg-surface)] rounded-lg shadow-xl w-[800px] max-h-[90vh] flex flex-col">
+      <div class="relative bg-[var(--color-surface)] rounded-lg shadow-xl w-[800px] max-h-[90vh] flex flex-col">
         <!-- Header -->
         <div class="flex items-center justify-between px-5 py-3 border-b border-[var(--color-border)]">
           <div class="flex items-center gap-2">
@@ -418,19 +418,31 @@ const previewGroupHeaders = computed(() => {
             <div class="grid grid-cols-2 gap-x-6 gap-y-3">
               <div class="flex items-center justify-between">
                 <span class="text-[11px] text-[var(--color-text-secondary)]">Header-Hintergrund</span>
-                <input type="color" v-model="localPtl.headerStyle.backgroundColor" class="w-7 h-5 rounded border border-[var(--color-border)] cursor-pointer" />
+                <div class="flex items-center gap-1.5">
+                  <input type="color" :value="localPtl.headerStyle.backgroundColor || '#f3f4f6'" class="w-7 h-5 rounded border border-[var(--color-border)] cursor-pointer" @input="localPtl.headerStyle.backgroundColor = $event.target.value" />
+                  <button v-if="localPtl.headerStyle.backgroundColor" class="text-[9px] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]" @click="localPtl.headerStyle.backgroundColor = ''">×</button>
+                </div>
               </div>
               <div class="flex items-center justify-between">
                 <span class="text-[11px] text-[var(--color-text-secondary)]">Header-Textfarbe</span>
-                <input type="color" v-model="localPtl.headerStyle.color" class="w-7 h-5 rounded border border-[var(--color-border)] cursor-pointer" />
+                <div class="flex items-center gap-1.5">
+                  <input type="color" :value="localPtl.headerStyle.color || '#374151'" class="w-7 h-5 rounded border border-[var(--color-border)] cursor-pointer" @input="localPtl.headerStyle.color = $event.target.value" />
+                  <button v-if="localPtl.headerStyle.color" class="text-[9px] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]" @click="localPtl.headerStyle.color = ''">×</button>
+                </div>
               </div>
               <div class="flex items-center justify-between">
                 <span class="text-[11px] text-[var(--color-text-secondary)]">Rahmenfarbe</span>
-                <input type="color" v-model="localPtl.borderColor" class="w-7 h-5 rounded border border-[var(--color-border)] cursor-pointer" />
+                <div class="flex items-center gap-1.5">
+                  <input type="color" :value="localPtl.borderColor || '#e5e7eb'" class="w-7 h-5 rounded border border-[var(--color-border)] cursor-pointer" @input="localPtl.borderColor = $event.target.value" />
+                  <button v-if="localPtl.borderColor" class="text-[9px] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]" @click="localPtl.borderColor = ''">×</button>
+                </div>
               </div>
               <div class="flex items-center justify-between">
                 <span class="text-[11px] text-[var(--color-text-secondary)]">Zebra-Streifen Farbe</span>
-                <input type="color" v-model="localPtl.zebraColor" class="w-7 h-5 rounded border border-[var(--color-border)] cursor-pointer" />
+                <div class="flex items-center gap-1.5">
+                  <input type="color" :value="localPtl.zebraColor || '#f9fafb'" class="w-7 h-5 rounded border border-[var(--color-border)] cursor-pointer" @input="localPtl.zebraColor = $event.target.value" />
+                  <button v-if="localPtl.zebraColor" class="text-[9px] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]" @click="localPtl.zebraColor = ''">×</button>
+                </div>
               </div>
               <div>
                 <label class="block text-[10px] text-[var(--color-text-tertiary)] mb-0.5">Header-Schriftgröße (pt)</label>
