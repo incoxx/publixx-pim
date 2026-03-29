@@ -271,6 +271,7 @@ class PimSyncExportService
             'manufacturer',
         ]);
 
+        // hierarchy_id filtert nach master_hierarchy_node_id (Knoten-ID, nicht Hierarchie-ID)
         if (! empty($filters['hierarchy_id'])) {
             $query->where('master_hierarchy_node_id', $filters['hierarchy_id']);
         }

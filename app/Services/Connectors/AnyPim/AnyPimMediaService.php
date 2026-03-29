@@ -27,7 +27,7 @@ class AnyPimMediaService
         }
 
         $response = $http->timeout(120)
-            ->attach('file', file_get_contents($filePath), $media->file_name)
+            ->attach('file', fopen($filePath, 'r'), $media->file_name)
             ->post("{$remoteUrl}/api/v1/pim-sync/media", [
                 'file_name'  => $media->file_name,
                 'mime_type'  => $media->mime_type,

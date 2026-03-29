@@ -272,8 +272,7 @@ class PimSyncImportService
 
         // Unit auflösen
         if ($unitSymbol) {
-            $unit = Unit::where('symbol', $unitSymbol)
-                ->orWhere('abbreviation', $unitSymbol)
+            $unit = Unit::where(fn ($q) => $q->where('symbol', $unitSymbol)->orWhere('abbreviation', $unitSymbol))
                 ->first();
             if ($unit) {
                 $fields['unit_id'] = $unit->id;
