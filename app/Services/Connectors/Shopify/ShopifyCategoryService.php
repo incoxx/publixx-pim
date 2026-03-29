@@ -301,35 +301,37 @@ GRAPHQL;
      */
     private function fetchMainMenu(PendingRequest $http, string $graphqlUrl): ?array
     {
-        // Menu.items und MenuItem.items sind plain Arrays [MenuItem!]!
-        // menu(handle:) Query laedt ein Menu direkt per Handle
-        $handles = ['main-menu', 'main', 'header'];
-
-        foreach ($handles as $handle) {
-            $query = <<<GRAPHQL
+        // Admin API: menu() braucht id, nicht handle.
+        // Daher menus() laden und per handle filtern.
+        // Menu.items ist plain Array [MenuItem!]! — kein first, kein nodes.
+        $query = <<<'GRAPHQL'
 {
-  menu(handle: "{$handle}") {
-    id
-    title
-    handle
-    items {
-      id
-      title
-      type
-      url
-      resourceId
-      items {
+  menus(first: 10) {
+    edges {
+      node {
         id
         title
-        type
-        url
-        resourceId
+        handle
         items {
           id
           title
           type
           url
           resourceId
+          items {
+            id
+            title
+            type
+            url
+            resourceId
+            items {
+              id
+              title
+              type
+              url
+              resourceId
+            }
+          }
         }
       }
     }
@@ -337,31 +339,56 @@ GRAPHQL;
 }
 GRAPHQL;
 
-            try {
-                $response = $http->post($graphqlUrl, ['query' => $query]);
-                $response->throw();
-                $data = $response->json();
+        try {
+            $response = $http->post($graphqlUrl, ['query' => $query]);
+            $response->throw();
+            $data = $response->json();
 
-                // GraphQL-Fehler loggen
-                if (!empty($data['errors'])) {
-                    Log::channel('stack')->warning("menu(handle:{$handle}) Fehler", [
-                        'errors' => array_map(fn ($e) => $e['message'] ?? '', $data['errors']),
-                    ]);
-                    continue;
+            if (!empty($data['errors'])) {
+                Log::channel('stack')->error('GraphQL Fehler beim Menu-Laden', [
+                    'errors' => array_map(fn ($e) => $e['message'] ?? '', $data['errors']),
+                ]);
+                return null;
+            }
+
+            // edges/node Pattern auflösen
+            $menus = [];
+            foreach ($data['data']['menus']['edges'] ?? [] as $edge) {
+                if (!empty($edge['node'])) {
+                    $menus[] = $edge['node'];
                 }
+            }
 
-                $menu = $data['data']['menu'] ?? null;
-                if ($menu && !empty($menu['id'])) {
-                    Log::channel('stack')->info("Main menu gefunden: handle={$handle}, id={$menu['id']}, title={$menu['title']}");
+            if (empty($menus)) {
+                Log::channel('stack')->warning('Keine Menus gefunden');
+                return null;
+            }
+
+            Log::channel('stack')->info('Menus geladen: ' . count($menus), [
+                'handles' => array_map(fn ($m) => $m['handle'] ?? '?', $menus),
+            ]);
+
+            // Nach Handle suchen
+            foreach ($menus as $menu) {
+                if (in_array($menu['handle'] ?? '', ['main-menu', 'main', 'header'])) {
+                    Log::channel('stack')->info("Main menu gefunden: handle={$menu['handle']}, id={$menu['id']}");
                     return $menu;
                 }
-            } catch (\Throwable $e) {
-                Log::channel('stack')->warning("menu(handle:{$handle}) Exception: {$e->getMessage()}");
             }
-        }
 
-        Log::channel('stack')->error('Kein Main menu gefunden (handles: ' . implode(', ', $handles) . ')');
-        return null;
+            // Nach Titel suchen
+            foreach ($menus as $menu) {
+                if (str_contains(strtolower($menu['title'] ?? ''), 'main')) {
+                    return $menu;
+                }
+            }
+
+            // Erstes Menu
+            return $menus[0];
+        } catch (\Throwable $e) {
+            Log::channel('stack')->error('Menus laden fehlgeschlagen: ' . $e->getMessage());
+            return null;
+        }
     }
 
     /**
