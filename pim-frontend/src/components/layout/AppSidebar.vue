@@ -16,6 +16,7 @@ import {
   ShoppingBag,
   ArrowDownUp,
   Key,
+  Cloud,
 } from 'lucide-vue-next'
 import AnyPimLogo from '@/components/shared/AnyPimLogo.vue'
 import { useAppearanceStore, SECTION_ICON_COLORS } from '@/stores/appearance'
@@ -90,6 +91,7 @@ const sections = computed(() => {
             { icon: Send, label: () => 'Canva', to: '/connectors/canva', module: 'connectors' },
             { icon: Package, label: () => 'Shopware', to: '/connectors/shopware', module: 'connectors' },
             { icon: ShoppingBag, label: () => 'Shopify', to: '/connectors/shopify', module: 'connectors' },
+            { icon: Cloud, label: () => 'Salesforce Commerce', to: '/connectors/salesforce-commerce', module: 'connectors' },
             { icon: Image, label: () => 'Cloudinary', to: '/connectors/cloudinary', module: 'connectors' },
             { icon: Zap, label: () => 'Claude AI', to: '/connectors/claude-ai', module: 'connectors' },
             { icon: ArrowDownUp, label: () => 'anyPIM Sync', to: '/connectors/anypim', module: 'connectors' },

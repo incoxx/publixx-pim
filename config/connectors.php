@@ -60,4 +60,12 @@ return [
         'max_tokens' => env('OPENAI_MAX_TOKENS', 4096),
     ],
 
+    'salesforce_commerce' => [
+        'instance_url'  => env('SFCC_INSTANCE_URL', ''),        // z.B. https://abcd-001.dx.commercecloud.salesforce.com
+        'client_id'     => env('SFCC_CLIENT_ID', ''),            // Account Manager Client ID
+        'client_secret' => env('SFCC_CLIENT_SECRET', ''),        // Account Manager Client Secret
+        'site_id'       => env('SFCC_SITE_ID', ''),              // z.B. "RefArch"
+        'catalog_id'    => env('SFCC_CATALOG_ID', 'storefront-catalog'),
+    ],
+
 ];

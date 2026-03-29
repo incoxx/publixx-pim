@@ -19,6 +19,7 @@ const connectorLabels = {
   deepl: 'DeepL',
   shopware: 'Shopware 6',
   shopify: 'Shopify',
+  salesforce_commerce: 'Salesforce Commerce Cloud',
   cloudinary: 'Cloudinary',
   claude_ai: 'Claude AI (Betextung)',
   openai: 'OpenAI / ChatGPT (Betextung)',
@@ -32,7 +33,7 @@ const sections = {
   connectors: {
     label: 'Connectoren',
     description: 'API-Zugangsdaten für externe Dienste und Integrationen.',
-    keys: ['canva', 'deepl', 'shopware', 'shopify', 'cloudinary'],
+    keys: ['canva', 'deepl', 'shopware', 'shopify', 'salesforce_commerce', 'cloudinary'],
   },
   ai: {
     label: 'KI-Dienste (Betextung)',
@@ -53,7 +54,10 @@ const fieldLabels = {
   api_key: 'API Key',
   api_secret: 'API Secret',
   shop_url: 'Shop URL',
+  instance_url: 'Instance URL',
   access_token: 'Access Token',
+  site_id: 'Site ID',
+  catalog_id: 'Katalog-ID',
   cloud_name: 'Cloud Name',
   model: 'Modell',
   max_tokens: 'Max Tokens',
@@ -61,6 +65,7 @@ const fieldLabels = {
 
 const fieldTypes = {
   shop_url: 'url',
+  instance_url: 'url',
   redirect_uri: 'url',
   max_tokens: 'number',
   model: 'text',
