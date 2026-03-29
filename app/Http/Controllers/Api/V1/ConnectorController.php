@@ -10,6 +10,7 @@ use App\Models\ConnectorSyncLog;
 use App\Models\Media;
 use App\Models\Product;
 use App\Models\WebsiteProfile;
+use App\Services\Connectors\AnyPim\AnyPimConnector;
 use App\Services\Connectors\ConnectorRegistry;
 use App\Services\Connectors\Shopify\ShopifyConnector;
 use App\Services\Connectors\Shopware\ShopwareConnector;
@@ -1040,5 +1041,101 @@ class ConnectorController extends Controller
             'Content-Disposition' => "attachment; filename=\"{$fileName}\"",
             'Cache-Control'       => 'max-age=0',
         ]);
+    }
+
+    // =====================================================================
+    // anyPIM Bidirektionaler Sync
+    // =====================================================================
+
+    /**
+     * Produkte von einer Remote-anyPIM-Instanz pullen.
+     *
+     * POST /api/v1/connectors/connections/{connection}/pull-products
+     */
+    public function pullProducts(Request $request, ConnectorConnection $connection, AnyPimConnector $connector): JsonResponse
+    {
+        if ($connection->connector_type !== 'anypim') {
+            return response()->json(['error' => 'Pull ist nur für anyPIM-Connections verfügbar.'], 422);
+        }
+
+        $filters = $request->only(['hierarchy_id', 'product_type_ids', 'skus', 'updated_since']);
+        $options = [
+            'conflict_resolution' => $request->input('conflict_resolution', $connection->settings['conflict_resolution'] ?? 'remote_wins'),
+            'sync_attributes'     => $request->boolean('sync_attributes', true),
+            'sync_prices'         => $request->boolean('sync_prices', true),
+            'sync_media'          => $request->boolean('sync_media', true),
+        ];
+
+        $isDelta = $request->boolean('delta', false);
+
+        $result = $isDelta
+            ? $connector->deltaPull($connection, $filters, $options)
+            : $connector->pullAll($connection, $filters, $options);
+
+        return response()->json(['data' => $result]);
+    }
+
+    /**
+     * Nur Übersetzungen von Remote-Instanz pullen.
+     *
+     * POST /api/v1/connectors/connections/{connection}/pull-translations
+     */
+    public function pullTranslations(Request $request, ConnectorConnection $connection, AnyPimConnector $connector): JsonResponse
+    {
+        if ($connection->connector_type !== 'anypim') {
+            return response()->json(['error' => 'Pull ist nur für anyPIM-Connections verfügbar.'], 422);
+        }
+
+        $filters = $request->only(['hierarchy_id', 'product_type_ids', 'skus']);
+        $options = [
+            'conflict_resolution' => 'remote_wins',
+            'sync_attributes'     => true,
+            'sync_prices'         => false,
+            'sync_media'          => false,
+        ];
+
+        $result = $connector->pullAll($connection, $filters, $options);
+
+        return response()->json(['data' => $result]);
+    }
+
+    /**
+     * Bidirektionaler Sync (Push + Pull).
+     *
+     * POST /api/v1/connectors/connections/{connection}/sync-bidirectional
+     */
+    public function syncBidirectional(Request $request, ConnectorConnection $connection, AnyPimConnector $connector): JsonResponse
+    {
+        if ($connection->connector_type !== 'anypim') {
+            return response()->json(['error' => 'Bidirektionaler Sync ist nur für anyPIM-Connections verfügbar.'], 422);
+        }
+
+        $filters = $request->only(['hierarchy_id', 'product_type_ids', 'skus']);
+        $options = [];
+        if ($request->has('conflict_resolution')) {
+            $options['conflict_resolution'] = $request->input('conflict_resolution');
+        }
+
+        $result = $connector->syncBidirectional($connection, $filters, $options);
+
+        return response()->json(['data' => $result]);
+    }
+
+    /**
+     * anyPIM-Verbindung testen.
+     *
+     * POST /api/v1/connectors/connections/{connection}/test-connection
+     */
+    public function testAnyPimConnection(ConnectorConnection $connection, AnyPimConnector $connector): JsonResponse
+    {
+        if ($connection->connector_type !== 'anypim') {
+            return response()->json(['error' => 'Test ist nur für anyPIM-Connections verfügbar.'], 422);
+        }
+
+        $result = $connector->testConnection($connection);
+
+        $statusCode = $result['status'] === 'ok' ? 200 : 422;
+
+        return response()->json(['data' => $result], $statusCode);
     }
 }

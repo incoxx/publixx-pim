@@ -986,5 +986,56 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
         Route::apiResource('canva-export-profiles', CanvaExportProfileController::class)
             ->parameters(['canva-export-profiles' => 'canvaExportProfile']);
         Route::post('canva-export-profiles/{canvaExportProfile}/execute', [CanvaExportProfileController::class, 'execute']);
+
+        // anyPIM Connector-Erweiterungen (Pull/Bidirektional)
+        Route::post('/connections/{connection}/pull-products', [ConnectorController::class, 'pullProducts']);
+        Route::post('/connections/{connection}/pull-translations', [ConnectorController::class, 'pullTranslations']);
+        Route::post('/connections/{connection}/sync-bidirectional', [ConnectorController::class, 'syncBidirectional']);
+        Route::post('/connections/{connection}/test-connection', [ConnectorController::class, 'testAnyPimConnection']);
+    });
+
+    // =====================================================================
+    // API-Client Verwaltung (Machine-to-Machine Auth für PimSync)
+    // =====================================================================
+    Route::apiResource('api-clients', \App\Http\Controllers\Api\V1\ApiClientController::class)
+        ->parameters(['api-clients' => 'apiClient']);
+    Route::post('api-clients/{apiClient}/regenerate-secret', [\App\Http\Controllers\Api\V1\ApiClientController::class, 'regenerateSecret']);
+});
+
+// =========================================================================
+// PimSync API (passive Seite — durch ApiClient-Auth geschützt)
+// Öffentlicher Token-Endpoint + geschützte Sync-Endpoints
+// =========================================================================
+Route::prefix('v1/pim-sync')->group(function () {
+    // Token-Endpoint: Ohne Auth, aber mit Rate-Limiting (Brute-Force-Schutz)
+    Route::post('token', [\App\Http\Controllers\Api\V1\PimSyncAuthController::class, 'token'])
+        ->middleware('throttle.pim:auth');
+
+    // Geschützte Endpoints: Durch PimSync-Auth (ApiClient-Token) + Scope-Check
+    Route::middleware(['pim-sync-auth'])->group(function () {
+        Route::get('products', [\App\Http\Controllers\Api\V1\PimSyncController::class, 'products'])
+            ->middleware('api-client-scope:products:read');
+        Route::get('products/{sku}', [\App\Http\Controllers\Api\V1\PimSyncController::class, 'product'])
+            ->middleware('api-client-scope:products:read');
+        Route::post('products', [\App\Http\Controllers\Api\V1\PimSyncController::class, 'receiveProducts'])
+            ->middleware('api-client-scope:products:write');
+
+        Route::get('checksums', [\App\Http\Controllers\Api\V1\PimSyncController::class, 'checksums'])
+            ->middleware('api-client-scope:products:read');
+
+        Route::get('categories', [\App\Http\Controllers\Api\V1\PimSyncController::class, 'categories'])
+            ->middleware('api-client-scope:categories:read');
+        Route::post('categories', [\App\Http\Controllers\Api\V1\PimSyncController::class, 'receiveCategories'])
+            ->middleware('api-client-scope:categories:write');
+
+        Route::get('media', [\App\Http\Controllers\Api\V1\PimSyncController::class, 'media'])
+            ->middleware('api-client-scope:media:read');
+        Route::post('media', [\App\Http\Controllers\Api\V1\PimSyncController::class, 'receiveMedia'])
+            ->middleware('api-client-scope:media:write');
+
+        Route::get('attributes', [\App\Http\Controllers\Api\V1\PimSyncController::class, 'attributes'])
+            ->middleware('api-client-scope:attributes:read');
+        Route::get('schema', [\App\Http\Controllers\Api\V1\PimSyncController::class, 'schema'])
+            ->middleware('api-client-scope:products:read');
     });
 });

@@ -15,6 +15,12 @@ use App\Services\Connectors\Cloudinary\CloudinaryConnector;
 use App\Services\Connectors\ConnectorRegistry;
 use App\Services\Connectors\DeepL\DeepLConnector;
 use App\Services\Connectors\DeepL\DeepLTranslationService;
+use App\Services\Connectors\AnyPim\AnyPimAuthService;
+use App\Services\Connectors\AnyPim\AnyPimCategoryService;
+use App\Services\Connectors\AnyPim\AnyPimChecksumService;
+use App\Services\Connectors\AnyPim\AnyPimConnector;
+use App\Services\Connectors\AnyPim\AnyPimMediaService;
+use App\Services\Connectors\AnyPim\AnyPimProductService;
 use App\Services\Connectors\Shopware\ShopwareAuthService;
 use App\Services\Connectors\Shopware\ShopwareCategoryService;
 use App\Services\Connectors\Shopware\ShopwareConnector;
@@ -114,6 +120,14 @@ class ConnectorServiceProvider extends ServiceProvider
         // Claude AI
         $this->app->singleton(ClaudeAITextService::class);
         $this->app->singleton(ClaudeAIConnector::class);
+
+        // anyPIM (bidirektionaler Sync)
+        $this->app->singleton(AnyPimAuthService::class);
+        $this->app->singleton(AnyPimProductService::class);
+        $this->app->singleton(AnyPimMediaService::class);
+        $this->app->singleton(AnyPimCategoryService::class);
+        $this->app->singleton(AnyPimChecksumService::class);
+        $this->app->singleton(AnyPimConnector::class);
     }
 
     public function boot(): void
@@ -127,6 +141,7 @@ class ConnectorServiceProvider extends ServiceProvider
             ShopifyConnector::class,
             CloudinaryConnector::class,
             ClaudeAIConnector::class,
+            AnyPimConnector::class,
         ];
 
         foreach ($connectorClasses as $class) {
