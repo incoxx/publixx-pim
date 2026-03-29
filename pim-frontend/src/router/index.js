@@ -231,6 +231,18 @@ const routes = [
     meta: { title: 'Claude AI' },
   },
   {
+    path: '/connectors/anypim',
+    name: 'connector-anypim',
+    component: () => import('@/views/connectors/ConnectorAnyPimView.vue'),
+    meta: { title: 'anyPIM Sync' },
+  },
+  {
+    path: '/connectors/api-clients',
+    name: 'api-clients',
+    component: () => import('@/views/connectors/ApiClientsView.vue'),
+    meta: { title: 'API-Clients' },
+  },
+  {
     path: '/connectors/:id',
     name: 'connector-connection',
     component: () => import('@/views/connectors/ConnectorConnectionView.vue'),
