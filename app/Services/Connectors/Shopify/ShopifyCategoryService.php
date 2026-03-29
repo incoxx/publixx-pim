@@ -121,7 +121,7 @@ class ShopifyCategoryService
                     : $e->getMessage();
                 $errorDetails[] = $errorMessage;
 
-                Log::channel('connectors')->error('Collection-Sync fehlgeschlagen', [
+                Log::channel('stack')->error('Collection-Sync fehlgeschlagen', [
                     'node_id' => $node->id,
                     'error'   => $errorMessage,
                 ]);
@@ -224,7 +224,7 @@ class ShopifyCategoryService
         }
 
         $menuId = $mainMenu['id'];
-        $existingItems = $mainMenu['items']['nodes'] ?? [];
+        $existingItems = $mainMenu['items'] ?? [];
 
         // 2. Bestehende Items behalten (ohne alte PIM-Items)
         // PIM-Items sind erkennbar: title startet mit "[PIM]" oder url enthaelt pim-collection
@@ -279,7 +279,7 @@ GRAPHQL;
             $userErrors = $data['data']['menuUpdate']['userErrors'] ?? [];
             if (!empty($userErrors)) {
                 $errorMsg = collect($userErrors)->pluck('message')->implode(', ');
-                Log::channel('connectors')->warning('Menu Update userErrors', ['errors' => $userErrors]);
+                Log::channel('stack')->warning('Menu Update userErrors', ['errors' => $userErrors]);
                 return ['success' => false, 'menu_id' => $menuId, 'error' => $errorMsg];
             }
 
@@ -289,7 +289,7 @@ GRAPHQL;
                 ? $this->parseShopifyError($e)
                 : $e->getMessage();
 
-            Log::channel('connectors')->error('Main Menu Update fehlgeschlagen', ['error' => $error]);
+            Log::channel('stack')->error('Main Menu Update fehlgeschlagen', ['error' => $error]);
 
             return ['success' => false, 'menu_id' => $menuId, 'error' => $error];
         }
@@ -301,36 +301,35 @@ GRAPHQL;
      */
     private function fetchMainMenu(PendingRequest $http, string $graphqlUrl): ?array
     {
-        // Menu.items ist eine Connection (braucht nodes),
-        // MenuItem.items ist ein plain Array (KEIN nodes)
-        $query = <<<'GRAPHQL'
-query {
-  menus(first: 10) {
-    nodes {
+        // Menu.items und MenuItem.items sind plain Arrays [MenuItem!]!
+        // menu(handle:) Query laedt ein Menu direkt per Handle
+        $handles = ['main-menu', 'main', 'header'];
+
+        foreach ($handles as $handle) {
+            $query = <<<GRAPHQL
+{
+  menu(handle: "{$handle}") {
+    id
+    title
+    handle
+    items {
       id
       title
-      handle
-      items(first: 50) {
-        nodes {
+      type
+      url
+      resourceId
+      items {
+        id
+        title
+        type
+        url
+        resourceId
+        items {
           id
           title
           type
           url
           resourceId
-          items {
-            id
-            title
-            type
-            url
-            resourceId
-            items {
-              id
-              title
-              type
-              url
-              resourceId
-            }
-          }
         }
       }
     }
@@ -338,54 +337,31 @@ query {
 }
 GRAPHQL;
 
-        try {
-            $response = $http->post($graphqlUrl, ['query' => $query]);
-            $response->throw();
-            $data = $response->json();
+            try {
+                $response = $http->post($graphqlUrl, ['query' => $query]);
+                $response->throw();
+                $data = $response->json();
 
-            // GraphQL-Level Fehler pruefen
-            if (!empty($data['errors'])) {
-                Log::channel('connectors')->error('GraphQL Fehler beim Menu-Laden', [
-                    'errors' => $data['errors'],
-                ]);
-                return null;
-            }
+                // GraphQL-Fehler loggen
+                if (!empty($data['errors'])) {
+                    Log::channel('stack')->warning("menu(handle:{$handle}) Fehler", [
+                        'errors' => array_map(fn ($e) => $e['message'] ?? '', $data['errors']),
+                    ]);
+                    continue;
+                }
 
-            $menus = $data['data']['menus']['nodes'] ?? [];
-
-            if (empty($menus)) {
-                Log::channel('connectors')->warning('Keine Menus gefunden');
-                return null;
-            }
-
-            // Nach Handle suchen: main-menu, main, header
-            foreach ($menus as $menu) {
-                if (in_array($menu['handle'] ?? '', ['main-menu', 'main', 'header'])) {
-                    Log::channel('connectors')->info("Main menu gefunden: handle={$menu['handle']}, id={$menu['id']}");
+                $menu = $data['data']['menu'] ?? null;
+                if ($menu && !empty($menu['id'])) {
+                    Log::channel('stack')->info("Main menu gefunden: handle={$handle}, id={$menu['id']}, title={$menu['title']}");
                     return $menu;
                 }
+            } catch (\Throwable $e) {
+                Log::channel('stack')->warning("menu(handle:{$handle}) Exception: {$e->getMessage()}");
             }
-
-            // Fallback: Menu mit "Main" im Titel
-            foreach ($menus as $menu) {
-                if (str_contains(strtolower($menu['title'] ?? ''), 'main')) {
-                    Log::channel('connectors')->info("Main menu per Titel: title={$menu['title']}, id={$menu['id']}");
-                    return $menu;
-                }
-            }
-
-            // Letzter Fallback: erstes Menu
-            Log::channel('connectors')->info("Fallback: erstes Menu: handle={$menus[0]['handle']}");
-            return $menus[0];
-        } catch (\Throwable $e) {
-            Log::channel('connectors')->error('Menus laden fehlgeschlagen', [
-                'error'    => $e->getMessage(),
-                'response' => $e instanceof \Illuminate\Http\Client\RequestException
-                    ? substr($e->response?->body() ?? '', 0, 500)
-                    : null,
-            ]);
-            return null;
         }
+
+        Log::channel('stack')->error('Kein Main menu gefunden (handles: ' . implode(', ', $handles) . ')');
+        return null;
     }
 
     /**
