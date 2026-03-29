@@ -53,6 +53,10 @@ class ShopwareAuthService
         $response->throw();
         $data = $response->json();
 
+        if (!is_array($data) || empty($data['access_token'])) {
+            throw new \RuntimeException('Shopware hat keine gültige Token-Antwort zurückgegeben. Bitte Client-ID, Secret und Shop-URL prüfen.');
+        }
+
         return [
             'access_token'  => $data['access_token'],
             'refresh_token' => null,
@@ -78,6 +82,10 @@ class ShopwareAuthService
 
         $response->throw();
         $data = $response->json();
+
+        if (!is_array($data) || empty($data['access_token'])) {
+            throw new \RuntimeException('Shopware Token-Refresh fehlgeschlagen: keine gültige Antwort.');
+        }
 
         $connection->update([
             'access_token'     => $data['access_token'],
