@@ -27,6 +27,12 @@ use App\Services\Connectors\Shopware\ShopwareConnector;
 use App\Services\Connectors\Shopware\ShopwareMediaService;
 use App\Services\Connectors\Shopware\ShopwareProductService;
 use App\Services\Connectors\Shopware\ShopwarePropertyService;
+use App\Services\Connectors\SalesforceCommerce\SalesforceCommerceAuthService;
+use App\Services\Connectors\SalesforceCommerce\SalesforceCommerceCategoryService;
+use App\Services\Connectors\SalesforceCommerce\SalesforceCommerceChecksumService;
+use App\Services\Connectors\SalesforceCommerce\SalesforceCommerceConnector;
+use App\Services\Connectors\SalesforceCommerce\SalesforceCommerceMediaService;
+use App\Services\Connectors\SalesforceCommerce\SalesforceCommerceProductService;
 use App\Services\Connectors\Shopify\ShopifyAuthService;
 use App\Services\Connectors\Shopify\ShopifyCategoryService;
 use App\Services\Connectors\Shopify\ShopifyChecksumService;
@@ -121,6 +127,14 @@ class ConnectorServiceProvider extends ServiceProvider
         $this->app->singleton(ClaudeAITextService::class);
         $this->app->singleton(ClaudeAIConnector::class);
 
+        // Salesforce Commerce Cloud
+        $this->app->singleton(SalesforceCommerceAuthService::class);
+        $this->app->singleton(SalesforceCommerceProductService::class);
+        $this->app->singleton(SalesforceCommerceMediaService::class);
+        $this->app->singleton(SalesforceCommerceCategoryService::class);
+        $this->app->singleton(SalesforceCommerceChecksumService::class);
+        $this->app->singleton(SalesforceCommerceConnector::class);
+
         // anyPIM (bidirektionaler Sync)
         $this->app->singleton(AnyPimAuthService::class);
         $this->app->singleton(AnyPimProductService::class);
@@ -139,6 +153,7 @@ class ConnectorServiceProvider extends ServiceProvider
             DeepLConnector::class,
             ShopwareConnector::class,
             ShopifyConnector::class,
+            SalesforceCommerceConnector::class,
             CloudinaryConnector::class,
             ClaudeAIConnector::class,
             AnyPimConnector::class,
