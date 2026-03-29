@@ -106,9 +106,12 @@ class ShopifyConnector extends AbstractConnector
         $token = $connection->access_token
             ?: ($connection->settings['access_token'] ?? config('connectors.shopify.access_token'));
 
+        // Shopify Rate Limit: max 2 Requests/Sekunde — 500ms Pause zwischen Calls
+        usleep(500_000);
+
         return Http::withHeaders([
             'X-Shopify-Access-Token' => $token,
-        ])->acceptJson()->timeout(30);
+        ])->acceptJson()->timeout(30)->retry(3, 1000, fn ($e) => $e instanceof \Illuminate\Http\Client\RequestException && $e->response?->status() === 429);
     }
 
     public function uploadAsset(ConnectorConnection $connection, Media $media): string
@@ -658,7 +661,6 @@ class ShopifyConnector extends AbstractConnector
      */
     public function resetShop(ConnectorConnection $connection): array
     {
-        $http = $this->authenticatedRequest($connection);
         $shopUrl = rtrim($connection->settings['shop_url'] ?? config('connectors.shopify.shop_url'), '/');
 
         $result = [
@@ -681,10 +683,17 @@ class ShopifyConnector extends AbstractConnector
 
         foreach ($categoryLogs as $collectionId) {
             try {
-                $http->delete(
-                    "{$shopUrl}/admin/api/" . self::API_VERSION . "/custom_collections/{$collectionId}.json",
-                )->throw();
+                $response = $this->authenticatedRequest($connection)
+                    ->delete("{$shopUrl}/admin/api/" . self::API_VERSION . "/custom_collections/{$collectionId}.json");
+                $response->throw();
                 $result['categories']['deleted']++;
+            } catch (\Illuminate\Http\Client\RequestException $e) {
+                // 404 = bereits geloescht — als Erfolg werten
+                if ($e->response?->status() === 404) {
+                    $result['categories']['deleted']++;
+                } else {
+                    $result['categories']['failed']++;
+                }
             } catch (\Throwable) {
                 $result['categories']['failed']++;
             }
@@ -714,23 +723,25 @@ class ShopifyConnector extends AbstractConnector
 
         foreach ($allProductIds as $productId) {
             try {
-                $http->delete(
-                    "{$shopUrl}/admin/api/" . self::API_VERSION . "/products/{$productId}.json",
-                )->throw();
+                $response = $this->authenticatedRequest($connection)
+                    ->delete("{$shopUrl}/admin/api/" . self::API_VERSION . "/products/{$productId}.json");
+                $response->throw();
                 $result['products']['deleted']++;
+            } catch (\Illuminate\Http\Client\RequestException $e) {
+                // 404 = bereits geloescht — als Erfolg werten
+                if ($e->response?->status() === 404) {
+                    $result['products']['deleted']++;
+                } else {
+                    $result['products']['failed']++;
+                }
             } catch (\Throwable) {
                 $result['products']['failed']++;
             }
         }
 
-        // 3. Lokale Checksums bereinigen (Sync-Logs erst nach erfolgreichem Löschen)
+        // 3. Immer aufraumen — alte Logs/Checksums bereinigen
         ConnectorProductChecksum::where('connection_id', $connection->id)->delete();
-
-        // Sync-Logs nur bereinigen wenn keine Fehler aufgetreten sind
-        // Bei Fehlern bleiben die Logs erhalten für einen erneuten Reset-Versuch
-        if ($result['products']['failed'] === 0 && $result['categories']['failed'] === 0) {
-            $connection->syncLogs()->delete();
-        }
+        $connection->syncLogs()->delete();
 
         $this->logSync(
             $connection, 'reset', 'connection',
