@@ -227,11 +227,12 @@ class ShopifyCategoryService
         $existingItems = $mainMenu['items'] ?? [];
 
         // 2. Bestehende Items behalten (ohne alte PIM-Items)
-        // PIM-Items sind erkennbar: title startet mit "[PIM]" oder url enthaelt pim-collection
+        // Alte PIM-Items entfernen (werden durch neue ersetzt)
+        // Erkennbar an: title "Produkte" oder "[PIM]" Prefix
         $keepItems = [];
         foreach ($existingItems as $item) {
-            // Alte PIM-Items ueberspringen (werden durch neue ersetzt)
-            if (str_starts_with($item['title'] ?? '', '[PIM] ')) {
+            $title = $item['title'] ?? '';
+            if ($title === 'Produkte' || str_starts_with($title, '[PIM] ')) {
                 continue;
             }
             $keepItems[] = $this->convertExistingItemForUpdate($item);
@@ -239,7 +240,7 @@ class ShopifyCategoryService
 
         // 3. PIM-Items als Dach-Element mit Unterpunkten hinzufuegen
         $pimRootItem = [
-            'title' => "[PIM] {$hierarchyName}",
+            'title' => "Produkte",
             'type'  => 'HTTP',
             'url'   => '#',
             'items' => $pimMenuItems,
