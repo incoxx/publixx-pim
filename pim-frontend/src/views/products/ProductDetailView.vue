@@ -2350,14 +2350,18 @@ watch(() => route.params.id, async (newId, oldId) => {
           <div
             v-for="attr in primaryAttributes"
             :key="'primary-' + attr.id"
-            class="md:flex md:items-center md:gap-4"
+            :class="['md:flex md:gap-4', attr.data_type === 'RichText' ? 'md:items-start' : 'md:items-center']"
           >
             <label
               class="text-[12px] font-medium text-[var(--color-text-secondary)] md:w-48 md:shrink-0 md:text-right md:mb-0 mb-1 block truncate"
+              :class="{ 'md:mt-2': attr.data_type === 'RichText' }"
               :title="attr.name_de || attr.technical_name"
             >
               {{ attr.name_de || attr.technical_name }}
               <span v-if="attr.is_mandatory" class="text-[var(--color-error)]">*</span>
+              <span v-if="attr.is_translatable" class="ml-1 text-[10px] text-[var(--color-accent)] font-normal">
+                <Languages class="inline w-3 h-3 -mt-0.5" :stroke-width="1.75" /> {{ activeDataLang.toUpperCase() }}
+              </span>
             </label>
             <div class="md:flex-1 md:min-w-0">
               <div class="flex gap-1.5 items-start">
