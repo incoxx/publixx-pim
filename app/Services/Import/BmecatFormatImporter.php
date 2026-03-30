@@ -1632,6 +1632,25 @@ class BmecatFormatImporter
                 unset($childAttr); // Referenz auflösen
             }
 
+            // Composite-Parents den Hierarchie-Knoten zuordnen (statt der Kind-Attribute)
+            if ($hasTree && !empty($productGroupIds)) {
+                foreach ($udxCompositeMaxIndex as $compositeTechName => $maxIdx) {
+                    if ($maxIdx === 0) {
+                        continue;
+                    }
+                    foreach ($productGroupIds as $groupId) {
+                        // Composite-Parent hinzufügen
+                        $nodeAttributes[$groupId][$compositeTechName] = true;
+                        // Kind-Attribute entfernen (werden implizit über den Composite angezeigt)
+                        foreach ($udxAttributeMap as $childTechName => $childAttr) {
+                            if (($childAttr['parent_attribute'] ?? null) === $compositeTechName) {
+                                unset($nodeAttributes[$groupId][$childTechName]);
+                            }
+                        }
+                    }
+                }
+            }
+
             // --- Preistypen + Preise ---
             foreach ($product['prices'] as $price) {
                 $priceType = $price['price_type'];
