@@ -1008,6 +1008,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
 
     // Admin: Alle API-Keys verwalten
     Route::get('admin/api-keys', [\App\Http\Controllers\Api\V1\UserApiKeyController::class, 'adminIndex']);
+    Route::get('admin/users/{userId}/api-keys', [\App\Http\Controllers\Api\V1\UserApiKeyController::class, 'adminUserKeys']);
     Route::post('admin/users/{userId}/api-keys', [\App\Http\Controllers\Api\V1\UserApiKeyController::class, 'adminStore']);
     Route::delete('admin/api-keys/{tokenId}', [\App\Http\Controllers\Api\V1\UserApiKeyController::class, 'adminDestroy']);
 });

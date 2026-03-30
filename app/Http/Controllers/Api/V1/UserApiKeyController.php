@@ -134,6 +134,35 @@ class UserApiKeyController extends Controller
     }
 
     /**
+     * API-Keys eines bestimmten Users auflisten (Admin).
+     *
+     * GET /api/v1/admin/users/{userId}/api-keys
+     */
+    public function adminUserKeys(Request $request, string $userId): JsonResponse
+    {
+        if (! $request->user()?->hasRole('Admin')) {
+            abort(403, 'Nur Administratoren.');
+        }
+
+        $user = User::findOrFail($userId);
+
+        $tokens = $user->tokens()
+            ->where('token_type', 'api_key')
+            ->orderByDesc('created_at')
+            ->get()
+            ->map(fn ($token) => [
+                'id'           => $token->id,
+                'name'         => $token->name,
+                'description'  => $token->description,
+                'last_used_at' => $token->last_used_at?->toIso8601String(),
+                'expires_at'   => $token->expires_at?->toIso8601String(),
+                'created_at'   => $token->created_at->toIso8601String(),
+            ]);
+
+        return response()->json(['data' => $tokens]);
+    }
+
+    /**
      * API-Key für einen bestimmten User erstellen (Admin).
      *
      * POST /api/v1/admin/users/{userId}/api-keys
