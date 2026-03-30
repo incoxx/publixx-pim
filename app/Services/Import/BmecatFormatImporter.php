@@ -1489,8 +1489,9 @@ class BmecatFormatImporter
             }
 
             // --- UDX-Felder ---
-            // Maximalen Index pro Attribut tracken (für is_multipliable)
+            // Maximalen Index pro Attribut und pro Composite-Container tracken
             $udxMaxIndex = [];
+            $udxCompositeMaxIndex = []; // container_tech_name → max index
             foreach ($product['udx_fields'] as $udxField) {
                 $ns = $udxField['namespace'];
                 $key = $udxField['key'];
@@ -1510,8 +1511,15 @@ class BmecatFormatImporter
                 $udxLang = $udxField['language'] ?? null;
                 $fieldIndex = $udxField['index'] ?? 0;
 
-                // Maximalen Index pro Attribut tracken
+                // Composite-Container erkennen: wiederholte Container → Composite-Parent
+                $parentContainer = $udxField['parent_container'] ?? null;
+                $compositeTechName = $parentContainer ? $this->sanitizeTechnicalName($parentContainer) : null;
+
+                // Maximalen Index pro Attribut und pro Composite-Container tracken
                 $udxMaxIndex[$attrTechName] = max($udxMaxIndex[$attrTechName] ?? 0, $fieldIndex);
+                if ($compositeTechName !== null) {
+                    $udxCompositeMaxIndex[$compositeTechName] = max($udxCompositeMaxIndex[$compositeTechName] ?? 0, $fieldIndex);
+                }
 
                 if (!isset($udxAttributeMap[$attrTechName])) {
                     $dataType = $this->inferDataType([$udxField['value']], null);
@@ -1536,6 +1544,7 @@ class BmecatFormatImporter
                         'source_system' => 'bmecat_udx',
                         'source_attribute_key' => $key,
                         'views' => null,
+                        '_parent_container' => $parentContainer, // temporär, für Composite-Erkennung
                     ];
                 } elseif ($udxLang !== null && !$udxAttributeMap[$attrTechName]['is_translatable']) {
                     $udxAttributeMap[$attrTechName]['is_translatable'] = true;
@@ -1550,12 +1559,77 @@ class BmecatFormatImporter
                     'index' => $fieldIndex,
                 ];
             }
+
             // Attribute als vermehrbar markieren, wenn index > 0 vorkam
             foreach ($udxMaxIndex as $techName => $maxIdx) {
                 if ($maxIdx > 0 && isset($udxAttributeMap[$techName])) {
                     $udxAttributeMap[$techName]['is_multipliable'] = true;
                     $udxAttributeMap[$techName]['max_multiplied'] = 20;
                 }
+            }
+
+            // Composite-Attribute erstellen für wiederholte Container (index > 0)
+            foreach ($udxCompositeMaxIndex as $compositeTechName => $maxIdx) {
+                if ($maxIdx === 0) {
+                    continue; // Container kam nur 1× vor → kein Composite
+                }
+                if (isset($udxAttributeMap[$compositeTechName])) {
+                    continue; // Existiert bereits (z.B. als Leaf-Attribut)
+                }
+
+                // Container-Elementname aus dem ersten passenden Kind rekonstruieren
+                $containerKey = null;
+                $containerNs = null;
+                foreach ($udxAttributeMap as $childTechName => $childAttr) {
+                    $childContainer = $childAttr['_parent_container'] ?? null;
+                    if ($childContainer !== null && $this->sanitizeTechnicalName($childContainer) === $compositeTechName) {
+                        $containerKey = $childContainer;
+                        // Namespace aus dem Container-Namen extrahieren
+                        if (preg_match('/^UDX\.([^.]+)\.(.+)$/', $childContainer, $m)) {
+                            $containerNs = $m[1];
+                        }
+                        break;
+                    }
+                }
+
+                // Composite-Parent-Attribut anlegen
+                $containerFieldname = $containerKey && preg_match('/^UDX\.[^.]+\.(.+)$/', $containerKey, $m) ? $m[1] : $compositeTechName;
+                $containerGroupTechName = $containerNs ? $this->udxNamespaceToGroupTechName($containerNs) : null;
+                $udxAttributeMap[$compositeTechName] = [
+                    'technical_name' => $compositeTechName,
+                    'name_de' => $containerFieldname,
+                    'name_en' => null,
+                    'description' => null,
+                    'data_type' => 'Composite',
+                    'attribute_group' => $containerGroupTechName,
+                    'value_list' => null,
+                    'unit_group' => null,
+                    'default_unit' => null,
+                    'is_multipliable' => true,
+                    'max_multiplied' => min($maxIdx + 10, 200),
+                    'is_translatable' => false,
+                    'is_mandatory' => false,
+                    'is_unique' => false,
+                    'is_searchable' => false,
+                    'is_inheritable' => true,
+                    'parent_attribute' => null,
+                    'source_system' => 'bmecat_udx',
+                    'source_attribute_key' => $containerKey,
+                    'views' => null,
+                ];
+
+                // Kind-Attribute dem Composite zuordnen + nicht mehr selbst vermehrbar
+                foreach ($udxAttributeMap as $childTechName => &$childAttr) {
+                    $childContainer = $childAttr['_parent_container'] ?? null;
+                    if ($childContainer !== null && $this->sanitizeTechnicalName($childContainer) === $compositeTechName) {
+                        $childAttr['parent_attribute'] = $compositeTechName;
+                        // Kind-Attribute eines Composites sind nicht selbst vermehrbar —
+                        // der multiplied_index kommt vom Composite-Parent
+                        $childAttr['is_multipliable'] = false;
+                        $childAttr['max_multiplied'] = null;
+                    }
+                }
+                unset($childAttr); // Referenz auflösen
             }
 
             // --- Preistypen + Preise ---
@@ -1691,6 +1765,8 @@ class BmecatFormatImporter
         // UDX-Attribute in die Attribut-Map einfügen (nach regulären Features)
         foreach ($udxAttributeMap as $techName => $udxAttr) {
             if (!isset($attributeMap[$techName])) {
+                // Temporäres Feld entfernen (nur für Composite-Erkennung benötigt)
+                unset($udxAttr['_parent_container']);
                 $attributeMap[$techName] = $udxAttr;
             }
         }
@@ -1703,7 +1779,22 @@ class BmecatFormatImporter
         unset($udxGroupMap);
 
         if (!empty($attributeMap)) {
-            $sheets['05_Attribute'] = array_values($attributeMap);
+            // Composite-Parents VOR ihren Kindern sortieren,
+            // damit parent_attribute im ImportExecutor aufgelöst werden kann
+            $attrList = array_values($attributeMap);
+            usort($attrList, function ($a, $b) {
+                $aIsParent = ($a['data_type'] ?? '') === 'Composite';
+                $bIsParent = ($b['data_type'] ?? '') === 'Composite';
+                if ($aIsParent && !$bIsParent) {
+                    return -1;
+                }
+                if (!$aIsParent && $bIsParent) {
+                    return 1;
+                }
+                return 0;
+            });
+            $sheets['05_Attribute'] = $attrList;
+            unset($attrList);
         }
         unset($attributeMap);
 
@@ -2290,7 +2381,7 @@ class BmecatFormatImporter
      * wird der innerste wiederholte Container als Index-Geber verwendet.
      * Beispiel: 2× UDX.DOKA.MIME → MIME_SOURCE bekommt index 0 und 1.
      */
-    private function parseUdxElement(\SimpleXMLElement $child, array &$fields, array &$seenKeys, ?int $inheritedIndex = null): void
+    private function parseUdxElement(\SimpleXMLElement $child, array &$fields, array &$seenKeys, ?int $inheritedIndex = null, ?string $parentContainer = null): void
     {
         $elementName = $child->getName();
         if (!preg_match('/^UDX\.([^.]+)\.(.+)$/', $elementName, $matches)) {
@@ -2315,9 +2406,9 @@ class BmecatFormatImporter
             // → MIME_SOURCE bekommt idx 0 bzw. 1 vom MIME-Container
             $effectiveIndex = $index;
 
-            // Rekursiv: Kinder verarbeiten (können selbst Container sein)
+            // Rekursiv: Kinder verarbeiten — dieser Container wird zum parentContainer
             foreach ($child->children() as $subChild) {
-                $this->parseUdxElement($subChild, $fields, $seenKeys, $effectiveIndex);
+                $this->parseUdxElement($subChild, $fields, $seenKeys, $effectiveIndex, $elementName);
             }
         } else {
             // Flaches Element (einfacher Textwert)
@@ -2344,6 +2435,7 @@ class BmecatFormatImporter
                 'value' => $value,
                 'language' => $lang,
                 'index' => $index,
+                'parent_container' => $parentContainer,
             ];
         }
     }
