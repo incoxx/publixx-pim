@@ -243,10 +243,10 @@ const routes = [
     meta: { title: 'anyPIM Sync' },
   },
   {
-    path: '/connectors/api-clients',
-    name: 'api-clients',
-    component: () => import('@/views/connectors/ApiClientsView.vue'),
-    meta: { title: 'API-Clients' },
+    path: '/connectors/api-keys',
+    name: 'api-keys',
+    component: () => import('@/views/connectors/UserApiKeysView.vue'),
+    meta: { title: 'API-Keys' },
   },
   {
     path: '/connectors/:id',

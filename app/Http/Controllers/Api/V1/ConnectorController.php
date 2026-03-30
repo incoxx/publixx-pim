@@ -204,9 +204,9 @@ class ConnectorController extends Controller
             'settings'      => 'sometimes|array|nullable',
         ]);
 
-        // Shopware: shop_url aus settings an authenticate übergeben
+        // Remote-URL aus settings (Shopware: shop_url, anyPIM: remote_url)
         $settings = $validated['settings'] ?? null;
-        $shopUrl = $settings['shop_url'] ?? '';
+        $shopUrl = $settings['shop_url'] ?? $settings['remote_url'] ?? '';
 
         try {
             $tokens = $connector->handleCallback(
@@ -230,12 +230,8 @@ class ConnectorController extends Controller
             ], 422);
         }
 
-        // anyPIM: client_secret in Settings verschlüsseln
-        if ($type === 'anypim' && $settings && ! empty($settings['client_secret_encrypted'])) {
-            $settings['client_secret_encrypted'] = \App\Services\Connectors\AnyPim\AnyPimAuthService::encryptSecret(
-                $settings['client_secret_encrypted']
-            );
-        }
+        // anyPIM: API-Key wird als access_token gespeichert (verschlüsselt via ConnectorConnection-Cast).
+        // Keine zusätzliche Verschlüsselung in Settings nötig.
 
         $connection = ConnectorConnection::create([
             'connector_type'   => $connector->getType(),
@@ -1061,6 +1057,8 @@ class ConnectorController extends Controller
      */
     public function pullProducts(Request $request, ConnectorConnection $connection, AnyPimConnector $connector): JsonResponse
     {
+        $this->authorize('sync', $connection);
+
         if ($connection->connector_type !== 'anypim') {
             return response()->json(['error' => 'Pull ist nur für anyPIM-Connections verfügbar.'], 422);
         }
@@ -1089,6 +1087,8 @@ class ConnectorController extends Controller
      */
     public function pullTranslations(Request $request, ConnectorConnection $connection, AnyPimConnector $connector): JsonResponse
     {
+        $this->authorize('sync', $connection);
+
         if ($connection->connector_type !== 'anypim') {
             return response()->json(['error' => 'Pull ist nur für anyPIM-Connections verfügbar.'], 422);
         }
@@ -1113,6 +1113,8 @@ class ConnectorController extends Controller
      */
     public function syncBidirectional(Request $request, ConnectorConnection $connection, AnyPimConnector $connector): JsonResponse
     {
+        $this->authorize('sync', $connection);
+
         if ($connection->connector_type !== 'anypim') {
             return response()->json(['error' => 'Bidirektionaler Sync ist nur für anyPIM-Connections verfügbar.'], 422);
         }
@@ -1135,6 +1137,8 @@ class ConnectorController extends Controller
      */
     public function testAnyPimConnection(ConnectorConnection $connection, AnyPimConnector $connector): JsonResponse
     {
+        $this->authorize('sync', $connection);
+
         if ($connection->connector_type !== 'anypim') {
             return response()->json(['error' => 'Test ist nur für anyPIM-Connections verfügbar.'], 422);
         }

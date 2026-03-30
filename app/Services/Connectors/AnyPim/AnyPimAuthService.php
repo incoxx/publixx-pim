@@ -16,74 +16,57 @@ class AnyPimAuthService
      */
     public function isConfigured(): bool
     {
-        // anyPIM-Connections werden dynamisch erstellt — immer "konfiguriert"
         return true;
     }
 
     /**
-     * Authentifiziert gegen eine Remote-anyPIM-Instanz via Client Credentials.
+     * Authentifiziert gegen eine Remote-anyPIM-Instanz.
+     * Der API-Key wird direkt als Bearer Token gesendet — kein Token-Exchange nötig.
      *
      * @return array{access_token: string, refresh_token: string|null, expires_in: int|null}
      */
-    public function authenticate(string $clientId, string $clientSecret, string $remoteUrl): array
+    public function authenticate(string $apiKey, string $ignored = '', string $remoteUrl = ''): array
     {
+        // Verbindung testen: Schema-Endpoint mit API-Key als Bearer aufrufen
         $url = rtrim($remoteUrl, '/');
 
-        $response = Http::timeout(15)
-            ->post("{$url}/api/v1/pim-sync/token", [
-                'client_id'     => $clientId,
-                'client_secret' => $clientSecret,
-            ]);
+        $response = Http::withToken($apiKey)
+            ->timeout(15)
+            ->get("{$url}/api/v1/pim-sync/schema");
 
         $response->throw();
-        $data = $response->json();
 
+        // API-Key ist der Token — kein Exchange nötig
         return [
-            'access_token'  => $data['access_token'],
+            'access_token'  => $apiKey,
             'refresh_token' => null,
-            'expires_in'    => $data['expires_in'] ?? 3600,
+            'expires_in'    => null, // API-Key hat eigenes Ablaufdatum
         ];
     }
 
     /**
-     * Client-Secret verschlüsselt in Connection-Settings speichern.
-     * Das settings-JSON-Feld ist nicht automatisch verschlüsselt,
-     * daher wird das Secret manuell mit Laravel Crypt verschlüsselt.
-     */
-    public static function encryptSecret(string $secret): string
-    {
-        return Crypt::encryptString($secret);
-    }
-
-    /**
-     * Verschlüsseltes Client-Secret aus Connection-Settings auslesen.
-     */
-    public static function decryptSecret(string $encrypted): string
-    {
-        return Crypt::decryptString($encrypted);
-    }
-
-    /**
-     * Token für eine bestehende Connection erneuern.
+     * Token erneuern. Bei API-Keys nicht nötig — Key bleibt gültig bis zum Ablauf.
      */
     public function refreshAccessToken(ConnectorConnection $connection): void
     {
-        $settings = $connection->settings ?? [];
-        $remoteUrl = $settings['remote_url'] ?? '';
-        $clientId = $settings['client_id'] ?? '';
-        $encryptedSecret = $settings['client_secret_encrypted'] ?? '';
+        // API-Keys benötigen keinen Refresh.
+        // Der gespeicherte access_token IST der API-Key.
+    }
 
-        if (empty($remoteUrl) || empty($clientId) || empty($encryptedSecret)) {
-            throw new \RuntimeException('anyPIM-Verbindung ist nicht vollständig konfiguriert (remote_url, client_id, client_secret_encrypted).');
-        }
+    /**
+     * API-Key verschlüsselt in Connection-Settings speichern.
+     */
+    public static function encryptApiKey(string $apiKey): string
+    {
+        return Crypt::encryptString($apiKey);
+    }
 
-        $clientSecret = self::decryptSecret($encryptedSecret);
-        $result = $this->authenticate($clientId, $clientSecret, $remoteUrl);
-
-        $connection->update([
-            'access_token'     => $result['access_token'],
-            'token_expires_at' => now()->addSeconds($result['expires_in'] ?? 3600),
-        ]);
+    /**
+     * Verschlüsselten API-Key aus Connection-Settings auslesen.
+     */
+    public static function decryptApiKey(string $encrypted): string
+    {
+        return Crypt::decryptString($encrypted);
     }
 
     /**

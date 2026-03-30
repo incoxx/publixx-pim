@@ -108,6 +108,14 @@ class PimSyncController extends Controller
      */
     public function checksums(Request $request): JsonResponse
     {
+        $request->validate([
+            'hierarchy_id'       => 'sometimes|nullable|uuid',
+            'product_type_ids'   => 'sometimes|array',
+            'product_type_ids.*' => 'uuid',
+            'skus'               => 'sometimes|array',
+            'skus.*'             => 'string|max:100',
+        ]);
+
         $filters = [
             'hierarchy_id'     => $request->input('hierarchy_id'),
             'product_type_ids' => $request->input('product_type_ids', []),

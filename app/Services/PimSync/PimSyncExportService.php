@@ -156,7 +156,13 @@ class PimSyncExportService
             'attributes'   => $this->serializeAttributes($product),
             'prices'       => $this->serializePrices($product),
             'media'        => $this->serializeMedia($product),
-            '_checksum'    => md5($product->sku . '|' . $product->updated_at->timestamp),
+            '_checksum'    => md5(implode('|', [
+                $product->sku,
+                $product->updated_at->timestamp,
+                $product->attributeValues->count(),
+                $product->prices->count(),
+                $product->mediaAssignments->count(),
+            ])),
             '_updated_at'  => $product->updated_at->toIso8601String(),
         ];
     }

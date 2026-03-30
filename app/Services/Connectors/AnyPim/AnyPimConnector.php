@@ -57,7 +57,7 @@ class AnyPimConnector extends AbstractConnector
 
     public function handleCallback(string $code, ?string $codeVerifier = null, string $shopUrl = ''): array
     {
-        // Bei anyPIM: "code" = client_id, "codeVerifier" = client_secret, "shopUrl" = remote_url
+        // Bei anyPIM: "code" = API-Key (Bearer Token), "shopUrl" = remote_url
         return $this->authService->authenticate($code, $codeVerifier ?? '', $shopUrl);
     }
 
