@@ -100,8 +100,10 @@ async function init(options = {}) {
     return
   }
 
-  await actions.fetchConfig(slug)
-  await actions.fetchFilterValues(slug)
+  await Promise.all([
+    actions.fetchConfig(slug),
+    actions.fetchFilterValues(slug),
+  ])
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', mountWidgets)

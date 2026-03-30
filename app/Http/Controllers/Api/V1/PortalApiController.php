@@ -57,13 +57,13 @@ class PortalApiController extends BaseController
         $steps = $portal->filter_steps ?? [];
         $result = [];
 
+        // Batch-load aller benoetigten Attribute
+        $attributeIds = collect($steps)->pluck('attribute_id')->filter()->unique()->values();
+        $attributesById = Attribute::whereIn('id', $attributeIds)->get()->keyBy('id');
+
         foreach ($steps as $step) {
             $attributeId = $step['attribute_id'] ?? null;
-            if (!$attributeId) {
-                continue;
-            }
-
-            $attribute = Attribute::find($attributeId);
+            $attribute = $attributeId ? ($attributesById[$attributeId] ?? null) : null;
             if (!$attribute) {
                 continue;
             }
@@ -91,12 +91,11 @@ class PortalApiController extends BaseController
             ->whereNotNull('value_string')
             ->where('value_string', '!=', '');
 
-        // Pipe-separierte Werte (z.B. Laender: "AU|BR|CA|DE") aufspalten
+        // Einmalige Abfrage: alle Werte laden
         $rawValues = $query->pluck('value_string')->filter()->unique();
 
-        $isPipeSeparated = $rawValues->contains(fn ($v) => str_contains($v, '|'));
-
-        if ($isPipeSeparated) {
+        // Pipe-separierte Werte erkennen und aufspalten (z.B. "AU|BR|CA|DE")
+        if ($rawValues->contains(fn ($v) => str_contains($v, '|'))) {
             $valueCounts = [];
             foreach ($rawValues as $raw) {
                 foreach (explode('|', $raw) as $part) {
@@ -115,19 +114,13 @@ class PortalApiController extends BaseController
             ])->values()->all();
         }
 
-        // Einfache Werte: gruppieren und zaehlen
-        $valueCounts = ProductAttributeValue::where('attribute_id', $attribute->id)
-            ->whereNotNull('value_string')
-            ->where('value_string', '!=', '')
-            ->selectRaw('value_string as value, COUNT(DISTINCT product_id) as count')
-            ->groupBy('value_string')
-            ->orderBy('value_string')
-            ->get();
+        // Einfache Werte: aus bereits geladenen Daten zaehlen
+        $valueCounts = $rawValues->countBy()->sort();
 
-        return $valueCounts->map(fn ($row) => [
-            'value' => $row->value,
-            'label' => $row->value,
-            'count' => $row->count,
-        ])->all();
+        return $valueCounts->map(fn ($count, $value) => [
+            'value' => $value,
+            'label' => $value,
+            'count' => $count,
+        ])->values()->all();
     }
 }

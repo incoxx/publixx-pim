@@ -4,7 +4,12 @@ const { state, getters } = useStore()
 </script>
 
 <template>
-  <div class="pe-branding" v-if="getters.branding.value">
+  <div v-if="state.loading" class="pe-loading">
+    <div class="pe-skeleton" style="height:16px;width:200px;margin-bottom:12px"></div>
+    <div class="pe-skeleton" style="height:36px;width:80%;margin-bottom:12px"></div>
+    <div class="pe-skeleton" style="height:60px;margin-bottom:24px"></div>
+  </div>
+  <div class="pe-branding" v-else-if="getters.branding.value">
     <p v-if="getters.branding.value.subtitle" class="pe-branding__subtitle">{{ getters.branding.value.subtitle }}</p>
     <h1 v-if="getters.branding.value.title" class="pe-branding__title">{{ getters.branding.value.title }}</h1>
     <p v-if="getters.branding.value.hero_text" class="pe-branding__desc">{{ getters.branding.value.hero_text }}</p>

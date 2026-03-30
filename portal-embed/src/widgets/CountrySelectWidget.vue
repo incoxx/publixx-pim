@@ -37,7 +37,16 @@ function select(value) {
 </script>
 
 <template>
-  <div class="pe-country" v-if="filterStep">
+  <!-- Loading -->
+  <div v-if="state.loading" class="pe-loading">
+    <div class="pe-skeleton" style="height:32px;margin-bottom:12px"></div>
+    <div class="pe-skeleton" style="height:36px;margin-bottom:12px"></div>
+    <div class="pe-skeleton" v-for="i in 4" :key="i" style="height:48px;margin-bottom:6px"></div>
+  </div>
+  <!-- Error -->
+  <div v-else-if="state.error" class="pe-error">{{ state.error }}</div>
+  <!-- Content -->
+  <div class="pe-country" v-else-if="filterStep">
     <h3 class="pe-country__title">{{ filterStep.label }}</h3>
 
     <div class="pe-country__search">
