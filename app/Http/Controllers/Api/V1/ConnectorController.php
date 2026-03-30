@@ -204,9 +204,9 @@ class ConnectorController extends Controller
             'settings'      => 'sometimes|array|nullable',
         ]);
 
-        // Shopware: shop_url aus settings an authenticate übergeben
+        // Remote-URL aus settings (Shopware: shop_url, anyPIM: remote_url)
         $settings = $validated['settings'] ?? null;
-        $shopUrl = $settings['shop_url'] ?? '';
+        $shopUrl = $settings['shop_url'] ?? $settings['remote_url'] ?? '';
 
         try {
             $tokens = $connector->handleCallback(
@@ -1057,6 +1057,8 @@ class ConnectorController extends Controller
      */
     public function pullProducts(Request $request, ConnectorConnection $connection, AnyPimConnector $connector): JsonResponse
     {
+        $this->authorize('sync', $connection);
+
         if ($connection->connector_type !== 'anypim') {
             return response()->json(['error' => 'Pull ist nur für anyPIM-Connections verfügbar.'], 422);
         }
@@ -1085,6 +1087,8 @@ class ConnectorController extends Controller
      */
     public function pullTranslations(Request $request, ConnectorConnection $connection, AnyPimConnector $connector): JsonResponse
     {
+        $this->authorize('sync', $connection);
+
         if ($connection->connector_type !== 'anypim') {
             return response()->json(['error' => 'Pull ist nur für anyPIM-Connections verfügbar.'], 422);
         }
@@ -1109,6 +1113,8 @@ class ConnectorController extends Controller
      */
     public function syncBidirectional(Request $request, ConnectorConnection $connection, AnyPimConnector $connector): JsonResponse
     {
+        $this->authorize('sync', $connection);
+
         if ($connection->connector_type !== 'anypim') {
             return response()->json(['error' => 'Bidirektionaler Sync ist nur für anyPIM-Connections verfügbar.'], 422);
         }
@@ -1131,6 +1137,8 @@ class ConnectorController extends Controller
      */
     public function testAnyPimConnection(ConnectorConnection $connection, AnyPimConnector $connector): JsonResponse
     {
+        $this->authorize('sync', $connection);
+
         if ($connection->connector_type !== 'anypim') {
             return response()->json(['error' => 'Test ist nur für anyPIM-Connections verfügbar.'], 422);
         }

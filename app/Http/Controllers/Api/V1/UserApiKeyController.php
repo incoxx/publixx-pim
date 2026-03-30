@@ -8,7 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
+use Laravel\Sanctum\PersonalAccessToken;
 
 class UserApiKeyController extends Controller
 {
@@ -115,7 +115,7 @@ class UserApiKeyController extends Controller
             abort(403, 'Nur Administratoren.');
         }
 
-        $tokens = \Laravel\Sanctum\PersonalAccessToken::where('token_type', 'api_key')
+        $tokens = PersonalAccessToken::where('token_type', 'api_key')
             ->with('tokenable')
             ->orderByDesc('created_at')
             ->get()
@@ -188,7 +188,7 @@ class UserApiKeyController extends Controller
             abort(403, 'Nur Administratoren.');
         }
 
-        $token = \Laravel\Sanctum\PersonalAccessToken::where('id', $tokenId)
+        $token = PersonalAccessToken::where('id', $tokenId)
             ->where('token_type', 'api_key')
             ->first();
 
