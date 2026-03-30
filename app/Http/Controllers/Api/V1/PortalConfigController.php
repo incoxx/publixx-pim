@@ -14,6 +14,32 @@ use Illuminate\Support\Str;
  */
 class PortalConfigController extends Controller
 {
+    private function validationRules(?string $excludeId = null): array
+    {
+        $slugUnique = $excludeId
+            ? 'unique:portal_configs,slug,' . $excludeId
+            : 'unique:portal_configs,slug';
+
+        return [
+            'name' => $excludeId ? 'sometimes|string|max:255' : 'required|string|max:255',
+            'slug' => "sometimes|string|max:255|{$slugUnique}",
+            'description' => 'sometimes|string|nullable',
+            'html_template' => $excludeId ? 'sometimes|string' : 'required|string',
+            'catalog_template_id' => 'sometimes|nullable|uuid|exists:catalog_templates,id',
+            'filter_steps' => 'sometimes|array',
+            'filter_steps.*.key' => 'required|string|max:100',
+            'filter_steps.*.attribute_id' => 'required|uuid|exists:attributes,id',
+            'filter_steps.*.widget' => 'required|string|in:country-select,language-select,filter-dropdown,filter-cards',
+            'filter_steps.*.label' => 'required|string|max:255',
+            'branding' => 'sometimes|array|nullable',
+            'css_variables' => 'sometimes|array|nullable',
+            'custom_css' => 'sometimes|string|nullable|max:50000',
+            'default_locale' => 'sometimes|string|max:10',
+            'is_shared' => 'sometimes|boolean',
+            'is_active' => 'sometimes|boolean',
+        ];
+    }
+
     public function index(Request $request): JsonResponse
     {
         $userId = $request->user()?->id;
@@ -29,24 +55,7 @@ class PortalConfigController extends Controller
 
     public function store(Request $request): JsonResponse
     {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'slug' => 'sometimes|string|max:255|unique:portal_configs,slug',
-            'description' => 'sometimes|string|nullable',
-            'html_template' => 'required|string',
-            'catalog_template_id' => 'sometimes|nullable|uuid|exists:catalog_templates,id',
-            'filter_steps' => 'sometimes|array',
-            'filter_steps.*.key' => 'required|string|max:100',
-            'filter_steps.*.attribute_id' => 'required|uuid|exists:attributes,id',
-            'filter_steps.*.widget' => 'required|string|in:country-select,language-select,filter-dropdown,filter-cards',
-            'filter_steps.*.label' => 'required|string|max:255',
-            'branding' => 'sometimes|array|nullable',
-            'css_variables' => 'sometimes|array|nullable',
-            'custom_css' => 'sometimes|string|nullable|max:50000',
-            'default_locale' => 'sometimes|string|max:10',
-            'is_shared' => 'sometimes|boolean',
-            'is_active' => 'sometimes|boolean',
-        ]);
+        $validated = $request->validate($this->validationRules());
 
         if (empty($validated['slug'])) {
             $validated['slug'] = Str::slug($validated['name']);
@@ -82,24 +91,7 @@ class PortalConfigController extends Controller
         $portal = PortalConfig::findOrFail($id);
         $this->authorizeAccess($request, $portal);
 
-        $validated = $request->validate([
-            'name' => 'sometimes|string|max:255',
-            'slug' => 'sometimes|string|max:255|unique:portal_configs,slug,' . $id,
-            'description' => 'sometimes|string|nullable',
-            'html_template' => 'sometimes|string',
-            'catalog_template_id' => 'sometimes|nullable|uuid|exists:catalog_templates,id',
-            'filter_steps' => 'sometimes|array',
-            'filter_steps.*.key' => 'required|string|max:100',
-            'filter_steps.*.attribute_id' => 'required|uuid|exists:attributes,id',
-            'filter_steps.*.widget' => 'required|string|in:country-select,language-select,filter-dropdown,filter-cards',
-            'filter_steps.*.label' => 'required|string|max:255',
-            'branding' => 'sometimes|array|nullable',
-            'css_variables' => 'sometimes|array|nullable',
-            'custom_css' => 'sometimes|string|nullable|max:50000',
-            'default_locale' => 'sometimes|string|max:10',
-            'is_shared' => 'sometimes|boolean',
-            'is_active' => 'sometimes|boolean',
-        ]);
+        $validated = $request->validate($this->validationRules($id));
 
         $portal->update($validated);
 

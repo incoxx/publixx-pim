@@ -46,7 +46,7 @@ async function createNew() {
   <script src="../dist/portal-embed.umd.js"><\/script>
   <script>
     PortalEmbed.init({
-      api: 'http://localhost:8000/api/v1',
+      api: '__API_URL__',
       slug: '__SLUG__',
     })
   <\/script>

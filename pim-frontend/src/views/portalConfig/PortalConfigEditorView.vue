@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import {
-  Save, ExternalLink, Plus, Trash2, GripVertical, Copy, Check,
+  Save, ExternalLink, Plus, Trash2, Copy, Check,
   Globe, Languages, ChevronDown, LayoutGrid, Monitor, Tablet, Smartphone,
 } from 'lucide-vue-next'
 import portalConfigApi from '@/api/portalConfig'
@@ -124,8 +124,23 @@ function onBeforeUnload(e) {
     e.returnValue = ''
   }
 }
-onMounted(() => window.addEventListener('beforeunload', onBeforeUnload))
-onBeforeUnmount(() => window.removeEventListener('beforeunload', onBeforeUnload))
+
+// Ctrl+S / Cmd+S Shortcut
+function onKeyDown(e) {
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+    e.preventDefault()
+    if (isDirty.value && !saving.value) save()
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('beforeunload', onBeforeUnload)
+  window.addEventListener('keydown', onKeyDown)
+})
+onBeforeUnmount(() => {
+  window.removeEventListener('beforeunload', onBeforeUnload)
+  window.removeEventListener('keydown', onKeyDown)
+})
 
 onBeforeRouteLeave(() => {
   if (isDirty.value && !confirm('Es gibt ungespeicherte Aenderungen. Seite wirklich verlassen?')) {
