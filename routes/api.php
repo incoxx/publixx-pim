@@ -5,6 +5,8 @@ declare(strict_types=1);
 use App\Http\Controllers\Api\V1\AssetCatalogController;
 use App\Http\Controllers\Api\V1\CalendarController;
 use App\Http\Controllers\Api\V1\DocumentPortalController;
+use App\Http\Controllers\Api\V1\PortalApiController;
+use App\Http\Controllers\Api\V1\PortalConfigController;
 use App\Http\Controllers\Api\V1\DashboardController;
 use App\Http\Controllers\Api\V1\ProjectController;
 use App\Http\Controllers\Api\V1\TeamController;
@@ -149,6 +151,14 @@ Route::prefix('v1/asset-catalog')->middleware(['throttle.pim', 'catalog.access']
     Route::get('assets/{medium}/nodes', [AssetCatalogController::class, 'assetNodes']);
     Route::get('folders', [AssetCatalogController::class, 'folders']);
     Route::post('download', [AssetCatalogController::class, 'download']);
+});
+
+// =========================================================================
+// Portal (public — konfigurierbare Vorschaltseiten)
+// =========================================================================
+Route::prefix('v1/portal')->middleware(['throttle.pim', 'catalog.access'])->group(function () {
+    Route::get('{slug}/config', [PortalApiController::class, 'config']);
+    Route::get('{slug}/filter-values', [PortalApiController::class, 'filterValues']);
 });
 
 // =========================================================================
@@ -829,6 +839,13 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::apiResource('catalog-templates', CatalogTemplateController::class);
     Route::post('catalog-templates/{catalog_template}/duplicate', [CatalogTemplateController::class, 'duplicate']);
     Route::get('catalog-templates/{catalog_template}/preview', [CatalogTemplateController::class, 'preview']);
+
+    // =====================================================================
+    // Portal Configs (CRUD)
+    // =====================================================================
+    Route::get('portal-configs/presets', [PortalConfigController::class, 'presets']);
+    Route::apiResource('portal-configs', PortalConfigController::class);
+    Route::post('portal-configs/{portal_config}/duplicate', [PortalConfigController::class, 'duplicate']);
 
     // =====================================================================
     // Translation Jobs

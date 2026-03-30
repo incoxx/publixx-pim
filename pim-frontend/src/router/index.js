@@ -303,6 +303,18 @@ const routes = [
     meta: { title: 'Katalog-Vorlage Designer', tabable: true, tabTitle: 'Katalog-Vorlage' },
   },
   {
+    path: '/portal-config',
+    name: 'portal-config',
+    component: () => import('@/views/portalConfig/PortalConfigListView.vue'),
+    meta: { title: 'Portale' },
+  },
+  {
+    path: '/portal-config/:id',
+    name: 'portal-config-editor',
+    component: () => import('@/views/portalConfig/PortalConfigEditorView.vue'),
+    meta: { title: 'Portal Editor', tabable: true, tabTitle: 'Portal' },
+  },
+  {
     path: '/media',
     name: 'media',
     component: () => import('@/views/media/MediaView.vue'),

@@ -74,6 +74,7 @@ const sections = computed(() => {
         { icon: FileBarChart, label: () => 'Berichte', to: '/reports', module: 'reports', permission: 'reports.view' },
         { icon: FileText, label: () => 'PDF-Vorlagen', to: '/pdf-templates', module: 'pdf_templates', permission: 'pdf-templates.view' },
         { icon: LayoutTemplate, label: () => 'Katalog-Vorlagen', to: '/catalog-templates' },
+        { icon: Globe, label: () => 'Portale', to: '/portal-config' },
         { icon: ExternalLink, label: () => 'Katalog-Demo', to: '/catalog-embed', external: true },
       ],
     },

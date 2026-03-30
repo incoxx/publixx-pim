@@ -1,21 +1,21 @@
 <?php
 
 use App\Http\Controllers\CatalogEmbedController;
+use App\Http\Controllers\PortalEmbedController;
 use Illuminate\Support\Facades\Route;
 
 // ── Catalog Embed Templates ──
-// Serves customizable HTML catalog templates under /catalog-embed/
-// No auth on the HTML page itself — the catalog API endpoints it calls
-// are already protected by the catalog.access middleware.
 Route::get('/catalog-embed', [CatalogEmbedController::class, 'index']);
 Route::get('/catalog-embed/{template}', [CatalogEmbedController::class, 'show']);
-
-// Serve catalog-embed static assets (JS/CSS) — needed because Apache
-// routes all requests through Laravel in subdirectory installs.
 Route::get('/catalog-embed-assets/{file}', [CatalogEmbedController::class, 'asset'])
+    ->where('file', '.+');
+
+// ── Portal Embed (Vorschaltseiten) ──
+Route::get('/portal/{slug}', [PortalEmbedController::class, 'show']);
+Route::get('/portal-embed-assets/{file}', [PortalEmbedController::class, 'asset'])
     ->where('file', '.+');
 
 // Serve SPA for all non-API routes
 Route::get('/{any?}', function () {
     return file_get_contents(public_path('spa.html'));
-})->where('any', '^(?!api|horizon|up|docs|web/help|catalog-embed|catalog-embed-assets).*$');
+})->where('any', '^(?!api|horizon|up|docs|web/help|catalog-embed|catalog-embed-assets|portal|portal-embed-assets).*$');

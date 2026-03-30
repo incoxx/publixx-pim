@@ -306,11 +306,31 @@ function createStore() {
     async applyDeeplinks() {
       const params = new URLSearchParams(window.location.search)
 
+      // Language deeplink: ?lang=de
+      const lang = params.get('lang')
+      if (lang) {
+        state.locale = lang
+      }
+
       // Category deeplink: ?cat=<category-id>
       const cat = params.get('cat')
       if (cat) {
         actions.setCategory(cat)
         await actions.fetchProducts()
+      }
+
+      // Filter deeplinks: ?filters[attr-id]=value
+      let hasFilters = false
+      for (const [key, value] of params) {
+        const match = key.match(/^filters\[(.+)]$/)
+        if (match) {
+          actions.setFilter(match[1], decodeURIComponent(value))
+          hasFilters = true
+        }
+      }
+      if (hasFilters && !cat) {
+        await actions.fetchProducts()
+        await actions.fetchFacets()
       }
 
       // Product SKU deeplink: ?sku=<sku>
