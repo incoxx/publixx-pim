@@ -28,9 +28,7 @@ async function loadDocuments() {
 }
 
 function onLanguageSelect(lang) {
-  // Sprache wechseln und Dokumente neu laden
-  // Direktes Setzen der Sprache im Store ist ueber selectedCountry nicht moeglich,
-  // daher laden wir die Dokumente mit der neuen Sprache
+  store.setLanguage(lang)
   const id = route.params.id
   if (id) {
     store.fetchProductDocuments(id)

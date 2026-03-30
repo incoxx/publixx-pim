@@ -1,28 +1,13 @@
 <script setup>
+import { languageName } from './languageConstants'
+import { formatFileSize } from '@/utils/formatting'
+
 defineProps({
   document: { type: Object, required: true },
 })
 
-const LANG_LABELS = {
-  de: 'Deutsch', en: 'English', fr: 'Fran\u00e7ais', es: 'Espa\u00f1ol',
-  it: 'Italiano', nl: 'Nederlands', pl: 'Polski', pt: 'Portugu\u00eas',
-  ru: 'Russisch', zh: 'Chinesisch', ja: 'Japanisch', ko: 'Koreanisch',
-  cs: 'Tschechisch', hu: 'Ungarisch', hr: 'Kroatisch', da: 'Daenisch',
-  sv: 'Schwedisch', no: 'Norwegisch', fi: 'Finnisch', el: 'Griechisch',
-  tr: 'Tuerkisch', ro: 'Rumaenisch', ar: 'Arabisch',
-  mul: 'Mehrsprachig', lv: 'Lettisch', lt: 'Litauisch',
-}
-
-function langLabel(code) {
-  return LANG_LABELS[code] || (code ? code.toUpperCase() : '')
-}
-
-function formatSize(bytes) {
-  if (!bytes || bytes === 0) return ''
-  if (bytes < 1024) return bytes + ' B'
-  if (bytes < 1048576) return (bytes / 1024).toFixed(0) + ' KB'
-  return (bytes / 1048576).toFixed(1) + ' MB'
-}
+const langLabel = languageName
+const formatSize = formatFileSize
 </script>
 
 <template>

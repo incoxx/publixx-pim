@@ -8,8 +8,8 @@ export const useDocumentPortalStore = defineStore('documentPortal', () => {
   const searchQuery = ref('')
   const searchResults = ref([])
   const searchMeta = ref({ current_page: 1, last_page: 1, total: 0 })
-  const currentProduct = ref(null)
-  const productDocuments = ref(null) // Antwort von productDocuments endpoint
+  const productDocuments = ref(null)
+  const overrideLanguage = ref(null)
   const countries = ref([])
   const settings = ref({})
   const loading = ref(false)
@@ -25,9 +25,8 @@ export const useDocumentPortalStore = defineStore('documentPortal', () => {
     return grouped
   })
 
-  const selectedLanguage = computed(() => {
+  const countryDefaultLanguage = computed(() => {
     if (!selectedCountry.value) return 'de'
-    // Land-zu-Sprache Mapping (vereinfacht)
     const map = {
       DE: 'de', AT: 'de', CH: 'de',
       US: 'en', GB: 'en', AU: 'en', CA: 'en', IN: 'en', SG: 'en',
@@ -47,6 +46,10 @@ export const useDocumentPortalStore = defineStore('documentPortal', () => {
     }
     return map[selectedCountry.value.code] || 'en'
   })
+
+  const selectedLanguage = computed(() => overrideLanguage.value || countryDefaultLanguage.value)
+
+  const currentProduct = computed(() => productDocuments.value?.product || null)
 
   // Aktionen
   async function fetchSettings() {
@@ -105,7 +108,6 @@ export const useDocumentPortalStore = defineStore('documentPortal', () => {
       }
       const { data } = await documentPortalApi.getProductDocuments(productId, params)
       productDocuments.value = data.data || data
-      currentProduct.value = productDocuments.value.product
     } catch (e) {
       console.error('[DocumentPortal] Dokumente konnten nicht geladen werden:', e.message)
       productDocuments.value = null
@@ -114,11 +116,15 @@ export const useDocumentPortalStore = defineStore('documentPortal', () => {
     }
   }
 
+  function setLanguage(lang) {
+    overrideLanguage.value = lang
+  }
+
   function reset() {
     searchQuery.value = ''
     searchResults.value = []
-    currentProduct.value = null
     productDocuments.value = null
+    overrideLanguage.value = null
   }
 
   return {
@@ -142,6 +148,7 @@ export const useDocumentPortalStore = defineStore('documentPortal', () => {
     selectCountry,
     search,
     fetchProductDocuments,
+    setLanguage,
     reset,
   }
 })

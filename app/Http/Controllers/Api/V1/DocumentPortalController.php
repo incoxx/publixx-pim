@@ -7,11 +7,9 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Resources\Api\V1\DocumentPortalProductResource;
 use App\Models\Product;
 use App\Models\ProductAttributeValue;
-use App\Models\WebsiteProfile;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller as BaseController;
-use Illuminate\Support\Facades\DB;
 
 /**
  * Öffentliches Dokumentenportal — Land/Sprache → Artikelsuche → Dokumenten-Download.
@@ -21,32 +19,8 @@ use Illuminate\Support\Facades\DB;
  */
 class DocumentPortalController extends BaseController
 {
-    /**
-     * GET /api/v1/document-portal/settings
-     *
-     * Portal-Einstellungen (Theme, Titel, Logo etc.) — nutzt bestehendes WebsiteProfile.
-     */
-    public function settings(): JsonResponse
-    {
-        $payload = WebsiteProfile::getActivePayload();
-
-        return response()->json([
-            'data' => [
-                'catalog_title' => $payload['catalog_title'] ?? 'Dokumentenportal',
-                'logo_url' => !empty($payload['logo_media_id'])
-                    ? url('api/v1/media/file/' . $payload['logo_media_id'])
-                    : null,
-                'color_primary' => $payload['color_primary'] ?? null,
-                'color_accent' => $payload['color_accent'] ?? null,
-                'font_family' => $payload['font_family'] ?? null,
-                'footer_text' => $payload['footer_text'] ?? null,
-                'impressum_url' => $payload['impressum_url'] ?? null,
-                'kontakt_url' => $payload['kontakt_url'] ?? null,
-                'custom_css' => $payload['custom_css'] ?? null,
-                'catalog_access_mode' => $payload['catalog_access_mode'] ?? 'public',
-            ],
-        ]);
-    }
+    private const COUNTRY_ATTRIBUTE = 'udx_erbe_laender';
+    private const PRIMARY_DOC_TYPE = 'Gebrauchsanweisung';
 
     /**
      * GET /api/v1/document-portal/countries
@@ -55,14 +29,12 @@ class DocumentPortalController extends BaseController
      */
     public function countries(): JsonResponse
     {
-        // Alle Werte des country-restrictions Attributs sammeln
         $countryValues = ProductAttributeValue::query()
-            ->whereHas('attribute', fn ($q) => $q->where('technical_name', 'udx_erbe_laender'))
+            ->whereHas('attribute', fn ($q) => $q->where('technical_name', self::COUNTRY_ATTRIBUTE))
             ->pluck('value_string')
             ->filter()
             ->unique();
 
-        // Pipe-separierte Werte auflösen und einzigartige Ländercodes sammeln
         $countryCodes = $countryValues
             ->flatMap(fn (string $v) => explode('|', $v))
             ->map(fn (string $c) => strtoupper(trim($c)))
@@ -71,7 +43,6 @@ class DocumentPortalController extends BaseController
             ->sort()
             ->values();
 
-        // Ländernamen zuordnen
         $countryNames = self::COUNTRY_NAMES;
         $countries = $countryCodes->map(fn (string $code) => [
             'code' => $code,
@@ -98,10 +69,13 @@ class DocumentPortalController extends BaseController
 
         $q = trim($request->input('q'));
         $country = $request->input('country');
-        $perPage = min((int) $request->input('per_page', 10), 50);
+        $perPage = (int) $request->input('per_page', 10);
 
         $query = Product::query()
-            ->with(['media', 'productType'])
+            ->with([
+                'media' => fn ($mq) => $mq->whereIn('media_type', ['document', 'image']),
+                'productType',
+            ])
             ->where(function ($builder) use ($q) {
                 $builder->where('sku', $q)
                     ->orWhere('ean', $q)
@@ -112,18 +86,20 @@ class DocumentPortalController extends BaseController
                     });
             });
 
-        // Länderfilter: Produkte mit passenden country-restrictions
+        // Länderfilter: exakte Prüfung im pipe-separierten Wert (z.B. "AU|DE|US")
         if ($country) {
-            $query->where(function ($builder) use ($country) {
-                $builder->whereHas('attributeValues', function ($avq) use ($country) {
-                    $avq->whereHas('attribute', fn ($aq) => $aq->where('technical_name', 'udx_erbe_laender'))
-                        ->where(function ($vq) use ($country) {
-                            $vq->where('value_string', 'LIKE', "%{$country}%");
+            $escaped = preg_quote($country, '/');
+            $query->where(function ($builder) use ($country, $escaped) {
+                $builder->whereHas('attributeValues', function ($avq) use ($country, $escaped) {
+                    $avq->whereHas('attribute', fn ($aq) => $aq->where('technical_name', self::COUNTRY_ATTRIBUTE))
+                        ->where(function ($vq) use ($country, $escaped) {
+                            // Exakt, oder am Anfang/Ende/Mitte eines pipe-separierten Werts
+                            $vq->where('value_string', $country)
+                                ->orWhere('value_string', 'REGEXP', '(^|\\\\|)' . $escaped . '(\\\\||$)');
                         });
                 })
-                // Produkte ohne Länder-Einschränkung auch zeigen
                 ->orWhereDoesntHave('attributeValues', function ($avq) {
-                    $avq->whereHas('attribute', fn ($aq) => $aq->where('technical_name', 'udx_erbe_laender'));
+                    $avq->whereHas('attribute', fn ($aq) => $aq->where('technical_name', self::COUNTRY_ATTRIBUTE));
                 });
             });
         }
@@ -151,14 +127,15 @@ class DocumentPortalController extends BaseController
 
         $lang = $request->input('lang', 'de');
 
-        $product = Product::with(['media', 'productType'])->findOrFail($productId);
+        $product = Product::with([
+            'media' => fn ($mq) => $mq->whereIn('media_type', ['document', 'image']),
+            'productType',
+        ])->findOrFail($productId);
 
-        // Alle Dokumente (media_type = document)
         $allDocuments = $product->media
             ->where('media_type', 'document')
             ->values();
 
-        // Verfügbare Sprachen aggregieren
         $availableLanguages = $allDocuments
             ->pluck('language')
             ->filter()
@@ -166,7 +143,6 @@ class DocumentPortalController extends BaseController
             ->sort()
             ->values();
 
-        // Dokumente nach Typ gruppieren
         $documentsByType = $allDocuments
             ->groupBy(fn ($m) => $m->document_type ?? 'Sonstige')
             ->map(fn ($group) => $group->map(fn ($m) => [
@@ -180,31 +156,17 @@ class DocumentPortalController extends BaseController
                 'download_url' => url('api/v1/media/file/' . $m->file_name),
             ])->sortBy('language')->values());
 
-        // Primäres Dokument: Gebrauchsanweisung in gewählter Sprache
         $primaryDoc = $allDocuments
-            ->filter(fn ($m) => $m->language === $lang && $m->document_type === 'Gebrauchsanweisung')
+            ->filter(fn ($m) => $m->language === $lang && $m->document_type === self::PRIMARY_DOC_TYPE)
             ->first();
 
-        // Fallback: erstes Dokument in gewählter Sprache
         if (!$primaryDoc) {
             $primaryDoc = $allDocuments->firstWhere('language', $lang);
         }
 
-        // Produktbild
-        $image = $product->media->firstWhere('media_type', 'image');
-
         return response()->json([
             'data' => [
-                'product' => [
-                    'id' => $product->id,
-                    'sku' => $product->sku,
-                    'name' => $product->name,
-                    'ean' => $product->ean,
-                    'product_type' => $product->productType?->name_de,
-                    'image_url' => $image
-                        ? url('api/v1/media/thumb/' . $image->id . '?w=300&h=300')
-                        : null,
-                ],
+                'product' => new DocumentPortalProductResource($product),
                 'primary_document' => $primaryDoc ? [
                     'id' => $primaryDoc->id,
                     'file_name' => $primaryDoc->file_name,
