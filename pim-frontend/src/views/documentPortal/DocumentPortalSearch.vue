@@ -62,12 +62,12 @@ function onProductClick(product) {
     </section>
 
     <!-- Ergebnisse -->
-    <section v-if="store.searchResults.length > 0 || store.loading" class="dp-search__results">
+    <section v-if="store.loading || store.searchResults.length > 0 || (store.searchQuery && !store.loading)" class="dp-search__results">
       <div v-if="store.loading" class="dp-search__loading">
         <div v-for="i in 3" :key="i" class="dp-skeleton" />
       </div>
 
-      <div v-else class="dp-search__list">
+      <div v-else-if="store.searchResults.length > 0" class="dp-search__list">
         <ProductDocumentCard
           v-for="product in store.searchResults"
           :key="product.id"
@@ -76,7 +76,7 @@ function onProductClick(product) {
         />
       </div>
 
-      <p v-if="!store.loading && store.searchQuery && store.searchResults.length === 0" class="dp-search__empty">
+      <p v-else-if="store.searchQuery" class="dp-search__empty">
         Keine Produkte gefunden fuer <strong>{{ store.searchQuery }}</strong>
       </p>
     </section>

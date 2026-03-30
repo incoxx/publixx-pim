@@ -88,15 +88,10 @@ class DocumentPortalController extends BaseController
 
         // Länderfilter: exakte Prüfung im pipe-separierten Wert (z.B. "AU|DE|US")
         if ($country) {
-            $escaped = preg_quote($country, '/');
-            $query->where(function ($builder) use ($country, $escaped) {
-                $builder->whereHas('attributeValues', function ($avq) use ($country, $escaped) {
+            $query->where(function ($builder) use ($country) {
+                $builder->whereHas('attributeValues', function ($avq) use ($country) {
                     $avq->whereHas('attribute', fn ($aq) => $aq->where('technical_name', self::COUNTRY_ATTRIBUTE))
-                        ->where(function ($vq) use ($country, $escaped) {
-                            // Exakt, oder am Anfang/Ende/Mitte eines pipe-separierten Werts
-                            $vq->where('value_string', $country)
-                                ->orWhere('value_string', 'REGEXP', '(^|\\\\|)' . $escaped . '(\\\\||$)');
-                        });
+                        ->whereRaw("FIND_IN_SET(?, REPLACE(value_string, '|', ','))", [$country]);
                 })
                 ->orWhereDoesntHave('attributeValues', function ($avq) {
                     $avq->whereHas('attribute', fn ($aq) => $aq->where('technical_name', self::COUNTRY_ATTRIBUTE));
