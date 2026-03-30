@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>eIFU — Elektronische Gebrauchsanweisung</title>
+  <style>
+    /* ===========================================================
+     * eIFU — Electronic Instructions for Use
+     * ===========================================================
+     * Generisches Template fuer digitale Produktdokumentation.
+     * Farben, Logo und Texte sind Platzhalter — einfach anpassbar.
+     *
+     * Layout:  Split-Panel Hero  +  Produkt-/Dokumenten-Grid
+     * Konzept: Kategorien = Regionen/Laender, Produkte = Dokumente
+     */
+    :root {
+      --pxc-primary: #0891b2;
+      --pxc-primary-text: #ffffff;
+      --pxc-accent: #06b6d4;
+      --pxc-bg: #ffffff;
+      --pxc-surface: #f0f9ff;
+      --pxc-border: #bae6fd;
+      --pxc-text: #0c4a6e;
+      --pxc-text-muted: #64748b;
+      --pxc-radius: 12px;
+      --pxc-font: system-ui, -apple-system, 'Segoe UI', sans-serif;
+      --pxc-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      --pxc-shadow-lg: 0 8px 30px rgba(0,0,0,0.1);
+
+      /* eIFU-spezifische Tokens */
+      --eifu-hero-bg: linear-gradient(135deg, #f0f9ff 0%, #ffffff 100%);
+      --eifu-dark: #0c4a6e;
+      --eifu-light: #e0f2fe;
+      --eifu-check: #0891b2;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: var(--pxc-font);
+      font-size: 16px;
+      background: var(--pxc-bg);
+      color: var(--pxc-text);
+      line-height: 1.5;
+    }
+
+    /* ===== HEADER ===== */
+    .eifu-header {
+      background: var(--eifu-dark);
+      color: #fff;
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .eifu-header__left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .eifu-header__logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      color: #fff;
+    }
+    .eifu-header__logo-icon {
+      width: 36px;
+      height: 36px;
+      background: var(--pxc-primary);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .eifu-header__logo-icon svg {
+      width: 20px;
+      height: 20px;
+      fill: none;
+      stroke: #fff;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .eifu-header__logo-text {
+      font-size: 1.125rem;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+    }
+    .eifu-header__right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    /* ===== HERO — Split Panel ===== */
+    .eifu-hero {
+      background: var(--eifu-hero-bg);
+      border-bottom: 1px solid var(--pxc-border);
+    }
+    .eifu-hero__inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      min-height: 480px;
+    }
+
+    /* Left: Branding */
+    .eifu-hero__brand {
+      padding: 48px 48px 48px 32px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      border-right: 1px solid var(--pxc-border);
+    }
+    .eifu-hero__subtitle {
+      color: var(--pxc-primary);
+      font-size: 0.875rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 12px;
+    }
+    .eifu-hero__title {
+      color: var(--eifu-dark);
+      font-size: 2rem;
+      font-weight: 700;
+      line-height: 1.2;
+      margin-bottom: 12px;
+    }
+    .eifu-hero__desc {
+      color: var(--pxc-text-muted);
+      font-size: 1rem;
+      margin-bottom: 32px;
+      max-width: 420px;
+    }
+
+    /* Checkmarks */
+    .eifu-checks {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .eifu-checks li {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: var(--eifu-dark);
+      font-size: 0.9375rem;
+    }
+    .eifu-checks__icon {
+      width: 24px;
+      height: 24px;
+      background: var(--eifu-check);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .eifu-checks__icon svg {
+      width: 14px;
+      height: 14px;
+      fill: none;
+      stroke: #fff;
+      stroke-width: 2.5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    /* Product image placeholder */
+    .eifu-hero__image {
+      margin-top: 32px;
+      border-radius: var(--pxc-radius);
+      border: 2px solid var(--eifu-light);
+      overflow: hidden;
+      background: var(--pxc-surface);
+      aspect-ratio: 16/9;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--pxc-text-muted);
+      font-size: 0.875rem;
+    }
+    .eifu-hero__image img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    /* Right: Interactive area (categories + search) */
+    .eifu-hero__interactive {
+      padding: 48px 32px 48px 48px;
+      display: flex;
+      flex-direction: column;
+    }
+    .eifu-hero__interactive-header {
+      margin-bottom: 24px;
+    }
+    .eifu-hero__interactive-header h3 {
+      color: var(--eifu-dark);
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .eifu-hero__interactive-header p {
+      color: var(--pxc-text-muted);
+      font-size: 0.875rem;
+    }
+    .eifu-hero__search {
+      margin-bottom: 20px;
+    }
+    .eifu-hero__categories {
+      flex: 1;
+      overflow-y: auto;
+      max-height: 340px;
+    }
+
+    /* Style overrides for categories inside hero */
+    .eifu-hero__categories .pxc-categories {
+      padding: 0;
+      background: transparent;
+    }
+    .eifu-hero__categories .pxc-categories__header {
+      display: none;
+    }
+    .eifu-hero__categories .pxc-categories__item {
+      border-radius: var(--pxc-radius);
+      border: 2px solid var(--pxc-border);
+      margin-bottom: 6px;
+      padding: 12px 16px;
+      transition: all 0.15s ease;
+    }
+    .eifu-hero__categories .pxc-categories__item:hover {
+      border-color: var(--pxc-primary);
+      background: var(--pxc-surface);
+    }
+    .eifu-hero__categories .pxc-categories__item--active {
+      border-color: var(--pxc-primary);
+      background: var(--eifu-light);
+    }
+
+    /* ===== FEATURE BAR ===== */
+    .eifu-features {
+      background: linear-gradient(to right, var(--pxc-surface), #fff);
+      border-bottom: 1px solid var(--pxc-border);
+      padding: 20px 32px;
+    }
+    .eifu-features__inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: center;
+      gap: 48px;
+      flex-wrap: wrap;
+    }
+    .eifu-features__item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--eifu-dark);
+      font-size: 0.875rem;
+      font-weight: 500;
+    }
+    .eifu-features__item svg {
+      width: 20px;
+      height: 20px;
+      fill: none;
+      stroke: var(--pxc-primary);
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    /* ===== CONTENT AREA ===== */
+    .eifu-content {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px 32px;
+    }
+    .eifu-content__layout {
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      gap: 24px;
+    }
+    .eifu-content__sidebar {
+      border-right: 1px solid var(--pxc-border);
+      padding-right: 20px;
+    }
+    .eifu-content__main {
+      min-width: 0;
+    }
+
+    /* Section title */
+    .eifu-section-title {
+      font-size: 1.125rem;
+      font-weight: 600;
+      color: var(--eifu-dark);
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid var(--pxc-primary);
+      display: inline-block;
+    }
+
+    /* Product card overrides — document-style */
+    .eifu-content .pxc-product-card {
+      border-radius: var(--pxc-radius);
+      border: 1px solid var(--pxc-border);
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    .eifu-content .pxc-product-card:hover {
+      border-color: var(--pxc-primary);
+      box-shadow: 0 4px 12px rgba(8, 145, 178, 0.1);
+    }
+    .eifu-content .pxc-product-card__name {
+      color: var(--eifu-dark);
+      font-weight: 600;
+    }
+
+    /* ===== FOOTER ===== */
+    .eifu-footer {
+      background: var(--eifu-dark);
+      color: rgba(255,255,255,0.7);
+      text-align: center;
+      padding: 24px 32px;
+      font-size: 0.8125rem;
+      margin-top: 48px;
+    }
+    .eifu-footer a {
+      color: rgba(255,255,255,0.9);
+      text-decoration: none;
+    }
+    .eifu-footer a:hover {
+      text-decoration: underline;
+    }
+
+    /* ===== RESPONSIVE ===== */
+    @media (max-width: 1024px) {
+      .eifu-hero__inner {
+        grid-template-columns: 1fr;
+        min-height: auto;
+      }
+      .eifu-hero__brand {
+        border-right: none;
+        border-bottom: 1px solid var(--pxc-border);
+        padding: 32px 24px;
+      }
+      .eifu-hero__image {
+        display: none;
+      }
+      .eifu-hero__interactive {
+        padding: 32px 24px;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .eifu-header {
+        padding: 10px 16px;
+      }
+      .eifu-hero__brand {
+        padding: 24px 16px;
+      }
+      .eifu-hero__title {
+        font-size: 1.5rem;
+      }
+      .eifu-hero__interactive {
+        padding: 24px 16px;
+      }
+      .eifu-content {
+        padding: 16px;
+      }
+      .eifu-content__layout {
+        grid-template-columns: 1fr;
+      }
+      .eifu-content__sidebar {
+        display: none; /* Mobile: handled by pxc-sidebar drawer */
+      }
+      .eifu-features__inner {
+        gap: 24px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ===== HEADER ===== -->
+  <header class="eifu-header">
+    <div class="eifu-header__left">
+      <div data-catalog="sidebar-toggle"></div>
+      <a href="#" class="eifu-header__logo">
+        <div class="eifu-header__logo-icon">
+          <!-- Book/Document icon -->
+          <svg viewBox="0 0 24 24">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+          </svg>
+        </div>
+        <span class="eifu-header__logo-text">Ihr Firmenname</span>
+      </a>
+    </div>
+    <div class="eifu-header__right">
+      <div data-catalog="locale"></div>
+      <div data-catalog="wishlist-button"></div>
+    </div>
+  </header>
+
+  <!-- ===== HERO — Split Panel ===== -->
+  <section class="eifu-hero">
+    <div class="eifu-hero__inner">
+
+      <!-- Left: Branding -->
+      <div class="eifu-hero__brand">
+        <p class="eifu-hero__subtitle">Elektronische Gebrauchsanweisung</p>
+        <h1 class="eifu-hero__title">Produktdokumentation digital abrufen</h1>
+        <p class="eifu-hero__desc">
+          Greifen Sie auf umfassende Produktdokumentation, Sicherheitsinformationen
+          und Bedienungsanleitungen zu — jederzeit und ueberall.
+        </p>
+
+        <ul class="eifu-checks">
+          <li>
+            <span class="eifu-checks__icon">
+              <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+            </span>
+            Sofortiger digitaler Zugriff
+          </li>
+          <li>
+            <span class="eifu-checks__icon">
+              <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+            </span>
+            Mehrere Sprachen verfuegbar
+          </li>
+          <li>
+            <span class="eifu-checks__icon">
+              <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+            </span>
+            Immer aktueller Inhalt
+          </li>
+        </ul>
+
+        <!-- Produktbild-Platzhalter (austauschbar) -->
+        <div class="eifu-hero__image">
+          <!-- Eigenes Bild einsetzen: <img src="ihr-bild.jpg" alt="Produkt"> -->
+          Produktbild-Platzhalter
+        </div>
+      </div>
+
+      <!-- Right: Interactive Selection -->
+      <div class="eifu-hero__interactive">
+        <div class="eifu-hero__interactive-header">
+          <h3>Region oder Kategorie waehlen</h3>
+          <p>Waehlen Sie Ihren Bereich, um passende Dokumente anzuzeigen</p>
+        </div>
+
+        <div class="eifu-hero__search">
+          <div data-catalog="search"></div>
+        </div>
+
+        <div class="eifu-hero__categories">
+          <div data-catalog="categories"></div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ===== FEATURE BAR ===== -->
+  <div class="eifu-features">
+    <div class="eifu-features__inner">
+      <div class="eifu-features__item">
+        <!-- Globe icon -->
+        <svg viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="2" y1="12" x2="22" y2="12"/>
+          <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+        </svg>
+        <span>Mehrsprachig</span>
+      </div>
+      <div class="eifu-features__item">
+        <!-- Download icon -->
+        <svg viewBox="0 0 24 24">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        <span>PDF-Download</span>
+      </div>
+      <div class="eifu-features__item">
+        <!-- Play icon -->
+        <svg viewBox="0 0 24 24">
+          <polygon points="5 3 19 12 5 21 5 3"/>
+        </svg>
+        <span>Video-Anleitungen</span>
+      </div>
+      <div class="eifu-features__item">
+        <!-- Shield icon -->
+        <svg viewBox="0 0 24 24">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        </svg>
+        <span>Sicherheitsinformationen</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== CONTENT AREA — Documents / Products ===== -->
+  <div class="eifu-content">
+    <h2 class="eifu-section-title">Dokumentation</h2>
+
+    <div class="eifu-content__layout">
+      <!-- Sidebar: Filter -->
+      <aside class="eifu-content__sidebar" data-catalog-sidebar>
+        <div data-catalog="facets"></div>
+      </aside>
+
+      <!-- Main: Toolbar + Grid + Pagination -->
+      <main class="eifu-content__main">
+        <div data-catalog="toolbar"></div>
+        <div data-catalog="active-filters"></div>
+        <div data-catalog="product-grid"></div>
+        <div data-catalog="pagination"></div>
+      </main>
+    </div>
+  </div>
+
+  <!-- ===== FOOTER ===== -->
+  <footer class="eifu-footer">
+    &copy; 2026 Ihr Firmenname |
+    <a href="#">Impressum</a> |
+    <a href="#">Datenschutz</a> |
+    <a href="#">Kontakt</a>
+  </footer>
+
+  <!-- Hidden widgets (Modals/Drawers — oeffnen sich bei Bedarf) -->
+  <div data-catalog="wishlist"></div>
+  <div data-catalog="product-detail"></div>
+  <div data-catalog="compare"></div>
+
+  <!-- ===== INIT ===== -->
+  <script src="../dist/catalog-embed.umd.js"></script>
+  <script>
+    PublixxCatalog.init({
+      api: 'http://localhost:8000/api/v1',
+      locale: 'de',
+      perPage: 12,
+    })
+  </script>
+
+</body>
+</html>
