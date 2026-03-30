@@ -84,7 +84,7 @@ hero:
 <div class="marketing-card">
 <div class="marketing-card-icon">📦</div>
 <h3>Excel-Import & Export</h3>
-<p>14-Tab-Excel-Import mit intelligenter Validierung. Export in JSON, Publixx oder Ihr Wunschformat.</p>
+<p>14-Tab-Excel-Import mit intelligenter Validierung. Export in JSON, Publixx oder Ihr Wunschformat. Plus: Excel Template Designer fuer individuelle Exportvorlagen.</p>
 </div>
 
 <div class="marketing-card">
@@ -97,6 +97,42 @@ hero:
 <div class="marketing-card-icon">🌍</div>
 <h3>Echte Mehrsprachigkeit</h3>
 <p>Beliebig viele Sprachen pro Attribut. Keine Plugins, keine Workarounds — Mehrsprachigkeit ist Teil der Architektur.</p>
+</div>
+
+<div class="marketing-card">
+<div class="marketing-card-icon">🛒</div>
+<h3>E-Commerce Connectors</h3>
+<p>Shopware 6, Shopify und Salesforce Commerce Cloud nativ angebunden. Produkte, Kategorien, Medien und Preise per Klick synchronisieren — mit Delta-Sync.</p>
+</div>
+
+<div class="marketing-card">
+<div class="marketing-card-icon">🤖</div>
+<h3>KI-gestuetzte Uebersetzung</h3>
+<p>Translation Memory Service mit DeepL, Claude AI, Google Translate und OpenAI. Automatische Uebersetzung mit Freigabe-Workflow und XLIFF-Support.</p>
+</div>
+
+<div class="marketing-card">
+<div class="marketing-card-icon">⚡</div>
+<h3>GraphQL & API Designer</h3>
+<p>Visueller API Designer mit dynamischer GraphQL-Schema-Generierung. API Streams und Templates fuer massgeschneiderte Datenausgabe.</p>
+</div>
+
+<div class="marketing-card">
+<div class="marketing-card-icon">🎨</div>
+<h3>Canva & Cloudinary</h3>
+<p>Medien nach Canva und Cloudinary pushen. OAuth-basiert, mit Export-Profilen und automatischem Brand-Template-Befuellen.</p>
+</div>
+
+<div class="marketing-card">
+<div class="marketing-card-icon">🔄</div>
+<h3>PIM-to-PIM Sync</h3>
+<p>Bidirektionale Synchronisation zwischen anyPIM-Instanzen. Produkte und Uebersetzungen in beide Richtungen abgleichen.</p>
+</div>
+
+<div class="marketing-card">
+<div class="marketing-card-icon">🗂️</div>
+<h3>Attribut-Mapping</h3>
+<p>Quell-Attribute auf Zielklassifikationen mappen (z.B. ETIM, eCl@ss). Excel-Import/-Export fuer Mapping-Regeln inklusive.</p>
 </div>
 
 </div>
@@ -123,13 +159,13 @@ hero:
 </div>
 
 <div class="marketing-usp-card">
-<h3>API-first: 90+ Endpoints</h3>
-<p>Vollstaendige REST-API mit Token-Auth. Jede Funktion, die das Frontend kann, kann auch die API. Integration in bestehende Systeme ab Tag 1.</p>
+<h3>API-first: 370+ Endpoints + GraphQL</h3>
+<p>Vollstaendige REST-API mit Token-Auth plus GraphQL-Unterstuetzung. Jede Funktion, die das Frontend kann, kann auch die API. Integration in bestehende Systeme ab Tag 1.</p>
 </div>
 
 <div class="marketing-usp-card">
 <h3>Moderner Stack</h3>
-<p>Laravel 12 + Vue.js 3 + Tailwind CSS. Kein Java-Monolith, kein PHP 5 Legacy, keine XML-Konfiguration. Code, den Entwickler verstehen und erweitern wollen.</p>
+<p>Laravel 11 + Vue.js 3 + Tailwind CSS. Kein Java-Monolith, kein PHP 5 Legacy, keine XML-Konfiguration. Code, den Entwickler verstehen und erweitern wollen.</p>
 </div>
 
 <div class="marketing-usp-card">
@@ -179,8 +215,18 @@ hero:
 </tr>
 <tr>
 <td><strong>API</strong></td>
-<td class="marketing-highlight-col">90+ REST Endpoints, API-first</td>
+<td class="marketing-highlight-col">370+ REST Endpoints + GraphQL</td>
 <td>Oft eingeschraenkt oder kostenpflichtig</td>
+</tr>
+<tr>
+<td><strong>E-Commerce</strong></td>
+<td class="marketing-highlight-col">Shopware 6, Shopify, Salesforce</td>
+<td>Eigene Connectoren oder Middleware noetig</td>
+</tr>
+<tr>
+<td><strong>KI & Uebersetzung</strong></td>
+<td class="marketing-highlight-col">DeepL, Claude AI, Google, OpenAI</td>
+<td>Manuell oder Drittanbieter-Plugin</td>
 </tr>
 <tr>
 <td><strong>Abfragesprache</strong></td>
@@ -199,7 +245,7 @@ hero:
 </tr>
 <tr>
 <td><strong>Tech-Stack</strong></td>
-<td class="marketing-highlight-col">Laravel 12, Vue 3, MySQL</td>
+<td class="marketing-highlight-col">Laravel 11, Vue 3, MySQL</td>
 <td>Java/Proprietary, komplex</td>
 </tr>
 </tbody>
@@ -217,6 +263,8 @@ hero:
 
 <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; margin-top: 2rem;">
 <a href="/web/help/de/installation/schnellstart" class="marketing-cta-button marketing-cta-primary">Schnellstart-Anleitung</a>
+<a href="/web/help/de/marketing/integrationen" class="marketing-cta-button marketing-cta-secondary">E-Commerce Integrationen</a>
+<a href="/web/help/de/marketing/ki-uebersetzung" class="marketing-cta-button marketing-cta-secondary">KI & API Designer</a>
 <a href="https://github.com/incoxx/publixx-pim" class="marketing-cta-button marketing-cta-secondary" target="_blank" rel="noopener">GitHub Repository</a>
 </div>
 

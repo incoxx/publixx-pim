@@ -13,9 +13,9 @@ title: Sales Folder — anyPIM
 | | |
 |---|---|
 | **License** | GPL-3.0 — Open Source, free of charge |
-| **Technology** | Laravel 12, Vue.js 3, Tailwind CSS, MySQL 8, Redis |
+| **Technology** | Laravel 11, Vue.js 3, Tailwind CSS, MySQL 8, Redis |
 | **Setup Time** | 10 minutes (one script, one server) |
-| **API** | 90+ REST endpoints, API-first architecture |
+| **API** | 370+ REST endpoints + GraphQL, API-first architecture |
 | **Languages** | Unlimited languages per attribute, UI in German & English |
 | **Hosting** | Self-hosted on your own server (Ubuntu 24.04 LTS) |
 
@@ -80,7 +80,66 @@ Permissions controllable down to:
 
 #### True Multilingual
 
-Unlimited languages per attribute — natively built into the architecture. No plugins, no workarounds. Optional: automatic translation via the integrated Translation Memory Service (TMS) with DeepL, Google Translate, or Claude.
+Unlimited languages per attribute — natively built into the architecture. No plugins, no workarounds. Optional: automatic translation via the integrated Translation Memory Service (TMS) with DeepL, Claude AI, Google Translate, or OpenAI.
+
+---
+
+### E-Commerce Integrations
+
+anyPIM synchronizes product data natively with leading shop systems — no middleware, no manual export.
+
+| Connector | Features |
+|-----------|----------|
+| **Shopware 6** | Products, categories, media, properties, delta sync, profile-based sync, shop reset, thumbnail generation |
+| **Shopify** | Products, categories, media, metafields, delta sync (OAuth + legacy token) |
+| **Salesforce Commerce Cloud** | Products, categories, media, checksums for large catalogs |
+| **anyPIM-to-anyPIM** | Bidirectional sync: push, pull, translations, connection test |
+
+All connectors offer: OAuth authentication, delta sync with checksums, sync logs with export, bulk operations, preview/dry run, and connection management.
+
+More details: [E-Commerce Integrations](/en/marketing/integrations)
+
+---
+
+### AI & Automation
+
+#### Translation Memory Service (TMS)
+
+Dedicated microservice for automatic translation with four providers:
+
+| Provider | Strength |
+|----------|----------|
+| **DeepL** | Highest quality for European languages |
+| **Claude AI** | Context-sensitive translation with domain terminology |
+| **Google Translate** | Broadest language coverage |
+| **OpenAI** | Flexible alternative with GPT-4o |
+
+Translation jobs with workflow (Create → Submit → Approve) and XLIFF import/export for translation agencies.
+
+#### Claude AI Connector
+
+AI-powered text processing directly in the PIM:
+- Generate product descriptions and SEO copy
+- Optimize and rephrase existing texts
+- Context-aware based on product attributes
+
+#### GraphQL & API Designer
+
+- **Visual API Designer** — Create API endpoints via GUI, no code required
+- **GraphQL Schemas** — Dynamically generated from the PIM data model
+- **API Streams** — Public endpoints with slug-based access
+- **API Templates** — With preview, custom keys, and dependency overview
+
+More details: [AI, Translation & API Designer](/en/marketing/ai-translation)
+
+---
+
+### DAM & Design Integrations
+
+| Connector | Features |
+|-----------|----------|
+| **Canva** | OAuth-based asset upload, export profiles, Brand Template autofill |
+| **Cloudinary** | Asset upload to the Cloudinary cloud, transformation URLs |
 
 ---
 
@@ -104,6 +163,12 @@ Unlimited languages per attribute — natively built into the architecture. No p
 | **Units** | Unit of measurement management with conversion |
 | **Dictionary** | Central terminology database for consistent naming |
 | **SSO** | Single Sign-On via Azure AD / Entra ID |
+| **Excel Template Designer** | Visually configure custom Excel export templates |
+| **Attribute Mapping** | Cross-classification mapping (e.g., PIM → ETIM) with Excel import/export |
+| **Projects** | Organize product groups in projects with bulk assignment |
+| **PimSync API** | Dedicated API for PIM-to-PIM synchronization |
+| **User API Keys** | Self-service: users manage their own API keys |
+| **Catalog Templates** | Templates for product catalogs with presets and preview |
 
 ---
 
@@ -138,12 +203,15 @@ Dedicated queues for different tasks with automatic scaling:
 
 ### API-first Design
 
-Complete REST API with token authentication (Laravel Sanctum). Every function available in the frontend is also available via API. 90+ endpoints for:
+Complete REST API with token authentication (Laravel Sanctum) plus GraphQL support. Every function available in the frontend is also available via API. 370+ endpoints for:
 
 - Products (CRUD, search, PQL queries)
 - Attributes (management, groups, types)
 - Hierarchies (tree structure, nodes)
 - Import/Export (trigger, status, download)
+- Connectors (Shopware, Shopify, Salesforce, Canva, Cloudinary)
+- Translation (TMS, translation jobs, XLIFF)
+- API Designer (templates, streams, GraphQL)
 - System (health check, status, queue management)
 
 ### Monitoring & Operations
@@ -162,11 +230,13 @@ Complete REST API with token authentication (Laravel Sanctum). Every function av
 | **License Cost** | 0 EUR — Open Source | 50,000–500,000+ EUR/year |
 | **Setup Time** | 10 minutes | 3–12 months |
 | **New Attributes** | Instant, no migration | Schema change + deployment |
-| **API** | 90+ REST endpoints, API-first | Often limited or paid add-on |
+| **API** | 370+ REST endpoints + GraphQL | Often limited or paid add-on |
+| **E-Commerce** | Shopware 6, Shopify, Salesforce native | Custom connectors or middleware |
+| **AI & Translation** | DeepL, Claude AI, Google, OpenAI | Manual or third-party plugin |
 | **Query Language** | PQL with fuzzy + phonetic | Basic filters or SQL |
 | **Source Code** | 100% visible, customizable | Closed source, black box |
 | **Vendor Lock-in** | None | High |
-| **Tech Stack** | Laravel 12, Vue 3, MySQL | Java/Proprietary, complex |
+| **Tech Stack** | Laravel 11, Vue 3, MySQL | Java/Proprietary, complex |
 | **Hosting** | Self-hosted, full control | Cloud dependency or expensive infrastructure |
 | **Support** | Community + optional enterprise support | Paid maintenance contracts |
 

@@ -13,9 +13,9 @@ title: Vertriebsmappe — anyPIM
 | | |
 |---|---|
 | **Lizenz** | GPL-3.0 — Open Source, kostenfrei |
-| **Technologie** | Laravel 12, Vue.js 3, Tailwind CSS, MySQL 8, Redis |
+| **Technologie** | Laravel 11, Vue.js 3, Tailwind CSS, MySQL 8, Redis |
 | **Setup-Zeit** | 10 Minuten (ein Script, ein Server) |
-| **API** | 90+ REST-Endpoints, API-first-Architektur |
+| **API** | 370+ REST-Endpoints + GraphQL, API-first-Architektur |
 | **Sprachen** | Beliebig viele Sprachen pro Attribut, UI in Deutsch & Englisch |
 | **Hosting** | Self-hosted auf eigenem Server (Ubuntu 24.04 LTS) |
 
@@ -80,7 +80,66 @@ Berechtigungen steuerbar bis auf:
 
 #### Echte Mehrsprachigkeit
 
-Beliebig viele Sprachen pro Attribut — nativ in der Architektur verankert. Keine Plugins, keine Workarounds. Optional: automatische Uebersetzung ueber den integrierten Translation Memory Service (TMS) mit DeepL, Google Translate oder Claude.
+Beliebig viele Sprachen pro Attribut — nativ in der Architektur verankert. Keine Plugins, keine Workarounds. Optional: automatische Uebersetzung ueber den integrierten Translation Memory Service (TMS) mit DeepL, Claude AI, Google Translate oder OpenAI.
+
+---
+
+### E-Commerce Integrationen
+
+anyPIM synchronisiert Produktdaten nativ mit fuehrenden Shopsystemen — ohne Middleware, ohne manuellen Export.
+
+| Connector | Funktionen |
+|-----------|-----------|
+| **Shopware 6** | Produkte, Kategorien, Medien, Properties, Delta-Sync, Profil-basierter Sync, Shop-Reset, Thumbnail-Generierung |
+| **Shopify** | Produkte, Kategorien, Medien, Metafields, Delta-Sync (OAuth + Legacy Token) |
+| **Salesforce Commerce Cloud** | Produkte, Kategorien, Medien, Checksums fuer grosse Kataloge |
+| **anyPIM-to-anyPIM** | Bidirektionaler Sync: Push, Pull, Uebersetzungen, Verbindungstest |
+
+Alle Connectors bieten: OAuth-Authentifizierung, Delta-Sync mit Checksums, Sync-Logs mit Export, Bulk-Operationen, Vorschau/Dry Run und Verbindungsverwaltung.
+
+Mehr Details: [E-Commerce Integrationen](/de/marketing/integrationen)
+
+---
+
+### KI & Automatisierung
+
+#### Translation Memory Service (TMS)
+
+Eigener Mikro-Service fuer automatische Uebersetzung mit vier Providern:
+
+| Provider | Staerke |
+|----------|--------|
+| **DeepL** | Hoechste Qualitaet fuer europaeische Sprachen |
+| **Claude AI** | Kontextsensitive Uebersetzung mit Fachterminologie |
+| **Google Translate** | Breiteste Sprachabdeckung |
+| **OpenAI** | Flexible Alternative mit GPT-4o |
+
+Translation Jobs mit Workflow (Erstellen → Absenden → Freigeben) und XLIFF Import/Export fuer Uebersetzungsagenturen.
+
+#### Claude AI Connector
+
+KI-gestuetzte Textverarbeitung direkt im PIM:
+- Produktbeschreibungen und SEO-Texte generieren
+- Bestehende Texte optimieren und umformulieren
+- Kontextbezogen auf Basis der Produktattribute
+
+#### GraphQL & API Designer
+
+- **Visueller API Designer** — API-Endpoints per GUI erstellen, ohne Code
+- **GraphQL-Schemas** — Dynamisch generiert aus dem PIM-Datenmodell
+- **API Streams** — Oeffentliche Endpoints mit Slug-basiertem Zugriff
+- **API Templates** — Mit Vorschau, eigenen Keys und Abhaengigkeits-Uebersicht
+
+Mehr Details: [KI, Uebersetzung & API Designer](/de/marketing/ki-uebersetzung)
+
+---
+
+### DAM & Design Integrationen
+
+| Connector | Funktionen |
+|-----------|-----------|
+| **Canva** | OAuth-basierter Asset-Upload, Export-Profile, Brand-Template-Autofill |
+| **Cloudinary** | Asset-Upload in die Cloudinary-Cloud, Transformations-URLs |
 
 ---
 
@@ -104,6 +163,12 @@ Beliebig viele Sprachen pro Attribut — nativ in der Architektur verankert. Kei
 | **Einheiten** | Masseinheitenverwaltung mit Umrechnung |
 | **Woerterbuch** | Zentrale Begriffsdatenbank fuer konsistente Terminologie |
 | **SSO** | Single Sign-On ueber Azure AD / Entra ID |
+| **Excel Template Designer** | Individuelle Excel-Exportvorlagen visuell konfigurieren |
+| **Attribut-Mapping** | Cross-Klassifikations-Mapping (z.B. PIM → ETIM) mit Excel Im-/Export |
+| **Projekte** | Produktgruppen in Projekten organisieren mit Bulk-Zuordnung |
+| **PimSync API** | Dedizierte API fuer PIM-zu-PIM-Synchronisation |
+| **User API Keys** | Self-Service: Benutzer verwalten eigene API-Schluessel |
+| **Catalog Templates** | Vorlagen fuer Produktkataloge mit Presets und Vorschau |
 
 ---
 
@@ -138,12 +203,15 @@ Dedizierte Queues fuer verschiedene Aufgaben mit automatischer Skalierung:
 
 ### API-first-Design
 
-Vollstaendige REST-API mit Token-Authentifizierung (Laravel Sanctum). Jede Funktion, die das Frontend kann, kann auch die API. 90+ Endpoints fuer:
+Vollstaendige REST-API mit Token-Authentifizierung (Laravel Sanctum) plus GraphQL-Unterstuetzung. Jede Funktion, die das Frontend kann, kann auch die API. 370+ Endpoints fuer:
 
 - Produkte (CRUD, Suche, PQL-Abfragen)
 - Attribute (Verwaltung, Gruppen, Typen)
 - Hierarchien (Baumstruktur, Knoten)
 - Import/Export (Trigger, Status, Download)
+- Connectors (Shopware, Shopify, Salesforce, Canva, Cloudinary)
+- Uebersetzung (TMS, Translation Jobs, XLIFF)
+- API Designer (Templates, Streams, GraphQL)
 - System (Health-Check, Status, Queue-Management)
 
 ### Monitoring & Betrieb
@@ -162,11 +230,13 @@ Vollstaendige REST-API mit Token-Authentifizierung (Laravel Sanctum). Jede Funkt
 | **Lizenzkosten** | 0 EUR — Open Source | 50.000–500.000+ EUR/Jahr |
 | **Setup-Zeit** | 10 Minuten | 3–12 Monate |
 | **Neue Attribute** | Sofort, ohne Migration | Schema-Aenderung + Deployment |
-| **API** | 90+ REST-Endpoints, API-first | Oft eingeschraenkt oder kostenpflichtig |
+| **API** | 370+ REST-Endpoints + GraphQL | Oft eingeschraenkt oder kostenpflichtig |
+| **E-Commerce** | Shopware 6, Shopify, Salesforce nativ | Eigene Connectoren oder Middleware |
+| **KI & Uebersetzung** | DeepL, Claude AI, Google, OpenAI | Manuell oder Drittanbieter-Plugin |
 | **Abfragesprache** | PQL mit Fuzzy + phonetisch | Einfache Filter oder SQL |
 | **Quellcode** | 100% einsehbar, anpassbar | Closed Source, Blackbox |
 | **Vendor Lock-in** | Keiner | Hoch |
-| **Tech-Stack** | Laravel 12, Vue 3, MySQL | Java/Proprietary, komplex |
+| **Tech-Stack** | Laravel 11, Vue 3, MySQL | Java/Proprietary, komplex |
 | **Hosting** | Self-hosted, volle Kontrolle | Cloud-Abhaengigkeit oder teure Infrastruktur |
 | **Support** | Community + optionaler Enterprise-Support | Kostenpflichtige Wartungsvertraege |
 
