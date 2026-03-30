@@ -21,13 +21,28 @@ class GraphqlSchemaBuilder
 {
     /**
      * Baut ein vollständiges GraphQL-Schema aus template_json.
+     *
+     * Bei direction 'import' oder 'bidirectional' wird zusätzlich ein Mutation-Type
+     * generiert, der createProduct, updateProduct, deleteProduct und importProducts enthält.
      */
-    public function build(array $templateJson, string $language): Schema
+    public function build(array $templateJson, string $language, string $direction = 'export'): Schema
     {
         $groups = $templateJson['groups'] ?? [];
 
         if (empty($groups)) {
-            return $this->buildEmptySchema();
+            $schema = $this->buildEmptySchema();
+
+            // Mutation-Type hinzufügen wenn Import erlaubt
+            if (in_array($direction, ['import', 'bidirectional'])) {
+                $mutationBuilder = new GraphqlMutationBuilder();
+
+                return new Schema([
+                    'query' => $schema->getQueryType(),
+                    'mutation' => $mutationBuilder->build(),
+                ]);
+            }
+
+            return $schema;
         }
 
         $groupType = $this->buildGroupType($groups, 1);
@@ -43,17 +58,34 @@ class GraphqlSchemaBuilder
             ],
         ]);
 
-        return new Schema(['query' => $queryType]);
+        $schemaConfig = ['query' => $queryType];
+
+        if (in_array($direction, ['import', 'bidirectional'])) {
+            $mutationBuilder = new GraphqlMutationBuilder();
+            $schemaConfig['mutation'] = $mutationBuilder->build();
+        }
+
+        return new Schema($schemaConfig);
     }
 
     /**
      * Gibt das Schema als SDL-String zurück (für die Frontend-Vorschau).
      */
-    public function toSdl(array $templateJson, string $language): string
+    public function toSdl(array $templateJson, string $language, string $direction = 'export'): string
     {
-        $schema = $this->build($templateJson, $language);
+        $schema = $this->build($templateJson, $language, $direction);
 
         return SchemaPrinter::doPrint($schema);
+    }
+
+    /**
+     * Generiert eine Beispiel-Mutation (delegiert an GraphqlMutationBuilder).
+     */
+    public function buildSampleMutation(): string
+    {
+        $mutationBuilder = new GraphqlMutationBuilder();
+
+        return $mutationBuilder->buildSampleMutation();
     }
 
     /**
