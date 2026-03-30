@@ -53,6 +53,7 @@ class ApiTesterController extends Controller
         'connectors' => 'Konnektoren',
         'shopify' => 'Konnektoren',
         'shopware' => 'Konnektoren',
+        'pim-sync' => 'PimSync',
 
         // Verwaltung
         'users' => 'Verwaltung',
