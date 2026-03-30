@@ -193,6 +193,23 @@ curl -X POST "https://pim.example.com/api/v1/auth/refresh" \
   -H "Accept: application/json"
 ```
 
+## API-Keys (langlebige Tokens)
+
+Neben den Login-Tokens gibt es **API-Keys** — langlebige Bearer-Tokens für externe Integrationen:
+
+- Werden unter **Connectoren → API-Keys** oder via `POST /api/v1/user/api-keys` erstellt
+- Erben die Berechtigungen (Rolle) des Benutzers
+- Werden beim Login **nicht** gelöscht (im Gegensatz zu Session-Tokens)
+- Optional mit Ablaufdatum
+
+API-Keys werden genau wie Login-Tokens im `Authorization`-Header gesendet:
+
+```
+Authorization: Bearer {api-key}
+```
+
+Ausführliche Dokumentation: [API-Keys](./api-keys)
+
 ## Token-Konfiguration
 
 ### Gültigkeitsdauer

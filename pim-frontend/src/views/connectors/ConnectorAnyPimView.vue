@@ -25,6 +25,7 @@ const formData = ref({
   media_transfer_mode: 'reference',
 })
 const connecting = ref(false)
+const testResult = ref(null)
 
 // Sync State
 const syncing = ref({})

@@ -140,10 +140,12 @@ export default defineConfig({
               items: [
                 { text: 'Übersicht', link: '/de/api/' },
                 { text: 'Authentifizierung', link: '/de/api/authentifizierung' },
+                { text: 'API-Keys', link: '/de/api/api-keys' },
                 { text: 'Produkte', link: '/de/api/produkte' },
                 { text: 'Attribute', link: '/de/api/attribute' },
                 { text: 'Hierarchien', link: '/de/api/hierarchien' },
                 { text: 'PQL-Abfragesprache', link: '/de/api/pql' },
+                { text: 'PimSync API', link: '/de/api/pim-sync' },
               ],
             },
           ],

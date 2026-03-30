@@ -212,6 +212,10 @@ Die API gliedert sich in folgende Bereiche:
 
 Login, Logout, Token-Verwaltung und Benutzerinformationen.
 
+### [API-Keys](./api-keys)
+
+Langlebige API-Schlüssel für externe Integrationen, Skripte und Machine-to-Machine-Zugriff. API-Keys sind an Benutzer gebunden und erben deren Rollenberechtigungen.
+
 ### [Produkte](./produkte)
 
 CRUD-Operationen für Produkte, Attributwerte, Varianten, Medien, Preise und Relationen.
@@ -251,3 +255,7 @@ Upload, Verwaltung und Zuordnung von Medien.
 ### Preise
 
 Verwaltung von Preisarten, Währungen und Produktpreisen.
+
+### [PimSync API](./pim-sync)
+
+Bidirektionale Synchronisation zwischen anyPIM-Instanzen. Produkte, Attribute, Preise und Media zwischen Zentrale und Tochtergesellschaften austauschen.
