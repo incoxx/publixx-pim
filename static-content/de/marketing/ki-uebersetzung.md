@@ -32,10 +32,10 @@ anyPIM betreibt einen eigenen Translation Memory Service als Mikro-Service. Uebe
 Strukturierter Uebersetzungs-Workflow:
 
 1. **Erstellen** — Quellsprache, Zielsprache(n) und Produkte waehlen
-2. **Absenden** — Job an den TMS-Provider senden
-3. **Pruefen** — Uebersetzungen vor Uebernahme pruefen
-4. **Freigeben** — Genehmigte Uebersetzungen in die Produktdaten uebernehmen
-5. **Wiederholen** — Bei Bedarf einzelne Uebersetzungen erneut anfordern
+2. **Absenden** — Job an den TMS-Provider senden (Status: pending → in_progress)
+3. **Freigeben** — Fertige Uebersetzungen pruefen und in die Produktdaten uebernehmen
+4. **Wiederholen** — Fehlgeschlagene Uebersetzungen erneut anfordern
+5. **Abbrechen** — Laufende Jobs bei Bedarf stoppen
 
 ### XLIFF Import & Export
 
@@ -58,9 +58,9 @@ Direkte Integration mit der Anthropic Claude API fuer KI-gestuetzte Textverarbei
 - **Kontextbezogen** — Die KI kennt die Produktattribute und erstellt passende Inhalte
 - **Konfigurierbares Modell** — Standard: Claude Sonnet, anpassbar auf andere Modelle
 
-### OpenAI
-
-Alternative KI-Anbindung ueber die OpenAI API (GPT-4o). Gleiche Funktionalitaet, andere Modellbasis.
+::: info Hinweis
+OpenAI (GPT-4o) steht als zusaetzlicher Uebersetzungsprovider im TMS zur Verfuegung. Fuer die Texterstellung an Produkten ist Claude AI der primaere KI-Connector.
+:::
 
 ---
 

@@ -120,7 +120,7 @@ hero:
 <div class="marketing-card">
 <div class="marketing-card-icon">🎨</div>
 <h3>Canva & Cloudinary</h3>
-<p>Sync media directly from Canva and Cloudinary. OAuth-based, with export profiles and design templates.</p>
+<p>Push media to Canva and Cloudinary. OAuth-based, with export profiles and automatic Brand Template population.</p>
 </div>
 
 <div class="marketing-card">
@@ -165,7 +165,7 @@ hero:
 
 <div class="marketing-usp-card">
 <h3>Modern Stack</h3>
-<p>Laravel 12 + Vue.js 3 + Tailwind CSS. No Java monolith, no PHP 5 legacy, no XML configs. Code that developers want to work with.</p>
+<p>Laravel 11 + Vue.js 3 + Tailwind CSS. No Java monolith, no PHP 5 legacy, no XML configs. Code that developers want to work with.</p>
 </div>
 
 <div class="marketing-usp-card">
@@ -245,7 +245,7 @@ hero:
 </tr>
 <tr>
 <td><strong>Tech Stack</strong></td>
-<td class="marketing-highlight-col">Laravel 12, Vue 3, MySQL</td>
+<td class="marketing-highlight-col">Laravel 11, Vue 3, MySQL</td>
 <td>Java/Proprietary, complex</td>
 </tr>
 </tbody>

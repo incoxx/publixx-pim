@@ -77,17 +77,16 @@ OAuth-based integration with Canva for creative workflows:
 
 - **Asset Sync** — Synchronize product images and media with Canva
 - **Export Profiles** — Configurable profiles for automated Canva exports
-- **Design Templates** — Feed product data into Canva designs
+- **Brand Templates** — Automatically populate existing Canva Brand Templates with product data (Autofill)
 
 Perfect for marketing teams that process product images directly in Canva.
 
 ### Cloudinary
 
-Cloud-based media asset management:
+Push product media to the Cloudinary cloud:
 
-- **Asset Sync** — Synchronize media between anyPIM and Cloudinary
-- **Transformations** — Use Cloudinary URLs for automatic image optimization
-- **Central DAM** — Cloudinary as single source of truth for media
+- **Asset Upload** — Push media from anyPIM to Cloudinary, organized in folder structures
+- **Transformation URLs** — Generate Cloudinary URLs for automatic image optimization and scaling
 
 ---
 

@@ -32,10 +32,10 @@ anyPIM runs its own Translation Memory Service as a dedicated microservice. Tran
 Structured translation workflow:
 
 1. **Create** — Select source language, target language(s), and products
-2. **Submit** — Send job to the TMS provider
-3. **Review** — Review translations before applying
-4. **Approve** — Apply approved translations to product data
-5. **Retry** — Re-request individual translations if needed
+2. **Submit** — Send job to the TMS provider (status: pending → in_progress)
+3. **Approve** — Review completed translations and apply to product data
+4. **Retry** — Re-request failed translations
+5. **Cancel** — Stop running jobs if needed
 
 ### XLIFF Import & Export
 
@@ -58,9 +58,9 @@ Direct integration with the Anthropic Claude API for AI-powered text processing:
 - **Context-aware** — The AI knows the product attributes and creates matching content
 - **Configurable Model** — Default: Claude Sonnet, adjustable to other models
 
-### OpenAI
-
-Alternative AI integration via the OpenAI API (GPT-4o). Same functionality, different model basis.
+::: info Note
+OpenAI (GPT-4o) is available as an additional translation provider in the TMS. For product text generation, Claude AI is the primary AI connector.
+:::
 
 ---
 

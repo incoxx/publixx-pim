@@ -13,7 +13,7 @@ title: Vertriebsmappe — anyPIM
 | | |
 |---|---|
 | **Lizenz** | GPL-3.0 — Open Source, kostenfrei |
-| **Technologie** | Laravel 12, Vue.js 3, Tailwind CSS, MySQL 8, Redis |
+| **Technologie** | Laravel 11, Vue.js 3, Tailwind CSS, MySQL 8, Redis |
 | **Setup-Zeit** | 10 Minuten (ein Script, ein Server) |
 | **API** | 370+ REST-Endpoints + GraphQL, API-first-Architektur |
 | **Sprachen** | Beliebig viele Sprachen pro Attribut, UI in Deutsch & Englisch |
@@ -114,7 +114,7 @@ Eigener Mikro-Service fuer automatische Uebersetzung mit vier Providern:
 | **Google Translate** | Breiteste Sprachabdeckung |
 | **OpenAI** | Flexible Alternative mit GPT-4o |
 
-Translation Jobs mit Workflow (Erstellen → Absenden → Pruefen → Freigeben) und XLIFF Import/Export fuer Uebersetzungsagenturen.
+Translation Jobs mit Workflow (Erstellen → Absenden → Freigeben) und XLIFF Import/Export fuer Uebersetzungsagenturen.
 
 #### Claude AI Connector
 
@@ -138,8 +138,8 @@ Mehr Details: [KI, Uebersetzung & API Designer](/de/marketing/ki-uebersetzung)
 
 | Connector | Funktionen |
 |-----------|-----------|
-| **Canva** | OAuth-basierter Asset-Sync, Export-Profile, Design-Templates |
-| **Cloudinary** | Cloud-basiertes Media Asset Management, Bildoptimierung |
+| **Canva** | OAuth-basierter Asset-Upload, Export-Profile, Brand-Template-Autofill |
+| **Cloudinary** | Asset-Upload in die Cloudinary-Cloud, Transformations-URLs |
 
 ---
 
@@ -236,7 +236,7 @@ Vollstaendige REST-API mit Token-Authentifizierung (Laravel Sanctum) plus GraphQ
 | **Abfragesprache** | PQL mit Fuzzy + phonetisch | Einfache Filter oder SQL |
 | **Quellcode** | 100% einsehbar, anpassbar | Closed Source, Blackbox |
 | **Vendor Lock-in** | Keiner | Hoch |
-| **Tech-Stack** | Laravel 12, Vue 3, MySQL | Java/Proprietary, komplex |
+| **Tech-Stack** | Laravel 11, Vue 3, MySQL | Java/Proprietary, komplex |
 | **Hosting** | Self-hosted, volle Kontrolle | Cloud-Abhaengigkeit oder teure Infrastruktur |
 | **Support** | Community + optionaler Enterprise-Support | Kostenpflichtige Wartungsvertraege |
 

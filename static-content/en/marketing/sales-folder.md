@@ -13,7 +13,7 @@ title: Sales Folder — anyPIM
 | | |
 |---|---|
 | **License** | GPL-3.0 — Open Source, free of charge |
-| **Technology** | Laravel 12, Vue.js 3, Tailwind CSS, MySQL 8, Redis |
+| **Technology** | Laravel 11, Vue.js 3, Tailwind CSS, MySQL 8, Redis |
 | **Setup Time** | 10 minutes (one script, one server) |
 | **API** | 370+ REST endpoints + GraphQL, API-first architecture |
 | **Languages** | Unlimited languages per attribute, UI in German & English |
@@ -114,7 +114,7 @@ Dedicated microservice for automatic translation with four providers:
 | **Google Translate** | Broadest language coverage |
 | **OpenAI** | Flexible alternative with GPT-4o |
 
-Translation jobs with workflow (Create → Submit → Review → Approve) and XLIFF import/export for translation agencies.
+Translation jobs with workflow (Create → Submit → Approve) and XLIFF import/export for translation agencies.
 
 #### Claude AI Connector
 
@@ -138,8 +138,8 @@ More details: [AI, Translation & API Designer](/en/marketing/ai-translation)
 
 | Connector | Features |
 |-----------|----------|
-| **Canva** | OAuth-based asset sync, export profiles, design templates |
-| **Cloudinary** | Cloud-based media asset management, image optimization |
+| **Canva** | OAuth-based asset upload, export profiles, Brand Template autofill |
+| **Cloudinary** | Asset upload to the Cloudinary cloud, transformation URLs |
 
 ---
 
@@ -236,7 +236,7 @@ Complete REST API with token authentication (Laravel Sanctum) plus GraphQL suppo
 | **Query Language** | PQL with fuzzy + phonetic | Basic filters or SQL |
 | **Source Code** | 100% visible, customizable | Closed source, black box |
 | **Vendor Lock-in** | None | High |
-| **Tech Stack** | Laravel 12, Vue 3, MySQL | Java/Proprietary, complex |
+| **Tech Stack** | Laravel 11, Vue 3, MySQL | Java/Proprietary, complex |
 | **Hosting** | Self-hosted, full control | Cloud dependency or expensive infrastructure |
 | **Support** | Community + optional enterprise support | Paid maintenance contracts |
 
