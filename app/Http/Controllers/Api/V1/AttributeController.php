@@ -28,7 +28,7 @@ class AttributeController extends Controller
     private const ALLOWED_FILTERS = [
         'status', 'data_type', 'attribute_type_id', 'is_translatable',
         'is_searchable', 'is_mandatory', 'is_inheritable', 'is_variant_attribute',
-        'is_internal', 'source_system',
+        'is_internal', 'is_primary', 'source_system',
     ];
 
     public function index(Request $request): AnonymousResourceCollection
@@ -335,7 +335,7 @@ class AttributeController extends Controller
     private const BULK_ALLOWED_FIELDS = [
         'is_translatable', 'is_multipliable', 'is_searchable', 'is_mandatory',
         'is_unique', 'is_inheritable', 'is_variant_attribute', 'is_internal',
-        'is_readonly', 'is_hidden', 'is_quick_search', 'attribute_type_id', 'status',
+        'is_readonly', 'is_hidden', 'is_quick_search', 'is_primary', 'attribute_type_id', 'status',
     ];
 
     public function bulkUpdate(Request $request): JsonResponse

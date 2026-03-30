@@ -425,6 +425,7 @@ async function loadAttributeData(overrideNodeId = null) {
         is_translatable: ra.is_translatable,
         is_variant_attribute: ra.is_variant_attribute || false,
         is_multipliable: ra.is_multipliable || false,
+        is_primary: ra.is_primary || false,
         max_multiplied: ra.max_multiplied || null,
         attribute_type_id: ra.attribute_type_id || null,
         parent_attribute_id: ra.parent_attribute_id || null,
@@ -558,6 +559,11 @@ const schemaAttributes = computed(() => {
   if (Array.isArray(schema.value.attributes)) return schema.value.attributes
   if (Array.isArray(schema.value)) return schema.value
   return []
+})
+
+// Primärattribute: im Stammdaten-Bereich des Produkteditors angezeigt
+const primaryAttributes = computed(() => {
+  return schemaAttributes.value.filter(a => a.is_primary && !a.is_hidden && !a.is_variant_attribute)
 })
 
 const attributeGroups = computed(() => {
@@ -2338,6 +2344,42 @@ watch(() => route.params.id, async (newId, oldId) => {
                 <option value="">— Kein Hersteller —</option>
                 <option v-for="m in manufacturers" :key="m.id" :value="m.id">{{ m.name }}</option>
               </select>
+            </div>
+          </div>
+          <!-- Primärattribute -->
+          <div
+            v-for="attr in primaryAttributes"
+            :key="'primary-' + attr.id"
+            class="md:flex md:items-center md:gap-4"
+          >
+            <label
+              class="text-[12px] font-medium text-[var(--color-text-secondary)] md:w-48 md:shrink-0 md:text-right md:mb-0 mb-1 block truncate"
+              :title="attr.name_de || attr.technical_name"
+            >
+              {{ attr.name_de || attr.technical_name }}
+              <span v-if="attr.is_mandatory" class="text-[var(--color-error)]">*</span>
+            </label>
+            <div class="md:flex-1 md:min-w-0">
+              <div class="flex gap-1.5 items-start">
+                <PimAttributeInput
+                  class="flex-1 min-w-0"
+                  :type="mapDataTypeToInput(attr.data_type)"
+                  :modelValue="attr.is_translatable ? translatedValues[`${attr.id}_${activeDataLang}`] : attributeValues[attr.id]"
+                  :options="attr.data_type === 'Selection' || attr.data_type === 'MultiSelection' ? getSelectionOptions(attr) : (attr.data_type === 'Dictionary' ? dictionaryEntries : [])"
+                  :disabled="attr._access === 'read_only' || attr.is_readonly || isTabReadOnly"
+                  @update:modelValue="attr.is_translatable ? (translatedValues[`${attr.id}_${activeDataLang}`] = $event) : (attributeValues[attr.id] = $event)"
+                />
+                <select
+                  v-if="['Number', 'Float'].includes(attr.data_type) && attr.unit_group?.units?.length"
+                  class="pim-input text-[12px] !w-16 !min-w-0 shrink-0 !px-1"
+                  :value="unitValues[attr.id] || ''"
+                  :disabled="attr._access === 'read_only' || attr.is_readonly || isTabReadOnly"
+                  @change="unitValues[attr.id] = $event.target.value || null"
+                >
+                  <option value="">—</option>
+                  <option v-for="u in attr.unit_group.units" :key="u.id" :value="u.id">{{ u.abbreviation }}</option>
+                </select>
+              </div>
             </div>
           </div>
         </div>

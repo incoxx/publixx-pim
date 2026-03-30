@@ -63,6 +63,7 @@ const formData = ref(
         is_readonly: false,
         is_hidden: false,
         is_quick_search: false,
+        is_primary: false,
         description_de: '',
         status: 'active',
       }
@@ -198,6 +199,7 @@ const fields = computed(() => {
     { key: 'is_readonly', label: 'Schreibgeschützt', type: 'boolean', hint: 'Im Produkteditor und bei Massenoperationen nicht bearbeitbar' },
     { key: 'is_hidden', label: 'Versteckt', type: 'boolean', hint: 'Nicht sichtbar im Editor, aber in Exporten enthalten' },
     { key: 'is_quick_search', label: 'Schnellsuche', type: 'boolean', hint: 'Attribut-Werte als Teaser in der Schnellsuche anzeigen' },
+    { key: 'is_primary', label: 'Primärattribut', type: 'boolean', hint: 'Im Produkteditor direkt in den Stammdaten sichtbar' },
     { key: 'description_de', label: 'Beschreibung', type: 'textarea' },
   )
 
