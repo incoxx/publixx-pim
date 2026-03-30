@@ -22,6 +22,10 @@ export default {
     return client.get('/admin/api-keys')
   },
 
+  adminUserApiKeys(userId) {
+    return client.get(`/admin/users/${userId}/api-keys`)
+  },
+
   adminCreateApiKey(userId, data) {
     return client.post(`/admin/users/${userId}/api-keys`, data)
   },
