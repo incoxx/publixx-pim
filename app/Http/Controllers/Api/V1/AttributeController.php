@@ -228,13 +228,13 @@ class AttributeController extends Controller
     }
 
     /**
-     * POST /attributes/bulk-delete — delete multiple attributes at once (Admin only).
+     * POST /attributes/bulk-delete — delete multiple attributes at once.
      */
     public function bulkDelete(Request $request): JsonResponse
     {
         $user = $request->user();
-        if (!$user || $user->role !== 'Admin') {
-            return response()->json(['message' => 'Nur Administratoren können Attribute in Massen löschen.'], 403);
+        if (!$user || !$user->hasPermissionTo('attributes.delete')) {
+            return response()->json(['message' => 'Keine Berechtigung zum Löschen von Attributen.'], 403);
         }
 
         $request->validate([
