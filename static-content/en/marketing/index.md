@@ -84,7 +84,7 @@ hero:
 <div class="marketing-card">
 <div class="marketing-card-icon">📦</div>
 <h3>Excel Import & Export</h3>
-<p>14-tab Excel import with intelligent validation. Export to JSON, Publixx, or your custom format.</p>
+<p>14-tab Excel import with intelligent validation. Export to JSON, Publixx, or your custom format. Plus: Excel Template Designer for custom export layouts.</p>
 </div>
 
 <div class="marketing-card">
@@ -97,6 +97,42 @@ hero:
 <div class="marketing-card-icon">🌍</div>
 <h3>True Multilingual</h3>
 <p>Unlimited languages per attribute. No plugins, no workarounds — multilingual is built into the architecture.</p>
+</div>
+
+<div class="marketing-card">
+<div class="marketing-card-icon">🛒</div>
+<h3>E-Commerce Connectors</h3>
+<p>Shopware 6, Shopify, and Salesforce Commerce Cloud natively integrated. Sync products, categories, media, and prices with one click — including delta sync.</p>
+</div>
+
+<div class="marketing-card">
+<div class="marketing-card-icon">🤖</div>
+<h3>AI-powered Translation</h3>
+<p>Translation Memory Service with DeepL, Claude AI, Google Translate, and OpenAI. Automatic translation with approval workflow and XLIFF support.</p>
+</div>
+
+<div class="marketing-card">
+<div class="marketing-card-icon">⚡</div>
+<h3>GraphQL & API Designer</h3>
+<p>Visual API Designer with dynamic GraphQL schema generation. API Streams and Templates for tailored data output.</p>
+</div>
+
+<div class="marketing-card">
+<div class="marketing-card-icon">🎨</div>
+<h3>Canva & Cloudinary</h3>
+<p>Sync media directly from Canva and Cloudinary. OAuth-based, with export profiles and design templates.</p>
+</div>
+
+<div class="marketing-card">
+<div class="marketing-card-icon">🔄</div>
+<h3>PIM-to-PIM Sync</h3>
+<p>Bidirectional synchronization between anyPIM instances. Sync products and translations in both directions.</p>
+</div>
+
+<div class="marketing-card">
+<div class="marketing-card-icon">🗂️</div>
+<h3>Attribute Mapping</h3>
+<p>Map source attributes to target classifications (e.g., ETIM, eCl@ss). Excel import/export for mapping rules included.</p>
 </div>
 
 </div>
@@ -123,8 +159,8 @@ hero:
 </div>
 
 <div class="marketing-usp-card">
-<h3>API-first: 90+ Endpoints</h3>
-<p>Complete REST API with token authentication. Everything the frontend can do, the API can do too. Integration from day one.</p>
+<h3>API-first: 370+ Endpoints + GraphQL</h3>
+<p>Complete REST API with token authentication plus GraphQL support. Everything the frontend can do, the API can do too. Integration from day one.</p>
 </div>
 
 <div class="marketing-usp-card">
@@ -179,8 +215,18 @@ hero:
 </tr>
 <tr>
 <td><strong>API</strong></td>
-<td class="marketing-highlight-col">90+ REST endpoints, API-first</td>
+<td class="marketing-highlight-col">370+ REST endpoints + GraphQL</td>
 <td>Often limited or paid add-on</td>
+</tr>
+<tr>
+<td><strong>E-Commerce</strong></td>
+<td class="marketing-highlight-col">Shopware 6, Shopify, Salesforce</td>
+<td>Custom connectors or middleware needed</td>
+</tr>
+<tr>
+<td><strong>AI & Translation</strong></td>
+<td class="marketing-highlight-col">DeepL, Claude AI, Google, OpenAI</td>
+<td>Manual or third-party plugin</td>
 </tr>
 <tr>
 <td><strong>Query Language</strong></td>
@@ -217,6 +263,8 @@ hero:
 
 <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; margin-top: 2rem;">
 <a href="/web/help/en/installation/quickstart" class="marketing-cta-button marketing-cta-primary">Quick Start Guide</a>
+<a href="/web/help/en/marketing/integrations" class="marketing-cta-button marketing-cta-secondary">E-Commerce Integrations</a>
+<a href="/web/help/en/marketing/ai-translation" class="marketing-cta-button marketing-cta-secondary">AI & API Designer</a>
 <a href="https://github.com/incoxx/publixx-pim" class="marketing-cta-button marketing-cta-secondary" target="_blank" rel="noopener">GitHub Repository</a>
 </div>
 

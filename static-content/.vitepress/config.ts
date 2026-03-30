@@ -26,6 +26,8 @@ export default defineConfig({
         nav: [
           { text: 'Produkt', link: '/de/marketing/' },
           { text: 'Vertriebsmappe', link: '/de/marketing/vertriebsmappe' },
+          { text: 'Integrationen', link: '/de/marketing/integrationen' },
+          { text: 'KI & API', link: '/de/marketing/ki-uebersetzung' },
           { text: 'Dokumentation', link: '/de/' },
           { text: 'API-Referenz', link: '/de/api/' },
           { text: 'PIM öffnen', link: 'https://smartentities.de/web/' },
@@ -192,6 +194,8 @@ export default defineConfig({
         nav: [
           { text: 'Product', link: '/en/marketing/' },
           { text: 'Sales Folder', link: '/en/marketing/sales-folder' },
+          { text: 'Integrations', link: '/en/marketing/integrations' },
+          { text: 'AI & API', link: '/en/marketing/ai-translation' },
           { text: 'Documentation', link: '/en/' },
           { text: 'API Reference', link: '/en/api/' },
           { text: 'Open PIM', link: 'https://smartentities.de/web/' },
