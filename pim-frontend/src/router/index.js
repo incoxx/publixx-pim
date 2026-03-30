@@ -520,6 +520,29 @@ const routes = [
       },
     ],
   },
+  // --- Public Document Portal ---
+  {
+    path: '/documentportal',
+    component: () => import('@/views/documentPortal/DocumentPortalLayout.vue'),
+    meta: { public: true, title: 'Dokumentenportal' },
+    children: [
+      {
+        path: '',
+        name: 'document-portal-landing',
+        component: () => import('@/views/documentPortal/DocumentPortalLanding.vue'),
+      },
+      {
+        path: 'search',
+        name: 'document-portal-search',
+        component: () => import('@/views/documentPortal/DocumentPortalSearch.vue'),
+      },
+      {
+        path: 'product/:id',
+        name: 'document-portal-result',
+        component: () => import('@/views/documentPortal/DocumentPortalResult.vue'),
+      },
+    ],
+  },
   {
     path: '/:pathMatch(.*)*',
     name: 'not-found',
@@ -544,7 +567,7 @@ router.beforeEach(async (to, from, next) => {
   }
 
   // For public catalog/asset routes, check if login is required
-  if (to.meta.public && (to.path.startsWith('/preview') || to.path.startsWith('/assetpreview'))) {
+  if (to.meta.public && (to.path.startsWith('/preview') || to.path.startsWith('/assetpreview') || to.path.startsWith('/documentportal'))) {
     if (catalogAccessMode === null) {
       try {
         const { data } = await catalogApi.getSettings()

@@ -70,6 +70,7 @@ class SettingController extends Controller
         'catalog_excel_export_enabled' => false,
         'catalog_share_wishlist_enabled' => false,
         'catalog_relation_type_ids' => [],
+        'custom_css' => null,
     ];
 
     /**
@@ -232,6 +233,7 @@ class SettingController extends Controller
             'catalog_relation_type_ids.*' => 'uuid|exists:product_relation_types,id',
             'catalog_excluded_node_ids' => 'nullable|array',
             'catalog_excluded_node_ids.*' => 'uuid|exists:hierarchy_nodes,id',
+            'custom_css' => 'nullable|string|max:50000',
         ]);
 
         // Merge with existing payload so that unsent keys are preserved

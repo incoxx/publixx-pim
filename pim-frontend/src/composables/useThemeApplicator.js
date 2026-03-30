@@ -115,6 +115,17 @@ export function useThemeApplicator(themeRootRef, themeSettingsRef) {
     if (t.color_mobile_menu_bg) el.style.setProperty('--catalog-mobile-menu-bg', t.color_mobile_menu_bg)
     if (t.color_mobile_menu_text) el.style.setProperty('--catalog-mobile-menu-text', t.color_mobile_menu_text)
 
+    // Custom CSS: dynamisch injizieren
+    if (t.custom_css) {
+      let customStyleEl = document.getElementById('pim-custom-css')
+      if (!customStyleEl) {
+        customStyleEl = document.createElement('style')
+        customStyleEl.id = 'pim-custom-css'
+        document.head.appendChild(customStyleEl)
+      }
+      customStyleEl.textContent = t.custom_css
+    }
+
     // SEO: update document title and meta description
     const seoTitle = t.seo_title || t.catalog_title || 'Produktkatalog'
     document.title = seoTitle

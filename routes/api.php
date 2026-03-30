@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\Api\V1\AssetCatalogController;
+use App\Http\Controllers\Api\V1\DocumentPortalController;
 use App\Http\Controllers\Api\V1\CalendarController;
 use App\Http\Controllers\Api\V1\DashboardController;
 use App\Http\Controllers\Api\V1\ProjectController;
@@ -148,6 +149,16 @@ Route::prefix('v1/asset-catalog')->middleware(['throttle.pim', 'catalog.access']
     Route::get('assets/{medium}/nodes', [AssetCatalogController::class, 'assetNodes']);
     Route::get('folders', [AssetCatalogController::class, 'folders']);
     Route::post('download', [AssetCatalogController::class, 'download']);
+});
+
+// =========================================================================
+// Document Portal (public — Produktdokumentation nach Land/Sprache)
+// =========================================================================
+Route::prefix('v1/document-portal')->middleware(['throttle.pim', 'catalog.access'])->group(function () {
+    Route::get('settings', [DocumentPortalController::class, 'settings']);
+    Route::get('countries', [DocumentPortalController::class, 'countries']);
+    Route::get('search', [DocumentPortalController::class, 'search']);
+    Route::get('products/{product}/documents', [DocumentPortalController::class, 'productDocuments']);
 });
 
 // =========================================================================

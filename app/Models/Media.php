@@ -36,6 +36,8 @@ class Media extends Model
         'height',
         'asset_folder_id',
         'usage_purpose',
+        'language',
+        'document_type',
         'last_uploaded_at',
     ];
 

@@ -2386,7 +2386,21 @@ class ImportExecutor
                     'title_de' => $row['title_de'] ?? null,
                     'title_en' => $row['title_en'] ?? null,
                     'alt_text_de' => $row['alt_text_de'] ?? null,
+                    'language' => $row['language'] ?? null,
+                    'document_type' => $row['document_type'] ?? null,
                 ]);
+            } elseif (!empty($row['language']) || !empty($row['document_type'])) {
+                // Bestehende Media: Sprache/Dokumenttyp aktualisieren falls neu geliefert
+                $updates = [];
+                if (!empty($row['language']) && $media->language === null) {
+                    $updates['language'] = $row['language'];
+                }
+                if (!empty($row['document_type']) && $media->document_type === null) {
+                    $updates['document_type'] = $row['document_type'];
+                }
+                if (!empty($updates)) {
+                    $media->update($updates);
+                }
             }
 
             // Zuordnung
