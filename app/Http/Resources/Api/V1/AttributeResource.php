@@ -45,6 +45,7 @@ class AttributeResource extends JsonResource
             'is_readonly' => $this->is_readonly,
             'is_hidden' => $this->is_hidden,
             'is_quick_search' => $this->is_quick_search,
+            'is_primary' => $this->is_primary,
             'parent_attribute_id' => $this->parent_attribute_id,
             'composite_format' => $this->composite_format,
             'composite_expression' => $this->composite_expression,

@@ -45,6 +45,7 @@ class Attribute extends Model
         'is_readonly',
         'is_hidden',
         'is_quick_search',
+        'is_primary',
         'parent_attribute_id',
         'composite_format',
         'composite_expression',
@@ -75,6 +76,7 @@ class Attribute extends Model
             'is_readonly' => 'boolean',
             'is_hidden' => 'boolean',
             'is_quick_search' => 'boolean',
+            'is_primary' => 'boolean',
             'position' => 'integer',
         ];
     }
