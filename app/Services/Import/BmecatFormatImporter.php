@@ -81,6 +81,9 @@ class BmecatFormatImporter
         'jpn' => 'ja',
         'kor' => 'ko',
         'ara' => 'ar',
+        'lav' => 'lv',
+        'lit' => 'lt',
+        'mul' => 'mul',  // Mehrsprachig / sprachunabhängig
     ];
 
     public function __construct(
@@ -1695,7 +1698,9 @@ class BmecatFormatImporter
             }
 
             // --- Medien ---
-            foreach ($product['media'] as $idx => $m) {
+            // UDX-MIME-Metadaten (Sprache, Dokumenttyp) den Media-Einträgen zuordnen
+            $productMedia = $this->enrichMediaWithUdxMimeData($product['media'], $product['udx_fields']);
+            foreach ($productMedia as $idx => $m) {
                 $media[] = [
                     'sku' => $sku,
                     'file_name' => basename($m['source']),
@@ -1706,6 +1711,8 @@ class BmecatFormatImporter
                     'alt_text_de' => $m['alt'],
                     'sort_order' => $m['order'] ?: $idx,
                     'is_primary' => $idx === 0,
+                    'language' => $m['language'] ?? null,
+                    'document_type' => $m['document_type'] ?? null,
                 ];
             }
 
@@ -2344,6 +2351,71 @@ class BmecatFormatImporter
             'logo' => 'teaser',
             default => 'gallery',
         };
+    }
+
+    /**
+     * Reichert media-Einträge mit Sprache und Dokumenttyp aus UDX-MIME-Daten an.
+     *
+     * Die UDX-Felder enthalten erweiterte MIME-Metadaten (z.B. UDX.ERBE.MIME_LANG,
+     * UDX.ERBE.MIME_DOKTYP) die den regulären BMECAT-MIME-Einträgen zugeordnet werden.
+     * Die Zuordnung erfolgt über den Dateinamen (MIME_SOURCE).
+     *
+     * @param array $media Die regulären media-Einträge des Produkts
+     * @param array $udxFields Die geparseten UDX-Felder des Produkts
+     * @return array Die angereicherten media-Einträge
+     */
+    private function enrichMediaWithUdxMimeData(array $media, array $udxFields): array
+    {
+        // UDX-MIME-Einträge gruppiert nach Index sammeln
+        // Erwartete Felder: MIME_SOURCE, MIME_LANG, MIME_DOKTYP (pro Index)
+        $udxMimeEntries = [];
+
+        foreach ($udxFields as $field) {
+            $fn = strtoupper($field['fieldname']);
+            if (!in_array($fn, ['MIME_SOURCE', 'MIME_LANG', 'MIME_DOKTYP', 'MIME_PLMID'])) {
+                continue;
+            }
+
+            $idx = $field['index'] ?? 0;
+            $udxMimeEntries[$idx][$fn] = $field['value'];
+        }
+
+        if (empty($udxMimeEntries)) {
+            return $media;
+        }
+
+        // Index der UDX-MIME-Einträge nach Dateiname (basename) für schnelle Zuordnung
+        $udxByFilename = [];
+        foreach ($udxMimeEntries as $entry) {
+            $source = $entry['MIME_SOURCE'] ?? null;
+            if ($source !== null) {
+                $basename = basename($source);
+                $udxByFilename[$basename] = $entry;
+            }
+        }
+
+        // Media-Einträge anreichern
+        foreach ($media as &$m) {
+            $filename = basename($m['source'] ?? '');
+            $udxEntry = $udxByFilename[$filename] ?? null;
+
+            if ($udxEntry === null) {
+                continue;
+            }
+
+            // Sprache: ISO 639-3 → ISO 639-1 normalisieren
+            if (!empty($udxEntry['MIME_LANG'])) {
+                $m['language'] = $this->mapLanguageCode($udxEntry['MIME_LANG']);
+            }
+
+            // Dokumenttyp (z.B. "Gebrauchsanweisung", "Broschüre", "Katalog")
+            if (!empty($udxEntry['MIME_DOKTYP'])) {
+                $m['document_type'] = $udxEntry['MIME_DOKTYP'];
+            }
+        }
+        unset($m);
+
+        return $media;
     }
 
     // =========================================================================
