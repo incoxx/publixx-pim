@@ -6,7 +6,7 @@ import {
   Globe, Languages, ChevronDown, LayoutGrid, Monitor, Tablet, Smartphone,
 } from 'lucide-vue-next'
 import portalConfigApi from '@/api/portalConfig'
-import api from '@/api/api'
+import client from '@/api/client'
 
 const route = useRoute()
 const router = useRouter()
@@ -83,8 +83,8 @@ onMounted(async () => {
   try {
     const [portalRes, templatesRes, attrsRes] = await Promise.all([
       portalConfigApi.show(id),
-      api.get('/catalog-templates'),
-      api.get('/attributes', { params: { per_page: 500 } }),
+      client.get('/catalog-templates'),
+      client.get('/attributes', { params: { per_page: 500 } }),
     ])
 
     portal.value = portalRes.data.data
