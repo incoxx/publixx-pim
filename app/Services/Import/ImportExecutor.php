@@ -150,7 +150,9 @@ class ImportExecutor
                 }
             }
 
-            DB::statement("CREATE TEMPORARY TABLE `_bulk_upd` (" . implode(', ', $colDefs) . ") ENGINE=MEMORY");
+            // InnoDB statt MEMORY: MEMORY-Engine unterstützt keine TEXT/BLOB-Spalten,
+            // was bei String-Werten (value_string, name, etc.) zu stillen Fehlern führt.
+            DB::statement("CREATE TEMPORARY TABLE `_bulk_upd` (" . implode(', ', $colDefs) . ") ENGINE=InnoDB");
 
             try {
                 // 2. Multi-row INSERT in Temp-Table
@@ -1089,6 +1091,10 @@ class ImportExecutor
             $insertBatch = [];
             $updateBatch = [];
 
+            // Snapshot der Stats vor dem Chunk — für Rollback-Korrektur
+            $createdBeforeChunk = $this->stats[$sheetKey]['created'] ?? 0;
+            $updatedBeforeChunk = $this->stats[$sheetKey]['updated'] ?? 0;
+
             DB::beginTransaction();
             try {
                 foreach ($chunk as $row) {
@@ -1167,9 +1173,17 @@ class ImportExecutor
                 DB::commit();
             } catch (\Throwable $e) {
                 DB::rollBack();
-                Log::channel('import')->error("Produkt-Chunk {$chunkIndex}/{$totalChunks} fehlgeschlagen", [
+
+                // Rollback macht die gezählten Inserts/Updates rückgängig → Stats korrigieren
+                $rolledBackCreated = $this->stats[$sheetKey]['created'] - $createdBeforeChunk;
+                $rolledBackUpdated = $this->stats[$sheetKey]['updated'] - $updatedBeforeChunk;
+                $this->stats[$sheetKey]['created'] = $createdBeforeChunk;
+                $this->stats[$sheetKey]['updated'] = $updatedBeforeChunk;
+
+                Log::channel('import')->error("Produkt-Chunk {$chunkIndex}/{$totalChunks} fehlgeschlagen — {$rolledBackCreated} Inserts und {$rolledBackUpdated} Updates zurückgerollt", [
                     'error' => $e->getMessage(),
                     'trace' => $e->getTraceAsString(),
+                    'chunk_size' => count($chunk),
                 ]);
                 $this->stats[$sheetKey]['errors'] += count($chunk);
             }
@@ -1420,6 +1434,10 @@ class ImportExecutor
             $updateBatch = [];
             $affectedIds = [];
 
+            // Snapshot der Stats vor dem Chunk — für Rollback-Korrektur
+            $createdBeforeChunk = $this->stats[$sheetKey]['created'] ?? 0;
+            $updatedBeforeChunk = $this->stats[$sheetKey]['updated'] ?? 0;
+
             DB::beginTransaction();
             try {
 
@@ -1565,9 +1583,17 @@ class ImportExecutor
             DB::commit();
             } catch (\Throwable $e) {
                 DB::rollBack();
-                Log::channel('import')->error("Produktwerte-Chunk {$chunkIndex}/{$totalChunks} fehlgeschlagen", [
+
+                // Rollback macht die gezählten Inserts rückgängig → Stats korrigieren
+                $rolledBackCreated = $this->stats[$sheetKey]['created'] - $createdBeforeChunk;
+                $rolledBackUpdated = $this->stats[$sheetKey]['updated'] - $updatedBeforeChunk;
+                $this->stats[$sheetKey]['created'] = $createdBeforeChunk;
+                $this->stats[$sheetKey]['updated'] = $updatedBeforeChunk;
+
+                Log::channel('import')->error("Produktwerte-Chunk {$chunkIndex}/{$totalChunks} fehlgeschlagen — {$rolledBackCreated} Inserts und {$rolledBackUpdated} Updates zurückgerollt", [
                     'error' => $e->getMessage(),
                     'trace' => $e->getTraceAsString(),
+                    'chunk_size' => count($chunk),
                 ]);
                 $this->stats[$sheetKey]['errors'] += count($chunk);
             }
