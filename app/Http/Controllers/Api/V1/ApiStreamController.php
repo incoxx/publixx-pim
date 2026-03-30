@@ -42,7 +42,7 @@ class ApiStreamController extends Controller
     }
 
     /**
-     * GraphQL-Query aus Request lesen und ausführen.
+     * GraphQL-Query oder -Mutation aus Request lesen und ausführen.
      */
     private function handleGraphql(Request $request, ApiTemplate $template): JsonResponse
     {
@@ -54,6 +54,14 @@ class ApiStreamController extends Controller
             return response()->json([
                 'errors' => [['message' => 'GraphQL-Query fehlt. Sende {"query": "{ ... }"} als JSON-Body.']],
             ], 400);
+        }
+
+        // Direction-Guard: Export-only Templates dürfen keine Mutations ausführen
+        $direction = $template->direction ?? 'export';
+        if ($direction === 'export' && $this->isMutationQuery($query)) {
+            return response()->json([
+                'errors' => [['message' => 'Dieses API-Template unterstützt keine Mutationen. Richtung muss "import" oder "bidirectional" sein.']],
+            ], 405);
         }
 
         if (is_string($variables)) {
@@ -75,9 +83,9 @@ class ApiStreamController extends Controller
     }
 
     /**
-     * POST /api/v1/api-streams/{slug} — Import data via JSON.
+     * POST /api/v1/api-streams/{slug}/import — Import data via GraphQL-Mutation oder JSON.
      */
-    public function import(Request $request, string $slug)
+    public function import(Request $request, string $slug): JsonResponse
     {
         $template = ApiTemplate::where('slug', $slug)->active()->firstOrFail();
 
@@ -87,10 +95,29 @@ class ApiStreamController extends Controller
 
         $this->authenticateStream($request, $template);
 
-        // Import-Logik wird in Phase 2 implementiert
-        return response()->json([
-            'message' => 'Import-Funktion wird in einer zukünftigen Version verfügbar sein.',
-        ], 501);
+        $startTime = microtime(true);
+
+        // GraphQL-Templates: Mutations über die GraphQL-Engine ausführen
+        if ($template->output_format === 'graphql') {
+            $response = $this->handleGraphql($request, $template);
+        } else {
+            // JSON-Import: Noch nicht implementiert
+            $response = response()->json([
+                'message' => 'JSON-Import wird in einer zukünftigen Version verfügbar sein.',
+            ], 501);
+        }
+
+        $this->logAccess($template, $request, $startTime);
+
+        return $response;
+    }
+
+    /**
+     * Prüft ob ein GraphQL-Query-String eine Mutation ist.
+     */
+    private function isMutationQuery(string $query): bool
+    {
+        return (bool) preg_match('/^\s*mutation\b/i', $query);
     }
 
     private function authenticateStream(Request $request, ApiTemplate $template): void

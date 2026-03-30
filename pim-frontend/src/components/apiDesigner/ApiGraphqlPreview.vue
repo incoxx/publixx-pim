@@ -1,13 +1,20 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useApiDesignerStore } from '@/stores/apiDesigner'
-import { Copy, Check, Code, Play } from 'lucide-vue-next'
+import { Copy, Check, Code, Play, Upload } from 'lucide-vue-next'
 
 const store = useApiDesignerStore()
 const copied = ref(false)
-const showMode = ref('schema') // 'schema' | 'query'
+const showMode = ref('schema') // 'schema' | 'query' | 'mutation'
+
+const hasMutations = computed(() =>
+  ['import', 'bidirectional'].includes(store.currentTemplate?.direction)
+)
 
 const displayText = computed(() => {
+  if (showMode.value === 'mutation') {
+    return store.schemaPreview?.sample_mutation || generateSampleMutation()
+  }
   if (!store.schemaPreview) {
     return generateSchemaPreview()
   }
@@ -100,6 +107,34 @@ function sanitize(name) {
 function mapType(dt) {
   return { number: 'Float', integer: 'Int', boolean: 'Boolean' }[dt] || 'String'
 }
+
+function generateSampleMutation() {
+  return `mutation {
+  createProduct(input: {
+    sku: "PROD-001"
+    name: "Beispielprodukt"
+    product_type_id: "<product-type-uuid>"
+    status: "draft"
+    attributes: [
+      { technical_name: "farbe", value: "rot", language: "de" }
+      { technical_name: "gewicht", value: "1.5" }
+    ]
+    prices: [
+      { price_type_id: "<price-type-uuid>", amount: 29.99, currency: "EUR" }
+    ]
+  }) {
+    success
+    message
+    product {
+      id
+      sku
+      name
+      status
+    }
+    errors
+  }
+}`
+}
 </script>
 
 <template>
@@ -108,7 +143,7 @@ function mapType(dt) {
     <div class="flex items-center justify-between px-3 py-2 border-b border-[var(--color-border)]">
       <span class="text-xs font-semibold text-[var(--color-text-primary)]">GraphQL-Vorschau</span>
       <div class="flex items-center gap-1.5">
-        <!-- Toggle: Schema / Query -->
+        <!-- Toggle: Schema / Query / Mutation -->
         <div class="flex rounded overflow-hidden border border-[var(--color-border)]">
           <button
             class="px-2 py-0.5 text-[10px] transition-colors"
@@ -126,6 +161,15 @@ function mapType(dt) {
           >
             <Play class="w-3 h-3 inline" :stroke-width="2" />
           </button>
+          <button
+            v-if="hasMutations"
+            class="px-2 py-0.5 text-[10px] transition-colors"
+            :class="showMode === 'mutation' ? 'bg-purple-600 text-white' : 'bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg)]'"
+            @click="showMode = 'mutation'"
+            title="Beispiel-Mutation"
+          >
+            <Upload class="w-3 h-3 inline" :stroke-width="2" />
+          </button>
         </div>
 
         <button
@@ -140,7 +184,7 @@ function mapType(dt) {
     </div>
 
     <!-- Info wenn kein Schema geladen -->
-    <div v-if="showMode === 'query' && !store.schemaPreview" class="px-3 py-4 text-center text-[11px] text-[var(--color-text-tertiary)]">
+    <div v-if="['query', 'mutation'].includes(showMode) && !store.schemaPreview" class="px-3 py-4 text-center text-[11px] text-[var(--color-text-tertiary)]">
       Klicke "Vorschau" in der Toolbar, um das Schema vom Server zu laden.
     </div>
 

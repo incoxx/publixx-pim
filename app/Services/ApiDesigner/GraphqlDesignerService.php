@@ -24,11 +24,17 @@ class GraphqlDesignerService
     ) {}
 
     /**
-     * Führt eine GraphQL-Query gegen das Template-Schema aus.
+     * Führt eine GraphQL-Query oder -Mutation gegen das Template-Schema aus.
+     *
+     * Bei Mutations (direction = import/bidirectional) wird die Datenpipeline
+     * übersprungen — Mutation-Resolver bekommen ihre Daten direkt aus den Args.
      */
     public function execute(ApiTemplate $template, string $query, ?array $variables = null): array
     {
-        Log::channel('export')->info("GraphQL-Query gestartet: {$template->name}", [
+        $direction = $template->direction ?? 'export';
+        $isMutation = (bool) preg_match('/^\s*mutation\b/i', $query);
+
+        Log::channel('export')->info("GraphQL-" . ($isMutation ? 'Mutation' : 'Query') . " gestartet: {$template->name}", [
             'template_id' => $template->id,
             'slug' => $template->slug,
         ]);
@@ -36,18 +42,22 @@ class GraphqlDesignerService
         $schema = $this->schemaBuilder->build(
             $template->template_json,
             $template->language ?? 'de',
+            $direction,
         );
 
-        $searchProfile = $template->searchProfile;
+        // Bei Mutations brauchen wir keine Produktdaten zu laden
+        if ($isMutation) {
+            $rootValue = [];
+        } else {
+            $searchProfile = $template->searchProfile;
+            $data = $this->dataCollector->collect($template, $searchProfile);
 
-        $data = $this->dataCollector->collect($template, $searchProfile);
-
-        // JsonWriter liefert die perfekte Datenstruktur als Root Value
-        $rootValue = $this->jsonWriter->build(
-            $data['grouped'],
-            $template->template_json,
-            $template->language ?? 'de',
-        );
+            $rootValue = $this->jsonWriter->build(
+                $data['grouped'],
+                $template->template_json,
+                $template->language ?? 'de',
+            );
+        }
 
         $result = GraphQL::executeQuery(
             schema: $schema,
@@ -56,9 +66,8 @@ class GraphqlDesignerService
             variableValues: $variables,
         );
 
-        Log::channel('export')->info("GraphQL-Query abgeschlossen: {$template->name}", [
+        Log::channel('export')->info("GraphQL-" . ($isMutation ? 'Mutation' : 'Query') . " abgeschlossen: {$template->name}", [
             'template_id' => $template->id,
-            'products' => $data['total'],
         ]);
 
         return $result->toArray();
@@ -96,16 +105,25 @@ class GraphqlDesignerService
     }
 
     /**
-     * Schema-SDL + Sample-Query für die Frontend-Vorschau.
+     * Schema-SDL + Sample-Query (+ Sample-Mutation bei Import) für die Frontend-Vorschau.
      */
     public function schemaPreview(ApiTemplate $template): array
     {
-        return [
+        $direction = $template->direction ?? 'export';
+
+        $result = [
             'sdl' => $this->schemaBuilder->toSdl(
                 $template->template_json,
                 $template->language ?? 'de',
+                $direction,
             ),
             'sample_query' => $this->schemaBuilder->buildSampleQuery($template->template_json),
         ];
+
+        if (in_array($direction, ['import', 'bidirectional'])) {
+            $result['sample_mutation'] = $this->schemaBuilder->buildSampleMutation();
+        }
+
+        return $result;
     }
 }

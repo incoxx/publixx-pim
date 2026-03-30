@@ -51,6 +51,13 @@ function updateAuthType(value) {
   }
 }
 
+function updateDirection(value) {
+  if (store.currentTemplate) {
+    store.currentTemplate.direction = value
+    store.isDirty = true
+  }
+}
+
 function updateRateLimit(value) {
   if (store.currentTemplate) {
     store.currentTemplate.rate_limit = parseInt(value) || 60
@@ -97,6 +104,21 @@ function updateRateLimit(value) {
               <Copy v-else class="w-3.5 h-3.5 text-[var(--color-text-tertiary)]" :stroke-width="2" />
             </button>
           </div>
+        </div>
+
+        <!-- Direction -->
+        <div>
+          <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">Datenrichtung</label>
+          <select
+            :value="store.currentTemplate?.direction || 'export'"
+            class="pim-input text-xs w-full"
+            @change="updateDirection($event.target.value)"
+          >
+            <option value="export">Export (nur Lesen)</option>
+            <option value="import">Import (nur Schreiben)</option>
+            <option value="bidirectional">Bidirektional (Lesen + Schreiben)</option>
+          </select>
+          <p class="text-[9px] text-[var(--color-text-tertiary)] mt-0.5">Bei "Import" oder "Bidirektional" werden GraphQL-Mutationen freigeschaltet</p>
         </div>
 
         <!-- Auth Type -->
@@ -154,7 +176,13 @@ function updateRateLimit(value) {
         <!-- cURL Example -->
         <div>
           <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">Beispiel-Aufruf</label>
-          <pre v-if="store.currentTemplate?.output_format === 'graphql'" class="text-[10px] font-mono bg-[var(--color-bg)] p-2 rounded text-[var(--color-text-secondary)] whitespace-pre-wrap">curl -X POST \
+          <!-- Mutation-Beispiel bei Import/Bidirektional + GraphQL -->
+          <pre v-if="store.currentTemplate?.output_format === 'graphql' && ['import', 'bidirectional'].includes(store.currentTemplate?.direction)" class="text-[10px] font-mono bg-[var(--color-bg)] p-2 rounded text-[var(--color-text-secondary)] whitespace-pre-wrap">curl -X POST \
+  -H "X-Api-Key: YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "mutation { createProduct(input: { sku: \"P-001\", name: \"Test\", product_type_id: \"...\" }) { success message product { sku } } }"}' \
+  {{ streamUrl }}</pre>
+          <pre v-else-if="store.currentTemplate?.output_format === 'graphql'" class="text-[10px] font-mono bg-[var(--color-bg)] p-2 rounded text-[var(--color-text-secondary)] whitespace-pre-wrap">curl -X POST \
   -H "X-Api-Key: YOUR_KEY" \
   -H "Content-Type: application/json" \
   -d '{"query": "{ total groups { products { sku name } } }"}' \
