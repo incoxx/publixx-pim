@@ -230,12 +230,8 @@ class ConnectorController extends Controller
             ], 422);
         }
 
-        // anyPIM: client_secret in Settings verschlüsseln
-        if ($type === 'anypim' && $settings && ! empty($settings['client_secret_encrypted'])) {
-            $settings['client_secret_encrypted'] = \App\Services\Connectors\AnyPim\AnyPimAuthService::encryptSecret(
-                $settings['client_secret_encrypted']
-            );
-        }
+        // anyPIM: API-Key wird als access_token gespeichert (verschlüsselt via ConnectorConnection-Cast).
+        // Keine zusätzliche Verschlüsselung in Settings nötig.
 
         $connection = ConnectorConnection::create([
             'connector_type'   => $connector->getType(),

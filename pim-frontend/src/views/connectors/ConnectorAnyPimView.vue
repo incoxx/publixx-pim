@@ -19,20 +19,18 @@ const showConnectForm = ref(false)
 const formData = ref({
   name: '',
   remote_url: '',
-  client_id: '',
-  client_secret: '',
+  api_key: '',
   sync_direction: 'bidirectional',
   conflict_resolution: 'newer_wins',
   media_transfer_mode: 'reference',
 })
 const connecting = ref(false)
-const testResult = ref(null)
 
 // Sync State
 const syncing = ref({})
 
 const canConnect = computed(() =>
-  formData.value.name && formData.value.remote_url && formData.value.client_id && formData.value.client_secret
+  formData.value.name && formData.value.remote_url && formData.value.api_key
 )
 
 onMounted(loadData)
@@ -57,20 +55,17 @@ async function createConnection() {
   error.value = ''
   try {
     await connectorsApi.callback('anypim', {
-      code: formData.value.client_id,
-      code_verifier: formData.value.client_secret,
+      code: formData.value.api_key, // API-Key = Bearer Token
       name: formData.value.name,
       settings: {
         remote_url: formData.value.remote_url,
-        client_id: formData.value.client_id,
-        client_secret_encrypted: formData.value.client_secret, // Backend verschlüsselt
         sync_direction: formData.value.sync_direction,
         conflict_resolution: formData.value.conflict_resolution,
         media_transfer_mode: formData.value.media_transfer_mode,
       },
     })
     showConnectForm.value = false
-    formData.value = { name: '', remote_url: '', client_id: '', client_secret: '', sync_direction: 'bidirectional', conflict_resolution: 'newer_wins', media_transfer_mode: 'reference' }
+    formData.value = { name: '', remote_url: '', api_key: '', sync_direction: 'bidirectional', conflict_resolution: 'newer_wins', media_transfer_mode: 'reference' }
     testResult.value = null
     await loadData()
     successMsg.value = 'Verbindung erfolgreich erstellt'
@@ -189,7 +184,7 @@ function conflictLabel(cr) {
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <div class="text-xs text-[var(--color-text-tertiary)]">Authentifizierung</div>
-            <div class="text-sm text-[var(--color-text-primary)] mt-1">API-Client (Client ID + Secret)</div>
+            <div class="text-sm text-[var(--color-text-primary)] mt-1">User-API-Key (Bearer Token)</div>
           </div>
           <div>
             <div class="text-xs text-[var(--color-text-tertiary)]">Funktionen</div>
@@ -211,8 +206,8 @@ function conflictLabel(cr) {
           </div>
         </div>
         <p class="text-xs text-[var(--color-text-tertiary)] mt-3 leading-relaxed">
-          Erstelle auf der Remote-Instanz unter <strong>Einstellungen &gt; API-Clients</strong> einen neuen Client.
-          Verwende die <strong>Client ID + Client Secret</strong> für die Verbindung.
+          Erstelle auf der Remote-Instanz unter <strong>Connectoren &gt; API-Keys</strong> einen neuen API-Key.
+          Verwende den <strong>API-Key als Bearer Token</strong> für die Verbindung. Die Berechtigungen werden durch die Rolle des Benutzers bestimmt.
         </p>
       </div>
 
@@ -229,13 +224,12 @@ function conflictLabel(cr) {
             <label class="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">Remote-URL</label>
             <input v-model="formData.remote_url" type="url" class="pim-input text-xs w-full" placeholder="https://pim-tochter.example.com" />
           </div>
-          <div>
-            <label class="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">Client ID</label>
-            <input v-model="formData.client_id" type="text" class="pim-input text-xs w-full" />
-          </div>
-          <div>
-            <label class="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">Client Secret</label>
-            <input v-model="formData.client_secret" type="password" class="pim-input text-xs w-full" />
+          <div class="md:col-span-2">
+            <label class="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">API-Key</label>
+            <input v-model="formData.api_key" type="password" class="pim-input text-xs w-full" placeholder="Auf der Remote-Instanz unter API-Keys erstellen" />
+            <p class="text-xs text-[var(--color-text-tertiary)] mt-1">
+              Der API-Key wird auf der Remote-Instanz unter <strong>Connectoren &gt; API-Keys</strong> erstellt.
+            </p>
           </div>
         </div>
 
@@ -394,10 +388,10 @@ function conflictLabel(cr) {
           <div class="flex items-center gap-2">
             <Key class="w-4 h-4 text-[var(--color-text-tertiary)]" />
             <span class="text-sm text-[var(--color-text-secondary)]">
-              API-Clients verwalten — damit andere Instanzen auf dieses PIM zugreifen können
+              API-Keys verwalten — damit andere Instanzen oder Systeme auf dieses PIM zugreifen können
             </span>
           </div>
-          <button class="pim-btn pim-btn-ghost text-xs" @click="router.push('/connectors/api-clients')">
+          <button class="pim-btn pim-btn-ghost text-xs" @click="router.push('/connectors/api-keys')">
             Verwalten
             <ArrowUpRight class="w-3 h-3 ml-1" />
           </button>

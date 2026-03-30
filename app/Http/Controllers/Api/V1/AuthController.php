@@ -59,8 +59,8 @@ class AuthController extends Controller
             );
         }
 
-        // Vorherige Tokens löschen (Single-Session)
-        $user->tokens()->delete();
+        // Vorherige Session-Tokens löschen (Single-Session), API-Keys behalten
+        $user->tokens()->where('token_type', '!=', 'api_key')->delete();
 
         $token = $user->createToken(
             name: 'pim-api',

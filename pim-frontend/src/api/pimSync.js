@@ -2,31 +2,32 @@ import client from './client'
 
 export default {
   // =====================================================================
-  // API-Client Verwaltung (Machine-to-Machine Auth)
+  // User-API-Keys (eigene Keys verwalten)
   // =====================================================================
 
-  listClients() {
-    return client.get('/api-clients')
+  listApiKeys() {
+    return client.get('/user/api-keys')
   },
 
-  getClient(id) {
-    return client.get(`/api-clients/${id}`)
+  createApiKey(data) {
+    return client.post('/user/api-keys', data)
   },
 
-  createClient(data) {
-    return client.post('/api-clients', data)
+  deleteApiKey(tokenId) {
+    return client.delete(`/user/api-keys/${tokenId}`)
   },
 
-  updateClient(id, data) {
-    return client.put(`/api-clients/${id}`, data)
+  // Admin: Alle API-Keys
+  adminListApiKeys() {
+    return client.get('/admin/api-keys')
   },
 
-  deleteClient(id) {
-    return client.delete(`/api-clients/${id}`)
+  adminCreateApiKey(userId, data) {
+    return client.post(`/admin/users/${userId}/api-keys`, data)
   },
 
-  regenerateSecret(id) {
-    return client.post(`/api-clients/${id}/regenerate-secret`)
+  adminDeleteApiKey(tokenId) {
+    return client.delete(`/admin/api-keys/${tokenId}`)
   },
 
   // =====================================================================

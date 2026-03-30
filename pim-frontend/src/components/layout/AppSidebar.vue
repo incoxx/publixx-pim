@@ -95,7 +95,7 @@ const sections = computed(() => {
             { icon: Image, label: () => 'Cloudinary', to: '/connectors/cloudinary', module: 'connectors' },
             { icon: Zap, label: () => 'Claude AI', to: '/connectors/claude-ai', module: 'connectors' },
             { icon: ArrowDownUp, label: () => 'anyPIM Sync', to: '/connectors/anypim', module: 'connectors' },
-            { icon: Key, label: () => 'API-Clients', to: '/connectors/api-clients', module: 'connectors' },
+            { icon: Key, label: () => 'API-Keys', to: '/connectors/api-keys', module: 'connectors' },
           ],
         },
       ],
