@@ -162,6 +162,23 @@ export default [
     },
   },
   {
+    name: 'Medical Clean',
+    description: 'Minimalistisch weiss mit Teal-Akzent (Medizintechnik-Stil)',
+    colors: {
+      color_primary: '#0D9488',
+      color_accent: '#0D9488',
+      color_sidebar: '#0D9488',
+      color_button: '#0D9488',
+      color_table_bg: '#F8FAFC',
+      color_table_stripe: '#F1F5F9',
+      color_body_text: '#1E293B',
+      color_header_bg: '#FFFFFF',
+      color_header_text: '#1E293B',
+      color_mobile_menu_bg: '#FFFFFF',
+      color_mobile_menu_text: '#1E293B',
+    },
+  },
+  {
     name: 'Austrian Sun',
     description: 'Kraeftiges Marineblau mit warmem Gold-Akzent (Doka-Stil)',
     colors: {
