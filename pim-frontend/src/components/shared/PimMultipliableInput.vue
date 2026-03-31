@@ -80,7 +80,7 @@ function moveDown(index) {
 </script>
 
 <template>
-  <div class="space-y-1.5">
+  <div class="space-y-1.5 border-l-2 border-[var(--color-border)] pl-3">
     <div
       v-for="(entry, index) in entries"
       :key="entry.multiplied_index"
