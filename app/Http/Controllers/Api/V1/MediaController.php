@@ -208,15 +208,19 @@ class MediaController extends Controller
             if ($oldFileExisted) {
                 $disk->delete($existing->file_path);
             }
+
+            // Korrekten Pfad sicherstellen (Broken Assets haben ggf. leeren file_path)
+            $correctPath = 'media/' . $existing->file_name;
             $file->storeAs('media', $existing->file_name, 'public');
 
-            $storedPath = $disk->path($existing->file_path);
+            $storedPath = $disk->path($correctPath);
             $this->processUploadedImage($file, $storedPath);
 
             [$width, $height] = $this->detectDimensions($request, $file, $storedPath);
 
-            // 3. Media-Record updaten
+            // 3. Media-Record updaten (inkl. file_path falls fehlend/falsch)
             $existing->update([
+                'file_path' => $correctPath,
                 'mime_type' => $file->getMimeType(),
                 'file_size' => $file->getSize(),
                 'media_type' => $this->detectMediaType($file->getMimeType()),
