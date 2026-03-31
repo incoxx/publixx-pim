@@ -6,6 +6,7 @@
  *   <div data-portal="language-select"></div>
  *   <div data-portal="filter-dropdown" data-attribute="uuid"></div>
  *   <div data-portal="filter-cards" data-attribute="uuid"></div>
+ *   <div data-portal="filter-steps"></div>          // rendert ALLE Steps automatisch
  *   <div data-portal="submit-button"></div>
  *   <div data-portal="branding"></div>
  */
@@ -18,6 +19,7 @@ import CountrySelectWidget from './widgets/CountrySelectWidget.vue'
 import LanguageSelectWidget from './widgets/LanguageSelectWidget.vue'
 import FilterDropdownWidget from './widgets/FilterDropdownWidget.vue'
 import FilterCardsWidget from './widgets/FilterCardsWidget.vue'
+import FilterStepsWidget from './widgets/FilterStepsWidget.vue'
 import SubmitButtonWidget from './widgets/SubmitButtonWidget.vue'
 import BrandingWidget from './widgets/BrandingWidget.vue'
 
@@ -28,6 +30,7 @@ const WIDGET_MAP = {
   'language-select': LanguageSelectWidget,
   'filter-dropdown': FilterDropdownWidget,
   'filter-cards': FilterCardsWidget,
+  'filter-steps': FilterStepsWidget,
   'submit-button': SubmitButtonWidget,
   'branding': BrandingWidget,
 }

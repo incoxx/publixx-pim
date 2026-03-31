@@ -52,6 +52,7 @@ const WIDGET_SNIPPETS = [
   { name: 'Branding / Hero', tag: 'branding', snippet: '<div data-portal="branding"></div>' },
   { name: 'Laender-Karten', tag: 'country-select', snippet: '<div data-portal="country-select"></div>' },
   { name: 'Sprach-Badges', tag: 'language-select', snippet: '<div data-portal="language-select"></div>' },
+  { name: 'Alle Filter-Steps', tag: 'filter-steps', snippet: '<div data-portal="filter-steps"></div>' },
   { name: 'Filter-Dropdown', tag: 'filter-dropdown', snippet: '<div data-portal="filter-dropdown"></div>' },
   { name: 'Filter-Karten', tag: 'filter-cards', snippet: '<div data-portal="filter-cards"></div>' },
   { name: 'Weiter-Button', tag: 'submit-button', snippet: '<div data-portal="submit-button"></div>' },
