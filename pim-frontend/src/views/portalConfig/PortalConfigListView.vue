@@ -98,7 +98,7 @@ function portalUrl(portal) {
         <button class="btn btn-sm btn-outline" @click="loadPresets">
           Aus Vorlage
         </button>
-        <button class="btn btn-sm btn-primary" @click="createNew">
+        <button class="btn btn-sm btn-primary text-white" @click="createNew">
           <Plus class="w-4 h-4" />
           Neues Portal
         </button>
@@ -129,7 +129,7 @@ function portalUrl(portal) {
     <div v-else-if="portals.length === 0" class="text-center py-12">
       <Globe class="w-12 h-12 mx-auto mb-3 opacity-20" />
       <p class="text-base-content/50">Noch keine Portale erstellt</p>
-      <button class="btn btn-primary btn-sm mt-4" @click="createNew">
+      <button class="btn btn-primary btn-sm mt-4 text-white" @click="createNew">
         <Plus class="w-4 h-4" />
         Erstes Portal erstellen
       </button>
