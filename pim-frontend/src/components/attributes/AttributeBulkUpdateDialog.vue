@@ -1,7 +1,8 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { X } from 'lucide-vue-next'
 import { useAttributeStore } from '@/stores/attributes'
+import { attributeViews as attributeViewsApi } from '@/api/attributes'
 
 const props = defineProps({
   open: { type: Boolean, default: false },
@@ -30,6 +31,23 @@ const fields = ref({
   status: { enabled: false, value: 'active' },
 })
 
+// Attribute views state
+const availableViews = ref([])
+const viewsEnabled = ref(false)
+const viewsMode = ref('add')
+const selectedViewIds = ref([])
+
+watch(() => props.open, async (isOpen) => {
+  if (isOpen && availableViews.value.length === 0) {
+    try {
+      const { data } = await attributeViewsApi.list({ per_page: 200 })
+      availableViews.value = data.data || data
+    } catch (e) {
+      console.error('Failed to fetch attribute views', e)
+    }
+  }
+})
+
 const boolFields = [
   { key: 'is_translatable', label: 'Übersetzbar' },
   { key: 'is_multipliable', label: 'Multipliziert' },
@@ -48,7 +66,8 @@ const attributeTypeOptions = computed(() =>
 )
 
 const hasEnabledFields = computed(() =>
-  Object.values(fields.value).some(f => f.enabled)
+  Object.values(fields.value).some(f => f.enabled) ||
+  (viewsEnabled.value && selectedViewIds.value.length > 0)
 )
 
 function resetFields() {
@@ -58,6 +77,9 @@ function resetFields() {
     else if (key === 'status') fields.value[key].value = 'active'
     else fields.value[key].value = false
   }
+  viewsEnabled.value = false
+  viewsMode.value = 'add'
+  selectedViewIds.value = []
   error.value = null
 }
 
@@ -65,15 +87,25 @@ async function apply() {
   saving.value = true
   error.value = null
   try {
-    const updateFields = {}
-    for (const [key, field] of Object.entries(fields.value)) {
-      if (field.enabled) {
-        updateFields[key] = key === 'attribute_type_id'
-          ? (field.value || null)
-          : field.value
+    const hasFieldUpdates = Object.values(fields.value).some(f => f.enabled)
+    const hasViewUpdates = viewsEnabled.value && selectedViewIds.value.length > 0
+
+    if (hasFieldUpdates) {
+      const updateFields = {}
+      for (const [key, field] of Object.entries(fields.value)) {
+        if (field.enabled) {
+          updateFields[key] = key === 'attribute_type_id'
+            ? (field.value || null)
+            : field.value
+        }
       }
+      await store.bulkUpdate(props.selectedIds, updateFields)
     }
-    await store.bulkUpdate(props.selectedIds, updateFields)
+
+    if (hasViewUpdates) {
+      await store.bulkAssignViews(props.selectedIds, viewsMode.value, selectedViewIds.value)
+    }
+
     resetFields()
     emit('updated')
   } catch (e) {
@@ -168,6 +200,56 @@ function close() {
                 <option value="active">Aktiv</option>
                 <option value="inactive">Inaktiv</option>
               </select>
+            </div>
+
+            <!-- Divider -->
+            <div class="border-t border-[var(--color-border)] my-2" />
+
+            <!-- Attribute Views -->
+            <div class="flex items-center gap-3">
+              <input
+                type="checkbox"
+                v-model="viewsEnabled"
+                class="rounded border-[var(--color-border-strong)] text-[var(--color-accent)] focus:ring-[var(--color-accent)]"
+              />
+              <label class="text-xs text-[var(--color-text-secondary)] w-36">Attributsichten</label>
+              <select
+                v-model="viewsMode"
+                :disabled="!viewsEnabled"
+                class="pim-input text-xs py-1 px-2 flex-1"
+                :class="!viewsEnabled ? 'opacity-40' : ''"
+              >
+                <option value="add">Hinzufügen</option>
+                <option value="remove">Entfernen</option>
+                <option value="set">Setzen</option>
+              </select>
+            </div>
+
+            <!-- Multi-select for views -->
+            <div v-if="viewsEnabled" class="ml-8 mt-1">
+              <div class="border border-[var(--color-border)] rounded-lg max-h-32 overflow-y-auto p-1.5">
+                <label
+                  v-for="view in availableViews"
+                  :key="view.id"
+                  class="flex items-center gap-2 px-2 py-1 rounded hover:bg-[var(--color-bg)] cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    :value="view.id"
+                    v-model="selectedViewIds"
+                    class="rounded border-[var(--color-border-strong)] text-[var(--color-accent)] focus:ring-[var(--color-accent)]"
+                  />
+                  <span class="text-xs text-[var(--color-text-secondary)]">{{ view.name_de || view.technical_name }}</span>
+                </label>
+                <p v-if="availableViews.length === 0" class="text-xs text-[var(--color-text-tertiary)] px-2 py-1">
+                  Keine Attributsichten vorhanden.
+                </p>
+              </div>
+              <p class="text-[10px] text-[var(--color-text-tertiary)] mt-1">
+                {{ viewsMode === 'add' ? 'Ausgewählte Sichten werden hinzugefügt.' :
+                   viewsMode === 'remove' ? 'Ausgewählte Sichten werden entfernt.' :
+                   'Alle bestehenden Sichten werden durch die Auswahl ersetzt.' }}
+              </p>
             </div>
 
             <!-- Error -->

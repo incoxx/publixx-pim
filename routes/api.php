@@ -320,6 +320,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::put('attributes/bulk-update', [AttributeController::class, 'bulkUpdate']);
     Route::post('attributes/all-ids', [AttributeController::class, 'allIds']);
     Route::post('attributes/bulk-delete', [AttributeController::class, 'bulkDelete']);
+    Route::post('attributes/bulk-assign-views', [AttributeController::class, 'bulkAssignViews']);
     Route::apiResource('attributes', AttributeController::class);
     Route::get('attributes/{attribute}/dependencies', [AttributeController::class, 'dependencies']);
     Route::post('attributes/{attribute}/copy', [AttributeController::class, 'copy']);

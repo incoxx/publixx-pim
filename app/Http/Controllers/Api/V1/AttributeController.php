@@ -13,8 +13,10 @@ use App\Models\HierarchyNode;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use App\Models\AttributeViewAssignment;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class AttributeController extends Controller
 {
@@ -376,5 +378,77 @@ class AttributeController extends Controller
             'message' => "{$count} Attribute aktualisiert.",
             'updated' => $count,
         ]);
+    }
+
+    public function bulkAssignViews(Request $request): JsonResponse
+    {
+        $this->authorize('update', Attribute::class);
+
+        $request->validate([
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'uuid|exists:attributes,id',
+            'mode' => 'required|in:add,remove,set',
+            'attribute_view_ids' => 'required|array|min:1',
+            'attribute_view_ids.*' => 'uuid|exists:attribute_views,id',
+        ]);
+
+        $attributeIds = $request->input('ids');
+        $viewIds = $request->input('attribute_view_ids');
+        $mode = $request->input('mode');
+
+        DB::beginTransaction();
+        try {
+            if ($mode === 'remove') {
+                AttributeViewAssignment::whereIn('attribute_id', $attributeIds)
+                    ->whereIn('attribute_view_id', $viewIds)
+                    ->delete();
+            } elseif ($mode === 'set') {
+                AttributeViewAssignment::whereIn('attribute_id', $attributeIds)->delete();
+                $this->insertViewAssignments($attributeIds, $viewIds);
+            } else {
+                $this->insertViewAssignments($attributeIds, $viewIds, skipExisting: true);
+            }
+            DB::commit();
+        } catch (\Exception $e) {
+            DB::rollBack();
+            throw $e;
+        }
+
+        return response()->json([
+            'message' => 'Attributsichten für ' . count($attributeIds) . ' Attribute aktualisiert.',
+        ]);
+    }
+
+    private function insertViewAssignments(array $attributeIds, array $viewIds, bool $skipExisting = false): void
+    {
+        $existing = [];
+        if ($skipExisting) {
+            $existing = AttributeViewAssignment::whereIn('attribute_id', $attributeIds)
+                ->whereIn('attribute_view_id', $viewIds)
+                ->get(['attribute_id', 'attribute_view_id'])
+                ->map(fn ($a) => $a->attribute_id . '|' . $a->attribute_view_id)
+                ->toArray();
+        }
+
+        $now = now();
+        $rows = [];
+        foreach ($attributeIds as $attrId) {
+            foreach ($viewIds as $viewId) {
+                if ($skipExisting && in_array($attrId . '|' . $viewId, $existing)) {
+                    continue;
+                }
+                $rows[] = [
+                    'id' => (string) Str::uuid(),
+                    'attribute_id' => $attrId,
+                    'attribute_view_id' => $viewId,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+            }
+        }
+
+        foreach (array_chunk($rows, 500) as $chunk) {
+            DB::table('attribute_view_assignments')->insert($chunk);
+        }
     }
 }

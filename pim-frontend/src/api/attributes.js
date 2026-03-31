@@ -45,6 +45,14 @@ export default {
     return client.post('/attributes/bulk-delete', { attribute_ids: attributeIds })
   },
 
+  bulkAssignViews(ids, mode, attributeViewIds) {
+    return client.post('/attributes/bulk-assign-views', {
+      ids,
+      mode,
+      attribute_view_ids: attributeViewIds,
+    })
+  },
+
   listSearchable() {
     return client.get('/attributes', {
       params: buildParams({
