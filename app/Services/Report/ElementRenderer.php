@@ -69,14 +69,40 @@ class ElementRenderer
         // Composite attributes: aggregate child values with format template
         if ($attribute->data_type === 'Composite') {
             $value = $this->resolveCompositeDisplayValue($product, $attribute, $language);
-            return ['label' => $label, 'value' => $value, 'unit' => ''];
+            return ['label' => $label, 'value' => $value, 'unit' => '', 'values' => $value !== '' ? [$value] : []];
+        }
+
+        // Multipliable einfache Attribute: alle Werte sammeln
+        if ($attribute->is_multipliable) {
+            $allValues = $product->attributeValues
+                ->filter(fn ($av) => $av->attribute_id === $attributeId)
+                ->sortBy('multiplied_index');
+
+            if ($allValues->isEmpty()) {
+                return ['label' => $label, 'value' => '', 'unit' => '', 'values' => []];
+            }
+
+            $displayValues = $allValues
+                ->map(fn ($av) => $this->resolveAttributeDisplayValue($av, $language))
+                ->filter(fn ($v) => $v !== '')
+                ->values()
+                ->all();
+
+            $unit = $allValues->first()->unit?->abbreviation ?? '';
+
+            return [
+                'label' => $label,
+                'value' => implode(', ', $displayValues),
+                'unit' => $unit,
+                'values' => $displayValues,
+            ];
         }
 
         $attributeValue = $product->attributeValues
             ->first(fn ($av) => $av->attribute_id === $attributeId);
 
         if (!$attributeValue) {
-            return ['label' => $label, 'value' => '', 'unit' => ''];
+            return ['label' => $label, 'value' => '', 'unit' => '', 'values' => []];
         }
 
         // Resolve value based on data type
@@ -84,7 +110,7 @@ class ElementRenderer
 
         $unit = $attributeValue->unit?->abbreviation ?? '';
 
-        return ['label' => $label, 'value' => $value, 'unit' => $unit];
+        return ['label' => $label, 'value' => $value, 'unit' => $unit, 'values' => $value !== '' ? [$value] : []];
     }
 
     /**
@@ -149,9 +175,9 @@ class ElementRenderer
                 : $attributeValue->valueListEntry->display_value_de) ?? '';
         }
 
-        // Boolean
-        if ($attributeValue->value_boolean !== null) {
-            return $attributeValue->value_boolean ? ($language === 'de' ? 'Ja' : 'Yes') : ($language === 'de' ? 'Nein' : 'No');
+        // Boolean (Flag)
+        if ($attributeValue->value_flag !== null) {
+            return $attributeValue->value_flag ? ($language === 'de' ? 'Ja' : 'Yes') : ($language === 'de' ? 'Nein' : 'No');
         }
 
         // Number

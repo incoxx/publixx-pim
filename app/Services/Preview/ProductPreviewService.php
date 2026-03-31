@@ -151,6 +151,37 @@ class ProductPreviewService
                     'composite_expression' => $assignment->composite_expression ?? null,
                 ];
             } else {
+                // Multipliable einfache Attribute: Werte zu einem Eintrag zusammenfassen
+                $isMultipliable = (bool) ($assignment->is_multipliable ?? false);
+                if ($isMultipliable && $assignment->data_type !== 'Composite' && $attrValues->count() > 1) {
+                    $sorted = $attrValues->sortBy('multiplied_index');
+                    $displayValues = $sorted
+                        ->map(fn ($av) => $this->resolveDisplayValue($av, $lang))
+                        ->filter(fn ($v) => $v !== null && $v !== '')
+                        ->values()
+                        ->all();
+
+                    $unit = $sorted->first()->unit?->abbreviation;
+
+                    $sections[$sectionIndex]['attributes'][] = [
+                        'attribute_id' => $assignment->attribute_id,
+                        'technical_name' => $assignment->attribute_technical_name,
+                        'label' => $label,
+                        'value' => !empty($displayValues) ? implode(', ', $displayValues) : null,
+                        'display_value' => !empty($displayValues) ? implode(', ', $displayValues) : null,
+                        'display_values' => $displayValues,
+                        'unit' => $unit,
+                        'data_type' => $assignment->data_type,
+                        'is_mandatory' => (bool) ($assignment->is_mandatory || !empty($assignment->is_required)),
+                        'is_multipliable' => true,
+                        'language' => $sorted->first()->language,
+                        'parent_attribute_id' => $assignment->parent_attribute_id ?? null,
+                        'composite_format' => $assignment->composite_format ?? null,
+                        'composite_expression' => $assignment->composite_expression ?? null,
+                    ];
+                    continue;
+                }
+
                 foreach ($attrValues as $attrValue) {
                     $displayValue = $this->resolveDisplayValue($attrValue, $lang);
                     $unit = $attrValue->unit?->abbreviation;
@@ -177,7 +208,7 @@ class ProductPreviewService
                         'unit' => $unit,
                         'data_type' => $assignment->data_type,
                         'is_mandatory' => (bool) ($assignment->is_mandatory || !empty($assignment->is_required)),
-                        'is_multipliable' => (bool) ($assignment->is_multipliable ?? false),
+                        'is_multipliable' => $isMultipliable,
                         'language' => $attrValue->language,
                         'parent_attribute_id' => $assignment->parent_attribute_id ?? null,
                         'composite_format' => $assignment->composite_format ?? null,
@@ -424,6 +455,37 @@ class ProductPreviewService
                         'composite_expression' => $assignment->composite_expression ?? null,
                     ];
                 } else {
+                    // Multipliable einfache Attribute: Werte zusammenfassen
+                    $isMultipliable = (bool) ($assignment->is_multipliable ?? false);
+                    if ($isMultipliable && $assignment->data_type !== 'Composite' && $attrValues->count() > 1) {
+                        $sorted = $attrValues->sortBy('multiplied_index');
+                        $displayValues = $sorted
+                            ->map(fn ($av) => $this->resolveDisplayValue($av, $lang))
+                            ->filter(fn ($v) => $v !== null && $v !== '')
+                            ->values()
+                            ->all();
+
+                        $unit = $sorted->first()->unit?->abbreviation;
+
+                        $sections[$sectionIndex]['attributes'][] = [
+                            'attribute_id' => $assignment->attribute_id,
+                            'technical_name' => $assignment->attribute_technical_name,
+                            'label' => $label,
+                            'value' => !empty($displayValues) ? implode(', ', $displayValues) : null,
+                            'display_value' => !empty($displayValues) ? implode(', ', $displayValues) : null,
+                            'display_values' => $displayValues,
+                            'unit' => $unit,
+                            'data_type' => $assignment->data_type,
+                            'is_mandatory' => (bool) ($assignment->is_mandatory || !empty($assignment->is_required)),
+                            'is_multipliable' => true,
+                            'language' => $sorted->first()->language,
+                            'parent_attribute_id' => $assignment->parent_attribute_id ?? null,
+                            'composite_format' => $assignment->composite_format ?? null,
+                            'composite_expression' => $assignment->composite_expression ?? null,
+                        ];
+                        continue;
+                    }
+
                     foreach ($attrValues as $attrValue) {
                         $displayValue = $this->resolveDisplayValue($attrValue, $lang);
                         $unit = $attrValue->unit?->abbreviation;
@@ -449,6 +511,7 @@ class ProductPreviewService
                             'unit' => $unit,
                             'data_type' => $assignment->data_type,
                             'is_mandatory' => (bool) ($assignment->is_mandatory || !empty($assignment->is_required)),
+                            'is_multipliable' => $isMultipliable,
                             'language' => $attrValue->language,
                             'parent_attribute_id' => $assignment->parent_attribute_id ?? null,
                             'composite_format' => $assignment->composite_format ?? null,

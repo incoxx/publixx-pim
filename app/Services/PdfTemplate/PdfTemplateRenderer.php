@@ -85,6 +85,7 @@ class PdfTemplateRenderer
             'rawValue' => $resolved['value'],
             'rawLabel' => $resolved['label'],
             'rawUnit' => $resolved['unit'],
+            'rawValues' => $resolved['values'] ?? [],
         ]);
     }
 

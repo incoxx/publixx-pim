@@ -147,6 +147,15 @@
                         @endforeach
                     @elseif (($el['type'] ?? '') === 'shape')
                         {{-- Shape --}}
+                    @elseif (!empty($el['rawValues']) && count($el['rawValues']) > 1)
+                        @if (!empty($el['showLabel']) && !empty($el['rawLabel']))
+                            <strong>{{ e($el['rawLabel']) }}:</strong>
+                        @endif
+                        <ul style="margin: 1mm 0 1mm 4mm; padding: 0; list-style-type: disc;">
+                            @foreach ($el['rawValues'] as $mv)
+                                <li>{{ e($mv) }}@if (!empty($el['showUnit']) && !empty($el['rawUnit'])) {{ e($el['rawUnit']) }}@endif</li>
+                            @endforeach
+                        </ul>
                     @else
                         {!! nl2br(e($el['displayValue'] ?? '')) !!}
                     @endif

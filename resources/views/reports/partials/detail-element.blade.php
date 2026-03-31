@@ -22,16 +22,28 @@
         $showLabel = $element['showLabel'] ?? true;
         $showValue = $element['showValue'] ?? true;
         $showUnit = $element['showUnit'] ?? true;
+        $multiValues = $resolved['values'] ?? [];
     @endphp
     @if ($resolved['value'] || $resolved['label'])
         <div class="element-text">
-            @if ($showLabel && $resolved['label'])
-                <strong>{{ $resolved['label'] }}:</strong>
-            @endif
-            @if ($showValue)
-                {{ $resolved['value'] }}
-                @if ($showUnit && $resolved['unit'])
-                    {{ $resolved['unit'] }}
+            @if (count($multiValues) > 1 && $showValue)
+                @if ($showLabel && $resolved['label'])
+                    <strong>{{ $resolved['label'] }}:</strong>
+                @endif
+                <ul style="margin: 2px 0 2px 16px; padding: 0; list-style-type: disc;">
+                    @foreach ($multiValues as $mv)
+                        <li>{{ $mv }}@if ($showUnit && $resolved['unit']) {{ $resolved['unit'] }}@endif</li>
+                    @endforeach
+                </ul>
+            @else
+                @if ($showLabel && $resolved['label'])
+                    <strong>{{ $resolved['label'] }}:</strong>
+                @endif
+                @if ($showValue)
+                    {{ $resolved['value'] }}
+                    @if ($showUnit && $resolved['unit'])
+                        {{ $resolved['unit'] }}
+                    @endif
                 @endif
             @endif
         </div>

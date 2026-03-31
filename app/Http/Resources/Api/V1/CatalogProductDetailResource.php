@@ -50,38 +50,74 @@ class CatalogProductDetailResource extends JsonResource
         })->values();
 
         // Build attributes array from EAV values — exclude internal attributes
-        $attributes = $this->resource->attributeValues
-            ->sortBy(fn ($v) => $v->attribute?->position ?? 999)
-            ->map(function (ProductAttributeValue $attrValue) use ($lang, $allowedAttributeIds) {
-                $attr = $attrValue->attribute;
-                if (!$attr || $attr->is_internal) {
-                    return null;
+        // Group by attribute_id to merge multipliable values into a single entry
+        $grouped = $this->resource->attributeValues
+            ->sortBy('multiplied_index')
+            ->groupBy('attribute_id');
+
+        $attributes = collect();
+
+        foreach ($grouped as $attributeId => $values) {
+            $firstValue = $values->first();
+            $attr = $firstValue->attribute;
+            if (!$attr || $attr->is_internal) {
+                continue;
+            }
+
+            // Filter by attribute view if configured — but always include link types
+            $isLinkType = in_array($attr->data_type, ['Hyperlink', 'ImageLink', 'PdfLink', 'VideoLink']);
+            if ($allowedAttributeIds !== null && !in_array($attr->id, $allowedAttributeIds) && !$isLinkType) {
+                continue;
+            }
+
+            $label = $lang === 'en' && $attr->name_en ? $attr->name_en : $attr->name_de;
+
+            // Multipliable einfache Attribute: Werte zu einem Eintrag zusammenfassen
+            if ($attr->is_multipliable && $attr->data_type !== 'Composite' && $values->count() > 1) {
+                $displayValues = $values->sortBy('multiplied_index')
+                    ->map(fn ($av) => $this->resolveAttributeDisplayValue($av, $attr, $lang))
+                    ->filter(fn ($v) => $v !== null && $v !== '')
+                    ->values()
+                    ->all();
+
+                if (empty($displayValues)) {
+                    continue;
                 }
 
-                // Filter by attribute view if configured — but always include link types
-                $isLinkType = in_array($attr->data_type, ['Hyperlink', 'ImageLink', 'PdfLink', 'VideoLink']);
-                if ($allowedAttributeIds !== null && !in_array($attr->id, $allowedAttributeIds) && !$isLinkType) {
-                    return null;
-                }
+                $unit = $firstValue->unit?->abbreviation;
 
-                $label = $lang === 'en' && $attr->name_en ? $attr->name_en : $attr->name_de;
+                $attributes->push([
+                    'attribute_id' => $attr->id,
+                    'technical_name' => $attr->technical_name,
+                    'label' => $label,
+                    'value' => implode(', ', $displayValues),
+                    'values' => $displayValues,
+                    'unit' => $unit,
+                    'data_type' => $attr->data_type,
+                    'parent_attribute_id' => $attr->parent_attribute_id,
+                    'composite_format' => null,
+                    'group_id' => $attr->attribute_type_id,
+                ]);
+                continue;
+            }
+
+            // Nicht-multipliable oder Einzelwert: bisherige Logik pro Value
+            foreach ($values as $attrValue) {
                 $displayValue = $this->resolveAttributeDisplayValue($attrValue, $attr, $lang);
 
-                // For link types: try to build link_data even if displayValue is empty
                 $linkData = null;
                 if ($isLinkType && $attrValue->value_string) {
                     $linkData = json_decode($attrValue->value_string, true);
                     if (!is_array($linkData) || empty($linkData['url'])) {
                         $linkData = null;
                     }
-                    // Ensure displayValue has a fallback from link_data
                     if (($displayValue === null || $displayValue === '') && $linkData) {
                         $displayValue = $linkData['title'] ?? $linkData['url'] ?? null;
                     }
                 }
 
                 if ($displayValue === null || $displayValue === '') {
-                    return null;
+                    continue;
                 }
 
                 $unit = $attrValue->unit?->abbreviation;
@@ -102,10 +138,15 @@ class CatalogProductDetailResource extends JsonResource
                     $entry['link_data'] = $linkData;
                 }
 
-                return $entry;
-            })
-            ->filter()
-            ->values();
+                $attributes->push($entry);
+            }
+        }
+
+        // Sort by attribute position (use already-loaded attribute models)
+        $positionMap = $this->resource->attributeValues
+            ->mapWithKeys(fn ($av) => [$av->attribute_id => $av->attribute?->position ?? 999])
+            ->all();
+        $attributes = $attributes->sortBy(fn ($e) => $positionMap[$e['attribute_id']] ?? 999)->values();
 
         // Add composite parent entries (they have no own value but aggregate children)
         $attributes = $this->injectCompositeParents($attributes, $lang, $allowedAttributeIds);

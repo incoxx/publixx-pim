@@ -789,6 +789,10 @@ class OfflineCatalogExportService
             }
         }
 
+        // Attribute Values nach attribute_id gruppieren für Multipliable-Zusammenfassung
+        $groupedByAttr = $product->attributeValues->groupBy('attribute_id');
+        $writtenMultipliable = [];
+
         foreach ($product->attributeValues as $av) {
             $attr = $av->attribute;
             if (!$attr || $attr->is_internal) continue;
@@ -825,6 +829,41 @@ class OfflineCatalogExportService
                     }
                     $writtenComposites[$parentId] = true;
                 }
+                continue;
+            }
+
+            // Multipliable einfache Attribute: Werte zusammenfassen (nur einmal schreiben)
+            if ($attr->is_multipliable && $attr->data_type !== 'Composite') {
+                if (isset($writtenMultipliable[$attr->id])) {
+                    continue;
+                }
+                $writtenMultipliable[$attr->id] = true;
+
+                $allValues = $groupedByAttr->get($attr->id, collect())->sortBy('multiplied_index');
+                $displayValues = $allValues
+                    ->map(fn ($v) => $this->resolveAttributeValue($v, $attr, $lang))
+                    ->filter(fn ($v) => $v !== null && $v !== '')
+                    ->values()
+                    ->all();
+
+                if (empty($displayValues)) {
+                    continue;
+                }
+
+                $unit = $allValues->first()->unit?->abbreviation;
+                $joinedValue = implode(', ', $displayValues);
+
+                $attributes[] = [
+                    'attribute_id' => $attr->id,
+                    'technical_name' => $attr->technical_name,
+                    'label' => $lang === 'en' && $attr->name_en ? $attr->name_en : $attr->name_de,
+                    'data_type' => $attr->data_type,
+                    'value' => $unit ? $joinedValue . ' ' . $unit : $joinedValue,
+                    'values' => $displayValues,
+                    'raw_value' => $joinedValue,
+                    'unit' => $unit,
+                    'group_id' => $attr->attribute_type_id,
+                ];
                 continue;
             }
 

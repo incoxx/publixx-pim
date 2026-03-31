@@ -301,11 +301,16 @@ function getDocIcon(mimeType) {
                               <template v-else-if="attr.data_type === 'Hyperlink'">
                                 <a :href="attr.value" target="_blank" rel="noopener">{{ attr.value }}</a>
                               </template>
+                              <template v-else-if="attr.values?.length > 1">
+                                <ul class="pxc-multivalue-list">
+                                  <li v-for="(v, vi) in attr.values" :key="vi">{{ v }}<span v-if="attr.unit" class="pxc-text-muted"> {{ attr.unit }}</span></li>
+                                </ul>
+                              </template>
                               <template v-else-if="attr.value && attr.value.includes('\n')">
                                 <div v-for="(line, li) in attr.value.split('\n')" :key="li">{{ line }}</div>
                               </template>
                               <template v-else>{{ attr.value || '—' }}</template>
-                              <span v-if="attr.unit" class="pxc-text-muted"> {{ attr.unit }}</span>
+                              <span v-if="!attr.values?.length && attr.unit" class="pxc-text-muted"> {{ attr.unit }}</span>
                             </td>
                           </tr>
                         </tbody>

@@ -199,6 +199,11 @@ watch(() => route.params.id, (newId) => {
                       <template v-else-if="attr.data_type === 'JsonArtefact' && attr.value">
                         <code class="block text-xs bg-base-200 rounded px-2 py-1 max-h-24 overflow-auto whitespace-pre-wrap break-all">{{ attr.value }}</code>
                       </template>
+                      <template v-else-if="attr.values?.length > 1">
+                        <ul class="list-disc pl-4 space-y-0.5">
+                          <li v-for="(v, vi) in attr.values" :key="vi">{{ v }}<span v-if="attr.unit" class="text-base-content/50 ml-1">{{ attr.unit }}</span></li>
+                        </ul>
+                      </template>
                       <template v-else>
                         {{ attr.value }}<span v-if="attr.unit" class="text-base-content/50 ml-1">{{ attr.unit }}</span>
                       </template>
@@ -296,6 +301,11 @@ watch(() => route.params.id, (newId) => {
                     <td class="text-base-content/60 font-medium w-2/5 align-top">{{ attr.label }}</td>
                     <td class="text-base-content">
                       <template v-if="attr.data_type === 'Composite'">{{ getCatalogCompositeSummary(attr) || '—' }}</template>
+                      <template v-else-if="attr.values?.length > 1">
+                        <ul class="list-disc pl-4 space-y-0.5">
+                          <li v-for="(v, vi) in attr.values" :key="vi">{{ v }}<span v-if="attr.unit" class="text-base-content/50 ml-1">{{ attr.unit }}</span></li>
+                        </ul>
+                      </template>
                       <template v-else>{{ attr.value }}<span v-if="attr.unit" class="text-base-content/50 ml-1">{{ attr.unit }}</span></template>
                     </td>
                   </tr>
