@@ -155,6 +155,14 @@ async function save() {
   error.value = ''
   successMsg.value = ''
   try {
+    // Keys automatisch aus Label generieren wenn leer
+    for (const step of form.value.filter_steps) {
+      if (!step.key && step.label) {
+        step.key = step.label.toLowerCase()
+          .replace(/[^a-z0-9]+/g, '_')
+          .replace(/^_|_$/g, '')
+      }
+    }
     const { data } = await portalConfigApi.update(route.params.id, form.value)
     portal.value = data.data
     isDirty.value = false
@@ -397,7 +405,7 @@ async function copyUrl() {
             </div>
             <div>
               <label class="text-xs font-semibold mb-1 block">Attribut</label>
-              <input v-model="attrSearch" class="input input-bordered w-full input-xs mb-1" placeholder="Attribut suchen..." />
+              <input v-model="attrSearch" class="input input-bordered w-full input-xs mb-1 bg-base-100" placeholder="Attribut suchen..." />
               <select v-model="step.attribute_id" class="select select-bordered w-full select-xs bg-base-100">
                 <option value="">— Attribut waehlen —</option>
                 <option v-for="attr in filteredAttributes" :key="attr.id" :value="attr.id">

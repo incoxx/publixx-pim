@@ -27,10 +27,10 @@ class PortalConfigController extends Controller
             'html_template' => $excludeId ? 'sometimes|string' : 'required|string',
             'catalog_template_id' => 'sometimes|nullable|uuid|exists:catalog_templates,id',
             'filter_steps' => 'sometimes|array',
-            'filter_steps.*.key' => 'required|string|max:100',
+            'filter_steps.*.key' => 'sometimes|string|max:100',
             'filter_steps.*.attribute_id' => 'required|uuid|exists:attributes,id',
-            'filter_steps.*.widget' => 'required|string|in:country-select,language-select,filter-dropdown,filter-cards',
-            'filter_steps.*.label' => 'required|string|max:255',
+            'filter_steps.*.widget' => 'sometimes|string|in:country-select,language-select,filter-dropdown,filter-cards',
+            'filter_steps.*.label' => 'sometimes|string|max:255',
             'branding' => 'sometimes|array|nullable',
             'css_variables' => 'sometimes|array|nullable',
             'custom_css' => 'sometimes|string|nullable|max:50000',
@@ -66,10 +66,7 @@ class PortalConfigController extends Controller
             }
         }
 
-        if (!isset($validated['filter_steps'])) {
-            $validated['filter_steps'] = [];
-        }
-
+        $validated['filter_steps'] = $this->normalizeFilterSteps($validated['filter_steps'] ?? []);
         $validated['user_id'] = $request->user()?->id;
 
         $portal = PortalConfig::create($validated);
@@ -92,6 +89,10 @@ class PortalConfigController extends Controller
         $this->authorizeAccess($request, $portal);
 
         $validated = $request->validate($this->validationRules($id));
+
+        if (isset($validated['filter_steps'])) {
+            $validated['filter_steps'] = $this->normalizeFilterSteps($validated['filter_steps']);
+        }
 
         $portal->update($validated);
 
@@ -156,6 +157,36 @@ class PortalConfigController extends Controller
         }
 
         return response()->json(['data' => $presets]);
+    }
+
+    /**
+     * Auto-generiert fehlende Keys/Labels/Widgets in Filter-Steps.
+     */
+    private function normalizeFilterSteps(array $steps): array
+    {
+        foreach ($steps as &$step) {
+            // Key aus Label oder Attribut-Name ableiten wenn leer
+            if (empty($step['key']) && !empty($step['label'])) {
+                $step['key'] = Str::slug($step['label'], '_');
+            } elseif (empty($step['key']) && !empty($step['attribute_id'])) {
+                $attr = \App\Models\Attribute::find($step['attribute_id']);
+                $step['key'] = $attr ? Str::slug($attr->technical_name, '_') : 'step_' . uniqid();
+            }
+
+            // Default Widget wenn nicht gesetzt
+            if (empty($step['widget'])) {
+                $step['widget'] = 'filter-dropdown';
+            }
+
+            // Label aus Attribut-Name wenn leer
+            if (empty($step['label']) && !empty($step['attribute_id'])) {
+                $attr = $attr ?? \App\Models\Attribute::find($step['attribute_id']);
+                $step['label'] = $attr?->name_de ?? $step['key'] ?? '';
+            }
+        }
+        unset($step);
+
+        return $steps;
     }
 
     private function authorizeAccess(Request $request, PortalConfig $portal): void
