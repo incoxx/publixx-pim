@@ -155,6 +155,14 @@ async function save() {
   error.value = ''
   successMsg.value = ''
   try {
+    // Keys automatisch aus Label generieren wenn leer
+    for (const step of form.value.filter_steps) {
+      if (!step.key && step.label) {
+        step.key = step.label.toLowerCase()
+          .replace(/[^a-z0-9]+/g, '_')
+          .replace(/^_|_$/g, '')
+      }
+    }
     const { data } = await portalConfigApi.update(route.params.id, form.value)
     portal.value = data.data
     isDirty.value = false
@@ -285,21 +293,21 @@ async function copyUrl() {
         <div class="grid grid-cols-2 gap-4">
           <div>
             <label class="label text-sm font-semibold">Name</label>
-            <input v-model="form.name" class="input input-bordered w-full input-sm bg-base-100" />
+            <input v-model="form.name" class="input input-bordered w-full input-sm bg-white" />
           </div>
           <div>
             <label class="label text-sm font-semibold">Slug</label>
-            <input v-model="form.slug" class="input input-bordered w-full input-sm bg-base-100" placeholder="auto-generiert" />
+            <input v-model="form.slug" class="input input-bordered w-full input-sm bg-white" placeholder="auto-generiert" />
           </div>
         </div>
         <div>
           <label class="label text-sm font-semibold">Beschreibung</label>
-          <textarea v-model="form.description" class="textarea textarea-bordered w-full textarea-sm bg-base-100" rows="2"></textarea>
+          <textarea v-model="form.description" class="textarea textarea-bordered w-full textarea-sm bg-white" rows="2"></textarea>
         </div>
         <div class="grid grid-cols-2 gap-4">
           <div>
             <label class="label text-sm font-semibold">Katalogvorlage</label>
-            <select v-model="form.catalog_template_id" class="select select-bordered w-full select-sm bg-base-100">
+            <select v-model="form.catalog_template_id" class="select select-bordered w-full select-sm bg-white">
               <option :value="null">— Keine —</option>
               <option v-for="t in catalogTemplates" :key="t.id" :value="t.id">{{ t.name }} ({{ t.slug }})</option>
             </select>
@@ -307,7 +315,7 @@ async function copyUrl() {
           </div>
           <div>
             <label class="label text-sm font-semibold">Standard-Sprache</label>
-            <select v-model="form.default_locale" class="select select-bordered w-full select-sm bg-base-100">
+            <select v-model="form.default_locale" class="select select-bordered w-full select-sm bg-white">
               <option value="de">Deutsch</option>
               <option value="en">English</option>
             </select>
@@ -329,15 +337,15 @@ async function copyUrl() {
       <div v-show="activeTab === 'branding'" class="space-y-4">
         <div>
           <label class="label text-sm font-semibold">Titel</label>
-          <input v-model="form.branding.title" class="input input-bordered w-full input-sm bg-base-100" placeholder="z.B. Produktdokumentation" />
+          <input v-model="form.branding.title" class="input input-bordered w-full input-sm bg-white" placeholder="z.B. Produktdokumentation" />
         </div>
         <div>
           <label class="label text-sm font-semibold">Untertitel</label>
-          <input v-model="form.branding.subtitle" class="input input-bordered w-full input-sm bg-base-100" placeholder="z.B. Digitale Produktdokumentation" />
+          <input v-model="form.branding.subtitle" class="input input-bordered w-full input-sm bg-white" placeholder="z.B. Digitale Produktdokumentation" />
         </div>
         <div>
           <label class="label text-sm font-semibold">Hero-Text</label>
-          <textarea v-model="form.branding.hero_text" class="textarea textarea-bordered w-full textarea-sm bg-base-100" rows="3" placeholder="Beschreibungstext fuer die Vorschaltseite..."></textarea>
+          <textarea v-model="form.branding.hero_text" class="textarea textarea-bordered w-full textarea-sm bg-white" rows="3" placeholder="Beschreibungstext fuer die Vorschaltseite..."></textarea>
         </div>
         <div>
           <label class="label text-sm font-semibold">Feature-Liste</label>
@@ -345,7 +353,7 @@ async function copyUrl() {
           <div class="space-y-2">
             <div v-for="(feature, i) in (form.branding.features || [])" :key="i" class="flex gap-2 items-center">
               <span class="text-base-content/30 text-xs w-5 text-center">{{ i + 1 }}</span>
-              <input v-model="form.branding.features[i]" class="input input-bordered flex-1 input-sm bg-base-100" placeholder="z.B. Sofortiger digitaler Zugriff" />
+              <input v-model="form.branding.features[i]" class="input input-bordered flex-1 input-sm bg-white" placeholder="z.B. Sofortiger digitaler Zugriff" />
               <button class="btn btn-ghost btn-sm text-error" @click="removeFeature(i)" title="Entfernen">
                 <Trash2 class="w-3.5 h-3.5" />
               </button>
@@ -372,7 +380,7 @@ async function copyUrl() {
           </button>
         </div>
 
-        <div v-for="(step, i) in form.filter_steps" :key="i" class="p-4 border border-base-300 rounded-lg space-y-3 bg-base-100">
+        <div v-for="(step, i) in form.filter_steps" :key="i" class="p-4 border border-base-300 rounded-lg space-y-3 bg-white">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-2">
               <div class="flex flex-col gap-0.5">
@@ -389,16 +397,16 @@ async function copyUrl() {
           <div class="grid grid-cols-2 gap-3">
             <div>
               <label class="text-xs font-semibold mb-1 block">Key <span class="font-normal text-base-content/40">(URL-Parameter)</span></label>
-              <input v-model="step.key" class="input input-bordered w-full input-xs bg-base-100" placeholder="z.B. country" />
+              <input v-model="step.key" class="input input-bordered w-full input-xs bg-white" placeholder="z.B. country" />
             </div>
             <div>
               <label class="text-xs font-semibold mb-1 block">Label <span class="font-normal text-base-content/40">(Anzeige)</span></label>
-              <input v-model="step.label" class="input input-bordered w-full input-xs bg-base-100" placeholder="z.B. Land waehlen" />
+              <input v-model="step.label" class="input input-bordered w-full input-xs bg-white" placeholder="z.B. Land waehlen" />
             </div>
             <div>
               <label class="text-xs font-semibold mb-1 block">Attribut</label>
-              <input v-model="attrSearch" class="input input-bordered w-full input-xs mb-1" placeholder="Attribut suchen..." />
-              <select v-model="step.attribute_id" class="select select-bordered w-full select-xs bg-base-100">
+              <input v-model="attrSearch" class="input input-bordered w-full input-xs mb-1 bg-white" placeholder="Attribut suchen..." />
+              <select v-model="step.attribute_id" class="select select-bordered w-full select-xs bg-white">
                 <option value="">— Attribut waehlen —</option>
                 <option v-for="attr in filteredAttributes" :key="attr.id" :value="attr.id">
                   {{ attr.name_de || attr.technical_name }}
@@ -417,7 +425,7 @@ async function copyUrl() {
                   ]"
                   :key="w.value"
                   class="btn btn-xs"
-                  :class="step.widget === w.value ? 'btn-primary text-white' : 'btn-ghost border border-base-300 bg-base-100'"
+                  :class="step.widget === w.value ? 'btn-primary text-white' : 'btn-ghost border border-base-300 bg-white'"
                   @click="step.widget = w.value"
                 >
                   {{ w.icon }} {{ w.label }}
@@ -459,7 +467,7 @@ async function copyUrl() {
           <div>
             <textarea
               v-model="form.html_template"
-              class="textarea textarea-bordered w-full font-mono text-xs leading-relaxed bg-base-100"
+              class="textarea textarea-bordered w-full font-mono text-xs leading-relaxed bg-white"
               rows="30"
               spellcheck="false"
             ></textarea>
@@ -493,7 +501,7 @@ async function copyUrl() {
         </div>
         <textarea
           v-model="form.custom_css"
-          class="textarea textarea-bordered w-full font-mono text-xs leading-relaxed bg-base-100"
+          class="textarea textarea-bordered w-full font-mono text-xs leading-relaxed bg-white"
           rows="20"
           spellcheck="false"
           placeholder=":root { --pe-primary: #00AEEF; --pe-dark: #004D6D; }"
