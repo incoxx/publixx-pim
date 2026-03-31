@@ -243,7 +243,7 @@ async function copyUrl() {
         <a v-if="portalUrl" :href="portalUrl" target="_blank" class="btn btn-sm btn-ghost" title="Portal oeffnen">
           <ExternalLink class="w-4 h-4" />
         </a>
-        <button class="btn btn-sm btn-primary" :disabled="saving || !isDirty" @click="save">
+        <button class="btn btn-sm btn-primary text-white" :disabled="saving || !isDirty" @click="save">
           <Save class="w-4 h-4" />
           {{ saving ? 'Speichern...' : 'Speichern' }}
         </button>
@@ -285,21 +285,21 @@ async function copyUrl() {
         <div class="grid grid-cols-2 gap-4">
           <div>
             <label class="label text-sm font-semibold">Name</label>
-            <input v-model="form.name" class="input input-bordered w-full input-sm" />
+            <input v-model="form.name" class="input input-bordered w-full input-sm bg-base-100" />
           </div>
           <div>
             <label class="label text-sm font-semibold">Slug</label>
-            <input v-model="form.slug" class="input input-bordered w-full input-sm" placeholder="auto-generiert" />
+            <input v-model="form.slug" class="input input-bordered w-full input-sm bg-base-100" placeholder="auto-generiert" />
           </div>
         </div>
         <div>
           <label class="label text-sm font-semibold">Beschreibung</label>
-          <textarea v-model="form.description" class="textarea textarea-bordered w-full textarea-sm" rows="2"></textarea>
+          <textarea v-model="form.description" class="textarea textarea-bordered w-full textarea-sm bg-base-100" rows="2"></textarea>
         </div>
         <div class="grid grid-cols-2 gap-4">
           <div>
             <label class="label text-sm font-semibold">Katalogvorlage</label>
-            <select v-model="form.catalog_template_id" class="select select-bordered w-full select-sm">
+            <select v-model="form.catalog_template_id" class="select select-bordered w-full select-sm bg-base-100">
               <option :value="null">— Keine —</option>
               <option v-for="t in catalogTemplates" :key="t.id" :value="t.id">{{ t.name }} ({{ t.slug }})</option>
             </select>
@@ -307,7 +307,7 @@ async function copyUrl() {
           </div>
           <div>
             <label class="label text-sm font-semibold">Standard-Sprache</label>
-            <select v-model="form.default_locale" class="select select-bordered w-full select-sm">
+            <select v-model="form.default_locale" class="select select-bordered w-full select-sm bg-base-100">
               <option value="de">Deutsch</option>
               <option value="en">English</option>
             </select>
@@ -329,15 +329,15 @@ async function copyUrl() {
       <div v-show="activeTab === 'branding'" class="space-y-4">
         <div>
           <label class="label text-sm font-semibold">Titel</label>
-          <input v-model="form.branding.title" class="input input-bordered w-full input-sm" placeholder="z.B. Produktdokumentation" />
+          <input v-model="form.branding.title" class="input input-bordered w-full input-sm bg-base-100" placeholder="z.B. Produktdokumentation" />
         </div>
         <div>
           <label class="label text-sm font-semibold">Untertitel</label>
-          <input v-model="form.branding.subtitle" class="input input-bordered w-full input-sm" placeholder="z.B. Digitale Produktdokumentation" />
+          <input v-model="form.branding.subtitle" class="input input-bordered w-full input-sm bg-base-100" placeholder="z.B. Digitale Produktdokumentation" />
         </div>
         <div>
           <label class="label text-sm font-semibold">Hero-Text</label>
-          <textarea v-model="form.branding.hero_text" class="textarea textarea-bordered w-full textarea-sm" rows="3" placeholder="Beschreibungstext fuer die Vorschaltseite..."></textarea>
+          <textarea v-model="form.branding.hero_text" class="textarea textarea-bordered w-full textarea-sm bg-base-100" rows="3" placeholder="Beschreibungstext fuer die Vorschaltseite..."></textarea>
         </div>
         <div>
           <label class="label text-sm font-semibold">Feature-Liste</label>
@@ -345,7 +345,7 @@ async function copyUrl() {
           <div class="space-y-2">
             <div v-for="(feature, i) in (form.branding.features || [])" :key="i" class="flex gap-2 items-center">
               <span class="text-base-content/30 text-xs w-5 text-center">{{ i + 1 }}</span>
-              <input v-model="form.branding.features[i]" class="input input-bordered flex-1 input-sm" placeholder="z.B. Sofortiger digitaler Zugriff" />
+              <input v-model="form.branding.features[i]" class="input input-bordered flex-1 input-sm bg-base-100" placeholder="z.B. Sofortiger digitaler Zugriff" />
               <button class="btn btn-ghost btn-sm text-error" @click="removeFeature(i)" title="Entfernen">
                 <Trash2 class="w-3.5 h-3.5" />
               </button>
@@ -367,7 +367,7 @@ async function copyUrl() {
         <div v-if="form.filter_steps.length === 0" class="text-center py-8 border-2 border-dashed border-base-300 rounded-lg">
           <ChevronDown class="w-8 h-8 mx-auto mb-2 opacity-20" />
           <p class="text-sm text-base-content/50 mb-3">Noch keine Filter-Steps definiert</p>
-          <button class="btn btn-sm btn-primary" @click="addFilterStep">
+          <button class="btn btn-sm btn-primary text-white" @click="addFilterStep">
             <Plus class="w-4 h-4" /> Ersten Filter-Step anlegen
           </button>
         </div>
@@ -379,7 +379,7 @@ async function copyUrl() {
                 <button class="btn btn-ghost btn-xs px-1" :disabled="i === 0" @click="moveFilterStep(i, i - 1)" title="Nach oben">&#9650;</button>
                 <button class="btn btn-ghost btn-xs px-1" :disabled="i === form.filter_steps.length - 1" @click="moveFilterStep(i, i + 1)" title="Nach unten">&#9660;</button>
               </div>
-              <span class="badge badge-sm badge-primary">Step {{ i + 1 }}</span>
+              <span class="badge badge-sm badge-primary text-white">Step {{ i + 1 }}</span>
               <span v-if="step.label" class="text-sm font-medium">{{ step.label }}</span>
             </div>
             <button class="btn btn-ghost btn-xs text-error" @click="removeFilterStep(i)" title="Step entfernen">
@@ -389,16 +389,16 @@ async function copyUrl() {
           <div class="grid grid-cols-2 gap-3">
             <div>
               <label class="text-xs font-semibold mb-1 block">Key <span class="font-normal text-base-content/40">(URL-Parameter)</span></label>
-              <input v-model="step.key" class="input input-bordered w-full input-xs" placeholder="z.B. country" />
+              <input v-model="step.key" class="input input-bordered w-full input-xs bg-base-100" placeholder="z.B. country" />
             </div>
             <div>
               <label class="text-xs font-semibold mb-1 block">Label <span class="font-normal text-base-content/40">(Anzeige)</span></label>
-              <input v-model="step.label" class="input input-bordered w-full input-xs" placeholder="z.B. Land waehlen" />
+              <input v-model="step.label" class="input input-bordered w-full input-xs bg-base-100" placeholder="z.B. Land waehlen" />
             </div>
             <div>
               <label class="text-xs font-semibold mb-1 block">Attribut</label>
               <input v-model="attrSearch" class="input input-bordered w-full input-xs mb-1" placeholder="Attribut suchen..." />
-              <select v-model="step.attribute_id" class="select select-bordered w-full select-xs">
+              <select v-model="step.attribute_id" class="select select-bordered w-full select-xs bg-base-100">
                 <option value="">— Attribut waehlen —</option>
                 <option v-for="attr in filteredAttributes" :key="attr.id" :value="attr.id">
                   {{ attr.name_de || attr.technical_name }}
@@ -417,7 +417,7 @@ async function copyUrl() {
                   ]"
                   :key="w.value"
                   class="btn btn-xs"
-                  :class="step.widget === w.value ? 'btn-primary' : 'btn-ghost border border-base-300'"
+                  :class="step.widget === w.value ? 'btn-primary text-white' : 'btn-ghost border border-base-300 bg-base-100'"
                   @click="step.widget = w.value"
                 >
                   {{ w.icon }} {{ w.label }}
@@ -459,7 +459,7 @@ async function copyUrl() {
           <div>
             <textarea
               v-model="form.html_template"
-              class="textarea textarea-bordered w-full font-mono text-xs leading-relaxed"
+              class="textarea textarea-bordered w-full font-mono text-xs leading-relaxed bg-base-100"
               rows="30"
               spellcheck="false"
             ></textarea>
@@ -493,7 +493,7 @@ async function copyUrl() {
         </div>
         <textarea
           v-model="form.custom_css"
-          class="textarea textarea-bordered w-full font-mono text-xs leading-relaxed"
+          class="textarea textarea-bordered w-full font-mono text-xs leading-relaxed bg-base-100"
           rows="20"
           spellcheck="false"
           placeholder=":root { --pe-primary: #00AEEF; --pe-dark: #004D6D; }"
