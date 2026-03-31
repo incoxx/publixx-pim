@@ -175,7 +175,7 @@ class MediaController extends Controller
         $disk = Storage::disk('public');
 
         // DB-Transaktion mit Row-Lock gegen Race Conditions bei parallelen Uploads
-        $oldFileExisted = $disk->exists($existing->file_path);
+        $oldFileExisted = !empty($existing->file_path) && $disk->exists($existing->file_path);
 
         $nextRevision = DB::transaction(function () use ($existing, $request, $file, $disk, $oldFileExisted) {
             // Row-Lock: verhindert gleichzeitiges Replace desselben Assets
@@ -188,22 +188,21 @@ class MediaController extends Controller
 
             if ($oldFileExisted) {
                 $disk->copy($existing->file_path, $archivePath);
-            }
 
-            MediaRevision::create([
-                'media_id' => $existing->id,
-                'revision_number' => $nextRevision,
-                'file_name' => $existing->file_name,
-                'file_path' => $oldFileExisted ? $archivePath : null,
-                'original_file_name' => $existing->original_file_name,
-                'mime_type' => $existing->mime_type,
-                'file_size' => $existing->file_size,
-                'width' => $existing->width,
-                'height' => $existing->height,
-                'replaced_by' => $request->user()?->id,
-                'replaced_at' => now(),
-                'reason' => $oldFileExisted ? null : 'broken_asset_restored',
-            ]);
+                MediaRevision::create([
+                    'media_id' => $existing->id,
+                    'revision_number' => $nextRevision,
+                    'file_name' => $existing->file_name,
+                    'file_path' => $archivePath,
+                    'original_file_name' => $existing->original_file_name,
+                    'mime_type' => $existing->mime_type,
+                    'file_size' => $existing->file_size,
+                    'width' => $existing->width,
+                    'height' => $existing->height,
+                    'replaced_by' => $request->user()?->id,
+                    'replaced_at' => now(),
+                ]);
+            }
 
             // 2. Neue Datei unter gleichem Pfad speichern
             if ($oldFileExisted) {
