@@ -2533,12 +2533,16 @@ watch(() => route.params.id, async (newId, oldId) => {
           v-for="attr in filteredAttributes"
           :key="attr.id"
           :class="[
-            'md:flex md:items-center md:gap-4',
+            'md:flex md:gap-4',
+            attr.is_multipliable || attr.data_type === 'Composite' ? 'md:items-start' : 'md:items-center',
             { 'ring-1 ring-red-400 rounded-lg p-2 -m-2': mandatoryWarnings.has(attr.id) },
           ]"
         >
           <label
-            class="text-[12px] font-medium text-[var(--color-text-secondary)] md:w-48 md:shrink-0 md:text-right md:mb-0 mb-1 block truncate"
+            :class="[
+              'text-[12px] font-medium text-[var(--color-text-secondary)] md:w-48 md:shrink-0 md:text-right md:mb-0 mb-1 block truncate',
+              (attr.is_multipliable || attr.data_type === 'Composite') ? 'md:pt-1.5' : '',
+            ]"
             :title="attr.name_de || attr.technical_name"
           >
             {{ attr.name_de || attr.technical_name }}
