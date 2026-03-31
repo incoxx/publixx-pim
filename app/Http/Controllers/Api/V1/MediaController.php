@@ -175,7 +175,7 @@ class MediaController extends Controller
         $disk = Storage::disk('public');
 
         // DB-Transaktion mit Row-Lock gegen Race Conditions bei parallelen Uploads
-        $oldFileExisted = $disk->exists($existing->file_path);
+        $oldFileExisted = !empty($existing->file_path) && $disk->exists($existing->file_path);
 
         $nextRevision = DB::transaction(function () use ($existing, $request, $file, $disk, $oldFileExisted) {
             // Row-Lock: verhindert gleichzeitiges Replace desselben Assets
