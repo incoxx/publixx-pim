@@ -146,7 +146,27 @@ const fields = computed(() => {
         key: 'default_unit_id', label: 'Standard-Einheit', type: 'select',
         options: unitOptions.value.map(u => ({ value: u.id, label: `${u.abbreviation} — ${u.name_de || u.abbreviation}` })),
       },
+      {
+        key: 'min_value', label: 'Minimalwert', type: 'number',
+        placeholder: 'optional',
+        hint: 'Minimaler erlaubter Wert (leer = kein Limit)',
+      },
+      {
+        key: 'max_value', label: 'Maximalwert', type: 'number',
+        placeholder: 'optional',
+        hint: 'Maximaler erlaubter Wert (leer = kein Limit)',
+      },
+      {
+        key: 'max_pre_decimal', label: 'Max. Vorkommastellen', type: 'number',
+        placeholder: 'optional',
+      },
     )
+    if (formData.value.data_type === 'Float') {
+      base.push({
+        key: 'max_post_decimal', label: 'Max. Nachkommastellen', type: 'number',
+        placeholder: 'optional',
+      })
+    }
   }
 
   if (formData.value.data_type === 'DelimitedValue') {

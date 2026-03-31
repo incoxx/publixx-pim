@@ -140,7 +140,7 @@ function removeAttrOp(index) {
 function attrInputType(dataType) {
   return {
     String: 'text', Number: 'number', Float: 'decimal', Date: 'date',
-    Flag: 'boolean', Selection: 'select', Dictionary: 'dictionary', RichText: 'richtext',
+    Flag: 'boolean', Selection: 'select', MultiSelection: 'multicombobox', Dictionary: 'dictionary', RichText: 'richtext',
     DelimitedValue: 'text', JsonArtefact: 'jsonartefact',
   }[dataType] || 'text'
 }

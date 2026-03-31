@@ -713,6 +713,9 @@ class OfflineCatalogExportService
                 if (in_array($attr->data_type, ['ValueList', 'Selection', 'Dictionary'])) {
                     // Nur die ID speichern — der Anzeigename steht in facets.json
                     $facetValues[$attr->id] = $av->value_selection_id;
+                } elseif ($attr->data_type === 'MultiSelection') {
+                    // JSON-Array der IDs für Offline-Facettenfilter
+                    $facetValues[$attr->id] = json_decode($av->value_string ?? '[]', true) ?: [];
                 } elseif ($attr->data_type === 'Flag') {
                     $facetValues[$attr->id] = $av->value_flag;
                 } elseif ($attr->data_type === 'DelimitedValue') {
@@ -1070,7 +1073,41 @@ class OfflineCatalogExportService
             $baseQuery = ProductAttributeValue::where('attribute_id', $attrId)
                 ->whereIn('product_id', $activeProductQuery);
 
-            if (in_array($attr->data_type, ['ValueList', 'Selection', 'Dictionary'])) {
+            if ($attr->data_type === 'MultiSelection') {
+                // MultiSelection: JSON-Arrays auswerten, Einzelwerte zählen
+                $rows = (clone $baseQuery)
+                    ->whereNotNull('value_string')
+                    ->where('value_string', '!=', '')
+                    ->select('value_string', 'product_id')
+                    ->get();
+
+                $valueCounts = [];
+                foreach ($rows as $row) {
+                    $ids = json_decode($row->value_string, true);
+                    if (!is_array($ids)) continue;
+                    $seen = [];
+                    foreach ($ids as $id) {
+                        if (isset($seen[$id])) continue;
+                        $seen[$id] = true;
+                        $valueCounts[$id] = ($valueCounts[$id] ?? 0) + 1;
+                    }
+                }
+
+                arsort($valueCounts);
+                $topIds = array_keys(array_slice($valueCounts, 0, 50, true));
+                $entries = ValueListEntry::whereIn('id', $topIds)->get()->keyBy('id');
+                $values = [];
+                foreach ($topIds as $id) {
+                    $entry = $entries->get($id);
+                    if (!$entry) continue;
+                    $displayValue = $lang === 'en' && $entry->display_value_en
+                        ? $entry->display_value_en
+                        : $entry->display_value_de;
+                    $values[] = ['value' => $displayValue, 'value_id' => $id, 'count' => $valueCounts[$id]];
+                }
+
+                $facets[] = ['attribute_id' => $attrId, 'label' => $label, 'data_type' => 'ValueList', 'values' => $values];
+            } elseif (in_array($attr->data_type, ['ValueList', 'Selection', 'Dictionary'])) {
                 $rows = (clone $baseQuery)
                     ->whereNotNull('value_selection_id')
                     ->select('value_selection_id', DB::raw('COUNT(DISTINCT product_id) as cnt'))

@@ -246,6 +246,13 @@ class ProductAttributeValueController extends Controller
 
             if ($pav) {
                 $value = $pav->value_string ?? $pav->value_number ?? $pav->value_date ?? $pav->value_flag ?? $pav->value_selection_id;
+                // MultiSelection: JSON-Array zurück dekodieren
+                if ($assignment->data_type === 'MultiSelection' && is_string($value)) {
+                    $decoded = json_decode($value, true);
+                    if (is_array($decoded)) {
+                        $value = $decoded;
+                    }
+                }
                 $source = $pav->is_inherited ? 'hierarchy_inheritance' : 'own';
             }
 
@@ -772,6 +779,9 @@ class ProductAttributeValueController extends Controller
             'Selection', 'Dictionary' => array_merge($columns, [
                 'value_string' => $value,
                 'value_selection_id' => $entry['value_selection_id'] ?? null,
+            ]),
+            'MultiSelection' => array_merge($columns, [
+                'value_string' => is_array($value) ? json_encode($value) : $value,
             ]),
             'RichText', 'Hyperlink', 'ImageLink', 'PdfLink', 'VideoLink',
             'DelimitedValue', 'JsonArtefact' => array_merge($columns, ['value_string' => (string) $value]),
