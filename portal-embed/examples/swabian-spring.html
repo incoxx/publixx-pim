@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Portal — Swabian Spring</title>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700;900&display=swap" rel="stylesheet">
+  <style>
+    /* ===========================================================
+     * SWABIAN SPRING — Frisch, Medizintechnik-inspiriert
+     * ===========================================================
+     * Farbschema: Cyan #5ec5b0, Lime #c5d63d, Dunkel #1a1a2e
+     * Schwarz-Weiss-Foto-Aesthetic, farbige Akzent-Karten
+     * Multicolor-Stripe Header
+     */
+    :root {
+      --pe-primary: #5ec5b0;
+      --pe-primary-text: #1a1a2e;
+      --pe-dark: #1a1a2e;
+      --pe-surface: #f7faf9;
+      --pe-border: #d1e7e2;
+      --pe-radius: 0px;
+      --pe-font: 'Source Sans 3', system-ui, sans-serif;
+
+      --ss-cyan: #5ec5b0;
+      --ss-cyan-light: #7dd3c0;
+      --ss-lime: #c5d63d;
+      --ss-dark: #1a1a2e;
+      --ss-warm: #f5f0eb;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: var(--pe-font); color: var(--ss-dark); background: #fff; }
+
+    /* Rainbow Stripe (top) */
+    .ss-stripe {
+      height: 5px;
+      background: linear-gradient(90deg,
+        #e63946 0%, #e63946 16%,
+        #f4a261 16%, #f4a261 33%,
+        #c5d63d 33%, #c5d63d 50%,
+        #5ec5b0 50%, #5ec5b0 66%,
+        #457b9d 66%, #457b9d 83%,
+        #1a1a2e 83%, #1a1a2e 100%
+      );
+    }
+
+    /* Header */
+    .ss-header {
+      background: #fff;
+      border-bottom: 1px solid #e5e7eb;
+      padding: 16px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .ss-header__logo {
+      display: flex; align-items: center; gap: 12px;
+      text-decoration: none; color: var(--ss-dark);
+    }
+    .ss-header__logo-mark {
+      font-size: 1.5rem; font-weight: 900; color: var(--ss-cyan);
+      letter-spacing: -1px;
+    }
+    .ss-header__logo-text {
+      font-size: 1rem; font-weight: 700;
+    }
+    .ss-header__nav {
+      display: flex; align-items: center; gap: 20px;
+      font-size: 0.875rem; font-weight: 600;
+    }
+    .ss-header__nav a { color: #64748b; text-decoration: none; }
+    .ss-header__nav a:hover { color: var(--ss-cyan); }
+    .ss-header__lang {
+      display: flex; align-items: center; gap: 4px;
+      padding: 4px 10px;
+      border: 1px solid #e5e7eb;
+      border-radius: 4px;
+      font-size: 0.8125rem;
+      color: var(--ss-dark);
+      cursor: pointer;
+    }
+
+    /* Hero: Cyan bar + Fullwidth BW photo area */
+    .ss-hero-bar {
+      background: var(--ss-cyan);
+      padding: 6px 0;
+    }
+    .ss-hero {
+      background: var(--ss-warm);
+      padding: 56px 32px;
+    }
+    .ss-hero__inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 48px;
+      align-items: center;
+    }
+    /* Override branding styling */
+    .ss-hero .pe-branding__subtitle {
+      color: var(--ss-cyan); font-weight: 700;
+      text-transform: uppercase; letter-spacing: 1px;
+    }
+    .ss-hero .pe-branding__title {
+      color: var(--ss-dark); font-size: 2.25rem; font-weight: 900;
+      line-height: 1.1;
+    }
+    .ss-hero .pe-branding__desc {
+      color: #475569; font-size: 1.0625rem; line-height: 1.6;
+    }
+    .ss-hero .pe-branding__features li { color: var(--ss-dark); font-weight: 600; }
+    .ss-hero .pe-branding__check { background: var(--ss-cyan); }
+
+    /* Country select area */
+    .ss-select-area {
+      background: #fff;
+      border: 1px solid var(--pe-border);
+      padding: 28px;
+    }
+    .ss-select-area .pe-country__item { border-radius: 0; }
+    .ss-select-area .pe-country__item--active {
+      border-color: var(--ss-cyan); background: #ecfdf5;
+    }
+    .ss-select-area .pe-country__input { border-radius: 0; }
+
+    /* Feature cards (lime accent) */
+    .ss-features {
+      background: var(--ss-lime);
+      padding: 28px 32px;
+    }
+    .ss-features__inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+    }
+    .ss-features__items {
+      display: flex; gap: 32px;
+    }
+    .ss-features__item {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 0.875rem; font-weight: 700; color: var(--ss-dark);
+      text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    .ss-features__item svg {
+      width: 20px; height: 20px; fill: none; stroke: var(--ss-dark);
+      stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round;
+    }
+    .ss-features__submit { max-width: 280px; flex-shrink: 0; }
+    /* Override submit button for lime bg */
+    .ss-features .pe-submit {
+      background: var(--ss-dark); color: #fff; border-radius: 0;
+      font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    .ss-features .pe-submit--disabled {
+      background: rgba(26, 26, 46, 0.4);
+    }
+
+    /* Quick links section */
+    .ss-links {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 48px 32px;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+    .ss-link {
+      display: flex; align-items: center; gap: 16px;
+      padding: 20px;
+      border: 1px solid #e5e7eb;
+      text-decoration: none; color: var(--ss-dark);
+      font-weight: 700; font-size: 0.875rem;
+      text-transform: uppercase; letter-spacing: 0.5px;
+      transition: border-color 0.15s;
+    }
+    .ss-link:hover { border-color: var(--ss-cyan); }
+    .ss-link svg {
+      width: 28px; height: 28px; fill: none; stroke: var(--ss-cyan);
+      stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round;
+      flex-shrink: 0;
+    }
+
+    /* Footer */
+    .ss-footer {
+      background: var(--ss-dark);
+      color: rgba(255,255,255,0.5);
+      padding: 32px;
+      text-align: center;
+      font-size: 0.8125rem;
+    }
+    .ss-footer a { color: rgba(255,255,255,0.7); text-decoration: none; }
+    .ss-footer__company {
+      font-size: 0.75rem; color: rgba(255,255,255,0.35);
+      margin-top: 12px;
+    }
+
+    @media (max-width: 900px) {
+      .ss-hero__inner { grid-template-columns: 1fr; }
+      .ss-links { grid-template-columns: repeat(2, 1fr); }
+      .ss-features__inner { flex-direction: column; }
+      .ss-features__submit { max-width: 100%; width: 100%; }
+    }
+    @media (max-width: 640px) {
+      .ss-hero { padding: 32px 16px; }
+      .ss-links { grid-template-columns: 1fr; padding: 24px 16px; }
+      .ss-features__items { flex-wrap: wrap; gap: 16px; }
+      .ss-header__nav { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="ss-stripe"></div>
+
+  <header class="ss-header">
+    <a href="#" class="ss-header__logo">
+      <span class="ss-header__logo-mark">IHR</span>
+      <span class="ss-header__logo-text">Firmenname</span>
+    </a>
+    <nav class="ss-header__nav">
+      <div class="ss-header__lang">DE &rsaquo;</div>
+    </nav>
+  </header>
+
+  <div class="ss-hero-bar"></div>
+
+  <section class="ss-hero">
+    <div class="ss-hero__inner">
+      <div data-portal="branding"></div>
+      <div class="ss-select-area">
+        <div data-portal="country-select"></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="ss-features">
+    <div class="ss-features__inner">
+      <div class="ss-features__items">
+        <div class="ss-features__item">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+          Weltweit
+        </div>
+        <div class="ss-features__item">
+          <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          PDF-Download
+        </div>
+        <div class="ss-features__item">
+          <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          Zertifiziert
+        </div>
+      </div>
+      <div class="ss-features__submit">
+        <div data-portal="submit-button"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ss-links">
+    <a href="#" class="ss-link">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+      Veranstaltungen
+    </a>
+    <a href="#" class="ss-link">
+      <svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+      Product Finder
+    </a>
+    <a href="#" class="ss-link">
+      <svg viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+      Apps
+    </a>
+    <a href="#" class="ss-link">
+      <svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+      Kontakt
+    </a>
+  </div>
+
+  <footer class="ss-footer">
+    <a href="#">Impressum</a> &middot;
+    <a href="#">Datenschutz</a> &middot;
+    <a href="#">AGB</a>
+    <div class="ss-footer__company">
+      Ihr Firmenname GmbH &middot; Musterstrasse 17 &middot; 72072 Musterstadt &middot; Germany
+    </div>
+  </footer>
+
+  <script src="../dist/portal-embed.umd.js"></script>
+  <script>
+    PortalEmbed.init({ api: '__API_URL__', slug: '__SLUG__' })
+  </script>
+
+</body>
+</html>
