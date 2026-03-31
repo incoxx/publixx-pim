@@ -315,7 +315,7 @@ body {
    ============================================ */
 @plugin "daisyui/theme" {
   name: "pim-catalog";
-  default: false;
+  default: true;
   prefersdark: false;
   color-scheme: light;
   --rounded-box: 0.5rem;
