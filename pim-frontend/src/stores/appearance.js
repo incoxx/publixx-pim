@@ -140,9 +140,10 @@ export const useAppearanceStore = defineStore('appearance', () => {
         const parsed = JSON.parse(raw)
         if (parsed.preset) preset.value = parsed.preset
         if (parsed.settings) settings.value = { ...PRESETS[DEFAULT_PRESET], ...parsed.settings }
-        applyTheme()
       }
     } catch { /* ignore */ }
+    // Theme immer anwenden — auch wenn kein localStorage vorhanden
+    applyTheme()
   }
 
   async function loadFromApi() {
@@ -170,8 +171,8 @@ export const useAppearanceStore = defineStore('appearance', () => {
       if (data.data) {
         preset.value = data.data.preset || DEFAULT_PRESET
         settings.value = { ...PRESETS[DEFAULT_PRESET], ...data.data }
-        applyTheme()
       }
+      applyTheme()
       loaded.value = true
     } catch {
       loaded.value = true
