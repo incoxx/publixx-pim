@@ -148,10 +148,15 @@ export const useAttributeStore = defineStore('attributes', () => {
     return data
   }
 
+  async function bulkAssignViews(ids, mode, attributeViewIds) {
+    const { data } = await attributesApi.bulkAssignViews(ids, mode, attributeViewIds)
+    return data
+  }
+
   return {
     items, allItems, types, lists, prodTypes, unitGroupsList, compOpGroupsList, loading, error, meta, dataTypes,
     attributeTypeOptions, valueListOptions, unitGroupOptions, comparisonOperatorGroupOptions,
     fetchAttributes, fetchAllAttributes, fetchTypes, fetchValueLists, fetchProductTypes, fetchUnitGroups, fetchComparisonOperatorGroups,
-    createAttribute, updateAttribute, copyAttribute, deleteAttribute, setPage, bulkUpdate, bulkDelete,
+    createAttribute, updateAttribute, copyAttribute, deleteAttribute, setPage, bulkUpdate, bulkDelete, bulkAssignViews,
   }
 })
