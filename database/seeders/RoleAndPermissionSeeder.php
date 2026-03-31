@@ -98,6 +98,12 @@ class RoleAndPermissionSeeder extends Seeder
             'export-jobs.view', 'export-jobs.create', 'export-jobs.delete',
             // API-Designer / API-Templates
             'api-templates.view', 'api-templates.create', 'api-templates.edit', 'api-templates.delete',
+            // Catalog Templates
+            'catalog-templates.view', 'catalog-templates.create', 'catalog-templates.edit', 'catalog-templates.delete',
+            // Portale
+            'portals.view', 'portals.create', 'portals.edit', 'portals.delete',
+            // Connectoren
+            'connectors.view', 'connectors.manage',
             // Dashboard
             'dashboard.view',
         ];
