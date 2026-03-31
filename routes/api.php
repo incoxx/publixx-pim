@@ -189,6 +189,7 @@ Route::prefix('v1/catalog')->middleware('throttle.pim')->group(function () {
     // Settings and media always public (frontend needs access_mode before login,
     // media is loaded via <img> tags which cannot send Bearer tokens)
     Route::get('settings', [SettingController::class, 'catalogTheme']);
+    Route::get('settings/enforced-appearance', [SettingController::class, 'enforcedAppearance']);
     Route::get('media/{filename}', [CatalogController::class, 'media'])->name('catalog.media');
 
     // Data routes protected by catalog access control
@@ -754,6 +755,8 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::put('user/preferences/{group}', [\App\Http\Controllers\Api\V1\UserPreferenceController::class, 'update']);
 
     Route::put('settings/catalog-theme', [SettingController::class, 'updateCatalogTheme']);
+    Route::get('settings/enforced-appearance', [SettingController::class, 'enforcedAppearance']);
+    Route::put('settings/enforced-appearance', [SettingController::class, 'updateEnforcedAppearance']);
     Route::get('settings/configured-plugins', [SettingController::class, 'configuredPlugins']);
     Route::get('settings/connector-credentials', [SettingController::class, 'connectorCredentials']);
     Route::put('settings/connector-credentials', [SettingController::class, 'updateConnectorCredentials']);
@@ -833,19 +836,23 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     });
 
     // =====================================================================
-    // Catalog Templates
+    // Catalog Templates (Enterprise: catalog_templates)
     // =====================================================================
-    Route::get('catalog-templates/presets', [CatalogTemplateController::class, 'presets']);
-    Route::apiResource('catalog-templates', CatalogTemplateController::class);
-    Route::post('catalog-templates/{catalog_template}/duplicate', [CatalogTemplateController::class, 'duplicate']);
-    Route::get('catalog-templates/{catalog_template}/preview', [CatalogTemplateController::class, 'preview']);
+    Route::middleware('module:catalog_templates')->group(function () {
+        Route::get('catalog-templates/presets', [CatalogTemplateController::class, 'presets']);
+        Route::apiResource('catalog-templates', CatalogTemplateController::class);
+        Route::post('catalog-templates/{catalog_template}/duplicate', [CatalogTemplateController::class, 'duplicate']);
+        Route::get('catalog-templates/{catalog_template}/preview', [CatalogTemplateController::class, 'preview']);
+    });
 
     // =====================================================================
-    // Portal Configs (CRUD)
+    // Portal Configs (Enterprise: portals)
     // =====================================================================
-    Route::get('portal-configs/presets', [PortalConfigController::class, 'presets']);
-    Route::apiResource('portal-configs', PortalConfigController::class);
-    Route::post('portal-configs/{portal_config}/duplicate', [PortalConfigController::class, 'duplicate']);
+    Route::middleware('module:portals')->group(function () {
+        Route::get('portal-configs/presets', [PortalConfigController::class, 'presets']);
+        Route::apiResource('portal-configs', PortalConfigController::class);
+        Route::post('portal-configs/{portal_config}/duplicate', [PortalConfigController::class, 'duplicate']);
+    });
 
     // =====================================================================
     // Translation Jobs

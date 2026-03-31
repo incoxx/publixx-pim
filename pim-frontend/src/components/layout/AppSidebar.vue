@@ -73,9 +73,9 @@ const sections = computed(() => {
       items: [
         { icon: FileBarChart, label: () => 'Berichte', to: '/reports', module: 'reports', permission: 'reports.view' },
         { icon: FileText, label: () => 'PDF-Vorlagen', to: '/pdf-templates', module: 'pdf_templates', permission: 'pdf-templates.view' },
-        { icon: LayoutTemplate, label: () => 'Katalog-Vorlagen', to: '/catalog-templates' },
-        { icon: Globe, label: () => 'Portale', to: '/portal-config', permission: 'catalog-templates.view' },
-        { icon: ExternalLink, label: () => 'Katalog-Demo', to: '/catalog-embed', external: true },
+        { icon: LayoutTemplate, label: () => 'Katalog-Vorlagen', to: '/catalog-templates', module: 'catalog_templates' },
+        { icon: Globe, label: () => 'Portale', to: '/portal-config', module: 'portals' },
+        { icon: ExternalLink, label: () => 'Katalog-Demo', to: '/catalog-embed', module: 'catalog_templates', external: true },
       ],
     },
     {
