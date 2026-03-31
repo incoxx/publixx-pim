@@ -839,6 +839,10 @@ class ImportExecutor
                     $data['composite_expression'] = $row['composite_expression'];
                 }
 
+                if (!empty($row['delimiter'])) {
+                    $data['delimiter'] = $row['delimiter'];
+                }
+
                 if ($existing) {
                     $existing->update($data);
                     $this->stats[$sheetKey]['updated']++;

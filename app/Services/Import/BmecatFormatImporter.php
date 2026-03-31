@@ -1526,12 +1526,21 @@ class BmecatFormatImporter
 
                 if (!isset($udxAttributeMap[$attrTechName])) {
                     $dataType = $this->inferDataType([$udxField['value']], null);
+
+                    // Pipe-getrennte Werte → DelimitedValue (z.B. "AU|BR|CA|CN|EU")
+                    $delimiter = null;
+                    if ($dataType === 'String' && substr_count($udxField['value'], '|') >= 2) {
+                        $dataType = 'DelimitedValue';
+                        $delimiter = '|';
+                    }
+
                     $udxAttributeMap[$attrTechName] = [
                         'technical_name' => $attrTechName,
                         'name_de' => $udxField['fieldname'],
                         'name_en' => null,
                         'description' => null,
                         'data_type' => $dataType,
+                        'delimiter' => $delimiter,
                         'attribute_group' => $groupTechName,
                         'value_list' => null,
                         'unit_group' => null,
@@ -2486,7 +2495,44 @@ class BmecatFormatImporter
         $hasChildren = $child->children()->count() > 0;
 
         if ($hasChildren) {
-            // Container-Element (z.B. UDX.DOKA.MIME_INFO oder UDX.DOKA.MIME)
+            // Listen-Container erkennen: alle Kinder gleicher Name und alle Blätter
+            // z.B. <UDX.ERBE.LEISTUNGSMERKMALE> → <UDX.ERBE.LEISTUNGSMERKMAL> × N
+            // → vermehrbares String-Attribut statt Composite
+            $childNames = [];
+            $allLeaves = true;
+            foreach ($child->children() as $sub) {
+                $childNames[$sub->getName()] = true;
+                if ($sub->children()->count() > 0) {
+                    $allLeaves = false;
+                    break;
+                }
+            }
+
+            if ($allLeaves && count($childNames) === 1) {
+                // Listen-Container: Container-Name wird zum Attribut,
+                // Kind-Werte werden als vermehrbare Einträge gespeichert
+                $listIndex = $seenKeys[$elementName] ?? 0;
+                foreach ($child->children() as $listItem) {
+                    $value = trim((string) $listItem);
+                    if ($value === '') {
+                        continue;
+                    }
+                    $lang = $this->xmlLang($listItem);
+                    $fields[] = [
+                        'key' => $elementName,
+                        'namespace' => $parentNs,
+                        'fieldname' => $matches[2],
+                        'value' => $value,
+                        'language' => $lang,
+                        'index' => $listIndex++,
+                        'parent_container' => $parentContainer,
+                    ];
+                }
+                $seenKeys[$elementName] = $listIndex;
+                return;
+            }
+
+            // Composite-Container (z.B. UDX.DOKA.MIME_INFO oder UDX.DOKA.MIME)
             // Index = wie oft dieser Container schon vorkam
             $containerKey = $elementName;
             $index = $seenKeys[$containerKey] ?? 0;
