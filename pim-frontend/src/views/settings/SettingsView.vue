@@ -486,7 +486,7 @@ const POPUP_SIZE_OPTIONS = [
   { value: 'full', label: 'Vollbild' },
 ]
 
-const FACET_DATA_TYPES = ['Selection', 'Dictionary', 'Flag', 'Number', 'Float', 'String']
+const FACET_DATA_TYPES = ['Selection', 'Dictionary', 'Flag', 'Number', 'Float', 'String', 'DelimitedValue']
 
 const DETAIL_LAYOUT_OPTIONS = [
   { value: 'classic', label: 'Klassisch', desc: 'Bild links, Info rechts' },
