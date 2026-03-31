@@ -90,6 +90,7 @@ class SheetParser
                 'R' => 'source_system',
                 'S' => 'views',
                 'T' => 'composite_expression',
+                'U' => 'delimiter',
             ],
             'required' => ['technical_name', 'name_de', 'data_type'],
             'identifier' => ['technical_name'],

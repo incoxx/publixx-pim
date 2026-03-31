@@ -555,6 +555,76 @@ class BmecatFormatImporterTest extends TestCase
         $this->assertDatabaseHas('attributes', ['technical_name' => 'udx_valid_field']);
     }
 
+    public function test_udx_list_container_creates_multipliable_string(): void
+    {
+        $xml = file_get_contents(__DIR__ . '/../../fixtures/bmecat_2005_udx_sample.xml');
+        $this->importer->importFromString($xml);
+
+        // Listen-Container UDX.ERBE.LEISTUNGSMERKMALE → vermehrbares String-Attribut
+        $attr = Attribute::where('technical_name', 'udx_erbe_leistungsmerkmale')->first();
+        $this->assertNotNull($attr, 'Listen-Container-Attribut muss angelegt werden');
+        $this->assertEquals('String', $attr->data_type);
+        $this->assertTrue($attr->is_multipliable);
+
+        // Kein Composite — es darf kein separates Kind-Attribut "LEISTUNGSMERKMAL" geben
+        $childAttr = Attribute::where('technical_name', 'udx_erbe_leistungsmerkmal')->first();
+        $this->assertNull($childAttr, 'Kinder eines Listen-Containers dürfen kein eigenes Attribut sein');
+
+        // Werte mit index 0, 1, 2
+        $product = Product::where('sku', 'ERBE-APC3-10135')->first();
+        $this->assertNotNull($product);
+
+        $values = ProductAttributeValue::where('product_id', $product->id)
+            ->where('attribute_id', $attr->id)
+            ->orderBy('multiplied_index')
+            ->get();
+        $this->assertCount(3, $values);
+        $this->assertEquals('Plug and operate', $values[0]->value_string);
+        $this->assertEquals('pulsedAPC und forcedAPC fein dosierbar', $values[1]->value_string);
+        $this->assertEquals('preciseAPC für sensible Strukturen', $values[2]->value_string);
+    }
+
+    public function test_udx_second_list_container_also_multipliable(): void
+    {
+        $xml = file_get_contents(__DIR__ . '/../../fixtures/bmecat_2005_udx_sample.xml');
+        $this->importer->importFromString($xml);
+
+        // Zweiter Listen-Container UDX.ERBE.DISZIPLINEN
+        $attr = Attribute::where('technical_name', 'udx_erbe_disziplinen')->first();
+        $this->assertNotNull($attr);
+        $this->assertEquals('String', $attr->data_type);
+        $this->assertTrue($attr->is_multipliable);
+
+        $product = Product::where('sku', 'ERBE-APC3-10135')->first();
+        $values = ProductAttributeValue::where('product_id', $product->id)
+            ->where('attribute_id', $attr->id)
+            ->orderBy('multiplied_index')
+            ->get();
+        $this->assertCount(2, $values);
+        $this->assertEquals('Gynäkologie', $values[0]->value_string);
+        $this->assertEquals('Gastroenterologie', $values[1]->value_string);
+    }
+
+    public function test_udx_pipe_delimited_value_detected(): void
+    {
+        $xml = file_get_contents(__DIR__ . '/../../fixtures/bmecat_2005_udx_sample.xml');
+        $this->importer->importFromString($xml);
+
+        // Pipe-getrennte Werte → DelimitedValue
+        $attr = Attribute::where('technical_name', 'udx_erbe_laender')->first();
+        $this->assertNotNull($attr);
+        $this->assertEquals('DelimitedValue', $attr->data_type);
+        $this->assertEquals('|', $attr->delimiter);
+
+        // Wert als Ganzes gespeichert
+        $product = Product::where('sku', 'ERBE-APC3-10135')->first();
+        $value = ProductAttributeValue::where('product_id', $product->id)
+            ->where('attribute_id', $attr->id)
+            ->first();
+        $this->assertNotNull($value);
+        $this->assertStringContainsString('AU|BR|CA', $value->value_string);
+    }
+
     // =========================================================================
     // Multilingual Import (xml:lang)
     // =========================================================================
