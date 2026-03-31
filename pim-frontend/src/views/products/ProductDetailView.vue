@@ -3895,6 +3895,12 @@ watch(() => route.params.id, async (newId, oldId) => {
                     <template v-else-if="attr.data_type === 'JsonArtefact' && attr.display_value">
                       <code class="block text-[11px] font-mono bg-[var(--color-bg)] rounded px-2 py-1 max-h-24 overflow-auto whitespace-pre-wrap break-all">{{ attr.display_value }}</code>
                     </template>
+                    <!-- Multipliable: Bullet-Liste -->
+                    <template v-else-if="attr.display_values?.length > 1">
+                      <ul class="list-disc pl-4 space-y-0.5">
+                        <li v-for="(v, vi) in attr.display_values" :key="vi">{{ v }}<span v-if="attr.unit" class="text-[var(--color-text-tertiary)]"> {{ attr.unit }}</span></li>
+                      </ul>
+                    </template>
                     <!-- Normal value -->
                     <template v-else>
                       {{ attr.display_value || '—' }}

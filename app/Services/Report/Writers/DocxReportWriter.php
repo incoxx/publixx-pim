@@ -387,6 +387,22 @@ class DocxReportWriter
         $showValue = $element['showValue'] ?? true;
         $showUnit = $element['showUnit'] ?? true;
         $style = $this->buildFontStyle($element['style'] ?? []);
+        $multiValues = $resolved['values'] ?? [];
+
+        // Multipliable Attribute: Bullet-Liste
+        if (count($multiValues) > 1 && $showValue) {
+            if ($showLabel && $resolved['label']) {
+                $section->addText("{$resolved['label']}:", array_merge($style, ['bold' => true]));
+            }
+            foreach ($multiValues as $v) {
+                $bulletText = $v;
+                if ($showUnit && $resolved['unit']) {
+                    $bulletText .= ' ' . $resolved['unit'];
+                }
+                $section->addListItem($bulletText, 0, $style);
+            }
+            return;
+        }
 
         $textRun = $section->addTextRun();
 

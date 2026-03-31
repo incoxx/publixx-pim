@@ -227,6 +227,11 @@ function formatPrice(price) {
                       <template v-else-if="attr.link_data">
                         <a :href="attr.link_data.url" :target="attr.link_data.target || '_blank'" class="link link-primary text-sm" rel="noopener noreferrer">{{ attr.link_data.title || attr.link_data.url }}</a>
                       </template>
+                      <template v-else-if="attr.values?.length > 1">
+                        <ul class="list-disc pl-4 space-y-0.5">
+                          <li v-for="(v, vi) in attr.values" :key="vi">{{ v }}<span v-if="attr.unit" class="text-base-content/50 ml-1">{{ attr.unit }}</span></li>
+                        </ul>
+                      </template>
                       <template v-else>
                         {{ attr.value }}<span v-if="attr.unit" class="text-base-content/50 ml-1">{{ attr.unit }}</span>
                       </template>

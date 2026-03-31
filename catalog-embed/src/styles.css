@@ -927,6 +927,8 @@
 .pxc-detail__table-value { padding: 10px 14px; color: var(--pxc-text); }
 .pxc-detail__table-value a { color: var(--pxc-primary); text-decoration: none; }
 .pxc-detail__table-value a:hover { text-decoration: underline; }
+.pxc-multivalue-list { margin: 0; padding-left: 1.2em; list-style-type: disc; }
+.pxc-multivalue-list li { margin-bottom: 2px; }
 
 /* Documents list */
 .pxc-detail__documents { display: flex; flex-direction: column; gap: 8px; }
