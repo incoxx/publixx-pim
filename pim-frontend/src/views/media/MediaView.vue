@@ -1012,7 +1012,7 @@ onMounted(() => {
             <!-- Image -->
             <template v-if="item.media_type === 'image'">
               <img :src="getImageUrl(item)" :data-fallback="item.url || mediaApi.fileUrl(item.file_name)"
-                   class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                   class="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500"
                    loading="lazy" alt="" @error="handleImgError" />
               <div class="img-fallback flex-col items-center justify-center gap-2 absolute inset-0 bg-[var(--color-bg)]" style="display: none">
                 <ImageOff class="w-10 h-10 text-[var(--color-text-tertiary)]/20" :stroke-width="1.5" />
