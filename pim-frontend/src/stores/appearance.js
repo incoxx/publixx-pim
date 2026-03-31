@@ -27,7 +27,7 @@ const PRESETS = {
     sidebar_active_text: '#93C5FD',
     sidebar_font_size: 13,
     sidebar_colored_icons: true,
-    toolbar_bg: '#1E3A5F',
+    toolbar_bg: '#1B2A4A',
     toolbar_text: '#E2E8F0',
     toolbar_font_size: 14,
   },

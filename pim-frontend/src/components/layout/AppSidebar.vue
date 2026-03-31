@@ -571,3 +571,25 @@ const sidebarStyle = computed(() => ({
     </div>
   </aside>
 </template>
+
+<style scoped>
+/* Scrollbar-Styling fuer dunkle Themes — ohne dies ist der Scrollbar unsichtbar */
+nav::-webkit-scrollbar {
+  width: 6px;
+}
+nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+nav::-webkit-scrollbar-thumb {
+  background: var(--pim-sidebar-border);
+  border-radius: 3px;
+}
+nav::-webkit-scrollbar-thumb:hover {
+  background: var(--pim-sidebar-icon);
+}
+/* Firefox */
+nav {
+  scrollbar-width: thin;
+  scrollbar-color: var(--pim-sidebar-border) transparent;
+}
+</style>
