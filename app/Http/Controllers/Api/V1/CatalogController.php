@@ -172,7 +172,18 @@ class CatalogController extends BaseController
 
                     $filterAttr = $filterAttrs->get($attrId);
 
-                    if ($filterAttr && $filterAttr->data_type === 'DelimitedValue') {
+                    if ($filterAttr && $filterAttr->data_type === 'MultiSelection') {
+                        // MultiSelection: JSON-Array enthält value_selection_ids
+                        $values = array_map('urldecode', array_filter(explode(',', $filterValue)));
+                        if (!empty($values)) {
+                            $query->where(function ($q) use ($alias, $values) {
+                                foreach ($values as $v) {
+                                    $escaped = str_replace(['%', '_'], ['\\%', '\\_'], $v);
+                                    $q->orWhere("{$alias}.value_string", 'LIKE', '%"' . $escaped . '"%');
+                                }
+                            });
+                        }
+                    } elseif ($filterAttr && $filterAttr->data_type === 'DelimitedValue') {
                         // DelimitedValue: LIKE-basierte Suche nach Einzelwerten im Delimiter-String
                         $values = array_map('urldecode', array_filter(explode(',', $filterValue)));
                         if (!empty($values)) {
@@ -922,9 +933,24 @@ class CatalogController extends BaseController
             'Date' => $attrValue->value_date?->format('Y-m-d'),
             'Flag' => $attrValue->value_flag !== null ? ($attrValue->value_flag ? 'true' : 'false') : null,
             'Selection' => $this->resolveExportSelectionValue($attrValue, $lang),
+            'MultiSelection' => $this->resolveExportMultiSelectionValue($attrValue, $lang),
             'Dictionary' => $this->resolveExportDictionaryValue($attrValue, $lang),
             default => $attrValue->value_string,
         };
+    }
+
+    private function resolveExportMultiSelectionValue($attrValue, string $lang): ?string
+    {
+        $ids = json_decode($attrValue->value_string ?? '', true);
+        if (!is_array($ids) || empty($ids)) {
+            return null;
+        }
+
+        $entries = ValueListEntry::whereIn('id', $ids)->get();
+        return $entries->map(fn ($e) => $lang === 'en' && $e->display_value_en
+            ? $e->display_value_en
+            : $e->display_value_de
+        )->filter()->implode(', ');
     }
 
     private function resolveExportSelectionValue($attrValue, string $lang): ?string
@@ -1175,7 +1201,18 @@ class CatalogController extends BaseController
                             ->from('product_attribute_values')
                             ->where('attribute_id', $filterAttrId);
 
-                        if ($filterAttr && $filterAttr->data_type === 'DelimitedValue') {
+                        if ($filterAttr && $filterAttr->data_type === 'MultiSelection') {
+                            // MultiSelection: JSON-Array enthält value_selection_ids
+                            $values = array_map('urldecode', array_filter(explode(',', (string) $filterValue)));
+                            if (!empty($values)) {
+                                $sub->where(function ($q) use ($values) {
+                                    foreach ($values as $v) {
+                                        $escaped = str_replace(['%', '_'], ['\\%', '\\_'], $v);
+                                        $q->orWhere('value_string', 'LIKE', '%"' . $escaped . '"%');
+                                    }
+                                });
+                            }
+                        } elseif ($filterAttr && $filterAttr->data_type === 'DelimitedValue') {
                             // DelimitedValue: LIKE-basierte Suche nach Einzelwerten
                             $values = array_map('urldecode', array_filter(explode(',', (string) $filterValue)));
                             if (!empty($values)) {
@@ -1218,7 +1255,50 @@ class CatalogController extends BaseController
             $baseQuery = ProductAttributeValue::where('attribute_id', $attrId)
                 ->whereIn('product_id', $filteredProductQuery);
 
-            if (in_array($dataType, ['ValueList', 'Selection', 'Dictionary'])) {
+            if ($dataType === 'MultiSelection') {
+                // MultiSelection: JSON-Arrays auswerten, Einzelwerte zählen
+                $rows = (clone $baseQuery)
+                    ->whereNotNull('value_string')
+                    ->where('value_string', '!=', '')
+                    ->select('value_string', 'product_id')
+                    ->get();
+
+                $valueCounts = [];
+                foreach ($rows as $row) {
+                    $ids = json_decode($row->value_string, true);
+                    if (!is_array($ids)) continue;
+                    $seen = [];
+                    foreach ($ids as $id) {
+                        if (isset($seen[$id])) continue;
+                        $seen[$id] = true;
+                        $valueCounts[$id] = ($valueCounts[$id] ?? 0) + 1;
+                    }
+                }
+
+                arsort($valueCounts);
+                $topIds = array_keys(array_slice($valueCounts, 0, 50, true));
+                $entries = ValueListEntry::whereIn('id', $topIds)->get()->keyBy('id');
+                $values = [];
+                foreach ($topIds as $id) {
+                    $entry = $entries->get($id);
+                    if (!$entry) continue;
+                    $displayValue = $lang === 'en' && $entry->display_value_en
+                        ? $entry->display_value_en
+                        : $entry->display_value_de;
+                    $values[] = [
+                        'value' => $displayValue,
+                        'value_id' => $id,
+                        'count' => $valueCounts[$id],
+                    ];
+                }
+
+                $facets[] = [
+                    'attribute_id' => $attrId,
+                    'label' => $label,
+                    'data_type' => 'ValueList',
+                    'values' => $values,
+                ];
+            } elseif (in_array($dataType, ['ValueList', 'Selection', 'Dictionary'])) {
                 // Get distinct value_list_entry values with counts
                 $rows = (clone $baseQuery)
                     ->whereNotNull('value_selection_id')

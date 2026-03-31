@@ -379,7 +379,7 @@ function getCompositeSummary(compositeAttr) {
 function mapDataTypeToInput(backendType) {
   const map = {
     'String': 'text', 'Number': 'number', 'Float': 'decimal',
-    'Date': 'date', 'Flag': 'boolean', 'Selection': 'select',
+    'Date': 'date', 'Flag': 'boolean', 'Selection': 'select', 'MultiSelection': 'multicombobox',
     'Dictionary': 'dictionary', 'Composite': 'composite', 'RichText': 'richtext',
     'Hyperlink': 'hyperlink', 'ImageLink': 'imagelink', 'PdfLink': 'pdflink', 'VideoLink': 'videolink',
     'DelimitedValue': 'delimitedvalue', 'JsonArtefact': 'jsonartefact',
@@ -2373,6 +2373,8 @@ watch(() => route.params.id, async (newId, oldId) => {
                   :options="attr.data_type === 'Selection' || attr.data_type === 'MultiSelection' ? getSelectionOptions(attr) : (attr.data_type === 'Dictionary' ? dictionaryEntries : [])"
                   :disabled="attr._access === 'read_only' || attr.is_readonly || isTabReadOnly"
                   :delimiter="attr.delimiter || '|'"
+                  :min="attr.min_value != null ? Number(attr.min_value) : undefined"
+                  :max="attr.max_value != null ? Number(attr.max_value) : undefined"
                   @update:modelValue="attr.is_translatable ? (translatedValues[`${attr.id}_${activeDataLang}`] = $event) : (attributeValues[attr.id] = $event)"
                 />
                 <select
@@ -2575,7 +2577,7 @@ watch(() => route.params.id, async (newId, oldId) => {
             v-else-if="attr.is_multipliable"
             :type="mapDataTypeToInput(attr.data_type)"
             :modelValue="multipliableValues[attr.id] || [{ value: null, multiplied_index: 0 }]"
-            :options="attr.data_type === 'Dictionary' ? dictionaryEntries : (attr.value_list?.entries?.map(e => ({ value: e.id, label: e.value_de || e.label_de || e.code })) || [])"
+            :options="['Selection', 'MultiSelection'].includes(attr.data_type) ? getSelectionOptions(attr) : (attr.data_type === 'Dictionary' ? dictionaryEntries : [])"
             :disabled="attr._access === 'read_only' || attr.is_readonly || isAttributeInherited(attr.id) || isTabReadOnly"
             :maxMultiplied="attr.max_multiplied"
             :unitGroup="attr.unit_group"
@@ -2597,9 +2599,11 @@ watch(() => route.params.id, async (newId, oldId) => {
               class="flex-1 min-w-0"
               :type="mapDataTypeToInput(attr.data_type)"
               :modelValue="translatedValues[`${attr.id}_${activeDataLang}`]"
-              :options="attr.data_type === 'Dictionary' ? dictionaryEntries : (attr.value_list?.entries?.map(e => ({ value: e.id, label: e.value_de || e.label_de || e.code })) || [])"
+              :options="['Selection', 'MultiSelection'].includes(attr.data_type) ? getSelectionOptions(attr) : (attr.data_type === 'Dictionary' ? dictionaryEntries : [])"
               :disabled="attr._access === 'read_only' || attr.is_readonly || isAttributeInherited(attr.id) || isTabReadOnly"
               :delimiter="attr.delimiter || '|'"
+              :min="attr.min_value != null ? Number(attr.min_value) : undefined"
+              :max="attr.max_value != null ? Number(attr.max_value) : undefined"
               @update:modelValue="translatedValues[`${attr.id}_${activeDataLang}`] = $event"
             />
             <select
@@ -2629,9 +2633,11 @@ watch(() => route.params.id, async (newId, oldId) => {
               class="flex-1 min-w-0"
               :type="mapDataTypeToInput(attr.data_type)"
               :modelValue="attributeValues[attr.id]"
-              :options="attr.data_type === 'Dictionary' ? dictionaryEntries : (attr.value_list?.entries?.map(e => ({ value: e.id, label: e.value_de || e.label_de || e.code })) || [])"
+              :options="['Selection', 'MultiSelection'].includes(attr.data_type) ? getSelectionOptions(attr) : (attr.data_type === 'Dictionary' ? dictionaryEntries : [])"
               :disabled="attr._access === 'read_only' || attr.is_readonly || isAttributeInherited(attr.id) || isTabReadOnly"
               :delimiter="attr.delimiter || '|'"
+              :min="attr.min_value != null ? Number(attr.min_value) : undefined"
+              :max="attr.max_value != null ? Number(attr.max_value) : undefined"
               @update:modelValue="attributeValues[attr.id] = $event"
             />
             <select

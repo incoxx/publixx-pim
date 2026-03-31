@@ -717,6 +717,7 @@ class ProductPreviewService
                 ? ($attrValue->value_flag ? ($lang === 'en' ? 'Yes' : 'Ja') : ($lang === 'en' ? 'No' : 'Nein'))
                 : null,
             'Selection' => $this->resolveSelectionValue($attrValue, $lang),
+            'MultiSelection' => $this->resolveMultiSelectionValue($attrValue, $lang),
             'Dictionary' => $this->resolveDictionaryValue($attrValue, $lang),
             'Hyperlink', 'ImageLink', 'PdfLink', 'VideoLink' => $this->resolveLinkDisplayValue($attrValue->value_string),
             'DelimitedValue' => $attrValue->value_string
@@ -750,6 +751,22 @@ class ProductPreviewService
         return $lang === 'en' && $entry->display_value_en
             ? $entry->display_value_en
             : $entry->display_value_de;
+    }
+
+    private function resolveMultiSelectionValue(ProductAttributeValue $attrValue, string $lang): ?string
+    {
+        $ids = json_decode($attrValue->value_string ?? '', true);
+        if (!is_array($ids) || empty($ids)) {
+            return null;
+        }
+
+        $entries = \App\Models\ValueListEntry::whereIn('id', $ids)->get();
+        $labels = $entries->map(fn ($e) => $lang === 'en' && $e->display_value_en
+            ? $e->display_value_en
+            : $e->display_value_de
+        )->filter()->values();
+
+        return $labels->isNotEmpty() ? $labels->implode(', ') : null;
     }
 
     private function resolveDictionaryValue(ProductAttributeValue $attrValue, string $lang): ?string
