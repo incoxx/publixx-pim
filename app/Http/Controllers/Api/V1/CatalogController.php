@@ -154,6 +154,10 @@ class CatalogController extends BaseController
             $filters = $request->query('filters', []);
             if (is_array($filters)) {
                 $filterIdx = 0;
+                // Attribute-Lookup für DelimitedValue-Erkennung
+                $filterAttrIds = array_keys($filters);
+                $filterAttrs = !empty($filterAttrIds) ? Attribute::whereIn('id', $filterAttrIds)->get()->keyBy('id') : collect();
+
                 foreach ($filters as $attrId => $filterValue) {
                     if (!is_string($attrId) || empty($filterValue)) {
                         continue;
@@ -166,7 +170,26 @@ class CatalogController extends BaseController
                              ->where("{$alias}.attribute_id", '=', $attrId);
                     });
 
-                    if (str_contains($filterValue, ':')) {
+                    $filterAttr = $filterAttrs->get($attrId);
+
+                    if ($filterAttr && $filterAttr->data_type === 'DelimitedValue') {
+                        // DelimitedValue: LIKE-basierte Suche nach Einzelwerten im Delimiter-String
+                        $values = array_map('urldecode', array_filter(explode(',', $filterValue)));
+                        if (!empty($values)) {
+                            $delimiter = $filterAttr->delimiter ?? '|';
+                            $query->where(function ($q) use ($alias, $values, $delimiter) {
+                                foreach ($values as $v) {
+                                    $escaped = str_replace(['%', '_'], ['\\%', '\\_'], $v);
+                                    $q->orWhere(function ($inner) use ($alias, $escaped, $delimiter) {
+                                        $inner->where("{$alias}.value_string", $escaped)
+                                              ->orWhere("{$alias}.value_string", 'LIKE', $escaped . $delimiter . '%')
+                                              ->orWhere("{$alias}.value_string", 'LIKE', '%' . $delimiter . $escaped)
+                                              ->orWhere("{$alias}.value_string", 'LIKE', '%' . $delimiter . $escaped . $delimiter . '%');
+                                    });
+                                }
+                            });
+                        }
+                    } elseif (str_contains($filterValue, ':')) {
                         [$min, $max] = explode(':', $filterValue, 2);
                         if ($min !== '') {
                             $query->where("{$alias}.value_number", '>=', (float) $min);
@@ -1146,12 +1169,30 @@ class CatalogController extends BaseController
                         continue;
                     }
 
-                    $filteredProductQuery->whereIn('id', function ($sub) use ($filterAttrId, $filterValue) {
+                    $filterAttr = $attributes->get($filterAttrId);
+                    $filteredProductQuery->whereIn('id', function ($sub) use ($filterAttrId, $filterValue, $filterAttr) {
                         $sub->select('product_id')
                             ->from('product_attribute_values')
                             ->where('attribute_id', $filterAttrId);
 
-                        if (str_contains((string) $filterValue, ':')) {
+                        if ($filterAttr && $filterAttr->data_type === 'DelimitedValue') {
+                            // DelimitedValue: LIKE-basierte Suche nach Einzelwerten
+                            $values = array_map('urldecode', array_filter(explode(',', (string) $filterValue)));
+                            if (!empty($values)) {
+                                $delimiter = $filterAttr->delimiter ?? '|';
+                                $sub->where(function ($q) use ($values, $delimiter) {
+                                    foreach ($values as $v) {
+                                        $escaped = str_replace(['%', '_'], ['\\%', '\\_'], $v);
+                                        $q->orWhere(function ($inner) use ($escaped, $delimiter) {
+                                            $inner->where('value_string', $escaped)
+                                                  ->orWhere('value_string', 'LIKE', $escaped . $delimiter . '%')
+                                                  ->orWhere('value_string', 'LIKE', '%' . $delimiter . $escaped)
+                                                  ->orWhere('value_string', 'LIKE', '%' . $delimiter . $escaped . $delimiter . '%');
+                                        });
+                                    }
+                                });
+                            }
+                        } elseif (str_contains((string) $filterValue, ':')) {
                             [$min, $max] = explode(':', (string) $filterValue, 2);
                             if ($min !== '') {
                                 $sub->where('value_number', '>=', (float) $min);
@@ -1263,6 +1304,44 @@ class CatalogController extends BaseController
                     'max' => $stats->max_val !== null ? (float) $stats->max_val : null,
                     'count' => $stats->cnt ?? 0,
                     'unit' => $unit,
+                ];
+            } elseif ($dataType === 'DelimitedValue') {
+                // Getrennte Werte: Einzelwerte aus Delimiter-String extrahieren und zählen
+                $delimiter = $attr->delimiter ?? '|';
+                $rows = (clone $baseQuery)
+                    ->whereNotNull('value_string')
+                    ->where('value_string', '!=', '')
+                    ->select('value_string', 'product_id')
+                    ->get();
+
+                $valueCounts = [];
+                foreach ($rows as $row) {
+                    $parts = array_map('trim', explode($delimiter, $row->value_string));
+                    $seen = []; // Pro Produkt nur einmal zählen
+                    foreach ($parts as $part) {
+                        if ($part === '' || isset($seen[$part])) {
+                            continue;
+                        }
+                        $seen[$part] = true;
+                        $valueCounts[$part] = ($valueCounts[$part] ?? 0) + 1;
+                    }
+                }
+
+                arsort($valueCounts);
+                $values = [];
+                foreach (array_slice($valueCounts, 0, 50, true) as $val => $cnt) {
+                    $values[] = [
+                        'value' => (string) $val,
+                        'value_id' => (string) $val,
+                        'count' => $cnt,
+                    ];
+                }
+
+                $facets[] = [
+                    'attribute_id' => $attrId,
+                    'label' => $label,
+                    'data_type' => 'DelimitedValueList',
+                    'values' => $values,
                 ];
             } elseif ($dataType === 'Text' || $dataType === 'String') {
                 $rows = (clone $baseQuery)

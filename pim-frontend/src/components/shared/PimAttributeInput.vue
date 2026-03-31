@@ -14,6 +14,7 @@ const props = defineProps({
   min: { type: Number, default: undefined },
   max: { type: Number, default: undefined },
   step: { type: Number, default: undefined },
+  delimiter: { type: String, default: '|' },
 })
 
 const emit = defineEmits(['update:modelValue'])
@@ -103,6 +104,54 @@ watch(() => props.modelValue, (val) => {
 
 function emitLink() {
   emit('update:modelValue', JSON.stringify(linkData.value))
+}
+
+// ─── DelimitedValue helpers ──────────────────────────
+const dvNewValue = ref('')
+const dvEditIndex = ref(-1)
+const dvEditValue = ref('')
+
+const dvParsedValues = computed(() => {
+  if (!props.modelValue || typeof props.modelValue !== 'string') return []
+  return props.modelValue.split(props.delimiter).map(v => v.trim()).filter(v => v !== '')
+})
+
+function dvAdd() {
+  const val = dvNewValue.value.trim()
+  if (!val) return
+  const current = dvParsedValues.value
+  current.push(val)
+  emit('update:modelValue', current.join(props.delimiter))
+  dvNewValue.value = ''
+}
+
+function dvRemove(index) {
+  const current = [...dvParsedValues.value]
+  current.splice(index, 1)
+  emit('update:modelValue', current.length ? current.join(props.delimiter) : null)
+}
+
+function dvStartEdit(index) {
+  dvEditIndex.value = index
+  dvEditValue.value = dvParsedValues.value[index]
+}
+
+function dvConfirmEdit() {
+  const val = dvEditValue.value.trim()
+  if (!val) {
+    dvRemove(dvEditIndex.value)
+  } else {
+    const current = [...dvParsedValues.value]
+    current[dvEditIndex.value] = val
+    emit('update:modelValue', current.join(props.delimiter))
+  }
+  dvEditIndex.value = -1
+  dvEditValue.value = ''
+}
+
+function dvCancelEdit() {
+  dvEditIndex.value = -1
+  dvEditValue.value = ''
 }
 </script>
 
@@ -365,6 +414,72 @@ function emitLink() {
       <input :class="inputClass" type="number" :value="linkData.width" :disabled="disabled" placeholder="Breite (px)" @input="linkData.width = parseInt($event.target.value) || null; emitLink()" />
       <input :class="inputClass" type="number" :value="linkData.height" :disabled="disabled" placeholder="Höhe (px)" @input="linkData.height = parseInt($event.target.value) || null; emitLink()" />
     </div>
+  </div>
+
+  <!-- DelimitedValue (Tag-Input) -->
+  <div v-else-if="type === 'delimitedvalue'" class="space-y-1.5">
+    <!-- Tags -->
+    <div v-if="dvParsedValues.length" class="flex flex-wrap gap-1">
+      <template v-for="(val, idx) in dvParsedValues" :key="idx">
+        <!-- Inline-Edit -->
+        <span v-if="dvEditIndex === idx" class="inline-flex items-center gap-0.5">
+          <input
+            type="text"
+            class="pim-input text-[12px] px-1.5 py-0.5 w-24"
+            v-model="dvEditValue"
+            @keydown.enter.prevent="dvConfirmEdit()"
+            @keydown.escape.prevent="dvCancelEdit()"
+            @blur="dvConfirmEdit()"
+            autofocus
+          />
+        </span>
+        <!-- Tag -->
+        <span
+          v-else
+          class="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-md bg-[var(--color-accent)]/10 text-[var(--color-accent)] text-[12px] font-medium border border-[var(--color-accent)]/20 cursor-default"
+          @dblclick="!disabled && dvStartEdit(idx)"
+        >
+          {{ val }}
+          <button
+            v-if="!disabled"
+            type="button"
+            class="ml-0.5 hover:text-[var(--color-error)] transition-colors"
+            @click="dvRemove(idx)"
+          >
+            <X class="w-3 h-3" :stroke-width="2" />
+          </button>
+        </span>
+      </template>
+    </div>
+    <!-- Neuer Wert -->
+    <div v-if="!disabled" class="flex gap-1.5">
+      <input
+        type="text"
+        :class="[...inputClass, 'text-[13px] flex-1']"
+        v-model="dvNewValue"
+        :placeholder="placeholder || 'Neuen Wert hinzufügen…'"
+        @keydown.enter.prevent="dvAdd()"
+      />
+      <button
+        type="button"
+        class="px-2 py-1 rounded-md bg-[var(--color-accent)] text-white text-[12px] font-medium hover:opacity-90 transition-opacity shrink-0"
+        @click="dvAdd()"
+      >
+        +
+      </button>
+    </div>
+  </div>
+
+  <!-- JsonArtefact (Code-Block) -->
+  <div v-else-if="type === 'jsonartefact'" class="relative">
+    <textarea
+      :class="[...inputClass, 'font-mono text-xs min-h-[120px] resize-y bg-[var(--color-bg)] border-[var(--color-border)] rounded-lg']"
+      :value="modelValue"
+      :placeholder="placeholder || '{ }'"
+      :disabled="disabled"
+      @input="update($event.target.value)"
+    />
+    <span class="absolute top-1.5 right-2 text-[9px] text-[var(--color-text-tertiary)] font-mono select-none">JSON</span>
   </div>
 
   <!-- JSON -->

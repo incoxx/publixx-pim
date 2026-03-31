@@ -22,7 +22,7 @@ const filterChips = computed(() => {
     const facet = store.facets.find(f => f.attribute_id === attrId)
     if (!facet) continue
     const label = facet.label
-    if (facet.data_type === 'ValueList' || facet.data_type === 'Text') {
+    if (facet.data_type === 'ValueList' || facet.data_type === 'Text' || facet.data_type === 'DelimitedValueList') {
       const selectedIds = String(value).split(',').map(v => decodeURIComponent(v))
       for (const id of selectedIds) {
         const entry = (facet.values || []).find(v => String(v.value_id || v.value) === id)
