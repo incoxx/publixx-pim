@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, watch, onUnmounted } from 'vue'
-import { Upload, Check, AlertCircle, RefreshCw, X, ChevronDown, ChevronUp, ArrowUpDown } from 'lucide-vue-next'
+import { Upload, Check, AlertCircle, RefreshCw, X, ChevronDown, ChevronUp, ArrowUpDown, Wrench } from 'lucide-vue-next'
 import mediaApi from '@/api/media'
 
 const props = defineProps({
@@ -19,7 +19,7 @@ let autoHideTimer = null
 // Datei-Status: pending | uploading | done | replaced | error
 function createQueueItem(file) {
   return {
-    id: crypto.randomUUID(),
+    id: crypto.randomUUID?.() ?? (Math.random().toString(36).slice(2) + Date.now().toString(36)),
     file,
     name: file.name,
     size: file.size,
@@ -41,7 +41,7 @@ function addFiles(files) {
 
 const activeCount = computed(() => queue.value.filter(i => i.status === 'uploading').length)
 const pendingCount = computed(() => queue.value.filter(i => i.status === 'pending').length)
-const doneCount = computed(() => queue.value.filter(i => i.status === 'done' || i.status === 'replaced').length)
+const doneCount = computed(() => queue.value.filter(i => i.status === 'done' || i.status === 'replaced' || i.status === 'restored').length)
 const errorCount = computed(() => queue.value.filter(i => i.status === 'error').length)
 const totalCount = computed(() => queue.value.length)
 const allDone = computed(() => totalCount.value > 0 && pendingCount.value === 0 && activeCount.value === 0)
@@ -91,7 +91,8 @@ async function uploadFile(item) {
     )
     item.result = data.data || data
     item.replaced = data.replaced === true
-    item.status = item.replaced ? 'replaced' : 'done'
+    item.restoredBroken = data.replaced_broken === true
+    item.status = item.restoredBroken ? 'restored' : item.replaced ? 'replaced' : 'done'
     item.percent = 100
     emit('file-uploaded', item.result)
   } catch (err) {
@@ -175,6 +176,7 @@ defineExpose({ addFiles })
             <!-- Status Icon -->
             <div class="shrink-0">
               <Check v-if="item.status === 'done'" class="w-4 h-4 text-[var(--color-success)]" :stroke-width="2.5" />
+              <Wrench v-else-if="item.status === 'restored'" class="w-4 h-4 text-[var(--color-success)]" :stroke-width="2" />
               <ArrowUpDown v-else-if="item.status === 'replaced'" class="w-4 h-4 text-[var(--color-warning,#f59e0b)]" :stroke-width="2" />
               <AlertCircle v-else-if="item.status === 'error'" class="w-4 h-4 text-[var(--color-error)]" :stroke-width="2" />
               <div v-else-if="item.status === 'uploading'" class="w-4 h-4 rounded-full border-2 border-[var(--color-primary)] border-t-transparent animate-spin" />
@@ -187,7 +189,13 @@ defineExpose({ addFiles })
                 <span class="text-xs text-[var(--color-text-primary)] truncate">{{ item.name }}</span>
                 <span class="text-[10px] text-[var(--color-text-tertiary)] shrink-0">{{ formatSize(item.size) }}</span>
                 <span
-                  v-if="item.status === 'replaced'"
+                  v-if="item.status === 'restored'"
+                  class="text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-success)]/10 text-[var(--color-success)] shrink-0"
+                >
+                  repariert
+                </span>
+                <span
+                  v-else-if="item.status === 'replaced'"
                   class="text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-warning,#f59e0b)]/10 text-[var(--color-warning,#f59e0b)] shrink-0"
                 >
                   überschrieben
@@ -219,7 +227,7 @@ defineExpose({ addFiles })
                 <RefreshCw class="w-3.5 h-3.5" />
               </button>
               <button
-                v-if="item.status === 'done' || item.status === 'replaced' || item.status === 'error'"
+                v-if="item.status === 'done' || item.status === 'replaced' || item.status === 'restored' || item.status === 'error'"
                 class="p-1 rounded hover:bg-[var(--color-bg)] text-[var(--color-text-tertiary)]"
                 @click="removeItem(item)"
                 title="Entfernen"

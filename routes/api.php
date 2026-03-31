@@ -543,6 +543,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
 
     Route::apiResource('media-usage-types', MediaUsageTypeController::class);
     Route::get('media-usage-types/{media_usage_type}/dependencies', [MediaUsageTypeController::class, 'dependencies']);
+    Route::put('media-usage-types/{media_usage_type}/default-attributes', [MediaUsageTypeController::class, 'updateDefaultAttributes']);
 
     Route::get('products/{product}/media', [ProductMediaController::class, 'index']);
     Route::post('products/{product}/media', [ProductMediaController::class, 'store']);

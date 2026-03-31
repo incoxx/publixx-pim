@@ -1,12 +1,14 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { Plus } from 'lucide-vue-next'
+import { ref, computed, onMounted, watch } from 'vue'
+import { Plus, X, Save, Check, AlertCircle } from 'lucide-vue-next'
 import { mediaUsageTypes } from '@/api/mediaUsageTypes'
 import { useAuthStore } from '@/stores/auth'
+import { useAttributeStore } from '@/stores/attributes'
 import PimTable from '@/components/shared/PimTable.vue'
 import PimDeleteConfirmDialog from '@/components/shared/PimDeleteConfirmDialog.vue'
 
 const authStore = useAuthStore()
+const attributeStore = useAttributeStore()
 
 const items = ref([])
 const loading = ref(false)
@@ -133,7 +135,80 @@ async function confirmDelete({ force }) {
   } finally { deleting.value = false }
 }
 
-onMounted(() => fetchItems())
+// ─── Default Attributes ─────────────────────────
+const defaultAttributes = ref([])
+const newAttrId = ref('')
+const savingAttributes = ref(false)
+const saveAttrSuccess = ref(false)
+const saveAttrError = ref('')
+
+const allAttributes = computed(() => attributeStore.attributes || [])
+
+const availableAttributes = computed(() => {
+  const usedIds = new Set(defaultAttributes.value.map(a => a.id))
+  return allAttributes.value.filter(a => !usedIds.has(a.id))
+})
+
+watch(editId, (newId) => {
+  if (newId) {
+    const item = items.value.find(i => i.id === newId)
+    defaultAttributes.value = (item?.default_attributes || []).map(a => ({ ...a }))
+  } else {
+    defaultAttributes.value = []
+  }
+  saveAttrSuccess.value = false
+  saveAttrError.value = ''
+})
+
+function addDefaultAttribute() {
+  if (!newAttrId.value) return
+  const attr = allAttributes.value.find(a => a.id === newAttrId.value)
+  if (!attr || defaultAttributes.value.some(d => d.id === attr.id)) return
+  defaultAttributes.value.push({
+    id: attr.id,
+    technical_name: attr.technical_name,
+    name_de: attr.name_de,
+    name_en: attr.name_en,
+    data_type: attr.data_type,
+  })
+  newAttrId.value = ''
+}
+
+function removeDefaultAttribute(index) {
+  defaultAttributes.value.splice(index, 1)
+}
+
+async function saveDefaultAttributes() {
+  if (!editId.value) return
+  savingAttributes.value = true
+  saveAttrSuccess.value = false
+  saveAttrError.value = ''
+  try {
+    const payload = defaultAttributes.value.map((a, idx) => ({
+      attribute_id: a.id,
+      sort_order: idx,
+    }))
+    const { data } = await mediaUsageTypes.updateDefaultAttributes(editId.value, payload)
+    const updated = data.data || data
+    defaultAttributes.value = (updated.default_attributes || []).map(a => ({ ...a }))
+    // Update the item in the list too
+    const itemIdx = items.value.findIndex(i => i.id === editId.value)
+    if (itemIdx >= 0) {
+      items.value[itemIdx].default_attributes = updated.default_attributes || []
+    }
+    saveAttrSuccess.value = true
+    setTimeout(() => { saveAttrSuccess.value = false }, 3000)
+  } catch (e) {
+    saveAttrError.value = e.response?.data?.message || e.message || 'Fehler beim Speichern'
+  } finally {
+    savingAttributes.value = false
+  }
+}
+
+onMounted(() => {
+  fetchItems()
+  attributeStore.fetchAttributes()
+})
 </script>
 
 <template>
@@ -204,6 +279,64 @@ onMounted(() => fetchItems())
           {{ formSaving ? 'Speichern…' : 'Speichern' }}
         </button>
         <button class="pim-btn pim-btn-secondary text-xs" @click="showForm = false">Abbrechen</button>
+      </div>
+
+      <!-- Default Attributes (nur im Edit-Modus) -->
+      <div v-if="editId" class="border-t border-[var(--color-border)] pt-4 mt-4 space-y-3">
+        <h4 class="text-sm font-semibold text-[var(--color-text-primary)]">
+          Standard-Attribute für diesen Bildtyp
+        </h4>
+        <p class="text-[11px] text-[var(--color-text-tertiary)]">
+          Diese Attribute können bei Medien gepflegt werden, die diesem Bildtyp zugeordnet sind (z.B. Fotograf, Lizenzlaufzeit).
+        </p>
+
+        <!-- Zugeordnete Attribute -->
+        <div v-if="defaultAttributes.length > 0" class="space-y-1.5">
+          <div
+            v-for="(attr, index) in defaultAttributes"
+            :key="attr.id"
+            class="flex items-center gap-3 px-3 py-2 rounded-lg bg-[var(--color-bg)] border border-[var(--color-border)]/50"
+          >
+            <span class="text-xs font-mono text-[var(--color-text-tertiary)]">{{ attr.technical_name }}</span>
+            <span class="text-xs text-[var(--color-text-primary)] flex-1">{{ attr.name_de || attr.name_en || '—' }}</span>
+            <span class="pim-badge text-[9px] bg-[var(--color-surface)] text-[var(--color-text-tertiary)]">{{ attr.data_type }}</span>
+            <button
+              class="p-1 rounded hover:bg-[var(--color-error)]/10 text-[var(--color-text-tertiary)] hover:text-[var(--color-error)] transition-colors"
+              @click="removeDefaultAttribute(index)"
+              title="Entfernen"
+            >
+              <X class="w-3.5 h-3.5" :stroke-width="2" />
+            </button>
+          </div>
+        </div>
+        <p v-else class="text-[11px] text-[var(--color-text-tertiary)] italic">Keine Attribute zugeordnet</p>
+
+        <!-- Attribut hinzufügen -->
+        <div class="flex items-center gap-2">
+          <select v-model="newAttrId" class="pim-select text-xs flex-1">
+            <option value="">— Attribut auswählen —</option>
+            <option v-for="attr in availableAttributes" :key="attr.id" :value="attr.id">
+              {{ attr.name_de || attr.technical_name }} ({{ attr.data_type }})
+            </option>
+          </select>
+          <button class="pim-btn pim-btn-ghost pim-btn-sm" :disabled="!newAttrId" @click="addDefaultAttribute">
+            <Plus class="w-3.5 h-3.5" :stroke-width="2" /> Hinzufügen
+          </button>
+        </div>
+
+        <!-- Speichern -->
+        <div class="flex items-center gap-3">
+          <button class="pim-btn pim-btn-accent text-xs" :disabled="savingAttributes" @click="saveDefaultAttributes">
+            <Save v-if="!savingAttributes" class="w-3.5 h-3.5" :stroke-width="2" />
+            {{ savingAttributes ? 'Speichern…' : 'Attribute speichern' }}
+          </button>
+          <span v-if="saveAttrSuccess" class="flex items-center gap-1 text-xs text-[var(--color-success)]">
+            <Check class="w-3.5 h-3.5" :stroke-width="2" /> Gespeichert
+          </span>
+          <span v-if="saveAttrError" class="flex items-center gap-1 text-xs text-[var(--color-error)]">
+            <AlertCircle class="w-3.5 h-3.5" :stroke-width="2" /> {{ saveAttrError }}
+          </span>
+        </div>
       </div>
     </div>
 

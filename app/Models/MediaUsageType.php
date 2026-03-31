@@ -8,6 +8,7 @@ use App\Models\Concerns\HasDeletionConstraints;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class MediaUsageType extends Model
@@ -35,6 +36,14 @@ class MediaUsageType extends Model
     public function mediaAssignments(): HasMany
     {
         return $this->hasMany(ProductMediaAssignment::class, 'usage_type_id');
+    }
+
+    public function defaultAttributes(): BelongsToMany
+    {
+        return $this->belongsToMany(Attribute::class, 'usage_type_default_attributes', 'usage_type_id', 'attribute_id')
+            ->withPivot('sort_order')
+            ->withTimestamps()
+            ->orderByPivot('sort_order');
     }
 
     public function deletionConstraints(): array
