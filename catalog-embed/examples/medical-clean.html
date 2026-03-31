@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Produktkatalog — Medical Clean</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    /* ===========================================================
+     * MEDICAL CLEAN — Katalog-Vorlage
+     * ===========================================================
+     * Farbschema: Weiss/Grau mit Teal-Akzent
+     * Basierend auf der Portal-Vorlage "Medical Clean"
+     * Layout: Sidebar links, Filter rechts (wie "basic")
+     */
+    :root {
+      --pxc-primary: #0d9488;
+      --pxc-primary-text: #ffffff;
+      --pxc-accent: #0d9488;
+      --pxc-font: 'Inter', system-ui, sans-serif;
+      --pxc-radius: 8px;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: var(--pxc-font);
+      color: #1e293b;
+      background: #f8fafc;
+    }
+
+    /* ---- Header ---- */
+    .page-header {
+      background: #ffffff;
+      border-bottom: 1px solid #e2e8f0;
+      padding: 0 32px;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .page-header__brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 1rem;
+      color: #1e293b;
+      text-decoration: none;
+    }
+
+    .page-header__logo-mark {
+      width: 32px;
+      height: 32px;
+      background: var(--pxc-primary);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .page-header__logo-mark svg {
+      width: 18px;
+      height: 18px;
+      fill: none;
+      stroke: #fff;
+      stroke-width: 2;
+    }
+
+    .page-header__center {
+      flex: 1;
+      max-width: 480px;
+      margin: 0 24px;
+    }
+
+    .page-header__actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    /* ---- Layout ---- */
+    .layout {
+      display: grid;
+      grid-template-columns: 272px 1fr 288px;
+      max-width: 1600px;
+      margin: 0 auto;
+      gap: 0;
+      min-height: calc(100vh - 60px);
+    }
+
+    .sidebar {
+      background: #ffffff;
+      border-right: 1px solid #e2e8f0;
+      overflow-y: auto;
+    }
+
+    .main {
+      padding: 24px;
+      background: #f8fafc;
+    }
+
+    .facets-panel {
+      background: #ffffff;
+      border-left: 1px solid #e2e8f0;
+      overflow-y: auto;
+    }
+
+    /* ---- Footer ---- */
+    .page-footer {
+      border-top: 1px solid #e2e8f0;
+      text-align: center;
+      padding: 20px 32px;
+      font-size: 0.75rem;
+      color: #94a3b8;
+      background: #ffffff;
+    }
+    .page-footer a {
+      color: #64748b;
+      text-decoration: none;
+    }
+    .page-footer a:hover {
+      color: var(--pxc-primary);
+    }
+
+    /* ---- Responsive ---- */
+    @media (max-width: 1024px) {
+      .layout { grid-template-columns: 272px 1fr; }
+      .facets-panel { display: none; }
+    }
+
+    @media (max-width: 768px) {
+      .page-header { padding: 0 16px; }
+      .page-header__center { display: none; }
+      .layout { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+      .main { padding: 16px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="page-header">
+    <div data-catalog="sidebar-toggle"></div>
+    <a href="#" class="page-header__brand">
+      <div class="page-header__logo-mark">
+        <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z" stroke-linejoin="round"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+      </div>
+      <span>Produktkatalog</span>
+    </a>
+    <div class="page-header__center">
+      <div data-catalog="search"></div>
+    </div>
+    <div class="page-header__actions">
+      <div data-catalog="locale"></div>
+      <div data-catalog="wishlist-button"></div>
+    </div>
+  </header>
+
+  <!-- 3-Column Layout -->
+  <div class="layout">
+    <aside class="sidebar" data-catalog-sidebar>
+      <div data-catalog="categories"></div>
+    </aside>
+
+    <main class="main">
+      <div data-catalog="toolbar"></div>
+      <div data-catalog="active-filters"></div>
+      <div data-catalog="product-grid"></div>
+      <div data-catalog="pagination"></div>
+    </main>
+
+    <aside class="facets-panel" data-catalog-facets-panel>
+      <div data-catalog="facets"></div>
+    </aside>
+  </div>
+
+  <!-- Footer -->
+  <footer class="page-footer">
+    &copy; 2026 Ihr Firmenname &middot;
+    <a href="#">Impressum</a> &middot;
+    <a href="#">Datenschutz</a>
+  </footer>
+
+  <!-- Modals -->
+  <div data-catalog="wishlist"></div>
+  <div data-catalog="product-detail"></div>
+  <div data-catalog="compare"></div>
+
+  <!-- Catalog Embed -->
+  <script src="../dist/catalog-embed.umd.js"></script>
+  <script>
+    PublixxCatalog.init({
+      api: 'http://localhost:8000/api/v1',
+      locale: 'de',
+      perPage: 24,
+    })
+  </script>
+
+</body>
+</html>
