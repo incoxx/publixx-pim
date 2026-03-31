@@ -38,6 +38,8 @@ const availableModules = [
   { key: 'api_designer', name: 'API-Designer', description: 'Visueller API-Designer mit JSON-Streaming-Endpoints' },
   { key: 'excel_designer', name: 'Sheet Designer', description: 'Excel-Sheet-Designer für konfigurierbare .xlsx-Produktlisten mit Thumbnails' },
   { key: 'connectors', name: 'Connectoren', description: 'Externe API-Connectoren (Canva, DeepL, Adobe u.a.)' },
+  { key: 'catalog_templates', name: 'Katalog-Vorlagen', description: 'Catalog-Embed-System mit konfigurierbaren HTML-Vorlagen und Widgets' },
+  { key: 'portals', name: 'Portale', description: 'Konfigurierbare Vorschaltseiten mit Filter-Widgets und Katalogvorlage-Verknüpfung' },
 ]
 
 const allSelected = computed(() => selectedModules.value.length === availableModules.length)
