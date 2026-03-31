@@ -63,6 +63,11 @@ const activeAttrSubTab = ref('master')  // 'master' oder hierarchy_id
 const saving = ref(false)
 const activeDataLang = ref(localeStore.activeDataLocales[0] || 'de')
 
+// Generation counter — wird bei jedem Produktwechsel erhöht.
+// Async-Funktionen prüfen nach await, ob die Generation noch aktuell ist,
+// um veraltete Responses bei schnellem Produktwechsel zu verwerfen.
+let _loadGeneration = 0
+
 // Hierarchy assignment
 const hierarchies = ref([])
 const hierarchyNodes = ref([])
@@ -400,8 +405,9 @@ function getSelectionOptions(attr) {
   return []
 }
 
-async function loadAttributeData(overrideNodeId = null) {
+async function loadAttributeData(overrideNodeId = null, generation = null) {
   if (attrLoaded.value || !product.value) return
+  const gen = generation ?? _loadGeneration
   try {
     // Try resolved attributes from hierarchy first (includes inheritance info)
     let resolvedAttrs = null
@@ -409,6 +415,7 @@ async function loadAttributeData(overrideNodeId = null) {
     if (nodeId) {
       try {
         const { data: resolvedData } = await productsApi.getResolvedAttributes(product.value.id, nodeId)
+        if (gen !== _loadGeneration) return // Produktwechsel — veraltete Response verwerfen
         resolvedAttrs = resolvedData.data || resolvedData
       } catch (e) { console.warn('Resolved attributes unavailable, falling back to schema:', e.message) }
     }
@@ -474,6 +481,7 @@ async function loadAttributeData(overrideNodeId = null) {
       // Fallback: load attribute values + product type schema
       const langs = localeStore.activeDataLocales.join(',')
       const { data: valData } = await productsApi.getAttributeValues(product.value.id, { lang: langs })
+      if (gen !== _loadGeneration) return
       const vals = valData.data || valData
       if (Array.isArray(vals)) {
         for (const val of vals) {
@@ -497,6 +505,7 @@ async function loadAttributeData(overrideNodeId = null) {
       if (product.value.product_type_id) {
         try {
           const { data: schemaData } = await productTypes.getSchema(product.value.product_type_id)
+          if (gen !== _loadGeneration) return
           schema.value = schemaData.data || schemaData
         } catch (e) { console.warn('Product type schema not found:', e.message) }
       }
@@ -509,6 +518,7 @@ async function loadAttributeData(overrideNodeId = null) {
         const langs = localeStore.activeDataLocales.join(',')
         try {
           const { data: tvData } = await productsApi.getAttributeValues(product.value.id, { lang: langs })
+          if (gen !== _loadGeneration) return
           const tvVals = tvData.data || tvData
           if (Array.isArray(tvVals)) {
             for (const val of tvVals) {
@@ -1991,10 +2001,20 @@ onMounted(async () => {
 })
 
 // Re-load when navigating between products/variants (same component, different ID)
-watch(() => route.params.id, async (newId, oldId) => {
+// Debounce: Bei schnellem Klicken durch Produktliste werden Zwischenprodukte übersprungen
+let _switchDebounceTimer = null
+watch(() => route.params.id, (newId, oldId) => {
   if (newId === oldId) return
-  // Ignore route changes away from product-detail (e.g. navigating to /media)
   if (route.name !== 'product-detail') return
+
+  clearTimeout(_switchDebounceTimer)
+  _switchDebounceTimer = setTimeout(() => switchToProduct(newId), 150)
+})
+
+async function switchToProduct(newId) {
+  // Alte Generation invalidieren — laufende Requests werden nach Rückkehr verworfen
+  _loadGeneration++
+  const gen = _loadGeneration
 
   // Reset all loaded flags
   attrLoaded.value = false
@@ -2044,16 +2064,23 @@ watch(() => route.params.id, async (newId, oldId) => {
 
   // Reload product/variant data
   await store.fetchOne(newId)
+  if (gen !== _loadGeneration) return // Nächster Wechsel kam dazwischen
+
   // Update tab title with SKU
   if (product.value?.sku) {
     tabStore.updateTabTitle(route, `Produkt: ${product.value.sku}`)
   }
-  loadAttributeData()
+  loadAttributeData(null, gen)
   loadHierarchies()
   // If variant, load parent's inheritance rules
   if (product.value?.product_type_ref === 'variant' && product.value?.parent_product_id) {
     loadInheritanceRules()
   }
+}
+
+onUnmounted(() => {
+  clearTimeout(_switchDebounceTimer)
+  _loadGeneration++ // Invalidiert noch laufende Requests
 })
 </script>
 

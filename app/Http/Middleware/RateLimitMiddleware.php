@@ -12,7 +12,7 @@ use Symfony\Component\HttpFoundation\Response;
 /**
  * Custom Rate Limiting Middleware.
  *
- * Tiers: standard (60/min), export (600/min), auth (10/min).
+ * Tiers: standard (240/min), export (600/min), media (1200/min), auth (10/min).
  */
 class RateLimitMiddleware
 {
@@ -26,7 +26,7 @@ class RateLimitMiddleware
             'media' => 1200,   // Dateien/Thumbnails — 50 pro Seite × schnelles Blättern
             'export' => 600,
             'auth' => 10,
-            default => 60,
+            default => 240,    // SPA-Standard — Produkteditor braucht ~10-15 Calls pro Wechsel
         };
 
         $key = $this->resolveRequestSignature($request, $tier);
