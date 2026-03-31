@@ -715,6 +715,11 @@ class OfflineCatalogExportService
                     $facetValues[$attr->id] = $av->value_selection_id;
                 } elseif ($attr->data_type === 'Flag') {
                     $facetValues[$attr->id] = $av->value_flag;
+                } elseif ($attr->data_type === 'DelimitedValue') {
+                    // Einzelwerte als Array speichern für Offline-Facettenfilter
+                    $facetValues[$attr->id] = $av->value_string
+                        ? array_map('trim', explode($attr->delimiter ?? '|', $av->value_string))
+                        : [];
                 } elseif (in_array($attr->data_type, ['Number', 'Float', 'Decimal', 'Integer'])) {
                     $facetValues[$attr->id] = $av->value_number !== null ? (float) $av->value_number : null;
                 } else {
@@ -1141,6 +1146,44 @@ class OfflineCatalogExportService
                     'max' => $stats->max_val !== null ? (float) $stats->max_val : null,
                     'count' => $stats->cnt ?? 0,
                     'unit' => $unit,
+                ];
+            } elseif ($attr->data_type === 'DelimitedValue') {
+                // Getrennte Werte: Einzelwerte aus Delimiter-String extrahieren und zählen
+                $delimiter = $attr->delimiter ?? '|';
+                $rows = (clone $baseQuery)
+                    ->whereNotNull('value_string')
+                    ->where('value_string', '!=', '')
+                    ->select('value_string', 'product_id')
+                    ->get();
+
+                $valueCounts = [];
+                foreach ($rows as $row) {
+                    $parts = array_map('trim', explode($delimiter, $row->value_string));
+                    $seen = [];
+                    foreach ($parts as $part) {
+                        if ($part === '' || isset($seen[$part])) {
+                            continue;
+                        }
+                        $seen[$part] = true;
+                        $valueCounts[$part] = ($valueCounts[$part] ?? 0) + 1;
+                    }
+                }
+
+                arsort($valueCounts);
+                $values = [];
+                foreach (array_slice($valueCounts, 0, 50, true) as $val => $cnt) {
+                    $values[] = [
+                        'value' => (string) $val,
+                        'value_id' => (string) $val,
+                        'count' => $cnt,
+                    ];
+                }
+
+                $facets[] = [
+                    'attribute_id' => $attrId,
+                    'label' => $label,
+                    'data_type' => 'DelimitedValueList',
+                    'values' => $values,
                 ];
             } elseif (in_array($attr->data_type, ['Text', 'String'])) {
                 $rows = (clone $baseQuery)

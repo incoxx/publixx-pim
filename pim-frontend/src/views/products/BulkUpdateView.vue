@@ -141,6 +141,7 @@ function attrInputType(dataType) {
   return {
     String: 'text', Number: 'number', Float: 'decimal', Date: 'date',
     Flag: 'boolean', Selection: 'select', Dictionary: 'dictionary', RichText: 'richtext',
+    DelimitedValue: 'text', JsonArtefact: 'jsonartefact',
   }[dataType] || 'text'
 }
 

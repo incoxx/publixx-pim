@@ -49,6 +49,7 @@ class Attribute extends Model
         'parent_attribute_id',
         'composite_format',
         'composite_expression',
+        'delimiter',
         'position',
         'source_system',
         'source_attribute_name',

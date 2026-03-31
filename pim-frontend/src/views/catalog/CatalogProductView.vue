@@ -190,6 +190,15 @@ watch(() => route.params.id, (newId) => {
                       <template v-if="attr.data_type === 'Composite'">
                         {{ getCatalogCompositeSummary(attr) || '—' }}
                       </template>
+                      <template v-else-if="attr.data_type === 'DelimitedValue' && attr.value">
+                        <div class="flex flex-wrap gap-1">
+                          <span v-for="(dv, dvI) in String(attr.value).split(attr.delimiter || '|').map(v => v.trim()).filter(Boolean)" :key="dvI"
+                                class="badge badge-sm badge-primary badge-outline">{{ dv }}</span>
+                        </div>
+                      </template>
+                      <template v-else-if="attr.data_type === 'JsonArtefact' && attr.value">
+                        <code class="block text-xs bg-base-200 rounded px-2 py-1 max-h-24 overflow-auto whitespace-pre-wrap break-all">{{ attr.value }}</code>
+                      </template>
                       <template v-else>
                         {{ attr.value }}<span v-if="attr.unit" class="text-base-content/50 ml-1">{{ attr.unit }}</span>
                       </template>

@@ -382,6 +382,7 @@ function mapDataTypeToInput(backendType) {
     'Date': 'date', 'Flag': 'boolean', 'Selection': 'select',
     'Dictionary': 'dictionary', 'Composite': 'composite', 'RichText': 'richtext',
     'Hyperlink': 'hyperlink', 'ImageLink': 'imagelink', 'PdfLink': 'pdflink', 'VideoLink': 'videolink',
+    'DelimitedValue': 'delimitedvalue', 'JsonArtefact': 'jsonartefact',
   }
   return map[backendType] || 'text'
 }
@@ -2371,6 +2372,7 @@ watch(() => route.params.id, async (newId, oldId) => {
                   :modelValue="attr.is_translatable ? translatedValues[`${attr.id}_${activeDataLang}`] : attributeValues[attr.id]"
                   :options="attr.data_type === 'Selection' || attr.data_type === 'MultiSelection' ? getSelectionOptions(attr) : (attr.data_type === 'Dictionary' ? dictionaryEntries : [])"
                   :disabled="attr._access === 'read_only' || attr.is_readonly || isTabReadOnly"
+                  :delimiter="attr.delimiter || '|'"
                   @update:modelValue="attr.is_translatable ? (translatedValues[`${attr.id}_${activeDataLang}`] = $event) : (attributeValues[attr.id] = $event)"
                 />
                 <select
@@ -2597,6 +2599,7 @@ watch(() => route.params.id, async (newId, oldId) => {
               :modelValue="translatedValues[`${attr.id}_${activeDataLang}`]"
               :options="attr.data_type === 'Dictionary' ? dictionaryEntries : (attr.value_list?.entries?.map(e => ({ value: e.id, label: e.value_de || e.label_de || e.code })) || [])"
               :disabled="attr._access === 'read_only' || attr.is_readonly || isAttributeInherited(attr.id) || isTabReadOnly"
+              :delimiter="attr.delimiter || '|'"
               @update:modelValue="translatedValues[`${attr.id}_${activeDataLang}`] = $event"
             />
             <select
@@ -2628,6 +2631,7 @@ watch(() => route.params.id, async (newId, oldId) => {
               :modelValue="attributeValues[attr.id]"
               :options="attr.data_type === 'Dictionary' ? dictionaryEntries : (attr.value_list?.entries?.map(e => ({ value: e.id, label: e.value_de || e.label_de || e.code })) || [])"
               :disabled="attr._access === 'read_only' || attr.is_readonly || isAttributeInherited(attr.id) || isTabReadOnly"
+              :delimiter="attr.delimiter || '|'"
               @update:modelValue="attributeValues[attr.id] = $event"
             />
             <select
@@ -3866,6 +3870,20 @@ watch(() => route.params.id, async (newId, oldId) => {
                         <video v-else :src="attr.link_data.url" controls
                                class="mt-1.5 w-full max-h-40 rounded border border-[var(--color-border)]" />
                       </template>
+                    </template>
+                    <!-- DelimitedValue: Badges -->
+                    <template v-else-if="attr.data_type === 'DelimitedValue' && attr.display_value">
+                      <div class="flex flex-wrap gap-1">
+                        <span
+                          v-for="(val, dvIdx) in attr.display_value.split(', ')"
+                          :key="dvIdx"
+                          class="inline-block px-1.5 py-0.5 rounded bg-[var(--color-accent)]/10 text-[var(--color-accent)] text-[11px] font-medium"
+                        >{{ val }}</span>
+                      </div>
+                    </template>
+                    <!-- JsonArtefact: Code-Block -->
+                    <template v-else-if="attr.data_type === 'JsonArtefact' && attr.display_value">
+                      <code class="block text-[11px] font-mono bg-[var(--color-bg)] rounded px-2 py-1 max-h-24 overflow-auto whitespace-pre-wrap break-all">{{ attr.display_value }}</code>
                     </template>
                     <!-- Normal value -->
                     <template v-else>

@@ -17,7 +17,7 @@ class SheetValidator
     /** Erlaubte Datentypen für Attribute. */
     private const array VALID_DATA_TYPES = [
         'String', 'Number', 'Float', 'Date', 'Flag', 'Selection', 'Dictionary', 'Composite', 'RichText',
-        'Hyperlink', 'ImageLink', 'PdfLink', 'VideoLink',
+        'Hyperlink', 'ImageLink', 'PdfLink', 'VideoLink', 'DelimitedValue', 'JsonArtefact',
     ];
 
     /** Erlaubte Produkt-Status. */

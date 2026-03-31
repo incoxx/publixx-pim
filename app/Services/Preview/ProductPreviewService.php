@@ -719,6 +719,9 @@ class ProductPreviewService
             'Selection' => $this->resolveSelectionValue($attrValue, $lang),
             'Dictionary' => $this->resolveDictionaryValue($attrValue, $lang),
             'Hyperlink', 'ImageLink', 'PdfLink', 'VideoLink' => $this->resolveLinkDisplayValue($attrValue->value_string),
+            'DelimitedValue' => $attrValue->value_string
+                ? implode(', ', array_map('trim', explode($attr->delimiter ?? '|', $attrValue->value_string)))
+                : null,
             default => $attrValue->value_string,
         };
     }

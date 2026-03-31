@@ -117,6 +117,8 @@ const fields = computed(() => {
         { value: 'Dictionary', label: 'Wörterbuch (Key→Value)' },
         { value: 'RichText', label: 'Formatierter Text (HTML)' },
         { value: 'Composite', label: 'Zusammengesetzt' },
+        { value: 'DelimitedValue', label: 'Getrennte Werte (Delimiter)' },
+        { value: 'JsonArtefact', label: 'JSON Artefakt' },
       ],
     },
     {
@@ -145,6 +147,14 @@ const fields = computed(() => {
         options: unitOptions.value.map(u => ({ value: u.id, label: `${u.abbreviation} — ${u.name_de || u.abbreviation}` })),
       },
     )
+  }
+
+  if (formData.value.data_type === 'DelimitedValue') {
+    base.push({
+      key: 'delimiter', label: 'Trennzeichen', type: 'text', required: true,
+      placeholder: 'z.B. | oder , oder ;',
+      hint: 'Zeichen, das die einzelnen Werte im String trennt',
+    })
   }
 
   if (formData.value.data_type === 'Composite') {
