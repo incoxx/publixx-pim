@@ -1,8 +1,10 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import userPreferencesApi from '@/api/userPreferences'
+import client from '@/api/client'
 
 const STORAGE_KEY = 'pim_appearance'
+const DEFAULT_PRESET = 'dark-navy'
 
 const PRESETS = {
   light: {
@@ -70,9 +72,10 @@ const CSS_VAR_MAP = {
 export { PRESETS, SECTION_ICON_COLORS }
 
 export const useAppearanceStore = defineStore('appearance', () => {
-  const preset = ref('light')
-  const settings = ref({ ...PRESETS.light })
+  const preset = ref(DEFAULT_PRESET)
+  const settings = ref({ ...PRESETS[DEFAULT_PRESET] })
   const loaded = ref(false)
+  const enforced = ref(false) // Firmen-CI aktiv?
 
   const sidebarColoredIcons = computed(() => settings.value.sidebar_colored_icons)
 
@@ -120,7 +123,7 @@ export const useAppearanceStore = defineStore('appearance', () => {
   }
 
   function reset() {
-    applyPreset('light')
+    applyPreset(DEFAULT_PRESET)
   }
 
   function saveToLocalStorage() {
@@ -136,7 +139,7 @@ export const useAppearanceStore = defineStore('appearance', () => {
       if (raw) {
         const parsed = JSON.parse(raw)
         if (parsed.preset) preset.value = parsed.preset
-        if (parsed.settings) settings.value = { ...PRESETS.light, ...parsed.settings }
+        if (parsed.settings) settings.value = { ...PRESETS[DEFAULT_PRESET], ...parsed.settings }
         applyTheme()
       }
     } catch { /* ignore */ }
@@ -144,10 +147,29 @@ export const useAppearanceStore = defineStore('appearance', () => {
 
   async function loadFromApi() {
     try {
+      // Firmen-CI pruefen: erzwungenes Theme hat Vorrang
+      try {
+        const { data: enforcedRes } = await client.get('/catalog/settings/enforced-appearance')
+        const enforcedData = enforcedRes.data
+        if (enforcedData && enforcedData.preset) {
+          enforced.value = true
+          const enforcedPreset = enforcedData.preset
+          preset.value = enforcedPreset
+          settings.value = {
+            ...(PRESETS[enforcedPreset] || PRESETS[DEFAULT_PRESET]),
+            ...enforcedData,
+          }
+          applyTheme()
+          loaded.value = true
+          return
+        }
+      } catch { /* Kein Firmen-CI gesetzt oder Endpoint nicht verfuegbar */ }
+
+      // Benutzer-Praeferenz laden
       const { data } = await userPreferencesApi.get('appearance')
       if (data.data) {
-        preset.value = data.data.preset || 'light'
-        settings.value = { ...PRESETS.light, ...data.data }
+        preset.value = data.data.preset || DEFAULT_PRESET
+        settings.value = { ...PRESETS[DEFAULT_PRESET], ...data.data }
         applyTheme()
       }
       loaded.value = true
@@ -169,7 +191,7 @@ export const useAppearanceStore = defineStore('appearance', () => {
   }
 
   return {
-    preset, settings, loaded, sidebarColoredIcons,
+    preset, settings, loaded, enforced, sidebarColoredIcons,
     applyTheme, applyPreset, setCustom, reset,
     loadFromLocalStorage, loadFromApi, saveToApi,
   }

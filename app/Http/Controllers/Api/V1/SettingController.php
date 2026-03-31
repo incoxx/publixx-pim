@@ -498,4 +498,56 @@ class SettingController extends Controller
 
         return response()->json(['message' => 'Abbruch angefordert. Der Job wird beim nächsten Chunk gestoppt.']);
     }
+
+    // ── Firmen-CI: Erzwungenes Erscheinungsbild ──
+
+    /**
+     * GET /api/v1/settings/enforced-appearance (public, no auth)
+     *
+     * Liefert das erzwungene Firmen-Theme (oder null wenn nicht gesetzt).
+     */
+    public function enforcedAppearance(): JsonResponse
+    {
+        $payload = Setting::getPayload('enforced_appearance');
+
+        return response()->json(['data' => $payload]);
+    }
+
+    /**
+     * PUT /api/v1/settings/enforced-appearance (admin only)
+     *
+     * Setzt das Firmen-CI Theme fuer alle Benutzer.
+     * Wenn preset=null, wird die Erzwingung aufgehoben.
+     */
+    public function updateEnforcedAppearance(Request $request): JsonResponse
+    {
+        if (!$request->user()?->hasRole('Admin')) {
+            abort(403, 'Unauthorized.');
+        }
+
+        $validated = $request->validate([
+            'preset' => 'nullable|string|in:light,dark-navy,dark-charcoal,custom',
+            'sidebar_bg' => ['nullable', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'sidebar_text' => ['nullable', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'sidebar_icon' => ['nullable', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'sidebar_active_bg' => ['nullable', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'sidebar_active_text' => ['nullable', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'sidebar_font_size' => 'nullable|integer|min:11|max:18',
+            'sidebar_colored_icons' => 'nullable|boolean',
+            'toolbar_bg' => ['nullable', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'toolbar_text' => ['nullable', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'toolbar_font_size' => 'nullable|integer|min:11|max:18',
+        ]);
+
+        if (empty($validated['preset'])) {
+            // Erzwingung aufheben
+            Setting::where('group', 'enforced_appearance')->delete();
+
+            return response()->json(['data' => null, 'message' => 'Firmen-CI aufgehoben.']);
+        }
+
+        Setting::setPayload('enforced_appearance', $validated);
+
+        return response()->json(['data' => $validated, 'message' => 'Firmen-CI gespeichert.']);
+    }
 }
