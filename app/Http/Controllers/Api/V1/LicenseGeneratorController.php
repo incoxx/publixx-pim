@@ -11,6 +11,22 @@ use Illuminate\Support\Str;
 class LicenseGeneratorController extends Controller
 {
     /**
+     * GET /api/v1/license-generator/modules
+     *
+     * Liefert alle verfuegbaren Enterprise-Module aus config/license.php.
+     */
+    public function modules(): JsonResponse
+    {
+        $modules = collect(config('license.modules', []))->map(fn ($info, $key) => [
+            'key' => $key,
+            'name' => $info['name'] ?? $key,
+            'description' => $info['description'] ?? '',
+        ])->values();
+
+        return response()->json(['data' => $modules]);
+    }
+
+    /**
      * POST /api/v1/license-generator/validate-key
      *
      * Validate an Ed25519 private key and return the corresponding public key.
