@@ -8,6 +8,7 @@
 !/catalog-embed/dist/catalog-offline.umd.js
 !/catalog-embed/dist/catalog-embed.css
 /catalog-embed/node_modules
+/portal-embed/node_modules
 /storage/*.key
 /storage/app/imports
 /vendor
