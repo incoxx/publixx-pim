@@ -16,6 +16,9 @@ export const mediaUsageTypes = {
   delete(id, { force = false } = {}) {
     return client.delete(`/media-usage-types/${id}`, { params: force ? { force: true } : {} })
   },
+  updateDefaultAttributes(id, attributes) {
+    return client.put(`/media-usage-types/${id}/default-attributes`, { attributes })
+  },
 }
 
 export default mediaUsageTypes

@@ -1,11 +1,12 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { Upload, Image, Grid, List, Trash2, FolderOpen, FolderPlus, Search, X, Plus, MoveRight, CheckSquare, Link, FileSpreadsheet, FileText, Wand2, Loader2, ChevronLeft, ChevronRight, Download, Copy, History, RefreshCw, ExternalLink, Package, FolderTree } from 'lucide-vue-next'
+import { Upload, Image, ImageOff, Grid, List, Trash2, FolderOpen, FolderPlus, Search, X, Plus, MoveRight, CheckSquare, Link, FileSpreadsheet, FileText, Wand2, Loader2, ChevronLeft, ChevronRight, Download, Copy, History, RefreshCw, ExternalLink, Package, FolderTree, Eye, Filter, Archive } from 'lucide-vue-next'
 import mediaApi from '@/api/media'
 import { mediaUsageTypes as mediaUsageTypesApi } from '@/api/mediaUsageTypes'
 import hierarchiesApi from '@/api/hierarchies'
 import { useAuthStore } from '@/stores/auth'
+import { formatFileSize } from '@/utils/formatting'
 import PimDeleteConfirmDialog from '@/components/shared/PimDeleteConfirmDialog.vue'
 import PimTree from '@/components/shared/PimTree.vue'
 import PimAttributeInput from '@/components/shared/PimAttributeInput.vue'
@@ -38,6 +39,74 @@ const selectedIds = ref(new Set())
 const showMoveDialog = ref(false)
 const moveFolderId = ref(null)
 const moving = ref(false)
+
+// Quick Lookup
+const showQuickLookup = ref(false)
+const quickLookupFilters = ref({ title: '', file_name: '', media_type: '', usage_purpose: '' })
+
+const displayItems = computed(() => {
+  if (!showQuickLookup.value) return items.value
+  const f = quickLookupFilters.value
+  const active = Object.entries(f).filter(([, v]) => v !== '' && v != null)
+  if (active.length === 0) return items.value
+  return items.value.filter(item => {
+    return active.every(([key, val]) => {
+      if (key === 'title') {
+        const title = (item.title_de || item.file_name || '').toLowerCase()
+        return title.includes(val.toLowerCase())
+      }
+      if (key === 'file_name') return (item.file_name || '').toLowerCase().includes(val.toLowerCase())
+      if (key === 'media_type') return item.media_type === val
+      if (key === 'usage_purpose') return item.usage_purpose === val
+      return true
+    })
+  })
+})
+
+// Drag & Drop visual state
+const isDragging = ref(false)
+
+// ZIP download
+const zipDownloading = ref(false)
+const zipProgress = ref(0)
+let zipAbortController = null
+
+async function downloadSelectedAsZip() {
+  if (selectedIds.value.size === 0) return
+  zipDownloading.value = true
+  zipProgress.value = 0
+  zipAbortController = new AbortController()
+
+  try {
+    const { data } = await mediaApi.downloadZip([...selectedIds.value], {
+      signal: zipAbortController.signal,
+      onProgress: (p) => { zipProgress.value = p.percent },
+    })
+    const url = URL.createObjectURL(data)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `pim-medien-${new Date().toISOString().slice(0, 10)}.zip`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  } catch (err) {
+    if (err.name !== 'CanceledError' && err.code !== 'ERR_CANCELED') {
+      uploadError.value = err.response?.data?.message || err.message || 'ZIP-Download fehlgeschlagen'
+    }
+  } finally {
+    zipDownloading.value = false
+    zipProgress.value = 0
+    zipAbortController = null
+  }
+}
+
+function cancelZipDownload() {
+  if (zipAbortController) {
+    zipAbortController.abort()
+    zipAbortController = null
+  }
+}
 
 // Folders
 const folders = ref([])
@@ -761,7 +830,11 @@ onMounted(() => {
     </Teleport>
 
     <!-- Main content -->
-    <div class="flex-1 space-y-4" @dragover.prevent @drop="handleDrop">
+    <div class="flex-1 space-y-4 transition-all duration-200"
+         :class="{ 'ring-2 ring-dashed ring-[var(--color-accent)]/40 rounded-xl bg-[var(--color-accent)]/5': isDragging }"
+         @dragover.prevent="isDragging = true"
+         @dragleave.self="isDragging = false"
+         @drop="handleDrop($event); isDragging = false">
       <!-- Header -->
       <div class="flex flex-wrap items-center justify-between gap-2 sm:gap-3">
         <h2 class="text-lg font-semibold text-[var(--color-text-primary)]">Medien</h2>
@@ -784,6 +857,11 @@ onMounted(() => {
             <option value="both">Print & Web</option>
           </select>
 
+          <button :class="['pim-btn pim-btn-ghost p-1.5', showQuickLookup ? 'bg-[var(--color-accent)]/10 text-[var(--color-accent)]' : '']"
+                  @click="showQuickLookup = !showQuickLookup" title="Quick Lookup">
+            <Filter class="w-4 h-4" :stroke-width="1.75" />
+          </button>
+          <div class="w-px h-5 bg-[var(--color-border)]"></div>
           <button :class="['pim-btn pim-btn-ghost p-1.5', viewMode==='grid'?'bg-[var(--color-bg)]':'']" @click="viewMode='grid'"><Grid class="w-4 h-4" :stroke-width="1.75" /></button>
           <button :class="['pim-btn pim-btn-ghost p-1.5', viewMode==='list'?'bg-[var(--color-bg)]':'']" @click="viewMode='list'"><List class="w-4 h-4" :stroke-width="1.75" /></button>
           <template v-if="authStore.hasPermission('media.create')">
@@ -826,43 +904,83 @@ onMounted(() => {
       <!-- Hintergrund-Verarbeitungsstatus (PDF-Jobs etc.) -->
       <MediaProcessingStatus ref="processingStatusRef" />
 
-      <!-- Selection toolbar -->
-      <Transition name="slide-down">
-        <div v-if="selectedIds.size > 0" class="flex items-center gap-3 px-3 py-2 rounded-lg bg-[var(--color-bg)] border border-[var(--color-border)] text-sm">
-          <CheckSquare class="w-4 h-4 text-[var(--color-text-secondary)]" :stroke-width="2" />
-          <span class="text-[var(--color-text-primary)] font-medium">{{ selectedIds.size }} ausgewählt</span>
-          <button
-            v-if="authStore.hasPermission('media.edit')"
-            class="pim-btn pim-btn-primary pim-btn-sm flex items-center gap-1.5"
-            @click="showMoveDialog = true"
-          >
-            <MoveRight class="w-3.5 h-3.5" :stroke-width="2" />
-            In Ordner verschieben
-          </button>
-          <button
-            v-if="authStore.hasPermission('media.delete')"
-            class="pim-btn pim-btn-sm flex items-center gap-1.5 text-[var(--color-error)] border-[var(--color-error)]/30 hover:bg-[var(--color-error)]/10"
-            @click="showBulkDeleteConfirm = true"
-          >
-            <Trash2 class="w-3.5 h-3.5" :stroke-width="2" />
-            {{ selectedIds.size }} löschen
-          </button>
-          <button
-            v-if="authStore.hasPermission('media.edit')"
-            class="pim-btn pim-btn-sm flex items-center gap-1.5 text-[var(--color-primary)] border-[var(--color-primary)]/30 hover:bg-[var(--color-primary)]/10"
-            :disabled="relinking"
-            @click="relinkSelected"
-          >
-            <Loader2 v-if="relinking" class="w-3.5 h-3.5 animate-spin" :stroke-width="2" />
-            <RefreshCw v-else class="w-3.5 h-3.5" :stroke-width="2" />
-            Re-Link
-          </button>
-          <button class="pim-btn pim-btn-ghost pim-btn-sm ml-auto" @click="clearSelection">
-            <X class="w-3.5 h-3.5" :stroke-width="2" />
-            Auswahl aufheben
-          </button>
-        </div>
-      </Transition>
+      <!-- Floating Selection Toolbar (Bottom Bar) -->
+      <Teleport to="body">
+        <Transition name="slide-up-bar">
+          <div v-if="selectedIds.size > 0"
+               class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2.5 rounded-xl
+                      bg-[var(--color-surface)] border border-[var(--color-border)] shadow-xl
+                      backdrop-blur-sm max-w-[90vw]">
+            <CheckSquare class="w-4 h-4 text-[var(--color-accent)] shrink-0" :stroke-width="2" />
+            <span class="text-sm font-medium text-[var(--color-text-primary)] whitespace-nowrap">{{ selectedIds.size }} ausgewählt</span>
+            <div class="w-px h-5 bg-[var(--color-border)]"></div>
+            <button
+              v-if="authStore.hasPermission('media.edit')"
+              class="pim-btn pim-btn-ghost pim-btn-sm"
+              @click="showMoveDialog = true"
+              title="In Ordner verschieben"
+            >
+              <MoveRight class="w-3.5 h-3.5" :stroke-width="2" />
+              <span class="max-sm:hidden">Verschieben</span>
+            </button>
+            <button
+              class="pim-btn pim-btn-ghost pim-btn-sm"
+              :disabled="zipDownloading"
+              @click="downloadSelectedAsZip"
+              title="Als ZIP herunterladen"
+            >
+              <Loader2 v-if="zipDownloading" class="w-3.5 h-3.5 animate-spin" :stroke-width="2" />
+              <Archive v-else class="w-3.5 h-3.5" :stroke-width="2" />
+              <span class="max-sm:hidden">ZIP</span>
+            </button>
+            <button
+              v-if="authStore.hasPermission('media.edit')"
+              class="pim-btn pim-btn-ghost pim-btn-sm"
+              :disabled="relinking"
+              @click="relinkSelected"
+              title="Produkt-Zuordnungen wiederherstellen"
+            >
+              <Loader2 v-if="relinking" class="w-3.5 h-3.5 animate-spin" :stroke-width="2" />
+              <RefreshCw v-else class="w-3.5 h-3.5" :stroke-width="2" />
+              <span class="max-sm:hidden">Re-Link</span>
+            </button>
+            <button
+              v-if="authStore.hasPermission('media.delete')"
+              class="pim-btn pim-btn-sm text-[var(--color-error)] hover:bg-[var(--color-error)]/10"
+              @click="showBulkDeleteConfirm = true"
+              title="Löschen"
+            >
+              <Trash2 class="w-3.5 h-3.5" :stroke-width="2" />
+              <span class="max-sm:hidden">Löschen</span>
+            </button>
+            <div class="w-px h-5 bg-[var(--color-border)]"></div>
+            <button class="pim-btn pim-btn-ghost pim-btn-sm" @click="clearSelection" title="Auswahl aufheben">
+              <X class="w-3.5 h-3.5" :stroke-width="2" />
+            </button>
+          </div>
+        </Transition>
+      </Teleport>
+
+      <!-- ZIP Download Progress Overlay -->
+      <Teleport to="body">
+        <Transition name="fade">
+          <div v-if="zipDownloading" class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40">
+            <div class="bg-[var(--color-surface)] rounded-xl shadow-2xl p-6 max-w-xs w-full space-y-4 text-center">
+              <Archive class="w-8 h-8 mx-auto text-[var(--color-accent)]" :stroke-width="1.5" />
+              <div>
+                <p class="text-sm font-medium text-[var(--color-text-primary)]">ZIP wird erstellt…</p>
+                <p class="text-xs text-[var(--color-text-tertiary)] mt-1">{{ selectedIds.size }} Dateien</p>
+              </div>
+              <div class="h-2 rounded-full bg-[var(--color-bg)] overflow-hidden">
+                <div class="h-full rounded-full bg-[var(--color-accent)] transition-all duration-300"
+                     :style="{ width: (zipProgress || 5) + '%' }"></div>
+              </div>
+              <p class="text-xs text-[var(--color-text-tertiary)]">{{ zipProgress }}%</p>
+              <button class="pim-btn pim-btn-ghost text-xs" @click="cancelZipDownload">Abbrechen</button>
+            </div>
+          </div>
+        </Transition>
+      </Teleport>
 
       <!-- Loading -->
       <div v-if="loading" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
@@ -870,89 +988,171 @@ onMounted(() => {
       </div>
 
       <!-- Grid -->
-      <div v-else-if="items.length > 0 && viewMode === 'grid'" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-        <div v-for="item in items" :key="item.id" class="pim-card overflow-hidden group cursor-pointer hover:shadow-md transition-shadow relative" @click="openDetail(item)">
+      <div v-else-if="displayItems.length > 0 && viewMode === 'grid'" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+        <div
+          v-for="(item, index) in displayItems"
+          :key="item.id"
+          class="pim-card overflow-hidden group cursor-pointer hover:shadow-lg hover:-translate-y-0.5
+                 transition-all duration-300 relative media-card-enter"
+          :style="{ animationDelay: `${Math.min(index * 30, 300)}ms` }"
+          :class="{ 'ring-2 ring-[var(--color-accent)] shadow-md': selectedIds.has(item.id) }"
+          @click="openDetail(item)"
+        >
           <div class="aspect-square bg-[var(--color-bg)] flex items-center justify-center overflow-hidden relative">
+            <!-- Checkbox -->
             <input
               type="checkbox"
               :checked="selectedIds.has(item.id)"
-              class="absolute top-2 left-2 z-10 w-4 h-4 accent-[var(--color-primary)] cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
+              class="absolute top-2.5 left-2.5 z-20 w-4 h-4 accent-[var(--color-accent)] cursor-pointer
+                     opacity-0 group-hover:opacity-100 transition-opacity duration-200"
               :class="{ '!opacity-100': selectedIds.has(item.id) }"
               @click.stop="toggleSelect(item.id)"
             />
+
+            <!-- Image -->
             <template v-if="item.media_type === 'image'">
-              <img :src="getImageUrl(item)" :data-fallback="item.url || mediaApi.fileUrl(item.file_name)" class="w-full h-full object-cover" loading="lazy" alt="" @error="handleImgError" />
-              <div class="img-fallback items-center justify-center absolute inset-0 bg-[var(--color-bg)]" style="display: none">
-                <Image class="w-8 h-8 text-[var(--color-text-tertiary)]/30" :stroke-width="1.5" />
+              <img :src="getImageUrl(item)" :data-fallback="item.url || mediaApi.fileUrl(item.file_name)"
+                   class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                   loading="lazy" alt="" @error="handleImgError" />
+              <div class="img-fallback flex-col items-center justify-center gap-2 absolute inset-0 bg-[var(--color-bg)]" style="display: none">
+                <ImageOff class="w-10 h-10 text-[var(--color-text-tertiary)]/20" :stroke-width="1.5" />
+                <span class="text-[9px] text-[var(--color-text-tertiary)]/40 uppercase tracking-wider">Datei fehlt</span>
               </div>
             </template>
+
+            <!-- PDF -->
             <template v-else-if="isItemPdf(item)">
-              <img v-if="item.pdf_preview_url" :src="item.pdf_preview_url" class="w-full h-full object-contain" loading="lazy" alt="PDF" @error="(e) => { e.target.style.display = 'none'; e.target.nextElementSibling.style.display = 'flex' }" />
+              <img v-if="item.pdf_preview_url" :src="item.pdf_preview_url"
+                   class="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500"
+                   loading="lazy" alt="PDF" @error="(e) => { e.target.style.display = 'none'; e.target.nextElementSibling.style.display = 'flex' }" />
               <div :class="['flex-col items-center gap-1 text-[var(--color-error)]/60', item.pdf_preview_url ? 'absolute inset-0 bg-[var(--color-bg)] justify-center' : 'flex']" :style="item.pdf_preview_url ? 'display: none' : ''">
                 <FileText class="w-10 h-10" :stroke-width="1.25" />
                 <span class="text-[9px] text-[var(--color-text-tertiary)]">PDF</span>
               </div>
             </template>
+
+            <!-- Other -->
             <Image v-else class="w-8 h-8 text-[var(--color-text-tertiary)]" :stroke-width="1.5" />
-          </div>
-          <div class="p-2 flex items-center justify-between">
-            <div class="flex-1 min-w-0">
-              <p class="text-[11px] text-[var(--color-text-primary)] truncate">{{ item.title_de || item.file_name || '—' }}</p>
-              <div class="flex items-center gap-1 mt-0.5">
-                <span class="text-[9px] px-1 rounded bg-[var(--color-bg)] text-[var(--color-text-tertiary)]">{{ item.media_type }}</span>
-                <span v-if="item.usage_purpose && item.usage_purpose !== 'both'" class="text-[9px] px-1 rounded bg-[var(--color-bg)] text-[var(--color-text-tertiary)]">{{ item.usage_purpose }}</span>
-              </div>
+
+            <!-- Usage badge -->
+            <span v-if="item.usage_purpose && item.usage_purpose !== 'both'"
+                  class="absolute top-2.5 right-2.5 text-[9px] px-1.5 py-0.5 rounded-full
+                         bg-[var(--color-surface)]/80 backdrop-blur-sm text-[var(--color-text-secondary)]
+                         shadow-sm border border-[var(--color-border)]/50 z-10">
+              {{ item.usage_purpose }}
+            </span>
+
+            <!-- Hover overlay -->
+            <div class="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent
+                        opacity-0 group-hover:opacity-100 transition-opacity duration-300
+                        flex items-end justify-center pb-3 pointer-events-none">
+              <span class="pim-btn pim-btn-primary pim-btn-xs shadow-lg pointer-events-auto text-[10px]">
+                <Eye class="w-3 h-3" :stroke-width="2" /> Details
+              </span>
             </div>
-            <button
-              v-if="authStore.hasPermission('media.delete')"
-              class="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-[var(--color-error-light)] text-[var(--color-text-tertiary)] hover:text-[var(--color-error)] transition-all shrink-0"
-              @click.stop="deleteTarget = item"
-            >
-              <Trash2 class="w-3.5 h-3.5" :stroke-width="2" />
-            </button>
+          </div>
+
+          <!-- Card footer -->
+          <div class="p-2.5 space-y-0.5">
+            <p class="text-[11px] font-medium text-[var(--color-text-primary)] truncate">{{ item.title_de || item.file_name || '—' }}</p>
+            <p class="text-[10px] font-mono text-[var(--color-text-tertiary)] truncate">{{ item.file_name }}</p>
+            <div class="flex items-center justify-between pt-0.5">
+              <span class="pim-badge text-[9px] bg-[var(--color-bg)] text-[var(--color-text-tertiary)]">{{ item.media_type }}</span>
+              <span class="text-[10px] text-[var(--color-text-tertiary)]">{{ formatFileSize(item.file_size) }}</span>
+            </div>
           </div>
         </div>
       </div>
 
       <!-- List view -->
-      <div v-else-if="items.length > 0 && viewMode === 'list'" class="space-y-1">
-        <!-- Select-all header -->
-        <div class="flex items-center gap-3 px-2 py-1.5 text-[10px] font-medium text-[var(--color-text-secondary)] uppercase tracking-wider">
+      <div v-else-if="displayItems.length > 0 && viewMode === 'list'" class="pim-card overflow-hidden">
+        <!-- Column header -->
+        <div class="grid grid-cols-[36px_44px_1fr_1fr_80px_80px_72px_36px] gap-3 items-center
+                    px-3 py-2 text-[10px] font-medium text-[var(--color-text-secondary)] uppercase tracking-wider
+                    border-b border-[var(--color-border)] bg-[var(--color-bg)]/50">
           <input
             type="checkbox"
             :checked="allSelected"
-            class="w-4 h-4 flex-none accent-[var(--color-primary)] cursor-pointer"
+            class="w-4 h-4 accent-[var(--color-accent)] cursor-pointer"
             @change="toggleSelectAll"
           />
-          <span>Alle auswählen</span>
+          <span></span>
+          <span>Titel</span>
+          <span>Dateiname</span>
+          <span>Typ</span>
+          <span>Verwendung</span>
+          <span class="text-right">Größe</span>
+          <span></span>
         </div>
+
+        <!-- Quick Lookup filter row -->
+        <div v-if="showQuickLookup"
+             class="grid grid-cols-[36px_44px_1fr_1fr_80px_80px_72px_36px] gap-3 items-center
+                    px-3 py-1.5 border-b border-[var(--color-border)] bg-[var(--color-accent)]/5">
+          <span></span>
+          <span></span>
+          <input
+            v-model="quickLookupFilters.title"
+            class="pim-input text-[10px] h-6 w-full"
+            placeholder="Titel…"
+          />
+          <input
+            v-model="quickLookupFilters.file_name"
+            class="pim-input text-[10px] h-6 w-full font-mono"
+            placeholder="Dateiname…"
+          />
+          <select v-model="quickLookupFilters.media_type" class="pim-select text-[10px] h-6 w-full">
+            <option value="">Alle</option>
+            <option value="image">image</option>
+            <option value="document">document</option>
+            <option value="video">video</option>
+            <option value="PDF">PDF</option>
+            <option value="other">other</option>
+          </select>
+          <select v-model="quickLookupFilters.usage_purpose" class="pim-select text-[10px] h-6 w-full">
+            <option value="">Alle</option>
+            <option value="print">Print</option>
+            <option value="web">Web</option>
+            <option value="both">P&W</option>
+          </select>
+          <span></span>
+          <span></span>
+        </div>
+
+        <!-- Data rows -->
         <div
-          v-for="item in items"
+          v-for="(item, index) in displayItems"
           :key="item.id"
-          class="flex items-center gap-3 p-2 pim-card cursor-pointer hover:shadow-sm transition-shadow"
-          :class="{ 'ring-1 ring-[var(--color-border)] bg-[var(--color-bg)]': selectedIds.has(item.id) }"
+          class="grid grid-cols-[36px_44px_1fr_1fr_80px_80px_72px_36px] gap-3 items-center
+                 px-3 py-2 cursor-pointer transition-colors duration-150 group
+                 hover:bg-[var(--color-bg)]/60 border-b border-[var(--color-border)]/50 last:border-b-0"
+          :class="{
+            'bg-[var(--color-accent)]/5': selectedIds.has(item.id),
+            'bg-[var(--color-bg)]/30': !selectedIds.has(item.id) && index % 2 === 1,
+          }"
           @click="openDetail(item)"
         >
           <input
             type="checkbox"
             :checked="selectedIds.has(item.id)"
-            class="w-4 h-4 flex-none accent-[var(--color-primary)] cursor-pointer"
+            class="w-4 h-4 accent-[var(--color-accent)] cursor-pointer"
             @click.stop="toggleSelect(item.id)"
           />
-          <div class="w-10 h-10 flex-none rounded bg-[var(--color-bg)] overflow-hidden flex items-center justify-center">
-            <img v-if="item.media_type === 'image'" :src="getImageUrl(item)" :data-fallback="item.url || mediaApi.fileUrl(item.file_name)" class="w-full h-full object-cover" loading="lazy" alt="" @error="handleImgError" />
+          <div class="w-9 h-9 rounded bg-[var(--color-bg)] overflow-hidden flex items-center justify-center">
+            <img v-if="item.media_type === 'image'" :src="getImageUrl(item)" :data-fallback="item.url || mediaApi.fileUrl(item.file_name)"
+                 class="w-full h-full object-cover" loading="lazy" alt="" @error="handleImgError" />
             <FileText v-else-if="isItemPdf(item)" class="w-5 h-5 text-[var(--color-error)]/60" :stroke-width="1.5" />
             <Image v-else class="w-5 h-5 text-[var(--color-text-tertiary)]" :stroke-width="1.5" />
           </div>
-          <div class="flex-1 min-w-0">
-            <p class="text-xs text-[var(--color-text-primary)] truncate">{{ item.title_de || item.file_name }}</p>
-            <p class="text-[10px] text-[var(--color-text-tertiary)]">{{ item.file_name }}</p>
-          </div>
-          <span class="text-[10px] text-[var(--color-text-tertiary)]">{{ item.media_type }}</span>
-          <span v-if="item.usage_purpose" class="text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-bg)] text-[var(--color-text-tertiary)]">{{ item.usage_purpose }}</span>
+          <p class="text-xs text-[var(--color-text-primary)] truncate">{{ item.title_de || '—' }}</p>
+          <p class="text-xs font-mono text-[var(--color-text-tertiary)] truncate">{{ item.file_name }}</p>
+          <span class="pim-badge text-[9px] bg-[var(--color-bg)] text-[var(--color-text-tertiary)] justify-self-start">{{ item.media_type }}</span>
+          <span class="text-[10px] text-[var(--color-text-tertiary)]">{{ item.usage_purpose || '—' }}</span>
+          <span class="text-[10px] text-[var(--color-text-tertiary)] text-right">{{ formatFileSize(item.file_size) }}</span>
           <button
             v-if="authStore.hasPermission('media.delete')"
-            class="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-[var(--color-error-light)] text-[var(--color-text-tertiary)] hover:text-[var(--color-error)] transition-all"
+            class="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-[var(--color-error)]/10
+                   text-[var(--color-text-tertiary)] hover:text-[var(--color-error)] transition-all"
             @click.stop="deleteTarget = item"
           >
             <Trash2 class="w-3.5 h-3.5" :stroke-width="2" />
@@ -961,8 +1161,8 @@ onMounted(() => {
       </div>
 
       <!-- Empty -->
-      <div v-else class="pim-card p-12 text-center">
-        <Image class="w-10 h-10 mx-auto mb-3 text-[var(--color-text-tertiary)]" :stroke-width="1.5" />
+      <div v-else-if="!loading" class="pim-card p-12 text-center">
+        <Image class="w-10 h-10 mx-auto mb-3 text-[var(--color-text-tertiary)]/40" :stroke-width="1.5" />
         <p class="text-sm text-[var(--color-text-tertiary)]">Keine Medien vorhanden</p>
         <p class="text-xs text-[var(--color-text-tertiary)] mt-1">Dateien hierhin ziehen oder "Hochladen" klicken</p>
       </div>
@@ -1524,13 +1724,21 @@ onMounted(() => {
 .slide-enter-from,
 .slide-leave-to { opacity: 0; transform: translateX(20px); }
 
-.slide-down-enter-active,
-.slide-down-leave-active { transition: all 0.2s ease; }
-.slide-down-enter-from,
-.slide-down-leave-to { opacity: 0; transform: translateY(-8px); }
+.slide-up-bar-enter-active,
+.slide-up-bar-leave-active { transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1); }
+.slide-up-bar-enter-from,
+.slide-up-bar-leave-to { opacity: 0; transform: translate(-50%, 20px); }
 
 .fade-enter-active,
 .fade-leave-active { transition: opacity 0.15s ease; }
 .fade-enter-from,
 .fade-leave-to { opacity: 0; }
+
+@keyframes mediaCardEnter {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.media-card-enter {
+  animation: mediaCardEnter 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
 </style>

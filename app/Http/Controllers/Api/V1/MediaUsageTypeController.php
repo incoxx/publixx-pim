@@ -22,7 +22,7 @@ class MediaUsageTypeController extends Controller
     {
         $this->authorize('viewAny', MediaUsageType::class);
 
-        $query = MediaUsageType::query();
+        $query = MediaUsageType::with('defaultAttributes');
         $this->applyInstanceRestrictionFilter($query, MediaUsageType::class);
         $this->applySorting($query, $request, 'sort_order', 'asc');
 
@@ -56,6 +56,28 @@ class MediaUsageTypeController extends Controller
         $mediaUsageType->update($request->validated());
 
         return new MediaUsageTypeResource($mediaUsageType->fresh());
+    }
+
+    public function updateDefaultAttributes(Request $request, MediaUsageType $mediaUsageType): MediaUsageTypeResource
+    {
+        $this->authorize('update', $mediaUsageType);
+
+        $request->validate([
+            'attributes' => 'present|array',
+            'attributes.*.attribute_id' => 'required|uuid|exists:attributes,id',
+            'attributes.*.sort_order' => 'integer|min:0',
+        ]);
+
+        $syncData = [];
+        foreach ($request->input('attributes', []) as $item) {
+            $syncData[$item['attribute_id']] = [
+                'sort_order' => $item['sort_order'] ?? 0,
+            ];
+        }
+
+        $mediaUsageType->defaultAttributes()->sync($syncData);
+
+        return new MediaUsageTypeResource($mediaUsageType->load('defaultAttributes'));
     }
 
     public function dependencies(MediaUsageType $mediaUsageType): JsonResponse

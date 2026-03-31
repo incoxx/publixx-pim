@@ -175,7 +175,9 @@ class MediaController extends Controller
         $disk = Storage::disk('public');
 
         // DB-Transaktion mit Row-Lock gegen Race Conditions bei parallelen Uploads
-        $nextRevision = DB::transaction(function () use ($existing, $request, $file, $disk) {
+        $oldFileExisted = $disk->exists($existing->file_path);
+
+        $nextRevision = DB::transaction(function () use ($existing, $request, $file, $disk, $oldFileExisted) {
             // Row-Lock: verhindert gleichzeitiges Replace desselben Assets
             $existing = Media::lockForUpdate()->find($existing->id);
 
@@ -184,7 +186,7 @@ class MediaController extends Controller
             $archiveDir = 'media-revisions/' . $existing->id;
             $archivePath = $archiveDir . '/rev-' . $nextRevision . '-' . $existing->file_name;
 
-            if ($disk->exists($existing->file_path)) {
+            if ($oldFileExisted) {
                 $disk->copy($existing->file_path, $archivePath);
             }
 
@@ -192,7 +194,7 @@ class MediaController extends Controller
                 'media_id' => $existing->id,
                 'revision_number' => $nextRevision,
                 'file_name' => $existing->file_name,
-                'file_path' => $archivePath,
+                'file_path' => $oldFileExisted ? $archivePath : null,
                 'original_file_name' => $existing->original_file_name,
                 'mime_type' => $existing->mime_type,
                 'file_size' => $existing->file_size,
@@ -200,10 +202,13 @@ class MediaController extends Controller
                 'height' => $existing->height,
                 'replaced_by' => $request->user()?->id,
                 'replaced_at' => now(),
+                'reason' => $oldFileExisted ? null : 'broken_asset_restored',
             ]);
 
             // 2. Neue Datei unter gleichem Pfad speichern
-            $disk->delete($existing->file_path);
+            if ($oldFileExisted) {
+                $disk->delete($existing->file_path);
+            }
             $file->storeAs('media', $existing->file_name, 'public');
 
             $storedPath = $disk->path($existing->file_path);
@@ -229,7 +234,11 @@ class MediaController extends Controller
         $this->generateEagerThumbnail($existing);
 
         return (new MediaResource($existing->fresh()))
-            ->additional(['replaced' => true, 'revision_number' => $nextRevision])
+            ->additional([
+                'replaced' => true,
+                'replaced_broken' => !$oldFileExisted,
+                'revision_number' => $nextRevision,
+            ])
             ->response();
     }
 

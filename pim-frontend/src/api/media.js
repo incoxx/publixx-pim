@@ -102,4 +102,15 @@ export default {
   thumbUrl(mediaId, w = 300, h = 300) {
     return `${base}/media/thumb/${mediaId}?w=${w}&h=${h}`
   },
+
+  downloadZip(mediaIds, { onProgress = null, signal = null } = {}) {
+    return client.post('/asset-catalog/download', { media_ids: mediaIds }, {
+      responseType: 'blob',
+      timeout: 300000,
+      signal,
+      onDownloadProgress: onProgress
+        ? (e) => onProgress({ loaded: e.loaded, total: e.total, percent: e.total ? Math.round((e.loaded / e.total) * 100) : 0 })
+        : undefined,
+    })
+  },
 }
