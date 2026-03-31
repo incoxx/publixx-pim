@@ -19,42 +19,8 @@ const loading = ref(false)
 // Track add/remove state per permission: null = untouched, 'add', 'remove'
 const permissionActions = ref({})
 
-const entityLabels = {
-  'products': 'Produkte',
-  'product-types': 'Produkttypen',
-  'attributes': 'Attribute',
-  'attribute-types': 'Attributgruppen',
-  'attribute-views': 'Attribut-Sichten',
-  'hierarchies': 'Hierarchien',
-  'hierarchy-nodes': 'Hierarchie-Knoten',
-  'unit-groups': 'Einheitengruppen',
-  'units': 'Einheiten',
-  'value-lists': 'Wertelisten',
-  'media': 'Medien',
-  'media-usage-types': 'Bildtypen',
-  'prices': 'Preise',
-  'price-types': 'Preistypen',
-  'manufacturers': 'Hersteller',
-  'relation-types': 'Produktbeziehungen',
-  'imports': 'Import',
-  'export': 'Export',
-  'publixx-mappings': 'Publixx-Mappings',
-  'users': 'Benutzer',
-  'roles': 'Rollen',
-  'access-links': 'Zugangslinks',
-  'reports': 'Berichte',
-  'pdf-templates': 'PDF-Vorlagen',
-  'calendar': 'Planungskalender',
-  'dictionary': 'Wörterbuch',
-  'translations': 'Übersetzungen',
-  'journal': 'Journal',
-  'settings': 'Einstellungen',
-  'watchlist': 'Merkliste',
-  'search': 'Suche',
-  'json-export-import': 'JSON Export/Import',
-  'bmecat': 'BMEcat',
-  'export-jobs': 'Export-Jobs',
-}
+// Labels dynamisch vom Backend (via /permissions Endpoint)
+const entityLabels = ref({})
 
 const actionLabels = {
   'view': 'Lesen',
@@ -72,7 +38,7 @@ const allPermissions = computed(() => {
   for (const [entity, actions] of Object.entries(availablePermissions.value)) {
     for (const action of actions) {
       const permName = `${entity}.${action}`
-      const label = `${entityLabels[entity] || entity} — ${actionLabels[action] || action}`
+      const label = `${entityLabels.value[entity] || entity} — ${actionLabels[action] || action}`
       list.push({ name: permName, label, entity, action })
     }
   }
@@ -147,6 +113,7 @@ watch(() => props.open, async (isOpen) => {
     try {
       const { data } = await roles.listPermissions()
       availablePermissions.value = data.data || data
+      if (data.labels) entityLabels.value = data.labels
       // Initialize action tracking
       for (const [entity, actions] of Object.entries(availablePermissions.value)) {
         for (const action of actions) {
