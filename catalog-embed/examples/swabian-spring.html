@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Produktkatalog — Swabian Spring</title>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700;900&display=swap" rel="stylesheet">
+  <style>
+    /* ===========================================================
+     * SWABIAN SPRING — Frisches Medizintechnik-Design
+     * ===========================================================
+     * Farbschema: Cyan #5ec5b0, Lime #c5d63d, Dunkel #1a1a2e
+     * Passend zum gleichnamigen Portal-Template
+     */
+    :root {
+      --pxc-primary: #5ec5b0;
+      --pxc-primary-text: #1a1a2e;
+      --pxc-accent: #c5d63d;
+      --pxc-bg: #ffffff;
+      --pxc-surface: #f7faf9;
+      --pxc-border: #d1e7e2;
+      --pxc-text: #1a1a2e;
+      --pxc-text-muted: #64748b;
+      --pxc-radius: 0px;
+      --pxc-font: 'Source Sans 3', system-ui, sans-serif;
+      --pxc-shadow: none;
+      --pxc-shadow-lg: 0 2px 8px rgba(0,0,0,0.08);
+
+      --ss-cyan: #5ec5b0;
+      --ss-lime: #c5d63d;
+      --ss-dark: #1a1a2e;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: var(--pxc-font); font-size: 16px; background: #fff; color: var(--ss-dark); }
+
+    /* Rainbow stripe */
+    .ss-stripe {
+      height: 5px;
+      background: linear-gradient(90deg,
+        #e63946 0%, #e63946 16%,
+        #f4a261 16%, #f4a261 33%,
+        #c5d63d 33%, #c5d63d 50%,
+        #5ec5b0 50%, #5ec5b0 66%,
+        #457b9d 66%, #457b9d 83%,
+        #1a1a2e 83%, #1a1a2e 100%
+      );
+    }
+
+    /* Header */
+    .ss-header {
+      background: #fff;
+      border-bottom: 1px solid #e5e7eb;
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .ss-header__left {
+      display: flex; align-items: center; gap: 16px;
+    }
+    .ss-header__logo {
+      display: flex; align-items: center; gap: 10px;
+      text-decoration: none; color: var(--ss-dark);
+    }
+    .ss-header__logo-mark {
+      font-size: 1.25rem; font-weight: 900; color: var(--ss-cyan);
+    }
+    .ss-header__logo-text { font-weight: 700; font-size: 0.9375rem; }
+    .ss-header__search { max-width: 360px; flex: 1; }
+    .ss-header__actions {
+      display: flex; align-items: center; gap: 12px;
+    }
+
+    /* Cyan bar under header */
+    .ss-accent-bar {
+      background: var(--ss-cyan);
+      height: 4px;
+    }
+
+    /* Layout */
+    .ss-layout {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      gap: 0;
+      min-height: calc(100vh - 70px);
+    }
+    .ss-sidebar {
+      border-right: 1px solid #e5e7eb;
+      padding: 20px 16px;
+      background: var(--pxc-surface);
+      overflow-y: auto;
+    }
+    .ss-main {
+      padding: 24px;
+    }
+
+    /* Toolbar area */
+    .ss-toolbar {
+      margin-bottom: 16px;
+    }
+    .ss-section-title {
+      font-size: 0.8125rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--ss-dark);
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 3px solid var(--ss-lime);
+      display: inline-block;
+    }
+
+    /* Product card overrides */
+    .ss-products .pxc-product-card {
+      border: 1px solid #e5e7eb;
+      border-radius: 0;
+      transition: border-color 0.15s;
+    }
+    .ss-products .pxc-product-card:hover {
+      border-color: var(--ss-cyan);
+      box-shadow: none;
+      transform: none;
+    }
+    .ss-products .pxc-product-card__image {
+      border-radius: 0;
+      background: #f7faf9;
+    }
+    .ss-products .pxc-product-card__name {
+      font-weight: 700;
+      color: var(--ss-dark);
+    }
+    .ss-products .pxc-product-card__price {
+      color: var(--ss-dark);
+      font-weight: 700;
+    }
+    .ss-products .pxc-product-grid__grid {
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 16px;
+    }
+
+    /* Category/Facet overrides */
+    .ss-sidebar .pxc-categories__item {
+      border-radius: 0;
+      font-weight: 600;
+    }
+    .ss-sidebar .pxc-categories__item--active {
+      background: var(--ss-cyan);
+      color: var(--ss-dark);
+    }
+    .ss-sidebar .pxc-facets__badge {
+      border-radius: 0;
+      background: var(--ss-cyan);
+      color: var(--ss-dark);
+    }
+    .ss-sidebar .pxc-facets__title {
+      font-weight: 700;
+      text-transform: uppercase;
+      font-size: 0.75rem;
+      letter-spacing: 0.5px;
+      color: var(--ss-dark);
+    }
+
+    /* Buttons */
+    .pxc-btn {
+      background: var(--ss-dark);
+      color: #fff;
+      border-radius: 0;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .pxc-btn:hover {
+      background: #2d2d4a;
+    }
+
+    /* Wishlist accent */
+    .pxc-text-accent { color: var(--ss-lime) !important; }
+
+    /* Pagination */
+    .ss-pagination .pxc-pagination__btn { border-radius: 0; }
+    .ss-pagination .pxc-pagination__active { background: var(--ss-dark) !important; }
+
+    /* Info banner (lime) */
+    .ss-info {
+      background: var(--ss-lime);
+      padding: 20px 24px;
+      margin-top: 32px;
+    }
+    .ss-info__inner {
+      display: flex; align-items: center; gap: 16px;
+    }
+    .ss-info__icon svg {
+      width: 24px; height: 24px; fill: none; stroke: var(--ss-dark);
+      stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+    }
+    .ss-info__text {
+      font-size: 0.875rem; font-weight: 600; color: var(--ss-dark);
+    }
+
+    /* Footer */
+    .ss-footer {
+      background: var(--ss-dark);
+      color: rgba(255,255,255,0.5);
+      padding: 24px 32px;
+      text-align: center;
+      font-size: 0.75rem;
+    }
+    .ss-footer a { color: rgba(255,255,255,0.7); text-decoration: none; }
+
+    @media (max-width: 768px) {
+      .ss-layout { grid-template-columns: 1fr; }
+      .ss-sidebar { display: none; }
+      .ss-main { padding: 16px; }
+      .ss-header__search { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="ss-stripe"></div>
+
+  <header class="ss-header">
+    <div class="ss-header__left">
+      <div data-catalog="sidebar-toggle"></div>
+      <a href="#" class="ss-header__logo">
+        <span class="ss-header__logo-mark">IHR</span>
+        <span class="ss-header__logo-text">Firmenname</span>
+      </a>
+    </div>
+    <div class="ss-header__search">
+      <div data-catalog="search"></div>
+    </div>
+    <div class="ss-header__actions">
+      <div data-catalog="locale"></div>
+      <div data-catalog="wishlist-button"></div>
+    </div>
+  </header>
+
+  <div class="ss-accent-bar"></div>
+
+  <div class="ss-layout">
+    <aside class="ss-sidebar" data-catalog-sidebar>
+      <div data-catalog="categories"></div>
+      <div style="margin-top: 16px;">
+        <div data-catalog="facets"></div>
+      </div>
+    </aside>
+
+    <main class="ss-main">
+      <div class="ss-toolbar">
+        <div data-catalog="toolbar"></div>
+      </div>
+      <div data-catalog="active-filters"></div>
+
+      <span class="ss-section-title">Produkte</span>
+      <div class="ss-products">
+        <div data-catalog="product-grid"></div>
+      </div>
+
+      <div class="ss-pagination">
+        <div data-catalog="pagination"></div>
+      </div>
+
+      <div class="ss-info">
+        <div class="ss-info__inner">
+          <div class="ss-info__icon">
+            <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          </div>
+          <div class="ss-info__text">
+            Alle Produktinformationen entsprechen dem aktuellen Stand. Fuer Fragen stehen wir Ihnen gerne zur Verfuegung.
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <footer class="ss-footer">
+    &copy; 2026 Ihr Firmenname GmbH &middot;
+    <a href="#">Impressum</a> &middot;
+    <a href="#">Datenschutz</a> &middot;
+    <a href="#">AGB</a>
+  </footer>
+
+  <div data-catalog="wishlist"></div>
+  <div data-catalog="product-detail"></div>
+  <div data-catalog="compare"></div>
+
+  <script src="../dist/catalog-embed.umd.js"></script>
+  <script>
+    PublixxCatalog.init({
+      api: 'http://localhost:8000/api/v1',
+      locale: 'de',
+      perPage: 24,
+    })
+  </script>
+
+</body>
+</html>

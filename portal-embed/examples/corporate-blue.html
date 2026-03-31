@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Portal — Corporate Blue</title>
+  <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* ===========================================================
+     * CORPORATE BLUE — Formelles Business-Portal
+     * ===========================================================
+     * Farbschema: Dunkelblau #1e3a5f, Akzent Gold #d4a843
+     * Inspiriert von: Industrie, Maschinenbau, Enterprise
+     */
+    :root {
+      --pe-primary: #1e3a5f;
+      --pe-primary-text: #fff;
+      --pe-dark: #0f172a;
+      --pe-surface: #f1f5f9;
+      --pe-border: #cbd5e1;
+      --pe-radius: 4px;
+      --pe-font: 'Open Sans', system-ui, sans-serif;
+
+      --cb-navy: #1e3a5f;
+      --cb-navy-light: #2d4a72;
+      --cb-gold: #d4a843;
+      --cb-gray: #f8fafc;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: var(--pe-font); color: var(--pe-dark); background: #fff; }
+
+    /* Header: Navy mit Gold-Akzent */
+    .cb-header {
+      background: var(--cb-navy);
+      color: #fff;
+    }
+    .cb-header__top {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .cb-header__logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: #fff;
+    }
+    .cb-header__logo-icon {
+      width: 40px; height: 40px;
+      border: 2px solid var(--cb-gold);
+      border-radius: 4px;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 1.1rem; color: var(--cb-gold);
+    }
+    .cb-header__logo-text {
+      font-size: 1.125rem; font-weight: 700;
+    }
+    .cb-header__logo-sub {
+      font-size: 0.6875rem; opacity: 0.7; font-weight: 400;
+    }
+    .cb-header__stripe {
+      height: 4px;
+      background: linear-gradient(90deg, var(--cb-gold) 0%, var(--cb-navy-light) 100%);
+    }
+
+    /* Hero */
+    .cb-hero {
+      background: linear-gradient(135deg, #1e3a5f 0%, #2d4a72 50%, #1a3355 100%);
+      color: #fff;
+      padding: 56px 32px;
+      text-align: center;
+    }
+    .cb-hero [data-portal="branding"] { max-width: 640px; margin: 0 auto; }
+    /* Override branding colors for dark bg */
+    .cb-hero .pe-branding__subtitle { color: var(--cb-gold); }
+    .cb-hero .pe-branding__title { color: #fff; }
+    .cb-hero .pe-branding__desc { color: rgba(255,255,255,0.75); }
+    .cb-hero .pe-branding__features li { color: rgba(255,255,255,0.9); }
+    .cb-hero .pe-branding__check { background: var(--cb-gold); }
+
+    /* Info bar */
+    .cb-infobar {
+      background: var(--cb-gray);
+      border-bottom: 1px solid var(--pe-border);
+      padding: 14px 32px;
+    }
+    .cb-infobar__inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: center;
+      gap: 40px;
+    }
+    .cb-infobar__item {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 0.8125rem; font-weight: 600; color: var(--cb-navy);
+    }
+    .cb-infobar__item svg {
+      width: 18px; height: 18px; fill: none; stroke: var(--cb-gold);
+      stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+    }
+
+    /* Content: Zwei-Spalten */
+    .cb-content {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 48px 24px;
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      gap: 48px;
+      align-items: start;
+    }
+    .cb-content__main { }
+    .cb-content__sidebar {
+      background: var(--cb-gray);
+      border: 1px solid var(--pe-border);
+      border-radius: var(--pe-radius);
+      padding: 24px;
+    }
+    .cb-content__sidebar-title {
+      font-size: 0.875rem;
+      font-weight: 700;
+      color: var(--cb-navy);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid var(--cb-gold);
+    }
+
+    /* Footer */
+    .cb-footer {
+      background: var(--cb-navy);
+      color: rgba(255,255,255,0.5);
+      padding: 20px 32px;
+      text-align: center;
+      font-size: 0.75rem;
+    }
+    .cb-footer a { color: rgba(255,255,255,0.7); text-decoration: none; }
+
+    @media (max-width: 900px) {
+      .cb-content { grid-template-columns: 1fr; }
+      .cb-infobar__inner { flex-wrap: wrap; gap: 16px; }
+    }
+    @media (max-width: 640px) {
+      .cb-hero { padding: 40px 16px; }
+      .cb-content { padding: 24px 16px; }
+    }
+  </style>
+</head>
+<body>
+
+  <header class="cb-header">
+    <div class="cb-header__top">
+      <a href="#" class="cb-header__logo">
+        <div class="cb-header__logo-icon">P</div>
+        <div>
+          <div class="cb-header__logo-text">Ihr Firmenname</div>
+          <div class="cb-header__logo-sub">Dokumentenportal</div>
+        </div>
+      </a>
+    </div>
+    <div class="cb-header__stripe"></div>
+  </header>
+
+  <section class="cb-hero">
+    <div data-portal="branding"></div>
+  </section>
+
+  <div class="cb-infobar">
+    <div class="cb-infobar__inner">
+      <div class="cb-infobar__item">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+        <span>Weltweit verfuegbar</span>
+      </div>
+      <div class="cb-infobar__item">
+        <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <span>Sofort herunterladen</span>
+      </div>
+      <div class="cb-infobar__item">
+        <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        <span>Zertifiziert</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="cb-content">
+    <div class="cb-content__main">
+      <div data-portal="country-select"></div>
+    </div>
+    <aside class="cb-content__sidebar">
+      <div class="cb-content__sidebar-title">Weiter zum Katalog</div>
+      <div data-portal="submit-button"></div>
+      <p style="margin-top: 16px; font-size: 0.75rem; color: #64748b; line-height: 1.5;">
+        Waehlen Sie Ihr Land, um die fuer Sie relevanten Dokumente und Produktinformationen anzuzeigen.
+      </p>
+    </aside>
+  </div>
+
+  <footer class="cb-footer">
+    &copy; 2026 Ihr Firmenname GmbH &middot;
+    <a href="#">Impressum</a> &middot;
+    <a href="#">Datenschutz</a> &middot;
+    <a href="#">AGB</a>
+  </footer>
+
+  <script src="../dist/portal-embed.umd.js"></script>
+  <script>
+    PortalEmbed.init({ api: '__API_URL__', slug: '__SLUG__' })
+  </script>
+
+</body>
+</html>

@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Portal — Modern Gradient</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    /* ===========================================================
+     * MODERN GRADIENT — Modernes Portal mit Farbverlauf
+     * ===========================================================
+     * Farbschema: Violet→Indigo Gradient, Weiss-Karten
+     * Inspiriert von: SaaS-Produkte, moderne Consumer-Portale
+     */
+    :root {
+      --pe-primary: #7c3aed;
+      --pe-primary-text: #fff;
+      --pe-dark: #1e1b4b;
+      --pe-surface: #faf5ff;
+      --pe-border: #e9d5ff;
+      --pe-radius: 16px;
+      --pe-font: 'Plus Jakarta Sans', system-ui, sans-serif;
+
+      --mg-gradient: linear-gradient(135deg, #7c3aed 0%, #4f46e5 50%, #2563eb 100%);
+      --mg-gradient-soft: linear-gradient(135deg, #ede9fe 0%, #e0e7ff 50%, #dbeafe 100%);
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: var(--pe-font); color: var(--pe-dark); background: #faf5ff; min-height: 100vh; }
+
+    .mg-hero {
+      background: var(--mg-gradient);
+      color: #fff;
+      padding: 48px 32px 0;
+      overflow: hidden;
+      position: relative;
+    }
+    .mg-hero::after {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 80px;
+      background: linear-gradient(to bottom, transparent, #faf5ff);
+    }
+    .mg-hero__inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      position: relative;
+      z-index: 1;
+    }
+    .mg-hero__header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 48px;
+    }
+    .mg-hero__logo {
+      display: flex; align-items: center; gap: 10px;
+      font-weight: 800; font-size: 1.25rem; color: #fff;
+      text-decoration: none;
+    }
+    .mg-hero__logo-dot {
+      width: 10px; height: 10px;
+      background: #c4b5fd;
+      border-radius: 50%;
+    }
+
+    /* Override branding for dark bg */
+    .mg-hero .pe-branding__subtitle { color: #c4b5fd; }
+    .mg-hero .pe-branding__title { color: #fff; font-size: 2.5rem; }
+    .mg-hero .pe-branding__desc { color: rgba(255,255,255,0.8); }
+    .mg-hero .pe-branding__features li { color: rgba(255,255,255,0.9); }
+    .mg-hero .pe-branding__check { background: rgba(255,255,255,0.2); }
+
+    .mg-hero__branding {
+      max-width: 600px;
+      padding-bottom: 80px;
+    }
+
+    /* Features als schwebende Karten */
+    .mg-features {
+      max-width: 800px;
+      margin: -40px auto 0;
+      padding: 0 32px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      position: relative;
+      z-index: 2;
+    }
+    .mg-feature-card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 20px;
+      text-align: center;
+      box-shadow: 0 4px 24px rgba(124, 58, 237, 0.1);
+      border: 1px solid #ede9fe;
+    }
+    .mg-feature-card__icon {
+      width: 44px; height: 44px;
+      margin: 0 auto 10px;
+      background: var(--mg-gradient-soft);
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .mg-feature-card__icon svg {
+      width: 22px; height: 22px; fill: none; stroke: #7c3aed;
+      stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+    }
+    .mg-feature-card__label {
+      font-size: 0.8125rem; font-weight: 600; color: var(--pe-dark);
+    }
+
+    /* Hauptbereich */
+    .mg-main {
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 48px 32px 64px;
+    }
+    .mg-main__card {
+      background: #fff;
+      border-radius: var(--pe-radius);
+      padding: 32px;
+      box-shadow: 0 4px 24px rgba(124, 58, 237, 0.06);
+      border: 1px solid #ede9fe;
+    }
+    .mg-main__submit {
+      margin-top: 24px;
+    }
+
+    /* Override country widget styles */
+    .mg-main .pe-country__item {
+      border-radius: 12px;
+    }
+    .mg-main .pe-country__item--active {
+      background: #ede9fe;
+      border-color: #7c3aed;
+    }
+
+    /* Footer */
+    .mg-footer {
+      text-align: center;
+      padding: 24px 32px;
+      font-size: 0.75rem;
+      color: #a78bfa;
+    }
+    .mg-footer a { color: #7c3aed; text-decoration: none; }
+
+    /* Background Orbs */
+    .mg-orb {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(80px);
+      opacity: 0.15;
+    }
+    .mg-orb--1 { width: 300px; height: 300px; background: #c4b5fd; top: -50px; right: 10%; }
+    .mg-orb--2 { width: 200px; height: 200px; background: #93c5fd; top: 30%; left: 5%; }
+
+    @media (max-width: 768px) {
+      .mg-hero { padding: 32px 16px 0; }
+      .mg-hero .pe-branding__title { font-size: 1.75rem; }
+      .mg-features { grid-template-columns: 1fr; padding: 0 16px; }
+      .mg-main { padding: 32px 16px; }
+      .mg-main__card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+
+  <section class="mg-hero">
+    <div class="mg-orb mg-orb--1"></div>
+    <div class="mg-orb mg-orb--2"></div>
+    <div class="mg-hero__inner">
+      <div class="mg-hero__header">
+        <a href="#" class="mg-hero__logo">
+          <span class="mg-hero__logo-dot"></span>
+          Ihr Firmenname
+        </a>
+      </div>
+      <div class="mg-hero__branding">
+        <div data-portal="branding"></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="mg-features">
+    <div class="mg-feature-card">
+      <div class="mg-feature-card__icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></div>
+      <div class="mg-feature-card__label">25+ Sprachen</div>
+    </div>
+    <div class="mg-feature-card">
+      <div class="mg-feature-card__icon"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div>
+      <div class="mg-feature-card__label">Sofort-Download</div>
+    </div>
+    <div class="mg-feature-card">
+      <div class="mg-feature-card__icon"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+      <div class="mg-feature-card__label">Immer aktuell</div>
+    </div>
+  </div>
+
+  <div class="mg-main">
+    <div class="mg-main__card">
+      <div data-portal="country-select"></div>
+      <div class="mg-main__submit">
+        <div data-portal="submit-button"></div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="mg-footer">
+    &copy; 2026 Ihr Firmenname &middot;
+    <a href="#">Impressum</a> &middot;
+    <a href="#">Datenschutz</a>
+  </footer>
+
+  <script src="../dist/portal-embed.umd.js"></script>
+  <script>
+    PortalEmbed.init({ api: '__API_URL__', slug: '__SLUG__' })
+  </script>
+
+</body>
+</html>
