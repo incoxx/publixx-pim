@@ -297,6 +297,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // =====================================================================
     // License Generator (hidden admin tool)
     // =====================================================================
+    Route::get('license-generator/modules', [LicenseGeneratorController::class, 'modules']);
     Route::post('license-generator/validate-key', [LicenseGeneratorController::class, 'validateKey']);
     Route::post('license-generator/generate', [LicenseGeneratorController::class, 'generate']);
     Route::post('license-generator/generate-keypair', [LicenseGeneratorController::class, 'generateKeypair']);

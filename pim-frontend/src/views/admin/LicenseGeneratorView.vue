@@ -1,7 +1,8 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { Key, Shield, Copy, Check, AlertTriangle, RefreshCw, Loader2 } from 'lucide-vue-next'
 import licenseApi from '@/api/license'
+import client from '@/api/client'
 
 // ── State ──
 const privateKey = ref('')
@@ -26,27 +27,25 @@ const copied = ref(false)
 const generatingKeypair = ref(false)
 const keypairResult = ref(null)
 
-// ── Modules from backend config (hardcoded to match config/license.php) ──
-const availableModules = [
-  { key: 'bmecat', name: 'BMEcat Import/Export', description: 'BMEcat XML 1.2 / 2005 Import und Export' },
-  { key: 'advanced_export', name: 'Erweiterte Exports', description: 'Export-Jobs, Zeitpläne, SFTP/HTTP-Delivery, Export-Mappings' },
-  { key: 'publixx', name: 'Publixx-Integration', description: 'Publixx-Mappings' },
-  { key: 'reports', name: 'Berichte', description: 'Bericht-Designer und Auswertungen' },
-  { key: 'pdf_templates', name: 'PDF-Vorlagen', description: 'PDF-Template-Designer und -Generierung' },
-  { key: 'sso', name: 'Single Sign-On', description: 'Azure AD / OAuth SSO-Integration' },
-  { key: 'workflow', name: 'Workflow-Management', description: 'Konfigurierbare Workflows, Teams und Projekte' },
-  { key: 'api_designer', name: 'API-Designer', description: 'Visueller API-Designer mit JSON-Streaming-Endpoints' },
-  { key: 'excel_designer', name: 'Sheet Designer', description: 'Excel-Sheet-Designer für konfigurierbare .xlsx-Produktlisten mit Thumbnails' },
-  { key: 'connectors', name: 'Connectoren', description: 'Externe API-Connectoren (Canva, DeepL, Adobe u.a.)' },
-]
+// ── Modules dynamisch vom Backend laden (config/license.php) ──
+const availableModules = ref([])
 
-const allSelected = computed(() => selectedModules.value.length === availableModules.length)
+onMounted(async () => {
+  try {
+    const { data } = await client.get('/license-generator/modules')
+    availableModules.value = data.data || []
+  } catch {
+    console.warn('[LicenseGenerator] Module konnten nicht geladen werden')
+  }
+})
+
+const allSelected = computed(() => availableModules.value.length > 0 && selectedModules.value.length === availableModules.value.length)
 
 function toggleAll() {
   if (allSelected.value) {
     selectedModules.value = []
   } else {
-    selectedModules.value = availableModules.map(m => m.key)
+    selectedModules.value = availableModules.value.map(m => m.key)
   }
 }
 

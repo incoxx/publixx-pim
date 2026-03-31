@@ -62,60 +62,9 @@ function setTabAccess(tabKey, level) {
 const isEdit = computed(() => !!props.role)
 
 // Entity labels for display
-const entityLabels = {
-  'products': 'Produkte',
-  'product-types': 'Produkttypen',
-  'attributes': 'Attribute',
-  'attribute-types': 'Attributgruppen',
-  'attribute-views': 'Attribut-Sichten',
-  'hierarchies': 'Hierarchien',
-  'hierarchy-nodes': 'Hierarchie-Knoten',
-  'unit-groups': 'Einheitengruppen',
-  'units': 'Einheiten',
-  'value-lists': 'Wertelisten',
-  'media': 'Medien',
-  'media-usage-types': 'Bildtypen',
-  'prices': 'Preise',
-  'price-types': 'Preistypen',
-  'manufacturers': 'Hersteller',
-  'relation-types': 'Produktbeziehungen',
-  'imports': 'Import',
-  'export': 'Export',
-  'publixx-mappings': 'Publixx-Mappings',
-  'users': 'Benutzer',
-  'roles': 'Rollen',
-  'access-links': 'Zugangslinks',
-  'reports': 'Berichte',
-  'pdf-templates': 'PDF-Vorlagen',
-  'calendar': 'Planungskalender',
-  'dictionary': 'Wörterbuch',
-  'translations': 'Übersetzungen',
-  'journal': 'Journal',
-  'settings': 'Einstellungen',
-  'watchlist': 'Merkliste',
-  'search': 'Suche',
-  'json-export-import': 'JSON Export/Import',
-  'bmecat': 'BMEcat',
-  'export-jobs': 'Export-Jobs',
-  'api-templates': 'API-Templates',
-  'dashboard': 'Dashboard',
-}
-
-// Category grouping
-const categoryGroups = [
-  {
-    label: 'Tagesgeschäft',
-    entities: ['dashboard', 'products', 'hierarchies', 'hierarchy-nodes', 'media', 'media-usage-types', 'prices', 'price-types', 'search', 'watchlist', 'reports', 'pdf-templates', 'calendar'],
-  },
-  {
-    label: 'Konfiguration',
-    entities: ['manufacturers', 'product-types', 'relation-types', 'attribute-views', 'attribute-types', 'attributes', 'value-lists', 'dictionary', 'units', 'unit-groups', 'translations'],
-  },
-  {
-    label: 'Administration',
-    entities: ['imports', 'export', 'json-export-import', 'bmecat', 'export-jobs', 'publixx-mappings', 'api-templates', 'settings', 'users', 'roles', 'access-links', 'journal'],
-  },
-]
+// Labels und Gruppen kommen vom Backend (GET /permissions → labels, groups)
+const entityLabels = ref({})
+const categoryGroups = ref([])
 
 // Standard action columns
 const standardActions = ['view', 'create', 'edit', 'delete']
@@ -148,12 +97,12 @@ const groupedPermissions = computed(() => {
   const perms = availablePermissions.value
   const assignedEntities = new Set()
 
-  const groups = categoryGroups.map(group => {
+  const groups = categoryGroups.value.map(group => {
     const entities = group.entities
       .filter(e => perms[e])
       .map(e => {
         assignedEntities.add(e)
-        return { key: e, label: entityLabels[e] || e, actions: perms[e] }
+        return { key: e, label: entityLabels.value[e] || e, actions: perms[e] }
       })
     return { label: group.label, entities }
   }).filter(g => g.entities.length > 0)
@@ -161,7 +110,7 @@ const groupedPermissions = computed(() => {
   // Add ungrouped entities
   const ungrouped = Object.keys(perms)
     .filter(e => !assignedEntities.has(e))
-    .map(e => ({ key: e, label: entityLabels[e] || e, actions: perms[e] }))
+    .map(e => ({ key: e, label: entityLabels.value[e] || e, actions: perms[e] }))
 
   if (ungrouped.length > 0) {
     groups.push({ label: 'Sonstige', entities: ungrouped })
@@ -347,6 +296,10 @@ onMounted(async () => {
     ])
 
     availablePermissions.value = permResponse.data.data || permResponse.data
+
+    // Labels und Gruppen vom Backend uebernehmen (Single Source of Truth)
+    if (permResponse.data.labels) entityLabels.value = permResponse.data.labels
+    if (permResponse.data.groups) categoryGroups.value = permResponse.data.groups
 
     // Load attribute types and media usage types for restriction pickers
     const atData = atResponse.data.data || atResponse.data
