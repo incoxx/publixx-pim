@@ -2369,8 +2369,21 @@ class ImportExecutor
 
     private function importMedia(array $rows, string $sheetKey): void
     {
+        $totalRows = count($rows);
+        $processedRows = 0;
+
         foreach ($rows as $row) {
             try {
+            $this->heartbeat();
+
+            $processedRows++;
+            if ($processedRows % 50 === 0) {
+                $this->checkCancelled();
+                if ($this->progressCallback) {
+                    ($this->progressCallback)($sheetKey, $processedRows, $totalRows, $this->stats);
+                }
+            }
+
             $productResult = $this->resolver->resolveProduct($row['sku']);
             if (!$productResult->resolved()) {
                 $this->logSkipped($sheetKey, $row, "Produkt nicht gefunden: SKU '{$row['sku']}'");
