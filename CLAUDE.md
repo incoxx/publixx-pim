@@ -59,12 +59,17 @@ Detaillierte Arbeitsanweisungen werden automatisch geladen, wenn relevante Datei
 | `.claude/rules/mapping-resolver.md` | `MappingResolver.php`, `*ElementMap.php` | Quellfelder, Mapping-Typen, Regel-Struktur |
 | `.claude/rules/classification-architecture.md` | `Attribute*.php`, `HierarchyNode*.php`, `*attribute_mapping*` | Klassifikationen, attribute_mappings, KI-Mapping |
 
-## Slash-Commands (`.claude/commands/`)
+## Skills (`.claude/skills/`)
 
-| Command | Zweck |
-|---------|-------|
-| `/project:new-export-format` | Neues Export-Format anlegen (5-Dateien-Pattern) |
-| `/project:review-spec` | Spec-Datei gegen Codebase prüfen |
+| Skill | Zweck | Trigger |
+|-------|-------|---------|
+| `/project:new-export-format` | Neues Export-Format anlegen (5-Dateien-Pattern) | Manuell |
+| `/project:add-crud-feature` | Vollständiges CRUD-Feature (Backend + Frontend) | Manuell |
+| `/project:add-connector` | Neuen Plattform-Connector integrieren | Manuell |
+| `/project:add-attribute-type` | Neuen Attribut-Datentyp anlegen | Manuell |
+| `/project:fix-and-test` | Bug fixen + Test schreiben (TDD) | Manuell |
+| `/project:review-code` | Code-Review nach Qualitätsstandards | Manuell |
+| `/project:review-spec` | Spec-Datei gegen Codebase prüfen | Manuell |
 
 ---
 
