@@ -687,10 +687,10 @@ Drei Komponenten: tägliches Datenbank-Backup (`mysqldump`), tägliches Medien-B
 | Quellcode | [github.com/incoxx/publixx-pim](https://github.com/incoxx/publixx-pim) |
 | Hilfe-Portal (DE) | [smartentities.de/web/help/de/](https://smartentities.de/web/help/de/) |
 | Hilfe-Portal (EN) | [smartentities.de/web/help/en/](https://smartentities.de/web/help/en/) |
-| API-Dokumentation | [API.md im Repository](https://github.com/incoxx/publixx-pim/blob/main/API.md) |
-| Feature-Übersicht | [FEATURES.md im Repository](https://github.com/incoxx/publixx-pim/blob/main/FEATURES.md) |
-| Installationsanleitung | [INSTALL.md im Repository](https://github.com/incoxx/publixx-pim/blob/main/INSTALL.md) |
-| Datenbankschema | [DATABASE.md im Repository](https://github.com/incoxx/publixx-pim/blob/main/DATABASE.md) |
+| API-Dokumentation | [API Reference](https://github.com/incoxx/publixx-pim/blob/main/docs/reference/api.md) |
+| Feature-Übersicht | [Features](https://github.com/incoxx/publixx-pim/blob/main/docs/features/features.md) |
+| Installationsanleitung | [Installation](https://github.com/incoxx/publixx-pim/blob/main/docs/operations/install.md) |
+| Datenbankschema | [Database Schema](https://github.com/incoxx/publixx-pim/blob/main/docs/reference/database.md) |
 
 ---
 

@@ -1,6 +1,6 @@
 # anyPIM — Deployment Guide
 
-Manual deployment guide for production servers. For automated installation, use `setup.sh` instead (see [INSTALL.md](INSTALL.md)).
+Manual deployment guide for production servers. For automated installation, use `setup.sh` instead (see [install.md](install.md)).
 
 Recommended server: **4 vCPU, 8 GB RAM, 160 GB SSD, Ubuntu 24.04 LTS**
 
@@ -247,7 +247,7 @@ cd /var/www/publixx-pim
 sudo bash update.sh
 ```
 
-See [UPDATE.md](UPDATE.md) for all options.
+See [update.md](update.md) for all options.
 
 ### Manual
 
