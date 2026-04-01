@@ -22,7 +22,7 @@ import { useTabStore } from '@/stores/tabs'
 import { useAuthStore } from '@/stores/auth'
 import { useLocaleStore } from '@/stores/locale'
 import { useI18n } from 'vue-i18n'
-import { ArrowLeft, Save, Plus, Trash2, Image, Star, X, Search, Download, Languages, Copy, Sparkles, Tags, LayoutGrid, List, FileText, GitBranch, CheckCircle2, Eye, RotateCcw, ArrowRightLeft, RefreshCw, ChevronDown, ChevronRight } from 'lucide-vue-next'
+import { ArrowLeft, Save, Plus, Trash2, Image, Star, X, Search, Download, Languages, Copy, Sparkles, Tags, LayoutGrid, List, FileText, GitBranch, CheckCircle2, Eye, RotateCcw, ArrowRightLeft, RefreshCw, ChevronDown, ChevronRight, ExternalLink } from 'lucide-vue-next'
 import productsApi from '@/api/products'
 import projectsApi from '@/api/projects'
 import usersApi from '@/api/users'
@@ -34,6 +34,7 @@ import attributesApiDefault, { productTypes, valueLists, attributeViews, attribu
 import dictionaryApi from '@/api/dictionary'
 import hierarchiesApi from '@/api/hierarchies'
 import attributeMappingsApi from '@/api/attributeMappings'
+import watchlistApi from '@/api/watchlist'
 import manufacturersApi from '@/api/manufacturers'
 import PimCollectionGroup from '@/components/shared/PimCollectionGroup.vue'
 import PimAttributeInput from '@/components/shared/PimAttributeInput.vue'
@@ -1090,6 +1091,56 @@ function isMediaPdf(item) {
   return fname.toLowerCase().endsWith('.pdf')
 }
 
+// ─── Watchlist (Header + Beziehungen) ────────────────
+const watchlistIds = ref(new Set())
+const isOnWatchlist = computed(() => product.value && watchlistIds.value.has(product.value.id))
+
+async function loadWatchlistIds() {
+  try {
+    const { data } = await watchlistApi.productIds()
+    watchlistIds.value = new Set(data.data || data)
+  } catch { /* ignore */ }
+}
+
+async function toggleWatchlist() {
+  if (!product.value) return
+  try {
+    if (isOnWatchlist.value) {
+      await watchlistApi.removeByProduct(product.value.id)
+      watchlistIds.value.delete(product.value.id)
+      watchlistIds.value = new Set(watchlistIds.value)
+    } else {
+      await watchlistApi.add(product.value.id)
+      watchlistIds.value.add(product.value.id)
+      watchlistIds.value = new Set(watchlistIds.value)
+    }
+  } catch (e) { console.error('Watchlist toggle failed', e) }
+}
+
+async function toggleTargetWatchlist(productId) {
+  if (!productId) return
+  try {
+    if (watchlistIds.value.has(productId)) {
+      await watchlistApi.removeByProduct(productId)
+      watchlistIds.value.delete(productId)
+    } else {
+      await watchlistApi.add(productId)
+      watchlistIds.value.add(productId)
+    }
+    watchlistIds.value = new Set(watchlistIds.value)
+  } catch (e) { console.error('Watchlist toggle failed', e) }
+}
+
+// ─── Hauptbild Vorschau (Header) ─────────────────────
+const primaryMediaThumb = computed(() => {
+  const primary = mediaItems.value.find(m => m.is_primary)
+    || mediaItems.value.find(m => m.usage_type?.technical_name === 'teaser')
+    || mediaItems.value.find(m => (m.mime_type || m.media?.mime_type || '').startsWith('image/'))
+  if (!primary) return null
+  const id = primary.media_id || primary.media?.id || primary.id
+  return id ? mediaApi.thumbUrl(id, 64, 64) : null
+})
+
 // ─── Prices ───────────────────────────────────────────
 const prices = ref([])
 const pricesLoaded = ref(false)
@@ -1112,6 +1163,23 @@ const priceColumns = [
   { key: 'valid_to', label: 'Gültig bis' },
   { key: 'price_region.name', label: 'Preisregion' },
 ]
+
+const priceQuickLookup = ref({})
+const priceQuickLookupConfig = computed(() => ({
+  'price_type.name_de': { type: 'select', options: priceTypesList.value.map(t => ({ value: t.name_de || t.technical_name, label: t.name_de || t.technical_name })) },
+  'currency': { type: 'select', options: [{ value: 'EUR', label: 'EUR' }, { value: 'USD', label: 'USD' }, { value: 'CHF', label: 'CHF' }, { value: 'GBP', label: 'GBP' }] },
+  'price_region.name': { type: 'text', placeholder: 'Region…' },
+}))
+const filteredPrices = computed(() => {
+  const f = priceQuickLookup.value
+  if (!Object.values(f).some(v => v)) return prices.value
+  return prices.value.filter(p => {
+    if (f['price_type.name_de'] && !(p.price_type?.name_de || '').toLowerCase().includes(f['price_type.name_de'].toLowerCase())) return false
+    if (f['currency'] && p.currency !== f['currency']) return false
+    if (f['price_region.name'] && !(p.price_region?.name || '').toLowerCase().includes(f['price_region.name'].toLowerCase())) return false
+    return true
+  })
+})
 
 async function loadPrices() {
   if (pricesLoaded.value || !product.value) return
@@ -1194,6 +1262,17 @@ const relationsLoaded = ref(false)
 const relationsLoading = ref(false)
 const relationTypesList = ref([])
 const showRelationForm = ref(false)
+const relationFilter = ref('')
+const relationViewMode = ref('list') // 'list' | 'grid'
+const filteredRelations = computed(() => {
+  if (!relationFilter.value.trim()) return relations.value
+  const q = relationFilter.value.toLowerCase()
+  return relations.value.filter(r =>
+    (r.target_product?.sku || '').toLowerCase().includes(q) ||
+    (r.target_product?.name || '').toLowerCase().includes(q) ||
+    (r.relation_type?.name_de || '').toLowerCase().includes(q)
+  )
+})
 const relationForm = ref({ relation_type_id: '', target_product_id: '', sort_order: 0 })
 const relationErrors = ref({})
 const relationSaving = ref(false)
@@ -1989,6 +2068,8 @@ onMounted(async () => {
   loadManufacturers()
   loadProductTypes()
   loadProjects()
+  loadMedia()         // Für Hauptbild-Vorschau im Header
+  loadWatchlistIds()  // Merkliste-Status
   if (workflowEnabled.value) {
     loadWorkflowUsers()
     loadWorkflowTeams()
@@ -2072,6 +2153,7 @@ async function switchToProduct(newId) {
   }
   loadAttributeData(null, gen)
   loadHierarchies()
+  loadMedia()         // Für Hauptbild-Vorschau im Header
   // If variant, load parent's inheritance rules
   if (product.value?.product_type_ref === 'variant' && product.value?.parent_product_id) {
     loadInheritanceRules()
@@ -2098,6 +2180,7 @@ onUnmounted(() => {
         </div>
         <template v-else-if="product">
           <div class="flex items-center gap-2">
+            <img v-if="primaryMediaThumb" :src="primaryMediaThumb" class="w-8 h-8 rounded object-cover border border-[var(--color-border)] shrink-0" alt="" />
             <h2 class="text-lg font-semibold text-[var(--color-text-primary)]">
               {{ product.name || product.sku }}
             </h2>
@@ -2124,6 +2207,14 @@ onUnmounted(() => {
           </p>
         </template>
       </div>
+      <button
+        v-if="product"
+        class="pim-btn pim-btn-ghost p-1.5"
+        :title="isOnWatchlist ? 'Von Merkliste entfernen' : 'Zur Merkliste hinzufügen'"
+        @click="toggleWatchlist"
+      >
+        <Star class="w-4 h-4" :stroke-width="1.75" :class="isOnWatchlist ? 'text-amber-500 fill-amber-500' : 'text-[var(--color-text-tertiary)]'" />
+      </button>
       <button
         v-if="product"
         class="pim-btn pim-btn-secondary text-xs"
@@ -3188,6 +3279,9 @@ onUnmounted(() => {
           <div class="p-2">
             <div class="flex items-center justify-between">
               <span class="text-[11px] text-[var(--color-text-primary)] truncate flex-1">{{ m.file_name || m.media?.file_name || '—' }}</span>
+              <button class="p-0.5 rounded hover:bg-[var(--color-bg)] text-[var(--color-text-tertiary)] hover:text-[var(--color-accent)] transition-colors" title="In Medienverwaltung öffnen" @click.stop="router.push({ path: '/media', query: { search: m.file_name || m.media?.file_name } })">
+                <ExternalLink class="w-3.5 h-3.5" :stroke-width="2" />
+              </button>
               <button class="p-0.5 rounded hover:bg-[var(--color-error-light)] text-[var(--color-text-tertiary)] hover:text-[var(--color-error)] transition-colors" @click="detachMedia(m)">
                 <X class="w-3.5 h-3.5" :stroke-width="2" />
               </button>
@@ -3231,9 +3325,14 @@ onUnmounted(() => {
                 <span class="text-[var(--color-text-tertiary)]">{{ m.mime_type || m.media?.mime_type || '—' }}</span>
               </td>
               <td class="px-3 py-1.5 text-right">
-                <button class="p-1 rounded hover:bg-[var(--color-error-light)] text-[var(--color-text-tertiary)] hover:text-[var(--color-error)] transition-colors" @click="detachMedia(m)">
-                  <X class="w-3.5 h-3.5" :stroke-width="2" />
-                </button>
+                <div class="flex items-center justify-end gap-1">
+                  <button class="p-1 rounded hover:bg-[var(--color-bg)] text-[var(--color-text-tertiary)] hover:text-[var(--color-accent)] transition-colors" title="In Medienverwaltung öffnen" @click.stop="router.push({ path: '/media', query: { search: m.file_name || m.media?.file_name } })">
+                    <ExternalLink class="w-3.5 h-3.5" :stroke-width="2" />
+                  </button>
+                  <button class="p-1 rounded hover:bg-[var(--color-error-light)] text-[var(--color-text-tertiary)] hover:text-[var(--color-error)] transition-colors" @click="detachMedia(m)">
+                    <X class="w-3.5 h-3.5" :stroke-width="2" />
+                  </button>
+                </div>
               </td>
             </tr>
           </tbody>
@@ -3324,11 +3423,14 @@ onUnmounted(() => {
 
       <PimTable
         :columns="priceColumns"
-        :rows="prices"
+        :rows="filteredPrices"
         :loading="pricesLoading"
+        :quick-lookup="prices.length > 5"
+        :quick-lookup-config="priceQuickLookupConfig"
         emptyText="Keine Preise vorhanden"
         @row-click="openPriceForm"
         @row-action="(row) => priceDeleteTarget = row"
+        @quick-lookup-change="priceQuickLookup = $event"
       >
         <template #cell-amount="{ value }">
           <span class="font-mono">{{ value ? Number(value).toFixed(2) : '—' }}</span>
@@ -3355,8 +3457,40 @@ onUnmounted(() => {
 
     <!-- ═══ Relations Tab ═══ -->
     <div v-else-if="activeTab === 'relations' && product" class="space-y-3" :class="{ 'pointer-events-none opacity-75': isTabReadOnly }">
-      <div class="flex items-center justify-between">
-        <h3 class="text-sm font-medium text-[var(--color-text-primary)]">Produktbeziehungen</h3>
+      <!-- Header mit Filter, View-Toggle und Button -->
+      <div class="flex items-center gap-2">
+        <h3 class="text-sm font-medium text-[var(--color-text-primary)] shrink-0">Produktbeziehungen</h3>
+        <span v-if="relations.length > 0" class="text-[11px] text-[var(--color-text-tertiary)] shrink-0">({{ filteredRelations.length }}<template v-if="relationFilter"> / {{ relations.length }}</template>)</span>
+        <div class="flex-1" />
+        <!-- Quick filter -->
+        <div v-if="relations.length > 3" class="relative">
+          <Search class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-[var(--color-text-tertiary)]" :stroke-width="2" />
+          <input
+            v-model="relationFilter"
+            type="text"
+            class="pim-input text-xs pim-input-icon w-44"
+            placeholder="Filtern…"
+          />
+        </div>
+        <!-- View toggle -->
+        <div class="flex items-center border border-[var(--color-border)] rounded-md overflow-hidden">
+          <button
+            class="p-1.5 transition-colors"
+            :class="relationViewMode === 'grid' ? 'bg-[var(--color-accent)] text-white' : 'bg-[var(--color-surface)] text-[var(--color-text-tertiary)] hover:bg-[var(--color-bg)]'"
+            @click="relationViewMode = 'grid'"
+            title="Kachelansicht"
+          >
+            <LayoutGrid class="w-3.5 h-3.5" :stroke-width="2" />
+          </button>
+          <button
+            class="p-1.5 transition-colors"
+            :class="relationViewMode === 'list' ? 'bg-[var(--color-accent)] text-white' : 'bg-[var(--color-surface)] text-[var(--color-text-tertiary)] hover:bg-[var(--color-bg)]'"
+            @click="relationViewMode = 'list'"
+            title="Listenansicht"
+          >
+            <List class="w-3.5 h-3.5" :stroke-width="2" />
+          </button>
+        </div>
         <button class="pim-btn pim-btn-primary text-xs" @click="showRelationForm = !showRelationForm">
           <Plus class="w-3.5 h-3.5" :stroke-width="2" /> Neue Beziehung
         </button>
@@ -3403,15 +3537,62 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- Relation list with expandable attribute editing -->
+      <!-- Loading -->
       <div v-if="relationsLoading" class="text-center py-8">
         <p class="text-sm text-[var(--color-text-tertiary)]">Laden…</p>
       </div>
       <div v-else-if="relations.length === 0" class="text-center py-8">
         <p class="text-sm text-[var(--color-text-tertiary)]">Keine Beziehungen vorhanden</p>
       </div>
+
+      <!-- Grid view (Kachelansicht) -->
+      <div v-else-if="relationViewMode === 'grid'" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+        <div v-for="rel in filteredRelations" :key="rel.id" class="pim-card overflow-hidden group relative">
+          <div class="aspect-[4/3] bg-[var(--color-bg)] flex items-center justify-center overflow-hidden">
+            <img v-if="rel.target_product?.primary_media_thumb" :src="rel.target_product.primary_media_thumb" class="w-full h-full object-cover" loading="lazy" alt="" />
+            <Image v-else class="w-8 h-8 text-[var(--color-text-tertiary)]" :stroke-width="1.5" />
+          </div>
+          <div class="p-2 space-y-0.5">
+            <div class="flex items-center gap-1">
+              <span class="text-[11px] font-mono text-[var(--color-text-secondary)]">{{ rel.target_product?.sku || '—' }}</span>
+              <span class="text-[10px] text-[var(--color-text-tertiary)] ml-auto">{{ rel.relation_type?.name_de || '' }}</span>
+            </div>
+            <span class="text-xs text-[var(--color-text-primary)] truncate block">{{ rel.target_product?.name || '—' }}</span>
+            <span v-if="rel.attribute_values?.length" class="flex items-center gap-0.5 text-[10px] text-[var(--color-text-tertiary)]">
+              <Tags class="w-3 h-3" :stroke-width="1.75" /> {{ rel.attribute_values.length }} Attribute
+            </span>
+          </div>
+          <div class="flex items-center gap-1 px-2 pb-2">
+            <router-link
+              :to="`/products/${rel.target_product?.id}`"
+              class="p-1 rounded hover:bg-[var(--color-bg)] text-[var(--color-text-tertiary)] hover:text-[var(--color-accent)] transition-colors"
+              title="Produkt öffnen"
+              @click.stop
+            >
+              <ExternalLink class="w-3.5 h-3.5" :stroke-width="1.75" />
+            </router-link>
+            <button
+              class="p-1 rounded hover:bg-[var(--color-bg)] text-[var(--color-text-tertiary)] hover:text-amber-500 transition-colors"
+              :title="watchlistIds.has(rel.target_product?.id) ? 'Von Merkliste entfernen' : 'Zur Merkliste'"
+              @click.stop="toggleTargetWatchlist(rel.target_product?.id)"
+            >
+              <Star class="w-3.5 h-3.5" :stroke-width="1.75" :class="watchlistIds.has(rel.target_product?.id) ? 'text-amber-500 fill-amber-500' : ''" />
+            </button>
+            <div class="flex-1" />
+            <button
+              class="p-1 rounded hover:bg-[var(--color-error-light)] text-[var(--color-text-tertiary)] hover:text-[var(--color-error)] transition-colors"
+              title="Löschen"
+              @click.stop="relationDeleteTarget = rel"
+            >
+              <Trash2 class="w-3.5 h-3.5" :stroke-width="1.75" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- List view (Listenansicht) -->
       <div v-else class="space-y-2">
-        <div v-for="rel in relations" :key="rel.id" class="pim-card overflow-hidden">
+        <div v-for="rel in filteredRelations" :key="rel.id" class="pim-card overflow-hidden">
           <!-- Relation row -->
           <div
             class="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-[var(--color-bg)] transition-colors"
@@ -3426,6 +3607,21 @@ onUnmounted(() => {
                 <span>{{ rel.attribute_values?.length || 0 }}</span>
               </span>
             </div>
+            <router-link
+              :to="`/products/${rel.target_product?.id}`"
+              class="text-[var(--color-text-tertiary)] hover:text-[var(--color-accent)] p-1"
+              title="Produkt öffnen"
+              @click.stop
+            >
+              <ExternalLink class="w-3.5 h-3.5" :stroke-width="1.75" />
+            </router-link>
+            <button
+              class="text-[var(--color-text-tertiary)] hover:text-amber-500 p-1"
+              :title="watchlistIds.has(rel.target_product?.id) ? 'Von Merkliste entfernen' : 'Zur Merkliste'"
+              @click.stop="toggleTargetWatchlist(rel.target_product?.id)"
+            >
+              <Star class="w-3.5 h-3.5" :stroke-width="1.75" :class="watchlistIds.has(rel.target_product?.id) ? 'text-amber-500 fill-amber-500' : ''" />
+            </button>
             <button
               class="text-[var(--color-text-tertiary)] hover:text-[var(--color-error)] p-1"
               title="Löschen"
@@ -3493,6 +3689,11 @@ onUnmounted(() => {
             </template>
           </div>
         </div>
+      </div>
+
+      <!-- Filter empty state -->
+      <div v-if="!relationsLoading && relations.length > 0 && filteredRelations.length === 0" class="pim-card p-8 text-center">
+        <p class="text-sm text-[var(--color-text-tertiary)]">Keine Beziehungen für „{{ relationFilter }}" gefunden</p>
       </div>
 
       <PimConfirmDialog
