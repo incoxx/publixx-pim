@@ -22,7 +22,7 @@ import { useTabStore } from '@/stores/tabs'
 import { useAuthStore } from '@/stores/auth'
 import { useLocaleStore } from '@/stores/locale'
 import { useI18n } from 'vue-i18n'
-import { ArrowLeft, Save, Plus, Trash2, Image, Star, X, Search, Download, Languages, Copy, Sparkles, Tags, LayoutGrid, List, FileText, GitBranch, CheckCircle2, Eye, RotateCcw, ArrowRightLeft, RefreshCw, ChevronDown, ChevronRight, ExternalLink } from 'lucide-vue-next'
+import { ArrowLeft, Save, Plus, Trash2, Image, Star, X, Search, Download, Languages, Copy, Sparkles, Tags, LayoutGrid, List, FileText, GitBranch, CheckCircle2, Eye, RotateCcw, ArrowRightLeft, RefreshCw, ChevronDown, ChevronRight, ChevronUp, ExternalLink } from 'lucide-vue-next'
 import productsApi from '@/api/products'
 import projectsApi from '@/api/projects'
 import usersApi from '@/api/users'
@@ -1264,15 +1264,69 @@ const relationTypesList = ref([])
 const showRelationForm = ref(false)
 const relationFilter = ref('')
 const relationViewMode = ref('list') // 'list' | 'grid'
+const relationQuickLookup = ref({})
+const relationSortField = ref('')
+const relationSortOrder = ref('asc') // 'asc' | 'desc'
+
 const filteredRelations = computed(() => {
-  if (!relationFilter.value.trim()) return relations.value
-  const q = relationFilter.value.toLowerCase()
-  return relations.value.filter(r =>
-    (r.target_product?.sku || '').toLowerCase().includes(q) ||
-    (r.target_product?.name || '').toLowerCase().includes(q) ||
-    (r.relation_type?.name_de || '').toLowerCase().includes(q)
-  )
+  let result = relations.value
+
+  // Global filter (Grid-Modus Suchfeld)
+  if (relationFilter.value.trim()) {
+    const q = relationFilter.value.toLowerCase()
+    result = result.filter(r =>
+      (r.target_product?.sku || '').toLowerCase().includes(q) ||
+      (r.target_product?.name || '').toLowerCase().includes(q) ||
+      (r.relation_type?.name_de || '').toLowerCase().includes(q)
+    )
+  }
+
+  // Spaltenfilter (Quick Lookup)
+  const f = relationQuickLookup.value
+  if (Object.values(f).some(v => v)) {
+    result = result.filter(r => {
+      if (f['relation_type'] && !(r.relation_type?.name_de || '').toLowerCase().includes(f['relation_type'].toLowerCase())) return false
+      if (f['target_sku'] && !(r.target_product?.sku || '').toLowerCase().includes(f['target_sku'].toLowerCase())) return false
+      if (f['target_name'] && !(r.target_product?.name || '').toLowerCase().includes(f['target_name'].toLowerCase())) return false
+      return true
+    })
+  }
+
+  // Sortierung
+  if (relationSortField.value) {
+    const field = relationSortField.value
+    const dir = relationSortOrder.value === 'asc' ? 1 : -1
+    result = [...result].sort((a, b) => {
+      let va, vb
+      if (field === 'relation_type') { va = a.relation_type?.name_de || ''; vb = b.relation_type?.name_de || '' }
+      else if (field === 'target_sku') { va = a.target_product?.sku || ''; vb = b.target_product?.sku || '' }
+      else if (field === 'target_name') { va = a.target_product?.name || ''; vb = b.target_product?.name || '' }
+      else if (field === 'sort_order') { return (Number(a.sort_order) - Number(b.sort_order)) * dir }
+      else return 0
+      return va.localeCompare(vb, 'de') * dir
+    })
+  }
+
+  return result
 })
+
+function toggleRelationSort(field) {
+  if (relationSortField.value === field) {
+    relationSortOrder.value = relationSortOrder.value === 'asc' ? 'desc' : 'asc'
+  } else {
+    relationSortField.value = field
+    relationSortOrder.value = 'asc'
+  }
+}
+
+const relationQuickLookupConfig = computed(() => ({
+  'relation_type': {
+    type: 'select',
+    options: relationTypesList.value.map(t => ({ value: t.name_de || t.technical_name, label: t.name_de || t.technical_name })),
+  },
+  'target_sku': { type: 'text', placeholder: 'SKU…' },
+  'target_name': { type: 'text', placeholder: 'Name…' },
+}))
 const relationForm = ref({ relation_type_id: '', target_product_id: '', sort_order: 0 })
 const relationErrors = ref({})
 const relationSaving = ref(false)
@@ -1298,6 +1352,9 @@ const relationColumns = [
   { key: 'sort_order', label: 'Reihenfolge' },
 ]
 
+// Thumbnail-Cache für Zielprodukte (Beziehungen Kachelansicht)
+const relationTargetThumbs = ref({}) // { productId: thumbUrl }
+
 async function loadRelations() {
   if (relationsLoaded.value || !product.value) return
   relationsLoading.value = true
@@ -1309,8 +1366,39 @@ async function loadRelations() {
     relations.value = relResp.data.data || relResp.data
     if (typesResp) relationTypesList.value = typesResp.data.data || typesResp.data
     relationsLoaded.value = true
+    // Thumbnails der Zielprodukte im Hintergrund laden
+    loadRelationThumbnails()
   } catch (e) { console.error('Failed to load relations:', e.message) }
   finally { relationsLoading.value = false }
+}
+
+async function loadRelationThumbnails() {
+  const targetIds = relations.value
+    .map(r => r.target_product?.id)
+    .filter(id => id && !relationTargetThumbs.value[id])
+  if (!targetIds.length) return
+  // Parallel pro Zielprodukt: erstes Bild ermitteln
+  const results = await Promise.allSettled(
+    targetIds.map(async (pid) => {
+      const { data } = await productsApi.getMedia(pid)
+      const items = data.data || data
+      const primary = items.find(m => m.is_primary)
+        || items.find(m => m.usage_type?.technical_name === 'teaser')
+        || items.find(m => (m.mime_type || m.media?.mime_type || '').startsWith('image/'))
+      if (primary) {
+        const mid = primary.media_id || primary.media?.id || primary.id
+        return { pid, url: mid ? mediaApi.thumbUrl(mid, 300, 300) : null }
+      }
+      return { pid, url: null }
+    })
+  )
+  const updated = { ...relationTargetThumbs.value }
+  for (const r of results) {
+    if (r.status === 'fulfilled' && r.value.url) {
+      updated[r.value.pid] = r.value.url
+    }
+  }
+  relationTargetThumbs.value = updated
 }
 
 let searchTimeout = null
@@ -2124,6 +2212,9 @@ async function switchToProduct(newId) {
   relations.value = []
   expandedRelationId.value = null
   relationAttrValues.value = []
+  relationTargetThumbs.value = {}
+  relationQuickLookup.value = {}
+  relationFilter.value = ''
   previewData.value = null
   completenessData.value = null
 
@@ -3272,9 +3363,9 @@ onUnmounted(() => {
       <!-- Grid view -->
       <div v-else-if="filteredMediaItems.length > 0 && mediaViewMode === 'grid'" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
         <div v-for="m in filteredMediaItems" :key="m.id" class="pim-card overflow-hidden group relative">
-          <div class="aspect-square bg-[var(--color-bg)] flex items-center justify-center overflow-hidden">
+          <div class="aspect-square bg-[var(--color-bg)] flex items-center justify-center overflow-hidden p-2">
             <PdfPreview v-if="isMediaPdf(m)" :url="getMediaUrl(m)" :media-id="m.media_id || m.media?.id || m.id" :title="m.file_name || ''" max-height="100%" />
-            <img v-else :src="getMediaUrl(m)" class="w-full h-full object-cover" loading="lazy" alt="" />
+            <img v-else :src="getMediaUrl(m)" class="w-full h-full object-contain" loading="lazy" alt="" />
           </div>
           <div class="p-2">
             <div class="flex items-center justify-between">
@@ -3548,8 +3639,8 @@ onUnmounted(() => {
       <!-- Grid view (Kachelansicht) -->
       <div v-else-if="relationViewMode === 'grid'" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
         <div v-for="rel in filteredRelations" :key="rel.id" class="pim-card overflow-hidden group relative">
-          <div class="aspect-[4/3] bg-[var(--color-bg)] flex items-center justify-center overflow-hidden">
-            <img v-if="rel.target_product?.primary_media_thumb" :src="rel.target_product.primary_media_thumb" class="w-full h-full object-cover" loading="lazy" alt="" />
+          <div class="aspect-[4/3] bg-[var(--color-bg)] flex items-center justify-center overflow-hidden p-2">
+            <img v-if="relationTargetThumbs[rel.target_product?.id]" :src="relationTargetThumbs[rel.target_product?.id]" class="w-full h-full object-contain" loading="lazy" alt="" />
             <Image v-else class="w-8 h-8 text-[var(--color-text-tertiary)]" :stroke-width="1.5" />
           </div>
           <div class="p-2 space-y-0.5">
@@ -3590,105 +3681,168 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- List view (Listenansicht) -->
-      <div v-else class="space-y-2">
-        <div v-for="rel in filteredRelations" :key="rel.id" class="pim-card overflow-hidden">
-          <!-- Relation row -->
-          <div
-            class="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-[var(--color-bg)] transition-colors"
-            @click="toggleRelationExpand(rel)"
-          >
-            <div class="flex-1 grid grid-cols-4 gap-3 text-xs">
-              <span class="text-[var(--color-text-secondary)]">{{ rel.relation_type?.name_de || '—' }}</span>
-              <span class="font-mono text-[var(--color-text-secondary)]">{{ rel.target_product?.sku || '—' }}</span>
-              <span>{{ rel.target_product?.name || '—' }}</span>
-              <span class="flex items-center gap-1 text-[var(--color-text-tertiary)]" :title="(rel.attribute_values?.length || 0) + ' Attribute'">
-                <Tags class="w-3.5 h-3.5" :stroke-width="1.75" />
-                <span>{{ rel.attribute_values?.length || 0 }}</span>
-              </span>
-            </div>
-            <router-link
-              :to="`/products/${rel.target_product?.id}`"
-              class="text-[var(--color-text-tertiary)] hover:text-[var(--color-accent)] p-1"
-              title="Produkt öffnen"
-              @click.stop
-            >
-              <ExternalLink class="w-3.5 h-3.5" :stroke-width="1.75" />
-            </router-link>
-            <button
-              class="text-[var(--color-text-tertiary)] hover:text-amber-500 p-1"
-              :title="watchlistIds.has(rel.target_product?.id) ? 'Von Merkliste entfernen' : 'Zur Merkliste'"
-              @click.stop="toggleTargetWatchlist(rel.target_product?.id)"
-            >
-              <Star class="w-3.5 h-3.5" :stroke-width="1.75" :class="watchlistIds.has(rel.target_product?.id) ? 'text-amber-500 fill-amber-500' : ''" />
-            </button>
-            <button
-              class="text-[var(--color-text-tertiary)] hover:text-[var(--color-error)] p-1"
-              title="Löschen"
-              @click.stop="relationDeleteTarget = rel"
-            >
-              <Trash2 class="w-3.5 h-3.5" :stroke-width="1.75" />
-            </button>
-          </div>
-
-          <!-- Expanded: Attribute editing -->
-          <div v-if="expandedRelationId === rel.id" class="border-t border-[var(--color-border)] bg-[var(--color-bg)] px-4 py-3 space-y-3">
-            <div v-if="relationAttrLoading" class="text-center py-4">
-              <p class="text-xs text-[var(--color-text-tertiary)]">Attribute laden…</p>
-            </div>
-            <template v-else>
-              <h4 class="text-[12px] font-semibold text-[var(--color-text-primary)]">Beziehungsattribute</h4>
-
-              <!-- Existing attribute values -->
-              <div v-if="relationAttrValues.length > 0" class="space-y-2">
-                <div v-for="(attrVal, idx) in relationAttrValues" :key="attrVal.attribute_id" class="flex items-end gap-2">
-                  <div class="flex-1">
-                    <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">
-                      {{ attrVal.attribute?.name_de || attrVal.attribute?.technical_name || 'Attribut' }}
-                    </label>
-                    <PimAttributeInput
-                      :type="mapDataTypeToInput(attrVal.attribute?.data_type || 'String')"
-                      :modelValue="attrVal[getRelationAttrValueField(attrVal)]"
-                      :options="attrVal.attribute?.value_list?.entries?.map(e => ({ value: e.id, label: e.value_de || e.label_de || e.code })) || []"
-                      @update:modelValue="attrVal[getRelationAttrValueField(attrVal)] = $event"
-                    />
+      <!-- List view (Listenansicht) mit Spaltenköpfen, Quick Lookup und Sortierung -->
+      <div v-else class="pim-card overflow-hidden">
+        <table class="w-full text-xs">
+          <thead>
+            <!-- Sortierbare Spaltenköpfe -->
+            <tr class="border-b border-[var(--color-border)] bg-[var(--color-bg)]">
+              <th class="px-3 py-2 text-left text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)] font-medium cursor-pointer select-none hover:text-[var(--color-text-primary)] transition-colors" @click="toggleRelationSort('relation_type')">
+                <span class="inline-flex items-center gap-1">Beziehungstyp
+                  <ChevronUp v-if="relationSortField === 'relation_type' && relationSortOrder === 'asc'" class="w-3 h-3" :stroke-width="2" />
+                  <ChevronDown v-else-if="relationSortField === 'relation_type' && relationSortOrder === 'desc'" class="w-3 h-3" :stroke-width="2" />
+                </span>
+              </th>
+              <th class="px-3 py-2 text-left text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)] font-medium cursor-pointer select-none hover:text-[var(--color-text-primary)] transition-colors" @click="toggleRelationSort('target_sku')">
+                <span class="inline-flex items-center gap-1">Ziel-SKU
+                  <ChevronUp v-if="relationSortField === 'target_sku' && relationSortOrder === 'asc'" class="w-3 h-3" :stroke-width="2" />
+                  <ChevronDown v-else-if="relationSortField === 'target_sku' && relationSortOrder === 'desc'" class="w-3 h-3" :stroke-width="2" />
+                </span>
+              </th>
+              <th class="px-3 py-2 text-left text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)] font-medium cursor-pointer select-none hover:text-[var(--color-text-primary)] transition-colors" @click="toggleRelationSort('target_name')">
+                <span class="inline-flex items-center gap-1">Zielprodukt
+                  <ChevronUp v-if="relationSortField === 'target_name' && relationSortOrder === 'asc'" class="w-3 h-3" :stroke-width="2" />
+                  <ChevronDown v-else-if="relationSortField === 'target_name' && relationSortOrder === 'desc'" class="w-3 h-3" :stroke-width="2" />
+                </span>
+              </th>
+              <th class="px-3 py-2 text-left text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)] font-medium cursor-pointer select-none hover:text-[var(--color-text-primary)] transition-colors" @click="toggleRelationSort('sort_order')">
+                <span class="inline-flex items-center gap-1">Reihenfolge
+                  <ChevronUp v-if="relationSortField === 'sort_order' && relationSortOrder === 'asc'" class="w-3 h-3" :stroke-width="2" />
+                  <ChevronDown v-else-if="relationSortField === 'sort_order' && relationSortOrder === 'desc'" class="w-3 h-3" :stroke-width="2" />
+                </span>
+              </th>
+              <th class="px-3 py-2 text-right text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)] font-medium" style="width:100px"></th>
+            </tr>
+            <!-- Quick Lookup Filter-Zeile -->
+            <tr v-if="relations.length > 3" class="border-b border-[var(--color-border)] bg-[var(--color-surface)]">
+              <td class="px-2 py-1.5">
+                <select class="pim-input text-xs w-full py-1 px-2" :value="relationQuickLookup['relation_type'] || ''" @change="relationQuickLookup = { ...relationQuickLookup, relation_type: $event.target.value }">
+                  <option value="">— Alle —</option>
+                  <option v-for="t in relationTypesList" :key="t.id" :value="t.name_de || t.technical_name">{{ t.name_de || t.technical_name }}</option>
+                </select>
+              </td>
+              <td class="px-2 py-1.5">
+                <input type="text" class="pim-input text-xs w-full py-1 px-2" placeholder="SKU…" :value="relationQuickLookup['target_sku'] || ''" @input="relationQuickLookup = { ...relationQuickLookup, target_sku: $event.target.value }" />
+              </td>
+              <td class="px-2 py-1.5">
+                <input type="text" class="pim-input text-xs w-full py-1 px-2" placeholder="Name…" :value="relationQuickLookup['target_name'] || ''" @input="relationQuickLookup = { ...relationQuickLookup, target_name: $event.target.value }" />
+              </td>
+              <td class="px-2 py-1.5"></td>
+              <td class="px-2 py-1.5"></td>
+            </tr>
+          </thead>
+          <tbody>
+            <template v-for="rel in filteredRelations" :key="rel.id">
+              <tr
+                class="border-b border-[var(--color-border)] last:border-0 hover:bg-[var(--color-bg)] transition-colors cursor-pointer"
+                @click="toggleRelationExpand(rel)"
+              >
+                <td class="px-3 py-2.5">
+                  <span class="text-[var(--color-text-secondary)]">{{ rel.relation_type?.name_de || '—' }}</span>
+                </td>
+                <td class="px-3 py-2.5">
+                  <span class="font-mono text-[var(--color-text-secondary)]">{{ rel.target_product?.sku || '—' }}</span>
+                </td>
+                <td class="px-3 py-2.5">
+                  <span>{{ rel.target_product?.name || '—' }}</span>
+                </td>
+                <td class="px-3 py-2.5">
+                  <span class="flex items-center gap-1 text-[var(--color-text-tertiary)]">
+                    <span>{{ rel.sort_order ?? '—' }}</span>
+                    <Tags v-if="rel.attribute_values?.length" class="w-3 h-3 ml-2" :stroke-width="1.75" :title="(rel.attribute_values.length) + ' Attribute'" />
+                  </span>
+                </td>
+                <td class="px-3 py-2.5 text-right">
+                  <div class="flex items-center justify-end gap-0.5">
+                    <router-link
+                      :to="`/products/${rel.target_product?.id}`"
+                      class="p-1 rounded text-[var(--color-text-tertiary)] hover:text-[var(--color-accent)] hover:bg-[var(--color-bg)] transition-colors"
+                      title="Produkt öffnen"
+                      @click.stop
+                    >
+                      <ExternalLink class="w-3.5 h-3.5" :stroke-width="1.75" />
+                    </router-link>
+                    <button
+                      class="p-1 rounded text-[var(--color-text-tertiary)] hover:text-amber-500 hover:bg-[var(--color-bg)] transition-colors"
+                      :title="watchlistIds.has(rel.target_product?.id) ? 'Von Merkliste entfernen' : 'Zur Merkliste'"
+                      @click.stop="toggleTargetWatchlist(rel.target_product?.id)"
+                    >
+                      <Star class="w-3.5 h-3.5" :stroke-width="1.75" :class="watchlistIds.has(rel.target_product?.id) ? 'text-amber-500 fill-amber-500' : ''" />
+                    </button>
+                    <button
+                      class="p-1 rounded text-[var(--color-text-tertiary)] hover:text-[var(--color-error)] hover:bg-[var(--color-error-light)] transition-colors"
+                      title="Löschen"
+                      @click.stop="relationDeleteTarget = rel"
+                    >
+                      <Trash2 class="w-3.5 h-3.5" :stroke-width="1.75" />
+                    </button>
                   </div>
-                  <button
-                    class="pim-btn pim-btn-secondary text-xs px-2 py-1.5 mb-0.5"
-                    title="Entfernen"
-                    @click="removeRelationAttribute(idx)"
-                  >
-                    <X class="w-3 h-3" :stroke-width="2" />
-                  </button>
-                </div>
-              </div>
-              <p v-else class="text-[11px] text-[var(--color-text-tertiary)]">Keine Attribute gepflegt.</p>
+                </td>
+              </tr>
+              <!-- Expanded: Attribute editing -->
+              <tr v-if="expandedRelationId === rel.id">
+                <td colspan="5" class="border-b border-[var(--color-border)] bg-[var(--color-bg)] px-4 py-3">
+                  <div class="space-y-3">
+                    <div v-if="relationAttrLoading" class="text-center py-4">
+                      <p class="text-xs text-[var(--color-text-tertiary)]">Attribute laden…</p>
+                    </div>
+                    <template v-else>
+                      <h4 class="text-[12px] font-semibold text-[var(--color-text-primary)]">Beziehungsattribute</h4>
 
-              <!-- Add attribute -->
-              <div class="flex items-end gap-2">
-                <div class="flex-1">
-                  <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">Attribut hinzufügen</label>
-                  <PimAttributeInput
-                    type="select"
-                    v-model="newRelationAttr.attribute_id"
-                    :options="relationAttrList.filter(a => !relationAttrValues.some(v => v.attribute_id === a.id)).map(a => ({ value: a.id, label: a.name_de || a.technical_name }))"
-                    placeholder="Attribut wählen…"
-                  />
-                </div>
-                <button class="pim-btn pim-btn-secondary text-xs px-3 py-1.5 mb-0.5" :disabled="!newRelationAttr.attribute_id" @click="addRelationAttribute">
-                  <Plus class="w-3 h-3" :stroke-width="2" /> Hinzufügen
-                </button>
-              </div>
+                      <!-- Existing attribute values -->
+                      <div v-if="relationAttrValues.length > 0" class="space-y-2">
+                        <div v-for="(attrVal, idx) in relationAttrValues" :key="attrVal.attribute_id" class="flex items-end gap-2">
+                          <div class="flex-1">
+                            <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">
+                              {{ attrVal.attribute?.name_de || attrVal.attribute?.technical_name || 'Attribut' }}
+                            </label>
+                            <PimAttributeInput
+                              :type="mapDataTypeToInput(attrVal.attribute?.data_type || 'String')"
+                              :modelValue="attrVal[getRelationAttrValueField(attrVal)]"
+                              :options="attrVal.attribute?.value_list?.entries?.map(e => ({ value: e.id, label: e.value_de || e.label_de || e.code })) || []"
+                              @update:modelValue="attrVal[getRelationAttrValueField(attrVal)] = $event"
+                            />
+                          </div>
+                          <button
+                            class="pim-btn pim-btn-secondary text-xs px-2 py-1.5 mb-0.5"
+                            title="Entfernen"
+                            @click="removeRelationAttribute(idx)"
+                          >
+                            <X class="w-3 h-3" :stroke-width="2" />
+                          </button>
+                        </div>
+                      </div>
+                      <p v-else class="text-[11px] text-[var(--color-text-tertiary)]">Keine Attribute gepflegt.</p>
 
-              <!-- Save button -->
-              <div class="flex justify-end pt-1">
-                <button class="pim-btn pim-btn-primary text-xs" :disabled="relationAttrSaving" @click="saveRelationAttrValues">
-                  {{ relationAttrSaving ? 'Speichern…' : 'Attribute speichern' }}
-                </button>
-              </div>
+                      <!-- Add attribute -->
+                      <div class="flex items-end gap-2">
+                        <div class="flex-1">
+                          <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">Attribut hinzufügen</label>
+                          <PimAttributeInput
+                            type="select"
+                            v-model="newRelationAttr.attribute_id"
+                            :options="relationAttrList.filter(a => !relationAttrValues.some(v => v.attribute_id === a.id)).map(a => ({ value: a.id, label: a.name_de || a.technical_name }))"
+                            placeholder="Attribut wählen…"
+                          />
+                        </div>
+                        <button class="pim-btn pim-btn-secondary text-xs px-3 py-1.5 mb-0.5" :disabled="!newRelationAttr.attribute_id" @click="addRelationAttribute">
+                          <Plus class="w-3 h-3" :stroke-width="2" /> Hinzufügen
+                        </button>
+                      </div>
+
+                      <!-- Save button -->
+                      <div class="flex justify-end pt-1">
+                        <button class="pim-btn pim-btn-primary text-xs" :disabled="relationAttrSaving" @click="saveRelationAttrValues">
+                          {{ relationAttrSaving ? 'Speichern…' : 'Attribute speichern' }}
+                        </button>
+                      </div>
+                    </template>
+                  </div>
+                </td>
+              </tr>
             </template>
-          </div>
-        </div>
+          </tbody>
+        </table>
       </div>
 
       <!-- Filter empty state -->
