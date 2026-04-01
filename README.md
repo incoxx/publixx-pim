@@ -85,7 +85,7 @@ Built for teams that need to manage **hundreds to tens of thousands of products*
 - **Internationalization** — Multi-language UI (German, English) with extensible i18n
 - **Keyboard Shortcuts** — Power-user friendly with keyboard navigation
 
-> See [FEATURES.md](FEATURES.md) for a detailed feature list with business benefits for each module.
+> See [FEATURES.md](docs/features/features.md) for a detailed feature list with business benefits for each module.
 
 ---
 
@@ -253,7 +253,7 @@ curl -X POST https://your-domain.com/api/v1/products/search \
 curl https://your-domain.com/api/v1/health
 ```
 
-See [API.md](API.md) for the full endpoint reference.
+See [API.md](docs/reference/api.md) for the full endpoint reference.
 
 ---
 
@@ -281,13 +281,13 @@ Full documentation is available as a VitePress site in both German and English:
 
 | File | Description |
 |---|---|
-| [FEATURES.md](FEATURES.md) | Complete feature overview with business benefits |
-| [API.md](API.md) | REST API reference (~285 endpoints) |
-| [DATABASE.md](DATABASE.md) | Database schema documentation |
-| [INSTALL.md](INSTALL.md) | Detailed installation guide (`setup.sh`) |
-| [UPDATE.md](UPDATE.md) | Update procedures (`update.sh`) |
-| [DEPLOYMENT.md](DEPLOYMENT.md) | Manual server deployment guide |
-| [PRODUCTION.md](PRODUCTION.md) | Production operations guide |
+| [Features](docs/features/features.md) | Complete feature overview with business benefits |
+| [API Reference](docs/reference/api.md) | REST API reference (~285 endpoints) |
+| [Database Schema](docs/reference/database.md) | Database schema documentation |
+| [Installation](docs/operations/install.md) | Detailed installation guide (`setup.sh`) |
+| [Updates](docs/operations/update.md) | Update procedures (`update.sh`) |
+| [Deployment](docs/operations/deployment.md) | Manual server deployment guide |
+| [Production](docs/operations/production.md) | Production operations guide |
 | [LICENSE](LICENSE) | GPL-3.0 license text |
 
 ---
