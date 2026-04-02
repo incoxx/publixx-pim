@@ -3,7 +3,12 @@ import { ref } from 'vue'
 import dashboardApi from '@/api/dashboard'
 
 export const useDashboardStore = defineStore('dashboard', () => {
+  const welcome = ref(null)
   const stats = ref(null)
+  const trends = ref(null)
+  const dataQuality = ref(null)
+  const activityFeed = ref([])
+  const dataFlows = ref({ imports: [], exports: [] })
   const myTasks = ref([])
   const recentlyEdited = ref([])
   const workflowSummary = ref(null)
@@ -20,7 +25,12 @@ export const useDashboardStore = defineStore('dashboard', () => {
     try {
       const { data } = await dashboardApi.getData()
       const d = data.data || data
+      welcome.value = d.welcome
       stats.value = d.stats
+      trends.value = d.trends
+      dataQuality.value = d.data_quality
+      activityFeed.value = d.activity_feed || []
+      dataFlows.value = d.data_flows || { imports: [], exports: [] }
       myTasks.value = d.my_tasks || []
       recentlyEdited.value = d.recently_edited || []
       workflowSummary.value = d.workflow_summary
@@ -36,7 +46,8 @@ export const useDashboardStore = defineStore('dashboard', () => {
   }
 
   return {
-    stats, myTasks, recentlyEdited, workflowSummary, completenessSummary, activeProjects, teamWorkload, projectTimeline,
+    welcome, stats, trends, dataQuality, activityFeed, dataFlows,
+    myTasks, recentlyEdited, workflowSummary, completenessSummary, activeProjects, teamWorkload, projectTimeline,
     loading, error, fetchDashboard,
   }
 })

@@ -1,8 +1,12 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { Settings, Eye, EyeOff, GripVertical, RefreshCw } from 'lucide-vue-next'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { Settings, Eye, EyeOff, RefreshCw } from 'lucide-vue-next'
 import { useDashboardStore } from '@/stores/dashboard'
+import WelcomeWidget from '@/components/dashboard/WelcomeWidget.vue'
 import StatsOverviewWidget from '@/components/dashboard/StatsOverviewWidget.vue'
+import DataQualityWidget from '@/components/dashboard/DataQualityWidget.vue'
+import ActivityFeedWidget from '@/components/dashboard/ActivityFeedWidget.vue'
+import DataFlowWidget from '@/components/dashboard/DataFlowWidget.vue'
 import MyTasksWidget from '@/components/dashboard/MyTasksWidget.vue'
 import RecentlyEditedWidget from '@/components/dashboard/RecentlyEditedWidget.vue'
 import WorkflowStatusWidget from '@/components/dashboard/WorkflowStatusWidget.vue'
@@ -10,15 +14,19 @@ import CompletenessWidget from '@/components/dashboard/CompletenessWidget.vue'
 
 const store = useDashboardStore()
 
-// Widget configuration
+// Widget-Konfiguration
 const STORAGE_KEY = 'pim_dashboard_widgets'
 
 const defaultWidgets = [
+  { id: 'welcome', label: 'Begrüßung', visible: true },
   { id: 'stats', label: 'Übersicht', visible: true },
+  { id: 'quality', label: 'Datenqualität', visible: true },
+  { id: 'activity', label: 'Aktivitäten', visible: true },
   { id: 'tasks', label: 'Meine Aufgaben', visible: true },
+  { id: 'dataflows', label: 'Datenflüsse', visible: true },
   { id: 'workflow', label: 'Workflow-Status', visible: true },
   { id: 'recent', label: 'Zuletzt bearbeitet', visible: true },
-  { id: 'completeness', label: 'Produkt-Füllstand', visible: true },
+  { id: 'completeness', label: 'Produkt-Füllstand', visible: false },
 ]
 
 function loadWidgetConfig() {
@@ -26,7 +34,6 @@ function loadWidgetConfig() {
     const saved = localStorage.getItem(STORAGE_KEY)
     if (saved) {
       const parsed = JSON.parse(saved)
-      // Merge with defaults (in case new widgets were added)
       return defaultWidgets.map(dw => {
         const found = parsed.find(p => p.id === dw.id)
         return found ? { ...dw, visible: found.visible } : { ...dw }
@@ -64,31 +71,38 @@ function isVisible(id) {
   return widgets.value.find(w => w.id === id)?.visible ?? true
 }
 
-// Get ordered widget IDs for rendering
-const orderedWidgets = computed(() => {
-  return widgets.value.filter(w => w.visible).map(w => w.id)
-})
-
-// Separate stats (always full width) from the grid widgets
-const gridWidgets = computed(() => {
-  return orderedWidgets.value.filter(id => id !== 'stats')
-})
+// Auto-Refresh (60 Sekunden)
+const AUTO_REFRESH_INTERVAL = 60000
+let refreshTimer = null
+const lastRefresh = ref(null)
 
 async function refresh() {
   await store.fetchDashboard()
+  lastRefresh.value = new Date()
 }
 
 onMounted(() => {
-  store.fetchDashboard()
+  store.fetchDashboard().then(() => {
+    lastRefresh.value = new Date()
+  })
+  refreshTimer = setInterval(refresh, AUTO_REFRESH_INTERVAL)
+})
+
+onUnmounted(() => {
+  if (refreshTimer) clearInterval(refreshTimer)
 })
 </script>
 
 <template>
-  <div class="space-y-6">
+  <div class="space-y-5">
     <!-- Header -->
     <div class="flex items-center justify-between">
       <h2 class="text-lg font-semibold text-[var(--color-text-primary)]">Dashboard</h2>
       <div class="flex items-center gap-2">
+        <!-- Auto-Refresh-Indikator -->
+        <span v-if="lastRefresh" class="text-[10px] text-[var(--color-text-tertiary)] hidden sm:inline">
+          Auto-Refresh 60s
+        </span>
         <button
           class="pim-btn pim-btn-ghost text-xs"
           @click="refresh"
@@ -104,7 +118,7 @@ onMounted(() => {
             <Settings class="w-4 h-4" :stroke-width="2" />
             <span>Widgets</span>
           </button>
-          <!-- Widget config dropdown -->
+          <!-- Widget-Config-Dropdown -->
           <div
             v-if="showConfig"
             class="absolute right-0 top-full mt-1 w-64 py-2 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg shadow-lg z-30"
@@ -130,12 +144,12 @@ onMounted(() => {
                   class="p-0.5 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] disabled:opacity-20"
                   :disabled="index === 0"
                   @click="moveWidget(index, -1)"
-                >▲</button>
+                >&#9650;</button>
                 <button
                   class="p-0.5 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] disabled:opacity-20"
                   :disabled="index === widgets.length - 1"
                   @click="moveWidget(index, 1)"
-                >▼</button>
+                >&#9660;</button>
               </div>
             </div>
           </div>
@@ -151,36 +165,60 @@ onMounted(() => {
       <div class="w-6 h-6 border-2 border-[var(--color-accent)] border-t-transparent rounded-full animate-spin" />
     </div>
 
-    <!-- Widgets -->
+    <!-- Bento-Grid Widgets -->
     <template v-else>
-      <!-- Stats (always full width, if visible) -->
-      <template v-for="wid in orderedWidgets" :key="wid">
-        <StatsOverviewWidget
-          v-if="wid === 'stats'"
-          :stats="store.stats"
+      <!-- Reihe 1: Welcome (full width) -->
+      <WelcomeWidget
+        v-if="isVisible('welcome')"
+        :welcome="store.welcome"
+      />
+
+      <!-- Reihe 2: Stats (full width) -->
+      <StatsOverviewWidget
+        v-if="isVisible('stats')"
+        :stats="store.stats"
+        :trends="store.trends"
+      />
+
+      <!-- Reihe 3: Datenqualität (1/3) + Aktivitäten (2/3) -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <DataQualityWidget
+          v-if="isVisible('quality')"
+          :quality="store.dataQuality"
         />
-      </template>
-
-      <!-- Grid widgets (2/3 + 1/3 layout) -->
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <template v-for="wid in gridWidgets" :key="wid">
-          <!-- Left side (2/3 width) -->
-          <div v-if="wid === 'tasks'" class="lg:col-span-2">
-            <MyTasksWidget :tasks="store.myTasks" />
-          </div>
-          <div v-else-if="wid === 'recent'" class="lg:col-span-2">
-            <RecentlyEditedWidget :products="store.recentlyEdited" />
-          </div>
-
-          <!-- Right side (1/3 width) -->
-          <div v-else-if="wid === 'workflow'">
-            <WorkflowStatusWidget :summary="store.workflowSummary" />
-          </div>
-          <div v-else-if="wid === 'completeness'">
-            <CompletenessWidget :summary="store.completenessSummary" />
-          </div>
-        </template>
+        <div v-if="isVisible('activity')" class="lg:col-span-2">
+          <ActivityFeedWidget :items="store.activityFeed" />
+        </div>
       </div>
+
+      <!-- Reihe 4: Meine Aufgaben (1/2) + Datenflüsse (1/2) -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <MyTasksWidget
+          v-if="isVisible('tasks')"
+          :tasks="store.myTasks"
+        />
+        <DataFlowWidget
+          v-if="isVisible('dataflows')"
+          :flows="store.dataFlows"
+        />
+      </div>
+
+      <!-- Reihe 5: Workflow (1/3) + Zuletzt bearbeitet (2/3) -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <WorkflowStatusWidget
+          v-if="isVisible('workflow')"
+          :summary="store.workflowSummary"
+        />
+        <div v-if="isVisible('recent')" class="lg:col-span-2">
+          <RecentlyEditedWidget :products="store.recentlyEdited" />
+        </div>
+      </div>
+
+      <!-- Reihe 6: Produkt-Füllstand (optional, standardmäßig ausgeblendet) -->
+      <CompletenessWidget
+        v-if="isVisible('completeness')"
+        :summary="store.completenessSummary"
+      />
     </template>
   </div>
 </template>
