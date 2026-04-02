@@ -304,47 +304,19 @@ class DashboardController extends Controller
             }
         }
 
-        // Verschachtelte Filtergruppen (AND/OR/NOT) — identisch zur Produktsuche
+        // Attribut-Filter über Trait (identisch zur Produktsuche)
+        $this->filterIdx = 0;
+        $this->attributeCache = [];
+
+        foreach ($searchProfile->attribute_filters ?? [] as $idx => $filter) {
+            $this->applyAttributeFilter($query, $filter, $idx, $language);
+        }
+
         $filterGroups = $searchProfile->attribute_filter_groups;
         if ($filterGroups && !empty($filterGroups['rules'] ?? [])) {
-            $this->filterIdx = 0;
-            $this->attributeCache = [];
             $this->validateFilterGroupDepth($filterGroups);
             $this->preloadFilterAttributes($filterGroups);
             $this->applyAttributeFilterGroups($query, $filterGroups, $language);
-        }
-
-        // Flache Attribut-Filter (Legacy-Format, falls keine Gruppen vorhanden)
-        if (!empty($searchProfile->attribute_filters) && empty($filterGroups['rules'] ?? [])) {
-            foreach ($searchProfile->attribute_filters as $filter) {
-                $attrId = $filter['attribute_id'] ?? null;
-                $value = $filter['value'] ?? null;
-                $operator = $filter['operator'] ?? 'eq';
-
-                if (!$attrId) {
-                    continue;
-                }
-
-                if ($operator === 'exists') {
-                    $query->whereHas('attributeValues', fn (Builder $q) => $q->where('attribute_id', $attrId));
-                    continue;
-                }
-                if ($operator === 'not_exists') {
-                    $query->whereDoesntHave('attributeValues', fn (Builder $q) => $q->where('attribute_id', $attrId));
-                    continue;
-                }
-
-                if ($value === null) {
-                    continue;
-                }
-
-                // Trait-basierter Filter für konsistente Ergebnisse
-                $this->filterIdx = $this->filterIdx ?? 0;
-                $idx = $this->filterIdx++;
-                $query->where(function ($sub) use ($filter, $idx, $language) {
-                    $this->applyAttributeFilter($sub, $filter, $idx, $language);
-                });
-            }
         }
 
         return $query;
