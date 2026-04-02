@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { Settings, Eye, EyeOff, RefreshCw } from 'lucide-vue-next'
+import { Settings, Eye, EyeOff, RefreshCw, Plus } from 'lucide-vue-next'
 import { useDashboardStore } from '@/stores/dashboard'
 import WelcomeWidget from '@/components/dashboard/WelcomeWidget.vue'
 import StatsOverviewWidget from '@/components/dashboard/StatsOverviewWidget.vue'
@@ -11,12 +11,14 @@ import MyTasksWidget from '@/components/dashboard/MyTasksWidget.vue'
 import RecentlyEditedWidget from '@/components/dashboard/RecentlyEditedWidget.vue'
 import WorkflowStatusWidget from '@/components/dashboard/WorkflowStatusWidget.vue'
 import CompletenessWidget from '@/components/dashboard/CompletenessWidget.vue'
+import ProfileStatCard from '@/components/dashboard/ProfileStatCard.vue'
+import ProfileCardConfigurator from '@/components/dashboard/ProfileCardConfigurator.vue'
+import QuickLinksWidget from '@/components/dashboard/QuickLinksWidget.vue'
+import WatchlistWidget from '@/components/dashboard/WatchlistWidget.vue'
 
 const store = useDashboardStore()
 
-// Widget-Konfiguration
-const STORAGE_KEY = 'pim_dashboard_widgets'
-
+// Standard-Widgets (nicht-Profil)
 const defaultWidgets = [
   { id: 'welcome', label: 'Begrüßung', visible: true },
   { id: 'stats', label: 'Übersicht', visible: true },
@@ -24,37 +26,58 @@ const defaultWidgets = [
   { id: 'activity', label: 'Aktivitäten', visible: true },
   { id: 'tasks', label: 'Meine Aufgaben', visible: true },
   { id: 'dataflows', label: 'Datenflüsse', visible: true },
+  { id: 'quicklinks', label: 'Schnellzugriff', visible: true },
+  { id: 'watchlist', label: 'Merkliste', visible: true },
   { id: 'workflow', label: 'Workflow-Status', visible: true },
   { id: 'recent', label: 'Zuletzt bearbeitet', visible: true },
   { id: 'completeness', label: 'Produkt-Füllstand', visible: false },
 ]
 
-function loadWidgetConfig() {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY)
-    if (saved) {
-      const parsed = JSON.parse(saved)
-      return defaultWidgets.map(dw => {
-        const found = parsed.find(p => p.id === dw.id)
-        return found ? { ...dw, visible: found.visible } : { ...dw }
-      })
-    }
-  } catch { /* ignore */ }
-  return defaultWidgets.map(w => ({ ...w }))
-}
-
-const widgets = ref(loadWidgetConfig())
+// Widget-Config (aus Server oder Default)
+const widgets = ref(defaultWidgets.map(w => ({ ...w })))
+const profileCards = ref([])
 const showConfig = ref(false)
 
-function saveWidgetConfig() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(widgets.value))
+// Configurator State
+const showConfigurator = ref(false)
+const configuratorTarget = ref(null)
+
+function applyServerConfig(config) {
+  if (!config?.widgets) return
+  const serverWidgets = config.widgets
+
+  // Standard-Widgets aktualisieren
+  widgets.value = defaultWidgets.map(dw => {
+    const found = serverWidgets.find(sw => sw.id === dw.id)
+    return found ? { ...dw, visible: found.visible } : { ...dw }
+  })
+
+  // Profilkarten extrahieren
+  profileCards.value = serverWidgets
+    .filter(w => w.id.startsWith('profile-card-'))
+    .map(w => ({ ...w, visible: w.visible !== false }))
+}
+
+async function saveConfig() {
+  const allWidgets = [
+    ...widgets.value.map(w => ({ id: w.id, visible: w.visible })),
+    ...profileCards.value.map(pc => ({
+      id: pc.id,
+      visible: pc.visible !== false,
+      search_profile_id: pc.search_profile_id,
+      chart_type: pc.chart_type,
+      metric: pc.metric,
+      color: pc.color,
+    })),
+  ]
+  await store.saveDashboardConfig({ widgets: allWidgets })
 }
 
 function toggleWidget(id) {
   const w = widgets.value.find(w => w.id === id)
   if (w) {
     w.visible = !w.visible
-    saveWidgetConfig()
+    saveConfig()
   }
 }
 
@@ -64,11 +87,44 @@ function moveWidget(index, direction) {
   const temp = widgets.value[index]
   widgets.value[index] = widgets.value[newIndex]
   widgets.value[newIndex] = temp
-  saveWidgetConfig()
+  saveConfig()
 }
 
 function isVisible(id) {
   return widgets.value.find(w => w.id === id)?.visible ?? true
+}
+
+// Profilkarten-Verwaltung
+function addProfileCard() {
+  configuratorTarget.value = { id: `profile-card-${Date.now()}`, search_profile_id: '', chart_type: 'gauge', metric: 'completeness', color: '#2E75B6' }
+  showConfigurator.value = true
+}
+
+function configureProfileCard(config) {
+  configuratorTarget.value = { ...config }
+  showConfigurator.value = true
+}
+
+function saveProfileCard(formData) {
+  const existing = profileCards.value.findIndex(pc => pc.id === configuratorTarget.value.id)
+  const card = { ...configuratorTarget.value, ...formData, visible: true }
+
+  if (existing >= 0) {
+    profileCards.value[existing] = card
+  } else {
+    profileCards.value.push(card)
+  }
+
+  showConfigurator.value = false
+  configuratorTarget.value = null
+  saveConfig()
+}
+
+function removeProfileCard(config) {
+  profileCards.value = profileCards.value.filter(pc => pc.id !== config.id)
+  showConfigurator.value = false
+  configuratorTarget.value = null
+  saveConfig()
 }
 
 // Auto-Refresh (60 Sekunden)
@@ -81,7 +137,14 @@ async function refresh() {
   lastRefresh.value = new Date()
 }
 
-onMounted(() => {
+onMounted(async () => {
+  // Dashboard-Config vom Server laden
+  await store.loadDashboardConfig()
+  if (store.dashboardConfig) {
+    applyServerConfig(store.dashboardConfig)
+  }
+
+  // Dashboard-Daten laden
   store.fetchDashboard().then(() => {
     lastRefresh.value = new Date()
   })
@@ -99,7 +162,6 @@ onUnmounted(() => {
     <div class="flex items-center justify-between">
       <h2 class="text-lg font-semibold text-[var(--color-text-primary)]">Dashboard</h2>
       <div class="flex items-center gap-2">
-        <!-- Auto-Refresh-Indikator -->
         <span v-if="lastRefresh" class="text-[10px] text-[var(--color-text-tertiary)] hidden sm:inline">
           Auto-Refresh 60s
         </span>
@@ -152,6 +214,21 @@ onUnmounted(() => {
                 >&#9660;</button>
               </div>
             </div>
+            <!-- Profilkarten im Dropdown -->
+            <div v-if="profileCards.length" class="border-t border-[var(--color-border)] mt-1 pt-1">
+              <p class="px-3 pb-1 text-[10px] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider">
+                Profilkarten
+              </p>
+              <div
+                v-for="pc in profileCards"
+                :key="pc.id"
+                class="flex items-center gap-2 px-3 py-1.5 hover:bg-[var(--color-bg)] transition-colors cursor-pointer"
+                @click="configureProfileCard(pc)"
+              >
+                <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: pc.color }" />
+                <span class="text-xs text-[var(--color-text-primary)] flex-1 truncate">{{ pc.title || 'Profilkarte' }}</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -180,7 +257,26 @@ onUnmounted(() => {
         :trends="store.trends"
       />
 
-      <!-- Reihe 3: Datenqualität (1/3) + Aktivitäten (2/3) -->
+      <!-- Reihe 3: Profilkarten (dynamisch, scrollbar) -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <ProfileStatCard
+          v-for="pc in profileCards"
+          :key="pc.id"
+          :config="pc"
+          @configure="configureProfileCard"
+          @remove="removeProfileCard"
+        />
+        <!-- "+ Karte hinzufügen" -->
+        <button
+          class="pim-card flex flex-col items-center justify-center gap-2 p-6 border-2 border-dashed border-[var(--color-border)] hover:border-[var(--color-accent)] transition-colors cursor-pointer group min-h-[140px]"
+          @click="addProfileCard"
+        >
+          <Plus class="w-6 h-6 text-[var(--color-text-tertiary)] group-hover:text-[var(--color-accent)] transition-colors" :stroke-width="1.5" />
+          <span class="text-xs text-[var(--color-text-tertiary)] group-hover:text-[var(--color-accent)] transition-colors">Profilkarte hinzufügen</span>
+        </button>
+      </div>
+
+      <!-- Reihe 4: Datenqualität (1/3) + Aktivitäten (2/3) -->
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
         <DataQualityWidget
           v-if="isVisible('quality')"
@@ -191,7 +287,16 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- Reihe 4: Meine Aufgaben (1/2) + Datenflüsse (1/2) -->
+      <!-- Reihe 5: Schnellzugriff (1/2) + Merkliste (1/2) -->
+      <div
+        v-if="isVisible('quicklinks') || isVisible('watchlist')"
+        class="grid grid-cols-1 lg:grid-cols-2 gap-5"
+      >
+        <QuickLinksWidget v-if="isVisible('quicklinks')" />
+        <WatchlistWidget v-if="isVisible('watchlist')" />
+      </div>
+
+      <!-- Reihe 6: Meine Aufgaben (1/2) + Datenflüsse (1/2) -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <MyTasksWidget
           v-if="isVisible('tasks')"
@@ -203,7 +308,7 @@ onUnmounted(() => {
         />
       </div>
 
-      <!-- Reihe 5: Workflow (1/3) + Zuletzt bearbeitet (2/3) -->
+      <!-- Reihe 6: Workflow (1/3) + Zuletzt bearbeitet (2/3) -->
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
         <WorkflowStatusWidget
           v-if="isVisible('workflow')"
@@ -214,11 +319,20 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- Reihe 6: Produkt-Füllstand (optional, standardmäßig ausgeblendet) -->
+      <!-- Reihe 7: Produkt-Füllstand (optional) -->
       <CompletenessWidget
         v-if="isVisible('completeness')"
         :summary="store.completenessSummary"
       />
     </template>
+
+    <!-- Profilkarten-Konfigurator -->
+    <ProfileCardConfigurator
+      v-if="showConfigurator"
+      :config="configuratorTarget"
+      @save="saveProfileCard"
+      @cancel="showConfigurator = false; configuratorTarget = null"
+      @remove="removeProfileCard"
+    />
   </div>
 </template>

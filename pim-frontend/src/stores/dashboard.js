@@ -1,6 +1,9 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import dashboardApi from '@/api/dashboard'
+import userPreferencesApi from '@/api/userPreferences'
+
+const STORAGE_KEY = 'pim_dashboard_widgets'
 
 export const useDashboardStore = defineStore('dashboard', () => {
   const welcome = ref(null)
@@ -18,6 +21,10 @@ export const useDashboardStore = defineStore('dashboard', () => {
   const projectTimeline = ref([])
   const loading = ref(false)
   const error = ref(null)
+
+  // Dashboard-Konfiguration (Widget-Sichtbarkeit + Profilkarten)
+  const dashboardConfig = ref(null)
+  const configLoaded = ref(false)
 
   async function fetchDashboard() {
     loading.value = true
@@ -45,9 +52,48 @@ export const useDashboardStore = defineStore('dashboard', () => {
     }
   }
 
+  /**
+   * Dashboard-Config vom Server laden. Fällt auf localStorage zurück, migriert dann.
+   */
+  async function loadDashboardConfig() {
+    try {
+      const { data } = await userPreferencesApi.get('dashboard')
+      const payload = data.data || data
+      if (payload?.widgets) {
+        dashboardConfig.value = payload
+        configLoaded.value = true
+        return
+      }
+    } catch { /* Server hat keine Config */ }
+
+    // Fallback: localStorage migrieren
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY)
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        dashboardConfig.value = { widgets: parsed }
+        // Zur Server-Persistenz migrieren
+        await saveDashboardConfig(dashboardConfig.value)
+        localStorage.removeItem(STORAGE_KEY)
+      }
+    } catch { /* ignore */ }
+    configLoaded.value = true
+  }
+
+  /**
+   * Dashboard-Config auf Server speichern.
+   */
+  async function saveDashboardConfig(config) {
+    dashboardConfig.value = config
+    try {
+      await userPreferencesApi.update('dashboard', config)
+    } catch { /* ignore — Offline-Fallback */ }
+  }
+
   return {
     welcome, stats, trends, dataQuality, activityFeed, dataFlows,
     myTasks, recentlyEdited, workflowSummary, completenessSummary, activeProjects, teamWorkload, projectTimeline,
     loading, error, fetchDashboard,
+    dashboardConfig, configLoaded, loadDashboardConfig, saveDashboardConfig,
   }
 })

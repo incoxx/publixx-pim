@@ -9,8 +9,10 @@ use App\Models\ExportJob;
 use App\Models\ImportJob;
 use App\Models\Product;
 use App\Models\Project;
+use App\Models\SearchProfile;
 use App\Models\Team;
 use App\Models\WorkflowTask;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -22,6 +24,7 @@ class DashboardController extends Controller
     {
         $user = $request->user();
         $isAdmin = $user->hasRole('Admin');
+        $teamIds = $isAdmin ? [] : $user->teams()->pluck('teams.id')->toArray();
 
         // Stats overview
         $stats = [
@@ -48,7 +51,6 @@ class DashboardController extends Controller
             ->limit(10);
 
         if (!$isAdmin) {
-            $teamIds = $user->teams()->pluck('teams.id')->toArray();
             $tasksQuery->where(function ($q) use ($user, $teamIds) {
                 $q->where('assigned_to', $user->id);
                 if (!empty($teamIds)) {
@@ -180,7 +182,6 @@ class DashboardController extends Controller
         $weekAgo = Carbon::now()->subDays(7);
         $userTasksCount = WorkflowTask::whereIn('status', ['open', 'in_progress']);
         if (!$isAdmin) {
-            $teamIds = $user->teams()->pluck('teams.id')->toArray();
             $userTasksCount->where(function ($q) use ($user, $teamIds) {
                 $q->where('assigned_to', $user->id);
                 if (!empty($teamIds)) {
@@ -225,6 +226,193 @@ class DashboardController extends Controller
                 'project_timeline' => $projectTimeline,
             ],
         ]);
+    }
+
+    /**
+     * Statistiken für ein bestimmtes Suchprofil berechnen.
+     */
+    public function profileStats(Request $request): JsonResponse
+    {
+        $request->validate([
+            'search_profile_id' => 'required|string|exists:search_profiles,id',
+            'metrics' => 'sometimes|array',
+            'metrics.*' => 'string|in:total,active,draft,inactive,completeness,media_coverage,price_coverage,translation_coverage,weekly_trend,status_distribution',
+        ]);
+
+        $profile = SearchProfile::findOrFail($request->input('search_profile_id'));
+        $metrics = $request->input('metrics', ['total', 'active', 'completeness', 'media_coverage', 'price_coverage', 'weekly_trend']);
+
+        $baseQuery = $this->buildProfileQuery($profile);
+        $result = ['search_profile_name' => $profile->name];
+
+        foreach ($metrics as $metric) {
+            $result[$metric] = match ($metric) {
+                'total' => (clone $baseQuery)->count(),
+                'active' => (clone $baseQuery)->where('status', 'active')->count(),
+                'draft' => (clone $baseQuery)->where('status', 'draft')->count(),
+                'inactive' => (clone $baseQuery)->where('status', 'inactive')->count(),
+                'completeness' => $this->profileCompleteness($baseQuery),
+                'media_coverage' => $this->profileCoverage($baseQuery, 'media'),
+                'price_coverage' => $this->profileCoverage($baseQuery, 'prices'),
+                'translation_coverage' => $this->profileTranslationCoverage($baseQuery),
+                'weekly_trend' => $this->profileWeeklyTrend($profile),
+                'status_distribution' => $this->profileStatusDistribution($baseQuery),
+                default => null,
+            };
+        }
+
+        return response()->json(['data' => $result]);
+    }
+
+    /**
+     * Suchprofil → Product-Query auflösen (Pattern aus ReportDataCollector).
+     */
+    private function buildProfileQuery(SearchProfile $searchProfile): Builder
+    {
+        $query = Product::query();
+
+        if ($searchProfile->status_filter) {
+            $query->where('status', $searchProfile->status_filter);
+        }
+
+        if ($searchProfile->search_text) {
+            $term = $searchProfile->search_text;
+            $query->where(function (Builder $q) use ($term) {
+                $q->where('name', 'LIKE', "%{$term}%")
+                  ->orWhere('sku', 'LIKE', "%{$term}%")
+                  ->orWhere('ean', 'LIKE', "%{$term}%");
+            });
+        }
+
+        if (!empty($searchProfile->category_ids)) {
+            if ($searchProfile->include_descendants) {
+                $query->whereHas('masterHierarchyNode', function (Builder $q) use ($searchProfile) {
+                    $q->whereIn('id', $searchProfile->category_ids)
+                      ->orWhere(function (Builder $sub) use ($searchProfile) {
+                          foreach ($searchProfile->category_ids as $catId) {
+                              $sub->orWhere('path', 'LIKE', "%{$catId}%");
+                          }
+                      });
+                });
+            } else {
+                $query->whereIn('master_hierarchy_node_id', $searchProfile->category_ids);
+            }
+        }
+
+        if (!empty($searchProfile->attribute_filters)) {
+            foreach ($searchProfile->attribute_filters as $filter) {
+                $attrId = $filter['attribute_id'] ?? null;
+                $value = $filter['value'] ?? null;
+                $operator = $filter['operator'] ?? 'eq';
+
+                if (!$attrId) {
+                    continue;
+                }
+
+                // exists/not_exists brauchen keinen Wert
+                if ($operator === 'exists') {
+                    $query->whereHas('attributeValues', fn (Builder $q) => $q->where('attribute_id', $attrId));
+                    continue;
+                }
+                if ($operator === 'not_exists') {
+                    $query->whereDoesntHave('attributeValues', fn (Builder $q) => $q->where('attribute_id', $attrId));
+                    continue;
+                }
+
+                if ($value === null) {
+                    continue;
+                }
+
+                $query->whereHas('attributeValues', function (Builder $q) use ($attrId, $value, $operator) {
+                    $q->where('attribute_id', $attrId);
+                    $column = is_numeric($value) ? 'value_number' : 'value_string';
+                    $sqlOp = match ($operator) {
+                        'gte' => '>=',
+                        'lte' => '<=',
+                        'gt' => '>',
+                        'lt' => '<',
+                        'contains', 'like' => 'LIKE',
+                        'neq' => '!=',
+                        default => '=',
+                    };
+                    $sqlValue = in_array($operator, ['contains', 'like']) ? "%{$value}%" : $value;
+                    $q->where($column, $sqlOp, $sqlValue);
+                });
+            }
+        }
+
+        return $query;
+    }
+
+    private function profileCompleteness(Builder $baseQuery): int
+    {
+        $total = (clone $baseQuery)->count();
+        if ($total === 0) {
+            return 100;
+        }
+        $complete = (clone $baseQuery)
+            ->whereNotNull('sku')->where('sku', '!=', '')
+            ->whereNotNull('name')->where('name', '!=', '')
+            ->whereHas('attributeValues')
+            ->count();
+
+        return (int) round(($complete / $total) * 100);
+    }
+
+    private function profileCoverage(Builder $baseQuery, string $relation): int
+    {
+        $total = (clone $baseQuery)->count();
+        if ($total === 0) {
+            return 100;
+        }
+        $withRelation = (clone $baseQuery)->whereHas($relation)->count();
+
+        return (int) round(($withRelation / $total) * 100);
+    }
+
+    private function profileTranslationCoverage(Builder $baseQuery): int
+    {
+        $total = (clone $baseQuery)->count();
+        if ($total === 0) {
+            return 100;
+        }
+        $withTranslations = DB::table('product_attribute_values')
+            ->whereIn('product_id', (clone $baseQuery)->select('id'))
+            ->whereNotNull('language')
+            ->select('product_id')
+            ->groupBy('product_id')
+            ->havingRaw('COUNT(DISTINCT language) > ?', [1])
+            ->count();
+
+        return (int) round(($withTranslations / $total) * 100);
+    }
+
+    private function profileWeeklyTrend(SearchProfile $profile): array
+    {
+        $weekAgo = Carbon::now()->subDays(7);
+        $baseQuery = $this->buildProfileQuery($profile);
+
+        $byDay = (clone $baseQuery)
+            ->where('products.created_at', '>=', $weekAgo)
+            ->select(DB::raw('DATE(products.created_at) as day'), DB::raw('COUNT(*) as count'))
+            ->groupBy('day')
+            ->pluck('count', 'day');
+
+        $days = [];
+        for ($i = 6; $i >= 0; $i--) {
+            $days[] = Carbon::now()->subDays($i)->toDateString();
+        }
+
+        return array_map(fn ($d) => $byDay[$d] ?? 0, $days);
+    }
+
+    private function profileStatusDistribution(Builder $baseQuery): array
+    {
+        return (clone $baseQuery)
+            ->select('status', DB::raw('COUNT(*) as count'))
+            ->groupBy('status')
+            ->pluck('count', 'status')
+            ->toArray();
     }
 
     private function countCompleteProducts(): int
@@ -308,8 +496,7 @@ class DashboardController extends Controller
             ->select('product_id')
             ->whereNotNull('language')
             ->groupBy('product_id')
-            ->havingRaw('COUNT(DISTINCT language) > 1')
-            ->get()
+            ->havingRaw('COUNT(DISTINCT language) > ?', [1])
             ->count();
 
         $dimensions = [
