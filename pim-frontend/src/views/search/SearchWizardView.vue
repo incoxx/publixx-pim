@@ -57,6 +57,8 @@ async function loadProfile(id) {
   selectedCategories.value = profile.category_ids || []
   attributeFilters.value = profile.attribute_filters || {}
   attributeFilterGroups.value = profile.attribute_filter_groups || { operator: 'AND', rules: [] }
+  if (profile.sort_field) sortField.value = profile.sort_field
+  if (profile.sort_order) sortOrder.value = profile.sort_order
   doSearch(1)
 }
 
@@ -71,6 +73,8 @@ async function saveProfile({ name, is_shared }) {
       category_ids: selectedCategories.value,
       attribute_filters: attributeFilters.value,
       attribute_filter_groups: attributeFilterGroups.value.rules?.length ? attributeFilterGroups.value : null,
+      sort_field: sortField.value,
+      sort_order: sortOrder.value,
     })
     await loadProfiles()
   } catch (e) {
@@ -88,6 +92,9 @@ async function updateProfile({ id, name, is_shared }) {
       status_filter: statusFilter.value || null,
       category_ids: selectedCategories.value,
       attribute_filters: attributeFilters.value,
+      attribute_filter_groups: attributeFilterGroups.value.rules?.length ? attributeFilterGroups.value : null,
+      sort_field: sortField.value,
+      sort_order: sortOrder.value,
     })
     await loadProfiles()
   } catch (e) {
