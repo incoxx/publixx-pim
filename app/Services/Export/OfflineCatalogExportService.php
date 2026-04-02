@@ -1388,6 +1388,7 @@ class OfflineCatalogExportService
             'catalog_share_wishlist_enabled' => $themePayload['catalog_share_wishlist_enabled'] ?? false,
             'catalog_pdf_enabled' => $themePayload['catalog_pdf_enabled'] ?? false, // client-side PDF via jsPDF
             'catalog_excel_export_enabled' => false, // Excel not available offline
+            'catalog_category_expand_depth' => $themePayload['catalog_category_expand_depth'] ?? 1,
             'catalog_access_mode' => 'public', // offline is always public
             'mode' => 'offline',
         ];

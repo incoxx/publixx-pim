@@ -70,6 +70,9 @@ class SettingController extends Controller
         'catalog_excel_export_enabled' => false,
         'catalog_share_wishlist_enabled' => false,
         'catalog_relation_type_ids' => [],
+        'catalog_category_expand_depth' => 1,
+        'search_profile_id' => null,
+        'thumbnail_usage_type_id' => null,
         'custom_css' => null,
     ];
 
@@ -231,6 +234,9 @@ class SettingController extends Controller
             'catalog_share_wishlist_enabled' => 'nullable|boolean',
             'catalog_relation_type_ids' => 'nullable|array',
             'catalog_relation_type_ids.*' => 'uuid|exists:product_relation_types,id',
+            'catalog_category_expand_depth' => 'nullable|integer|min:0|max:10',
+            'search_profile_id' => 'nullable|uuid|exists:search_profiles,id',
+            'thumbnail_usage_type_id' => 'nullable|uuid|exists:usage_types,id',
             'catalog_excluded_node_ids' => 'nullable|array',
             'catalog_excluded_node_ids.*' => 'uuid|exists:hierarchy_nodes,id',
             'custom_css' => 'nullable|string|max:50000',
