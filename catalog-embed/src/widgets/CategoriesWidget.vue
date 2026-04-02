@@ -7,11 +7,18 @@ import CategorySubtree from './CategorySubtree.vue'
 const { state, actions, getters } = useStore()
 const expandedNodes = ref({})
 
-// Auto-expand root nodes so the first hierarchy level is always visible
+// Auto-expand nodes up to the configured depth
 function expandRootNodes() {
-  for (const node of state.categories) {
+  const maxDepth = state.settings?.catalog_category_expand_depth ?? 1
+  expandToDepth(state.categories, 0, maxDepth)
+}
+
+function expandToDepth(nodes, currentDepth, maxDepth) {
+  if (currentDepth >= maxDepth) return
+  for (const node of nodes) {
     if (node.children && node.children.length) {
       expandedNodes.value[node.id] = true
+      expandToDepth(node.children, currentDepth + 1, maxDepth)
     }
   }
 }
