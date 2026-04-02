@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Http\Controllers\Api\V1\Traits\ProductSearchFilters;
 use App\Models\AuditLog;
 use App\Models\ExportJob;
 use App\Models\ImportJob;
@@ -20,6 +21,7 @@ use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
+    use ProductSearchFilters;
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -265,11 +267,14 @@ class DashboardController extends Controller
     }
 
     /**
-     * Suchprofil → Product-Query auflösen (Pattern aus ReportDataCollector).
+     * Suchprofil → Product-Query auflösen.
+     * Nutzt denselben ProductSearchFilters-Trait wie die Produktsuche,
+     * damit Filter-Ergebnisse konsistent sind.
      */
     private function buildProfileQuery(SearchProfile $searchProfile): Builder
     {
-        $query = Product::query();
+        $query = Product::query()->where('product_type_ref', 'product');
+        $language = 'de';
 
         if ($searchProfile->status_filter) {
             $query->where('status', $searchProfile->status_filter);
@@ -299,7 +304,18 @@ class DashboardController extends Controller
             }
         }
 
-        if (!empty($searchProfile->attribute_filters)) {
+        // Verschachtelte Filtergruppen (AND/OR/NOT) — identisch zur Produktsuche
+        $filterGroups = $searchProfile->attribute_filter_groups;
+        if ($filterGroups && !empty($filterGroups['rules'] ?? [])) {
+            $this->filterIdx = 0;
+            $this->attributeCache = [];
+            $this->validateFilterGroupDepth($filterGroups);
+            $this->preloadFilterAttributes($filterGroups);
+            $this->applyAttributeFilterGroups($query, $filterGroups, $language);
+        }
+
+        // Flache Attribut-Filter (Legacy-Format, falls keine Gruppen vorhanden)
+        if (!empty($searchProfile->attribute_filters) && empty($filterGroups['rules'] ?? [])) {
             foreach ($searchProfile->attribute_filters as $filter) {
                 $attrId = $filter['attribute_id'] ?? null;
                 $value = $filter['value'] ?? null;
@@ -309,7 +325,6 @@ class DashboardController extends Controller
                     continue;
                 }
 
-                // exists/not_exists brauchen keinen Wert
                 if ($operator === 'exists') {
                     $query->whereHas('attributeValues', fn (Builder $q) => $q->where('attribute_id', $attrId));
                     continue;
@@ -323,20 +338,11 @@ class DashboardController extends Controller
                     continue;
                 }
 
-                $query->whereHas('attributeValues', function (Builder $q) use ($attrId, $value, $operator) {
-                    $q->where('attribute_id', $attrId);
-                    $column = is_numeric($value) ? 'value_number' : 'value_string';
-                    $sqlOp = match ($operator) {
-                        'gte' => '>=',
-                        'lte' => '<=',
-                        'gt' => '>',
-                        'lt' => '<',
-                        'contains', 'like' => 'LIKE',
-                        'neq' => '!=',
-                        default => '=',
-                    };
-                    $sqlValue = in_array($operator, ['contains', 'like']) ? "%{$value}%" : $value;
-                    $q->where($column, $sqlOp, $sqlValue);
+                // Trait-basierter Filter für konsistente Ergebnisse
+                $this->filterIdx = $this->filterIdx ?? 0;
+                $idx = $this->filterIdx++;
+                $query->where(function ($sub) use ($filter, $idx, $language) {
+                    $this->applyAttributeFilter($sub, $filter, $idx, $language);
                 });
             }
         }
