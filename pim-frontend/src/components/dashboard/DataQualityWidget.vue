@@ -17,10 +17,10 @@ const overallColor = computed(() => barColor(props.quality?.overall ?? 0))
 </script>
 
 <template>
-  <DashboardWidgetWrapper title="Datenqualit\u00e4t" :icon="ShieldCheck">
+  <DashboardWidgetWrapper title="Datenqualität" :icon="ShieldCheck">
     <div class="p-4">
       <div v-if="!quality" class="text-center text-sm text-[var(--color-text-tertiary)] py-4">
-        Keine Daten verf\u00fcgbar
+        Keine Daten verfügbar
       </div>
       <template v-else>
         <!-- Gesamt-Score -->

@@ -18,6 +18,7 @@ use App\Models\ProductPrice;
 use App\Models\ProductSearchIndex;
 use App\Models\Setting;
 use App\Models\WebsiteProfile;
+use App\Models\SearchProfile;
 use App\Models\ValueListEntry;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
@@ -546,6 +547,69 @@ class OfflineCatalogExportService
             $excludedNodeIds = $themePayload['catalog_excluded_node_ids'] ?? [];
             if ($hierarchy) {
                 $this->applyHierarchyFilter($query, $hierarchy, $excludedNodeIds);
+            }
+        }
+
+        // Suchprofil als Basis-Filter (aus Katalog-Einstellungen)
+        $searchProfileId = $themePayload['search_profile_id'] ?? null;
+        if ($searchProfileId) {
+            $profile = SearchProfile::find($searchProfileId);
+            if ($profile && !empty($profile->attribute_filters)) {
+                foreach ($profile->attribute_filters as $key => $filter) {
+                    $attrId = $filter['attribute_id'] ?? $key;
+                    $value = $filter['value'] ?? (is_array($filter) ? null : $filter);
+                    $operator = $filter['operator'] ?? 'eq';
+
+                    if (!$attrId) {
+                        continue;
+                    }
+
+                    // exists/not_exists brauchen keinen Wert
+                    if ($operator === 'exists') {
+                        $query->whereHas('attributeValues', fn ($q) => $q->where('attribute_id', $attrId));
+                        continue;
+                    }
+                    if ($operator === 'not_exists') {
+                        $query->whereDoesntHave('attributeValues', fn ($q) => $q->where('attribute_id', $attrId));
+                        continue;
+                    }
+
+                    if ($value === null) {
+                        continue;
+                    }
+
+                    $query->whereHas('attributeValues', function ($q) use ($attrId, $value, $operator) {
+                        $q->where('attribute_id', $attrId);
+                        $column = is_numeric($value) ? 'value_number' : 'value_string';
+                        $sqlOp = match ($operator) {
+                            'gte' => '>=', 'lte' => '<=', 'gt' => '>', 'lt' => '<',
+                            'contains', 'like' => 'LIKE', 'neq' => '!=',
+                            default => '=',
+                        };
+                        $sqlValue = in_array($operator, ['contains', 'like']) ? "%{$value}%" : $value;
+                        $q->where($column, $sqlOp, $sqlValue);
+                    });
+                }
+            }
+            if ($profile && !empty($profile->category_ids)) {
+                if ($profile->include_descendants) {
+                    $nodeIds = HierarchyNode::whereIn('id', $profile->category_ids)
+                        ->orWhere(function ($q) use ($profile) {
+                            foreach ($profile->category_ids as $catId) {
+                                $q->orWhere('path', 'LIKE', "%{$catId}%");
+                            }
+                        })
+                        ->pluck('id');
+                    $query->whereIn('master_hierarchy_node_id', $nodeIds);
+                } else {
+                    $query->whereIn('master_hierarchy_node_id', $profile->category_ids);
+                }
+            }
+            if ($profile && $profile->search_text) {
+                $term = $profile->search_text;
+                $query->where(function ($q) use ($term) {
+                    $q->where('name', 'LIKE', "%{$term}%")->orWhere('sku', 'LIKE', "%{$term}%");
+                });
             }
         }
 

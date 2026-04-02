@@ -24,6 +24,7 @@ class SearchProfile extends Model
         'status_filter',
         'category_ids',
         'attribute_filters',
+        'attribute_filter_groups',
         'include_descendants',
         'sort_field',
         'sort_order',
@@ -35,6 +36,7 @@ class SearchProfile extends Model
             'is_shared' => 'boolean',
             'category_ids' => 'array',
             'attribute_filters' => 'array',
+            'attribute_filter_groups' => 'array',
             'include_descendants' => 'boolean',
         ];
     }

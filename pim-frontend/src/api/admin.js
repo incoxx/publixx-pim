@@ -33,6 +33,10 @@ export default {
     return client.put('/settings/catalog-theme', payload)
   },
 
+  checkCatalogConfig(params) {
+    return client.post('/catalog/check-config', params)
+  },
+
   reindexSearch() {
     return client.post('/admin/search-reindex', {}, { timeout: 30000 })
   },

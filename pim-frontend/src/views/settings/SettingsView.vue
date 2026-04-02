@@ -18,6 +18,7 @@ import catalogPresets from '@/config/catalogPresets'
 import offlineCatalogApi from '@/api/offlineCatalog'
 import catalogTemplatesApi from '@/api/catalogTemplates'
 import websiteProfilesApi from '@/api/websiteProfiles'
+import searchProfilesApi from '@/api/searchProfiles'
 import ProfileSelector from '@/components/shared/ProfileSelector.vue'
 
 const { t } = useI18n()
@@ -791,6 +792,7 @@ const themeForm = ref({
   kontakt_text: '',
   footer_text: '',
   hierarchy_id: null,
+  search_profile_id: null,
   attribute_view_ids: [],
   default_locale: 'de',
   popup_max_width: '4xl',
@@ -827,6 +829,35 @@ const themeSaved = ref(false)
 const themeError = ref(null)
 const themeLoading = ref(false)
 
+// Suchprofile für Katalog-Basis-Filter
+const catalogSearchProfiles = ref([])
+const checkingConfig = ref(false)
+const configCheckResult = ref(null)
+
+async function loadCatalogSearchProfiles() {
+  try {
+    const { data } = await searchProfilesApi.list()
+    catalogSearchProfiles.value = data.data || data || []
+  } catch { /* ignore */ }
+}
+
+async function checkCatalogConfig() {
+  checkingConfig.value = true
+  configCheckResult.value = null
+  try {
+    const { data } = await adminApi.checkCatalogConfig({
+      hierarchy_id: themeForm.value.hierarchy_id,
+      catalog_linked_products_only: !!themeForm.value.catalog_linked_products_only,
+      search_profile_id: themeForm.value.search_profile_id,
+      catalog_excluded_node_ids: themeForm.value.catalog_excluded_node_ids || [],
+    })
+    configCheckResult.value = data.data?.product_count ?? data.product_count ?? 0
+  } catch {
+    configCheckResult.value = 0
+  }
+  checkingConfig.value = false
+}
+
 async function loadThemeSettings() {
   themeLoading.value = true
   try {
@@ -854,6 +885,7 @@ async function loadThemeSettings() {
         kontakt_text: d.kontakt_text || '',
         footer_text: d.footer_text || '',
         hierarchy_id: d.hierarchy_id || null,
+        search_profile_id: d.search_profile_id || null,
         attribute_view_ids: d.attribute_view_ids || [],
         default_locale: d.default_locale || 'de',
         color_header_bg: d.color_header_bg || '',
@@ -903,6 +935,7 @@ async function saveThemeSettings() {
       if (!payload[key]) payload[key] = null
     }
     if (!payload.hierarchy_id) payload.hierarchy_id = null
+    if (!payload.search_profile_id) payload.search_profile_id = null
     if (!payload.attribute_view_ids || payload.attribute_view_ids.length === 0) payload.attribute_view_ids = []
     if (!payload.facet_attribute_ids || payload.facet_attribute_ids.length === 0) payload.facet_attribute_ids = []
     if (!payload.card_attribute_ids || payload.card_attribute_ids.length === 0) payload.card_attribute_ids = []
@@ -994,6 +1027,7 @@ function applyPayloadToForm(payload) {
     kontakt_text: d.kontakt_text || '',
     footer_text: d.footer_text || '',
     hierarchy_id: d.hierarchy_id || null,
+    search_profile_id: d.search_profile_id || null,
     attribute_view_ids: d.attribute_view_ids || [],
     default_locale: d.default_locale || 'de',
     color_header_bg: d.color_header_bg || '',
@@ -1576,6 +1610,7 @@ onMounted(async () => {
     loadUsageTypes()
     loadPdfTemplates()
     loadRelationTypes()
+    loadCatalogSearchProfiles()
     loadTestDataStats()
   }
   // Global Escape listener for offline catalog cancel
@@ -1911,6 +1946,40 @@ onUnmounted(() => {
                    class="rounded border-[var(--color-border-strong)] text-[var(--color-accent)]" />
             Nur verknüpfte Produkte darstellen
           </label>
+
+          <!-- Suchprofil als Basis-Filter -->
+          <div>
+            <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Suchprofil (optionaler Basis-Filter)</label>
+            <select class="pim-input text-xs" v-model="themeForm.search_profile_id">
+              <option :value="null">— Kein Suchprofil (alle Produkte) —</option>
+              <option v-for="sp in catalogSearchProfiles" :key="sp.id" :value="sp.id">
+                {{ sp.name }}{{ sp.is_shared ? ' (geteilt)' : '' }}
+              </option>
+            </select>
+            <p class="text-[11px] text-[var(--color-text-tertiary)] mt-1">
+              Produkte werden vorab nach diesem Suchprofil gefiltert. Der Filter ist im Katalog nicht sichtbar und nicht entfernbar.
+            </p>
+          </div>
+
+          <!-- Konfiguration prüfen -->
+          <div class="flex items-center gap-3 pt-3 border-t border-[var(--color-border)]">
+            <button
+              class="pim-btn pim-btn-secondary text-xs"
+              @click="checkCatalogConfig"
+              :disabled="checkingConfig"
+            >
+              <RefreshCw v-if="checkingConfig" class="w-3.5 h-3.5 animate-spin" :stroke-width="2" />
+              <CheckCircle v-else class="w-3.5 h-3.5" :stroke-width="2" />
+              Konfiguration prüfen
+            </button>
+            <span
+              v-if="configCheckResult !== null"
+              class="text-xs font-medium"
+              :class="configCheckResult > 0 ? 'text-emerald-600' : 'text-red-600'"
+            >
+              {{ configCheckResult.toLocaleString('de-DE') }} Produkte treffen auf diese Konfiguration zu
+            </span>
+          </div>
 
           <!-- Hierarchy node exclusion -->
           <div v-if="hierarchyNodes.length > 0">
