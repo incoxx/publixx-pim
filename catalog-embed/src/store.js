@@ -197,9 +197,10 @@ function createStore() {
           opts.category = state.selectedCategoryId
         }
         const data = await _api.getFacets(opts)
+        console.debug('[PublixxCatalog] Facets loaded:', { raw: data, count: (data.facets || []).length })
         state.facets = data.facets || []
       } catch (e) {
-        console.warn('[PublixxCatalog] Facets load failed:', e.message)
+        console.warn('[PublixxCatalog] Facets load failed:', e.message, e)
         state.facets = []
       }
     },
