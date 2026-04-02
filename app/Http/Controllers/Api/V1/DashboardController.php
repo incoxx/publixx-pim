@@ -12,6 +12,7 @@ use App\Models\Project;
 use App\Models\SearchProfile;
 use App\Models\Team;
 use App\Models\WorkflowTask;
+use App\Services\Search\SearchProfileQueryBuilder;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -264,84 +265,9 @@ class DashboardController extends Controller
         return response()->json(['data' => $result]);
     }
 
-    /**
-     * Suchprofil → Product-Query auflösen (Pattern aus ReportDataCollector).
-     */
     private function buildProfileQuery(SearchProfile $searchProfile): Builder
     {
-        $query = Product::query();
-
-        if ($searchProfile->status_filter) {
-            $query->where('status', $searchProfile->status_filter);
-        }
-
-        if ($searchProfile->search_text) {
-            $term = $searchProfile->search_text;
-            $query->where(function (Builder $q) use ($term) {
-                $q->where('name', 'LIKE', "%{$term}%")
-                  ->orWhere('sku', 'LIKE', "%{$term}%")
-                  ->orWhere('ean', 'LIKE', "%{$term}%");
-            });
-        }
-
-        if (!empty($searchProfile->category_ids)) {
-            if ($searchProfile->include_descendants) {
-                $query->whereHas('masterHierarchyNode', function (Builder $q) use ($searchProfile) {
-                    $q->whereIn('id', $searchProfile->category_ids)
-                      ->orWhere(function (Builder $sub) use ($searchProfile) {
-                          foreach ($searchProfile->category_ids as $catId) {
-                              $sub->orWhere('path', 'LIKE', "%{$catId}%");
-                          }
-                      });
-                });
-            } else {
-                $query->whereIn('master_hierarchy_node_id', $searchProfile->category_ids);
-            }
-        }
-
-        if (!empty($searchProfile->attribute_filters)) {
-            foreach ($searchProfile->attribute_filters as $filter) {
-                $attrId = $filter['attribute_id'] ?? null;
-                $value = $filter['value'] ?? null;
-                $operator = $filter['operator'] ?? 'eq';
-
-                if (!$attrId) {
-                    continue;
-                }
-
-                // exists/not_exists brauchen keinen Wert
-                if ($operator === 'exists') {
-                    $query->whereHas('attributeValues', fn (Builder $q) => $q->where('attribute_id', $attrId));
-                    continue;
-                }
-                if ($operator === 'not_exists') {
-                    $query->whereDoesntHave('attributeValues', fn (Builder $q) => $q->where('attribute_id', $attrId));
-                    continue;
-                }
-
-                if ($value === null) {
-                    continue;
-                }
-
-                $query->whereHas('attributeValues', function (Builder $q) use ($attrId, $value, $operator) {
-                    $q->where('attribute_id', $attrId);
-                    $column = is_numeric($value) ? 'value_number' : 'value_string';
-                    $sqlOp = match ($operator) {
-                        'gte' => '>=',
-                        'lte' => '<=',
-                        'gt' => '>',
-                        'lt' => '<',
-                        'contains', 'like' => 'LIKE',
-                        'neq' => '!=',
-                        default => '=',
-                    };
-                    $sqlValue = in_array($operator, ['contains', 'like']) ? "%{$value}%" : $value;
-                    $q->where($column, $sqlOp, $sqlValue);
-                });
-            }
-        }
-
-        return $query;
+        return app(SearchProfileQueryBuilder::class)->forProducts($searchProfile);
     }
 
     private function profileCompleteness(Builder $baseQuery): int
