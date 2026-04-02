@@ -47,14 +47,9 @@ class SearchProfileQueryBuilder
             $query->where('status', $profile->status_filter);
         }
 
-        // Freitext-Suche
+        // Freitext-Suche (unterstützt like, soundex, regex)
         if ($profile->search_text) {
-            $term = $profile->search_text;
-            $query->where(function (Builder $q) use ($term) {
-                $q->where('name', 'LIKE', "%{$term}%")
-                  ->orWhere('sku', 'LIKE', "%{$term}%")
-                  ->orWhere('ean', 'LIKE', "%{$term}%");
-            });
+            $this->applyTextSearch($query, $profile->search_text, $profile->search_mode ?? 'like');
         }
 
         // Kategorie-Filter
@@ -70,8 +65,14 @@ class SearchProfileQueryBuilder
         $this->filterIdx = 0;
         $this->attributeCache = [];
 
-        foreach ($profile->attribute_filters ?? [] as $idx => $filter) {
-            $this->applyAttributeFilter($query, $filter, $idx, $language);
+        foreach ($profile->attribute_filters ?? [] as $key => $filter) {
+            // Legacy-Format normalisieren: {attrId: value} → {attribute_id, value, operator}
+            if (!is_array($filter)) {
+                $filter = ['attribute_id' => $key, 'value' => $filter, 'operator' => 'eq'];
+            } elseif (!isset($filter['attribute_id']) && is_string($key)) {
+                $filter['attribute_id'] = $key;
+            }
+            $this->applyAttributeFilter($query, $filter, $this->filterIdx++, $language);
         }
 
         // Verschachtelte Filtergruppen (AND/OR/NOT)
