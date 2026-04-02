@@ -24,6 +24,7 @@ class DashboardController extends Controller
     {
         $user = $request->user();
         $isAdmin = $user->hasRole('Admin');
+        $teamIds = $isAdmin ? [] : $user->teams()->pluck('teams.id')->toArray();
 
         // Stats overview
         $stats = [
@@ -50,7 +51,6 @@ class DashboardController extends Controller
             ->limit(10);
 
         if (!$isAdmin) {
-            $teamIds = $user->teams()->pluck('teams.id')->toArray();
             $tasksQuery->where(function ($q) use ($user, $teamIds) {
                 $q->where('assigned_to', $user->id);
                 if (!empty($teamIds)) {
@@ -182,7 +182,6 @@ class DashboardController extends Controller
         $weekAgo = Carbon::now()->subDays(7);
         $userTasksCount = WorkflowTask::whereIn('status', ['open', 'in_progress']);
         if (!$isAdmin) {
-            $teamIds = $user->teams()->pluck('teams.id')->toArray();
             $userTasksCount->where(function ($q) use ($user, $teamIds) {
                 $q->where('assigned_to', $user->id);
                 if (!empty($teamIds)) {
@@ -377,13 +376,12 @@ class DashboardController extends Controller
         if ($total === 0) {
             return 100;
         }
-        $productIds = (clone $baseQuery)->pluck('id');
         $withTranslations = DB::table('product_attribute_values')
-            ->whereIn('product_id', $productIds)
+            ->whereIn('product_id', (clone $baseQuery)->select('id'))
             ->whereNotNull('language')
             ->select('product_id')
             ->groupBy('product_id')
-            ->havingRaw('COUNT(DISTINCT language) > 1')
+            ->havingRaw('COUNT(DISTINCT language) > ?', [1])
             ->count();
 
         return (int) round(($withTranslations / $total) * 100);
@@ -498,8 +496,7 @@ class DashboardController extends Controller
             ->select('product_id')
             ->whereNotNull('language')
             ->groupBy('product_id')
-            ->havingRaw('COUNT(DISTINCT language) > 1')
-            ->get()
+            ->havingRaw('COUNT(DISTINCT language) > ?', [1])
             ->count();
 
         $dimensions = [

@@ -187,7 +187,7 @@ const trendTotal = computed(() => {
       <template v-else-if="chartType === 'number'">
         <div class="text-center py-2">
           <p class="text-3xl font-bold" :style="{ color }">
-            {{ typeof metricValue === 'number' && metric.endsWith('coverage') || metric === 'completeness' ? metricValue + '%' : metricValue.toLocaleString('de-DE') }}
+            {{ (metric.endsWith('coverage') || metric === 'completeness') ? metricValue + '%' : metricValue.toLocaleString('de-DE') }}
           </p>
           <p class="text-xs text-[var(--color-text-tertiary)] mt-1">{{ metricLabel }}</p>
           <p class="text-[10px] text-[var(--color-text-tertiary)] mt-0.5">

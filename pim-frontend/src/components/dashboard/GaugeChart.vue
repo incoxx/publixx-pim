@@ -61,7 +61,7 @@ const displayValue = computed(() => {
     <div class="absolute inset-0 flex items-end justify-center pb-1">
       <div class="text-center">
         <p class="text-xl font-bold" :style="{ color: displayColor }">{{ displayValue }}</p>
-        <p v-if="label" class="text-[10px] text-[var(--color-text-tertiary)] mt--0.5">{{ label }}</p>
+        <p v-if="label" class="text-[10px] text-[var(--color-text-tertiary)] -mt-0.5">{{ label }}</p>
       </div>
     </div>
   </div>
