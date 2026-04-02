@@ -793,6 +793,7 @@ const themeForm = ref({
   footer_text: '',
   hierarchy_id: null,
   search_profile_id: null,
+  catalog_category_expand_depth: 1,
   attribute_view_ids: [],
   default_locale: 'de',
   popup_max_width: '4xl',
@@ -886,6 +887,7 @@ async function loadThemeSettings() {
         footer_text: d.footer_text || '',
         hierarchy_id: d.hierarchy_id || null,
         search_profile_id: d.search_profile_id || null,
+        catalog_category_expand_depth: d.catalog_category_expand_depth ?? 1,
         attribute_view_ids: d.attribute_view_ids || [],
         default_locale: d.default_locale || 'de',
         color_header_bg: d.color_header_bg || '',
@@ -1946,6 +1948,21 @@ onUnmounted(() => {
                    class="rounded border-[var(--color-border-strong)] text-[var(--color-accent)]" />
             Nur verknüpfte Produkte darstellen
           </label>
+
+          <!-- Kategorie-Aufklapptiefe -->
+          <div>
+            <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Kategorie-Aufklapptiefe</label>
+            <div class="flex items-center gap-2">
+              <input
+                type="number"
+                min="0"
+                max="10"
+                class="pim-input text-xs w-20"
+                v-model.number="themeForm.catalog_category_expand_depth"
+              />
+              <span class="text-[11px] text-[var(--color-text-tertiary)]">Ebenen automatisch aufklappen (0 = alle geschlossen)</span>
+            </div>
+          </div>
 
           <!-- Suchprofil als Basis-Filter -->
           <div>

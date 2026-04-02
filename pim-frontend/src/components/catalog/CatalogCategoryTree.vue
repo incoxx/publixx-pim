@@ -11,16 +11,26 @@ const props = defineProps({
 const store = useCatalogStore()
 const expandedIds = ref(new Set())
 
-// Auto-expand root nodes that have children
+// Auto-expand nodes up to the configured depth
+function collectExpandIds(nodes, currentDepth, maxDepth) {
+  const ids = []
+  if (currentDepth >= maxDepth) return ids
+  for (const node of nodes) {
+    if (node.children && node.children.length > 0) {
+      ids.push(node.id)
+      ids.push(...collectExpandIds(node.children, currentDepth + 1, maxDepth))
+    }
+  }
+  return ids
+}
+
 if (props.level === 0) {
   watch(
     () => props.nodes,
     (nodes) => {
       if (nodes.length > 0 && expandedIds.value.size === 0) {
-        const rootIds = nodes
-          .filter((n) => n.children && n.children.length > 0)
-          .map((n) => n.id)
-        expandedIds.value = new Set(rootIds)
+        const maxDepth = store.themeSettings?.catalog_category_expand_depth ?? 1
+        expandedIds.value = new Set(collectExpandIds(nodes, 0, maxDepth))
       }
     },
     { immediate: true },
