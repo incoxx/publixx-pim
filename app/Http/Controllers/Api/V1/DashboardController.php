@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
-use App\Http\Controllers\Api\V1\Traits\ProductSearchFilters;
 use App\Models\AuditLog;
 use App\Models\ExportJob;
 use App\Models\ImportJob;
@@ -13,6 +12,7 @@ use App\Models\Project;
 use App\Models\SearchProfile;
 use App\Models\Team;
 use App\Models\WorkflowTask;
+use App\Services\Search\SearchProfileQueryBuilder;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -21,7 +21,6 @@ use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
-    use ProductSearchFilters;
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -266,60 +265,9 @@ class DashboardController extends Controller
         return response()->json(['data' => $result]);
     }
 
-    /**
-     * Suchprofil → Product-Query auflösen.
-     * Nutzt denselben ProductSearchFilters-Trait wie die Produktsuche,
-     * damit Filter-Ergebnisse konsistent sind.
-     */
     private function buildProfileQuery(SearchProfile $searchProfile): Builder
     {
-        $query = Product::query()->where('product_type_ref', 'product');
-        $language = 'de';
-
-        if ($searchProfile->status_filter) {
-            $query->where('status', $searchProfile->status_filter);
-        }
-
-        if ($searchProfile->search_text) {
-            $term = $searchProfile->search_text;
-            $query->where(function (Builder $q) use ($term) {
-                $q->where('name', 'LIKE', "%{$term}%")
-                  ->orWhere('sku', 'LIKE', "%{$term}%")
-                  ->orWhere('ean', 'LIKE', "%{$term}%");
-            });
-        }
-
-        if (!empty($searchProfile->category_ids)) {
-            if ($searchProfile->include_descendants) {
-                $query->whereHas('masterHierarchyNode', function (Builder $q) use ($searchProfile) {
-                    $q->whereIn('id', $searchProfile->category_ids)
-                      ->orWhere(function (Builder $sub) use ($searchProfile) {
-                          foreach ($searchProfile->category_ids as $catId) {
-                              $sub->orWhere('path', 'LIKE', "%{$catId}%");
-                          }
-                      });
-                });
-            } else {
-                $query->whereIn('master_hierarchy_node_id', $searchProfile->category_ids);
-            }
-        }
-
-        // Attribut-Filter über Trait (identisch zur Produktsuche)
-        $this->filterIdx = 0;
-        $this->attributeCache = [];
-
-        foreach ($searchProfile->attribute_filters ?? [] as $idx => $filter) {
-            $this->applyAttributeFilter($query, $filter, $idx, $language);
-        }
-
-        $filterGroups = $searchProfile->attribute_filter_groups;
-        if ($filterGroups && !empty($filterGroups['rules'] ?? [])) {
-            $this->validateFilterGroupDepth($filterGroups);
-            $this->preloadFilterAttributes($filterGroups);
-            $this->applyAttributeFilterGroups($query, $filterGroups, $language);
-        }
-
-        return $query;
+        return app(SearchProfileQueryBuilder::class)->forProducts($searchProfile);
     }
 
     private function profileCompleteness(Builder $baseQuery): int

@@ -15,6 +15,7 @@ use App\Services\Export\Writers\CsvWriter;
 use App\Services\Export\Writers\ExcelWriter;
 use App\Services\Export\Writers\JsonWriter;
 use App\Services\Export\Writers\XmlWriter;
+use App\Services\Search\SearchProfileQueryBuilder;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
@@ -72,37 +73,14 @@ class ExportProfileService
         return $this->buildProductQuery($profile)->count();
     }
 
-    /**
-     * Baut die Produkt-Query basierend auf dem SearchProfile.
-     */
     private function buildProductQuery(ExportProfile $profile): Builder
     {
-        $query = Product::query()->where('product_type_ref', 'product');
-
         $searchProfile = $profile->searchProfile;
         if (!$searchProfile) {
-            return $query;
+            return Product::query()->where('product_type_ref', 'product');
         }
 
-        if ($searchProfile->status_filter) {
-            $query->where('status', $searchProfile->status_filter);
-        }
-
-        if ($searchProfile->search_text) {
-            $term = $searchProfile->search_text;
-            $like = '%' . $term . '%';
-            $query->where(function ($q) use ($like) {
-                $q->where('name', 'LIKE', $like)
-                  ->orWhere('sku', 'LIKE', $like)
-                  ->orWhere('ean', 'LIKE', $like);
-            });
-        }
-
-        if (!empty($searchProfile->category_ids)) {
-            $query->whereIn('master_hierarchy_node_id', $searchProfile->category_ids);
-        }
-
-        return $query;
+        return app(SearchProfileQueryBuilder::class)->forProducts($searchProfile);
     }
 
     private function resolveProducts(ExportProfile $profile): \Illuminate\Support\Collection

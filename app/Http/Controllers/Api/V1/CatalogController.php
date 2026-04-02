@@ -28,6 +28,7 @@ use App\Models\PdfTemplate;
 use App\Services\Inheritance\HierarchyInheritanceService;
 use App\Services\PdfTemplate\PdfTemplateService;
 use App\Services\Preview\ProductPreviewService;
+use App\Services\Search\SearchProfileQueryBuilder;
 use App\Support\KoelnerPhonetik;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
@@ -1987,76 +1988,11 @@ class CatalogController extends BaseController
             return;
         }
 
-        // Attribut-Filter als Subquery auf product_id
-        if (!empty($profile->attribute_filters)) {
-            foreach ($profile->attribute_filters as $key => $filter) {
-                // Unterstützt sowohl legacy {attrId: value} als auch neues {attribute_id, value, operator}
-                $attrId = $filter['attribute_id'] ?? $key;
-                $value = $filter['value'] ?? (is_array($filter) ? null : $filter);
-                $operator = $filter['operator'] ?? 'eq';
+        // Suchprofil auf eine Product-Query anwenden und die IDs als Subquery nutzen
+        $filteredProductQuery = app(SearchProfileQueryBuilder::class)
+            ->forProducts($profile, mainProductsOnly: false);
 
-                if (!$attrId) {
-                    continue;
-                }
-
-                if ($operator === 'exists') {
-                    $query->whereIn('products.id', function ($sub) use ($attrId) {
-                        $sub->select('product_id')->from('product_attribute_values')->where('attribute_id', $attrId);
-                    });
-                    continue;
-                }
-                if ($operator === 'not_exists') {
-                    $query->whereNotIn('products.id', function ($sub) use ($attrId) {
-                        $sub->select('product_id')->from('product_attribute_values')->where('attribute_id', $attrId);
-                    });
-                    continue;
-                }
-
-                if ($value === null) {
-                    continue;
-                }
-
-                $query->whereIn('products.id', function ($sub) use ($attrId, $value, $operator) {
-                    $sub->select('product_id')
-                        ->from('product_attribute_values')
-                        ->where('attribute_id', $attrId);
-
-                    $column = is_numeric($value) ? 'value_number' : 'value_string';
-                    $sqlOp = match ($operator) {
-                        'gte' => '>=', 'lte' => '<=', 'gt' => '>', 'lt' => '<',
-                        'contains', 'like' => 'LIKE', 'neq' => '!=',
-                        default => '=',
-                    };
-                    $sqlValue = in_array($operator, ['contains', 'like']) ? "%{$value}%" : $value;
-                    $sub->where($column, $sqlOp, $sqlValue);
-                });
-            }
-        }
-
-        // Kategorie-Filter aus Suchprofil
-        if (!empty($profile->category_ids)) {
-            if ($profile->include_descendants) {
-                $nodeIds = HierarchyNode::whereIn('id', $profile->category_ids)
-                    ->orWhere(function ($q) use ($profile) {
-                        foreach ($profile->category_ids as $catId) {
-                            $q->orWhere('path', 'LIKE', "%{$catId}%");
-                        }
-                    })
-                    ->pluck('id');
-                $query->whereIn('products.master_hierarchy_node_id', $nodeIds);
-            } else {
-                $query->whereIn('products.master_hierarchy_node_id', $profile->category_ids);
-            }
-        }
-
-        // Text-Filter aus Suchprofil
-        if ($profile->search_text) {
-            $term = $profile->search_text;
-            $query->where(function ($q) use ($term) {
-                $q->where('products.name', 'LIKE', "%{$term}%")
-                  ->orWhere('products.sku', 'LIKE', "%{$term}%");
-            });
-        }
+        $query->whereIn('products.id', $filteredProductQuery->select('products.id'));
     }
 
     /**
@@ -2064,72 +2000,6 @@ class CatalogController extends BaseController
      */
     private function applySearchProfileFilterToProductQuery($query, ?string $searchProfileId): void
     {
-        if (!$searchProfileId) {
-            return;
-        }
-
-        $profile = SearchProfile::find($searchProfileId);
-        if (!$profile) {
-            return;
-        }
-
-        if (!empty($profile->attribute_filters)) {
-            foreach ($profile->attribute_filters as $key => $filter) {
-                $attrId = $filter['attribute_id'] ?? $key;
-                $value = $filter['value'] ?? (is_array($filter) ? null : $filter);
-                $operator = $filter['operator'] ?? 'eq';
-
-                if (!$attrId) {
-                    continue;
-                }
-
-                if ($operator === 'exists') {
-                    $query->whereHas('attributeValues', fn ($q) => $q->where('attribute_id', $attrId));
-                    continue;
-                }
-                if ($operator === 'not_exists') {
-                    $query->whereDoesntHave('attributeValues', fn ($q) => $q->where('attribute_id', $attrId));
-                    continue;
-                }
-                if ($value === null) {
-                    continue;
-                }
-
-                $query->whereHas('attributeValues', function ($q) use ($attrId, $value, $operator) {
-                    $q->where('attribute_id', $attrId);
-                    $column = is_numeric($value) ? 'value_number' : 'value_string';
-                    $sqlOp = match ($operator) {
-                        'gte' => '>=', 'lte' => '<=', 'gt' => '>', 'lt' => '<',
-                        'contains', 'like' => 'LIKE', 'neq' => '!=',
-                        default => '=',
-                    };
-                    $sqlValue = in_array($operator, ['contains', 'like']) ? "%{$value}%" : $value;
-                    $q->where($column, $sqlOp, $sqlValue);
-                });
-            }
-        }
-
-        if (!empty($profile->category_ids)) {
-            if ($profile->include_descendants) {
-                $nodeIds = HierarchyNode::whereIn('id', $profile->category_ids)
-                    ->orWhere(function ($q) use ($profile) {
-                        foreach ($profile->category_ids as $catId) {
-                            $q->orWhere('path', 'LIKE', "%{$catId}%");
-                        }
-                    })
-                    ->pluck('id');
-                $query->whereIn('master_hierarchy_node_id', $nodeIds);
-            } else {
-                $query->whereIn('master_hierarchy_node_id', $profile->category_ids);
-            }
-        }
-
-        if ($profile->search_text) {
-            $term = $profile->search_text;
-            $query->where(function ($q) use ($term) {
-                $q->where('name', 'LIKE', "%{$term}%")
-                  ->orWhere('sku', 'LIKE', "%{$term}%");
-            });
-        }
+        app(SearchProfileQueryBuilder::class)->applyById($query, $searchProfileId);
     }
 }

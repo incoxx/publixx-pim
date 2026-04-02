@@ -7,6 +7,7 @@ namespace App\Services\Report;
 use App\Models\Product;
 use App\Models\ReportTemplate;
 use App\Models\SearchProfile;
+use App\Services\Search\SearchProfileQueryBuilder;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
@@ -42,84 +43,14 @@ class ReportDataCollector
         ];
     }
 
-    /**
-     * Build the product query from search profile filters.
-     */
     private function buildQuery(?SearchProfile $searchProfile): Builder
     {
-        $query = Product::query();
-
         if (!$searchProfile) {
-            return $query->where('status', 'active');
+            return Product::query()->where('status', 'active');
         }
 
-        // Status filter
-        if ($searchProfile->status_filter) {
-            $query->where('status', $searchProfile->status_filter);
-        }
-
-        // Search text
-        if ($searchProfile->search_text) {
-            $term = $searchProfile->search_text;
-            $query->where(function (Builder $q) use ($term) {
-                $q->where('name', 'LIKE', "%{$term}%")
-                  ->orWhere('sku', 'LIKE', "%{$term}%")
-                  ->orWhere('ean', 'LIKE', "%{$term}%");
-            });
-        }
-
-        // Category filter
-        if (!empty($searchProfile->category_ids)) {
-            if ($searchProfile->include_descendants) {
-                $query->whereHas('masterHierarchyNode', function (Builder $q) use ($searchProfile) {
-                    $q->whereIn('id', $searchProfile->category_ids)
-                      ->orWhere(function (Builder $sub) use ($searchProfile) {
-                          foreach ($searchProfile->category_ids as $catId) {
-                              $sub->orWhere('path', 'LIKE', "%{$catId}%");
-                          }
-                      });
-                });
-            } else {
-                $query->whereIn('master_hierarchy_node_id', $searchProfile->category_ids);
-            }
-        }
-
-        // Attribute filters
-        if (!empty($searchProfile->attribute_filters)) {
-            foreach ($searchProfile->attribute_filters as $filter) {
-                $attrId = $filter['attribute_id'] ?? null;
-                $value = $filter['value'] ?? null;
-                $operator = $filter['operator'] ?? 'eq';
-
-                if (!$attrId || $value === null) {
-                    continue;
-                }
-
-                $query->whereHas('attributeValues', function (Builder $q) use ($attrId, $value, $operator) {
-                    $q->where('attribute_id', $attrId);
-
-                    $column = is_numeric($value) ? 'value_number' : 'value_string';
-                    $sqlOp = match ($operator) {
-                        'gte' => '>=',
-                        'lte' => '<=',
-                        'gt' => '>',
-                        'lt' => '<',
-                        'contains' => 'LIKE',
-                        'neq' => '!=',
-                        default => '=',
-                    };
-                    $sqlValue = $operator === 'contains' ? "%{$value}%" : $value;
-                    $q->where($column, $sqlOp, $sqlValue);
-                });
-            }
-        }
-
-        // Sort
-        $sortField = $searchProfile->sort_field ?? 'name';
-        $sortOrder = $searchProfile->sort_order ?? 'asc';
-        $query->orderBy($sortField, $sortOrder);
-
-        return $query;
+        return app(SearchProfileQueryBuilder::class)
+            ->forProducts($searchProfile, mainProductsOnly: false, applySort: true);
     }
 
     /**
