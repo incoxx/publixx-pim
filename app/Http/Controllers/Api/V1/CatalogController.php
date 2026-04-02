@@ -58,14 +58,15 @@ class CatalogController extends BaseController
         $categoryId = $request->query('category');
         $hierarchyType = $request->query('hierarchy_type', 'master');
 
+        $themePayload = WebsiteProfile::getActivePayload();
+
         $query = ProductSearchIndex::query()
             ->join('products', 'products.id', '=', 'products_search_index.product_id')
             ->where('products.status', 'active')
             ->where('products.product_type_ref', 'product');
 
         // Suchprofil als versteckter Basis-Filter (aus Katalog-Einstellungen)
-        $themePayloadForProfile = WebsiteProfile::getActivePayload();
-        $this->applySearchProfileFilter($query, $themePayloadForProfile['search_profile_id'] ?? null);
+        $this->applySearchProfileFilter($query, $themePayload['search_profile_id'] ?? null);
 
         $isSearchActive = $search && trim($search) !== '';
 
@@ -136,7 +137,6 @@ class CatalogController extends BaseController
 
             // "Nur verknüpfte Produkte" – restrict to products in the configured hierarchy
             if (!$categoryId) {
-                $themePayload = WebsiteProfile::getActivePayload();
                 $linkedOnly = !empty($themePayload['catalog_linked_products_only']);
                 $settingsHierarchyId = $themePayload['hierarchy_id'] ?? null;
 
@@ -282,7 +282,6 @@ class CatalogController extends BaseController
         $paginated = $query->paginate($perPage);
 
         // Load card attributes if configured
-        $themePayload = WebsiteProfile::getActivePayload();
         $cardAttributeIds = $themePayload['card_attribute_ids'] ?? [];
         $primaryCardAttributeId = $themePayload['primary_card_attribute_id'] ?? null;
         $cardAttributeMap = [];
@@ -1932,9 +1931,9 @@ class CatalogController extends BaseController
     public function checkConfig(Request $request): JsonResponse
     {
         $request->validate([
-            'hierarchy_id' => 'nullable|string',
+            'hierarchy_id' => 'nullable|string|exists:hierarchies,id',
             'catalog_linked_products_only' => 'nullable|boolean',
-            'search_profile_id' => 'nullable|string',
+            'search_profile_id' => 'nullable|string|exists:search_profiles,id',
             'catalog_excluded_node_ids' => 'nullable|array',
         ]);
 
