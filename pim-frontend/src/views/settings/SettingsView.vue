@@ -1030,6 +1030,7 @@ function applyPayloadToForm(payload) {
     footer_text: d.footer_text || '',
     hierarchy_id: d.hierarchy_id || null,
     search_profile_id: d.search_profile_id || null,
+    catalog_category_expand_depth: d.catalog_category_expand_depth ?? 1,
     attribute_view_ids: d.attribute_view_ids || [],
     default_locale: d.default_locale || 'de',
     color_header_bg: d.color_header_bg || '',

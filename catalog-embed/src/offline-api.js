@@ -354,9 +354,7 @@ export function createOfflineApi(dataPath, options = {}) {
 
     async getFacets(opts = {}) {
       if (!_facets) {
-        console.debug('[OfflineAPI] Loading facets.json from', `${basePath}/facets.json`)
         _facets = await fetchJson('facets.json')
-        console.debug('[OfflineAPI] Facets loaded:', { facetCount: (_facets?.facets || []).length, raw: _facets })
       }
       return _facets
     },

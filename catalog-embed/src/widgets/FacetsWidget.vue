@@ -23,11 +23,7 @@ function closeDrawer() { drawerOpen.value = false }
 function applyAndClose() { drawerOpen.value = false }
 
 onMounted(() => {
-  console.debug('[FacetsWidget] Mounted, facets in state:', state.facets.length)
-  if (state.facets.length === 0) {
-    console.debug('[FacetsWidget] No facets yet, calling fetchFacets()')
-    actions.fetchFacets()
-  }
+  if (state.facets.length === 0) actions.fetchFacets()
 })
 
 watch(() => state.locale, () => actions.fetchFacets())

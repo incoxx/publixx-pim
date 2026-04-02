@@ -180,13 +180,11 @@ async function init(options = {}) {
   }
 
   // Trigger initial data loads (categories, facets, products)
-  console.debug('[OfflineInit] Starting parallel fetch: categories, facets, attribute-groups')
   await Promise.all([
     actions.fetchCategories(),
     actions.fetchFacets(),
     actions.fetchAttributeGroups(),
   ])
-  console.debug('[OfflineInit] Parallel fetch complete. Facets in state:', state.facets.length)
 
   // Load products (this triggers the chunk loading with progress)
   await actions.fetchProducts()
