@@ -758,6 +758,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::put('user/preferences/{group}', [\App\Http\Controllers\Api\V1\UserPreferenceController::class, 'update']);
 
     Route::put('settings/catalog-theme', [SettingController::class, 'updateCatalogTheme']);
+    Route::post('catalog/check-config', [\App\Http\Controllers\Api\V1\CatalogController::class, 'checkConfig']);
     Route::get('settings/enforced-appearance', [SettingController::class, 'enforcedAppearance']);
     Route::put('settings/enforced-appearance', [SettingController::class, 'updateEnforcedAppearance']);
     Route::get('settings/configured-plugins', [SettingController::class, 'configuredPlugins']);
