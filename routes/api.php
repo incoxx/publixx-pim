@@ -962,6 +962,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // Dashboard
     // =====================================================================
     Route::get('dashboard', [DashboardController::class, 'index']);
+    Route::post('dashboard/profile-stats', [DashboardController::class, 'profileStats']);
 
     // =====================================================================
     // Connectors (Enterprise: connectors)

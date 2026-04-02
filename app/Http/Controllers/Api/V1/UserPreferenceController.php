@@ -20,6 +20,14 @@ class UserPreferenceController extends Controller
 
     public function update(Request $request, string $group): JsonResponse
     {
+        if ($group === 'dashboard') {
+            return $this->updateDashboard($request);
+        }
+
+        if ($group === 'quick_links') {
+            return $this->updateQuickLinks($request);
+        }
+
         $request->validate([
             'preset' => 'sometimes|string|in:light,dark-navy,dark-charcoal,custom',
             'sidebar_bg' => 'sometimes|nullable|string|regex:/^#[0-9A-Fa-f]{6}$/',
@@ -44,6 +52,52 @@ class UserPreferenceController extends Controller
                 'sidebar_colored_icons',
                 'toolbar_bg', 'toolbar_text', 'toolbar_font_size',
             ]),
+        );
+
+        return response()->json(['data' => $pref->payload]);
+    }
+
+    /**
+     * Schnellzugriff-Links speichern.
+     */
+    private function updateQuickLinks(Request $request): JsonResponse
+    {
+        $request->validate([
+            'links' => 'required|array|max:20',
+            'links.*.id' => 'required|string|max:100',
+            'links.*.label' => 'required|string|max:100',
+            'links.*.to' => 'required|string|max:255',
+            'links.*.icon' => 'sometimes|nullable|string|max:50',
+        ]);
+
+        $pref = UserPreference::setPayload(
+            $request->user()->id,
+            'quick_links',
+            ['links' => $request->input('links')],
+        );
+
+        return response()->json(['data' => $pref->payload]);
+    }
+
+    /**
+     * Dashboard-Konfiguration speichern (Widget-Sichtbarkeit, Profilkarten).
+     */
+    private function updateDashboard(Request $request): JsonResponse
+    {
+        $request->validate([
+            'widgets' => 'required|array',
+            'widgets.*.id' => 'required|string|max:100',
+            'widgets.*.visible' => 'required|boolean',
+            'widgets.*.search_profile_id' => 'sometimes|nullable|string',
+            'widgets.*.chart_type' => 'sometimes|nullable|string|in:gauge,number,trend,bar,donut',
+            'widgets.*.metric' => 'sometimes|nullable|string',
+            'widgets.*.color' => 'sometimes|nullable|string|max:20',
+        ]);
+
+        $pref = UserPreference::setPayload(
+            $request->user()->id,
+            'dashboard',
+            ['widgets' => $request->input('widgets')],
         );
 
         return response()->json(['data' => $pref->payload]);
