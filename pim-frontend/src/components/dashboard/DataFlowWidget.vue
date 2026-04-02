@@ -36,10 +36,10 @@ function formatBytes(bytes) {
 </script>
 
 <template>
-  <DashboardWidgetWrapper title="Datenfl\u00fcsse" :icon="ArrowDownToLine">
+  <DashboardWidgetWrapper title="Datenflüsse" :icon="ArrowDownToLine">
     <div class="p-4">
       <div v-if="!flows.imports?.length && !flows.exports?.length" class="text-center text-sm text-[var(--color-text-tertiary)] py-4">
-        Keine Datenfl\u00fcsse
+        Keine Datenflüsse
       </div>
       <template v-else>
         <!-- Imports -->

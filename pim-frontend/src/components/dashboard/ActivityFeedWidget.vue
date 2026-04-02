@@ -45,10 +45,10 @@ function relativeTime(timestamp) {
 </script>
 
 <template>
-  <DashboardWidgetWrapper title="Aktivit\u00e4ten" :icon="Activity">
+  <DashboardWidgetWrapper title="Aktivitäten" :icon="Activity">
     <div class="p-4">
       <div v-if="items.length === 0" class="text-center text-sm text-[var(--color-text-tertiary)] py-6">
-        Noch keine Aktivit\u00e4ten
+        Noch keine Aktivitäten
       </div>
       <div v-else class="space-y-0">
         <div
