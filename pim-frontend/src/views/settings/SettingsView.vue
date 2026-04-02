@@ -1887,18 +1887,21 @@ onUnmounted(() => {
         </div>
 
         <!-- Sub-Tab Navigation -->
-        <div class="flex gap-1 border-b border-[var(--color-border)] -mx-6 px-6">
+        <div class="flex gap-1 border-b border-[var(--color-border)] -mx-6 px-6 overflow-x-auto">
           <button
             v-for="tab in [
               { key: 'general', label: 'Allgemein', icon: Settings2 },
+              { key: 'branding', label: 'Branding', icon: Globe },
               { key: 'design', label: 'Design', icon: Paintbrush },
-              { key: 'catalog', label: 'Katalog', icon: BookOpen },
+              { key: 'cards', label: 'Produktkarten', icon: LayoutGrid },
+              { key: 'detail', label: 'Detailansicht', icon: Columns3 },
+              { key: 'filter', label: 'Suche & Filter', icon: Filter },
             ]"
             :key="tab.key"
-            class="flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 -mb-px transition-colors"
+            class="flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 -mb-px transition-colors whitespace-nowrap"
             :class="activeThemeTab === tab.key
-              ? 'border-[var(--color-accent)] text-[var(--color-accent)]'
-              : 'border-transparent text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]'"
+              ? 'border-[var(--color-accent)] text-[var(--color-accent)] bg-[var(--color-accent)]/5 rounded-t'
+              : 'border-transparent text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-elevated,var(--color-bg))] rounded-t'"
             @click="activeThemeTab = tab.key"
           >
             <component :is="tab.icon" class="w-3.5 h-3.5" :stroke-width="2" />
@@ -2073,6 +2076,11 @@ onUnmounted(() => {
           </div>
         </div>
 
+        </div><!-- end TAB: Allgemein -->
+
+        <!-- ═══ TAB: Branding ═══ -->
+        <div v-show="activeThemeTab === 'branding'" class="space-y-5">
+
         <!-- Logo & Titel -->
         <div class="space-y-3">
           <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">Logo & Titel</h4>
@@ -2140,7 +2148,7 @@ onUnmounted(() => {
           </div>
         </div>
 
-        </div><!-- end TAB: Allgemein -->
+        </div><!-- end TAB: Branding -->
 
         <!-- ═══ TAB: Design ═══ -->
         <div v-show="activeThemeTab === 'design'" class="space-y-5">
@@ -2232,218 +2240,8 @@ onUnmounted(() => {
 
         </div><!-- end TAB: Design -->
 
-        <!-- ═══ TAB: Katalog ═══ -->
-        <div v-show="activeThemeTab === 'catalog'" class="space-y-5">
-
-        <!-- Detail-Ansicht -->
-        <div class="space-y-3">
-          <div class="flex items-center gap-2">
-            <Columns3 class="w-3.5 h-3.5 text-[var(--color-text-secondary)]" :stroke-width="2" />
-            <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">Detail-Ansicht</h4>
-          </div>
-          <p class="text-[11px] text-[var(--color-text-tertiary)]">Layout für die Produktdetailseite und das Popup.</p>
-          <div class="grid grid-cols-3 gap-2">
-            <button
-              v-for="opt in DETAIL_LAYOUT_OPTIONS"
-              :key="opt.value"
-              class="flex flex-col items-center gap-2 px-3 py-3 rounded-lg border text-center transition-all hover:shadow-sm"
-              :class="themeForm.detail_layout === opt.value
-                ? 'border-[var(--color-accent)] ring-2 ring-[var(--color-accent)]/30 bg-[var(--color-accent)]/5'
-                : 'border-[var(--color-border)] hover:border-[var(--color-border-strong)]'"
-              @click="themeForm.detail_layout = opt.value"
-            >
-              <!-- Mini layout preview -->
-              <div class="w-full aspect-[4/3] rounded border border-[var(--color-border)] bg-[var(--color-bg)] p-1.5 flex gap-1" v-if="opt.value === 'classic'">
-                <div class="w-1/2 rounded-sm bg-[var(--color-border)]"></div>
-                <div class="w-1/2 flex flex-col gap-0.5">
-                  <div class="h-1.5 w-3/4 rounded-full bg-[var(--color-border-strong)]"></div>
-                  <div class="h-1 w-1/2 rounded-full bg-[var(--color-border)]"></div>
-                  <div class="flex-1 rounded-sm bg-[var(--color-border)]/50 mt-0.5"></div>
-                </div>
-              </div>
-              <div class="w-full aspect-[4/3] rounded border border-[var(--color-border)] bg-[var(--color-bg)] p-1.5 flex gap-1" v-else-if="opt.value === 'tabs'">
-                <div class="w-1/2 rounded-sm bg-[var(--color-border)]"></div>
-                <div class="w-1/2 flex flex-col gap-0.5">
-                  <div class="h-1.5 w-3/4 rounded-full bg-[var(--color-border-strong)]"></div>
-                  <div class="flex gap-0.5 mt-0.5">
-                    <div class="h-1 w-4 rounded-full bg-[var(--color-accent)]"></div>
-                    <div class="h-1 w-4 rounded-full bg-[var(--color-border)]"></div>
-                    <div class="h-1 w-4 rounded-full bg-[var(--color-border)]"></div>
-                  </div>
-                  <div class="flex-1 rounded-sm bg-[var(--color-border)]/50 mt-0.5"></div>
-                </div>
-              </div>
-              <div class="w-full aspect-[4/3] rounded border border-[var(--color-border)] bg-[var(--color-bg)] p-1.5 flex flex-col gap-1" v-else>
-                <div class="h-1/2 w-full rounded-sm bg-[var(--color-border)]"></div>
-                <div class="h-1.5 w-2/3 rounded-full bg-[var(--color-border-strong)]"></div>
-                <div class="flex gap-1 flex-1">
-                  <div class="w-1/2 rounded-sm bg-[var(--color-border)]/50"></div>
-                  <div class="w-1/2 rounded-sm bg-[var(--color-border)]/50"></div>
-                </div>
-              </div>
-              <div>
-                <span class="text-[11px] font-semibold text-[var(--color-text-primary)]">{{ opt.label }}</span>
-                <span class="block text-[10px] text-[var(--color-text-tertiary)]">{{ opt.desc }}</span>
-              </div>
-            </button>
-          </div>
-        </div>
-
-        <!-- PDF-Anzeigemodus -->
-        <div class="space-y-2">
-          <label class="block text-[12px] font-medium text-[var(--color-text-secondary)]">PDF-Anzeigemodus</label>
-          <p class="text-[11px] text-[var(--color-text-tertiary)]">Wie PDF-Link-Attribute in der Katalog-Detailansicht dargestellt werden.</p>
-          <select class="pim-input text-xs" v-model="themeForm.pdf_display_mode">
-            <option v-for="o in PDF_DISPLAY_MODE_OPTIONS" :key="o.value" :value="o.value">{{ o.label }} — {{ o.desc }}</option>
-          </select>
-        </div>
-
-        <!-- PDF & Export im Katalog -->
-        <div class="space-y-3">
-          <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">PDF & Export</h4>
-          <p class="text-[11px] text-[var(--color-text-tertiary)]">PDF-Downloads und Exportfunktionen für den öffentlichen Katalog aktivieren.</p>
-          <label class="flex items-center gap-2 text-xs cursor-pointer">
-            <input type="checkbox" v-model="themeForm.catalog_pdf_enabled" class="rounded border-[var(--color-border-strong)] text-[var(--color-accent)]" />
-            PDF-Download im Katalog aktivieren
-          </label>
-          <div v-if="themeForm.catalog_pdf_enabled" class="ml-6 space-y-2">
-            <div>
-              <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Standard-PDF-Vorlage</label>
-              <select class="pim-input text-xs" v-model="themeForm.catalog_pdf_template_id">
-                <option :value="null">— Keine Vorlage gewählt —</option>
-                <option v-for="t in availablePdfTemplates" :key="t.id" :value="t.id">
-                  {{ t.name }}
-                </option>
-              </select>
-              <p class="text-[10px] text-[var(--color-text-tertiary)] mt-0.5">Wird für PDF-Downloads im Katalog verwendet.</p>
-            </div>
-          </div>
-          <label class="flex items-center gap-2 text-xs cursor-pointer">
-            <input type="checkbox" v-model="themeForm.catalog_excel_export_enabled" class="rounded border-[var(--color-border-strong)] text-[var(--color-accent)]" />
-            Excel-Export in Merkliste aktivieren
-          </label>
-        </div>
-
-        <!-- Produktvergleich -->
-        <div class="space-y-3">
-          <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">Produktvergleich</h4>
-          <label class="flex items-center gap-2 text-xs cursor-pointer">
-            <input type="checkbox" v-model="themeForm.catalog_compare_enabled" class="rounded border-[var(--color-border-strong)] text-[var(--color-accent)]" />
-            Produktvergleich im Katalog aktivieren
-          </label>
-          <div v-if="themeForm.catalog_compare_enabled" class="ml-6">
-            <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Max. Produkte im Vergleich</label>
-            <select class="pim-input text-xs w-24" v-model="themeForm.catalog_compare_max_products">
-              <option :value="2">2</option>
-              <option :value="3">3</option>
-            </select>
-          </div>
-        </div>
-
-        <!-- Merkliste teilen -->
-        <div class="space-y-2">
-          <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">Teilen</h4>
-          <label class="flex items-center gap-2 text-xs cursor-pointer">
-            <input type="checkbox" v-model="themeForm.catalog_share_wishlist_enabled" class="rounded border-[var(--color-border-strong)] text-[var(--color-accent)]" />
-            Merkliste teilen per Link aktivieren
-          </label>
-        </div>
-
-        <!-- Produktbeziehungen -->
-        <div class="space-y-3">
-          <div class="flex items-center gap-2">
-            <GitBranch class="w-3.5 h-3.5 text-[var(--color-text-secondary)]" :stroke-width="2" />
-            <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">Produktbeziehungen</h4>
-          </div>
-          <p class="text-[11px] text-[var(--color-text-tertiary)]">Beziehungsarten, die im Vorschaukatalog als eigener Tab auf der Produktdetailseite angezeigt werden. Bei Auswahl erscheint ein Tab „Beziehungen" mit SKU und Name (anklickbar).</p>
-          <div v-if="availableRelationTypes.length === 0" class="text-xs text-[var(--color-text-tertiary)]">Keine Beziehungsarten vorhanden</div>
-          <div v-else class="space-y-1">
-            <label
-              v-for="rt in availableRelationTypes"
-              :key="rt.id"
-              class="flex items-center gap-2 text-xs cursor-pointer text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
-            >
-              <input
-                type="checkbox"
-                :checked="(themeForm.catalog_relation_type_ids || []).includes(rt.id)"
-                class="rounded border-[var(--color-border-strong)] text-[var(--color-accent)]"
-                @change="
-                  $event.target.checked
-                    ? themeForm.catalog_relation_type_ids.push(rt.id)
-                    : themeForm.catalog_relation_type_ids = themeForm.catalog_relation_type_ids.filter(id => id !== rt.id)
-                "
-              />
-              {{ rt.name_de || rt.technical_name }}
-            </label>
-          </div>
-        </div>
-
-        <!-- Beschreibung (Produktdetail) -->
-        <div class="space-y-3">
-          <div class="flex items-center gap-2">
-            <BookOpen class="w-3.5 h-3.5 text-[var(--color-text-secondary)]" :stroke-width="2" />
-            <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">Beschreibung (Produktdetail)</h4>
-          </div>
-          <p class="text-[11px] text-[var(--color-text-tertiary)]">Attribute, die im Beschreibungs-Bereich der Produktdetailseite angezeigt werden. Reihenfolge und Typografie sind konfigurierbar.</p>
-          <div v-if="allAttributes.length === 0" class="text-xs text-[var(--color-text-tertiary)]">Keine Attribute vorhanden</div>
-          <div v-else class="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-1">
-            <!-- Selected description attributes (draggable, ordered, with typography) -->
-            <div>
-              <p class="text-[10px] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wide mb-1">Ausgewählt (Reihenfolge ziehen)</p>
-              <div v-if="selectedDescAttributes.length === 0" class="text-xs text-[var(--color-text-tertiary)] italic py-3 px-2 border border-dashed border-[var(--color-border)] rounded-md text-center">
-                Keine Attribute ausgewählt – Standard-Beschreibung wird verwendet
-              </div>
-              <div class="space-y-1">
-                <div
-                  v-for="(da, idx) in selectedDescAttributes"
-                  :key="da.attribute_id"
-                  draggable="true"
-                  @dragstart="onDescDragStart(idx)"
-                  @dragover="onDescDragOver($event, idx)"
-                  @drop.prevent
-                  @dragend="onDescDragEnd"
-                  class="flex items-center gap-1.5 px-2 py-1.5 rounded-md border border-[var(--color-border)] bg-[var(--color-bg-elevated,var(--color-bg))] cursor-grab active:cursor-grabbing hover:border-[var(--color-accent)] transition-colors group"
-                  :class="{ 'opacity-50': descDragIdx === idx }"
-                >
-                  <GripVertical class="w-3.5 h-3.5 text-[var(--color-text-tertiary)] shrink-0" :stroke-width="2" />
-                  <span class="text-[11px] font-medium text-[var(--color-accent)] w-4 shrink-0">{{ idx + 1 }}</span>
-                  <span class="text-xs text-[var(--color-text-primary)] truncate flex-1">{{ da.name }}</span>
-                  <select
-                    class="text-[10px] px-1 py-0.5 rounded border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text-secondary)] shrink-0 cursor-pointer"
-                    :value="da.typography"
-                    @change="setDescTypography(da.attribute_id, $event.target.value)"
-                  >
-                    <option v-for="t in TYPOGRAPHY_OPTIONS" :key="t.value" :value="t.value">{{ t.label }}</option>
-                  </select>
-                  <button
-                    type="button"
-                    class="p-0.5 rounded hover:bg-red-100 text-[var(--color-text-tertiary)] hover:text-red-500 transition-colors shrink-0"
-                    @click="removeDescAttribute(da.attribute_id)"
-                    title="Entfernen"
-                  >
-                    <X class="w-3.5 h-3.5" :stroke-width="2" />
-                  </button>
-                </div>
-              </div>
-            </div>
-            <!-- Available attributes -->
-            <div>
-              <p class="text-[10px] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wide mb-1">Verfügbar</p>
-              <div class="space-y-1 max-h-48 overflow-y-auto">
-                <div
-                  v-for="attr in unselectedDescAttributes"
-                  :key="attr.id"
-                  class="flex items-center gap-1.5 px-2 py-1.5 rounded-md border border-transparent hover:border-[var(--color-border)] hover:bg-[var(--color-bg)] cursor-pointer transition-colors"
-                  @click="addDescAttribute(attr)"
-                >
-                  <Plus class="w-3.5 h-3.5 text-[var(--color-accent)] shrink-0" :stroke-width="2" />
-                  <span class="text-xs text-[var(--color-text-primary)] truncate flex-1">{{ attr.name_de || attr.name }}</span>
-                  <span class="text-[10px] px-1 py-0.5 rounded bg-[var(--color-bg)] text-[var(--color-text-tertiary)] shrink-0">{{ attr.data_type }}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <!-- ═══ TAB: Produktkarten ═══ -->
+        <div v-show="activeThemeTab === 'cards'" class="space-y-5">
 
         <!-- Produktkarten -->
         <div class="space-y-3">
@@ -2592,6 +2390,203 @@ onUnmounted(() => {
           </div>
         </div>
 
+
+        </div><!-- end TAB: Produktkarten -->
+
+        <!-- ═══ TAB: Detailansicht ═══ -->
+        <div v-show="activeThemeTab === 'detail'" class="space-y-5">
+
+        <!-- Detail-Ansicht -->
+        <div class="space-y-3">
+          <div class="flex items-center gap-2">
+            <Columns3 class="w-3.5 h-3.5 text-[var(--color-text-secondary)]" :stroke-width="2" />
+            <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">Detail-Ansicht</h4>
+          </div>
+          <p class="text-[11px] text-[var(--color-text-tertiary)]">Layout für die Produktdetailseite und das Popup.</p>
+          <div class="grid grid-cols-3 gap-2">
+            <button
+              v-for="opt in DETAIL_LAYOUT_OPTIONS"
+              :key="opt.value"
+              class="flex flex-col items-center gap-2 px-3 py-3 rounded-lg border text-center transition-all hover:shadow-sm"
+              :class="themeForm.detail_layout === opt.value
+                ? 'border-[var(--color-accent)] ring-2 ring-[var(--color-accent)]/30 bg-[var(--color-accent)]/5'
+                : 'border-[var(--color-border)] hover:border-[var(--color-border-strong)]'"
+              @click="themeForm.detail_layout = opt.value"
+            >
+              <!-- Mini layout preview -->
+              <div class="w-full aspect-[4/3] rounded border border-[var(--color-border)] bg-[var(--color-bg)] p-1.5 flex gap-1" v-if="opt.value === 'classic'">
+                <div class="w-1/2 rounded-sm bg-[var(--color-border)]"></div>
+                <div class="w-1/2 flex flex-col gap-0.5">
+                  <div class="h-1.5 w-3/4 rounded-full bg-[var(--color-border-strong)]"></div>
+                  <div class="h-1 w-1/2 rounded-full bg-[var(--color-border)]"></div>
+                  <div class="flex-1 rounded-sm bg-[var(--color-border)]/50 mt-0.5"></div>
+                </div>
+              </div>
+              <div class="w-full aspect-[4/3] rounded border border-[var(--color-border)] bg-[var(--color-bg)] p-1.5 flex gap-1" v-else-if="opt.value === 'tabs'">
+                <div class="w-1/2 rounded-sm bg-[var(--color-border)]"></div>
+                <div class="w-1/2 flex flex-col gap-0.5">
+                  <div class="h-1.5 w-3/4 rounded-full bg-[var(--color-border-strong)]"></div>
+                  <div class="flex gap-0.5 mt-0.5">
+                    <div class="h-1 w-4 rounded-full bg-[var(--color-accent)]"></div>
+                    <div class="h-1 w-4 rounded-full bg-[var(--color-border)]"></div>
+                    <div class="h-1 w-4 rounded-full bg-[var(--color-border)]"></div>
+                  </div>
+                  <div class="flex-1 rounded-sm bg-[var(--color-border)]/50 mt-0.5"></div>
+                </div>
+              </div>
+              <div class="w-full aspect-[4/3] rounded border border-[var(--color-border)] bg-[var(--color-bg)] p-1.5 flex flex-col gap-1" v-else>
+                <div class="h-1/2 w-full rounded-sm bg-[var(--color-border)]"></div>
+                <div class="h-1.5 w-2/3 rounded-full bg-[var(--color-border-strong)]"></div>
+                <div class="flex gap-1 flex-1">
+                  <div class="w-1/2 rounded-sm bg-[var(--color-border)]/50"></div>
+                  <div class="w-1/2 rounded-sm bg-[var(--color-border)]/50"></div>
+                </div>
+              </div>
+              <div>
+                <span class="text-[11px] font-semibold text-[var(--color-text-primary)]">{{ opt.label }}</span>
+                <span class="block text-[10px] text-[var(--color-text-tertiary)]">{{ opt.desc }}</span>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <!-- PDF-Anzeigemodus -->
+        <div class="space-y-2">
+          <label class="block text-[12px] font-medium text-[var(--color-text-secondary)]">PDF-Anzeigemodus</label>
+          <p class="text-[11px] text-[var(--color-text-tertiary)]">Wie PDF-Link-Attribute in der Katalog-Detailansicht dargestellt werden.</p>
+          <select class="pim-input text-xs" v-model="themeForm.pdf_display_mode">
+            <option v-for="o in PDF_DISPLAY_MODE_OPTIONS" :key="o.value" :value="o.value">{{ o.label }} — {{ o.desc }}</option>
+          </select>
+        </div>
+
+        <!-- PDF & Export im Katalog -->
+        <div class="space-y-3">
+          <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">PDF & Export</h4>
+          <p class="text-[11px] text-[var(--color-text-tertiary)]">PDF-Downloads und Exportfunktionen für den öffentlichen Katalog aktivieren.</p>
+          <label class="flex items-center gap-2 text-xs cursor-pointer">
+            <input type="checkbox" v-model="themeForm.catalog_pdf_enabled" class="rounded border-[var(--color-border-strong)] text-[var(--color-accent)]" />
+            PDF-Download im Katalog aktivieren
+          </label>
+          <div v-if="themeForm.catalog_pdf_enabled" class="ml-6 space-y-2">
+            <div>
+              <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Standard-PDF-Vorlage</label>
+              <select class="pim-input text-xs" v-model="themeForm.catalog_pdf_template_id">
+                <option :value="null">— Keine Vorlage gewählt —</option>
+                <option v-for="t in availablePdfTemplates" :key="t.id" :value="t.id">
+                  {{ t.name }}
+                </option>
+              </select>
+              <p class="text-[10px] text-[var(--color-text-tertiary)] mt-0.5">Wird für PDF-Downloads im Katalog verwendet.</p>
+            </div>
+          </div>
+          <label class="flex items-center gap-2 text-xs cursor-pointer">
+            <input type="checkbox" v-model="themeForm.catalog_excel_export_enabled" class="rounded border-[var(--color-border-strong)] text-[var(--color-accent)]" />
+            Excel-Export in Merkliste aktivieren
+          </label>
+        </div>
+
+        <!-- Produktbeziehungen -->
+        <div class="space-y-3">
+          <div class="flex items-center gap-2">
+            <GitBranch class="w-3.5 h-3.5 text-[var(--color-text-secondary)]" :stroke-width="2" />
+            <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">Produktbeziehungen</h4>
+          </div>
+          <p class="text-[11px] text-[var(--color-text-tertiary)]">Beziehungsarten, die im Vorschaukatalog als eigener Tab auf der Produktdetailseite angezeigt werden. Bei Auswahl erscheint ein Tab „Beziehungen" mit SKU und Name (anklickbar).</p>
+          <div v-if="availableRelationTypes.length === 0" class="text-xs text-[var(--color-text-tertiary)]">Keine Beziehungsarten vorhanden</div>
+          <div v-else class="space-y-1">
+            <label
+              v-for="rt in availableRelationTypes"
+              :key="rt.id"
+              class="flex items-center gap-2 text-xs cursor-pointer text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+            >
+              <input
+                type="checkbox"
+                :checked="(themeForm.catalog_relation_type_ids || []).includes(rt.id)"
+                class="rounded border-[var(--color-border-strong)] text-[var(--color-accent)]"
+                @change="
+                  $event.target.checked
+                    ? themeForm.catalog_relation_type_ids.push(rt.id)
+                    : themeForm.catalog_relation_type_ids = themeForm.catalog_relation_type_ids.filter(id => id !== rt.id)
+                "
+              />
+              {{ rt.name_de || rt.technical_name }}
+            </label>
+          </div>
+        </div>
+
+        <!-- Beschreibung (Produktdetail) -->
+        <div class="space-y-3">
+          <div class="flex items-center gap-2">
+            <BookOpen class="w-3.5 h-3.5 text-[var(--color-text-secondary)]" :stroke-width="2" />
+            <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">Beschreibung (Produktdetail)</h4>
+          </div>
+          <p class="text-[11px] text-[var(--color-text-tertiary)]">Attribute, die im Beschreibungs-Bereich der Produktdetailseite angezeigt werden. Reihenfolge und Typografie sind konfigurierbar.</p>
+          <div v-if="allAttributes.length === 0" class="text-xs text-[var(--color-text-tertiary)]">Keine Attribute vorhanden</div>
+          <div v-else class="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-1">
+            <!-- Selected description attributes (draggable, ordered, with typography) -->
+            <div>
+              <p class="text-[10px] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wide mb-1">Ausgewählt (Reihenfolge ziehen)</p>
+              <div v-if="selectedDescAttributes.length === 0" class="text-xs text-[var(--color-text-tertiary)] italic py-3 px-2 border border-dashed border-[var(--color-border)] rounded-md text-center">
+                Keine Attribute ausgewählt – Standard-Beschreibung wird verwendet
+              </div>
+              <div class="space-y-1">
+                <div
+                  v-for="(da, idx) in selectedDescAttributes"
+                  :key="da.attribute_id"
+                  draggable="true"
+                  @dragstart="onDescDragStart(idx)"
+                  @dragover="onDescDragOver($event, idx)"
+                  @drop.prevent
+                  @dragend="onDescDragEnd"
+                  class="flex items-center gap-1.5 px-2 py-1.5 rounded-md border border-[var(--color-border)] bg-[var(--color-bg-elevated,var(--color-bg))] cursor-grab active:cursor-grabbing hover:border-[var(--color-accent)] transition-colors group"
+                  :class="{ 'opacity-50': descDragIdx === idx }"
+                >
+                  <GripVertical class="w-3.5 h-3.5 text-[var(--color-text-tertiary)] shrink-0" :stroke-width="2" />
+                  <span class="text-[11px] font-medium text-[var(--color-accent)] w-4 shrink-0">{{ idx + 1 }}</span>
+                  <span class="text-xs text-[var(--color-text-primary)] truncate flex-1">{{ da.name }}</span>
+                  <select
+                    class="text-[10px] px-1 py-0.5 rounded border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text-secondary)] shrink-0 cursor-pointer"
+                    :value="da.typography"
+                    @change="setDescTypography(da.attribute_id, $event.target.value)"
+                  >
+                    <option v-for="t in TYPOGRAPHY_OPTIONS" :key="t.value" :value="t.value">{{ t.label }}</option>
+                  </select>
+                  <button
+                    type="button"
+                    class="p-0.5 rounded hover:bg-red-100 text-[var(--color-text-tertiary)] hover:text-red-500 transition-colors shrink-0"
+                    @click="removeDescAttribute(da.attribute_id)"
+                    title="Entfernen"
+                  >
+                    <X class="w-3.5 h-3.5" :stroke-width="2" />
+                  </button>
+                </div>
+              </div>
+            </div>
+            <!-- Available attributes -->
+            <div>
+              <p class="text-[10px] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wide mb-1">Verfügbar</p>
+              <div class="space-y-1 max-h-48 overflow-y-auto">
+                <div
+                  v-for="attr in unselectedDescAttributes"
+                  :key="attr.id"
+                  class="flex items-center gap-1.5 px-2 py-1.5 rounded-md border border-transparent hover:border-[var(--color-border)] hover:bg-[var(--color-bg)] cursor-pointer transition-colors"
+                  @click="addDescAttribute(attr)"
+                >
+                  <Plus class="w-3.5 h-3.5 text-[var(--color-accent)] shrink-0" :stroke-width="2" />
+                  <span class="text-xs text-[var(--color-text-primary)] truncate flex-1">{{ attr.name_de || attr.name }}</span>
+                  <span class="text-[10px] px-1 py-0.5 rounded bg-[var(--color-bg)] text-[var(--color-text-tertiary)] shrink-0">{{ attr.data_type }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+
+        </div><!-- end TAB: Detailansicht -->
+
+        <!-- ═══ TAB: Suche & Filter ═══ -->
+        <div v-show="activeThemeTab === 'filter'" class="space-y-5">
+
         <!-- Facettensuche -->
         <div class="space-y-3">
           <div class="flex items-center gap-2">
@@ -2623,7 +2618,33 @@ onUnmounted(() => {
           </div>
         </div>
 
-        </div><!-- end TAB: Katalog -->
+        <!-- Produktvergleich -->
+        <div class="space-y-3">
+          <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">Produktvergleich</h4>
+          <label class="flex items-center gap-2 text-xs cursor-pointer">
+            <input type="checkbox" v-model="themeForm.catalog_compare_enabled" class="rounded border-[var(--color-border-strong)] text-[var(--color-accent)]" />
+            Produktvergleich im Katalog aktivieren
+          </label>
+          <div v-if="themeForm.catalog_compare_enabled" class="ml-6">
+            <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Max. Produkte im Vergleich</label>
+            <select class="pim-input text-xs w-24" v-model="themeForm.catalog_compare_max_products">
+              <option :value="2">2</option>
+              <option :value="3">3</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Merkliste teilen -->
+        <div class="space-y-2">
+          <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">Teilen</h4>
+          <label class="flex items-center gap-2 text-xs cursor-pointer">
+            <input type="checkbox" v-model="themeForm.catalog_share_wishlist_enabled" class="rounded border-[var(--color-border-strong)] text-[var(--color-accent)]" />
+            Merkliste teilen per Link aktivieren
+          </label>
+        </div>
+
+
+        </div><!-- end TAB: Suche & Filter -->
 
         <!-- Save -->
         <div class="flex items-center gap-3 pt-2 border-t border-[var(--color-border)]">
