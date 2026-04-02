@@ -952,6 +952,7 @@ class OfflineCatalogExportService
             'id' => $m->id,
             'file_name' => $m->file_name,
             'mime_type' => $m->mime_type,
+            'media_type' => $m->media_type,
             'url' => "/api/v1/catalog/media/{$m->file_name}",
         ])->values()->toArray();
 
