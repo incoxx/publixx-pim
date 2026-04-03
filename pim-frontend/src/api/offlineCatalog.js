@@ -42,8 +42,8 @@ export default {
     return client.delete('/admin/offline-catalog/cleanup')
   },
 
-  buildBundle() {
-    return client.post('/admin/offline-catalog/build-bundle', {}, { timeout: 120000 })
+  buildBundle(debug = false) {
+    return client.post('/admin/offline-catalog/build-bundle', { debug }, { timeout: 120000 })
   },
 
   bundleStatus() {
