@@ -376,7 +376,7 @@ onUnmounted(() => {
               </button>
               <span class="text-xs flex-1" :class="w.visible ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-tertiary)] line-through'">{{ w.label }}</span>
             </div>
-            <div v-if="profileCards.length" class="border-t border-[var(--color-border)] mt-1 pt-1">
+            <div class="border-t border-[var(--color-border)] mt-1 pt-1">
               <p class="px-3 pb-1 text-[10px] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider">
                 Profilkarten
               </p>
@@ -389,6 +389,13 @@ onUnmounted(() => {
                 <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: pc.color }" />
                 <span class="text-xs text-[var(--color-text-primary)] flex-1 truncate">{{ pc.title || 'Profilkarte' }}</span>
               </div>
+              <button
+                class="flex items-center gap-2 w-full px-3 py-1.5 hover:bg-[var(--color-bg)] transition-colors text-xs text-[var(--color-accent)]"
+                @click="addProfileCard(); showConfig = false"
+              >
+                <Plus class="w-3.5 h-3.5" :stroke-width="2" />
+                <span>Profilkarte hinzufügen</span>
+              </button>
             </div>
           </div>
         </div>
@@ -405,8 +412,8 @@ onUnmounted(() => {
 
     <!-- Dynamisches Widget-Grid: 6-Spalten, Reihenfolge aus Config -->
     <div v-else class="grid grid-cols-1 lg:grid-cols-6 gap-5">
-      <!-- Profilkarten-Reihe (immer nach stats, vor den normalen Widgets) -->
-      <div class="lg:col-span-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <!-- Profilkarten-Reihe (nur wenn Karten vorhanden) -->
+      <div v-if="profileCards.length" class="lg:col-span-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <ProfileStatCard
           v-for="pc in profileCards"
           :key="pc.id"
@@ -414,13 +421,6 @@ onUnmounted(() => {
           @configure="configureProfileCard"
           @remove="removeProfileCard"
         />
-        <button
-          class="pim-card flex flex-col items-center justify-center gap-2 p-6 border-2 border-dashed border-[var(--color-border)] hover:border-[var(--color-accent)] transition-colors cursor-pointer group min-h-[140px]"
-          @click="addProfileCard"
-        >
-          <Plus class="w-6 h-6 text-[var(--color-text-tertiary)] group-hover:text-[var(--color-accent)] transition-colors" :stroke-width="1.5" />
-          <span class="text-xs text-[var(--color-text-tertiary)] group-hover:text-[var(--color-accent)] transition-colors">Profilkarte hinzufügen</span>
-        </button>
       </div>
 
       <!-- Widgets in Reihenfolge aus Config -->
