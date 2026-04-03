@@ -250,20 +250,56 @@ export function createOfflineApi(dataPath, options = {}) {
   }
 
   /**
-   * Filtert Produkte nach Kategorie-ID (prüft cats[]-Array oder cat-Feld).
+   * Sammelt alle Nachkommen-IDs eines Kategorie-Knotens (inkl. des Knotens selbst).
+   * Nutzt den Kategorie-Baum aus categories.json für die Traversierung.
    *
-   * Da der Export Produkte bereits mit allen Eltern-Kategorie-IDs in cats[] exportiert,
-   * reicht ein einfacher includes-Check — keine Baum-Traversierung nötig.
+   * @param {string} categoryId - Kategorie-UUID
+   * @returns {Promise<Set<string>>} Set aller Nachkommen-IDs + categoryId selbst
+   */
+  async function getDescendantIds(categoryId) {
+    const cats = await api.getCategories()
+    const nodes = cats.nodes || cats
+    const ids = new Set()
+    ids.add(categoryId)
+
+    function walk(nodeList) {
+      for (const node of nodeList) {
+        if (ids.has(node.id) && node.children) {
+          for (const child of node.children) {
+            ids.add(child.id)
+          }
+        }
+        if (node.children) walk(node.children)
+      }
+    }
+    // Mehrfach iterieren bis keine neuen IDs mehr gefunden werden (für tiefe Bäume)
+    let prevSize = 0
+    while (ids.size > prevSize) {
+      prevSize = ids.size
+      walk(nodes)
+    }
+    return ids
+  }
+
+  /**
+   * Filtert Produkte nach Kategorie-ID (inkl. aller Nachkommen-Kategorien).
+   *
+   * Nutzt den Kategorie-Baum um alle Nachkommen einer Kategorie zu finden,
+   * dann werden Produkte gesucht deren `cat` oder `cats[]` eine der IDs enthält.
+   * Funktioniert auch bei Eltern-Kategorien die selbst keine direkt zugeordneten Produkte haben.
    *
    * @param {CompactProduct[]} products - Eingabeliste
    * @param {string|null} categoryId - Kategorie-UUID oder null für alle
-   * @returns {CompactProduct[]} Gefilterte Produkte
+   * @returns {Promise<CompactProduct[]>} Gefilterte Produkte
    */
-  function filterByCategory(products, categoryId) {
+  async function filterByCategory(products, categoryId) {
     if (!categoryId) return products
+    const descendantIds = await getDescendantIds(categoryId)
     return products.filter(p => {
-      if (!p.cats) return p.cat === categoryId
-      return p.cats.includes(categoryId)
+      if (p.cats && p.cats.length) {
+        return p.cats.some(id => descendantIds.has(id))
+      }
+      return descendantIds.has(p.cat)
     })
   }
 
@@ -403,7 +439,7 @@ export function createOfflineApi(dataPath, options = {}) {
       } else {
         // Browse/filter: only primary (hierarchy) products
         const primaryProducts = await loadPrimaryProducts()
-        filtered = filterByCategory(primaryProducts, opts.category)
+        filtered = await filterByCategory(primaryProducts, opts.category)
         filtered = filterByFacets(filtered, opts.filters)
       }
 
@@ -540,7 +576,7 @@ export function createOfflineApi(dataPath, options = {}) {
 
       // Dynamische Counts: Produkte nach Kategorie filtern, dann Facetten-Werte zählen
       const primaryProducts = await loadPrimaryProducts()
-      let products = filterByCategory(primaryProducts, opts.category)
+      let products = await filterByCategory(primaryProducts, opts.category)
 
       const baseFacets = (_facets.facets || _facets)
       const result = []
