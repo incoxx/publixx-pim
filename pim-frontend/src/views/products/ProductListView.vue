@@ -40,6 +40,38 @@ const viewMode = ref(localStorage.getItem('viewMode:products') || 'list')
 function setViewMode(mode) {
   viewMode.value = mode
   localStorage.setItem('viewMode:products', mode)
+  if (mode === 'grid') loadGridThumbnails()
+}
+
+// Thumbnail-Cache für Kachelansicht (wie in Produktbeziehungen)
+const gridThumbs = ref({}) // { productId: thumbUrl }
+
+async function loadGridThumbnails() {
+  const ids = store.items
+    .map(p => p.id)
+    .filter(id => id && !gridThumbs.value[id])
+  if (!ids.length) return
+  const results = await Promise.allSettled(
+    ids.map(async (pid) => {
+      const { data } = await productsApi.getMedia(pid)
+      const items = data.data || data
+      const primary = items.find(m => m.is_primary)
+        || items.find(m => m.usage_type?.technical_name === 'teaser')
+        || items.find(m => (m.mime_type || m.media?.mime_type || '').startsWith('image/'))
+      if (primary) {
+        const mid = primary.media_id || primary.media?.id || primary.id
+        return { pid, url: mid ? mediaApi.thumbUrl(mid, 300, 300) : null }
+      }
+      return { pid, url: null }
+    })
+  )
+  const updated = { ...gridThumbs.value }
+  for (const r of results) {
+    if (r.status === 'fulfilled' && r.value.url) {
+      updated[r.value.pid] = r.value.url
+    }
+  }
+  gridThumbs.value = updated
 }
 
 const { search, activeFilters, setSearch, removeFilter, clearFilters } = useFilters(() => {
@@ -406,7 +438,9 @@ function fetchWithAttributes() {
   if (visibleKeys.value.includes('thumbnail') || viewMode.value === 'grid') {
     options.include_thumbnail = true
   }
-  store.fetchList(options)
+  store.fetchList(options).then(() => {
+    if (viewMode.value === 'grid') loadGridThumbnails()
+  })
 }
 
 onMounted(async () => {
@@ -673,7 +707,7 @@ onMounted(async () => {
           @click="openProduct(row)"
         >
           <div class="aspect-[4/3] bg-[var(--color-bg)] flex items-center justify-center overflow-hidden p-2">
-            <img v-if="row.thumbnail_url" :src="row.thumbnail_url" class="w-full h-full object-contain" loading="lazy" alt="" />
+            <img v-if="gridThumbs[row.id]" :src="gridThumbs[row.id]" class="w-full h-full object-contain" loading="lazy" alt="" />
             <Package v-else class="w-10 h-10 text-[var(--color-text-tertiary)]/20" :stroke-width="1.25" />
           </div>
           <div class="p-2.5 space-y-1">
