@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\V1\DocumentPortalController;
 use App\Http\Controllers\Api\V1\PortalApiController;
 use App\Http\Controllers\Api\V1\PortalConfigController;
 use App\Http\Controllers\Api\V1\DashboardController;
+use App\Http\Controllers\Api\V1\NoteController;
 use App\Http\Controllers\Api\V1\ProjectController;
 use App\Http\Controllers\Api\V1\TeamController;
 use App\Http\Controllers\Api\V1\TestRunnerController;
@@ -964,6 +965,16 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // =====================================================================
     Route::get('dashboard', [DashboardController::class, 'index']);
     Route::post('dashboard/profile-stats', [DashboardController::class, 'profileStats']);
+
+    // =====================================================================
+    // Notes (Post-Its)
+    // =====================================================================
+    Route::get('notes', [NoteController::class, 'index']);
+    Route::post('notes', [NoteController::class, 'store']);
+    Route::put('notes/{note}', [NoteController::class, 'update']);
+    Route::delete('notes/{note}', [NoteController::class, 'destroy']);
+    Route::post('notes/reorder', [NoteController::class, 'reorder']);
+    Route::get('products/{product}/notes', [NoteController::class, 'forProduct']);
 
     // =====================================================================
     // Connectors (Enterprise: connectors)

@@ -15,6 +15,7 @@ import ProfileStatCard from '@/components/dashboard/ProfileStatCard.vue'
 import ProfileCardConfigurator from '@/components/dashboard/ProfileCardConfigurator.vue'
 import QuickLinksWidget from '@/components/dashboard/QuickLinksWidget.vue'
 import WatchlistWidget from '@/components/dashboard/WatchlistWidget.vue'
+import NotesWidget from '@/components/dashboard/NotesWidget.vue'
 
 const store = useDashboardStore()
 
@@ -28,6 +29,7 @@ const defaultWidgets = [
   { id: 'dataflows', label: 'Datenflüsse', visible: true },
   { id: 'quicklinks', label: 'Schnellzugriff', visible: true },
   { id: 'watchlist', label: 'Merkliste', visible: true },
+  { id: 'notes', label: 'Notizen', visible: true },
   { id: 'workflow', label: 'Workflow-Status', visible: true },
   { id: 'recent', label: 'Zuletzt bearbeitet', visible: true },
   { id: 'completeness', label: 'Produkt-Füllstand', visible: false },
@@ -287,13 +289,14 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- Reihe 5: Schnellzugriff (1/2) + Merkliste (1/2) -->
+      <!-- Reihe 5: Schnellzugriff + Merkliste + Notizen -->
       <div
-        v-if="isVisible('quicklinks') || isVisible('watchlist')"
-        class="grid grid-cols-1 lg:grid-cols-2 gap-5"
+        v-if="isVisible('quicklinks') || isVisible('watchlist') || isVisible('notes')"
+        class="grid grid-cols-1 lg:grid-cols-3 gap-5"
       >
         <QuickLinksWidget v-if="isVisible('quicklinks')" />
         <WatchlistWidget v-if="isVisible('watchlist')" />
+        <NotesWidget v-if="isVisible('notes')" />
       </div>
 
       <!-- Reihe 6: Meine Aufgaben (1/2) + Datenflüsse (1/2) -->
