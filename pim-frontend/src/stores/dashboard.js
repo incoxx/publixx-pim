@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import dashboardApi from '@/api/dashboard'
+import dashboardPresetsApi from '@/api/dashboardPresets'
 import userPreferencesApi from '@/api/userPreferences'
 
 const STORAGE_KEY = 'pim_dashboard_widgets'
@@ -25,6 +26,10 @@ export const useDashboardStore = defineStore('dashboard', () => {
   // Dashboard-Konfiguration (Widget-Sichtbarkeit + Profilkarten)
   const dashboardConfig = ref(null)
   const configLoaded = ref(false)
+
+  // Dashboard-Presets
+  const presets = ref([])
+  const presetsLoaded = ref(false)
 
   async function fetchDashboard() {
     loading.value = true
@@ -90,10 +95,28 @@ export const useDashboardStore = defineStore('dashboard', () => {
     } catch { /* ignore — Offline-Fallback */ }
   }
 
+  async function loadPresets() {
+    try {
+      const { data } = await dashboardPresetsApi.list()
+      presets.value = data.data || data
+      presetsLoaded.value = true
+    } catch { /* ignore */ }
+  }
+
+  async function activatePreset(id) {
+    try {
+      const { data } = await dashboardPresetsApi.activate(id)
+      const payload = data.data || data
+      dashboardConfig.value = payload
+      return true
+    } catch { return false }
+  }
+
   return {
     welcome, stats, trends, dataQuality, activityFeed, dataFlows,
     myTasks, recentlyEdited, workflowSummary, completenessSummary, activeProjects, teamWorkload, projectTimeline,
     loading, error, fetchDashboard,
     dashboardConfig, configLoaded, loadDashboardConfig, saveDashboardConfig,
+    presets, presetsLoaded, loadPresets, activatePreset,
   }
 })

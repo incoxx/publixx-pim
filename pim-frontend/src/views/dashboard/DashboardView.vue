@@ -1,7 +1,9 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { Settings, Eye, EyeOff, RefreshCw, Plus } from 'lucide-vue-next'
+import { Settings, Eye, EyeOff, RefreshCw, Plus, GripVertical, LayoutDashboard, Star, Save, Trash2 } from 'lucide-vue-next'
 import { useDashboardStore } from '@/stores/dashboard'
+import { useAuthStore } from '@/stores/auth'
+import dashboardPresetsApi from '@/api/dashboardPresets'
 import WelcomeWidget from '@/components/dashboard/WelcomeWidget.vue'
 import StatsOverviewWidget from '@/components/dashboard/StatsOverviewWidget.vue'
 import DataQualityWidget from '@/components/dashboard/DataQualityWidget.vue'
@@ -18,6 +20,8 @@ import WatchlistWidget from '@/components/dashboard/WatchlistWidget.vue'
 import NotesWidget from '@/components/dashboard/NotesWidget.vue'
 
 const store = useDashboardStore()
+const authStore = useAuthStore()
+const isAdmin = computed(() => authStore.user?.roles?.some(r => r.name === 'Admin'))
 
 // Standard-Widgets (nicht-Profil)
 const defaultWidgets = [
@@ -44,15 +48,32 @@ const showConfig = ref(false)
 const showConfigurator = ref(false)
 const configuratorTarget = ref(null)
 
+// Preset State
+const showPresetPanel = ref(false)
+const presetSaveName = ref('')
+const presetSaveDesc = ref('')
+const showPresetSave = ref(false)
+
 function applyServerConfig(config) {
   if (!config?.widgets) return
   const serverWidgets = config.widgets
 
-  // Standard-Widgets aktualisieren
-  widgets.value = defaultWidgets.map(dw => {
-    const found = serverWidgets.find(sw => sw.id === dw.id)
-    return found ? { ...dw, visible: found.visible } : { ...dw }
-  })
+  // Standard-Widgets: Reihenfolge aus Server, Visibility übernehmen
+  const serverOrder = serverWidgets.filter(sw => !sw.id.startsWith('profile-card-'))
+  const orderedWidgets = []
+
+  // Erst die Server-Reihenfolge
+  for (const sw of serverOrder) {
+    const dw = defaultWidgets.find(d => d.id === sw.id)
+    if (dw) orderedWidgets.push({ ...dw, visible: sw.visible })
+  }
+  // Dann fehlende Defaults anhängen (neue Widgets)
+  for (const dw of defaultWidgets) {
+    if (!orderedWidgets.find(w => w.id === dw.id)) {
+      orderedWidgets.push({ ...dw })
+    }
+  }
+  widgets.value = orderedWidgets
 
   // Profilkarten extrahieren
   profileCards.value = serverWidgets
@@ -83,20 +104,31 @@ function toggleWidget(id) {
   }
 }
 
-function moveWidget(index, direction) {
-  const newIndex = index + direction
-  if (newIndex < 0 || newIndex >= widgets.value.length) return
-  const temp = widgets.value[index]
-  widgets.value[index] = widgets.value[newIndex]
-  widgets.value[newIndex] = temp
-  saveConfig()
-}
-
 function isVisible(id) {
   return widgets.value.find(w => w.id === id)?.visible ?? true
 }
 
-// Profilkarten-Verwaltung
+// ─── Drag & Drop für Widget-Reihenfolge ────────────────
+const dragIdx = ref(null)
+
+function onDragStart(index) {
+  dragIdx.value = index
+}
+
+function onDragOver(e, index) {
+  e.preventDefault()
+  if (dragIdx.value === null || dragIdx.value === index) return
+  const dragged = widgets.value.splice(dragIdx.value, 1)[0]
+  widgets.value.splice(index, 0, dragged)
+  dragIdx.value = index
+}
+
+function onDragEnd() {
+  dragIdx.value = null
+  saveConfig()
+}
+
+// ─── Profilkarten-Verwaltung ────────────────
 function addProfileCard() {
   configuratorTarget.value = { id: `profile-card-${Date.now()}`, search_profile_id: '', chart_type: 'gauge', metric: 'completeness', color: '#2E75B6' }
   showConfigurator.value = true
@@ -129,7 +161,42 @@ function removeProfileCard(config) {
   saveConfig()
 }
 
-// Auto-Refresh (60 Sekunden)
+// ─── Dashboard-Presets ────────────────
+async function loadPreset(preset) {
+  const ok = await store.activatePreset(preset.id)
+  if (ok && store.dashboardConfig) {
+    applyServerConfig(store.dashboardConfig)
+  }
+  showPresetPanel.value = false
+}
+
+async function saveAsPreset() {
+  if (!presetSaveName.value.trim()) return
+  try {
+    await dashboardPresetsApi.saveFromCurrent({
+      name: presetSaveName.value.trim(),
+      description: presetSaveDesc.value.trim() || null,
+    })
+    presetSaveName.value = ''
+    presetSaveDesc.value = ''
+    showPresetSave.value = false
+    await store.loadPresets()
+  } catch { /* ignore */ }
+}
+
+async function setDefaultPreset(preset) {
+  await dashboardPresetsApi.setDefault(preset.id)
+  await store.loadPresets()
+}
+
+async function deletePreset(preset) {
+  try {
+    await dashboardPresetsApi.remove(preset.id)
+    await store.loadPresets()
+  } catch { /* ignore */ }
+}
+
+// ─── Auto-Refresh ────────────────
 const AUTO_REFRESH_INTERVAL = 60000
 let refreshTimer = null
 const lastRefresh = ref(null)
@@ -140,16 +207,13 @@ async function refresh() {
 }
 
 onMounted(async () => {
-  // Dashboard-Config vom Server laden
   await store.loadDashboardConfig()
   if (store.dashboardConfig) {
     applyServerConfig(store.dashboardConfig)
   }
 
-  // Dashboard-Daten laden
-  store.fetchDashboard().then(() => {
-    lastRefresh.value = new Date()
-  })
+  store.loadPresets()
+  store.fetchDashboard().then(() => { lastRefresh.value = new Date() })
   refreshTimer = setInterval(refresh, AUTO_REFRESH_INTERVAL)
 })
 
@@ -174,13 +238,77 @@ onUnmounted(() => {
         >
           <RefreshCw class="w-4 h-4" :class="store.loading ? 'animate-spin' : ''" :stroke-width="2" />
         </button>
+
+        <!-- Preset-Selektor -->
         <div class="relative">
           <button
             class="pim-btn pim-btn-ghost text-xs"
-            @click="showConfig = !showConfig"
+            @click="showPresetPanel = !showPresetPanel; showConfig = false"
+          >
+            <LayoutDashboard class="w-4 h-4" :stroke-width="2" />
+            <span class="hidden sm:inline">Layouts</span>
+          </button>
+          <div
+            v-if="showPresetPanel"
+            class="absolute right-0 top-full mt-1 w-72 py-2 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg shadow-lg z-30"
+          >
+            <p class="px-3 pb-2 text-[10px] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider border-b border-[var(--color-border)]">
+              Dashboard-Layouts
+            </p>
+
+            <!-- Preset-Liste -->
+            <div v-if="store.presets.length" class="max-h-48 overflow-y-auto">
+              <div
+                v-for="preset in store.presets"
+                :key="preset.id"
+                class="flex items-center gap-2 px-3 py-2 hover:bg-[var(--color-bg)] transition-colors group"
+              >
+                <Star v-if="preset.is_default" class="w-3 h-3 text-amber-500 shrink-0 fill-amber-500" :stroke-width="2" />
+                <Star v-else class="w-3 h-3 text-[var(--color-text-tertiary)] shrink-0 opacity-30" :stroke-width="2" />
+                <div class="flex-1 min-w-0 cursor-pointer" @click="loadPreset(preset)">
+                  <p class="text-xs font-medium text-[var(--color-text-primary)] truncate">{{ preset.name }}</p>
+                  <p v-if="preset.description" class="text-[10px] text-[var(--color-text-tertiary)] truncate">{{ preset.description }}</p>
+                  <p class="text-[9px] text-[var(--color-text-tertiary)]">von {{ preset.creator?.name }}</p>
+                </div>
+                <div v-if="isAdmin" class="hidden group-hover:flex items-center gap-0.5 shrink-0">
+                  <button v-if="!preset.is_default" class="p-0.5 rounded hover:bg-[var(--color-bg-elevated,var(--color-bg))]" title="Als Standard" @click.stop="setDefaultPreset(preset)">
+                    <Star class="w-3 h-3 text-[var(--color-text-tertiary)]" :stroke-width="2" />
+                  </button>
+                  <button v-if="!preset.is_default" class="p-0.5 rounded hover:bg-[var(--color-bg-elevated,var(--color-bg))]" title="Löschen" @click.stop="deletePreset(preset)">
+                    <Trash2 class="w-3 h-3 text-[var(--color-text-tertiary)]" :stroke-width="2" />
+                  </button>
+                </div>
+              </div>
+            </div>
+            <p v-else class="px-3 py-3 text-xs text-[var(--color-text-tertiary)] text-center">Keine Layouts vorhanden</p>
+
+            <!-- Admin: Als Preset speichern -->
+            <div v-if="isAdmin" class="border-t border-[var(--color-border)] mt-1 pt-1">
+              <div v-if="!showPresetSave">
+                <button class="w-full flex items-center gap-2 px-3 py-2 text-xs text-[var(--color-accent)] hover:bg-[var(--color-bg)]" @click="showPresetSave = true">
+                  <Save class="w-3.5 h-3.5" :stroke-width="2" /> Aktuelles Layout speichern
+                </button>
+              </div>
+              <div v-else class="px-3 py-2 space-y-2">
+                <input v-model="presetSaveName" class="pim-input text-xs w-full" placeholder="Name des Layouts..." maxlength="100" @keydown.enter="saveAsPreset" />
+                <input v-model="presetSaveDesc" class="pim-input text-xs w-full" placeholder="Beschreibung (optional)..." maxlength="500" />
+                <div class="flex gap-2">
+                  <button class="pim-btn pim-btn-primary text-xs flex-1" @click="saveAsPreset" :disabled="!presetSaveName.trim()">Speichern</button>
+                  <button class="pim-btn pim-btn-ghost text-xs" @click="showPresetSave = false">Abbrechen</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Widget-Config -->
+        <div class="relative">
+          <button
+            class="pim-btn pim-btn-ghost text-xs"
+            @click="showConfig = !showConfig; showPresetPanel = false"
           >
             <Settings class="w-4 h-4" :stroke-width="2" />
-            <span>Widgets</span>
+            <span class="hidden sm:inline">Widgets</span>
           </button>
           <!-- Widget-Config-Dropdown -->
           <div
@@ -188,33 +316,27 @@ onUnmounted(() => {
             class="absolute right-0 top-full mt-1 w-64 py-2 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg shadow-lg z-30"
           >
             <p class="px-3 pb-2 text-[10px] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider border-b border-[var(--color-border)]">
-              Widgets ein-/ausblenden
+              Kacheln ein-/ausblenden &amp; sortieren
             </p>
             <div
               v-for="(w, index) in widgets"
               :key="w.id"
-              class="flex items-center gap-2 px-3 py-1.5 hover:bg-[var(--color-bg)] transition-colors"
+              draggable="true"
+              @dragstart="onDragStart(index)"
+              @dragover="onDragOver($event, index)"
+              @dragend="onDragEnd"
+              class="flex items-center gap-1 px-2 py-1.5 hover:bg-[var(--color-bg)] transition-colors cursor-grab active:cursor-grabbing"
+              :class="{ 'opacity-40': dragIdx === index }"
             >
+              <GripVertical class="w-3.5 h-3.5 text-[var(--color-text-tertiary)] shrink-0" :stroke-width="2" />
               <button
                 class="p-0.5 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]"
                 @click="toggleWidget(w.id)"
               >
-                <Eye v-if="w.visible" class="w-3.5 h-3.5" :stroke-width="2" />
+                <Eye v-if="w.visible" class="w-3.5 h-3.5 text-[var(--color-accent)]" :stroke-width="2" />
                 <EyeOff v-else class="w-3.5 h-3.5 opacity-40" :stroke-width="2" />
               </button>
-              <span class="text-xs text-[var(--color-text-primary)] flex-1">{{ w.label }}</span>
-              <div class="flex items-center gap-0.5">
-                <button
-                  class="p-0.5 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] disabled:opacity-20"
-                  :disabled="index === 0"
-                  @click="moveWidget(index, -1)"
-                >&#9650;</button>
-                <button
-                  class="p-0.5 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] disabled:opacity-20"
-                  :disabled="index === widgets.length - 1"
-                  @click="moveWidget(index, 1)"
-                >&#9660;</button>
-              </div>
+              <span class="text-xs flex-1" :class="w.visible ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-tertiary)] line-through'">{{ w.label }}</span>
             </div>
             <!-- Profilkarten im Dropdown -->
             <div v-if="profileCards.length" class="border-t border-[var(--color-border)] mt-1 pt-1">
@@ -236,8 +358,8 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- Close config on outside click -->
-    <div v-if="showConfig" class="fixed inset-0 z-20" @click="showConfig = false" />
+    <!-- Close panels on outside click -->
+    <div v-if="showConfig || showPresetPanel" class="fixed inset-0 z-20" @click="showConfig = false; showPresetPanel = false" />
 
     <!-- Loading state -->
     <div v-if="store.loading && !store.stats" class="flex items-center justify-center py-20">
@@ -315,7 +437,7 @@ onUnmounted(() => {
         />
       </div>
 
-      <!-- Reihe 6: Workflow (1/3) + Zuletzt bearbeitet (2/3) -->
+      <!-- Reihe 7: Workflow (1/3) + Zuletzt bearbeitet (2/3) -->
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
         <WorkflowStatusWidget
           v-if="isVisible('workflow')"
@@ -326,7 +448,7 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- Reihe 7: Produkt-Füllstand (optional) -->
+      <!-- Reihe 8: Produkt-Füllstand (optional) -->
       <CompletenessWidget
         v-if="isVisible('completeness')"
         :summary="store.completenessSummary"

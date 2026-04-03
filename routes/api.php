@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\V1\DocumentPortalController;
 use App\Http\Controllers\Api\V1\PortalApiController;
 use App\Http\Controllers\Api\V1\PortalConfigController;
 use App\Http\Controllers\Api\V1\DashboardController;
+use App\Http\Controllers\Api\V1\DashboardPresetController;
 use App\Http\Controllers\Api\V1\NoteController;
 use App\Http\Controllers\Api\V1\ProjectController;
 use App\Http\Controllers\Api\V1\TeamController;
@@ -965,6 +966,17 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // =====================================================================
     Route::get('dashboard', [DashboardController::class, 'index']);
     Route::post('dashboard/profile-stats', [DashboardController::class, 'profileStats']);
+
+    // =====================================================================
+    // Dashboard Presets
+    // =====================================================================
+    Route::get('dashboard-presets', [DashboardPresetController::class, 'index']);
+    Route::post('dashboard-presets', [DashboardPresetController::class, 'store']);
+    Route::post('dashboard-presets/save-current', [DashboardPresetController::class, 'saveFromCurrent']);
+    Route::put('dashboard-presets/{preset}', [DashboardPresetController::class, 'update']);
+    Route::delete('dashboard-presets/{preset}', [DashboardPresetController::class, 'destroy']);
+    Route::post('dashboard-presets/{preset}/set-default', [DashboardPresetController::class, 'setDefault']);
+    Route::post('dashboard-presets/{preset}/activate', [DashboardPresetController::class, 'activate']);
 
     // =====================================================================
     // Notes (Post-Its)
