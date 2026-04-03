@@ -280,7 +280,6 @@ export function createOfflineApi(dataPath, options = {}) {
       prevSize = ids.size
       walk(nodes)
     }
-    console.debug('[OfflineAPI] getDescendantIds', categoryId, '→', ids.size, 'IDs', [...ids])
     return ids
   }
 
@@ -304,7 +303,6 @@ export function createOfflineApi(dataPath, options = {}) {
       }
       return descendantIds.has(p.cat)
     })
-    console.debug('[OfflineAPI] filterByCategory', categoryId, '→', result.length, '/', products.length, 'Produkte. Erste 3 cats:', products.slice(0, 3).map(p => ({ id: p.id, cat: p.cat, cats: p.cats })))
     return result
   }
 
