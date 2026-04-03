@@ -264,12 +264,14 @@ export function createOfflineApi(dataPath, options = {}) {
 
     function walk(nodeList) {
       for (const node of nodeList) {
-        if (ids.has(node.id) && node.children) {
-          for (const child of node.children) {
-            ids.add(child.id)
+        if (ids.has(node.id)) {
+          if (node.children && node.children.length) {
+            for (const child of node.children) {
+              ids.add(child.id)
+            }
           }
         }
-        if (node.children) walk(node.children)
+        if (node.children && node.children.length) walk(node.children)
       }
     }
     // Mehrfach iterieren bis keine neuen IDs mehr gefunden werden (für tiefe Bäume)
@@ -278,6 +280,7 @@ export function createOfflineApi(dataPath, options = {}) {
       prevSize = ids.size
       walk(nodes)
     }
+    console.debug('[OfflineAPI] getDescendantIds', categoryId, '→', ids.size, 'IDs', [...ids])
     return ids
   }
 
@@ -295,12 +298,14 @@ export function createOfflineApi(dataPath, options = {}) {
   async function filterByCategory(products, categoryId) {
     if (!categoryId) return products
     const descendantIds = await getDescendantIds(categoryId)
-    return products.filter(p => {
+    const result = products.filter(p => {
       if (p.cats && p.cats.length) {
         return p.cats.some(id => descendantIds.has(id))
       }
       return descendantIds.has(p.cat)
     })
+    console.debug('[OfflineAPI] filterByCategory', categoryId, '→', result.length, '/', products.length, 'Produkte. Erste 3 cats:', products.slice(0, 3).map(p => ({ id: p.id, cat: p.cat, cats: p.cats })))
+    return result
   }
 
   /**
