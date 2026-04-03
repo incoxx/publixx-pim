@@ -205,9 +205,19 @@ class OfflineCatalogController extends BaseController
             return response()->json(['message' => 'Kein Bundle vorhanden.'], 404);
         }
 
-        $zipPath = tempnam(sys_get_temp_dir(), 'bundle_') . '.zip';
+        $tempFile = tempnam(sys_get_temp_dir(), 'bundle_');
+        if ($tempFile === false) {
+            return response()->json(['message' => 'Temp-Datei konnte nicht erstellt werden.'], 500);
+        }
+        $zipPath = $tempFile . '.zip';
+        rename($tempFile, $zipPath);
+
         $zip = new \ZipArchive();
-        $zip->open($zipPath, \ZipArchive::CREATE);
+        if ($zip->open($zipPath, \ZipArchive::CREATE) !== true) {
+            @unlink($zipPath);
+            return response()->json(['message' => 'ZIP-Erstellung fehlgeschlagen.'], 500);
+        }
+
         $zip->addFile($jsPath, 'catalog-offline.umd.js');
 
         $cssPath = "{$distDir}/catalog-embed.css";

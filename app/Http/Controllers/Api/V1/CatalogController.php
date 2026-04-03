@@ -293,22 +293,23 @@ class CatalogController extends BaseController
             // Auf Eltern-Knoten hochrollen
             if (!empty($directCounts)) {
                 $nodeIds = array_keys($directCounts);
-                $pathNodes = HierarchyNode::whereIn('id', $nodeIds)->get(['id', 'parent_node_id', 'depth']);
-                // Alle Vorfahren laden für vollständiges Roll-up
-                $allPaths = HierarchyNode::whereIn('hierarchy_id',
+                $pathNodes = HierarchyNode::whereIn('id', $nodeIds)->get(['id', 'hierarchy_id']);
+                // Alle Knoten der Hierarchie laden für vollständiges Roll-up
+                $allNodes = HierarchyNode::whereIn('hierarchy_id',
                     $pathNodes->pluck('hierarchy_id')->unique()
                 )->get(['id', 'parent_node_id', 'depth']);
 
+                // Alle Knoten mit 0 initialisieren, dann direkte Counts setzen
                 $rolledUp = [];
-                foreach ($allPaths as $n) {
+                foreach ($allNodes as $n) {
                     $rolledUp[$n->id] = $directCounts[$n->id] ?? 0;
                 }
-                foreach ($allPaths->sortByDesc('depth') as $n) {
-                    if ($n->parent_node_id && isset($rolledUp[$n->parent_node_id])) {
+                // Von Blättern nach oben aufsummieren
+                foreach ($allNodes->sortByDesc('depth') as $n) {
+                    if ($n->parent_node_id && array_key_exists($n->parent_node_id, $rolledUp)) {
                         $rolledUp[$n->parent_node_id] += $rolledUp[$n->id];
                     }
                 }
-                // Nur Knoten mit Count > 0 oder die direkte Zuordnung haben
                 $categoryCounts = array_filter($rolledUp, fn ($c) => $c > 0);
             }
         }
@@ -530,8 +531,8 @@ class CatalogController extends BaseController
         ];
 
         // Kategorie-Counts als Header mitgeben wenn berechnet
-        if ($categoryCounts !== null) {
-            $headers['X-Category-Counts'] = json_encode($categoryCounts);
+        if ($categoryCounts !== null && !empty($categoryCounts)) {
+            $headers['X-Category-Counts'] = json_encode($categoryCounts, JSON_THROW_ON_ERROR);
         }
 
         return response()->json($data, 200, $headers);
