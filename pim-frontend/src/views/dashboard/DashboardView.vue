@@ -58,8 +58,20 @@ const configuratorTarget = ref(null)
 // Preset State
 const showPresetPanel = ref(false)
 const presetSaveName = ref('')
-const presetSaveDesc = ref('')
-const showPresetSave = ref(false)
+
+// Eingebautes Standard-Layout (immer vorhanden, nicht löschbar)
+const BUILTIN_DEFAULT_PAYLOAD = {
+  widgets: DEFAULT_ORDER.map(id => ({
+    id,
+    visible: id !== 'completeness',
+  })),
+}
+
+function loadBuiltinDefault() {
+  applyServerConfig(BUILTIN_DEFAULT_PAYLOAD)
+  store.saveDashboardConfig(BUILTIN_DEFAULT_PAYLOAD)
+  showPresetPanel.value = false
+}
 
 // ─── Computed: sichtbare Widgets in Reihenfolge ────────────────
 const visibleWidgets = computed(() =>
@@ -218,18 +230,11 @@ async function saveAsPreset() {
   try {
     await dashboardPresetsApi.saveFromCurrent({
       name: presetSaveName.value.trim(),
-      description: presetSaveDesc.value.trim() || null,
     })
     presetSaveName.value = ''
-    presetSaveDesc.value = ''
-    showPresetSave.value = false
+    showPresetPanel.value = false
     await store.loadPresets()
   } catch { /* ignore */ }
-}
-
-async function setDefaultPreset(preset) {
-  await dashboardPresetsApi.setDefault(preset.id)
-  await store.loadPresets()
 }
 
 async function deletePreset(preset) {
@@ -298,43 +303,51 @@ onUnmounted(() => {
             <p class="px-3 pb-2 text-[10px] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider border-b border-[var(--color-border)]">
               Dashboard-Layouts
             </p>
-            <div v-if="store.presets.length" class="max-h-48 overflow-y-auto">
+
+            <div class="max-h-56 overflow-y-auto">
+              <!-- Eingebautes Standard-Layout (immer da, nicht löschbar) -->
+              <div
+                class="flex items-center gap-2 px-3 py-2 hover:bg-[var(--color-bg)] transition-colors cursor-pointer"
+                @click="loadBuiltinDefault"
+              >
+                <Star class="w-3 h-3 text-amber-500 shrink-0 fill-amber-500" :stroke-width="2" />
+                <div class="flex-1 min-w-0">
+                  <p class="text-xs font-medium text-[var(--color-text-primary)]">Standard</p>
+                  <p class="text-[10px] text-[var(--color-text-tertiary)]">Werkseinstellung</p>
+                </div>
+              </div>
+
+              <!-- Gespeicherte Layouts -->
               <div
                 v-for="preset in store.presets"
                 :key="preset.id"
                 class="flex items-center gap-2 px-3 py-2 hover:bg-[var(--color-bg)] transition-colors group"
               >
-                <Star v-if="preset.is_default" class="w-3 h-3 text-amber-500 shrink-0 fill-amber-500" :stroke-width="2" />
-                <Star v-else class="w-3 h-3 text-[var(--color-text-tertiary)] shrink-0 opacity-30" :stroke-width="2" />
+                <LayoutDashboard class="w-3 h-3 text-[var(--color-text-tertiary)] shrink-0" :stroke-width="2" />
                 <div class="flex-1 min-w-0 cursor-pointer" @click="loadPreset(preset)">
                   <p class="text-xs font-medium text-[var(--color-text-primary)] truncate">{{ preset.name }}</p>
-                  <p v-if="preset.description" class="text-[10px] text-[var(--color-text-tertiary)] truncate">{{ preset.description }}</p>
                   <p class="text-[9px] text-[var(--color-text-tertiary)]">von {{ preset.creator?.name }}</p>
                 </div>
-                <div v-if="isAdmin" class="hidden group-hover:flex items-center gap-0.5 shrink-0">
-                  <button v-if="!preset.is_default" class="p-0.5 rounded hover:bg-[var(--color-bg-elevated,var(--color-bg))]" title="Als Standard" @click.stop="setDefaultPreset(preset)">
-                    <Star class="w-3 h-3 text-[var(--color-text-tertiary)]" :stroke-width="2" />
-                  </button>
-                  <button v-if="!preset.is_default" class="p-0.5 rounded hover:bg-[var(--color-bg-elevated,var(--color-bg))]" title="Löschen" @click.stop="deletePreset(preset)">
+                <div v-if="isAdmin" class="hidden group-hover:flex items-center shrink-0">
+                  <button class="p-0.5 rounded hover:bg-[var(--color-bg-elevated,var(--color-bg))]" title="Löschen" @click.stop="deletePreset(preset)">
                     <Trash2 class="w-3 h-3 text-[var(--color-text-tertiary)]" :stroke-width="2" />
                   </button>
                 </div>
               </div>
             </div>
-            <p v-else class="px-3 py-3 text-xs text-[var(--color-text-tertiary)] text-center">Keine Layouts vorhanden</p>
             <div v-if="isAdmin" class="border-t border-[var(--color-border)] mt-1 pt-1">
-              <div v-if="!showPresetSave">
-                <button class="w-full flex items-center gap-2 px-3 py-2 text-xs text-[var(--color-accent)] hover:bg-[var(--color-bg)]" @click="showPresetSave = true">
+              <p class="px-3 pt-1 pb-1 text-[10px] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider">
+                Layout speichern
+              </p>
+              <div class="px-3 py-2 space-y-2">
+                <input v-model="presetSaveName" class="pim-input text-xs w-full" placeholder="Name des Layouts..." maxlength="100" @keydown.enter="saveAsPreset" />
+                <button
+                  class="pim-btn pim-btn-primary text-xs w-full"
+                  @click="saveAsPreset"
+                  :disabled="!presetSaveName.trim()"
+                >
                   <Save class="w-3.5 h-3.5" :stroke-width="2" /> Aktuelles Layout speichern
                 </button>
-              </div>
-              <div v-else class="px-3 py-2 space-y-2">
-                <input v-model="presetSaveName" class="pim-input text-xs w-full" placeholder="Name des Layouts..." maxlength="100" @keydown.enter="saveAsPreset" />
-                <input v-model="presetSaveDesc" class="pim-input text-xs w-full" placeholder="Beschreibung (optional)..." maxlength="500" />
-                <div class="flex gap-2">
-                  <button class="pim-btn pim-btn-primary text-xs flex-1" @click="saveAsPreset" :disabled="!presetSaveName.trim()">Speichern</button>
-                  <button class="pim-btn pim-btn-ghost text-xs" @click="showPresetSave = false">Abbrechen</button>
-                </div>
               </div>
             </div>
           </div>
