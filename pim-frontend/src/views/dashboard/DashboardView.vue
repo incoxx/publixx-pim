@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, markRaw } from 'vue'
-import { Settings, Eye, EyeOff, RefreshCw, Plus, GripVertical, LayoutDashboard, Star, Save, Trash2, Check, RefreshCcw } from 'lucide-vue-next'
+import { Settings, Eye, EyeOff, RefreshCw, Plus, GripVertical, LayoutDashboard, Star, Save, Trash2, Check } from 'lucide-vue-next'
 import { useDashboardStore } from '@/stores/dashboard'
 import { useAuthStore } from '@/stores/auth'
 import dashboardPresetsApi from '@/api/dashboardPresets'
@@ -228,28 +228,48 @@ async function loadPreset(preset) {
   showPresetPanel.value = false
 }
 
+// Feedback-Toast
+const savedFeedback = ref(null)
+let feedbackTimer = null
+function showSavedFeedback(name) {
+  savedFeedback.value = name
+  clearTimeout(feedbackTimer)
+  feedbackTimer = setTimeout(() => { savedFeedback.value = null }, 2000)
+}
+
 async function overwritePreset(preset) {
   try {
     const currentConfig = store.dashboardConfig
     if (!currentConfig?.widgets) return
     await dashboardPresetsApi.update(preset.id, { payload: currentConfig })
     await store.loadPresets()
+    showSavedFeedback(preset.name)
   } catch { /* ignore */ }
 }
 
 async function saveAsPreset() {
   if (!presetSaveName.value.trim()) return
+  const name = presetSaveName.value.trim()
   try {
-    await dashboardPresetsApi.saveFromCurrent({
-      name: presetSaveName.value.trim(),
-    })
+    await dashboardPresetsApi.saveFromCurrent({ name })
     presetSaveName.value = ''
-    showPresetPanel.value = false
     await store.loadPresets()
+    showSavedFeedback(name)
   } catch { /* ignore */ }
 }
 
-async function deletePreset(preset) {
+// Löschen mit Bestätigung
+const confirmDeletePreset = ref(null)
+let confirmTimer = null
+
+function requestDeletePreset(preset) {
+  confirmDeletePreset.value = preset.id
+  clearTimeout(confirmTimer)
+  confirmTimer = setTimeout(() => { confirmDeletePreset.value = null }, 4000)
+}
+
+async function executeDeletePreset(preset) {
+  confirmDeletePreset.value = null
   try {
     await dashboardPresetsApi.remove(preset.id)
     if (activePresetId.value === preset.id) {
@@ -338,33 +358,51 @@ onUnmounted(() => {
               <div
                 v-for="preset in store.presets"
                 :key="preset.id"
-                class="flex items-center gap-2 px-3 py-2 hover:bg-[var(--color-bg)] transition-colors group"
+                class="px-3 py-2 hover:bg-[var(--color-bg)] transition-colors group"
                 :class="{ 'bg-[var(--color-accent)]/5': activePresetId === preset.id }"
               >
-                <Check v-if="activePresetId === preset.id" class="w-3 h-3 text-[var(--color-accent)] shrink-0" :stroke-width="2.5" />
-                <LayoutDashboard v-else class="w-3 h-3 text-[var(--color-text-tertiary)] shrink-0" :stroke-width="2" />
-                <div class="flex-1 min-w-0 cursor-pointer" @click="loadPreset(preset)">
-                  <p class="text-xs font-medium truncate" :class="activePresetId === preset.id ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-primary)]'">{{ preset.name }}</p>
-                  <p class="text-[9px] text-[var(--color-text-tertiary)]">von {{ preset.creator?.name }}</p>
+                <div class="flex items-center gap-2">
+                  <Check v-if="activePresetId === preset.id" class="w-3 h-3 text-[var(--color-accent)] shrink-0" :stroke-width="2.5" />
+                  <LayoutDashboard v-else class="w-3 h-3 text-[var(--color-text-tertiary)] shrink-0" :stroke-width="2" />
+                  <div class="flex-1 min-w-0 cursor-pointer" @click="loadPreset(preset)">
+                    <p class="text-xs font-medium truncate" :class="activePresetId === preset.id ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-primary)]'">{{ preset.name }}</p>
+                    <p class="text-[9px] text-[var(--color-text-tertiary)]">von {{ preset.creator?.name }}</p>
+                  </div>
+                  <div v-if="isAdmin" class="flex items-center gap-0.5 shrink-0">
+                    <button
+                      v-if="activePresetId === preset.id"
+                      class="p-0.5 rounded hover:bg-[var(--color-accent)]/10"
+                      title="Änderungen in dieses Layout speichern"
+                      @click.stop="overwritePreset(preset)"
+                    >
+                      <Save class="w-3 h-3 text-[var(--color-accent)]" :stroke-width="2" />
+                    </button>
+                    <button
+                      class="p-0.5 rounded hover:bg-[var(--color-bg-elevated,var(--color-bg))] opacity-0 group-hover:opacity-100 transition-opacity"
+                      title="Löschen"
+                      @click.stop="requestDeletePreset(preset)"
+                    >
+                      <Trash2 class="w-3 h-3 text-[var(--color-text-tertiary)]" :stroke-width="2" />
+                    </button>
+                  </div>
                 </div>
-                <div v-if="isAdmin" class="flex items-center gap-0.5 shrink-0">
-                  <button
-                    v-if="activePresetId === preset.id"
-                    class="p-0.5 rounded hover:bg-[var(--color-accent)]/10"
-                    title="Änderungen in dieses Layout übernehmen"
-                    @click.stop="overwritePreset(preset)"
-                  >
-                    <RefreshCcw class="w-3 h-3 text-[var(--color-accent)]" :stroke-width="2" />
-                  </button>
-                  <button
-                    class="p-0.5 rounded hover:bg-[var(--color-bg-elevated,var(--color-bg))] opacity-0 group-hover:opacity-100 transition-opacity"
-                    title="Löschen"
-                    @click.stop="deletePreset(preset)"
-                  >
-                    <Trash2 class="w-3 h-3 text-[var(--color-text-tertiary)]" :stroke-width="2" />
-                  </button>
+                <!-- Lösch-Bestätigung -->
+                <div
+                  v-if="confirmDeletePreset === preset.id"
+                  class="flex items-center gap-2 mt-1.5 ml-5 p-1.5 rounded bg-red-50 border border-red-200"
+                >
+                  <p class="text-[10px] text-red-700 flex-1">„{{ preset.name }}" löschen?</p>
+                  <button class="text-[10px] font-medium text-red-600 hover:text-red-800 px-1.5 py-0.5 rounded hover:bg-red-100" @click.stop="executeDeletePreset(preset)">Ja</button>
+                  <button class="text-[10px] text-[var(--color-text-tertiary)] px-1.5 py-0.5 rounded hover:bg-[var(--color-bg)]" @click.stop="confirmDeletePreset = null">Nein</button>
                 </div>
               </div>
+            </div>
+
+            <!-- Gespeichert-Feedback -->
+            <div v-if="savedFeedback" class="px-3 py-1.5 border-t border-[var(--color-border)]">
+              <p class="text-[10px] text-green-600 font-medium flex items-center gap-1">
+                <Check class="w-3 h-3" :stroke-width="2.5" /> „{{ savedFeedback }}" gespeichert
+              </p>
             </div>
             <div v-if="isAdmin" class="border-t border-[var(--color-border)] mt-1 pt-1">
               <p class="px-3 pt-1 pb-1 text-[10px] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider">
