@@ -280,11 +280,11 @@ class CatalogController extends BaseController
             $query->orderBy($sortColumn, $sortOrder);
         }
 
-        // Dynamische Kategorie-Counts berechnen wenn Facetten-Filter aktiv (nicht bei Suche).
-        // Ermöglicht dem Frontend, Kategorien ohne Treffer auszugrauen.
+        // Dynamische Kategorie-Counts: bei Suche oder aktiven Facetten-Filtern.
+        // Ermöglicht dem Frontend, Kategorien ohne Treffer auszugrauen und Treffer-Counts anzuzeigen.
         $categoryCounts = null;
         $hasActiveFilters = !$isSearchActive && !empty($filters) && is_array($filters) && count($filters) > 0;
-        if ($hasActiveFilters) {
+        if ($isSearchActive || $hasActiveFilters) {
             $countQuery = (clone $query)->reorder()
                 ->select('products.master_hierarchy_node_id', DB::raw('COUNT(DISTINCT products.id) as cnt'))
                 ->groupBy('products.master_hierarchy_node_id');
