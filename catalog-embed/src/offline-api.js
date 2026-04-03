@@ -526,13 +526,88 @@ export function createOfflineApi(dataPath, options = {}) {
      * Facetten-Konfiguration laden (aus facets.json).
      *
      * @param {Object} [opts]
-     * @returns {Promise<{facets: Array}>} Facetten-Definition mit Attributen und Wertlisten
+     * @returns {Promise<{facets: Array}>} Facetten-Definition mit dynamisch berechneten Counts
      */
     async getFacets(opts = {}) {
       if (!_facets) {
         _facets = await fetchJson('facets.json')
       }
-      return _facets
+
+      // Ohne Kategorie/Filter: statische Counts aus facets.json
+      if (!opts.category && (!opts.filters || Object.keys(opts.filters).length === 0)) {
+        return _facets
+      }
+
+      // Dynamische Counts: Produkte nach Kategorie filtern, dann Facetten-Werte zählen
+      const primaryProducts = await loadPrimaryProducts()
+      let products = filterByCategory(primaryProducts, opts.category)
+
+      const baseFacets = (_facets.facets || _facets)
+      const result = []
+
+      for (const facet of baseFacets) {
+        const attrId = facet.attribute_id
+
+        // "Exclude-this-facet" Logik: alle ANDEREN Filter anwenden
+        let filtered = products
+        if (opts.filters && Object.keys(opts.filters).length > 0) {
+          const otherFilters = {}
+          for (const [k, v] of Object.entries(opts.filters)) {
+            if (k !== attrId) otherFilters[k] = v
+          }
+          if (Object.keys(otherFilters).length > 0) {
+            filtered = filterByFacets(filtered, otherFilters)
+          }
+        }
+
+        if (facet.data_type === 'ValueList' || facet.data_type === 'Text') {
+          // Counts pro Wert neu berechnen
+          const counts = {}
+          for (const p of filtered) {
+            const val = p.facets?.[attrId]
+            if (val == null) continue
+            // MultiSelection: Array von IDs
+            if (Array.isArray(val)) {
+              for (const v of val) counts[String(v)] = (counts[String(v)] || 0) + 1
+            } else {
+              counts[String(val)] = (counts[String(val)] || 0) + 1
+            }
+          }
+          const values = (facet.values || [])
+            .map(v => ({ ...v, count: counts[String(v.value_id ?? v.value)] || 0 }))
+            .filter(v => v.count > 0)
+          if (values.length > 0) {
+            result.push({ ...facet, values })
+          }
+        } else if (facet.data_type === 'Boolean') {
+          // Zähle true-Werte
+          let count = 0
+          for (const p of filtered) {
+            if (p.facets?.[attrId] === true) count++
+          }
+          if (count > 0) {
+            result.push({ ...facet })
+          }
+        } else if (facet.data_type === 'Decimal' || facet.data_type === 'Integer') {
+          // Min/Max aus den gefilterten Produkten berechnen
+          let min = Infinity, max = -Infinity, hasValues = false
+          for (const p of filtered) {
+            const val = p.facets?.[attrId]
+            if (val != null && typeof val === 'number') {
+              if (val < min) min = val
+              if (val > max) max = val
+              hasValues = true
+            }
+          }
+          if (hasValues) {
+            result.push({ ...facet, min, max })
+          }
+        } else {
+          result.push(facet)
+        }
+      }
+
+      return { facets: result }
     },
 
     /**
