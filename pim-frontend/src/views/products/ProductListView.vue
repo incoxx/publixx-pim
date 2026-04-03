@@ -7,7 +7,7 @@ import { useAttributeStore } from '@/stores/attributes'
 import { useAuthStore } from '@/stores/auth'
 import { useFilters } from '@/composables/useFilters'
 import { useLocaleStore } from '@/stores/locale'
-import { Plus, Languages, Upload, Download, X, GitCompareArrows, Star, Pencil, FileSpreadsheet, ListFilter, Settings, Package, FolderTree, Trash2, CheckCheck, ArrowRightLeft } from 'lucide-vue-next'
+import { Plus, Languages, Upload, Download, X, GitCompareArrows, Star, Pencil, FileSpreadsheet, ListFilter, Settings, Package, FolderTree, Trash2, CheckCheck, ArrowRightLeft, LayoutGrid, List } from 'lucide-vue-next'
 import mediaApi from '@/api/media'
 import PimTable from '@/components/shared/PimTable.vue'
 import ColumnConfigPopover from '@/components/shared/ColumnConfigPopover.vue'
@@ -34,6 +34,13 @@ const attrStore = useAttributeStore()
 const authStore = useAuthStore()
 const localeStore = useLocaleStore()
 const licenseStore = useLicenseStore()
+
+// Ansichtsmodus (Liste / Kacheln) mit localStorage-Persistenz
+const viewMode = ref(localStorage.getItem('viewMode:products') || 'list')
+function setViewMode(mode) {
+  viewMode.value = mode
+  localStorage.setItem('viewMode:products', mode)
+}
 
 const { search, activeFilters, setSearch, removeFilter, clearFilters } = useFilters(() => {
   store.setSearch(search.value)
@@ -396,7 +403,7 @@ function fetchWithAttributes() {
     .map(k => k.replace('attributes.', ''))
   const options = attrColumnIds.length > 0 ? { attribute_columns: attrColumnIds, language: 'de' } : {}
   options.include = 'productType,masterHierarchyNode,manufacturer'
-  if (visibleKeys.value.includes('thumbnail')) {
+  if (visibleKeys.value.includes('thumbnail') || viewMode.value === 'grid') {
     options.include_thumbnail = true
   }
   store.fetchList(options)
@@ -425,6 +432,25 @@ onMounted(async () => {
     <div class="flex flex-wrap items-center justify-between gap-2">
       <h2 class="text-lg font-semibold text-[var(--color-text-primary)]">{{ t('product.title') }}</h2>
       <div class="flex items-center gap-2">
+        <!-- Ansichtsmodus -->
+        <div class="flex items-center border border-[var(--color-border)] rounded-md overflow-hidden">
+          <button
+            class="p-1.5 transition-colors"
+            :class="viewMode === 'grid' ? 'bg-[var(--color-accent)] text-white' : 'bg-[var(--color-surface)] text-[var(--color-text-tertiary)] hover:bg-[var(--color-bg)]'"
+            @click="setViewMode('grid')"
+            title="Kachelansicht"
+          >
+            <LayoutGrid class="w-3.5 h-3.5" :stroke-width="2" />
+          </button>
+          <button
+            class="p-1.5 transition-colors"
+            :class="viewMode === 'list' ? 'bg-[var(--color-accent)] text-white' : 'bg-[var(--color-surface)] text-[var(--color-text-tertiary)] hover:bg-[var(--color-bg)]'"
+            @click="setViewMode('list')"
+            title="Listenansicht"
+          >
+            <List class="w-3.5 h-3.5" :stroke-width="2" />
+          </button>
+        </div>
         <ColumnConfigPopover
           :allColumns="allColumns"
           :visibleKeys="visibleKeys"
@@ -631,8 +657,61 @@ onMounted(async () => {
       </div>
     </div>
 
-    <!-- Table -->
+    <!-- Kachelansicht -->
+    <div v-if="viewMode === 'grid'">
+      <div v-if="store.loading" class="flex items-center justify-center py-16">
+        <div class="animate-spin w-6 h-6 border-2 border-[var(--color-accent)] border-t-transparent rounded-full" />
+      </div>
+      <div v-else-if="filteredItems.length === 0" class="text-center py-16 text-sm text-[var(--color-text-tertiary)]">
+        Keine Produkte gefunden
+      </div>
+      <div v-else class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+        <div
+          v-for="row in filteredItems"
+          :key="row.id"
+          class="pim-card overflow-hidden group cursor-pointer hover:shadow-md transition-shadow"
+          @click="openProduct(row)"
+        >
+          <div class="aspect-[4/3] bg-[var(--color-bg)] flex items-center justify-center overflow-hidden p-2">
+            <img v-if="row.thumbnail_url" :src="row.thumbnail_url" class="w-full h-full object-contain" loading="lazy" alt="" />
+            <Package v-else class="w-10 h-10 text-[var(--color-text-tertiary)]/20" :stroke-width="1.25" />
+          </div>
+          <div class="p-2.5 space-y-1">
+            <div class="flex items-center gap-1.5">
+              <button
+                class="p-0.5 rounded hover:bg-[var(--color-bg)] shrink-0"
+                :title="isOnWatchlist(row.id) ? 'Von Merkliste entfernen' : 'Zur Merkliste'"
+                @click.stop="toggleWatchlist(row.id)"
+              >
+                <Star class="w-3.5 h-3.5" :class="isOnWatchlist(row.id) ? 'text-amber-500 fill-amber-500' : 'text-[var(--color-text-tertiary)]'" :stroke-width="2" />
+              </button>
+              <span class="text-[11px] font-mono text-[var(--color-text-secondary)]">{{ row.sku }}</span>
+              <span
+                class="ml-auto text-[10px] px-1.5 py-0.5 rounded-full font-medium"
+                :class="row.status === 'active' ? 'bg-[var(--color-success-light)] text-[var(--color-success)]' : row.status === 'draft' ? 'bg-[var(--color-bg)] text-[var(--color-text-tertiary)]' : 'bg-[var(--color-error-light)] text-[var(--color-error)]'"
+              >
+                {{ row.status === 'active' ? 'Aktiv' : row.status === 'draft' ? 'Entwurf' : row.status === 'inactive' ? 'Inaktiv' : 'Auslaufend' }}
+              </span>
+            </div>
+            <p class="text-xs text-[var(--color-text-primary)] truncate font-medium">{{ row.name || '—' }}</p>
+            <p class="text-[10px] text-[var(--color-text-tertiary)] truncate">{{ row.product_type?.name_de || '' }}</p>
+          </div>
+        </div>
+      </div>
+      <!-- Pagination -->
+      <div class="flex items-center justify-between px-1 py-3">
+        <span class="text-xs text-[var(--color-text-tertiary)]">{{ store.meta.total }} Produkte</span>
+        <div class="flex items-center gap-1">
+          <button class="pim-btn pim-btn-ghost text-xs" :disabled="store.meta.current_page <= 1" @click="store.setPage(store.meta.current_page - 1); fetchWithAttributes()">Zurück</button>
+          <span class="text-xs text-[var(--color-text-secondary)] px-2">{{ store.meta.current_page }} / {{ store.meta.last_page }}</span>
+          <button class="pim-btn pim-btn-ghost text-xs" :disabled="store.meta.current_page >= store.meta.last_page" @click="store.setPage(store.meta.current_page + 1); fetchWithAttributes()">Weiter</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Table (Listenansicht) -->
     <PimTable
+      v-else
       ref="pimTableRef"
       :columns="visibleColumns"
       :rows="filteredItems"

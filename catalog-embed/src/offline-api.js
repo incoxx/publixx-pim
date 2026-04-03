@@ -260,26 +260,33 @@ export function createOfflineApi(dataPath, options = {}) {
     const cats = await api.getCategories()
     const nodes = cats.nodes || cats
     const ids = new Set()
-    ids.add(categoryId)
 
-    function walk(nodeList) {
+    /**
+     * Sucht den Zielknoten im Baum und sammelt rekursiv alle Nachkommen-IDs.
+     * Kein while-Loop nötig — ein Durchlauf reicht.
+     */
+    function findAndCollect(nodeList) {
       for (const node of nodeList) {
-        if (ids.has(node.id)) {
-          if (node.children && node.children.length) {
-            for (const child of node.children) {
-              ids.add(child.id)
-            }
-          }
+        if (node.id === categoryId) {
+          collectAll(node)
+          return true
         }
-        if (node.children && node.children.length) walk(node.children)
+        if (node.children?.length && findAndCollect(node.children)) return true
+      }
+      return false
+    }
+
+    /** Sammelt node.id + alle Kinder rekursiv */
+    function collectAll(node) {
+      ids.add(node.id)
+      if (node.children?.length) {
+        for (const child of node.children) collectAll(child)
       }
     }
-    // Mehrfach iterieren bis keine neuen IDs mehr gefunden werden (für tiefe Bäume)
-    let prevSize = 0
-    while (ids.size > prevSize) {
-      prevSize = ids.size
-      walk(nodes)
-    }
+
+    findAndCollect(nodes)
+    // Fallback: Kategorie-ID immer einschließen (auch wenn nicht im Baum gefunden)
+    ids.add(categoryId)
     return ids
   }
 
@@ -482,9 +489,11 @@ export function createOfflineApi(dataPath, options = {}) {
         }
         categoryCounts = {}
         for (const p of countSource) {
-          const catIds = p.cats || (p.cat ? [p.cat] : [])
+          const catIds = Array.isArray(p.cats) ? p.cats : (p.cat ? [p.cat] : [])
           for (const catId of catIds) {
-            categoryCounts[catId] = (categoryCounts[catId] || 0) + 1
+            if (catId && typeof catId === 'string') {
+              categoryCounts[catId] = (categoryCounts[catId] || 0) + 1
+            }
           }
         }
       }
