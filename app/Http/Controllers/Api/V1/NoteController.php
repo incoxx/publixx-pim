@@ -10,10 +10,13 @@ use Illuminate\Http\Request;
 
 class NoteController extends Controller
 {
+    /**
+     * Eigene + geteilte Notizen (Dashboard).
+     */
     public function index(Request $request): JsonResponse
     {
-        $notes = Note::forUser($request->user()->id)
-            ->with('product:id,name,sku')
+        $notes = Note::visibleTo($request->user()->id)
+            ->with(['product:id,name,sku', 'creator:id,name'])
             ->orderByDesc('pinned')
             ->orderBy('sort_order')
             ->orderByDesc('updated_at')
@@ -30,6 +33,7 @@ class NoteController extends Controller
             'body' => 'nullable|string|max:5000',
             'color' => 'nullable|string|in:yellow,blue,green,pink,purple,orange',
             'pinned' => 'nullable|boolean',
+            'is_shared' => 'nullable|boolean',
             'product_id' => 'nullable|uuid|exists:products,id',
         ]);
 
@@ -38,13 +42,14 @@ class NoteController extends Controller
             'created_by' => $request->user()->id,
         ]);
 
-        $note->load('product:id,name,sku');
+        $note->load(['product:id,name,sku', 'creator:id,name']);
 
         return response()->json(['data' => $note], 201);
     }
 
     public function update(Request $request, Note $note): JsonResponse
     {
+        // Nur der Ersteller darf bearbeiten
         if ($note->created_by !== $request->user()->id) {
             abort(403);
         }
@@ -54,18 +59,20 @@ class NoteController extends Controller
             'body' => 'nullable|string|max:5000',
             'color' => 'nullable|string|in:yellow,blue,green,pink,purple,orange',
             'pinned' => 'nullable|boolean',
+            'is_shared' => 'nullable|boolean',
             'product_id' => 'nullable|uuid|exists:products,id',
             'sort_order' => 'nullable|integer',
         ]);
 
         $note->update($validated);
-        $note->load('product:id,name,sku');
+        $note->load(['product:id,name,sku', 'creator:id,name']);
 
         return response()->json(['data' => $note]);
     }
 
     public function destroy(Request $request, Note $note): JsonResponse
     {
+        // Nur der Ersteller darf löschen
         if ($note->created_by !== $request->user()->id) {
             abort(403);
         }
@@ -76,11 +83,12 @@ class NoteController extends Controller
     }
 
     /**
-     * Notizen für ein bestimmtes Produkt (alle Nutzer sichtbar).
+     * Notizen für ein bestimmtes Produkt (eigene + geteilte).
      */
     public function forProduct(Request $request, string $productId): JsonResponse
     {
         $notes = Note::where('product_id', $productId)
+            ->visibleTo($request->user()->id)
             ->with('creator:id,name')
             ->orderByDesc('pinned')
             ->orderByDesc('updated_at')

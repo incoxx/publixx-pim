@@ -1,8 +1,11 @@
 <script setup>
-import { ref, onMounted } from 'vue'
-import { StickyNote, Plus, Pin, PinOff, Trash2, X, Package, Link2 } from 'lucide-vue-next'
+import { ref, computed, onMounted } from 'vue'
+import { StickyNote, Plus, Pin, PinOff, Trash2, X, Package, Link2, Users, Lock } from 'lucide-vue-next'
+import { useAuthStore } from '@/stores/auth'
 import DashboardWidgetWrapper from './DashboardWidgetWrapper.vue'
 import notesApi from '@/api/notes'
+
+const authStore = useAuthStore()
 
 const notes = ref([])
 const loading = ref(false)
@@ -18,7 +21,9 @@ const NOTE_COLORS = [
   { key: 'orange', bg: '#ffedd5', border: '#fb923c', text: '#7c2d12' },
 ]
 
-const form = ref({ title: '', body: '', color: 'yellow', product_id: null })
+const form = ref({ title: '', body: '', color: 'yellow', is_shared: false, product_id: null })
+
+const isOwnNote = (note) => note.created_by === authStore.user?.id
 
 // Produkt-Suche
 const productSearch = ref('')
@@ -41,7 +46,7 @@ async function fetchNotes() {
 
 function openNewNote() {
   editingNote.value = null
-  form.value = { title: '', body: '', color: 'yellow', product_id: null }
+  form.value = { title: '', body: '', color: 'yellow', is_shared: false, product_id: null }
   linkedProduct.value = null
   productSearch.value = ''
   showForm.value = true
@@ -53,6 +58,7 @@ function openEditNote(note) {
     title: note.title,
     body: note.body || '',
     color: note.color,
+    is_shared: note.is_shared,
     product_id: note.product_id,
   }
   linkedProduct.value = note.product || null
@@ -166,6 +172,13 @@ onMounted(fetchNotes)
           />
         </div>
 
+        <!-- Sichtbarkeit -->
+        <label class="flex items-center gap-2 text-xs cursor-pointer">
+          <input type="checkbox" v-model="form.is_shared" class="rounded border-[var(--color-border-strong)] text-[var(--color-accent)]" />
+          <Users class="w-3.5 h-3.5 text-[var(--color-text-tertiary)]" :stroke-width="2" />
+          <span class="text-[var(--color-text-secondary)]">Für alle sichtbar</span>
+        </label>
+
         <!-- Produkt-Verknüpfung -->
         <div>
           <div v-if="linkedProduct" class="flex items-center gap-2 text-xs bg-[var(--color-bg)] rounded px-2 py-1.5">
@@ -223,15 +236,18 @@ onMounted(fetchNotes)
             borderColor: getColor(note.color).border,
             color: getColor(note.color).text,
           }"
-          @click="openEditNote(note)"
+          @click="isOwnNote(note) ? openEditNote(note) : null"
         >
-          <!-- Pin-Indikator -->
+          <!-- Pin + Shared Indikatoren -->
           <Pin
             v-if="note.pinned"
             class="absolute -top-1 -right-1 w-3.5 h-3.5 rotate-45"
             :style="{ color: getColor(note.color).border }"
             :stroke-width="2.5"
           />
+          <div v-if="note.is_shared" class="absolute top-1 left-1">
+            <Users class="w-3 h-3 opacity-40" :stroke-width="2" />
+          </div>
 
           <!-- Titel -->
           <p class="text-xs font-semibold leading-tight truncate pr-4">{{ note.title }}</p>
@@ -246,18 +262,21 @@ onMounted(fetchNotes)
             <router-link
               v-if="note.product"
               :to="{ name: 'product-detail', params: { id: note.product.id } }"
-              class="flex items-center gap-0.5 text-[9px] hover:underline truncate flex-1"
+              class="flex items-center gap-0.5 text-[9px] hover:underline truncate"
               @click.stop
             >
               <Package class="w-2.5 h-2.5 shrink-0" :stroke-width="2" />
               {{ note.product.sku || note.product.name }}
             </router-link>
-            <span v-else class="flex-1"></span>
+            <span v-if="!isOwnNote(note) && note.creator" class="text-[9px] truncate">
+              {{ note.creator.name }}
+            </span>
+            <span class="flex-1"></span>
             <span class="text-[9px] shrink-0">{{ timeAgo(note.updated_at) }}</span>
           </div>
 
-          <!-- Hover-Aktionen -->
-          <div class="absolute top-1 right-1 hidden group-hover:flex items-center gap-0.5" @click.stop>
+          <!-- Hover-Aktionen (nur eigene Notizen) -->
+          <div v-if="isOwnNote(note)" class="absolute top-1 right-1 hidden group-hover:flex items-center gap-0.5" @click.stop>
             <button
               class="p-0.5 rounded hover:bg-black/10 transition-colors"
               :title="note.pinned ? 'Loslösen' : 'Anheften'"

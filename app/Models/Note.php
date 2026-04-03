@@ -17,6 +17,7 @@ class Note extends Model
         'body',
         'color',
         'pinned',
+        'is_shared',
         'product_id',
         'created_by',
         'sort_order',
@@ -26,6 +27,7 @@ class Note extends Model
     {
         return [
             'pinned' => 'boolean',
+            'is_shared' => 'boolean',
             'sort_order' => 'integer',
         ];
     }
@@ -38,6 +40,17 @@ class Note extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /**
+     * Eigene + geteilte Notizen.
+     */
+    public function scopeVisibleTo($query, string $userId)
+    {
+        return $query->where(function ($q) use ($userId) {
+            $q->where('created_by', $userId)
+              ->orWhere('is_shared', true);
+        });
     }
 
     public function scopeForUser($query, string $userId)

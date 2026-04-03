@@ -16,12 +16,14 @@ return new class extends Migration
             $table->text('body')->nullable();
             $table->string('color', 20)->default('yellow'); // yellow, blue, green, pink, purple, orange
             $table->boolean('pinned')->default(false);
+            $table->boolean('is_shared')->default(false);
             $table->foreignUuid('product_id')->nullable()->constrained('products')->nullOnDelete();
             $table->foreignUuid('created_by')->constrained('users')->cascadeOnDelete();
             $table->integer('sort_order')->default(0);
             $table->timestamps();
 
             $table->index(['created_by', 'pinned', 'sort_order']);
+            $table->index(['is_shared', 'updated_at']);
             $table->index('product_id');
         });
     }
