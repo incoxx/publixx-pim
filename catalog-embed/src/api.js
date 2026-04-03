@@ -133,6 +133,10 @@ export const catalogApi = {
     if (cached) return cached
     const resp = await request(path)
     const data = await resp.json()
+    // Dynamische Kategorie-Counts (nur vorhanden wenn Facetten-Filter aktiv)
+    const ccHeader = resp.headers.get('x-category-counts')
+    const categoryCounts = ccHeader ? JSON.parse(ccHeader) : null
+
     const result = {
       products: Array.isArray(data) ? data : (data.data || data),
       meta: {
@@ -141,6 +145,7 @@ export const catalogApi = {
         per_page: parseInt(resp.headers.get('x-per-page') || '24', 10),
         total: parseInt(resp.headers.get('x-total-count') || '0', 10),
       },
+      category_counts: categoryCounts,
     }
     setCache(path, result)
     return result

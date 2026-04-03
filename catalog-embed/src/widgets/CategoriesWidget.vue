@@ -7,6 +7,18 @@ import CategorySubtree from './CategorySubtree.vue'
 const { state, actions, getters } = useStore()
 const expandedNodes = ref({})
 
+// Dynamische Counts: bei aktiven Filtern die gefilterten Counts verwenden
+const hasFilters = () => Object.keys(state.activeFilters).length > 0
+function dynamicCount(node) {
+  if (!hasFilters() || !state.categoryCounts || Object.keys(state.categoryCounts).length === 0) {
+    return node.product_count
+  }
+  return state.categoryCounts[node.id] ?? 0
+}
+function isEmpty(node) {
+  return hasFilters() && Object.keys(state.categoryCounts).length > 0 && dynamicCount(node) === 0
+}
+
 // Auto-expand nodes up to the configured depth
 function expandRootNodes() {
   const maxDepth = state.settings?.catalog_category_expand_depth ?? 1
@@ -92,11 +104,14 @@ function isExpanded(nodeId) {
             <span v-else class="pxc-categories__toggle-space"></span>
             <button
               class="pxc-categories__item"
-              :class="{ 'pxc-categories__item--active': state.selectedCategoryId === node.id }"
+              :class="{
+                'pxc-categories__item--active': state.selectedCategoryId === node.id,
+                'pxc-categories__item--empty': isEmpty(node),
+              }"
               @click="selectCategory(node)"
             >
               {{ node.name }}
-              <span v-if="node.product_count" class="pxc-categories__count">{{ node.product_count }}</span>
+              <span v-if="dynamicCount(node)" class="pxc-categories__count">{{ dynamicCount(node) }}</span>
             </button>
           </div>
         </div>

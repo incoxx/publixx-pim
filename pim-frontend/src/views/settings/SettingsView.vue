@@ -2843,9 +2843,9 @@ onUnmounted(() => {
             v-if="offlineBundleStatus?.built"
             :href="offlineCatalogApi.bundleDownloadUrl(authStore.token)"
             class="pim-btn pim-btn-secondary text-xs"
-            download="catalog-offline.umd.js"
+            download="catalog-offline-bundle.zip"
           >
-            UMD herunterladen
+            Bundle (ZIP) herunterladen
           </a>
         </div>
       </div>

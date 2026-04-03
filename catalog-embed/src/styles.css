@@ -167,6 +167,7 @@
 .pxc-categories__item:hover { background: var(--pxc-surface); }
 .pxc-categories__item--active { background: var(--pxc-primary); color: var(--pxc-primary-text); font-weight: 500; }
 .pxc-categories__item--active:hover { background: var(--pxc-primary); }
+.pxc-categories__item--empty { opacity: 0.35; }
 .pxc-categories__count { margin-left: auto; font-size: 0.6875rem; opacity: 0.5; }
 .pxc-categories__row { display: flex; align-items: center; }
 .pxc-categories__toggle {

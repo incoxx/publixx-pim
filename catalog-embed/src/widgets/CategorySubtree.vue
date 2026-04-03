@@ -1,5 +1,6 @@
 <script setup>
 import { icons } from '../icons.js'
+import { useStore } from '../store.js'
 
 defineProps({
   nodes: { type: Array, required: true },
@@ -9,6 +10,18 @@ defineProps({
 })
 
 const emit = defineEmits(['toggle', 'select'])
+
+const { state } = useStore()
+const hasFilters = () => Object.keys(state.activeFilters).length > 0
+function dynamicCount(node) {
+  if (!hasFilters() || !state.categoryCounts || Object.keys(state.categoryCounts).length === 0) {
+    return node.product_count
+  }
+  return state.categoryCounts[node.id] ?? 0
+}
+function isEmpty(node) {
+  return hasFilters() && Object.keys(state.categoryCounts).length > 0 && dynamicCount(node) === 0
+}
 </script>
 
 <template>
@@ -24,11 +37,14 @@ const emit = defineEmits(['toggle', 'select'])
         <span v-else class="pxc-categories__toggle-space"></span>
         <button
           class="pxc-categories__item"
-          :class="{ 'pxc-categories__item--active': selectedCategoryId === node.id }"
+          :class="{
+            'pxc-categories__item--active': selectedCategoryId === node.id,
+            'pxc-categories__item--empty': isEmpty(node),
+          }"
           @click="emit('select', node)"
         >
           {{ node.name }}
-          <span v-if="node.product_count" class="pxc-categories__count">{{ node.product_count }}</span>
+          <span v-if="dynamicCount(node)" class="pxc-categories__count">{{ dynamicCount(node) }}</span>
         </button>
       </div>
     </div>

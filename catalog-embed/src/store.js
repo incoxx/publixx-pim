@@ -75,6 +75,7 @@ function createStore() {
     categories: [],
     hierarchyInfo: null,
     categoriesLoading: false,
+    categoryCounts: {},  // Dynamische Counts bei aktiven Filtern: { nodeId: count }
 
     // Facets
     facets: [],
@@ -168,6 +169,7 @@ function createStore() {
           image_url: _resolveMedia(p.image_url),
         }))
         state.meta = result.meta
+        state.categoryCounts = result.category_counts || {}
       } catch (e) {
         state.error = e.data?.title || 'Fehler beim Laden'
         state.products = []
@@ -257,6 +259,9 @@ function createStore() {
     setSearch(term) {
       state.search = term
       state.meta.current_page = 1
+      for (const key of Object.keys(state.activeFilters)) {
+        delete state.activeFilters[key]
+      }
     },
 
     /**
@@ -268,6 +273,9 @@ function createStore() {
       state.selectedCategoryId = nodeId
       state.selectedCategoryName = nodeName
       state.meta.current_page = 1
+      for (const key of Object.keys(state.activeFilters)) {
+        delete state.activeFilters[key]
+      }
       actions.fetchCategoryAssets(nodeId)
     },
 
@@ -292,6 +300,9 @@ function createStore() {
       state.selectedCategoryName = null
       state.categoryAssets = []
       state.meta.current_page = 1
+      for (const key of Object.keys(state.activeFilters)) {
+        delete state.activeFilters[key]
+      }
     },
 
     setPage(page) {

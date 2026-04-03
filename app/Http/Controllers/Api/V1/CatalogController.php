@@ -280,6 +280,39 @@ class CatalogController extends BaseController
             $query->orderBy($sortColumn, $sortOrder);
         }
 
+        // Dynamische Kategorie-Counts berechnen wenn Facetten-Filter aktiv (nicht bei Suche).
+        // Ermöglicht dem Frontend, Kategorien ohne Treffer auszugrauen.
+        $categoryCounts = null;
+        $hasActiveFilters = !$isSearchActive && !empty($filters) && is_array($filters) && count($filters) > 0;
+        if ($hasActiveFilters) {
+            $countQuery = (clone $query)->reorder()
+                ->select('products.master_hierarchy_node_id', DB::raw('COUNT(DISTINCT products.id) as cnt'))
+                ->groupBy('products.master_hierarchy_node_id');
+            $directCounts = $countQuery->pluck('cnt', 'master_hierarchy_node_id')->toArray();
+
+            // Auf Eltern-Knoten hochrollen
+            if (!empty($directCounts)) {
+                $nodeIds = array_keys($directCounts);
+                $pathNodes = HierarchyNode::whereIn('id', $nodeIds)->get(['id', 'parent_node_id', 'depth']);
+                // Alle Vorfahren laden für vollständiges Roll-up
+                $allPaths = HierarchyNode::whereIn('hierarchy_id',
+                    $pathNodes->pluck('hierarchy_id')->unique()
+                )->get(['id', 'parent_node_id', 'depth']);
+
+                $rolledUp = [];
+                foreach ($allPaths as $n) {
+                    $rolledUp[$n->id] = $directCounts[$n->id] ?? 0;
+                }
+                foreach ($allPaths->sortByDesc('depth') as $n) {
+                    if ($n->parent_node_id && isset($rolledUp[$n->parent_node_id])) {
+                        $rolledUp[$n->parent_node_id] += $rolledUp[$n->id];
+                    }
+                }
+                // Nur Knoten mit Count > 0 oder die direkte Zuordnung haben
+                $categoryCounts = array_filter($rolledUp, fn ($c) => $c > 0);
+            }
+        }
+
         $paginated = $query->paginate($perPage);
 
         // Load card attributes if configured
@@ -489,12 +522,19 @@ class CatalogController extends BaseController
             ->additional(['lang' => $lang])
             ->resolve();
 
-        return response()->json($data, 200, [
+        $headers = [
             'X-Total-Count' => (string) $paginated->total(),
             'X-Current-Page' => (string) $paginated->currentPage(),
             'X-Last-Page' => (string) $paginated->lastPage(),
             'X-Per-Page' => (string) $paginated->perPage(),
-        ]);
+        ];
+
+        // Kategorie-Counts als Header mitgeben wenn berechnet
+        if ($categoryCounts !== null) {
+            $headers['X-Category-Counts'] = json_encode($categoryCounts);
+        }
+
+        return response()->json($data, 200, $headers);
     }
 
     /**
