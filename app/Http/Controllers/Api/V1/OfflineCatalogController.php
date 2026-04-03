@@ -151,6 +151,13 @@ class OfflineCatalogController extends BaseController
         $jsPath = "{$catalogEmbedDir}/dist/catalog-offline.umd.js";
         $cssPath = "{$catalogEmbedDir}/dist/catalog-embed.css";
 
+        // Alte Source Maps aufräumen bei Non-Debug-Build,
+        // damit bundleStatus() nicht fälschlich debug=true meldet
+        if (!$debug) {
+            @unlink("{$catalogEmbedDir}/dist/catalog-offline.umd.js.map");
+            @unlink("{$catalogEmbedDir}/dist/catalog-embed.css.map");
+        }
+
         return response()->json([
             'message' => $debug ? 'Offline-Bundle (Debug) erfolgreich gebaut.' : 'Offline-Bundle erfolgreich gebaut.',
             'js_size' => file_exists($jsPath) ? filesize($jsPath) : 0,
