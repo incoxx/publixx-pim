@@ -110,8 +110,13 @@ class OfflineCatalogController extends BaseController
      *
      * Baut das Offline-JS/CSS-Bundle (catalog-offline.umd.js + catalog-embed.css).
      */
-    public function buildBundle(): JsonResponse
+    public function buildBundle(Request $request): JsonResponse
     {
+        $request->validate([
+            'debug' => 'sometimes|boolean',
+        ]);
+
+        $debug = $request->boolean('debug');
         $catalogEmbedDir = base_path('catalog-embed');
 
         if (!is_dir($catalogEmbedDir)) {
@@ -126,10 +131,15 @@ class OfflineCatalogController extends BaseController
             }
         }
 
-        // Build
+        // Build (mit optionalem Debug-Modus: ohne Minifizierung, mit Source Maps)
+        $envVars = 'VITE_BUILD_TARGET=offline';
+        if ($debug) {
+            $envVars .= ' VITE_DEBUG_BUILD=1';
+        }
+
         $output = [];
         exec(
-            "cd " . escapeshellarg($catalogEmbedDir) . " && VITE_BUILD_TARGET=offline npx vite build 2>&1",
+            "cd " . escapeshellarg($catalogEmbedDir) . " && {$envVars} npx vite build 2>&1",
             $output,
             $code,
         );
@@ -142,9 +152,10 @@ class OfflineCatalogController extends BaseController
         $cssPath = "{$catalogEmbedDir}/dist/catalog-embed.css";
 
         return response()->json([
-            'message' => 'Offline-Bundle erfolgreich gebaut.',
+            'message' => $debug ? 'Offline-Bundle (Debug) erfolgreich gebaut.' : 'Offline-Bundle erfolgreich gebaut.',
             'js_size' => file_exists($jsPath) ? filesize($jsPath) : 0,
             'css_size' => file_exists($cssPath) ? filesize($cssPath) : 0,
+            'debug' => $debug,
         ]);
     }
 
@@ -163,6 +174,7 @@ class OfflineCatalogController extends BaseController
             'js_size' => file_exists($jsPath) ? filesize($jsPath) : 0,
             'css_size' => file_exists($cssPath) ? filesize($cssPath) : 0,
             'built_at' => file_exists($jsPath) ? date('c', filemtime($jsPath)) : null,
+            'debug' => file_exists($jsPath . '.map'),
         ]);
     }
 

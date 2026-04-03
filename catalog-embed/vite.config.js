@@ -4,6 +4,7 @@ import { resolve } from 'path'
 
 // Determine build target from VITE_BUILD_TARGET env var
 const buildTarget = process.env.VITE_BUILD_TARGET || 'online'
+const isDebugBuild = process.env.VITE_DEBUG_BUILD === '1'
 
 const onlineConfig = {
   entry: resolve(__dirname, 'src/index.js'),
@@ -31,7 +32,8 @@ export default defineConfig({
       },
     },
     cssCodeSplit: false,
-    minify: 'esbuild',
+    minify: isDebugBuild ? false : 'esbuild',
+    sourcemap: isDebugBuild,
   },
   define: {
     'process.env.NODE_ENV': JSON.stringify('production'),

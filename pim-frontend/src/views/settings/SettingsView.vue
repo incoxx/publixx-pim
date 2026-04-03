@@ -104,6 +104,7 @@ const offlineCatalogCleanupResult = ref(null)
 const offlineBundleStatus = ref(null)
 const offlineBundleBuilding = ref(false)
 const offlineBundleError = ref(null)
+const offlineBundleDebug = ref(false)
 
 async function loadOfflineCatalogStatus() {
   try {
@@ -123,7 +124,7 @@ async function buildOfflineBundle() {
   offlineBundleBuilding.value = true
   offlineBundleError.value = null
   try {
-    await offlineCatalogApi.buildBundle()
+    await offlineCatalogApi.buildBundle(offlineBundleDebug.value)
     await loadOfflineBundleStatus()
   } catch (e) {
     offlineBundleError.value = e.response?.data?.message || 'Build fehlgeschlagen.'
@@ -2809,6 +2810,7 @@ onUnmounted(() => {
           <span v-if="offlineBundleStatus?.built" class="flex items-center gap-1.5 text-[var(--color-text-secondary)]">
             <CheckCircle class="w-3.5 h-3.5 text-green-500" />
             Offline-Bundle vorhanden
+            <span v-if="offlineBundleStatus.debug" class="text-amber-600 dark:text-amber-400 font-medium">(Debug)</span>
             <span class="text-[var(--color-text-tertiary)]">
               ({{ formatFileSize(offlineBundleStatus.js_size + offlineBundleStatus.css_size) }},
               gebaut am {{ new Date(offlineBundleStatus.built_at).toLocaleDateString('de') }})
@@ -2821,6 +2823,23 @@ onUnmounted(() => {
           </span>
         </div>
       </div>
+
+      <!-- Bundle Build Controls -->
+      <div class="flex items-center gap-4">
+        <label class="flex items-center gap-2 text-xs text-[var(--color-text-secondary)] cursor-pointer">
+          <input type="checkbox" v-model="offlineBundleDebug" class="rounded" :disabled="offlineBundleBuilding" />
+          Debug-Modus (ohne Minifizierung, mit Source Maps)
+        </label>
+        <button
+          class="pim-btn pim-btn-secondary text-xs"
+          @click="buildOfflineBundle"
+          :disabled="offlineBundleBuilding"
+        >
+          <Loader2 v-if="offlineBundleBuilding" class="w-3.5 h-3.5 animate-spin" />
+          {{ offlineBundleBuilding ? 'Bundle wird gebaut...' : 'Bundle bauen' }}
+        </button>
+      </div>
+      <p v-if="offlineBundleError" class="text-xs text-red-600 dark:text-red-400">{{ offlineBundleError }}</p>
 
       <!-- Template Selection -->
       <div class="space-y-1">
