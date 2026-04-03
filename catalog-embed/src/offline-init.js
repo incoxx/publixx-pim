@@ -1,32 +1,51 @@
 /**
- * PublixxCatalogOffline — Offline catalog entry point.
+ * PublixxCatalogOffline — Einstiegspunkt für den Offline-Katalog.
  *
- * Usage:
- *   <script src="catalog-offline.umd.js"></script>
- *   <script>
- *     PublixxCatalogOffline.init({ dataPath: './data/' })
- *   </script>
+ * Wird als UMD-Bundle (`catalog-offline.umd.js`) gebaut und per `<script>`-Tag eingebunden.
+ * Alle Daten werden aus vorexportierten JSON-Dateien gelesen (kein Server nötig).
  *
- * Then place widgets anywhere in your HTML (same as online):
- *   <div data-catalog="search"></div>
- *   <div data-catalog="categories"></div>
- *   <div data-catalog="facets"></div>
- *   <div data-catalog="toolbar"></div>
- *   <div data-catalog="product-grid"></div>
- *   <div data-catalog="pagination"></div>
- *   <div data-catalog="wishlist"></div>
- *   <div data-catalog="wishlist-button"></div>
- *   <div data-catalog="locale"></div>
- *   <div data-catalog="active-filters"></div>
- *   <div data-catalog="product-detail"></div>
- *   <div data-catalog="compare"></div>
+ * ## Verwendung
+ *
+ * ```html
+ * <link rel="stylesheet" href="./catalog-embed.css">
+ * <script src="./catalog-offline.umd.js"></script>
+ * <script>
+ *   PublixxCatalogOffline.init({
+ *     dataPath: './data/',
+ *     locale: 'de',
+ *     perPage: 24,
+ *   })
+ * </script>
+ * ```
+ *
+ * ## Widgets (data-catalog Attribut)
+ *
+ * Widgets werden automatisch erkannt und in DOM-Elemente gemountet:
+ *
+ * | Widget              | Funktion                               |
+ * |---------------------|----------------------------------------|
+ * | `search`            | Suchfeld                               |
+ * | `categories`        | Kategorie-Baum (Sidebar)               |
+ * | `facets`            | Facetten-Filter (Sidebar)              |
+ * | `toolbar`           | Sortierung, Ansicht, Ergebnisanzahl    |
+ * | `product-grid`      | Produktliste (Grid/Liste)              |
+ * | `pagination`        | Seitenwechsel                          |
+ * | `wishlist`          | Merkliste-Ansicht                      |
+ * | `wishlist-button`   | Merkliste-Toggle-Button                |
+ * | `locale`            | Sprachauswahl (de/en)                  |
+ * | `active-filters`    | Aktive Filter-Tags                     |
+ * | `product-detail`    | Produktdetail-Modal                    |
+ * | `compare`           | Produktvergleich-Modal                 |
+ * | `sidebar-toggle`    | Hamburger-Menü für Mobile              |
+ *
+ * @module offline-init
  */
 
 import { createApp, h } from 'vue'
 import { setApiProvider, useStore } from './store.js'
 import { createOfflineApi, offlineResolveMediaUrl } from './offline-api.js'
 
-// Widget imports (same as index.js)
+// Widget-Imports (identisch zu index.js für Online-Modus)
 import SearchWidget from './widgets/SearchWidget.vue'
 import CategoriesWidget from './widgets/CategoriesWidget.vue'
 import FacetsWidget from './widgets/FacetsWidget.vue'
@@ -60,8 +79,15 @@ const WIDGET_MAP = {
   'sidebar-toggle': SidebarToggleWidget,
 }
 
+/** @type {{el: HTMLElement, app: import('vue').App}[]} Gemountete Vue-App-Instanzen */
 const mountedApps = []
 
+/**
+ * Findet alle `[data-catalog]` Elemente im DOM und mountet die passenden Vue-Widgets.
+ *
+ * Bereits gemountete Elemente (markiert via `__pxc_mounted`) werden übersprungen.
+ * Zusätzliche `data-*` Attribute werden als Props an das Widget übergeben.
+ */
 function mountWidgets() {
   const elements = document.querySelectorAll('[data-catalog]')
 
@@ -94,13 +120,21 @@ function mountWidgets() {
   })
 }
 
+/**
+ * Unmountet alle aktiven Widget-Instanzen und räumt die Liste auf.
+ */
 function destroy() {
   mountedApps.forEach(({ app }) => app.unmount())
   mountedApps.length = 0
 }
 
 /**
- * Show/hide a loading overlay with progress info.
+ * Zeigt ein Lade-Overlay mit Fortschrittsanzeige.
+ *
+ * Wird beim initialen Chunk-Loading angezeigt und enthält einen
+ * Fortschrittstext (#pxc-offline-progress), der via updateLoadingProgress() aktualisiert wird.
+ *
+ * @param {string} message - Anzuzeigende Nachricht (z.B. 'Offline-Katalog wird geladen...')
  */
 function showLoadingOverlay(message) {
   let overlay = document.getElementById('pxc-offline-loading')
@@ -117,6 +151,12 @@ function showLoadingOverlay(message) {
   overlay.style.display = 'flex'
 }
 
+/**
+ * Aktualisiert den Fortschrittstext im Lade-Overlay.
+ *
+ * @param {number} loaded - Anzahl geladener Produkte
+ * @param {number} total - Gesamtanzahl der Produkte
+ */
 function updateLoadingProgress(loaded, total) {
   const el = document.getElementById('pxc-offline-progress')
   if (el) {
@@ -125,21 +165,30 @@ function updateLoadingProgress(loaded, total) {
   }
 }
 
+/** Versteckt das Lade-Overlay (nach Abschluss des Chunk-Loadings). */
 function hideLoadingOverlay() {
   const overlay = document.getElementById('pxc-offline-loading')
   if (overlay) overlay.style.display = 'none'
 }
 
 /**
- * Initialize the offline catalog.
+ * Initialisiert den Offline-Katalog.
  *
- * @param {Object} options
- * @param {string} options.dataPath - Path to the data directory (default: './data/')
- * @param {string} [options.locale] - Default locale ("de" or "en")
- * @param {number} [options.perPage] - Products per page (default: 24)
- * @param {boolean} [options.autoMount] - Auto-discover and mount widgets (default: true)
- * @param {boolean} [options.showProgress] - Show loading overlay during data load (default: true)
- * @param {object} [options.azure] - Azure configuration for hosted mode (Phase 3)
+ * Ablauf:
+ * 1. Offline-API erstellen und in den Store injizieren
+ * 2. Store-Defaults konfigurieren (Locale, perPage)
+ * 3. Settings laden (Theme, Feature-Flags)
+ * 4. Widgets auto-mounten (falls autoMount !== false)
+ * 5. Kategorien, Facetten und Produkte parallel laden
+ * 6. Deeplinks auswerten (?sku=, ?cat=, ?lang=, ?filters[]=)
+ *
+ * @param {Object} [options]
+ * @param {string} [options.dataPath='./data/'] - Pfad zum Datenverzeichnis
+ * @param {string} [options.locale] - Startsprache ('de' oder 'en')
+ * @param {number} [options.perPage=24] - Produkte pro Seite
+ * @param {boolean} [options.autoMount=true] - Widgets automatisch erkennen und mounten
+ * @param {boolean} [options.showProgress=true] - Lade-Overlay mit Fortschritt anzeigen
+ * @returns {Promise<void>} Resolves wenn alle Daten geladen und Widgets gemountet sind
  */
 async function init(options = {}) {
   const dataPath = options.dataPath || './data/'

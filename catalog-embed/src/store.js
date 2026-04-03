@@ -1,24 +1,51 @@
 /**
- * Reactive catalog store — powered by Vue 3 reactivity without Pinia.
- * All widgets share this single reactive state.
+ * Reaktiver Katalog-Store — nutzt Vue 3 Reactivity direkt (ohne Pinia/Vuex).
+ *
+ * Singleton: Alle Widgets teilen denselben reaktiven State. Der Store wird
+ * einmalig via `useStore()` erstellt und danach gecacht.
+ *
+ * ## Architektur
+ *
+ * ```
+ * API-Provider (online oder offline)
+ *       ↕ setApiProvider()
+ * Store (state + actions + getters)
+ *       ↕ useStore()
+ * Widgets (Vue-Komponenten lesen/schreiben state, rufen actions auf)
+ * ```
+ *
+ * Der Store ist API-agnostisch — im Online-Modus wird `catalogApi` (api.js)
+ * verwendet, im Offline-Modus `createOfflineApi` (offline-api.js).
+ * Der Wechsel geschieht via `setApiProvider()` vor dem ersten `fetchProducts()`.
+ *
+ * @module store
  */
 import { reactive, computed, watch } from 'vue'
 import { catalogApi as defaultApi, resolveMediaUrl as defaultResolveMedia, clearCache } from './api.js'
 
-// Swappable API provider — allows offline mode to inject a different backend
+/** @type {Object} Aktiver API-Provider (austauschbar via setApiProvider) */
 let _api = defaultApi
+/** @type {function(string): string} Aktiver Media-URL-Resolver */
 let _resolveMedia = defaultResolveMedia
 
 /**
- * Replace the API backend used by the store.
- * @param {object} api - Object implementing the same interface as catalogApi
- * @param {function} [resolveMedia] - Optional media URL resolver override
+ * Tauscht den API-Provider aus. Muss vor dem ersten Datenzugriff aufgerufen werden.
+ *
+ * Im Offline-Modus wird hier `createOfflineApi()` + `offlineResolveMediaUrl` injiziert.
+ *
+ * @param {Object} api - API-Objekt (muss getProducts, getProduct, getCategories, etc. implementieren)
+ * @param {function} [resolveMedia] - Media-URL-Resolver (Standard: Online-Resolver)
  */
 export function setApiProvider(api, resolveMedia) {
   _api = api
   if (resolveMedia) _resolveMedia = resolveMedia
 }
 
+/**
+ * Erstellt den reaktiven Store mit State, Getters und Actions.
+ *
+ * @returns {{state: Object, getters: Object, actions: Object}}
+ */
 function createStore() {
   const state = reactive({
     // Products
@@ -105,6 +132,7 @@ function createStore() {
 
   // --- Actions ---
   const actions = {
+    /** Lädt Katalog-Einstellungen (Theme, Feature-Flags, Default-Locale). */
     async fetchSettings() {
       try {
         const data = await _api.getSettings()
@@ -118,6 +146,7 @@ function createStore() {
       }
     },
 
+    /** Lädt Produkte basierend auf aktuellem State (Suche, Kategorie, Filter, Sortierung, Seite). */
     async fetchProducts() {
       state.loading = true
       state.error = null
@@ -147,6 +176,10 @@ function createStore() {
       }
     },
 
+    /**
+     * Lädt ein vollständiges Produktdetail und setzt es als currentProduct.
+     * @param {string} id - Produkt-UUID
+     */
     async fetchProduct(id) {
       state.productLoading = true
       state.error = null
@@ -164,6 +197,7 @@ function createStore() {
       }
     },
 
+    /** Lädt den Kategorie-Baum und speichert hierarchy-Info. */
     async fetchCategories() {
       state.categoriesLoading = true
       try {
@@ -185,6 +219,7 @@ function createStore() {
       }
     },
 
+    /** Lädt Facetten-Filter (berücksichtigt aktive Filter und Kategorie für Counts). */
     async fetchFacets() {
       try {
         const opts = { lang: state.locale }
@@ -204,6 +239,7 @@ function createStore() {
       }
     },
 
+    /** Lädt Attributgruppen für die Detail-Ansicht. */
     async fetchAttributeGroups() {
       try {
         const data = await _api.getAttributeGroups({ lang: state.locale })
@@ -214,12 +250,20 @@ function createStore() {
       }
     },
 
-    // Navigation
+    /**
+     * Setzt den Suchbegriff und springt auf Seite 1.
+     * @param {string} term - Suchbegriff
+     */
     setSearch(term) {
       state.search = term
       state.meta.current_page = 1
     },
 
+    /**
+     * Wählt eine Kategorie und lädt deren Assets.
+     * @param {string|null} nodeId - Kategorie-UUID
+     * @param {string|null} [nodeName] - Anzeigename
+     */
     setCategory(nodeId, nodeName = null) {
       state.selectedCategoryId = nodeId
       state.selectedCategoryName = nodeName
@@ -301,7 +345,14 @@ function createStore() {
     },
 
     /**
-     * Process URL deeplinks: ?sku=XXX opens product detail, ?cat=XXX selects category.
+     * Wertet URL-Deeplinks aus und wendet sie auf den State an.
+     *
+     * Unterstützte Parameter:
+     * - `?lang=de` — Sprache setzen
+     * - `?cat=<uuid>` — Kategorie öffnen
+     * - `?filters[<attr-id>]=<value>` — Facetten-Filter setzen
+     * - `?sku=<sku>` — Produktdetail per SKU-Suche öffnen
+     * - `?wishlist=<id1>,<id2>` — Merkliste importieren (via importWishlistFromUrl)
      */
     async applyDeeplinks() {
       const params = new URLSearchParams(window.location.search)
@@ -348,6 +399,7 @@ function createStore() {
       }
     },
 
+    /** Importiert eine geteilte Merkliste aus der URL (?wishlist=id1,id2,...) und bereinigt die URL. */
     importWishlistFromUrl() {
       const params = new URLSearchParams(window.location.search)
       const wl = params.get('wishlist')
@@ -364,7 +416,10 @@ function createStore() {
       window.history.replaceState({}, '', newUrl)
     },
 
-    // Detail view
+    /**
+     * Öffnet die Produktdetail-Ansicht und lädt das Produkt.
+     * @param {string} productId - Produkt-UUID
+     */
     openDetail(productId) {
       state.detailProductId = productId
       state.detailOpen = true
@@ -377,7 +432,10 @@ function createStore() {
       state.detailProductId = null
     },
 
-    // Compare
+    /**
+     * Öffnet den Produktvergleich und lädt die Vergleichsdaten.
+     * @param {string[]} [productIds] - Produkt-UUIDs (Standard: Merkliste)
+     */
     async openCompare(productIds) {
       state.compareProductIds = productIds || [...state.wishlistIds]
       state.compareOpen = true
@@ -423,6 +481,12 @@ function createStore() {
   return { state, getters, actions }
 }
 
+/**
+ * Erzeugt einen temporären Download-Link für einen Blob und löst den Download aus.
+ *
+ * @param {Blob} blob - Dateiinhalt
+ * @param {string} filename - Dateiname für den Download
+ */
 function triggerBlobDownload(blob, filename) {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
@@ -434,8 +498,14 @@ function triggerBlobDownload(blob, filename) {
   URL.revokeObjectURL(url)
 }
 
-// Singleton store instance
+/** @type {{state: Object, getters: Object, actions: Object}|null} Singleton-Instanz */
 let _store = null
+
+/**
+ * Gibt die Singleton-Store-Instanz zurück (erstellt sie beim ersten Aufruf).
+ *
+ * @returns {{state: Object, getters: Object, actions: Object}}
+ */
 export function useStore() {
   if (!_store) _store = createStore()
   return _store
