@@ -58,8 +58,6 @@ const configuratorTarget = ref(null)
 // Preset State
 const showPresetPanel = ref(false)
 const presetSaveName = ref('')
-const presetSaveDesc = ref('')
-const showPresetSave = ref(false)
 
 // ─── Computed: sichtbare Widgets in Reihenfolge ────────────────
 const visibleWidgets = computed(() =>
@@ -218,11 +216,9 @@ async function saveAsPreset() {
   try {
     await dashboardPresetsApi.saveFromCurrent({
       name: presetSaveName.value.trim(),
-      description: presetSaveDesc.value.trim() || null,
     })
     presetSaveName.value = ''
-    presetSaveDesc.value = ''
-    showPresetSave.value = false
+    showPresetPanel.value = false
     await store.loadPresets()
   } catch { /* ignore */ }
 }
@@ -323,18 +319,18 @@ onUnmounted(() => {
             </div>
             <p v-else class="px-3 py-3 text-xs text-[var(--color-text-tertiary)] text-center">Keine Layouts vorhanden</p>
             <div v-if="isAdmin" class="border-t border-[var(--color-border)] mt-1 pt-1">
-              <div v-if="!showPresetSave">
-                <button class="w-full flex items-center gap-2 px-3 py-2 text-xs text-[var(--color-accent)] hover:bg-[var(--color-bg)]" @click="showPresetSave = true">
+              <p class="px-3 pt-1 pb-1 text-[10px] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider">
+                Layout speichern
+              </p>
+              <div class="px-3 py-2 space-y-2">
+                <input v-model="presetSaveName" class="pim-input text-xs w-full" placeholder="Name des Layouts..." maxlength="100" @keydown.enter="saveAsPreset" />
+                <button
+                  class="pim-btn pim-btn-primary text-xs w-full"
+                  @click="saveAsPreset"
+                  :disabled="!presetSaveName.trim()"
+                >
                   <Save class="w-3.5 h-3.5" :stroke-width="2" /> Aktuelles Layout speichern
                 </button>
-              </div>
-              <div v-else class="px-3 py-2 space-y-2">
-                <input v-model="presetSaveName" class="pim-input text-xs w-full" placeholder="Name des Layouts..." maxlength="100" @keydown.enter="saveAsPreset" />
-                <input v-model="presetSaveDesc" class="pim-input text-xs w-full" placeholder="Beschreibung (optional)..." maxlength="500" />
-                <div class="flex gap-2">
-                  <button class="pim-btn pim-btn-primary text-xs flex-1" @click="saveAsPreset" :disabled="!presetSaveName.trim()">Speichern</button>
-                  <button class="pim-btn pim-btn-ghost text-xs" @click="showPresetSave = false">Abbrechen</button>
-                </div>
               </div>
             </div>
           </div>
