@@ -264,12 +264,14 @@ export function createOfflineApi(dataPath, options = {}) {
 
     function walk(nodeList) {
       for (const node of nodeList) {
-        if (ids.has(node.id) && node.children) {
-          for (const child of node.children) {
-            ids.add(child.id)
+        if (ids.has(node.id)) {
+          if (node.children && node.children.length) {
+            for (const child of node.children) {
+              ids.add(child.id)
+            }
           }
         }
-        if (node.children) walk(node.children)
+        if (node.children && node.children.length) walk(node.children)
       }
     }
     // Mehrfach iterieren bis keine neuen IDs mehr gefunden werden (für tiefe Bäume)
@@ -295,12 +297,13 @@ export function createOfflineApi(dataPath, options = {}) {
   async function filterByCategory(products, categoryId) {
     if (!categoryId) return products
     const descendantIds = await getDescendantIds(categoryId)
-    return products.filter(p => {
+    const result = products.filter(p => {
       if (p.cats && p.cats.length) {
         return p.cats.some(id => descendantIds.has(id))
       }
       return descendantIds.has(p.cat)
     })
+    return result
   }
 
   /**
@@ -466,13 +469,19 @@ export function createOfflineApi(dataPath, options = {}) {
         match_sources: null,
       }))
 
-      // Dynamische Kategorie-Counts wenn Facetten aktiv (ohne Kategorie-Einschränkung)
+      // Dynamische Kategorie-Counts: bei Suche oder aktiven Facetten-Filtern
       let categoryCounts = null
-      if (!isSearching && opts.filters && Object.keys(opts.filters).length > 0) {
-        const primaryProducts = await loadPrimaryProducts()
-        const facetFiltered = filterByFacets(primaryProducts, opts.filters)
+      const hasFilters = !isSearching && opts.filters && Object.keys(opts.filters).length > 0
+      if (isSearching || hasFilters) {
+        // Bei Suche: Counts aus den Suchergebnissen (filtered enthält bereits die Treffer)
+        // Bei Filtern: Counts aus facetten-gefilterten Produkten (ohne Kategorie-Einschränkung)
+        let countSource = filtered
+        if (hasFilters) {
+          const primaryProducts = await loadPrimaryProducts()
+          countSource = filterByFacets(primaryProducts, opts.filters)
+        }
         categoryCounts = {}
-        for (const p of facetFiltered) {
+        for (const p of countSource) {
           const catIds = p.cats || (p.cat ? [p.cat] : [])
           for (const catId of catIds) {
             categoryCounts[catId] = (categoryCounts[catId] || 0) + 1
