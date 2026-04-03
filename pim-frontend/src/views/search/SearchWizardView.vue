@@ -6,7 +6,7 @@ import {
   Search, Filter, ChevronDown, ChevronUp, ChevronRight, X, Star,
   Regex, AudioLines, Languages, Download, GitCompareArrows, Pencil, Settings,
   Package, Sliders, GitBranch, Image, FolderTree, FileSpreadsheet, FileText, Code2, ListFilter,
-  Trash2, CheckCheck, FileOutput,
+  Trash2, CheckCheck, FileOutput, LayoutGrid, List,
 } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import searchApi from '@/api/search'
@@ -34,6 +34,13 @@ import QueryBuilderGroup from '@/components/search/QueryBuilderGroup.vue'
 
 const router = useRouter()
 const localeStore = useLocaleStore()
+
+// Ansichtsmodus (Liste / Kacheln) mit localStorage-Persistenz
+const viewMode = ref(localStorage.getItem('viewMode:search') || 'list')
+function setViewMode(mode) {
+  viewMode.value = mode
+  localStorage.setItem('viewMode:search', mode)
+}
 const attrStore = useAttributeStore()
 const authStore = useAuthStore()
 const licenseStore = useLicenseStore()
@@ -1039,6 +1046,25 @@ const apiCallDisplay = computed(() => {
           {{ activeFilterCount }}
         </span>
       </button>
+      <!-- Ansichtsmodus -->
+      <div v-if="searchCategory === 'products'" class="flex items-center border border-[var(--color-border)] rounded-md overflow-hidden">
+        <button
+          class="p-1.5 transition-colors"
+          :class="viewMode === 'grid' ? 'bg-[var(--color-accent)] text-white' : 'bg-[var(--color-surface)] text-[var(--color-text-tertiary)] hover:bg-[var(--color-bg)]'"
+          @click="setViewMode('grid')"
+          title="Kachelansicht"
+        >
+          <LayoutGrid class="w-3.5 h-3.5" :stroke-width="2" />
+        </button>
+        <button
+          class="p-1.5 transition-colors"
+          :class="viewMode === 'list' ? 'bg-[var(--color-accent)] text-white' : 'bg-[var(--color-surface)] text-[var(--color-text-tertiary)] hover:bg-[var(--color-bg)]'"
+          @click="setViewMode('list')"
+          title="Listenansicht"
+        >
+          <List class="w-3.5 h-3.5" :stroke-width="2" />
+        </button>
+      </div>
       <ColumnConfigPopover
         v-if="searchCategory === 'products'"
         :allColumns="searchAllColumns"
@@ -1472,9 +1498,56 @@ const apiCallDisplay = computed(() => {
       </div>
     </div>
 
+    <!-- Kachelansicht (nur für Produkte) -->
+    <div v-if="viewMode === 'grid' && searchCategory === 'products' && results.length > 0">
+      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+        <div
+          v-for="row in (searchCategory === 'products' ? filteredResults : results)"
+          :key="row.id"
+          class="pim-card overflow-hidden group cursor-pointer hover:shadow-md transition-shadow"
+          @click="openResult(row)"
+        >
+          <div class="aspect-[4/3] bg-[var(--color-bg)] flex items-center justify-center overflow-hidden p-2">
+            <img v-if="row.thumbnail_url" :src="row.thumbnail_url" class="w-full h-full object-contain" loading="lazy" alt="" />
+            <Package v-else class="w-10 h-10 text-[var(--color-text-tertiary)]/20" :stroke-width="1.25" />
+          </div>
+          <div class="p-2.5 space-y-1">
+            <div class="flex items-center gap-1.5">
+              <button
+                class="p-0.5 rounded hover:bg-[var(--color-bg)] shrink-0"
+                :title="isOnWatchlist(row.id) ? 'Von Merkliste entfernen' : 'Zur Merkliste'"
+                @click.stop="toggleWatchlist(row.id)"
+              >
+                <Star class="w-3.5 h-3.5" :class="isOnWatchlist(row.id) ? 'text-amber-500 fill-amber-500' : 'text-[var(--color-text-tertiary)]'" :stroke-width="2" />
+              </button>
+              <span class="text-[11px] font-mono text-[var(--color-text-secondary)]">{{ row.sku }}</span>
+              <span
+                class="ml-auto text-[10px] px-1.5 py-0.5 rounded-full font-medium"
+                :class="row.status === 'active' ? 'bg-[var(--color-success-light)] text-[var(--color-success)]' : row.status === 'draft' ? 'bg-[var(--color-bg)] text-[var(--color-text-tertiary)]' : 'bg-[var(--color-error-light)] text-[var(--color-error)]'"
+              >
+                {{ row.status === 'active' ? 'Aktiv' : row.status === 'draft' ? 'Entwurf' : row.status === 'inactive' ? 'Inaktiv' : 'Auslaufend' }}
+              </span>
+            </div>
+            <p class="text-xs text-[var(--color-text-primary)] truncate font-medium">{{ row.name || '—' }}</p>
+            <p class="text-[10px] text-[var(--color-text-tertiary)] truncate">{{ row.product_type?.name_de || '' }}</p>
+          </div>
+        </div>
+      </div>
+      <!-- Pagination -->
+      <div class="flex items-center justify-between px-1 py-3">
+        <span class="text-xs text-[var(--color-text-tertiary)]">{{ resultMeta.total }} Ergebnisse</span>
+        <div class="flex items-center gap-1">
+          <button class="pim-btn pim-btn-ghost text-xs" :disabled="resultMeta.current_page <= 1" @click="doSearch(resultMeta.current_page - 1)">Zurück</button>
+          <span class="text-xs text-[var(--color-text-secondary)] px-2">{{ resultMeta.current_page }} / {{ resultMeta.last_page }}</span>
+          <button class="pim-btn pim-btn-ghost text-xs" :disabled="resultMeta.current_page >= resultMeta.last_page" @click="doSearch(resultMeta.current_page + 1)">Weiter</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Listenansicht -->
     <PimTable
       ref="searchTableRef"
-      v-if="results.length > 0"
+      v-if="results.length > 0 && (viewMode === 'list' || searchCategory !== 'products')"
       :columns="columns"
       :rows="searchCategory === 'products' ? filteredResults : results"
       :loading="loading"
