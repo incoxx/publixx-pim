@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { Plus, Upload, FileBarChart } from 'lucide-vue-next'
+import { Plus, Upload, FileBarChart, Globe } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 
 const props = defineProps({
@@ -42,6 +42,7 @@ const quickActions = [
   { label: 'Produkt anlegen', icon: Plus, route: { name: 'products', query: { action: 'create' } }, color: 'var(--color-accent)' },
   { label: 'Import starten', icon: Upload, route: { name: 'imports' }, color: 'var(--color-success)' },
   { label: 'Reports', icon: FileBarChart, route: { name: 'reports' }, color: 'var(--color-warning)' },
+  { label: 'Katalog-Vorschau', icon: Globe, route: { name: 'catalog' }, color: 'var(--color-info, #3b82f6)' },
 ]
 </script>
 

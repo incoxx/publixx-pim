@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Services\Search;
 
 use App\Http\Controllers\Api\V1\Traits\ProductSearchFilters;
-use App\Models\HierarchyNode;
 use App\Models\Product;
 use App\Models\SearchProfile;
 use Illuminate\Database\Eloquent\Builder;

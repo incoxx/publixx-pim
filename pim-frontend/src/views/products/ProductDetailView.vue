@@ -37,6 +37,7 @@ import attributeMappingsApi from '@/api/attributeMappings'
 import watchlistApi from '@/api/watchlist'
 import manufacturersApi from '@/api/manufacturers'
 import PimCollectionGroup from '@/components/shared/PimCollectionGroup.vue'
+import ProductNotesTab from '@/components/products/ProductNotesTab.vue'
 import PimAttributeInput from '@/components/shared/PimAttributeInput.vue'
 import PimMultipliableInput from '@/components/shared/PimMultipliableInput.vue'
 import PimTable from '@/components/shared/PimTable.vue'
@@ -142,6 +143,7 @@ const tabs = computed(() => {
   }
   base.push(
     { key: 'relations', label: t('product.relations') },
+    { key: 'notes', label: 'Notizen' },
     { key: 'output-hierarchies', label: 'Ausgabehierarchien' },
     { key: 'preview', label: t('product.preview') },
     { key: 'versions', label: t('product.versions') },
@@ -3860,6 +3862,11 @@ onUnmounted(() => {
         @confirm="confirmDeleteRelation"
         @cancel="relationDeleteTarget = null"
       />
+    </div>
+
+    <!-- ═══ Notes Tab ═══ -->
+    <div v-else-if="activeTab === 'notes' && product" class="space-y-4">
+      <ProductNotesTab :product-id="product.id" />
     </div>
 
     <!-- ═══ Output Hierarchies Tab ═══ -->
