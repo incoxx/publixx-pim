@@ -4,10 +4,7 @@
  * Implements the same interface as catalogApi (api.js) but reads
  * from pre-exported JSON data files. All search, filtering, sorting,
  * and pagination happen in-memory.
- *
- * PDF generation uses jsPDF for client-side rendering.
  */
-import { generateProductPdf, generateWishlistPdf } from './pdf-generator.js'
 
 /**
  * Creates an offline API instance that reads from the given data path.
@@ -367,33 +364,12 @@ export function createOfflineApi(dataPath, options = {}) {
       }
     },
 
-    async downloadProductPdf(id, opts = {}) {
-      const product = await api.getProduct(id, opts)
-      const settings = await api.getSettings()
-      return generateProductPdf(product, {
-        locale: opts.lang || 'de',
-        primaryColor: settings.primary_color,
-      })
+    async downloadProductPdf() {
+      throw new Error('PDF-Generierung ist im Offline-Katalog nicht verfügbar.')
     },
 
-    async downloadWishlistPdf(productIds, lang) {
-      const allProducts = await loadAllProducts()
-      const idSet = new Set(productIds)
-      const products = allProducts
-        .filter(p => idSet.has(p.id))
-        .map(p => ({
-          id: p.id,
-          sku: p.sku,
-          name: p.name,
-          category_path: p.cat_name || null,
-          price: p.price ?? null,
-          currency: p.cur || 'EUR',
-        }))
-      const settings = await api.getSettings()
-      return generateWishlistPdf(products, {
-        locale: lang || 'de',
-        primaryColor: settings.primary_color,
-      })
+    async downloadWishlistPdf() {
+      throw new Error('PDF-Generierung ist im Offline-Katalog nicht verfügbar.')
     },
 
     async downloadWishlistExcel() {

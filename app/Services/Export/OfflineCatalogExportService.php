@@ -1328,7 +1328,7 @@ class OfflineCatalogExportService
             'catalog_compare_enabled' => $themePayload['catalog_compare_enabled'] ?? false,
             'catalog_compare_max_products' => $themePayload['catalog_compare_max_products'] ?? 3,
             'catalog_share_wishlist_enabled' => $themePayload['catalog_share_wishlist_enabled'] ?? false,
-            'catalog_pdf_enabled' => $themePayload['catalog_pdf_enabled'] ?? false, // client-side PDF via jsPDF
+            'catalog_pdf_enabled' => false, // jsPDF wurde aus dem Offline-Bundle entfernt (zu groß)
             'catalog_excel_export_enabled' => false, // Excel not available offline
             'catalog_category_expand_depth' => $themePayload['catalog_category_expand_depth'] ?? 1,
             'catalog_access_mode' => 'public', // offline is always public

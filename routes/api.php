@@ -256,6 +256,8 @@ Route::prefix('v1/auth')->middleware(['auth:sanctum', 'throttle.pim'])->group(fu
 // =========================================================================
 Route::get('v1/admin/offline-catalog/download', [OfflineCatalogController::class, 'download'])
     ->middleware('throttle.pim');
+Route::get('v1/admin/offline-catalog/download-bundle', [OfflineCatalogController::class, 'downloadBundle'])
+    ->middleware('throttle.pim');
 Route::get('v1/admin/offline-catalog/preview', [OfflineCatalogController::class, 'preview'])
     ->middleware('throttle.pim');
 // Kein Rate-Limiting für Preview-Assets — der Offline-Katalog lädt hunderte

@@ -49,4 +49,9 @@ export default {
   bundleStatus() {
     return client.get('/admin/offline-catalog/bundle-status')
   },
+
+  bundleDownloadUrl(token) {
+    const base = resolveApiUrl('admin/offline-catalog/download-bundle')
+    return `${base}?token=${encodeURIComponent(token)}`
+  },
 }
