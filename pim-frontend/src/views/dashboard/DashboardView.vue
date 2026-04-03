@@ -292,7 +292,11 @@ onUnmounted(() => {
       <!-- Reihe 5: Schnellzugriff + Merkliste + Notizen -->
       <div
         v-if="isVisible('quicklinks') || isVisible('watchlist') || isVisible('notes')"
-        class="grid grid-cols-1 lg:grid-cols-3 gap-5"
+        class="grid grid-cols-1 gap-5"
+        :class="{
+          'lg:grid-cols-3': isVisible('quicklinks') && isVisible('watchlist') && isVisible('notes'),
+          'lg:grid-cols-2': [isVisible('quicklinks'), isVisible('watchlist'), isVisible('notes')].filter(Boolean).length === 2,
+        }"
       >
         <QuickLinksWidget v-if="isVisible('quicklinks')" />
         <WatchlistWidget v-if="isVisible('watchlist')" />

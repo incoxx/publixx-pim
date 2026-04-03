@@ -1,9 +1,10 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { StickyNote, Plus, Pin, PinOff, Trash2, X, Package, Link2, Users, Lock } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import DashboardWidgetWrapper from './DashboardWidgetWrapper.vue'
 import notesApi from '@/api/notes'
+import searchApi from '@/api/search'
 
 const authStore = useAuthStore()
 
@@ -99,7 +100,7 @@ async function searchProducts() {
   const q = productSearch.value.trim()
   if (q.length < 2) { productResults.value = []; return }
   try {
-    const { data } = await (await import('@/api/search')).default.search({
+    const { data } = await searchApi.search({
       search: q, per_page: 5, language: 'de',
     })
     productResults.value = (data.data || []).map(p => ({ id: p.id, name: p.name, sku: p.sku }))
@@ -135,6 +136,7 @@ function timeAgo(dateStr) {
 }
 
 onMounted(fetchNotes)
+onUnmounted(() => { if (searchTimeout.value) clearTimeout(searchTimeout.value) })
 </script>
 
 <template>

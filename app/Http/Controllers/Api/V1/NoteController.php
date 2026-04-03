@@ -87,6 +87,11 @@ class NoteController extends Controller
      */
     public function forProduct(Request $request, string $productId): JsonResponse
     {
+        // UUID-Format validieren
+        if (!preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $productId)) {
+            abort(404);
+        }
+
         $notes = Note::where('product_id', $productId)
             ->visibleTo($request->user()->id)
             ->with('creator:id,name')
