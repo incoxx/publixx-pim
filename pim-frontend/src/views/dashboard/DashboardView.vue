@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, markRaw } from 'vue'
 import { Settings, Eye, EyeOff, RefreshCw, Plus, GripVertical, LayoutDashboard, Star, Save, Trash2 } from 'lucide-vue-next'
 import { useDashboardStore } from '@/stores/dashboard'
 import { useAuthStore } from '@/stores/auth'
@@ -23,24 +23,31 @@ const store = useDashboardStore()
 const authStore = useAuthStore()
 const isAdmin = computed(() => authStore.user?.roles?.some(r => r.name === 'Admin'))
 
-// Standard-Widgets (nicht-Profil)
-const defaultWidgets = [
-  { id: 'welcome', label: 'Begrüßung', visible: true },
-  { id: 'stats', label: 'Übersicht', visible: true },
-  { id: 'quality', label: 'Datenqualität', visible: true },
-  { id: 'activity', label: 'Aktivitäten', visible: true },
-  { id: 'tasks', label: 'Meine Aufgaben', visible: true },
-  { id: 'dataflows', label: 'Datenflüsse', visible: true },
-  { id: 'quicklinks', label: 'Schnellzugriff', visible: true },
-  { id: 'watchlist', label: 'Merkliste', visible: true },
-  { id: 'notes', label: 'Notizen', visible: true },
-  { id: 'workflow', label: 'Workflow-Status', visible: true },
-  { id: 'recent', label: 'Zuletzt bearbeitet', visible: true },
-  { id: 'completeness', label: 'Produkt-Füllstand', visible: false },
-]
+// ─── Widget-Registry: jedes Widget mit Span-Definition ────────────────
+// span: 6=full, 4=two-thirds, 3=half, 2=third
+const WIDGET_REGISTRY = {
+  welcome:      { label: 'Begrüßung',        span: 6, component: markRaw(WelcomeWidget) },
+  stats:        { label: 'Übersicht',         span: 6, component: markRaw(StatsOverviewWidget) },
+  quality:      { label: 'Datenqualität',     span: 2, component: markRaw(DataQualityWidget) },
+  activity:     { label: 'Aktivitäten',       span: 4, component: markRaw(ActivityFeedWidget) },
+  tasks:        { label: 'Meine Aufgaben',    span: 3, component: markRaw(MyTasksWidget) },
+  dataflows:    { label: 'Datenflüsse',       span: 3, component: markRaw(DataFlowWidget) },
+  quicklinks:   { label: 'Schnellzugriff',    span: 2, component: markRaw(QuickLinksWidget) },
+  watchlist:    { label: 'Merkliste',          span: 2, component: markRaw(WatchlistWidget) },
+  notes:        { label: 'Notizen',            span: 2, component: markRaw(NotesWidget) },
+  workflow:     { label: 'Workflow-Status',    span: 2, component: markRaw(WorkflowStatusWidget) },
+  recent:       { label: 'Zuletzt bearbeitet', span: 4, component: markRaw(RecentlyEditedWidget) },
+  completeness: { label: 'Produkt-Füllstand', span: 6, component: markRaw(CompletenessWidget) },
+}
+
+const DEFAULT_ORDER = Object.keys(WIDGET_REGISTRY)
 
 // Widget-Config (aus Server oder Default)
-const widgets = ref(defaultWidgets.map(w => ({ ...w })))
+const widgets = ref(DEFAULT_ORDER.map(id => ({
+  id,
+  label: WIDGET_REGISTRY[id].label,
+  visible: id !== 'completeness',
+})))
 const profileCards = ref([])
 const showConfig = ref(false)
 
@@ -54,6 +61,38 @@ const presetSaveName = ref('')
 const presetSaveDesc = ref('')
 const showPresetSave = ref(false)
 
+// ─── Computed: sichtbare Widgets in Reihenfolge ────────────────
+const visibleWidgets = computed(() =>
+  widgets.value.filter(w => w.visible && WIDGET_REGISTRY[w.id])
+)
+
+// Span-Klasse für das 6-Spalten-Grid
+function spanClass(widgetId) {
+  const span = WIDGET_REGISTRY[widgetId]?.span || 6
+  return {
+    2: 'lg:col-span-2',
+    3: 'lg:col-span-3',
+    4: 'lg:col-span-4',
+    6: 'lg:col-span-6',
+  }[span] || 'lg:col-span-6'
+}
+
+// Props für jede Widget-Komponente
+function widgetProps(widgetId) {
+  switch (widgetId) {
+    case 'welcome':      return { welcome: store.welcome }
+    case 'stats':        return { stats: store.stats, trends: store.trends }
+    case 'quality':      return { quality: store.dataQuality }
+    case 'activity':     return { items: store.activityFeed }
+    case 'tasks':        return { tasks: store.myTasks }
+    case 'dataflows':    return { flows: store.dataFlows }
+    case 'workflow':     return { summary: store.workflowSummary }
+    case 'recent':       return { products: store.recentlyEdited }
+    case 'completeness': return { summary: store.completenessSummary }
+    default:             return {}
+  }
+}
+
 function applyServerConfig(config) {
   if (!config?.widgets) return
   const serverWidgets = config.widgets
@@ -62,15 +101,23 @@ function applyServerConfig(config) {
   const serverOrder = serverWidgets.filter(sw => !sw.id.startsWith('profile-card-'))
   const orderedWidgets = []
 
-  // Erst die Server-Reihenfolge
   for (const sw of serverOrder) {
-    const dw = defaultWidgets.find(d => d.id === sw.id)
-    if (dw) orderedWidgets.push({ ...dw, visible: sw.visible })
+    if (WIDGET_REGISTRY[sw.id]) {
+      orderedWidgets.push({
+        id: sw.id,
+        label: WIDGET_REGISTRY[sw.id].label,
+        visible: sw.visible,
+      })
+    }
   }
-  // Dann fehlende Defaults anhängen (neue Widgets)
-  for (const dw of defaultWidgets) {
-    if (!orderedWidgets.find(w => w.id === dw.id)) {
-      orderedWidgets.push({ ...dw })
+  // Fehlende Defaults anhängen (neue Widgets aus Updates)
+  for (const id of DEFAULT_ORDER) {
+    if (!orderedWidgets.find(w => w.id === id)) {
+      orderedWidgets.push({
+        id,
+        label: WIDGET_REGISTRY[id].label,
+        visible: id !== 'completeness',
+      })
     }
   }
   widgets.value = orderedWidgets
@@ -102,10 +149,6 @@ function toggleWidget(id) {
     w.visible = !w.visible
     saveConfig()
   }
-}
-
-function isVisible(id) {
-  return widgets.value.find(w => w.id === id)?.visible ?? true
 }
 
 // ─── Drag & Drop für Widget-Reihenfolge ────────────────
@@ -255,8 +298,6 @@ onUnmounted(() => {
             <p class="px-3 pb-2 text-[10px] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider border-b border-[var(--color-border)]">
               Dashboard-Layouts
             </p>
-
-            <!-- Preset-Liste -->
             <div v-if="store.presets.length" class="max-h-48 overflow-y-auto">
               <div
                 v-for="preset in store.presets"
@@ -281,8 +322,6 @@ onUnmounted(() => {
               </div>
             </div>
             <p v-else class="px-3 py-3 text-xs text-[var(--color-text-tertiary)] text-center">Keine Layouts vorhanden</p>
-
-            <!-- Admin: Als Preset speichern -->
             <div v-if="isAdmin" class="border-t border-[var(--color-border)] mt-1 pt-1">
               <div v-if="!showPresetSave">
                 <button class="w-full flex items-center gap-2 px-3 py-2 text-xs text-[var(--color-accent)] hover:bg-[var(--color-bg)]" @click="showPresetSave = true">
@@ -310,7 +349,6 @@ onUnmounted(() => {
             <Settings class="w-4 h-4" :stroke-width="2" />
             <span class="hidden sm:inline">Widgets</span>
           </button>
-          <!-- Widget-Config-Dropdown -->
           <div
             v-if="showConfig"
             class="absolute right-0 top-full mt-1 w-64 py-2 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg shadow-lg z-30"
@@ -338,7 +376,6 @@ onUnmounted(() => {
               </button>
               <span class="text-xs flex-1" :class="w.visible ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-tertiary)] line-through'">{{ w.label }}</span>
             </div>
-            <!-- Profilkarten im Dropdown -->
             <div v-if="profileCards.length" class="border-t border-[var(--color-border)] mt-1 pt-1">
               <p class="px-3 pb-1 text-[10px] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider">
                 Profilkarten
@@ -366,23 +403,10 @@ onUnmounted(() => {
       <div class="w-6 h-6 border-2 border-[var(--color-accent)] border-t-transparent rounded-full animate-spin" />
     </div>
 
-    <!-- Bento-Grid Widgets -->
-    <template v-else>
-      <!-- Reihe 1: Welcome (full width) -->
-      <WelcomeWidget
-        v-if="isVisible('welcome')"
-        :welcome="store.welcome"
-      />
-
-      <!-- Reihe 2: Stats (full width) -->
-      <StatsOverviewWidget
-        v-if="isVisible('stats')"
-        :stats="store.stats"
-        :trends="store.trends"
-      />
-
-      <!-- Reihe 3: Profilkarten (dynamisch, scrollbar) -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <!-- Dynamisches Widget-Grid: 6-Spalten, Reihenfolge aus Config -->
+    <div v-else class="grid grid-cols-1 lg:grid-cols-6 gap-5">
+      <!-- Profilkarten-Reihe (immer nach stats, vor den normalen Widgets) -->
+      <div class="lg:col-span-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <ProfileStatCard
           v-for="pc in profileCards"
           :key="pc.id"
@@ -390,7 +414,6 @@ onUnmounted(() => {
           @configure="configureProfileCard"
           @remove="removeProfileCard"
         />
-        <!-- "+ Karte hinzufügen" -->
         <button
           class="pim-card flex flex-col items-center justify-center gap-2 p-6 border-2 border-dashed border-[var(--color-border)] hover:border-[var(--color-accent)] transition-colors cursor-pointer group min-h-[140px]"
           @click="addProfileCard"
@@ -400,60 +423,19 @@ onUnmounted(() => {
         </button>
       </div>
 
-      <!-- Reihe 4: Datenqualität (1/3) + Aktivitäten (2/3) -->
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        <DataQualityWidget
-          v-if="isVisible('quality')"
-          :quality="store.dataQuality"
-        />
-        <div v-if="isVisible('activity')" class="lg:col-span-2">
-          <ActivityFeedWidget :items="store.activityFeed" />
-        </div>
-      </div>
-
-      <!-- Reihe 5: Schnellzugriff + Merkliste + Notizen -->
+      <!-- Widgets in Reihenfolge aus Config -->
       <div
-        v-if="isVisible('quicklinks') || isVisible('watchlist') || isVisible('notes')"
-        class="grid grid-cols-1 gap-5"
-        :class="{
-          'lg:grid-cols-3': isVisible('quicklinks') && isVisible('watchlist') && isVisible('notes'),
-          'lg:grid-cols-2': [isVisible('quicklinks'), isVisible('watchlist'), isVisible('notes')].filter(Boolean).length === 2,
-        }"
+        v-for="w in visibleWidgets"
+        :key="w.id"
+        :class="spanClass(w.id)"
+        class="col-span-1"
       >
-        <QuickLinksWidget v-if="isVisible('quicklinks')" />
-        <WatchlistWidget v-if="isVisible('watchlist')" />
-        <NotesWidget v-if="isVisible('notes')" />
-      </div>
-
-      <!-- Reihe 6: Meine Aufgaben (1/2) + Datenflüsse (1/2) -->
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <MyTasksWidget
-          v-if="isVisible('tasks')"
-          :tasks="store.myTasks"
-        />
-        <DataFlowWidget
-          v-if="isVisible('dataflows')"
-          :flows="store.dataFlows"
+        <component
+          :is="WIDGET_REGISTRY[w.id].component"
+          v-bind="widgetProps(w.id)"
         />
       </div>
-
-      <!-- Reihe 7: Workflow (1/3) + Zuletzt bearbeitet (2/3) -->
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        <WorkflowStatusWidget
-          v-if="isVisible('workflow')"
-          :summary="store.workflowSummary"
-        />
-        <div v-if="isVisible('recent')" class="lg:col-span-2">
-          <RecentlyEditedWidget :products="store.recentlyEdited" />
-        </div>
-      </div>
-
-      <!-- Reihe 8: Produkt-Füllstand (optional) -->
-      <CompletenessWidget
-        v-if="isVisible('completeness')"
-        :summary="store.completenessSummary"
-      />
-    </template>
+    </div>
 
     <!-- Profilkarten-Konfigurator -->
     <ProfileCardConfigurator
