@@ -430,7 +430,21 @@ export function createOfflineApi(dataPath, options = {}) {
         match_sources: null,
       }))
 
-      return { products, meta: result.meta }
+      // Dynamische Kategorie-Counts wenn Facetten aktiv (ohne Kategorie-Einschränkung)
+      let categoryCounts = null
+      if (!isSearching && opts.filters && Object.keys(opts.filters).length > 0) {
+        const primaryProducts = await loadPrimaryProducts()
+        const facetFiltered = filterByFacets(primaryProducts, opts.filters)
+        categoryCounts = {}
+        for (const p of facetFiltered) {
+          const catIds = p.cats || (p.cat ? [p.cat] : [])
+          for (const catId of catIds) {
+            categoryCounts[catId] = (categoryCounts[catId] || 0) + 1
+          }
+        }
+      }
+
+      return { products, meta: result.meta, category_counts: categoryCounts }
     },
 
     /**

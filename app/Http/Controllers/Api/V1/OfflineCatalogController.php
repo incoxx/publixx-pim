@@ -188,7 +188,8 @@ class OfflineCatalogController extends BaseController
     /**
      * GET /api/v1/admin/offline-catalog/download-bundle
      *
-     * Lädt die gebaute UMD-Datei (catalog-offline.umd.js) herunter.
+     * Lädt das gebaute Offline-Bundle als ZIP herunter (JS + CSS + ggf. Source Maps).
+     * Als ZIP verpackt, damit Antivirus-Software die JS-Datei nicht blockiert.
      */
     public function downloadBundle(Request $request): \Symfony\Component\HttpFoundation\BinaryFileResponse|JsonResponse
     {
@@ -197,15 +198,31 @@ class OfflineCatalogController extends BaseController
             return response()->json(['message' => 'Nicht authentifiziert.'], 401);
         }
 
-        $jsPath = base_path('catalog-embed/dist/catalog-offline.umd.js');
+        $distDir = base_path('catalog-embed/dist');
+        $jsPath = "{$distDir}/catalog-offline.umd.js";
 
         if (!file_exists($jsPath)) {
             return response()->json(['message' => 'Kein Bundle vorhanden.'], 404);
         }
 
-        return response()->download($jsPath, 'catalog-offline.umd.js', [
-            'Content-Type' => 'application/javascript',
-        ]);
+        $zipPath = tempnam(sys_get_temp_dir(), 'bundle_') . '.zip';
+        $zip = new \ZipArchive();
+        $zip->open($zipPath, \ZipArchive::CREATE);
+        $zip->addFile($jsPath, 'catalog-offline.umd.js');
+
+        $cssPath = "{$distDir}/catalog-embed.css";
+        if (file_exists($cssPath)) {
+            $zip->addFile($cssPath, 'catalog-embed.css');
+        }
+        if (file_exists("{$jsPath}.map")) {
+            $zip->addFile("{$jsPath}.map", 'catalog-offline.umd.js.map');
+        }
+
+        $zip->close();
+
+        return response()->download($zipPath, 'catalog-offline-bundle.zip', [
+            'Content-Type' => 'application/zip',
+        ])->deleteFileAfterSend();
     }
 
     /**
