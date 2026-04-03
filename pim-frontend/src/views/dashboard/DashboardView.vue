@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, markRaw } from 'vue'
-import { Settings, Eye, EyeOff, RefreshCw, Plus, GripVertical, LayoutDashboard, Star, Save, Trash2 } from 'lucide-vue-next'
+import { Settings, Eye, EyeOff, RefreshCw, Plus, GripVertical, LayoutDashboard, Star, Save, Trash2, Check, RefreshCcw } from 'lucide-vue-next'
 import { useDashboardStore } from '@/stores/dashboard'
 import { useAuthStore } from '@/stores/auth'
 import dashboardPresetsApi from '@/api/dashboardPresets'
@@ -58,6 +58,7 @@ const configuratorTarget = ref(null)
 // Preset State
 const showPresetPanel = ref(false)
 const presetSaveName = ref('')
+const activePresetId = ref(null) // null = Standard, sonst Preset-UUID
 
 // Eingebautes Standard-Layout (immer vorhanden, nicht löschbar)
 const BUILTIN_DEFAULT_PAYLOAD = {
@@ -68,6 +69,7 @@ const BUILTIN_DEFAULT_PAYLOAD = {
 }
 
 function loadBuiltinDefault() {
+  activePresetId.value = null
   applyServerConfig(BUILTIN_DEFAULT_PAYLOAD)
   store.saveDashboardConfig(BUILTIN_DEFAULT_PAYLOAD)
   showPresetPanel.value = false
@@ -221,8 +223,18 @@ async function loadPreset(preset) {
   const ok = await store.activatePreset(preset.id)
   if (ok && store.dashboardConfig) {
     applyServerConfig(store.dashboardConfig)
+    activePresetId.value = preset.id
   }
   showPresetPanel.value = false
+}
+
+async function overwritePreset(preset) {
+  try {
+    const currentConfig = store.dashboardConfig
+    if (!currentConfig?.widgets) return
+    await dashboardPresetsApi.update(preset.id, { payload: currentConfig })
+    await store.loadPresets()
+  } catch { /* ignore */ }
 }
 
 async function saveAsPreset() {
@@ -240,6 +252,9 @@ async function saveAsPreset() {
 async function deletePreset(preset) {
   try {
     await dashboardPresetsApi.remove(preset.id)
+    if (activePresetId.value === preset.id) {
+      activePresetId.value = null
+    }
     await store.loadPresets()
   } catch { /* ignore */ }
 }
@@ -308,11 +323,13 @@ onUnmounted(() => {
               <!-- Eingebautes Standard-Layout (immer da, nicht löschbar) -->
               <div
                 class="flex items-center gap-2 px-3 py-2 hover:bg-[var(--color-bg)] transition-colors cursor-pointer"
+                :class="{ 'bg-[var(--color-accent)]/5': activePresetId === null }"
                 @click="loadBuiltinDefault"
               >
-                <Star class="w-3 h-3 text-amber-500 shrink-0 fill-amber-500" :stroke-width="2" />
+                <Check v-if="activePresetId === null" class="w-3 h-3 text-[var(--color-accent)] shrink-0" :stroke-width="2.5" />
+                <Star v-else class="w-3 h-3 text-amber-500 shrink-0 fill-amber-500" :stroke-width="2" />
                 <div class="flex-1 min-w-0">
-                  <p class="text-xs font-medium text-[var(--color-text-primary)]">Standard</p>
+                  <p class="text-xs font-medium" :class="activePresetId === null ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-primary)]'">Standard</p>
                   <p class="text-[10px] text-[var(--color-text-tertiary)]">Werkseinstellung</p>
                 </div>
               </div>
@@ -322,14 +339,28 @@ onUnmounted(() => {
                 v-for="preset in store.presets"
                 :key="preset.id"
                 class="flex items-center gap-2 px-3 py-2 hover:bg-[var(--color-bg)] transition-colors group"
+                :class="{ 'bg-[var(--color-accent)]/5': activePresetId === preset.id }"
               >
-                <LayoutDashboard class="w-3 h-3 text-[var(--color-text-tertiary)] shrink-0" :stroke-width="2" />
+                <Check v-if="activePresetId === preset.id" class="w-3 h-3 text-[var(--color-accent)] shrink-0" :stroke-width="2.5" />
+                <LayoutDashboard v-else class="w-3 h-3 text-[var(--color-text-tertiary)] shrink-0" :stroke-width="2" />
                 <div class="flex-1 min-w-0 cursor-pointer" @click="loadPreset(preset)">
-                  <p class="text-xs font-medium text-[var(--color-text-primary)] truncate">{{ preset.name }}</p>
+                  <p class="text-xs font-medium truncate" :class="activePresetId === preset.id ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-primary)]'">{{ preset.name }}</p>
                   <p class="text-[9px] text-[var(--color-text-tertiary)]">von {{ preset.creator?.name }}</p>
                 </div>
-                <div v-if="isAdmin" class="hidden group-hover:flex items-center shrink-0">
-                  <button class="p-0.5 rounded hover:bg-[var(--color-bg-elevated,var(--color-bg))]" title="Löschen" @click.stop="deletePreset(preset)">
+                <div v-if="isAdmin" class="flex items-center gap-0.5 shrink-0">
+                  <button
+                    v-if="activePresetId === preset.id"
+                    class="p-0.5 rounded hover:bg-[var(--color-accent)]/10"
+                    title="Änderungen in dieses Layout übernehmen"
+                    @click.stop="overwritePreset(preset)"
+                  >
+                    <RefreshCcw class="w-3 h-3 text-[var(--color-accent)]" :stroke-width="2" />
+                  </button>
+                  <button
+                    class="p-0.5 rounded hover:bg-[var(--color-bg-elevated,var(--color-bg))] opacity-0 group-hover:opacity-100 transition-opacity"
+                    title="Löschen"
+                    @click.stop="deletePreset(preset)"
+                  >
                     <Trash2 class="w-3 h-3 text-[var(--color-text-tertiary)]" :stroke-width="2" />
                   </button>
                 </div>
