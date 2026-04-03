@@ -186,6 +186,29 @@ class OfflineCatalogController extends BaseController
     }
 
     /**
+     * GET /api/v1/admin/offline-catalog/download-bundle
+     *
+     * Lädt die gebaute UMD-Datei (catalog-offline.umd.js) herunter.
+     */
+    public function downloadBundle(Request $request): \Symfony\Component\HttpFoundation\BinaryFileResponse|JsonResponse
+    {
+        $user = $this->resolveUser($request);
+        if (!$user) {
+            return response()->json(['message' => 'Nicht authentifiziert.'], 401);
+        }
+
+        $jsPath = base_path('catalog-embed/dist/catalog-offline.umd.js');
+
+        if (!file_exists($jsPath)) {
+            return response()->json(['message' => 'Kein Bundle vorhanden.'], 404);
+        }
+
+        return response()->download($jsPath, 'catalog-offline.umd.js', [
+            'Content-Type' => 'application/javascript',
+        ]);
+    }
+
+    /**
      * GET /api/v1/admin/offline-catalog/preview
      *
      * Entpackt die ZIP und leitet auf die index.html weiter.

@@ -2830,14 +2830,24 @@ onUnmounted(() => {
           <input type="checkbox" v-model="offlineBundleDebug" class="rounded" :disabled="offlineBundleBuilding" />
           Debug-Modus (ohne Minifizierung, mit Source Maps)
         </label>
-        <button
-          class="pim-btn pim-btn-secondary text-xs"
-          @click="buildOfflineBundle"
-          :disabled="offlineBundleBuilding"
-        >
-          <Loader2 v-if="offlineBundleBuilding" class="w-3.5 h-3.5 animate-spin" />
-          {{ offlineBundleBuilding ? 'Bundle wird gebaut...' : 'Bundle bauen' }}
-        </button>
+        <div class="flex items-center gap-2">
+          <button
+            class="pim-btn pim-btn-secondary text-xs"
+            @click="buildOfflineBundle"
+            :disabled="offlineBundleBuilding"
+          >
+            <Loader2 v-if="offlineBundleBuilding" class="w-3.5 h-3.5 animate-spin" />
+            {{ offlineBundleBuilding ? 'Bundle wird gebaut...' : 'Bundle bauen' }}
+          </button>
+          <a
+            v-if="offlineBundleStatus?.built"
+            :href="offlineCatalogApi.bundleDownloadUrl(authStore.token)"
+            class="pim-btn pim-btn-secondary text-xs"
+            download="catalog-offline.umd.js"
+          >
+            UMD herunterladen
+          </a>
+        </div>
       </div>
       <p v-if="offlineBundleError" class="text-xs text-red-600 dark:text-red-400">{{ offlineBundleError }}</p>
 
