@@ -860,6 +860,51 @@ else
 fi
 
 # ═════════════════════════════════════════════════════════════════════════════
+#  VIDEO ENGINE (optional)
+# ═════════════════════════════════════════════════════════════════════════════
+VIDEO_ENGINE_DIR="${INSTALL_DIR}/video-engine"
+
+if [ -d "$VIDEO_ENGINE_DIR" ] && [ -f "${VIDEO_ENGINE_DIR}/package.json" ]; then
+    step "Video-Engine einrichten (optional)"
+
+    # System-Pakete fuer Video-Aufnahme
+    info "Installiere Video-Engine Abhaengigkeiten (ffmpeg, Xvfb)..."
+    apt-get install -y -qq \
+        ffmpeg \
+        xvfb \
+        2>&1 | tail -1
+    info "ffmpeg: $(ffmpeg -version 2>&1 | head -1 | cut -d' ' -f1-3)"
+    info "Xvfb: $(which Xvfb)"
+
+    # Node-Abhaengigkeiten installieren
+    info "Installiere Video-Engine npm-Pakete..."
+    cd "$VIDEO_ENGINE_DIR"
+    npm ci --fund=false --loglevel=warn 2>&1
+
+    # Playwright Browser installieren (Chromium)
+    info "Installiere Playwright Chromium Browser..."
+    npx playwright install --with-deps chromium 2>&1 | tail -5
+    info "Playwright Browser installiert."
+
+    # Storage-Verzeichnisse sicherstellen
+    mkdir -p "${INSTALL_DIR}/storage/video-engine/"{logs,tmp,lock}
+    mkdir -p "${INSTALL_DIR}/public/videos"
+
+    # Demo-Assets erzeugen
+    if [ ! -f "${INSTALL_DIR}/video-stories/demo-assets/logo-anypim.svg" ]; then
+        info "Erzeuge Demo-Assets..."
+        npx tsx scripts/create-demo-assets.ts 2>&1
+    fi
+
+    cd "$INSTALL_DIR"
+    info "Video-Engine eingerichtet."
+    info "  Nutzung: php artisan pim:video-generate --list"
+    info "  Preflight: php artisan pim:video-generate --preflight"
+else
+    info "Video-Engine nicht vorhanden — uebersprungen."
+fi
+
+# ═════════════════════════════════════════════════════════════════════════════
 #  10. WEBSERVER, SERVICES & BERECHTIGUNGEN
 # ═════════════════════════════════════════════════════════════════════════════
 step "10/10 — Apache VHost, Supervisor, Cron & Berechtigungen"

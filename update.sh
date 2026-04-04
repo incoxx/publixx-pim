@@ -490,6 +490,24 @@ else
 fi
 
 # ═════════════════════════════════════════════════════════════════════════════
+#  VIDEO ENGINE (optional — npm ci bei Aenderungen)
+# ═════════════════════════════════════════════════════════════════════════════
+VIDEO_ENGINE_DIR="${INSTALL_DIR}/video-engine"
+
+if [ -d "$VIDEO_ENGINE_DIR" ] && [ -f "${VIDEO_ENGINE_DIR}/package.json" ]; then
+    # Nur npm ci wenn package-lock.json geaendert wurde
+    if git diff --name-only "${OLD_HEAD}..${NEW_HEAD}" 2>/dev/null | grep -q "video-engine/package"; then
+        info "Video-Engine: Abhaengigkeiten aktualisieren..."
+        cd "$VIDEO_ENGINE_DIR"
+        npm ci --fund=false --loglevel=warn 2>&1
+        cd "$INSTALL_DIR"
+        info "Video-Engine: npm-Pakete aktualisiert."
+    else
+        info "Video-Engine: Keine Paket-Aenderungen — uebersprungen."
+    fi
+fi
+
+# ═════════════════════════════════════════════════════════════════════════════
 #  7. TMS (Translation Memory Service)
 # ═════════════════════════════════════════════════════════════════════════════
 step "7/10 — TMS (Translation Memory Service)"

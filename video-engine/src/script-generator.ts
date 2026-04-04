@@ -127,7 +127,10 @@ function generateStepCode(lines: string[], step: StoryStep, baseUrl: string): vo
       break;
 
     case 'select':
-      lines.push(`    await page.selectOption(${JSON.stringify(step.selector)}, ${JSON.stringify(step.value)});`);
+      // Versuche zuerst nach value, dann nach label zu matchen
+      lines.push(`    await page.selectOption(${JSON.stringify(step.selector)}, { label: ${JSON.stringify(step.value)} }).catch(() =>`);
+      lines.push(`      page.selectOption(${JSON.stringify(step.selector)}, ${JSON.stringify(step.value)})`);
+      lines.push(`    );`);
       break;
 
     case 'select_tree': {
