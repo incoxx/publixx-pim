@@ -42,9 +42,10 @@ class VideoGenerate extends Command
             return $this->runPreflight($engineDir, $this->option('story'));
         }
 
-        // Produktionsschutz (nur für Video-Generierung)
-        if (app()->environment('production')) {
+        // Produktionsschutz (nur für Video-Generierung, --force überspringt)
+        if (app()->environment('production') && !$this->option('force')) {
             $this->error('Video-Generierung ist in der Produktionsumgebung nicht erlaubt.');
+            $this->line('  Nutze --force um den Schutz zu überspringen.');
             return self::FAILURE;
         }
 
