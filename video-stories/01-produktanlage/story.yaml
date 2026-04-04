@@ -70,7 +70,7 @@ steps:
 
   - id: "fill-sku"
     action: fill
-    selector: "[data-testid='field-sku'] .pim-input"
+    selector: "[data-testid='field-sku'] input"
     value: "TV-OLED-55-001"
     type_speed: 80
     sprecher: "Wir vergeben zuerst eine eindeutige SKU – die Artikelnummer."
@@ -78,7 +78,7 @@ steps:
 
   - id: "fill-name"
     action: fill
-    selector: "[data-testid='field-name'] .pim-input"
+    selector: "[data-testid='field-name'] input"
     value: "Samsung OLED 55 Zoll"
     type_speed: 80
     sprecher: "Dann den Produktnamen."
@@ -86,7 +86,7 @@ steps:
 
   - id: "select-product-type"
     action: click
-    selector: "[data-testid='field-product_type_id'] .pim-input"
+    selector: "[data-testid='field-product_type_id'] select"
     sprecher: "Den Produkttyp auswählen – hier ein physisches Produkt."
     pause_after: 1000
 
