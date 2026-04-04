@@ -217,8 +217,11 @@ cd "$ENGINE_DIR" && VIDEO_PATH="$RECORDING" AUDIO_PATH="$AUDIO_ARG" SRT_PATH="$S
 
 # Output kopieren
 mkdir -p "$OUTPUT_DIR"
-cp "$FINAL_VIDEO" "$OUTPUT_FILE"
-[ -f "$SRT_FILE" ] && cp "$SRT_FILE" "$OUTPUT_DIR/$STORY_ID.srt"
+echo "DEBUG: FINAL_VIDEO=$FINAL_VIDEO"
+echo "DEBUG: OUTPUT_FILE=$OUTPUT_FILE"
+echo "DEBUG: OUTPUT_DIR=$OUTPUT_DIR"
+cp -v "$FINAL_VIDEO" "$OUTPUT_FILE"
+[ -f "$SRT_FILE" ] && cp -v "$SRT_FILE" "$OUTPUT_DIR/$STORY_ID.srt"
 
 echo ""
 echo "=== Fertig ==="
