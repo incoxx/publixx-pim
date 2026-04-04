@@ -72,7 +72,7 @@ class ProductController extends Controller
 
         // By default, exclude variants from the main product listing
         if (!isset($filters['product_type_ref'])) {
-            $query->where('product_type_ref', 'product');
+            $query->where('products.product_type_ref', 'product');
         }
 
         // Handle project_id filter via pivot table
