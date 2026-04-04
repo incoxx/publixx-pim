@@ -340,7 +340,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="space-y-4">
+  <div class="space-y-4" data-testid="watchlist-view">
     <!-- Header -->
     <div class="flex flex-wrap items-center justify-between gap-2">
       <div class="flex items-center gap-3">
