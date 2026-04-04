@@ -2,9 +2,9 @@ import fs from 'fs';
 import path from 'path';
 import { execSync, spawnSync } from 'child_process';
 import winston from 'winston';
-import * as log from './logger.js';
-import type { Story } from './story-validator.js';
-import { extractSprecherTexts } from './subtitle-extractor.js';
+import * as log from './logger';
+import type { Story } from './story-validator';
+import { extractSprecherTexts } from './subtitle-extractor';
 
 interface VoiceConfig {
   lang: string;

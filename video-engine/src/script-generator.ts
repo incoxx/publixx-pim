@@ -1,4 +1,4 @@
-import type { Story, StoryStep } from './story-validator.js';
+import type { Story, StoryStep } from './story-validator';
 
 /**
  * Generiert ein ausführbares Playwright-Script aus einer Story.
