@@ -66,7 +66,8 @@ export function generatePlaywrightScript(story: Story, baseUrl: string): string 
     const stepNum = i + 1;
 
     lines.push(`  // --- Step ${stepNum}/${totalSteps}: ${step.id} (${step.action}) ---`);
-    lines.push(`  console.log('[STEP ${stepNum}/${totalSteps}] ${step.id} → ${step.action}${step.selector ? ` ${step.selector}` : ''}');`);
+    const logDetail = step.selector ? ` ${step.selector.replace(/'/g, "\\'")}` : '';
+    lines.push(`  console.log('[STEP ${stepNum}/${totalSteps}] ${step.id} → ${step.action}${logDetail}');`);
     lines.push(`  try {`);
 
     generateStepCode(lines, step, baseUrl);
