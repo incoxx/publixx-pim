@@ -92,7 +92,7 @@ mkdir -p "$TMP_DIR"
 SCRIPT_FILE="$TMP_DIR/playwright-script.ts"
 
 echo "→ Playwright-Script generieren..."
-cd "$ENGINE_DIR" && STORY_FILE="$STORY_PATH" OUTPUT_FILE="$SCRIPT_FILE" npx tsx -e "
+cd "$ENGINE_DIR" && STORY_FILE="$STORY_PATH" SCRIPT_OUTPUT="$SCRIPT_FILE" npx tsx -e "
   import { validateStory, interpolateEnv } from './src/story-validator';
   import { generatePlaywrightScript } from './src/script-generator';
   import { writeFileSync } from 'fs';
@@ -101,8 +101,8 @@ cd "$ENGINE_DIR" && STORY_FILE="$STORY_PATH" OUTPUT_FILE="$SCRIPT_FILE" npx tsx 
   const interpolated = interpolateEnv(story);
   const baseUrl = process.env.ANYPIM_BASE_URL || process.env.VIDEO_ENGINE_BASE_URL || 'http://localhost:8000';
   const script = generatePlaywrightScript(interpolated, baseUrl);
-  writeFileSync(process.env.OUTPUT_FILE!, script);
-  console.log('Script: ' + process.env.OUTPUT_FILE);
+  writeFileSync(process.env.SCRIPT_OUTPUT!, script);
+  console.log('Script: ' + process.env.SCRIPT_OUTPUT);
 "
 
 # Aufnahme starten (Xvfb + ffmpeg + Playwright)
@@ -133,7 +133,7 @@ cleanup() {
 trap cleanup EXIT
 
 # Playwright-Script ausführen
-DISPLAY="$DISPLAY" npx tsx "$SCRIPT_FILE" 2>&1 || {
+cd "$ENGINE_DIR" && DISPLAY="$DISPLAY" NODE_PATH="$ENGINE_DIR/node_modules" npx tsx "$SCRIPT_FILE" 2>&1 || {
   echo "⚠ Playwright-Script mit Fehlern beendet"
 }
 
