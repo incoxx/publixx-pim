@@ -64,5 +64,18 @@ yarn-error.log
 # Vendor Assets (Laravel publiziert)
 /public/vendor
 
+# Video Engine
+/video-engine/node_modules
+/video-engine/dist
+/public/videos/*.mp4
+/public/videos/*.srt
+!/public/videos/.gitkeep
+/storage/video-engine/tmp/*
+/storage/video-engine/logs/*
+/storage/video-engine/lock/*
+!/storage/video-engine/tmp/.gitkeep
+!/storage/video-engine/logs/.gitkeep
+!/storage/video-engine/lock/.gitkeep
+
 publixx_pim
 __pycache__/

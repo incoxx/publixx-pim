@@ -1,0 +1,99 @@
+# anyPIM Video Story: Kategoriebaum verwalten
+# Zeigt die Hierarchie-Verwaltung mit Knotenanlage
+
+meta:
+  id: "02-kategoriebaum"
+  title: "Kategoriebaum verwalten"
+  description: "Zeigt wie Hierarchien und Kategorieknoten in anyPIM erstellt und verwaltet werden."
+  version: "1.0.0"
+  duration_estimate: 75
+  tags:
+    - grundlagen
+    - hierarchien
+  voice:
+    lang: "de"
+    gender: "female"
+    provider: "elevenlabs"
+    voice_id: ""
+  viewport:
+    width: 1920
+    height: 1080
+  slow_mo: 600
+  seeder: "DemoVideoSeeder"
+  seeder_reset: true
+
+steps:
+  # --- Login ---
+  - id: "open-login"
+    action: navigate
+    target: "/login"
+    wait_for: "[data-testid='login-form']"
+    sprecher: "In diesem Video zeigen wir die Hierarchie-Verwaltung in anyPIM."
+    pause_after: 1000
+
+  - id: "fill-email"
+    action: fill
+    selector: "[data-testid='input-email']"
+    value: "${VIDEO_DEMO_USER_EMAIL}"
+    type_speed: 60
+    sprecher: ""
+
+  - id: "fill-password"
+    action: fill
+    selector: "[data-testid='input-password']"
+    value: "${VIDEO_DEMO_USER_PASSWORD}"
+    type_speed: 60
+    sprecher: ""
+
+  - id: "submit-login"
+    action: click
+    selector: "[data-testid='btn-login']"
+    wait_for: "[data-testid='product-list']"
+    wait_timeout: 5000
+    sprecher: ""
+    pause_after: 1000
+
+  # --- Navigation zur Hierarchie ---
+  - id: "click-hierarchies"
+    action: click
+    selector: "[data-testid='nav-hierarchies']"
+    wait_for: "[data-testid='hierarchy-view']"
+    wait_timeout: 5000
+    sprecher: "Im Bereich Hierarchien verwalten wir den Kategoriebaum."
+    pause_after: 2000
+
+  - id: "show-tree"
+    action: highlight
+    selector: "[data-testid='hierarchy-view']"
+    sprecher: "Links sehen wir den Baum mit allen Knoten. Rechts die Details zum ausgewählten Knoten – Attribute, zugeordnete Produkte und Unterknoten."
+    pause_after: 2500
+
+  # --- Neuen Knoten anlegen ---
+  - id: "click-new-node"
+    action: click
+    selector: "[data-testid='btn-new-node']"
+    wait_for: "[data-testid='node-form-panel']"
+    wait_timeout: 5000
+    sprecher: "Wir legen einen neuen Knoten an."
+    pause_after: 1500
+
+  - id: "fill-node-name"
+    action: fill
+    selector: "[data-testid='node-form-panel'] input[type='text']"
+    value: "Fernseher"
+    type_speed: 80
+    sprecher: "Den Namen eingeben – anyPIM erstellt automatisch einen technischen Identifier."
+    pause_after: 1000
+
+  - id: "save-node"
+    action: click
+    selector: "[data-testid='btn-save']"
+    wait_for: "[data-testid='toast-success']"
+    wait_timeout: 8000
+    sprecher: "Speichern – der neue Knoten erscheint sofort im Baum."
+    pause_after: 2000
+
+  - id: "end"
+    action: wait
+    duration: 2000
+    sprecher: "Im nächsten Video zeigen wir die leistungsstarke PQL-Suche."

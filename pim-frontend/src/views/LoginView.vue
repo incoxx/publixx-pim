@@ -126,22 +126,22 @@ onMounted(async () => {
 
       <!-- Login Form -->
       <template v-else>
-        <form @submit.prevent="handleLogin" class="pim-card p-6 space-y-4">
+        <form @submit.prevent="handleLogin" class="pim-card p-6 space-y-4" data-testid="login-form">
           <div v-if="error" class="p-3 rounded-md bg-[var(--color-error-light)] text-[var(--color-error)] text-sm">
             {{ error }}
           </div>
 
           <div>
             <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">E-Mail</label>
-            <input v-model="email" type="email" required class="pim-input" placeholder="admin@example.com" autofocus />
+            <input v-model="email" type="email" required class="pim-input" placeholder="admin@example.com" autofocus data-testid="input-email" />
           </div>
 
           <div>
             <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Passwort</label>
-            <input v-model="password" type="password" required class="pim-input" placeholder="••••••••" />
+            <input v-model="password" type="password" required class="pim-input" placeholder="••••••••" data-testid="input-password" />
           </div>
 
-          <button type="submit" class="pim-btn pim-btn-primary w-full py-2.5" :disabled="loading">
+          <button type="submit" class="pim-btn pim-btn-primary w-full py-2.5" :disabled="loading" data-testid="btn-login">
             {{ loading ? 'Anmelden…' : 'Anmelden' }}
           </button>
         </form>

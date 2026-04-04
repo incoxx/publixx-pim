@@ -306,7 +306,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="space-y-5">
+  <div class="space-y-5" data-testid="dashboard">
     <!-- Header -->
     <div class="flex items-center justify-between">
       <h2 class="text-lg font-semibold text-[var(--color-text-primary)]">Dashboard</h2>

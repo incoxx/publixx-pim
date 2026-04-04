@@ -1015,7 +1015,7 @@ const apiCallDisplay = computed(() => {
 </script>
 
 <template>
-  <div class="space-y-4">
+  <div class="space-y-4" data-testid="search-view">
     <!-- Entity category tabs -->
     <div class="flex items-center gap-1 border-b border-[var(--color-border)] pb-0 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
       <button
@@ -1061,6 +1061,7 @@ const apiCallDisplay = computed(() => {
           class="pim-input pl-4 pr-4 py-2.5 sm:py-3 text-sm sm:text-base w-full"
           @keydown.enter="doSearch(1)"
           autofocus
+          data-testid="search-input"
         />
       </div>
       <div class="flex items-center gap-2 flex-wrap">
@@ -1160,7 +1161,7 @@ const apiCallDisplay = computed(() => {
         <FileOutput class="w-4 h-4" :stroke-width="1.75" />
         <span class="ml-1.5 text-sm hidden sm:inline">PDF</span>
       </button>
-      <button class="pim-btn pim-btn-primary py-2 px-4 sm:py-3 sm:px-6" @click="doSearch(1)">
+      <button class="pim-btn pim-btn-primary py-2 px-4 sm:py-3 sm:px-6" @click="doSearch(1)" data-testid="btn-search">
         Suchen
       </button>
       </div>
@@ -1382,7 +1383,7 @@ const apiCallDisplay = computed(() => {
     </div>
 
     <!-- Result count -->
-    <div v-if="hasSearched && !loading && !error && results.length > 0" class="text-xs text-[var(--color-text-tertiary)]">
+    <div v-if="hasSearched && !loading && !error && results.length > 0" class="text-xs text-[var(--color-text-tertiary)]" data-testid="search-results">
       {{ resultMeta.total }} Ergebnis{{ resultMeta.total !== 1 ? 'se' : '' }}
       <span v-if="searchMode === 'soundex'" class="ml-1 text-[var(--color-accent)]">(SOUNDEX)</span>
       <span v-if="searchMode === 'regex'" class="ml-1 text-[var(--color-accent)]">(REGEXP)</span>

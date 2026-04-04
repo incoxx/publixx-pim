@@ -6,6 +6,7 @@ import { useLicenseStore } from '@/stores/license'
 import { useConnectorsStore } from '@/stores/connectors'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import PimCommandPalette from '@/components/shared/PimCommandPalette.vue'
+import PimToast from '@/components/shared/PimToast.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -88,5 +89,6 @@ onUnmounted(() => {
   <template v-else>
     <AppLayout />
     <PimCommandPalette />
+    <PimToast />
   </template>
 </template>

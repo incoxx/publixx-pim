@@ -934,7 +934,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="flex flex-col lg:flex-row gap-4 h-auto lg:h-[calc(100vh-140px)]">
+  <div class="flex flex-col lg:flex-row gap-4 h-auto lg:h-[calc(100vh-140px)]" data-testid="hierarchy-view">
     <!-- Left: Tree -->
     <div
       class="w-full shrink-0 pim-card flex flex-col overflow-hidden max-h-[50vh] lg:max-h-none relative"
@@ -972,7 +972,7 @@ onMounted(async () => {
       </div>
       <!-- Action bar for adding root node -->
       <div v-if="authStore.hasPermission('hierarchy-nodes.create')" class="px-3 py-2 border-b border-[var(--color-border)]">
-        <button class="pim-btn pim-btn-secondary text-xs w-full" @click="createChildNode(null)">
+        <button class="pim-btn pim-btn-secondary text-xs w-full" @click="createChildNode(null)" data-testid="btn-new-node">
           <FolderPlus class="w-3.5 h-3.5" :stroke-width="2" /> Knoten erstellen
         </button>
       </div>
