@@ -15,9 +15,15 @@ export function generatePlaywrightScript(story: Story, baseUrl: string): string 
   lines.push(`// Version: ${story.meta.version}`);
   lines.push(``);
   lines.push(`import { chromium, type Page, type Browser } from 'playwright';`);
+  lines.push(`import { writeFileSync } from 'fs';`);
   lines.push(``);
   lines.push(`const BASE_URL = ${JSON.stringify(baseUrl)};`);
   lines.push(`const SLOW_MO = ${slowMo};`);
+  lines.push(`const TIMESTAMPS_FILE = process.env.TIMESTAMPS_FILE || 'timestamps.json';`);
+  lines.push(`const recordingStart = Date.now();`);
+  lines.push(`const timestamps: { id: string; sprecher: string; startMs: number; endMs?: number }[] = [];`);
+  lines.push(``);
+  lines.push(`function elapsed(): number { return Date.now() - recordingStart; }`);
   lines.push(``);
   lines.push(`async function sleep(ms: number): Promise<void> {`);
   lines.push(`  return new Promise(resolve => setTimeout(resolve, ms));`);
@@ -68,6 +74,11 @@ export function generatePlaywrightScript(story: Story, baseUrl: string): string 
     lines.push(`  // --- Step ${stepNum}/${totalSteps}: ${step.id} (${step.action}) ---`);
     const logDetail = step.selector ? ` ${step.selector.replace(/'/g, "\\'")}` : '';
     lines.push(`  console.log('[STEP ${stepNum}/${totalSteps}] ${step.id} → ${step.action}${logDetail}');`);
+
+    // Timestamp erfassen für SRT-Synchronisierung
+    const sprecherText = (step.sprecher || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    lines.push(`  timestamps.push({ id: '${step.id}', sprecher: '${sprecherText}', startMs: elapsed() });`);
+
     lines.push(`  try {`);
 
     generateStepCode(lines, step, baseUrl);
@@ -83,7 +94,9 @@ export function generatePlaywrightScript(story: Story, baseUrl: string): string 
       lines.push(`    await sleep(${step.pause_after});`);
     }
 
+    lines.push(`    timestamps[timestamps.length - 1].endMs = elapsed();`);
     lines.push(`  } catch (err) {`);
+    lines.push(`    timestamps[timestamps.length - 1].endMs = elapsed();`);
     lines.push(`    console.warn('[STEP ${stepNum}/${totalSteps}] WARN: ${step.id} fehlgeschlagen:', (err as Error).message);`);
     lines.push(`    await page.screenshot({ path: 'step-${stepNum}-error.png' });`);
     lines.push(`  }`);
@@ -91,10 +104,15 @@ export function generatePlaywrightScript(story: Story, baseUrl: string): string 
   }
 
   lines.push(`  await sleep(1000);`);
+  lines.push(`  // Timestamps als JSON speichern (fuer SRT-Synchronisierung)`);
+  lines.push(`  writeFileSync(TIMESTAMPS_FILE, JSON.stringify(timestamps, null, 2));`);
+  lines.push(`  console.log('Timestamps: ' + TIMESTAMPS_FILE + ' (' + timestamps.length + ' Eintraege)');`);
   lines.push(`  await browser.close();`);
   lines.push(`}`);
   lines.push(``);
   lines.push(`run().catch(err => {`);
+  lines.push(`  // Timestamps auch bei Fehler speichern`);
+  lines.push(`  try { writeFileSync(TIMESTAMPS_FILE, JSON.stringify(timestamps, null, 2)); } catch {}`);
   lines.push(`  console.error('Script fehlgeschlagen:', err);`);
   lines.push(`  process.exit(1);`);
   lines.push(`});`);

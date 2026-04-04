@@ -143,8 +143,9 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Playwright-Script ausführen
-cd "$ENGINE_DIR" && DISPLAY="$DISPLAY" NODE_PATH="$ENGINE_DIR/node_modules" npx tsx "$SCRIPT_FILE" 2>&1 || {
+# Playwright-Script ausführen (schreibt Timestamps-Datei für SRT-Sync)
+TIMESTAMPS_FILE="$TMP_DIR/timestamps.json"
+cd "$ENGINE_DIR" && DISPLAY="$DISPLAY" NODE_PATH="$ENGINE_DIR/node_modules" TIMESTAMPS_FILE="$TIMESTAMPS_FILE" npx tsx "$SCRIPT_FILE" 2>&1 || {
   echo "⚠ Playwright-Script mit Fehlern beendet"
 }
 
@@ -159,18 +160,26 @@ trap - EXIT
 
 echo "→ Aufnahme beendet: $RECORDING"
 
-# Untertitel generieren
+# Untertitel generieren (aus echten Timestamps oder geschätzten Dauern)
 echo "→ SRT generieren..."
 SRT_FILE="$TMP_DIR/$STORY_ID.srt"
-cd "$ENGINE_DIR" && STORY_FILE="$STORY_PATH" SRT_OUTPUT="$SRT_FILE" npx tsx -e "
+cd "$ENGINE_DIR" && STORY_FILE="$STORY_PATH" SRT_OUTPUT="$SRT_FILE" TS_FILE="$TIMESTAMPS_FILE" npx tsx -e "
   import { validateStory } from './src/story-validator';
-  import { extractSubtitles, generateSrt } from './src/subtitle-extractor';
-  import { writeFileSync } from 'fs';
-  const { story } = validateStory(process.env.STORY_FILE!);
-  if (!story) process.exit(1);
-  const entries = extractSubtitles(story);
+  import { extractSubtitles, extractSubtitlesFromTimestamps, generateSrt } from './src/subtitle-extractor';
+  import { writeFileSync, existsSync } from 'fs';
+  const tsFile = process.env.TS_FILE!;
+  let entries;
+  if (existsSync(tsFile)) {
+    entries = extractSubtitlesFromTimestamps(tsFile);
+    console.log('SRT: Synchronisiert mit echten Aufnahme-Timestamps');
+  } else {
+    const { story } = validateStory(process.env.STORY_FILE!);
+    if (!story) process.exit(1);
+    entries = extractSubtitles(story);
+    console.log('SRT: Fallback auf geschaetzte Dauern');
+  }
   writeFileSync(process.env.SRT_OUTPUT!, generateSrt(entries));
-  console.log('SRT: ' + process.env.SRT_OUTPUT + ' (' + entries.length + ' Einträge)');
+  console.log('SRT: ' + process.env.SRT_OUTPUT + ' (' + entries.length + ' Eintraege)');
 "
 
 # Audio erzeugen (optional)

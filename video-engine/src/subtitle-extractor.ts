@@ -1,4 +1,13 @@
+import fs from 'fs';
 import type { Story, StoryStep } from './story-validator';
+
+/** Timestamp-Eintrag aus dem Playwright-Script */
+export interface RecordedTimestamp {
+  id: string;
+  sprecher: string;
+  startMs: number;
+  endMs?: number;
+}
 
 interface SrtEntry {
   index: number;
@@ -125,4 +134,46 @@ export function extractSprecherTexts(story: Story): { stepId: string; text: stri
   }
 
   return texts;
+}
+
+/**
+ * Erzeugt SRT-Einträge aus echten Aufnahme-Timestamps (statt geschätzten Dauern).
+ * Die Timestamps werden vom Playwright-Script während der Aufnahme geschrieben.
+ */
+export function extractSubtitlesFromTimestamps(timestampsFile: string): SrtEntry[] {
+  if (!fs.existsSync(timestampsFile)) {
+    return [];
+  }
+
+  const timestamps: RecordedTimestamp[] = JSON.parse(fs.readFileSync(timestampsFile, 'utf-8'));
+  const entries: SrtEntry[] = [];
+  let entryIndex = 1;
+
+  for (const ts of timestamps) {
+    if (!ts.sprecher || ts.sprecher.trim() === '') continue;
+
+    const startMs = ts.startMs;
+    // Ende = endMs des Steps, oder Start + Lesezeit (min 3s)
+    const readDuration = Math.max(ts.sprecher.length * 60, 3000);
+    const endMs = ts.endMs ? Math.min(ts.endMs, startMs + readDuration) : startMs + readDuration;
+
+    entries.push({
+      index: entryIndex++,
+      startMs,
+      endMs,
+      text: ts.sprecher,
+    });
+  }
+
+  // Überlappungen auflösen
+  for (let i = 1; i < entries.length; i++) {
+    if (entries[i].startMs < entries[i - 1].endMs) {
+      entries[i - 1].endMs = entries[i].startMs - 100;
+      if (entries[i - 1].endMs <= entries[i - 1].startMs) {
+        entries[i - 1].endMs = entries[i - 1].startMs + 500;
+      }
+    }
+  }
+
+  return entries;
 }
