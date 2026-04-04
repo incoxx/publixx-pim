@@ -3,7 +3,6 @@
   "version": "1.0.0",
   "description": "Video-Generierungs-Engine für anyPIM Lehr- und Demo-Videos",
   "private": true,
-  "type": "module",
   "scripts": {
     "preflight": "tsx src/preflight.ts",
     "validate": "tsx src/story-validator.ts",
