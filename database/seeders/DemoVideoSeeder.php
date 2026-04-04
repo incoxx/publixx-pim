@@ -7,7 +7,6 @@ namespace Database\Seeders;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
-use Spatie\Permission\Models\Role;
 
 /**
  * Seeder für Video-Engine Demo-Daten.
@@ -54,9 +53,12 @@ class DemoVideoSeeder extends Seeder
         );
 
         // Admin-Rolle zuweisen (für vollen Zugriff in Videos)
-        $adminRole = Role::where('name', 'Admin')->first();
-        if ($adminRole && !$user->hasRole('Admin')) {
-            $user->assignRole($adminRole);
+        try {
+            if (!$user->hasRole('Admin')) {
+                $user->assignRole('Admin');
+            }
+        } catch (\Throwable $e) {
+            $this->command->warn("Rolle konnte nicht zugewiesen werden: {$e->getMessage()}");
         }
 
         $this->command->info("Demo-User: {$email} (Admin-Rolle)");
