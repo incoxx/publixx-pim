@@ -8,8 +8,19 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENGINE_DIR="$(dirname "$SCRIPT_DIR")"
 PROJECT_ROOT="$(dirname "$ENGINE_DIR")"
 STORIES_DIR="$PROJECT_ROOT/video-stories"
-OUTPUT_DIR="${VIDEO_ENGINE_OUTPUT_DIR:-${VIDEO_OUTPUT_DIR:-$PROJECT_ROOT/public/videos}}"
-STORAGE_DIR="${VIDEO_ENGINE_STORAGE_DIR:-${VIDEO_STORAGE_DIR:-$PROJECT_ROOT/storage/video-engine}}"
+# OUTPUT_DIR: Absolut machen falls relativ
+_OUTPUT_DIR="${VIDEO_ENGINE_OUTPUT_DIR:-${VIDEO_OUTPUT_DIR:-public/videos}}"
+if [[ "$_OUTPUT_DIR" != /* ]]; then
+  OUTPUT_DIR="$PROJECT_ROOT/$_OUTPUT_DIR"
+else
+  OUTPUT_DIR="$_OUTPUT_DIR"
+fi
+_STORAGE_DIR="${VIDEO_ENGINE_STORAGE_DIR:-${VIDEO_STORAGE_DIR:-storage/video-engine}}"
+if [[ "$_STORAGE_DIR" != /* ]]; then
+  STORAGE_DIR="$PROJECT_ROOT/$_STORAGE_DIR"
+else
+  STORAGE_DIR="$_STORAGE_DIR"
+fi
 
 STORY_ID="${1:-}"
 FORCE=false
@@ -217,11 +228,8 @@ cd "$ENGINE_DIR" && VIDEO_PATH="$RECORDING" AUDIO_PATH="$AUDIO_ARG" SRT_PATH="$S
 
 # Output kopieren
 mkdir -p "$OUTPUT_DIR"
-echo "DEBUG: FINAL_VIDEO=$FINAL_VIDEO"
-echo "DEBUG: OUTPUT_FILE=$OUTPUT_FILE"
-echo "DEBUG: OUTPUT_DIR=$OUTPUT_DIR"
-cp -v "$FINAL_VIDEO" "$OUTPUT_FILE"
-[ -f "$SRT_FILE" ] && cp -v "$SRT_FILE" "$OUTPUT_DIR/$STORY_ID.srt"
+cp "$FINAL_VIDEO" "$OUTPUT_FILE"
+[ -f "$SRT_FILE" ] && cp "$SRT_FILE" "$OUTPUT_DIR/$STORY_ID.srt"
 
 echo ""
 echo "=== Fertig ==="
