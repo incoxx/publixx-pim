@@ -2,8 +2,8 @@ import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { config } from 'dotenv';
-import { validateStory, type Story } from './story-validator.js';
-import { createStoryLogger, preflight as logPreflight } from './logger.js';
+import { validateStory, type Story } from './story-validator';
+import { createStoryLogger, preflight as logPreflight } from './logger';
 
 // .env laden (video-engine/.env oder Root .env)
 config({ path: path.resolve(__dirname, '../.env') });

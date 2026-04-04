@@ -2,7 +2,7 @@ import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import winston from 'winston';
-import * as log from './logger.js';
+import * as log from './logger';
 
 export interface RenderOptions {
   videoPath: string;

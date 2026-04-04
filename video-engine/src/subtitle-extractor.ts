@@ -1,4 +1,4 @@
-import type { Story, StoryStep } from './story-validator.js';
+import type { Story, StoryStep } from './story-validator';
 
 interface SrtEntry {
   index: number;

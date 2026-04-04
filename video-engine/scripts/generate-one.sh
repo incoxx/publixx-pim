@@ -93,8 +93,8 @@ SCRIPT_FILE="$TMP_DIR/playwright-script.ts"
 
 echo "→ Playwright-Script generieren..."
 cd "$ENGINE_DIR" && STORY_FILE="$STORY_PATH" OUTPUT_FILE="$SCRIPT_FILE" npx tsx -e "
-  import { validateStory, interpolateEnv } from './src/story-validator.js';
-  import { generatePlaywrightScript } from './src/script-generator.js';
+  import { validateStory, interpolateEnv } from './src/story-validator';
+  import { generatePlaywrightScript } from './src/script-generator';
   import { writeFileSync } from 'fs';
   const { story } = validateStory(process.env.STORY_FILE!);
   if (!story) { console.error('Story ungültig'); process.exit(1); }
@@ -152,8 +152,8 @@ echo "→ Aufnahme beendet: $RECORDING"
 echo "→ SRT generieren..."
 SRT_FILE="$TMP_DIR/$STORY_ID.srt"
 cd "$ENGINE_DIR" && STORY_FILE="$STORY_PATH" SRT_OUTPUT="$SRT_FILE" npx tsx -e "
-  import { validateStory } from './src/story-validator.js';
-  import { extractSubtitles, generateSrt } from './src/subtitle-extractor.js';
+  import { validateStory } from './src/story-validator';
+  import { extractSubtitles, generateSrt } from './src/subtitle-extractor';
   import { writeFileSync } from 'fs';
   const { story } = validateStory(process.env.STORY_FILE!);
   if (!story) process.exit(1);
@@ -167,9 +167,9 @@ echo "→ Voiceover erzeugen..."
 AUDIO_FILE=""
 if [ -n "${ELEVENLABS_API_KEY:-}" ] || command -v gtts-cli &>/dev/null; then
   cd "$ENGINE_DIR" && STORY_FILE="$STORY_PATH" AUDIO_TMP_DIR="$TMP_DIR" VIDEO_STORY_ID="$STORY_ID" npx tsx -e "
-    import { validateStory } from './src/story-validator.js';
-    import { VoiceSynthesizer } from './src/voice-synthesizer.js';
-    import { createStoryLogger } from './src/logger.js';
+    import { validateStory } from './src/story-validator';
+    import { VoiceSynthesizer } from './src/voice-synthesizer';
+    import { createStoryLogger } from './src/logger';
     const logger = createStoryLogger(process.env.VIDEO_STORY_ID!);
     const { story } = validateStory(process.env.STORY_FILE!);
     if (!story) process.exit(1);
@@ -198,8 +198,8 @@ AUDIO_ARG="${AUDIO_FILE:-}"
 cd "$ENGINE_DIR" && VIDEO_PATH="$RECORDING" AUDIO_PATH="$AUDIO_ARG" SRT_PATH="$SRT_FILE" \
   RENDER_OUTPUT="$FINAL_VIDEO" RENDER_QUALITY="$QUALITY" VIDEO_STORY_ID="$STORY_ID" \
   npx tsx -e "
-  import { renderVideo } from './src/video-renderer.js';
-  import { createStoryLogger } from './src/logger.js';
+  import { renderVideo } from './src/video-renderer';
+  import { createStoryLogger } from './src/logger';
   const logger = createStoryLogger(process.env.VIDEO_STORY_ID!);
   await renderVideo({
     videoPath: process.env.VIDEO_PATH!,
