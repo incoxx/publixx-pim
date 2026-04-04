@@ -79,7 +79,7 @@ steps:
 
   - id: "fill-node-name"
     action: fill
-    selector: "[data-testid='node-form-panel'] input[type='text']"
+    selector: "[data-testid='field-name_de'] .pim-input"
     value: "Fernseher"
     type_speed: 80
     sprecher: "Den Namen eingeben – anyPIM erstellt automatisch einen technischen Identifier."
