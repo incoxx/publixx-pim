@@ -43,6 +43,7 @@ onUnmounted(() => {
       v-for="field in fields"
       :key="field.key"
       :class="field.fullWidth ? '' : 'max-w-lg'"
+      :data-testid="'field-' + field.key"
     >
       <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">
         {{ field.label }}
