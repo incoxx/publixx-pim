@@ -170,12 +170,14 @@ if [ -n "${ELEVENLABS_API_KEY:-}" ] || command -v gtts-cli &>/dev/null; then
     import { validateStory } from './src/story-validator';
     import { VoiceSynthesizer } from './src/voice-synthesizer';
     import { createStoryLogger } from './src/logger';
-    const logger = createStoryLogger(process.env.VIDEO_STORY_ID!);
-    const { story } = validateStory(process.env.STORY_FILE!);
-    if (!story) process.exit(1);
-    const synth = new VoiceSynthesizer(logger);
-    const audioPath = await synth.synthesize(story, process.env.AUDIO_TMP_DIR!);
-    if (audioPath) console.log('AUDIO:' + audioPath);
+    (async () => {
+      const logger = createStoryLogger(process.env.VIDEO_STORY_ID!);
+      const { story } = validateStory(process.env.STORY_FILE!);
+      if (!story) process.exit(1);
+      const synth = new VoiceSynthesizer(logger);
+      const audioPath = await synth.synthesize(story, process.env.AUDIO_TMP_DIR!);
+      if (audioPath) console.log('AUDIO:' + audioPath);
+    })();
   " | while read -r line; do
     if [[ "$line" == AUDIO:* ]]; then
       echo "${line#AUDIO:}" > "$TMP_DIR/.audio-path"
@@ -200,15 +202,17 @@ cd "$ENGINE_DIR" && VIDEO_PATH="$RECORDING" AUDIO_PATH="$AUDIO_ARG" SRT_PATH="$S
   npx tsx -e "
   import { renderVideo } from './src/video-renderer';
   import { createStoryLogger } from './src/logger';
-  const logger = createStoryLogger(process.env.VIDEO_STORY_ID!);
-  await renderVideo({
-    videoPath: process.env.VIDEO_PATH!,
-    audioPath: process.env.AUDIO_PATH || null,
-    srtPath: process.env.SRT_PATH!,
-    outputPath: process.env.RENDER_OUTPUT!,
-    quality: (process.env.RENDER_QUALITY || 'high') as 'high' | 'medium' | 'low',
-    logger,
-  });
+  (async () => {
+    const logger = createStoryLogger(process.env.VIDEO_STORY_ID!);
+    await renderVideo({
+      videoPath: process.env.VIDEO_PATH!,
+      audioPath: process.env.AUDIO_PATH || null,
+      srtPath: process.env.SRT_PATH!,
+      outputPath: process.env.RENDER_OUTPUT!,
+      quality: (process.env.RENDER_QUALITY || 'high') as 'high' | 'medium' | 'low',
+      logger,
+    });
+  })();
 "
 
 # Output kopieren
