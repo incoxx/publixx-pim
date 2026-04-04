@@ -182,7 +182,7 @@ function typeIcon(type) {
 </script>
 
 <template>
-  <div class="flex flex-col items-center w-full min-h-full px-4 pt-8 pb-16">
+  <div class="flex flex-col items-center w-full min-h-full px-4 pt-8 pb-16" data-testid="quick-search-view">
 
     <!-- Verlauf / Breadcrumbs -->
     <div

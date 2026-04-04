@@ -747,7 +747,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="flex gap-4 h-full relative">
+  <div class="flex gap-4 h-full relative" data-testid="media-view">
     <!-- Mobile sidebar toggle -->
     <button class="lg:hidden fixed bottom-4 left-4 z-40 pim-btn pim-btn-primary rounded-full w-12 h-12 shadow-lg flex items-center justify-center" @click="sidebarOpen = !sidebarOpen">
       <FolderOpen class="w-5 h-5" />

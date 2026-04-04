@@ -73,11 +73,11 @@ export function generatePlaywrightScript(story: Story, baseUrl: string): string 
   lines.push(`<html><head><style>`);
   lines.push(`  * { margin: 0; padding: 0; box-sizing: border-box; }`);
   lines.push(`  body { width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; background: #0f0f23; overflow: hidden; }`);
-  lines.push(`  .intro { display: flex; flex-direction: column; align-items: center; gap: 24px; animation: zoomFade 4s ease-in-out forwards; }`);
+  lines.push(`  .intro { display: flex; flex-direction: column; align-items: center; gap: 24px; animation: zoomFade 7s ease-in-out forwards; }`);
   lines.push(`  @keyframes zoomFade {`);
   lines.push(`    0% { transform: scale(2.5); opacity: 0; }`);
-  lines.push(`    20% { transform: scale(1.1); opacity: 1; }`);
-  lines.push(`    70% { transform: scale(1); opacity: 1; }`);
+  lines.push(`    15% { transform: scale(1.05); opacity: 1; }`);
+  lines.push(`    75% { transform: scale(1); opacity: 1; }`);
   lines.push(`    100% { transform: scale(0.95); opacity: 0; }`);
   lines.push(`  }`);
   lines.push(`  .logo-text { font-family: system-ui, -apple-system, sans-serif; font-size: 64px; font-weight: 800; letter-spacing: -1px; background: linear-gradient(135deg, #6366f1, #8b5cf6, #06b6d4); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }`);
@@ -99,7 +99,7 @@ export function generatePlaywrightScript(story: Story, baseUrl: string): string 
   lines.push(`  </div>`);
   lines.push(`</body></html>`);
   lines.push(`\`);`);
-  lines.push(`  await sleep(4500);`);
+  lines.push(`  await sleep(7500);`);
   lines.push(``);
 
   const totalSteps = story.steps.length;

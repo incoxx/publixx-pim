@@ -108,7 +108,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="space-y-4 max-w-6xl mx-auto">
+  <div class="space-y-4 max-w-6xl mx-auto" data-testid="calendar-view">
     <!-- Header -->
     <div class="flex items-center justify-between flex-wrap gap-3">
       <h2 class="text-lg font-semibold text-[var(--color-text-primary)]">Planungskalender</h2>

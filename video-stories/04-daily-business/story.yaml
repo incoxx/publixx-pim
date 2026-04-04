@@ -1,0 +1,151 @@
+# anyPIM Video Story: Daily Business Tour
+# Führt durch alle Menüpunkte der Sektion "Daily Business"
+
+meta:
+  id: "04-daily-business"
+  title: "Daily Business – Alle Bereiche im Überblick"
+  description: "Zeigt alle Menüpunkte der Daily-Business-Sektion: Dashboard, Schnellsuche, Suche, Produkte, Hierarchien, Merkliste, Workflow, Kalender und Medien."
+  version: "1.0.0"
+  duration_estimate: 120
+  tags:
+    - grundlagen
+    - navigation
+    - tour
+  voice:
+    lang: "de"
+    gender: "female"
+    provider: "elevenlabs"
+    voice_id: ""
+  viewport:
+    width: 1920
+    height: 1080
+  slow_mo: 300
+  seeder: "DemoVideoSeeder"
+  seeder_reset: true
+
+steps:
+  # --- Login ---
+  - id: "open-login"
+    action: navigate
+    target: "/login"
+    wait_for: "[data-testid='login-form']"
+    sprecher: "Willkommen bei anyPIM. In diesem Video zeigen wir alle Bereiche des täglichen Arbeitens – die Sektion Daily Business."
+    pause_after: 1500
+
+  - id: "fill-email"
+    action: fill
+    selector: "[data-testid='input-email']"
+    value: "${VIDEO_DEMO_USER_EMAIL}"
+    type_speed: 30
+    sprecher: ""
+
+  - id: "fill-password"
+    action: fill
+    selector: "[data-testid='input-password']"
+    value: "${VIDEO_DEMO_USER_PASSWORD}"
+    type_speed: 30
+    sprecher: ""
+
+  - id: "submit-login"
+    action: click
+    selector: "[data-testid='btn-login']"
+    wait_for: "[data-testid='product-list']"
+    wait_timeout: 5000
+    sprecher: ""
+    pause_after: 1000
+
+  # --- 1. Dashboard ---
+  - id: "open-dashboard"
+    action: click
+    selector: "[data-testid='nav-dashboard']"
+    wait_for: "[data-testid='dashboard']"
+    wait_timeout: 5000
+    sprecher: "Das Dashboard zeigt auf einen Blick alle wichtigen Kennzahlen – Produktanzahl, Datenqualität, aktuelle Aktivitäten und offene Aufgaben."
+    pause_after: 3000
+
+  - id: "highlight-dashboard"
+    action: highlight
+    selector: "[data-testid='dashboard']"
+    sprecher: "Widgets können individuell ein- und ausgeblendet und per Drag-and-Drop angeordnet werden."
+    pause_after: 2000
+
+  # --- 2. Schnellsuche ---
+  - id: "open-quick-search"
+    action: click
+    selector: "[data-testid='nav-quick-search']"
+    wait_for: "[data-testid='quick-search-view']"
+    wait_timeout: 5000
+    sprecher: "Die Schnellsuche – hier reicht ein Suchbegriff um sofort passende Produkte, Attribute oder Kategorien zu finden."
+    pause_after: 2500
+
+  # --- 3. Suche ---
+  - id: "open-search"
+    action: click
+    selector: "[data-testid='nav-search']"
+    wait_for: "[data-testid='search-view']"
+    wait_timeout: 5000
+    sprecher: "Die erweiterte Suche bietet Freitextsuche, Attributfilter, reguläre Ausdrücke und phonetische Suche – für präzise Ergebnisse auch in großen Datenbeständen."
+    pause_after: 2500
+
+  # --- 4. Produkte ---
+  - id: "open-products"
+    action: click
+    selector: "[data-testid='nav-products']"
+    wait_for: "[data-testid='product-list']"
+    wait_timeout: 5000
+    sprecher: "Die Produktübersicht – das Herzstück von anyPIM. Hier werden alle Produkte verwaltet, gefiltert, sortiert und exportiert."
+    pause_after: 2500
+
+  - id: "highlight-products"
+    action: highlight
+    selector: "[data-testid='product-list']"
+    sprecher: "Spalten sind konfigurierbar, und mit dem Quick-Lookup können Ergebnisse direkt in der Tabelle gefiltert werden."
+    pause_after: 2000
+
+  # --- 5. Hierarchien ---
+  - id: "open-hierarchies"
+    action: click
+    selector: "[data-testid='nav-hierarchies']"
+    wait_for: "[data-testid='hierarchy-view']"
+    wait_timeout: 5000
+    sprecher: "Im Hierarchie-Bereich werden Kategoriebäume verwaltet. anyPIM unterstützt mehrere parallele Hierarchien – zum Beispiel für verschiedene Vertriebskanäle oder Klassifikationen."
+    pause_after: 3000
+
+  # --- 6. Merkliste ---
+  - id: "open-watchlist"
+    action: click
+    selector: "[data-testid='nav-watchlist']"
+    wait_for: "[data-testid='watchlist-view']"
+    wait_timeout: 5000
+    sprecher: "Die Merkliste – hier können Produkte für den schnellen Zugriff gespeichert werden. Ideal für häufig bearbeitete Artikel oder laufende Projekte."
+    pause_after: 2500
+
+  # --- 7. Kalender ---
+  - id: "open-calendar"
+    action: click
+    selector: "[data-testid='nav-calendar']"
+    wait_for: "[data-testid='calendar-view']"
+    wait_timeout: 5000
+    sprecher: "Der Planungskalender zeigt alle geplanten Aktionen – Produktveröffentlichungen, Preisänderungen und Kampagnen auf einen Blick."
+    pause_after: 2500
+
+  # --- 8. Medien ---
+  - id: "open-media"
+    action: click
+    selector: "[data-testid='nav-media']"
+    wait_for: "[data-testid='media-view']"
+    wait_timeout: 5000
+    sprecher: "Die Medienverwaltung – alle Bilder, Dokumente und Dateien zentral organisiert. Mit Ordnern, Tags, Drag-and-Drop-Upload und automatischer Bildverarbeitung."
+    pause_after: 3000
+
+  - id: "highlight-media"
+    action: highlight
+    selector: "[data-testid='media-view']"
+    sprecher: "Medien werden automatisch mit Produkten verknüpft und in verschiedenen Formaten bereitgestellt."
+    pause_after: 2000
+
+  # --- Ende ---
+  - id: "end"
+    action: wait
+    duration: 2000
+    sprecher: "Das war die Übersicht über den Daily-Business-Bereich. anyPIM bietet darüber hinaus noch viele weitere Module – Exporte, Berichte, Kataloge und mehr."
