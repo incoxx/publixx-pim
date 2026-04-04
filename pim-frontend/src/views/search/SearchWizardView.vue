@@ -1161,7 +1161,7 @@ const apiCallDisplay = computed(() => {
         <FileOutput class="w-4 h-4" :stroke-width="1.75" />
         <span class="ml-1.5 text-sm hidden sm:inline">PDF</span>
       </button>
-      <button class="pim-btn pim-btn-primary py-2 px-4 sm:py-3 sm:px-6" @click="doSearch(1)">
+      <button class="pim-btn pim-btn-primary py-2 px-4 sm:py-3 sm:px-6" @click="doSearch(1)" data-testid="btn-search">
         Suchen
       </button>
       </div>

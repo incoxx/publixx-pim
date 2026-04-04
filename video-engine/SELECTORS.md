@@ -46,6 +46,7 @@ Alle `data-testid`-Attribute die von Video-Stories verwendet werden.
 |----------|-----------|-------|
 | `hierarchy-view` | Hierarchie-Ansicht Root | `pim-frontend/src/views/hierarchies/HierarchyView.vue` |
 | `btn-new-node` | "Knoten erstellen" Button | `pim-frontend/src/views/hierarchies/HierarchyView.vue` |
+| `node-form-panel` | Knoten-Erstellungs-Panel | `pim-frontend/src/components/panels/HierarchyNodeFormPanel.vue` |
 
 ## Suche
 
@@ -53,6 +54,7 @@ Alle `data-testid`-Attribute die von Video-Stories verwendet werden.
 |----------|-----------|-------|
 | `search-view` | Such-Ansicht Root | `pim-frontend/src/views/search/SearchWizardView.vue` |
 | `search-input` | Sucheingabefeld | `pim-frontend/src/views/search/SearchWizardView.vue` |
+| `btn-search` | Suchen-Button | `pim-frontend/src/views/search/SearchWizardView.vue` |
 | `search-results` | Suchergebnis-Anzeige | `pim-frontend/src/views/search/SearchWizardView.vue` |
 
 ## Toast / Feedback
@@ -65,4 +67,4 @@ Alle `data-testid`-Attribute die von Video-Stories verwendet werden.
 
 ---
 
-Gesamt: **20 Selektoren** in **10 Komponenten**
+Gesamt: **22 Selektoren** in **11 Komponenten**

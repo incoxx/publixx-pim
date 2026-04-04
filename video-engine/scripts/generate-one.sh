@@ -8,8 +8,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENGINE_DIR="$(dirname "$SCRIPT_DIR")"
 PROJECT_ROOT="$(dirname "$ENGINE_DIR")"
 STORIES_DIR="$PROJECT_ROOT/video-stories"
-OUTPUT_DIR="${VIDEO_OUTPUT_DIR:-$PROJECT_ROOT/public/videos}"
-STORAGE_DIR="${VIDEO_STORAGE_DIR:-$PROJECT_ROOT/storage/video-engine}"
+OUTPUT_DIR="${VIDEO_ENGINE_OUTPUT_DIR:-${VIDEO_OUTPUT_DIR:-$PROJECT_ROOT/public/videos}}"
+STORAGE_DIR="${VIDEO_ENGINE_STORAGE_DIR:-${VIDEO_STORAGE_DIR:-$PROJECT_ROOT/storage/video-engine}}"
 
 STORY_ID="${1:-}"
 FORCE=false
@@ -71,10 +71,10 @@ echo ""
 echo "=== Story: $STORY_ID ==="
 
 # Seeder ausführen (falls konfiguriert)
-SEEDER=$(cd "$ENGINE_DIR" && npx tsx -e "
+SEEDER=$(cd "$ENGINE_DIR" && STORY_FILE="$STORY_PATH" npx tsx -e "
   import { parse } from 'yaml';
   import { readFileSync } from 'fs';
-  const story = parse(readFileSync('$STORY_PATH', 'utf-8'));
+  const story = parse(readFileSync(process.env.STORY_FILE!, 'utf-8'));
   console.log(story.meta.seeder || '');
 ")
 
@@ -92,23 +92,23 @@ mkdir -p "$TMP_DIR"
 SCRIPT_FILE="$TMP_DIR/playwright-script.ts"
 
 echo "→ Playwright-Script generieren..."
-cd "$ENGINE_DIR" && npx tsx -e "
+cd "$ENGINE_DIR" && STORY_FILE="$STORY_PATH" OUTPUT_FILE="$SCRIPT_FILE" npx tsx -e "
   import { validateStory, interpolateEnv } from './src/story-validator.js';
   import { generatePlaywrightScript } from './src/script-generator.js';
   import { writeFileSync } from 'fs';
-  const { story } = validateStory('$STORY_PATH');
+  const { story } = validateStory(process.env.STORY_FILE!);
   if (!story) { console.error('Story ungültig'); process.exit(1); }
   const interpolated = interpolateEnv(story);
   const baseUrl = process.env.ANYPIM_BASE_URL || process.env.VIDEO_ENGINE_BASE_URL || 'http://localhost:8000';
   const script = generatePlaywrightScript(interpolated, baseUrl);
-  writeFileSync('$SCRIPT_FILE', script);
-  console.log('Script: $SCRIPT_FILE');
+  writeFileSync(process.env.OUTPUT_FILE!, script);
+  console.log('Script: ' + process.env.OUTPUT_FILE);
 "
 
 # Aufnahme starten (Xvfb + ffmpeg + Playwright)
 echo "→ Aufnahme starten..."
-DISPLAY="${VIDEO_DISPLAY:-:99}"
-FPS="${VIDEO_FPS:-30}"
+DISPLAY="${VIDEO_ENGINE_DISPLAY:-${VIDEO_DISPLAY:-:99}}"
+FPS="${VIDEO_ENGINE_FPS:-${VIDEO_FPS:-30}}"
 WIDTH=1920
 HEIGHT=1080
 RECORDING="$TMP_DIR/recording.mp4"
@@ -151,30 +151,30 @@ echo "→ Aufnahme beendet: $RECORDING"
 # Untertitel generieren
 echo "→ SRT generieren..."
 SRT_FILE="$TMP_DIR/$STORY_ID.srt"
-cd "$ENGINE_DIR" && npx tsx -e "
+cd "$ENGINE_DIR" && STORY_FILE="$STORY_PATH" SRT_OUTPUT="$SRT_FILE" npx tsx -e "
   import { validateStory } from './src/story-validator.js';
   import { extractSubtitles, generateSrt } from './src/subtitle-extractor.js';
   import { writeFileSync } from 'fs';
-  const { story } = validateStory('$STORY_PATH');
+  const { story } = validateStory(process.env.STORY_FILE!);
   if (!story) process.exit(1);
   const entries = extractSubtitles(story);
-  writeFileSync('$SRT_FILE', generateSrt(entries));
-  console.log('SRT: $SRT_FILE (' + entries.length + ' Einträge)');
+  writeFileSync(process.env.SRT_OUTPUT!, generateSrt(entries));
+  console.log('SRT: ' + process.env.SRT_OUTPUT + ' (' + entries.length + ' Einträge)');
 "
 
 # Audio erzeugen (optional)
 echo "→ Voiceover erzeugen..."
 AUDIO_FILE=""
 if [ -n "${ELEVENLABS_API_KEY:-}" ] || command -v gtts-cli &>/dev/null; then
-  cd "$ENGINE_DIR" && npx tsx -e "
+  cd "$ENGINE_DIR" && STORY_FILE="$STORY_PATH" AUDIO_TMP_DIR="$TMP_DIR" VIDEO_STORY_ID="$STORY_ID" npx tsx -e "
     import { validateStory } from './src/story-validator.js';
     import { VoiceSynthesizer } from './src/voice-synthesizer.js';
     import { createStoryLogger } from './src/logger.js';
-    const logger = createStoryLogger('$STORY_ID');
-    const { story } = validateStory('$STORY_PATH');
+    const logger = createStoryLogger(process.env.VIDEO_STORY_ID!);
+    const { story } = validateStory(process.env.STORY_FILE!);
     if (!story) process.exit(1);
     const synth = new VoiceSynthesizer(logger);
-    const audioPath = await synth.synthesize(story, '$TMP_DIR');
+    const audioPath = await synth.synthesize(story, process.env.AUDIO_TMP_DIR!);
     if (audioPath) console.log('AUDIO:' + audioPath);
   " | while read -r line; do
     if [[ "$line" == AUDIO:* ]]; then
@@ -190,19 +190,23 @@ fi
 
 # Video rendern (merge)
 echo "→ Finales Video rendern..."
-QUALITY="${VIDEO_QUALITY:-high}"
+QUALITY="${VIDEO_ENGINE_QUALITY:-${VIDEO_QUALITY:-high}}"
 FINAL_VIDEO="$TMP_DIR/$STORY_ID-final.mp4"
 
-cd "$ENGINE_DIR" && npx tsx -e "
+# audioPath: leerer String → null, sonst Pfad
+AUDIO_ARG="${AUDIO_FILE:-}"
+cd "$ENGINE_DIR" && VIDEO_PATH="$RECORDING" AUDIO_PATH="$AUDIO_ARG" SRT_PATH="$SRT_FILE" \
+  RENDER_OUTPUT="$FINAL_VIDEO" RENDER_QUALITY="$QUALITY" VIDEO_STORY_ID="$STORY_ID" \
+  npx tsx -e "
   import { renderVideo } from './src/video-renderer.js';
   import { createStoryLogger } from './src/logger.js';
-  const logger = createStoryLogger('$STORY_ID');
+  const logger = createStoryLogger(process.env.VIDEO_STORY_ID!);
   await renderVideo({
-    videoPath: '$RECORDING',
-    audioPath: '$AUDIO_FILE' || null,
-    srtPath: '$SRT_FILE',
-    outputPath: '$FINAL_VIDEO',
-    quality: '$QUALITY' as any,
+    videoPath: process.env.VIDEO_PATH!,
+    audioPath: process.env.AUDIO_PATH || null,
+    srtPath: process.env.SRT_PATH!,
+    outputPath: process.env.RENDER_OUTPUT!,
+    quality: (process.env.RENDER_QUALITY || 'high') as 'high' | 'medium' | 'low',
     logger,
   });
 "

@@ -124,8 +124,10 @@ export async function renderVideo(opts: RenderOptions): Promise<void> {
       stdio: 'pipe',
     });
   } catch (err) {
-    // Einfacherer Fallback ohne Filter
-    log.render(logger, 'Komplexer Render fehlgeschlagen – versuche einfachen Merge');
+    // Original-Fehler loggen für Diagnose
+    const errMsg = err instanceof Error ? err.message : String(err);
+    log.render(logger, `Komplexer Render fehlgeschlagen: ${errMsg.split('\n')[0]}`);
+    log.render(logger, 'Versuche einfachen Merge als Fallback...');
     const simpleArgs = ['-y', '-i', videoPath];
     if (audioPath && fs.existsSync(audioPath)) {
       simpleArgs.push('-i', audioPath);

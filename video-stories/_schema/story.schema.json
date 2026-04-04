@@ -206,6 +206,15 @@
           {
             "if": { "properties": { "action": { "const": "assert_visible" } } },
             "then": { "required": ["selector"] }
+          },
+          {
+            "if": { "properties": { "action": { "const": "scroll" } } },
+            "then": {
+              "anyOf": [
+                { "required": ["selector"] },
+                { "required": ["direction"] }
+              ]
+            }
           }
         ]
       }

@@ -79,26 +79,16 @@ steps:
 
   - id: "submit-search"
     action: click
-    selector: "[data-testid='search-input']"
-    sprecher: ""
-    pause_after: 500
-
-  - id: "press-enter"
-    action: fill
-    selector: "[data-testid='search-input']"
-    value: "Akkubohr"
-    sprecher: ""
-    pause_after: 500
-
-  - id: "wait-results"
-    action: wait
-    duration: 2000
-    sprecher: "Die Ergebnisse erscheinen sofort – mit Produktdetails und Relevanz-Sortierung."
+    selector: "[data-testid='btn-search']"
+    wait_for: "[data-testid='search-results']"
+    wait_timeout: 8000
+    sprecher: "Mit Klick auf Suchen starten wir die Abfrage."
+    pause_after: 1500
 
   - id: "show-results"
-    action: assert_visible
+    action: highlight
     selector: "[data-testid='search-results']"
-    sprecher: ""
+    sprecher: "Die Ergebnisse erscheinen sofort – mit Produktdetails und Relevanz-Sortierung."
     pause_after: 2000
 
   - id: "highlight-results"

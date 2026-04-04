@@ -104,8 +104,8 @@ export function generatePlaywrightScript(story: Story, baseUrl: string): string 
 function generateStepCode(lines: string[], step: StoryStep, baseUrl: string): void {
   switch (step.action) {
     case 'navigate': {
-      const url = step.target!.startsWith('http') ? step.target! : `\${BASE_URL}${step.target}`;
-      if (step.target!.startsWith('http')) {
+      if (!step.target) { lines.push(`    // WARN: navigate ohne target`); break; }
+      if (step.target.startsWith('http')) {
         lines.push(`    await page.goto(${JSON.stringify(step.target)});`);
       } else {
         lines.push(`    await page.goto(BASE_URL + ${JSON.stringify(step.target)});`);
@@ -130,11 +130,14 @@ function generateStepCode(lines: string[], step: StoryStep, baseUrl: string): vo
       break;
 
     case 'select_tree': {
+      if (!step.value) { lines.push(`    // WARN: select_tree ohne value`); break; }
       // Pfad aufsplittern und Node-für-Node expandieren
-      const pathParts = step.value!.split(' > ').map((p) => p.trim());
+      const pathParts = step.value.split(' > ').map((p) => p.trim());
       lines.push(`    // Baumauswahl: ${step.value}`);
       for (const part of pathParts) {
-        lines.push(`    await page.click(${JSON.stringify(step.selector)} + ' :text("${part}")');`);
+        // Teil-String sicher in generierten Code einbetten
+        const escapedPart = part.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+        lines.push(`    await page.click(${JSON.stringify(step.selector)} + ' :text("${escapedPart}")');`);
         lines.push(`    await sleep(300);`);
       }
       break;

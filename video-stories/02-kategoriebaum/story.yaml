@@ -72,14 +72,14 @@ steps:
   - id: "click-new-node"
     action: click
     selector: "[data-testid='btn-new-node']"
-    wait_for: "[data-testid='btn-save']"
+    wait_for: "[data-testid='node-form-panel']"
     wait_timeout: 5000
     sprecher: "Wir legen einen neuen Knoten an."
     pause_after: 1500
 
   - id: "fill-node-name"
     action: fill
-    selector: ".pim-form input[type='text']"
+    selector: "[data-testid='node-form-panel'] input[type='text']"
     value: "Fernseher"
     type_speed: 80
     sprecher: "Den Namen eingeben – anyPIM erstellt automatisch einen technischen Identifier."

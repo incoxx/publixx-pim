@@ -78,7 +78,7 @@ async function handleSubmit(data) {
 </script>
 
 <template>
-  <div class="p-4">
+  <div class="p-4" data-testid="node-form-panel">
     <h3 class="text-sm font-semibold text-[var(--color-text-primary)] mb-4">
       {{ isEdit ? 'Knoten bearbeiten' : 'Neuer Knoten' }}
     </h3>

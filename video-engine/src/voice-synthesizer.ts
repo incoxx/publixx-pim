@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { execSync } from 'child_process';
+import { execSync, spawnSync } from 'child_process';
 import winston from 'winston';
 import * as log from './logger.js';
 import type { Story } from './story-validator.js';
@@ -172,11 +172,17 @@ export class VoiceSynthesizer {
 
   /** gTTS Fallback (Google Text-to-Speech, kostenlos) */
   private async synthesizeGtts(text: string, lang: string, outputPath: string): Promise<void> {
-    // gTTS über Python aufrufen
-    const escapedText = text.replace(/'/g, "'\\''");
-    execSync(`python3 -m gtts --lang ${lang} --output "${outputPath}" '${escapedText}'`, {
+    // Sprache gegen Whitelist validieren
+    if (!/^[a-z]{2,5}(-[A-Z]{2})?$/.test(lang)) {
+      throw new Error(`Ungültige Sprache: ${lang}`);
+    }
+    // gTTS über Python aufrufen – spawnSync vermeidet Shell-Injection
+    const result = spawnSync('python3', ['-m', 'gtts', '--lang', lang, '--output', outputPath, text], {
       timeout: 30000,
     });
+    if (result.status !== 0) {
+      throw new Error(`gTTS fehlgeschlagen: ${result.stderr?.toString() || 'unbekannter Fehler'}`);
+    }
   }
 
   /** Erstellt eine stille MP3-Datei */
@@ -207,7 +213,7 @@ export class VoiceSynthesizer {
       lines.push(`file '${files[i]}'`);
 
       // Stille zwischen aktuellem und nächstem Segment
-      if (i < files.length - 1) {
+      if (i < files.length - 1 && i + 1 < texts.length) {
         const currentDuration = this.getAudioDuration(files[i]);
         const gap = (texts[i + 1].startMs - texts[i].startMs) / 1000 - currentDuration;
         if (gap > 0.1) {
