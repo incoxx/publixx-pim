@@ -2260,7 +2260,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="space-y-4">
+  <div class="space-y-4" data-testid="product-detail">
     <!-- Header -->
     <div class="flex flex-wrap items-center gap-2 sm:gap-3">
       <button class="pim-btn pim-btn-ghost p-1.5" @click="router.push('/products')">

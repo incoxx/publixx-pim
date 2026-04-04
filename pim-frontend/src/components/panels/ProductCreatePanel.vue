@@ -6,6 +6,7 @@ import { useAuthStore } from '@/stores/auth'
 import hierarchiesApi from '@/api/hierarchies'
 import manufacturersApi from '@/api/manufacturers'
 import PimForm from '@/components/shared/PimForm.vue'
+import { useToastStore } from '@/stores/toast'
 
 const props = defineProps({
   productTypes: { type: Array, default: () => [] },
@@ -14,6 +15,7 @@ const props = defineProps({
 const router = useRouter()
 const store = useProductStore()
 const authStore = useAuthStore()
+const toastStore = useToastStore()
 const loading = ref(false)
 const errors = ref({})
 const hierarchyNodes = ref([])
@@ -96,6 +98,7 @@ async function handleSubmit(data) {
   if (!payload.manufacturer_id) delete payload.manufacturer_id
   try {
     const result = await store.create(payload)
+    toastStore.showToast('Produkt angelegt', 'success')
     authStore.closePanel()
     if (result?.id) {
       router.push(`/products/${result.id}`)
@@ -119,7 +122,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="p-4">
+  <div class="p-4" data-testid="product-create-panel">
     <h3 class="text-sm font-semibold text-[var(--color-text-primary)] mb-4">Neues Produkt</h3>
     <PimForm
       :fields="fields"

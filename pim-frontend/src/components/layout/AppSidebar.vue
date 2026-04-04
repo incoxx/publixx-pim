@@ -57,9 +57,9 @@ const sections = computed(() => {
       items: [
         { icon: LayoutDashboard, label: () => 'Dashboard', to: '/dashboard', permission: 'dashboard.view' },
         { icon: Zap, label: () => t('nav.quickSearch'), to: '/quick-search', permission: 'search.view' },
-        { icon: Search, label: () => t('nav.search'), to: '/search', permission: 'search.view' },
-        { icon: Package, label: () => t('nav.products'), to: '/products', permission: 'products.view' },
-        { icon: GitBranch, label: () => t('nav.hierarchies'), to: '/hierarchies', permission: 'hierarchies.view' },
+        { icon: Search, label: () => t('nav.search'), to: '/search', permission: 'search.view', testid: 'nav-search' },
+        { icon: Package, label: () => t('nav.products'), to: '/products', permission: 'products.view', testid: 'nav-products' },
+        { icon: GitBranch, label: () => t('nav.hierarchies'), to: '/hierarchies', permission: 'hierarchies.view', testid: 'nav-hierarchies' },
         { icon: Star, label: () => 'Merkliste', to: '/watchlist', permission: 'watchlist.view' },
         { icon: ClipboardList, label: () => 'Workflow', to: '/workflow', module: 'workflow', permission: 'workflow.view' },
         { icon: CalendarDays, label: () => 'Planungskalender', to: '/calendar', permission: 'calendar.view' },
@@ -504,6 +504,7 @@ const sidebarStyle = computed(() => ({
                 :style="{ fontSize: 'var(--pim-sidebar-font-size)' }"
                 @click="navigate(item)"
                 :title="authStore.sidebarCollapsed ? item.label() : undefined"
+                :data-testid="item.testid || undefined"
               >
                 <component
                   :is="item.icon"

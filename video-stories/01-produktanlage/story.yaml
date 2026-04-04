@@ -1,0 +1,112 @@
+# anyPIM Video Story: Produkt anlegen
+# Zeigt den kompletten Workflow der Produkterstellung
+
+meta:
+  id: "01-produktanlage"
+  title: "Produkt anlegen"
+  description: "Zeigt die komplette Produktanlage in anyPIM – vom Login bis zum fertigen Produkt."
+  version: "1.0.0"
+  duration_estimate: 90
+  tags:
+    - grundlagen
+    - produkte
+  voice:
+    lang: "de"
+    gender: "female"
+    provider: "elevenlabs"
+    voice_id: ""
+  viewport:
+    width: 1920
+    height: 1080
+  slow_mo: 600
+  seeder: "DemoVideoSeeder"
+  seeder_reset: true
+
+steps:
+  # --- Login ---
+  - id: "open-login"
+    action: navigate
+    target: "/login"
+    wait_for: "[data-testid='login-form']"
+    sprecher: "Willkommen bei anyPIM – dem flexiblen Open-Source PIM-System. Heute zeigen wir, wie einfach ein neues Produkt angelegt wird."
+    pause_after: 1500
+
+  - id: "fill-email"
+    action: fill
+    selector: "[data-testid='input-email']"
+    value: "${VIDEO_DEMO_USER_EMAIL}"
+    type_speed: 60
+    sprecher: ""
+
+  - id: "fill-password"
+    action: fill
+    selector: "[data-testid='input-password']"
+    value: "${VIDEO_DEMO_USER_PASSWORD}"
+    type_speed: 60
+    sprecher: ""
+
+  - id: "submit-login"
+    action: click
+    selector: "[data-testid='btn-login']"
+    wait_for: "[data-testid='product-list']"
+    wait_timeout: 5000
+    sprecher: "Nach dem Login landen wir direkt in der Produktübersicht."
+    pause_after: 2000
+
+  # --- Produktliste ---
+  - id: "show-product-list"
+    action: highlight
+    selector: "[data-testid='product-list']"
+    sprecher: "Hier sehen wir alle vorhandenen Produkte – mit Suchfunktion, Filtern und Sortierung."
+    pause_after: 2000
+
+  # --- Neues Produkt anlegen ---
+  - id: "click-new-product"
+    action: click
+    selector: "[data-testid='btn-new-product']"
+    wait_for: "[data-testid='product-create-panel']"
+    sprecher: "Mit einem Klick öffnen wir das Erstellungs-Panel."
+    pause_after: 1500
+
+  - id: "fill-sku"
+    action: fill
+    selector: "[data-testid='product-create-panel'] input[name='sku']"
+    value: "TV-OLED-55-001"
+    type_speed: 80
+    sprecher: "Wir vergeben zuerst eine eindeutige SKU – die Artikelnummer."
+    pause_after: 800
+
+  - id: "fill-name"
+    action: fill
+    selector: "[data-testid='product-create-panel'] input[name='name']"
+    value: "Samsung OLED 55 Zoll"
+    type_speed: 80
+    sprecher: "Dann den Produktnamen."
+    pause_after: 800
+
+  - id: "select-product-type"
+    action: select
+    selector: "[data-testid='product-create-panel'] select"
+    value: "physical_product"
+    sprecher: "Den Produkttyp auswählen – hier ein physisches Produkt."
+    pause_after: 1000
+
+  - id: "save-product"
+    action: click
+    selector: "[data-testid='btn-save']"
+    wait_for: "[data-testid='product-detail']"
+    wait_timeout: 8000
+    sprecher: "Speichern – und wir landen direkt auf der Produktdetailseite."
+    pause_after: 2000
+
+  # --- Produktdetail ---
+  - id: "show-detail"
+    action: highlight
+    selector: "[data-testid='product-detail']"
+    sprecher: "Hier können wir jetzt Attribute befüllen, Bilder hochladen und Preise pflegen. Das Produkt ist in unter einer Minute angelegt."
+    pause_after: 3000
+
+  - id: "end"
+    action: wait
+    duration: 2000
+    sprecher: "Im nächsten Video zeigen wir, wie der Kategoriebaum funktioniert."

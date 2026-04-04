@@ -72,6 +72,7 @@ onUnmounted(() => {
         type="submit"
         class="pim-btn pim-btn-primary"
         :disabled="loading"
+        data-testid="btn-save"
       >
         <span v-if="loading">Speichern…</span>
         <span v-else>Speichern</span>

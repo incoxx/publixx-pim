@@ -461,7 +461,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="space-y-4">
+  <div class="space-y-4" data-testid="product-list">
     <!-- Header -->
     <div class="flex flex-wrap items-center justify-between gap-2">
       <h2 class="text-lg font-semibold text-[var(--color-text-primary)]">{{ t('product.title') }}</h2>
@@ -518,7 +518,7 @@ onMounted(async () => {
           <Languages class="w-3.5 h-3.5" :stroke-width="1.75" />
           XLIFF
         </button>
-        <button v-if="authStore.hasPermission('products.create')" class="pim-btn pim-btn-primary" @click="openCreatePanel">
+        <button v-if="authStore.hasPermission('products.create')" class="pim-btn pim-btn-primary" @click="openCreatePanel" data-testid="btn-new-product">
           <Plus class="w-4 h-4" :stroke-width="2" />
           {{ t('product.newProduct') }}
         </button>

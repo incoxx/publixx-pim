@@ -1,0 +1,30 @@
+{
+  "name": "anypim-video-engine",
+  "version": "1.0.0",
+  "description": "Video-Generierungs-Engine für anyPIM Lehr- und Demo-Videos",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "preflight": "tsx src/preflight.ts",
+    "validate": "tsx src/story-validator.ts",
+    "generate": "bash scripts/generate-one.sh",
+    "generate:all": "bash scripts/generate-all.sh",
+    "create-assets": "tsx scripts/create-demo-assets.ts",
+    "build": "tsc --noEmit"
+  },
+  "dependencies": {
+    "ajv": "^8.17.0",
+    "dotenv": "^16.4.0",
+    "playwright": "^1.48.0",
+    "winston": "^3.14.0",
+    "yaml": "^2.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
