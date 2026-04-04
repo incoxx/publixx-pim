@@ -6,7 +6,6 @@ namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Process;
-use Symfony\Component\Yaml\Yaml;
 
 class VideoGenerate extends Command
 {
@@ -22,12 +21,6 @@ class VideoGenerate extends Command
 
     public function handle(): int
     {
-        // Produktionsschutz
-        if (app()->environment('production')) {
-            $this->error('Video-Generierung ist in der Produktionsumgebung nicht erlaubt.');
-            return self::FAILURE;
-        }
-
         $engineDir = base_path('video-engine');
         $storiesDir = base_path('video-stories');
         $scriptsDir = $engineDir . '/scripts';
@@ -39,14 +32,20 @@ class VideoGenerate extends Command
             return self::FAILURE;
         }
 
-        // --list: Stories auflisten
+        // --list: Stories auflisten (auch in Produktion erlaubt)
         if ($this->option('list')) {
             return $this->listStories($storiesDir);
         }
 
-        // --preflight: Nur Systemcheck
+        // --preflight: Nur Systemcheck (auch in Produktion erlaubt)
         if ($this->option('preflight')) {
             return $this->runPreflight($engineDir, $this->option('story'));
+        }
+
+        // Produktionsschutz (nur für Video-Generierung)
+        if (app()->environment('production')) {
+            $this->error('Video-Generierung ist in der Produktionsumgebung nicht erlaubt.');
+            return self::FAILURE;
         }
 
         // --all: Alle Stories
@@ -82,22 +81,15 @@ class VideoGenerate extends Command
                 continue;
             }
 
-            try {
-                $yaml = Yaml::parseFile($storyFile);
-                $stories[] = [
-                    'id' => $yaml['meta']['id'] ?? $entry->getFilename(),
-                    'title' => $yaml['meta']['title'] ?? '—',
-                    'version' => $yaml['meta']['version'] ?? '—',
-                    'duration' => ($yaml['meta']['duration_estimate'] ?? 0) . 's',
-                ];
-            } catch (\Throwable $e) {
-                $stories[] = [
-                    'id' => $entry->getFilename(),
-                    'title' => '(YAML-Fehler: ' . $e->getMessage() . ')',
-                    'version' => '—',
-                    'duration' => '—',
-                ];
-            }
+            // Einfaches YAML-Parsing der Meta-Felder (ohne Symfony/YAML Dependency)
+            $content = file_get_contents($storyFile);
+            $meta = $this->parseYamlMeta($content);
+            $stories[] = [
+                'id' => $meta['id'] ?? $entry->getFilename(),
+                'title' => $meta['title'] ?? '—',
+                'version' => $meta['version'] ?? '—',
+                'duration' => ($meta['duration_estimate'] ?? 0) . 's',
+            ];
         }
 
         usort($stories, fn($a, $b) => $a['id'] <=> $b['id']);
@@ -180,6 +172,28 @@ class VideoGenerate extends Command
 
         $this->error("✗ Einige Videos fehlgeschlagen");
         return self::FAILURE;
+    }
+
+    /**
+     * Einfaches Parsing der meta-Felder aus YAML ohne externe Dependency.
+     */
+    private function parseYamlMeta(string $content): array
+    {
+        $meta = [];
+        $patterns = [
+            'id' => '/^\s+id:\s*"?([^"\n]+)"?\s*$/m',
+            'title' => '/^\s+title:\s*"?([^"\n]+)"?\s*$/m',
+            'version' => '/^\s+version:\s*"?([^"\n]+)"?\s*$/m',
+            'duration_estimate' => '/^\s+duration_estimate:\s*(\d+)/m',
+        ];
+
+        foreach ($patterns as $key => $pattern) {
+            if (preg_match($pattern, $content, $matches)) {
+                $meta[$key] = trim($matches[1], '" ');
+            }
+        }
+
+        return $meta;
     }
 
     private function getVideoEnv(): array
