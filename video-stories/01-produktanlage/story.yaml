@@ -18,7 +18,7 @@ meta:
   viewport:
     width: 1920
     height: 1080
-  slow_mo: 600
+  slow_mo: 300
   seeder: "DemoVideoSeeder"
   seeder_reset: true
 
@@ -72,21 +72,22 @@ steps:
     action: fill
     selector: "[data-testid='field-sku'] input"
     value: "TV-OLED-55-001"
-    type_speed: 80
+    type_speed: 30
     sprecher: "Wir vergeben zuerst eine eindeutige SKU – die Artikelnummer."
-    pause_after: 800
+    pause_after: 600
 
   - id: "fill-name"
     action: fill
     selector: "[data-testid='field-name'] input"
     value: "Samsung OLED 55 Zoll"
-    type_speed: 80
+    type_speed: 30
     sprecher: "Dann den Produktnamen."
-    pause_after: 800
+    pause_after: 600
 
   - id: "select-product-type"
-    action: click
+    action: select
     selector: "[data-testid='field-product_type_id'] select"
+    value: "Physisches Produkt"
     sprecher: "Den Produkttyp auswählen – hier ein physisches Produkt."
     pause_after: 1000
 
