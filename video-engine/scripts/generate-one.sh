@@ -169,24 +169,31 @@ WIDTH=1920
 HEIGHT=1080
 RECORDING="$TMP_DIR/recording.mp4"
 
-# Xvfb starten (mit Polling – prüft ob Display bereit ist)
+# Xvfb starten (altes Display aufräumen falls vorhanden)
+if [ -f "/tmp/.X${DISPLAY#:}-lock" ]; then
+  OLD_PID=$(cat "/tmp/.X${DISPLAY#:}-lock" 2>/dev/null | tr -d ' ')
+  if [ -n "$OLD_PID" ] && kill -0 "$OLD_PID" 2>/dev/null; then
+    echo "  Beende altes Xvfb auf Display $DISPLAY (PID $OLD_PID)"
+    kill "$OLD_PID" 2>/dev/null || true
+    sleep 0.5
+  fi
+  rm -f "/tmp/.X${DISPLAY#:}-lock" 2>/dev/null || true
+fi
+
 Xvfb "$DISPLAY" -screen 0 "${WIDTH}x${HEIGHT}x24" -ac &
 XVFB_PID=$!
 XVFB_READY=false
 for i in $(seq 1 10); do
   sleep 0.5
-  # Prüfe ob Xvfb-Prozess noch läuft
   if ! kill -0 "$XVFB_PID" 2>/dev/null; then
     break
   fi
-  # Prüfe ob Display verfügbar (xdpyinfo oder Fallback auf Prozess-Check)
   if command -v xdpyinfo >/dev/null 2>&1; then
     if xdpyinfo -display "$DISPLAY" >/dev/null 2>&1; then
       XVFB_READY=true
       break
     fi
   else
-    # Fallback: Wenn Prozess nach 1.5s noch läuft, ist Xvfb wahrscheinlich bereit
     if [ "$i" -ge 3 ]; then
       XVFB_READY=true
       break
