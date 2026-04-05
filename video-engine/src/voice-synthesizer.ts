@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import { execSync, spawnSync } from 'child_process';
 import winston from 'winston';
 import * as log from './logger';
@@ -20,11 +21,39 @@ export class VoiceSynthesizer {
   private apiKey: string;
   private fallback: string;
   private logger: winston.Logger;
+  private cacheDir: string;
 
   constructor(logger: winston.Logger) {
     this.apiKey = process.env.ELEVENLABS_API_KEY || '';
     this.fallback = process.env.ELEVENLABS_FALLBACK || 'gtts';
     this.logger = logger;
+    this.cacheDir = path.resolve(__dirname, '../../storage/video-engine/audio-cache');
+    if (!fs.existsSync(this.cacheDir)) {
+      fs.mkdirSync(this.cacheDir, { recursive: true });
+    }
+  }
+
+  /** Erzeugt einen Cache-Key aus Text + Voice-Config */
+  private getCacheKey(text: string, voiceConfig: VoiceConfig): string {
+    const input = `${text}|${voiceConfig.provider}|${voiceConfig.voiceId}|${voiceConfig.lang}|${voiceConfig.gender}`;
+    return crypto.createHash('sha256').update(input).digest('hex').substring(0, 16);
+  }
+
+  /** Prüft ob ein gecachtes Audio-Segment existiert */
+  private getCached(text: string, voiceConfig: VoiceConfig): string | null {
+    const key = this.getCacheKey(text, voiceConfig);
+    const cachedPath = path.join(this.cacheDir, `${key}.mp3`);
+    if (fs.existsSync(cachedPath)) {
+      return cachedPath;
+    }
+    return null;
+  }
+
+  /** Speichert ein Audio-Segment im Cache */
+  private saveToCache(text: string, voiceConfig: VoiceConfig, audioPath: string): void {
+    const key = this.getCacheKey(text, voiceConfig);
+    const cachedPath = path.join(this.cacheDir, `${key}.mp3`);
+    fs.copyFileSync(audioPath, cachedPath);
   }
 
   /** Erzeugt Audio für alle Sprecher-Texte einer Story, synchronisiert mit Timestamps */
@@ -63,10 +92,22 @@ export class VoiceSynthesizer {
 
     log.audio(this.logger, `${sprecherEntries.length} Sprechertexte, Provider: ${voiceConfig.provider}`);
 
-    // Einzelne Audio-Segmente erzeugen
+    // Einzelne Audio-Segmente erzeugen (mit Cache)
+    let cacheHits = 0;
+    let cacheMisses = 0;
+
     for (let i = 0; i < sprecherEntries.length; i++) {
       const { stepId, text, startMs } = sprecherEntries[i];
       const outputPath = path.join(outputDir, `audio-${String(i).padStart(3, '0')}-${stepId}.mp3`);
+
+      // Cache prüfen
+      const cached = this.getCached(text, voiceConfig);
+      if (cached) {
+        fs.copyFileSync(cached, outputPath);
+        audioSegments.push({ path: outputPath, startMs });
+        cacheHits++;
+        continue;
+      }
 
       try {
         if (voiceConfig.provider === 'elevenlabs' && this.apiKey && !elevenLabsFailed) {
@@ -74,7 +115,10 @@ export class VoiceSynthesizer {
         } else {
           await this.synthesizeGtts(text, voiceConfig.lang, outputPath);
         }
+        // Im Cache speichern
+        this.saveToCache(text, voiceConfig, outputPath);
         audioSegments.push({ path: outputPath, startMs });
+        cacheMisses++;
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err);
         log.audio(this.logger, `WARN: Audio für "${stepId}" fehlgeschlagen: ${errMsg}`);
@@ -101,6 +145,11 @@ export class VoiceSynthesizer {
           audioSegments.push({ path: outputPath, startMs });
         }
       }
+    }
+
+    // Cache-Statistik
+    if (cacheHits > 0 || cacheMisses > 0) {
+      log.audio(this.logger, `Cache: ${cacheHits} Treffer, ${cacheMisses} neu generiert`);
     }
 
     if (audioSegments.length === 0) {
