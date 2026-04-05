@@ -435,6 +435,12 @@ const routes = [
     meta: { title: 'Log Viewer' },
   },
   {
+    path: '/errors',
+    name: 'error-classifications',
+    component: () => import('@/views/admin/ErrorClassificationsView.vue'),
+    meta: { title: 'Fehlerklassifikation' },
+  },
+  {
     path: '/admin/license-generator',
     name: 'license-generator',
     component: () => import('@/views/admin/LicenseGeneratorView.vue'),

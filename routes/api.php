@@ -99,6 +99,7 @@ use App\Http\Controllers\Api\V1\ComparisonOperatorGroupController;
 use App\Http\Controllers\Api\V1\ComparisonOperatorController;
 use App\Http\Controllers\Api\V1\AccessLinkController;
 use App\Http\Controllers\Api\V1\AuditLogController;
+use App\Http\Controllers\Api\V1\ErrorClassificationController;
 use App\Http\Controllers\Api\V1\UserAuditController;
 use App\Http\Controllers\Api\V1\UserController;
 use App\Http\Controllers\Api\V1\ValueListController;
@@ -317,6 +318,14 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::get('user-audit-logs', [UserAuditController::class, 'index']);
     Route::get('user-audit-logs/export', [UserAuditController::class, 'export']);
     Route::delete('user-audit-logs', [UserAuditController::class, 'destroy']);
+
+    // =====================================================================
+    // Fehlerklassifikation (KI-gestützte Log-Triage)
+    // =====================================================================
+    Route::get('error-classifications', [ErrorClassificationController::class, 'index']);
+    Route::post('error-classifications/classify', [ErrorClassificationController::class, 'classify']);
+    Route::patch('error-classifications/{id}', [ErrorClassificationController::class, 'update']);
+    Route::delete('error-classifications', [ErrorClassificationController::class, 'destroy']);
 
     // =====================================================================
     // Agent 3: Attributes
