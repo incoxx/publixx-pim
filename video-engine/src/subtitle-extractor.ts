@@ -136,16 +136,35 @@ export function extractSprecherTexts(story: Story): { stepId: string; text: stri
   return texts;
 }
 
+/** Audio-Segment-Info (geschrieben vom VoiceSynthesizer) */
+export interface AudioSegmentInfo {
+  stepId: string;
+  startMs: number;
+  durationMs: number;
+}
+
 /**
- * Erzeugt SRT-Einträge aus echten Aufnahme-Timestamps (statt geschätzten Dauern).
- * Die Timestamps werden vom Playwright-Script während der Aufnahme geschrieben.
+ * Erzeugt SRT-Einträge aus echten Aufnahme-Timestamps.
+ * Wenn Audio-Segment-Infos vorhanden: Untertitel-Dauer = Audio-Dauer (synchron mit Stimme).
+ * Ohne Audio: Dauer aus Textlänge geschätzt (100ms pro Zeichen, min 3s).
  */
-export function extractSubtitlesFromTimestamps(timestampsFile: string): SrtEntry[] {
+export function extractSubtitlesFromTimestamps(
+  timestampsFile: string,
+  audioSegmentsFile?: string,
+): SrtEntry[] {
   if (!fs.existsSync(timestampsFile)) {
     return [];
   }
 
   const timestamps: RecordedTimestamp[] = JSON.parse(fs.readFileSync(timestampsFile, 'utf-8'));
+
+  // Audio-Segment-Dauern laden (falls vorhanden)
+  let audioSegments: Map<string, AudioSegmentInfo> | null = null;
+  if (audioSegmentsFile && fs.existsSync(audioSegmentsFile)) {
+    const segments: AudioSegmentInfo[] = JSON.parse(fs.readFileSync(audioSegmentsFile, 'utf-8'));
+    audioSegments = new Map(segments.map(s => [s.stepId, s]));
+  }
+
   const entries: SrtEntry[] = [];
   let entryIndex = 1;
 
@@ -153,9 +172,16 @@ export function extractSubtitlesFromTimestamps(timestampsFile: string): SrtEntry
     if (!ts.sprecher || ts.sprecher.trim() === '') continue;
 
     const startMs = ts.startMs;
-    // Ende = endMs des Steps, oder Start + Lesezeit (min 3s)
-    const readDuration = Math.max(ts.sprecher.length * 60, 3000);
-    const endMs = ts.endMs ? Math.min(ts.endMs, startMs + readDuration) : startMs + readDuration;
+    let endMs: number;
+
+    if (audioSegments?.has(ts.id)) {
+      // Audio-Dauer verwenden → Untertitel so lang wie die Stimme spricht
+      const segInfo = audioSegments.get(ts.id)!;
+      endMs = startMs + segInfo.durationMs;
+    } else {
+      // Fallback: 100ms pro Zeichen (deutsche Sprechgeschwindigkeit), min 3s
+      endMs = startMs + Math.max(ts.sprecher.length * 100, 3000);
+    }
 
     entries.push({
       index: entryIndex++,
@@ -168,9 +194,9 @@ export function extractSubtitlesFromTimestamps(timestampsFile: string): SrtEntry
   // Überlappungen auflösen
   for (let i = 1; i < entries.length; i++) {
     if (entries[i].startMs < entries[i - 1].endMs) {
-      entries[i - 1].endMs = entries[i].startMs - 100;
+      entries[i - 1].endMs = entries[i].startMs - 200;
       if (entries[i - 1].endMs <= entries[i - 1].startMs) {
-        entries[i - 1].endMs = entries[i - 1].startMs + 500;
+        entries[i - 1].endMs = entries[i - 1].startMs + 1000;
       }
     }
   }

@@ -99,6 +99,16 @@ export class VoiceSynthesizer {
       return null;
     }
 
+    // Audio-Segment-Dauern messen und speichern (für SRT-Synchronisierung)
+    const segmentInfos = audioSegments.map(seg => ({
+      stepId: sprecherEntries.find(e => seg.path.includes(e.stepId))?.stepId || '',
+      startMs: seg.startMs,
+      durationMs: Math.round(this.getAudioDuration(seg.path) * 1000),
+    }));
+    const segmentsInfoFile = path.join(outputDir, 'audio-segments.json');
+    fs.writeFileSync(segmentsInfoFile, JSON.stringify(segmentInfos, null, 2));
+    log.audio(this.logger, `Audio-Segment-Dauern gespeichert: ${segmentsInfoFile}`);
+
     // Audio-Segmente an den richtigen Zeitpunkten positionieren
     const mergedPath = path.join(outputDir, 'voiceover.mp3');
     await this.mergeWithTimestamps(audioSegments, mergedPath);
