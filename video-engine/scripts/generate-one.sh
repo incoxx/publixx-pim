@@ -160,31 +160,10 @@ trap - EXIT
 
 echo "→ Aufnahme beendet: $RECORDING"
 
-# Untertitel generieren (aus echten Timestamps oder geschätzten Dauern)
-echo "→ SRT generieren..."
-SRT_FILE="$TMP_DIR/$STORY_ID.srt"
-cd "$ENGINE_DIR" && STORY_FILE="$STORY_PATH" SRT_OUTPUT="$SRT_FILE" TS_FILE="$TIMESTAMPS_FILE" npx tsx -e "
-  import { validateStory } from './src/story-validator';
-  import { extractSubtitles, extractSubtitlesFromTimestamps, generateSrt } from './src/subtitle-extractor';
-  import { writeFileSync, existsSync } from 'fs';
-  const tsFile = process.env.TS_FILE!;
-  let entries;
-  if (existsSync(tsFile)) {
-    entries = extractSubtitlesFromTimestamps(tsFile);
-    console.log('SRT: Synchronisiert mit echten Aufnahme-Timestamps');
-  } else {
-    const { story } = validateStory(process.env.STORY_FILE!);
-    if (!story) process.exit(1);
-    entries = extractSubtitles(story);
-    console.log('SRT: Fallback auf geschaetzte Dauern');
-  }
-  writeFileSync(process.env.SRT_OUTPUT!, generateSrt(entries));
-  console.log('SRT: ' + process.env.SRT_OUTPUT + ' (' + entries.length + ' Eintraege)');
-"
-
-# Audio erzeugen (optional)
+# Audio erzeugen (ZUERST – erzeugt audio-segments.json für SRT-Sync)
 echo "→ Voiceover erzeugen..."
 AUDIO_FILE=""
+AUDIO_SEGMENTS_FILE="$TMP_DIR/audio-segments.json"
 if [ -n "${ELEVENLABS_API_KEY:-}" ] || command -v gtts-cli &>/dev/null; then
   cd "$ENGINE_DIR" && STORY_FILE="$STORY_PATH" AUDIO_TMP_DIR="$TMP_DIR" VIDEO_STORY_ID="$STORY_ID" TS_FILE="$TIMESTAMPS_FILE" npx tsx -e "
     import { validateStory } from './src/story-validator';
@@ -209,6 +188,29 @@ if [ -n "${ELEVENLABS_API_KEY:-}" ] || command -v gtts-cli &>/dev/null; then
 else
   echo "  Kein TTS verfügbar – Video ohne Voiceover"
 fi
+
+# Untertitel generieren (NACH Audio – nutzt audio-segments.json für exakte Dauer)
+echo "→ SRT generieren..."
+SRT_FILE="$TMP_DIR/$STORY_ID.srt"
+cd "$ENGINE_DIR" && STORY_FILE="$STORY_PATH" SRT_OUTPUT="$SRT_FILE" TS_FILE="$TIMESTAMPS_FILE" AUDIO_SEG_FILE="$AUDIO_SEGMENTS_FILE" npx tsx -e "
+  import { validateStory } from './src/story-validator';
+  import { extractSubtitles, extractSubtitlesFromTimestamps, generateSrt } from './src/subtitle-extractor';
+  import { writeFileSync, existsSync } from 'fs';
+  const tsFile = process.env.TS_FILE!;
+  const audioSegFile = process.env.AUDIO_SEG_FILE!;
+  let entries;
+  if (existsSync(tsFile)) {
+    entries = extractSubtitlesFromTimestamps(tsFile, existsSync(audioSegFile) ? audioSegFile : undefined);
+    console.log('SRT: Synchronisiert mit Timestamps' + (existsSync(audioSegFile) ? ' + Audio-Dauern' : ''));
+  } else {
+    const { story } = validateStory(process.env.STORY_FILE!);
+    if (!story) process.exit(1);
+    entries = extractSubtitles(story);
+    console.log('SRT: Fallback auf geschaetzte Dauern');
+  }
+  writeFileSync(process.env.SRT_OUTPUT!, generateSrt(entries));
+  console.log('SRT: ' + process.env.SRT_OUTPUT + ' (' + entries.length + ' Eintraege)');
+"
 
 # Video rendern (merge)
 echo "→ Finales Video rendern..."
