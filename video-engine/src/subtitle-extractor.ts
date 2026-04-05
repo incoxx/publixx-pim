@@ -170,7 +170,7 @@ export function extractSubtitlesFromTimestamps(
 
   // Audio-Verarbeitungslatenz ausgleichen: Untertitel leicht verzögern
   // damit sie synchron mit dem hörbaren Audio erscheinen
-  const AUDIO_SYNC_OFFSET_MS = 500;
+  const AUDIO_SYNC_OFFSET_MS = 1500;
 
   for (const ts of timestamps) {
     if (!ts.sprecher || ts.sprecher.trim() === '') continue;
