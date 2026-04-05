@@ -41,7 +41,7 @@ class ErrorClassificationService
             $record = $this->upsertRecord($group);
 
             // KI-Klassifikation nur wenn neu oder noch nicht klassifiziert
-            if ($record->wasRecentlyCreated || $record->ai_title === null) {
+            if ($record->wasRecentlyCreated || $record->classified_at === null) {
                 $this->classifyWithClaude($record);
                 $classified++;
 
@@ -93,7 +93,7 @@ class ErrorClassificationService
 
         while (($line = fgets($handle)) !== false) {
             // Neuer Log-Eintrag beginnt mit Zeitstempel: [YYYY-MM-DD HH:MM:SS]
-            if (preg_match('/^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\] \w+\.(ERROR|CRITICAL|EMERGENCY|ALERT):(.+)/', $line, $m)) {
+            if (preg_match('/^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\] [\w.-]+\.(ERROR|CRITICAL|EMERGENCY|ALERT):(.+)/', $line, $m)) {
                 // Vorherigen Eintrag speichern
                 if ($currentEntry) {
                     $errors[] = $currentEntry;
@@ -351,7 +351,7 @@ class ErrorClassificationService
             ])
                 ->timeout(30)
                 ->post(config('connectors.claude_ai.base_url', 'https://api.anthropic.com/v1') . '/messages', [
-                    'model'      => 'claude-sonnet-4-6',
+                    'model'      => config('connectors.claude_ai.model', 'claude-sonnet-4-6'),
                     'max_tokens' => 512,
                     'system'     => $this->systemPrompt(),
                     'messages'   => [
