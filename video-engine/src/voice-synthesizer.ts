@@ -59,6 +59,7 @@ export class VoiceSynthesizer {
 
     const voiceConfig = this.getVoiceConfig(story);
     const audioSegments: { path: string; startMs: number }[] = [];
+    let elevenLabsFailed = false; // Bei 401/403 alle weiteren Versuche überspringen
 
     log.audio(this.logger, `${sprecherEntries.length} Sprechertexte, Provider: ${voiceConfig.provider}`);
 
@@ -68,29 +69,36 @@ export class VoiceSynthesizer {
       const outputPath = path.join(outputDir, `audio-${String(i).padStart(3, '0')}-${stepId}.mp3`);
 
       try {
-        if (voiceConfig.provider === 'elevenlabs' && this.apiKey) {
+        if (voiceConfig.provider === 'elevenlabs' && this.apiKey && !elevenLabsFailed) {
           await this.synthesizeElevenLabs(text, voiceConfig, outputPath);
         } else {
           await this.synthesizeGtts(text, voiceConfig.lang, outputPath);
         }
         audioSegments.push({ path: outputPath, startMs });
       } catch (err) {
-        log.audio(this.logger, `WARN: Audio für "${stepId}" fehlgeschlagen: ${err instanceof Error ? err.message : String(err)}`);
+        const errMsg = err instanceof Error ? err.message : String(err);
+        log.audio(this.logger, `WARN: Audio für "${stepId}" fehlgeschlagen: ${errMsg}`);
+
+        // Bei Auth-Fehler: ElevenLabs komplett deaktivieren
+        if (errMsg.includes('401') || errMsg.includes('403') || errMsg.includes('Unauthorized')) {
+          elevenLabsFailed = true;
+          log.audio(this.logger, 'ElevenLabs API Key ungültig – deaktiviere für alle weiteren Segmente');
+        }
 
         // Fallback versuchen
-        if (voiceConfig.provider === 'elevenlabs') {
-          try {
-            log.audio(this.logger, `Fallback zu ${this.fallback} für "${stepId}"`);
-            if (this.fallback === 'gtts') {
-              await this.synthesizeGtts(text, voiceConfig.lang, outputPath);
-            } else {
-              await this.createSilence(outputPath, text.length * 60);
-            }
-            audioSegments.push({ path: outputPath, startMs });
-          } catch {
-            await this.createSilence(outputPath, text.length * 60);
-            audioSegments.push({ path: outputPath, startMs });
+        try {
+          if (this.fallback === 'gtts') {
+            log.audio(this.logger, `Fallback zu gTTS für "${stepId}"`);
+            await this.synthesizeGtts(text, voiceConfig.lang, outputPath);
+          } else {
+            await this.createSilence(outputPath, text.length * 100);
           }
+          audioSegments.push({ path: outputPath, startMs });
+        } catch {
+          // gTTS auch fehlgeschlagen → Stille
+          log.audio(this.logger, `gTTS fehlgeschlagen – erzeuge Stille für "${stepId}"`);
+          await this.createSilence(outputPath, text.length * 100);
+          audioSegments.push({ path: outputPath, startMs });
         }
       }
     }
