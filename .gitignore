@@ -73,6 +73,7 @@ yarn-error.log
 /storage/video-engine/tmp/*
 /storage/video-engine/logs/*
 /storage/video-engine/lock/*
+/storage/video-engine/audio-cache/*
 !/storage/video-engine/tmp/.gitkeep
 !/storage/video-engine/logs/.gitkeep
 !/storage/video-engine/lock/.gitkeep

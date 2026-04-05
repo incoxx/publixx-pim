@@ -169,10 +169,19 @@ WIDTH=1920
 HEIGHT=1080
 RECORDING="$TMP_DIR/recording.mp4"
 
-# Xvfb starten
+# Xvfb starten (mit Polling statt fixem sleep)
 Xvfb "$DISPLAY" -screen 0 "${WIDTH}x${HEIGHT}x24" -ac &
 XVFB_PID=$!
-sleep 1
+for i in $(seq 1 10); do
+  if xdpyinfo -display "$DISPLAY" >/dev/null 2>&1; then
+    break
+  fi
+  sleep 0.5
+done
+if ! xdpyinfo -display "$DISPLAY" >/dev/null 2>&1; then
+  echo "✗ Xvfb konnte nicht gestartet werden"
+  exit 1
+fi
 
 # ffmpeg starten
 ffmpeg -y -f x11grab -video_size "${WIDTH}x${HEIGHT}" -framerate "$FPS" -i "$DISPLAY" \
@@ -298,3 +307,6 @@ echo "=== Fertig ==="
 echo "✓ Video: $OUTPUT_FILE"
 echo "✓ SRT:   $OUTPUT_DIR/$STORY_ID.srt"
 ls -lh "$OUTPUT_FILE"
+
+# Temporäre Dateien aufräumen
+rm -rf "$TMP_DIR"
