@@ -896,6 +896,12 @@ if [ -d "$VIDEO_ENGINE_DIR" ] && [ -f "${VIDEO_ENGINE_DIR}/package.json" ]; then
         npx tsx scripts/create-demo-assets.ts 2>&1
     fi
 
+    # Sonic Logo erzeugen
+    if [ ! -f "${INSTALL_DIR}/video-stories/demo-assets/anypim-sonic-logo.mp3" ]; then
+        info "Erzeuge Sonic Logo..."
+        npx tsx scripts/create-sonic-logo.ts 2>&1
+    fi
+
     cd "$INSTALL_DIR"
     info "Video-Engine eingerichtet."
     info "  Nutzung: php artisan pim:video-generate --list"
