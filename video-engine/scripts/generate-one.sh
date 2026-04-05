@@ -169,16 +169,31 @@ WIDTH=1920
 HEIGHT=1080
 RECORDING="$TMP_DIR/recording.mp4"
 
-# Xvfb starten (mit Polling statt fixem sleep)
+# Xvfb starten (mit Polling – prüft ob Display bereit ist)
 Xvfb "$DISPLAY" -screen 0 "${WIDTH}x${HEIGHT}x24" -ac &
 XVFB_PID=$!
+XVFB_READY=false
 for i in $(seq 1 10); do
-  if xdpyinfo -display "$DISPLAY" >/dev/null 2>&1; then
+  sleep 0.5
+  # Prüfe ob Xvfb-Prozess noch läuft
+  if ! kill -0 "$XVFB_PID" 2>/dev/null; then
     break
   fi
-  sleep 0.5
+  # Prüfe ob Display verfügbar (xdpyinfo oder Fallback auf Prozess-Check)
+  if command -v xdpyinfo >/dev/null 2>&1; then
+    if xdpyinfo -display "$DISPLAY" >/dev/null 2>&1; then
+      XVFB_READY=true
+      break
+    fi
+  else
+    # Fallback: Wenn Prozess nach 1.5s noch läuft, ist Xvfb wahrscheinlich bereit
+    if [ "$i" -ge 3 ]; then
+      XVFB_READY=true
+      break
+    fi
+  fi
 done
-if ! xdpyinfo -display "$DISPLAY" >/dev/null 2>&1; then
+if [ "$XVFB_READY" = false ]; then
   echo "✗ Xvfb konnte nicht gestartet werden"
   exit 1
 fi

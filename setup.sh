@@ -868,13 +868,15 @@ if [ -d "$VIDEO_ENGINE_DIR" ] && [ -f "${VIDEO_ENGINE_DIR}/package.json" ]; then
     step "Video-Engine einrichten (optional)"
 
     # System-Pakete fuer Video-Aufnahme
-    info "Installiere Video-Engine Abhaengigkeiten (ffmpeg, Xvfb)..."
+    info "Installiere Video-Engine Abhaengigkeiten (ffmpeg, Xvfb, x11-utils)..."
     apt-get install -y -qq \
         ffmpeg \
         xvfb \
+        x11-utils \
         2>&1 | tail -1
     info "ffmpeg: $(ffmpeg -version 2>&1 | head -1 | cut -d' ' -f1-3)"
     info "Xvfb: $(which Xvfb)"
+    info "xdpyinfo: $(which xdpyinfo)"
 
     # Node-Abhaengigkeiten installieren
     info "Installiere Video-Engine npm-Pakete..."
