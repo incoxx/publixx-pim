@@ -106,6 +106,8 @@ class RoleAndPermissionSeeder extends Seeder
             'connectors.view', 'connectors.manage',
             // Dashboard
             'dashboard.view',
+            // Fehlerklassifikation (Sysadmin)
+            'error-classifications.view', 'error-classifications.triage', 'error-classifications.delete',
         ];
 
         foreach ($permissions as $permissionName) {
@@ -114,6 +116,12 @@ class RoleAndPermissionSeeder extends Seeder
                 'guard_name' => 'sanctum',
             ]);
         }
+
+        // ─── 0. Sysadmin (System-Superuser, unveränderlich) ──────────
+        $sysadmin = Role::firstOrCreate(
+            ['name' => 'Sysadmin', 'guard_name' => 'sanctum'],
+        );
+        $sysadmin->syncPermissions(Permission::all());
 
         // ─── 1. Admin (alle Permissions) ─────────────────────────────
         $admin = Role::firstOrCreate(
@@ -247,6 +255,7 @@ class RoleAndPermissionSeeder extends Seeder
         $this->command->table(
             ['Rolle', 'Permissions'],
             [
+                ['Sysadmin', (string) $sysadmin->permissions()->count()],
                 ['Admin', (string) $admin->permissions()->count()],
                 ['Data Steward', (string) $dataSteward->permissions()->count()],
                 ['Product Manager', (string) $productManager->permissions()->count()],

@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Models\ErrorClassification;
+use App\Models\User;
+use App\Notifications\CriticalErrorAlert;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -42,6 +44,11 @@ class ErrorClassificationService
             if ($record->wasRecentlyCreated || $record->ai_title === null) {
                 $this->classifyWithClaude($record);
                 $classified++;
+
+                // Sysadmin-User bei kritischen/hohen Fehlern benachrichtigen
+                if (in_array($record->severity, ['critical', 'high'], true)) {
+                    $this->notifySysadmins($record);
+                }
             } else {
                 // Schweregrad bei neuer Häufigkeit neu berechnen
                 $newSeverity = ErrorClassification::computeSeverity(
@@ -432,6 +439,32 @@ PROMPT;
         }
 
         return null;
+    }
+
+    /**
+     * Benachrichtigt alle aktiven Sysadmin-User per E-Mail über den klassifizierten Fehler.
+     */
+    private function notifySysadmins(ErrorClassification $record): void
+    {
+        $sysadmins = User::role('Sysadmin')
+            ->where('is_active', true)
+            ->whereNotNull('email')
+            ->get();
+
+        if ($sysadmins->isEmpty()) {
+            return;
+        }
+
+        foreach ($sysadmins as $user) {
+            try {
+                $user->notify(new CriticalErrorAlert($record));
+            } catch (\Throwable $e) {
+                Log::warning('ErrorClassificationService: Sysadmin-Benachrichtigung fehlgeschlagen.', [
+                    'user_id' => $user->id,
+                    'error'   => $e->getMessage(),
+                ]);
+            }
+        }
     }
 
     /**
