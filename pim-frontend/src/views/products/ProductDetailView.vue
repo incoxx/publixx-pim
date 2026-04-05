@@ -2462,6 +2462,7 @@ onUnmounted(() => {
         <button
           v-for="tab in tabs"
           :key="tab.key"
+          :data-testid="'tab-' + tab.key"
           :class="[
             'px-4 py-2.5 text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap',
             activeTab === tab.key
