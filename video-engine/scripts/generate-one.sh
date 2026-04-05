@@ -256,24 +256,31 @@ cd "$ENGINE_DIR" && STORY_FILE="$STORY_PATH" SRT_OUTPUT="$SRT_FILE" TS_FILE="$TI
   console.log('SRT: ' + process.env.SRT_OUTPUT + ' (' + entries.length + ' Eintraege)');
 "
 
-# Video rendern (merge)
+# ──────────────────────────────────────────────────────────────────
+# SCHRITT 6: Video rendern (merge Video + Audio + SRT + Sonic Logo)
+# ──────────────────────────────────────────────────────────────────
 echo "→ Finales Video rendern..."
 QUALITY="${VIDEO_ENGINE_QUALITY:-${VIDEO_QUALITY:-high}}"
 FINAL_VIDEO="$TMP_DIR/$STORY_ID-final.mp4"
+SONIC_LOGO="$PROJECT_ROOT/video-stories/demo-assets/anypim-sonic-logo.mp3"
 
 # audioPath: leerer String → null, sonst Pfad
 AUDIO_ARG="${AUDIO_FILE:-}"
 cd "$ENGINE_DIR" && VIDEO_PATH="$RECORDING" AUDIO_PATH="$AUDIO_ARG" SRT_PATH="$SRT_FILE" \
   RENDER_OUTPUT="$FINAL_VIDEO" RENDER_QUALITY="$QUALITY" VIDEO_STORY_ID="$STORY_ID" \
+  SONIC_LOGO_PATH="$SONIC_LOGO" \
   npx tsx -e "
   import { renderVideo } from './src/video-renderer';
   import { createStoryLogger } from './src/logger';
+  import { existsSync } from 'fs';
   (async () => {
     const logger = createStoryLogger(process.env.VIDEO_STORY_ID!);
+    const sonicPath = process.env.SONIC_LOGO_PATH;
     await renderVideo({
       videoPath: process.env.VIDEO_PATH!,
       audioPath: process.env.AUDIO_PATH || null,
       srtPath: process.env.SRT_PATH!,
+      sonicLogoPath: sonicPath && existsSync(sonicPath) ? sonicPath : null,
       outputPath: process.env.RENDER_OUTPUT!,
       quality: (process.env.RENDER_QUALITY || 'high') as 'high' | 'medium' | 'low',
       logger,

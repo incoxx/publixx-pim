@@ -8,6 +8,7 @@ export interface RenderOptions {
   videoPath: string;
   audioPath: string | null;
   srtPath: string | null;
+  sonicLogoPath?: string | null;
   outputPath: string;
   quality: 'high' | 'medium' | 'low';
   logger: winston.Logger;
@@ -23,8 +24,26 @@ const QUALITY_PRESETS: Record<string, { crf: number; preset: string }> = {
  * Fügt Video, Audio und Untertitel zu einem fertigen Video zusammen.
  */
 export async function renderVideo(opts: RenderOptions): Promise<void> {
-  const { videoPath, audioPath, srtPath, outputPath, quality, logger } = opts;
+  const { videoPath, srtPath, outputPath, quality, logger } = opts;
+  let { audioPath, sonicLogoPath } = opts;
   const preset = QUALITY_PRESETS[quality] || QUALITY_PRESETS.medium;
+
+  // Sonic Logo + Voiceover zusammenführen (falls beides vorhanden)
+  if (sonicLogoPath && fs.existsSync(sonicLogoPath) && audioPath && fs.existsSync(audioPath)) {
+    log.render(logger, 'Sonic Logo + Voiceover zusammenführen...');
+    const mergedAudioPath = path.join(path.dirname(outputPath), 'audio-with-sonic.mp3');
+    const sonicDuration = getMediaDuration(sonicLogoPath);
+    // Sonic Logo am Anfang, Voiceover danach mit Overlap
+    try {
+      execSync(`ffmpeg -y -i "${sonicLogoPath}" -i "${audioPath}" -filter_complex "[0]volume=1.0[sonic];[1]adelay=${Math.round(sonicDuration * 700)}|${Math.round(sonicDuration * 700)},volume=1.0[voice];[sonic][voice]amix=inputs=2:duration=longest:dropout_transition=0" -b:a 192k "${mergedAudioPath}"`, { timeout: 30000, stdio: 'pipe' });
+      audioPath = mergedAudioPath;
+    } catch (err) {
+      log.render(logger, `Sonic Logo Merge fehlgeschlagen, nutze nur Voiceover`);
+    }
+  } else if (sonicLogoPath && fs.existsSync(sonicLogoPath) && (!audioPath || !fs.existsSync(audioPath))) {
+    // Nur Sonic Logo, kein Voiceover
+    audioPath = sonicLogoPath;
+  }
 
   if (!fs.existsSync(videoPath)) {
     throw new Error(`Video nicht gefunden: ${videoPath}`);
