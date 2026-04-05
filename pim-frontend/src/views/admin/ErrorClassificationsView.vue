@@ -4,7 +4,7 @@ import { useErrorClassificationsStore } from '@/stores/errorClassifications'
 import {
   Bug, Search, Trash2, RefreshCw, ChevronDown, ChevronRight,
   AlertTriangle, AlertCircle, HelpCircle, CheckCircle2, X,
-  Filter, Send, Clock, RotateCcw, FlaskConical,
+  Send, Clock, RotateCcw, FlaskConical,
 } from 'lucide-vue-next'
 
 const store = useErrorClassificationsStore()
@@ -216,15 +216,15 @@ onMounted(() => {
       <button class="pim-btn text-xs px-3 py-1 bg-red-500 text-white hover:bg-red-600" @click="confirmDelete">Löschen</button>
     </div>
 
-    <!-- Kein API Key Hinweis -->
+    <!-- Kein API Key: Info-Banner (Fallback vorhanden) -->
     <div
       v-if="!store.hasApiKey"
-      class="flex items-center gap-2 text-xs text-yellow-600 bg-yellow-500/10 border border-yellow-500/20 rounded-lg px-3 py-2"
+      class="flex items-center gap-2 text-xs text-blue-600 bg-blue-500/10 border border-blue-500/20 rounded-lg px-3 py-2"
     >
-      <AlertTriangle class="w-3.5 h-3.5 shrink-0" />
+      <AlertCircle class="w-3.5 h-3.5 shrink-0 text-blue-500" />
       <span>
-        Kein Claude API Key konfiguriert — KI-Klassifikation deaktiviert.
-        Setze <code class="font-mono bg-yellow-500/10 px-1 rounded">CLAUDE_AI_API_KEY</code> in der <code class="font-mono bg-yellow-500/10 px-1 rounded">.env</code>-Datei.
+        Kein Claude API Key — es wird <strong>regel-basierte Klassifikation</strong> verwendet.
+        Für KI-Analyse: <code class="font-mono bg-blue-500/10 px-1 rounded">CLAUDE_AI_API_KEY</code> in <code class="font-mono bg-blue-500/10 px-1 rounded">.env</code> setzen.
       </span>
     </div>
 
@@ -239,25 +239,22 @@ onMounted(() => {
     <!-- Filter + Suche -->
     <div class="flex items-center gap-3 flex-wrap">
       <!-- Schweregrad -->
-      <div class="relative">
-        <Filter class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--color-text-tertiary)]" />
-        <select v-model="severityFilter" class="pim-input text-xs pl-8 pr-6 py-1.5 appearance-none cursor-pointer" @change="applyFilters">
-          <option value="">Alle Schweregrade</option>
-          <option value="critical">Kritisch</option>
-          <option value="high">Hoch</option>
-          <option value="medium">Mittel</option>
-          <option value="low">Niedrig</option>
-        </select>
-      </div>
+      <select v-model="severityFilter" class="pim-input text-xs py-1.5 w-auto cursor-pointer" @change="applyFilters">
+        <option value="">Alle Schweregrade</option>
+        <option value="critical">Kritisch</option>
+        <option value="high">Hoch</option>
+        <option value="medium">Mittel</option>
+        <option value="low">Niedrig</option>
+      </select>
       <!-- Klassifikation -->
-      <select v-model="classificationFilter" class="pim-input text-xs px-3 py-1.5 appearance-none cursor-pointer" @change="applyFilters">
+      <select v-model="classificationFilter" class="pim-input text-xs py-1.5 w-auto cursor-pointer" @change="applyFilters">
         <option value="">Alle Typen</option>
         <option value="real_bug">Echter Bug</option>
         <option value="user_error">Nutzerfehler</option>
         <option value="uncertain">Unklar</option>
       </select>
       <!-- Status -->
-      <select v-model="statusFilter" class="pim-input text-xs px-3 py-1.5 appearance-none cursor-pointer" @change="applyFilters">
+      <select v-model="statusFilter" class="pim-input text-xs py-1.5 w-auto cursor-pointer" @change="applyFilters">
         <option value="">Alle Status</option>
         <option value="new">Neu</option>
         <option value="reviewed">Geprüft</option>
@@ -296,7 +293,7 @@ onMounted(() => {
     >
       <Bug class="w-8 h-8 mx-auto opacity-30" />
       <p>Keine Fehler gefunden.</p>
-      <p class="text-xs">Klicke auf "Neu analysieren" um Logs zu verarbeiten.</p>
+      <p class="text-xs">Klicke auf "Dry-Run" oder "Live-Lauf (20)" um Logs zu verarbeiten.</p>
     </div>
 
     <!-- Einträge -->

@@ -40,15 +40,21 @@ class ErrorClassificationService
 
             $record = $this->upsertRecord($group);
 
-            // KI-Klassifikation nur wenn neu oder noch nicht klassifiziert
+            // Klassifikation nur wenn neu oder noch nicht klassifiziert
             if ($record->wasRecentlyCreated || $record->classified_at === null) {
-                $this->classifyWithClaude($record);
-                $classified++;
+                $hasApiKey = ! empty(config('connectors.claude_ai.api_key'));
 
-                // Sysadmin-User bei kritischen/hohen Fehlern benachrichtigen
-                if (in_array($record->severity, ['critical', 'high'], true)) {
-                    $this->notifySysadmins($record);
+                if ($hasApiKey) {
+                    $this->classifyWithClaude($record);
+                    // Sysadmin-User bei kritischen/hohen Fehlern benachrichtigen
+                    if (in_array($record->severity, ['critical', 'high'], true)) {
+                        $this->notifySysadmins($record);
+                    }
+                } else {
+                    $this->classifyWithRules($record);
                 }
+
+                $classified++;
             } else {
                 // Schweregrad bei neuer Häufigkeit neu berechnen
                 $newSeverity = ErrorClassification::computeSeverity(
@@ -465,6 +471,60 @@ PROMPT;
                 ]);
             }
         }
+    }
+
+    /**
+     * Klassifiziert einen Fehler anhand des Exception-Klassen-Namens (ohne KI).
+     * Wird als Fallback verwendet wenn kein CLAUDE_AI_API_KEY konfiguriert ist.
+     */
+    private function classifyWithRules(ErrorClassification $record): void
+    {
+        $userErrorPatterns = [
+            'ValidationException', 'AuthenticationException', 'AuthorizationException',
+            'NotFoundHttpException', 'MethodNotAllowedHttpException',
+            'ThrottleRequestsException', 'TokenMismatchException',
+            'ModelNotFoundException', 'AccessDeniedHttpException',
+        ];
+        $bugPatterns = [
+            'QueryException', 'PDOException', 'RuntimeException',
+            'TypeError', 'ParseError', 'DivisionByZeroError',
+            'BadMethodCallException', 'InvalidArgumentException',
+            'UnexpectedValueException', 'ErrorException',
+        ];
+
+        $class = class_basename($record->exception_class);
+        $classification = 'uncertain';
+
+        foreach ($userErrorPatterns as $pattern) {
+            if (str_contains($class, $pattern)) {
+                $classification = 'user_error';
+                break;
+            }
+        }
+        if ($classification === 'uncertain') {
+            foreach ($bugPatterns as $pattern) {
+                if (str_contains($class, $pattern)) {
+                    $classification = 'real_bug';
+                    break;
+                }
+            }
+        }
+
+        $severity = ErrorClassification::computeSeverity($record->occurrence_count, $classification);
+
+        // Lesbarer Titel aus Exception-Klasse
+        $readable = trim(preg_replace('/([A-Z])/', ' $1', $class));
+        $title = '[Regel] ' . str_replace('Exception', 'Fehler', $readable);
+
+        $record->update([
+            'classification' => $classification,
+            'severity'       => $severity,
+            'ai_title'       => $title,
+            'ai_description' => 'Automatisch klassifiziert anhand des Exception-Typs (ohne KI).',
+            'ai_hint'        => 'Für detaillierte KI-Analyse CLAUDE_AI_API_KEY in .env setzen.',
+            'ai_confidence'  => 0.60,
+            'classified_at'  => now(),
+        ]);
     }
 
     /**
