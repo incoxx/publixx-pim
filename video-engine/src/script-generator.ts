@@ -1,12 +1,25 @@
 import type { Story, StoryStep } from './story-validator';
+import type { AudioSegmentInfo } from './subtitle-extractor';
 
 /**
  * Generiert ein ausführbares Playwright-Script aus einer Story.
- * Das Script wird als String zurückgegeben und kann als .ts-Datei gespeichert werden.
+ * Wenn audioSegments übergeben werden, wird pause_after auf die Audio-Dauer verlängert.
  */
-export function generatePlaywrightScript(story: Story, baseUrl: string): string {
+export function generatePlaywrightScript(
+  story: Story,
+  baseUrl: string,
+  audioSegments?: AudioSegmentInfo[],
+): string {
   const viewport = story.meta.viewport || { width: 1920, height: 1080 };
   const slowMo = story.meta.slow_mo || 600;
+
+  // Audio-Dauern als Map (stepId → durationMs)
+  const audioDurations = new Map<string, number>();
+  if (audioSegments) {
+    for (const seg of audioSegments) {
+      audioDurations.set(seg.stepId, seg.durationMs);
+    }
+  }
 
   const lines: string[] = [];
 
@@ -126,9 +139,12 @@ export function generatePlaywrightScript(story: Story, baseUrl: string): string 
       lines.push(`    await page.waitForSelector(${JSON.stringify(step.wait_for)}, { state: 'visible', timeout: ${timeout} });`);
     }
 
-    // pause_after
-    if (step.pause_after) {
-      lines.push(`    await sleep(${step.pause_after});`);
+    // pause_after: mindestens so lang wie das Audio-Segment (+ 500ms Puffer)
+    const audioDur = audioDurations.get(step.id) || 0;
+    const storyPause = step.pause_after || 0;
+    const effectivePause = Math.max(storyPause, audioDur > 0 ? audioDur + 500 : 0);
+    if (effectivePause > 0) {
+      lines.push(`    await sleep(${effectivePause}); // pause: ${storyPause}ms story${audioDur > 0 ? `, ${audioDur}ms audio` : ''}`);
     }
 
     lines.push(`    timestamps[timestamps.length - 1].endMs = elapsed();`);

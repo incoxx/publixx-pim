@@ -97,26 +97,71 @@ if [ -n "$SEEDER" ]; then
   }
 fi
 
-# Script generieren
+# Temporäres Verzeichnis
 TMP_DIR="$STORAGE_DIR/tmp/$STORY_ID-$(date +%s)"
 mkdir -p "$TMP_DIR"
+AUDIO_SEGMENTS_FILE="$TMP_DIR/audio-segments.json"
+TIMESTAMPS_FILE="$TMP_DIR/timestamps.json"
+
+# ──────────────────────────────────────────────────────────────────
+# SCHRITT 1: Audio VOR der Aufnahme generieren (für Pausen-Berechnung)
+# ──────────────────────────────────────────────────────────────────
+echo "→ Voiceover erzeugen (vor Aufnahme – für Pausen-Berechnung)..."
+AUDIO_FILE=""
+if [ -n "${ELEVENLABS_API_KEY:-}" ] || command -v gtts-cli &>/dev/null; then
+  cd "$ENGINE_DIR" && STORY_FILE="$STORY_PATH" AUDIO_TMP_DIR="$TMP_DIR" VIDEO_STORY_ID="$STORY_ID" npx tsx -e "
+    import { validateStory } from './src/story-validator';
+    import { VoiceSynthesizer } from './src/voice-synthesizer';
+    import { createStoryLogger } from './src/logger';
+    (async () => {
+      const logger = createStoryLogger(process.env.VIDEO_STORY_ID!);
+      const { story } = validateStory(process.env.STORY_FILE!);
+      if (!story) process.exit(1);
+      const synth = new VoiceSynthesizer(logger);
+      const audioPath = await synth.synthesize(story, process.env.AUDIO_TMP_DIR!);
+      if (audioPath) console.log('AUDIO:' + audioPath);
+    })();
+  " | while read -r line; do
+    if [[ "$line" == AUDIO:* ]]; then
+      echo "${line#AUDIO:}" > "$TMP_DIR/.audio-path"
+    else
+      echo "$line"
+    fi
+  done
+  [ -f "$TMP_DIR/.audio-path" ] && AUDIO_FILE=$(cat "$TMP_DIR/.audio-path")
+else
+  echo "  Kein TTS verfügbar – Video ohne Voiceover"
+fi
+
+# ──────────────────────────────────────────────────────────────────
+# SCHRITT 2: Playwright-Script generieren MIT Audio-Dauern
+# ──────────────────────────────────────────────────────────────────
 SCRIPT_FILE="$TMP_DIR/playwright-script.ts"
 
-echo "→ Playwright-Script generieren..."
-cd "$ENGINE_DIR" && STORY_FILE="$STORY_PATH" SCRIPT_OUTPUT="$SCRIPT_FILE" npx tsx -e "
+echo "→ Playwright-Script generieren (mit Audio-Pausen)..."
+cd "$ENGINE_DIR" && STORY_FILE="$STORY_PATH" SCRIPT_OUTPUT="$SCRIPT_FILE" AUDIO_SEG_FILE="$AUDIO_SEGMENTS_FILE" npx tsx -e "
   import { validateStory, interpolateEnv } from './src/story-validator';
   import { generatePlaywrightScript } from './src/script-generator';
-  import { writeFileSync } from 'fs';
+  import { writeFileSync, readFileSync, existsSync } from 'fs';
   const { story } = validateStory(process.env.STORY_FILE!);
   if (!story) { console.error('Story ungültig'); process.exit(1); }
   const interpolated = interpolateEnv(story);
   const baseUrl = process.env.ANYPIM_BASE_URL || process.env.VIDEO_ENGINE_BASE_URL || 'http://localhost:8000';
-  const script = generatePlaywrightScript(interpolated, baseUrl);
+  // Audio-Segment-Dauern laden (falls vorhanden)
+  let audioSegments = undefined;
+  const segFile = process.env.AUDIO_SEG_FILE!;
+  if (existsSync(segFile)) {
+    audioSegments = JSON.parse(readFileSync(segFile, 'utf-8'));
+    console.log('Script: Pausen angepasst an ' + audioSegments.length + ' Audio-Segmente');
+  }
+  const script = generatePlaywrightScript(interpolated, baseUrl, audioSegments);
   writeFileSync(process.env.SCRIPT_OUTPUT!, script);
   console.log('Script: ' + process.env.SCRIPT_OUTPUT);
 "
 
-# Aufnahme starten (Xvfb + ffmpeg + Playwright)
+# ──────────────────────────────────────────────────────────────────
+# SCHRITT 3: Aufnahme (Xvfb + ffmpeg + Playwright)
+# ──────────────────────────────────────────────────────────────────
 echo "→ Aufnahme starten..."
 DISPLAY="${VIDEO_ENGINE_DISPLAY:-${VIDEO_DISPLAY:-:99}}"
 FPS="${VIDEO_ENGINE_FPS:-${VIDEO_FPS:-30}}"
@@ -143,8 +188,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Playwright-Script ausführen (schreibt Timestamps-Datei für SRT-Sync)
-TIMESTAMPS_FILE="$TMP_DIR/timestamps.json"
+# Playwright-Script ausführen (wartet jetzt lange genug für Audio)
 cd "$ENGINE_DIR" && DISPLAY="$DISPLAY" NODE_PATH="$ENGINE_DIR/node_modules" TIMESTAMPS_FILE="$TIMESTAMPS_FILE" npx tsx "$SCRIPT_FILE" 2>&1 || {
   echo "⚠ Playwright-Script mit Fehlern beendet"
 }
@@ -160,11 +204,11 @@ trap - EXIT
 
 echo "→ Aufnahme beendet: $RECORDING"
 
-# Audio erzeugen (ZUERST – erzeugt audio-segments.json für SRT-Sync)
-echo "→ Voiceover erzeugen..."
-AUDIO_FILE=""
-AUDIO_SEGMENTS_FILE="$TMP_DIR/audio-segments.json"
-if [ -n "${ELEVENLABS_API_KEY:-}" ] || command -v gtts-cli &>/dev/null; then
+# ──────────────────────────────────────────────────────────────────
+# SCHRITT 4: Audio mit echten Timestamps neu positionieren
+# ──────────────────────────────────────────────────────────────────
+if [ -n "$AUDIO_FILE" ] && [ -f "$TIMESTAMPS_FILE" ]; then
+  echo "→ Audio an Aufnahme-Timestamps ausrichten..."
   cd "$ENGINE_DIR" && STORY_FILE="$STORY_PATH" AUDIO_TMP_DIR="$TMP_DIR" VIDEO_STORY_ID="$STORY_ID" TS_FILE="$TIMESTAMPS_FILE" npx tsx -e "
     import { validateStory } from './src/story-validator';
     import { VoiceSynthesizer } from './src/voice-synthesizer';
@@ -185,11 +229,11 @@ if [ -n "${ELEVENLABS_API_KEY:-}" ] || command -v gtts-cli &>/dev/null; then
     fi
   done
   [ -f "$TMP_DIR/.audio-path" ] && AUDIO_FILE=$(cat "$TMP_DIR/.audio-path")
-else
-  echo "  Kein TTS verfügbar – Video ohne Voiceover"
 fi
 
-# Untertitel generieren (NACH Audio – nutzt audio-segments.json für exakte Dauer)
+# ──────────────────────────────────────────────────────────────────
+# SCHRITT 5: SRT generieren (aus Timestamps + Audio-Dauern)
+# ──────────────────────────────────────────────────────────────────
 echo "→ SRT generieren..."
 SRT_FILE="$TMP_DIR/$STORY_ID.srt"
 cd "$ENGINE_DIR" && STORY_FILE="$STORY_PATH" SRT_OUTPUT="$SRT_FILE" TS_FILE="$TIMESTAMPS_FILE" AUDIO_SEG_FILE="$AUDIO_SEGMENTS_FILE" npx tsx -e "
