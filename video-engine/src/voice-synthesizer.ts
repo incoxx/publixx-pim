@@ -36,7 +36,7 @@ export class VoiceSynthesizer {
   /** Erzeugt einen Cache-Key aus Text + Voice-Config */
   private getCacheKey(text: string, voiceConfig: VoiceConfig): string {
     const input = `${text}|${voiceConfig.provider}|${voiceConfig.voiceId}|${voiceConfig.lang}|${voiceConfig.gender}`;
-    return crypto.createHash('sha256').update(input).digest('hex').substring(0, 16);
+    return crypto.createHash('sha256').update(input).digest('hex').substring(0, 32);
   }
 
   /** Prüft ob ein gecachtes Audio-Segment existiert */
