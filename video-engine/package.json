@@ -9,6 +9,7 @@
     "generate": "bash scripts/generate-one.sh",
     "generate:all": "bash scripts/generate-all.sh",
     "create-assets": "tsx scripts/create-demo-assets.ts",
+    "create-sonic": "tsx scripts/create-sonic-logo.ts",
     "build": "tsc --noEmit"
   },
   "dependencies": {
