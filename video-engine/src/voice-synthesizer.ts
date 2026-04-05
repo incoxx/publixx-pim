@@ -4,7 +4,7 @@ import { execSync, spawnSync } from 'child_process';
 import winston from 'winston';
 import * as log from './logger';
 import type { Story } from './story-validator';
-import { extractSprecherTexts } from './subtitle-extractor';
+import { extractSprecherTexts, type RecordedTimestamp } from './subtitle-extractor';
 
 interface VoiceConfig {
   lang: string;
@@ -27,22 +27,44 @@ export class VoiceSynthesizer {
     this.logger = logger;
   }
 
-  /** Erzeugt Audio für alle Sprecher-Texte einer Story */
-  async synthesize(story: Story, outputDir: string): Promise<string | null> {
-    const texts = extractSprecherTexts(story);
+  /** Erzeugt Audio für alle Sprecher-Texte einer Story, synchronisiert mit Timestamps */
+  async synthesize(story: Story, outputDir: string, timestampsFile?: string): Promise<string | null> {
+    // Timestamps laden (falls vorhanden)
+    let timestamps: RecordedTimestamp[] | null = null;
+    if (timestampsFile && fs.existsSync(timestampsFile)) {
+      timestamps = JSON.parse(fs.readFileSync(timestampsFile, 'utf-8'));
+      log.audio(this.logger, 'Synchronisiere Audio mit echten Aufnahme-Timestamps');
+    }
 
-    if (texts.length === 0) {
+    // Sprecher-Texte mit Timestamps ermitteln
+    const sprecherEntries: { stepId: string; text: string; startMs: number }[] = [];
+
+    if (timestamps) {
+      // Echte Timestamps verwenden
+      for (const ts of timestamps) {
+        if (ts.sprecher && ts.sprecher.trim() !== '') {
+          sprecherEntries.push({ stepId: ts.id, text: ts.sprecher, startMs: ts.startMs });
+        }
+      }
+    } else {
+      // Fallback: geschätzte Timestamps
+      const texts = extractSprecherTexts(story);
+      sprecherEntries.push(...texts);
+    }
+
+    if (sprecherEntries.length === 0) {
       log.audio(this.logger, 'Keine Sprechertexte vorhanden – kein Audio');
       return null;
     }
 
     const voiceConfig = this.getVoiceConfig(story);
-    const audioFiles: string[] = [];
+    const audioSegments: { path: string; startMs: number }[] = [];
 
-    log.audio(this.logger, `${texts.length} Sprechertexte, Provider: ${voiceConfig.provider}`);
+    log.audio(this.logger, `${sprecherEntries.length} Sprechertexte, Provider: ${voiceConfig.provider}`);
 
-    for (let i = 0; i < texts.length; i++) {
-      const { stepId, text } = texts[i];
+    // Einzelne Audio-Segmente erzeugen
+    for (let i = 0; i < sprecherEntries.length; i++) {
+      const { stepId, text, startMs } = sprecherEntries[i];
       const outputPath = path.join(outputDir, `audio-${String(i).padStart(3, '0')}-${stepId}.mp3`);
 
       try {
@@ -51,9 +73,9 @@ export class VoiceSynthesizer {
         } else {
           await this.synthesizeGtts(text, voiceConfig.lang, outputPath);
         }
-        audioFiles.push(outputPath);
+        audioSegments.push({ path: outputPath, startMs });
       } catch (err) {
-        log.audio(this.logger, `WARN: Audio für "${stepId}" fehlgeschlagen: ${(err as Error).message}`);
+        log.audio(this.logger, `WARN: Audio für "${stepId}" fehlgeschlagen: ${err instanceof Error ? err.message : String(err)}`);
 
         // Fallback versuchen
         if (voiceConfig.provider === 'elevenlabs') {
@@ -61,30 +83,28 @@ export class VoiceSynthesizer {
             log.audio(this.logger, `Fallback zu ${this.fallback} für "${stepId}"`);
             if (this.fallback === 'gtts') {
               await this.synthesizeGtts(text, voiceConfig.lang, outputPath);
-              audioFiles.push(outputPath);
             } else {
-              // silent – leere Datei
               await this.createSilence(outputPath, text.length * 60);
-              audioFiles.push(outputPath);
             }
+            audioSegments.push({ path: outputPath, startMs });
           } catch {
             await this.createSilence(outputPath, text.length * 60);
-            audioFiles.push(outputPath);
+            audioSegments.push({ path: outputPath, startMs });
           }
         }
       }
     }
 
-    if (audioFiles.length === 0) {
+    if (audioSegments.length === 0) {
       return null;
     }
 
-    // Audio-Dateien zusammenführen
+    // Audio-Segmente an den richtigen Zeitpunkten positionieren
     const mergedPath = path.join(outputDir, 'voiceover.mp3');
-    await this.mergeAudioFiles(audioFiles, texts, mergedPath);
+    await this.mergeWithTimestamps(audioSegments, mergedPath);
 
     const totalDuration = this.getAudioDuration(mergedPath);
-    log.audio(this.logger, `Voiceover erzeugt: ${totalDuration}s`);
+    log.audio(this.logger, `Voiceover erzeugt: ${totalDuration.toFixed(1)}s (${audioSegments.length} Segmente)`);
 
     return mergedPath;
   }
@@ -183,6 +203,58 @@ export class VoiceSynthesizer {
     if (result.status !== 0) {
       throw new Error(`gTTS fehlgeschlagen: ${result.stderr?.toString() || 'unbekannter Fehler'}`);
     }
+  }
+
+  /**
+   * Fügt Audio-Segmente an den richtigen Zeitpunkten zusammen.
+   * Zwischen den Segmenten wird Stille eingefügt basierend auf den echten Timestamps.
+   */
+  private async mergeWithTimestamps(
+    segments: { path: string; startMs: number }[],
+    outputPath: string,
+  ): Promise<void> {
+    if (segments.length === 0) return;
+
+    if (segments.length === 1) {
+      // Einzelnes Segment: nur Stille am Anfang einfügen
+      const startSilence = segments[0].startMs / 1000;
+      if (startSilence > 0.1) {
+        const silencePath = path.join(path.dirname(outputPath), 'silence-start.mp3');
+        await this.createSilence(silencePath, segments[0].startMs);
+        const listFile = path.join(path.dirname(outputPath), 'concat-ts.txt');
+        fs.writeFileSync(listFile, `file '${silencePath}'\nfile '${segments[0].path}'`);
+        execSync(`ffmpeg -y -f concat -safe 0 -i "${listFile}" -c copy "${outputPath}"`, { timeout: 30000 });
+      } else {
+        fs.copyFileSync(segments[0].path, outputPath);
+      }
+      return;
+    }
+
+    // Mehrere Segmente: Stille zwischen den Segmenten basierend auf Timestamps
+    const listFile = path.join(path.dirname(outputPath), 'concat-ts.txt');
+    const lines: string[] = [];
+    let currentPositionMs = 0;
+
+    for (let i = 0; i < segments.length; i++) {
+      const segment = segments[i];
+
+      // Stille vor dem Segment einfügen (Differenz zu Ziel-Startzeit)
+      const gapMs = segment.startMs - currentPositionMs;
+      if (gapMs > 100) {
+        const silencePath = path.join(path.dirname(outputPath), `silence-ts-${i}.mp3`);
+        await this.createSilence(silencePath, gapMs);
+        lines.push(`file '${silencePath}'`);
+        currentPositionMs += gapMs;
+      }
+
+      // Audio-Segment einfügen
+      lines.push(`file '${segment.path}'`);
+      const segmentDuration = this.getAudioDuration(segment.path) * 1000;
+      currentPositionMs += segmentDuration;
+    }
+
+    fs.writeFileSync(listFile, lines.join('\n'));
+    execSync(`ffmpeg -y -f concat -safe 0 -i "${listFile}" -c copy "${outputPath}"`, { timeout: 60000 });
   }
 
   /** Erstellt eine stille MP3-Datei */

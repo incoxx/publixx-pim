@@ -186,7 +186,7 @@ cd "$ENGINE_DIR" && STORY_FILE="$STORY_PATH" SRT_OUTPUT="$SRT_FILE" TS_FILE="$TI
 echo "→ Voiceover erzeugen..."
 AUDIO_FILE=""
 if [ -n "${ELEVENLABS_API_KEY:-}" ] || command -v gtts-cli &>/dev/null; then
-  cd "$ENGINE_DIR" && STORY_FILE="$STORY_PATH" AUDIO_TMP_DIR="$TMP_DIR" VIDEO_STORY_ID="$STORY_ID" npx tsx -e "
+  cd "$ENGINE_DIR" && STORY_FILE="$STORY_PATH" AUDIO_TMP_DIR="$TMP_DIR" VIDEO_STORY_ID="$STORY_ID" TS_FILE="$TIMESTAMPS_FILE" npx tsx -e "
     import { validateStory } from './src/story-validator';
     import { VoiceSynthesizer } from './src/voice-synthesizer';
     import { createStoryLogger } from './src/logger';
@@ -195,7 +195,7 @@ if [ -n "${ELEVENLABS_API_KEY:-}" ] || command -v gtts-cli &>/dev/null; then
       const { story } = validateStory(process.env.STORY_FILE!);
       if (!story) process.exit(1);
       const synth = new VoiceSynthesizer(logger);
-      const audioPath = await synth.synthesize(story, process.env.AUDIO_TMP_DIR!);
+      const audioPath = await synth.synthesize(story, process.env.AUDIO_TMP_DIR!, process.env.TS_FILE);
       if (audioPath) console.log('AUDIO:' + audioPath);
     })();
   " | while read -r line; do
