@@ -6,10 +6,20 @@ export const useErrorClassificationsStore = defineStore('errorClassifications', 
   const items = ref([])
   const loading = ref(false)
   const classifying = ref(false)
+  const hasApiKey = ref(true)
   const error = ref(null)
   const meta = ref({ current_page: 1, last_page: 1, total: 0, per_page: 50 })
   const filters = ref({})
   const sort = ref({ field: 'last_seen_at', order: 'desc' })
+
+  async function fetchStatus() {
+    try {
+      const { data } = await errorClassificationsApi.status()
+      hasApiKey.value = data.has_claude_api_key
+    } catch {
+      // Status-Check scheitert still — Buttons bleiben aktiv
+    }
+  }
 
   async function fetchList(options = {}) {
     loading.value = true
@@ -34,12 +44,12 @@ export const useErrorClassificationsStore = defineStore('errorClassifications', 
     }
   }
 
-  async function runClassification(limit = 50) {
+  async function runClassification(limit = 50, dryRun = false) {
     classifying.value = true
     error.value = null
     try {
-      const { data } = await errorClassificationsApi.classify({ limit })
-      await fetchList()
+      const { data } = await errorClassificationsApi.classify({ limit, dry_run: dryRun })
+      if (!dryRun) await fetchList()
       return data
     } catch (e) {
       error.value = e.response?.data?.message || 'Klassifikation fehlgeschlagen'
@@ -68,8 +78,8 @@ export const useErrorClassificationsStore = defineStore('errorClassifications', 
   function setSort(field, order) { sort.value = { field, order } }
 
   return {
-    items, loading, classifying, error, meta, filters, sort,
-    fetchList, runClassification, updateRecord, deleteAll,
+    items, loading, classifying, hasApiKey, error, meta, filters, sort,
+    fetchStatus, fetchList, runClassification, updateRecord, deleteAll,
     setFilters, setPage, setSort,
   }
 })

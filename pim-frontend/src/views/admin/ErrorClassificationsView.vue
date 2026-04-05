@@ -4,7 +4,7 @@ import { useErrorClassificationsStore } from '@/stores/errorClassifications'
 import {
   Bug, Search, Trash2, RefreshCw, ChevronDown, ChevronRight,
   AlertTriangle, AlertCircle, HelpCircle, CheckCircle2, X,
-  Filter, Send, Clock, RotateCcw,
+  Filter, Send, Clock, RotateCcw, FlaskConical,
 } from 'lucide-vue-next'
 
 const store = useErrorClassificationsStore()
@@ -51,12 +51,16 @@ function toggleExpand(id) {
   expandedIds.value = s
 }
 
-async function runClassification() {
+async function runDryRun() {
   classifyResult.value = null
-  const result = await store.runClassification(50)
-  if (result) {
-    classifyResult.value = result
-  }
+  const result = await store.runClassification(50, true)
+  if (result) classifyResult.value = { ...result, dry_run: true }
+}
+
+async function runLiveLauf() {
+  classifyResult.value = null
+  const result = await store.runClassification(20)
+  if (result) classifyResult.value = result
 }
 
 async function markStatus(item, status) {
@@ -125,7 +129,10 @@ function relativeTime(dateStr) {
   return `vor ${Math.floor(diff / 86400)} Tagen`
 }
 
-onMounted(() => store.fetchList())
+onMounted(() => {
+  store.fetchStatus()
+  store.fetchList()
+})
 </script>
 
 <template>
@@ -138,20 +145,36 @@ onMounted(() => store.fetchList())
         Fehlerklassifikation
       </h2>
       <div class="flex items-center gap-2">
+        <!-- Dry-Run -->
         <button
-          :class="['pim-btn text-xs px-3 py-1.5 gap-1.5', store.classifying ? 'pim-btn-primary' : 'pim-btn-secondary']"
-          :disabled="store.classifying"
-          @click="runClassification"
+          class="pim-btn pim-btn-secondary text-xs px-3 py-1.5 gap-1.5"
+          :class="{ 'opacity-40 cursor-not-allowed': !store.hasApiKey }"
+          :disabled="store.classifying || !store.hasApiKey"
+          :title="!store.hasApiKey ? 'Kein Claude API Key konfiguriert (CLAUDE_AI_API_KEY)' : 'Logs analysieren ohne zu speichern'"
+          @click="runDryRun"
+        >
+          <FlaskConical class="w-3.5 h-3.5" :class="store.classifying ? 'animate-pulse' : ''" />
+          Dry-Run
+        </button>
+        <!-- Live-Lauf -->
+        <button
+          :class="['pim-btn text-xs px-3 py-1.5 gap-1.5',
+            store.hasApiKey ? 'pim-btn-primary' : 'pim-btn-secondary opacity-40 cursor-not-allowed']"
+          :disabled="store.classifying || !store.hasApiKey"
+          :title="!store.hasApiKey ? 'Kein Claude API Key konfiguriert (CLAUDE_AI_API_KEY)' : 'Logs analysieren und klassifizieren (max. 20)'"
+          @click="runLiveLauf"
         >
           <RefreshCw class="w-3.5 h-3.5" :class="store.classifying ? 'animate-spin' : ''" />
-          {{ store.classifying ? 'Analysiere...' : 'Neu analysieren' }}
+          {{ store.classifying ? 'Analysiere...' : 'Live-Lauf (20)' }}
         </button>
+        <!-- Reload -->
         <button
           class="pim-btn pim-btn-secondary text-xs px-3 py-1.5"
           @click="store.fetchList()"
         >
           <RefreshCw class="w-3.5 h-3.5" />
         </button>
+        <!-- Löschen -->
         <button
           class="pim-btn text-xs px-3 py-1.5 bg-red-500/10 text-red-500 hover:bg-red-500/20 border border-red-500/20"
           @click="showDeleteConfirm = true"
@@ -173,6 +196,7 @@ onMounted(() => store.fetchList())
         <strong>{{ classifyResult.errors_found }}</strong> Fehler gefunden,
         <strong>{{ classifyResult.groups }}</strong> Gruppen,
         <strong>{{ classifyResult.classified }}</strong> neu klassifiziert.
+        <span v-if="classifyResult.dry_run" class="ml-1 text-yellow-600 font-medium">(Dry-Run — nichts gespeichert)</span>
       </span>
       <button class="ml-auto text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]" @click="classifyResult = null">
         <X class="w-3.5 h-3.5" />
@@ -190,6 +214,18 @@ onMounted(() => store.fetchList())
       </span>
       <button class="pim-btn pim-btn-secondary text-xs px-3 py-1" @click="showDeleteConfirm = false">Abbrechen</button>
       <button class="pim-btn text-xs px-3 py-1 bg-red-500 text-white hover:bg-red-600" @click="confirmDelete">Löschen</button>
+    </div>
+
+    <!-- Kein API Key Hinweis -->
+    <div
+      v-if="!store.hasApiKey"
+      class="flex items-center gap-2 text-xs text-yellow-600 bg-yellow-500/10 border border-yellow-500/20 rounded-lg px-3 py-2"
+    >
+      <AlertTriangle class="w-3.5 h-3.5 shrink-0" />
+      <span>
+        Kein Claude API Key konfiguriert — KI-Klassifikation deaktiviert.
+        Setze <code class="font-mono bg-yellow-500/10 px-1 rounded">CLAUDE_AI_API_KEY</code> in der <code class="font-mono bg-yellow-500/10 px-1 rounded">.env</code>-Datei.
+      </span>
     </div>
 
     <!-- Statistiken -->

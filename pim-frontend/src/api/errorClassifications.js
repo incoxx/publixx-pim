@@ -1,6 +1,10 @@
 import client, { buildParams } from './client'
 
 export default {
+  status() {
+    return client.get('/error-classifications/status')
+  },
+
   list(options = {}) {
     return client.get('/error-classifications', { params: buildParams(options) })
   },

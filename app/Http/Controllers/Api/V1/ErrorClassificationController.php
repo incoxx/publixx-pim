@@ -63,6 +63,15 @@ class ErrorClassificationController extends Controller
         );
     }
 
+    public function status(Request $request): JsonResponse
+    {
+        $this->authorizeAdmin($request);
+
+        return response()->json([
+            'has_claude_api_key' => ! empty(config('connectors.claude_ai.api_key')),
+        ]);
+    }
+
     public function classify(Request $request, ErrorClassificationService $service): JsonResponse
     {
         $this->authorizeAdmin($request);
