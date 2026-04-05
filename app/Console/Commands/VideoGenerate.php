@@ -110,7 +110,7 @@ class VideoGenerate extends Command
             $cmd .= ' ' . escapeshellarg($storyId);
         }
 
-        $result = Process::timeout(60)->run($cmd);
+        $result = Process::timeout(60)->env($this->getVideoEnv())->run($cmd);
 
         $this->line($result->output());
         if ($result->errorOutput()) {

@@ -1,0 +1,166 @@
+# anyPIM Video Story: Produktdetail – Alle Reiter
+# Öffnet das erste Produkt und geht durch alle Tabs
+
+meta:
+  id: "05-produkt-detail"
+  title: "Produktdetailseite – Alle Reiter im Überblick"
+  description: "Zeigt alle Reiter der Produktdetailseite: Grunddaten, Attribute, Varianten, Medien, Preise, Relationen, Notizen, Ausgabehierarchien, Vorschau, Versionen und Planung."
+  version: "1.0.0"
+  duration_estimate: 150
+  tags:
+    - produkte
+    - detail
+    - tour
+  voice:
+    lang: "de"
+    gender: "female"
+    provider: "elevenlabs"
+    voice_id: ""
+  viewport:
+    width: 1920
+    height: 1080
+  slow_mo: 300
+  seeder: "DemoVideoSeeder"
+  seeder_reset: true
+
+steps:
+  # --- Login ---
+  - id: "open-login"
+    action: navigate
+    target: "/login"
+    wait_for: "[data-testid='login-form']"
+    sprecher: "In diesem Video zeigen wir die Produktdetailseite von anyPIM – mit allen Reitern und Funktionen."
+    pause_after: 1500
+
+  - id: "fill-email"
+    action: fill
+    selector: "[data-testid='input-email']"
+    value: "${VIDEO_DEMO_USER_EMAIL}"
+    type_speed: 30
+    sprecher: ""
+
+  - id: "fill-password"
+    action: fill
+    selector: "[data-testid='input-password']"
+    value: "${VIDEO_DEMO_USER_PASSWORD}"
+    type_speed: 30
+    sprecher: ""
+
+  - id: "submit-login"
+    action: click
+    selector: "[data-testid='btn-login']"
+    wait_for: "[data-testid='product-list']"
+    wait_timeout: 5000
+    sprecher: ""
+    pause_after: 1000
+
+  # --- Produkt öffnen ---
+  - id: "open-first-product"
+    action: click
+    selector: "[data-testid='product-list'] table tbody tr:first-child"
+    wait_for: "[data-testid='product-detail']"
+    wait_timeout: 5000
+    sprecher: "Wir öffnen das erste Produkt in der Liste."
+    pause_after: 2000
+
+  - id: "show-product"
+    action: highlight
+    selector: "[data-testid='product-detail']"
+    sprecher: "Die Produktdetailseite zeigt oben den Produktnamen, die SKU und Schnellaktionen wie PDF-Export oder Kopieren."
+    pause_after: 2500
+
+  # --- Tab 1: Grunddaten ---
+  - id: "tab-base-data"
+    action: click
+    selector: "[data-testid='tab-base-data']"
+    sprecher: "Der Reiter Grunddaten – hier werden die Basisdaten gepflegt: Name, SKU, EAN, Status, Produkttyp und Hierarchie-Zuordnung."
+    pause_after: 3000
+
+  # --- Tab 2: Attribute ---
+  - id: "tab-attributes"
+    action: click
+    selector: "[data-testid='tab-attributes']"
+    sprecher: "Attribute – das Herzstück der Produktdaten. Alle Attributgruppen werden hier angezeigt, mit Werten in allen konfigurierten Sprachen."
+    pause_after: 3000
+
+  - id: "scroll-attributes"
+    action: scroll
+    direction: "down"
+    sprecher: "Attributwerte können Text, Zahlen, Auswahllisten, Dateien oder zusammengesetzte Felder sein."
+    pause_after: 2000
+
+  # --- Tab 3: Varianten-Attribute ---
+  - id: "tab-variant-attributes"
+    action: click
+    selector: "[data-testid='tab-variant-attributes']"
+    sprecher: "Varianten-Attribute definieren, welche Eigenschaften die Produktvarianten unterscheiden – zum Beispiel Farbe, Größe oder Material."
+    pause_after: 3000
+
+  # --- Tab 4: Varianten ---
+  - id: "tab-variants"
+    action: click
+    selector: "[data-testid='tab-variants']"
+    sprecher: "Im Varianten-Reiter werden alle Varianten eines Produkts angezeigt und verwaltet. Varianten erben die Attribute des Elternprodukts."
+    pause_after: 3000
+
+  # --- Tab 5: Medien ---
+  - id: "tab-media"
+    action: click
+    selector: "[data-testid='tab-media']"
+    sprecher: "Medien – hier werden Bilder, Dokumente und andere Dateien dem Produkt zugeordnet. Per Drag-and-Drop oder Dateiauswahl."
+    pause_after: 3000
+
+  # --- Tab 6: Preise ---
+  - id: "tab-prices"
+    action: click
+    selector: "[data-testid='tab-prices']"
+    sprecher: "Der Preise-Reiter zeigt alle Preisarten – Listenpreis, Einkaufspreis, Aktionspreis – mit Gültigkeitszeiträumen und Preisregionen."
+    pause_after: 3000
+
+  # --- Tab 7: Relationen ---
+  - id: "tab-relations"
+    action: click
+    selector: "[data-testid='tab-relations']"
+    sprecher: "Relationen verknüpfen Produkte miteinander – als Zubehör, Ersatzteil oder Empfehlung. Verknüpfungen können ein- oder beidseitig sein."
+    pause_after: 3000
+
+  # --- Tab 8: Notizen ---
+  - id: "tab-notes"
+    action: click
+    selector: "[data-testid='tab-notes']"
+    sprecher: "Notizen – interne Anmerkungen zum Produkt. Farblich markierbar, anpinnbar und mit anderen Nutzern teilbar."
+    pause_after: 3000
+
+  # --- Tab 9: Ausgabehierarchien ---
+  - id: "tab-output-hierarchies"
+    action: click
+    selector: "[data-testid='tab-output-hierarchies']"
+    sprecher: "Ausgabehierarchien zeigen, in welchen Klassifikationen das Produkt zugeordnet ist – zum Beispiel ETIM, ECLASS oder kundenspezifische Strukturen."
+    pause_after: 3000
+
+  # --- Tab 10: Vorschau ---
+  - id: "tab-preview"
+    action: click
+    selector: "[data-testid='tab-preview']"
+    sprecher: "Die Vorschau zeigt das Produkt so, wie es im Katalog oder Datenblatt erscheint – mit allen Attributen, Bildern und Preisen."
+    pause_after: 3000
+
+  # --- Tab 11: Versionen ---
+  - id: "tab-versions"
+    action: click
+    selector: "[data-testid='tab-versions']"
+    sprecher: "Versionen – jede Änderung wird protokolliert. Alte Versionen können verglichen, wiederhergestellt oder zu einem bestimmten Zeitpunkt aktiviert werden."
+    pause_after: 3000
+
+  # --- Tab 12: Planung ---
+  - id: "tab-scheduled-actions"
+    action: click
+    selector: "[data-testid='tab-scheduled-actions']"
+    sprecher: "Im Planungs-Reiter werden zeitgesteuerte Aktionen verwaltet – zum Beispiel automatische Preisänderungen, Statuswechsel oder Versionswechsel."
+    pause_after: 3000
+
+  # --- Ende ---
+  - id: "end"
+    action: wait
+    duration: 2000
+    sprecher: "Das war die komplette Produktdetailseite. anyPIM bietet damit eine zentrale Sicht auf alle Produktinformationen – flexibel, vollständig und versioniert."
