@@ -108,6 +108,18 @@ class RoleController extends Controller
     {
         $this->authorize('delete', $role);
 
+        // Systemrollen sind unveränderlich
+        if ($role->name === 'Sysadmin') {
+            return response()->json([
+                'type'   => 'https://anypim.local/problems/roles/system-role',
+                'title'  => 'System Role Protected',
+                'detail' => "Die Rolle 'Sysadmin' ist eine Systemrolle und kann nicht gelöscht werden.",
+                'status' => Response::HTTP_FORBIDDEN,
+            ], Response::HTTP_FORBIDDEN, [
+                'Content-Type' => 'application/problem+json',
+            ]);
+        }
+
         if ($role->users()->count() > 0) {
             return response()->json([
                 'type' => 'https://anypim.local/problems/roles/in-use',
