@@ -31,17 +31,24 @@ export async function renderVideo(opts: RenderOptions): Promise<void> {
   // Sonic Logo + Voiceover zusammenführen (falls beides vorhanden)
   if (sonicLogoPath && fs.existsSync(sonicLogoPath) && audioPath && fs.existsSync(audioPath)) {
     log.render(logger, 'Sonic Logo + Voiceover zusammenführen...');
-    const mergedAudioPath = path.join(path.dirname(outputPath), 'audio-with-sonic.mp3');
-    const sonicDuration = getMediaDuration(sonicLogoPath);
-    // Sonic Logo am Anfang, Voiceover danach mit Overlap
+    const tmpDir = path.dirname(audioPath);
+    const mergedAudioPath = path.join(tmpDir, 'audio-with-sonic.mp3');
     try {
-      execSync(`ffmpeg -y -i "${sonicLogoPath}" -i "${audioPath}" -filter_complex "[0]volume=1.0[sonic];[1]adelay=${Math.round(sonicDuration * 700)}|${Math.round(sonicDuration * 700)},volume=1.0[voice];[sonic][voice]amix=inputs=2:duration=longest:dropout_transition=0" -b:a 192k "${mergedAudioPath}"`, { timeout: 30000, stdio: 'pipe' });
+      // Sonic Logo am Anfang (volle Lautstärke), Voiceover ohne Verzögerung
+      // volume=2 kompensiert amix-Normalisierung (amix teilt durch Anzahl Inputs)
+      execSync(
+        `ffmpeg -y -i "${sonicLogoPath}" -i "${audioPath}" ` +
+        `-filter_complex "[0]volume=3.0[sonic];[1]volume=2.0[voice];[sonic][voice]amix=inputs=2:duration=longest" ` +
+        `-b:a 192k "${mergedAudioPath}"`,
+        { timeout: 30000, stdio: 'pipe' },
+      );
       audioPath = mergedAudioPath;
+      log.render(logger, 'Sonic Logo eingemischt');
     } catch (err) {
-      log.render(logger, `Sonic Logo Merge fehlgeschlagen, nutze nur Voiceover`);
+      const errMsg = err instanceof Error ? err.message : String(err);
+      log.render(logger, `Sonic Logo Merge fehlgeschlagen: ${errMsg.split('\n')[0]}`);
     }
   } else if (sonicLogoPath && fs.existsSync(sonicLogoPath) && (!audioPath || !fs.existsSync(audioPath))) {
-    // Nur Sonic Logo, kein Voiceover
     audioPath = sonicLogoPath;
   }
 
