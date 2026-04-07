@@ -1,19 +1,13 @@
 <script setup>
-import { ref, computed, watch, onUnmounted, defineAsyncComponent } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Plus, Search, Trash2, ArrowRightLeft, FolderTree, X, ListFilter, Package } from 'lucide-vue-next'
 import PimTable from '@/components/shared/PimTable.vue'
 import PimDeleteConfirmDialog from '@/components/shared/PimDeleteConfirmDialog.vue'
+import BulkAssignHierarchyNodeDialog from '@/components/dialogs/BulkAssignHierarchyNodeDialog.vue'
+import MoveProductsToNodeDialog from '@/components/dialogs/MoveProductsToNodeDialog.vue'
 import productsApi from '@/api/products'
 import hierarchiesApi from '@/api/hierarchies'
-
-// Dialoge lazy laden um zirkuläre Initialisierung zu vermeiden
-const BulkAssignHierarchyNodeDialog = defineAsyncComponent(() =>
-  import('@/components/dialogs/BulkAssignHierarchyNodeDialog.vue')
-)
-const MoveProductsToNodeDialog = defineAsyncComponent(() =>
-  import('@/components/dialogs/MoveProductsToNodeDialog.vue')
-)
 
 const props = defineProps({
   nodeId: { type: String, required: true },
@@ -68,7 +62,7 @@ watch(() => props.nodeId, (id) => {
   selectedProductIds.value = []
   if (pimTableRef.value?.clearSelection) pimTableRef.value.clearSelection()
   loadNodeProducts(id)
-}, { immediate: true })
+})
 
 // ─── PimTable ───────────────────────────────────────
 const pimTableRef = ref(null)
@@ -216,6 +210,9 @@ async function onBulkAssigned() {
   if (pimTableRef.value?.clearSelection) pimTableRef.value.clearSelection()
   emit('feedback', 'Produkte zugeordnet')
 }
+
+// Initialer Ladeaufruf — erst hier, NACH allen const-Deklarationen (TDZ vermeiden)
+onMounted(() => loadNodeProducts(props.nodeId))
 </script>
 
 <template>
