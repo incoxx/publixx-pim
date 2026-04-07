@@ -94,13 +94,17 @@ async function selectNode(node) {
       if (missingAtTarget.length > 0) {
         attributeWarning.value = `Der Zielknoten hat ${missingAtTarget.length} Attribut(e) weniger zugeordnet. Einige Attributwerte könnten nach dem Verschieben nicht mehr sichtbar sein.`
       }
-    } catch { /* Warnung ignorieren bei Fehler */ }
+    } catch (e) { console.warn('Attribut-Check fehlgeschlagen:', e.message) }
     finally { checkingAttributes.value = false }
   }
 }
 
 async function move() {
   if (!selectedNodeId.value || props.productIds.length === 0) return
+  if (!props.isMasterHierarchy && props.sourceAssignmentIds.length === 0) {
+    error.value = 'Keine Zuordnungen zum Verschieben gefunden.'
+    return
+  }
   moving.value = true
   error.value = ''
   success.value = ''
@@ -110,8 +114,16 @@ async function move() {
     } else {
       // Output: erst zuordnen, dann alte Zuordnungen löschen
       await hierarchiesApi.bulkAssignOutputProducts(selectedNodeId.value, props.productIds)
+      const deleteErrors = []
       for (const assignmentId of props.sourceAssignmentIds) {
-        await hierarchiesApi.removeOutputProductAssignment(assignmentId)
+        try {
+          await hierarchiesApi.removeOutputProductAssignment(assignmentId)
+        } catch (e) {
+          deleteErrors.push(assignmentId)
+        }
+      }
+      if (deleteErrors.length > 0) {
+        console.warn(`${deleteErrors.length} alte Zuordnungen konnten nicht entfernt werden`)
       }
     }
     success.value = `${props.productIds.length} Produkt(e) verschoben.`

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Plus, Search, Trash2, ArrowRightLeft, FolderTree, X, ListFilter, Package } from 'lucide-vue-next'
 import PimTable from '@/components/shared/PimTable.vue'
@@ -142,6 +142,8 @@ function searchProducts() {
     }
   }, 300)
 }
+
+onUnmounted(() => clearTimeout(productSearchTimer))
 
 async function assignProductToNode(product) {
   try {
@@ -319,6 +321,8 @@ async function onBulkAssigned() {
       title="Zuordnung entfernen?"
       :message="`Produkt '${deleteTarget?.sku || ''}' (${deleteTarget?.name || ''}) wird aus diesem Knoten entfernt.`"
       :loading="deleting"
+      entityType="output-hierarchy-product-assignments"
+      :entityId="deleteTarget?._assignmentId"
       @confirm="executeDelete"
       @cancel="deleteTarget = null"
     />

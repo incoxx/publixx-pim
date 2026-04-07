@@ -719,16 +719,27 @@ const filteredNodeAttributes = computed(() => {
 })
 
 // ─── Editierbare Sortier-Nummer für Attribute ──────
-function startEditSort(idx) {
+const editingSortAssignmentId = ref(null)
+
+function startEditSort(assignment, idx) {
+  editingSortAssignmentId.value = assignment.id
   editingSortIdx.value = idx
   editingSortValue.value = String(idx + 1)
 }
 
-function applySortValue(fromIdx) {
-  const targetIdx = Math.max(0, Math.min(nodeAttributes.value.length - 1, parseInt(editingSortValue.value) - 1))
+function applySortValue() {
+  const assignmentId = editingSortAssignmentId.value
   editingSortIdx.value = null
-  if (isNaN(targetIdx) || targetIdx === fromIdx) return
+  editingSortAssignmentId.value = null
+  if (!assignmentId) return
+
   const list = [...nodeAttributes.value]
+  const fromIdx = list.findIndex(a => a.id === assignmentId)
+  if (fromIdx === -1) return
+
+  const targetIdx = Math.max(0, Math.min(list.length - 1, parseInt(editingSortValue.value) - 1))
+  if (isNaN(targetIdx) || targetIdx === fromIdx) return
+
   const [item] = list.splice(fromIdx, 1)
   list.splice(targetIdx, 0, item)
   nodeAttributes.value = list
@@ -827,29 +838,24 @@ watch(showAttrPicker, (open) => {
   }
 })
 
-// Watch node selection to load attributes and products
+// Watch node selection to load attributes, media, etc.
+// Produkte werden von HierarchyNodeProducts-Komponente selbst geladen (watch nodeId)
 watch(() => store.selectedNode, async (node) => {
+  activeNodeTab.value = 'products'
   if (node) {
     loadNodeAttributes(node.id)
-    loadNodeProducts(node.id)
     loadNodeAttrValues(node.id)
     loadNodeMedia(node.id)
-    // Load hierarchy-level attrs if needed, then load values for this node
     await loadHierarchyLevelAttrs(selectedHierarchyId.value)
     loadHierarchyAttrValues(node.id)
   } else {
     nodeAttributes.value = []
-    nodeProducts.value = []
-    outputProductAssignments.value = []
     hierarchyAttrValues.value = {}
     nodeAttrValues.value = {}
     nodeMediaItems.value = []
   }
-  showProductSearch.value = false
   showAttrPicker.value = false
   showMediaPicker.value = false
-  productSearchQuery.value = ''
-  productSearchResults.value = []
   nodeAttrSearch.value = ''
 })
 
@@ -1155,7 +1161,7 @@ onMounted(async () => {
               />
             </div>
           </div>
-          </div>
+          </div><!-- /Tab: Medien -->
 
           <!-- Tab: Attribute -->
           <div v-if="activeNodeTab === 'attributes'">
@@ -1253,13 +1259,13 @@ onMounted(async () => {
                 <div class="flex items-center gap-2 flex-wrap">
                   <GripVertical v-if="!assignment.is_inherited" class="drag-handle w-3 h-3 text-[var(--color-text-tertiary)] opacity-40 cursor-grab active:cursor-grabbing" />
                   <input
-                    v-if="editingSortIdx === idx && !assignment.is_inherited"
+                    v-if="editingSortAssignmentId === assignment.id && !assignment.is_inherited"
                     v-model="editingSortValue"
                     type="number" min="1" :max="nodeAttributes.length"
                     class="w-8 h-5 text-[10px] font-mono text-center pim-input py-0 px-0.5"
-                    @keyup.enter="applySortValue(idx)"
-                    @keyup.escape="editingSortIdx = null"
-                    @blur="applySortValue(idx)"
+                    @keyup.enter="applySortValue()"
+                    @keyup.escape="editingSortAssignmentId = null; editingSortIdx = null"
+                    @blur="applySortValue()"
                     autofocus
                   />
                   <span
@@ -1267,7 +1273,7 @@ onMounted(async () => {
                     class="text-[10px] text-[var(--color-text-tertiary)] font-mono w-5 text-center rounded px-0.5"
                     :class="!assignment.is_inherited ? 'cursor-pointer hover:bg-[var(--color-surface)]' : ''"
                     :title="!assignment.is_inherited ? 'Klick = Nummer ändern' : ''"
-                    @click="!assignment.is_inherited && startEditSort(idx)"
+                    @click="!assignment.is_inherited && startEditSort(assignment, idx)"
                   >{{ idx + 1 }}</span>
                   <span class="text-xs font-medium">{{ assignment.attribute?.name_de || assignment.attribute?.technical_name || '—' }}</span>
                   <span class="text-[10px] text-[var(--color-text-tertiary)]">{{ assignment.attribute?.data_type }}</span>
