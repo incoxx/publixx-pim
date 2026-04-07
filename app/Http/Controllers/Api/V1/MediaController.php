@@ -39,8 +39,165 @@ class MediaController extends Controller
         $this->authorize('viewAny', Media::class);
 
         $query = Media::query()->with('pdfDocument:id,media_id,status')->withCount('revisions');
+        $this->applyMediaFilters($query, $request);
+        $this->applySorting($query, $request, 'created_at', 'desc');
 
+        return MediaResource::collection(
+            $query->paginate($this->getPerPage($request))
+        );
+    }
+
+    /**
+     * GET /media/all-ids — Alle Media-IDs mit denselben Filtern wie index().
+     */
+    public function allIds(Request $request): JsonResponse
+    {
+        $this->authorize('viewAny', Media::class);
+
+        $query = Media::query();
+        $this->applyMediaFilters($query, $request);
+
+        $ids = $query->pluck('id');
+
+        return response()->json([
+            'ids' => $ids,
+            'total' => $ids->count(),
+        ]);
+    }
+
+    /**
+     * GET /media/export-excel — Excel-Export der gefilterten Medienliste.
+     */
+    public function exportExcel(Request $request): BinaryFileResponse
+    {
+        $this->authorize('viewAny', Media::class);
+
+        $query = Media::query();
+        $this->applyMediaFilters($query, $request);
+        $this->applySorting($query, $request, 'created_at', 'desc');
+
+        $columns = $request->query('columns', 'file_name,title_de,mime_type,media_type,usage_purpose,file_size');
+        $columnKeys = array_filter(array_map('trim', explode(',', $columns)));
+
+        // Spalten-Definitionen (Key → Label)
+        $columnDefs = [
+            'file_name' => 'Dateiname',
+            'title_de' => 'Titel (DE)',
+            'title_en' => 'Titel (EN)',
+            'mime_type' => 'MIME-Typ',
+            'media_type' => 'Medientyp',
+            'usage_purpose' => 'Verwendungszweck',
+            'file_size' => 'Dateigröße (Bytes)',
+            'width' => 'Breite (px)',
+            'height' => 'Höhe (px)',
+            'alt_text_de' => 'Alt-Text (DE)',
+            'description_de' => 'Beschreibung (DE)',
+            'created_at' => 'Erstellt am',
+        ];
+
+        // Nur erlaubte Spalten verwenden
+        $columnKeys = array_values(array_intersect($columnKeys, array_keys($columnDefs)));
+        if (empty($columnKeys)) {
+            $columnKeys = ['file_name', 'title_de', 'mime_type', 'file_size'];
+        }
+
+        // Broken-Image-Prüfung immer als letzte Spalte
+        $checkBroken = filter_var($request->query('check_broken', 'true'), FILTER_VALIDATE_BOOLEAN);
+
+        $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Medien');
+
+        // Header
+        $col = 1;
+        foreach ($columnKeys as $key) {
+            $sheet->setCellValueByColumnAndRow($col, 1, $columnDefs[$key]);
+            $sheet->getStyleByColumnAndRow($col, 1)->getFont()->setBold(true);
+            $col++;
+        }
+        if ($checkBroken) {
+            $sheet->setCellValueByColumnAndRow($col, 1, 'Broken Image');
+            $sheet->getStyleByColumnAndRow($col, 1)->getFont()->setBold(true);
+        }
+
+        // Daten
+        $row = 2;
+        $query->chunk(500, function ($media) use (&$row, $sheet, $columnKeys, $checkBroken) {
+            foreach ($media as $item) {
+                $col = 1;
+                foreach ($columnKeys as $key) {
+                    $value = $item->{$key};
+                    if ($key === 'created_at' && $value) {
+                        $value = $value->format('Y-m-d H:i');
+                    }
+                    $sheet->setCellValueByColumnAndRow($col, $row, $value);
+                    $col++;
+                }
+                if ($checkBroken) {
+                    $isBroken = $this->isMediaFileBroken($item);
+                    $sheet->setCellValueByColumnAndRow($col, $row, $isBroken ? 'Ja' : 'Nein');
+                }
+                $row++;
+            }
+        });
+
+        // Auto-Size Spalten
+        foreach (range(1, count($columnKeys) + ($checkBroken ? 1 : 0)) as $colIdx) {
+            $sheet->getColumnDimensionByColumn($colIdx)->setAutoSize(true);
+        }
+
+        $tmpFile = tempnam(sys_get_temp_dir(), 'media_export_') . '.xlsx';
+        $writer = IOFactory::createWriter($spreadsheet, 'Xlsx');
+        $writer->save($tmpFile);
+
+        return response()->download($tmpFile, 'medien-export-' . date('Y-m-d') . '.xlsx', [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ])->deleteFileAfterSend(true);
+    }
+
+    /**
+     * Prüft ob die physische Datei eines Mediums fehlt.
+     */
+    private function isMediaFileBroken(Media $media): bool
+    {
+        if (!$media->file_name) {
+            return true;
+        }
+        $disk = Storage::disk(config('media-library.disk_name', 'public'));
+
+        return !$disk->exists('media/' . $media->file_name);
+    }
+
+    /**
+     * Gemeinsame Filter-Logik für index(), allIds() und exportExcel().
+     */
+    private function applyMediaFilters($query, Request $request): void
+    {
         $filters = $request->query('filter', []);
+
+        // include_descendants: Ordner + alle Unterordner
+        $includeDescendants = filter_var($request->query('include_descendants', 'true'), FILTER_VALIDATE_BOOLEAN);
+
+        if (!empty($filters['asset_folder_id']) && $includeDescendants) {
+            $folderId = $filters['asset_folder_id'];
+            $node = \App\Models\HierarchyNode::find($folderId);
+            if ($node) {
+                $descendantPath = $node->path === '/'
+                    ? "/{$node->id}/"
+                    : "{$node->path}{$node->id}/";
+
+                $descendantIds = \App\Models\HierarchyNode::where('path', 'like', $descendantPath . '%')
+                    ->pluck('id')
+                    ->toArray();
+                $descendantIds[] = $node->id;
+
+                $query->whereIn('asset_folder_id', $descendantIds);
+            } else {
+                $query->where('asset_folder_id', $folderId);
+            }
+            // asset_folder_id aus Filtern entfernen, da wir es manuell behandelt haben
+            unset($filters['asset_folder_id']);
+        }
 
         $this->applyFilters($query, array_intersect_key(
             $filters,
@@ -64,11 +221,6 @@ class MediaController extends Controller
         }
 
         $this->applySearch($query, $request, ['file_name', 'title_de', 'title_en']);
-        $this->applySorting($query, $request, 'created_at', 'desc');
-
-        return MediaResource::collection(
-            $query->paginate($this->getPerPage($request))
-        );
     }
 
     /**
@@ -552,10 +704,18 @@ class MediaController extends Controller
     {
         $media = Media::where('file_name', $filename)->latest()->firstOrFail();
 
-        $path = Storage::disk('public')->path($media->file_path);
+        $disk = Storage::disk('public');
+        $path = $disk->path($media->file_path);
 
         if (!file_exists($path)) {
-            abort(404, 'File not found.');
+            // Fallback: Datei könnte unter media/{filename} liegen (Import-Pfad-Korrektur)
+            $correctedPath = 'media/' . $media->file_name;
+            if ($media->file_path !== $correctedPath && $disk->exists($correctedPath)) {
+                $media->update(['file_path' => $correctedPath]);
+                $path = $disk->path($correctedPath);
+            } else {
+                abort(404, 'File not found.');
+            }
         }
 
         return response()->file($path, [
@@ -573,18 +733,27 @@ class MediaController extends Controller
         $fit = in_array($request->query('fit'), ['contain', 'cover']) ? $request->query('fit') : 'contain';
 
         // Check if source file exists first
-        $originalPath = Storage::disk('public')->path($medium->file_path);
+        $disk = Storage::disk('public');
+        $originalPath = $disk->path($medium->file_path);
         if (!file_exists($originalPath)) {
-            \Log::warning('Media file missing on disk', [
-                'media_id' => $medium->id,
-                'file_path' => $medium->file_path,
-                'expected_path' => $originalPath,
-            ]);
-            return response()->json([
-                'message' => 'Datei nicht auf dem Server gefunden.',
-                'media_id' => $medium->id,
-                'file_path' => $medium->file_path,
-            ], 404);
+            // Fallback: Datei könnte unter media/{filename} liegen (Import-Pfad-Korrektur)
+            $correctedPath = 'media/' . $medium->file_name;
+            if ($medium->file_path !== $correctedPath && $disk->exists($correctedPath)) {
+                // DB-Record korrigieren
+                $medium->update(['file_path' => $correctedPath]);
+                $originalPath = $disk->path($correctedPath);
+            } else {
+                \Log::warning('Media file missing on disk', [
+                    'media_id' => $medium->id,
+                    'file_path' => $medium->file_path,
+                    'expected_path' => $originalPath,
+                ]);
+                return response()->json([
+                    'message' => 'Datei nicht auf dem Server gefunden.',
+                    'media_id' => $medium->id,
+                    'file_path' => $medium->file_path,
+                ], 404);
+            }
         }
 
         // Try thumbnail generation

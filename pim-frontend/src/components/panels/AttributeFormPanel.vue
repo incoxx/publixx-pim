@@ -34,6 +34,30 @@ onMounted(() => {
 })
 
 const isEdit = computed(() => !!props.attribute)
+const originalDataType = props.attribute?.data_type || null
+
+// Kompatibilitätsgruppen: Typen innerhalb einer Gruppe nutzen dieselbe Speicherspalte
+const dataTypeGroups = {
+  string: ['String', 'RichText', 'Dictionary', 'DelimitedValue', 'JsonArtefact', 'Hyperlink', 'ImageLink', 'PdfLink', 'VideoLink'],
+  number: ['Number', 'Float'],
+  selection: ['Selection', 'MultiSelection'],
+  flag: ['Flag'],
+  date: ['Date'],
+  composite: ['Composite'],
+}
+
+const dataTypeChangeWarning = computed(() => {
+  if (!isEdit.value || !originalDataType) return null
+  const newType = formData.value.data_type
+  if (newType === originalDataType) return null
+
+  // Prüfen ob neuer Typ in derselben Gruppe liegt
+  for (const types of Object.values(dataTypeGroups)) {
+    if (types.includes(originalDataType) && types.includes(newType)) return null
+  }
+
+  return `Typwechsel von "${originalDataType}" zu "${newType}" kann zu Datenverlust führen, da bestehende Werte in einer anderen Spalte gespeichert werden.`
+})
 
 const formData = ref(
   props.attribute
@@ -105,7 +129,7 @@ const fields = computed(() => {
     { key: 'name_de', label: 'Name (DE)', type: 'text', required: true },
     { key: 'name_en', label: 'Name (EN)', type: 'text' },
     {
-      key: 'data_type', label: 'Datentyp', type: 'select', required: true, disabled: isEdit.value,
+      key: 'data_type', label: 'Datentyp', type: 'select', required: true,
       options: [
         { value: 'String', label: 'Text' },
         { value: 'Number', label: 'Ganzzahl' },
@@ -370,6 +394,11 @@ function cancelMigrate() {
         :options="compositeChildOptions"
         @update:modelValue="formData = { ...formData, child_attribute_ids: $event }"
       />
+    </div>
+
+    <!-- Warnung bei inkompatiblem Typwechsel -->
+    <div v-if="dataTypeChangeWarning" class="mb-4 p-3 rounded-lg bg-[var(--color-warning,#f59e0b)]/10 border border-[var(--color-warning,#f59e0b)]/30 text-xs text-[var(--color-warning,#f59e0b)]">
+      {{ dataTypeChangeWarning }}
     </div>
 
     <PimForm

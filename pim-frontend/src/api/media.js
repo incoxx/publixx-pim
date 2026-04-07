@@ -68,6 +68,22 @@ export default {
     return client.post('/media/auto-match', { pattern, ...options })
   },
 
+  allIds(options = {}) {
+    return client.get('/media/all-ids', { params: buildParams(options) })
+  },
+
+  exportExcel(options = {}) {
+    const { columns, check_broken, ...rest } = options
+    const params = buildParams(rest)
+    if (columns) params.columns = columns
+    if (check_broken) params.check_broken = check_broken
+    return client.get('/media/export-excel', {
+      params,
+      responseType: 'blob',
+      timeout: 120000,
+    })
+  },
+
   bulkMove(mediaIds, assetFolderId) {
     return client.post('/media/bulk-move', {
       media_ids: mediaIds,
