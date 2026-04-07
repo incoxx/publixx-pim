@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted, markRaw, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, markRaw, nextTick, defineAsyncComponent } from 'vue'
 import { useDebounceFn, onClickOutside } from '@vueuse/core'
 import { useHierarchyStore } from '@/stores/hierarchies'
 import { useAuthStore } from '@/stores/auth'
@@ -20,7 +20,10 @@ import HierarchyNodeFormPanel from '@/components/panels/HierarchyNodeFormPanel.v
 import MediaPickerDialog from '@/components/shared/MediaPickerDialog.vue'
 import PdfPreview from '@/components/shared/PdfPreview.vue'
 import HierarchyNodeProducts from '@/components/hierarchies/HierarchyNodeProducts.vue'
-import { VueDraggable } from 'vue-draggable-plus'
+// vue-draggable-plus lazy laden um zirkuläre Initialisierung zu vermeiden
+const VueDraggable = defineAsyncComponent(() =>
+  import('vue-draggable-plus').then(m => m.VueDraggable)
+)
 
 const { t } = useI18n()
 const router = useRouter()
