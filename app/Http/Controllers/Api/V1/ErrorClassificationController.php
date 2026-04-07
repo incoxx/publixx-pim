@@ -5,9 +5,14 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Models\ErrorClassification;
+use App\Models\User;
+use App\Notifications\ForwardedErrorNotification;
 use App\Services\ErrorClassificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -225,6 +230,10 @@ class ErrorClassificationController extends Controller
 
         $record->update($updates);
 
+        if (($updates['status'] ?? null) === 'forwarded') {
+            $this->notifyForwarded($record->fresh(['reviewer:id,name']), $request->user());
+        }
+
         return response()->json($record->fresh(['reviewer:id,name']));
     }
 
@@ -244,6 +253,71 @@ class ErrorClassificationController extends Controller
         }
 
         return response()->json(null, 204);
+    }
+
+    private function notifyForwarded(ErrorClassification $record, User $forwardedBy): void
+    {
+        $notification = new ForwardedErrorNotification($record, $forwardedBy);
+
+        // E-Mail an konfigurierbare Entwickler-Adresse
+        $email = config('services.error_forward.email');
+        if ($email) {
+            try {
+                Notification::route('mail', $email)->notify($notification);
+            } catch (\Throwable $e) {
+                Log::warning('Weiterleiten: E-Mail fehlgeschlagen.', ['error' => $e->getMessage()]);
+            }
+        }
+
+        // Slack Incoming Webhook
+        $webhook = config('services.error_forward.slack_webhook');
+        if ($webhook) {
+            $title    = $record->ai_title ?? $record->exception_class;
+            $severity = match ($record->severity) {
+                'critical' => '🔴',
+                'high'     => '🟠',
+                'medium'   => '🟡',
+                'low'      => '🟢',
+                default    => '',
+            };
+            $url = rtrim(config('app.url'), '/') . '/errors';
+
+            $blocks = [
+                [
+                    'type' => 'section',
+                    'text' => [
+                        'type' => 'mrkdwn',
+                        'text' => "{$severity} *<{$url}|{$title}>*\nWeitergeleitet von *{$forwardedBy->name}*",
+                    ],
+                ],
+                [
+                    'type'   => 'section',
+                    'fields' => [
+                        ['type' => 'mrkdwn', 'text' => "*Exception:*\n`{$record->exception_class}`"],
+                        ['type' => 'mrkdwn', 'text' => "*Häufigkeit:*\n{$record->occurrence_count}x"],
+                        ['type' => 'mrkdwn', 'text' => "*Datei:*\n`{$record->file}:{$record->line}`"],
+                        ['type' => 'mrkdwn', 'text' => '*Zuletzt gesehen:*\n' . ($record->last_seen_at?->format('d.m.Y H:i') ?? '–')],
+                    ],
+                ],
+            ];
+
+            if ($record->ai_hint) {
+                $blocks[] = ['type' => 'section', 'text' => ['type' => 'mrkdwn', 'text' => "*Hinweis:* {$record->ai_hint}"]];
+            }
+
+            if ($record->notes) {
+                $blocks[] = ['type' => 'section', 'text' => ['type' => 'mrkdwn', 'text' => "*Admin-Notiz:* {$record->notes}"]];
+            }
+
+            try {
+                Http::post($webhook, [
+                    'text'   => "{$severity} Fehler weitergeleitet von {$forwardedBy->name}: {$title}",
+                    'blocks' => $blocks,
+                ]);
+            } catch (\Throwable $e) {
+                Log::warning('Weiterleiten: Slack fehlgeschlagen.', ['error' => $e->getMessage()]);
+            }
+        }
     }
 
     private function authorizeAdmin(Request $request): void
