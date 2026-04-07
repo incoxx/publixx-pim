@@ -1373,7 +1373,6 @@ onMounted(async () => {
           </div><!-- /Tab: Attribute -->
         </div><!-- /Tabs Container -->
         </div><!-- /Node Sections -->
-      </div>
       <div v-else class="flex items-center justify-center h-full">
         <p class="text-sm text-[var(--color-text-tertiary)]">Knoten auswählen</p>
       </div>
