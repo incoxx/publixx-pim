@@ -13,6 +13,11 @@ const props = defineProps({
   placeholder: { type: String, default: '' },
   /** Unit group with units array for unit selector: { id, units: [{ id, abbreviation }] } */
   unitGroup: { type: Object, default: null },
+  delimiter: { type: String, default: '|' },
+  rows: { type: Number, default: undefined },
+  cols: { type: Number, default: undefined },
+  min: { type: Number, default: undefined },
+  max: { type: Number, default: undefined },
 })
 
 const emit = defineEmits(['update:modelValue'])
@@ -124,6 +129,11 @@ function moveDown(index) {
           :options="options"
           :disabled="disabled"
           :placeholder="placeholder"
+          :delimiter="delimiter"
+          :rows="rows"
+          :cols="cols"
+          :min="min"
+          :max="max"
           @update:modelValue="updateValue(index, $event)"
         />
         <select

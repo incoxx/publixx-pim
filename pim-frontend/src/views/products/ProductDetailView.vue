@@ -2983,6 +2983,11 @@ onUnmounted(() => {
             :disabled="attr._access === 'read_only' || attr.is_readonly || isAttributeInherited(attr.id) || isTabReadOnly"
             :maxMultiplied="attr.max_multiplied"
             :unitGroup="attr.unit_group"
+            :delimiter="attr.delimiter || '|'"
+            :rows="attr.textarea_rows || undefined"
+            :cols="attr.textarea_cols || undefined"
+            :min="attr.min_value != null ? Number(attr.min_value) : undefined"
+            :max="attr.max_value != null ? Number(attr.max_value) : undefined"
             @update:modelValue="multipliableValues[attr.id] = $event"
           />
           <!-- Translatable attribute: bind to translatedValues -->
@@ -3131,6 +3136,11 @@ onUnmounted(() => {
                 :options="getSelectionOptions(attr)"
                 :maxMultiplied="attr.max_multiplied"
                 :unitGroup="attr.unit_group"
+                :delimiter="attr.delimiter || '|'"
+                :rows="attr.textarea_rows || undefined"
+                :cols="attr.textarea_cols || undefined"
+                :min="attr.min_value != null ? Number(attr.min_value) : undefined"
+                :max="attr.max_value != null ? Number(attr.max_value) : undefined"
                 @update:modelValue="outputHierarchyMultipliableValues[`${h.hierarchy_id}_${attr.attribute_id}`] = $event"
               />
               <PimAttributeInput
@@ -3138,6 +3148,11 @@ onUnmounted(() => {
                 :type="mapDataTypeToInput(attr.data_type)"
                 :modelValue="outputHierarchyTranslatedValues[`${h.hierarchy_id}_${attr.attribute_id}_${activeDataLang}`]"
                 :options="getSelectionOptions(attr)"
+                :delimiter="attr.delimiter || '|'"
+                :rows="attr.textarea_rows || undefined"
+                :cols="attr.textarea_cols || undefined"
+                :min="attr.min_value != null ? Number(attr.min_value) : undefined"
+                :max="attr.max_value != null ? Number(attr.max_value) : undefined"
                 @update:modelValue="outputHierarchyTranslatedValues[`${h.hierarchy_id}_${attr.attribute_id}_${activeDataLang}`] = $event"
               />
               <PimAttributeInput
@@ -3145,6 +3160,11 @@ onUnmounted(() => {
                 :type="mapDataTypeToInput(attr.data_type)"
                 :modelValue="outputHierarchyAttrValues[`${h.hierarchy_id}_${attr.attribute_id}`]"
                 :options="getSelectionOptions(attr)"
+                :delimiter="attr.delimiter || '|'"
+                :rows="attr.textarea_rows || undefined"
+                :cols="attr.textarea_cols || undefined"
+                :min="attr.min_value != null ? Number(attr.min_value) : undefined"
+                :max="attr.max_value != null ? Number(attr.max_value) : undefined"
                 @update:modelValue="outputHierarchyAttrValues[`${h.hierarchy_id}_${attr.attribute_id}`] = $event"
               />
               </div>
