@@ -704,10 +704,18 @@ class MediaController extends Controller
     {
         $media = Media::where('file_name', $filename)->latest()->firstOrFail();
 
-        $path = Storage::disk('public')->path($media->file_path);
+        $disk = Storage::disk('public');
+        $path = $disk->path($media->file_path);
 
         if (!file_exists($path)) {
-            abort(404, 'File not found.');
+            // Fallback: Datei könnte unter media/{filename} liegen (Import-Pfad-Korrektur)
+            $correctedPath = 'media/' . $media->file_name;
+            if ($media->file_path !== $correctedPath && $disk->exists($correctedPath)) {
+                $media->update(['file_path' => $correctedPath]);
+                $path = $disk->path($correctedPath);
+            } else {
+                abort(404, 'File not found.');
+            }
         }
 
         return response()->file($path, [
@@ -725,18 +733,27 @@ class MediaController extends Controller
         $fit = in_array($request->query('fit'), ['contain', 'cover']) ? $request->query('fit') : 'contain';
 
         // Check if source file exists first
-        $originalPath = Storage::disk('public')->path($medium->file_path);
+        $disk = Storage::disk('public');
+        $originalPath = $disk->path($medium->file_path);
         if (!file_exists($originalPath)) {
-            \Log::warning('Media file missing on disk', [
-                'media_id' => $medium->id,
-                'file_path' => $medium->file_path,
-                'expected_path' => $originalPath,
-            ]);
-            return response()->json([
-                'message' => 'Datei nicht auf dem Server gefunden.',
-                'media_id' => $medium->id,
-                'file_path' => $medium->file_path,
-            ], 404);
+            // Fallback: Datei könnte unter media/{filename} liegen (Import-Pfad-Korrektur)
+            $correctedPath = 'media/' . $medium->file_name;
+            if ($medium->file_path !== $correctedPath && $disk->exists($correctedPath)) {
+                // DB-Record korrigieren
+                $medium->update(['file_path' => $correctedPath]);
+                $originalPath = $disk->path($correctedPath);
+            } else {
+                \Log::warning('Media file missing on disk', [
+                    'media_id' => $medium->id,
+                    'file_path' => $medium->file_path,
+                    'expected_path' => $originalPath,
+                ]);
+                return response()->json([
+                    'message' => 'Datei nicht auf dem Server gefunden.',
+                    'media_id' => $medium->id,
+                    'file_path' => $medium->file_path,
+                ], 404);
+            }
         }
 
         // Try thumbnail generation

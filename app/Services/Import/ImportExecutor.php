@@ -2393,12 +2393,20 @@ class ImportExecutor
             // Media-Eintrag finden oder anlegen
             $media = Media::where('file_name', $row['file_name'])->first();
             if (!$media) {
+                // Korrekten file_path ermitteln: prüfen ob Datei physisch existiert
+                $disk = \Illuminate\Support\Facades\Storage::disk('public');
+                $filePath = 'media/' . $row['file_name'];
+                $fileSize = 0;
+                if ($disk->exists($filePath)) {
+                    $fileSize = $disk->size($filePath);
+                }
+
                 $media = Media::create([
                     'id' => Str::uuid()->toString(),
                     'file_name' => $row['file_name'],
-                    'file_path' => 'imports/' . $row['file_name'],
+                    'file_path' => $filePath,
                     'mime_type' => $this->guessMimeType($row['file_name']),
-                    'file_size' => 0,
+                    'file_size' => $fileSize,
                     'media_type' => $row['media_type'] ?? 'image',
                     'title_de' => $row['title_de'] ?? null,
                     'title_en' => $row['title_en'] ?? null,
