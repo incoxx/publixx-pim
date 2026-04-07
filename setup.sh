@@ -839,6 +839,33 @@ else
     warn "Frontend-Verzeichnis nicht gefunden — ueberspringe Frontend-Build."
 fi
 
+# ── Katalog-Embed Bundles bauen (Online + Offline) ──
+CATALOG_EMBED_DIR="${INSTALL_DIR}/catalog-embed"
+if [ -d "$CATALOG_EMBED_DIR" ] && [ -f "${CATALOG_EMBED_DIR}/package.json" ]; then
+    cd "$CATALOG_EMBED_DIR"
+    info "Installiere catalog-embed Abhaengigkeiten..."
+    npm ci --fund=false --loglevel=warn 2>&1
+
+    info "Baue Online-Katalog Bundle..."
+    npx vite build 2>&1
+    # Kopiere Online-Bundle nach public/catalog-embed-assets/
+    if [ -d "${CATALOG_EMBED_DIR}/dist" ]; then
+        mkdir -p "${INSTALL_DIR}/public/catalog-embed-assets"
+        cp "${CATALOG_EMBED_DIR}/dist/catalog-embed.umd.js" "${INSTALL_DIR}/public/catalog-embed-assets/" 2>/dev/null || true
+        cp "${CATALOG_EMBED_DIR}/dist/catalog-embed.css" "${INSTALL_DIR}/public/catalog-embed-assets/" 2>/dev/null || true
+        cp "${CATALOG_EMBED_DIR}/dist/catalog-embed.es.js" "${INSTALL_DIR}/public/catalog-embed-assets/" 2>/dev/null || true
+        info "Online-Katalog Bundle gebaut und nach public/ kopiert."
+    fi
+
+    info "Baue Offline-Katalog Bundle..."
+    VITE_BUILD_TARGET=offline npx vite build 2>&1
+    info "Offline-Katalog Bundle gebaut."
+
+    cd "$INSTALL_DIR"
+else
+    warn "catalog-embed/ nicht gefunden — Katalog Bundles werden nicht gebaut."
+fi
+
 # ── Dokumentation bauen (VitePress) ──
 DOCS_DIR="${INSTALL_DIR}/static-content"
 if [ -d "$DOCS_DIR" ] && [ -f "${DOCS_DIR}/package.json" ]; then
