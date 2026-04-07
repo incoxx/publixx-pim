@@ -15,6 +15,8 @@ const props = defineProps({
   max: { type: Number, default: undefined },
   step: { type: Number, default: undefined },
   delimiter: { type: String, default: '|' },
+  rows: { type: Number, default: undefined },
+  cols: { type: Number, default: undefined },
 })
 
 const emit = defineEmits(['update:modelValue'])
@@ -197,7 +199,8 @@ function dvCancelEdit() {
     :value="modelValue"
     :placeholder="placeholder"
     :disabled="disabled"
-    rows="3"
+    :rows="rows || 4"
+    :cols="cols || undefined"
     @input="update($event.target.value)"
   />
 

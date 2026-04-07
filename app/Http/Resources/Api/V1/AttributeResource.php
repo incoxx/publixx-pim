@@ -52,6 +52,8 @@ class AttributeResource extends JsonResource
             'composite_format' => $this->composite_format,
             'composite_expression' => $this->composite_expression,
             'delimiter' => $this->delimiter,
+            'textarea_rows' => $this->textarea_rows,
+            'textarea_cols' => $this->textarea_cols,
             'children' => AttributeResource::collection($this->whenLoaded('children')),
             'dictionary_entries' => DictionaryEntryResource::collection($this->whenLoaded('dictionaryEntries')),
             'attribute_views' => AttributeViewResource::collection($this->whenLoaded('attributeViews')),
