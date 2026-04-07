@@ -21,6 +21,7 @@ import { useProductStore } from '@/stores/products'
 import { useTabStore } from '@/stores/tabs'
 import { useAuthStore } from '@/stores/auth'
 import { useLocaleStore } from '@/stores/locale'
+import { useToastStore } from '@/stores/toast'
 import { useI18n } from 'vue-i18n'
 import { ArrowLeft, Save, Plus, Trash2, Image, Star, X, Search, Download, Languages, Copy, Sparkles, Tags, LayoutGrid, List, FileText, GitBranch, CheckCircle2, Eye, RotateCcw, ArrowRightLeft, RefreshCw, ChevronDown, ChevronRight, ChevronUp, ExternalLink, Filter, Upload } from 'lucide-vue-next'
 import productsApi from '@/api/products'
@@ -61,6 +62,7 @@ const store = useProductStore()
 const tabStore = useTabStore()
 const authStore = useAuthStore()
 const localeStore = useLocaleStore()
+const toastStore = useToastStore()
 const { t } = useI18n()
 
 const activeTab = ref('base-data')
@@ -1074,10 +1076,11 @@ async function openMediaPicker() {
       const { data } = await mediaUsageTypes.list()
       const types = data.data || data
       usageTypesList.value = types
-      if (types.length > 0 && !selectedUsageTypeId.value) {
-        selectedUsageTypeId.value = types[0].id
-      }
     } catch (e) { console.error('Failed to load usage types:', e.message) }
+  }
+  // Immer sicherstellen dass ein Usage Type gewählt ist
+  if (!selectedUsageTypeId.value && usageTypesList.value.length > 0) {
+    selectedUsageTypeId.value = usageTypesList.value[0].id
   }
 }
 
@@ -1196,10 +1199,17 @@ async function onFileUploaded(mediaItem) {
       mediaLoaded.value = false
       loadMedia()
     }, 300)
-  } catch (e) { console.error('Failed to attach uploaded media:', e.message) }
+  } catch (e) {
+    console.error('Failed to attach uploaded media:', e.message)
+    toastStore.showToast('Hochgeladenes Medium konnte nicht zugeordnet werden: ' + (e.response?.data?.message || e.message), 'error')
+  }
 }
 
 async function attachMedia(mediaItem) {
+  if (!selectedUsageTypeId.value) {
+    toastStore.showToast('Bitte zuerst einen Bildtyp auswählen', 'error')
+    return
+  }
   try {
     await productsApi.attachMedia(product.value.id, {
       media_id: mediaItem.id,
@@ -1209,7 +1219,10 @@ async function attachMedia(mediaItem) {
     showMediaPicker.value = false
     mediaLoaded.value = false
     await loadMedia()
-  } catch (e) { console.error('Failed to attach media:', e.message) }
+  } catch (e) {
+    console.error('Failed to attach media:', e.message)
+    toastStore.showToast('Medium konnte nicht zugeordnet werden: ' + (e.response?.data?.message || e.message), 'error')
+  }
 }
 
 async function detachMedia(item) {
