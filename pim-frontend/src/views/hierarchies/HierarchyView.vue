@@ -1093,8 +1093,7 @@ onMounted(async () => {
 
           <!-- Tab: Medien -->
           <div v-if="activeNodeTab === 'media'">
-
-          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center justify-between mb-3">
             <h4 class="text-sm font-medium text-[var(--color-text-secondary)]">
               Medien
               <span v-if="nodeMediaItems.length > 0" class="text-[11px] text-[var(--color-text-tertiary)] ml-1">({{ nodeMediaItems.length }})</span>
@@ -1130,13 +1129,12 @@ onMounted(async () => {
             </div>
           </div>
 
-          <p v-else class="text-xs text-[var(--color-text-tertiary)]">Keine Medien zugeordnet</p>
-        </div>
+            <p v-else class="text-xs text-[var(--color-text-tertiary)]">Keine Medien zugeordnet</p>
 
-        <!-- Hierarchy-level Attribute Values -->
-        <div v-if="hierarchyLevelAttrs.length > 0" class="border-t border-[var(--color-border)] pt-4">
-          <div class="flex items-center justify-between mb-3">
-            <h4 class="text-sm font-medium text-[var(--color-text-secondary)]">Hierarchie-Attribute</h4>
+            <!-- Hierarchy-level Attribute Values -->
+            <div v-if="hierarchyLevelAttrs.length > 0" class="border-t border-[var(--color-border)] pt-4 mt-4">
+              <div class="flex items-center justify-between mb-3">
+                <h4 class="text-sm font-medium text-[var(--color-text-secondary)]">Hierarchie-Attribute</h4>
             <button
               class="pim-btn pim-btn-primary text-xs"
               :disabled="hierarchyAttrSaving"
@@ -1334,10 +1332,9 @@ onMounted(async () => {
             </p>
           </template>
           <p v-else class="text-xs text-[var(--color-text-tertiary)]">Keine Attribute zugeordnet</p>
-        </div>
 
-        <!-- Node Attribute Values (only for access_hierarchy = 'editable') -->
-        <div v-if="nodeAttributes.some(a => a.access_hierarchy === 'editable')" class="border-t border-[var(--color-border)] pt-4">
+          <!-- Node Attribute Values (only for access_hierarchy = 'editable') -->
+          <div v-if="nodeAttributes.some(a => a.access_hierarchy === 'editable')" class="border-t border-[var(--color-border)] pt-4 mt-4">
           <div class="flex items-center justify-between mb-3">
             <h4 class="text-sm font-medium text-[var(--color-text-secondary)]">Attributwerte</h4>
             <button
@@ -1369,8 +1366,9 @@ onMounted(async () => {
             </template>
           </div>
         </div>
-          </div>
-        </div>
+          </div><!-- /Tab: Attribute -->
+        </div><!-- /Tabs Container -->
+        </div><!-- /Node Sections -->
       </div>
       <div v-else class="flex items-center justify-center h-full">
         <p class="text-sm text-[var(--color-text-tertiary)]">Knoten auswählen</p>
