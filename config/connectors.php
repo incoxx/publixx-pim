@@ -60,6 +60,14 @@ return [
         'max_tokens' => env('OPENAI_MAX_TOKENS', 4096),
     ],
 
+    'jira' => [
+        'url'         => env('JIRA_URL', ''),          // https://your-domain.atlassian.net
+        'email'       => env('JIRA_EMAIL', ''),         // user@example.com
+        'api_token'   => env('JIRA_API_TOKEN', ''),     // Atlassian API Token
+        'project_key' => env('JIRA_PROJECT_KEY', ''),   // z.B. DEV
+        'issue_type'  => env('JIRA_ISSUE_TYPE', 'Bug'),
+    ],
+
     'salesforce_commerce' => [
         'instance_url'  => env('SFCC_INSTANCE_URL', ''),        // z.B. https://abcd-001.dx.commercecloud.salesforce.com
         'client_id'     => env('SFCC_CLIENT_ID', ''),            // Account Manager Client ID

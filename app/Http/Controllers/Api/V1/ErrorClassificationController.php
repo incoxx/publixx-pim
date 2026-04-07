@@ -318,6 +318,62 @@ class ErrorClassificationController extends Controller
                 Log::warning('Weiterleiten: Slack fehlgeschlagen.', ['error' => $e->getMessage()]);
             }
         }
+
+        // Jira-Ticket erstellen
+        $jiraUrl   = config('connectors.jira.url');
+        $jiraEmail = config('connectors.jira.email');
+        $jiraToken = config('connectors.jira.api_token');
+        $jiraProj  = config('connectors.jira.project_key');
+
+        if ($jiraUrl && $jiraEmail && $jiraToken && $jiraProj && ! $record->jira_issue_key) {
+            $priorityMap = ['critical' => 'Critical', 'high' => 'High', 'medium' => 'Medium', 'low' => 'Low'];
+            $priority    = $priorityMap[$record->severity] ?? 'Medium';
+            $title       = $record->ai_title ?? $record->exception_class;
+
+            $body = implode("\n\n", array_filter([
+                "Weitergeleitet von: {$forwardedBy->name}",
+                $record->ai_description ?? $record->message,
+                "Exception: {$record->exception_class}",
+                "Datei: {$record->file}:{$record->line}",
+                "Häufigkeit: {$record->occurrence_count}x",
+                $record->ai_hint  ? "Hinweis: {$record->ai_hint}"        : null,
+                $record->notes    ? "Admin-Notiz: {$record->notes}"      : null,
+                rtrim(config('app.url'), '/') . '/errors',
+            ]));
+
+            $payload = [
+                'fields' => [
+                    'project'     => ['key' => $jiraProj],
+                    'summary'     => "[anyPIM] {$title}",
+                    'issuetype'   => ['name' => config('connectors.jira.issue_type', 'Bug')],
+                    'priority'    => ['name' => $priority],
+                    'description' => [
+                        'type'    => 'doc',
+                        'version' => 1,
+                        'content' => [[
+                            'type'    => 'paragraph',
+                            'content' => [['type' => 'text', 'text' => $body]],
+                        ]],
+                    ],
+                ],
+            ];
+
+            try {
+                $response = Http::withBasicAuth($jiraEmail, $jiraToken)
+                    ->post("{$jiraUrl}/rest/api/3/issue", $payload);
+
+                if ($response->successful()) {
+                    $record->update(['jira_issue_key' => $response->json('key')]);
+                } else {
+                    Log::warning('Weiterleiten: Jira fehlgeschlagen.', [
+                        'status' => $response->status(),
+                        'body'   => $response->body(),
+                    ]);
+                }
+            } catch (\Throwable $e) {
+                Log::warning('Weiterleiten: Jira fehlgeschlagen.', ['error' => $e->getMessage()]);
+            }
+        }
     }
 
     private function authorizeAdmin(Request $request): void

@@ -4,7 +4,7 @@ import { useErrorClassificationsStore } from '@/stores/errorClassifications'
 import {
   Bug, Search, Trash2, RefreshCw, ChevronDown, ChevronRight,
   AlertTriangle, AlertCircle, HelpCircle, CheckCircle2, X,
-  Send, Clock, RotateCcw, FlaskConical, Download,
+  Send, Clock, RotateCcw, FlaskConical, Download, ExternalLink,
 } from 'lucide-vue-next'
 
 const store = useErrorClassificationsStore()
@@ -23,6 +23,9 @@ const statusFilter = ref('')
 const criticalCount = computed(() => store.items.filter(i => i.severity === 'critical').length)
 const highCount = computed(() => store.items.filter(i => i.severity === 'high').length)
 const unclassifiedCount = computed(() => store.items.filter(i => !i.classification).length)
+
+// Jira-Basis-URL aus Env (optional; ohne Var nur Key-Text, kein Link)
+const jiraBaseUrl = import.meta.env.VITE_JIRA_URL?.replace(/\/+$/, '') || ''
 
 function applyFilters() {
   store.setFilters({
@@ -385,6 +388,20 @@ onMounted(() => {
               <p>Erstmals: {{ item.first_seen_at ? new Date(item.first_seen_at).toLocaleString('de-DE') : '—' }}</p>
               <p>Zuletzt: {{ item.last_seen_at ? new Date(item.last_seen_at).toLocaleString('de-DE') : '—' }}</p>
               <p v-if="item.ai_confidence">KI-Konfidenz: {{ Math.round(item.ai_confidence * 100) }}%</p>
+              <p v-if="item.jira_issue_key" class="flex items-center gap-1">
+                Jira:
+                <a
+                  v-if="jiraBaseUrl"
+                  :href="`${jiraBaseUrl}/browse/${item.jira_issue_key}`"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="text-blue-500 hover:underline inline-flex items-center gap-0.5"
+                >
+                  {{ item.jira_issue_key }}
+                  <ExternalLink class="w-2.5 h-2.5" />
+                </a>
+                <span v-else>{{ item.jira_issue_key }}</span>
+              </p>
             </div>
           </div>
 

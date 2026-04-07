@@ -35,6 +35,7 @@ class ErrorClassification extends Model
         'reviewed_by',
         'reviewed_at',
         'notes',
+        'jira_issue_key',
     ];
 
     protected $casts = [
