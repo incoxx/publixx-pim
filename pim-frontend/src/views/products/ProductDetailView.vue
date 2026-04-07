@@ -22,7 +22,7 @@ import { useTabStore } from '@/stores/tabs'
 import { useAuthStore } from '@/stores/auth'
 import { useLocaleStore } from '@/stores/locale'
 import { useI18n } from 'vue-i18n'
-import { ArrowLeft, Save, Plus, Trash2, Image, Star, X, Search, Download, Languages, Copy, Sparkles, Tags, LayoutGrid, List, FileText, GitBranch, CheckCircle2, Eye, RotateCcw, ArrowRightLeft, RefreshCw, ChevronDown, ChevronRight, ChevronUp, ExternalLink } from 'lucide-vue-next'
+import { ArrowLeft, Save, Plus, Trash2, Image, Star, X, Search, Download, Languages, Copy, Sparkles, Tags, LayoutGrid, List, FileText, GitBranch, CheckCircle2, Eye, RotateCcw, ArrowRightLeft, RefreshCw, ChevronDown, ChevronRight, ChevronUp, ExternalLink, Filter, Upload } from 'lucide-vue-next'
 import productsApi from '@/api/products'
 import projectsApi from '@/api/projects'
 import usersApi from '@/api/users'
@@ -49,6 +49,9 @@ import PimMultipliableComposite from '@/components/shared/PimMultipliableComposi
 import ProductVersionsTab from '@/components/products/ProductVersionsTab.vue'
 import ProductScheduledActionsTab from '@/components/products/ProductScheduledActionsTab.vue'
 import MediaPickerDialog from '@/components/shared/MediaPickerDialog.vue'
+import ColumnConfigPopover from '@/components/shared/ColumnConfigPopover.vue'
+import MediaUploadQueue from '@/components/media/MediaUploadQueue.vue'
+import { useColumnConfig } from '@/composables/useColumnConfig'
 import { formatCompositeSummary } from '@/utils/formatting'
 import PdfTemplatePickerModal from '@/components/pdf-templates/PdfTemplatePickerModal.vue'
 
@@ -1007,6 +1010,43 @@ const selectedUsageTypeId = ref(null)
 const mediaViewMode = ref('grid') // 'grid' | 'list'
 const mediaFilter = ref('')
 
+// Spalten-Konfiguration
+const defaultMediaColumns = [
+  { key: 'thumb',      label: 'Bild',       sortable: false },
+  { key: 'file_name',  label: 'Dateiname',  sortable: true, mono: true },
+  { key: 'usage_type', label: 'Bildtyp',    sortable: true },
+  { key: 'mime_type',  label: 'MIME',        sortable: true },
+]
+const extraMediaColumns = [
+  { key: 'title',          label: 'Titel (DE)',         sortable: true },
+  { key: 'media_type',     label: 'Medientyp',          sortable: true },
+  { key: 'usage_purpose',  label: 'Verwendungszweck',   sortable: true },
+  { key: 'file_size',      label: 'Dateigröße',         sortable: true },
+  { key: 'dimensions',     label: 'Abmessungen',        sortable: false },
+  { key: 'alt_text',       label: 'Alt-Text',           sortable: false },
+  { key: 'sort_order',     label: 'Sortierung',         sortable: true },
+  { key: 'is_primary',     label: 'Primär',             sortable: true },
+]
+const {
+  allColumns: allMediaColumns,
+  visibleColumns: visibleMediaColumns,
+  visibleKeys: visibleMediaKeys,
+  toggleColumn: toggleMediaColumn,
+  moveColumn: moveMediaColumn,
+  resetColumns: resetMediaColumns,
+} = useColumnConfig('columns:product-media', defaultMediaColumns, extraMediaColumns)
+
+// Quick Lookup
+const showMediaQuickLookup = ref(false)
+const mediaQuickLookupFilters = ref({})
+
+// Direkt-Upload
+const showMediaUpload = ref(false)
+const uploadUsageTypeId = ref(null)
+const uploadFolderId = ref(null)
+const assetFolders = ref([])
+const uploadQueueRef = ref(null)
+
 const selectedUsageTypeExtensions = computed(() => {
   if (!selectedUsageTypeId.value) return null
   const ut = usageTypesList.value.find(t => t.id === selectedUsageTypeId.value)
@@ -1052,6 +1092,102 @@ const filteredMediaItems = computed(() => {
     return fname.includes(q) || usageType.includes(q) || mime.includes(q)
   })
 })
+
+// Quick Lookup: Spaltenweise Filterung (AND-Logik)
+const displayMediaItems = computed(() => {
+  let items = filteredMediaItems.value
+  if (!showMediaQuickLookup.value) return items
+  const filters = mediaQuickLookupFilters.value
+  const active = Object.entries(filters).filter(([, v]) => v !== '' && v != null)
+  if (active.length === 0) return items
+  return items.filter(item => {
+    return active.every(([key, val]) => {
+      const v = val.toLowerCase()
+      switch (key) {
+        case 'file_name': return (item.file_name || item.media?.file_name || '').toLowerCase().includes(v)
+        case 'usage_type': return (item.usage_type?.name_de || item.usage_type?.technical_name || '').toLowerCase().includes(v)
+        case 'mime_type': return (item.mime_type || item.media?.mime_type || '').toLowerCase().includes(v)
+        case 'title': return (item.media?.title_de || item.media?.file_name || '').toLowerCase().includes(v)
+        case 'media_type': return item.media?.media_type === val
+        case 'usage_purpose': return item.media?.usage_purpose === val
+        case 'alt_text': return (item.media?.alt_text_de || '').toLowerCase().includes(v)
+        default: return true
+      }
+    })
+  })
+})
+
+function formatFileSize(bytes) {
+  if (!bytes) return '—'
+  if (bytes < 1024) return bytes + ' B'
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
+}
+
+const uploadMetadata = computed(() => {
+  const meta = {}
+  if (uploadFolderId.value) meta.asset_folder_id = uploadFolderId.value
+  return meta
+})
+
+async function loadAssetFolders() {
+  if (assetFolders.value.length > 0) return
+  try {
+    const { data } = await hierarchiesApi.list({ filters: { hierarchy_type: 'asset' } })
+    const hierarchies = data.data || data
+    if (hierarchies.length > 0) {
+      const treeRes = await hierarchiesApi.getTree(hierarchies[0].id)
+      assetFolders.value = flattenFolderTree(treeRes.data.data || treeRes.data || [])
+    }
+  } catch (e) { console.error('Failed to load asset folders:', e) }
+}
+
+function flattenFolderTree(nodes, depth = 0) {
+  const result = []
+  for (const node of nodes) {
+    result.push({ id: node.id, name: '  '.repeat(depth) + (node.name_de || node.name || node.technical_name || node.id) })
+    if (node.children?.length) {
+      result.push(...flattenFolderTree(node.children, depth + 1))
+    }
+  }
+  return result
+}
+
+async function openMediaUpload() {
+  showMediaUpload.value = true
+  if (usageTypesList.value.length === 0) {
+    try {
+      const { data } = await mediaUsageTypes.list()
+      const types = data.data || data
+      usageTypesList.value = types
+      if (types.length > 0 && !uploadUsageTypeId.value) {
+        uploadUsageTypeId.value = types[0].id
+      }
+    } catch (e) { console.error('Failed to load usage types:', e.message) }
+  } else if (!uploadUsageTypeId.value && usageTypesList.value.length > 0) {
+    uploadUsageTypeId.value = usageTypesList.value[0].id
+  }
+  loadAssetFolders()
+}
+
+function handleMediaUpload(event) {
+  const files = event.target.files
+  if (!files?.length) return
+  uploadQueueRef.value?.addFiles(files)
+  event.target.value = ''
+}
+
+async function onFileUploaded(mediaItem) {
+  try {
+    await productsApi.attachMedia(product.value.id, {
+      media_id: mediaItem.id,
+      usage_type_id: uploadUsageTypeId.value || selectedUsageTypeId.value,
+      sort_order: mediaItems.value.length,
+    })
+    mediaLoaded.value = false
+    await loadMedia()
+  } catch (e) { console.error('Failed to attach uploaded media:', e.message) }
+}
 
 async function attachMedia(mediaItem) {
   try {
@@ -3322,7 +3458,7 @@ onUnmounted(() => {
       <!-- Header with search, view toggle and add button -->
       <div class="flex items-center gap-2">
         <h3 class="text-sm font-medium text-[var(--color-text-primary)] shrink-0">Medien</h3>
-        <span v-if="mediaItems.length > 0" class="text-[11px] text-[var(--color-text-tertiary)] shrink-0">({{ filteredMediaItems.length }}<template v-if="mediaFilter"> / {{ mediaItems.length }}</template>)</span>
+        <span v-if="mediaItems.length > 0" class="text-[11px] text-[var(--color-text-tertiary)] shrink-0">({{ displayMediaItems.length }}<template v-if="mediaFilter || showMediaQuickLookup"> / {{ mediaItems.length }}</template>)</span>
         <div class="flex-1" />
         <!-- Quick filter -->
         <div v-if="mediaItems.length > 5" class="relative">
@@ -3334,6 +3470,24 @@ onUnmounted(() => {
             placeholder="Filtern…"
           />
         </div>
+        <!-- Quick Lookup Toggle -->
+        <button
+          v-if="mediaItems.length > 3 && mediaViewMode === 'list'"
+          :class="['pim-btn pim-btn-ghost p-1.5', showMediaQuickLookup ? 'bg-[var(--color-accent)]/10 text-[var(--color-accent)]' : '']"
+          @click="showMediaQuickLookup = !showMediaQuickLookup"
+          title="Quick Lookup"
+        >
+          <Filter class="w-3.5 h-3.5" :stroke-width="2" />
+        </button>
+        <!-- Spaltenkonfiguration -->
+        <ColumnConfigPopover
+          v-if="mediaViewMode === 'list'"
+          :allColumns="allMediaColumns"
+          :visibleKeys="visibleMediaKeys"
+          @toggle="toggleMediaColumn"
+          @move="moveMediaColumn"
+          @reset="resetMediaColumns"
+        />
         <!-- View toggle -->
         <div class="flex items-center border border-[var(--color-border)] rounded-md overflow-hidden">
           <button
@@ -3353,9 +3507,46 @@ onUnmounted(() => {
             <List class="w-3.5 h-3.5" :stroke-width="2" />
           </button>
         </div>
+        <button class="pim-btn pim-btn-outline text-xs" @click="openMediaUpload">
+          <Upload class="w-3.5 h-3.5" :stroke-width="2" /> Hochladen
+        </button>
         <button class="pim-btn pim-btn-primary text-xs" @click="openMediaPicker">
           <Plus class="w-3.5 h-3.5" :stroke-width="2" /> Zuordnen
         </button>
+      </div>
+
+      <!-- Upload-Bereich -->
+      <div v-if="showMediaUpload" class="pim-card p-4 space-y-3">
+        <div class="flex items-center gap-3">
+          <h4 class="text-xs font-medium text-[var(--color-text-primary)]">Medien hochladen & zuordnen</h4>
+          <div class="flex-1" />
+          <button class="pim-btn pim-btn-ghost text-xs" @click="showMediaUpload = false">
+            <X class="w-3.5 h-3.5" :stroke-width="2" /> Schließen
+          </button>
+        </div>
+        <div class="flex items-end gap-3 flex-wrap">
+          <!-- Medientyp (Usage Type) -->
+          <div class="space-y-1">
+            <label class="text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)] font-medium">Bildtyp</label>
+            <select v-model="uploadUsageTypeId" class="pim-input text-xs w-48">
+              <option v-for="ut in usageTypesList" :key="ut.id" :value="ut.id">{{ ut.name_de || ut.technical_name }}</option>
+            </select>
+          </div>
+          <!-- Zielordner -->
+          <div class="space-y-1">
+            <label class="text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)] font-medium">Ordner</label>
+            <select v-model="uploadFolderId" class="pim-input text-xs w-48">
+              <option :value="null">— Kein Ordner —</option>
+              <option v-for="f in assetFolders" :key="f.id" :value="f.id">{{ f.name }}</option>
+            </select>
+          </div>
+          <!-- Datei-Auswahl -->
+          <label class="pim-btn pim-btn-primary text-xs cursor-pointer inline-flex items-center gap-1.5">
+            <Upload class="w-3.5 h-3.5" :stroke-width="2" /> Dateien wählen
+            <input type="file" multiple class="hidden" @change="handleMediaUpload" />
+          </label>
+        </div>
+        <MediaUploadQueue ref="uploadQueueRef" :metadata="uploadMetadata" @file-uploaded="onFileUploaded" />
       </div>
 
       <!-- Loading -->
@@ -3364,8 +3555,8 @@ onUnmounted(() => {
       </div>
 
       <!-- Grid view -->
-      <div v-else-if="filteredMediaItems.length > 0 && mediaViewMode === 'grid'" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-        <div v-for="m in filteredMediaItems" :key="m.id" class="pim-card overflow-hidden group relative">
+      <div v-else-if="displayMediaItems.length > 0 && mediaViewMode === 'grid'" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+        <div v-for="m in displayMediaItems" :key="m.id" class="pim-card overflow-hidden group relative">
           <div class="aspect-square bg-[var(--color-bg)] flex items-center justify-center overflow-hidden p-2">
             <PdfPreview v-if="isMediaPdf(m)" :url="getMediaUrl(m)" :media-id="m.media_id || m.media?.id || m.id" :title="m.file_name || ''" max-height="100%" />
             <img v-else :src="getMediaUrl(m)" class="w-full h-full object-contain" loading="lazy" alt="" />
@@ -3385,38 +3576,116 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- List view -->
-      <div v-else-if="filteredMediaItems.length > 0 && mediaViewMode === 'list'" class="pim-card overflow-hidden">
+      <!-- List view (dynamische Spalten) -->
+      <div v-else-if="displayMediaItems.length > 0 && mediaViewMode === 'list'" class="pim-card overflow-hidden overflow-x-auto">
         <table class="w-full text-xs">
           <thead>
             <tr class="border-b border-[var(--color-border)] bg-[var(--color-bg)]">
-              <th class="px-3 py-2 text-left text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)] font-medium" style="width:44px">Bild</th>
-              <th class="px-3 py-2 text-left text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)] font-medium">Dateiname</th>
-              <th class="px-3 py-2 text-left text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)] font-medium">Bildtyp</th>
-              <th class="px-3 py-2 text-left text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)] font-medium">MIME</th>
-              <th class="px-3 py-2 text-right text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)] font-medium" style="width:40px"></th>
+              <th
+                v-for="col in visibleMediaColumns"
+                :key="col.key"
+                class="px-3 py-2 text-left text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)] font-medium whitespace-nowrap"
+                :style="col.key === 'thumb' ? 'width:44px' : ''"
+              >
+                {{ col.key === 'thumb' ? '' : col.label }}
+              </th>
+              <th class="px-3 py-2 text-right text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)] font-medium" style="width:56px"></th>
+            </tr>
+            <!-- Quick Lookup Filterzeile -->
+            <tr v-if="showMediaQuickLookup" class="border-b border-[var(--color-border)] bg-[var(--color-bg)]/50">
+              <td v-for="col in visibleMediaColumns" :key="col.key" class="px-2 py-1">
+                <template v-if="col.key === 'thumb' || col.key === 'dimensions' || col.key === 'sort_order' || col.key === 'is_primary' || col.key === 'file_size'" />
+                <select
+                  v-else-if="col.key === 'media_type'"
+                  v-model="mediaQuickLookupFilters.media_type"
+                  class="pim-input text-[11px] w-full py-1 px-1.5"
+                >
+                  <option value="">Alle</option>
+                  <option value="image">image</option>
+                  <option value="document">document</option>
+                  <option value="video">video</option>
+                </select>
+                <select
+                  v-else-if="col.key === 'usage_purpose'"
+                  v-model="mediaQuickLookupFilters.usage_purpose"
+                  class="pim-input text-[11px] w-full py-1 px-1.5"
+                >
+                  <option value="">Alle</option>
+                  <option value="print">Print</option>
+                  <option value="web">Web</option>
+                  <option value="both">Print & Web</option>
+                </select>
+                <input
+                  v-else
+                  v-model="mediaQuickLookupFilters[col.key]"
+                  type="text"
+                  class="pim-input text-[11px] w-full py-1 px-1.5"
+                  placeholder="Filtern…"
+                />
+              </td>
+              <td></td>
             </tr>
           </thead>
           <tbody>
             <tr
-              v-for="m in filteredMediaItems"
+              v-for="m in displayMediaItems"
               :key="m.id"
               class="border-b border-[var(--color-border)] last:border-0 hover:bg-[var(--color-bg)] transition-colors"
             >
-              <td class="px-3 py-1.5">
-                <div class="w-8 h-8 rounded bg-[var(--color-bg)] overflow-hidden border border-[var(--color-border)]">
-                  <PdfPreview v-if="isMediaPdf(m)" :url="getMediaUrl(m)" :media-id="m.media_id || m.media?.id || m.id" :title="''" max-height="2rem" />
-                  <img v-else :src="getMediaUrl(m)" class="w-full h-full object-cover" loading="lazy" alt="" />
-                </div>
-              </td>
-              <td class="px-3 py-1.5">
-                <span class="text-[var(--color-text-primary)] font-mono text-[11px]">{{ m.file_name || m.media?.file_name || '—' }}</span>
-              </td>
-              <td class="px-3 py-1.5">
-                <span class="text-[var(--color-text-tertiary)]">{{ m.usage_type?.name_de || m.usage_type?.technical_name || '—' }}</span>
-              </td>
-              <td class="px-3 py-1.5">
-                <span class="text-[var(--color-text-tertiary)]">{{ m.mime_type || m.media?.mime_type || '—' }}</span>
+              <td v-for="col in visibleMediaColumns" :key="col.key" class="px-3 py-1.5">
+                <!-- Thumbnail -->
+                <template v-if="col.key === 'thumb'">
+                  <div class="w-8 h-8 rounded bg-[var(--color-bg)] overflow-hidden border border-[var(--color-border)]">
+                    <PdfPreview v-if="isMediaPdf(m)" :url="getMediaUrl(m)" :media-id="m.media_id || m.media?.id || m.id" :title="''" max-height="2rem" />
+                    <img v-else :src="getMediaUrl(m)" class="w-full h-full object-cover" loading="lazy" alt="" />
+                  </div>
+                </template>
+                <!-- Dateiname -->
+                <template v-else-if="col.key === 'file_name'">
+                  <span class="text-[var(--color-text-primary)] font-mono text-[11px]">{{ m.file_name || m.media?.file_name || '—' }}</span>
+                </template>
+                <!-- Bildtyp (Usage Type) -->
+                <template v-else-if="col.key === 'usage_type'">
+                  <span class="text-[var(--color-text-tertiary)]">{{ m.usage_type?.name_de || m.usage_type?.technical_name || '—' }}</span>
+                </template>
+                <!-- MIME -->
+                <template v-else-if="col.key === 'mime_type'">
+                  <span class="text-[var(--color-text-tertiary)]">{{ m.mime_type || m.media?.mime_type || '—' }}</span>
+                </template>
+                <!-- Titel (DE) -->
+                <template v-else-if="col.key === 'title'">
+                  <span class="text-[var(--color-text-primary)] text-[11px]">{{ m.media?.title_de || '—' }}</span>
+                </template>
+                <!-- Medientyp -->
+                <template v-else-if="col.key === 'media_type'">
+                  <span class="text-[var(--color-text-tertiary)]">{{ m.media?.media_type || '—' }}</span>
+                </template>
+                <!-- Verwendungszweck -->
+                <template v-else-if="col.key === 'usage_purpose'">
+                  <span class="text-[var(--color-text-tertiary)]">{{ m.media?.usage_purpose || '—' }}</span>
+                </template>
+                <!-- Dateigröße -->
+                <template v-else-if="col.key === 'file_size'">
+                  <span class="text-[var(--color-text-tertiary)] tabular-nums">{{ formatFileSize(m.media?.file_size) }}</span>
+                </template>
+                <!-- Abmessungen -->
+                <template v-else-if="col.key === 'dimensions'">
+                  <span v-if="m.media?.width" class="text-[var(--color-text-tertiary)] tabular-nums">{{ m.media.width }} × {{ m.media.height }} px</span>
+                  <span v-else class="text-[var(--color-text-tertiary)]">—</span>
+                </template>
+                <!-- Alt-Text -->
+                <template v-else-if="col.key === 'alt_text'">
+                  <span class="text-[var(--color-text-tertiary)] text-[11px]">{{ m.media?.alt_text_de || '—' }}</span>
+                </template>
+                <!-- Sortierung -->
+                <template v-else-if="col.key === 'sort_order'">
+                  <span class="text-[var(--color-text-tertiary)] tabular-nums">{{ m.sort_order ?? '—' }}</span>
+                </template>
+                <!-- Primär -->
+                <template v-else-if="col.key === 'is_primary'">
+                  <span v-if="m.is_primary" class="text-[var(--color-success)]">&#10003;</span>
+                  <span v-else class="text-[var(--color-text-tertiary)]">—</span>
+                </template>
               </td>
               <td class="px-3 py-1.5 text-right">
                 <div class="flex items-center justify-end gap-1">
@@ -3440,8 +3709,8 @@ onUnmounted(() => {
       </div>
 
       <!-- Filter empty state -->
-      <div v-else-if="!mediaLoading && filteredMediaItems.length === 0" class="pim-card p-8 text-center">
-        <p class="text-sm text-[var(--color-text-tertiary)]">Keine Medien für „{{ mediaFilter }}" gefunden</p>
+      <div v-else-if="!mediaLoading && displayMediaItems.length === 0" class="pim-card p-8 text-center">
+        <p class="text-sm text-[var(--color-text-tertiary)]">Keine Medien für aktive Filter gefunden</p>
       </div>
 
       <!-- Media picker dialog -->
