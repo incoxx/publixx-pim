@@ -9,6 +9,13 @@ export default {
     return client.get('/error-classifications', { params: buildParams(options) })
   },
 
+  exportExcel(options = {}) {
+    return client.get('/error-classifications/export', {
+      params: buildParams(options),
+      responseType: 'blob',
+    })
+  },
+
   classify(payload = {}) {
     return client.post('/error-classifications/classify', payload)
   },

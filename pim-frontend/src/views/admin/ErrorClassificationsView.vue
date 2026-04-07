@@ -4,7 +4,7 @@ import { useErrorClassificationsStore } from '@/stores/errorClassifications'
 import {
   Bug, Search, Trash2, RefreshCw, ChevronDown, ChevronRight,
   AlertTriangle, AlertCircle, HelpCircle, CheckCircle2, X,
-  Send, Clock, RotateCcw, FlaskConical,
+  Send, Clock, RotateCcw, FlaskConical, Download,
 } from 'lucide-vue-next'
 
 const store = useErrorClassificationsStore()
@@ -61,6 +61,10 @@ async function runLiveLauf() {
   classifyResult.value = null
   const result = await store.runClassification(20)
   if (result) classifyResult.value = result
+}
+
+async function handleExport() {
+  await store.exportExcel()
 }
 
 async function markStatus(item, status) {
@@ -171,6 +175,15 @@ onMounted(() => {
           @click="store.fetchList()"
         >
           <RefreshCw class="w-3.5 h-3.5" />
+        </button>
+        <!-- Excel Export -->
+        <button
+          class="pim-btn pim-btn-secondary text-xs px-3 py-1.5 gap-1.5"
+          title="Aktuelle Ansicht als Excel exportieren"
+          @click="handleExport"
+        >
+          <Download class="w-3.5 h-3.5" />
+          Excel
         </button>
         <!-- Löschen -->
         <button
