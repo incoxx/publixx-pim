@@ -1039,6 +1039,9 @@ const {
 // Quick Lookup
 const showMediaQuickLookup = ref(false)
 const mediaQuickLookupFilters = ref({})
+watch(showMediaQuickLookup, (val) => {
+  if (!val) mediaQuickLookupFilters.value = {}
+})
 
 // Direkt-Upload
 const showMediaUpload = ref(false)
@@ -1145,7 +1148,9 @@ async function loadAssetFolders() {
 function flattenFolderTree(nodes, depth = 0) {
   const result = []
   for (const node of nodes) {
-    result.push({ id: node.id, name: '  '.repeat(depth) + (node.name_de || node.name || node.technical_name || node.id) })
+    const indent = '\u00A0\u00A0'.repeat(depth)
+    const prefix = depth > 0 ? indent + '└ ' : ''
+    result.push({ id: node.id, name: prefix + (node.name_de || node.name || node.technical_name || node.id) })
     if (node.children?.length) {
       result.push(...flattenFolderTree(node.children, depth + 1))
     }
@@ -1177,6 +1182,7 @@ function handleMediaUpload(event) {
   event.target.value = ''
 }
 
+let _reloadMediaTimer = null
 async function onFileUploaded(mediaItem) {
   try {
     await productsApi.attachMedia(product.value.id, {
@@ -1184,8 +1190,12 @@ async function onFileUploaded(mediaItem) {
       usage_type_id: uploadUsageTypeId.value || selectedUsageTypeId.value,
       sort_order: mediaItems.value.length,
     })
-    mediaLoaded.value = false
-    await loadMedia()
+    // Debounce: bei Multi-Upload (MAX_CONCURRENT=3) kommen Events fast gleichzeitig
+    clearTimeout(_reloadMediaTimer)
+    _reloadMediaTimer = setTimeout(() => {
+      mediaLoaded.value = false
+      loadMedia()
+    }, 300)
   } catch (e) { console.error('Failed to attach uploaded media:', e.message) }
 }
 
@@ -3614,6 +3624,7 @@ onUnmounted(() => {
                   <option value="print">Print</option>
                   <option value="web">Web</option>
                   <option value="both">Print & Web</option>
+                  <option value="catalog_logo">Katalog-Logo</option>
                 </select>
                 <input
                   v-else
