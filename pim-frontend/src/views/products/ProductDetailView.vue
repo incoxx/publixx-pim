@@ -1225,6 +1225,31 @@ async function attachMedia(mediaItem) {
   }
 }
 
+async function attachMediaBulk(mediaItemsList) {
+  if (!selectedUsageTypeId.value) {
+    toastStore.showToast('Bitte zuerst einen Bildtyp auswählen', 'error')
+    return
+  }
+  try {
+    for (let i = 0; i < mediaItemsList.length; i++) {
+      await productsApi.attachMedia(product.value.id, {
+        media_id: mediaItemsList[i].id,
+        usage_type_id: selectedUsageTypeId.value,
+        sort_order: mediaItems.value.length + i,
+      })
+    }
+    showMediaPicker.value = false
+    mediaLoaded.value = false
+    await loadMedia()
+    toastStore.showToast(`${mediaItemsList.length} Medien zugeordnet`, 'success')
+  } catch (e) {
+    console.error('Failed to bulk attach media:', e.message)
+    toastStore.showToast('Fehler beim Zuordnen: ' + (e.response?.data?.message || e.message), 'error')
+    mediaLoaded.value = false
+    await loadMedia()
+  }
+}
+
 async function detachMedia(item) {
   const pivotId = item.pivot?.id || item.id
   try {
@@ -3746,6 +3771,7 @@ onUnmounted(() => {
         :allowed-extensions="selectedUsageTypeExtensions"
         @update:selected-usage-type-id="selectedUsageTypeId = $event"
         @select="attachMedia($event)"
+        @select-multiple="attachMediaBulk($event)"
       />
     </div>
 
