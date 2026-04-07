@@ -234,10 +234,7 @@ class AttributeController extends Controller
      */
     public function bulkDelete(Request $request): JsonResponse
     {
-        $user = $request->user();
-        if (!$user || !$user->hasPermissionTo('attributes.delete')) {
-            return response()->json(['message' => 'Keine Berechtigung zum Löschen von Attributen.'], 403);
-        }
+        $this->authorize('delete', Attribute::class);
 
         $request->validate([
             'attribute_ids' => 'required|array|min:1|max:5000',
@@ -264,7 +261,7 @@ class AttributeController extends Controller
             return Attribute::whereIn('id', $ids)->delete();
         });
 
-        Log::info('Bulk delete attributes', ['count' => $count, 'user_id' => $user->id]);
+        Log::info('Bulk delete attributes', ['count' => $count, 'user_id' => $request->user()?->id]);
 
         return response()->json([
             'message' => "{$count} Attribute gelöscht.",
@@ -359,6 +356,7 @@ class AttributeController extends Controller
             'fields.is_readonly' => 'boolean',
             'fields.is_hidden' => 'boolean',
             'fields.is_quick_search' => 'boolean',
+            'fields.is_primary' => 'boolean',
             'fields.attribute_type_id' => 'nullable|uuid|exists:attribute_types,id',
             'fields.status' => 'in:active,inactive',
         ]);

@@ -16,11 +16,6 @@ export const useAttributeStore = defineStore('attributes', () => {
   const error = ref(null)
   const meta = ref({ current_page: 1, last_page: 1, total: 0, per_page: 50 })
 
-  const dataTypes = computed(() => [
-    'text', 'textarea', 'richtext', 'number', 'decimal', 'boolean',
-    'date', 'datetime', 'select', 'multiselect', 'url', 'email', 'json',
-  ])
-
   // Dropdown-Optionen für Formular-Selects
   const attributeTypeOptions = computed(() =>
     types.value.map(t => ({ value: t.id, label: t.name_de || t.technical_name }))
@@ -154,7 +149,7 @@ export const useAttributeStore = defineStore('attributes', () => {
   }
 
   return {
-    items, allItems, types, lists, prodTypes, unitGroupsList, compOpGroupsList, loading, error, meta, dataTypes,
+    items, allItems, types, lists, prodTypes, unitGroupsList, compOpGroupsList, loading, error, meta,
     attributeTypeOptions, valueListOptions, unitGroupOptions, comparisonOperatorGroupOptions,
     fetchAttributes, fetchAllAttributes, fetchTypes, fetchValueLists, fetchProductTypes, fetchUnitGroups, fetchComparisonOperatorGroups,
     createAttribute, updateAttribute, copyAttribute, deleteAttribute, setPage, bulkUpdate, bulkDelete, bulkAssignViews,

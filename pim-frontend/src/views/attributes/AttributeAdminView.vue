@@ -75,15 +75,22 @@ const boolFilterOptions = [
 
 const dataTypeOptions = [
   { value: '', label: 'Alle' },
-  { value: 'String', label: 'String' },
-  { value: 'Number', label: 'Number' },
-  { value: 'Float', label: 'Float' },
-  { value: 'Date', label: 'Date' },
-  { value: 'Flag', label: 'Flag' },
-  { value: 'Selection', label: 'Selection' },
-  { value: 'Dictionary', label: 'Dictionary' },
-  { value: 'Composite', label: 'Composite' },
-  { value: 'RichText', label: 'RichText' },
+  { value: 'String', label: 'Text' },
+  { value: 'Number', label: 'Ganzzahl' },
+  { value: 'Float', label: 'Dezimalzahl' },
+  { value: 'Date', label: 'Datum' },
+  { value: 'Flag', label: 'Ja / Nein' },
+  { value: 'Selection', label: 'Auswahl' },
+  { value: 'MultiSelection', label: 'Mehrfachauswahl' },
+  { value: 'Dictionary', label: 'Wörterbuch' },
+  { value: 'Composite', label: 'Zusammengesetzt' },
+  { value: 'RichText', label: 'Formatierter Text' },
+  { value: 'DelimitedValue', label: 'Getrennte Werte' },
+  { value: 'JsonArtefact', label: 'JSON Artefakt' },
+  { value: 'Hyperlink', label: 'Hyperlink' },
+  { value: 'ImageLink', label: 'Bild-Link' },
+  { value: 'PdfLink', label: 'PDF-Link' },
+  { value: 'VideoLink', label: 'Video-Link' },
 ]
 
 const statusOptions = [
@@ -131,7 +138,7 @@ const filteredItems = computed(() => {
       if (config?.type === 'select') {
         return String(cellVal) === String(filterVal)
       }
-      return String(cellVal).toLowerCase().startsWith(String(filterVal).toLowerCase())
+      return String(cellVal).toLowerCase().includes(String(filterVal).toLowerCase())
     })
   })
 })
@@ -304,7 +311,7 @@ const actionMenuRow = ref(null)
 const copying = ref(false)
 
 function handleSort(field, order) {
-  store.fetchAttributes({ sort: field, order, filters: activeFilterEntries.value, include: 'attributeType,valueList,unitGroup,children,attributeViews' })
+  store.fetchAttributes({ sort: field, order, search: search.value, filters: activeFilterEntries.value, include: 'attributeType,valueList,unitGroup,children,attributeViews' })
 }
 
 function handlePageChange() {
@@ -344,11 +351,16 @@ function handleDelete(row) {
   deleteTarget.value = row
 }
 
+const deleteError = ref('')
+
 async function confirmDelete({ force } = {}) {
   deleting.value = true
+  deleteError.value = ''
   try {
     await store.deleteAttribute(deleteTarget.value.id, { force })
     deleteTarget.value = null
+  } catch (e) {
+    deleteError.value = e.response?.data?.message || e.message || 'Löschen fehlgeschlagen'
   } finally {
     deleting.value = false
   }
@@ -550,6 +562,13 @@ onBeforeUnmount(() => {
             <option v-for="o in boolFilterOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
           </select>
         </div>
+        <div>
+          <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">Status</label>
+          <select class="pim-input text-xs" :value="pendingFilterEntries.status ?? ''" @change="setFilter('status', $event.target.value)">
+            <option value="">Alle</option>
+            <option v-for="o in statusOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
+          </select>
+        </div>
       </div>
 
       <!-- Hierarchy usage filter -->
@@ -720,10 +739,11 @@ onBeforeUnmount(() => {
       title="Attribut löschen?"
       :message="`Das Attribut '${deleteTarget?.name_de || deleteTarget?.technical_name || ''}' wird unwiderruflich gelöscht.`"
       :loading="deleting"
+      :error="deleteError"
       entityType="attributes"
       :entityId="deleteTarget?.id"
       @confirm="confirmDelete"
-      @cancel="deleteTarget = null"
+      @cancel="deleteTarget = null; deleteError = ''"
     />
 
     <AttributeBulkUpdateDialog
