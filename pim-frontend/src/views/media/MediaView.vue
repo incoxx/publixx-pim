@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { Upload, Image, ImageOff, Grid, List, Trash2, FolderOpen, FolderPlus, Search, X, Plus, MoveRight, CheckSquare, Link, FileSpreadsheet, FileText, Wand2, Loader2, ChevronLeft, ChevronRight, Download, Copy, History, RefreshCw, ExternalLink, Package, FolderTree, Eye, Filter, Archive } from 'lucide-vue-next'
+import { Upload, Image, ImageOff, Grid, List, Trash2, FolderOpen, FolderPlus, Search, X, Plus, MoveRight, CheckSquare, Link, FileSpreadsheet, FileText, Wand2, Loader2, ChevronLeft, ChevronRight, Download, Copy, History, RefreshCw, ExternalLink, Package, FolderTree, Eye, Filter, Archive, ToggleLeft, ToggleRight, Table } from 'lucide-vue-next'
 import mediaApi from '@/api/media'
 import { mediaUsageTypes as mediaUsageTypesApi } from '@/api/mediaUsageTypes'
 import hierarchiesApi from '@/api/hierarchies'
@@ -25,6 +25,7 @@ const deleting = ref(false)
 const _route = useRoute()
 const searchTerm = ref(_route.query.search || '')
 const selectedFolderId = ref(null)
+const includeDescendants = ref(true)
 const usagePurposeFilter = ref('')
 const detailItem = ref(null)
 const detailOpen = ref(false)
@@ -159,6 +160,8 @@ const filterOptions = computed(() => {
   if (usagePurposeFilter.value) filters.usage_purpose = usagePurposeFilter.value
   if (Object.keys(filters).length) opts.filters = filters
   if (searchTerm.value) opts.search = searchTerm.value
+  // include_descendants wird von buildParams als ?include_descendants=1/0 gesetzt
+  if (selectedFolderId.value) opts.include_descendants = includeDescendants.value
   return opts
 })
 
@@ -561,8 +564,11 @@ async function createFolder() {
 
 // ─── Selection & Move helpers ────────────────────────
 const allSelected = computed(() => items.value.length > 0 && items.value.every(i => selectedIds.value.has(i.id)))
+const allPagesSelected = ref(false)
+const selectingAllPages = ref(false)
 
 function toggleSelect(id) {
+  allPagesSelected.value = false
   if (selectedIds.value.has(id)) selectedIds.value.delete(id)
   else selectedIds.value.add(id)
   // trigger reactivity
@@ -570,6 +576,7 @@ function toggleSelect(id) {
 }
 
 function toggleSelectAll() {
+  allPagesSelected.value = false
   if (allSelected.value) {
     selectedIds.value = new Set()
   } else {
@@ -577,8 +584,51 @@ function toggleSelectAll() {
   }
 }
 
+async function selectAllAcrossPages() {
+  selectingAllPages.value = true
+  try {
+    const { data } = await mediaApi.allIds(filterOptions.value)
+    selectedIds.value = new Set(data.ids || [])
+    allPagesSelected.value = true
+  } catch (e) {
+    console.error('Failed to select all:', e)
+  } finally {
+    selectingAllPages.value = false
+  }
+}
+
 function clearSelection() {
   selectedIds.value = new Set()
+  allPagesSelected.value = false
+}
+
+// ─── Excel Export ────────────────────────────────────
+const excelExporting = ref(false)
+
+async function exportExcel() {
+  excelExporting.value = true
+  try {
+    const opts = { ...filterOptions.value }
+    delete opts.page
+    delete opts.perPage
+    // columns und check_broken als extra Query-Params mitgeben
+    opts.columns = 'file_name,title_de,mime_type,media_type,usage_purpose,file_size,width,height,alt_text_de,created_at'
+    opts.check_broken = '1'
+    const { data } = await mediaApi.exportExcel(opts)
+    const url = URL.createObjectURL(data)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `medien-export-${new Date().toISOString().slice(0, 10)}.xlsx`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  } catch (e) {
+    console.error('Excel export failed:', e)
+    uploadError.value = e.response?.data?.message || 'Excel-Export fehlgeschlagen'
+  } finally {
+    excelExporting.value = false
+  }
 }
 
 function flattenFolders(nodes, depth = 0) {
@@ -737,6 +787,7 @@ onUnmounted(() => {
 })
 watch(usagePurposeFilter, () => { clearSelection(); currentPage.value = 1; fetchMedia() })
 watch(selectedFolderId, () => { clearSelection(); currentPage.value = 1; fetchMedia() })
+watch(includeDescendants, () => { clearSelection(); currentPage.value = 1; fetchMedia() })
 
 onMounted(() => {
   fetchMedia()
@@ -857,9 +908,26 @@ onMounted(() => {
             <option value="both">Print & Web</option>
           </select>
 
+          <!-- Unterordner einbeziehen -->
+          <button
+            v-if="selectedFolderId"
+            class="pim-btn pim-btn-ghost p-1.5 flex items-center gap-1 text-xs max-sm:hidden"
+            :class="includeDescendants ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-tertiary)]'"
+            @click="includeDescendants = !includeDescendants"
+            :title="includeDescendants ? 'Inkl. Unterordner (aktiv)' : 'Nur dieser Ordner'"
+          >
+            <component :is="includeDescendants ? ToggleRight : ToggleLeft" class="w-4 h-4" :stroke-width="1.75" />
+            <span class="max-lg:hidden">{{ includeDescendants ? 'Inkl. Unterordner' : 'Nur dieser Ordner' }}</span>
+          </button>
+
           <button :class="['pim-btn pim-btn-ghost p-1.5', showQuickLookup ? 'bg-[var(--color-accent)]/10 text-[var(--color-accent)]' : '']"
                   @click="showQuickLookup = !showQuickLookup" title="Quick Lookup">
             <Filter class="w-4 h-4" :stroke-width="1.75" />
+          </button>
+
+          <!-- Excel Export -->
+          <button class="pim-btn pim-btn-ghost p-1.5 max-sm:hidden" @click="exportExcel" title="Als Excel exportieren">
+            <Table class="w-4 h-4" :stroke-width="1.75" />
           </button>
           <div class="w-px h-5 bg-[var(--color-border)]"></div>
           <button :class="['pim-btn pim-btn-ghost p-1.5', viewMode==='grid'?'bg-[var(--color-bg)]':'']" @click="viewMode='grid'"><Grid class="w-4 h-4" :stroke-width="1.75" /></button>
@@ -981,6 +1049,33 @@ onMounted(() => {
           </div>
         </Transition>
       </Teleport>
+
+      <!-- Select all across pages banner -->
+      <div
+        v-if="allSelected && !allPagesSelected && totalItems > items.length"
+        class="flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-[var(--color-accent)]/5 border border-[var(--color-accent)]/20 text-sm"
+      >
+        <span class="text-[var(--color-text-secondary)]">
+          Alle <strong>{{ items.length }}</strong> Medien auf dieser Seite ausgewählt.
+        </span>
+        <button
+          class="text-[var(--color-accent)] font-medium hover:underline"
+          :disabled="selectingAllPages"
+          @click="selectAllAcrossPages"
+        >
+          {{ selectingAllPages ? 'Lade…' : `Alle ${totalItems} Medien auswählen` }}
+        </button>
+      </div>
+      <div
+        v-else-if="allPagesSelected"
+        class="flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-[var(--color-accent)]/10 border border-[var(--color-accent)]/20 text-sm"
+      >
+        <CheckSquare class="w-4 h-4 text-[var(--color-accent)]" :stroke-width="2" />
+        <span class="text-[var(--color-text-primary)] font-medium">
+          Alle {{ selectedIds.size }} Medien ausgewählt (über alle Seiten).
+        </span>
+        <button class="text-[var(--color-text-tertiary)] hover:underline" @click="clearSelection">Auswahl aufheben</button>
+      </div>
 
       <!-- Loading -->
       <div v-if="loading" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">

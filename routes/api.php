@@ -540,6 +540,8 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // =====================================================================
     Route::get('media/diagnostics', [MediaController::class, 'diagnostics']);
     Route::get('media/processing-status', [MediaController::class, 'processingStatus']);
+    Route::get('media/all-ids', [MediaController::class, 'allIds']);
+    Route::get('media/export-excel', [MediaController::class, 'exportExcel']);
     Route::post('media/bulk-move', [MediaController::class, 'bulkMove']);
     Route::post('media/bulk-delete', [MediaController::class, 'bulkDelete']);
     Route::get('media/revision/{revision}/download', [MediaController::class, 'downloadRevision']);
