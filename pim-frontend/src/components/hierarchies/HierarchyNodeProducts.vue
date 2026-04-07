@@ -1,13 +1,19 @@
 <script setup>
-import { ref, computed, watch, onUnmounted } from 'vue'
+import { ref, computed, watch, onUnmounted, defineAsyncComponent } from 'vue'
 import { useRouter } from 'vue-router'
 import { Plus, Search, Trash2, ArrowRightLeft, FolderTree, X, ListFilter, Package } from 'lucide-vue-next'
 import PimTable from '@/components/shared/PimTable.vue'
 import PimDeleteConfirmDialog from '@/components/shared/PimDeleteConfirmDialog.vue'
-import BulkAssignHierarchyNodeDialog from '@/components/dialogs/BulkAssignHierarchyNodeDialog.vue'
-import MoveProductsToNodeDialog from '@/components/dialogs/MoveProductsToNodeDialog.vue'
 import productsApi from '@/api/products'
 import hierarchiesApi from '@/api/hierarchies'
+
+// Dialoge lazy laden um zirkuläre Initialisierung zu vermeiden
+const BulkAssignHierarchyNodeDialog = defineAsyncComponent(() =>
+  import('@/components/dialogs/BulkAssignHierarchyNodeDialog.vue')
+)
+const MoveProductsToNodeDialog = defineAsyncComponent(() =>
+  import('@/components/dialogs/MoveProductsToNodeDialog.vue')
+)
 
 const props = defineProps({
   nodeId: { type: String, required: true },
