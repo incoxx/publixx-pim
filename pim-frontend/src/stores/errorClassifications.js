@@ -73,13 +73,27 @@ export const useErrorClassificationsStore = defineStore('errorClassifications', 
     await fetchList()
   }
 
+  async function exportExcel() {
+    const { data } = await errorClassificationsApi.exportExcel({
+      sort: sort.value.field,
+      order: sort.value.order,
+      filters: filters.value,
+    })
+    const url = URL.createObjectURL(data)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `fehler-export-${new Date().toISOString().slice(0, 10)}.xlsx`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   function setFilters(f) { filters.value = f; meta.value.current_page = 1 }
   function setPage(page) { meta.value.current_page = page }
   function setSort(field, order) { sort.value = { field, order } }
 
   return {
     items, loading, classifying, hasApiKey, error, meta, filters, sort,
-    fetchStatus, fetchList, runClassification, updateRecord, deleteAll,
+    fetchStatus, fetchList, runClassification, updateRecord, deleteAll, exportExcel,
     setFilters, setPage, setSort,
   }
 })

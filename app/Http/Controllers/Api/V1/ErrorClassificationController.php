@@ -8,6 +8,9 @@ use App\Models\ErrorClassification;
 use App\Services\ErrorClassificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ErrorClassificationController extends Controller
 {
@@ -61,6 +64,119 @@ class ErrorClassificationController extends Controller
         return response()->json(
             $query->paginate($perPage)
         );
+    }
+
+    public function exportExcel(Request $request): StreamedResponse
+    {
+        $this->authorizeAdmin($request);
+
+        $query = ErrorClassification::query()->with('reviewer:id,name');
+
+        $filters = $request->query('filter', []);
+
+        if (! empty($filters['severity'])) {
+            $query->where('severity', $filters['severity']);
+        }
+        if (! empty($filters['classification'])) {
+            $query->where('classification', $filters['classification']);
+        }
+        if (! empty($filters['status'])) {
+            $query->where('status', $filters['status']);
+        }
+        if (! empty($filters['source'])) {
+            $query->where('source', $filters['source']);
+        }
+
+        $search = $request->query('search');
+        if ($search) {
+            $escaped = addcslashes($search, '%_');
+            $query->where(function ($q) use ($escaped) {
+                $q->where('exception_class', 'LIKE', "%{$escaped}%")
+                    ->orWhere('file', 'LIKE', "%{$escaped}%")
+                    ->orWhere('message', 'LIKE', "%{$escaped}%")
+                    ->orWhere('ai_title', 'LIKE', "%{$escaped}%");
+            });
+        }
+
+        $sortField = $request->query('sort', 'last_seen_at');
+        $sortOrder = $request->query('order', 'desc');
+        $allowedSorts = ['last_seen_at', 'occurrence_count', 'severity', 'created_at'];
+
+        if (in_array($sortField, $allowedSorts, true)) {
+            $query->orderBy($sortField, $sortOrder === 'asc' ? 'asc' : 'desc');
+        }
+
+        $records = $query->get();
+
+        $severityLabels = [
+            'critical' => 'Kritisch',
+            'high'     => 'Hoch',
+            'medium'   => 'Mittel',
+            'low'      => 'Niedrig',
+        ];
+        $classificationLabels = [
+            'real_bug'   => 'Echter Bug',
+            'user_error' => 'Nutzerfehler',
+            'uncertain'  => 'Unsicher',
+        ];
+        $statusLabels = [
+            'new'        => 'Neu',
+            'reviewed'   => 'Geprüft',
+            'forwarded'  => 'Weitergeleitet',
+            'resolved'   => 'Erledigt',
+        ];
+        $sourceLabels = [
+            'log'   => 'Log',
+            'queue' => 'Queue-Job',
+        ];
+
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Fehlerklassifikation');
+
+        $headers = [
+            'Schweregrad', 'Titel', 'Exception-Klasse', 'Datei', 'Zeile',
+            'Häufigkeit', 'Zuletzt gesehen', 'Zuerst gesehen',
+            'Klassifikation', 'Status', 'Quelle',
+            'KI-Beschreibung', 'KI-Hinweis', 'KI-Konfidenz (%)',
+            'Notizen', 'Geprüft von',
+        ];
+
+        foreach ($headers as $col => $header) {
+            $sheet->setCellValue([$col + 1, 1], $header);
+        }
+
+        $row = 2;
+        foreach ($records as $record) {
+            $sheet->setCellValue([1,  $row], $severityLabels[$record->severity] ?? $record->severity ?? '');
+            $sheet->setCellValue([2,  $row], $record->ai_title ?: $record->exception_class);
+            $sheet->setCellValue([3,  $row], $record->exception_class);
+            $sheet->setCellValue([4,  $row], $record->file);
+            $sheet->setCellValue([5,  $row], $record->line);
+            $sheet->setCellValue([6,  $row], $record->occurrence_count);
+            $sheet->setCellValue([7,  $row], $record->last_seen_at?->format('d.m.Y H:i') ?? '');
+            $sheet->setCellValue([8,  $row], $record->first_seen_at?->format('d.m.Y H:i') ?? '');
+            $sheet->setCellValue([9,  $row], $classificationLabels[$record->classification] ?? '');
+            $sheet->setCellValue([10, $row], $statusLabels[$record->status] ?? $record->status);
+            $sheet->setCellValue([11, $row], $sourceLabels[$record->source] ?? $record->source ?? '');
+            $sheet->setCellValue([12, $row], $record->ai_description ?? '');
+            $sheet->setCellValue([13, $row], $record->ai_hint ?? '');
+            $sheet->setCellValue([14, $row], $record->ai_confidence !== null ? (int) round($record->ai_confidence * 100) : '');
+            $sheet->setCellValue([15, $row], $record->notes ?? '');
+            $sheet->setCellValue([16, $row], $record->reviewer?->name ?? '');
+            $row++;
+        }
+
+        $fileName = 'fehler-export-' . date('Y-m-d') . '.xlsx';
+
+        return new StreamedResponse(function () use ($spreadsheet) {
+            $writer = new Xlsx($spreadsheet);
+            $writer->save('php://output');
+        }, 200, [
+            'Content-Type'        => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition' => "attachment; filename=\"{$fileName}\"",
+            'Cache-Control'       => 'no-store',
+        ]);
     }
 
     public function status(Request $request): JsonResponse

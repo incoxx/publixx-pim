@@ -323,6 +323,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // Fehlerklassifikation (KI-gestützte Log-Triage)
     // =====================================================================
     Route::get('error-classifications/status', [ErrorClassificationController::class, 'status']);
+    Route::get('error-classifications/export', [ErrorClassificationController::class, 'exportExcel']);
     Route::get('error-classifications', [ErrorClassificationController::class, 'index']);
     Route::post('error-classifications/classify', [ErrorClassificationController::class, 'classify']);
     Route::patch('error-classifications/{id}', [ErrorClassificationController::class, 'update']);
