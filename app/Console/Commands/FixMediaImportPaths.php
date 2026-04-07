@@ -75,32 +75,34 @@ class FixMediaImportPaths extends Command
 
             foreach ($dupes as $dupe) {
                 if (!$dryRun) {
-                    // Produkt-Zuordnungen übertragen (nur wenn Keeper noch keine hat)
+                    // Produkt-Zuordnungen: Finde product_ids die der Keeper schon hat
+                    $keeperProductIds = DB::table('product_media_assignments')
+                        ->where('media_id', $keeper->id)
+                        ->pluck('product_id')
+                        ->toArray();
+
+                    // Übertragbare Zuordnungen (Keeper hat dieses Produkt noch nicht)
                     DB::table('product_media_assignments')
                         ->where('media_id', $dupe->id)
-                        ->whereNotExists(function ($q) use ($keeper) {
-                            $q->select(DB::raw(1))
-                                ->from('product_media_assignments as existing')
-                                ->whereColumn('existing.product_id', 'product_media_assignments.product_id')
-                                ->where('existing.media_id', $keeper->id);
-                        })
+                        ->whereNotIn('product_id', $keeperProductIds)
                         ->update(['media_id' => $keeper->id]);
 
-                    // Hierarchie-Node-Zuordnungen übertragen
-                    DB::table('hierarchy_node_media')
-                        ->where('media_id', $dupe->id)
-                        ->whereNotExists(function ($q) use ($keeper) {
-                            $q->select(DB::raw(1))
-                                ->from('hierarchy_node_media as existing')
-                                ->whereColumn('existing.hierarchy_node_id', 'hierarchy_node_media.hierarchy_node_id')
-                                ->where('existing.media_id', $keeper->id);
-                        })
-                        ->update(['media_id' => $keeper->id]);
-
-                    // Verwaiste Zuordnungen löschen (wo Keeper schon zugeordnet war)
+                    // Rest löschen (Keeper hatte diese Produkte schon)
                     DB::table('product_media_assignments')
                         ->where('media_id', $dupe->id)
                         ->delete();
+
+                    // Hierarchie-Node-Zuordnungen: gleiche Logik
+                    $keeperNodeIds = DB::table('hierarchy_node_media')
+                        ->where('media_id', $keeper->id)
+                        ->pluck('hierarchy_node_id')
+                        ->toArray();
+
+                    DB::table('hierarchy_node_media')
+                        ->where('media_id', $dupe->id)
+                        ->whereNotIn('hierarchy_node_id', $keeperNodeIds)
+                        ->update(['media_id' => $keeper->id]);
+
                     DB::table('hierarchy_node_media')
                         ->where('media_id', $dupe->id)
                         ->delete();
