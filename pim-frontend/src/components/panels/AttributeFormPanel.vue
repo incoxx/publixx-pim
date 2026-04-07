@@ -38,7 +38,7 @@ const originalDataType = props.attribute?.data_type || null
 
 // Kompatibilitätsgruppen: Typen innerhalb einer Gruppe nutzen dieselbe Speicherspalte
 const dataTypeGroups = {
-  string: ['String', 'RichText', 'Dictionary', 'DelimitedValue', 'JsonArtefact', 'Hyperlink', 'ImageLink', 'PdfLink', 'VideoLink'],
+  string: ['String', 'Textarea', 'RichText', 'Dictionary', 'DelimitedValue', 'JsonArtefact', 'Hyperlink', 'ImageLink', 'PdfLink', 'VideoLink'],
   number: ['Number', 'Float'],
   selection: ['Selection', 'MultiSelection'],
   flag: ['Flag'],
@@ -88,6 +88,8 @@ const formData = ref(
         is_hidden: false,
         is_quick_search: false,
         is_primary: false,
+        textarea_rows: null,
+        textarea_cols: null,
         description_de: '',
         status: 'active',
       }
@@ -139,10 +141,15 @@ const fields = computed(() => {
         { value: 'Selection', label: 'Auswahl (Werteliste)' },
         { value: 'MultiSelection', label: 'Mehrfachauswahl (Werteliste)' },
         { value: 'Dictionary', label: 'Wörterbuch (Key→Value)' },
+        { value: 'Textarea', label: 'Mehrzeiliger Text (Textarea)' },
         { value: 'RichText', label: 'Formatierter Text (HTML)' },
         { value: 'Composite', label: 'Zusammengesetzt' },
         { value: 'DelimitedValue', label: 'Getrennte Werte (Delimiter)' },
         { value: 'JsonArtefact', label: 'JSON Artefakt' },
+        { value: 'Hyperlink', label: 'Hyperlink' },
+        { value: 'ImageLink', label: 'Bild-Link' },
+        { value: 'PdfLink', label: 'PDF-Link' },
+        { value: 'VideoLink', label: 'Video-Link' },
       ],
     },
     {
@@ -199,6 +206,21 @@ const fields = computed(() => {
       placeholder: 'z.B. | oder , oder ;',
       hint: 'Zeichen, das die einzelnen Werte im String trennt',
     })
+  }
+
+  if (formData.value.data_type === 'Textarea') {
+    base.push(
+      {
+        key: 'textarea_rows', label: 'Zeilen', type: 'number',
+        placeholder: 'Standard: 4',
+        hint: 'Anzahl sichtbarer Textzeilen im Editor',
+      },
+      {
+        key: 'textarea_cols', label: 'Spalten (max. Breite)', type: 'number',
+        placeholder: 'Standard: 80',
+        hint: 'Maximale Zeichenbreite des Eingabefeldes',
+      },
+    )
   }
 
   if (formData.value.data_type === 'Composite') {

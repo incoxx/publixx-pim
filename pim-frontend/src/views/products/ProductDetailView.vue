@@ -393,7 +393,7 @@ function mapDataTypeToInput(backendType) {
   const map = {
     'String': 'text', 'Number': 'number', 'Float': 'decimal',
     'Date': 'date', 'Flag': 'boolean', 'Selection': 'select', 'MultiSelection': 'multicombobox',
-    'Dictionary': 'dictionary', 'Composite': 'composite', 'RichText': 'richtext',
+    'Dictionary': 'dictionary', 'Composite': 'composite', 'RichText': 'richtext', 'Textarea': 'textarea',
     'Hyperlink': 'hyperlink', 'ImageLink': 'imagelink', 'PdfLink': 'pdflink', 'VideoLink': 'videolink',
     'DelimitedValue': 'delimitedvalue', 'JsonArtefact': 'jsonartefact',
   }
@@ -2747,11 +2747,11 @@ onUnmounted(() => {
           <div
             v-for="attr in primaryAttributes"
             :key="'primary-' + attr.id"
-            :class="['md:flex md:gap-4', attr.data_type === 'RichText' ? 'md:items-start' : 'md:items-center']"
+            :class="['md:flex md:gap-4', ['RichText', 'Textarea'].includes(attr.data_type) ? 'md:items-start' : 'md:items-center']"
           >
             <label
               class="text-[12px] font-medium text-[var(--color-text-secondary)] md:w-48 md:shrink-0 md:text-right md:mb-0 mb-1 block truncate"
-              :class="{ 'md:mt-2': attr.data_type === 'RichText' }"
+              :class="{ 'md:mt-2': ['RichText', 'Textarea'].includes(attr.data_type) }"
               :title="attr.name_de || attr.technical_name"
             >
               {{ attr.name_de || attr.technical_name }}
@@ -2771,6 +2771,8 @@ onUnmounted(() => {
                   :delimiter="attr.delimiter || '|'"
                   :min="attr.min_value != null ? Number(attr.min_value) : undefined"
                   :max="attr.max_value != null ? Number(attr.max_value) : undefined"
+                  :rows="attr.textarea_rows || undefined"
+                  :cols="attr.textarea_cols || undefined"
                   @update:modelValue="attr.is_translatable ? (translatedValues[`${attr.id}_${activeDataLang}`] = $event) : (attributeValues[attr.id] = $event)"
                 />
                 <select
@@ -2930,14 +2932,14 @@ onUnmounted(() => {
           :key="attr.id"
           :class="[
             'md:flex md:gap-4',
-            attr.is_multipliable || attr.data_type === 'Composite' ? 'md:items-start' : 'md:items-center',
+            attr.is_multipliable || ['Composite', 'RichText', 'Textarea'].includes(attr.data_type) ? 'md:items-start' : 'md:items-center',
             { 'ring-1 ring-red-400 rounded-lg p-2 -m-2': mandatoryWarnings.has(attr.id) },
           ]"
         >
           <label
             :class="[
               'text-[12px] font-medium text-[var(--color-text-secondary)] md:w-48 md:shrink-0 md:text-right md:mb-0 mb-1 block truncate',
-              (attr.is_multipliable || attr.data_type === 'Composite') ? 'md:pt-1.5' : '',
+              (attr.is_multipliable || ['Composite', 'RichText', 'Textarea'].includes(attr.data_type)) ? 'md:pt-1.5' : '',
             ]"
             :title="attr.name_de || attr.technical_name"
           >
@@ -3004,6 +3006,8 @@ onUnmounted(() => {
               :delimiter="attr.delimiter || '|'"
               :min="attr.min_value != null ? Number(attr.min_value) : undefined"
               :max="attr.max_value != null ? Number(attr.max_value) : undefined"
+              :rows="attr.textarea_rows || undefined"
+              :cols="attr.textarea_cols || undefined"
               @update:modelValue="translatedValues[`${attr.id}_${activeDataLang}`] = $event"
             />
             <select
@@ -3038,6 +3042,8 @@ onUnmounted(() => {
               :delimiter="attr.delimiter || '|'"
               :min="attr.min_value != null ? Number(attr.min_value) : undefined"
               :max="attr.max_value != null ? Number(attr.max_value) : undefined"
+              :rows="attr.textarea_rows || undefined"
+              :cols="attr.textarea_cols || undefined"
               @update:modelValue="attributeValues[attr.id] = $event"
             />
             <select
@@ -3101,7 +3107,7 @@ onUnmounted(() => {
             <div
               v-for="attr in (h.attributes || [])"
               :key="attr.attribute_id"
-              class="md:flex md:items-center md:gap-4"
+              :class="['md:flex md:gap-4', ['RichText', 'Textarea'].includes(attr.data_type) ? 'md:items-start' : 'md:items-center']"
             >
               <label
                 class="text-[12px] font-medium text-[var(--color-text-secondary)] md:w-48 md:shrink-0 md:text-right md:mb-0 mb-1 block truncate"
