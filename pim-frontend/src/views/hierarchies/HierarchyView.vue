@@ -7,11 +7,10 @@ import { useI18n } from 'vue-i18n'
 import { useRouter, useRoute } from 'vue-router'
 import {
   Plus, Edit3, Trash2, FolderPlus, Package, Search,
-  Copy, ChevronUp, ChevronDown, Settings, GripVertical, X, Save, Image,
+  Copy, ChevronUp, ChevronDown, Settings, GripVertical, X, Save, Image, Layers,
 } from 'lucide-vue-next'
 import hierarchiesApi from '@/api/hierarchies'
 import attributesApi from '@/api/attributes'
-import productsApi from '@/api/products'
 import { mediaUsageTypes } from '@/api/mediaUsageTypes'
 import PimTree from '@/components/shared/PimTree.vue'
 import PimAttributeInput from '@/components/shared/PimAttributeInput.vue'
@@ -20,6 +19,8 @@ import HierarchyFormPanel from '@/components/panels/HierarchyFormPanel.vue'
 import HierarchyNodeFormPanel from '@/components/panels/HierarchyNodeFormPanel.vue'
 import MediaPickerDialog from '@/components/shared/MediaPickerDialog.vue'
 import PdfPreview from '@/components/shared/PdfPreview.vue'
+import HierarchyNodeProducts from '@/components/hierarchies/HierarchyNodeProducts.vue'
+import { VueDraggable } from 'vue-draggable-plus'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -46,16 +47,13 @@ const nodeAttrSearch = ref('')
 const nodeAttrValues = ref({})
 const nodeAttrValuesSaving = ref(false)
 
-// Node products (master hierarchy)
-const nodeProducts = ref([])
-const nodeProductsLoading = ref(false)
+// Tab-Steuerung für Produkte/Medien/Attribute
+const activeNodeTab = ref('products')
+const nodeProductCount = ref(0)
 
-// Output hierarchy product assignments
-const outputProductAssignments = ref([])
-const showProductSearch = ref(false)
-const productSearchQuery = ref('')
-const productSearchResults = ref([])
-let productSearchTimer = null
+// Editierbare Sortier-Nummer für Attribute
+const editingSortIdx = ref(null)
+const editingSortValue = ref('')
 
 // Node media assignments
 const nodeMediaItems = ref([])
@@ -720,104 +718,32 @@ const filteredNodeAttributes = computed(() => {
   return attrs
 })
 
-// ─── Node Products ──────────────────────────────────
-async function loadNodeProducts(nodeId) {
-  if (!nodeId) return
-  nodeProductsLoading.value = true
-  try {
-    if (store.isMasterHierarchy) {
-      const { data } = await productsApi.list({ filters: { master_hierarchy_node_id: nodeId }, perPage: 20 })
-      nodeProducts.value = data.data || data
-      outputProductAssignments.value = []
-    } else {
-      const { data } = await hierarchiesApi.getOutputProducts(nodeId, { perPage: 100 })
-      outputProductAssignments.value = data.data || data
-      nodeProducts.value = []
-    }
-  } catch {
-    nodeProducts.value = []
-    outputProductAssignments.value = []
-  } finally { nodeProductsLoading.value = false }
+// ─── Editierbare Sortier-Nummer für Attribute ──────
+const editingSortAssignmentId = ref(null)
+
+function startEditSort(assignment, idx) {
+  editingSortAssignmentId.value = assignment.id
+  editingSortIdx.value = idx
+  editingSortValue.value = String(idx + 1)
 }
 
-// ─── Product Assignment (both master + output) ──────
-function searchProducts() {
-  clearTimeout(productSearchTimer)
-  if (!productSearchQuery.value.trim()) { productSearchResults.value = []; return }
-  productSearchTimer = setTimeout(async () => {
-    try {
-      const assignedIds = store.isMasterHierarchy
-        ? new Set(nodeProducts.value.map(p => p.id))
-        : new Set(outputProductAssignments.value.map(a => a.product?.id || a.product_id))
-      const { data } = await productsApi.list({ search: productSearchQuery.value, perPage: 10 })
-      productSearchResults.value = (data.data || data).filter(p => !assignedIds.has(p.id))
-    } catch { productSearchResults.value = [] }
-  }, 300)
-}
+function applySortValue() {
+  const assignmentId = editingSortAssignmentId.value
+  editingSortIdx.value = null
+  editingSortAssignmentId.value = null
+  if (!assignmentId) return
 
-async function assignProductToNode(product) {
-  if (!store.selectedNode) return
-  try {
-    if (store.isMasterHierarchy) {
-      await hierarchiesApi.assignMasterProduct(store.selectedNode.id, { product_id: product.id })
-    } else {
-      await hierarchiesApi.assignOutputProduct(store.selectedNode.id, { product_id: product.id })
-    }
-    productSearchQuery.value = ''
-    productSearchResults.value = []
-    showProductSearch.value = false
-    await loadNodeProducts(store.selectedNode.id)
-    showFeedback('Produkt zugeordnet')
-  } catch (e) {
-    showFeedback(e.response?.data?.message || e.response?.data?.errors?.product_id?.[0] || 'Fehler beim Zuordnen', 'error')
-  }
-}
+  const list = [...nodeAttributes.value]
+  const fromIdx = list.findIndex(a => a.id === assignmentId)
+  if (fromIdx === -1) return
 
-async function removeOutputProduct(assignmentId) {
-  try {
-    await hierarchiesApi.removeOutputProductAssignment(assignmentId)
-    await loadNodeProducts(store.selectedNode.id)
-    showFeedback('Zuordnung entfernt')
-  } catch (e) {
-    showFeedback(e.response?.data?.title || 'Fehler beim Entfernen', 'error')
-  }
-}
+  const targetIdx = Math.max(0, Math.min(list.length - 1, parseInt(editingSortValue.value) - 1))
+  if (isNaN(targetIdx) || targetIdx === fromIdx) return
 
-async function removeMasterProduct(productId) {
-  if (!store.selectedNode) return
-  try {
-    await hierarchiesApi.removeMasterProduct(store.selectedNode.id, productId)
-    await loadNodeProducts(store.selectedNode.id)
-    showFeedback('Zuordnung entfernt')
-  } catch (e) {
-    showFeedback(e.response?.data?.title || 'Fehler beim Entfernen', 'error')
-  }
-}
-
-async function moveOutputProductUp(index) {
-  if (index <= 0) return
-  const list = [...outputProductAssignments.value]
-  ;[list[index - 1], list[index]] = [list[index], list[index - 1]]
-  outputProductAssignments.value = list
-  await persistOutputProductOrder()
-}
-
-async function moveOutputProductDown(index) {
-  if (index >= outputProductAssignments.value.length - 1) return
-  const list = [...outputProductAssignments.value]
-  ;[list[index], list[index + 1]] = [list[index + 1], list[index]]
-  outputProductAssignments.value = list
-  await persistOutputProductOrder()
-}
-
-async function persistOutputProductOrder() {
-  try {
-    const items = outputProductAssignments.value.map((a, i) => ({ id: a.id, sort_order: i }))
-    await hierarchiesApi.sortOutputProducts(store.selectedNode.id, items)
-  } catch (e) {
-    showFeedback('Fehler beim Speichern der Reihenfolge', 'error')
-    if (store.selectedNode) await loadNodeProducts(store.selectedNode.id)
-  }
+  const [item] = list.splice(fromIdx, 1)
+  list.splice(targetIdx, 0, item)
+  nodeAttributes.value = list
+  persistAttributeOrder()
 }
 
 // ─── Hierarchy-level Attribute Helpers ───────────────
@@ -912,29 +838,24 @@ watch(showAttrPicker, (open) => {
   }
 })
 
-// Watch node selection to load attributes and products
+// Watch node selection to load attributes, media, etc.
+// Produkte werden von HierarchyNodeProducts-Komponente selbst geladen (watch nodeId)
 watch(() => store.selectedNode, async (node) => {
+  activeNodeTab.value = 'products'
   if (node) {
     loadNodeAttributes(node.id)
-    loadNodeProducts(node.id)
     loadNodeAttrValues(node.id)
     loadNodeMedia(node.id)
-    // Load hierarchy-level attrs if needed, then load values for this node
     await loadHierarchyLevelAttrs(selectedHierarchyId.value)
     loadHierarchyAttrValues(node.id)
   } else {
     nodeAttributes.value = []
-    nodeProducts.value = []
-    outputProductAssignments.value = []
     hierarchyAttrValues.value = {}
     nodeAttrValues.value = {}
     nodeMediaItems.value = []
   }
-  showProductSearch.value = false
   showAttrPicker.value = false
   showMediaPicker.value = false
-  productSearchQuery.value = ''
-  productSearchResults.value = []
   nodeAttrSearch.value = ''
 })
 
@@ -1132,140 +1053,49 @@ onMounted(async () => {
           </div>
           <div>
             <span class="text-[12px] text-[var(--color-text-tertiary)]">Produkte</span>
-            <p>{{ (store.isMasterHierarchy ? nodeProducts.length : outputProductAssignments.length) || store.selectedNode.product_count || 0 }}</p>
+            <p>{{ nodeProductCount || store.selectedNode.product_count || 0 }}</p>
           </div>
         </div>
 
-        <!-- Assigned Products -->
-        <div class="border-t border-[var(--color-border)] pt-4">
-          <div class="flex items-center justify-between mb-3">
-            <h4 class="text-sm font-medium text-[var(--color-text-secondary)]">
-              <Package class="w-3.5 h-3.5 inline-block mr-1 -mt-0.5" :stroke-width="1.75" />
-              Zugeordnete Produkte
-            </h4>
-            <button v-if="authStore.hasPermission('hierarchies.edit')" class="pim-btn pim-btn-secondary text-xs" @click="showProductSearch = !showProductSearch">
-              <Plus class="w-3 h-3" :stroke-width="2" /> Produkt zuordnen
+        <!-- Tabs: Produkte / Medien / Attribute -->
+        <div class="border-t border-[var(--color-border)] pt-3">
+          <div class="flex items-center gap-0 border-b border-[var(--color-border)] mb-4">
+            <button
+              v-for="tab in [
+                { key: 'products', label: 'Produkte', icon: Package },
+                { key: 'media', label: 'Medien', icon: Image },
+                { key: 'attributes', label: 'Attribute', icon: Layers },
+              ]"
+              :key="tab.key"
+              :class="[
+                'flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors border-b-2 -mb-px',
+                activeNodeTab === tab.key
+                  ? 'border-[var(--color-accent)] text-[var(--color-accent)]'
+                  : 'border-transparent text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]',
+              ]"
+              @click="activeNodeTab = tab.key"
+            >
+              <component :is="tab.icon" class="w-3.5 h-3.5" :stroke-width="1.75" />
+              {{ tab.label }}
             </button>
           </div>
 
-          <!-- Product search (all hierarchy types) -->
-          <div v-if="showProductSearch" class="mb-3 p-3 bg-[var(--color-bg)] rounded-lg space-y-2">
-            <div class="relative">
-              <Search class="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)]" :stroke-width="1.75" />
-              <input
-                v-model="productSearchQuery"
-                class="pim-input text-xs w-full pim-input-icon"
-                placeholder="Produkt suchen (SKU, Name)..."
-                @input="searchProducts"
-                @keyup.escape="showProductSearch = false"
-              />
-            </div>
-            <div v-if="productSearchResults.length > 0" class="max-h-48 overflow-y-auto space-y-1">
-              <div
-                v-for="prod in productSearchResults"
-                :key="prod.id"
-                class="flex items-center justify-between px-2 py-1.5 rounded hover:bg-[var(--color-surface)] cursor-pointer"
-                @click="assignProductToNode(prod)"
-              >
-                <div class="flex items-center gap-2">
-                  <span class="text-xs font-mono text-[var(--color-text-secondary)]">{{ prod.sku }}</span>
-                  <span class="text-xs">{{ prod.name || '—' }}</span>
-                </div>
-                <Plus class="w-3.5 h-3.5 text-[var(--color-primary)]" :stroke-width="2" />
-              </div>
-            </div>
-            <p v-else-if="productSearchQuery.length > 0 && productSearchResults.length === 0" class="text-xs text-[var(--color-text-tertiary)]">Keine Produkte gefunden</p>
-          </div>
+          <!-- Tab: Produkte -->
+          <HierarchyNodeProducts
+            v-if="activeNodeTab === 'products'"
+            :nodeId="store.selectedNode.id"
+            :isMasterHierarchy="store.isMasterHierarchy"
+            :hierarchyId="selectedHierarchyId"
+            :hasEditPermission="authStore.hasPermission('hierarchies.edit')"
+            @feedback="showFeedback"
+            @loaded="({ count }) => nodeProductCount = count"
+          />
 
-          <div v-if="nodeProductsLoading" class="space-y-2">
-            <div v-for="i in 3" :key="i" class="pim-skeleton h-8 rounded" />
-          </div>
+          <!-- Tab: Medien -->
+          <div v-if="activeNodeTab === 'media'">
 
-          <!-- Output hierarchy: sortable product list -->
-          <template v-else-if="!store.isMasterHierarchy">
-            <div v-if="outputProductAssignments.length > 0" class="space-y-1">
-              <div
-                v-for="(assignment, idx) in outputProductAssignments"
-                :key="assignment.id"
-                class="flex items-center justify-between px-3 py-2 rounded-lg bg-[var(--color-bg)] group"
-              >
-                <div class="flex items-center gap-2 flex-1 min-w-0 cursor-pointer" @click="router.push(`/products/${assignment.product?.id || assignment.product_id}`)">
-                  <GripVertical class="w-3 h-3 text-[var(--color-text-tertiary)] opacity-40 shrink-0" />
-                  <span class="text-[10px] text-[var(--color-text-tertiary)] font-mono w-4 text-right shrink-0">{{ idx + 1 }}</span>
-                  <span class="text-xs font-mono text-[var(--color-text-secondary)] shrink-0">{{ assignment.product?.sku || '—' }}</span>
-                  <span class="text-xs font-medium truncate">{{ assignment.product?.name || '—' }}</span>
-                </div>
-                <div class="flex items-center gap-0.5 shrink-0">
-                  <span :class="['pim-badge text-[10px] mr-1', assignment.product?.status === 'active' ? 'bg-[var(--color-success-light)] text-[var(--color-success)]' : 'bg-[var(--color-bg)] text-[var(--color-text-tertiary)]']">
-                    {{ assignment.product?.status || '—' }}
-                  </span>
-                  <template v-if="authStore.hasPermission('hierarchies.edit')">
-                    <button
-                      class="p-0.5 rounded text-[var(--color-text-tertiary)] hover:text-[var(--color-accent)] hover:bg-[var(--color-bg-secondary)] transition-all disabled:opacity-20 disabled:cursor-default"
-                      :disabled="idx === 0"
-                      @click="moveOutputProductUp(idx)"
-                      title="Nach oben"
-                    >
-                      <ChevronUp class="w-3.5 h-3.5" :stroke-width="2" />
-                    </button>
-                    <button
-                      class="p-0.5 rounded text-[var(--color-text-tertiary)] hover:text-[var(--color-accent)] hover:bg-[var(--color-bg-secondary)] transition-all disabled:opacity-20 disabled:cursor-default"
-                      :disabled="idx === outputProductAssignments.length - 1"
-                      @click="moveOutputProductDown(idx)"
-                      title="Nach unten"
-                    >
-                      <ChevronDown class="w-3.5 h-3.5" :stroke-width="2" />
-                    </button>
-                    <button
-                      class="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-[var(--color-error-light)] text-[var(--color-text-tertiary)] hover:text-[var(--color-error)] transition-all ml-1"
-                      @click="removeOutputProduct(assignment.id)"
-                      title="Entfernen"
-                    >
-                      <Trash2 class="w-3.5 h-3.5" :stroke-width="2" />
-                    </button>
-                  </template>
-                </div>
-              </div>
-            </div>
-            <p v-else class="text-xs text-[var(--color-text-tertiary)]">Keine Produkte zugeordnet. Nutzen Sie die Suche, um Produkte zuzuordnen.</p>
-          </template>
-
-          <!-- Master hierarchy: editable product list -->
-          <template v-else>
-            <div v-if="nodeProducts.length > 0" class="space-y-1">
-              <div
-                v-for="prod in nodeProducts"
-                :key="prod.id"
-                class="flex items-center justify-between px-3 py-2 rounded-lg bg-[var(--color-bg)] group"
-              >
-                <div class="flex items-center gap-2 flex-1 min-w-0 cursor-pointer" @click="router.push(`/products/${prod.id}`)">
-                  <span class="text-xs font-mono text-[var(--color-text-secondary)] shrink-0">{{ prod.sku }}</span>
-                  <span class="text-xs font-medium truncate">{{ prod.name || '—' }}</span>
-                </div>
-                <div class="flex items-center gap-1 shrink-0">
-                  <span :class="['pim-badge text-[10px] mr-1', prod.status === 'active' ? 'bg-[var(--color-success-light)] text-[var(--color-success)]' : 'bg-[var(--color-bg)] text-[var(--color-text-tertiary)]']">
-                    {{ prod.status }}
-                  </span>
-                  <button
-                    v-if="authStore.hasPermission('hierarchies.edit')"
-                    class="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-[var(--color-error-light)] text-[var(--color-text-tertiary)] hover:text-[var(--color-error)] transition-all"
-                    @click.stop="removeMasterProduct(prod.id)"
-                    title="Zuordnung entfernen"
-                  >
-                    <X class="w-3.5 h-3.5" :stroke-width="2" />
-                  </button>
-                </div>
-              </div>
-            </div>
-            <p v-else class="text-xs text-[var(--color-text-tertiary)]">Keine Produkte zugeordnet. Nutzen Sie die Suche, um Produkte zuzuordnen.</p>
-          </template>
-        </div>
-
-        <!-- Node Media -->
-        <div class="border-t border-[var(--color-border)] pt-4">
           <div class="flex items-center justify-between mb-3">
             <h4 class="text-sm font-medium text-[var(--color-text-secondary)]">
-              <Image class="w-3.5 h-3.5 inline-block mr-1 -mt-0.5" :stroke-width="1.75" />
               Medien
               <span v-if="nodeMediaItems.length > 0" class="text-[11px] text-[var(--color-text-tertiary)] ml-1">({{ nodeMediaItems.length }})</span>
             </h4>
@@ -1331,10 +1161,10 @@ onMounted(async () => {
               />
             </div>
           </div>
-        </div>
+          </div><!-- /Tab: Medien -->
 
-        <!-- Assigned Attributes -->
-        <div class="border-t border-[var(--color-border)] pt-4">
+          <!-- Tab: Attribute -->
+          <div v-if="activeNodeTab === 'attributes'">
           <div class="flex items-center justify-between mb-3">
             <h4 class="text-sm font-medium text-[var(--color-text-secondary)]">Zugeordnete Attribute</h4>
             <button v-if="authStore.hasPermission('hierarchies.edit')" class="pim-btn pim-btn-secondary text-xs" @click="showAttrPicker = !showAttrPicker">
@@ -1413,15 +1243,38 @@ onMounted(async () => {
               </div>
               <p v-if="nodeAttrSearch && filteredNodeAttributes.length === 0" class="text-xs text-[var(--color-text-tertiary)] mt-1">Keine Treffer</p>
             </div>
-            <div class="space-y-1">
+            <VueDraggable
+              v-model="nodeAttributes"
+              handle=".drag-handle"
+              :disabled="!authStore.hasPermission('hierarchies.edit') || !!nodeAttrSearch"
+              ghost-class="opacity-30"
+              class="space-y-1"
+              @end="persistAttributeOrder"
+            >
               <div
                 v-for="(assignment, idx) in filteredNodeAttributes"
                 :key="assignment.id"
                 :class="['flex items-center justify-between px-3 py-2 rounded-lg group', assignment.is_inherited ? 'bg-[var(--color-bg)] opacity-75 border border-dashed border-[var(--color-border)]' : 'bg-[var(--color-bg)]']"
               >
                 <div class="flex items-center gap-2 flex-wrap">
-                  <GripVertical v-if="!assignment.is_inherited" class="w-3 h-3 text-[var(--color-text-tertiary)] opacity-40" />
-                  <span class="text-[10px] text-[var(--color-text-tertiary)] font-mono w-4 text-right">{{ idx + 1 }}</span>
+                  <GripVertical v-if="!assignment.is_inherited" class="drag-handle w-3 h-3 text-[var(--color-text-tertiary)] opacity-40 cursor-grab active:cursor-grabbing" />
+                  <input
+                    v-if="editingSortAssignmentId === assignment.id && !assignment.is_inherited"
+                    v-model="editingSortValue"
+                    type="number" min="1" :max="nodeAttributes.length"
+                    class="w-8 h-5 text-[10px] font-mono text-center pim-input py-0 px-0.5"
+                    @keyup.enter="applySortValue()"
+                    @keyup.escape="editingSortAssignmentId = null; editingSortIdx = null"
+                    @blur="applySortValue()"
+                    autofocus
+                  />
+                  <span
+                    v-else
+                    class="text-[10px] text-[var(--color-text-tertiary)] font-mono w-5 text-center rounded px-0.5"
+                    :class="!assignment.is_inherited ? 'cursor-pointer hover:bg-[var(--color-surface)]' : ''"
+                    :title="!assignment.is_inherited ? 'Klick = Nummer ändern' : ''"
+                    @click="!assignment.is_inherited && startEditSort(assignment, idx)"
+                  >{{ idx + 1 }}</span>
                   <span class="text-xs font-medium">{{ assignment.attribute?.name_de || assignment.attribute?.technical_name || '—' }}</span>
                   <span class="text-[10px] text-[var(--color-text-tertiary)]">{{ assignment.attribute?.data_type }}</span>
                   <span v-if="assignment.collection_name" class="text-[10px] bg-[var(--color-surface)] text-[var(--color-text-secondary)] px-1.5 py-0.5 rounded">{{ assignment.collection_name }}</span>
@@ -1475,7 +1328,7 @@ onMounted(async () => {
                   </template>
                 </div>
               </div>
-            </div>
+            </VueDraggable>
             <p v-if="nodeAttributes.length > 0" class="text-[11px] text-[var(--color-text-tertiary)] mt-1">
               {{ nodeAttributes.filter(a => !a.is_inherited).length }} direkt zugeordnet<template v-if="nodeAttributes.some(a => a.is_inherited)">, {{ nodeAttributes.filter(a => a.is_inherited).length }} vererbt</template>
             </p>
@@ -1514,6 +1367,8 @@ onMounted(async () => {
                 />
               </div>
             </template>
+          </div>
+        </div>
           </div>
         </div>
       </div>
