@@ -148,9 +148,8 @@ onMounted(() => {
         <!-- Dry-Run -->
         <button
           class="pim-btn pim-btn-secondary text-xs px-3 py-1.5 gap-1.5"
-          :class="{ 'opacity-40 cursor-not-allowed': !store.hasApiKey }"
-          :disabled="store.classifying || !store.hasApiKey"
-          :title="!store.hasApiKey ? 'Kein Claude API Key konfiguriert (CLAUDE_AI_API_KEY)' : 'Logs analysieren ohne zu speichern'"
+          :disabled="store.classifying"
+          :title="store.hasApiKey ? 'Logs analysieren ohne zu speichern' : 'Logs analysieren ohne zu speichern (regelbasiert)'"
           @click="runDryRun"
         >
           <FlaskConical class="w-3.5 h-3.5" :class="store.classifying ? 'animate-pulse' : ''" />
@@ -158,10 +157,9 @@ onMounted(() => {
         </button>
         <!-- Live-Lauf -->
         <button
-          :class="['pim-btn text-xs px-3 py-1.5 gap-1.5',
-            store.hasApiKey ? 'pim-btn-primary' : 'pim-btn-secondary opacity-40 cursor-not-allowed']"
-          :disabled="store.classifying || !store.hasApiKey"
-          :title="!store.hasApiKey ? 'Kein Claude API Key konfiguriert (CLAUDE_AI_API_KEY)' : 'Logs analysieren und klassifizieren (max. 20)'"
+          class="pim-btn pim-btn-primary text-xs px-3 py-1.5 gap-1.5"
+          :disabled="store.classifying"
+          :title="store.hasApiKey ? 'Logs analysieren und klassifizieren (max. 20)' : 'Logs analysieren und klassifizieren (regelbasiert, max. 20)'"
           @click="runLiveLauf"
         >
           <RefreshCw class="w-3.5 h-3.5" :class="store.classifying ? 'animate-spin' : ''" />
