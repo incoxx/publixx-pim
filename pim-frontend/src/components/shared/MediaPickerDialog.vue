@@ -174,8 +174,8 @@ const filteredMedia = computed(() => {
         case 'file_name': return (item.file_name || '').toLowerCase().includes(v)
         case 'mime_type': return (item.mime_type || '').toLowerCase().includes(v)
         case 'title': return (item.title_de || '').toLowerCase().includes(v)
-        case 'media_type': return item.media_type === val
-        case 'usage_purpose': return item.usage_purpose === val
+        case 'media_type': return (item.media_type || '') === val
+        case 'usage_purpose': return (item.usage_purpose || '') === val
         case 'alt_text': return (item.alt_text_de || '').toLowerCase().includes(v)
         default: return true
       }
