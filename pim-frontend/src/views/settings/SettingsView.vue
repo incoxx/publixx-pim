@@ -611,7 +611,7 @@ async function loadAttributes(hierarchyId = null) {
       const { data } = await hierarchiesApi.allNodeAttributes(hierarchyId)
       all = data.data || data || []
     } else {
-      const { data } = await attributesApi.list({ per_page: 500 })
+      const { data } = await attributesApi.list({ perPage: 500, sort: 'name_de', order: 'asc' })
       all = data.data || data || []
     }
     allAttributes.value = all.filter(a => a.data_type !== 'Composite')
