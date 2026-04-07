@@ -1162,6 +1162,7 @@ onMounted(async () => {
               />
             </div>
           </div>
+          </div>
           </div><!-- /Tab: Medien -->
 
           <!-- Tab: Attribute -->
