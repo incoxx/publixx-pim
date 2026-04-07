@@ -85,7 +85,7 @@ class ProductController extends Controller
         }
 
         $this->applyFilters($query, $filters);
-        $this->applySearch($query, $request, ['name', 'sku', 'ean']);
+        $this->applySearch($query, $request, ['products.name', 'products.sku', 'products.ean']);
         $this->applySorting($query, $request, 'created_at', 'desc');
 
         $paginated = $query->paginate($this->getPerPage($request));
