@@ -42,4 +42,18 @@ return [
         'tenant' => env('AZURE_AD_TENANT_ID'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Fehlerklassifikation: Weiterleiten-Benachrichtigungen
+    |--------------------------------------------------------------------------
+    | ERROR_FORWARD_EMAIL    — Empfänger-Adresse für "An Entwicklung weiterleiten"
+    | ERROR_FORWARD_SLACK_WEBHOOK — Slack Incoming Webhook URL
+    | Beide Werte sind optional; nicht gesetzte Kanäle werden still übersprungen.
+    */
+
+    'error_forward' => [
+        'email'         => env('ERROR_FORWARD_EMAIL'),
+        'slack_webhook' => env('ERROR_FORWARD_SLACK_WEBHOOK'),
+    ],
+
 ];
