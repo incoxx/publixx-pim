@@ -93,17 +93,17 @@ class FixMediaImportPaths extends Command
                         ->delete();
 
                     // Hierarchie-Node-Zuordnungen: gleiche Logik
-                    $keeperNodeIds = DB::table('hierarchy_node_media')
+                    $keeperNodeIds = DB::table('hierarchy_node_media_assignments')
                         ->where('media_id', $keeper->id)
                         ->pluck('hierarchy_node_id')
                         ->toArray();
 
-                    DB::table('hierarchy_node_media')
+                    DB::table('hierarchy_node_media_assignments')
                         ->where('media_id', $dupe->id)
                         ->whereNotIn('hierarchy_node_id', $keeperNodeIds)
                         ->update(['media_id' => $keeper->id]);
 
-                    DB::table('hierarchy_node_media')
+                    DB::table('hierarchy_node_media_assignments')
                         ->where('media_id', $dupe->id)
                         ->delete();
 
