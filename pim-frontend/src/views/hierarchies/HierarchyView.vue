@@ -115,6 +115,24 @@ async function onMediaSelected(media, usageTypeId) {
   }
 }
 
+async function onMediaSelectedBulk(mediaItems) {
+  if (!store.selectedNode) return
+  try {
+    for (let i = 0; i < mediaItems.length; i++) {
+      await hierarchiesApi.assignNodeMedia(store.selectedNode.id, {
+        media_id: mediaItems[i].id,
+        sort_order: nodeMediaItems.value.length + i,
+      })
+    }
+    showMediaPicker.value = false
+    await loadNodeMedia(store.selectedNode.id)
+    showFeedback(`${mediaItems.length} Medien zugeordnet`)
+  } catch (e) {
+    showFeedback(e.response?.data?.message || 'Fehler beim Zuordnen', 'error')
+    await loadNodeMedia(store.selectedNode.id)
+  }
+}
+
 async function detachNodeMedia(item) {
   if (!store.selectedNode) return
   try {
@@ -1534,6 +1552,7 @@ onMounted(async () => {
       :usageTypes="availableUsageTypes"
       :excludeMediaIds="nodeMediaItems.map(m => m.media_id)"
       @select="onMediaSelected"
+      @select-multiple="onMediaSelectedBulk"
     />
 
     <!-- Action Feedback Toast -->
