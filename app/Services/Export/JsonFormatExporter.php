@@ -225,11 +225,13 @@ class JsonFormatExporter
             ->with('productType')
             ->orderBy('sku')
             ->chunk(500, function ($products) use ($handle, &$first, $flags) {
+                $namesEn = $this->batchLoadProductNamesEn($products->pluck('id')->toArray());
+
                 foreach ($products as $product) {
                     $item = array_filter([
                         'sku'          => $product->sku,
                         'name'         => $product->name,
-                        'name_en'      => $this->getProductNameEn($product),
+                        'name_en'      => $namesEn[$product->id] ?? null,
                         'product_type' => $product->productType?->technical_name,
                         'ean'          => $product->ean,
                         'status'       => $product->status,
@@ -239,7 +241,7 @@ class JsonFormatExporter
                     fwrite($handle, json_encode($item, $flags));
                     $first = false;
                 }
-                unset($products);
+                unset($products, $namesEn);
                 gc_collect_cycles();
             });
     }
@@ -296,12 +298,14 @@ class JsonFormatExporter
         }
 
         $query->chunk(500, function ($variants) use ($handle, &$first, $flags) {
+            $namesEn = $this->batchLoadProductNamesEn($variants->pluck('id')->toArray());
+
             foreach ($variants as $v) {
                 $item = array_filter([
                     'parent_sku' => $v->parentProduct?->sku,
                     'sku'        => $v->sku,
                     'name'       => $v->name,
-                    'name_en'    => $this->getProductNameEn($v),
+                    'name_en'    => $namesEn[$v->id] ?? null,
                     'ean'        => $v->ean,
                     'status'     => $v->status,
                 ], fn ($val) => $val !== null);
@@ -310,7 +314,7 @@ class JsonFormatExporter
                 fwrite($handle, json_encode($item, $flags));
                 $first = false;
             }
-            unset($variants);
+            unset($variants, $namesEn);
             gc_collect_cycles();
         });
     }
@@ -820,11 +824,13 @@ class JsonFormatExporter
             ->with('productType')
             ->orderBy('sku')
             ->chunk(500, function ($products) use (&$result) {
+                $namesEn = $this->batchLoadProductNamesEn($products->pluck('id')->toArray());
+
                 foreach ($products as $product) {
                     $result[] = [
                         'sku' => $product->sku,
                         'name' => $product->name,
-                        'name_en' => $this->getProductNameEn($product),
+                        'name_en' => $namesEn[$product->id] ?? null,
                         'product_type' => $product->productType?->technical_name,
                         'ean' => $product->ean,
                         'status' => $product->status,
@@ -881,12 +887,14 @@ class JsonFormatExporter
         }
 
         $query->chunk(500, function ($variants) use (&$result) {
+            $namesEn = $this->batchLoadProductNamesEn($variants->pluck('id')->toArray());
+
             foreach ($variants as $v) {
                 $result[] = [
                     'parent_sku' => $v->parentProduct?->sku,
                     'sku' => $v->sku,
                     'name' => $v->name,
-                    'name_en' => $this->getProductNameEn($v),
+                    'name_en' => $namesEn[$v->id] ?? null,
                     'ean' => $v->ean,
                     'status' => $v->status,
                 ];
@@ -1198,5 +1206,25 @@ class JsonFormatExporter
             ->where('language', 'en')
             ->whereHas('attribute', fn ($q) => $q->where('technical_name', 'name'))
             ->value('value_string');
+    }
+
+    /**
+     * Lädt englische Produktnamen für eine Menge von IDs in einem Query (statt N+1).
+     *
+     * @param  array  $productIds
+     * @return array<string, string>  product_id → name_en
+     */
+    private function batchLoadProductNamesEn(array $productIds): array
+    {
+        if (empty($productIds)) {
+            return [];
+        }
+
+        return ProductAttributeValue::query()
+            ->whereIn('product_id', $productIds)
+            ->where('language', 'en')
+            ->whereHas('attribute', fn ($q) => $q->where('technical_name', 'name'))
+            ->pluck('value_string', 'product_id')
+            ->toArray();
     }
 }
