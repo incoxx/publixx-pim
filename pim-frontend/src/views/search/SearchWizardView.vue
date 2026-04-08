@@ -306,12 +306,8 @@ watch(attributeFilterGroups, () => {
   }
   liveCountTimer = setTimeout(async () => {
     try {
-      const params = { language: 'de' }
-      if (statusFilter.value) params.status = statusFilter.value
-      if (attributeFilterGroups.value.rules.length > 0) {
-        params.attribute_filter_groups = attributeFilterGroups.value
-      }
-      const { data } = await searchApi.count(params)
+      // buildSearchParams() statt manuell — enthält alle aktiven Filter
+      const { data } = await searchApi.count(buildSearchParams())
       liveCount.value = data.count
     } catch {
       liveCount.value = null
@@ -330,6 +326,22 @@ const watchlistIds = ref(new Set())
 const selectedProductIds = ref([])
 const allPagesSelected = ref(false)
 const selectingAll = ref(false)
+
+// Wenn Filter sich ändern und "alle Seiten" selektiert waren → Auswahl verwerfen,
+// da die IDs zur alten Suche gehören und nicht mehr zur aktuellen passen.
+watch(
+  [attributeFilterGroups, statusFilter, selectedCategories, selectedProductTypes, selectedManufacturers, missingTranslationFilter, searchInput],
+  () => {
+    if (allPagesSelected.value) {
+      selectedProductIds.value = []
+      allPagesSelected.value = false
+      // searchTableRef kann hier noch nicht referenziert werden (vor onMounted),
+      // clearSelection wird daher defensiv aufgerufen
+      searchTableRef.value?.clearSelection()
+    }
+  },
+  { deep: true },
+)
 const bulkDeleting = ref(false)
 const showConfirmBulkDelete = ref(false)
 const searchTableRef = ref(null)
@@ -651,35 +663,7 @@ async function doSearch(page = 1) {
 }
 
 async function doProductSearch(page) {
-  const params = {
-    search: searchInput.value.trim() || undefined,
-    search_mode: searchMode.value,
-    page,
-    per_page: 50,
-    sort: sortField.value,
-    order: sortOrder.value,
-  }
-
-  if (selectedCategories.value.length > 0) {
-    params.category_ids = selectedCategories.value
-    params.include_descendants = true
-    const h = hierarchies.value.find(h => h.id === selectedHierarchyId.value)
-    if (h?.hierarchy_type) params.hierarchy_type = h.hierarchy_type
-  }
-
-  if (selectedProductTypes.value.length > 0) {
-    params.product_type_ids = selectedProductTypes.value
-  }
-
-  if (selectedManufacturers.value.length > 0) {
-    params.manufacturer_ids = selectedManufacturers.value
-  }
-
-  if (statusFilter.value) {
-    params.status = statusFilter.value
-  }
-
-  // Auto-show columns for filtered attributes (if enabled)
+  // Auto-show columns für gefilterte Attribute (Seiten-Effekt, vor buildSearchParams)
   if (autoShowFilterColumns.value) {
     const filterAttrIds = collectFilterAttributeIds(attributeFilterGroups.value)
     for (const id of filterAttrIds) {
@@ -688,60 +672,28 @@ async function doProductSearch(page) {
         searchVisibleKeys.value.push(colKey)
       }
     }
-  }
-
-  // Attribute columns (for visible attribute columns in table)
-  const attrColumnIds = searchVisibleKeys.value
-    .filter(k => k.startsWith('attributes.'))
-    .map(k => k.replace('attributes.', ''))
-  if (attrColumnIds.length > 0) params.attribute_columns = attrColumnIds
-
-  // Build attribute filter groups (new query builder)
-  if (attributeFilterGroups.value.rules && attributeFilterGroups.value.rules.length > 0) {
-    params.attribute_filter_groups = attributeFilterGroups.value
-  }
-
-  // Legacy flat attribute filters (for backward compatibility with saved profiles)
-  const attrFilters = []
-  for (const attr of searchableAttributes.value) {
-    const val = attributeFilters.value[attr.id]
-    if (val === '' || val === null || val === undefined) continue
-
-    // Auto-show column for this filtered attribute (if enabled)
-    if (autoShowFilterColumns.value) {
+    for (const attr of searchableAttributes.value) {
+      const val = attributeFilters.value[attr.id]
+      if (val === '' || val === null || val === undefined) continue
       const legacyColKey = `attributes.${attr.id}`
       if (!searchVisibleKeys.value.includes(legacyColKey)) {
         searchVisibleKeys.value.push(legacyColKey)
       }
     }
-
-    const filter = { attribute_id: attr.id, value: val }
-
-    if (attr.data_type === 'String') {
-      filter.operator = 'like'
-    } else if (attr.data_type === 'Selection' || attr.data_type === 'Dictionary') {
-      filter.operator = 'eq'
-    } else if (attr.data_type === 'Flag') {
-      filter.operator = 'eq'
-      filter.value = val === 'true' || val === true ? 1 : 0
-    } else {
-      filter.operator = 'eq'
-    }
-
-    attrFilters.push(filter)
   }
 
-  if (attrFilters.length > 0) {
-    params.attribute_filters = attrFilters
-  }
+  // Alle Filter-Parameter aus der zentralen Funktion holen
+  const params = buildSearchParams()
+  params.page = page
+  params.per_page = 50
+  params.sort = sortField.value
+  params.order = sortOrder.value
 
-  // Missing translation filter
-  if (missingTranslationFilter.value.attribute_id && missingTranslationFilter.value.target_language) {
-    params.missing_translation = {
-      attribute_id: missingTranslationFilter.value.attribute_id,
-      target_language: missingTranslationFilter.value.target_language,
-    }
-  }
+  // Sichtbare Attribut-Spalten
+  const attrColumnIds = searchVisibleKeys.value
+    .filter(k => k.startsWith('attributes.'))
+    .map(k => k.replace('attributes.', ''))
+  if (attrColumnIds.length > 0) params.attribute_columns = attrColumnIds
 
   const { data } = await searchApi.search(params)
   results.value = data.data || []
