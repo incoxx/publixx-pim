@@ -21,15 +21,21 @@ class ApiDataCollector
     /**
      * Collect products and organize them into the group structure defined by the template.
      *
-     * @return array{grouped: array, total: int}
+     * @return array{grouped: array, total: int, total_unfiltered: int, offset: int, limit: int|null}
      */
-    public function collect(ApiTemplate $template, ?SearchProfile $searchProfile = null, ?int $limit = null): array
-    {
+    public function collect(
+        ApiTemplate $template,
+        ?SearchProfile $searchProfile = null,
+        ?int $limit = null,
+        int $offset = 0,
+    ): array {
         $query = $this->buildQuery($searchProfile);
+        $total = (clone $query)->count();
+
         $relations = $this->determineRelations($template->template_json);
 
-        $productQuery = $query->with($relations);
-        if ($limit) {
+        $productQuery = $query->with($relations)->skip($offset);
+        if ($limit !== null) {
             $productQuery->limit($limit);
         }
         $products = $productQuery->get();
@@ -37,8 +43,11 @@ class ApiDataCollector
         $grouped = $this->groupProducts($products, $template->template_json, $template->language ?? 'de');
 
         return [
-            'grouped' => $grouped,
-            'total' => $products->count(),
+            'grouped'  => $grouped,
+            'total'    => $total,
+            'count'    => $products->count(),
+            'offset'   => $offset,
+            'limit'    => $limit,
         ];
     }
 

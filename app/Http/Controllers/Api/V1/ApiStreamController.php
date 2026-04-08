@@ -33,7 +33,9 @@ class ApiStreamController extends Controller
         if ($template->output_format === 'graphql') {
             $response = $this->handleGraphql($request, $template);
         } else {
-            $response = $this->apiDesignerService->stream($template, $template->searchProfile);
+            $limit  = $request->integer('limit', 0) ?: null;   // 0 = kein Limit
+            $offset = max(0, $request->integer('offset', 0));
+            $response = $this->apiDesignerService->stream($template, $template->searchProfile, $limit, $offset);
         }
 
         $this->logAccess($template, $request, $startTime);

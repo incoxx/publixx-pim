@@ -29,32 +29,41 @@ class ApiDesignerService
             $data['grouped'],
             $template->template_json,
             $template->language ?? 'de',
+            $data,
         );
     }
 
     /**
      * Stream product data as JSON response.
      */
-    public function stream(ApiTemplate $template, ?SearchProfile $searchProfile = null): StreamedResponse
-    {
+    public function stream(
+        ApiTemplate $template,
+        ?SearchProfile $searchProfile = null,
+        ?int $limit = null,
+        int $offset = 0,
+    ): StreamedResponse {
         $searchProfile = $searchProfile ?? $template->searchProfile;
 
         Log::channel('export')->info("API-Stream gestartet: {$template->name}", [
             'template_id' => $template->id,
-            'slug' => $template->slug,
+            'slug'        => $template->slug,
+            'limit'       => $limit,
+            'offset'      => $offset,
         ]);
 
-        $data = $this->dataCollector->collect($template, $searchProfile);
+        $data = $this->dataCollector->collect($template, $searchProfile, $limit, $offset);
 
         $jsonString = $this->jsonWriter->buildString(
             $data['grouped'],
             $template->template_json,
             $template->language ?? 'de',
+            $data,
         );
 
         Log::channel('export')->info("API-Stream abgeschlossen: {$template->name}", [
             'template_id' => $template->id,
-            'products' => $data['total'],
+            'products'    => $data['count'],
+            'total'       => $data['total'],
         ]);
 
         return new StreamedResponse(function () use ($jsonString) {

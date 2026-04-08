@@ -15,22 +15,40 @@ class JsonWriter
 
     /**
      * Build the complete JSON structure from grouped data and template definition.
+     *
+     * @param array $pagination  Optional keys: total, count, offset, limit
      */
-    public function build(array $grouped, array $templateJson, string $language): array
+    public function build(array $grouped, array $templateJson, string $language, array $pagination = []): array
     {
-        return [
+        $count = $pagination['count'] ?? $this->countProducts($grouped);
+        $total = $pagination['total'] ?? $count;
+
+        $result = [
             'generated_at' => now()->toIso8601String(),
-            'total' => $this->countProducts($grouped),
-            'groups' => $this->buildGroups($grouped, $language),
+            'total'        => $total,
+            'count'        => $count,
         ];
+
+        if (isset($pagination['offset']) && $pagination['offset'] > 0) {
+            $result['offset'] = $pagination['offset'];
+        }
+        if (isset($pagination['limit'])) {
+            $result['limit'] = $pagination['limit'];
+        }
+
+        $result['groups'] = $this->buildGroups($grouped, $language);
+
+        return $result;
     }
 
     /**
      * Build JSON for a streamed response (outputs JSON string incrementally).
+     *
+     * @param array $pagination  Optional keys: total, count, offset, limit
      */
-    public function buildString(array $grouped, array $templateJson, string $language): string
+    public function buildString(array $grouped, array $templateJson, string $language, array $pagination = []): string
     {
-        $data = $this->build($grouped, $templateJson, $language);
+        $data = $this->build($grouped, $templateJson, $language, $pagination);
 
         return json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     }
