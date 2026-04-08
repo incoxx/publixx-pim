@@ -23,8 +23,22 @@ const groupedAttributes = computed(() => {
     if (!groups[groupName]) groups[groupName] = { label: groupName, items: [] }
     groups[groupName].items.push(attr)
   }
-  return Object.values(groups).sort((a, b) => a.label.localeCompare(b.label))
+  return Object.values(groups)
+    .sort((a, b) => a.label.localeCompare(b.label))
+    .map(group => ({
+      ...group,
+      items: group.items.slice().sort((a, b) =>
+        (a.name_de || a.technical_name).localeCompare(b.name_de || b.technical_name)
+      ),
+    }))
 })
+
+// Sorted flat list for the non-grouped case (< 10 attributes)
+const sortedAttributes = computed(() =>
+  props.attributes.slice().sort((a, b) =>
+    (a.name_de || a.technical_name).localeCompare(b.name_de || b.technical_name)
+  )
+)
 
 const operatorOptions = computed(() => {
   const dt = selectedAttribute.value?.data_type
@@ -153,7 +167,7 @@ function getInputType() {
         </optgroup>
       </template>
       <template v-else>
-        <option v-for="attr in attributes" :key="attr.id" :value="attr.id">
+        <option v-for="attr in sortedAttributes" :key="attr.id" :value="attr.id">
           {{ attr.name_de || attr.technical_name }}
         </option>
       </template>

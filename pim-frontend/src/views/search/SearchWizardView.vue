@@ -336,6 +336,7 @@ const searchTableRef = ref(null)
 const showXliffPanel = ref(false)
 const showReportPicker = ref(false)
 const showPdfPicker = ref(false)
+const showExportMenu = ref(false)
 const xliffSourceLang = ref('de')
 const xliffTargetLang = ref('en')
 const xliffExporting = ref(false)
@@ -855,6 +856,40 @@ function buildSearchParams() {
   if (selectedProductTypes.value.length > 0) params.product_type_ids = selectedProductTypes.value
   if (selectedManufacturers.value.length > 0) params.manufacturer_ids = selectedManufacturers.value
   if (statusFilter.value) params.status = statusFilter.value
+
+  // Attribut-Filter (Query Builder) — wird auch von selectAllPages() benötigt
+  if (attributeFilterGroups.value.rules && attributeFilterGroups.value.rules.length > 0) {
+    params.attribute_filter_groups = attributeFilterGroups.value
+  }
+
+  // Legacy Flat-Filter
+  const attrFilters = []
+  for (const attr of searchableAttributes.value) {
+    const val = attributeFilters.value[attr.id]
+    if (val === '' || val === null || val === undefined) continue
+    const filter = { attribute_id: attr.id, value: val }
+    if (attr.data_type === 'String') {
+      filter.operator = 'like'
+    } else if (attr.data_type === 'Selection' || attr.data_type === 'Dictionary') {
+      filter.operator = 'eq'
+    } else if (attr.data_type === 'Flag') {
+      filter.operator = 'eq'
+      filter.value = val === 'true' || val === true ? 1 : 0
+    } else {
+      filter.operator = 'eq'
+    }
+    attrFilters.push(filter)
+  }
+  if (attrFilters.length > 0) params.attribute_filters = attrFilters
+
+  // Übersetzungs-Filter
+  if (missingTranslationFilter.value.attribute_id && missingTranslationFilter.value.target_language) {
+    params.missing_translation = {
+      attribute_id: missingTranslationFilter.value.attribute_id,
+      target_language: missingTranslationFilter.value.target_language,
+    }
+  }
+
   return params
 }
 
@@ -1136,31 +1171,50 @@ const apiCallDisplay = computed(() => {
         <ListFilter class="w-4 h-4" :stroke-width="1.75" />
         <span class="ml-1.5 text-sm hidden sm:inline">Quick Lookup</span>
       </button>
-      <button
+      <!-- Export-Dropdown (Excel / Report / PDF) -->
+      <div
         v-if="searchCategory === 'products' && hasSearched && results.length > 0"
-        class="pim-btn pim-btn-secondary py-2 px-3 sm:py-3 sm:px-4"
-        :disabled="excelExporting"
-        @click="exportSearchExcel"
+        class="relative"
       >
-        <FileSpreadsheet class="w-4 h-4" :stroke-width="1.75" />
-        <span class="ml-1.5 text-sm hidden sm:inline">{{ excelExporting ? 'Export...' : 'Excel' }}</span>
-      </button>
-      <button
-        v-if="searchCategory === 'products' && hasSearched && results.length > 0"
-        class="pim-btn pim-btn-secondary py-2 px-3 sm:py-3 sm:px-4"
-        @click="showReportPicker = true"
-      >
-        <FileText class="w-4 h-4" :stroke-width="1.75" />
-        <span class="ml-1.5 text-sm hidden sm:inline">Report</span>
-      </button>
-      <button
-        v-if="searchCategory === 'products' && hasSearched && results.length > 0"
-        class="pim-btn pim-btn-secondary py-2 px-3 sm:py-3 sm:px-4"
-        @click="showPdfPicker = true"
-      >
-        <FileOutput class="w-4 h-4" :stroke-width="1.75" />
-        <span class="ml-1.5 text-sm hidden sm:inline">PDF</span>
-      </button>
+        <!-- transparenter Overlay zum Schließen bei Klick außerhalb -->
+        <div v-if="showExportMenu" class="fixed inset-0 z-40" @click="showExportMenu = false" />
+        <button
+          class="pim-btn pim-btn-secondary py-2 px-3 sm:py-3 sm:px-4 flex items-center gap-1"
+          :class="showExportMenu ? 'bg-[var(--color-accent-light)] text-[var(--color-accent)]' : ''"
+          @click="showExportMenu = !showExportMenu"
+        >
+          <Download class="w-4 h-4" :stroke-width="1.75" />
+          <span class="ml-1 text-sm hidden sm:inline">Export</span>
+          <ChevronDown class="w-3 h-3 ml-0.5" :stroke-width="2.5" />
+        </button>
+        <div
+          v-if="showExportMenu"
+          class="absolute right-0 top-full mt-1 z-50 pim-card shadow-lg min-w-[160px] py-1 border border-[var(--color-border)]"
+        >
+          <button
+            class="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm hover:bg-[var(--color-bg)] text-left transition-colors"
+            :disabled="excelExporting"
+            @click="exportSearchExcel(); showExportMenu = false"
+          >
+            <FileSpreadsheet class="w-4 h-4 shrink-0 text-[var(--color-text-secondary)]" :stroke-width="1.75" />
+            {{ excelExporting ? 'Exportiere…' : 'Excel' }}
+          </button>
+          <button
+            class="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm hover:bg-[var(--color-bg)] text-left transition-colors"
+            @click="showReportPicker = true; showExportMenu = false"
+          >
+            <FileText class="w-4 h-4 shrink-0 text-[var(--color-text-secondary)]" :stroke-width="1.75" />
+            Report
+          </button>
+          <button
+            class="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm hover:bg-[var(--color-bg)] text-left transition-colors"
+            @click="showPdfPicker = true; showExportMenu = false"
+          >
+            <FileOutput class="w-4 h-4 shrink-0 text-[var(--color-text-secondary)]" :stroke-width="1.75" />
+            PDF
+          </button>
+        </div>
+      </div>
       <button class="pim-btn pim-btn-primary py-2 px-4 sm:py-3 sm:px-6" @click="doSearch(1)" data-testid="btn-search">
         Suchen
       </button>
