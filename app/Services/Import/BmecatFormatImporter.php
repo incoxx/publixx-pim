@@ -1847,6 +1847,44 @@ class BmecatFormatImporter
         $this->sendBuildProgress('Hierarchie-Attribut-Zuordnungen', 0, $totalProducts);
         $this->checkCancelled();
         if ($hasTree && !empty($nodeAttributes)) {
+            // Übergreifende Attribute auf den höchsten Knoten hochziehen:
+            // Wenn ein Attribut sowohl in einem Elternknoten als auch in einem Kindknoten
+            // vorkommt, wird es nur dem Elternknoten zugeordnet. So reicht eine einzige
+            // Reihenfolge-Anpassung auf Root-Ebene für alle Produkte im Baum.
+            $parentOf = [];
+            foreach ($catalogGroupTree as $gid => $node) {
+                if (!empty($node['parent_id'])) {
+                    $parentOf[(string) $gid] = (string) $node['parent_id'];
+                }
+            }
+            if (!empty($parentOf)) {
+                // Invertierter Index: Attribut → alle Gruppen, die es haben
+                $attrToGroups = [];
+                foreach ($nodeAttributes as $gid => $attrs) {
+                    foreach (array_keys($attrs) as $attr) {
+                        $attrToGroups[$attr][(string) $gid] = true;
+                    }
+                }
+                // Für jedes (Kindknoten, Attribut): prüfen ob ein Vorfahre
+                // dasselbe Attribut hat → dann aus dem Kindknoten entfernen
+                foreach ($attrToGroups as $attr => $groupSet) {
+                    foreach (array_keys($groupSet) as $gid) {
+                        $current = $gid;
+                        while (isset($parentOf[$current])) {
+                            $current = $parentOf[$current];
+                            if (isset($groupSet[$current])) {
+                                // Vorfahre hat dieses Attribut → Kindknoten-Eintrag entfernen
+                                unset($nodeAttributes[$gid][$attr]);
+                                break;
+                            }
+                        }
+                    }
+                }
+                // Leere Knoten-Einträge bereinigen
+                $nodeAttributes = array_filter($nodeAttributes, fn($attrs) => !empty($attrs));
+                unset($attrToGroups, $parentOf);
+            }
+
             $hierarchyAttributeRows = [];
             $sort = 0;
             foreach ($nodeAttributes as $groupId => $attributes) {
