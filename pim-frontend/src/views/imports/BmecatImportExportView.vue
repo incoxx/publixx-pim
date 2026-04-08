@@ -498,8 +498,8 @@ const tabs = [
           </table>
         </div>
 
-        <p v-if="importResult.affected_product_ids?.length" class="text-[11px] text-[var(--color-text-tertiary)]">
-          {{ importResult.affected_product_ids.length }} Produkte betroffen
+        <p v-if="importResult.affected_product_count" class="text-[11px] text-[var(--color-text-tertiary)]">
+          {{ importResult.affected_product_count }} Produkte betroffen
         </p>
       </div>
     </template>
