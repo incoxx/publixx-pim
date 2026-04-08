@@ -66,6 +66,54 @@ class ExportProfileService
     }
 
     /**
+     * Führt den Export aus und schreibt das Ergebnis in eine Datei (für Async-Jobs).
+     *
+     * Gibt ['file_name' => ..., 'ext' => ..., 'output_path' => ...] zurück.
+     * Die Extension ist die tatsächlich erzeugte (CSV-Exports mit mehreren Sheets → zip).
+     */
+    public function executeToFile(ExportProfile $profile, string $outputBasePath): array
+    {
+        $products = $this->resolveProducts($profile);
+        $data = $this->buildExportData($profile, $products);
+        $resolvedFileName = $this->resolveFileName($profile, null);
+        $format = $profile->format ?? 'excel';
+
+        $response = match ($format) {
+            'csv'  => (new CsvWriter())->write($data, $resolvedFileName),
+            'json' => (new JsonWriter())->write($data, $resolvedFileName),
+            'xml'  => (new XmlWriter())->write($data, $resolvedFileName),
+            default => (new ExcelWriter())->write($data, $resolvedFileName),
+        };
+
+        // Tatsächliche Extension aus Content-Type ableiten
+        $ext = match ($format) {
+            'csv'  => 'csv',
+            'json' => 'json',
+            'xml'  => 'xml',
+            default => 'xlsx',
+        };
+
+        $contentType = $response->headers->get('Content-Type', '');
+        if (str_contains($contentType, 'zip')) {
+            $ext = 'zip';
+        }
+
+        $outputPath = $outputBasePath . '.' . $ext;
+
+        ob_start();
+        $response->sendContent();
+        $content = ob_get_clean();
+
+        file_put_contents($outputPath, $content);
+
+        return [
+            'file_name'   => $resolvedFileName,
+            'ext'         => $ext,
+            'output_path' => $outputPath,
+        ];
+    }
+
+    /**
      * Gibt die Anzahl der Produkte zurück, die der Export treffen würde.
      */
     public function count(ExportProfile $profile): int

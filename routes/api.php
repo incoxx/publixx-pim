@@ -622,8 +622,13 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // =====================================================================
     // Export Profiles (Exportprofile)
     // =====================================================================
+    // Statische Async-Routen VOR apiResource, damit keine Konflikte mit {id}-Pattern
+    Route::get('export-profiles/progress/{exportKey}', [ExportProfileController::class, 'exportProgress'])->where('exportKey', '[a-z0-9_]{10,40}');
+    Route::post('export-profiles/cancel/{exportKey}', [ExportProfileController::class, 'cancelExport'])->where('exportKey', '[a-z0-9_]{10,40}');
+    Route::get('export-profiles/download/{exportKey}', [ExportProfileController::class, 'downloadExport'])->where('exportKey', '[a-z0-9_]{10,40}');
     Route::apiResource('export-profiles', ExportProfileController::class)->except(['show']);
     Route::post('export-profiles/{export_profile}/execute', [ExportProfileController::class, 'execute']);
+    Route::post('export-profiles/{export_profile}/execute-async', [ExportProfileController::class, 'executeAsync']);
     Route::get('export-profiles/{export_profile}/stream', [ExportProfileController::class, 'stream']);
 
     // =====================================================================
@@ -687,6 +692,11 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
         Route::get('/', [JsonExportImportController::class, 'export']);
         Route::post('/', [JsonExportImportController::class, 'exportFiltered']);
         Route::get('sections', [JsonExportImportController::class, 'sections']);
+        // Async-Export
+        Route::post('start', [JsonExportImportController::class, 'startAsync']);
+        Route::get('progress/{exportKey}', [JsonExportImportController::class, 'exportProgress'])->where('exportKey', '[a-z0-9_]{10,40}');
+        Route::post('cancel/{exportKey}', [JsonExportImportController::class, 'cancelExport'])->where('exportKey', '[a-z0-9_]{10,40}');
+        Route::get('download/{exportKey}', [JsonExportImportController::class, 'downloadExport'])->where('exportKey', '[a-z0-9_]{10,40}');
     });
     Route::prefix('json-import')->group(function () {
         Route::post('/', [JsonExportImportController::class, 'import']);

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import {
   Download, FileSpreadsheet, FileJson, FileCode, FileText,
   Package, Tag, DollarSign, Link, Image, Layers,
@@ -13,12 +13,17 @@ import searchApi from '@/api/search'
 import ProfileSelector from '@/components/shared/ProfileSelector.vue'
 import SearchFilterPanel from '@/components/shared/SearchFilterPanel.vue'
 import StreamUrlBox from '@/components/shared/StreamUrlBox.vue'
+import AsyncExportProgress from '@/components/shared/AsyncExportProgress.vue'
 
 // --- State ---
 const activeTab = ref('filter') // 'filter' | 'data' | 'channel'
 const error = ref('')
-const exporting = ref(false)
 const exportingFormat = ref(false)
+
+// --- Async Export ---
+const exportKey = ref(null)
+const exportProgress = ref(null)
+let pollTimeout = null
 
 // Filter
 const searchProfiles = ref([])
@@ -274,20 +279,78 @@ async function runExport() {
     }
   }
 
-  exporting.value = true
   error.value = ''
   try {
-    const response = await exportProfilesApi.execute(selectedExportProfileId.value, {
-      file_name: fileName.value || undefined,
+    const { data } = await exportProfilesApi.executeAsync(selectedExportProfileId.value, {
       zip: zipExport.value || undefined,
     })
+    exportKey.value = (data.data || data).export_key
+    exportProgress.value = { status: 'queued', processed: 0, total: 0, percent: 0 }
+    pollExportProgress()
+  } catch (e) {
+    error.value = e.response?.data?.message || e.response?.data?.title || 'Export konnte nicht gestartet werden'
+  }
+}
+
+function pollExportProgress() {
+  if (!exportKey.value) return
+
+  pollTimeout = setTimeout(async () => {
+    pollTimeout = null
+    if (!exportKey.value) return
+
+    try {
+      const { data } = await exportProfilesApi.exportProgress(exportKey.value)
+      exportProgress.value = data.data || data
+
+      const status = exportProgress.value.status
+      if (status === 'completed') {
+        await downloadExportResult()
+      } else if (status === 'failed' || status === 'cancelled') {
+        // Modal bleibt offen
+      } else {
+        pollExportProgress()
+      }
+    } catch {
+      exportProgress.value = { ...exportProgress.value, status: 'failed', error: 'Verbindungsfehler' }
+    }
+  }, 1500)
+}
+
+async function downloadExportResult() {
+  if (!exportKey.value) return
+  try {
+    const response = await exportProfilesApi.downloadExport(exportKey.value)
     const ext = { excel: 'xlsx', csv: 'csv', json: 'json', xml: 'xml' }[format.value] || 'xlsx'
     const name = fileName.value || `export-${new Date().toISOString().slice(0, 10)}`
     triggerDownload(new Blob([response.data]), zipExport.value ? `${name}.zip` : `${name}.${ext}`)
-  } catch (e) {
-    error.value = e.response?.data?.title || 'Export fehlgeschlagen'
-  } finally { exporting.value = false }
+  } catch {
+    exportProgress.value = { ...exportProgress.value, status: 'failed', error: 'Download fehlgeschlagen' }
+  }
 }
+
+async function handleCancelExport() {
+  if (!exportKey.value) return
+  try {
+    await exportProfilesApi.cancelExport(exportKey.value)
+    exportProgress.value = { ...exportProgress.value, status: 'cancelling' }
+  } catch {
+    // ignore
+  }
+}
+
+function handleDismissExport() {
+  if (pollTimeout) {
+    clearTimeout(pollTimeout)
+    pollTimeout = null
+  }
+  exportKey.value = null
+  exportProgress.value = null
+}
+
+onUnmounted(() => {
+  if (pollTimeout) clearTimeout(pollTimeout)
+})
 
 async function exportImportFormat() {
   exportingFormat.value = true
@@ -503,13 +566,22 @@ const streamUrl = computed(() => {
     <div class="flex gap-3">
       <button
         class="pim-btn pim-btn-primary"
-        :disabled="exporting"
+        :disabled="!!exportKey"
         @click="runExport"
       >
         <Download class="w-4 h-4" :stroke-width="2" />
-        {{ exporting ? 'Exportieren...' : 'Export starten' }}
+        Export starten
       </button>
     </div>
+
+    <!-- Async Progress Modal -->
+    <AsyncExportProgress
+      v-if="exportProgress"
+      :progress="exportProgress"
+      title="Export"
+      @cancel="handleCancelExport"
+      @dismiss="handleDismissExport"
+    />
 
     <!-- REST/CLI Hinweis -->
     <div class="pim-card p-4 bg-[var(--color-bg)]">

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import {
   FileJson, Download, Upload, CheckCircle, XCircle, Loader2,
   AlertTriangle, ChevronDown, ChevronUp, X, FileUp,
@@ -7,14 +7,19 @@ import {
 import jsonExportImportApi from '@/api/jsonExportImport'
 import SearchFilterPanel from '@/components/shared/SearchFilterPanel.vue'
 import ProfileSelector from '@/components/shared/ProfileSelector.vue'
+import AsyncExportProgress from '@/components/shared/AsyncExportProgress.vue'
 import searchProfilesApi from '@/api/searchProfiles'
 
 // --- State ---
 const activeTab = ref('export') // 'export' | 'import'
 const error = ref('')
 
-// --- Export ---
-const exporting = ref(false)
+// --- Async Export ---
+const exportKey = ref(null)
+const exportProgress = ref(null)
+let pollTimeout = null
+
+// --- Export (UI) ---
 const availableSections = ref([])
 const selectedSections = ref([])
 const filters = ref({
@@ -47,20 +52,56 @@ onMounted(async () => {
   } catch (e) { /* ignore */ }
 })
 
-// --- Export Actions ---
+// --- Async Export Actions ---
 async function runExport() {
-  exporting.value = true
   error.value = ''
   try {
     const activeFilters = Object.fromEntries(
       Object.entries(filters.value).filter(([, v]) => v)
     )
 
-    const response = await jsonExportImportApi.exportFiltered({
+    const { data } = await jsonExportImportApi.startAsync({
       sections: selectedSections.value.length > 0 ? selectedSections.value : undefined,
       filter: Object.keys(activeFilters).length > 0 ? activeFilters : undefined,
     })
 
+    exportKey.value = (data.data || data).export_key
+    exportProgress.value = { status: 'queued', processed: 0, total: 0, percent: 0 }
+    pollExportProgress()
+  } catch (e) {
+    error.value = e.response?.data?.message || 'Export konnte nicht gestartet werden'
+  }
+}
+
+function pollExportProgress() {
+  if (!exportKey.value) return
+
+  pollTimeout = setTimeout(async () => {
+    pollTimeout = null
+    if (!exportKey.value) return
+
+    try {
+      const { data } = await jsonExportImportApi.exportProgress(exportKey.value)
+      exportProgress.value = data.data || data
+
+      const status = exportProgress.value.status
+      if (status === 'completed') {
+        await downloadExportResult()
+      } else if (status === 'failed' || status === 'cancelled') {
+        // Modal bleibt offen mit Fehlermeldung / Abbruchmeldung
+      } else {
+        pollExportProgress()
+      }
+    } catch {
+      exportProgress.value = { ...exportProgress.value, status: 'failed', error: 'Verbindungsfehler' }
+    }
+  }, 1500)
+}
+
+async function downloadExportResult() {
+  if (!exportKey.value) return
+  try {
+    const response = await jsonExportImportApi.downloadExport(exportKey.value)
     const blob = new Blob([response.data], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -68,12 +109,33 @@ async function runExport() {
     a.download = `pim-export-${new Date().toISOString().slice(0, 10)}.json`
     a.click()
     setTimeout(() => URL.revokeObjectURL(url), 200)
-  } catch (e) {
-    error.value = e.response?.data?.message || 'Export fehlgeschlagen'
-  } finally {
-    exporting.value = false
+  } catch {
+    exportProgress.value = { ...exportProgress.value, status: 'failed', error: 'Download fehlgeschlagen' }
   }
 }
+
+async function handleCancelExport() {
+  if (!exportKey.value) return
+  try {
+    await jsonExportImportApi.cancelExport(exportKey.value)
+    exportProgress.value = { ...exportProgress.value, status: 'cancelling' }
+  } catch {
+    // ignore
+  }
+}
+
+function handleDismissExport() {
+  if (pollTimeout) {
+    clearTimeout(pollTimeout)
+    pollTimeout = null
+  }
+  exportKey.value = null
+  exportProgress.value = null
+}
+
+onUnmounted(() => {
+  if (pollTimeout) clearTimeout(pollTimeout)
+})
 
 function toggleSection(section) {
   const idx = selectedSections.value.indexOf(section)
@@ -300,14 +362,22 @@ const tabs = [
       <!-- Export Button -->
       <button
         class="pim-btn pim-btn-primary"
-        :disabled="exporting"
+        :disabled="!!exportKey"
         @click="runExport"
       >
-        <Loader2 v-if="exporting" class="w-4 h-4 animate-spin" />
-        <Download v-else class="w-4 h-4" :stroke-width="2" />
-        {{ exporting ? 'Exportiere...' : 'JSON Export starten' }}
+        <Download class="w-4 h-4" :stroke-width="2" />
+        JSON Export starten
       </button>
     </template>
+
+    <!-- Async Progress Modal -->
+    <AsyncExportProgress
+      v-if="exportProgress"
+      :progress="exportProgress"
+      title="JSON Export"
+      @cancel="handleCancelExport"
+      @dismiss="handleDismissExport"
+    />
 
     <!-- ═══════ IMPORT TAB ═══════ -->
     <template v-if="activeTab === 'import'">

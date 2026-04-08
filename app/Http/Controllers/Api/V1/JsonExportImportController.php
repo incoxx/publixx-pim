@@ -4,11 +4,15 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Jobs\AsyncJsonExportJob;
 use App\Services\Export\JsonFormatExporter;
 use App\Services\Import\JsonFormatImporter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
@@ -31,10 +35,116 @@ class JsonExportImportController extends Controller
     ) {}
 
     /**
+     * POST /api/v1/json-export/start — Async-Export starten.
+     * Gibt sofort {export_key} zurück; der Job läuft im Hintergrund.
+     */
+    public function startAsync(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'sections'               => 'sometimes|array',
+            'sections.*'             => 'string',
+            'filter'                 => 'sometimes|array',
+            'filter.status'          => 'sometimes|string|in:draft,active,inactive',
+            'filter.product_type'    => 'sometimes|string',
+            'filter.search_text'     => 'sometimes|string',
+            'filter.updated_after'   => 'sometimes|date',
+            'filter.skus'            => 'sometimes|array',
+            'filter.skus.*'          => 'string',
+            'filter.category_ids'    => 'sometimes|array',
+            'filter.category_ids.*'  => 'string',
+        ]);
+
+        $sections  = $validated['sections'] ?? [];
+        $filters   = $validated['filter'] ?? [];
+        $exportKey = 'json_' . Str::random(16);
+        $userId    = $request->user()?->id;
+        $fileName  = 'pim-export-' . now()->format('Y-m-d_His') . '.json';
+
+        AsyncJsonExportJob::dispatch($exportKey, $sections, $filters, $fileName);
+
+        // Owner-ID für Auth-Check bei Progress/Download speichern
+        Cache::put(AsyncJsonExportJob::cacheKey($exportKey) . ':owner', $userId, 3600);
+
+        return response()->json([
+            'data' => [
+                'export_key' => $exportKey,
+                'status'     => 'queued',
+            ],
+        ]);
+    }
+
+    /**
+     * GET /api/v1/json-export/progress/{exportKey} — Fortschritt abfragen.
+     */
+    public function exportProgress(Request $request, string $exportKey): JsonResponse
+    {
+        $this->authorizeExportAccess($request, $exportKey);
+
+        $progress = Cache::get(AsyncJsonExportJob::cacheKey($exportKey));
+
+        if (!$progress) {
+            return response()->json([
+                'data' => ['status' => 'queued', 'processed' => 0, 'total' => 0, 'percent' => 0],
+            ]);
+        }
+
+        return response()->json(['data' => $progress]);
+    }
+
+    /**
+     * POST /api/v1/json-export/cancel/{exportKey} — Async-Export abbrechen.
+     */
+    public function cancelExport(Request $request, string $exportKey): JsonResponse
+    {
+        $this->authorizeExportAccess($request, $exportKey);
+
+        AsyncJsonExportJob::cancel($exportKey);
+
+        return response()->json(['data' => ['status' => 'cancelling']]);
+    }
+
+    /**
+     * GET /api/v1/json-export/download/{exportKey} — Fertige Datei herunterladen.
+     */
+    public function downloadExport(Request $request, string $exportKey): BinaryFileResponse|JsonResponse
+    {
+        $this->authorizeExportAccess($request, $exportKey);
+
+        $progress = Cache::get(AsyncJsonExportJob::cacheKey($exportKey));
+
+        if (!$progress || $progress['status'] !== 'completed') {
+            return response()->json(['error' => 'Export nicht bereit.'], 404);
+        }
+
+        $path = $progress['output_path'] ?? null;
+        if (!$path || !file_exists($path)) {
+            return response()->json(['error' => 'Export-Datei nicht gefunden.'], 404);
+        }
+
+        // Path-Traversal verhindern
+        $realPath   = realpath($path);
+        $allowedDir = storage_path('app/exports');
+        if (!$realPath || !str_starts_with($realPath, $allowedDir)) {
+            return response()->json(['error' => 'Ungültiger Export-Pfad.'], 403);
+        }
+
+        $fileName = $progress['file_name'] ?? 'pim-export.json';
+
+        // Cache aufräumen
+        Cache::forget(AsyncJsonExportJob::cacheKey($exportKey));
+        Cache::forget(AsyncJsonExportJob::cacheKey($exportKey) . ':owner');
+
+        return response()->download($path, $fileName, [
+            'Content-Type' => 'application/json; charset=utf-8',
+        ])->deleteFileAfterSend(true);
+    }
+
+    /**
      * GET /api/v1/json-export — Vollexport aller PIM-Daten als JSON-Download.
      */
     public function export(Request $request): StreamedResponse
     {
+        set_time_limit(0);
         $sections = $request->input('sections', []);
         $filters = $request->input('filter', []);
 
@@ -57,6 +167,7 @@ class JsonExportImportController extends Controller
      */
     public function exportFiltered(Request $request): StreamedResponse|JsonResponse
     {
+        set_time_limit(0);
         $validated = $request->validate([
             'sections' => 'sometimes|array',
             'sections.*' => 'string',
@@ -178,5 +289,15 @@ class JsonExportImportController extends Controller
         $result = $this->importer->validate($data);
 
         return response()->json($result);
+    }
+
+    private function authorizeExportAccess(Request $request, string $exportKey): void
+    {
+        $ownerId = Cache::get(AsyncJsonExportJob::cacheKey($exportKey) . ':owner');
+        $userId  = $request->user()?->id;
+
+        if ($ownerId === null || $userId !== $ownerId) {
+            abort(403, 'Kein Zugriff auf diesen Export.');
+        }
     }
 }

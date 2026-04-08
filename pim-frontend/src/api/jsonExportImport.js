@@ -29,6 +29,34 @@ export default {
     return client.get('/json-export/sections')
   },
 
+  /**
+   * Async-Export starten — gibt sofort {export_key} zurück.
+   */
+  startAsync(data) {
+    return client.post('/json-export/start', data)
+  },
+
+  /**
+   * Fortschritt eines laufenden Async-Exports abfragen.
+   */
+  exportProgress(exportKey) {
+    return client.get(`/json-export/progress/${exportKey}`)
+  },
+
+  /**
+   * Laufenden Async-Export abbrechen.
+   */
+  cancelExport(exportKey) {
+    return client.post(`/json-export/cancel/${exportKey}`)
+  },
+
+  /**
+   * Fertige Export-Datei herunterladen.
+   */
+  downloadExport(exportKey) {
+    return client.get(`/json-export/download/${exportKey}`, { responseType: 'blob' })
+  },
+
   // --- JSON Import ---
 
   /**
