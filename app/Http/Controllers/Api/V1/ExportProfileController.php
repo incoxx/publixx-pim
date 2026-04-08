@@ -129,7 +129,7 @@ class ExportProfileController extends Controller
         ]);
 
         $zip       = $validated['zip'] ?? false;
-        $exportKey = 'profile_' . Str::random(16);
+        $exportKey = 'profile_' . strtolower(Str::random(16));
         $userId    = $request->user()?->id;
 
         AsyncProfileExportJob::dispatch($exportKey, $exportProfile->id, $zip);
