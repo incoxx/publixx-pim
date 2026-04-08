@@ -3,7 +3,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useLocaleStore } from '@/stores/locale'
 import { useAuthStore } from '@/stores/auth'
-import { Globe, Palette, AlertTriangle, Server, RotateCcw, CheckCircle, XCircle, Loader2, GitBranch, Database, Upload, Trash2, Save, Filter, LayoutGrid, Columns3, Image, Settings2, Paintbrush, BookOpen, GripVertical, Plus, X, Shield, Key, Eye, Monitor, RefreshCw, FileCode2, Activity, HardDrive, Cpu, Check, Zap, Play, Clock, Ban, RotateCw, Power, Terminal, WifiOff } from 'lucide-vue-next'
+import { Globe, Palette, AlertTriangle, Server, RotateCcw, CheckCircle, XCircle, Loader2, GitBranch, Database, Upload, Trash2, Save, Filter, LayoutGrid, Columns3, Image, Settings2, Paintbrush, BookOpen, GripVertical, Plus, X, Shield, Key, Eye, Monitor, RefreshCw, FileCode2, Activity, HardDrive, Cpu, Check, Zap, Play, Clock, Ban, RotateCw, Power, Terminal, WifiOff, ChevronDown, Search } from 'lucide-vue-next'
 import { useAppearanceStore, PRESETS, SECTION_ICON_COLORS } from '@/stores/appearance'
 import { useLicenseStore } from '@/stores/license'
 import adminApi from '@/api/admin'
@@ -1577,6 +1577,45 @@ async function triggerRollback() {
 }
 
 // Lazy-load data when switching to env/system tabs
+// ── PHP Info ─────────────────────────────────────────────────────────────────
+const phpInfoSections = ref([])
+const phpInfoLoading = ref(false)
+const phpInfoSearch = ref('')
+const phpInfoCollapsed = ref({})
+
+async function loadPhpInfo() {
+  phpInfoLoading.value = true
+  try {
+    const res = await adminApi.getPhpInfo()
+    phpInfoSections.value = res.data.sections
+    phpInfoCollapsed.value = {}
+  } catch (e) {
+    console.error('phpInfo-Fehler:', e)
+  } finally {
+    phpInfoLoading.value = false
+  }
+}
+
+function togglePhpInfoSection(idx) {
+  phpInfoCollapsed.value = { ...phpInfoCollapsed.value, [idx]: !phpInfoCollapsed.value[idx] }
+}
+
+const filteredPhpInfoSections = computed(() => {
+  const q = phpInfoSearch.value.trim().toLowerCase()
+  if (!q) return phpInfoSections.value
+  return phpInfoSections.value
+    .map((section, idx) => ({
+      ...section,
+      _origIdx: idx,
+      entries: section.entries.filter(
+        e => e.key.toLowerCase().includes(q) ||
+             e.local.toLowerCase().includes(q) ||
+             e.master.toLowerCase().includes(q)
+      ),
+    }))
+    .filter(s => s.title.toLowerCase().includes(q) || s.entries.length > 0)
+})
+
 watch(activeMainTab, (tab) => {
   if (tab === 'appearance') {
     appearanceForm.value = { ...appearanceStore.settings }
@@ -1591,6 +1630,7 @@ watch(activeMainTab, (tab) => {
     if (websiteProfiles.value.length === 0) loadWebsiteProfiles()
     loadOfflineCatalogStatus()
   }
+  if (tab === 'phpinfo' && phpInfoSections.value.length === 0) loadPhpInfo()
 })
 
 // Reload attributes and hierarchy nodes when hierarchy selection changes
@@ -1645,6 +1685,7 @@ onUnmounted(() => {
           ...(isAdmin ? [{ key: 'processes', label: 'Prozesse', icon: Zap }] : []),
           ...(isAdmin ? [{ key: 'system', label: 'System', icon: Activity }] : []),
           ...(isAdmin ? [{ key: 'license', label: 'Lizenz', icon: Key }] : []),
+          ...(isAdmin ? [{ key: 'phpinfo', label: 'PHP Info', icon: Cpu }] : []),
         ]"
         :key="tab.key"
         class="flex items-center gap-2 px-3 sm:px-4 py-2.5 text-[13px] sm:text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap shrink-0"
@@ -4172,6 +4213,101 @@ onUnmounted(() => {
     </div>
 
     </template><!-- end TAB: Lizenz -->
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- TAB: PHP INFO                                                       -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <template v-if="activeMainTab === 'phpinfo'">
+
+    <!-- Suchleiste -->
+    <div class="pim-card p-3 sm:p-4 flex items-center gap-3">
+      <Search class="w-4 h-4 text-[var(--color-text-tertiary)] shrink-0" :stroke-width="2" />
+      <input
+        v-model="phpInfoSearch"
+        type="text"
+        class="pim-input flex-1"
+        placeholder="Suche in PHP Info (Direktiven, Werte)…"
+      />
+      <button
+        v-if="phpInfoSearch"
+        class="text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] transition-colors"
+        @click="phpInfoSearch = ''"
+      >
+        <X class="w-4 h-4" />
+      </button>
+    </div>
+
+    <!-- Lade-Spinner -->
+    <div v-if="phpInfoLoading" class="flex items-center justify-center py-12 gap-2">
+      <Loader2 class="w-5 h-5 animate-spin text-[var(--color-accent)]" />
+      <span class="text-sm text-[var(--color-text-secondary)]">Lade PHP Info…</span>
+    </div>
+
+    <!-- Sektionen -->
+    <template v-else>
+      <div
+        v-for="(section, idx) in filteredPhpInfoSections"
+        :key="section.title"
+        class="pim-card overflow-hidden"
+      >
+        <!-- Sektions-Header -->
+        <button
+          class="w-full flex items-center justify-between px-4 sm:px-6 py-3 text-left hover:bg-[var(--color-bg)] transition-colors"
+          @click="togglePhpInfoSection(section._origIdx ?? idx)"
+        >
+          <div class="flex items-center gap-2">
+            <span class="text-sm font-semibold text-[var(--color-text-primary)]">{{ section.title }}</span>
+            <span class="text-[11px] text-[var(--color-text-tertiary)] bg-[var(--color-bg)] border border-[var(--color-border)] px-1.5 py-0.5 rounded">
+              {{ section.entries.length }}
+            </span>
+          </div>
+          <ChevronDown
+            class="w-4 h-4 text-[var(--color-text-tertiary)] transition-transform duration-200"
+            :class="phpInfoCollapsed[section._origIdx ?? idx] ? '-rotate-90' : ''"
+            :stroke-width="2"
+          />
+        </button>
+
+        <!-- Tabelle -->
+        <div v-show="!phpInfoCollapsed[section._origIdx ?? idx]">
+          <div class="border-t border-[var(--color-border)] overflow-x-auto">
+            <table class="w-full text-xs">
+              <thead>
+                <tr class="bg-[var(--color-bg)]">
+                  <th class="text-left px-4 py-2 font-medium text-[var(--color-text-tertiary)] w-2/5 whitespace-nowrap">Direktive</th>
+                  <th class="text-left px-4 py-2 font-medium text-[var(--color-text-tertiary)] whitespace-nowrap">Lokaler Wert</th>
+                  <th class="text-left px-4 py-2 font-medium text-[var(--color-text-tertiary)] whitespace-nowrap">Master-Wert</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="entry in section.entries"
+                  :key="entry.key"
+                  class="border-t border-[var(--color-border)] hover:bg-[var(--color-bg)] transition-colors"
+                >
+                  <td class="px-4 py-1.5 font-mono text-[var(--color-text-secondary)] break-all">{{ entry.key }}</td>
+                  <td class="px-4 py-1.5 font-mono break-all">
+                    <span :class="entry.local === 'enabled' ? 'text-[var(--color-success,#22c55e)]' : 'text-[var(--color-text-primary)]'">
+                      {{ entry.local || '—' }}
+                    </span>
+                  </td>
+                  <td class="px-4 py-1.5 font-mono text-[var(--color-text-tertiary)] break-all">
+                    {{ entry.master || '—' }}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Kein Ergebnis -->
+      <div v-if="filteredPhpInfoSections.length === 0 && phpInfoSearch" class="pim-card p-8 text-center">
+        <p class="text-sm text-[var(--color-text-tertiary)]">Keine Einträge für „{{ phpInfoSearch }}" gefunden.</p>
+      </div>
+    </template>
+
+    </template><!-- end TAB: PHP Info -->
 
   </div>
 </template>

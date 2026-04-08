@@ -793,6 +793,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::post('admin/restart-apache', [SystemInfoController::class, 'restartApache']);
     Route::post('admin/restart-horizon', [SystemInfoController::class, 'restartHorizon']);
     Route::get('admin/system-processes', [SystemInfoController::class, 'systemProcesses']);
+    Route::get('admin/php-info', [SystemInfoController::class, 'phpInfo']);
     Route::post('admin/pdf/batch-process', [PdfController::class, 'batchProcess']);
 
     // =====================================================================
