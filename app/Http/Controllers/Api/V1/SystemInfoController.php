@@ -802,65 +802,82 @@ class SystemInfoController extends Controller
         $sections[] = [
             'title' => 'Allgemein',
             'entries' => [
-                ['key' => 'PHP Version',   'local' => PHP_VERSION,          'master' => ''],
-                ['key' => 'System',        'local' => php_uname(),           'master' => ''],
-                ['key' => 'SAPI',          'local' => PHP_SAPI,              'master' => ''],
-                ['key' => 'PHP Binary',    'local' => PHP_BINARY,            'master' => ''],
-                ['key' => 'PHP OS',        'local' => PHP_OS,                'master' => ''],
-                ['key' => 'PHP OS Family', 'local' => PHP_OS_FAMILY,         'master' => ''],
-                ['key' => 'Zend Version',  'local' => zend_version(),        'master' => ''],
-                ['key' => 'PHP_INT_SIZE',  'local' => (string) PHP_INT_SIZE, 'master' => ''],
-                ['key' => 'PHP_INT_MAX',   'local' => (string) PHP_INT_MAX,  'master' => ''],
+                ['key' => 'PHP Version',   'local' => PHP_VERSION,                                          'master' => ''],
+                ['key' => 'System',        'local' => function_exists('php_uname') ? php_uname() : PHP_OS,  'master' => ''],
+                ['key' => 'SAPI',          'local' => PHP_SAPI,                                             'master' => ''],
+                ['key' => 'PHP Binary',    'local' => PHP_BINARY,                                           'master' => ''],
+                ['key' => 'PHP OS',        'local' => PHP_OS,                                               'master' => ''],
+                ['key' => 'PHP OS Family', 'local' => PHP_OS_FAMILY,                                        'master' => ''],
+                ['key' => 'Zend Version',  'local' => function_exists('zend_version') ? zend_version() : '', 'master' => ''],
+                ['key' => 'PHP_INT_SIZE',  'local' => (string) PHP_INT_SIZE,                                'master' => ''],
+                ['key' => 'PHP_INT_MAX',   'local' => (string) PHP_INT_MAX,                                 'master' => ''],
             ],
         ];
 
-        // ── Sektion 2: Core-INI-Konfiguration ────────────────────────────────
-        $coreIni = ini_get_all('Core', true) ?: [];
-        $entries = [];
-        foreach ($coreIni as $key => $vals) {
-            $entries[] = [
-                'key'    => $key,
-                'local'  => (string) ($vals['local_value']  ?? ''),
-                'master' => (string) ($vals['global_value'] ?? ''),
+        // ── Sektion 2: INI-Konfiguration ─────────────────────────────────────
+        // ini_get_all(null) liefert ALLE INI-Werte ohne Extension-Filter.
+        // ini_get_all('ExtName') wirft in manchen PHP-Builds eine Exception
+        // wenn der Name nicht registriert ist — daher nie mit Extension-Namen aufrufen.
+        if (function_exists('ini_get_all')) {
+            try {
+                $allIni = ini_get_all(null, true) ?: [];
+            } catch (\Throwable) {
+                $allIni = [];
+            }
+
+            if ($allIni) {
+                $entries = [];
+                foreach ($allIni as $key => $vals) {
+                    if (!is_array($vals)) {
+                        continue;
+                    }
+                    $entries[] = [
+                        'key'    => $key,
+                        'local'  => (string) ($vals['local_value']  ?? ''),
+                        'master' => (string) ($vals['global_value'] ?? ''),
+                    ];
+                }
+                if ($entries) {
+                    $sections[] = ['title' => 'Konfiguration', 'entries' => $entries];
+                }
+            }
+        } else {
+            // Fallback: einzelne ini_get()-Aufrufe für die wichtigsten Direktiven
+            $importantKeys = [
+                'memory_limit', 'max_execution_time', 'upload_max_filesize',
+                'post_max_size', 'max_input_vars', 'error_reporting',
+                'display_errors', 'log_errors', 'error_log', 'default_charset',
+                'date.timezone', 'session.save_handler', 'session.gc_maxlifetime',
+                'opcache.enable', 'opcache.memory_consumption',
             ];
-        }
-        if ($entries) {
-            $sections[] = ['title' => 'Core', 'entries' => $entries];
+            $fallbackEntries = [];
+            foreach ($importantKeys as $k) {
+                $val = ini_get($k);
+                if ($val !== false) {
+                    $fallbackEntries[] = ['key' => $k, 'local' => (string) $val, 'master' => ''];
+                }
+            }
+            if ($fallbackEntries) {
+                $sections[] = ['title' => 'Konfiguration (Auszug)', 'entries' => $fallbackEntries];
+            }
         }
 
-        // ── Sektion 3: Extensions mit eigenen INI-Einstellungen ───────────────
-        $extensions = get_loaded_extensions();
-        sort($extensions);
-
-        foreach ($extensions as $ext) {
-            if ($ext === 'Core') {
-                continue; // Bereits oben behandelt
-            }
-            $extIni = ini_get_all($ext, true) ?: [];
-            if (empty($extIni)) {
-                continue; // Nur Extensions mit eigenen INI-Werten anzeigen
-            }
-            $extEntries = [];
-            foreach ($extIni as $key => $vals) {
-                $extEntries[] = [
-                    'key'    => $key,
-                    'local'  => (string) ($vals['local_value']  ?? ''),
-                    'master' => (string) ($vals['global_value'] ?? ''),
+        // ── Sektion 3: Geladene Extensions ───────────────────────────────────
+        if (function_exists('get_loaded_extensions')) {
+            $extensions = get_loaded_extensions();
+            sort($extensions);
+            $extList = [];
+            foreach ($extensions as $ext) {
+                $extList[] = [
+                    'key'    => $ext,
+                    'local'  => 'enabled',
+                    'master' => phpversion($ext) ?: '',
                 ];
             }
-            $sections[] = ['title' => ucfirst($ext), 'entries' => $extEntries];
+            if ($extList) {
+                $sections[] = ['title' => 'Geladene Extensions', 'entries' => $extList];
+            }
         }
-
-        // ── Sektion 4: Geladene Extensions (Übersicht) ───────────────────────
-        $extList = [];
-        foreach ($extensions as $ext) {
-            $extList[] = [
-                'key'    => $ext,
-                'local'  => 'enabled',
-                'master' => phpversion($ext) ?: '',
-            ];
-        }
-        $sections[] = ['title' => 'Geladene Extensions', 'entries' => $extList];
 
         return response()->json(['sections' => $sections]);
     }
