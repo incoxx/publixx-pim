@@ -123,4 +123,8 @@ export default {
   getPhpInfo() {
     return client.get('/admin/php-info')
   },
+
+  flushCache(stores = []) {
+    return client.post('/admin/cache-flush', { stores })
+  },
 }

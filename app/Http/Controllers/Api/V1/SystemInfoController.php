@@ -883,6 +883,52 @@ class SystemInfoController extends Controller
     }
 
     /**
+     * POST /api/v1/admin/cache-flush
+     *
+     * Leert einen oder mehrere Cache-Speicher.
+     * Erlaubte Stores: app, config, views, routes
+     */
+    public function cacheFlush(Request $request): JsonResponse
+    {
+        if (!$request->user()?->hasRole('Admin')) {
+            abort(403, 'Unauthorized.');
+        }
+
+        $requested = $request->input('stores', ['app', 'config', 'views', 'routes']);
+        $allowed   = ['app', 'config', 'views', 'routes'];
+        $stores    = array_values(array_intersect((array) $requested, $allowed));
+
+        if (empty($stores)) {
+            $stores = $allowed;
+        }
+
+        $results = [];
+
+        foreach ($stores as $store) {
+            try {
+                match ($store) {
+                    'app'    => Cache::flush(),
+                    'config' => \Artisan::call('config:clear'),
+                    'views'  => \Artisan::call('view:clear'),
+                    'routes' => \Artisan::call('route:clear'),
+                };
+                $results[$store] = ['success' => true];
+            } catch (\Throwable $e) {
+                $results[$store] = ['success' => false, 'error' => $e->getMessage()];
+            }
+        }
+
+        $allSuccess = collect($results)->every(fn ($r) => $r['success']);
+
+        return response()->json([
+            'message' => $allSuccess
+                ? 'Cache erfolgreich geleert.'
+                : 'Cache teilweise geleert (siehe Ergebnisse).',
+            'results' => $results,
+        ], $allSuccess ? 200 : 207);
+    }
+
+    /**
      * Mask sensitive values — show only that they are set, not the actual value.
      */
     private function maskValue(string $key, ?string $value): ?string
