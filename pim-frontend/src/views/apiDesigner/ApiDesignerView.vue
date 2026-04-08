@@ -127,7 +127,7 @@ function onSearchProfileChange(id) {
           <button
             class="pim-btn pim-btn-primary text-xs px-2 py-1 sm:px-3"
             @click="save"
-            :disabled="saving || !store.isDirty"
+            :disabled="saving"
           >
             <Save class="w-3.5 h-3.5" :stroke-width="2" />
             <span class="hidden sm:inline ml-1">{{ saving ? 'Speichern...' : 'Speichern' }}</span>
