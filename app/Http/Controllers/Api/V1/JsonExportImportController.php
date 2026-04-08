@@ -56,7 +56,7 @@ class JsonExportImportController extends Controller
 
         $sections  = $validated['sections'] ?? [];
         $filters   = $validated['filter'] ?? [];
-        $exportKey = 'json_' . Str::random(16);
+        $exportKey = 'json_' . strtolower(Str::random(16));
         $userId    = $request->user()?->id;
         $fileName  = 'pim-export-' . now()->format('Y-m-d_His') . '.json';
 
