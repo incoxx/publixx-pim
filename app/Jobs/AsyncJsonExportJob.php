@@ -57,23 +57,26 @@ class AsyncJsonExportJob implements ShouldQueue
 
         $outputPath = $outputDir . '/' . $this->exportKey . '.json';
 
-        $json = $exporter->export($this->sections, $this->filters);
+        // Streaming-Export: kein vollständiges JSON-Array im RAM
+        $exporter->exportToFileStreamed($outputPath, $this->sections, $this->filters);
 
-        // Abbruch nach export() prüfen (export selbst prüft keinen Cancel)
+        // Abbruch nach export() prüfen
         if (Cache::get(self::CANCEL_PREFIX . $this->exportKey)) {
             $this->updateProgress('cancelled', 0, 0);
             Cache::forget(self::CANCEL_PREFIX . $this->exportKey);
+            if (file_exists($outputPath)) {
+                @unlink($outputPath);
+            }
             Log::channel('export')->info("AsyncJsonExportJob: Abgebrochen.", ['key' => $this->exportKey]);
             return;
         }
 
         $this->updateProgress('writing', 0, 0);
-        file_put_contents($outputPath, $json);
 
         $this->updateProgress('completed', 0, 0, outputPath: $outputPath, fileName: $this->fileName);
         Log::channel('export')->info("AsyncJsonExportJob: Fertig.", [
-            'key' => $this->exportKey,
-            'size' => strlen($json),
+            'key'  => $this->exportKey,
+            'size' => file_exists($outputPath) ? filesize($outputPath) : 0,
         ]);
     }
 

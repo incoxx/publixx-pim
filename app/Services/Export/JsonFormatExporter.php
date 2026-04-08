@@ -75,6 +75,17 @@ class JsonFormatExporter
         'media_assignments',
     ];
 
+    /** Sektionen mit potenziell sehr vielen Einträgen — werden beim Streaming direkt geschrieben. */
+    private const array LARGE_SECTIONS = [
+        'products',
+        'product_attribute_values',
+        'variants',
+        'product_hierarchy_assignments',
+        'product_relations',
+        'prices',
+        'media_assignments',
+    ];
+
     /** Vorgeladene Hierarchie-Knoten (Cache). */
     private array $nodesByHierarchy = [];
 
@@ -118,6 +129,368 @@ class JsonFormatExporter
         Log::channel('export')->info("JSON-Export geschrieben nach: {$outputPath}");
 
         return $outputPath;
+    }
+
+    /**
+     * Exportiert direkt in eine Datei ohne vollständiges Array im RAM.
+     *
+     * Große Sektionen (products, product_attribute_values, …) werden chunk-basiert
+     * als JSON-Fragmente direkt in die Datei geschrieben. Kein json_encode() auf
+     * den Gesamt-Datensatz — geeignet für Exporte mit vielen Tausend Produkten.
+     */
+    public function exportToFileStreamed(string $outputPath, array $sections = [], array $filters = []): void
+    {
+        $startTime      = microtime(true);
+        $activeSections = empty($sections)
+            ? self::SECTION_ORDER
+            : array_values(array_intersect(self::SECTION_ORDER, $sections));
+
+        Log::channel('export')->info('JSON-Export (Streaming) gestartet', [
+            'sections' => $activeSections,
+            'filters'  => $filters,
+        ]);
+
+        $handle = fopen($outputPath, 'w');
+
+        $meta = [
+            'format'      => 'anypim-json',
+            'version'     => '1.0',
+            'exported_at' => now()->toIso8601String(),
+            'sections'    => $activeSections,
+        ];
+
+        fwrite($handle, "{\n");
+        fwrite($handle, '"_meta": ' . json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . ",\n");
+
+        $total = count($activeSections);
+        foreach ($activeSections as $idx => $section) {
+            $isLast = ($idx === $total - 1);
+
+            fwrite($handle, json_encode($section) . ': ');
+
+            if (in_array($section, self::LARGE_SECTIONS)) {
+                $this->streamLargeSection($handle, $section, $filters);
+            } else {
+                $sectionData = $this->exportSection($section, $filters);
+                fwrite($handle, json_encode($sectionData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+                unset($sectionData);
+                gc_collect_cycles();
+            }
+
+            fwrite($handle, $isLast ? "\n" : ",\n");
+        }
+
+        fwrite($handle, '}');
+        fclose($handle);
+
+        $duration = round(microtime(true) - $startTime, 2);
+        Log::channel('export')->info("JSON-Export (Streaming) abgeschlossen in {$duration}s", [
+            'sections'   => $total,
+            'size_bytes' => file_exists($outputPath) ? filesize($outputPath) : 0,
+        ]);
+    }
+
+    // ─── Streaming-Methoden für große Sektionen ────────────────────────────────
+
+    /**
+     * Schreibt eine große Sektion als JSON-Array direkt in den File-Handle.
+     *
+     * @param resource $handle
+     */
+    private function streamLargeSection(mixed $handle, string $section, array $filters): void
+    {
+        fwrite($handle, '[');
+        $first = true;
+
+        match ($section) {
+            'products'                        => $this->streamProducts($handle, $filters, $first),
+            'product_attribute_values'        => $this->streamProductAttributeValues($handle, $filters, $first),
+            'variants'                        => $this->streamVariants($handle, $filters, $first),
+            'product_hierarchy_assignments'   => $this->streamProductHierarchyAssignments($handle, $filters, $first),
+            'product_relations'               => $this->streamProductRelations($handle, $filters, $first),
+            'prices'                          => $this->streamPrices($handle, $filters, $first),
+            'media_assignments'               => $this->streamMediaAssignments($handle, $filters, $first),
+            default                           => null,
+        };
+
+        fwrite($handle, ']');
+    }
+
+    /** @param resource $handle */
+    private function streamProducts(mixed $handle, array $filters, bool &$first): void
+    {
+        $flags = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES;
+
+        $this->buildProductQuery($filters)
+            ->with('productType')
+            ->orderBy('sku')
+            ->chunk(500, function ($products) use ($handle, &$first, $flags) {
+                foreach ($products as $product) {
+                    $item = array_filter([
+                        'sku'          => $product->sku,
+                        'name'         => $product->name,
+                        'name_en'      => $this->getProductNameEn($product),
+                        'product_type' => $product->productType?->technical_name,
+                        'ean'          => $product->ean,
+                        'status'       => $product->status,
+                    ], fn ($v) => $v !== null);
+
+                    if (!$first) { fwrite($handle, ','); }
+                    fwrite($handle, json_encode($item, $flags));
+                    $first = false;
+                }
+                unset($products);
+                gc_collect_cycles();
+            });
+    }
+
+    /** @param resource $handle */
+    private function streamProductAttributeValues(mixed $handle, array $filters, bool &$first): void
+    {
+        $flags      = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES;
+        $productIds = $this->getFilteredProductIds($filters);
+
+        $query = ProductAttributeValue::query()
+            ->with(['product', 'attribute', 'unit', 'valueListEntry']);
+
+        if ($productIds !== null) {
+            $query->whereIn('product_id', $productIds);
+        }
+
+        $query->chunk(500, function ($values) use ($handle, &$first, $flags) {
+            foreach ($values as $pav) {
+                if (!$pav->product || !$pav->attribute) {
+                    continue;
+                }
+                $item = array_filter([
+                    'sku'       => $pav->product->sku,
+                    'attribute' => $pav->attribute->technical_name,
+                    'value'     => $this->resolveAttributeValue($pav),
+                    'unit'      => $pav->unit?->abbreviation,
+                    'language'  => $pav->language,
+                    'index'     => $pav->multiplied_index,
+                ], fn ($v) => $v !== null);
+
+                if (!$first) { fwrite($handle, ','); }
+                fwrite($handle, json_encode($item, $flags));
+                $first = false;
+            }
+            unset($values);
+            gc_collect_cycles();
+        });
+    }
+
+    /** @param resource $handle */
+    private function streamVariants(mixed $handle, array $filters, bool &$first): void
+    {
+        $flags     = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES;
+        $parentIds = $this->getFilteredProductIds($filters);
+
+        $query = Product::query()
+            ->where('product_type_ref', 'variant')
+            ->with('parentProduct')
+            ->orderBy('sku');
+
+        if ($parentIds !== null) {
+            $query->whereIn('parent_product_id', $parentIds);
+        }
+
+        $query->chunk(500, function ($variants) use ($handle, &$first, $flags) {
+            foreach ($variants as $v) {
+                $item = array_filter([
+                    'parent_sku' => $v->parentProduct?->sku,
+                    'sku'        => $v->sku,
+                    'name'       => $v->name,
+                    'name_en'    => $this->getProductNameEn($v),
+                    'ean'        => $v->ean,
+                    'status'     => $v->status,
+                ], fn ($val) => $val !== null);
+
+                if (!$first) { fwrite($handle, ','); }
+                fwrite($handle, json_encode($item, $flags));
+                $first = false;
+            }
+            unset($variants);
+            gc_collect_cycles();
+        });
+    }
+
+    /** @param resource $handle */
+    private function streamProductHierarchyAssignments(mixed $handle, array $filters, bool &$first): void
+    {
+        $this->loadNodeCache();
+        $flags      = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES;
+        $productIds = $this->getFilteredProductIds($filters);
+
+        // Master-Hierarchie
+        $masterQuery = Product::query()
+            ->whereNotNull('master_hierarchy_node_id')
+            ->with('masterHierarchyNode.hierarchy')
+            ->orderBy('sku');
+
+        if ($productIds !== null) {
+            $masterQuery->whereIn('id', $productIds);
+        }
+
+        $masterQuery->chunk(500, function ($products) use ($handle, &$first, $flags) {
+            foreach ($products as $product) {
+                $node = $product->masterHierarchyNode;
+                if (!$node) { continue; }
+                $nodes = $this->nodesByHierarchy[$node->hierarchy_id] ?? collect();
+                $item  = [
+                    'sku'       => $product->sku,
+                    'hierarchy' => $node->hierarchy?->technical_name,
+                    'node_path' => $this->buildReadablePath($node, $nodes),
+                ];
+                if (!$first) { fwrite($handle, ','); }
+                fwrite($handle, json_encode($item, $flags));
+                $first = false;
+            }
+            unset($products);
+            gc_collect_cycles();
+        });
+
+        // Output-Hierarchien
+        $outputQuery = OutputHierarchyProductAssignment::query()
+            ->with(['product', 'hierarchyNode.hierarchy']);
+
+        if ($productIds !== null) {
+            $outputQuery->whereIn('product_id', $productIds);
+        }
+
+        $outputQuery->chunk(500, function ($assignments) use ($handle, &$first, $flags) {
+            foreach ($assignments as $a) {
+                if (!$a->product || !$a->hierarchyNode) { continue; }
+                $node  = $a->hierarchyNode;
+                $nodes = $this->nodesByHierarchy[$node->hierarchy_id] ?? collect();
+                $item  = [
+                    'sku'       => $a->product->sku,
+                    'hierarchy' => $node->hierarchy?->technical_name,
+                    'node_path' => $this->buildReadablePath($node, $nodes),
+                ];
+                if (!$first) { fwrite($handle, ','); }
+                fwrite($handle, json_encode($item, $flags));
+                $first = false;
+            }
+            unset($assignments);
+            gc_collect_cycles();
+        });
+    }
+
+    /** @param resource $handle */
+    private function streamProductRelations(mixed $handle, array $filters, bool &$first): void
+    {
+        $flags      = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES;
+        $productIds = $this->getFilteredProductIds($filters);
+
+        $query = ProductRelation::query()
+            ->with(['sourceProduct', 'targetProduct', 'relationType', 'attributeValues.attribute', 'attributeValues.unit']);
+
+        if ($productIds !== null) {
+            $query->whereIn('source_product_id', $productIds);
+        }
+
+        $query->chunk(500, function ($relations) use ($handle, &$first, $flags) {
+            foreach ($relations as $r) {
+                if (!$r->sourceProduct || !$r->targetProduct) { continue; }
+                $item = [
+                    'source_sku'    => $r->sourceProduct->sku,
+                    'target_sku'    => $r->targetProduct->sku,
+                    'relation_type' => $r->relationType?->technical_name,
+                    'sort_order'    => $r->sort_order,
+                ];
+                if ($r->attributeValues->isNotEmpty()) {
+                    $item['attribute_values'] = $r->attributeValues->map(fn ($av) => array_filter([
+                        'attribute'        => $av->attribute?->technical_name,
+                        'value_string'     => $av->value_string,
+                        'value_number'     => $av->value_number !== null ? (float) $av->value_number : null,
+                        'value_date'       => $av->value_date?->toDateString(),
+                        'value_flag'       => $av->value_flag,
+                        'value_selection_id' => $av->value_selection_id,
+                        'unit'             => $av->unit?->technical_name,
+                        'language'         => $av->language,
+                        'multiplied_index' => $av->multiplied_index,
+                    ], fn ($v) => $v !== null))->values()->toArray();
+                }
+                if (!$first) { fwrite($handle, ','); }
+                fwrite($handle, json_encode($item, $flags));
+                $first = false;
+            }
+            unset($relations);
+            gc_collect_cycles();
+        });
+    }
+
+    /** @param resource $handle */
+    private function streamPrices(mixed $handle, array $filters, bool &$first): void
+    {
+        $flags      = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES;
+        $productIds = $this->getFilteredProductIds($filters);
+
+        $query = ProductPrice::query()->with(['product', 'priceType']);
+
+        if ($productIds !== null) {
+            $query->whereIn('product_id', $productIds);
+        }
+
+        $query->chunk(500, function ($prices) use ($handle, &$first, $flags) {
+            foreach ($prices as $p) {
+                if (!$p->product) { continue; }
+                $item = array_filter([
+                    'sku'          => $p->product->sku,
+                    'price_type'   => $p->priceType?->technical_name,
+                    'amount'       => $p->amount,
+                    'currency'     => $p->currency,
+                    'valid_from'   => $p->valid_from?->format('Y-m-d'),
+                    'valid_to'     => $p->valid_to?->format('Y-m-d'),
+                    'price_region' => $p->priceRegion?->code,
+                    'scale_from'   => $p->scale_from,
+                    'scale_to'     => $p->scale_to,
+                ], fn ($v) => $v !== null);
+
+                if (!$first) { fwrite($handle, ','); }
+                fwrite($handle, json_encode($item, $flags));
+                $first = false;
+            }
+            unset($prices);
+            gc_collect_cycles();
+        });
+    }
+
+    /** @param resource $handle */
+    private function streamMediaAssignments(mixed $handle, array $filters, bool &$first): void
+    {
+        $flags      = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES;
+        $productIds = $this->getFilteredProductIds($filters);
+
+        $query = ProductMediaAssignment::query()->with(['product', 'media', 'usageType']);
+
+        if ($productIds !== null) {
+            $query->whereIn('product_id', $productIds);
+        }
+
+        $query->chunk(500, function ($assignments) use ($handle, &$first, $flags) {
+            foreach ($assignments as $a) {
+                if (!$a->product || !$a->media) { continue; }
+                $item = array_filter([
+                    'sku'        => $a->product->sku,
+                    'file_name'  => $a->media->file_name,
+                    'media_type' => $a->media->media_type,
+                    'usage_type' => $a->usageType?->technical_name,
+                    'title_de'   => $a->media->title_de,
+                    'title_en'   => $a->media->title_en,
+                    'alt_text_de' => $a->media->alt_text_de,
+                    'sort_order' => $a->sort_order,
+                    'is_primary' => $a->is_primary ?: null,
+                ], fn ($v) => $v !== null);
+
+                if (!$first) { fwrite($handle, ','); }
+                fwrite($handle, json_encode($item, $flags));
+                $first = false;
+            }
+            unset($assignments);
+            gc_collect_cycles();
+        });
     }
 
     /**
