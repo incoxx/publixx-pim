@@ -8,8 +8,10 @@ use App\Models\ApiTemplate;
 use App\Models\ApiTemplateAccessLog;
 use App\Services\ApiDesigner\ApiDesignerService;
 use App\Services\ApiDesigner\GraphqlDesignerService;
+use Illuminate\Cache\RateLimiter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ApiStreamController extends Controller
@@ -17,6 +19,7 @@ class ApiStreamController extends Controller
     public function __construct(
         private readonly ApiDesignerService $apiDesignerService,
         private readonly GraphqlDesignerService $graphqlDesignerService,
+        private readonly RateLimiter $rateLimiter,
     ) {}
 
     /**
@@ -30,12 +33,35 @@ class ApiStreamController extends Controller
 
         $startTime = microtime(true);
 
+        // Per-Template Rate-Limiting
+        $rateLimitResponse = $this->enforceRateLimit($request, $template);
+        if ($rateLimitResponse !== null) {
+            return $rateLimitResponse;
+        }
+
         if ($template->output_format === 'graphql') {
             $response = $this->handleGraphql($request, $template);
         } else {
             $limit  = $request->integer('limit', 0) ?: null;   // 0 = kein Limit
             $offset = max(0, $request->integer('offset', 0));
-            $response = $this->apiDesignerService->stream($template, $template->searchProfile, $limit, $offset);
+            $since  = $this->parseSince($request->input('since'));
+            $sortField = $request->input('sort');
+            $sortOrder = $request->input('order', 'asc');
+            $fields = array_filter(array_map('trim', explode(',', $request->input('fields', ''))));
+
+            $nav = $this->buildNavigationUrls($request, $limit, $offset);
+
+            $response = $this->apiDesignerService->stream(
+                $template,
+                $template->searchProfile,
+                $limit,
+                $offset,
+                $since,
+                $sortField ?: null,
+                $sortOrder,
+                $nav,
+                $fields,
+            );
         }
 
         $this->logAccess($template, $request, $startTime);
@@ -144,6 +170,81 @@ class ApiStreamController extends Controller
         if (!$request->user()) {
             abort(401, 'Authentifizierung erforderlich.');
         }
+    }
+
+    /**
+     * Per-Template Rate-Limiting — nutzt das `rate_limit`-Feld aus dem Template (Req/Minute).
+     */
+    private function enforceRateLimit(Request $request, ApiTemplate $template): ?JsonResponse
+    {
+        $maxPerMinute = max(1, (int) $template->rate_limit);
+        $key = 'api_stream:' . $template->id . ':' . ($request->header('X-Api-Key') ?? $request->ip());
+
+        if ($this->rateLimiter->tooManyAttempts($key, $maxPerMinute)) {
+            $retryAfter = $this->rateLimiter->availableIn($key);
+
+            return response()->json([
+                'error' => 'Rate limit exceeded',
+                'retry_after' => $retryAfter,
+            ], Response::HTTP_TOO_MANY_REQUESTS, [
+                'Retry-After'          => (string) $retryAfter,
+                'X-RateLimit-Limit'    => (string) $maxPerMinute,
+                'X-RateLimit-Remaining' => '0',
+            ]);
+        }
+
+        $this->rateLimiter->hit($key, 60);
+
+        return null;
+    }
+
+    /**
+     * `?since=` — ISO-8601 oder Y-m-d in DateTimeImmutable umwandeln. Null bei ungültigem Wert.
+     */
+    private function parseSince(?string $since): ?\DateTimeImmutable
+    {
+        if (!$since) {
+            return null;
+        }
+
+        try {
+            return new \DateTimeImmutable($since);
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    /**
+     * Baut next_url / prev_url aus der aktuellen Request-URL + Pagination-Parametern.
+     * Gibt leeres Array zurück wenn kein Limit gesetzt (keine Paginierung).
+     */
+    private function buildNavigationUrls(Request $request, ?int $limit, int $offset): array
+    {
+        if ($limit === null) {
+            return [];
+        }
+
+        $base = $request->url();
+        $extra = array_filter($request->only(['since', 'sort', 'order', 'fields']));
+
+        $nav = [];
+
+        // next_url — immer hinzufügen wenn limit gesetzt (ob noch mehr da ist wissen wir erst nach collect)
+        $nav['next_url'] = $base . '?' . http_build_query(array_merge($extra, [
+            'limit'  => $limit,
+            'offset' => $offset + $limit,
+        ]));
+
+        // prev_url — nur wenn wir nicht am Anfang sind
+        if ($offset > 0) {
+            $prevOffset = max(0, $offset - $limit);
+            $nav['prev_url'] = $base . '?' . http_build_query(array_merge($extra, [
+                'limit'  => $limit,
+                'offset' => $prevOffset,
+            ]));
+        }
+
+        return $nav;
     }
 
     private function logAccess(ApiTemplate $template, Request $request, float $startTime): void
