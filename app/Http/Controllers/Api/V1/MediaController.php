@@ -111,13 +111,13 @@ class MediaController extends Controller
         // Header
         $col = 1;
         foreach ($columnKeys as $key) {
-            $sheet->setCellValueByColumnAndRow($col, 1, $columnDefs[$key]);
-            $sheet->getStyleByColumnAndRow($col, 1)->getFont()->setBold(true);
+            $sheet->setCellValue([$col, 1], $columnDefs[$key]);
+            $sheet->getStyle([$col, 1])->getFont()->setBold(true);
             $col++;
         }
         if ($checkBroken) {
-            $sheet->setCellValueByColumnAndRow($col, 1, 'Broken Image');
-            $sheet->getStyleByColumnAndRow($col, 1)->getFont()->setBold(true);
+            $sheet->setCellValue([$col, 1], 'Broken Image');
+            $sheet->getStyle([$col, 1])->getFont()->setBold(true);
         }
 
         // Daten
@@ -130,12 +130,12 @@ class MediaController extends Controller
                     if ($key === 'created_at' && $value) {
                         $value = $value->format('Y-m-d H:i');
                     }
-                    $sheet->setCellValueByColumnAndRow($col, $row, $value);
+                    $sheet->setCellValue([$col, $row], $value);
                     $col++;
                 }
                 if ($checkBroken) {
                     $isBroken = $this->isMediaFileBroken($item);
-                    $sheet->setCellValueByColumnAndRow($col, $row, $isBroken ? 'Ja' : 'Nein');
+                    $sheet->setCellValue([$col, $row], $isBroken ? 'Ja' : 'Nein');
                 }
                 $row++;
             }
@@ -143,7 +143,9 @@ class MediaController extends Controller
 
         // Auto-Size Spalten
         foreach (range(1, count($columnKeys) + ($checkBroken ? 1 : 0)) as $colIdx) {
-            $sheet->getColumnDimensionByColumn($colIdx)->setAutoSize(true);
+            $sheet->getColumnDimension(
+                \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIdx)
+            )->setAutoSize(true);
         }
 
         $tmpFile = tempnam(sys_get_temp_dir(), 'media_export_') . '.xlsx';
