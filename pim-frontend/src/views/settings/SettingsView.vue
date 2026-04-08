@@ -1580,17 +1580,20 @@ async function triggerRollback() {
 // ── PHP Info ─────────────────────────────────────────────────────────────────
 const phpInfoSections = ref([])
 const phpInfoLoading = ref(false)
+const phpInfoError = ref(null)
 const phpInfoSearch = ref('')
 const phpInfoCollapsed = ref({})
 
 async function loadPhpInfo() {
   phpInfoLoading.value = true
+  phpInfoError.value = null
   try {
     const res = await adminApi.getPhpInfo()
-    phpInfoSections.value = res.data.sections
+    phpInfoSections.value = res.data?.sections ?? []
     phpInfoCollapsed.value = {}
   } catch (e) {
     console.error('phpInfo-Fehler:', e)
+    phpInfoError.value = e?.response?.data?.message ?? e?.message ?? 'Unbekannter Fehler'
   } finally {
     phpInfoLoading.value = false
   }
@@ -1630,7 +1633,7 @@ watch(activeMainTab, (tab) => {
     if (websiteProfiles.value.length === 0) loadWebsiteProfiles()
     loadOfflineCatalogStatus()
   }
-  if (tab === 'phpinfo' && phpInfoSections.value.length === 0) loadPhpInfo()
+  if (tab === 'phpinfo' && phpInfoSections.value.length === 0 && !phpInfoError.value) loadPhpInfo()
 })
 
 // Reload attributes and hierarchy nodes when hierarchy selection changes
@@ -4241,6 +4244,16 @@ onUnmounted(() => {
     <div v-if="phpInfoLoading" class="flex items-center justify-center py-12 gap-2">
       <Loader2 class="w-5 h-5 animate-spin text-[var(--color-accent)]" />
       <span class="text-sm text-[var(--color-text-secondary)]">Lade PHP Info…</span>
+    </div>
+
+    <!-- Fehler -->
+    <div v-else-if="phpInfoError" class="pim-card p-6 flex items-start gap-3">
+      <AlertTriangle class="w-5 h-5 text-[var(--color-error,#ef4444)] shrink-0 mt-0.5" :stroke-width="1.75" />
+      <div class="space-y-2">
+        <p class="text-sm font-medium text-[var(--color-text-primary)]">PHP Info konnte nicht geladen werden</p>
+        <p class="text-xs text-[var(--color-text-tertiary)] font-mono">{{ phpInfoError }}</p>
+        <button class="pim-btn pim-btn-secondary text-xs" @click="loadPhpInfo">Erneut versuchen</button>
+      </div>
     </div>
 
     <!-- Sektionen -->
