@@ -1847,43 +1847,71 @@ class BmecatFormatImporter
         $this->sendBuildProgress('Hierarchie-Attribut-Zuordnungen', 0, $totalProducts);
         $this->checkCancelled();
         if ($hasTree && !empty($nodeAttributes)) {
-            // Übergreifende Attribute auf den höchsten Knoten hochziehen:
-            // Wenn ein Attribut sowohl in einem Elternknoten als auch in einem Kindknoten
-            // vorkommt, wird es nur dem Elternknoten zugeordnet. So reicht eine einzige
-            // Reihenfolge-Anpassung auf Root-Ebene für alle Produkte im Baum.
-            $parentOf = [];
-            foreach ($catalogGroupTree as $gid => $node) {
-                if (!empty($node['parent_id'])) {
-                    $parentOf[(string) $gid] = (string) $node['parent_id'];
+            // Übergreifende Attribute per LCA auf den höchsten gemeinsamen Vorfahren hochziehen.
+            // Für jedes Attribut: LCA (Lowest Common Ancestor) aller Knoten berechnen,
+            // die es haben, und das Attribut nur diesem LCA-Knoten zuordnen.
+            // Das funktioniert auch wenn Elternknoten selbst keine Produkte tragen,
+            // weil der Algorithmus die Baumstruktur ($catalogGroupTree) direkt nutzt.
+
+            // Hilfsfunktion: Pfad von Wurzel bis $nodeId (beide inklusive)
+            $getPathFromRoot = static function (string $nodeId) use ($catalogGroupTree): array {
+                $chain = [];
+                $current = $nodeId;
+                while ($current !== '' && isset($catalogGroupTree[$current])) {
+                    $chain[] = $current;
+                    $current = (string) ($catalogGroupTree[$current]['parent_id'] ?? '');
+                }
+                return !empty($chain) ? array_reverse($chain) : [$nodeId];
+            };
+
+            // Pfade für alle Knoten mit Attributen vorberechnen
+            $pathFromRoot = [];
+            foreach (array_keys($nodeAttributes) as $gid) {
+                $pathFromRoot[(string) $gid] = $getPathFromRoot((string) $gid);
+            }
+
+            // Invertierter Index: Attribut → alle Gruppen (als Set), die es haben
+            $attrToGroups = [];
+            foreach ($nodeAttributes as $gid => $attrs) {
+                foreach (array_keys($attrs) as $attr) {
+                    $attrToGroups[$attr][(string) $gid] = true;
                 }
             }
-            if (!empty($parentOf)) {
-                // Invertierter Index: Attribut → alle Gruppen, die es haben
-                $attrToGroups = [];
-                foreach ($nodeAttributes as $gid => $attrs) {
-                    foreach (array_keys($attrs) as $attr) {
-                        $attrToGroups[$attr][(string) $gid] = true;
-                    }
-                }
-                // Für jedes (Kindknoten, Attribut): prüfen ob ein Vorfahre
-                // dasselbe Attribut hat → dann aus dem Kindknoten entfernen
-                foreach ($attrToGroups as $attr => $groupSet) {
-                    foreach (array_keys($groupSet) as $gid) {
-                        $current = $gid;
-                        while (isset($parentOf[$current])) {
-                            $current = $parentOf[$current];
-                            if (isset($groupSet[$current])) {
-                                // Vorfahre hat dieses Attribut → Kindknoten-Eintrag entfernen
-                                unset($nodeAttributes[$gid][$attr]);
+
+            // Für jedes Attribut den LCA berechnen und nur dort eintragen
+            $promotedNodeAttributes = [];
+            foreach ($attrToGroups as $attr => $groupSet) {
+                $groupIds = array_keys($groupSet);
+
+                if (count($groupIds) === 1) {
+                    $lca = $groupIds[0];
+                } else {
+                    // Längsten gemeinsamen Präfix aller Root→Node-Pfade bestimmen
+                    $commonPrefix = $pathFromRoot[$groupIds[0]] ?? [$groupIds[0]];
+                    foreach (array_slice($groupIds, 1) as $gid) {
+                        $path = $pathFromRoot[$gid] ?? [$gid];
+                        $newPrefix = [];
+                        $len = min(count($commonPrefix), count($path));
+                        for ($i = 0; $i < $len; $i++) {
+                            if ($commonPrefix[$i] === $path[$i]) {
+                                $newPrefix[] = $commonPrefix[$i];
+                            } else {
                                 break;
                             }
                         }
+                        $commonPrefix = $newPrefix;
+                        if (empty($commonPrefix)) {
+                            break;
+                        }
                     }
+                    $lca = !empty($commonPrefix) ? (string) end($commonPrefix) : $groupIds[0];
                 }
-                // Leere Knoten-Einträge bereinigen
-                $nodeAttributes = array_filter($nodeAttributes, fn($attrs) => !empty($attrs));
-                unset($attrToGroups, $parentOf);
+
+                $promotedNodeAttributes[$lca][$attr] = true;
             }
+
+            $nodeAttributes = array_filter($promotedNodeAttributes, static fn($attrs) => !empty($attrs));
+            unset($attrToGroups, $pathFromRoot, $promotedNodeAttributes, $getPathFromRoot);
 
             $hierarchyAttributeRows = [];
             $sort = 0;
