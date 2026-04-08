@@ -1577,6 +1577,47 @@ async function triggerRollback() {
 }
 
 // Lazy-load data when switching to env/system tabs
+// ── Cache ─────────────────────────────────────────────────────────────────────
+const CACHE_STORES = [
+  {
+    key: 'app',
+    label: 'Anwendungs-Cache (Redis)',
+    desc: 'Produkt-, Hierarchie-, PQL- und Attribut-Cache',
+  },
+  {
+    key: 'config',
+    label: 'Konfigurations-Cache',
+    desc: 'Kompilierte Laravel-Konfiguration und .env-Werte',
+  },
+  {
+    key: 'views',
+    label: 'View-Cache',
+    desc: 'Kompilierte Blade-Templates',
+  },
+  {
+    key: 'routes',
+    label: 'Routen-Cache',
+    desc: 'Kompilierte Routen-Tabelle',
+  },
+]
+const cacheFlushLoading = ref(false)
+const cacheFlushResults = ref(null)   // { app: {success, error?}, ... }
+const cacheFlushError   = ref(null)
+
+async function flushCache(stores = []) {
+  cacheFlushLoading.value = true
+  cacheFlushResults.value = null
+  cacheFlushError.value   = null
+  try {
+    const res = await adminApi.flushCache(stores)
+    cacheFlushResults.value = res.data?.results ?? {}
+  } catch (e) {
+    cacheFlushError.value = e?.response?.data?.message ?? e?.message ?? 'Unbekannter Fehler'
+  } finally {
+    cacheFlushLoading.value = false
+  }
+}
+
 // ── PHP Info ─────────────────────────────────────────────────────────────────
 const phpInfoSections = ref([])
 const phpInfoLoading = ref(false)
@@ -1689,6 +1730,7 @@ onUnmounted(() => {
           ...(isAdmin ? [{ key: 'system', label: 'System', icon: Activity }] : []),
           ...(isAdmin ? [{ key: 'license', label: 'Lizenz', icon: Key }] : []),
           ...(isAdmin ? [{ key: 'phpinfo', label: 'PHP Info', icon: Cpu }] : []),
+          ...(isAdmin ? [{ key: 'cache', label: 'Cache', icon: Database }] : []),
         ]"
         :key="tab.key"
         class="flex items-center gap-2 px-3 sm:px-4 py-2.5 text-[13px] sm:text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap shrink-0"
@@ -4321,6 +4363,77 @@ onUnmounted(() => {
     </template>
 
     </template><!-- end TAB: PHP Info -->
+
+    <!-- ═══════════════════════════════════════════════════ TAB: Cache ══ -->
+    <template v-if="activeMainTab === 'cache' && isAdmin">
+
+      <!-- Header + Alle leeren -->
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h2 class="text-base font-semibold text-[var(--color-text-primary)]">Cache leeren</h2>
+          <p class="text-xs text-[var(--color-text-tertiary)] mt-0.5">
+            Leert einzelne oder alle Cache-Speicher der Anwendung.
+          </p>
+        </div>
+        <button
+          class="pim-btn pim-btn-primary flex items-center gap-2"
+          :disabled="cacheFlushLoading"
+          @click="flushCache([])"
+        >
+          <Loader2 v-if="cacheFlushLoading" class="w-4 h-4 animate-spin" />
+          <RefreshCw v-else class="w-4 h-4" />
+          Alle leeren
+        </button>
+      </div>
+
+      <!-- Globale Fehlermeldung -->
+      <div v-if="cacheFlushError" class="pim-card p-4 mb-4 flex items-start gap-3 border border-error/30">
+        <XCircle class="w-5 h-5 text-error shrink-0 mt-0.5" />
+        <p class="text-sm text-[var(--color-text-primary)]">{{ cacheFlushError }}</p>
+      </div>
+
+      <!-- Cache-Stores Liste -->
+      <div class="pim-card divide-y divide-[var(--color-border)]">
+        <div
+          v-for="store in CACHE_STORES"
+          :key="store.key"
+          class="flex items-center justify-between px-4 py-3 gap-4"
+        >
+          <div class="min-w-0">
+            <div class="flex items-center gap-2">
+              <p class="text-sm font-medium text-[var(--color-text-primary)]">{{ store.label }}</p>
+              <!-- Ergebnis-Badge -->
+              <span
+                v-if="cacheFlushResults?.[store.key]?.success === true"
+                class="inline-flex items-center gap-1 text-xs text-success font-medium"
+              >
+                <CheckCircle class="w-3.5 h-3.5" />
+                geleert
+              </span>
+              <span
+                v-else-if="cacheFlushResults?.[store.key]?.success === false"
+                class="inline-flex items-center gap-1 text-xs text-error font-medium"
+                :title="cacheFlushResults[store.key].error"
+              >
+                <XCircle class="w-3.5 h-3.5" />
+                Fehler
+              </span>
+            </div>
+            <p class="text-xs text-[var(--color-text-tertiary)] mt-0.5">{{ store.desc }}</p>
+          </div>
+          <button
+            class="pim-btn pim-btn-ghost flex items-center gap-1.5 shrink-0"
+            :disabled="cacheFlushLoading"
+            @click="flushCache([store.key])"
+          >
+            <Loader2 v-if="cacheFlushLoading" class="w-3.5 h-3.5 animate-spin" />
+            <Trash2 v-else class="w-3.5 h-3.5" />
+            Leeren
+          </button>
+        </div>
+      </div>
+
+    </template><!-- end TAB: Cache -->
 
   </div>
 </template>
