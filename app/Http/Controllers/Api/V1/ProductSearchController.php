@@ -121,8 +121,17 @@ class ProductSearchController extends Controller
         }
 
         // ── Attribute filters (flat, legacy) ──
-        foreach ($attributeFilters as $idx => $filter) {
-            $this->applyAttributeFilter($query, $filter, $idx, $language);
+        if (!empty($attributeFilters)) {
+            // Alle referenzierten Attribute vorladen, um N+1 in getCachedAttribute() zu vermeiden
+            $flatAttrIds = array_unique(array_filter(array_column($attributeFilters, 'attribute_id')));
+            if (!empty($flatAttrIds)) {
+                foreach (\App\Models\Attribute::whereIn('id', $flatAttrIds)->get() as $attr) {
+                    $this->attributeCache[$attr->id] = $attr;
+                }
+            }
+            foreach ($attributeFilters as $idx => $filter) {
+                $this->applyAttributeFilter($query, $filter, $idx, $language);
+            }
         }
 
         // ── Attribute filter groups (recursive AND/OR/NOT) ──
@@ -207,10 +216,18 @@ class ProductSearchController extends Controller
             'product_type_ids.*' => 'string|uuid',
             'manufacturer_ids' => 'nullable|array',
             'manufacturer_ids.*' => 'string|uuid',
+            'attribute_filters' => 'nullable|array',
+            'attribute_filters.*.attribute_id' => 'required|string|uuid',
+            'attribute_filters.*.value' => 'nullable',
+            'attribute_filters.*.operator' => 'nullable|string',
             'attribute_filter_groups' => 'nullable|array',
+            'missing_translation' => 'nullable|array',
+            'missing_translation.attribute_id' => 'required_with:missing_translation|string|uuid',
+            'missing_translation.target_language' => 'required_with:missing_translation|string|max:5',
             'language' => 'nullable|string|max:5',
         ]);
 
+        $language = $validated['language'] ?? 'de';
         $query = Product::query()->where('product_type_ref', 'product');
 
         if ($status = $validated['status'] ?? null) {
@@ -240,11 +257,27 @@ class ProductSearchController extends Controller
             $this->applyCategoryFilter($query, $categoryIds, $includeDescendants, $hierarchyType);
         }
 
+        if ($missingTranslation = $validated['missing_translation'] ?? null) {
+            $this->applyMissingTranslationFilter($query, $missingTranslation['attribute_id'], $missingTranslation['target_language']);
+        }
+
+        $flatFilters = $validated['attribute_filters'] ?? [];
+        if (!empty($flatFilters)) {
+            $flatAttrIds = array_unique(array_filter(array_column($flatFilters, 'attribute_id')));
+            if (!empty($flatAttrIds)) {
+                foreach (\App\Models\Attribute::whereIn('id', $flatAttrIds)->get() as $attr) {
+                    $this->attributeCache[$attr->id] = $attr;
+                }
+            }
+            foreach ($flatFilters as $idx => $filter) {
+                $this->applyAttributeFilter($query, $filter, $idx, $language);
+            }
+        }
+
         $filterGroups = $validated['attribute_filter_groups'] ?? null;
         if ($filterGroups && !empty($filterGroups['rules'] ?? [])) {
             $this->validateFilterGroupDepth($filterGroups);
             $this->preloadFilterAttributes($filterGroups);
-            $language = $validated['language'] ?? 'de';
             $this->applyAttributeFilterGroups($query, $filterGroups, $language);
         }
 
@@ -313,8 +346,17 @@ class ProductSearchController extends Controller
             $this->applyMissingTranslationFilter($query, $missingTranslation['attribute_id'], $missingTranslation['target_language']);
         }
 
-        foreach ($validated['attribute_filters'] ?? [] as $idx => $filter) {
-            $this->applyAttributeFilter($query, $filter, $idx, $language);
+        $flatFilters = $validated['attribute_filters'] ?? [];
+        if (!empty($flatFilters)) {
+            $flatAttrIds = array_unique(array_filter(array_column($flatFilters, 'attribute_id')));
+            if (!empty($flatAttrIds)) {
+                foreach (\App\Models\Attribute::whereIn('id', $flatAttrIds)->get() as $attr) {
+                    $this->attributeCache[$attr->id] = $attr;
+                }
+            }
+            foreach ($flatFilters as $idx => $filter) {
+                $this->applyAttributeFilter($query, $filter, $idx, $language);
+            }
         }
 
         $filterGroups = $validated['attribute_filter_groups'] ?? null;

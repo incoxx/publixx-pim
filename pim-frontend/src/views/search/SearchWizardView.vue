@@ -306,12 +306,8 @@ watch(attributeFilterGroups, () => {
   }
   liveCountTimer = setTimeout(async () => {
     try {
-      const params = { language: 'de' }
-      if (statusFilter.value) params.status = statusFilter.value
-      if (attributeFilterGroups.value.rules.length > 0) {
-        params.attribute_filter_groups = attributeFilterGroups.value
-      }
-      const { data } = await searchApi.count(params)
+      // buildSearchParams() statt manuell — enthält alle aktiven Filter
+      const { data } = await searchApi.count(buildSearchParams())
       liveCount.value = data.count
     } catch {
       liveCount.value = null
@@ -330,12 +326,29 @@ const watchlistIds = ref(new Set())
 const selectedProductIds = ref([])
 const allPagesSelected = ref(false)
 const selectingAll = ref(false)
+
+// Wenn Filter sich ändern und "alle Seiten" selektiert waren → Auswahl verwerfen,
+// da die IDs zur alten Suche gehören und nicht mehr zur aktuellen passen.
+watch(
+  [attributeFilterGroups, statusFilter, selectedCategories, selectedProductTypes, selectedManufacturers, missingTranslationFilter, searchInput],
+  () => {
+    if (allPagesSelected.value) {
+      selectedProductIds.value = []
+      allPagesSelected.value = false
+      // searchTableRef kann hier noch nicht referenziert werden (vor onMounted),
+      // clearSelection wird daher defensiv aufgerufen
+      searchTableRef.value?.clearSelection()
+    }
+  },
+  { deep: true },
+)
 const bulkDeleting = ref(false)
 const showConfirmBulkDelete = ref(false)
 const searchTableRef = ref(null)
 const showXliffPanel = ref(false)
 const showReportPicker = ref(false)
 const showPdfPicker = ref(false)
+const showExportMenu = ref(false)
 const xliffSourceLang = ref('de')
 const xliffTargetLang = ref('en')
 const xliffExporting = ref(false)
@@ -650,35 +663,7 @@ async function doSearch(page = 1) {
 }
 
 async function doProductSearch(page) {
-  const params = {
-    search: searchInput.value.trim() || undefined,
-    search_mode: searchMode.value,
-    page,
-    per_page: 50,
-    sort: sortField.value,
-    order: sortOrder.value,
-  }
-
-  if (selectedCategories.value.length > 0) {
-    params.category_ids = selectedCategories.value
-    params.include_descendants = true
-    const h = hierarchies.value.find(h => h.id === selectedHierarchyId.value)
-    if (h?.hierarchy_type) params.hierarchy_type = h.hierarchy_type
-  }
-
-  if (selectedProductTypes.value.length > 0) {
-    params.product_type_ids = selectedProductTypes.value
-  }
-
-  if (selectedManufacturers.value.length > 0) {
-    params.manufacturer_ids = selectedManufacturers.value
-  }
-
-  if (statusFilter.value) {
-    params.status = statusFilter.value
-  }
-
-  // Auto-show columns for filtered attributes (if enabled)
+  // Auto-show columns für gefilterte Attribute (Seiten-Effekt, vor buildSearchParams)
   if (autoShowFilterColumns.value) {
     const filterAttrIds = collectFilterAttributeIds(attributeFilterGroups.value)
     for (const id of filterAttrIds) {
@@ -687,60 +672,28 @@ async function doProductSearch(page) {
         searchVisibleKeys.value.push(colKey)
       }
     }
-  }
-
-  // Attribute columns (for visible attribute columns in table)
-  const attrColumnIds = searchVisibleKeys.value
-    .filter(k => k.startsWith('attributes.'))
-    .map(k => k.replace('attributes.', ''))
-  if (attrColumnIds.length > 0) params.attribute_columns = attrColumnIds
-
-  // Build attribute filter groups (new query builder)
-  if (attributeFilterGroups.value.rules && attributeFilterGroups.value.rules.length > 0) {
-    params.attribute_filter_groups = attributeFilterGroups.value
-  }
-
-  // Legacy flat attribute filters (for backward compatibility with saved profiles)
-  const attrFilters = []
-  for (const attr of searchableAttributes.value) {
-    const val = attributeFilters.value[attr.id]
-    if (val === '' || val === null || val === undefined) continue
-
-    // Auto-show column for this filtered attribute (if enabled)
-    if (autoShowFilterColumns.value) {
+    for (const attr of searchableAttributes.value) {
+      const val = attributeFilters.value[attr.id]
+      if (val === '' || val === null || val === undefined) continue
       const legacyColKey = `attributes.${attr.id}`
       if (!searchVisibleKeys.value.includes(legacyColKey)) {
         searchVisibleKeys.value.push(legacyColKey)
       }
     }
-
-    const filter = { attribute_id: attr.id, value: val }
-
-    if (attr.data_type === 'String') {
-      filter.operator = 'like'
-    } else if (attr.data_type === 'Selection' || attr.data_type === 'Dictionary') {
-      filter.operator = 'eq'
-    } else if (attr.data_type === 'Flag') {
-      filter.operator = 'eq'
-      filter.value = val === 'true' || val === true ? 1 : 0
-    } else {
-      filter.operator = 'eq'
-    }
-
-    attrFilters.push(filter)
   }
 
-  if (attrFilters.length > 0) {
-    params.attribute_filters = attrFilters
-  }
+  // Alle Filter-Parameter aus der zentralen Funktion holen
+  const params = buildSearchParams()
+  params.page = page
+  params.per_page = 50
+  params.sort = sortField.value
+  params.order = sortOrder.value
 
-  // Missing translation filter
-  if (missingTranslationFilter.value.attribute_id && missingTranslationFilter.value.target_language) {
-    params.missing_translation = {
-      attribute_id: missingTranslationFilter.value.attribute_id,
-      target_language: missingTranslationFilter.value.target_language,
-    }
-  }
+  // Sichtbare Attribut-Spalten
+  const attrColumnIds = searchVisibleKeys.value
+    .filter(k => k.startsWith('attributes.'))
+    .map(k => k.replace('attributes.', ''))
+  if (attrColumnIds.length > 0) params.attribute_columns = attrColumnIds
 
   const { data } = await searchApi.search(params)
   results.value = data.data || []
@@ -855,10 +808,45 @@ function buildSearchParams() {
   if (selectedProductTypes.value.length > 0) params.product_type_ids = selectedProductTypes.value
   if (selectedManufacturers.value.length > 0) params.manufacturer_ids = selectedManufacturers.value
   if (statusFilter.value) params.status = statusFilter.value
+
+  // Attribut-Filter (Query Builder) — wird auch von selectAllPages() benötigt
+  if (attributeFilterGroups.value.rules && attributeFilterGroups.value.rules.length > 0) {
+    params.attribute_filter_groups = attributeFilterGroups.value
+  }
+
+  // Legacy Flat-Filter
+  const attrFilters = []
+  for (const attr of searchableAttributes.value) {
+    const val = attributeFilters.value[attr.id]
+    if (val === '' || val === null || val === undefined) continue
+    const filter = { attribute_id: attr.id, value: val }
+    if (attr.data_type === 'String') {
+      filter.operator = 'like'
+    } else if (attr.data_type === 'Selection' || attr.data_type === 'Dictionary') {
+      filter.operator = 'eq'
+    } else if (attr.data_type === 'Flag') {
+      filter.operator = 'eq'
+      filter.value = val === 'true' || val === true ? 1 : 0
+    } else {
+      filter.operator = 'eq'
+    }
+    attrFilters.push(filter)
+  }
+  if (attrFilters.length > 0) params.attribute_filters = attrFilters
+
+  // Übersetzungs-Filter
+  if (missingTranslationFilter.value.attribute_id && missingTranslationFilter.value.target_language) {
+    params.missing_translation = {
+      attribute_id: missingTranslationFilter.value.attribute_id,
+      target_language: missingTranslationFilter.value.target_language,
+    }
+  }
+
   return params
 }
 
 async function selectAllPages() {
+  if (selectingAll.value) return   // Doppelklick-Schutz
   selectingAll.value = true
   try {
     const { data } = await searchApi.allIds(buildSearchParams())
@@ -905,8 +893,10 @@ async function bulkAddToWatchlist() {
   if (selectedProductIds.value.length === 0) return
   try {
     await watchlistApi.bulkAdd(selectedProductIds.value)
-    const { data } = await watchlistApi.productIds()
-    watchlistIds.value = new Set(data.data || data)
+    // Neu hinzugefügte IDs direkt in bestehendes Set schreiben — kein Full-Reload nötig
+    const updated = new Set(watchlistIds.value)
+    selectedProductIds.value.forEach(id => updated.add(id))
+    watchlistIds.value = updated
   } catch (e) {
     console.error('Bulk watchlist add failed', e)
   }
@@ -1136,31 +1126,50 @@ const apiCallDisplay = computed(() => {
         <ListFilter class="w-4 h-4" :stroke-width="1.75" />
         <span class="ml-1.5 text-sm hidden sm:inline">Quick Lookup</span>
       </button>
-      <button
+      <!-- Export-Dropdown (Excel / Report / PDF) -->
+      <div
         v-if="searchCategory === 'products' && hasSearched && results.length > 0"
-        class="pim-btn pim-btn-secondary py-2 px-3 sm:py-3 sm:px-4"
-        :disabled="excelExporting"
-        @click="exportSearchExcel"
+        class="relative"
       >
-        <FileSpreadsheet class="w-4 h-4" :stroke-width="1.75" />
-        <span class="ml-1.5 text-sm hidden sm:inline">{{ excelExporting ? 'Export...' : 'Excel' }}</span>
-      </button>
-      <button
-        v-if="searchCategory === 'products' && hasSearched && results.length > 0"
-        class="pim-btn pim-btn-secondary py-2 px-3 sm:py-3 sm:px-4"
-        @click="showReportPicker = true"
-      >
-        <FileText class="w-4 h-4" :stroke-width="1.75" />
-        <span class="ml-1.5 text-sm hidden sm:inline">Report</span>
-      </button>
-      <button
-        v-if="searchCategory === 'products' && hasSearched && results.length > 0"
-        class="pim-btn pim-btn-secondary py-2 px-3 sm:py-3 sm:px-4"
-        @click="showPdfPicker = true"
-      >
-        <FileOutput class="w-4 h-4" :stroke-width="1.75" />
-        <span class="ml-1.5 text-sm hidden sm:inline">PDF</span>
-      </button>
+        <!-- transparenter Overlay zum Schließen bei Klick außerhalb -->
+        <div v-if="showExportMenu" class="fixed inset-0 z-40" @click="showExportMenu = false" />
+        <button
+          class="pim-btn pim-btn-secondary py-2 px-3 sm:py-3 sm:px-4 flex items-center gap-1"
+          :class="showExportMenu ? 'bg-[var(--color-accent-light)] text-[var(--color-accent)]' : ''"
+          @click="showExportMenu = !showExportMenu"
+        >
+          <Download class="w-4 h-4" :stroke-width="1.75" />
+          <span class="ml-1 text-sm hidden sm:inline">Export</span>
+          <ChevronDown class="w-3 h-3 ml-0.5" :stroke-width="2.5" />
+        </button>
+        <div
+          v-if="showExportMenu"
+          class="absolute right-0 top-full mt-1 z-50 pim-card shadow-lg min-w-[160px] py-1 border border-[var(--color-border)]"
+        >
+          <button
+            class="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm hover:bg-[var(--color-bg)] text-left transition-colors"
+            :disabled="excelExporting"
+            @click="exportSearchExcel(); showExportMenu = false"
+          >
+            <FileSpreadsheet class="w-4 h-4 shrink-0 text-[var(--color-text-secondary)]" :stroke-width="1.75" />
+            {{ excelExporting ? 'Exportiere…' : 'Excel' }}
+          </button>
+          <button
+            class="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm hover:bg-[var(--color-bg)] text-left transition-colors"
+            @click="showReportPicker = true; showExportMenu = false"
+          >
+            <FileText class="w-4 h-4 shrink-0 text-[var(--color-text-secondary)]" :stroke-width="1.75" />
+            Report
+          </button>
+          <button
+            class="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm hover:bg-[var(--color-bg)] text-left transition-colors"
+            @click="showPdfPicker = true; showExportMenu = false"
+          >
+            <FileOutput class="w-4 h-4 shrink-0 text-[var(--color-text-secondary)]" :stroke-width="1.75" />
+            PDF
+          </button>
+        </div>
+      </div>
       <button class="pim-btn pim-btn-primary py-2 px-4 sm:py-3 sm:px-6" @click="doSearch(1)" data-testid="btn-search">
         Suchen
       </button>

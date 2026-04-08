@@ -83,8 +83,18 @@ trait ProductSearchFilters
                 break;
 
             case 'regex':
-                // Limit regex length to prevent DoS via complex patterns
+                // Länge begrenzen (DoS-Schutz) und PCRE-Syntax prüfen
                 $safeTerm = mb_substr($term, 0, 200);
+                if (@preg_match('/' . $safeTerm . '/', '') === false) {
+                    // Ungültiges Pattern — Fallback auf LIKE-Suche
+                    $like = '%' . $term . '%';
+                    $query->where(function ($q) use ($like, $searchColumns) {
+                        foreach ($searchColumns as $col) {
+                            $q->orWhere($col, 'LIKE', $like);
+                        }
+                    });
+                    break;
+                }
                 $query->where(function ($q) use ($safeTerm, $searchColumns) {
                     foreach ($searchColumns as $col) {
                         $q->orWhereRaw("{$col} REGEXP ?", [$safeTerm]);
@@ -250,7 +260,10 @@ trait ProductSearchFilters
                     $sub->where($fullColumn, '!=', $value);
                     break;
                 case 'regex':
-                    $sub->whereRaw("{$fullColumn} REGEXP ?", [mb_substr($value, 0, 200)]);
+                    $safeVal = mb_substr((string) $value, 0, 200);
+                    if (@preg_match('/' . $safeVal . '/', '') !== false) {
+                        $sub->whereRaw("{$fullColumn} REGEXP ?", [$safeVal]);
+                    }
                     break;
                 case 'soundex':
                     $sub->where(function ($q) use ($fullColumn, $value) {
