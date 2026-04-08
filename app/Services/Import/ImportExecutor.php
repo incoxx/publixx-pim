@@ -2390,32 +2390,38 @@ class ImportExecutor
                 continue;
             }
 
-            // Media-Eintrag finden oder anlegen
-            $media = Media::where('file_name', $row['file_name'])->first();
+            // Media-Eintrag finden oder anlegen.
+            // Eindeutiger Dateiname: zuerst file_name, dann original_file_name prüfen.
+            // Gefundenen Eintrag verwenden ohne Kerndaten zu überschreiben.
+            $fileName = $row['file_name'];
+            $media = Media::where('file_name', $fileName)->first()
+                ?? Media::where('original_file_name', $fileName)->first();
+
             if (!$media) {
                 // Korrekten file_path ermitteln: prüfen ob Datei physisch existiert
                 $disk = \Illuminate\Support\Facades\Storage::disk('public');
-                $filePath = 'media/' . $row['file_name'];
+                $filePath = 'media/' . $fileName;
                 $fileSize = 0;
                 if ($disk->exists($filePath)) {
                     $fileSize = $disk->size($filePath);
                 }
 
                 $media = Media::create([
-                    'id' => Str::uuid()->toString(),
-                    'file_name' => $row['file_name'],
-                    'file_path' => $filePath,
-                    'mime_type' => $this->guessMimeType($row['file_name']),
-                    'file_size' => $fileSize,
-                    'media_type' => $row['media_type'] ?? 'image',
-                    'title_de' => $row['title_de'] ?? null,
-                    'title_en' => $row['title_en'] ?? null,
-                    'alt_text_de' => $row['alt_text_de'] ?? null,
-                    'language' => $row['language'] ?? null,
-                    'document_type' => $row['document_type'] ?? null,
+                    'id'                 => Str::uuid()->toString(),
+                    'file_name'          => $fileName,
+                    'original_file_name' => $fileName,
+                    'file_path'          => $filePath,
+                    'mime_type'          => $this->guessMimeType($fileName),
+                    'file_size'          => $fileSize,
+                    'media_type'         => $row['media_type'] ?? 'image',
+                    'title_de'           => $row['title_de'] ?? null,
+                    'title_en'           => $row['title_en'] ?? null,
+                    'alt_text_de'        => $row['alt_text_de'] ?? null,
+                    'language'           => $row['language'] ?? null,
+                    'document_type'      => $row['document_type'] ?? null,
                 ]);
             } elseif (!empty($row['language']) || !empty($row['document_type'])) {
-                // Bestehende Media: Sprache/Dokumenttyp aktualisieren falls neu geliefert
+                // Bestehende Media: Sprache/Dokumenttyp nur befüllen falls noch leer (kein Überschreiben)
                 $updates = [];
                 if (!empty($row['language']) && $media->language === null) {
                     $updates['language'] = $row['language'];
