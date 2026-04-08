@@ -333,7 +333,7 @@ class ImportExecutor
 
             return new ImportExecutionResult(
                 stats: $this->stats,
-                affectedProductIds: $this->affectedProductIds,
+                affectedProductIds: array_keys($this->affectedProductIds),
                 skippedDetails: $this->skippedDetails,
             );
         }
@@ -482,7 +482,7 @@ class ImportExecutor
 
         return new ImportExecutionResult(
             stats: $this->stats,
-            affectedProductIds: array_unique($this->affectedProductIds),
+            affectedProductIds: array_keys($this->affectedProductIds),
             skippedDetails: $this->skippedDetails,
         );
     }
@@ -492,7 +492,7 @@ class ImportExecutor
      */
     public function getAffectedProductIds(): array
     {
-        return array_unique($this->affectedProductIds);
+        return array_keys($this->affectedProductIds);
     }
 
     /**
@@ -1022,13 +1022,13 @@ class ImportExecutor
             if ($existing) {
                 $existing->update($data);
                 $this->stats[$sheetKey]['updated']++;
-                $this->affectedProductIds[] = $existing->id;
+                $this->affectedProductIds[$existing->id] = true;
                 $productId = $existing->id;
             } else {
                 $data['id'] = Str::uuid()->toString();
                 Product::create($data);
                 $this->stats[$sheetKey]['created']++;
-                $this->affectedProductIds[] = $data['id'];
+                $this->affectedProductIds[$data['id']] = true;
                 $productId = $data['id'];
             }
 
@@ -1194,7 +1194,9 @@ class ImportExecutor
         }
 
         // Produkt-IDs sammeln (aus existingSkuMap — kein extra DB-Query nötig!)
-        array_push($this->affectedProductIds, ...array_values($existingSkuMap));
+        foreach ($existingSkuMap as $productId) {
+            $this->affectedProductIds[$productId] = true;
+        }
 
         // Resolver-Cache neu aufbauen nach Produkt-Import
         $this->resolver->clearCache('product');
@@ -1310,7 +1312,7 @@ class ImportExecutor
                 $this->stats[$sheetKey]['created']++;
             }
 
-            $this->affectedProductIds[] = $productResult->id;
+            $this->affectedProductIds[$productResult->id] = true;
             } catch (\Throwable $e) {
                 $this->logRowError($sheetKey, $row, $e);
             }
@@ -1604,7 +1606,9 @@ class ImportExecutor
         }
 
         // Gesammelte IDs zu den globalen hinzufügen
-        array_push($this->affectedProductIds, ...array_keys($affectedIdSet ?? []));
+        foreach (array_keys($affectedIdSet ?? []) as $productId) {
+            $this->affectedProductIds[$productId] = true;
+        }
     }
 
     private function importVariants(array $rows, string $sheetKey): void
@@ -1635,12 +1639,12 @@ class ImportExecutor
             if ($existing) {
                 $existing->update($data);
                 $this->stats[$sheetKey]['updated']++;
-                $this->affectedProductIds[] = $existing->id;
+                $this->affectedProductIds[$existing->id] = true;
             } else {
                 $data['id'] = Str::uuid()->toString();
                 Product::create($data);
                 $this->stats[$sheetKey]['created']++;
-                $this->affectedProductIds[] = $data['id'];
+                $this->affectedProductIds[$data['id']] = true;
             }
             } catch (\Throwable $e) {
                 $this->logRowError($sheetKey, $row, $e);
@@ -1696,7 +1700,7 @@ class ImportExecutor
                 }
             }
 
-            $this->affectedProductIds[] = $productResult->id;
+            $this->affectedProductIds[$productResult->id] = true;
             } catch (\Throwable $e) {
                 $this->logRowError($sheetKey, $row, $e);
             }
@@ -1744,7 +1748,7 @@ class ImportExecutor
                         ];
                     }
 
-                    $this->affectedProductIds[] = $productResult->id;
+                    $this->affectedProductIds[$productResult->id] = true;
                 } catch (\Throwable $e) {
                     $this->logRowError($sheetKey, $row, $e);
                 }
@@ -2204,7 +2208,7 @@ class ImportExecutor
                 $this->stats[$sheetKey]['created']++;
             }
 
-            $this->affectedProductIds[] = $productResult->id;
+            $this->affectedProductIds[$productResult->id] = true;
             } catch (\Throwable $e) {
                 $this->logRowError($sheetKey, $row, $e);
             }
@@ -2334,7 +2338,7 @@ class ImportExecutor
                             $existingMap[$constraintKey] = $data['id'];
                         }
 
-                        $this->affectedProductIds[] = $productId;
+                        $this->affectedProductIds[$productId] = true;
                     } catch (\Throwable $e) {
                         $this->logRowError($sheetKey, $row, $e);
                     }
@@ -2453,7 +2457,7 @@ class ImportExecutor
                 $this->stats[$sheetKey]['skipped']++;
             }
 
-            $this->affectedProductIds[] = $productResult->id;
+            $this->affectedProductIds[$productResult->id] = true;
             } catch (\Throwable $e) {
                 $this->logRowError($sheetKey, $row, $e);
             }

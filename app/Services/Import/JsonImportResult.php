@@ -20,7 +20,7 @@ class JsonImportResult
     {
         return [
             'stats' => $this->stats,
-            'affected_product_ids' => $this->affectedProductIds,
+            'affected_product_count' => count($this->affectedProductIds),
             'skipped_details' => $this->skippedDetails,
             'duration_seconds' => $this->durationSeconds,
         ];

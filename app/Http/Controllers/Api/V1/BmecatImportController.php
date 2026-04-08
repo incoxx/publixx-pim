@@ -222,7 +222,11 @@ class BmecatImportController extends Controller
             try {
                 $result = $this->importer->importFromString($xml, $productType);
 
-                Log::channel('import')->info('BMEcat-Import via REST abgeschlossen', $result->toArray());
+                Log::channel('import')->info('BMEcat-Import via REST abgeschlossen', [
+                    'stats'                  => $result->stats,
+                    'affected_product_count' => count($result->affectedProductIds),
+                    'duration_seconds'       => $result->durationSeconds,
+                ]);
 
                 $sendEvent('complete', [
                     'message' => 'Import erfolgreich',
