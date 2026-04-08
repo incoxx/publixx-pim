@@ -57,97 +57,126 @@ class CsvWriter
     {
         $products = $data['products'] ?? [];
         $fullName = $fileName . '.zip';
-        $tmpFile = tempnam(sys_get_temp_dir(), 'export-csv-') . '.zip';
 
+        // Temp-Dateien anlegen — kein CSV-String im RAM
+        $tmpFiles = [];
+        $handles  = [];
+
+        $bom = chr(0xEF) . chr(0xBB) . chr(0xBF);
+
+        // Produkte (immer vorhanden)
+        $tmpFiles['products'] = tempnam(sys_get_temp_dir(), 'exp_prod_');
+        $handles['products']  = fopen($tmpFiles['products'], 'w');
+        fwrite($handles['products'], $bom);
+        fputcsv($handles['products'], ['SKU', 'Name', 'Status', 'EAN', 'Produkttyp'], ';');
+
+        // Prüfen welche Sektionen Daten enthalten
+        $hasAttr      = false;
+        $hasPrices    = false;
+        $hasRelations = false;
+        $hasMedia     = false;
+
+        foreach ($products as $p) {
+            if (!$hasAttr      && !empty($p['attributes'])) { $hasAttr      = true; }
+            if (!$hasPrices    && !empty($p['prices']))     { $hasPrices    = true; }
+            if (!$hasRelations && !empty($p['relations']))  { $hasRelations = true; }
+            if (!$hasMedia     && !empty($p['media']))      { $hasMedia     = true; }
+            if ($hasAttr && $hasPrices && $hasRelations && $hasMedia) { break; }
+        }
+
+        if ($hasAttr) {
+            $tmpFiles['attr'] = tempnam(sys_get_temp_dir(), 'exp_attr_');
+            $handles['attr']  = fopen($tmpFiles['attr'], 'w');
+            fwrite($handles['attr'], $bom);
+            fputcsv($handles['attr'], ['SKU', 'Attribut', 'Attributname', 'Wert', 'Sprache'], ';');
+        }
+
+        if ($hasPrices) {
+            $tmpFiles['prices'] = tempnam(sys_get_temp_dir(), 'exp_price_');
+            $handles['prices']  = fopen($tmpFiles['prices'], 'w');
+            fwrite($handles['prices'], $bom);
+            fputcsv($handles['prices'], ['SKU', 'Preistyp', 'Betrag', 'Währung', 'Ab Menge', 'Gültig von', 'Gültig bis'], ';');
+        }
+
+        if ($hasRelations) {
+            $tmpFiles['relations'] = tempnam(sys_get_temp_dir(), 'exp_rel_');
+            $handles['relations']  = fopen($tmpFiles['relations'], 'w');
+            fwrite($handles['relations'], $bom);
+            fputcsv($handles['relations'], ['SKU', 'Ziel-SKU', 'Beziehungstyp', 'Position'], ';');
+        }
+
+        if ($hasMedia) {
+            $tmpFiles['media'] = tempnam(sys_get_temp_dir(), 'exp_media_');
+            $handles['media']  = fopen($tmpFiles['media'], 'w');
+            fwrite($handles['media'], $bom);
+            fputcsv($handles['media'], ['SKU', 'Dateiname', 'Verwendungstyp', 'Position'], ';');
+        }
+
+        foreach ($products as $p) {
+            fputcsv($handles['products'], [
+                $p['sku'] ?? '', $p['name'] ?? '', $p['status'] ?? '',
+                $p['ean'] ?? '', $p['product_type'] ?? '',
+            ], ';');
+
+            if (isset($handles['attr'])) {
+                foreach ($p['attributes'] ?? [] as $a) {
+                    fputcsv($handles['attr'], [
+                        $p['sku'], $a['attribute'], $a['attribute_name'], $a['value'], $a['language'],
+                    ], ';');
+                }
+            }
+
+            if (isset($handles['prices'])) {
+                foreach ($p['prices'] ?? [] as $pr) {
+                    fputcsv($handles['prices'], [
+                        $p['sku'], $pr['price_type'], $pr['amount'], $pr['currency'],
+                        $pr['scale_from'], $pr['valid_from'], $pr['valid_to'],
+                    ], ';');
+                }
+            }
+
+            if (isset($handles['relations'])) {
+                foreach ($p['relations'] ?? [] as $r) {
+                    fputcsv($handles['relations'], [
+                        $p['sku'], $r['target_sku'], $r['relation_type'], $r['position'],
+                    ], ';');
+                }
+            }
+
+            if (isset($handles['media'])) {
+                foreach ($p['media'] ?? [] as $m) {
+                    fputcsv($handles['media'], [
+                        $p['sku'], $m['file_name'], $m['usage_type'], $m['position'],
+                    ], ';');
+                }
+            }
+        }
+
+        foreach ($handles as $handle) {
+            fclose($handle);
+        }
+
+        $zipTmpFile = tempnam(sys_get_temp_dir(), 'export-csv-') . '.zip';
         $zip = new ZipArchive();
-        $zip->open($tmpFile, ZipArchive::CREATE);
-
-        // Produkte CSV
-        $zip->addFromString('produkte.csv', $this->buildCsv(
-            ['SKU', 'Name', 'Status', 'EAN', 'Produkttyp'],
-            array_map(fn($p) => [$p['sku'] ?? '', $p['name'] ?? '', $p['status'] ?? '', $p['ean'] ?? '', $p['product_type'] ?? ''], $products),
-        ));
-
-        // Attributwerte CSV
-        $attrRows = [];
-        foreach ($products as $p) {
-            foreach ($p['attributes'] ?? [] as $a) {
-                $attrRows[] = [$p['sku'], $a['attribute'], $a['attribute_name'], $a['value'], $a['language']];
-            }
-        }
-        if (!empty($attrRows)) {
-            $zip->addFromString('attributwerte.csv', $this->buildCsv(
-                ['SKU', 'Attribut', 'Attributname', 'Wert', 'Sprache'],
-                $attrRows,
-            ));
-        }
-
-        // Preise CSV
-        $priceRows = [];
-        foreach ($products as $p) {
-            foreach ($p['prices'] ?? [] as $pr) {
-                $priceRows[] = [$p['sku'], $pr['price_type'], $pr['amount'], $pr['currency'], $pr['scale_from'], $pr['valid_from'], $pr['valid_to']];
-            }
-        }
-        if (!empty($priceRows)) {
-            $zip->addFromString('preise.csv', $this->buildCsv(
-                ['SKU', 'Preistyp', 'Betrag', 'Währung', 'Ab Menge', 'Gültig von', 'Gültig bis'],
-                $priceRows,
-            ));
-        }
-
-        // Beziehungen CSV
-        $relRows = [];
-        foreach ($products as $p) {
-            foreach ($p['relations'] ?? [] as $r) {
-                $relRows[] = [$p['sku'], $r['target_sku'], $r['relation_type'], $r['position']];
-            }
-        }
-        if (!empty($relRows)) {
-            $zip->addFromString('beziehungen.csv', $this->buildCsv(
-                ['SKU', 'Ziel-SKU', 'Beziehungstyp', 'Position'],
-                $relRows,
-            ));
-        }
-
-        // Medien CSV
-        $mediaRows = [];
-        foreach ($products as $p) {
-            foreach ($p['media'] ?? [] as $m) {
-                $mediaRows[] = [$p['sku'], $m['file_name'], $m['usage_type'], $m['position']];
-            }
-        }
-        if (!empty($mediaRows)) {
-            $zip->addFromString('medien.csv', $this->buildCsv(
-                ['SKU', 'Dateiname', 'Verwendungstyp', 'Position'],
-                $mediaRows,
-            ));
-        }
-
+        $zip->open($zipTmpFile, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+        $zip->addFile($tmpFiles['products'], 'produkte.csv');
+        if (isset($tmpFiles['attr']))      { $zip->addFile($tmpFiles['attr'],      'attributwerte.csv'); }
+        if (isset($tmpFiles['prices']))    { $zip->addFile($tmpFiles['prices'],    'preise.csv'); }
+        if (isset($tmpFiles['relations'])) { $zip->addFile($tmpFiles['relations'], 'beziehungen.csv'); }
+        if (isset($tmpFiles['media']))     { $zip->addFile($tmpFiles['media'],     'medien.csv'); }
         $zip->close();
 
-        return new StreamedResponse(function () use ($tmpFile) {
-            readfile($tmpFile);
-            @unlink($tmpFile);
+        foreach ($tmpFiles as $tmp) {
+            @unlink($tmp);
+        }
+
+        return new StreamedResponse(function () use ($zipTmpFile) {
+            readfile($zipTmpFile);
+            @unlink($zipTmpFile);
         }, 200, [
             'Content-Type' => 'application/zip',
             'Content-Disposition' => "attachment; filename=\"{$fullName}\"",
             'Cache-Control' => 'no-store',
         ]);
-    }
-
-    private function buildCsv(array $headers, array $rows): string
-    {
-        $handle = fopen('php://temp', 'r+');
-        fprintf($handle, chr(0xEF) . chr(0xBB) . chr(0xBF)); // UTF-8 BOM
-        fputcsv($handle, $headers, ';');
-        foreach ($rows as $row) {
-            fputcsv($handle, $row, ';');
-        }
-        rewind($handle);
-        $content = stream_get_contents($handle);
-        fclose($handle);
-
-        return $content;
     }
 }

@@ -108,6 +108,9 @@ class RoleAndPermissionSeeder extends Seeder
             'dashboard.view',
             // Fehlerklassifikation (Sysadmin)
             'error-classifications.view', 'error-classifications.triage', 'error-classifications.delete',
+            // Vergleichsoperator-Gruppen
+            'comparison-operator-groups.view', 'comparison-operator-groups.create',
+            'comparison-operator-groups.edit', 'comparison-operator-groups.delete',
         ];
 
         foreach ($permissions as $permissionName) {
