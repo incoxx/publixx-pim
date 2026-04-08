@@ -23,18 +23,8 @@ return new class extends Migration
             ]);
         }
 
-        // Sysadmin und Admin erhalten alle neuen Permissions automatisch
-        $allPermissions = Permission::all();
-
-        foreach (['Sysadmin', 'Admin'] as $roleName) {
-            $role = \Spatie\Permission\Models\Role::where('name', $roleName)
-                ->where('guard_name', 'sanctum')
-                ->first();
-
-            if ($role) {
-                $role->syncPermissions($allPermissions);
-            }
-        }
+        // Rollen-Zuweisung erfolgt beim nächsten Seeder-Lauf (php artisan db:seed --class=RoleAndPermissionSeeder).
+        // syncPermissions() hier weglassen — kollidiert mit UUID-Primärschlüsseln.
     }
 
     public function down(): void
