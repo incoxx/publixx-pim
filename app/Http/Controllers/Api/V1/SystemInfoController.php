@@ -787,6 +787,85 @@ class SystemInfoController extends Controller
     }
 
     /**
+     * GET /api/v1/admin/php-info
+     * Liefert strukturierte phpinfo()-Daten als JSON-Sektionen.
+     */
+    public function phpInfo(Request $request): JsonResponse
+    {
+        if (!$request->user()?->hasRole('Admin')) {
+            abort(403, 'Unauthorized.');
+        }
+
+        $sections = [];
+
+        // ── Sektion 1: Allgemein ──────────────────────────────────────────────
+        $sections[] = [
+            'title' => 'Allgemein',
+            'entries' => [
+                ['key' => 'PHP Version',   'local' => PHP_VERSION,          'master' => ''],
+                ['key' => 'System',        'local' => php_uname(),           'master' => ''],
+                ['key' => 'SAPI',          'local' => PHP_SAPI,              'master' => ''],
+                ['key' => 'PHP Binary',    'local' => PHP_BINARY,            'master' => ''],
+                ['key' => 'PHP OS',        'local' => PHP_OS,                'master' => ''],
+                ['key' => 'PHP OS Family', 'local' => PHP_OS_FAMILY,         'master' => ''],
+                ['key' => 'Zend Version',  'local' => zend_version(),        'master' => ''],
+                ['key' => 'PHP_INT_SIZE',  'local' => (string) PHP_INT_SIZE, 'master' => ''],
+                ['key' => 'PHP_INT_MAX',   'local' => (string) PHP_INT_MAX,  'master' => ''],
+            ],
+        ];
+
+        // ── Sektion 2: Core-INI-Konfiguration ────────────────────────────────
+        $coreIni = ini_get_all('Core', true) ?: [];
+        $entries = [];
+        foreach ($coreIni as $key => $vals) {
+            $entries[] = [
+                'key'    => $key,
+                'local'  => (string) ($vals['local_value']  ?? ''),
+                'master' => (string) ($vals['global_value'] ?? ''),
+            ];
+        }
+        if ($entries) {
+            $sections[] = ['title' => 'Core', 'entries' => $entries];
+        }
+
+        // ── Sektion 3: Extensions mit eigenen INI-Einstellungen ───────────────
+        $extensions = get_loaded_extensions();
+        sort($extensions);
+
+        foreach ($extensions as $ext) {
+            if ($ext === 'Core') {
+                continue; // Bereits oben behandelt
+            }
+            $extIni = ini_get_all($ext, true) ?: [];
+            if (empty($extIni)) {
+                continue; // Nur Extensions mit eigenen INI-Werten anzeigen
+            }
+            $extEntries = [];
+            foreach ($extIni as $key => $vals) {
+                $extEntries[] = [
+                    'key'    => $key,
+                    'local'  => (string) ($vals['local_value']  ?? ''),
+                    'master' => (string) ($vals['global_value'] ?? ''),
+                ];
+            }
+            $sections[] = ['title' => ucfirst($ext), 'entries' => $extEntries];
+        }
+
+        // ── Sektion 4: Geladene Extensions (Übersicht) ───────────────────────
+        $extList = [];
+        foreach ($extensions as $ext) {
+            $extList[] = [
+                'key'    => $ext,
+                'local'  => 'enabled',
+                'master' => phpversion($ext) ?: '',
+            ];
+        }
+        $sections[] = ['title' => 'Geladene Extensions', 'entries' => $extList];
+
+        return response()->json(['sections' => $sections]);
+    }
+
+    /**
      * Mask sensitive values — show only that they are set, not the actual value.
      */
     private function maskValue(string $key, ?string $value): ?string

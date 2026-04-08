@@ -119,4 +119,8 @@ export default {
   fixConsistencyIssue(issueType) {
     return client.post(`/admin/db-consistency/fix/${issueType}`)
   },
+
+  getPhpInfo() {
+    return client.get('/admin/php-info')
+  },
 }
