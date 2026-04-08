@@ -846,6 +846,7 @@ function buildSearchParams() {
 }
 
 async function selectAllPages() {
+  if (selectingAll.value) return   // Doppelklick-Schutz
   selectingAll.value = true
   try {
     const { data } = await searchApi.allIds(buildSearchParams())
@@ -892,8 +893,10 @@ async function bulkAddToWatchlist() {
   if (selectedProductIds.value.length === 0) return
   try {
     await watchlistApi.bulkAdd(selectedProductIds.value)
-    const { data } = await watchlistApi.productIds()
-    watchlistIds.value = new Set(data.data || data)
+    // Neu hinzugefügte IDs direkt in bestehendes Set schreiben — kein Full-Reload nötig
+    const updated = new Set(watchlistIds.value)
+    selectedProductIds.value.forEach(id => updated.add(id))
+    watchlistIds.value = updated
   } catch (e) {
     console.error('Bulk watchlist add failed', e)
   }
