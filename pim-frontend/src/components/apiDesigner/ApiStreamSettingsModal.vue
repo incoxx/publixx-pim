@@ -18,6 +18,7 @@ const paramSince  = ref('')
 const paramSort   = ref('')
 const paramOrder  = ref('asc')
 const paramFields = ref('')
+const paramLang   = ref('')
 
 const apiBase = (import.meta.env.VITE_API_BASE_URL || '/api/v1').replace(/\/+$/, '')
 
@@ -34,12 +35,13 @@ const streamUrlWithParams = computed(() => {
   if (paramSort.value)   params.set('sort',   paramSort.value)
   if (paramSort.value && paramOrder.value !== 'asc') params.set('order', paramOrder.value)
   if (paramFields.value) params.set('fields', paramFields.value)
+  if (paramLang.value)   params.set('lang',   paramLang.value)
   const qs = params.toString()
   return qs ? `${baseStreamUrl.value}?${qs}` : baseStreamUrl.value
 })
 
 const hasParams = computed(() =>
-  !!(paramLimit.value || paramOffset.value || paramSince.value || paramSort.value || paramFields.value)
+  !!(paramLimit.value || paramOffset.value || paramSince.value || paramSort.value || paramFields.value || paramLang.value)
 )
 
 function copyBaseUrl() {
@@ -293,6 +295,27 @@ const curlExample = computed(() => {
               class="pim-input text-xs w-full font-mono"
             />
             <p class="text-[9px] text-[var(--color-text-tertiary)] mt-0.5">?fields=sku,name — Nur diese JSON-Keys pro Produkt (leer = alle)</p>
+          </div>
+
+          <!-- Sprache -->
+          <div>
+            <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">Sprache</label>
+            <select v-model="paramLang" class="pim-input text-xs w-full">
+              <option value="">— Template-Standard ({{ store.currentTemplate?.language || 'de' }}) —</option>
+              <option value="de">Deutsch (de)</option>
+              <option value="en">Englisch (en)</option>
+              <option value="fr">Französisch (fr)</option>
+              <option value="it">Italienisch (it)</option>
+              <option value="es">Spanisch (es)</option>
+              <option value="nl">Niederländisch (nl)</option>
+              <option value="pl">Polnisch (pl)</option>
+              <option value="pt">Portugiesisch (pt)</option>
+              <option value="cs">Tschechisch (cs)</option>
+              <option value="hu">Ungarisch (hu)</option>
+              <option value="ro">Rumänisch (ro)</option>
+              <option value="zh-cn">Chinesisch (zh-cn)</option>
+            </select>
+            <p class="text-[9px] text-[var(--color-text-tertiary)] mt-0.5">?lang=en — Überschreibt die Template-Sprache für diese Anfrage</p>
           </div>
         </section>
 

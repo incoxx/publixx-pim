@@ -49,8 +49,10 @@ class ApiDesignerService
         ?string $sortOrder = null,
         array $nav = [],
         array $fields = [],
+        ?string $language = null,
     ): StreamedResponse {
         $searchProfile = $searchProfile ?? $template->searchProfile;
+        $lang = $language ?? $template->language ?? 'de';
 
         Log::channel('export')->info("API-Stream gestartet: {$template->name}", [
             'template_id' => $template->id,
@@ -58,6 +60,7 @@ class ApiDesignerService
             'limit'       => $limit,
             'offset'      => $offset,
             'since'       => $since?->format('c'),
+            'language'    => $lang,
         ]);
 
         $data = $this->dataCollector->collect(
@@ -68,6 +71,7 @@ class ApiDesignerService
             $since,
             $sortField,
             $sortOrder,
+            $lang,
         );
 
         $pagination = array_merge($data, $nav);
@@ -75,7 +79,7 @@ class ApiDesignerService
         $jsonString = $this->jsonWriter->buildString(
             $data['grouped'],
             $template->template_json,
-            $template->language ?? 'de',
+            $lang,
             $pagination,
             $fields,
         );

@@ -31,6 +31,7 @@ class ApiDataCollector
         ?\DateTimeInterface $since = null,
         ?string $sortField = null,
         ?string $sortOrder = null,
+        ?string $language = null,
     ): array {
         $query = $this->buildQuery($searchProfile, $since, $sortField, $sortOrder);
         $total = (clone $query)->count();
@@ -43,7 +44,8 @@ class ApiDataCollector
         }
         $products = $productQuery->get();
 
-        $grouped = $this->groupProducts($products, $template->template_json, $template->language ?? 'de');
+        $lang = $language ?? $template->language ?? 'de';
+        $grouped = $this->groupProducts($products, $template->template_json, $lang);
 
         return [
             'grouped'  => $grouped,

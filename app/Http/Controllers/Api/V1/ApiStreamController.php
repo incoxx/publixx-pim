@@ -42,12 +42,13 @@ class ApiStreamController extends Controller
         if ($template->output_format === 'graphql') {
             $response = $this->handleGraphql($request, $template);
         } else {
-            $limit  = $request->integer('limit', 0) ?: null;   // 0 = kein Limit
-            $offset = max(0, $request->integer('offset', 0));
-            $since  = $this->parseSince($request->input('since'));
+            $limit     = $request->integer('limit', 0) ?: null;   // 0 = kein Limit
+            $offset    = max(0, $request->integer('offset', 0));
+            $since     = $this->parseSince($request->input('since'));
             $sortField = $request->input('sort');
             $sortOrder = $request->input('order', 'asc');
-            $fields = array_filter(array_map('trim', explode(',', $request->input('fields', ''))));
+            $fields    = array_filter(array_map('trim', explode(',', $request->input('fields', ''))));
+            $language  = $this->parseLanguage($request->input('lang'));
 
             $nav = $this->buildNavigationUrls($request, $limit, $offset);
 
@@ -61,6 +62,7 @@ class ApiStreamController extends Controller
                 $sortOrder,
                 $nav,
                 $fields,
+                $language,
             );
         }
 
@@ -196,6 +198,19 @@ class ApiStreamController extends Controller
         $this->rateLimiter->hit($key, 60);
 
         return null;
+    }
+
+    /**
+     * `?lang=` — Sprach-Code normalisieren (z.B. "DE" → "de"). Null = Template-Sprache verwenden.
+     * Erlaubt: 2-5 Zeichen (de, en, fr, zh-CN, ...).
+     */
+    private function parseLanguage(?string $lang): ?string
+    {
+        if (!$lang) {
+            return null;
+        }
+        $lang = strtolower(trim($lang));
+        return preg_match('/^[a-z]{2}(-[a-z]{2,4})?$/', $lang) ? $lang : null;
     }
 
     /**
