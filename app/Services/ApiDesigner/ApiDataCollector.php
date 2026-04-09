@@ -45,6 +45,8 @@ class ApiDataCollector
             // MySQL erlaubt kein OFFSET ohne LIMIT
             $productQuery->skip($offset)->limit($limit);
         }
+        $products = $productQuery->get();
+
         $grouped = $this->groupProducts($products, $template->template_json, $lang);
 
         return [
