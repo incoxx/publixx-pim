@@ -33,18 +33,18 @@ class ApiDataCollector
         ?string $sortOrder = null,
         ?string $language = null,
     ): array {
-        $query = $this->buildQuery($searchProfile, $since, $sortField, $sortOrder);
+        $lang = $language ?? $template->language ?? 'de';
+
+        $query = $this->buildQuery($searchProfile, $since, $sortField, $sortOrder, $lang);
         $total = (clone $query)->count();
 
         $relations = $this->determineRelations($template->template_json);
 
-        $productQuery = $query->with($relations)->skip($offset);
+        $productQuery = $query->with($relations);
         if ($limit !== null) {
-            $productQuery->limit($limit);
+            // MySQL erlaubt kein OFFSET ohne LIMIT
+            $productQuery->skip($offset)->limit($limit);
         }
-        $products = $productQuery->get();
-
-        $lang = $language ?? $template->language ?? 'de';
         $grouped = $this->groupProducts($products, $template->template_json, $lang);
 
         return [
@@ -64,13 +64,14 @@ class ApiDataCollector
         ?\DateTimeInterface $since = null,
         ?string $sortField = null,
         ?string $sortOrder = null,
+        string $language = 'de',
     ): Builder {
         // Basis-Query
         if ($searchProfile) {
             // SearchProfile-Sort nur übernehmen wenn kein Override
             $applyProfileSort = ($sortField === null);
             $query = app(SearchProfileQueryBuilder::class)
-                ->forProducts($searchProfile, mainProductsOnly: false, applySort: $applyProfileSort);
+                ->forProducts($searchProfile, language: $language, mainProductsOnly: false, applySort: $applyProfileSort);
         } else {
             $query = Product::query()->where('status', 'active');
         }
