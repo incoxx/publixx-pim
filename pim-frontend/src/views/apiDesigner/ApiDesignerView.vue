@@ -106,12 +106,13 @@ function onSearchProfileChange(id) {
 
         <input
           v-model="store.currentTemplate.name"
-          class="pim-input text-sm font-medium min-w-0 flex-1 sm:flex-none sm:w-56"
+          class="pim-input text-sm font-medium min-w-0 flex-1 shrink"
+          style="max-width: 14rem"
           placeholder="Template-Name"
           @input="store.isDirty = true"
         />
 
-        <div class="flex-1 hidden sm:block"></div>
+        <div class="flex-1"></div>
 
         <!-- Actions (immer sichtbar) -->
         <div class="flex items-center gap-1.5 sm:gap-2 shrink-0 ml-auto">
