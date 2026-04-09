@@ -29,32 +29,65 @@ class ApiDesignerService
             $data['grouped'],
             $template->template_json,
             $template->language ?? 'de',
+            $data,
         );
     }
 
     /**
      * Stream product data as JSON response.
+     *
+     * @param array $nav      Optional: ['next_url' => '...', 'prev_url' => '...']
+     * @param array $fields   Optional: sparse fieldset — only these JSON-Keys in each product
      */
-    public function stream(ApiTemplate $template, ?SearchProfile $searchProfile = null): StreamedResponse
-    {
+    public function stream(
+        ApiTemplate $template,
+        ?SearchProfile $searchProfile = null,
+        ?int $limit = null,
+        int $offset = 0,
+        ?\DateTimeInterface $since = null,
+        ?string $sortField = null,
+        ?string $sortOrder = null,
+        array $nav = [],
+        array $fields = [],
+        ?string $language = null,
+    ): StreamedResponse {
         $searchProfile = $searchProfile ?? $template->searchProfile;
+        $lang = $language ?? $template->language ?? 'de';
 
         Log::channel('export')->info("API-Stream gestartet: {$template->name}", [
             'template_id' => $template->id,
-            'slug' => $template->slug,
+            'slug'        => $template->slug,
+            'limit'       => $limit,
+            'offset'      => $offset,
+            'since'       => $since?->format('c'),
+            'language'    => $lang,
         ]);
 
-        $data = $this->dataCollector->collect($template, $searchProfile);
+        $data = $this->dataCollector->collect(
+            $template,
+            $searchProfile,
+            $limit,
+            $offset,
+            $since,
+            $sortField,
+            $sortOrder,
+            $lang,
+        );
+
+        $pagination = array_merge($data, $nav);
 
         $jsonString = $this->jsonWriter->buildString(
             $data['grouped'],
             $template->template_json,
-            $template->language ?? 'de',
+            $lang,
+            $pagination,
+            $fields,
         );
 
         Log::channel('export')->info("API-Stream abgeschlossen: {$template->name}", [
             'template_id' => $template->id,
-            'products' => $data['total'],
+            'products'    => $data['count'],
+            'total'       => $data['total'],
         ]);
 
         return new StreamedResponse(function () use ($jsonString) {

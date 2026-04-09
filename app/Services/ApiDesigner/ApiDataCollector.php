@@ -21,35 +21,72 @@ class ApiDataCollector
     /**
      * Collect products and organize them into the group structure defined by the template.
      *
-     * @return array{grouped: array, total: int}
+     * @return array{grouped: array, total: int, count: int, offset: int, limit: int|null}
      */
-    public function collect(ApiTemplate $template, ?SearchProfile $searchProfile = null, ?int $limit = null): array
-    {
-        $query = $this->buildQuery($searchProfile);
+    public function collect(
+        ApiTemplate $template,
+        ?SearchProfile $searchProfile = null,
+        ?int $limit = null,
+        int $offset = 0,
+        ?\DateTimeInterface $since = null,
+        ?string $sortField = null,
+        ?string $sortOrder = null,
+        ?string $language = null,
+    ): array {
+        $query = $this->buildQuery($searchProfile, $since, $sortField, $sortOrder);
+        $total = (clone $query)->count();
+
         $relations = $this->determineRelations($template->template_json);
 
-        $productQuery = $query->with($relations);
-        if ($limit) {
+        $productQuery = $query->with($relations)->skip($offset);
+        if ($limit !== null) {
             $productQuery->limit($limit);
         }
         $products = $productQuery->get();
 
-        $grouped = $this->groupProducts($products, $template->template_json, $template->language ?? 'de');
+        $lang = $language ?? $template->language ?? 'de';
+        $grouped = $this->groupProducts($products, $template->template_json, $lang);
 
         return [
-            'grouped' => $grouped,
-            'total' => $products->count(),
+            'grouped'  => $grouped,
+            'total'    => $total,
+            'count'    => $products->count(),
+            'offset'   => $offset,
+            'limit'    => $limit,
         ];
     }
 
-    private function buildQuery(?SearchProfile $searchProfile): Builder
-    {
-        if (!$searchProfile) {
-            return Product::query()->where('status', 'active');
+    /** Erlaubte Sortierfelder (direkte Produktspalten). */
+    private const SORT_FIELDS = ['sku', 'name', 'status', 'created_at', 'updated_at'];
+
+    private function buildQuery(
+        ?SearchProfile $searchProfile,
+        ?\DateTimeInterface $since = null,
+        ?string $sortField = null,
+        ?string $sortOrder = null,
+    ): Builder {
+        // Basis-Query
+        if ($searchProfile) {
+            // SearchProfile-Sort nur übernehmen wenn kein Override
+            $applyProfileSort = ($sortField === null);
+            $query = app(SearchProfileQueryBuilder::class)
+                ->forProducts($searchProfile, mainProductsOnly: false, applySort: $applyProfileSort);
+        } else {
+            $query = Product::query()->where('status', 'active');
         }
 
-        return app(SearchProfileQueryBuilder::class)
-            ->forProducts($searchProfile, mainProductsOnly: false, applySort: true);
+        // Delta-Sync: nur Produkte ab Timestamp
+        if ($since !== null) {
+            $query->where('products.updated_at', '>=', $since);
+        }
+
+        // Sort-Override
+        if ($sortField !== null && in_array($sortField, self::SORT_FIELDS, true)) {
+            $direction = strtolower($sortOrder ?? 'asc') === 'desc' ? 'desc' : 'asc';
+            $query->reorder()->orderBy('products.' . $sortField, $direction);
+        }
+
+        return $query;
     }
 
     private function determineRelations(array $templateJson): array
