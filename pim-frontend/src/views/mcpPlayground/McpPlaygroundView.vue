@@ -144,7 +144,7 @@ const responseJson = computed(() => {
 })
 
 const responseStats = computed(() => {
-  if (!response.value) return null
+  if (!response.value || typeof response.value !== 'object') return null
   const d = response.value
   return {
     total: d.total ?? null,
@@ -153,9 +153,23 @@ const responseStats = computed(() => {
   }
 })
 
+const mcpConfigJson = computed(() => JSON.stringify({
+  mcpServers: {
+    pim: {
+      command: 'node',
+      args: ['./mcp-server/dist/index.js'],
+      env: {
+        PIM_BASE_URL: window.location.origin,
+        PIM_API_KEY: 'API_KEY_HIER_EINTRAGEN',
+      },
+    },
+  },
+}, null, 2))
+
 // ── Lifecycle ──────────────────────────────────────────────────────────────
 
 onMounted(async () => {
+  loading.value = true
   try {
     const { data } = await apiTemplatesApi.list()
     templates.value = (data.data || data).filter(t => t.is_active)
@@ -164,6 +178,8 @@ onMounted(async () => {
     }
   } catch (e) {
     error.value = 'Templates konnten nicht geladen werden.'
+  } finally {
+    loading.value = false
   }
 })
 
@@ -191,9 +207,24 @@ async function run() {
 
     } else if (selectedTool.value === 'stream_products') {
       const params = {}
-      if (paramLimit.value)  params.limit  = Number(paramLimit.value)
-      if (paramOffset.value) params.offset = Number(paramOffset.value)
-      if (paramSince.value)  params.since  = new Date(paramSince.value).toISOString()
+      if (paramLimit.value) {
+        const limit = Number(paramLimit.value)
+        if (!Number.isInteger(limit) || limit < 1)
+          throw new Error('Limit muss eine positive ganze Zahl sein')
+        params.limit = limit
+      }
+      if (paramOffset.value) {
+        const offset = Number(paramOffset.value)
+        if (!Number.isInteger(offset) || offset < 0)
+          throw new Error('Offset muss ≥ 0 sein')
+        params.offset = offset
+      }
+      if (paramSince.value) {
+        const date = new Date(paramSince.value)
+        if (isNaN(date.getTime()))
+          throw new Error('Ungültiges Datum für "since"')
+        params.since = date.toISOString()
+      }
       if (paramSort.value)   params.sort   = paramSort.value
       if (paramOrder.value !== 'asc') params.order = paramOrder.value
       if (paramFields.value) params.fields = paramFields.value
@@ -203,7 +234,10 @@ async function run() {
 
     } else if (selectedTool.value === 'graphql_query') {
       let vars = undefined
-      if (graphqlVars.value.trim()) vars = JSON.parse(graphqlVars.value)
+      if (graphqlVars.value.trim()) {
+        try { vars = JSON.parse(graphqlVars.value) }
+        catch { throw new Error('Variables: Ungültiges JSON') }
+      }
       const { data } = await client.post(`/api-streams/${selectedSlug.value}`, {
         query: graphqlQuery.value,
         variables: vars,
@@ -212,7 +246,10 @@ async function run() {
 
     } else if (selectedTool.value === 'graphql_mutate') {
       let vars = undefined
-      if (graphqlVars.value.trim()) vars = JSON.parse(graphqlVars.value)
+      if (graphqlVars.value.trim()) {
+        try { vars = JSON.parse(graphqlVars.value) }
+        catch { throw new Error('Variables: Ungültiges JSON') }
+      }
       const { data } = await client.post(`/api-streams/${selectedSlug.value}/import`, {
         query: graphqlQuery.value,
         variables: vars,
@@ -258,8 +295,11 @@ function copyResponse() {
         </p>
       </div>
       <div class="flex items-center gap-1.5 text-[10px] text-[var(--color-text-tertiary)]">
-        <div class="w-1.5 h-1.5 rounded-full bg-green-500"></div>
-        {{ templates.length }} aktive Templates
+        <RefreshCw v-if="loading" class="w-3 h-3 animate-spin" :stroke-width="2" />
+        <template v-else>
+          <div class="w-1.5 h-1.5 rounded-full bg-green-500"></div>
+          {{ templates.length }} aktive Templates
+        </template>
       </div>
     </div>
 
@@ -459,20 +499,7 @@ function copyResponse() {
     <!-- MCP Config Hint -->
     <div class="border border-[var(--color-border)] rounded-lg p-4 bg-[var(--color-surface)]">
       <p class="text-[11px] font-semibold text-[var(--color-text-secondary)] mb-2">MCP-Konfiguration für Claude Code / Claude Desktop</p>
-      <pre class="text-[10px] font-mono bg-[var(--color-bg)] p-3 rounded text-[var(--color-text-secondary)] overflow-x-auto">{{
-`{
-  "mcpServers": {
-    "pim": {
-      "command": "node",
-      "args": ["./mcp-server/dist/index.js"],
-      "env": {
-        "PIM_BASE_URL": "${window.location.origin}",
-        "PIM_API_KEY": "API_KEY_HIER_EINTRAGEN"
-      }
-    }
-  }
-}`
-      }}</pre>
+      <pre class="text-[10px] font-mono bg-[var(--color-bg)] p-3 rounded text-[var(--color-text-secondary)] overflow-x-auto">{{ mcpConfigJson }}</pre>
       <p class="text-[10px] text-[var(--color-text-tertiary)] mt-2">
         Nach dem Eintragen in <code class="font-mono">.mcp.json</code> kann Claude direkt auf alle aktiven Templates zugreifen —
         Datenschema, Datenqualität und Auswertungen ohne manuellen Export.

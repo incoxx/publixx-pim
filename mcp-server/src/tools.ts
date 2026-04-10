@@ -35,7 +35,7 @@ export function registerTools(server: McpServer): void {
     'stream_products',
     'Ruft Produkte aus einem JSON-API-Template ab. Unterstützt Pagination, Delta-Sync und Sprachauswahl.',
     {
-      slug:   z.string().describe('URL-Slug des API-Templates'),
+      slug:   z.string().min(1).regex(/^[a-zA-Z0-9_-]+$/).describe('URL-Slug des API-Templates'),
       limit:  z.number().int().positive().optional().describe('Max. Anzahl Produkte (Standard: alle)'),
       offset: z.number().int().min(0).optional().describe('Start-Record für Pagination'),
       since:  z.string().optional().describe('ISO-8601 Timestamp — nur Produkte die seit diesem Datum geändert wurden'),
@@ -60,8 +60,8 @@ export function registerTools(server: McpServer): void {
     'graphql_query',
     'Führt eine GraphQL-Query gegen ein GraphQL-API-Template aus (Daten lesen).',
     {
-      slug:      z.string().describe('URL-Slug des GraphQL-API-Templates'),
-      query:     z.string().describe('GraphQL Query-String, z.B. "{ total groups { products { sku name } } }"'),
+      slug:      z.string().min(1).regex(/^[a-zA-Z0-9_-]+$/).describe('URL-Slug des GraphQL-API-Templates'),
+      query:     z.string().min(1).describe('GraphQL Query-String, z.B. "{ total groups { products { sku name } } }"'),
       variables: z.record(z.string(), z.unknown()).optional().describe('GraphQL-Variablen als Objekt'),
     },
     async ({ slug, query, variables }) => {
@@ -80,8 +80,8 @@ export function registerTools(server: McpServer): void {
     'graphql_mutate',
     'Führt eine GraphQL-Mutation gegen ein bidirektionales API-Template aus (Daten schreiben/importieren). Nur für Templates mit direction "import" oder "bidirectional".',
     {
-      slug:      z.string().describe('URL-Slug des GraphQL-API-Templates'),
-      mutation:  z.string().describe('GraphQL Mutation-String'),
+      slug:      z.string().min(1).regex(/^[a-zA-Z0-9_-]+$/).describe('URL-Slug des GraphQL-API-Templates'),
+      mutation:  z.string().min(1).describe('GraphQL Mutation-String'),
       variables: z.record(z.string(), z.unknown()).optional().describe('GraphQL-Variablen als Objekt'),
     },
     async ({ slug, mutation, variables }) => {
@@ -100,7 +100,7 @@ export function registerTools(server: McpServer): void {
     'get_schema',
     'Gibt das GraphQL-Schema (SDL) eines API-Templates zurück. Nützlich um zu verstehen welche Felder und Typen verfügbar sind.',
     {
-      slug: z.string().describe('URL-Slug des API-Templates'),
+      slug: z.string().min(1).regex(/^[a-zA-Z0-9_-]+$/).describe('URL-Slug des API-Templates'),
     },
     async ({ slug }) => {
       // Schema-Preview braucht die Template-ID, nicht den Slug
