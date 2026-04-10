@@ -18,6 +18,7 @@ import {
   Key,
   Cloud,
   Bug,
+  Bot,
 } from 'lucide-vue-next'
 import AnyPimLogo from '@/components/shared/AnyPimLogo.vue'
 import { useAppearanceStore, SECTION_ICON_COLORS } from '@/stores/appearance'
@@ -214,6 +215,7 @@ const sections = computed(() => {
           children: [
             { icon: FlaskConical, label: () => 'Test anyPIM', to: '/test-runner', permission: 'users.view' },
             { icon: Code, label: () => 'API-Designer', to: '/api-designer', module: 'api_designer', permission: 'api-templates.view' },
+            { icon: Bot, label: () => 'MCP Playground', to: '/mcp-playground', module: 'api_designer', permission: 'api-templates.view' },
             { icon: Zap, label: () => 'API Tester', to: '/api-tester', permission: 'users.view' },
             { icon: Database, label: () => 'Datenbank', to: '/db', permission: 'users.view' },
             { icon: Shield, label: () => 'Datenkonsistenz', to: '/db-consistency', permission: 'users.view' },

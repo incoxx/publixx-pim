@@ -267,6 +267,12 @@ const routes = [
     meta: { title: 'API-Designer', tabable: true, tabTitle: 'API' },
   },
   {
+    path: '/mcp-playground',
+    name: 'mcp-playground',
+    component: () => import('@/views/mcpPlayground/McpPlaygroundView.vue'),
+    meta: { title: 'MCP Playground' },
+  },
+  {
     path: '/excel-designer',
     name: 'excel-designer-list',
     component: () => import('@/views/excelDesigner/ExcelDesignerListView.vue'),
