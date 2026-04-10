@@ -3,6 +3,14 @@
     "fetch": {
       "command": "npx",
       "args": ["-y", "@anthropics/mcp-server-fetch"]
+    },
+    "pim": {
+      "command": "node",
+      "args": ["./mcp-server/dist/index.js"],
+      "env": {
+        "PIM_BASE_URL": "http://localhost:8000",
+        "PIM_API_KEY": "$PIM_API_KEY"
+      }
     }
   }
 }
