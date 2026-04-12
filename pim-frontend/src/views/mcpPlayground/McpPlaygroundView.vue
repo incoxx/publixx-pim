@@ -92,6 +92,18 @@ const examples = [
           paramLimit.value = '50'
         },
       },
+      {
+        label: 'Neueste Produkte',
+        tool: 'stream_products',
+        apply() {
+          selectedTool.value = 'stream_products'
+          paramSort.value = 'created_at'
+          paramOrder.value = 'desc'
+          paramLimit.value = '10'
+          paramSince.value = ''
+          paramFields.value = ''
+        },
+      },
     ],
   },
   {
@@ -123,6 +135,18 @@ const examples = [
           selectedTool.value = 'stream_products'
           paramLang.value = 'en'
           paramLimit.value = '10'
+        },
+      },
+      {
+        label: 'Pagination (Seite 2)',
+        tool: 'stream_products',
+        apply() {
+          selectedTool.value = 'stream_products'
+          paramLimit.value = '10'
+          paramOffset.value = '10'
+          paramSort.value = 'sku'
+          paramOrder.value = 'asc'
+          paramFields.value = 'sku,name'
         },
       },
     ],

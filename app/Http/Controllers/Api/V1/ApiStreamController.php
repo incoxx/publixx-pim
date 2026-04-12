@@ -156,6 +156,12 @@ class ApiStreamController extends Controller
             return;
         }
 
+        // Eingeloggte PIM-Nutzer (Session/SPA, z.B. MCP-Playground) dürfen immer zugreifen —
+        // unabhängig vom auth_type des Templates.
+        if ($request->user()) {
+            return;
+        }
+
         if ($template->auth_type === 'api_key') {
             $key = $request->header('X-Api-Key');
             if (! $key) {
@@ -168,10 +174,7 @@ class ApiStreamController extends Controller
             return;
         }
 
-        // Bearer token — standard Sanctum auth
-        if (!$request->user()) {
-            abort(401, 'Authentifizierung erforderlich.');
-        }
+        abort(401, 'Authentifizierung erforderlich.');
     }
 
     /**
