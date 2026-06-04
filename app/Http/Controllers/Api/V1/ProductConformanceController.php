@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Models\Product;
 use App\Models\ProductConformanceResult;
 use App\Models\ProductReferenceProfile;
+use App\Services\Conformance\ConformanceExplainer;
 use App\Services\Conformance\ProfileConformanceChecker;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -58,6 +59,33 @@ class ProductConformanceController extends Controller
         $result = $this->checker->check($product, 'manual');
 
         return response()->json(['data' => $result]);
+    }
+
+    /**
+     * Schritt 2: KI-Erklärung der Abweichungen (Claude AI).
+     */
+    public function explain(Product $product, ConformanceExplainer $explainer): JsonResponse
+    {
+        $result = ProductConformanceResult::where('product_id', $product->id)->first();
+
+        if (!$result) {
+            return response()->json([
+                'message' => 'Es liegt noch kein Prüfergebnis vor. Bitte zuerst prüfen.',
+            ], 422);
+        }
+
+        try {
+            $explanation = $explainer->explain($product, $result);
+        } catch (\RuntimeException $e) {
+            // z.B. fehlender API-Key
+            return response()->json(['message' => $e->getMessage()], 422);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'message' => 'KI-Erklärung fehlgeschlagen: ' . $e->getMessage(),
+            ], 502);
+        }
+
+        return response()->json(['data' => $explanation]);
     }
 
     /**

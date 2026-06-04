@@ -50,6 +50,11 @@ export const conformance = {
     return client.post(`/products/${productId}/conformance/check`)
   },
 
+  // Schritt 2: KI-Erklärung der Abweichungen
+  explain(productId) {
+    return client.post(`/products/${productId}/conformance/explain`)
+  },
+
   assign(productId, referenceProfileId) {
     return client.put(`/products/${productId}/reference-profile`, {
       reference_profile_id: referenceProfileId,

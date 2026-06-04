@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { conformance, referenceProfiles } from '@/api/referenceProfiles'
-import { ShieldCheck, ShieldAlert, ShieldX, RefreshCw, AlertTriangle, Info, XCircle } from 'lucide-vue-next'
+import { ShieldCheck, ShieldAlert, ShieldX, RefreshCw, AlertTriangle, Info, XCircle, Sparkles } from 'lucide-vue-next'
 
 const props = defineProps({
   productId: { type: String, required: true },
@@ -74,8 +74,26 @@ async function recheck() {
     const { data } = await conformance.check(props.productId)
     result.value = data.data
     isStale.value = false
+    explanation.value = ''
   } finally {
     checking.value = false
+  }
+}
+
+const explaining = ref(false)
+const explanation = ref('')
+const explainError = ref('')
+
+async function explain() {
+  explaining.value = true
+  explainError.value = ''
+  try {
+    const { data } = await conformance.explain(props.productId)
+    explanation.value = data.data?.text || ''
+  } catch (e) {
+    explainError.value = e.response?.data?.message || 'KI-Erklärung fehlgeschlagen.'
+  } finally {
+    explaining.value = false
   }
 }
 
@@ -113,6 +131,11 @@ onMounted(loadAll)
           <RefreshCw class="w-4 h-4" :class="{ 'animate-spin': checking }" />
           Neu prüfen
         </button>
+        <button v-if="profile && result && result.deviations?.length" class="pim-btn pim-btn-secondary"
+                :disabled="explaining" @click="explain">
+          <Sparkles class="w-4 h-4" />
+          {{ explaining ? 'Analysiere…' : 'KI-Erklärung' }}
+        </button>
       </div>
 
       <!-- Kein Profil -->
@@ -144,6 +167,18 @@ onMounted(loadAll)
             <div class="text-2xl font-bold" :style="{ color: statusMeta?.color }">{{ result.score }}%</div>
             <div class="text-xs text-[var(--color-text-tertiary)]">Score</div>
           </div>
+        </div>
+
+        <!-- KI-Erklärung -->
+        <div v-if="explainError" class="text-sm rounded p-2"
+             style="background: color-mix(in srgb, var(--color-error) 12%, transparent); color: var(--color-error)">
+          {{ explainError }}
+        </div>
+        <div v-if="explanation" class="pim-card p-3 space-y-1">
+          <div class="flex items-center gap-1.5 text-xs font-medium" style="color: var(--color-primary, #7c3aed)">
+            <Sparkles class="w-3.5 h-3.5" /> KI-Erklärung
+          </div>
+          <div class="text-sm text-[var(--color-text-primary)] whitespace-pre-wrap leading-relaxed">{{ explanation }}</div>
         </div>
 
         <!-- Noch nicht geprüft -->

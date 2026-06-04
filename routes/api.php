@@ -525,6 +525,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // Konformität pro Produkt: Ergebnis (Tab), On-demand-Check, Profil-Zuweisung
     Route::get('products/{product}/conformance', [ProductConformanceController::class, 'show']);
     Route::post('products/{product}/conformance/check', [ProductConformanceController::class, 'check']);
+    Route::post('products/{product}/conformance/explain', [ProductConformanceController::class, 'explain']);
     Route::put('products/{product}/reference-profile', [ProductConformanceController::class, 'assign']);
 
     // Translation XLIFF Export/Import
