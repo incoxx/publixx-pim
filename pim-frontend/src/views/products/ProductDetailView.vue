@@ -39,6 +39,7 @@ import watchlistApi from '@/api/watchlist'
 import manufacturersApi from '@/api/manufacturers'
 import PimCollectionGroup from '@/components/shared/PimCollectionGroup.vue'
 import ProductNotesTab from '@/components/products/ProductNotesTab.vue'
+import ProductConformanceTab from '@/components/products/ProductConformanceTab.vue'
 import PimAttributeInput from '@/components/shared/PimAttributeInput.vue'
 import PimMultipliableInput from '@/components/shared/PimMultipliableInput.vue'
 import PimTable from '@/components/shared/PimTable.vue'
@@ -148,6 +149,7 @@ const tabs = computed(() => {
   }
   base.push(
     { key: 'relations', label: t('product.relations') },
+    { key: 'conformance', label: 'Konformität' },
     { key: 'notes', label: 'Notizen' },
     { key: 'output-hierarchies', label: 'Ausgabehierarchien' },
     { key: 'preview', label: t('product.preview') },
@@ -4765,6 +4767,11 @@ onUnmounted(() => {
       :productId="product.id"
       @reverted="store.fetchOne(product.id)"
     />
+
+    <!-- ═══ Conformance Tab ═══ -->
+    <div v-else-if="activeTab === 'conformance' && product" class="space-y-4">
+      <ProductConformanceTab :productId="product.id" />
+    </div>
 
     <!-- ═══ Scheduled Actions Tab ═══ -->
     <ProductScheduledActionsTab
