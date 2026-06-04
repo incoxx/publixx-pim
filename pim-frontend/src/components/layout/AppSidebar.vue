@@ -151,6 +151,7 @@ const sections = computed(() => {
             { icon: Factory, label: () => t('nav.manufacturers'), to: '/manufacturers', permission: 'manufacturers.view' },
             { icon: Layers, label: () => t('nav.productTypes'), to: '/product-types', permission: 'product-types.view' },
             { icon: Shield, label: () => 'Referenz-Profile', to: '/reference-profiles', permission: 'product-types.view' },
+            { icon: FileBarChart, label: () => 'Konformitäts-Report', to: '/conformance-report', permission: 'product-types.view' },
             { icon: Link2, label: () => t('nav.relationTypes'), to: '/relation-types', permission: 'relation-types.view' },
           ],
         },
