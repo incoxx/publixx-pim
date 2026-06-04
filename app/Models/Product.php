@@ -19,6 +19,7 @@ class Product extends Model
 
     protected $fillable = [
         'product_type_id',
+        'reference_profile_id',
         'sku',
         'ean',
         'name',
@@ -45,6 +46,16 @@ class Product extends Model
     public function productType(): BelongsTo
     {
         return $this->belongsTo(ProductType::class);
+    }
+
+    public function referenceProfile(): BelongsTo
+    {
+        return $this->belongsTo(ProductReferenceProfile::class, 'reference_profile_id');
+    }
+
+    public function conformanceResult(): HasOne
+    {
+        return $this->hasOne(ProductConformanceResult::class);
     }
 
     public function parentProduct(): BelongsTo

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Observers;
 
+use App\Jobs\RunConformanceCheck;
 use App\Jobs\UpdateSearchIndex;
 use App\Models\Product;
 use App\Models\ProductAttributeValue;
@@ -55,6 +56,12 @@ class AttributeValueObserver
         // 3. Varianten-Kaskade: Wenn das betroffene Produkt Varianten hat,
         //    müssen deren Caches auch invalidiert werden (Vererbung).
         $this->invalidateVariantCascade($productId);
+
+        // 3b. Konformitätsprüfung (on-save) anstoßen, falls ein Referenz-Profil
+        //     verknüpft ist. Der Job prüft selbst, ob ein Profil vorhanden ist.
+        if (Product::whereKey($productId)->whereNotNull('reference_profile_id')->exists()) {
+            dispatch(new RunConformanceCheck($productId, 'save'))->afterCommit();
+        }
 
         // 4. Attribut-Mapping Sync wird jetzt synchron im
         //    ProductAttributeValueController::bulkUpdate() ausgeführt,
