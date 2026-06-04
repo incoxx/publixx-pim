@@ -516,7 +516,8 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // Konformitäts-Report über den gesamten Bestand
     Route::get('conformance/report', [ProductConformanceController::class, 'report']);
 
-    // Profil-Verwaltung (CRUD) + Batch-Re-Check
+    // Profil-Verwaltung (CRUD) + Regel-Ableitung + Batch-Re-Check
+    Route::post('reference-profiles/suggest-rules', [ProductReferenceProfileController::class, 'suggestRules']);
     Route::post('reference-profiles/{referenceProfile}/recheck', [ProductReferenceProfileController::class, 'recheck']);
     Route::apiResource('reference-profiles', ProductReferenceProfileController::class)
         ->parameters(['reference-profiles' => 'referenceProfile']);

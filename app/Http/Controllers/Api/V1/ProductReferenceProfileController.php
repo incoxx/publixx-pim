@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Jobs\RecheckProfileProducts;
 use App\Models\ProductReferenceProfile;
+use App\Services\Conformance\RuleSuggester;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -104,6 +105,30 @@ class ProductReferenceProfileController extends Controller
         $referenceProfile->delete();
 
         return response()->json(null, 204);
+    }
+
+    /**
+     * Regel-Vorschläge aus einem oder mehreren Musterprodukten ableiten.
+     * Liefert eine Regel-Vorlage (nicht gespeichert) für den Profil-Editor.
+     */
+    public function suggestRules(Request $request, RuleSuggester $suggester): JsonResponse
+    {
+        $validated = $request->validate([
+            'product_ids' => ['required', 'array', 'min:1'],
+            'product_ids.*' => ['uuid', 'exists:products,id'],
+            'tolerance_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
+        ]);
+
+        $rules = $suggester->suggest(
+            $validated['product_ids'],
+            (float) ($validated['tolerance_percent'] ?? 20)
+        );
+
+        return response()->json([
+            'rules' => $rules,
+            // Musterprodukte gleich als KI-Kontext (Schritt 2) vorschlagen
+            'golden_product_ids' => $validated['product_ids'],
+        ]);
     }
 
     /**
