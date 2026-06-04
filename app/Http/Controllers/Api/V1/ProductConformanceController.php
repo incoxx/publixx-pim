@@ -111,8 +111,14 @@ class ProductConformanceController extends Controller
 
         $product->update(['reference_profile_id' => $profileId]);
 
-        // Direktes Ergebnis liefern (Observer prüft zwar async, hier sofort sichtbar)
-        $result = $profileId !== null ? $this->checker->check($product, 'manual') : null;
+        if ($profileId !== null) {
+            // Direktes Ergebnis liefern (Observer prüft zwar async, hier sofort sichtbar)
+            $result = $this->checker->check($product, 'manual');
+        } else {
+            // Profil entfernt → verwaistes Prüfergebnis löschen
+            ProductConformanceResult::where('product_id', $product->id)->delete();
+            $result = null;
+        }
 
         return response()->json([
             'data' => $product->only(['id', 'reference_profile_id']),

@@ -3,7 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { referenceProfiles } from '@/api/referenceProfiles'
 import attributesApi from '@/api/attributes'
-import productsApi from '@/api/products'
+import searchApi from '@/api/search'
 import { Plus, Trash2, Wand2, X } from 'lucide-vue-next'
 
 const props = defineProps({
@@ -110,7 +110,8 @@ async function searchSamples() {
   const q = sampleQuery.value.trim()
   if (q.length < 2) { sampleResults.value = []; return }
   try {
-    const { data } = await productsApi.list({ search: q, perPage: 10 })
+    // Echte Produktsuche (GET /products wertet "search" nicht aus)
+    const { data } = await searchApi.search({ search: q, per_page: 10 })
     sampleResults.value = (data.data || data).map(p => ({ id: p.id, sku: p.sku, name: p.name }))
   } catch { sampleResults.value = [] }
 }
