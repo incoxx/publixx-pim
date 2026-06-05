@@ -67,6 +67,15 @@ class ProductReferenceProfileController extends Controller
     {
         $validated = $this->validateProfile($request, $referenceProfile);
 
+        // Zyklus-Schutz: Eltern-Profil darf kein Nachfahre dieses Profils sein
+        if (array_key_exists('parent_profile_id', $validated)
+            && $this->wouldCreateCycle($referenceProfile->id, $validated['parent_profile_id'] ?? null)) {
+            return response()->json([
+                'message' => 'Diese Zuordnung würde eine zyklische Vererbung erzeugen.',
+                'errors' => ['parent_profile_id' => ['Zyklische Vererbung ist nicht erlaubt.']],
+            ], 422);
+        }
+
         // Regeländerung erkennen → Versionssprung + Batch-Re-Check
         $rulesChanged = array_key_exists('rules', $validated)
             && json_encode($validated['rules']) !== json_encode($referenceProfile->rules);
@@ -82,6 +91,30 @@ class ProductReferenceProfileController extends Controller
         }
 
         return response()->json(['data' => $referenceProfile->fresh()]);
+    }
+
+    /**
+     * Prüft, ob das Setzen von $parentId als Eltern-Profil von $profileId einen
+     * Vererbungs-Zyklus erzeugen würde (Eltern ist Nachfahre des Profils).
+     */
+    private function wouldCreateCycle(string $profileId, ?string $parentId): bool
+    {
+        $seen = [];
+        $current = $parentId;
+        $depth = 0;
+        while ($current !== null && $depth < 50) {
+            if ($current === $profileId) {
+                return true;
+            }
+            if (isset($seen[$current])) {
+                break;
+            }
+            $seen[$current] = true;
+            $current = ProductReferenceProfile::whereKey($current)->value('parent_profile_id');
+            $depth++;
+        }
+
+        return false;
     }
 
     public function destroy(ProductReferenceProfile $referenceProfile): JsonResponse
