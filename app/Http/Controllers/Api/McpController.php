@@ -39,7 +39,9 @@ class McpController extends Controller
     /** Vom Server unterstützte MCP-Protokollversion (Fallback). */
     private const PROTOCOL_VERSION = '2025-06-18';
 
-    private Request $currentRequest;
+    // Wird in handle() gesetzt; Request-Facade als Fallback falls logMcpCall()
+    // in einem unerwarteten Pfad ohne handle() aufgerufen wird.
+    private ?Request $currentRequest = null;
 
     public function __construct(
         private readonly ApiDataCollector $dataCollector,
@@ -700,8 +702,8 @@ class McpController extends Controller
             auditableId:   $slug ?? $toolName,
             action:        'mcp_query',
             newValues:     ['tool' => $toolName, 'args' => $logArgs],
-            ipAddress:     $this->currentRequest->ip(),
-            userAgent:     $this->currentRequest->userAgent(),
+            ipAddress:     $this->currentRequest?->ip(),
+            userAgent:     $this->currentRequest?->userAgent(),
         );
     }
 

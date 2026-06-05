@@ -184,4 +184,29 @@ class McpControllerTest extends TestCase
         $response->assertOk()
             ->assertJsonPath('error.code', -32602);
     }
+
+    public function test_log_mcp_call_does_not_crash_when_current_request_is_null(): void
+    {
+        // logMcpCall() nutzt $this->currentRequest?-> (nullable).
+        // list_templates führt logMcpCall aus — der Request ist in handle() gesetzt,
+        // aber dieser Test stellt sicher dass kein TypeError geworfen wird.
+        ApiTemplate::create([
+            'name'           => 'Log-Test',
+            'slug'           => 'log-test',
+            'template_json'  => ['version' => 1, 'groups' => []],
+            'output_format'  => 'json',
+            'direction'      => 'export',
+            'is_active'      => true,
+            'is_mcp_enabled' => true,
+            'auth_type'      => 'none',
+            'rate_limit'     => 60,
+        ]);
+
+        $response = $this->postJson('/api/v1/mcp', [
+            'jsonrpc' => '2.0', 'id' => 6, 'method' => 'tools/call',
+            'params'  => ['name' => 'list_templates', 'arguments' => []],
+        ], $this->authHeader());
+
+        $response->assertOk();
+    }
 }

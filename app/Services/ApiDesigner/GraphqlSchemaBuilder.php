@@ -20,6 +20,12 @@ use GraphQL\Utils\SchemaPrinter;
  */
 class GraphqlSchemaBuilder
 {
+    // Instanz-Properties statt `static` — verhindert "Duplicate type"-Fehler in
+    // webonyx/graphql-php wenn derselbe FPM-Worker mehrere Requests verarbeitet.
+    private ?ObjectType $priceType        = null;
+    private ?ObjectType $mediaItemType    = null;
+    private ?ObjectType $relationItemType = null;
+
     /**
      * Baut ein vollständiges GraphQL-Schema aus template_json.
      *
@@ -300,8 +306,7 @@ class GraphqlSchemaBuilder
 
     private function getPriceType(): ObjectType
     {
-        static $type = null;
-        return $type ??= new ObjectType([
+        return $this->priceType ??= new ObjectType([
             'name'   => 'Price',
             'fields' => [
                 'amount'   => ['type' => Type::float()],
@@ -312,8 +317,7 @@ class GraphqlSchemaBuilder
 
     private function getMediaItemType(): ObjectType
     {
-        static $type = null;
-        return $type ??= new ObjectType([
+        return $this->mediaItemType ??= new ObjectType([
             'name'   => 'MediaItem',
             'fields' => [
                 'url'       => ['type' => Type::string()],
@@ -327,8 +331,7 @@ class GraphqlSchemaBuilder
 
     private function getRelationItemType(): ObjectType
     {
-        static $type = null;
-        return $type ??= new ObjectType([
+        return $this->relationItemType ??= new ObjectType([
             'name'   => 'RelationItem',
             'fields' => [
                 'sku'  => ['type' => Type::string()],
