@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Api\McpController;
 use App\Http\Controllers\Api\V1\AssetCatalogController;
 use App\Http\Controllers\Api\V1\CalendarController;
 use App\Http\Controllers\Api\V1\DocumentPortalController;
@@ -221,6 +222,17 @@ Route::prefix('v1/catalog')->middleware('throttle.pim')->group(function () {
 // =========================================================================
 Route::prefix('v1')->middleware('throttle.pim')->group(function () {
     Route::match(['get', 'post'], 'api-streams/{slug}', [ApiStreamController::class, 'stream']);
+});
+
+// =========================================================================
+// MCP Endpoint — Model Context Protocol (claude.ai Custom Connector)
+// JSON-RPC 2.0 über POST /api/v1/mcp. Auth via globalem Bearer-Token
+// (MCP_AUTH_TOKEN). Eigene Auth im Controller, daher keine Sanctum-Middleware.
+// =========================================================================
+Route::prefix('v1')->middleware('throttle.pim')->group(function () {
+    Route::post('mcp', [McpController::class, 'handle']);
+    // Token im URL-Pfad — claude.ai Custom Connector bietet kein Header-Feld
+    Route::post('mcp/{urlToken}', [McpController::class, 'handle']);
 });
 
 // =========================================================================

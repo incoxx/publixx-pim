@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\ApiDesigner;
 
+use GraphQL\Type\Definition\ListOfType;
 use GraphQL\Type\Definition\ObjectType;
 use GraphQL\Type\Definition\Type;
 use GraphQL\Type\Schema;
@@ -19,6 +20,12 @@ use GraphQL\Utils\SchemaPrinter;
  */
 class GraphqlSchemaBuilder
 {
+    // Instanz-Properties statt `static` — verhindert "Duplicate type"-Fehler in
+    // webonyx/graphql-php wenn derselbe FPM-Worker mehrere Requests verarbeitet.
+    private ?ObjectType $priceType        = null;
+    private ?ObjectType $mediaItemType    = null;
+    private ?ObjectType $relationItemType = null;
+
     /**
      * Baut ein vollständiges GraphQL-Schema aus template_json.
      *
@@ -176,15 +183,29 @@ class GraphqlSchemaBuilder
             ];
         } else {
             foreach ($elements as $element) {
+                // Write-only Felder erscheinen nicht im Query-Schema
+                if (($element['access'] ?? 'readwrite') === 'write') {
+                    continue;
+                }
+
                 $key = $element['jsonKey'] ?? $element['field'] ?? $element['attributeId'] ?? null;
                 if (!$key) {
                     continue;
                 }
 
-                $fieldName = $this->sanitizeFieldName($key);
-                $fields[$fieldName] = [
-                    'type' => $this->mapDataType($element['dataType'] ?? 'string'),
-                ];
+                $fieldName  = $this->sanitizeFieldName($key);
+                $elementType = $element['type'] ?? 'field';
+
+                $graphqlType = match ($elementType) {
+                    'price'    => $this->getPriceType(),
+                    'media'    => ($element['mediaMode'] ?? 'url') === 'array'
+                                    ? Type::listOf($this->getMediaItemType())
+                                    : Type::string(),
+                    'relation' => Type::listOf($this->getRelationItemType()),
+                    default    => $this->mapDataType($element['dataType'] ?? 'string'),
+                };
+
+                $fields[$fieldName] = ['type' => $graphqlType];
 
                 // Resolver für umbenannte Felder (jsonKey enthält Sonderzeichen)
                 if ($fieldName !== $key) {
@@ -283,6 +304,42 @@ class GraphqlSchemaBuilder
         };
     }
 
+    private function getPriceType(): ObjectType
+    {
+        return $this->priceType ??= new ObjectType([
+            'name'   => 'Price',
+            'fields' => [
+                'amount'   => ['type' => Type::float()],
+                'currency' => ['type' => Type::string()],
+            ],
+        ]);
+    }
+
+    private function getMediaItemType(): ObjectType
+    {
+        return $this->mediaItemType ??= new ObjectType([
+            'name'   => 'MediaItem',
+            'fields' => [
+                'url'       => ['type' => Type::string()],
+                'alt'       => ['type' => Type::string()],
+                'mime_type' => ['type' => Type::string()],
+                'width'     => ['type' => Type::int()],
+                'height'    => ['type' => Type::int()],
+            ],
+        ]);
+    }
+
+    private function getRelationItemType(): ObjectType
+    {
+        return $this->relationItemType ??= new ObjectType([
+            'name'   => 'RelationItem',
+            'fields' => [
+                'sku'  => ['type' => Type::string()],
+                'name' => ['type' => Type::string()],
+            ],
+        ]);
+    }
+
     /**
      * Sanitiert Feldnamen für GraphQL (nur [_a-zA-Z][_a-zA-Z0-9]*).
      */
@@ -332,6 +389,9 @@ class GraphqlSchemaBuilder
             $lines[] = '  status';
         } else {
             foreach ($detailElements as $el) {
+                if (($el['access'] ?? 'readwrite') === 'write') {
+                    continue;
+                }
                 $key = $el['jsonKey'] ?? $el['field'] ?? $el['attributeId'] ?? null;
                 if ($key) {
                     $lines[] = '  ' . $this->sanitizeFieldName($key);

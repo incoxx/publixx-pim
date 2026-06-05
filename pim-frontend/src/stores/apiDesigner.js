@@ -71,6 +71,7 @@ export const useApiDesignerStore = defineStore('apiDesigner', () => {
       language: currentTemplate.value.language || 'de',
       is_shared: currentTemplate.value.is_shared || false,
       is_active: currentTemplate.value.is_active ?? true,
+      is_mcp_enabled: currentTemplate.value.is_mcp_enabled ?? false,
       slug: currentTemplate.value.slug,
       auth_type: currentTemplate.value.auth_type || 'api_key',
       rate_limit: currentTemplate.value.rate_limit || 60,
@@ -158,7 +159,7 @@ export const useApiDesignerStore = defineStore('apiDesigner', () => {
     const group = findGroup(templateJson.value.groups, groupId)
     if (!group) return
 
-    const el = { ...element, id: generateId() }
+    const el = { access: 'readwrite', ...element, id: generateId() }
     group[section].elements.push(el)
     isDirty.value = true
     return el

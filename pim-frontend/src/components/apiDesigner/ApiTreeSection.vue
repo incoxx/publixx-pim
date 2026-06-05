@@ -1,7 +1,7 @@
 <script setup>
 import { useApiDesignerStore } from '@/stores/apiDesigner'
 import { ref, computed } from 'vue'
-import { X, GripVertical, Hash, Tag, Type } from 'lucide-vue-next'
+import { X, GripVertical, Hash, Tag, Type, CircleDollarSign, Image, Link } from 'lucide-vue-next'
 
 const props = defineProps({
   groupId: { type: String, required: true },
@@ -105,7 +105,30 @@ const isFocused = computed(() =>
 )
 
 function getTypeIcon(type) {
-  return { field: Hash, attribute: Tag, text: Type }[type] || Hash
+  return { field: Hash, attribute: Tag, text: Type, price: CircleDollarSign, media: Image, relation: Link }[type] || Hash
+}
+
+function getTypeIconClass(type) {
+  return {
+    attribute: 'text-emerald-500',
+    price:     'text-amber-500',
+    media:     'text-sky-500',
+    relation:  'text-purple-500',
+  }[type] || 'text-[var(--color-accent)]'
+}
+
+function getElementLabel(el) {
+  if (el.type === 'price')    return el.jsonKey || el.label || 'Preis'
+  if (el.type === 'media')    return (el.jsonKey || el.label || 'Medium') + (el.mediaMode === 'array' ? ' [ ]' : '')
+  if (el.type === 'relation') return el.jsonKey || el.label || 'Beziehung'
+  return el.jsonKey || el.field || '...'
+}
+
+function getElementSubLabel(el) {
+  if (el.type === 'price')    return 'price'
+  if (el.type === 'media')    return el.mediaMode === 'array' ? 'media[]' : 'media'
+  if (el.type === 'relation') return 'relation[]'
+  return el.dataType || 'string'
 }
 </script>
 
@@ -151,9 +174,17 @@ function getTypeIcon(type) {
           @click="selectElement(el.id)"
         >
           <GripVertical class="w-3 h-3 text-[var(--color-text-tertiary)] shrink-0 cursor-grab" :stroke-width="1.5" />
-          <component :is="getTypeIcon(el.type)" class="w-3 h-3 shrink-0" :class="el.type === 'attribute' ? 'text-emerald-500' : 'text-[var(--color-accent)]'" :stroke-width="2" />
-          <span class="font-mono text-[var(--color-text-secondary)] truncate">{{ el.jsonKey || el.field || '...' }}</span>
-          <span class="text-[9px] text-[var(--color-text-tertiary)] shrink-0">{{ el.dataType || 'string' }}</span>
+          <component :is="getTypeIcon(el.type)" class="w-3 h-3 shrink-0" :class="getTypeIconClass(el.type)" :stroke-width="2" />
+          <span class="font-mono text-[var(--color-text-secondary)] truncate">{{ getElementLabel(el) }}</span>
+          <span class="text-[9px] text-[var(--color-text-tertiary)] shrink-0">{{ getElementSubLabel(el) }}</span>
+          <span
+            class="text-[9px] font-medium shrink-0 px-1 rounded"
+            :class="{
+              'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400': (el.access || 'readwrite') === 'read',
+              'bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400': (el.access || 'readwrite') === 'write',
+              'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400': (el.access || 'readwrite') === 'readwrite',
+            }"
+          >{{ (el.access || 'readwrite') === 'readwrite' ? 'R+W' : (el.access || 'readwrite').toUpperCase() }}</span>
           <span class="text-[9px] text-[var(--color-text-tertiary)] truncate flex-1">{{ el.label || '' }}</span>
           <button
             class="text-[var(--color-text-tertiary)] hover:text-[var(--color-error)] shrink-0"
@@ -188,6 +219,31 @@ function getTypeIcon(type) {
                 <option value="boolean">boolean</option>
               </select>
             </div>
+          </div>
+          <div class="flex gap-2">
+            <div class="flex-1">
+              <label class="block text-[9px] text-[var(--color-text-tertiary)] mb-0.5">Zugriff</label>
+              <select
+                :value="el.access || 'readwrite'"
+                class="pim-input text-[11px] w-full"
+                @change="updateElement(el.id, 'access', $event.target.value)"
+              >
+                <option value="readwrite">Lesen + Schreiben</option>
+                <option value="read">Nur Lesen</option>
+                <option value="write">Nur Schreiben</option>
+              </select>
+            </div>
+          </div>
+          <div class="flex items-center gap-3">
+            <label class="flex items-center gap-1.5 text-[10px] cursor-pointer text-[var(--color-text-secondary)]">
+              <input
+                type="checkbox"
+                :checked="el.is_searchable !== false"
+                class="rounded"
+                @change="updateElement(el.id, 'is_searchable', $event.target.checked)"
+              />
+              Suchen (MCP)
+            </label>
           </div>
           <div v-if="el.type === 'attribute'" class="flex items-center gap-2">
             <label class="flex items-center gap-1.5 text-[10px] cursor-pointer text-[var(--color-text-secondary)]">

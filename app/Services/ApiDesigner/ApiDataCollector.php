@@ -58,6 +58,40 @@ class ApiDataCollector
         ];
     }
 
+    /**
+     * Wie collect(), aber für eine vorgegebene Liste von Produkt-IDs (z.B. aus der MCP-Suche).
+     * Reihenfolge der IDs wird beibehalten.
+     *
+     * @param  string[] $productIds
+     * @return array{grouped: array, total: int, count: int, offset: int, limit: int|null}
+     */
+    public function collectByIds(ApiTemplate $template, array $productIds, ?string $language = null): array
+    {
+        if (empty($productIds)) {
+            return ['grouped' => [], 'total' => 0, 'count' => 0, 'offset' => 0, 'limit' => null];
+        }
+
+        $lang      = $language ?? $template->language ?? 'de';
+        $relations = $this->determineRelations($template->template_json);
+
+        // Reihenfolge aus $productIds beibehalten via FIELD()-Sort (MySQL) oder PHP-Sort
+        $products = Product::with($relations)
+            ->whereIn('id', $productIds)
+            ->get()
+            ->sortBy(fn ($p) => array_search($p->id, $productIds, true))
+            ->values();
+
+        $grouped = $this->groupProducts($products, $template->template_json, $lang);
+
+        return [
+            'grouped' => $grouped,
+            'total'   => count($productIds),
+            'count'   => $products->count(),
+            'offset'  => 0,
+            'limit'   => null,
+        ];
+    }
+
     /** Erlaubte Sortierfelder (direkte Produktspalten). */
     private const SORT_FIELDS = ['sku', 'name', 'status', 'created_at', 'updated_at'];
 
@@ -96,11 +130,20 @@ class ApiDataCollector
     {
         $relations = ['productType', 'masterHierarchyNode'];
         $hasAttributes = false;
+        $hasPrices     = false;
+        $hasMedia      = false;
+        $hasRelations  = false;
 
-        $this->walkGroupElements($templateJson['groups'] ?? [], function (array $element) use (&$hasAttributes) {
-            if ($element['type'] === 'attribute') {
-                $hasAttributes = true;
-            }
+        $this->walkGroupElements($templateJson['groups'] ?? [], function (array $element) use (
+            &$hasAttributes, &$hasPrices, &$hasMedia, &$hasRelations
+        ) {
+            match ($element['type'] ?? '') {
+                'attribute' => $hasAttributes = true,
+                'price'     => $hasPrices     = true,
+                'media'     => $hasMedia      = true,
+                'relation'  => $hasRelations  = true,
+                default     => null,
+            };
         });
 
         $this->walkGroups($templateJson['groups'] ?? [], function (array $group) use (&$hasAttributes) {
@@ -113,6 +156,15 @@ class ApiDataCollector
             $relations[] = 'attributeValues.attribute';
             $relations[] = 'attributeValues.unit';
             $relations[] = 'attributeValues.valueListEntry';
+        }
+        if ($hasPrices) {
+            $relations[] = 'prices';
+        }
+        if ($hasMedia) {
+            $relations[] = 'mediaAssignments.media';
+        }
+        if ($hasRelations) {
+            $relations[] = 'outgoingRelations.targetProduct';
         }
 
         return $relations;
