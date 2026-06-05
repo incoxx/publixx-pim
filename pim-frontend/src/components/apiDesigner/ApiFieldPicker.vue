@@ -124,7 +124,7 @@ const hasFocus = computed(() => !!store.focusedSection.groupId)
 
 // Gibt {groupId, section} zurück — aktiver Fokus oder automatisch "detail"
 // der ersten/ausgewählten Gruppe als Fallback.
-function resolveTarget(): { groupId: string, section: string } | null {
+function resolveTarget() {
   const { groupId, section } = store.focusedSection
   if (groupId && section) return { groupId, section }
   // Fallback: ausgewählte Gruppe oder erste Gruppe, Sektion "detail"
