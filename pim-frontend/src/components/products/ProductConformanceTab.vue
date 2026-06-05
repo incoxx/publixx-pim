@@ -21,6 +21,7 @@ const isStale = ref(false)
 const profiles = ref([])
 const selectedProfileId = ref('')
 const assigning = ref(false)
+const actionError = ref('')
 
 const STATUS_META = {
   pass: { label: 'Konform', icon: ShieldCheck, color: 'var(--color-success)' },
@@ -48,13 +49,15 @@ async function loadAll() {
   try {
     const [{ data: conf }, { data: profData }] = await Promise.all([
       conformance.show(props.productId),
-      referenceProfiles.list({ only_concrete: true }),
+      referenceProfiles.list(),
     ])
     result.value = conf.data
     profile.value = conf.profile
     isStale.value = conf.is_stale
     selectedProfileId.value = conf.profile?.id || ''
-    profiles.value = (profData.data || profData).filter(p => !p.is_abstract)
+    // Alle Profile laden; abstrakte werden im Dropdown deaktiviert angezeigt,
+    // damit sichtbar ist, warum sie nicht zuweisbar sind.
+    profiles.value = profData.data || profData
   } catch {
     result.value = null
   } finally {
@@ -64,10 +67,18 @@ async function loadAll() {
 
 async function assignProfile() {
   assigning.value = true
+  actionError.value = ''
   try {
     const { data } = await conformance.assign(props.productId, selectedProfileId.value || null)
     result.value = data.result
     await loadAll()
+    // Persistenz verifizieren: hat das Backend das Profil wirklich übernommen?
+    if (selectedProfileId.value && profile.value?.id !== selectedProfileId.value) {
+      actionError.value = 'Die Zuordnung wurde nicht gespeichert. Vermutlich fehlt eine Datenbank-Migration (php artisan migrate).'
+    }
+  } catch (e) {
+    actionError.value = e.response?.data?.message
+      || `Zuordnung fehlgeschlagen (${e.response?.status || 'Netzwerkfehler'}). Ist die Migration ausgeführt?`
   } finally {
     assigning.value = false
   }
@@ -125,8 +136,14 @@ onMounted(loadAll)
           <label class="block text-xs mb-1 text-[var(--color-text-secondary)]">Referenz-Profil</label>
           <select v-model="selectedProfileId" class="pim-input w-full">
             <option value="">— kein Profil —</option>
-            <option v-for="p in profiles" :key="p.id" :value="p.id">{{ p.name }}</option>
+            <option v-for="p in profiles" :key="p.id" :value="p.id" :disabled="p.is_abstract">
+              {{ p.name }}{{ p.is_abstract ? ' (abstrakt – nicht zuweisbar)' : '' }}
+            </option>
           </select>
+          <p v-if="profiles.length && !profiles.some(p => !p.is_abstract)" class="text-xs text-[var(--color-warning)] mt-1">
+            Alle Profile sind „abstrakt" und damit nicht zuweisbar. Erstelle ein konkretes
+            Profil (Haken „Abstrakt" entfernen) oder leite eines davon ab.
+          </p>
         </div>
         <button v-if="canRun()" class="pim-btn pim-btn-secondary" :disabled="assigning || selectedProfileId === (profile?.id || '')"
                 @click="assignProfile">
@@ -141,6 +158,13 @@ onMounted(loadAll)
           <Sparkles class="w-4 h-4" />
           {{ explaining ? 'Analysiere…' : 'KI-Erklärung' }}
         </button>
+      </div>
+
+      <!-- Fehler bei Aktionen (z.B. Zuordnung nicht gespeichert) -->
+      <div v-if="actionError" class="flex items-start gap-2 text-sm rounded p-2"
+           style="background: color-mix(in srgb, var(--color-error) 12%, transparent); color: var(--color-error)">
+        <AlertTriangle class="w-4 h-4 mt-0.5 shrink-0" />
+        <span>{{ actionError }}</span>
       </div>
 
       <!-- Kein Profil -->

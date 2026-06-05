@@ -322,29 +322,33 @@ onMounted(loadInitial)
       </div>
 
       <div v-for="(r, i) in rules" :key="i"
-           class="grid grid-cols-12 gap-2 items-center border border-[var(--color-border)] rounded p-2">
-        <input v-model="r.attribute" list="ref-attr-list" class="pim-input col-span-3 font-mono text-xs"
-               placeholder="attribut" />
-        <select v-model="r.check" class="pim-input col-span-2 text-xs">
-          <option v-for="c in CHECKS" :key="c.value" :value="c.value">{{ c.label }}</option>
-        </select>
+           class="border border-[var(--color-border)] rounded p-2 space-y-2">
+        <!-- Zeile 1: Attribut (volle Breite) + Löschen -->
+        <div class="flex items-center gap-2">
+          <input v-model="r.attribute" list="ref-attr-list" class="pim-input flex-1 min-w-0 font-mono text-xs"
+                 placeholder="Attribut (technical_name)" />
+          <button class="text-[var(--color-error)] shrink-0" title="Regel entfernen" @click="removeRule(i)">
+            <Trash2 class="w-4 h-4" />
+          </button>
+        </div>
+        <!-- Zeile 2: Prüfung + Parameter + Schweregrad (umbrechend) -->
+        <div class="flex flex-wrap items-center gap-2">
+          <select v-model="r.check" class="pim-input text-xs w-36">
+            <option v-for="c in CHECKS" :key="c.value" :value="c.value">{{ c.label }}</option>
+          </select>
 
-        <!-- Parameter je nach Check -->
-        <template v-if="needs(r.check, 'min') || needs(r.check, 'max')">
-          <input v-if="needs(r.check,'min')" v-model="r.min" type="number" class="pim-input col-span-2 text-xs" placeholder="min" />
-          <input v-if="needs(r.check,'max')" v-model="r.max" type="number" class="pim-input col-span-2 text-xs" placeholder="max" />
-        </template>
-        <input v-else-if="needs(r.check,'value')" v-model="r.value" class="pim-input col-span-4 text-xs" placeholder="Wert" />
-        <input v-else-if="needs(r.check,'values')" v-model="r.valuesText" class="pim-input col-span-4 text-xs" placeholder="wert1, wert2, …" />
-        <input v-else-if="needs(r.check,'pattern')" v-model="r.pattern" class="pim-input col-span-4 text-xs font-mono" placeholder="/^\\d+$/" />
-        <span v-else class="col-span-4"></span>
+          <template v-if="needs(r.check, 'min') || needs(r.check, 'max')">
+            <input v-if="needs(r.check,'min')" v-model="r.min" type="number" class="pim-input text-xs w-24" placeholder="min" />
+            <input v-if="needs(r.check,'max')" v-model="r.max" type="number" class="pim-input text-xs w-24" placeholder="max" />
+          </template>
+          <input v-else-if="needs(r.check,'value')" v-model="r.value" class="pim-input text-xs w-40" placeholder="Wert" />
+          <input v-else-if="needs(r.check,'values')" v-model="r.valuesText" class="pim-input text-xs flex-1 min-w-40" placeholder="wert1, wert2, …" />
+          <input v-else-if="needs(r.check,'pattern')" v-model="r.pattern" class="pim-input text-xs flex-1 min-w-40 font-mono" placeholder="/^\\d+$/" />
 
-        <select v-model="r.severity" class="pim-input col-span-2 text-xs">
-          <option v-for="s in SEVERITIES" :key="s.value" :value="s.value">{{ s.label }}</option>
-        </select>
-        <button class="col-span-1 text-[var(--color-error)] flex justify-center" @click="removeRule(i)">
-          <Trash2 class="w-4 h-4" />
-        </button>
+          <select v-model="r.severity" class="pim-input text-xs w-28 ml-auto">
+            <option v-for="s in SEVERITIES" :key="s.value" :value="s.value">{{ s.label }}</option>
+          </select>
+        </div>
       </div>
 
       <datalist id="ref-attr-list">

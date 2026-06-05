@@ -14,6 +14,7 @@ export const useAuthStore = defineStore('auth', () => {
   const panelOpen = ref(false)
   const panelComponent = ref(null)
   const panelProps = ref({})
+  const panelWidth = ref('360px')
 
   const isAuthenticated = computed(() => !!token.value)
   const userName = computed(() => user.value?.name || '')
@@ -127,9 +128,10 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.setItem('pim_sidebar_sections', JSON.stringify(sections))
   }
 
-  function openPanel(component, props = {}) {
+  function openPanel(component, props = {}, width = '360px') {
     panelComponent.value = component
     panelProps.value = props
+    panelWidth.value = width || '360px'
     panelOpen.value = true
   }
 
@@ -137,12 +139,13 @@ export const useAuthStore = defineStore('auth', () => {
     panelOpen.value = false
     panelComponent.value = null
     panelProps.value = {}
+    panelWidth.value = '360px'
   }
 
   return {
     user, token, locale,
     commandPaletteOpen, sidebarCollapsed, sidebarMobileOpen, sidebarWidth, sidebarCollapsedSections,
-    panelOpen, panelComponent, panelProps,
+    panelOpen, panelComponent, panelProps, panelWidth,
     isAuthenticated, userName, userRole, permissions, entityRestrictions, tabPermissions,
     hasPermission, hasInstanceAccess, getTabAccess, login, logout, checkAuth, setLocale,
     toggleCommandPalette, toggleSidebar, toggleMobileSidebar, closeMobileSidebar, setSidebarWidth, toggleSidebarSection, collapseAllSections,
