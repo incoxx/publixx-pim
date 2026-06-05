@@ -246,17 +246,23 @@ class McpController extends Controller
     {
         $templates = ApiTemplate::query()
             ->active()
+            ->where('is_mcp_enabled', true)
             ->orderBy('name')
-            ->get(['id', 'name', 'slug', 'output_format', 'direction', 'language']);
+            ->get(['id', 'name', 'slug', 'output_format', 'direction', 'language', 'description']);
 
         if ($templates->isEmpty()) {
-            return 'Keine aktiven Templates gefunden.';
+            return 'Keine für MCP freigegebenen Templates gefunden. Bitte im API Designer "Für Claude freigeben" aktivieren.';
         }
 
         return $templates->map(function (ApiTemplate $t) {
             $lang = $t->language ? ', ' . $t->language : '';
+            $line = "• {$t->slug} — {$t->name} [{$t->output_format}, {$t->direction}{$lang}]";
 
-            return "• {$t->slug} — {$t->name} [{$t->output_format}, {$t->direction}{$lang}]";
+            if (!empty($t->description)) {
+                $line .= "\n  → {$t->description}";
+            }
+
+            return $line;
         })->implode("\n");
     }
 
@@ -339,10 +345,13 @@ class McpController extends Controller
 
     private function resolveTemplate(string $slug): ApiTemplate
     {
-        $template = ApiTemplate::where('slug', $slug)->active()->first();
+        $template = ApiTemplate::where('slug', $slug)
+            ->active()
+            ->where('is_mcp_enabled', true)
+            ->first();
 
         if (!$template) {
-            throw new McpException(-32602, "Template mit Slug \"{$slug}\" nicht gefunden oder inaktiv.");
+            throw new McpException(-32602, "Template mit Slug \"{$slug}\" nicht gefunden, inaktiv oder nicht für MCP freigegeben.");
         }
 
         return $template;

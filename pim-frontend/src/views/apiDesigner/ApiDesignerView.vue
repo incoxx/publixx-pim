@@ -3,7 +3,7 @@ import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { useApiDesignerStore } from '@/stores/apiDesigner'
 import {
-  ArrowLeft, Save, Eye, Settings, Filter, Loader2,
+  ArrowLeft, Save, Eye, Settings, Filter, Loader2, BotMessageSquare,
 } from 'lucide-vue-next'
 import searchProfilesApi from '@/api/searchProfiles'
 import ApiTreeEditor from '@/components/apiDesigner/ApiTreeEditor.vue'
@@ -188,6 +188,22 @@ function onSearchProfileChange(id) {
             @change="store.currentTemplate.is_active = $event.target.checked; store.isDirty = true"
           />
           Aktiv
+        </label>
+
+        <!-- MCP / Claude Toggle -->
+        <label
+          class="flex items-center gap-1.5 text-[11px] cursor-pointer"
+          :class="store.currentTemplate.is_mcp_enabled ? 'text-violet-600 dark:text-violet-400' : 'text-[var(--color-text-tertiary)]'"
+          title="Für Claude / MCP-Connector freigeben"
+        >
+          <input
+            type="checkbox"
+            :checked="store.currentTemplate.is_mcp_enabled"
+            class="rounded accent-violet-600"
+            @change="store.currentTemplate.is_mcp_enabled = $event.target.checked; store.isDirty = true"
+          />
+          <BotMessageSquare class="w-3.5 h-3.5 shrink-0" :stroke-width="2" />
+          Claude
         </label>
 
         <!-- Search Profile -->

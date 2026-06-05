@@ -118,6 +118,11 @@ class JsonWriter
             $productData = [];
 
             foreach ($elements as $element) {
+                // Write-only Felder nicht im JSON-Output
+                if (($element['access'] ?? 'readwrite') === 'write') {
+                    continue;
+                }
+
                 $key = $element['jsonKey'] ?? $element['field'] ?? $element['attributeId'] ?? null;
                 if (!$key) {
                     continue;

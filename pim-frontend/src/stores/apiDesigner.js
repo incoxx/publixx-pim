@@ -158,7 +158,7 @@ export const useApiDesignerStore = defineStore('apiDesigner', () => {
     const group = findGroup(templateJson.value.groups, groupId)
     if (!group) return
 
-    const el = { ...element, id: generateId() }
+    const el = { access: 'readwrite', ...element, id: generateId() }
     group[section].elements.push(el)
     isDirty.value = true
     return el

@@ -26,6 +26,7 @@ class ApiTemplate extends Model
         'user_id',
         'is_shared',
         'is_active',
+        'is_mcp_enabled',
         'slug',
         'auth_type',
         'api_key',
@@ -38,6 +39,7 @@ class ApiTemplate extends Model
             'template_json' => 'array',
             'is_shared' => 'boolean',
             'is_active' => 'boolean',
+            'is_mcp_enabled' => 'boolean',
             'rate_limit' => 'integer',
         ];
     }
