@@ -205,8 +205,7 @@ function addAllAttrsGuarded(attrs) {
             <div
               v-for="field in store.availableFields.base_fields"
               :key="field.field"
-              class="flex items-center gap-2 px-2 py-1 rounded text-[11px] hover:bg-[var(--color-bg)] text-[var(--color-text-secondary)]"
-              class="cursor-pointer"
+              class="flex items-center gap-2 px-2 py-1 rounded text-[11px] hover:bg-[var(--color-bg)] text-[var(--color-text-secondary)] cursor-pointer"
               draggable="true"
               @dragstart="onDragStart($event, { type: 'field', field: field.field, label: field.label_de, jsonKey: field.field, dataType: 'string' })"
               @dblclick="onDoubleClick({ type: 'field', field: field.field, label: field.label_de, jsonKey: field.field, dataType: 'string' })"
@@ -241,8 +240,7 @@ function addAllAttrsGuarded(attrs) {
             <div
               v-for="attr in attrs"
               :key="attr.attributeId"
-              class="flex items-center gap-2 px-2 py-1 rounded text-[11px] hover:bg-[var(--color-bg)] text-[var(--color-text-secondary)]"
-              class="cursor-pointer"
+              class="flex items-center gap-2 px-2 py-1 rounded text-[11px] hover:bg-[var(--color-bg)] text-[var(--color-text-secondary)] cursor-pointer"
               draggable="true"
               @dragstart="onDragStart($event, { type: 'attribute', attributeId: attr.attributeId, label: attr.label_de, jsonKey: attr.technical_name, dataType: 'string' })"
               @dblclick="onDoubleClick({ type: 'attribute', attributeId: attr.attributeId, label: attr.label_de, jsonKey: attr.technical_name, dataType: 'string' })"
@@ -269,8 +267,7 @@ function addAllAttrsGuarded(attrs) {
             <div
               v-for="pt in store.availableFields.price_types"
               :key="pt.priceTypeId"
-              class="flex items-center gap-2 px-2 py-1 rounded text-[11px] hover:bg-[var(--color-bg)] text-[var(--color-text-secondary)]"
-              class="cursor-pointer"
+              class="flex items-center gap-2 px-2 py-1 rounded text-[11px] hover:bg-[var(--color-bg)] text-[var(--color-text-secondary)] cursor-pointer"
               draggable="true"
               @dragstart="onDragStart($event, { type: 'price', priceTypeId: pt.priceTypeId, label: pt.label_de, jsonKey: pt.technical_name })"
               @dblclick="onDoubleClickPrice(pt)"
@@ -338,8 +335,7 @@ function addAllAttrsGuarded(attrs) {
             <div
               v-for="rt in store.availableFields.relation_types"
               :key="rt.relationTypeId"
-              class="flex items-center gap-2 px-2 py-1 rounded text-[11px] hover:bg-[var(--color-bg)] text-[var(--color-text-secondary)]"
-              class="cursor-pointer"
+              class="flex items-center gap-2 px-2 py-1 rounded text-[11px] hover:bg-[var(--color-bg)] text-[var(--color-text-secondary)] cursor-pointer"
               draggable="true"
               @dragstart="onDragStart($event, { type: 'relation', relationTypeId: rt.relationTypeId, label: rt.label_de, jsonKey: rt.technical_name })"
               @dblclick="onDoubleClickRelation(rt)"
