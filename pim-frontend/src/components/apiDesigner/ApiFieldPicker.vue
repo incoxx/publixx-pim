@@ -291,15 +291,15 @@ function addAllAttrsGuarded(attrs) {
                 <span class="truncate flex-1">{{ mt.label_de }}</span>
                 <span class="text-[9px] text-[var(--color-text-tertiary)] font-mono">{{ mt.technical_name }}</span>
               </div>
-              <div v-if="hasFocus" class="flex gap-2 mt-0.5 ml-5">
+              <div class="flex gap-2 mt-0.5 ml-5">
                 <button
-                  class="text-[9px] text-sky-600 hover:underline"
+                  class="text-[9px] text-sky-600 hover:underline cursor-pointer"
                   draggable="true"
                   @dragstart="onDragStart($event, { type: 'media', usageTypeId: mt.usageTypeId, label: mt.label_de, jsonKey: mt.technical_name, mediaMode: 'url' })"
                   @click="onDoubleClickMedia(mt, 'url')"
                 >+ URL</button>
                 <button
-                  class="text-[9px] text-sky-600 hover:underline"
+                  class="text-[9px] text-sky-600 hover:underline cursor-pointer"
                   draggable="true"
                   @dragstart="onDragStart($event, { type: 'media', usageTypeId: mt.usageTypeId, label: mt.label_de, jsonKey: mt.technical_name + '_gallery', mediaMode: 'array' })"
                   @click="onDoubleClickMedia(mt, 'array')"
