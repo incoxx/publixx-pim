@@ -49,8 +49,8 @@ function toggleGroup(key) {
 }
 
 function onDoubleClick(item) {
-  if (!requireFocus()) return
-  const { groupId, section } = store.focusedSection
+  const { groupId, section } = resolveTarget() ?? {}
+  if (!groupId) return
   if (!item.jsonKey) {
     item.jsonKey = item.field || item.technical_name || item.label?.toLowerCase().replace(/\s+/g, '_') || 'field'
   }
@@ -73,8 +73,8 @@ function addAllAttrs(attrs) {
 }
 
 function onDoubleClickPrice(pt) {
-  if (!requireFocus()) return
-  const { groupId, section } = store.focusedSection
+  const { groupId, section } = resolveTarget() ?? {}
+  if (!groupId) return
   store.addElement(groupId, section, {
     type: 'price',
     priceTypeId: pt.priceTypeId,
@@ -84,8 +84,8 @@ function onDoubleClickPrice(pt) {
 }
 
 function onDoubleClickMedia(mt, mode = 'url') {
-  if (!requireFocus()) return
-  const { groupId, section } = store.focusedSection
+  const { groupId, section } = resolveTarget() ?? {}
+  if (!groupId) return
   store.addElement(groupId, section, {
     type: 'media',
     usageTypeId: mt.usageTypeId,
@@ -96,8 +96,8 @@ function onDoubleClickMedia(mt, mode = 'url') {
 }
 
 function onDoubleClickRelation(rt) {
-  if (!requireFocus()) return
-  const { groupId, section } = store.focusedSection
+  const { groupId, section } = resolveTarget() ?? {}
+  if (!groupId) return
   store.addElement(groupId, section, {
     type: 'relation',
     relationTypeId: rt.relationTypeId,
@@ -121,21 +121,37 @@ function addAllBaseFields() {
 }
 
 const hasFocus = computed(() => !!store.focusedSection.groupId)
-const noFocusMsg = ref(false)
 
-function requireFocus(): boolean {
-  if (hasFocus.value) return true
-  noFocusMsg.value = true
-  setTimeout(() => { noFocusMsg.value = false }, 2500)
-  return false
+// Gibt {groupId, section} zurück — aktiver Fokus oder automatisch "detail"
+// der ersten/ausgewählten Gruppe als Fallback.
+function resolveTarget(): { groupId: string, section: string } | null {
+  const { groupId, section } = store.focusedSection
+  if (groupId && section) return { groupId, section }
+  // Fallback: ausgewählte Gruppe oder erste Gruppe, Sektion "detail"
+  const fallbackId = store.selectedGroupId ?? store.templateJson?.groups?.[0]?.id
+  if (!fallbackId) return null
+  store.setFocusedSection(fallbackId, 'detail')
+  return { groupId: fallbackId, section: 'detail' }
 }
 
 function addAllBaseFieldsGuarded() {
-  if (requireFocus()) addAllBaseFields()
+  const target = resolveTarget()
+  if (!target) return
+  for (const field of store.availableFields?.base_fields ?? []) {
+    store.addElement(target.groupId, target.section, {
+      type: 'field', field: field.field, label: field.label_de, jsonKey: field.field, dataType: 'string',
+    })
+  }
 }
 
 function addAllAttrsGuarded(attrs) {
-  if (requireFocus()) addAllAttrs(attrs)
+  const target = resolveTarget()
+  if (!target) return
+  for (const attr of attrs) {
+    store.addElement(target.groupId, target.section, {
+      type: 'attribute', attributeId: attr.attributeId, label: attr.label_de, jsonKey: attr.technical_name, dataType: 'string',
+    })
+  }
 }
 </script>
 
@@ -162,8 +178,7 @@ function addAllAttrsGuarded(attrs) {
             autofocus
           />
         </div>
-        <p v-if="noFocusMsg" class="text-[9px] text-amber-500 mt-1 font-medium">↑ Bitte erst eine Sektion im Baum anklicken.</p>
-        <p v-else-if="!hasFocus" class="text-[9px] text-[var(--color-text-tertiary)] mt-1">Sektion anklicken, dann Doppelklick oder Drag & Drop.</p>
+        <p v-if="!hasFocus" class="text-[9px] text-[var(--color-text-tertiary)] mt-1">Doppelklick fügt in "Detail" ein. Drag & Drop in beliebige Sektion.</p>
       </div>
 
       <!-- Scrollable list -->
