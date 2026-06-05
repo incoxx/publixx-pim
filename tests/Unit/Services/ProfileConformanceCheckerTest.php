@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Services;
 
+use App\Models\ProductReferenceProfile;
 use App\Services\Conformance\ProfileConformanceChecker;
 use PHPUnit\Framework\TestCase;
 
@@ -111,5 +112,84 @@ class ProfileConformanceCheckerTest extends TestCase
     {
         $rule = ['attribute' => 'x', 'check' => 'does_not_exist'];
         $this->assertNull(ProfileConformanceChecker::evaluateRule($rule, 'whatever'));
+    }
+
+    // ─── effectiveRules: Vererbung (DB-frei über setRelation) ────
+
+    /**
+     * Baut ein Profil mit optionalem Eltern-Profil ohne DB-Zugriff.
+     *
+     * @param array<int, array<string, mixed>> $rules
+     */
+    private function makeProfile(string $id, array $rules, ?ProductReferenceProfile $parent = null): ProductReferenceProfile
+    {
+        $profile = new ProductReferenceProfile(['rules' => $rules]);
+        $profile->id = $id;
+        // Relation manuell setzen → kein DB-Zugriff in effectiveRules()
+        $profile->setRelation('parentProfile', $parent);
+
+        return $profile;
+    }
+
+    public function test_effective_rules_single_profile(): void
+    {
+        $profile = $this->makeProfile('a', [
+            ['attribute' => 'torque', 'check' => 'required', 'severity' => 'error'],
+        ]);
+
+        $rules = (new ProfileConformanceChecker())->effectiveRules($profile);
+
+        $this->assertCount(1, $rules);
+        $this->assertSame('torque', $rules[0]['attribute']);
+    }
+
+    public function test_effective_rules_child_inherits_and_adds(): void
+    {
+        $parent = $this->makeProfile('parent', [
+            ['attribute' => 'voltage', 'check' => 'required', 'severity' => 'error'],
+        ]);
+        $child = $this->makeProfile('child', [
+            ['attribute' => 'torque', 'check' => 'required', 'severity' => 'error'],
+        ], $parent);
+
+        $rules = (new ProfileConformanceChecker())->effectiveRules($child);
+
+        // Eltern-Regel (voltage) + eigene Regel (torque)
+        $attrs = array_column($rules, 'attribute');
+        $this->assertContains('voltage', $attrs);
+        $this->assertContains('torque', $attrs);
+        $this->assertCount(2, $rules);
+    }
+
+    public function test_effective_rules_child_overrides_same_key(): void
+    {
+        $parent = $this->makeProfile('parent', [
+            ['attribute' => 'voltage', 'check' => 'between', 'min' => 10, 'max' => 20, 'severity' => 'warning'],
+        ]);
+        $child = $this->makeProfile('child', [
+            ['attribute' => 'voltage', 'check' => 'between', 'min' => 12, 'max' => 18, 'severity' => 'error'],
+        ], $parent);
+
+        $rules = (new ProfileConformanceChecker())->effectiveRules($child);
+
+        // Gleicher Schlüssel (voltage|between) → Kind gewinnt
+        $this->assertCount(1, $rules);
+        $this->assertSame(12, $rules[0]['min']);
+        $this->assertSame('error', $rules[0]['severity']);
+    }
+
+    public function test_effective_rules_handles_cycle_without_infinite_loop(): void
+    {
+        $a = $this->makeProfile('a', [['attribute' => 'x', 'check' => 'required']]);
+        $b = $this->makeProfile('b', [['attribute' => 'y', 'check' => 'required']], $a);
+        // Zyklus: a zeigt zurück auf b
+        $a->setRelation('parentProfile', $b);
+
+        $rules = (new ProfileConformanceChecker())->effectiveRules($b);
+
+        // Kein Endlos-Loop, beide Regeln vorhanden
+        $attrs = array_column($rules, 'attribute');
+        $this->assertContains('x', $attrs);
+        $this->assertContains('y', $attrs);
     }
 }
