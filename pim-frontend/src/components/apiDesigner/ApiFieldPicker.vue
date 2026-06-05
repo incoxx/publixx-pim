@@ -49,8 +49,8 @@ function toggleGroup(key) {
 }
 
 function onDoubleClick(item) {
-  const { groupId, section } = store.focusedSection
-  if (!groupId || !section) return
+  const { groupId, section } = resolveTarget() ?? {}
+  if (!groupId) return
   if (!item.jsonKey) {
     item.jsonKey = item.field || item.technical_name || item.label?.toLowerCase().replace(/\s+/g, '_') || 'field'
   }
@@ -73,8 +73,8 @@ function addAllAttrs(attrs) {
 }
 
 function onDoubleClickPrice(pt) {
-  const { groupId, section } = store.focusedSection
-  if (!groupId || !section) return
+  const { groupId, section } = resolveTarget() ?? {}
+  if (!groupId) return
   store.addElement(groupId, section, {
     type: 'price',
     priceTypeId: pt.priceTypeId,
@@ -84,8 +84,8 @@ function onDoubleClickPrice(pt) {
 }
 
 function onDoubleClickMedia(mt, mode = 'url') {
-  const { groupId, section } = store.focusedSection
-  if (!groupId || !section) return
+  const { groupId, section } = resolveTarget() ?? {}
+  if (!groupId) return
   store.addElement(groupId, section, {
     type: 'media',
     usageTypeId: mt.usageTypeId,
@@ -96,8 +96,8 @@ function onDoubleClickMedia(mt, mode = 'url') {
 }
 
 function onDoubleClickRelation(rt) {
-  const { groupId, section } = store.focusedSection
-  if (!groupId || !section) return
+  const { groupId, section } = resolveTarget() ?? {}
+  if (!groupId) return
   store.addElement(groupId, section, {
     type: 'relation',
     relationTypeId: rt.relationTypeId,
@@ -121,6 +121,38 @@ function addAllBaseFields() {
 }
 
 const hasFocus = computed(() => !!store.focusedSection.groupId)
+
+// Gibt {groupId, section} zurück — aktiver Fokus oder automatisch "detail"
+// der ersten/ausgewählten Gruppe als Fallback.
+function resolveTarget(): { groupId: string, section: string } | null {
+  const { groupId, section } = store.focusedSection
+  if (groupId && section) return { groupId, section }
+  // Fallback: ausgewählte Gruppe oder erste Gruppe, Sektion "detail"
+  const fallbackId = store.selectedGroupId ?? store.templateJson?.groups?.[0]?.id
+  if (!fallbackId) return null
+  store.setFocusedSection(fallbackId, 'detail')
+  return { groupId: fallbackId, section: 'detail' }
+}
+
+function addAllBaseFieldsGuarded() {
+  const target = resolveTarget()
+  if (!target) return
+  for (const field of store.availableFields?.base_fields ?? []) {
+    store.addElement(target.groupId, target.section, {
+      type: 'field', field: field.field, label: field.label_de, jsonKey: field.field, dataType: 'string',
+    })
+  }
+}
+
+function addAllAttrsGuarded(attrs) {
+  const target = resolveTarget()
+  if (!target) return
+  for (const attr of attrs) {
+    store.addElement(target.groupId, target.section, {
+      type: 'attribute', attributeId: attr.attributeId, label: attr.label_de, jsonKey: attr.technical_name, dataType: 'string',
+    })
+  }
+}
 </script>
 
 <template>
@@ -146,7 +178,7 @@ const hasFocus = computed(() => !!store.focusedSection.groupId)
             autofocus
           />
         </div>
-        <p v-if="!hasFocus" class="text-[9px] text-amber-500 mt-1">Erst eine Sektion im Baum fokussieren (anklicken), dann Felder per Doppelklick oder Drag & Drop hinzufügen.</p>
+        <p v-if="!hasFocus" class="text-[9px] text-[var(--color-text-tertiary)] mt-1">Doppelklick fügt in "Detail" ein. Drag & Drop in beliebige Sektion.</p>
       </div>
 
       <!-- Scrollable list -->
@@ -161,10 +193,9 @@ const hasFocus = computed(() => !!store.focusedSection.groupId)
               {{ expandedGroups.base ? '▾' : '▸' }} Grunddaten
             </button>
             <button
-              v-if="hasFocus"
               class="shrink-0 flex items-center gap-0.5 text-[9px] text-[var(--color-accent)] hover:opacity-70 px-1 py-0.5 rounded"
               title="Alle Grunddaten hinzufügen"
-              @click.stop="addAllBaseFields"
+              @click.stop="addAllBaseFieldsGuarded"
             >
               <ChevronsDown class="w-3 h-3" :stroke-width="2" />
               alle
@@ -175,7 +206,7 @@ const hasFocus = computed(() => !!store.focusedSection.groupId)
               v-for="field in store.availableFields.base_fields"
               :key="field.field"
               class="flex items-center gap-2 px-2 py-1 rounded text-[11px] hover:bg-[var(--color-bg)] text-[var(--color-text-secondary)]"
-              :class="hasFocus ? 'cursor-pointer' : 'cursor-grab'"
+              class="cursor-pointer"
               draggable="true"
               @dragstart="onDragStart($event, { type: 'field', field: field.field, label: field.label_de, jsonKey: field.field, dataType: 'string' })"
               @dblclick="onDoubleClick({ type: 'field', field: field.field, label: field.label_de, jsonKey: field.field, dataType: 'string' })"
@@ -198,10 +229,9 @@ const hasFocus = computed(() => !!store.focusedSection.groupId)
               {{ expandedGroups[groupName] ? '▾' : '▸' }} {{ groupName }}
             </button>
             <button
-              v-if="hasFocus"
               class="shrink-0 flex items-center gap-0.5 text-[9px] text-[var(--color-accent)] hover:opacity-70 px-1 py-0.5 rounded"
               :title="`Alle ${attrs.length} Attribute aus '${groupName}' hinzufügen`"
-              @click.stop="addAllAttrs(attrs)"
+              @click.stop="addAllAttrsGuarded(attrs)"
             >
               <ChevronsDown class="w-3 h-3" :stroke-width="2" />
               alle {{ attrs.length }}
@@ -212,7 +242,7 @@ const hasFocus = computed(() => !!store.focusedSection.groupId)
               v-for="attr in attrs"
               :key="attr.attributeId"
               class="flex items-center gap-2 px-2 py-1 rounded text-[11px] hover:bg-[var(--color-bg)] text-[var(--color-text-secondary)]"
-              :class="hasFocus ? 'cursor-pointer' : 'cursor-grab'"
+              class="cursor-pointer"
               draggable="true"
               @dragstart="onDragStart($event, { type: 'attribute', attributeId: attr.attributeId, label: attr.label_de, jsonKey: attr.technical_name, dataType: 'string' })"
               @dblclick="onDoubleClick({ type: 'attribute', attributeId: attr.attributeId, label: attr.label_de, jsonKey: attr.technical_name, dataType: 'string' })"
@@ -240,7 +270,7 @@ const hasFocus = computed(() => !!store.focusedSection.groupId)
               v-for="pt in store.availableFields.price_types"
               :key="pt.priceTypeId"
               class="flex items-center gap-2 px-2 py-1 rounded text-[11px] hover:bg-[var(--color-bg)] text-[var(--color-text-secondary)]"
-              :class="hasFocus ? 'cursor-pointer' : 'cursor-grab'"
+              class="cursor-pointer"
               draggable="true"
               @dragstart="onDragStart($event, { type: 'price', priceTypeId: pt.priceTypeId, label: pt.label_de, jsonKey: pt.technical_name })"
               @dblclick="onDoubleClickPrice(pt)"
@@ -276,15 +306,15 @@ const hasFocus = computed(() => !!store.focusedSection.groupId)
                 <span class="truncate flex-1">{{ mt.label_de }}</span>
                 <span class="text-[9px] text-[var(--color-text-tertiary)] font-mono">{{ mt.technical_name }}</span>
               </div>
-              <div v-if="hasFocus" class="flex gap-2 mt-0.5 ml-5">
+              <div class="flex gap-2 mt-0.5 ml-5">
                 <button
-                  class="text-[9px] text-sky-600 hover:underline"
+                  class="text-[9px] text-sky-600 hover:underline cursor-pointer"
                   draggable="true"
                   @dragstart="onDragStart($event, { type: 'media', usageTypeId: mt.usageTypeId, label: mt.label_de, jsonKey: mt.technical_name, mediaMode: 'url' })"
                   @click="onDoubleClickMedia(mt, 'url')"
                 >+ URL</button>
                 <button
-                  class="text-[9px] text-sky-600 hover:underline"
+                  class="text-[9px] text-sky-600 hover:underline cursor-pointer"
                   draggable="true"
                   @dragstart="onDragStart($event, { type: 'media', usageTypeId: mt.usageTypeId, label: mt.label_de, jsonKey: mt.technical_name + '_gallery', mediaMode: 'array' })"
                   @click="onDoubleClickMedia(mt, 'array')"
@@ -309,7 +339,7 @@ const hasFocus = computed(() => !!store.focusedSection.groupId)
               v-for="rt in store.availableFields.relation_types"
               :key="rt.relationTypeId"
               class="flex items-center gap-2 px-2 py-1 rounded text-[11px] hover:bg-[var(--color-bg)] text-[var(--color-text-secondary)]"
-              :class="hasFocus ? 'cursor-pointer' : 'cursor-grab'"
+              class="cursor-pointer"
               draggable="true"
               @dragstart="onDragStart($event, { type: 'relation', relationTypeId: rt.relationTypeId, label: rt.label_de, jsonKey: rt.technical_name })"
               @dblclick="onDoubleClickRelation(rt)"
