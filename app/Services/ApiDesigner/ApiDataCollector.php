@@ -130,11 +130,20 @@ class ApiDataCollector
     {
         $relations = ['productType', 'masterHierarchyNode'];
         $hasAttributes = false;
+        $hasPrices     = false;
+        $hasMedia      = false;
+        $hasRelations  = false;
 
-        $this->walkGroupElements($templateJson['groups'] ?? [], function (array $element) use (&$hasAttributes) {
-            if ($element['type'] === 'attribute') {
-                $hasAttributes = true;
-            }
+        $this->walkGroupElements($templateJson['groups'] ?? [], function (array $element) use (
+            &$hasAttributes, &$hasPrices, &$hasMedia, &$hasRelations
+        ) {
+            match ($element['type'] ?? '') {
+                'attribute' => $hasAttributes = true,
+                'price'     => $hasPrices     = true,
+                'media'     => $hasMedia      = true,
+                'relation'  => $hasRelations  = true,
+                default     => null,
+            };
         });
 
         $this->walkGroups($templateJson['groups'] ?? [], function (array $group) use (&$hasAttributes) {
@@ -147,6 +156,15 @@ class ApiDataCollector
             $relations[] = 'attributeValues.attribute';
             $relations[] = 'attributeValues.unit';
             $relations[] = 'attributeValues.valueListEntry';
+        }
+        if ($hasPrices) {
+            $relations[] = 'prices';
+        }
+        if ($hasMedia) {
+            $relations[] = 'mediaAssignments.media';
+        }
+        if ($hasRelations) {
+            $relations[] = 'outgoingRelations.targetProduct';
         }
 
         return $relations;

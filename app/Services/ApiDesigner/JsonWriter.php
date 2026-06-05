@@ -177,6 +177,23 @@ class JsonWriter
             return $element['content'] ?? '';
         }
 
+        if ($type === 'price') {
+            return $this->elementRenderer->resolvePriceValue($product, $element['priceTypeId'] ?? '');
+        }
+
+        if ($type === 'media') {
+            return $this->elementRenderer->resolveMediaValue(
+                $product,
+                $element['usageTypeId'] ?? '',
+                $element['mediaMode'] ?? 'url',
+                $language,
+            );
+        }
+
+        if ($type === 'relation') {
+            return $this->elementRenderer->resolveRelationValue($product, $element['relationTypeId'] ?? '', $language);
+        }
+
         return null;
     }
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\ApiDesigner;
 
+use GraphQL\Type\Definition\ListOfType;
 use GraphQL\Type\Definition\ObjectType;
 use GraphQL\Type\Definition\Type;
 use GraphQL\Type\Schema;
@@ -186,10 +187,19 @@ class GraphqlSchemaBuilder
                     continue;
                 }
 
-                $fieldName = $this->sanitizeFieldName($key);
-                $fields[$fieldName] = [
-                    'type' => $this->mapDataType($element['dataType'] ?? 'string'),
-                ];
+                $fieldName  = $this->sanitizeFieldName($key);
+                $elementType = $element['type'] ?? 'field';
+
+                $graphqlType = match ($elementType) {
+                    'price'    => $this->getPriceType(),
+                    'media'    => ($element['mediaMode'] ?? 'url') === 'array'
+                                    ? Type::listOf($this->getMediaItemType())
+                                    : Type::string(),
+                    'relation' => Type::listOf($this->getRelationItemType()),
+                    default    => $this->mapDataType($element['dataType'] ?? 'string'),
+                };
+
+                $fields[$fieldName] = ['type' => $graphqlType];
 
                 // Resolver für umbenannte Felder (jsonKey enthält Sonderzeichen)
                 if ($fieldName !== $key) {
@@ -286,6 +296,45 @@ class GraphqlSchemaBuilder
             'boolean' => Type::boolean(),
             default => Type::string(),
         };
+    }
+
+    private function getPriceType(): ObjectType
+    {
+        static $type = null;
+        return $type ??= new ObjectType([
+            'name'   => 'Price',
+            'fields' => [
+                'amount'   => ['type' => Type::float()],
+                'currency' => ['type' => Type::string()],
+            ],
+        ]);
+    }
+
+    private function getMediaItemType(): ObjectType
+    {
+        static $type = null;
+        return $type ??= new ObjectType([
+            'name'   => 'MediaItem',
+            'fields' => [
+                'url'       => ['type' => Type::string()],
+                'alt'       => ['type' => Type::string()],
+                'mime_type' => ['type' => Type::string()],
+                'width'     => ['type' => Type::int()],
+                'height'    => ['type' => Type::int()],
+            ],
+        ]);
+    }
+
+    private function getRelationItemType(): ObjectType
+    {
+        static $type = null;
+        return $type ??= new ObjectType([
+            'name'   => 'RelationItem',
+            'fields' => [
+                'sku'  => ['type' => Type::string()],
+                'name' => ['type' => Type::string()],
+            ],
+        ]);
     }
 
     /**

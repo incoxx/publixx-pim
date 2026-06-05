@@ -6,7 +6,9 @@ namespace App\Services\Report;
 
 use App\Models\Attribute;
 use App\Models\Product;
+use App\Models\ProductMediaAssignment;
 use App\Services\CompositeFormatResolver;
+use Illuminate\Support\Facades\Storage;
 
 class ElementRenderer
 {
@@ -212,6 +214,91 @@ class ElementRenderer
         }
 
         return $node->{"name_{$language}"} ?? $node->name_de ?? '';
+    }
+
+    /**
+     * Löst einen Preis eines bestimmten Preistyps auf.
+     *
+     * @return array{amount: float|null, currency: string|null}
+     */
+    public function resolvePriceValue(Product $product, string $priceTypeId): array
+    {
+        $price = $product->prices
+            ->where('price_type_id', $priceTypeId)
+            ->first();
+
+        if (!$price) {
+            return ['amount' => null, 'currency' => null];
+        }
+
+        return [
+            'amount'   => $price->amount !== null ? (float) $price->amount : null,
+            'currency' => $price->currency ?? 'EUR',
+        ];
+    }
+
+    /**
+     * Löst Medien eines bestimmten Verwendungstyps auf.
+     *
+     * mode 'url'   → primäre URL als String (oder null)
+     * mode 'array' → alle Medien als Array von Objekten
+     *
+     * @return string|null|list<array{url: string|null, alt: string|null, mime_type: string|null, width: int|null, height: int|null}>
+     */
+    public function resolveMediaValue(Product $product, string $usageTypeId, string $mode = 'url', string $language = 'de'): mixed
+    {
+        $assignments = $product->mediaAssignments
+            ->where('usage_type_id', $usageTypeId)
+            ->sortBy('sort_order')
+            ->values();
+
+        if ($assignments->isEmpty()) {
+            return $mode === 'array' ? [] : null;
+        }
+
+        if ($mode === 'array') {
+            return $assignments->map(fn (ProductMediaAssignment $a) => $this->buildMediaItem($a, $language))->all();
+        }
+
+        // mode 'url' → primäres Medium (is_primary) oder erstes
+        $primary = $assignments->firstWhere('is_primary', true) ?? $assignments->first();
+        return $primary ? $this->buildMediaUrl($primary) : null;
+    }
+
+    private function buildMediaUrl(ProductMediaAssignment $assignment): ?string
+    {
+        $path = $assignment->media?->file_path;
+        return $path ? Storage::url($path) : null;
+    }
+
+    private function buildMediaItem(ProductMediaAssignment $assignment, string $language): array
+    {
+        $media = $assignment->media;
+        return [
+            'url'       => $media?->file_path ? Storage::url($media->file_path) : null,
+            'alt'       => $media?->{"alt_text_{$language}"} ?? $media?->alt_text_de ?? $media?->{"title_{$language}"} ?? $media?->title_de ?? null,
+            'mime_type' => $media?->mime_type ?? null,
+            'width'     => $media?->width,
+            'height'    => $media?->height,
+        ];
+    }
+
+    /**
+     * Löst ausgehende Produktbeziehungen eines Beziehungstyps auf.
+     *
+     * @return list<array{sku: string, name: string}>
+     */
+    public function resolveRelationValue(Product $product, string $relationTypeId, string $language = 'de'): array
+    {
+        return $product->outgoingRelations
+            ->where('relation_type_id', $relationTypeId)
+            ->sortBy('sort_order')
+            ->map(fn ($rel) => [
+                'sku'  => $rel->targetProduct?->sku ?? '',
+                'name' => $rel->targetProduct?->{"name_{$language}"} ?? $rel->targetProduct?->name ?? '',
+            ])
+            ->values()
+            ->all();
     }
 
     /**
