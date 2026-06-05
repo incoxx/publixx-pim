@@ -211,6 +211,17 @@ function getTypeIcon(type) {
               </select>
             </div>
           </div>
+          <div class="flex items-center gap-3">
+            <label class="flex items-center gap-1.5 text-[10px] cursor-pointer text-[var(--color-text-secondary)]">
+              <input
+                type="checkbox"
+                :checked="el.is_searchable !== false"
+                class="rounded"
+                @change="updateElement(el.id, 'is_searchable', $event.target.checked)"
+              />
+              Suchen (MCP)
+            </label>
+          </div>
           <div v-if="el.type === 'attribute'" class="flex items-center gap-2">
             <label class="flex items-center gap-1.5 text-[10px] cursor-pointer text-[var(--color-text-secondary)]">
               <input type="checkbox" :checked="el.includeUnit" class="rounded" @change="updateElement(el.id, 'includeUnit', $event.target.checked)" />

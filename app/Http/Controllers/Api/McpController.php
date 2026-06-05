@@ -6,11 +6,14 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\ApiTemplate;
+use App\Models\Attribute;
+use App\Models\ProductSearchIndex;
 use App\Services\ApiDesigner\ApiDataCollector;
 use App\Services\ApiDesigner\GraphqlDesignerService;
 use App\Services\ApiDesigner\JsonWriter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 /**
  * MCP (Model Context Protocol) Endpoint — Streamable HTTP Transport.
@@ -179,6 +182,38 @@ class McpController extends Controller
                 ],
             ],
             [
+                'name'        => 'search_products',
+                'description' => 'Volltextsuche über Produkte in anyPIM. Sucht serverseitig via FULLTEXT-Index (schnell, phonetisch). '
+                    . 'Zusätzlich können strukturierte Attribut-Filter gesetzt werden (z.B. farbe=blau). '
+                    . 'Gibt die Ergebnisse im Format des angegebenen Templates zurück. '
+                    . 'Nutze list_templates um verfügbare Slugs zu sehen.',
+                'inputSchema' => [
+                    'type'       => 'object',
+                    'required'   => ['slug'],
+                    'properties' => [
+                        'slug'    => $slug,
+                        'query'   => ['type' => 'string', 'description' => 'Freitext-Suchbegriff (z.B. "blau 128GB"). Leer = alle Produkte (nur Filter aktiv).'],
+                        'filters' => [
+                            'type'        => 'array',
+                            'description' => 'Strukturierte Attribut-Filter. Nur Felder mit is_searchable=true im Template erlaubt.',
+                            'items'       => [
+                                'type'       => 'object',
+                                'required'   => ['field', 'value'],
+                                'properties' => [
+                                    'field'    => ['type' => 'string', 'description' => 'jsonKey des Feldes aus dem Template (z.B. "farbe", "status", "sku")'],
+                                    'value'    => ['description' => 'Suchwert (String, Zahl oder Array für "in"-Operator)'],
+                                    'operator' => ['type' => 'string', 'enum' => ['eq', 'like', 'starts_with', 'gt', 'lt', 'gte', 'lte', 'in'], 'description' => 'Vergleichsoperator (Standard: eq)'],
+                                ],
+                            ],
+                        ],
+                        'limit'  => ['type' => 'integer', 'minimum' => 1, 'maximum' => 200, 'description' => 'Max. Treffer (Standard: 20)'],
+                        'offset' => ['type' => 'integer', 'minimum' => 0, 'description' => 'Offset für Pagination'],
+                        'lang'   => ['type' => 'string', 'description' => 'Sprachcode (z.B. "de", "en")'],
+                        'status' => ['type' => 'string', 'enum' => ['active', 'draft', 'inactive', 'discontinued'], 'description' => 'Produkt-Status-Filter'],
+                    ],
+                ],
+            ],
+            [
                 'name'        => 'graphql_query',
                 'description' => 'Führt eine GraphQL-Query gegen ein GraphQL-API-Template aus (Daten lesen).',
                 'inputSchema' => [
@@ -227,6 +262,7 @@ class McpController extends Controller
         $text = match ($name) {
             'list_templates'  => $this->toolListTemplates(),
             'stream_products' => $this->toolStreamProducts($args),
+            'search_products' => $this->toolSearchProducts($args),
             'graphql_query'   => $this->toolGraphql($args, 'query'),
             'graphql_mutate'  => $this->toolGraphql($args, 'mutation'),
             'get_schema'      => $this->toolGetSchema($args),
@@ -300,6 +336,221 @@ class McpController extends Controller
             $data,
             $fields,
         );
+    }
+
+    /**
+     * Volltextsuche über den products_search_index + optionale Attribut-Filter.
+     * Ergebnisse werden durch den Template-JsonWriter formatiert.
+     */
+    private function toolSearchProducts(array $args): string
+    {
+        $template = $this->resolveTemplate($args['slug'] ?? '');
+
+        if ($template->output_format !== 'json') {
+            throw new McpException(-32602, "search_products funktioniert nur mit JSON-Templates. Nutze graphql_query für GraphQL-Templates.");
+        }
+
+        $queryText = trim((string) ($args['query'] ?? ''));
+        $filters   = is_array($args['filters'] ?? null) ? $args['filters'] : [];
+        $limit     = min(200, max(1, (int) ($args['limit'] ?? 20)));
+        $offset    = max(0, (int) ($args['offset'] ?? 0));
+        $lang      = $args['lang'] ?? $template->language ?? 'de';
+        $status    = $args['status'] ?? null;
+
+        // Durchsuchbare Felder aus template_json extrahieren (is_searchable != false)
+        $searchableElements = $this->extractSearchableElements($template->template_json);
+
+        // ── Query aufbauen ────────────────────────────────────────────────────
+        $builder = ProductSearchIndex::query()
+            ->join('products', 'products.id', '=', 'products_search_index.product_id')
+            ->where('products.product_type_ref', 'product');
+
+        if ($status) {
+            $builder->where('products.status', $status);
+        } else {
+            $builder->where('products.status', 'active');
+        }
+
+        // FULLTEXT-Suche über searchable_text (inkl. aller is_quick_search-Attribute)
+        if ($queryText !== '') {
+            if (DB::getDriverName() === 'mysql') {
+                $phoneticTerm = class_exists(\App\Support\KoelnerPhonetik::class)
+                    ? \App\Support\KoelnerPhonetik::encode($queryText)
+                    : '';
+                $builder->where(function ($q) use ($queryText, $phoneticTerm) {
+                    $q->whereRaw('MATCH(products_search_index.name_de, products_search_index.name_en) AGAINST(? IN BOOLEAN MODE)', [$queryText . '*'])
+                      ->orWhere('products_search_index.sku', 'like', '%' . $queryText . '%')
+                      ->orWhere('products_search_index.ean', 'like', '%' . $queryText . '%')
+                      ->orWhereRaw('products_search_index.searchable_text IS NOT NULL AND MATCH(products_search_index.searchable_text, products_search_index.media_text) AGAINST(? IN BOOLEAN MODE)', [$queryText . '*']);
+                    if ($phoneticTerm) {
+                        $q->orWhere('products_search_index.phonetic_name_de', 'like', '%' . $phoneticTerm . '%');
+                    }
+                });
+            } else {
+                $like = '%' . $queryText . '%';
+                $builder->where(fn ($q) => $q
+                    ->where('products_search_index.name_de', 'like', $like)
+                    ->orWhere('products_search_index.name_en', 'like', $like)
+                    ->orWhere('products_search_index.sku', 'like', $like));
+            }
+        }
+
+        // Strukturierte Attribut-Filter (nur is_searchable Felder erlaubt)
+        $filterIdx = 0;
+        foreach ($filters as $filter) {
+            $fieldKey  = $filter['field'] ?? '';
+            $value     = $filter['value'] ?? null;
+            $operator  = $filter['operator'] ?? 'eq';
+
+            if ($fieldKey === '' || $value === null) {
+                continue;
+            }
+
+            // Base-Felder direkt auf products-Spalten mappen
+            if (in_array($fieldKey, ['sku', 'ean', 'status', 'name'], true)) {
+                $col  = match ($fieldKey) {
+                    'sku'    => 'products_search_index.sku',
+                    'ean'    => 'products_search_index.ean',
+                    'status' => 'products.status',
+                    'name'   => 'products_search_index.name_de',
+                };
+                $op = match ($operator) {
+                    'like'       => fn ($q) => $q->where($col, 'like', '%' . $value . '%'),
+                    'starts_with'=> fn ($q) => $q->where($col, 'like', $value . '%'),
+                    'in'         => fn ($q) => $q->whereIn($col, (array) $value),
+                    default      => fn ($q) => $q->where($col, $value),
+                };
+                $builder->where($op);
+                continue;
+            }
+
+            // Attribut-Filter: Template-Element nach jsonKey suchen
+            $element = $searchableElements[$fieldKey] ?? null;
+            if (!$element || !isset($element['attributeId'])) {
+                continue; // Unbekanntes oder nicht-durchsuchbares Feld → überspringen
+            }
+
+            $attrId = $element['attributeId'];
+            $attr   = Attribute::find($attrId);
+            if (!$attr) {
+                continue;
+            }
+
+            $valueCol = match ($attr->data_type) {
+                'Number', 'Float' => 'value_number',
+                'Date'            => 'value_date',
+                'Flag'            => 'value_flag',
+                default           => 'value_string',
+            };
+
+            $alias = "pav_mcp_{$filterIdx}";
+            $filterIdx++;
+
+            $builder->whereExists(function ($sub) use ($alias, $attrId, $attr, $valueCol, $value, $operator, $lang) {
+                $sub->select(DB::raw(1))
+                    ->from("product_attribute_values as {$alias}")
+                    ->whereColumn("{$alias}.product_id", 'products.id')
+                    ->where("{$alias}.attribute_id", $attrId);
+
+                if ($attr->is_translatable ?? false) {
+                    $sub->where("{$alias}.language", $lang);
+                }
+
+                $col = "{$alias}.{$valueCol}";
+                match ($operator) {
+                    'like'        => $sub->where($col, 'like', '%' . $value . '%'),
+                    'starts_with' => $sub->where($col, 'like', $value . '%'),
+                    'gt'          => $sub->where($col, '>', $value),
+                    'lt'          => $sub->where($col, '<', $value),
+                    'gte'         => $sub->where($col, '>=', $value),
+                    'lte'         => $sub->where($col, '<=', $value),
+                    'in'          => $sub->whereIn($col, (array) $value),
+                    default       => $sub->where($col, $value),
+                };
+            });
+        }
+
+        // Relevanz-Sortierung (bei Freitext), sonst nach Name
+        if ($queryText !== '' && DB::getDriverName() === 'mysql') {
+            $quoted = DB::getPdo()->quote($queryText . '*');
+            $builder->addSelect(DB::raw(
+                "(MATCH(products_search_index.name_de, products_search_index.name_en) AGAINST({$quoted} IN BOOLEAN MODE)) * 10 "
+                . "+ IF(products_search_index.searchable_text IS NOT NULL, MATCH(products_search_index.searchable_text, products_search_index.media_text) AGAINST({$quoted} IN BOOLEAN MODE) * 3, 0) "
+                . 'as _relevance'
+            ))->orderByDesc('_relevance');
+        } else {
+            $builder->orderBy('products_search_index.name_de');
+        }
+
+        $total = (clone $builder)->count();
+        $rows  = $builder
+            ->select(['products.id', 'products_search_index.sku', 'products_search_index.name_de', 'products_search_index.name_en'])
+            ->offset($offset)
+            ->limit($limit)
+            ->get();
+
+        if ($rows->isEmpty()) {
+            $hint = $queryText !== '' ? " für \"{$queryText}\"" : '';
+            return "Keine Produkte{$hint} gefunden. (Total: 0)";
+        }
+
+        // Produkte über DataCollector laden — wir injizieren die gefundenen IDs
+        // als zusätzlichen WHERE-Filter in die normale collect()-Pipeline
+        $productIds = $rows->pluck('id')->toArray();
+
+        $data = $this->dataCollector->collectByIds(
+            $template,
+            $productIds,
+            $lang,
+        );
+
+        $json = $this->jsonWriter->buildString(
+            $data['grouped'],
+            $template->template_json,
+            $lang,
+            ['total' => $total, 'count' => count($productIds), 'offset' => $offset, 'limit' => $limit],
+        );
+
+        // Suchanfrage als Kontext voranstellen
+        $context = "Suchergebnisse für";
+        if ($queryText !== '') {
+            $context .= " \"{$queryText}\"";
+        }
+        if (!empty($filters)) {
+            $filterDesc = collect($filters)->map(fn ($f) => ($f['field'] ?? '') . '=' . (is_array($f['value'] ?? '') ? implode(',', $f['value']) : $f['value']))->implode(', ');
+            $context .= " [Filter: {$filterDesc}]";
+        }
+        $context .= " — {$total} Treffer gesamt, {$rows->count()} zurückgegeben:";
+
+        return $context . "\n" . $json;
+    }
+
+    /**
+     * Extrahiert alle is_searchable Felder aus template_json als [jsonKey => element]-Map.
+     * Default: is_searchable=true (alle Felder sind durchsuchbar, außer explizit false).
+     */
+    private function extractSearchableElements(array $templateJson): array
+    {
+        $result = [];
+
+        $walk = function (array $groups) use (&$walk, &$result) {
+            foreach ($groups as $group) {
+                foreach ($group['detail']['elements'] ?? [] as $element) {
+                    if (($element['is_searchable'] ?? true) === false) {
+                        continue;
+                    }
+                    $key = $element['jsonKey'] ?? $element['field'] ?? null;
+                    if ($key) {
+                        $result[$key] = $element;
+                    }
+                }
+                $walk($group['groups'] ?? []);
+            }
+        };
+
+        $walk($templateJson['groups'] ?? []);
+
+        return $result;
     }
 
     /**
