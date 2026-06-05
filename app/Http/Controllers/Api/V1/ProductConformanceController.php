@@ -11,6 +11,7 @@ use App\Services\Conformance\ConformanceExplainer;
 use App\Services\Conformance\ProfileConformanceChecker;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Konformitätsprüfung von Produkten gegen ihr Referenz-Profil.
@@ -27,11 +28,24 @@ class ProductConformanceController extends Controller
     }
 
     /**
+     * Stellt sicher, dass die Conformance-Migrationen ausgeführt wurden.
+     * Liefert sonst eine eindeutige Fehlermeldung statt stillem Datenverlust.
+     */
+    private function ensureSchema(): void
+    {
+        if (!Schema::hasColumn('products', 'reference_profile_id')
+            || !Schema::hasTable('product_conformance_results')) {
+            abort(503, 'Konformitäts-Datenbankschema fehlt. Bitte „php artisan migrate" auf dem Server ausführen.');
+        }
+    }
+
+    /**
      * Letztes Konformitätsergebnis eines Produkts.
      */
     public function show(Product $product): JsonResponse
     {
         $this->authorize('conformance.view');
+        $this->ensureSchema();
 
         $result = ProductConformanceResult::where('product_id', $product->id)
             ->with('profile:id,name,technical_name,version')
@@ -101,6 +115,7 @@ class ProductConformanceController extends Controller
     public function assign(Request $request, Product $product): JsonResponse
     {
         $this->authorize('conformance.run');
+        $this->ensureSchema();
 
         $validated = $request->validate([
             'reference_profile_id' => ['nullable', 'uuid', 'exists:product_reference_profiles,id'],
@@ -119,6 +134,15 @@ class ProductConformanceController extends Controller
         }
 
         $product->update(['reference_profile_id' => $profileId]);
+
+        // Persistenz verifizieren (deckt fehlende Spalte / stillen Verlust auf)
+        $persisted = $product->fresh()->reference_profile_id;
+        if ($persisted !== $profileId) {
+            return response()->json([
+                'message' => 'Die Zuordnung konnte nicht gespeichert werden. '
+                    . 'Vermutlich fehlt die Spalte products.reference_profile_id — bitte „php artisan migrate" ausführen.',
+            ], 500);
+        }
 
         if ($profileId !== null) {
             // Direktes Ergebnis liefern (Observer prüft zwar async, hier sofort sichtbar)
