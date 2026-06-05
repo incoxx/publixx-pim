@@ -229,6 +229,8 @@ Route::prefix('v1')->middleware('throttle.pim')->group(function () {
 // =========================================================================
 Route::prefix('v1')->middleware('throttle.pim')->group(function () {
     Route::post('mcp', [McpController::class, 'handle']);
+    // Token im URL-Pfad — claude.ai Custom Connector bietet kein Header-Feld
+    Route::post('mcp/{urlToken}', [McpController::class, 'handle']);
 });
 
 // =========================================================================

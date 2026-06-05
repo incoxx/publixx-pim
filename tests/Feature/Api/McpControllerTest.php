@@ -44,6 +44,25 @@ class McpControllerTest extends TestCase
         $response->assertStatus(401);
     }
 
+    public function test_accepts_token_in_url_path(): void
+    {
+        $response = $this->postJson('/api/v1/mcp/' . self::TOKEN, [
+            'jsonrpc' => '2.0', 'id' => 1, 'method' => 'tools/list',
+        ]);
+
+        $response->assertOk()
+            ->assertJsonCount(5, 'result.tools');
+    }
+
+    public function test_rejects_wrong_token_in_url_path(): void
+    {
+        $response = $this->postJson('/api/v1/mcp/falsches-token', [
+            'jsonrpc' => '2.0', 'id' => 1, 'method' => 'tools/list',
+        ]);
+
+        $response->assertStatus(401);
+    }
+
     public function test_disabled_when_no_token_configured(): void
     {
         config(['services.mcp.token' => null]);
