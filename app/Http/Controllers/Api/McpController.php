@@ -480,15 +480,15 @@ class McpController extends Controller
             });
         }
 
-        // Relevanz-Sortierung (bei Freitext), sonst nach Name
+        // Relevanz-Sortierung (bei Freitext), sonst nach Name.
+        // Kein Alias — ->select() weiter unten würde selectRaw() überschreiben.
         if ($queryText !== '' && DB::getDriverName() === 'mysql') {
             $term = $queryText . '*';
-            $builder->selectRaw(
+            $builder->orderByRaw(
                 '(MATCH(products_search_index.name_de, products_search_index.name_en) AGAINST(? IN BOOLEAN MODE)) * 10'
-                . ' + IF(products_search_index.searchable_text IS NOT NULL, MATCH(products_search_index.searchable_text, products_search_index.media_text) AGAINST(? IN BOOLEAN MODE) * 3, 0)'
-                . ' as _relevance',
+                . ' + IF(products_search_index.searchable_text IS NOT NULL, MATCH(products_search_index.searchable_text, products_search_index.media_text) AGAINST(? IN BOOLEAN MODE) * 3, 0) DESC',
                 [$term, $term]
-            )->orderByDesc('_relevance');
+            );
         } else {
             $builder->orderBy('products_search_index.name_de');
         }
