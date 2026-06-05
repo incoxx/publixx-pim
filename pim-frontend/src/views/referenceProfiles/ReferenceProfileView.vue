@@ -12,10 +12,9 @@ const authStore = useAuthStore()
 const items = ref([])
 const loading = ref(false)
 
-// Reference-Profile teilen sich die Rechte mit der Produktstruktur (Produkttypen)
-const canCreate = () => authStore.hasPermission('product-types.create')
-const canEdit = () => authStore.hasPermission('product-types.edit')
-const canDelete = () => authStore.hasPermission('product-types.delete')
+const canCreate = () => authStore.hasPermission('reference-profiles.create')
+const canEdit = () => authStore.hasPermission('reference-profiles.edit')
+const canDelete = () => authStore.hasPermission('reference-profiles.delete')
 
 async function fetchProfiles() {
   loading.value = true

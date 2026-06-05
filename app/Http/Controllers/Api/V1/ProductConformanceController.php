@@ -31,6 +31,8 @@ class ProductConformanceController extends Controller
      */
     public function show(Product $product): JsonResponse
     {
+        $this->authorize('conformance.view');
+
         $result = ProductConformanceResult::where('product_id', $product->id)
             ->with('profile:id,name,technical_name,version')
             ->first();
@@ -50,6 +52,8 @@ class ProductConformanceController extends Controller
      */
     public function check(Product $product): JsonResponse
     {
+        $this->authorize('conformance.run');
+
         if ($product->reference_profile_id === null) {
             return response()->json([
                 'message' => 'Diesem Produkt ist kein Referenz-Profil zugewiesen.',
@@ -66,6 +70,9 @@ class ProductConformanceController extends Controller
      */
     public function explain(Product $product, ConformanceExplainer $explainer): JsonResponse
     {
+        // Eigene Berechtigung wegen API-Kosten
+        $this->authorize('conformance.ai-explain');
+
         $result = ProductConformanceResult::where('product_id', $product->id)->first();
 
         if (!$result) {
@@ -93,6 +100,8 @@ class ProductConformanceController extends Controller
      */
     public function assign(Request $request, Product $product): JsonResponse
     {
+        $this->authorize('conformance.run');
+
         $validated = $request->validate([
             'reference_profile_id' => ['nullable', 'uuid', 'exists:product_reference_profiles,id'],
         ]);
@@ -135,6 +144,8 @@ class ProductConformanceController extends Controller
      */
     public function report(Request $request): JsonResponse
     {
+        $this->authorize('conformance.view');
+
         $request->validate([
             'profile_id' => ['nullable', 'uuid', 'exists:product_reference_profiles,id'],
             'status' => ['nullable', 'string', 'in:pass,warning,fail'],

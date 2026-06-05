@@ -1,11 +1,16 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useAuthStore } from '@/stores/auth'
 import { conformance, referenceProfiles } from '@/api/referenceProfiles'
 import { ShieldCheck, ShieldAlert, ShieldX, RefreshCw, AlertTriangle, Info, XCircle, Sparkles } from 'lucide-vue-next'
 
 const props = defineProps({
   productId: { type: String, required: true },
 })
+
+const authStore = useAuthStore()
+const canRun = () => authStore.hasPermission('conformance.run')
+const canExplain = () => authStore.hasPermission('conformance.ai-explain')
 
 const loading = ref(true)
 const checking = ref(false)
@@ -123,15 +128,15 @@ onMounted(loadAll)
             <option v-for="p in profiles" :key="p.id" :value="p.id">{{ p.name }}</option>
           </select>
         </div>
-        <button class="pim-btn pim-btn-secondary" :disabled="assigning || selectedProfileId === (profile?.id || '')"
+        <button v-if="canRun()" class="pim-btn pim-btn-secondary" :disabled="assigning || selectedProfileId === (profile?.id || '')"
                 @click="assignProfile">
           {{ assigning ? 'Speichert…' : 'Zuweisen' }}
         </button>
-        <button v-if="profile" class="pim-btn pim-btn-primary" :disabled="checking" @click="recheck">
+        <button v-if="profile && canRun()" class="pim-btn pim-btn-primary" :disabled="checking" @click="recheck">
           <RefreshCw class="w-4 h-4" :class="{ 'animate-spin': checking }" />
           Neu prüfen
         </button>
-        <button v-if="profile && result && result.deviations?.length" class="pim-btn pim-btn-secondary"
+        <button v-if="profile && result && result.deviations?.length && canExplain()" class="pim-btn pim-btn-secondary"
                 :disabled="explaining" @click="explain">
           <Sparkles class="w-4 h-4" />
           {{ explaining ? 'Analysiere…' : 'KI-Erklärung' }}

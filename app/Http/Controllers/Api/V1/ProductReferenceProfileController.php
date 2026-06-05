@@ -26,6 +26,8 @@ class ProductReferenceProfileController extends Controller
 
     public function index(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', ProductReferenceProfile::class);
+
         $query = ProductReferenceProfile::query()
             ->withCount(['products', 'childProfiles']);
 
@@ -43,6 +45,8 @@ class ProductReferenceProfileController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        $this->authorize('create', ProductReferenceProfile::class);
+
         $validated = $this->validateProfile($request);
 
         $profile = ProductReferenceProfile::create($validated);
@@ -52,6 +56,8 @@ class ProductReferenceProfileController extends Controller
 
     public function show(ProductReferenceProfile $referenceProfile): JsonResponse
     {
+        $this->authorize('view', $referenceProfile);
+
         $referenceProfile->loadCount(['products', 'childProfiles']);
         $referenceProfile->load('parentProfile:id,name,technical_name');
 
@@ -65,6 +71,8 @@ class ProductReferenceProfileController extends Controller
 
     public function update(Request $request, ProductReferenceProfile $referenceProfile): JsonResponse
     {
+        $this->authorize('update', $referenceProfile);
+
         $validated = $this->validateProfile($request, $referenceProfile);
 
         // Zyklus-Schutz: Eltern-Profil darf kein Nachfahre dieses Profils sein
@@ -119,6 +127,8 @@ class ProductReferenceProfileController extends Controller
 
     public function destroy(ProductReferenceProfile $referenceProfile): JsonResponse
     {
+        $this->authorize('delete', $referenceProfile);
+
         // Profil mit referenzierenden Produkten oder Kind-Profilen nicht löschen
         $blockers = [];
         if ($referenceProfile->products()->exists()) {
@@ -146,6 +156,12 @@ class ProductReferenceProfileController extends Controller
      */
     public function suggestRules(Request $request, RuleSuggester $suggester): JsonResponse
     {
+        // Ableiten gehört zum Anlegen/Bearbeiten eines Profils
+        if (!$request->user()->hasAnyPermission(['reference-profiles.create', 'reference-profiles.edit'])
+            && !$request->user()->hasRole('Admin') && !$request->user()->hasRole('Sysadmin')) {
+            abort(403);
+        }
+
         $validated = $request->validate([
             'product_ids' => ['required', 'array', 'min:1'],
             'product_ids.*' => ['uuid', 'exists:products,id'],
@@ -169,6 +185,8 @@ class ProductReferenceProfileController extends Controller
      */
     public function recheck(ProductReferenceProfile $referenceProfile): JsonResponse
     {
+        $this->authorize('update', $referenceProfile);
+
         dispatch(new RecheckProfileProducts($referenceProfile->id))->afterCommit();
 
         return response()->json([
