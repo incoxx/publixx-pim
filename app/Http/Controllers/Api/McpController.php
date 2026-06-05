@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Exceptions\McpException;
 use App\Http\Controllers\Controller;
+use App\Jobs\WriteAuditLog;
 use App\Models\ApiTemplate;
 use App\Models\Attribute;
 use App\Models\ProductSearchIndex;
@@ -38,6 +39,8 @@ class McpController extends Controller
     /** Vom Server unterstützte MCP-Protokollversion (Fallback). */
     private const PROTOCOL_VERSION = '2025-06-18';
 
+    private Request $currentRequest;
+
     public function __construct(
         private readonly ApiDataCollector $dataCollector,
         private readonly JsonWriter $jsonWriter,
@@ -53,6 +56,7 @@ class McpController extends Controller
     public function handle(Request $request, ?string $urlToken = null): JsonResponse
     {
         $this->authenticate($request, $urlToken);
+        $this->currentRequest = $request;
 
         $payload = $request->json()->all();
 
@@ -269,6 +273,8 @@ class McpController extends Controller
             'get_schema'      => $this->toolGetSchema($args),
             default           => throw new McpException(-32602, "Unbekanntes Tool: {$name}"),
         };
+
+        $this->logMcpCall($name, $args);
 
         return [
             'content' => [
@@ -669,6 +675,34 @@ class McpController extends Controller
         if (!hash_equals((string) $token, $provided)) {
             abort(401, 'Ungültiger oder fehlender MCP-Token.');
         }
+    }
+
+    /**
+     * Jeden erfolgreichen tools/call asynchron ins Journal (audit_logs) schreiben.
+     * auditable_type = "MCP", auditable_id = Template-Slug oder Tool-Name.
+     * new_values enthält Tool + bereinigte Argumente (keine Passwörter/Tokens).
+     */
+    private function logMcpCall(string $toolName, array $args): void
+    {
+        $slug = $args['slug'] ?? null;
+
+        // Filter-Werte nicht loggen (können sensible Daten enthalten), nur Feld-Namen
+        $logArgs = $args;
+        if (isset($logArgs['filters']) && is_array($logArgs['filters'])) {
+            $logArgs['filters'] = array_map(
+                fn ($f) => ['field' => $f['field'] ?? '?', 'operator' => $f['operator'] ?? 'eq'],
+                $logArgs['filters']
+            );
+        }
+
+        WriteAuditLog::dispatch(
+            auditableType: 'MCP',
+            auditableId:   $slug ?? $toolName,
+            action:        'mcp_query',
+            newValues:     ['tool' => $toolName, 'args' => $logArgs],
+            ipAddress:     $this->currentRequest->ip(),
+            userAgent:     $this->currentRequest->userAgent(),
+        );
     }
 
     private function errorResponse(mixed $id, int $code, string $message): array
