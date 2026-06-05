@@ -176,6 +176,11 @@ class GraphqlSchemaBuilder
             ];
         } else {
             foreach ($elements as $element) {
+                // Write-only Felder erscheinen nicht im Query-Schema
+                if (($element['access'] ?? 'readwrite') === 'write') {
+                    continue;
+                }
+
                 $key = $element['jsonKey'] ?? $element['field'] ?? $element['attributeId'] ?? null;
                 if (!$key) {
                     continue;
@@ -332,6 +337,9 @@ class GraphqlSchemaBuilder
             $lines[] = '  status';
         } else {
             foreach ($detailElements as $el) {
+                if (($el['access'] ?? 'readwrite') === 'write') {
+                    continue;
+                }
                 $key = $el['jsonKey'] ?? $el['field'] ?? $el['attributeId'] ?? null;
                 if ($key) {
                     $lines[] = '  ' . $this->sanitizeFieldName($key);
