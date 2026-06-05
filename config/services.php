@@ -8,6 +8,17 @@ return [
     |--------------------------------------------------------------------------
     */
 
+    /*
+    |--------------------------------------------------------------------------
+    | MCP (Model Context Protocol) Endpoint
+    |--------------------------------------------------------------------------
+    | Globaler Bearer-Token für den /mcp-Endpoint (claude.ai Custom Connector).
+    | Leer = Endpoint deaktiviert (503).
+    */
+    'mcp' => [
+        'token' => env('MCP_AUTH_TOKEN'),
+    ],
+
     'postmark' => [
         'token' => env('POSTMARK_TOKEN'),
     ],
