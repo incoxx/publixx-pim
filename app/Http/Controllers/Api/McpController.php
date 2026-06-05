@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Exceptions\McpException;
 use App\Http\Controllers\Controller;
+use App\Jobs\WriteAuditLog;
 use App\Models\ApiTemplate;
 use App\Models\Attribute;
 use App\Models\ProductSearchIndex;
@@ -38,6 +39,10 @@ class McpController extends Controller
     /** Vom Server unterstützte MCP-Protokollversion (Fallback). */
     private const PROTOCOL_VERSION = '2025-06-18';
 
+    // Wird in handle() gesetzt; Request-Facade als Fallback falls logMcpCall()
+    // in einem unerwarteten Pfad ohne handle() aufgerufen wird.
+    private ?Request $currentRequest = null;
+
     public function __construct(
         private readonly ApiDataCollector $dataCollector,
         private readonly JsonWriter $jsonWriter,
@@ -53,6 +58,7 @@ class McpController extends Controller
     public function handle(Request $request, ?string $urlToken = null): JsonResponse
     {
         $this->authenticate($request, $urlToken);
+        $this->currentRequest = $request;
 
         $payload = $request->json()->all();
 
@@ -270,6 +276,8 @@ class McpController extends Controller
             default           => throw new McpException(-32602, "Unbekanntes Tool: {$name}"),
         };
 
+        $this->logMcpCall($name, $args);
+
         return [
             'content' => [
                 ['type' => 'text', 'text' => $text],
@@ -384,14 +392,21 @@ class McpController extends Controller
         // FULLTEXT-Suche über searchable_text (inkl. aller is_quick_search-Attribute)
         if ($queryText !== '') {
             if (DB::getDriverName() === 'mysql') {
-                $phoneticTerm = class_exists(\App\Support\KoelnerPhonetik::class)
+                // Mehrwörtige Suche: jedes Wort mit + prefixen → AND-Semantik statt OR.
+                // Umlaut-Variante als Fallback (ä→ae etc.) falls Kollation Umlaute nicht matched.
+                $booleanTerm         = $this->toBooleanSearchTerm($queryText);
+                $booleanTermAscii    = $this->toBooleanSearchTerm($this->normalizeUmlauts($queryText));
+                $phoneticTerm        = class_exists(\App\Support\KoelnerPhonetik::class)
                     ? \App\Support\KoelnerPhonetik::encode($queryText)
                     : '';
-                $builder->where(function ($q) use ($queryText, $phoneticTerm) {
-                    $q->whereRaw('MATCH(products_search_index.name_de, products_search_index.name_en) AGAINST(? IN BOOLEAN MODE)', [$queryText . '*'])
+
+                $builder->where(function ($q) use ($booleanTerm, $booleanTermAscii, $queryText, $phoneticTerm) {
+                    $q->whereRaw('MATCH(products_search_index.name_de, products_search_index.name_en) AGAINST(? IN BOOLEAN MODE)', [$booleanTerm])
+                      ->orWhereRaw('MATCH(products_search_index.name_de, products_search_index.name_en) AGAINST(? IN BOOLEAN MODE)', [$booleanTermAscii])
                       ->orWhere('products_search_index.sku', 'like', '%' . $queryText . '%')
                       ->orWhere('products_search_index.ean', 'like', '%' . $queryText . '%')
-                      ->orWhereRaw('products_search_index.searchable_text IS NOT NULL AND MATCH(products_search_index.searchable_text, products_search_index.media_text) AGAINST(? IN BOOLEAN MODE)', [$queryText . '*']);
+                      ->orWhereRaw('products_search_index.searchable_text IS NOT NULL AND MATCH(products_search_index.searchable_text, products_search_index.media_text) AGAINST(? IN BOOLEAN MODE)', [$booleanTerm])
+                      ->orWhereRaw('products_search_index.searchable_text IS NOT NULL AND MATCH(products_search_index.searchable_text, products_search_index.media_text) AGAINST(? IN BOOLEAN MODE)', [$booleanTermAscii]);
                     if ($phoneticTerm) {
                         $q->orWhere('products_search_index.phonetic_name_de', 'like', '%' . $phoneticTerm . '%');
                     }
@@ -483,11 +498,17 @@ class McpController extends Controller
         // Relevanz-Sortierung (bei Freitext), sonst nach Name.
         // Kein Alias — ->select() weiter unten würde selectRaw() überschreiben.
         if ($queryText !== '' && DB::getDriverName() === 'mysql') {
-            $term = $queryText . '*';
+            $bt    = $this->toBooleanSearchTerm($queryText);
+            $btAsc = $this->toBooleanSearchTerm($this->normalizeUmlauts($queryText));
             $builder->orderByRaw(
-                '(MATCH(products_search_index.name_de, products_search_index.name_en) AGAINST(? IN BOOLEAN MODE)) * 10'
-                . ' + IF(products_search_index.searchable_text IS NOT NULL, MATCH(products_search_index.searchable_text, products_search_index.media_text) AGAINST(? IN BOOLEAN MODE) * 3, 0) DESC',
-                [$term, $term]
+                'GREATEST('
+                . '(MATCH(products_search_index.name_de, products_search_index.name_en) AGAINST(? IN BOOLEAN MODE)) * 10,'
+                . '(MATCH(products_search_index.name_de, products_search_index.name_en) AGAINST(? IN BOOLEAN MODE)) * 10'
+                . ') + IF(products_search_index.searchable_text IS NOT NULL, GREATEST('
+                . 'MATCH(products_search_index.searchable_text, products_search_index.media_text) AGAINST(? IN BOOLEAN MODE) * 3,'
+                . 'MATCH(products_search_index.searchable_text, products_search_index.media_text) AGAINST(? IN BOOLEAN MODE) * 3'
+                . '), 0) DESC',
+                [$bt, $btAsc, $bt, $btAsc]
             );
         } else {
             $builder->orderBy('products_search_index.name_de');
@@ -658,6 +679,34 @@ class McpController extends Controller
         }
     }
 
+    /**
+     * Jeden erfolgreichen tools/call asynchron ins Journal (audit_logs) schreiben.
+     * auditable_type = "MCP", auditable_id = Template-Slug oder Tool-Name.
+     * new_values enthält Tool + bereinigte Argumente (keine Passwörter/Tokens).
+     */
+    private function logMcpCall(string $toolName, array $args): void
+    {
+        $slug = $args['slug'] ?? null;
+
+        // Filter-Werte nicht loggen (können sensible Daten enthalten), nur Feld-Namen
+        $logArgs = $args;
+        if (isset($logArgs['filters']) && is_array($logArgs['filters'])) {
+            $logArgs['filters'] = array_map(
+                fn ($f) => ['field' => $f['field'] ?? '?', 'operator' => $f['operator'] ?? 'eq'],
+                $logArgs['filters']
+            );
+        }
+
+        WriteAuditLog::dispatch(
+            auditableType: 'MCP',
+            auditableId:   $slug ?? $toolName,
+            action:        'mcp_query',
+            newValues:     ['tool' => $toolName, 'args' => $logArgs],
+            ipAddress:     $this->currentRequest?->ip(),
+            userAgent:     $this->currentRequest?->userAgent(),
+        );
+    }
+
     private function errorResponse(mixed $id, int $code, string $message): array
     {
         return [
@@ -668,5 +717,39 @@ class McpController extends Controller
                 'message' => $message,
             ],
         ];
+    }
+
+    /**
+     * Baut einen MySQL BOOLEAN MODE Suchterm: jedes Wort bekommt ein führendes +
+     * (AND-Semantik) und einen abschließenden * (Prefix-Match).
+     * Einzelzeichen und MySQL-Sonderzeichen werden bereinigt.
+     */
+    private function toBooleanSearchTerm(string $query): string
+    {
+        $words = preg_split('/\s+/', trim($query), -1, PREG_SPLIT_NO_EMPTY);
+        $terms = [];
+        foreach ($words as $word) {
+            // MySQL BOOLEAN-Sonderzeichen escapen
+            $clean = preg_replace('/[+\-><()~*"@]/', '', $word);
+            if ($clean !== null && mb_strlen($clean) >= 2) {
+                $terms[] = '+' . $clean . '*';
+            }
+        }
+        // Fallback: keine gültigen Terme (z.B. alles Einzelzeichen) → Prefix-Suche
+        return $terms !== [] ? implode(' ', $terms) : trim($query) . '*';
+    }
+
+    /**
+     * Ersetzt deutsche Umlaute durch ASCII-Äquivalente für kollationsresistente Suche.
+     * MySQL FULLTEXT-Indizes mit utf8mb4_unicode_ci matchen Umlaute oft nicht
+     * korrekt gegen umlautfreie Indexeinträge und umgekehrt.
+     */
+    private function normalizeUmlauts(string $text): string
+    {
+        return str_replace(
+            ['ä', 'ö', 'ü', 'Ä', 'Ö', 'Ü', 'ß'],
+            ['ae', 'oe', 'ue', 'Ae', 'Oe', 'Ue', 'ss'],
+            $text
+        );
     }
 }

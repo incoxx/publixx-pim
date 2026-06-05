@@ -7,6 +7,9 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Traits\ChecksDeletionConstraints;
 use App\Models\ApiTemplate;
 use App\Models\Attribute;
+use App\Models\MediaUsageType;
+use App\Models\PriceType;
+use App\Models\ProductRelationType;
 use App\Models\SearchProfile;
 use App\Services\ApiDesigner\ApiDesignerService;
 use App\Services\ApiDesigner\GraphqlDesignerService;
@@ -163,11 +166,38 @@ class ApiTemplateController extends Controller
             ['field' => 'none', 'label_de' => 'Keine Gruppierung', 'label_en' => 'No Grouping'],
         ];
 
+        $priceTypes = PriceType::orderBy('name_de')->get()->map(fn ($pt) => [
+            'priceTypeId'  => $pt->id,
+            'technical_name' => $pt->technical_name,
+            'label_de'     => $pt->name_de,
+            'label_en'     => $pt->name_en,
+            'category'     => 'price',
+        ]);
+
+        $mediaUsageTypes = MediaUsageType::orderBy('sort_order')->orderBy('name_de')->get()->map(fn ($mt) => [
+            'usageTypeId'  => $mt->id,
+            'technical_name' => $mt->technical_name,
+            'label_de'     => $mt->name_de,
+            'label_en'     => $mt->name_en,
+            'category'     => 'media',
+        ]);
+
+        $relationTypes = ProductRelationType::orderBy('name_de')->get()->map(fn ($rt) => [
+            'relationTypeId' => $rt->id,
+            'technical_name' => $rt->technical_name,
+            'label_de'       => $rt->name_de,
+            'label_en'       => $rt->name_en,
+            'category'       => 'relation',
+        ]);
+
         return response()->json([
             'data' => [
-                'base_fields' => $baseFields,
-                'attributes' => $attributes,
-                'group_fields' => $groupFields,
+                'base_fields'       => $baseFields,
+                'attributes'        => $attributes,
+                'group_fields'      => $groupFields,
+                'price_types'       => $priceTypes,
+                'media_usage_types' => $mediaUsageTypes,
+                'relation_types'    => $relationTypes,
             ],
         ]);
     }

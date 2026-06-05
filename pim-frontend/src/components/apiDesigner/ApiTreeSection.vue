@@ -1,7 +1,7 @@
 <script setup>
 import { useApiDesignerStore } from '@/stores/apiDesigner'
 import { ref, computed } from 'vue'
-import { X, GripVertical, Hash, Tag, Type } from 'lucide-vue-next'
+import { X, GripVertical, Hash, Tag, Type, CircleDollarSign, Image, Link } from 'lucide-vue-next'
 
 const props = defineProps({
   groupId: { type: String, required: true },
@@ -105,7 +105,30 @@ const isFocused = computed(() =>
 )
 
 function getTypeIcon(type) {
-  return { field: Hash, attribute: Tag, text: Type }[type] || Hash
+  return { field: Hash, attribute: Tag, text: Type, price: CircleDollarSign, media: Image, relation: Link }[type] || Hash
+}
+
+function getTypeIconClass(type) {
+  return {
+    attribute: 'text-emerald-500',
+    price:     'text-amber-500',
+    media:     'text-sky-500',
+    relation:  'text-purple-500',
+  }[type] || 'text-[var(--color-accent)]'
+}
+
+function getElementLabel(el) {
+  if (el.type === 'price')    return el.jsonKey || el.label || 'Preis'
+  if (el.type === 'media')    return (el.jsonKey || el.label || 'Medium') + (el.mediaMode === 'array' ? ' [ ]' : '')
+  if (el.type === 'relation') return el.jsonKey || el.label || 'Beziehung'
+  return el.jsonKey || el.field || '...'
+}
+
+function getElementSubLabel(el) {
+  if (el.type === 'price')    return 'price'
+  if (el.type === 'media')    return el.mediaMode === 'array' ? 'media[]' : 'media'
+  if (el.type === 'relation') return 'relation[]'
+  return el.dataType || 'string'
 }
 </script>
 
@@ -151,9 +174,9 @@ function getTypeIcon(type) {
           @click="selectElement(el.id)"
         >
           <GripVertical class="w-3 h-3 text-[var(--color-text-tertiary)] shrink-0 cursor-grab" :stroke-width="1.5" />
-          <component :is="getTypeIcon(el.type)" class="w-3 h-3 shrink-0" :class="el.type === 'attribute' ? 'text-emerald-500' : 'text-[var(--color-accent)]'" :stroke-width="2" />
-          <span class="font-mono text-[var(--color-text-secondary)] truncate">{{ el.jsonKey || el.field || '...' }}</span>
-          <span class="text-[9px] text-[var(--color-text-tertiary)] shrink-0">{{ el.dataType || 'string' }}</span>
+          <component :is="getTypeIcon(el.type)" class="w-3 h-3 shrink-0" :class="getTypeIconClass(el.type)" :stroke-width="2" />
+          <span class="font-mono text-[var(--color-text-secondary)] truncate">{{ getElementLabel(el) }}</span>
+          <span class="text-[9px] text-[var(--color-text-tertiary)] shrink-0">{{ getElementSubLabel(el) }}</span>
           <span
             class="text-[9px] font-medium shrink-0 px-1 rounded"
             :class="{
