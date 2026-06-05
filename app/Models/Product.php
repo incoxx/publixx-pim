@@ -12,13 +12,37 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Validation\ValidationException;
 
 class Product extends Model
 {
     use HasDeletionConstraints, HasFactory, HasUuids;
 
+    /**
+     * Invariante: Ein Produkt darf nie ein abstraktes Referenz-Profil
+     * referenzieren (abstrakte Profile sind nur Vererbungs-Basis). Greift auf
+     * allen Speicherwegen, nicht nur im Conformance-Endpoint.
+     */
+    protected static function booted(): void
+    {
+        static::saving(function (Product $product): void {
+            if (!$product->isDirty('reference_profile_id') || $product->reference_profile_id === null) {
+                return;
+            }
+            $isAbstract = ProductReferenceProfile::whereKey($product->reference_profile_id)
+                ->value('is_abstract');
+            if ($isAbstract) {
+                throw ValidationException::withMessages([
+                    'reference_profile_id' => 'Abstrakte Referenz-Profile können einem Produkt nicht zugewiesen werden.',
+                ]);
+            }
+        });
+    }
+
+
     protected $fillable = [
         'product_type_id',
+        'reference_profile_id',
         'sku',
         'ean',
         'name',
@@ -45,6 +69,16 @@ class Product extends Model
     public function productType(): BelongsTo
     {
         return $this->belongsTo(ProductType::class);
+    }
+
+    public function referenceProfile(): BelongsTo
+    {
+        return $this->belongsTo(ProductReferenceProfile::class, 'reference_profile_id');
+    }
+
+    public function conformanceResult(): HasOne
+    {
+        return $this->hasOne(ProductConformanceResult::class);
     }
 
     public function parentProduct(): BelongsTo

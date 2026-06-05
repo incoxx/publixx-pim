@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Observers;
 
 use App\Jobs\RemoveFromSearchIndex;
+use App\Jobs\RunConformanceCheck;
 use App\Jobs\UpdateSearchIndex;
 use App\Models\Product;
 use Illuminate\Support\Facades\Cache;
@@ -28,6 +29,8 @@ class ProductObserver
     {
         // UpdateSearchIndex is dispatched via ProductCreated event → UpdateSearchIndexListener
         Log::debug('ProductObserver::created', ['product_id' => $product->id]);
+
+        $this->dispatchConformanceCheck($product);
     }
 
     /**
@@ -49,6 +52,8 @@ class ProductObserver
             'product_id' => $product->id,
             'dirty' => $product->getDirty(),
         ]);
+
+        $this->dispatchConformanceCheck($product);
     }
 
     /**
@@ -72,6 +77,26 @@ class ProductObserver
         $this->invalidateVariants($product);
 
         Log::debug('ProductObserver::deleted', ['product_id' => $product->id]);
+    }
+
+    /**
+     * Konformitätsprüfung (on-save) anstoßen, sofern ein Referenz-Profil
+     * verknüpft ist. Läuft asynchron und darf das Speichern nie blockieren.
+     */
+    private function dispatchConformanceCheck(Product $product): void
+    {
+        if ($product->reference_profile_id === null) {
+            return;
+        }
+
+        try {
+            dispatch(new RunConformanceCheck($product->id, 'save'))->afterCommit();
+        } catch (\Throwable $e) {
+            Log::warning('ProductObserver: Failed to dispatch RunConformanceCheck', [
+                'product_id' => $product->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**

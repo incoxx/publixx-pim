@@ -111,6 +111,10 @@ class RoleAndPermissionSeeder extends Seeder
             // Vergleichsoperator-Gruppen
             'comparison-operator-groups.view', 'comparison-operator-groups.create',
             'comparison-operator-groups.edit', 'comparison-operator-groups.delete',
+            // Referenz-Profile (virtuelle Referenzprodukte)
+            'reference-profiles.view', 'reference-profiles.create', 'reference-profiles.edit', 'reference-profiles.delete',
+            // Konformität (Prüfung + KI-Erklärung; ai-explain gesondert wegen Kosten)
+            'conformance.view', 'conformance.run', 'conformance.ai-explain',
         ];
 
         foreach ($permissions as $permissionName) {
@@ -156,6 +160,9 @@ class RoleAndPermissionSeeder extends Seeder
             'imports.view', 'imports.create', 'imports.execute', 'imports.delete',
             'workflow.view',
             'workflow-statuses.view', 'workflows.view', 'teams.view', 'projects.view',
+            // Referenz-Profile + Konformität (Strukturverwaltung)
+            'reference-profiles.view', 'reference-profiles.create', 'reference-profiles.edit', 'reference-profiles.delete',
+            'conformance.view', 'conformance.run', 'conformance.ai-explain',
         ]);
 
         // ─── 3. Product Manager (Datenpflege) ────────────────────────
@@ -183,6 +190,9 @@ class RoleAndPermissionSeeder extends Seeder
             'imports.view', 'imports.create', 'imports.execute',
             'workflow.view',
             'workflows.view', 'teams.view', 'projects.view', 'projects.edit',
+            // Konformität: Produkte pflegen & prüfen (inkl. KI), Profile nur lesen
+            'reference-profiles.view',
+            'conformance.view', 'conformance.run', 'conformance.ai-explain',
         ]);
 
         // ─── 4. Viewer (Nur Lesen, ohne Benutzerverwaltung) ─────────

@@ -81,6 +81,18 @@ const routes = [
     meta: { title: 'Produkttypen' },
   },
   {
+    path: '/reference-profiles',
+    name: 'reference-profiles',
+    component: () => import('@/views/referenceProfiles/ReferenceProfileView.vue'),
+    meta: { title: 'Referenz-Profile' },
+  },
+  {
+    path: '/conformance-report',
+    name: 'conformance-report',
+    component: () => import('@/views/referenceProfiles/ConformanceReportView.vue'),
+    meta: { title: 'Konformitäts-Report' },
+  },
+  {
     path: '/relation-types',
     name: 'relation-types',
     component: () => import('@/views/relationTypes/RelationTypeView.vue'),

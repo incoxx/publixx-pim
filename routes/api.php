@@ -11,6 +11,8 @@ use App\Http\Controllers\Api\V1\PortalConfigController;
 use App\Http\Controllers\Api\V1\DashboardController;
 use App\Http\Controllers\Api\V1\DashboardPresetController;
 use App\Http\Controllers\Api\V1\NoteController;
+use App\Http\Controllers\Api\V1\ProductReferenceProfileController;
+use App\Http\Controllers\Api\V1\ProductConformanceController;
 use App\Http\Controllers\Api\V1\ProjectController;
 use App\Http\Controllers\Api\V1\TeamController;
 use App\Http\Controllers\Api\V1\TestRunnerController;
@@ -521,6 +523,22 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // Output Hierarchy (Channel) Attribute Values
     Route::get('products/{product}/output-hierarchy-resolved-attributes', [ProductAttributeValueController::class, 'resolvedOutputHierarchy']);
     Route::put('products/{product}/output-hierarchy-attribute-values', [ProductAttributeValueController::class, 'bulkUpdateOutputHierarchy']);
+
+    // ─── Virtuelle Referenzprodukte (Referenz-Profile) ──────────────────
+    // Konformitäts-Report über den gesamten Bestand
+    Route::get('conformance/report', [ProductConformanceController::class, 'report']);
+
+    // Profil-Verwaltung (CRUD) + Regel-Ableitung + Batch-Re-Check
+    Route::post('reference-profiles/suggest-rules', [ProductReferenceProfileController::class, 'suggestRules']);
+    Route::post('reference-profiles/{referenceProfile}/recheck', [ProductReferenceProfileController::class, 'recheck']);
+    Route::apiResource('reference-profiles', ProductReferenceProfileController::class)
+        ->parameters(['reference-profiles' => 'referenceProfile']);
+
+    // Konformität pro Produkt: Ergebnis (Tab), On-demand-Check, Profil-Zuweisung
+    Route::get('products/{product}/conformance', [ProductConformanceController::class, 'show']);
+    Route::post('products/{product}/conformance/check', [ProductConformanceController::class, 'check']);
+    Route::post('products/{product}/conformance/explain', [ProductConformanceController::class, 'explain']);
+    Route::put('products/{product}/reference-profile', [ProductConformanceController::class, 'assign']);
 
     // Translation XLIFF Export/Import
     Route::get('translations/xliff/export', [TranslationXliffController::class, 'export']);

@@ -140,6 +140,19 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(ConnectorConnection::class, ConnectorConnectionPolicy::class);
         Gate::policy(CanvaExportProfile::class, CanvaExportProfilePolicy::class);
         Gate::policy(AttributeMapping::class, AttributeMappingPolicy::class);
+        Gate::policy(\App\Models\ProductReferenceProfile::class, \App\Policies\ProductReferenceProfilePolicy::class);
+
+        // ─── Conformance Gates (kein eigenes Model) ──────────────────
+        // KI-Erklärung ist gesondert (Kosten!) von Ansicht/Prüfung getrennt.
+        $conformanceAbility = function (User $user, string $permission): bool {
+            if ($user->hasRole('Admin') || $user->hasRole('Sysadmin')) {
+                return true;
+            }
+            return $user->hasPermissionTo($permission);
+        };
+        Gate::define('conformance.view', fn (User $user) => $conformanceAbility($user, 'conformance.view'));
+        Gate::define('conformance.run', fn (User $user) => $conformanceAbility($user, 'conformance.run'));
+        Gate::define('conformance.ai-explain', fn (User $user) => $conformanceAbility($user, 'conformance.ai-explain'));
 
         // ExportPolicy — no model, registered as Gates
         Gate::define('export.view', [ExportPolicy::class, 'viewAny']);
