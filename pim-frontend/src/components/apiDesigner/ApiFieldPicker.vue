@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useApiDesignerStore } from '@/stores/apiDesigner'
-import { X, Search, Hash, Tag, GripVertical } from 'lucide-vue-next'
+import { X, Search, Hash, Tag, GripVertical, ChevronsDown } from 'lucide-vue-next'
 
 const emit = defineEmits(['close'])
 const store = useApiDesignerStore()
@@ -58,6 +58,34 @@ function onDoubleClick(item) {
   store.addElement(groupId, section, item)
 }
 
+function addAllAttrs(attrs) {
+  const { groupId, section } = store.focusedSection
+  if (!groupId || !section) return
+  for (const attr of attrs) {
+    store.addElement(groupId, section, {
+      type: 'attribute',
+      attributeId: attr.attributeId,
+      label: attr.label_de,
+      jsonKey: attr.technical_name,
+      dataType: 'string',
+    })
+  }
+}
+
+function addAllBaseFields() {
+  const { groupId, section } = store.focusedSection
+  if (!groupId || !section) return
+  for (const field of store.availableFields?.base_fields ?? []) {
+    store.addElement(groupId, section, {
+      type: 'field',
+      field: field.field,
+      label: field.label_de,
+      jsonKey: field.field,
+      dataType: 'string',
+    })
+  }
+}
+
 const hasFocus = computed(() => !!store.focusedSection.groupId)
 </script>
 
@@ -91,12 +119,23 @@ const hasFocus = computed(() => !!store.focusedSection.groupId)
       <div class="overflow-y-auto flex-1 px-3 pb-3 space-y-2">
         <!-- Base Fields -->
         <div>
-          <button
-            class="text-[11px] font-semibold text-[var(--color-text-secondary)] w-full text-left py-1 hover:text-[var(--color-text-primary)]"
-            @click="toggleGroup('base')"
-          >
-            {{ expandedGroups.base ? '▾' : '▸' }} Grunddaten
-          </button>
+          <div class="flex items-center gap-1">
+            <button
+              class="text-[11px] font-semibold text-[var(--color-text-secondary)] flex-1 text-left py-1 hover:text-[var(--color-text-primary)]"
+              @click="toggleGroup('base')"
+            >
+              {{ expandedGroups.base ? '▾' : '▸' }} Grunddaten
+            </button>
+            <button
+              v-if="hasFocus"
+              class="shrink-0 flex items-center gap-0.5 text-[9px] text-[var(--color-accent)] hover:opacity-70 px-1 py-0.5 rounded"
+              title="Alle Grunddaten hinzufügen"
+              @click.stop="addAllBaseFields"
+            >
+              <ChevronsDown class="w-3 h-3" :stroke-width="2" />
+              alle
+            </button>
+          </div>
           <div v-if="expandedGroups.base && store.availableFields?.base_fields" class="space-y-0.5">
             <div
               v-for="field in store.availableFields.base_fields"
@@ -117,12 +156,23 @@ const hasFocus = computed(() => !!store.focusedSection.groupId)
 
         <!-- Attributes by Group -->
         <div v-for="(attrs, groupName) in attributesByGroup" :key="groupName">
-          <button
-            class="text-[11px] font-semibold text-[var(--color-text-secondary)] w-full text-left py-1 hover:text-[var(--color-text-primary)]"
-            @click="toggleGroup(groupName)"
-          >
-            {{ expandedGroups[groupName] ? '▾' : '▸' }} {{ groupName }}
-          </button>
+          <div class="flex items-center gap-1">
+            <button
+              class="text-[11px] font-semibold text-[var(--color-text-secondary)] flex-1 text-left py-1 hover:text-[var(--color-text-primary)]"
+              @click="toggleGroup(groupName)"
+            >
+              {{ expandedGroups[groupName] ? '▾' : '▸' }} {{ groupName }}
+            </button>
+            <button
+              v-if="hasFocus"
+              class="shrink-0 flex items-center gap-0.5 text-[9px] text-[var(--color-accent)] hover:opacity-70 px-1 py-0.5 rounded"
+              :title="`Alle ${attrs.length} Attribute aus '${groupName}' hinzufügen`"
+              @click.stop="addAllAttrs(attrs)"
+            >
+              <ChevronsDown class="w-3 h-3" :stroke-width="2" />
+              alle {{ attrs.length }}
+            </button>
+          </div>
           <div v-if="expandedGroups[groupName]" class="space-y-0.5">
             <div
               v-for="attr in attrs"
