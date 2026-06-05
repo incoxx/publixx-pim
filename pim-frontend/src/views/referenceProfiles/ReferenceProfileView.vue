@@ -41,12 +41,12 @@ const deleteTarget = ref(null)
 const deleting = ref(false)
 
 function openCreatePanel() {
-  authStore.openPanel(markRaw(ReferenceProfileFormPanel), { profile: null, onSaved: fetchProfiles })
+  authStore.openPanel(markRaw(ReferenceProfileFormPanel), { profile: null, onSaved: fetchProfiles }, '640px')
 }
 
 function openEditPanel(row) {
   if (!canEdit()) return
-  authStore.openPanel(markRaw(ReferenceProfileFormPanel), { profile: row, onSaved: fetchProfiles })
+  authStore.openPanel(markRaw(ReferenceProfileFormPanel), { profile: row, onSaved: fetchProfiles }, '640px')
 }
 
 function handleRowAction(row) {

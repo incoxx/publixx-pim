@@ -39,7 +39,7 @@ onUnmounted(() => {
 
 const mainStyle = computed(() => ({
   marginLeft: isMobile.value ? '0' : (authStore.sidebarCollapsed ? '56px' : authStore.sidebarWidth + 'px'),
-  marginRight: authStore.panelOpen && !isMobile.value ? '360px' : '0',
+  marginRight: authStore.panelOpen && !isMobile.value ? authStore.panelWidth : '0',
 }))
 </script>
 
@@ -63,7 +63,8 @@ const mainStyle = computed(() => ({
     <transition name="slide-right">
       <div
         v-if="authStore.panelOpen"
-        class="fixed top-0 right-0 w-[360px] h-screen bg-[var(--color-surface)] border-l border-[var(--color-border)] shadow-lg z-30 flex flex-col"
+        class="fixed top-0 right-0 max-w-[100vw] h-screen bg-[var(--color-surface)] border-l border-[var(--color-border)] shadow-lg z-30 flex flex-col"
+        :style="{ width: authStore.panelWidth }"
       >
         <div class="shrink-0 flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)]">
           <span class="text-sm font-medium text-[var(--color-text-primary)]">Detail</span>
