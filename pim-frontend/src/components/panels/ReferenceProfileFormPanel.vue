@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { referenceProfiles } from '@/api/referenceProfiles'
 import attributesApi from '@/api/attributes'
+import productsApi from '@/api/products'
 import searchApi from '@/api/search'
 import { Plus, Trash2, Wand2, X } from 'lucide-vue-next'
 
@@ -40,7 +41,6 @@ const form = ref({
 })
 
 const rules = ref([])
-const goldenProductIds = ref(props.profile?.golden_product_ids || [])
 const effectiveRules = ref([])
 const errors = ref({})
 const saving = ref(false)
@@ -49,10 +49,11 @@ const saving = ref(false)
 const allProfiles = ref([])
 const allAttributes = ref([])
 
-// Musterprodukt-Auswahl
+// Verknüpfte Beispiel-/Vorbild-Produkte (= golden_product_ids, KI-Kontext)
 const sampleQuery = ref('')
 const sampleResults = ref([])
 const sampleProducts = ref([])
+const goldenLoading = ref(false)
 const tolerance = ref(20)
 const suggesting = ref(false)
 
@@ -93,10 +94,27 @@ async function loadInitial() {
       const p = data.data || data
       rules.value = (p.rules || []).map(toRow)
       effectiveRules.value = data.effective_rules || []
-      goldenProductIds.value = p.golden_product_ids || []
+      await loadGoldenProducts(p.golden_product_ids || [])
     } catch { /* ignore */ }
   } else {
     rules.value = []
+  }
+}
+
+// Verknüpfte Beispiel-Produkte (IDs → {id, sku, name}) auflösen
+async function loadGoldenProducts(ids) {
+  if (!ids.length) return
+  goldenLoading.value = true
+  try {
+    const results = await Promise.all(
+      ids.map(id => productsApi.get(id).then(
+        ({ data }) => { const p = data.data || data; return { id: p.id, sku: p.sku, name: p.name } },
+        () => null, // gelöschtes Produkt überspringen
+      ))
+    )
+    sampleProducts.value = results.filter(Boolean)
+  } finally {
+    goldenLoading.value = false
   }
 }
 
@@ -139,10 +157,7 @@ async function deriveRules() {
         existing.add(key)
       }
     }
-    // Musterprodukte als KI-Kontext (golden samples) vormerken
-    for (const id of (data.golden_product_ids || [])) {
-      if (!goldenProductIds.value.includes(id)) goldenProductIds.value.push(id)
-    }
+    // Die verknüpften Produkte (sampleProducts) sind zugleich die golden samples
   } finally {
     suggesting.value = false
   }
@@ -191,7 +206,8 @@ async function save() {
     ...form.value,
     parent_profile_id: form.value.parent_profile_id || null,
     rules: buildRulePayload(),
-    golden_product_ids: goldenProductIds.value,
+    // Verknüpfte Beispiel-Produkte als golden samples (KI-Kontext)
+    golden_product_ids: sampleProducts.value.map(s => s.id),
   }
   try {
     if (isEdit.value) {
@@ -257,14 +273,18 @@ onMounted(loadInitial)
       </div>
     </div>
 
-    <!-- Aus Musterprodukt ableiten -->
+    <!-- Verknüpfte Beispiel-/Vorbild-Produkte (golden samples) -->
     <div class="pim-card p-3 space-y-2">
       <div class="flex items-center gap-2 text-sm font-medium text-[var(--color-text-primary)]">
-        <Wand2 class="w-4 h-4" /> Regeln aus Musterprodukt(en) ableiten
+        <Wand2 class="w-4 h-4" /> Beispiel-Produkte (Vorbild)
       </div>
+      <p class="text-xs text-[var(--color-text-tertiary)]">
+        Mit dem Profil verknüpfte Vorbild-Produkte. Werden gespeichert und dienen als
+        Kontext für die KI-Erklärung. Aus ihnen lassen sich Regeln automatisch ableiten.
+      </p>
       <div class="relative">
         <input v-model="sampleQuery" @input="onSampleQuery" class="pim-input w-full"
-               placeholder="Produkt suchen (SKU oder Name)…" />
+               placeholder="Produkt suchen und verknüpfen (SKU oder Name)…" />
         <ul v-if="sampleResults.length" class="absolute z-10 left-0 right-0 mt-1 bg-[var(--color-surface)] border border-[var(--color-border)] rounded shadow max-h-48 overflow-auto">
           <li v-for="p in sampleResults" :key="p.id"
               class="px-3 py-1.5 text-sm hover:bg-[var(--color-surface-hover)] cursor-pointer"
@@ -273,18 +293,21 @@ onMounted(loadInitial)
           </li>
         </ul>
       </div>
-      <div v-if="sampleProducts.length" class="flex flex-wrap gap-2">
+      <div v-if="goldenLoading" class="text-xs text-[var(--color-text-tertiary)]">Lade verknüpfte Produkte…</div>
+      <div v-else-if="sampleProducts.length" class="flex flex-wrap gap-2">
         <span v-for="p in sampleProducts" :key="p.id"
-              class="inline-flex items-center gap-1 text-xs bg-[var(--color-surface-hover)] rounded px-2 py-1">
+              class="inline-flex items-center gap-1 text-xs bg-[var(--color-surface-hover)] rounded px-2 py-1"
+              :title="p.name">
           {{ p.sku || p.name }}
           <X class="w-3 h-3 cursor-pointer" @click="removeSample(p.id)" />
         </span>
       </div>
-      <div class="flex items-center gap-3">
+      <div v-else class="text-xs text-[var(--color-text-tertiary)]">Noch kein Beispiel-Produkt verknüpft.</div>
+      <div class="flex items-center gap-3 pt-1">
         <label class="text-xs text-[var(--color-text-secondary)]">Toleranz ±%</label>
         <input v-model="tolerance" type="number" min="0" max="100" class="pim-input w-20" />
         <button class="pim-btn pim-btn-secondary" :disabled="!sampleProducts.length || suggesting" @click="deriveRules">
-          {{ suggesting ? 'Leite ab…' : 'Regeln ableiten' }}
+          {{ suggesting ? 'Leite ab…' : 'Regeln aus Beispielen ableiten' }}
         </button>
       </div>
     </div>
