@@ -42,10 +42,13 @@ class McpController extends Controller
 
     /**
      * POST /mcp — JSON-RPC 2.0 Dispatcher.
+     *
+     * @param string|null $urlToken Token aus dem URL-Pfad (claude.ai Custom Connector,
+     *                              dessen Dialog kein Header-Feld bietet).
      */
-    public function handle(Request $request): JsonResponse
+    public function handle(Request $request, ?string $urlToken = null): JsonResponse
     {
-        $this->authenticate($request);
+        $this->authenticate($request, $urlToken);
 
         $payload = $request->json()->all();
 
@@ -358,7 +361,13 @@ class McpController extends Controller
         }
     }
 
-    private function authenticate(Request $request): void
+    /**
+     * Token wird aus drei Quellen akzeptiert (erste nicht-leere gewinnt):
+     *   1. URL-Pfad     — /api/v1/mcp/<token>  (claude.ai Custom Connector)
+     *   2. Bearer-Header — Authorization: Bearer <token>  (Claude Desktop, curl)
+     *   3. Query-Param   — ?token=<token>  (Fallback)
+     */
+    private function authenticate(Request $request, ?string $urlToken = null): void
     {
         $token = config('services.mcp.token');
 
@@ -368,7 +377,10 @@ class McpController extends Controller
         }
 
         $header = $request->header('Authorization', '');
-        $provided = str_starts_with($header, 'Bearer ') ? substr($header, 7) : '';
+        $bearer = str_starts_with($header, 'Bearer ') ? substr($header, 7) : '';
+
+        $provided = $urlToken
+            ?: ($bearer ?: (string) $request->query('token', ''));
 
         if (!hash_equals((string) $token, $provided)) {
             abort(401, 'Ungültiger oder fehlender MCP-Token.');

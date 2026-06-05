@@ -43,24 +43,35 @@ php artisan config:cache   # nach .env-Änderung
 
 ### 2. In claude.ai eintragen
 
-**Customize → Connectors → + → Add custom connector**
+Der "Custom Connector"-Dialog von claude.ai bietet **nur** Name, URL und (optional) OAuth —
+**kein Feld für einen Bearer-Token-Header**. Deshalb wird das Token in die **URL** gelegt:
+
+**Customize → Connectors → + → Benutzerdefinierten Connector hinzufügen**
 
 | Feld | Wert |
 |------|------|
-| URL | `https://anypim.de/api/v1/mcp` |
-| Authentication | Bearer Token |
-| Token | `<MCP_AUTH_TOKEN>` |
+| Name | `anyPIM` |
+| Remote MCP Server URL | `https://anypim.de/api/v1/mcp/<MCP_AUTH_TOKEN>` |
+| OAuth (Erweitert) | leer lassen |
 
 Die Verbindung synchronisiert auf Mobile und Desktop.
 
 ## Authentifizierung
 
-Der `/mcp`-Endpoint nutzt einen **globalen** Bearer-Token (`MCP_AUTH_TOKEN`), nicht die
+Der `/mcp`-Endpoint nutzt einen **globalen** Token (`MCP_AUTH_TOKEN`), nicht die
 pro-Template `auth_type`-Einstellung. Wer den Token kennt, sieht alle aktiven Templates.
 
+Das Token wird aus drei Quellen akzeptiert (erste nicht-leere gewinnt):
+
+1. **URL-Pfad** — `/api/v1/mcp/<token>` (claude.ai Custom Connector)
+2. **Bearer-Header** — `Authorization: Bearer <token>` (Claude Desktop, curl)
+3. **Query-Param** — `?token=<token>` (Fallback)
+
 > **Sicherheitshinweis:** Sobald der Endpoint öffentlich erreichbar ist, kann jeder mit dem
-> Token auf die PIM-Daten zugreifen. Den Token wie ein Passwort behandeln. Mittelfristig ist
-> OAuth 2.1 die sauberere Lösung — der Token-Ansatz ist der pragmatische Einstieg.
+> Token auf die PIM-Daten zugreifen. Den Token wie ein Passwort behandeln. Da das Token bei
+> claude.ai in der URL steht, kann es in Proxy-/Server-Logs auftauchen — bei Produktdaten
+> meist verschmerzbar. Mittelfristig ist OAuth 2.1 die sauberere Lösung; der Token-in-URL-
+> Ansatz ist der pragmatische Einstieg, weil der claude.ai-Dialog kein Header-Feld bietet.
 
 ## Claude Desktop (stdio, optional)
 
