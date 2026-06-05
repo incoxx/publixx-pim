@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api;
 
+use App\Exceptions\McpException;
 use App\Http\Controllers\Controller;
 use App\Models\ApiTemplate;
 use App\Models\Attribute;
@@ -360,6 +361,15 @@ class McpController extends Controller
         // Durchsuchbare Felder aus template_json extrahieren (is_searchable != false)
         $searchableElements = $this->extractSearchableElements($template->template_json);
 
+        // Attribute für Filter-Felder vorab laden (N+1 vermeiden)
+        $filterAttrIds = array_filter(array_map(
+            fn ($f) => isset($f['field']) ? ($searchableElements[$f['field']]['attributeId'] ?? null) : null,
+            $filters,
+        ));
+        $attributeCache = $filterAttrIds
+            ? Attribute::whereIn('id', array_values($filterAttrIds))->get()->keyBy('id')->all()
+            : [];
+
         // ── Query aufbauen ────────────────────────────────────────────────────
         $builder = ProductSearchIndex::query()
             ->join('products', 'products.id', '=', 'products_search_index.product_id')
@@ -431,7 +441,7 @@ class McpController extends Controller
             }
 
             $attrId = $element['attributeId'];
-            $attr   = Attribute::find($attrId);
+            $attr   = $attributeCache[$attrId] ?? null;
             if (!$attr) {
                 continue;
             }
@@ -472,12 +482,13 @@ class McpController extends Controller
 
         // Relevanz-Sortierung (bei Freitext), sonst nach Name
         if ($queryText !== '' && DB::getDriverName() === 'mysql') {
-            $quoted = DB::getPdo()->quote($queryText . '*');
-            $builder->addSelect(DB::raw(
-                "(MATCH(products_search_index.name_de, products_search_index.name_en) AGAINST({$quoted} IN BOOLEAN MODE)) * 10 "
-                . "+ IF(products_search_index.searchable_text IS NOT NULL, MATCH(products_search_index.searchable_text, products_search_index.media_text) AGAINST({$quoted} IN BOOLEAN MODE) * 3, 0) "
-                . 'as _relevance'
-            ))->orderByDesc('_relevance');
+            $term = $queryText . '*';
+            $builder->selectRaw(
+                '(MATCH(products_search_index.name_de, products_search_index.name_en) AGAINST(? IN BOOLEAN MODE)) * 10'
+                . ' + IF(products_search_index.searchable_text IS NOT NULL, MATCH(products_search_index.searchable_text, products_search_index.media_text) AGAINST(? IN BOOLEAN MODE) * 3, 0)'
+                . ' as _relevance',
+                [$term, $term]
+            )->orderByDesc('_relevance');
         } else {
             $builder->orderBy('products_search_index.name_de');
         }
@@ -657,16 +668,5 @@ class McpController extends Controller
                 'message' => $message,
             ],
         ];
-    }
-}
-
-/**
- * Interne JSON-RPC-Fehler mit Code (z.B. -32601 Method not found).
- */
-class McpException extends \RuntimeException
-{
-    public function __construct(int $code, string $message)
-    {
-        parent::__construct($message, $code);
     }
 }

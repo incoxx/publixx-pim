@@ -51,7 +51,7 @@ class McpControllerTest extends TestCase
         ]);
 
         $response->assertOk()
-            ->assertJsonCount(5, 'result.tools');
+            ->assertJsonCount(6, 'result.tools');
     }
 
     public function test_rejects_wrong_token_in_url_path(): void
@@ -88,7 +88,7 @@ class McpControllerTest extends TestCase
             ->assertJsonPath('result.protocolVersion', '2025-06-18');
     }
 
-    public function test_tools_list_returns_five_tools(): void
+    public function test_tools_list_returns_six_tools(): void
     {
         $response = $this->postJson('/api/v1/mcp', [
             'jsonrpc' => '2.0', 'id' => 2, 'method' => 'tools/list',
@@ -96,11 +96,11 @@ class McpControllerTest extends TestCase
 
         $response->assertOk();
         $tools = $response->json('result.tools');
-        $this->assertCount(5, $tools);
+        $this->assertCount(6, $tools);
 
         $names = array_column($tools, 'name');
         $this->assertEqualsCanonicalizing(
-            ['list_templates', 'stream_products', 'graphql_query', 'graphql_mutate', 'get_schema'],
+            ['list_templates', 'stream_products', 'search_products', 'graphql_query', 'graphql_mutate', 'get_schema'],
             $names,
         );
     }
@@ -127,25 +127,27 @@ class McpControllerTest extends TestCase
     public function test_list_templates_tool_returns_active_templates(): void
     {
         ApiTemplate::create([
-            'name'          => 'Produktkatalog',
-            'slug'          => 'produktkatalog',
-            'template_json' => ['version' => 1, 'groups' => []],
-            'output_format' => 'json',
-            'direction'     => 'export',
-            'language'      => 'de',
-            'is_active'     => true,
-            'auth_type'     => 'none',
-            'rate_limit'    => 60,
+            'name'           => 'Produktkatalog',
+            'slug'           => 'produktkatalog',
+            'template_json'  => ['version' => 1, 'groups' => []],
+            'output_format'  => 'json',
+            'direction'      => 'export',
+            'language'       => 'de',
+            'is_active'      => true,
+            'is_mcp_enabled' => true,
+            'auth_type'      => 'none',
+            'rate_limit'     => 60,
         ]);
         ApiTemplate::create([
-            'name'          => 'Inaktiv',
-            'slug'          => 'inaktiv',
-            'template_json' => ['version' => 1, 'groups' => []],
-            'output_format' => 'json',
-            'direction'     => 'export',
-            'is_active'     => false,
-            'auth_type'     => 'none',
-            'rate_limit'    => 60,
+            'name'           => 'Inaktiv',
+            'slug'           => 'inaktiv',
+            'template_json'  => ['version' => 1, 'groups' => []],
+            'output_format'  => 'json',
+            'direction'      => 'export',
+            'is_active'      => false,
+            'is_mcp_enabled' => false,
+            'auth_type'      => 'none',
+            'rate_limit'     => 60,
         ]);
 
         $response = $this->postJson('/api/v1/mcp', [
@@ -163,14 +165,15 @@ class McpControllerTest extends TestCase
     public function test_get_schema_rejects_json_template(): void
     {
         ApiTemplate::create([
-            'name'          => 'JSON-Only',
-            'slug'          => 'json-only',
-            'template_json' => ['version' => 1, 'groups' => []],
-            'output_format' => 'json',
-            'direction'     => 'export',
-            'is_active'     => true,
-            'auth_type'     => 'none',
-            'rate_limit'    => 60,
+            'name'           => 'JSON-Only',
+            'slug'           => 'json-only',
+            'template_json'  => ['version' => 1, 'groups' => []],
+            'output_format'  => 'json',
+            'direction'      => 'export',
+            'is_active'      => true,
+            'is_mcp_enabled' => true,
+            'auth_type'      => 'none',
+            'rate_limit'     => 60,
         ]);
 
         $response = $this->postJson('/api/v1/mcp', [
