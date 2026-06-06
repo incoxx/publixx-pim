@@ -60,6 +60,16 @@ return [
         'max_tokens' => env('OPENAI_MAX_TOKENS', 4096),
     ],
 
+    // In-App Copilot (Chat-Fenster im PIM). Nutzt den Claude-Key wieder und
+    // bindet den eigenen MCP-Endpoint via Anthropic MCP-Connector ein.
+    // WICHTIG: copilot.mcp_url muss von Anthropic öffentlich erreichbar sein.
+    'copilot' => [
+        'api_key'    => env('COPILOT_API_KEY', env('CLAUDE_AI_API_KEY', '')),
+        'model'      => env('COPILOT_MODEL', 'claude-sonnet-4-6'),
+        'max_tokens' => env('COPILOT_MAX_TOKENS', 4096),
+        'mcp_url'    => env('COPILOT_MCP_URL', rtrim((string) env('APP_URL', ''), '/') . '/api/v1/mcp'),
+    ],
+
     'jira' => [
         'url'         => env('JIRA_URL', ''),          // https://your-domain.atlassian.net
         'email'       => env('JIRA_EMAIL', ''),         // user@example.com

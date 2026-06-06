@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Http\Controllers\Api\McpController;
 use App\Http\Controllers\Api\V1\AssetCatalogController;
 use App\Http\Controllers\Api\V1\CalendarController;
+use App\Http\Controllers\Api\V1\CopilotController;
 use App\Http\Controllers\Api\V1\DocumentPortalController;
 use App\Http\Controllers\Api\V1\PortalApiController;
 use App\Http\Controllers\Api\V1\PortalConfigController;
@@ -284,6 +285,12 @@ Route::get('v1/admin/offline-catalog/preview-asset/{path}', [OfflineCatalogContr
 // All authenticated routes
 // =========================================================================
 Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(function () {
+
+    // =====================================================================
+    // In-App Copilot (Chat-Fenster im PIM)
+    // =====================================================================
+    Route::post('copilot/chat', [CopilotController::class, 'chat']);
+    Route::post('copilot/execute-tool', [CopilotController::class, 'executeTool']);
 
     // =====================================================================
     // Access Links (Zugangslink-Generator)
