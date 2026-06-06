@@ -140,6 +140,13 @@ export const useCopilotStore = defineStore('copilot', {
         return
       }
 
+      // Sicherheitsnetz: Turn ohne Text, ohne Fehler, ohne Bestätigung →
+      // Hinweis statt leerer Antwort (z.B. Tool-Fehler im Stream).
+      const hasText = assistantContent.some((b) => b.type === 'text' && (b.text || '').trim() !== '')
+      if (!hasText && !this.error) {
+        this.error = 'Keine Antwort vom Copilot erhalten. Bitte Server-Logs prüfen (storage/logs/laravel.log).'
+      }
+
       this.busy = false
     },
 
