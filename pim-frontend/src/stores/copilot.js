@@ -63,6 +63,27 @@ export const useCopilotStore = defineStore('copilot', {
     },
 
     /**
+     * Baut die an die API gesendete History: vom MCP-Connector erzeugte Blöcke
+     * (mcp_tool_use / mcp_tool_result) werden entfernt — sie wieder einzureichen
+     * ist fehleranfällig (HTTP 400 "input: Input should be an object"). Der
+     * Text-Verlauf genügt dem Modell; Client-Tool-Blöcke (graphql_mutate +
+     * tool_result) bleiben erhalten, damit der Bestätigungs-Flow funktioniert.
+     */
+    buildApiMessages() {
+      return this.messages.map((m) => {
+        if (!Array.isArray(m.content)) return m
+        const filtered = m.content.filter(
+          (b) => b.type !== 'mcp_tool_use' && b.type !== 'mcp_tool_result',
+        )
+        if (filtered.length === 0) {
+          // Leeren Turn vermeiden → auf Text zurückfallen
+          return { role: m.role, content: extractText(m.content) || ' ' }
+        }
+        return { role: m.role, content: filtered }
+      })
+    },
+
+    /**
      * Einen Assistenten-Turn ausführen: Request an /copilot/chat, SSE parsen,
      * Tool-Status / Text / Mutations-Bestätigung verarbeiten.
      */
@@ -87,7 +108,7 @@ export const useCopilotStore = defineStore('copilot', {
             'Authorization': `Bearer ${authStore.token}`,
             ...xsrfHeader(),
           },
-          body: JSON.stringify({ messages: this.messages, context }),
+          body: JSON.stringify({ messages: this.buildApiMessages(), context }),
         })
 
         if (!resp.ok || !resp.body) {
