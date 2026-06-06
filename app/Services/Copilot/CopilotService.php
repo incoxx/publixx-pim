@@ -81,9 +81,14 @@ final class CopilotService
                     'allowed_tools' => self::READ_ONLY_TOOLS,
                 ],
             ]],
-            // Schreibendes Tool als Client-Tool → stoppt mit stop_reason "tool_use",
-            // damit das Frontend den Bestätigungs-Dialog zeigen kann.
-            'tools' => [$this->mutationToolDefinition()],
+            'tools' => [
+                // Referenziert den MCP-Server (Pflicht) — exponiert nur die
+                // via allowed_tools freigegebenen Lese-Tools.
+                ['type' => 'mcp_toolset', 'mcp_server_name' => 'anypim'],
+                // Schreibendes Tool als Client-Tool → stoppt mit stop_reason
+                // "tool_use", damit das Frontend den Bestätigungs-Dialog zeigt.
+                $this->mutationToolDefinition(),
+            ],
         ];
 
         $response = Http::withHeaders([
