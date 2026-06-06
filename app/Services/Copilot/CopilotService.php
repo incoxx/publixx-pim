@@ -76,15 +76,17 @@ final class CopilotService
                 'name'                => 'anypim',
                 'url'                 => (string) $config['mcp_url'],
                 'authorization_token' => $mcpToken,
-                'tool_configuration'  => [
-                    'enabled'       => true,
-                    'allowed_tools' => self::READ_ONLY_TOOLS,
-                ],
             ]],
             'tools' => [
-                // Referenziert den MCP-Server (Pflicht) — exponiert nur die
-                // via allowed_tools freigegebenen Lese-Tools.
-                ['type' => 'mcp_toolset', 'mcp_server_name' => 'anypim'],
+                // Referenziert den MCP-Server (Pflicht). Allowlist: nur die
+                // Lese-Tools werden exponiert (graphql_mutate bleibt aus →
+                // läuft als Client-Tool mit Bestätigung).
+                [
+                    'type'            => 'mcp_toolset',
+                    'mcp_server_name' => 'anypim',
+                    'default_config'  => ['enabled' => false],
+                    'configs'         => $this->readOnlyToolConfigs(),
+                ],
                 // Schreibendes Tool als Client-Tool → stoppt mit stop_reason
                 // "tool_use", damit das Frontend den Bestätigungs-Dialog zeigt.
                 $this->mutationToolDefinition(),
@@ -177,6 +179,22 @@ final class CopilotService
             $mutation,
             is_array($variables) ? $variables : null,
         );
+    }
+
+    /**
+     * Baut die per-Tool-Allowlist für den mcp_toolset: jedes Lese-Tool
+     * explizit aktivieren (default_config.enabled = false greift für den Rest).
+     *
+     * @return array<string, array{enabled: bool}>
+     */
+    private function readOnlyToolConfigs(): array
+    {
+        $configs = [];
+        foreach (self::READ_ONLY_TOOLS as $tool) {
+            $configs[$tool] = ['enabled' => true];
+        }
+
+        return $configs;
     }
 
     /**
