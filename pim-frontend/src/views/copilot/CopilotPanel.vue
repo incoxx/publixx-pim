@@ -6,6 +6,7 @@ import { useCopilotStore } from '@/stores/copilot'
 import { useProductStore } from '@/stores/products'
 import { useLocaleStore } from '@/stores/locale'
 import { useQuickSearchStore } from '@/stores/quickSearch'
+import { renderMarkdown } from '@/utils/markdown'
 
 const copilot = useCopilotStore()
 const route = useRoute()
@@ -120,12 +121,17 @@ watch(
           class="flex flex-col"
           :class="msg.role === 'user' ? 'items-end' : 'items-start'"
         >
+          <!-- Nutzer: reiner Text -->
           <div
-            class="max-w-[85%] rounded-2xl px-3.5 py-2 text-sm whitespace-pre-wrap break-words"
-            :class="msg.role === 'user'
-              ? 'bg-[var(--color-accent)] text-white rounded-br-sm'
-              : 'bg-[var(--color-bg)] text-[var(--color-text-primary)] rounded-bl-sm'"
+            v-if="msg.role === 'user'"
+            class="max-w-[85%] rounded-2xl rounded-br-sm px-3.5 py-2 text-sm whitespace-pre-wrap break-words bg-[var(--color-accent)] text-white"
           >{{ msg.text }}</div>
+          <!-- Assistent: Markdown (inkl. Tabellen) -->
+          <div
+            v-else
+            class="copilot-md max-w-[85%] rounded-2xl rounded-bl-sm px-3.5 py-2 text-sm break-words bg-[var(--color-bg)] text-[var(--color-text-primary)]"
+            v-html="renderMarkdown(msg.text)"
+          ></div>
 
           <!-- "Im PIM anzeigen" nach einem search_products-Aufruf -->
           <button
@@ -140,7 +146,7 @@ watch(
 
         <!-- Streaming-Antwort -->
         <div v-if="copilot.streamingText" class="flex justify-start">
-          <div class="max-w-[85%] rounded-2xl rounded-bl-sm px-3.5 py-2 text-sm whitespace-pre-wrap break-words bg-[var(--color-bg)] text-[var(--color-text-primary)]">{{ copilot.streamingText }}</div>
+          <div class="copilot-md max-w-[85%] rounded-2xl rounded-bl-sm px-3.5 py-2 text-sm break-words bg-[var(--color-bg)] text-[var(--color-text-primary)]" v-html="renderMarkdown(copilot.streamingText)"></div>
         </div>
 
         <!-- Tool-Status -->
@@ -216,3 +222,70 @@ watch(
     </div>
   </transition>
 </template>
+
+<style scoped>
+/* Markdown-Inhalt der Assistenten-Antworten (v-html → :deep nötig) */
+.copilot-md :deep(p) { margin: 0 0 0.5rem; }
+.copilot-md :deep(p:last-child) { margin-bottom: 0; }
+.copilot-md :deep(ul),
+.copilot-md :deep(ol) { margin: 0.25rem 0 0.5rem; padding-left: 1.25rem; }
+.copilot-md :deep(li) { margin: 0.125rem 0; }
+.copilot-md :deep(ul) { list-style: disc; }
+.copilot-md :deep(ol) { list-style: decimal; }
+.copilot-md :deep(h1),
+.copilot-md :deep(h2),
+.copilot-md :deep(h3),
+.copilot-md :deep(h4) { font-weight: 600; margin: 0.5rem 0 0.25rem; line-height: 1.3; }
+.copilot-md :deep(h1) { font-size: 1.05rem; }
+.copilot-md :deep(h2) { font-size: 1rem; }
+.copilot-md :deep(h3),
+.copilot-md :deep(h4) { font-size: 0.9rem; }
+.copilot-md :deep(a) { color: var(--color-accent); text-decoration: underline; }
+.copilot-md :deep(strong) { font-weight: 600; }
+.copilot-md :deep(code) {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8em;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 0.25rem;
+  padding: 0.05rem 0.3rem;
+}
+.copilot-md :deep(pre) {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 0.375rem;
+  padding: 0.5rem 0.65rem;
+  overflow-x: auto;
+  margin: 0.4rem 0;
+}
+.copilot-md :deep(pre code) { background: none; border: 0; padding: 0; font-size: 0.78em; }
+.copilot-md :deep(blockquote) {
+  border-left: 3px solid var(--color-border);
+  padding-left: 0.6rem;
+  margin: 0.4rem 0;
+  color: var(--color-text-secondary);
+}
+.copilot-md :deep(hr) { border: 0; border-top: 1px solid var(--color-border); margin: 0.6rem 0; }
+
+/* Tabellen */
+.copilot-md :deep(table) {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.4rem 0;
+  font-size: 0.8rem;
+  display: block;
+  overflow-x: auto;
+}
+.copilot-md :deep(th),
+.copilot-md :deep(td) {
+  border: 1px solid var(--color-border);
+  padding: 0.3rem 0.5rem;
+  text-align: left;
+  vertical-align: top;
+}
+.copilot-md :deep(th) {
+  background: var(--color-surface);
+  font-weight: 600;
+}
+.copilot-md :deep(tr:nth-child(even) td) { background: var(--color-surface); }
+</style>
