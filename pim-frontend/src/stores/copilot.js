@@ -308,12 +308,20 @@ function parseSseEvent(raw) {
 function finalizeBlock(block, jsonStr) {
   if (!block) return null
   const out = { ...block }
-  // Tool-Input (Client-Tool wie mcp_tool_use) wird via input_json_delta gestreamt
-  if (jsonStr !== undefined && jsonStr !== '' && (out.type === 'tool_use' || out.type === 'mcp_tool_use')) {
-    try {
-      out.input = JSON.parse(jsonStr)
-    } catch {
-      // bestehenden input (aus content_block_start) beibehalten
+  if (out.type === 'tool_use' || out.type === 'mcp_tool_use') {
+    // Tool-Input wird via input_json_delta gestreamt
+    if (jsonStr !== undefined && jsonStr !== '') {
+      try {
+        out.input = JSON.parse(jsonStr)
+      } catch {
+        // bestehenden input (aus content_block_start) beibehalten
+      }
+    }
+    // input MUSS ein Objekt sein — Tools ohne Argumente (z.B. list_templates)
+    // liefern keine Deltas; sonst lehnt die API die History ab:
+    // "mcp_tool_use.input: Input should be an object"
+    if (typeof out.input !== 'object' || out.input === null) {
+      out.input = {}
     }
   }
   return out
