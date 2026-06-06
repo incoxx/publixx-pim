@@ -21,8 +21,12 @@ export const useCopilotStore = defineStore('copilot', {
     error: null,
     // Offene Mutations-Bestätigung: { toolUseId, input, assistantContent, context }
     pendingMutation: null,
-    // PIM-Such-Aktionen je Nachrichten-Index: { [index]: { query, count } }
+    // PIM-Such-Aktionen je Nachrichten-Index: { [index]: { query } }
     pimSearchByIndex: {},
+    // Gekürzte Antworten (max_tokens) je Nachrichten-Index: { [index]: true }
+    truncatedByIndex: {},
+    // Letzter Kontext — für "Erneut versuchen"
+    lastContext: {},
   }),
 
   getters: {
@@ -34,6 +38,7 @@ export const useCopilotStore = defineStore('copilot', {
           role: m.role,
           text: extractText(m.content),
           pimSearch: state.pimSearchByIndex[idx] || null,
+          truncated: state.truncatedByIndex[idx] || false,
         }))
         .filter((m) => m.text !== '')
     },
@@ -51,6 +56,7 @@ export const useCopilotStore = defineStore('copilot', {
       this.error = null
       this.pendingMutation = null
       this.pimSearchByIndex = {}
+      this.truncatedByIndex = {}
     },
 
     /** Nutzer-Nachricht senden und Antwort streamen. */
@@ -63,6 +69,27 @@ export const useCopilotStore = defineStore('copilot', {
     },
 
     /**
+     * Baut die an die API gesendete History: vom MCP-Connector erzeugte Blöcke
+     * (mcp_tool_use / mcp_tool_result) werden entfernt — sie wieder einzureichen
+     * ist fehleranfällig (HTTP 400 "input: Input should be an object"). Der
+     * Text-Verlauf genügt dem Modell; Client-Tool-Blöcke (graphql_mutate +
+     * tool_result) bleiben erhalten, damit der Bestätigungs-Flow funktioniert.
+     */
+    buildApiMessages() {
+      return this.messages.map((m) => {
+        if (!Array.isArray(m.content)) return m
+        const filtered = m.content.filter(
+          (b) => b.type !== 'mcp_tool_use' && b.type !== 'mcp_tool_result',
+        )
+        if (filtered.length === 0) {
+          // Leeren Turn vermeiden → auf Text zurückfallen
+          return { role: m.role, content: extractText(m.content) || ' ' }
+        }
+        return { role: m.role, content: filtered }
+      })
+    },
+
+    /**
      * Einen Assistenten-Turn ausführen: Request an /copilot/chat, SSE parsen,
      * Tool-Status / Text / Mutations-Bestätigung verarbeiten.
      */
@@ -71,6 +98,7 @@ export const useCopilotStore = defineStore('copilot', {
       this.error = null
       this.streamingText = ''
       this.toolStatus = null
+      this.lastContext = context
 
       const blocks = {}          // index → content-block (laufend befüllt)
       const jsonBuf = {}         // index → akkumuliertes input_json
@@ -87,11 +115,11 @@ export const useCopilotStore = defineStore('copilot', {
             'Authorization': `Bearer ${authStore.token}`,
             ...xsrfHeader(),
           },
-          body: JSON.stringify({ messages: this.messages, context }),
+          body: JSON.stringify({ messages: this.buildApiMessages(), context }),
         })
 
         if (!resp.ok || !resp.body) {
-          throw new Error(`Copilot-Anfrage fehlgeschlagen (HTTP ${resp.status}).`)
+          throw new Error(httpErrorMessage(resp.status))
         }
 
         const reader = resp.body.getReader()
@@ -114,7 +142,8 @@ export const useCopilotStore = defineStore('copilot', {
           }
         }
       } catch (e) {
-        this.error = e?.message || 'Unbekannter Fehler beim Copilot.'
+        this.error = e?.message
+          || 'Die Verbindung zum Copilot wurde unterbrochen. Bitte versuche es erneut.'
         this.busy = false
         this.toolStatus = null
         return
@@ -131,11 +160,17 @@ export const useCopilotStore = defineStore('copilot', {
 
       if (assistantContent.length > 0) {
         this.messages.push({ role: 'assistant', content: assistantContent })
+        const idx = this.messages.length - 1
 
         // search_products-Aufruf erkennen → "Im PIM anzeigen"-Aktion anbieten
         const search = extractPimSearch(assistantContent)
         if (search) {
-          this.pimSearchByIndex[this.messages.length - 1] = search
+          this.pimSearchByIndex[idx] = search
+        }
+
+        // Antwort wegen Token-Limit abgeschnitten? → Hinweis am Turn vermerken
+        if (stopReason === 'max_tokens') {
+          this.truncatedByIndex[idx] = true
         }
       }
 
@@ -155,13 +190,30 @@ export const useCopilotStore = defineStore('copilot', {
       }
 
       // Sicherheitsnetz: Turn ohne Text, ohne Fehler, ohne Bestätigung →
-      // Hinweis statt leerer Antwort (z.B. Tool-Fehler im Stream).
+      // verständlicher Hinweis statt leerer Antwort.
       const hasText = assistantContent.some((b) => b.type === 'text' && (b.text || '').trim() !== '')
       if (!hasText && !this.error) {
-        this.error = 'Keine Antwort vom Copilot erhalten. Bitte Server-Logs prüfen (storage/logs/laravel.log).'
+        this.error = 'Der Copilot konnte keine Antwort erzeugen. Bitte versuche es erneut oder formuliere die Frage anders.'
       }
 
       this.busy = false
+    },
+
+    /** Letzten fehlgeschlagenen Turn erneut versuchen. */
+    async retry() {
+      if (this.busy) return
+      this.error = null
+
+      // Einen unvollständigen Assistenten-Turn (ohne Text) vorher entfernen
+      const last = this.messages[this.messages.length - 1]
+      if (last && last.role === 'assistant' && extractText(last.content) === '') {
+        const idx = this.messages.length - 1
+        this.messages.pop()
+        delete this.pimSearchByIndex[idx]
+        delete this.truncatedByIndex[idx]
+      }
+
+      await this.runTurn(this.lastContext || {})
     },
 
     /** Verarbeitet ein einzelnes SSE-Event. Gibt ggf. stop_reason zurück. */
@@ -277,7 +329,17 @@ export const useCopilotStore = defineStore('copilot', {
   },
 })
 
-// ── SSE-/Block-Helfer ────────────────────────────────────────────────────────
+// ── Fehler-/SSE-/Block-Helfer ───────────────────────────────────────────────
+
+/** Verständliche Meldung für HTTP-Transportfehler der Chat-Route. */
+function httpErrorMessage(status) {
+  if (status === 401) return 'Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.'
+  if (status === 419) return 'Deine Sitzung ist abgelaufen. Bitte lade die Seite neu.'
+  if (status === 429) return 'Zu viele Anfragen in kurzer Zeit. Bitte einen Moment warten und erneut versuchen.'
+  if (status >= 500) return 'Der Copilot ist momentan nicht erreichbar. Bitte versuche es später erneut.'
+  return `Der Copilot konnte nicht erreicht werden (Fehler ${status}).`
+}
+
 
 /**
  * Liest das XSRF-TOKEN-Cookie und liefert den CSRF-Header (wie axios es bei

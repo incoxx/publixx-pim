@@ -6,6 +6,7 @@ namespace App\Services\Copilot;
 
 use App\Models\ApiTemplate;
 use App\Services\ApiDesigner\GraphqlDesignerService;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Psr\Http\Message\StreamInterface;
@@ -93,50 +94,68 @@ final class CopilotService
             ],
         ];
 
-        $response = Http::withHeaders([
-            'x-api-key'         => $apiKey,
-            'anthropic-version' => '2023-06-01',
-            'anthropic-beta'    => self::MCP_BETA,
-            'content-type'      => 'application/json',
-        ])
-            ->withOptions(['stream' => true])
-            ->timeout(180)
-            ->post(self::ANTHROPIC_URL, $payload);
+        try {
+            $response = Http::withHeaders([
+                'x-api-key'         => $apiKey,
+                'anthropic-version' => '2023-06-01',
+                'anthropic-beta'    => self::MCP_BETA,
+                'content-type'      => 'application/json',
+            ])
+                ->withOptions(['stream' => true])
+                ->timeout(180)
+                ->post(self::ANTHROPIC_URL, $payload);
+        } catch (ConnectionException $e) {
+            Log::warning('Copilot: Verbindung zu Claude fehlgeschlagen', ['error' => $e->getMessage()]);
+            throw new \RuntimeException(
+                'Die Verbindung zu Claude hat zu lange gedauert oder ist fehlgeschlagen. Bitte versuche es in einem Moment erneut.'
+            );
+        }
 
         $psr    = $response->toPsrResponse();
         $status = $psr->getStatusCode();
 
-        // Bei Fehler-Status liefert Anthropic ein JSON (kein SSE). Würde man das
-        // blind als Stream durchreichen, sähe das Frontend "200 ohne Inhalt".
-        // Stattdessen den echten Fehlertext extrahieren, loggen und werfen.
+        // Bei Fehler-Status liefert Anthropic ein JSON (kein SSE). Technisches
+        // Detail nur ins Log; dem Nutzer wird eine verständliche Meldung gezeigt.
         if ($status >= 400) {
             $errorBody = (string) $psr->getBody();
-            $message   = $this->extractAnthropicError($errorBody);
 
             Log::warning('Copilot: Anthropic-Anfrage fehlgeschlagen', [
                 'status' => $status,
                 'body'   => mb_substr($errorBody, 0, 2000),
             ]);
 
-            throw new \RuntimeException("Anthropic-Fehler (HTTP {$status}): {$message}");
+            throw new \RuntimeException($this->friendlyError($status, $errorBody));
         }
 
         return $psr->getBody();
     }
 
     /**
-     * Extrahiert die Fehlermeldung aus einer Anthropic-Fehlerantwort
-     * ({"error":{"type":...,"message":...}}); fällt auf den Rohtext zurück.
+     * Übersetzt einen Anthropic-Fehlerstatus in eine verständliche Meldung
+     * für Endnutzer (Technisches steht im Log).
      */
-    private function extractAnthropicError(string $body): string
+    private function friendlyError(int $status, string $body): string
     {
+        $type = '';
         $decoded = json_decode($body, true);
-        if (is_array($decoded) && isset($decoded['error']['message'])) {
-            $type = $decoded['error']['type'] ?? '';
-            return trim(($type !== '' ? "[{$type}] " : '') . $decoded['error']['message']);
+        if (is_array($decoded)) {
+            $type = (string) ($decoded['error']['type'] ?? '');
         }
 
-        return $body !== '' ? mb_substr($body, 0, 500) : 'Unbekannter Fehler.';
+        return match (true) {
+            $status === 401 || $type === 'authentication_error'
+                => 'Der Copilot ist nicht korrekt mit Claude verbunden (ungültiger API-Schlüssel). Bitte wende dich an deinen Administrator.',
+            $status === 403 || $type === 'permission_error'
+                => 'Der Copilot hat für diese Anfrage keine Berechtigung. Bitte wende dich an deinen Administrator.',
+            $status === 429 || $type === 'rate_limit_error'
+                => 'Claude ist gerade stark ausgelastet. Bitte versuche es in einem Moment erneut.',
+            $status === 529 || $type === 'overloaded_error'
+                => 'Claude ist vorübergehend überlastet. Bitte versuche es in Kürze erneut.',
+            $status >= 500
+                => 'Claude ist vorübergehend nicht erreichbar. Bitte versuche es später erneut.',
+            default
+                => 'Beim Verarbeiten deiner Anfrage ist ein Fehler aufgetreten. Bitte versuche es erneut oder formuliere die Frage anders.',
+        };
     }
 
     /**
