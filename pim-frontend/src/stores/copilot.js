@@ -72,10 +72,12 @@ export const useCopilotStore = defineStore('copilot', {
         const authStore = useAuthStore()
         const resp = await fetch(resolveApiUrl('copilot/chat'), {
           method: 'POST',
+          credentials: 'same-origin',
           headers: {
             'Content-Type': 'application/json',
             'Accept': 'text/event-stream',
             'Authorization': `Bearer ${authStore.token}`,
+            ...xsrfHeader(),
           },
           body: JSON.stringify({ messages: this.messages, context }),
         })
@@ -205,10 +207,12 @@ export const useCopilotStore = defineStore('copilot', {
         const authStore = useAuthStore()
         const resp = await fetch(resolveApiUrl('copilot/execute-tool'), {
           method: 'POST',
+          credentials: 'same-origin',
           headers: {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
             'Authorization': `Bearer ${authStore.token}`,
+            ...xsrfHeader(),
           },
           body: JSON.stringify({ name: 'graphql_mutate', input: pending.input }),
         })
@@ -253,6 +257,16 @@ export const useCopilotStore = defineStore('copilot', {
 })
 
 // ── SSE-/Block-Helfer ────────────────────────────────────────────────────────
+
+/**
+ * Liest das XSRF-TOKEN-Cookie und liefert den CSRF-Header (wie axios es bei
+ * same-origin-Requests automatisch tut). Nötig, weil natives fetch das nicht
+ * selbst übernimmt und Sanctum im stateful-Modus CSRF erzwingt → sonst HTTP 419.
+ */
+function xsrfHeader() {
+  const match = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]+)/)
+  return match ? { 'X-XSRF-TOKEN': decodeURIComponent(match[1]) } : {}
+}
 
 function parseSseEvent(raw) {
   let event = 'message'
