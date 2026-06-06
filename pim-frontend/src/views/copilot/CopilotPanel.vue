@@ -1,15 +1,26 @@
 <script setup>
 import { computed, nextTick, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
-import { Sparkles, X, Send, RotateCcw, AlertTriangle, Loader2 } from 'lucide-vue-next'
+import { useRoute, useRouter } from 'vue-router'
+import { Sparkles, X, Send, RotateCcw, AlertTriangle, Loader2, Search } from 'lucide-vue-next'
 import { useCopilotStore } from '@/stores/copilot'
 import { useProductStore } from '@/stores/products'
 import { useLocaleStore } from '@/stores/locale'
+import { useQuickSearchStore } from '@/stores/quickSearch'
 
 const copilot = useCopilotStore()
 const route = useRoute()
+const router = useRouter()
 const products = useProductStore()
 const localeStore = useLocaleStore()
+const quickSearch = useQuickSearchStore()
+
+/** Treffer eines Copilot-search_products in der nativen Schnellsuche öffnen. */
+async function showInPim(pimSearch) {
+  if (!pimSearch?.query) return
+  quickSearch.activeTab = 'products'
+  await router.push({ name: 'quick-search' })
+  quickSearch.search(pimSearch.query)
+}
 
 const draft = ref('')
 const scrollEl = ref(null)
@@ -106,8 +117,8 @@ watch(
         <div
           v-for="(msg, i) in copilot.transcript"
           :key="i"
-          class="flex"
-          :class="msg.role === 'user' ? 'justify-end' : 'justify-start'"
+          class="flex flex-col"
+          :class="msg.role === 'user' ? 'items-end' : 'items-start'"
         >
           <div
             class="max-w-[85%] rounded-2xl px-3.5 py-2 text-sm whitespace-pre-wrap break-words"
@@ -115,6 +126,16 @@ watch(
               ? 'bg-[var(--color-accent)] text-white rounded-br-sm'
               : 'bg-[var(--color-bg)] text-[var(--color-text-primary)] rounded-bl-sm'"
           >{{ msg.text }}</div>
+
+          <!-- "Im PIM anzeigen" nach einem search_products-Aufruf -->
+          <button
+            v-if="msg.pimSearch"
+            class="mt-1.5 inline-flex items-center gap-1.5 rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1 text-xs text-[var(--color-accent)] transition-colors hover:bg-[var(--color-bg)]"
+            @click="showInPim(msg.pimSearch)"
+          >
+            <Search class="w-3.5 h-3.5" :stroke-width="1.75" />
+            Treffer „{{ msg.pimSearch.query }}“ im PIM anzeigen
+          </button>
         </div>
 
         <!-- Streaming-Antwort -->
