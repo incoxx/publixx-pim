@@ -66,7 +66,7 @@ return [
     'copilot' => [
         'api_key'    => env('COPILOT_API_KEY', env('CLAUDE_AI_API_KEY', '')),
         'model'      => env('COPILOT_MODEL', 'claude-sonnet-4-6'),
-        'max_tokens' => env('COPILOT_MAX_TOKENS', 4096),
+        'max_tokens' => env('COPILOT_MAX_TOKENS', 8192),
         'mcp_url'    => env('COPILOT_MCP_URL', rtrim((string) env('APP_URL', ''), '/') . '/api/v1/mcp'),
     ],
 

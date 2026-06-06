@@ -133,6 +133,14 @@ watch(
             v-html="renderMarkdown(msg.text)"
           ></div>
 
+          <!-- Hinweis: Antwort wegen Token-Limit gekürzt -->
+          <p
+            v-if="msg.truncated"
+            class="mt-1 text-[11px] text-[var(--color-text-tertiary)] italic"
+          >
+            Antwort wurde wegen Längenbegrenzung gekürzt — frage nach Details oder grenze die Suche ein.
+          </p>
+
           <!-- "Im PIM anzeigen" nach einem search_products-Aufruf -->
           <button
             v-if="msg.pimSearch"
@@ -190,8 +198,20 @@ watch(
         </div>
 
         <!-- Fehler -->
-        <div v-if="copilot.error" class="rounded-lg border border-[var(--color-error)] bg-[var(--color-error-light)] p-3 text-xs text-[var(--color-error)]">
-          {{ copilot.error }}
+        <div v-if="copilot.error" class="rounded-lg border border-[var(--color-error)] bg-[var(--color-error-light)] p-3">
+          <div class="flex items-center gap-2 text-xs font-semibold text-[var(--color-error)]">
+            <AlertTriangle class="w-4 h-4 shrink-0" :stroke-width="1.75" />
+            Es ist ein Problem aufgetreten
+          </div>
+          <p class="mt-1 text-xs text-[var(--color-error)]">{{ copilot.error }}</p>
+          <button
+            class="mt-2 inline-flex items-center gap-1.5 rounded border border-[var(--color-error)] px-2.5 py-1 text-xs text-[var(--color-error)] transition-colors hover:bg-[var(--color-error)]/10"
+            :disabled="copilot.busy"
+            @click="copilot.retry()"
+          >
+            <RotateCcw class="w-3.5 h-3.5" :stroke-width="1.75" />
+            Erneut versuchen
+          </button>
         </div>
       </div>
 
