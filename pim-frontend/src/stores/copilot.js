@@ -21,13 +21,20 @@ export const useCopilotStore = defineStore('copilot', {
     error: null,
     // Offene Mutations-Bestätigung: { toolUseId, input, assistantContent, context }
     pendingMutation: null,
+    // PIM-Such-Aktionen je Nachrichten-Index: { [index]: { query, count } }
+    pimSearchByIndex: {},
   }),
 
   getters: {
     // Anzeige-Transkript: nur Text aus User-/Assistent-Turns
     transcript(state) {
       return state.messages
-        .map((m) => ({ role: m.role, text: extractText(m.content) }))
+        .map((m, idx) => ({
+          idx,
+          role: m.role,
+          text: extractText(m.content),
+          pimSearch: state.pimSearchByIndex[idx] || null,
+        }))
         .filter((m) => m.text !== '')
     },
   },
@@ -43,6 +50,7 @@ export const useCopilotStore = defineStore('copilot', {
       this.toolStatus = null
       this.error = null
       this.pendingMutation = null
+      this.pimSearchByIndex = {}
     },
 
     /** Nutzer-Nachricht senden und Antwort streamen. */
@@ -123,6 +131,12 @@ export const useCopilotStore = defineStore('copilot', {
 
       if (assistantContent.length > 0) {
         this.messages.push({ role: 'assistant', content: assistantContent })
+
+        // search_products-Aufruf erkennen → "Im PIM anzeigen"-Aktion anbieten
+        const search = extractPimSearch(assistantContent)
+        if (search) {
+          this.pimSearchByIndex[this.messages.length - 1] = search
+        }
       }
 
       // Schreibende Aktion? → zur Bestätigung anhalten.
@@ -294,14 +308,31 @@ function parseSseEvent(raw) {
 function finalizeBlock(block, jsonStr) {
   if (!block) return null
   const out = { ...block }
-  if (jsonStr !== undefined && (out.type === 'tool_use')) {
+  // Tool-Input (Client-Tool wie mcp_tool_use) wird via input_json_delta gestreamt
+  if (jsonStr !== undefined && jsonStr !== '' && (out.type === 'tool_use' || out.type === 'mcp_tool_use')) {
     try {
-      out.input = JSON.parse(jsonStr || '{}')
+      out.input = JSON.parse(jsonStr)
     } catch {
-      out.input = {}
+      // bestehenden input (aus content_block_start) beibehalten
     }
   }
   return out
+}
+
+/**
+ * Sucht im Assistenten-Turn den letzten search_products-Aufruf mit Suchbegriff
+ * und liefert die "Im PIM anzeigen"-Such-Aktion (oder null).
+ */
+function extractPimSearch(content) {
+  if (!Array.isArray(content)) return null
+  let found = null
+  for (const b of content) {
+    if (b.type === 'mcp_tool_use' && b.name === 'search_products') {
+      const query = (b.input?.query || '').trim()
+      if (query !== '') found = { query }
+    }
+  }
+  return found
 }
 
 function extractText(content) {
