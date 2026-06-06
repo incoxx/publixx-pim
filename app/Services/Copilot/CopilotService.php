@@ -7,6 +7,7 @@ namespace App\Services\Copilot;
 use App\Models\ApiTemplate;
 use App\Services\ApiDesigner\GraphqlDesignerService;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Psr\Http\Message\StreamInterface;
 
 /**
@@ -95,7 +96,40 @@ final class CopilotService
             ->timeout(180)
             ->post(self::ANTHROPIC_URL, $payload);
 
-        return $response->toPsrResponse()->getBody();
+        $psr    = $response->toPsrResponse();
+        $status = $psr->getStatusCode();
+
+        // Bei Fehler-Status liefert Anthropic ein JSON (kein SSE). Würde man das
+        // blind als Stream durchreichen, sähe das Frontend "200 ohne Inhalt".
+        // Stattdessen den echten Fehlertext extrahieren, loggen und werfen.
+        if ($status >= 400) {
+            $errorBody = (string) $psr->getBody();
+            $message   = $this->extractAnthropicError($errorBody);
+
+            Log::warning('Copilot: Anthropic-Anfrage fehlgeschlagen', [
+                'status' => $status,
+                'body'   => mb_substr($errorBody, 0, 2000),
+            ]);
+
+            throw new \RuntimeException("Anthropic-Fehler (HTTP {$status}): {$message}");
+        }
+
+        return $psr->getBody();
+    }
+
+    /**
+     * Extrahiert die Fehlermeldung aus einer Anthropic-Fehlerantwort
+     * ({"error":{"type":...,"message":...}}); fällt auf den Rohtext zurück.
+     */
+    private function extractAnthropicError(string $body): string
+    {
+        $decoded = json_decode($body, true);
+        if (is_array($decoded) && isset($decoded['error']['message'])) {
+            $type = $decoded['error']['type'] ?? '';
+            return trim(($type !== '' ? "[{$type}] " : '') . $decoded['error']['message']);
+        }
+
+        return $body !== '' ? mb_substr($body, 0, 500) : 'Unbekannter Fehler.';
     }
 
     /**
