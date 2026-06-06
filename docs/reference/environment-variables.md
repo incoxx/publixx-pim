@@ -328,6 +328,19 @@ Wird für die KI-gestützte Fehlerklassifikation genutzt. Ohne Key wird automati
 | `CLAUDE_AI_MODEL` | `claude-sonnet-4-5-20250929` | – | Modell-ID |
 | `CLAUDE_AI_MAX_TOKENS` | `1024` | – | Maximale Tokens pro Antwort |
 
+### In-App Copilot (Chat-Fenster)
+
+Der Copilot bindet den eigenen MCP-Endpoint via Anthropic MCP-Connector ein. Voraussetzungen: `CLAUDE_AI_API_KEY` (bzw. `COPILOT_API_KEY`) **und** `MCP_AUTH_TOKEN` gesetzt. Details: [`docs/guides/copilot.md`](../guides/copilot.md).
+
+| Variable | Standard | Pflicht | Beschreibung |
+|----------|----------|---------|--------------|
+| `COPILOT_API_KEY` | *(= `CLAUDE_AI_API_KEY`)* | – ⚠️ | Eigener Anthropic-Key für den Copilot (sonst Fallback auf `CLAUDE_AI_API_KEY`) |
+| `COPILOT_MODEL` | `claude-sonnet-4-6` | – | Modell-ID (Tool-Use-fähig, schnell) |
+| `COPILOT_MAX_TOKENS` | `4096` | – | Maximale Tokens pro Antwort |
+| `COPILOT_MCP_URL` | `APP_URL/api/v1/mcp` | – ⚠️ | MCP-Endpoint, den Anthropic aufruft. **Muss öffentlich erreichbar sein** (Prod: öffentliche `APP_URL`) |
+
+> Benötigt zusätzlich `MCP_AUTH_TOKEN` (Abschnitt MCP / siehe [`docs/guides/mcp-connector.md`](../guides/mcp-connector.md)) — der Copilot reicht diesen als Bearer an den eigenen MCP-Endpoint weiter.
+
 ### OpenAI
 
 | Variable | Standard | Pflicht | Beschreibung |

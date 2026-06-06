@@ -5,9 +5,11 @@ import { useLocaleStore } from '@/stores/locale'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { computed } from 'vue'
-import { Command, Globe, LogOut, Menu, Pin, PinOff, User } from 'lucide-vue-next'
+import { Command, Globe, LogOut, Menu, Pin, PinOff, Sparkles, User } from 'lucide-vue-next'
+import { useCopilotStore } from '@/stores/copilot'
 
 const authStore = useAuthStore()
+const copilotStore = useCopilotStore()
 const tabStore = useTabStore()
 const localeStore = useLocaleStore()
 const { t, locale: i18nLocale } = useI18n()
@@ -52,6 +54,18 @@ function switchLocale(code) {
 
     <!-- Right: Actions -->
     <div class="flex items-center gap-2">
+      <!-- Copilot toggle -->
+      <button
+        class="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md border transition-colors hover:bg-white/10"
+        :style="{ color: 'inherit', borderColor: 'var(--pim-toolbar-border)' }"
+        :class="{ 'bg-white/10': copilotStore.open }"
+        title="anyPIM Copilot"
+        @click="copilotStore.toggle()"
+      >
+        <Sparkles class="w-3.5 h-3.5" :stroke-width="1.75" />
+        <span class="hidden sm:inline">Copilot</span>
+      </button>
+
       <!-- Command palette trigger -->
       <button
         class="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md border transition-colors hover:bg-white/10"

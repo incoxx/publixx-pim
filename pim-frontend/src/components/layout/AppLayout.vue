@@ -6,6 +6,7 @@ import { useAppearanceStore } from '@/stores/appearance'
 import AppSidebar from './AppSidebar.vue'
 import AppHeader from './AppHeader.vue'
 import AppTabBar from './AppTabBar.vue'
+import CopilotPanel from '@/views/copilot/CopilotPanel.vue'
 
 const authStore = useAuthStore()
 const appearanceStore = useAppearanceStore()
@@ -87,6 +88,9 @@ const mainStyle = computed(() => ({
         </div>
       </div>
     </transition>
+
+    <!-- In-App Copilot (Chat-Fenster) -->
+    <CopilotPanel />
   </div>
 
   <!-- Login page -->
