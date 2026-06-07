@@ -6,6 +6,7 @@ namespace App\Services\Copilot;
 
 use App\Models\ApiTemplate;
 use App\Services\ApiDesigner\GraphqlDesignerService;
+use App\Services\Pim\ProductAttributeWriter;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -39,10 +40,16 @@ final class CopilotService
         'search_products',
         'graphql_query',
         'get_schema',
+        'list_attributes',
+        'list_hierarchies',
+        'list_hierarchy_nodes',
+        'list_node_attributes',
+        'list_node_products',
     ];
 
     public function __construct(
         private readonly GraphqlDesignerService $graphqlDesignerService,
+        private readonly ProductAttributeWriter $attributeWriter,
     ) {}
 
     /**
@@ -88,9 +95,10 @@ final class CopilotService
                     'default_config'  => ['enabled' => false],
                     'configs'         => $this->readOnlyToolConfigs(),
                 ],
-                // Schreibendes Tool als Client-Tool → stoppt mit stop_reason
+                // Schreibende Tools als Client-Tools → stoppen mit stop_reason
                 // "tool_use", damit das Frontend den Bestätigungs-Dialog zeigt.
                 $this->mutationToolDefinition(),
+                $this->attributeUpdateToolDefinition(),
             ],
         ];
 
@@ -201,6 +209,33 @@ final class CopilotService
     }
 
     /**
+     * Führt eine vom Nutzer bestätigte update_product_attribute-Aktion aus.
+     *
+     * @param  array<string, mixed>  $input
+     * @return array<string, mixed>
+     */
+    public function executeAttributeUpdate(array $input): array
+    {
+        $product   = trim((string) ($input['product'] ?? ''));
+        $attribute = trim((string) ($input['attribute'] ?? ''));
+
+        if ($product === '' || $attribute === '') {
+            throw new \InvalidArgumentException('product und attribute sind erforderlich.');
+        }
+        if (!array_key_exists('value', $input)) {
+            throw new \InvalidArgumentException('value ist erforderlich.');
+        }
+
+        return $this->attributeWriter->update(
+            $product,
+            $attribute,
+            $input['value'],
+            isset($input['language']) ? (string) $input['language'] : null,
+            isset($input['value_selection_id']) ? (string) $input['value_selection_id'] : null,
+        );
+    }
+
+    /**
      * Baut die per-Tool-Allowlist für den mcp_toolset: jedes Lese-Tool
      * explizit aktivieren (default_config.enabled = false greift für den Rest).
      *
@@ -242,6 +277,33 @@ final class CopilotService
     }
 
     /**
+     * Schema des client-seitigen Attribut-Schreib-Tools (Bestätigungs-Flow).
+     *
+     * @return array<string, mixed>
+     */
+    private function attributeUpdateToolDefinition(): array
+    {
+        return [
+            'name'        => 'update_product_attribute',
+            'description' => 'Setzt EINEN Attributwert eines Produkts (SCHREIBEND). Produkt per UUID oder SKU, Attribut per UUID oder technical_name. '
+                . 'Bei übersetzbaren Attributen ist "language" Pflicht, bei Selection-Attributen "value_selection_id" angeben. '
+                . 'WICHTIG: Diese Aktion ändert echte Produktdaten und wird dem Nutzer vor der Ausführung immer zur Bestätigung vorgelegt. '
+                . 'Beschreibe die geplante Änderung vorher klar und nachvollziehbar.',
+            'input_schema' => [
+                'type'       => 'object',
+                'required'   => ['product', 'attribute', 'value'],
+                'properties' => [
+                    'product'            => ['type' => 'string', 'description' => 'Produkt-UUID oder SKU'],
+                    'attribute'          => ['type' => 'string', 'description' => 'Attribut-UUID oder technical_name'],
+                    'value'              => ['description' => 'Neuer Wert (String, Zahl, Boolean oder ISO-Datum)'],
+                    'language'           => ['type' => 'string', 'description' => 'Sprachcode (Pflicht bei übersetzbaren Attributen, z.B. "de")'],
+                    'value_selection_id' => ['type' => 'string', 'description' => 'ValueListEntry-UUID bei Selection-Attributen'],
+                ],
+            ],
+        ];
+    }
+
+    /**
      * Baut den System-Prompt inkl. aktuellem UI-Kontext (macht aus dem Chat
      * einen kontextbewussten Co-Piloten).
      *
@@ -257,9 +319,14 @@ final class CopilotService
             . "- search_products: Volltext- und Attributsuche über Produkte.\n"
             . "- stream_products / graphql_query: Produktdaten abrufen.\n"
             . "- get_schema: GraphQL-Schema eines Templates ansehen.\n"
+            . "- list_attributes: Attribut-Definitionen inkl. UUID (für gezielte Updates).\n"
+            . "- list_hierarchies / list_hierarchy_nodes: Klassifikationen und ihre Knoten.\n"
+            . "- list_node_attributes / list_node_products: zugeordnete Attribute bzw. Produkte eines Knotens.\n"
             . "Bei Unsicherheit über einen gültigen Slug rufe zuerst list_templates auf.\n\n"
-            . "Für schreibende Änderungen steht graphql_mutate bereit. Solche Änderungen werden dem "
-            . "Nutzer immer zur Bestätigung vorgelegt — erkläre die geplante Änderung vorher klar.";
+            . "Für schreibende Änderungen stehen graphql_mutate und update_product_attribute bereit "
+            . "(einzelner Produktattribut-Wert per Produkt-UUID/SKU + Attribut-UUID/technical_name). "
+            . "Solche Änderungen werden dem Nutzer immer zur Bestätigung vorgelegt — erkläre die geplante "
+            . "Änderung vorher klar und beschaffe nötige UUIDs zuvor über die Lese-Tools.";
 
         $lines = [];
         if (!empty($context['route'])) {

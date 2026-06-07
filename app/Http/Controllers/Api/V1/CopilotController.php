@@ -73,7 +73,8 @@ class CopilotController extends Controller
             'input' => 'required|array',
         ]);
 
-        if ($validated['name'] !== 'graphql_mutate') {
+        $allowed = ['graphql_mutate', 'update_product_attribute'];
+        if (!in_array($validated['name'], $allowed, true)) {
             return response()->json([
                 'is_error' => true,
                 'content'  => 'Unbekanntes oder nicht erlaubtes Tool: ' . $validated['name'],
@@ -81,7 +82,10 @@ class CopilotController extends Controller
         }
 
         try {
-            $result = $this->copilot->executeMutation($validated['input']);
+            $result = match ($validated['name']) {
+                'graphql_mutate'           => $this->copilot->executeMutation($validated['input']),
+                'update_product_attribute' => $this->copilot->executeAttributeUpdate($validated['input']),
+            };
         } catch (\Throwable $e) {
             // Fehler als (nicht-fataler) Tool-Result zurückgeben — Claude kann
             // darauf reagieren und einen korrigierten Vorschlag machen.
@@ -92,11 +96,14 @@ class CopilotController extends Controller
         }
 
         // Bestätigte Schreib-Aktion ins Audit-Journal schreiben.
+        $auditId = (string) ($validated['input']['slug']
+            ?? $validated['input']['product']
+            ?? $validated['name']);
         WriteAuditLog::dispatch(
             auditableType: 'Copilot',
-            auditableId:   (string) ($validated['input']['slug'] ?? 'graphql_mutate'),
-            action:        'copilot_mutate',
-            newValues:     ['tool' => 'graphql_mutate', 'slug' => $validated['input']['slug'] ?? null],
+            auditableId:   $auditId,
+            action:        'copilot_' . $validated['name'],
+            newValues:     ['tool' => $validated['name'], 'input' => $validated['input']],
             ipAddress:     $request->ip(),
             userAgent:     $request->userAgent(),
         );

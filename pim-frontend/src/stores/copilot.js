@@ -20,7 +20,7 @@ export const useCopilotStore = defineStore('copilot', {
     toolStatus: null,          // z.B. "Durchsucht Produkte…"
     error: null,
     // Offene Mutations-Bestätigung: { toolUseId, input, assistantContent, context }
-    pendingMutation: null,
+    pendingTool: null,
     // PIM-Such-Aktionen je Nachrichten-Index: { [index]: { query } }
     pimSearchByIndex: {},
     // Gekürzte Antworten (max_tokens) je Nachrichten-Index: { [index]: true }
@@ -54,7 +54,7 @@ export const useCopilotStore = defineStore('copilot', {
       this.streamingText = ''
       this.toolStatus = null
       this.error = null
-      this.pendingMutation = null
+      this.pendingTool = null
       this.pimSearchByIndex = {}
       this.truncatedByIndex = {}
     },
@@ -174,15 +174,17 @@ export const useCopilotStore = defineStore('copilot', {
         }
       }
 
-      // Schreibende Aktion? → zur Bestätigung anhalten.
-      const mutateBlock = assistantContent.find(
-        (b) => b.type === 'tool_use' && b.name === 'graphql_mutate',
+      // Schreibende Aktion (Client-Tool)? → zur Bestätigung anhalten.
+      const writeBlock = assistantContent.find(
+        (b) => b.type === 'tool_use'
+          && (b.name === 'graphql_mutate' || b.name === 'update_product_attribute'),
       )
 
-      if (stopReason === 'tool_use' && mutateBlock) {
-        this.pendingMutation = {
-          toolUseId: mutateBlock.id,
-          input: mutateBlock.input || {},
+      if (stopReason === 'tool_use' && writeBlock) {
+        this.pendingTool = {
+          name: writeBlock.name,
+          toolUseId: writeBlock.id,
+          input: writeBlock.input || {},
           context,
         }
         this.busy = false
@@ -268,11 +270,11 @@ export const useCopilotStore = defineStore('copilot', {
       return null
     },
 
-    /** Bestätigte Mutation ausführen und Gespräch fortsetzen. */
-    async confirmMutation() {
-      const pending = this.pendingMutation
+    /** Bestätigte Schreib-Aktion ausführen und Gespräch fortsetzen. */
+    async confirmTool() {
+      const pending = this.pendingTool
       if (!pending || this.busy) return
-      this.pendingMutation = null
+      this.pendingTool = null
       this.busy = true
 
       let result
@@ -287,7 +289,7 @@ export const useCopilotStore = defineStore('copilot', {
             'Authorization': `Bearer ${authStore.token}`,
             ...xsrfHeader(),
           },
-          body: JSON.stringify({ name: 'graphql_mutate', input: pending.input }),
+          body: JSON.stringify({ name: pending.name, input: pending.input }),
         })
         result = await resp.json()
       } catch (e) {
@@ -307,11 +309,11 @@ export const useCopilotStore = defineStore('copilot', {
       await this.runTurn(pending.context || {})
     },
 
-    /** Mutation ablehnen — Claude erhält eine Ablehnung und kann reagieren. */
-    async denyMutation() {
-      const pending = this.pendingMutation
+    /** Schreib-Aktion ablehnen — Claude erhält eine Ablehnung und kann reagieren. */
+    async denyTool() {
+      const pending = this.pendingTool
       if (!pending || this.busy) return
-      this.pendingMutation = null
+      this.pendingTool = null
       this.busy = true
 
       this.messages.push({
@@ -319,7 +321,7 @@ export const useCopilotStore = defineStore('copilot', {
         content: [{
           type: 'tool_result',
           tool_use_id: pending.toolUseId,
-          content: 'Der Nutzer hat diese Änderung abgelehnt. Führe sie nicht aus und frage nach, wie fortgefahren werden soll.',
+          content: 'Der Nutzer hat diese Aktion abgelehnt. Führe sie nicht aus und frage nach, wie fortgefahren werden soll.',
           is_error: true,
         }],
       })
