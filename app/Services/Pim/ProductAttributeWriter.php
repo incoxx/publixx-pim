@@ -7,6 +7,7 @@ namespace App\Services\Pim;
 use App\Models\Attribute;
 use App\Models\Product;
 use App\Models\ProductAttributeValue;
+use App\Models\Unit;
 
 /**
  * Setzt einzelne Produktattribut-Werte — gemeinsame Schreiblogik für MCP-Tool
@@ -24,6 +25,7 @@ final class ProductAttributeWriter
      * @param  mixed        $value         Neuer Wert (String/Zahl/Bool/Datum)
      * @param  string|null  $language      Sprachcode (Pflicht bei übersetzbaren Attributen)
      * @param  string|null  $valueSelectionId  ValueListEntry-UUID bei Selection
+     * @param  string|null  $unit          Einheit (technical_name oder Abkürzung) bei Einheiten-Attributen
      * @return array<string, mixed>
      */
     public function update(
@@ -32,6 +34,7 @@ final class ProductAttributeWriter
         mixed $value,
         ?string $language = null,
         ?string $valueSelectionId = null,
+        ?string $unit = null,
     ): array {
         $product   = $this->resolveProduct($productRef);
         $attribute = $this->resolveAttribute($attributeRef);
@@ -54,6 +57,8 @@ final class ProductAttributeWriter
             $language = null;
         }
 
+        [$unitId, $unitLabel] = $this->resolveUnit($attribute, $unit);
+
         $columns = $this->resolveValueColumns($attribute, $value, $valueSelectionId);
 
         ProductAttributeValue::updateOrCreate(
@@ -65,6 +70,7 @@ final class ProductAttributeWriter
                 'output_hierarchy_id' => null,
             ],
             array_merge($columns, [
+                'unit_id'                   => $unitId,
                 'is_inherited'              => false,
                 'inherited_from_node_id'    => null,
                 'inherited_from_product_id' => null,
@@ -81,7 +87,59 @@ final class ProductAttributeWriter
             ],
             'language'  => $language,
             'value'     => $value,
+            'unit'      => $unitLabel,
         ];
+    }
+
+    /**
+     * Löst die Einheit auf und erzwingt Klarheit:
+     *  - Attribut ohne Einheitengruppe: "unit" darf nicht gesetzt sein.
+     *  - Attribut mit Einheitengruppe: gegebene Einheit muss zur Gruppe gehören;
+     *    ohne Angabe wird die Standardeinheit verwendet, sonst Fehler.
+     *
+     * @return array{0: ?string, 1: ?string}  [unit_id, label]
+     */
+    private function resolveUnit(Attribute $attribute, ?string $unit): array
+    {
+        if (empty($attribute->unit_group_id)) {
+            if ($unit !== null && $unit !== '') {
+                throw new \RuntimeException(
+                    "Attribut \"{$attribute->technical_name}\" hat keine Einheit — Parameter \"unit\" darf nicht gesetzt werden."
+                );
+            }
+
+            return [null, null];
+        }
+
+        if ($unit !== null && $unit !== '') {
+            $resolved = Unit::where('unit_group_id', $attribute->unit_group_id)
+                ->where(fn ($q) => $q->where('technical_name', $unit)->orWhere('abbreviation', $unit))
+                ->first();
+
+            if (!$resolved) {
+                $valid = Unit::where('unit_group_id', $attribute->unit_group_id)
+                    ->get(['technical_name', 'abbreviation'])
+                    ->map(fn ($u) => $u->abbreviation ?: $u->technical_name)
+                    ->filter()->implode(', ');
+
+                throw new \RuntimeException(
+                    "Einheit \"{$unit}\" ist für Attribut \"{$attribute->technical_name}\" nicht gültig. Erlaubte Einheiten: {$valid}."
+                );
+            }
+
+            return [$resolved->id, $resolved->abbreviation ?: $resolved->technical_name];
+        }
+
+        // Keine Einheit angegeben → Standardeinheit verwenden, sonst Klärung verlangen.
+        if (!empty($attribute->default_unit_id)) {
+            $default = Unit::find($attribute->default_unit_id);
+
+            return [$attribute->default_unit_id, $default?->abbreviation ?: $default?->technical_name];
+        }
+
+        throw new \RuntimeException(
+            "Attribut \"{$attribute->technical_name}\" erwartet eine Einheit, aber es wurde keine angegeben und es gibt keine Standardeinheit. Bitte \"unit\" setzen."
+        );
     }
 
     private function resolveProduct(string $ref): Product

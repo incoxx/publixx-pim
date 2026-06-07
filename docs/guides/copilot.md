@@ -6,6 +6,33 @@ bestehenden MCP-Tools echte PIM-Daten abrufen statt zu raten.
 
 Geöffnet wird er über den **Copilot**-Button (Sparkles-Icon) oben rechts im Header.
 
+## Demo-Prompts
+
+Beispiele, die die Werkzeuge sinnvoll kombinieren (im Leerzustand des Panels sind die
+ersten als klickbare Chips hinterlegt):
+
+| Prompt | Aufgerufene Tools (Erwartung) |
+|--------|-------------------------------|
+| „Welche Produkte haben Schutzart IP55?" | `search_products` |
+| „Zeige mir das Produkt mit der SKU 10001" | `search_products` |
+| „Welche Klassifikationen (Hierarchien) gibt es im PIM?" | `list_hierarchies` |
+| „Liste Attribute, die ‚gewicht' enthalten, mit ihren IDs" | `list_attributes` |
+| „Welche Kategorien hat die ETIM-Hierarchie?" | `list_hierarchies` → `list_hierarchy_nodes` |
+| „Welche Attribute sind der Kategorie X zugeordnet?" | `list_hierarchies` → `list_hierarchy_nodes` → `list_node_attributes` |
+| „Welche Produkte hängen an Knoten X?" | `list_hierarchy_nodes` → `list_node_products` |
+| „Setze beim Produkt SKU 10001 das Gewicht auf 500 g" | `list_attributes` → **(Bestätigung)** → `update_product_attribute` |
+
+**Schreibendes Beispiel im Detail** — „beim Produkt SKU 10001 das Gewicht auf 500 setzen":
+
+1. `list_attributes` mit `search="gewicht"` → liefert `technical_name`, `data_type`,
+   `has_unit`, `default_unit`. Daran erkennt die KI, dass eine Einheit nötig ist.
+2. `update_product_attribute` `{ product: "10001", attribute: "gewicht-netto", value: 500, unit: "g" }`
+   — erst **nach Bestätigung** im Dialog.
+
+Verzweigungen, die der Copilot beachtet: mehrdeutige Produkte (mehrere/„alle …")
+→ erst `search_products` + Rückfrage; mehrere „Gewicht"-Attribute → Rückfrage;
+fehlende Einheit ohne Standardeinheit → Rückfrage statt Raten.
+
 ## Architektur
 
 Beim [MCP-Connector](mcp-connector.md) ruft eine *externe* Claude-Instanz anyPIM auf.

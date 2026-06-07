@@ -49,6 +49,19 @@ async function submit() {
   await copilot.send(text, context.value)
 }
 
+// Beispiel-Prompts für den Leerzustand (decken Suche + Struktur-Navigation ab)
+const examplePrompts = [
+  'Welche Produkte haben Schutzart IP55?',
+  'Zeige mir das Produkt mit der SKU 10001',
+  'Welche Klassifikationen (Hierarchien) gibt es im PIM?',
+  'Liste Attribute, die „gewicht" enthalten, mit ihren IDs',
+]
+
+async function runExample(text) {
+  if (copilot.busy || copilot.pendingTool) return
+  await copilot.send(text, context.value)
+}
+
 function onKeydown(e) {
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault()
@@ -63,10 +76,12 @@ const pendingPreview = computed(() => {
   const input = pending.input || {}
 
   if (pending.name === 'update_product_attribute') {
+    const rawValue = typeof input.value === 'object' ? JSON.stringify(input.value) : (input.value ?? '—')
+    const valueLine = input.unit ? `${rawValue} ${input.unit}` : `${rawValue}`
     const lines = [
       `Produkt: ${input.product ?? '—'}`,
       `Attribut: ${input.attribute ?? '—'}`,
-      `Neuer Wert: ${typeof input.value === 'object' ? JSON.stringify(input.value) : (input.value ?? '—')}`,
+      `Neuer Wert: ${valueLine}`,
     ]
     if (input.language) lines.push(`Sprache: ${input.language}`)
     return { title: 'Der Copilot möchte einen Attributwert ändern:', body: lines.join('\n'), extra: null }
@@ -123,9 +138,18 @@ watch(
         <div v-if="copilot.transcript.length === 0 && !copilot.streamingText" class="text-center mt-8 px-2">
           <Sparkles class="w-8 h-8 mx-auto text-[var(--color-accent)] opacity-60" :stroke-width="1.5" />
           <p class="mt-3 text-sm text-[var(--color-text-secondary)]">
-            Frag mich zu deinen Produktdaten — z.&nbsp;B.<br />
-            <span class="italic">„Welche Produkte haben Schutzart IP55?“</span>
+            Frag mich zu deinen Produktdaten — oder probiere:
           </p>
+          <div class="mt-3 flex flex-col items-stretch gap-2">
+            <button
+              v-for="(ex, i) in examplePrompts"
+              :key="i"
+              class="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-left text-xs text-[var(--color-text-primary)] transition-colors hover:border-[var(--color-accent)] hover:bg-[var(--color-bg)]"
+              @click="runExample(ex)"
+            >
+              {{ ex }}
+            </button>
+          </div>
         </div>
 
         <!-- Nachrichten -->

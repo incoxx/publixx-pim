@@ -232,6 +232,7 @@ final class CopilotService
             $input['value'],
             isset($input['language']) ? (string) $input['language'] : null,
             isset($input['value_selection_id']) ? (string) $input['value_selection_id'] : null,
+            isset($input['unit']) ? (string) $input['unit'] : null,
         );
     }
 
@@ -285,19 +286,20 @@ final class CopilotService
     {
         return [
             'name'        => 'update_product_attribute',
-            'description' => 'Setzt EINEN Attributwert eines Produkts (SCHREIBEND). Produkt per UUID oder SKU, Attribut per UUID oder technical_name. '
-                . 'Bei übersetzbaren Attributen ist "language" Pflicht, bei Selection-Attributen "value_selection_id" angeben. '
-                . 'WICHTIG: Diese Aktion ändert echte Produktdaten und wird dem Nutzer vor der Ausführung immer zur Bestätigung vorgelegt. '
-                . 'Beschreibe die geplante Änderung vorher klar und nachvollziehbar.',
+            'description' => 'Setzt EINEN Attributwert EINES Produkts (SCHREIBEND). '
+                . 'VORGEHEN: (1) genaues Produkt bestimmen — bei mehreren/unklaren Treffern erst per search_products eingrenzen und rückfragen, nicht raten. '
+                . '(2) Attribut via list_attributes prüfen (übersetzbar → "language"; has_unit/default_unit → "unit" angeben, z.B. "g"). (3) Genau EIN Produkt, EIN Wert pro Aufruf. '
+                . 'Produkt per UUID/SKU, Attribut per UUID/technical_name. WICHTIG: ändert echte Produktdaten und wird dem Nutzer vor der Ausführung immer zur Bestätigung vorgelegt.',
             'input_schema' => [
                 'type'       => 'object',
                 'required'   => ['product', 'attribute', 'value'],
                 'properties' => [
-                    'product'            => ['type' => 'string', 'description' => 'Produkt-UUID oder SKU'],
+                    'product'            => ['type' => 'string', 'description' => 'Produkt-UUID oder SKU (genau EIN Produkt)'],
                     'attribute'          => ['type' => 'string', 'description' => 'Attribut-UUID oder technical_name'],
-                    'value'              => ['description' => 'Neuer Wert (String, Zahl, Boolean oder ISO-Datum)'],
+                    'value'              => ['description' => 'Neuer Wert ohne Einheit (String, Zahl, Boolean oder ISO-Datum)'],
                     'language'           => ['type' => 'string', 'description' => 'Sprachcode (Pflicht bei übersetzbaren Attributen, z.B. "de")'],
                     'value_selection_id' => ['type' => 'string', 'description' => 'ValueListEntry-UUID bei Selection-Attributen'],
+                    'unit'               => ['type' => 'string', 'description' => 'Einheit (z.B. "g", "kg", "mm") — nur/erforderlich bei Attributen mit Einheit'],
                 ],
             ],
         ];
@@ -323,10 +325,17 @@ final class CopilotService
             . "- list_hierarchies / list_hierarchy_nodes: Klassifikationen und ihre Knoten.\n"
             . "- list_node_attributes / list_node_products: zugeordnete Attribute bzw. Produkte eines Knotens.\n"
             . "Bei Unsicherheit über einen gültigen Slug rufe zuerst list_templates auf.\n\n"
-            . "Für schreibende Änderungen stehen graphql_mutate und update_product_attribute bereit "
-            . "(einzelner Produktattribut-Wert per Produkt-UUID/SKU + Attribut-UUID/technical_name). "
-            . "Solche Änderungen werden dem Nutzer immer zur Bestätigung vorgelegt — erkläre die geplante "
-            . "Änderung vorher klar und beschaffe nötige UUIDs zuvor über die Lese-Tools.";
+            . "Arbeitsabläufe (Zusammenhänge der Werkzeuge):\n"
+            . "- Klassifikation erkunden: list_hierarchies → list_hierarchy_nodes (braucht hierarchy_id) → "
+            . "list_node_attributes / list_node_products (brauchen node_id).\n"
+            . "- Produktwert ändern: (1) Produkt eindeutig bestimmen. Sind mehrere Produkte betroffen oder ist unklar welches, "
+            . "erst per search_products eingrenzen und nachfragen — NICHT raten und nicht ungefragt mehrere Produkte ändern. "
+            . "(2) Attribut per list_attributes prüfen: existiert es (ggf. mehrere Treffer → nachfragen welches), ist es übersetzbar "
+            . "(dann language), hat es eine Einheit (has_unit/default_unit → dann unit, z.B. \"g\"). (3) update_product_attribute "
+            . "mit genau EINEM Produkt und EINEM Wert aufrufen; den Zahlenwert ohne Einheit in value, die Einheit in unit.\n\n"
+            . "Schreibende Tools (graphql_mutate, update_product_attribute) ändern echte Produktdaten und werden dem Nutzer "
+            . "immer zur Bestätigung vorgelegt — beschreibe die geplante Änderung vorher klar (inkl. Einheit) und beschaffe "
+            . "nötige IDs/Einheiten zuvor über die Lese-Tools.";
 
         $lines = [];
         if (!empty($context['route'])) {

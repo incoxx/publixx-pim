@@ -198,9 +198,9 @@ class McpController extends Controller
             [
                 'name'        => 'search_products',
                 'description' => 'Volltextsuche über Produkte in anyPIM. Sucht serverseitig via FULLTEXT-Index (schnell, phonetisch). '
-                    . 'Zusätzlich können strukturierte Attribut-Filter gesetzt werden (z.B. farbe=blau). '
-                    . 'Gibt die Ergebnisse im Format des angegebenen Templates zurück. '
-                    . 'Nutze list_templates um verfügbare Slugs zu sehen.',
+                    . 'WANN: bevorzugtes Tool, wenn der Nutzer nach bestimmten Produkten sucht (Name, Eigenschaft, SKU). '
+                    . 'Zusätzlich können strukturierte Attribut-Filter gesetzt werden (z.B. farbe=blau); für SKU-Präfixe filters mit operator "starts_with" nutzen. '
+                    . 'Gibt die Ergebnisse im Format des angegebenen Templates zurück. Rufe zuerst list_templates auf, um einen gültigen slug zu erhalten.',
                 'inputSchema' => [
                     'type'       => 'object',
                     'required'   => ['slug'],
@@ -264,7 +264,9 @@ class McpController extends Controller
             ],
             [
                 'name'        => 'list_attributes',
-                'description' => 'Listet Attribut-Definitionen des PIM inkl. UUID (id). Die id wird zum Setzen von Werten (update_product_attribute) benötigt. '
+                'description' => 'Listet Attribut-Definitionen des PIM inkl. UUID (id). '
+                    . 'WANN: wenn du verfügbare Attribute erkunden oder eine Attribut-UUID benötigst. '
+                    . 'Die id (oder technical_name) wird von update_product_attribute zum Setzen von Werten gebraucht. '
                     . 'Optional filterbar nach Suchbegriff, Datentyp, Quellsystem und Status.',
                 'inputSchema' => [
                     'type'       => 'object',
@@ -280,7 +282,8 @@ class McpController extends Controller
             ],
             [
                 'name'        => 'list_hierarchies',
-                'description' => 'Listet alle Hierarchien (Klassifikationen) inkl. UUID. Typ "master" = interne Produkt-Klassifizierung, "output" = Export-Standard (ETIM, ONYX, ...).',
+                'description' => 'Listet alle Hierarchien (Klassifikationen) inkl. UUID. Typ "master" = interne Produkt-Klassifizierung, "output" = Export-Standard (ETIM, ONYX, ...). '
+                    . 'WANN: Einstiegspunkt für die Klassifikations-Navigation — rufe dies ZUERST auf, um die hierarchy_id zu erhalten, die list_hierarchy_nodes benötigt.',
                 'inputSchema' => [
                     'type'       => 'object',
                     'properties' => [
@@ -291,7 +294,8 @@ class McpController extends Controller
             [
                 'name'        => 'list_hierarchy_nodes',
                 'description' => 'Listet die Knoten (Kategorien/Klassen) einer Hierarchie inkl. UUID, Pfad und Tiefe. '
-                    . 'Optional auf einen Teilbaum (parent_node_id) oder Suchbegriff eingrenzen.',
+                    . 'BENÖTIGT hierarchy_id (aus list_hierarchies). Die zurückgegebene Knoten-id (node_id) verwenden '
+                    . 'list_node_attributes und list_node_products. Optional auf einen Teilbaum (parent_node_id) oder Suchbegriff eingrenzen.',
                 'inputSchema' => [
                     'type'       => 'object',
                     'required'   => ['hierarchy_id'],
@@ -306,7 +310,8 @@ class McpController extends Controller
             ],
             [
                 'name'        => 'list_node_attributes',
-                'description' => 'Listet die einem Hierarchie-Knoten zugeordneten Attribute inkl. Attribut-UUID, Pflicht-Flag, Collection und Sichtbarkeits-Flags.',
+                'description' => 'Listet die einem Hierarchie-Knoten zugeordneten Attribute inkl. Attribut-UUID, Pflicht-Flag, Collection und Sichtbarkeits-Flags. '
+                    . 'WANN: um zu erfahren, welche Attribute für eine Klasse/Kategorie relevant sind. BENÖTIGT node_id (aus list_hierarchy_nodes).',
                 'inputSchema' => [
                     'type'       => 'object',
                     'required'   => ['node_id'],
@@ -317,7 +322,8 @@ class McpController extends Controller
             ],
             [
                 'name'        => 'list_node_products',
-                'description' => 'Listet die Produkte eines Hierarchie-Knotens. type "master" = master_hierarchy_node_id, "output" = Output-Zuordnung, "both" = beide (Standard).',
+                'description' => 'Listet die Produkte eines Hierarchie-Knotens. type "master" = master_hierarchy_node_id, "output" = Output-Zuordnung, "both" = beide (Standard). '
+                    . 'BENÖTIGT node_id (aus list_hierarchy_nodes). Für Freitext-/Attributsuche über alle Produkte nutze stattdessen search_products.',
                 'inputSchema' => [
                     'type'       => 'object',
                     'required'   => ['node_id'],
@@ -331,18 +337,23 @@ class McpController extends Controller
             ],
             [
                 'name'        => 'update_product_attribute',
-                'description' => 'Setzt EINEN Attributwert eines Produkts (SCHREIBEND). Produkt per UUID oder SKU, Attribut per UUID oder technical_name. '
-                    . 'Bei übersetzbaren Attributen ist "language" Pflicht. Bei Selection-Attributen "value_selection_id" (ValueListEntry-UUID) angeben. '
-                    . 'Composite/Collection werden nicht unterstützt.',
+                'description' => 'Setzt EINEN Attributwert EINES Produkts (SCHREIBEND). '
+                    . 'WANN: nur wenn der Nutzer eine konkrete Produktdaten-Änderung wünscht. '
+                    . 'VORGEHEN (Pflicht): (1) Das genaue Produkt bestimmen — betrifft die Änderung mehrere oder ist unklar welches Produkt gemeint ist, '
+                    . 'erst per search_products eingrenzen und beim Nutzer rückfragen; rate NICHT. (2) Das Attribut mit list_attributes prüfen — '
+                    . 'ob es existiert, ob es übersetzbar ist (dann "language" Pflicht) und ob es eine Einheit hat (has_unit/default_unit → dann "unit" angeben, '
+                    . 'z.B. "g" für Gramm). (3) Pro Aufruf genau EIN Produkt und EIN Wert. '
+                    . 'Produkt per UUID/SKU, Attribut per UUID/technical_name. Selection: "value_selection_id". Composite/Collection nicht unterstützt.',
                 'inputSchema' => [
                     'type'       => 'object',
                     'required'   => ['product', 'attribute', 'value'],
                     'properties' => [
-                        'product'            => ['type' => 'string', 'description' => 'Produkt-UUID oder SKU'],
+                        'product'            => ['type' => 'string', 'description' => 'Produkt-UUID oder SKU (genau EIN Produkt)'],
                         'attribute'          => ['type' => 'string', 'description' => 'Attribut-UUID oder technical_name'],
-                        'value'              => ['description' => 'Neuer Wert (String, Zahl, Boolean oder ISO-Datum)'],
+                        'value'              => ['description' => 'Neuer Wert (String, Zahl, Boolean oder ISO-Datum) — ohne Einheit, die gehört in "unit"'],
                         'language'           => ['type' => 'string', 'description' => 'Sprachcode (Pflicht bei übersetzbaren Attributen, z.B. "de")'],
                         'value_selection_id' => ['type' => 'string', 'description' => 'ValueListEntry-UUID bei Selection-Attributen'],
+                        'unit'               => ['type' => 'string', 'description' => 'Einheit (Abkürzung wie "g", "kg", "mm" oder technical_name) — nur/erforderlich bei Attributen mit Einheit'],
                     ],
                 ],
             ],
@@ -749,8 +760,9 @@ class McpController extends Controller
         $offset = max(0, (int) ($args['offset'] ?? 0));
         $total  = (clone $query)->count();
 
-        $rows = $query->orderBy('technical_name')->offset($offset)->limit($limit)
-            ->get(['id', 'technical_name', 'name_de', 'name_en', 'data_type', 'is_translatable', 'source_system', 'value_list_id', 'status']);
+        $rows = $query->with('defaultUnit:id,abbreviation,technical_name')
+            ->orderBy('technical_name')->offset($offset)->limit($limit)
+            ->get(['id', 'technical_name', 'name_de', 'name_en', 'data_type', 'is_translatable', 'source_system', 'value_list_id', 'unit_group_id', 'default_unit_id', 'status']);
 
         return $this->jsonResult([
             'total'      => $total,
@@ -764,6 +776,9 @@ class McpController extends Controller
                 'is_translatable' => (bool) $a->is_translatable,
                 'source_system'   => $a->source_system,
                 'value_list_id'   => $a->value_list_id,
+                // Einheiten-Info: signalisiert update_product_attribute, ob "unit" nötig ist
+                'has_unit'        => (bool) $a->unit_group_id,
+                'default_unit'    => $a->defaultUnit?->abbreviation ?: $a->defaultUnit?->technical_name,
                 'status'          => $a->status,
             ])->all(),
         ]);
@@ -949,6 +964,7 @@ class McpController extends Controller
                 $args['value'],
                 isset($args['language']) ? (string) $args['language'] : null,
                 isset($args['value_selection_id']) ? (string) $args['value_selection_id'] : null,
+                isset($args['unit']) ? (string) $args['unit'] : null,
             );
         } catch (\Throwable $e) {
             throw new McpException(-32602, $e->getMessage());
