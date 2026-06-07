@@ -27,6 +27,20 @@ const paramLang      = ref('')
 const graphqlQuery   = ref('{ total count groups { count products { sku name status } } }')
 const graphqlVars    = ref('')
 
+// PIM-Struktur-Tools
+const hierarchies      = ref([])
+const paramSearch      = ref('')
+const paramDataType    = ref('')
+const paramHierarchyId = ref('')
+const paramNodeId      = ref('')
+const paramNodeType    = ref('both')
+// update_product_attribute (schreibend)
+const updProduct       = ref('')
+const updAttribute     = ref('')
+const updValue         = ref('')
+const updUnit          = ref('')
+const updLanguage      = ref('')
+
 // ── Tools-Konfiguration ────────────────────────────────────────────────────
 
 const tools = [
@@ -35,6 +49,12 @@ const tools = [
   { id: 'graphql_query',   label: 'graphql_query',   icon: '🔍', desc: 'GraphQL-Query gegen Template ausführen' },
   { id: 'graphql_mutate',  label: 'graphql_mutate',  icon: '✏️',  desc: 'GraphQL-Mutation (Daten schreiben)' },
   { id: 'get_schema',      label: 'get_schema',      icon: '📐', desc: 'GraphQL-Schema (SDL) abrufen' },
+  { id: 'list_attributes',       label: 'list_attributes',       icon: '🏷️', desc: 'Attribut-Definitionen inkl. UUID' },
+  { id: 'list_hierarchies',      label: 'list_hierarchies',      icon: '🗂️', desc: 'Hierarchien (master/output)' },
+  { id: 'list_hierarchy_nodes',  label: 'list_hierarchy_nodes',  icon: '🌳', desc: 'Knoten einer Hierarchie' },
+  { id: 'list_node_attributes',  label: 'list_node_attributes',  icon: '🔖', desc: 'Attribute eines Knotens' },
+  { id: 'list_node_products',    label: 'list_node_products',    icon: '📦', desc: 'Produkte eines Knotens (master+output)' },
+  { id: 'update_product_attribute', label: 'update_product_attribute', icon: '✏️', desc: 'Attributwert setzen (schreibend)' },
 ]
 
 // ── Vordefinierte Beispiel-Queries ─────────────────────────────────────────
@@ -151,6 +171,39 @@ const examples = [
       },
     ],
   },
+  {
+    category: 'PIM-Struktur',
+    icon: Database,
+    color: 'text-purple-500',
+    items: [
+      {
+        label: 'Attribute „gewicht" (mit IDs)',
+        tool: 'list_attributes',
+        apply() {
+          selectedTool.value = 'list_attributes'
+          paramSearch.value = 'gewicht'
+          paramDataType.value = ''
+        },
+      },
+      {
+        label: 'Alle Hierarchien',
+        tool: 'list_hierarchies',
+        apply() {
+          selectedTool.value = 'list_hierarchies'
+          paramNodeType.value = 'both'
+        },
+      },
+      {
+        label: 'Knoten der ersten Hierarchie',
+        tool: 'list_hierarchy_nodes',
+        apply() {
+          selectedTool.value = 'list_hierarchy_nodes'
+          paramHierarchyId.value = hierarchies.value[0]?.id || ''
+          paramSearch.value = ''
+        },
+      },
+    ],
+  },
 ]
 
 // ── Computed ───────────────────────────────────────────────────────────────
@@ -161,6 +214,16 @@ const graphqlTemplates = computed(() => templates.value.filter(t => t.output_for
 const needsSlug = computed(() => ['stream_products', 'graphql_query', 'graphql_mutate', 'get_schema'].includes(selectedTool.value))
 const isGraphql  = computed(() => ['graphql_query', 'graphql_mutate'].includes(selectedTool.value))
 const isStream   = computed(() => selectedTool.value === 'stream_products')
+
+// PIM-Struktur-Tools
+const isAttributes     = computed(() => selectedTool.value === 'list_attributes')
+const isHierarchies    = computed(() => selectedTool.value === 'list_hierarchies')
+const isHierarchyNodes = computed(() => selectedTool.value === 'list_hierarchy_nodes')
+const isNodeAttributes = computed(() => selectedTool.value === 'list_node_attributes')
+const isNodeProducts   = computed(() => selectedTool.value === 'list_node_products')
+const isUpdate         = computed(() => selectedTool.value === 'update_product_attribute')
+const needsHierarchy   = computed(() => isHierarchyNodes.value)
+const needsNode        = computed(() => isNodeAttributes.value || isNodeProducts.value)
 
 const responseJson = computed(() => {
   if (!response.value) return ''
@@ -204,6 +267,14 @@ onMounted(async () => {
     error.value = 'Templates konnten nicht geladen werden.'
   } finally {
     loading.value = false
+  }
+
+  // Hierarchien für die Dropdown-Auswahl der Struktur-Tools laden (best effort)
+  try {
+    const { data } = await client.get('/hierarchies', { params: { per_page: 200 } })
+    hierarchies.value = data.data || data || []
+  } catch (e) {
+    // nicht kritisch — Struktur-Tools funktionieren auch mit manueller ID-Eingabe
   }
 })
 
@@ -279,6 +350,56 @@ async function run() {
         variables: vars,
       })
       result = data
+
+    } else if (selectedTool.value === 'list_attributes') {
+      const params = { per_page: paramLimit.value ? Number(paramLimit.value) : 100 }
+      if (paramSearch.value)   params.search = paramSearch.value
+      if (paramDataType.value) params['filter[data_type]'] = paramDataType.value
+      const { data } = await client.get('/attributes', { params })
+      result = data
+
+    } else if (selectedTool.value === 'list_hierarchies') {
+      const params = {}
+      if (paramNodeType.value && paramNodeType.value !== 'both') params['filter[hierarchy_type]'] = paramNodeType.value
+      const { data } = await client.get('/hierarchies', { params })
+      result = data
+
+    } else if (selectedTool.value === 'list_hierarchy_nodes') {
+      if (!paramHierarchyId.value) throw new Error('Bitte eine Hierarchie wählen')
+      const params = { per_page: paramLimit.value ? Number(paramLimit.value) : 200 }
+      if (paramSearch.value) params.search = paramSearch.value
+      const { data } = await client.get(`/hierarchies/${paramHierarchyId.value}/nodes`, { params })
+      result = data
+
+    } else if (selectedTool.value === 'list_node_attributes') {
+      if (!paramNodeId.value) throw new Error('Bitte eine node_id (Knoten-UUID) angeben')
+      const { data } = await client.get(`/hierarchy-nodes/${paramNodeId.value}/attributes`)
+      result = data
+
+    } else if (selectedTool.value === 'list_node_products') {
+      if (!paramNodeId.value) throw new Error('Bitte eine node_id (Knoten-UUID) angeben')
+      const params = { type: paramNodeType.value || 'both' }
+      if (paramLimit.value) params.per_page = Number(paramLimit.value)
+      const { data } = await client.get(`/hierarchy-nodes/${paramNodeId.value}/products`, { params })
+      result = data
+
+    } else if (selectedTool.value === 'update_product_attribute') {
+      if (!updProduct.value || !updAttribute.value) throw new Error('product und attribute sind erforderlich')
+      const input = {
+        product: updProduct.value,
+        attribute: updAttribute.value,
+        value: updValue.value,
+      }
+      if (updUnit.value)     input.unit = updUnit.value
+      if (updLanguage.value) input.language = updLanguage.value
+      const { data } = await client.post('/copilot/execute-tool', {
+        name: 'update_product_attribute',
+        input,
+      })
+      if (data?.is_error) throw new Error(data.content || 'Aktion fehlgeschlagen')
+      result = typeof data?.content === 'string'
+        ? (() => { try { return JSON.parse(data.content) } catch { return data.content } })()
+        : data
     }
 
     responseMs.value = Math.round(performance.now() - t0)
@@ -466,10 +587,110 @@ function copyResponse() {
           </div>
         </template>
 
+        <!-- list_attributes -->
+        <template v-if="isAttributes">
+          <div>
+            <label class="block text-[10px] text-[var(--color-text-tertiary)] mb-1">Suche (technical_name / Name)</label>
+            <input v-model="paramSearch" type="text" placeholder="z.B. gewicht" class="pim-input text-xs w-full" />
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-[10px] text-[var(--color-text-tertiary)] mb-1">Datentyp</label>
+              <select v-model="paramDataType" class="pim-input text-xs w-full">
+                <option value="">Alle</option>
+                <option value="String">String</option>
+                <option value="Number">Number</option>
+                <option value="Float">Float</option>
+                <option value="Date">Date</option>
+                <option value="Flag">Flag</option>
+                <option value="Selection">Selection</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-[10px] text-[var(--color-text-tertiary)] mb-1">Limit</label>
+              <input v-model="paramLimit" type="number" min="1" placeholder="100" class="pim-input text-xs w-full" />
+            </div>
+          </div>
+        </template>
+
+        <!-- list_hierarchies -->
+        <template v-if="isHierarchies">
+          <div>
+            <label class="block text-[10px] text-[var(--color-text-tertiary)] mb-1">Typ</label>
+            <select v-model="paramNodeType" class="pim-input text-xs w-full">
+              <option value="both">Alle</option>
+              <option value="master">master</option>
+              <option value="output">output</option>
+            </select>
+          </div>
+        </template>
+
+        <!-- list_hierarchy_nodes -->
+        <template v-if="isHierarchyNodes">
+          <div>
+            <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">Hierarchie</label>
+            <select v-model="paramHierarchyId" class="pim-input text-xs w-full">
+              <option value="">— wählen —</option>
+              <option v-for="h in hierarchies" :key="h.id" :value="h.id">
+                {{ h.name_de || h.technical_name }} ({{ h.hierarchy_type }})
+              </option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-[10px] text-[var(--color-text-tertiary)] mb-1">Suche (optional)</label>
+            <input v-model="paramSearch" type="text" placeholder="Knotenname" class="pim-input text-xs w-full" />
+          </div>
+        </template>
+
+        <!-- list_node_attributes / list_node_products -->
+        <template v-if="needsNode">
+          <div>
+            <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">Knoten-UUID (node_id)</label>
+            <input v-model="paramNodeId" type="text" placeholder="UUID aus list_hierarchy_nodes" class="pim-input text-xs w-full font-mono" />
+          </div>
+          <div v-if="isNodeProducts">
+            <label class="block text-[10px] text-[var(--color-text-tertiary)] mb-1">Zuordnung</label>
+            <select v-model="paramNodeType" class="pim-input text-xs w-full">
+              <option value="both">master + output</option>
+              <option value="master">master</option>
+              <option value="output">output</option>
+            </select>
+          </div>
+        </template>
+
+        <!-- update_product_attribute (schreibend) -->
+        <template v-if="isUpdate">
+          <div class="rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-900/20 p-2 text-[10px] text-amber-700 dark:text-amber-400">
+            Schreibende Aktion — ändert echte Produktdaten und wird ins Audit-Journal geschrieben.
+          </div>
+          <div>
+            <label class="block text-[10px] text-[var(--color-text-tertiary)] mb-1">Produkt (UUID oder SKU)</label>
+            <input v-model="updProduct" type="text" placeholder="z.B. 10001" class="pim-input text-xs w-full" />
+          </div>
+          <div>
+            <label class="block text-[10px] text-[var(--color-text-tertiary)] mb-1">Attribut (UUID oder technical_name)</label>
+            <input v-model="updAttribute" type="text" placeholder="z.B. gewicht-netto" class="pim-input text-xs w-full" />
+          </div>
+          <div class="grid grid-cols-3 gap-2">
+            <div class="col-span-2">
+              <label class="block text-[10px] text-[var(--color-text-tertiary)] mb-1">Wert</label>
+              <input v-model="updValue" type="text" placeholder="500" class="pim-input text-xs w-full" />
+            </div>
+            <div>
+              <label class="block text-[10px] text-[var(--color-text-tertiary)] mb-1">Einheit</label>
+              <input v-model="updUnit" type="text" placeholder="g" class="pim-input text-xs w-full" />
+            </div>
+          </div>
+          <div>
+            <label class="block text-[10px] text-[var(--color-text-tertiary)] mb-1">Sprache (bei übersetzbar)</label>
+            <input v-model="updLanguage" type="text" placeholder="de" class="pim-input text-xs w-full" />
+          </div>
+        </template>
+
         <!-- Run Button -->
         <button
           class="pim-btn pim-btn-primary w-full text-xs"
-          :disabled="running || (needsSlug && !selectedSlug)"
+          :disabled="running || (needsSlug && !selectedSlug) || (needsHierarchy && !paramHierarchyId) || (needsNode && !paramNodeId) || (isUpdate && (!updProduct || !updAttribute))"
           @click="run"
         >
           <RefreshCw v-if="running" class="w-3.5 h-3.5 animate-spin" :stroke-width="2" />
