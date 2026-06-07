@@ -39,6 +39,39 @@ class OutputHierarchyProductAssignmentController extends Controller
     }
 
     /**
+     * GET /hierarchy-nodes/{hierarchy_node}/products
+     *
+     * Produkte eines Knotens — Master-Klassifizierung (master_hierarchy_node_id),
+     * Output-Zuordnung (OutputHierarchyProductAssignment) oder beide.
+     * Query: ?type=master|output|both (Standard: both)
+     */
+    public function products(Request $request, HierarchyNode $hierarchyNode): AnonymousResourceCollection
+    {
+        $this->authorize('view', $hierarchyNode);
+
+        $type = $request->query('type', 'both');
+
+        $query = Product::query();
+
+        if ($type === 'master') {
+            $query->where('master_hierarchy_node_id', $hierarchyNode->id);
+        } elseif ($type === 'output') {
+            $outputIds = OutputHierarchyProductAssignment::where('hierarchy_node_id', $hierarchyNode->id)->pluck('product_id');
+            $query->whereIn('id', $outputIds);
+        } else {
+            $outputIds = OutputHierarchyProductAssignment::where('hierarchy_node_id', $hierarchyNode->id)->pluck('product_id');
+            $query->where(function ($q) use ($hierarchyNode, $outputIds) {
+                $q->where('master_hierarchy_node_id', $hierarchyNode->id)
+                    ->orWhereIn('id', $outputIds);
+            });
+        }
+
+        return ProductResource::collection(
+            $query->orderBy('sku')->paginate($this->getPerPage($request))
+        );
+    }
+
+    /**
      * POST /hierarchy-nodes/{hierarchy_node}/output-products
      */
     public function store(StoreOutputHierarchyProductAssignmentRequest $request, HierarchyNode $hierarchyNode): JsonResponse

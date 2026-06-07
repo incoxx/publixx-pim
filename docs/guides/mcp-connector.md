@@ -23,9 +23,36 @@ Kein nginx, kein npm, kein Node.js nötig. Der Endpoint ist eine normale Laravel
 |------|--------------|-------------|
 | `list_templates` | Aktive API-Templates auflisten | `ApiTemplate::active()` |
 | `stream_products` | JSON-Template abrufen (Pagination, Delta-Sync, Sprache) | `ApiDataCollector` + `JsonWriter` |
+| `search_products` | Volltextsuche über Produkte | `ProductSearchIndex` |
 | `graphql_query` | GraphQL-Query ausführen | `GraphqlDesignerService::execute()` |
 | `graphql_mutate` | GraphQL-Mutation (nur import/bidirectional) | `GraphqlDesignerService::execute()` |
 | `get_schema` | GraphQL-Schema (SDL) abrufen | `GraphqlDesignerService::schemaPreview()` |
+
+### PIM-Struktur-Tools
+
+Lesezugriff auf das PIM-Datenmodell (liefern UUIDs, u.a. für gezielte Updates):
+
+| Tool | Beschreibung | Parameter |
+|------|--------------|-----------|
+| `list_attributes` | Attribut-Definitionen inkl. `id` (UUID), data_type, is_translatable, value_list_id | `search`, `data_type`, `source_system`, `status`, `limit`, `offset` |
+| `list_hierarchies` | Hierarchien inkl. `id` und `hierarchy_type` (master/output) | `type` |
+| `list_hierarchy_nodes` | Knoten einer Hierarchie inkl. `id`, `path`, `depth` | `hierarchy_id` (Pflicht), `parent_node_id`, `search`, `limit`, `offset` |
+| `list_node_attributes` | Zugeordnete Attribute eines Knotens inkl. Attribut-UUID, Pflicht-/Zugriffs-Flags | `node_id` (Pflicht) |
+| `list_node_products` | Produkte eines Knotens (master + output) | `node_id` (Pflicht), `type` (master/output/both), `limit`, `offset` |
+
+### Schreib-Tool
+
+| Tool | Beschreibung | Parameter |
+|------|--------------|-----------|
+| `update_product_attribute` | Setzt **einen** Produktattribut-Wert (skalar/Selection; kein Composite) | `product` (UUID/SKU), `attribute` (UUID/technical_name), `value`, `language` (bei übersetzbar), `value_selection_id` (bei Selection) |
+
+> Im **In-App-Copilot** ist `update_product_attribute` ein bestätigungspflichtiges
+> Client-Tool (Human-in-the-loop); über den reinen MCP-Adapter (externe Clients)
+> wird es direkt ausgeführt und im Audit-Journal protokolliert.
+
+**Passende REST-Endpunkte** (alle unter `auth:sanctum`): `GET /attributes`,
+`GET /hierarchies`, `GET /hierarchies/{id}/nodes`, `GET /hierarchy-nodes/{id}/attributes`,
+`GET /hierarchy-nodes/{id}/products` (master+output, neu), `PUT /products/{id}/attribute-values`.
 
 ## Einrichtung
 

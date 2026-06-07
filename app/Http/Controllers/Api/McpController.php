@@ -9,10 +9,16 @@ use App\Http\Controllers\Controller;
 use App\Jobs\WriteAuditLog;
 use App\Models\ApiTemplate;
 use App\Models\Attribute;
+use App\Models\Hierarchy;
+use App\Models\HierarchyNode;
+use App\Models\HierarchyNodeAttributeAssignment;
+use App\Models\OutputHierarchyProductAssignment;
+use App\Models\Product;
 use App\Models\ProductSearchIndex;
 use App\Services\ApiDesigner\ApiDataCollector;
 use App\Services\ApiDesigner\GraphqlDesignerService;
 use App\Services\ApiDesigner\JsonWriter;
+use App\Services\Pim\ProductAttributeWriter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -47,6 +53,7 @@ class McpController extends Controller
         private readonly ApiDataCollector $dataCollector,
         private readonly JsonWriter $jsonWriter,
         private readonly GraphqlDesignerService $graphqlDesignerService,
+        private readonly ProductAttributeWriter $attributeWriter,
     ) {}
 
     /**
@@ -191,9 +198,9 @@ class McpController extends Controller
             [
                 'name'        => 'search_products',
                 'description' => 'Volltextsuche über Produkte in anyPIM. Sucht serverseitig via FULLTEXT-Index (schnell, phonetisch). '
-                    . 'Zusätzlich können strukturierte Attribut-Filter gesetzt werden (z.B. farbe=blau). '
-                    . 'Gibt die Ergebnisse im Format des angegebenen Templates zurück. '
-                    . 'Nutze list_templates um verfügbare Slugs zu sehen.',
+                    . 'WANN: bevorzugtes Tool, wenn der Nutzer nach bestimmten Produkten sucht (Name, Eigenschaft, SKU). '
+                    . 'Zusätzlich können strukturierte Attribut-Filter gesetzt werden (z.B. farbe=blau); für SKU-Präfixe filters mit operator "starts_with" nutzen. '
+                    . 'Gibt die Ergebnisse im Format des angegebenen Templates zurück. Rufe zuerst list_templates auf, um einen gültigen slug zu erhalten.',
                 'inputSchema' => [
                     'type'       => 'object',
                     'required'   => ['slug'],
@@ -255,6 +262,101 @@ class McpController extends Controller
                     'properties' => ['slug' => $slug],
                 ],
             ],
+            [
+                'name'        => 'list_attributes',
+                'description' => 'Listet Attribut-Definitionen des PIM inkl. UUID (id). '
+                    . 'WANN: wenn du verfügbare Attribute erkunden oder eine Attribut-UUID benötigst. '
+                    . 'Die id (oder technical_name) wird von update_product_attribute zum Setzen von Werten gebraucht. '
+                    . 'Optional filterbar nach Suchbegriff, Datentyp, Quellsystem und Status.',
+                'inputSchema' => [
+                    'type'       => 'object',
+                    'properties' => [
+                        'search'        => ['type' => 'string', 'description' => 'Freitext in technical_name / name_de / name_en'],
+                        'data_type'     => ['type' => 'string', 'description' => 'Datentyp-Filter (String, Number, Float, Date, Flag, Selection, ...)'],
+                        'source_system' => ['type' => 'string', 'description' => 'Quellsystem-Filter (z.B. ETIM, ONYX)'],
+                        'status'        => ['type' => 'string', 'enum' => ['active', 'inactive'], 'description' => 'Status-Filter (Standard: active)'],
+                        'limit'         => ['type' => 'integer', 'minimum' => 1, 'maximum' => 500, 'description' => 'Max. Anzahl (Standard: 100)'],
+                        'offset'        => ['type' => 'integer', 'minimum' => 0, 'description' => 'Offset für Pagination'],
+                    ],
+                ],
+            ],
+            [
+                'name'        => 'list_hierarchies',
+                'description' => 'Listet alle Hierarchien (Klassifikationen) inkl. UUID. Typ "master" = interne Produkt-Klassifizierung, "output" = Export-Standard (ETIM, ONYX, ...). '
+                    . 'WANN: Einstiegspunkt für die Klassifikations-Navigation — rufe dies ZUERST auf, um die hierarchy_id zu erhalten, die list_hierarchy_nodes benötigt.',
+                'inputSchema' => [
+                    'type'       => 'object',
+                    'properties' => [
+                        'type' => ['type' => 'string', 'enum' => ['master', 'output'], 'description' => 'Filter nach Hierarchie-Typ'],
+                    ],
+                ],
+            ],
+            [
+                'name'        => 'list_hierarchy_nodes',
+                'description' => 'Listet die Knoten (Kategorien/Klassen) einer Hierarchie inkl. UUID, Pfad und Tiefe. '
+                    . 'BENÖTIGT hierarchy_id (aus list_hierarchies). Die zurückgegebene Knoten-id (node_id) verwenden '
+                    . 'list_node_attributes und list_node_products. Optional auf einen Teilbaum (parent_node_id) oder Suchbegriff eingrenzen.',
+                'inputSchema' => [
+                    'type'       => 'object',
+                    'required'   => ['hierarchy_id'],
+                    'properties' => [
+                        'hierarchy_id'   => ['type' => 'string', 'description' => 'UUID der Hierarchie (aus list_hierarchies)'],
+                        'parent_node_id' => ['type' => 'string', 'description' => 'Nur direkte Kinder dieses Knotens'],
+                        'search'         => ['type' => 'string', 'description' => 'Freitext in name_de / name_en'],
+                        'limit'          => ['type' => 'integer', 'minimum' => 1, 'maximum' => 1000, 'description' => 'Max. Anzahl (Standard: 200)'],
+                        'offset'         => ['type' => 'integer', 'minimum' => 0, 'description' => 'Offset für Pagination'],
+                    ],
+                ],
+            ],
+            [
+                'name'        => 'list_node_attributes',
+                'description' => 'Listet die einem Hierarchie-Knoten zugeordneten Attribute inkl. Attribut-UUID, Pflicht-Flag, Collection und Sichtbarkeits-Flags. '
+                    . 'WANN: um zu erfahren, welche Attribute für eine Klasse/Kategorie relevant sind. BENÖTIGT node_id (aus list_hierarchy_nodes).',
+                'inputSchema' => [
+                    'type'       => 'object',
+                    'required'   => ['node_id'],
+                    'properties' => [
+                        'node_id' => ['type' => 'string', 'description' => 'UUID des Hierarchie-Knotens'],
+                    ],
+                ],
+            ],
+            [
+                'name'        => 'list_node_products',
+                'description' => 'Listet die Produkte eines Hierarchie-Knotens. type "master" = master_hierarchy_node_id, "output" = Output-Zuordnung, "both" = beide (Standard). '
+                    . 'BENÖTIGT node_id (aus list_hierarchy_nodes). Für Freitext-/Attributsuche über alle Produkte nutze stattdessen search_products.',
+                'inputSchema' => [
+                    'type'       => 'object',
+                    'required'   => ['node_id'],
+                    'properties' => [
+                        'node_id' => ['type' => 'string', 'description' => 'UUID des Hierarchie-Knotens'],
+                        'type'    => ['type' => 'string', 'enum' => ['master', 'output', 'both'], 'description' => 'Zuordnungsart (Standard: both)'],
+                        'limit'   => ['type' => 'integer', 'minimum' => 1, 'maximum' => 500, 'description' => 'Max. Anzahl (Standard: 100)'],
+                        'offset'  => ['type' => 'integer', 'minimum' => 0, 'description' => 'Offset für Pagination'],
+                    ],
+                ],
+            ],
+            [
+                'name'        => 'update_product_attribute',
+                'description' => 'Setzt EINEN Attributwert EINES Produkts (SCHREIBEND). '
+                    . 'WANN: nur wenn der Nutzer eine konkrete Produktdaten-Änderung wünscht. '
+                    . 'VORGEHEN (Pflicht): (1) Das genaue Produkt bestimmen — betrifft die Änderung mehrere oder ist unklar welches Produkt gemeint ist, '
+                    . 'erst per search_products eingrenzen und beim Nutzer rückfragen; rate NICHT. (2) Das Attribut mit list_attributes prüfen — '
+                    . 'ob es existiert, ob es übersetzbar ist (dann "language" Pflicht) und ob es eine Einheit hat (has_unit/default_unit → dann "unit" angeben, '
+                    . 'z.B. "g" für Gramm). (3) Pro Aufruf genau EIN Produkt und EIN Wert. '
+                    . 'Produkt per UUID/SKU, Attribut per UUID/technical_name. Selection: "value_selection_id". Composite/Collection nicht unterstützt.',
+                'inputSchema' => [
+                    'type'       => 'object',
+                    'required'   => ['product', 'attribute', 'value'],
+                    'properties' => [
+                        'product'            => ['type' => 'string', 'description' => 'Produkt-UUID oder SKU (genau EIN Produkt)'],
+                        'attribute'          => ['type' => 'string', 'description' => 'Attribut-UUID oder technical_name'],
+                        'value'              => ['description' => 'Neuer Wert (String, Zahl, Boolean oder ISO-Datum) — ohne Einheit, die gehört in "unit"'],
+                        'language'           => ['type' => 'string', 'description' => 'Sprachcode (Pflicht bei übersetzbaren Attributen, z.B. "de")'],
+                        'value_selection_id' => ['type' => 'string', 'description' => 'ValueListEntry-UUID bei Selection-Attributen'],
+                        'unit'               => ['type' => 'string', 'description' => 'Einheit (Abkürzung wie "g", "kg", "mm" oder technical_name) — nur/erforderlich bei Attributen mit Einheit'],
+                    ],
+                ],
+            ],
         ];
     }
 
@@ -267,13 +369,19 @@ class McpController extends Controller
         $args = $params['arguments'] ?? [];
 
         $text = match ($name) {
-            'list_templates'  => $this->toolListTemplates(),
-            'stream_products' => $this->toolStreamProducts($args),
-            'search_products' => $this->toolSearchProducts($args),
-            'graphql_query'   => $this->toolGraphql($args, 'query'),
-            'graphql_mutate'  => $this->toolGraphql($args, 'mutation'),
-            'get_schema'      => $this->toolGetSchema($args),
-            default           => throw new McpException(-32602, "Unbekanntes Tool: {$name}"),
+            'list_templates'           => $this->toolListTemplates(),
+            'stream_products'          => $this->toolStreamProducts($args),
+            'search_products'          => $this->toolSearchProducts($args),
+            'graphql_query'            => $this->toolGraphql($args, 'query'),
+            'graphql_mutate'           => $this->toolGraphql($args, 'mutation'),
+            'get_schema'               => $this->toolGetSchema($args),
+            'list_attributes'          => $this->toolListAttributes($args),
+            'list_hierarchies'         => $this->toolListHierarchies($args),
+            'list_hierarchy_nodes'     => $this->toolListHierarchyNodes($args),
+            'list_node_attributes'     => $this->toolListNodeAttributes($args),
+            'list_node_products'       => $this->toolListNodeProducts($args),
+            'update_product_attribute' => $this->toolUpdateProductAttribute($args),
+            default                    => throw new McpException(-32602, "Unbekanntes Tool: {$name}"),
         };
 
         $this->logMcpCall($name, $args);
@@ -622,6 +730,253 @@ class McpController extends Controller
         $result = $this->graphqlDesignerService->schemaPreview($template);
 
         return $result['sdl'] ?? (string) json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+    }
+
+    // ── PIM-Struktur-Tools (Attribute, Hierarchien, Knoten, Produkte) ──────────
+
+    private function toolListAttributes(array $args): string
+    {
+        $query = Attribute::query();
+
+        $status = $args['status'] ?? 'active';
+        if ($status !== 'all') {
+            $query->where('status', $status);
+        }
+        if (!empty($args['data_type'])) {
+            $query->where('data_type', $args['data_type']);
+        }
+        if (!empty($args['source_system'])) {
+            $query->where('source_system', $args['source_system']);
+        }
+        if (!empty($args['search'])) {
+            $s = '%' . $args['search'] . '%';
+            $query->where(fn ($q) => $q
+                ->where('technical_name', 'like', $s)
+                ->orWhere('name_de', 'like', $s)
+                ->orWhere('name_en', 'like', $s));
+        }
+
+        $limit  = min(500, max(1, (int) ($args['limit'] ?? 100)));
+        $offset = max(0, (int) ($args['offset'] ?? 0));
+        $total  = (clone $query)->count();
+
+        $rows = $query->with('defaultUnit:id,abbreviation,technical_name')
+            ->orderBy('technical_name')->offset($offset)->limit($limit)
+            ->get(['id', 'technical_name', 'name_de', 'name_en', 'data_type', 'is_translatable', 'source_system', 'value_list_id', 'unit_group_id', 'default_unit_id', 'status']);
+
+        return $this->jsonResult([
+            'total'      => $total,
+            'count'      => $rows->count(),
+            'attributes' => $rows->map(fn ($a) => [
+                'id'              => $a->id,
+                'technical_name'  => $a->technical_name,
+                'name_de'         => $a->name_de,
+                'name_en'         => $a->name_en,
+                'data_type'       => $a->data_type,
+                'is_translatable' => (bool) $a->is_translatable,
+                'source_system'   => $a->source_system,
+                'value_list_id'   => $a->value_list_id,
+                // Einheiten-Info: signalisiert update_product_attribute, ob "unit" nötig ist
+                'has_unit'        => (bool) $a->unit_group_id,
+                'default_unit'    => $a->defaultUnit?->abbreviation ?: $a->defaultUnit?->technical_name,
+                'status'          => $a->status,
+            ])->all(),
+        ]);
+    }
+
+    private function toolListHierarchies(array $args): string
+    {
+        $query = Hierarchy::query();
+        if (!empty($args['type'])) {
+            $query->where('hierarchy_type', $args['type']);
+        }
+
+        $rows = $query->orderBy('hierarchy_type')->orderBy('technical_name')
+            ->get(['id', 'technical_name', 'name_de', 'name_en', 'hierarchy_type', 'description']);
+
+        return $this->jsonResult([
+            'count'       => $rows->count(),
+            'hierarchies' => $rows->map(fn ($h) => [
+                'id'             => $h->id,
+                'technical_name' => $h->technical_name,
+                'name_de'        => $h->name_de,
+                'name_en'        => $h->name_en,
+                'hierarchy_type' => $h->hierarchy_type,
+                'description'    => $h->description,
+            ])->all(),
+        ]);
+    }
+
+    private function toolListHierarchyNodes(array $args): string
+    {
+        $hierarchyId = (string) ($args['hierarchy_id'] ?? '');
+        if ($hierarchyId === '') {
+            throw new McpException(-32602, 'Parameter "hierarchy_id" fehlt.');
+        }
+        if (!Hierarchy::whereKey($hierarchyId)->exists()) {
+            throw new McpException(-32602, "Hierarchie \"{$hierarchyId}\" nicht gefunden.");
+        }
+
+        $query = HierarchyNode::where('hierarchy_id', $hierarchyId);
+        if (array_key_exists('parent_node_id', $args)) {
+            $query->where('parent_node_id', $args['parent_node_id'] ?: null);
+        }
+        if (!empty($args['search'])) {
+            $s = '%' . $args['search'] . '%';
+            $query->where(fn ($q) => $q->where('name_de', 'like', $s)->orWhere('name_en', 'like', $s));
+        }
+
+        $limit  = min(1000, max(1, (int) ($args['limit'] ?? 200)));
+        $offset = max(0, (int) ($args['offset'] ?? 0));
+        $total  = (clone $query)->count();
+
+        $rows = $query->orderBy('path')->orderBy('sort_order')->offset($offset)->limit($limit)
+            ->get(['id', 'parent_node_id', 'name_de', 'name_en', 'path', 'depth', 'sort_order', 'is_active']);
+
+        return $this->jsonResult([
+            'total' => $total,
+            'count' => $rows->count(),
+            'nodes' => $rows->map(fn ($n) => [
+                'id'             => $n->id,
+                'parent_node_id' => $n->parent_node_id,
+                'name_de'        => $n->name_de,
+                'name_en'        => $n->name_en,
+                'path'           => $n->path,
+                'depth'          => $n->depth,
+                'sort_order'     => $n->sort_order,
+                'is_active'      => (bool) $n->is_active,
+            ])->all(),
+        ]);
+    }
+
+    private function toolListNodeAttributes(array $args): string
+    {
+        $nodeId = (string) ($args['node_id'] ?? '');
+        if ($nodeId === '') {
+            throw new McpException(-32602, 'Parameter "node_id" fehlt.');
+        }
+        $node = HierarchyNode::find($nodeId);
+        if (!$node) {
+            throw new McpException(-32602, "Hierarchie-Knoten \"{$nodeId}\" nicht gefunden.");
+        }
+
+        $assignments = HierarchyNodeAttributeAssignment::with([
+            'attribute:id,technical_name,name_de,name_en,data_type,is_translatable,value_list_id',
+        ])
+            ->where('hierarchy_node_id', $nodeId)
+            ->orderBy('collection_sort')
+            ->orderBy('attribute_sort')
+            ->get();
+
+        return $this->jsonResult([
+            'node'       => ['id' => $node->id, 'name_de' => $node->name_de],
+            'count'      => $assignments->count(),
+            'attributes' => $assignments->map(function (HierarchyNodeAttributeAssignment $a) {
+                $attr = $a->attribute;
+
+                return [
+                    'assignment_id'   => $a->id,
+                    'attribute_id'    => $attr?->id,
+                    'technical_name'  => $attr?->technical_name,
+                    'name_de'         => $attr?->name_de,
+                    'data_type'       => $attr?->data_type,
+                    'is_translatable' => (bool) ($attr?->is_translatable),
+                    'value_list_id'   => $attr?->value_list_id,
+                    'collection_name' => $a->collection_name,
+                    'is_required'     => (bool) $a->is_required,
+                    'access_product'  => $a->access_product,
+                ];
+            })->all(),
+        ]);
+    }
+
+    private function toolListNodeProducts(array $args): string
+    {
+        $nodeId = (string) ($args['node_id'] ?? '');
+        if ($nodeId === '') {
+            throw new McpException(-32602, 'Parameter "node_id" fehlt.');
+        }
+        if (!HierarchyNode::whereKey($nodeId)->exists()) {
+            throw new McpException(-32602, "Hierarchie-Knoten \"{$nodeId}\" nicht gefunden.");
+        }
+
+        $type   = $args['type'] ?? 'both';
+        $limit  = min(500, max(1, (int) ($args['limit'] ?? 100)));
+        $offset = max(0, (int) ($args['offset'] ?? 0));
+
+        // Produkt-IDs je Quelle (master / output) sammeln und zusammenführen
+        $sourceById = [];
+        if (in_array($type, ['master', 'both'], true)) {
+            foreach (Product::where('master_hierarchy_node_id', $nodeId)->pluck('id') as $id) {
+                $sourceById[$id] = 'master';
+            }
+        }
+        if (in_array($type, ['output', 'both'], true)) {
+            foreach (OutputHierarchyProductAssignment::where('hierarchy_node_id', $nodeId)->pluck('product_id') as $id) {
+                $sourceById[$id] = isset($sourceById[$id]) ? 'both' : 'output';
+            }
+        }
+
+        $allIds = array_keys($sourceById);
+        $total  = count($allIds);
+        $pageIds = array_slice($allIds, $offset, $limit);
+
+        $products = Product::whereIn('id', $pageIds)->get(['id', 'sku', 'name', 'status'])->keyBy('id');
+
+        $list = [];
+        foreach ($pageIds as $id) {
+            $p = $products[$id] ?? null;
+            if (!$p) {
+                continue;
+            }
+            $list[] = [
+                'id'     => $p->id,
+                'sku'    => $p->sku,
+                'name'   => $p->name,
+                'status' => $p->status,
+                'source' => $sourceById[$id],
+            ];
+        }
+
+        return $this->jsonResult([
+            'total'    => $total,
+            'count'    => count($list),
+            'type'     => $type,
+            'products' => $list,
+        ]);
+    }
+
+    private function toolUpdateProductAttribute(array $args): string
+    {
+        foreach (['product', 'attribute'] as $req) {
+            if (empty($args[$req])) {
+                throw new McpException(-32602, "Parameter \"{$req}\" fehlt.");
+            }
+        }
+        if (!array_key_exists('value', $args)) {
+            throw new McpException(-32602, 'Parameter "value" fehlt.');
+        }
+
+        try {
+            $result = $this->attributeWriter->update(
+                (string) $args['product'],
+                (string) $args['attribute'],
+                $args['value'],
+                isset($args['language']) ? (string) $args['language'] : null,
+                isset($args['value_selection_id']) ? (string) $args['value_selection_id'] : null,
+                isset($args['unit']) ? (string) $args['unit'] : null,
+            );
+        } catch (\Throwable $e) {
+            throw new McpException(-32602, $e->getMessage());
+        }
+
+        return $this->jsonResult($result);
+    }
+
+    /** Kompaktes JSON-Resultat für ein Tool. */
+    private function jsonResult(array $data): string
+    {
+        return (string) json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     }
 
     // ── Helfer ────────────────────────────────────────────────────────────────

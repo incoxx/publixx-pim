@@ -40,12 +40,25 @@ const context = computed(() => {
   return ctx
 })
 
-const canSend = computed(() => draft.value.trim() !== '' && !copilot.busy && !copilot.pendingMutation)
+const canSend = computed(() => draft.value.trim() !== '' && !copilot.busy && !copilot.pendingTool)
 
 async function submit() {
   if (!canSend.value) return
   const text = draft.value
   draft.value = ''
+  await copilot.send(text, context.value)
+}
+
+// Beispiel-Prompts für den Leerzustand (decken Suche + Struktur-Navigation ab)
+const examplePrompts = [
+  'Welche Produkte haben Schutzart IP55?',
+  'Zeige mir das Produkt mit der SKU 10001',
+  'Welche Klassifikationen (Hierarchien) gibt es im PIM?',
+  'Liste Attribute, die „gewicht" enthalten, mit ihren IDs',
+]
+
+async function runExample(text) {
+  if (copilot.busy || copilot.pendingTool) return
   await copilot.send(text, context.value)
 }
 
@@ -56,19 +69,35 @@ function onKeydown(e) {
   }
 }
 
-// Lesbare Vorschau der geplanten Mutation
-const mutationPreview = computed(() => {
-  const input = copilot.pendingMutation?.input || {}
+// Lesbare Vorschau der geplanten Schreib-Aktion (je nach Tool)
+const pendingPreview = computed(() => {
+  const pending = copilot.pendingTool
+  if (!pending) return null
+  const input = pending.input || {}
+
+  if (pending.name === 'update_product_attribute') {
+    const rawValue = typeof input.value === 'object' ? JSON.stringify(input.value) : (input.value ?? '—')
+    const valueLine = input.unit ? `${rawValue} ${input.unit}` : `${rawValue}`
+    const lines = [
+      `Produkt: ${input.product ?? '—'}`,
+      `Attribut: ${input.attribute ?? '—'}`,
+      `Neuer Wert: ${valueLine}`,
+    ]
+    if (input.language) lines.push(`Sprache: ${input.language}`)
+    return { title: 'Der Copilot möchte einen Attributwert ändern:', body: lines.join('\n'), extra: null }
+  }
+
+  // graphql_mutate
   return {
-    slug: input.slug || '—',
-    mutation: input.mutation || '',
-    variables: input.variables ? JSON.stringify(input.variables, null, 2) : null,
+    title: 'Der Copilot möchte Daten schreiben (GraphQL):',
+    body: input.mutation || '',
+    extra: input.variables ? JSON.stringify(input.variables, null, 2) : null,
   }
 })
 
 // Auto-Scroll bei neuem Inhalt
 watch(
-  () => [copilot.transcript.length, copilot.streamingText, copilot.toolStatus, copilot.pendingMutation],
+  () => [copilot.transcript.length, copilot.streamingText, copilot.toolStatus, copilot.pendingTool],
   async () => {
     await nextTick()
     if (scrollEl.value) scrollEl.value.scrollTop = scrollEl.value.scrollHeight
@@ -109,9 +138,18 @@ watch(
         <div v-if="copilot.transcript.length === 0 && !copilot.streamingText" class="text-center mt-8 px-2">
           <Sparkles class="w-8 h-8 mx-auto text-[var(--color-accent)] opacity-60" :stroke-width="1.5" />
           <p class="mt-3 text-sm text-[var(--color-text-secondary)]">
-            Frag mich zu deinen Produktdaten — z.&nbsp;B.<br />
-            <span class="italic">„Welche Produkte haben Schutzart IP55?“</span>
+            Frag mich zu deinen Produktdaten — oder probiere:
           </p>
+          <div class="mt-3 flex flex-col items-stretch gap-2">
+            <button
+              v-for="(ex, i) in examplePrompts"
+              :key="i"
+              class="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-left text-xs text-[var(--color-text-primary)] transition-colors hover:border-[var(--color-accent)] hover:bg-[var(--color-bg)]"
+              @click="runExample(ex)"
+            >
+              {{ ex }}
+            </button>
+          </div>
         </div>
 
         <!-- Nachrichten -->
@@ -166,32 +204,30 @@ watch(
         </div>
 
         <!-- Denkindikator -->
-        <div v-else-if="copilot.busy && !copilot.streamingText && !copilot.pendingMutation" class="flex justify-start">
+        <div v-else-if="copilot.busy && !copilot.streamingText && !copilot.pendingTool" class="flex justify-start">
           <div class="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs bg-[var(--color-bg)] text-[var(--color-text-secondary)] border border-[var(--color-border)]">
             <Loader2 class="w-3.5 h-3.5 animate-spin" :stroke-width="2" />
             Denkt nach…
           </div>
         </div>
 
-        <!-- Mutations-Bestätigung -->
+        <!-- Schreib-Bestätigung (graphql_mutate / update_product_attribute) -->
         <div
-          v-if="copilot.pendingMutation"
+          v-if="pendingPreview"
           class="rounded-lg border border-[var(--color-warning,#d97706)] bg-[var(--color-warning-light,#fffbeb)] p-3"
         >
           <div class="flex items-center gap-2 text-sm font-medium text-[var(--color-text-primary)]">
             <AlertTriangle class="w-4 h-4 text-[var(--color-warning,#d97706)]" :stroke-width="1.75" />
             Änderung bestätigen
           </div>
-          <p class="mt-1 text-xs text-[var(--color-text-secondary)]">
-            Der Copilot möchte Daten in Template <strong>{{ mutationPreview.slug }}</strong> schreiben.
-          </p>
-          <pre class="mt-2 max-h-40 overflow-auto rounded bg-[var(--color-bg)] p-2 text-[11px] text-[var(--color-text-primary)] whitespace-pre-wrap break-words">{{ mutationPreview.mutation }}</pre>
-          <pre v-if="mutationPreview.variables" class="mt-1 max-h-32 overflow-auto rounded bg-[var(--color-bg)] p-2 text-[11px] text-[var(--color-text-secondary)] whitespace-pre-wrap break-words">{{ mutationPreview.variables }}</pre>
+          <p class="mt-1 text-xs text-[var(--color-text-secondary)]">{{ pendingPreview.title }}</p>
+          <pre class="mt-2 max-h-40 overflow-auto rounded bg-[var(--color-bg)] p-2 text-[11px] text-[var(--color-text-primary)] whitespace-pre-wrap break-words">{{ pendingPreview.body }}</pre>
+          <pre v-if="pendingPreview.extra" class="mt-1 max-h-32 overflow-auto rounded bg-[var(--color-bg)] p-2 text-[11px] text-[var(--color-text-secondary)] whitespace-pre-wrap break-words">{{ pendingPreview.extra }}</pre>
           <div class="mt-3 flex gap-2">
-            <button class="pim-btn-primary px-3 py-1.5 text-xs rounded" :disabled="copilot.busy" @click="copilot.confirmMutation()">
+            <button class="pim-btn-primary px-3 py-1.5 text-xs rounded" :disabled="copilot.busy" @click="copilot.confirmTool()">
               Ausführen
             </button>
-            <button class="pim-btn-ghost px-3 py-1.5 text-xs rounded border border-[var(--color-border)]" :disabled="copilot.busy" @click="copilot.denyMutation()">
+            <button class="pim-btn-ghost px-3 py-1.5 text-xs rounded border border-[var(--color-border)]" :disabled="copilot.busy" @click="copilot.denyTool()">
               Ablehnen
             </button>
           </div>
