@@ -9,6 +9,7 @@ use App\Models\HierarchyNode;
 use App\Models\Media;
 use App\Models\ProductSearchIndex;
 use App\Support\KoelnerPhonetik;
+use App\Support\ProductSearchTerms;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -162,19 +163,26 @@ class QuickSearchController extends Controller
     /** Produkt-Search-SQL für UNION (gibt WHERE-Fragment zurück, füllt bindings) */
     private function buildProductSearchSql(string $term, array &$bindings): string
     {
+        $bool         = ProductSearchTerms::boolean($term);
+        $boolAscii    = ProductSearchTerms::booleanAscii($term);
         $phoneticTerm = KoelnerPhonetik::encode($term);
-        $likeTerm = '%' . $term . '%';
+        $likeTerm     = '%' . $term . '%';
 
+        // Pro Wort +wort* (AND/Prefix) + umlaut-normalisierte Variante — wie MCP search_products
         $sql = "MATCH(psi.name_de, psi.name_en) AGAINST(? IN BOOLEAN MODE)"
+            . " OR MATCH(psi.name_de, psi.name_en) AGAINST(? IN BOOLEAN MODE)"
             . " OR psi.sku LIKE ?"
             . " OR psi.ean LIKE ?"
             . " OR (psi.searchable_text IS NOT NULL AND MATCH(psi.searchable_text, psi.media_text) AGAINST(? IN BOOLEAN MODE))"
+            . " OR (psi.searchable_text IS NOT NULL AND MATCH(psi.searchable_text, psi.media_text) AGAINST(? IN BOOLEAN MODE))"
             . " OR psi.phonetic_name_de LIKE ?";
 
-        $bindings[] = $term . '*';
+        $bindings[] = $bool;
+        $bindings[] = $boolAscii;
         $bindings[] = $likeTerm;
         $bindings[] = $likeTerm;
-        $bindings[] = $term . '*';
+        $bindings[] = $bool;
+        $bindings[] = $boolAscii;
         $bindings[] = '%' . $phoneticTerm . '%';
 
         return $sql;
@@ -250,11 +258,18 @@ class QuickSearchController extends Controller
         ]);
 
         if ($hasQuery && DB::getDriverName() === 'mysql') {
-            $quoted = DB::getPdo()->quote($query . '*');
+            $bool      = DB::getPdo()->quote(ProductSearchTerms::boolean($query));
+            $boolAscii = DB::getPdo()->quote(ProductSearchTerms::booleanAscii($query));
             $skuQuoted = DB::getPdo()->quote($query);
             $builder->addSelect(DB::raw(
-                "(MATCH(products_search_index.name_de, products_search_index.name_en) AGAINST({$quoted} IN BOOLEAN MODE)) * 10 "
-                . "+ IF(products_search_index.searchable_text IS NOT NULL, (MATCH(products_search_index.searchable_text, products_search_index.media_text) AGAINST({$quoted} IN BOOLEAN MODE)) * 3, 0) "
+                'GREATEST('
+                . "(MATCH(products_search_index.name_de, products_search_index.name_en) AGAINST({$bool} IN BOOLEAN MODE)) * 10, "
+                . "(MATCH(products_search_index.name_de, products_search_index.name_en) AGAINST({$boolAscii} IN BOOLEAN MODE)) * 10"
+                . ') '
+                . '+ IF(products_search_index.searchable_text IS NOT NULL, GREATEST('
+                . "(MATCH(products_search_index.searchable_text, products_search_index.media_text) AGAINST({$bool} IN BOOLEAN MODE)) * 3, "
+                . "(MATCH(products_search_index.searchable_text, products_search_index.media_text) AGAINST({$boolAscii} IN BOOLEAN MODE)) * 3"
+                . '), 0) '
                 . "+ IF(products_search_index.sku = {$skuQuoted}, 50, 0) "
                 . "+ IF(products_search_index.ean = {$skuQuoted}, 50, 0) "
                 . 'as relevance_score'
@@ -460,12 +475,16 @@ class QuickSearchController extends Controller
         $likeTerm = '%' . $term . '%';
 
         if (DB::getDriverName() === 'mysql') {
+            $bool         = ProductSearchTerms::boolean($term);
+            $boolAscii    = ProductSearchTerms::booleanAscii($term);
             $phoneticTerm = KoelnerPhonetik::encode($term);
-            $builder->where(function ($q) use ($term, $likeTerm, $phoneticTerm) {
-                $q->whereRaw('MATCH(products_search_index.name_de, products_search_index.name_en) AGAINST(? IN BOOLEAN MODE)', [$term . '*'])
+            $builder->where(function ($q) use ($bool, $boolAscii, $likeTerm, $phoneticTerm) {
+                $q->whereRaw('MATCH(products_search_index.name_de, products_search_index.name_en) AGAINST(? IN BOOLEAN MODE)', [$bool])
+                    ->orWhereRaw('MATCH(products_search_index.name_de, products_search_index.name_en) AGAINST(? IN BOOLEAN MODE)', [$boolAscii])
                     ->orWhere('products_search_index.sku', 'like', $likeTerm)
                     ->orWhere('products_search_index.ean', 'like', $likeTerm)
-                    ->orWhereRaw('products_search_index.searchable_text IS NOT NULL AND MATCH(products_search_index.searchable_text, products_search_index.media_text) AGAINST(? IN BOOLEAN MODE)', [$term . '*'])
+                    ->orWhereRaw('products_search_index.searchable_text IS NOT NULL AND MATCH(products_search_index.searchable_text, products_search_index.media_text) AGAINST(? IN BOOLEAN MODE)', [$bool])
+                    ->orWhereRaw('products_search_index.searchable_text IS NOT NULL AND MATCH(products_search_index.searchable_text, products_search_index.media_text) AGAINST(? IN BOOLEAN MODE)', [$boolAscii])
                     ->orWhere('products_search_index.phonetic_name_de', 'like', '%' . $phoneticTerm . '%');
             });
         } else {
