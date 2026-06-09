@@ -337,8 +337,9 @@ services:
     command: '--data-dir /data --api-key=\${TYPESENSE_API_KEY} --enable-cors'
     volumes:
       - typesense_data:/data
-    ports:
-      - "127.0.0.1:8108:8108"
+    # Kein Host-Port-Mapping: die App erreicht Typesense intern über
+    # 'typesense:8108'. Verhindert Konflikt mit einer nativen Typesense-
+    # Installation auf demselben Host (Port 8108 bereits belegt).
 
 volumes:
   db_data:
