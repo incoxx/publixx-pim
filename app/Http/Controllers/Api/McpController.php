@@ -19,6 +19,7 @@ use App\Services\ApiDesigner\ApiDataCollector;
 use App\Services\ApiDesigner\GraphqlDesignerService;
 use App\Services\ApiDesigner\JsonWriter;
 use App\Services\Pim\ProductAttributeWriter;
+use App\Support\ProductSearchTerms;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -1131,37 +1132,15 @@ class McpController extends Controller
         ];
     }
 
-    /**
-     * Baut einen MySQL BOOLEAN MODE Suchterm: jedes Wort bekommt ein führendes +
-     * (AND-Semantik) und einen abschließenden * (Prefix-Match).
-     * Einzelzeichen und MySQL-Sonderzeichen werden bereinigt.
-     */
+    // Term-Bauweise liegt zentral in App\Support\ProductSearchTerms,
+    // damit MCP und Schnellsuche dieselbe Trefferqualität liefern.
     private function toBooleanSearchTerm(string $query): string
     {
-        $words = preg_split('/\s+/', trim($query), -1, PREG_SPLIT_NO_EMPTY);
-        $terms = [];
-        foreach ($words as $word) {
-            // MySQL BOOLEAN-Sonderzeichen escapen
-            $clean = preg_replace('/[+\-><()~*"@]/', '', $word);
-            if ($clean !== null && mb_strlen($clean) >= 2) {
-                $terms[] = '+' . $clean . '*';
-            }
-        }
-        // Fallback: keine gültigen Terme (z.B. alles Einzelzeichen) → Prefix-Suche
-        return $terms !== [] ? implode(' ', $terms) : trim($query) . '*';
+        return ProductSearchTerms::boolean($query);
     }
 
-    /**
-     * Ersetzt deutsche Umlaute durch ASCII-Äquivalente für kollationsresistente Suche.
-     * MySQL FULLTEXT-Indizes mit utf8mb4_unicode_ci matchen Umlaute oft nicht
-     * korrekt gegen umlautfreie Indexeinträge und umgekehrt.
-     */
     private function normalizeUmlauts(string $text): string
     {
-        return str_replace(
-            ['ä', 'ö', 'ü', 'Ä', 'Ö', 'Ü', 'ß'],
-            ['ae', 'oe', 'ue', 'Ae', 'Oe', 'Ue', 'ss'],
-            $text
-        );
+        return ProductSearchTerms::normalizeUmlauts($text);
     }
 }
