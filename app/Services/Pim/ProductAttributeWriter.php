@@ -61,7 +61,7 @@ final class ProductAttributeWriter
 
         $columns = $this->resolveValueColumns($attribute, $value, $valueSelectionId);
 
-        ProductAttributeValue::updateOrCreate(
+        $pav = ProductAttributeValue::updateOrCreate(
             [
                 'product_id'          => $product->id,
                 'attribute_id'        => $attribute->id,
@@ -78,12 +78,17 @@ final class ProductAttributeWriter
         );
 
         return [
-            'updated'   => true,
+            'ok'        => true,
+            // "created" = neuer Datensatz angelegt (z.B. Sprach-/Scope-Mismatch),
+            // "updated" = bestehender Wert geändert. Diagnostisch für den Debug.
+            'action'    => $pav->wasRecentlyCreated ? 'created' : 'updated',
+            'value_id'  => $pav->id,
             'product'   => ['id' => $product->id, 'sku' => $product->sku, 'name' => $product->name],
             'attribute' => [
-                'id'             => $attribute->id,
-                'technical_name' => $attribute->technical_name,
-                'data_type'      => $attribute->data_type,
+                'id'              => $attribute->id,
+                'technical_name'  => $attribute->technical_name,
+                'data_type'       => $attribute->data_type,
+                'is_translatable' => (bool) $attribute->is_translatable,
             ],
             'language'  => $language,
             'value'     => $value,

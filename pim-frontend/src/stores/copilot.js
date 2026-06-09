@@ -199,6 +199,7 @@ export const useCopilotStore = defineStore('copilot', {
           toolUseId: writeBlock.id,
           input: writeBlock.input || {},
           context,
+          idx: this.messages.length - 1,
         }
         this.busy = false
         return
@@ -309,6 +310,9 @@ export const useCopilotStore = defineStore('copilot', {
         result = { is_error: true, content: e?.message || 'Ausführung fehlgeschlagen.' }
       }
 
+      // Debug: Schreib-Aktion (Client-Tool) sichtbar machen
+      this.recordToolDebug(pending, result?.content ?? '', Boolean(result?.is_error))
+
       this.messages.push({
         role: 'user',
         content: [{
@@ -322,12 +326,21 @@ export const useCopilotStore = defineStore('copilot', {
       await this.runTurn(pending.context || {})
     },
 
+    /** Hängt einen Client-Tool-Call an den Debug-Verlauf des auslösenden Turns. */
+    recordToolDebug(pending, resultText, isError) {
+      if (pending.idx == null || pending.idx < 0) return
+      const entry = { name: pending.name, input: pending.input, result: resultText, isError }
+      this.toolCallsByIndex[pending.idx] = [...(this.toolCallsByIndex[pending.idx] || []), entry]
+    },
+
     /** Schreib-Aktion ablehnen — Claude erhält eine Ablehnung und kann reagieren. */
     async denyTool() {
       const pending = this.pendingTool
       if (!pending || this.busy) return
       this.pendingTool = null
       this.busy = true
+
+      this.recordToolDebug(pending, 'Vom Nutzer abgelehnt.', true)
 
       this.messages.push({
         role: 'user',
