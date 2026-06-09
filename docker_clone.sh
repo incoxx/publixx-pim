@@ -96,8 +96,11 @@ MYSQL_AUTH=(-h "$DB_HOST" -P "$DB_PORT" -u "$DB_USERNAME")
 
 # Ohne CREATE DATABASE/USE: das mysql-init-Verzeichnis importiert automatisch
 # in die per MYSQL_DATABASE angelegte DB.
+# --no-tablespaces: vermeidet 'PROCESS privilege'-Fehler, wenn der DB-User
+#   das globale PROCESS-Recht nicht hat (Standard bei dedizierten App-Usern).
 mysqldump "${MYSQL_AUTH[@]}" \
     --single-transaction --quick --routines --triggers --events \
+    --no-tablespaces \
     --default-character-set=utf8mb4 \
     "$DB_DATABASE" > "$OUTPUT_DIR/docker/init/01_dump.sql" \
     || error "mysqldump fehlgeschlagen"
