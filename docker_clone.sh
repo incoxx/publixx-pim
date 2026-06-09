@@ -20,6 +20,11 @@
 #        [--port 8080] \
 #        [--pack]
 #
+#  Idempotent: beliebig oft ausführbar — ein vorhandener Klon (Container +
+#  Volumes + Verzeichnis) wird automatisch abgeräumt und neu erstellt.
+#  Eignet sich als Cron-Job oder CI-Step, um immer die neueste Version
+#  des laufenden Systems als Docker-Klon bereitzustellen.
+#
 #  --pack:  erstellt zusätzlich <output>.tar.gz zum Transfer (z.B. nach Windows)
 #
 #  Ergebnis:  <output>/  →  cd <output> && bash start.sh
@@ -88,6 +93,22 @@ fi
 info "  Datenbank : ${DB_DATABASE} @ ${DB_HOST}:${DB_PORT} (User: ${DB_USERNAME})"
 info "  Typesense : API-Key ${TYPESENSE_API_KEY:0:6}…"
 info "  HTTP-Port : ${HTTP_PORT}"
+
+# ─── Vorhandenen Klon abräumen (idempotent: beliebig oft ausführbar) ─────────
+COMPOSE_NAME="$(basename "$OUTPUT_DIR")"   # z.B. "anypim-docker"
+
+if [[ -f "$OUTPUT_DIR/docker-compose.yml" ]]; then
+    info "Vorhandener Klon gefunden — räume Container + Volumes ab ..."
+    (cd "$OUTPUT_DIR" && docker compose down -v --remove-orphans 2>/dev/null) || true
+    success "Alter Stack gestoppt und Volumes gelöscht"
+elif docker volume ls --format '{{.Name}}' | grep -q "^${COMPOSE_NAME}_"; then
+    # Volumes existieren noch ohne docker-compose.yml (z.B. nach manuellem rm -rf)
+    warn "Verwaiste Volumes gefunden — werden gelöscht ..."
+    docker volume ls --format '{{.Name}}' \
+        | grep "^${COMPOSE_NAME}_" \
+        | xargs -r docker volume rm
+    success "Verwaiste Volumes gelöscht"
+fi
 
 # ─── Zielstruktur anlegen ────────────────────────────────────────────────────
 info "Erstelle Ausgabe-Verzeichnis: $OUTPUT_DIR"
