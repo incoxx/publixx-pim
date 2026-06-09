@@ -17,9 +17,13 @@
 #    sudo bash /docker_clone.sh \
 #        [--app-dir /var/www/anypim] \
 #        [--output /opt/anypim-docker] \
-#        [--port 8080]
+#        [--port 8080] \
+#        [--pack]
+#
+#  --pack:  erstellt zusätzlich <output>.tar.gz zum Transfer (z.B. nach Windows)
 #
 #  Ergebnis:  <output>/  →  cd <output> && bash start.sh
+#             (Windows: start.ps1 liegt ebenfalls im Ordner)
 # =============================================================================
 
 set -euo pipefail
@@ -35,12 +39,14 @@ error()   { echo -e "${RED}[ERROR]${NC} $*" >&2; exit 1; }
 APP_DIR="/var/www/anypim"
 OUTPUT_DIR="/opt/anypim-docker"
 HTTP_PORT="8080"
+PACK=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
         --app-dir)  APP_DIR="$2";    shift 2 ;;
         --output)   OUTPUT_DIR="$2"; shift 2 ;;
         --port)     HTTP_PORT="$2";  shift 2 ;;
+        --pack)     PACK=true;       shift ;;
         -h|--help)
             grep -E '^#' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) error "Unbekanntes Argument: $1  (--help für Hilfe)" ;;
@@ -405,6 +411,47 @@ echo "   Reset  : docker compose down -v      (löscht ALLE Daten/Volumes)"
 STARTSH
 chmod +x "$OUTPUT_DIR/start.sh"
 
+# ─── 11b. start.ps1 — Windows-Pendant (Docker Desktop / PowerShell) ──────────
+cat > "$OUTPUT_DIR/start.ps1" << 'STARTPS'
+# anyPIM Docker-Klon — Start unter Windows (Docker Desktop + PowerShell)
+$ErrorActionPreference = "Stop"
+Set-Location -Path $PSScriptRoot
+
+Write-Host "==> 1/5  Image bauen ..."
+docker compose build
+
+Write-Host "==> 2/5  Container starten (DB-Import beim ersten Start kann 1-2 Min dauern) ..."
+docker compose up -d
+
+Write-Host "==> 3/5  Warte auf gesunde App ..."
+for ($i = 0; $i -lt 60; $i++) {
+    $state = (docker compose ps app --format '{{.Health}}') 2>$null
+    if ($state -eq "healthy") { break }
+    Start-Sleep -Seconds 5
+    Write-Host "." -NoNewline
+}
+Write-Host " ok."
+
+$CID = (docker compose ps -q app)
+
+Write-Host "==> 4/5  Storage (Medien) ins Volume kopieren ..."
+if (Test-Path "storage_backup") {
+    docker cp "storage_backup/." "${CID}:/var/www/html/storage/app/"
+    docker compose exec -T app chown -R www-data:www-data storage/app
+}
+docker compose exec -T app php artisan storage:link
+
+Write-Host "==> 5/5  Laravel optimieren + Typesense-Index aufbauen ..."
+docker compose exec -T app php artisan optimize
+try { docker compose exec -T app php artisan typesense:setup }   catch { Write-Host "  (typesense:setup uebersprungen)" }
+try { docker compose exec -T app php artisan typesense:reindex } catch { Write-Host "  (Reindex uebersprungen)" }
+
+Write-Host ""
+Write-Host "OK  anyPIM-Klon laeuft:  http://localhost:8080"
+Write-Host "    Logs   : docker compose logs -f app"
+Write-Host "    Stoppen: docker compose down"
+STARTPS
+
 # ─── 12. Kurz-README ─────────────────────────────────────────────────────────
 cat > "$OUTPUT_DIR/README.md" << README
 # anyPIM — Docker-Klon
@@ -414,9 +461,19 @@ Erstellt aus der laufenden Instanz: \`${APP_DIR}\`
 ## Starten
 \`\`\`bash
 cd ${OUTPUT_DIR}
-bash start.sh
+bash start.sh        # Linux / macOS / Git Bash / WSL
 \`\`\`
+Unter **Windows** (Docker Desktop, PowerShell): \`.\\start.ps1\`
+
 Danach erreichbar unter http://localhost:${HTTP_PORT}
+
+## Auf einen anderen Rechner übertragen
+Dieser Ordner ist eigenständig (Code + DB-Dump + Medien). Übertragen via:
+\`\`\`bash
+# Auf dem Quell-Server packen (oder direkt: docker_clone.sh --pack)
+tar czf anypim-docker.tar.gz -C $(dirname ${OUTPUT_DIR}) $(basename ${OUTPUT_DIR})
+# Auf dem Ziel entpacken und start.sh / start.ps1 ausführen
+\`\`\`
 
 ## Enthaltene Services
 | Service   | Image                  | Port (Host)        |
@@ -438,6 +495,16 @@ docker save \$(docker compose images -q app) | gzip > anypim-app.tar.gz
 \`\`\`
 README
 
+# ─── 13. Optional: Transfer-Archiv packen (--pack) ───────────────────────────
+ARCHIVE=""
+if [[ "$PACK" == true ]]; then
+    ARCHIVE="${OUTPUT_DIR}.tar.gz"
+    info "Packe Transfer-Archiv (für Übertragung z.B. nach Windows) ..."
+    tar -czf "$ARCHIVE" -C "$(dirname "$OUTPUT_DIR")" "$(basename "$OUTPUT_DIR")" \
+        || error "Archivierung fehlgeschlagen"
+    success "Archiv: $(du -sh "$ARCHIVE" | cut -f1) → ${ARCHIVE}"
+fi
+
 # ─── Zusammenfassung ─────────────────────────────────────────────────────────
 echo ""
 echo -e "${GREEN}═══════════════════════════════════════════════════════════════${NC}"
@@ -448,8 +515,15 @@ echo -e "  Ziel    : ${CYAN}${OUTPUT_DIR}${NC}"
 echo -e "  DB-Dump : ${CYAN}$(du -sh "$OUTPUT_DIR/docker/init/01_dump.sql" | cut -f1)${NC}"
 echo -e "  Storage : ${CYAN}$(du -sh "$OUTPUT_DIR/storage_backup" 2>/dev/null | cut -f1 || echo 0)${NC}"
 echo -e "  App     : ${CYAN}$(du -sh "$OUTPUT_DIR/app" | cut -f1)${NC}"
+[[ -n "$ARCHIVE" ]] && echo -e "  Archiv  : ${CYAN}$(du -sh "$ARCHIVE" | cut -f1) → ${ARCHIVE}${NC}"
 echo ""
 echo -e "  ${YELLOW}Nächster Schritt:${NC}"
 echo -e "    cd ${OUTPUT_DIR} && bash start.sh"
 echo -e "    → http://localhost:${HTTP_PORT}"
+if [[ -n "$ARCHIVE" ]]; then
+    echo ""
+    echo -e "  ${YELLOW}Transfer (z.B. nach Windows):${NC}"
+    echo -e "    ${ARCHIVE}  herunterladen, entpacken,"
+    echo -e "    dann:  bash start.sh   (Git Bash/WSL)  oder  .\\start.ps1  (PowerShell)"
+fi
 echo ""
