@@ -1,11 +1,12 @@
 <script setup>
 import { computed, nextTick, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Sparkles, X, Send, RotateCcw, AlertTriangle, Loader2, Search } from 'lucide-vue-next'
+import { Sparkles, X, Send, RotateCcw, AlertTriangle, Loader2, Search, FlaskConical } from 'lucide-vue-next'
 import { useCopilotStore } from '@/stores/copilot'
 import { useProductStore } from '@/stores/products'
 import { useLocaleStore } from '@/stores/locale'
 import { useQuickSearchStore } from '@/stores/quickSearch'
+import { useAuthStore } from '@/stores/auth'
 import { renderMarkdown } from '@/utils/markdown'
 
 const copilot = useCopilotStore()
@@ -14,6 +15,26 @@ const router = useRouter()
 const products = useProductStore()
 const localeStore = useLocaleStore()
 const quickSearch = useQuickSearchStore()
+const authStore = useAuthStore()
+
+/** Connector-Präfix (anypim_) vom Tool-Namen entfernen. */
+function stripToolPrefix(name) {
+  return (name || '').replace(/^anypim[_-]+/i, '')
+}
+
+/** Einen MCP-Tool-Call im Playground öffnen (Parameter vorbefüllt, Auto-Run). */
+function openInPlayground(call) {
+  const query = { tool: stripToolPrefix(call.name), run: '1' }
+  for (const [k, v] of Object.entries(call.input || {})) {
+    if (v !== null && v !== undefined && typeof v !== 'object') query[k] = String(v)
+  }
+  copilot.closePanel()
+  router.push({ name: 'mcp-playground', query })
+}
+
+function prettyJson(obj) {
+  try { return JSON.stringify(obj, null, 2) } catch { return String(obj) }
+}
 
 /** Treffer eines Copilot-search_products in der nativen Schnellsuche öffnen. */
 async function showInPim(pimSearch) {
@@ -118,6 +139,15 @@ watch(
           <span class="text-sm font-semibold text-[var(--color-text-primary)]">anyPIM Copilot</span>
         </div>
         <div class="flex items-center gap-1">
+          <!-- Debug-Modus (nur Admin) -->
+          <label
+            v-if="authStore.isAdmin"
+            class="flex items-center gap-1 mr-1 text-[11px] text-[var(--color-text-secondary)] cursor-pointer select-none"
+            title="MCP-Tool-Aufrufe anzeigen"
+          >
+            <input type="checkbox" :checked="copilot.debug" class="accent-[var(--color-accent)]" @change="copilot.toggleDebug()" />
+            Debug
+          </label>
           <button
             class="pim-btn-ghost p-1.5 rounded"
             title="Verlauf zurücksetzen"
@@ -188,6 +218,35 @@ watch(
             <Search class="w-3.5 h-3.5" :stroke-width="1.75" />
             Treffer „{{ msg.pimSearch.query }}“ im PIM anzeigen
           </button>
+
+          <!-- Debug: MCP-Tool-Aufrufe dieses Turns -->
+          <div v-if="copilot.debug && msg.toolCalls.length" class="mt-2 w-full space-y-2">
+            <div
+              v-for="(call, ci) in msg.toolCalls"
+              :key="ci"
+              class="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-2 text-[11px]"
+            >
+              <div class="flex items-center justify-between gap-2">
+                <span class="font-mono font-medium text-[var(--color-accent)]">
+                  🔧 {{ stripToolPrefix(call.name) }}
+                </span>
+                <button
+                  class="shrink-0 inline-flex items-center gap-1 rounded border border-[var(--color-border)] px-1.5 py-0.5 text-[10px] text-[var(--color-text-secondary)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
+                  title="Diesen Call im MCP-Playground testen"
+                  @click="openInPlayground(call)"
+                >
+                  <FlaskConical class="w-3 h-3" :stroke-width="1.75" />
+                  Playground
+                </button>
+              </div>
+              <div class="mt-1 text-[var(--color-text-tertiary)]">Parameter:</div>
+              <pre class="mt-0.5 max-h-28 overflow-auto rounded bg-[var(--color-bg)] p-1.5 whitespace-pre-wrap break-words text-[var(--color-text-primary)]">{{ prettyJson(call.input) }}</pre>
+              <div class="mt-1 text-[var(--color-text-tertiary)]">
+                Rückgabe<span v-if="call.isError" class="text-[var(--color-error)]"> (Fehler)</span>:
+              </div>
+              <pre class="mt-0.5 max-h-40 overflow-auto rounded bg-[var(--color-bg)] p-1.5 whitespace-pre-wrap break-words text-[var(--color-text-secondary)]">{{ call.result || '—' }}</pre>
+            </div>
+          </div>
         </div>
 
         <!-- Streaming-Antwort -->

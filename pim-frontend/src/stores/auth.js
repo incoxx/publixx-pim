@@ -19,6 +19,7 @@ export const useAuthStore = defineStore('auth', () => {
   const isAuthenticated = computed(() => !!token.value)
   const userName = computed(() => user.value?.name || '')
   const userRole = computed(() => user.value?.roles?.[0]?.name || '')
+  const isAdmin = computed(() => (user.value?.roles || []).some(r => ['Admin', 'Sysadmin'].includes(r.name)))
   const permissions = computed(() => user.value?.all_permissions || [])
   const entityRestrictions = computed(() => user.value?.entity_restrictions || [])
   const tabPermissions = computed(() => user.value?.tab_permissions || {})
@@ -146,7 +147,7 @@ export const useAuthStore = defineStore('auth', () => {
     user, token, locale,
     commandPaletteOpen, sidebarCollapsed, sidebarMobileOpen, sidebarWidth, sidebarCollapsedSections,
     panelOpen, panelComponent, panelProps, panelWidth,
-    isAuthenticated, userName, userRole, permissions, entityRestrictions, tabPermissions,
+    isAuthenticated, userName, userRole, isAdmin, permissions, entityRestrictions, tabPermissions,
     hasPermission, hasInstanceAccess, getTabAccess, login, logout, checkAuth, setLocale,
     toggleCommandPalette, toggleSidebar, toggleMobileSidebar, closeMobileSidebar, setSidebarWidth, toggleSidebarSection, collapseAllSections,
     openPanel, closePanel,

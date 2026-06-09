@@ -27,6 +27,10 @@ export const useCopilotStore = defineStore('copilot', {
     truncatedByIndex: {},
     // Letzter Kontext — für "Erneut versuchen"
     lastContext: {},
+    // Debug-Modus (Admin): MCP-Tool-Calls sichtbar machen
+    debug: false,
+    // MCP-Tool-Calls je Nachrichten-Index: [{ name, input, result, isError }]
+    toolCallsByIndex: {},
   }),
 
   getters: {
@@ -39,6 +43,7 @@ export const useCopilotStore = defineStore('copilot', {
           text: extractText(m.content),
           pimSearch: state.pimSearchByIndex[idx] || null,
           truncated: state.truncatedByIndex[idx] || false,
+          toolCalls: state.toolCallsByIndex[idx] || [],
         }))
         .filter((m) => m.text !== '')
     },
@@ -48,6 +53,7 @@ export const useCopilotStore = defineStore('copilot', {
     toggle() { this.open = !this.open },
     openPanel() { this.open = true },
     closePanel() { this.open = false },
+    toggleDebug() { this.debug = !this.debug },
 
     reset() {
       this.messages = []
@@ -57,6 +63,7 @@ export const useCopilotStore = defineStore('copilot', {
       this.pendingTool = null
       this.pimSearchByIndex = {}
       this.truncatedByIndex = {}
+      this.toolCallsByIndex = {}
     },
 
     /** Nutzer-Nachricht senden und Antwort streamen. */
@@ -171,6 +178,12 @@ export const useCopilotStore = defineStore('copilot', {
         // Antwort wegen Token-Limit abgeschnitten? → Hinweis am Turn vermerken
         if (stopReason === 'max_tokens') {
           this.truncatedByIndex[idx] = true
+        }
+
+        // MCP-Tool-Calls für den Debug-Modus erfassen (Name, Parameter, Rückgabe)
+        const calls = extractToolCalls(assistantContent)
+        if (calls.length > 0) {
+          this.toolCallsByIndex[idx] = calls
         }
       }
 
@@ -389,6 +402,38 @@ function finalizeBlock(block, jsonStr) {
     }
   }
   return out
+}
+
+/**
+ * Sammelt die MCP-Tool-Calls eines Assistenten-Turns für den Debug-Modus:
+ * paart mcp_tool_use (name, input) mit dem zugehörigen mcp_tool_result.
+ */
+function extractToolCalls(content) {
+  if (!Array.isArray(content)) return []
+
+  const resultsById = {}
+  for (const b of content) {
+    if (b.type === 'mcp_tool_result') {
+      const text = Array.isArray(b.content)
+        ? b.content.filter((c) => c.type === 'text').map((c) => c.text).join('\n')
+        : (typeof b.content === 'string' ? b.content : '')
+      resultsById[b.tool_use_id] = { text, isError: Boolean(b.is_error) }
+    }
+  }
+
+  const calls = []
+  for (const b of content) {
+    if (b.type === 'mcp_tool_use') {
+      const r = resultsById[b.id] || {}
+      calls.push({
+        name: b.name || '',
+        input: b.input || {},
+        result: r.text || '',
+        isError: Boolean(r.isError),
+      })
+    }
+  }
+  return calls
 }
 
 /**
