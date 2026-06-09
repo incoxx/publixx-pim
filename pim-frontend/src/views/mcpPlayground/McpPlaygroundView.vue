@@ -1,8 +1,11 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { Play, Copy, Check, ChevronDown, ChevronRight, Sparkles, Database, ShieldCheck, BarChart3, RefreshCw } from 'lucide-vue-next'
 import apiTemplatesApi from '@/api/apiTemplates'
 import client from '@/api/client'
+
+const route = useRoute()
 
 // ── State ─────────────────────────────────────────────────────────────────
 
@@ -27,6 +30,10 @@ const paramLang      = ref('')
 const graphqlQuery   = ref('{ total count groups { count products { sku name status } } }')
 const graphqlVars    = ref('')
 
+// search_products
+const searchQuery      = ref('')
+const searchStatus     = ref('')
+
 // PIM-Struktur-Tools
 const hierarchies      = ref([])
 const paramSearch      = ref('')
@@ -45,6 +52,7 @@ const updLanguage      = ref('')
 
 const tools = [
   { id: 'list_templates',  label: 'list_templates',  icon: '📋', desc: 'Alle aktiven API-Templates auflisten' },
+  { id: 'search_products', label: 'search_products', icon: '🔎', desc: 'Volltextsuche über Produkte (FULLTEXT)' },
   { id: 'stream_products', label: 'stream_products', icon: '📦', desc: 'Produkte aus JSON-Template abrufen' },
   { id: 'graphql_query',   label: 'graphql_query',   icon: '🔍', desc: 'GraphQL-Query gegen Template ausführen' },
   { id: 'graphql_mutate',  label: 'graphql_mutate',  icon: '✏️',  desc: 'GraphQL-Mutation (Daten schreiben)' },
@@ -211,9 +219,10 @@ const examples = [
 const jsonTemplates = computed(() => templates.value.filter(t => t.output_format === 'json'))
 const graphqlTemplates = computed(() => templates.value.filter(t => t.output_format === 'graphql'))
 
-const needsSlug = computed(() => ['stream_products', 'graphql_query', 'graphql_mutate', 'get_schema'].includes(selectedTool.value))
+const needsSlug = computed(() => ['stream_products', 'search_products', 'graphql_query', 'graphql_mutate', 'get_schema'].includes(selectedTool.value))
 const isGraphql  = computed(() => ['graphql_query', 'graphql_mutate'].includes(selectedTool.value))
 const isStream   = computed(() => selectedTool.value === 'stream_products')
+const isSearch   = computed(() => selectedTool.value === 'search_products')
 
 // PIM-Struktur-Tools
 const isAttributes     = computed(() => selectedTool.value === 'list_attributes')
@@ -276,7 +285,36 @@ onMounted(async () => {
   } catch (e) {
     // nicht kritisch — Struktur-Tools funktionieren auch mit manueller ID-Eingabe
   }
+
+  // Deep-Link aus dem Copilot-Debug: Tool + Parameter vorbefüllen (+ Auto-Run)
+  if (route.query.tool) {
+    applyQueryParams(route.query)
+    if (route.query.run === '1') run()
+  }
 })
+
+/** Befüllt Tool + Parameter aus den Query-Parametern (Copilot-Deep-Link). */
+function applyQueryParams(q) {
+  if (!q.tool) return
+  selectedTool.value = q.tool
+  if (q.slug)         selectedSlug.value     = q.slug
+  if (q.limit)        paramLimit.value       = String(q.limit)
+  if (q.status)       searchStatus.value     = q.status
+  if (q.search)       paramSearch.value      = q.search
+  if (q.data_type)    paramDataType.value    = q.data_type
+  if (q.type)         paramNodeType.value    = q.type
+  if (q.hierarchy_id) paramHierarchyId.value = q.hierarchy_id
+  if (q.node_id)      paramNodeId.value      = q.node_id
+  if (q.product)      updProduct.value       = q.product
+  if (q.attribute)    updAttribute.value     = q.attribute
+  if (q.value !== undefined)  updValue.value = String(q.value)
+  if (q.unit)         updUnit.value          = q.unit
+  if (q.language)     updLanguage.value      = q.language
+  if (q.query !== undefined) {
+    if (q.tool === 'search_products') searchQuery.value = q.query
+    else graphqlQuery.value = q.query
+  }
+}
 
 // ── Run ────────────────────────────────────────────────────────────────────
 
@@ -326,6 +364,15 @@ async function run() {
       if (paramLang.value)   params.lang   = paramLang.value
       const { data } = await client.get(`/api-streams/${selectedSlug.value}`, { params })
       result = data
+
+    } else if (selectedTool.value === 'search_products') {
+      const args = { slug: selectedSlug.value }
+      if (searchQuery.value)  args.query  = searchQuery.value
+      if (paramLimit.value)   args.limit  = Number(paramLimit.value)
+      if (searchStatus.value) args.status = searchStatus.value
+      const { data } = await client.post('/mcp-test-call', { tool: 'search_products', arguments: args })
+      if (data?.is_error) throw new Error(data.error || 'Suche fehlgeschlagen')
+      result = data.result ?? data
 
     } else if (selectedTool.value === 'graphql_query') {
       let vars = undefined
@@ -405,7 +452,7 @@ async function run() {
     responseMs.value = Math.round(performance.now() - t0)
     response.value = result
   } catch (e) {
-    error.value = e.response?.data?.message || e.response?.data?.errors?.[0]?.message || e.message
+    error.value = e.response?.data?.error || e.response?.data?.message || e.response?.data?.errors?.[0]?.message || e.message
   } finally {
     running.value = false
   }
@@ -520,6 +567,30 @@ function copyResponse() {
             </optgroup>
           </select>
         </div>
+
+        <!-- search_products Parameter -->
+        <template v-if="isSearch">
+          <div>
+            <label class="block text-[10px] text-[var(--color-text-tertiary)] mb-1">Suchbegriff (query)</label>
+            <input v-model="searchQuery" type="text" placeholder="z.B. cryo" class="pim-input text-xs w-full" />
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-[10px] text-[var(--color-text-tertiary)] mb-1">Limit</label>
+              <input v-model="paramLimit" type="number" min="1" max="200" placeholder="20" class="pim-input text-xs w-full" />
+            </div>
+            <div>
+              <label class="block text-[10px] text-[var(--color-text-tertiary)] mb-1">Status</label>
+              <select v-model="searchStatus" class="pim-input text-xs w-full">
+                <option value="">active (Standard)</option>
+                <option value="active">active</option>
+                <option value="draft">draft</option>
+                <option value="inactive">inactive</option>
+                <option value="discontinued">discontinued</option>
+              </select>
+            </div>
+          </div>
+        </template>
 
         <!-- stream_products Parameter -->
         <template v-if="isStream">

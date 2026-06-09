@@ -292,6 +292,10 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::post('copilot/chat', [CopilotController::class, 'chat']);
     Route::post('copilot/execute-tool', [CopilotController::class, 'executeTool']);
 
+    // MCP-Debug: Tool direkt testen (Admin) — für den MCP-Playground.
+    // Pfad ohne "mcp/"-Präfix, um die Kollision mit mcp/{urlToken} zu vermeiden.
+    Route::post('mcp-test-call', [\App\Http\Controllers\Api\McpController::class, 'testCall']);
+
     // =====================================================================
     // Access Links (Zugangslink-Generator)
     // =====================================================================

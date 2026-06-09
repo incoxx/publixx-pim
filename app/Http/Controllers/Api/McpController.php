@@ -368,7 +368,27 @@ class McpController extends Controller
         $name = $params['name'] ?? '';
         $args = $params['arguments'] ?? [];
 
-        $text = match ($name) {
+        $text = $this->executeToolPublic($name, $args);
+
+        $this->logMcpCall($name, $args);
+
+        return [
+            'content' => [
+                ['type' => 'text', 'text' => $text],
+            ],
+        ];
+    }
+
+    /**
+     * Führt ein MCP-Tool aus und liefert das (JSON-/Text-)Ergebnis als String.
+     * Wird sowohl von tools/call (JSON-RPC) als auch vom Sanctum-Debug-Endpoint
+     * (testCall) genutzt — damit der Playground exakt dieselbe Logik testet.
+     *
+     * @param  array<string, mixed>  $args
+     */
+    public function executeToolPublic(string $name, array $args): string
+    {
+        return match ($name) {
             'list_templates'           => $this->toolListTemplates(),
             'stream_products'          => $this->toolStreamProducts($args),
             'search_products'          => $this->toolSearchProducts($args),
@@ -383,14 +403,51 @@ class McpController extends Controller
             'update_product_attribute' => $this->toolUpdateProductAttribute($args),
             default                    => throw new McpException(-32602, "Unbekanntes Tool: {$name}"),
         };
+    }
 
-        $this->logMcpCall($name, $args);
+    /**
+     * POST /api/v1/mcp/test-call — Admin-Debug-Endpoint (Sanctum).
+     *
+     * Führt ein MCP-Tool unter Sanctum-Auth aus, ohne den globalen MCP-Token,
+     * damit der MCP-Playground die echten Tools (inkl. search_products) testen
+     * und das exakte Ergebnis anzeigen kann.
+     */
+    public function testCall(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        if (!$user || (!$user->hasRole('Admin') && !$user->hasRole('Sysadmin'))) {
+            return response()->json(['error' => 'Nur für Administratoren.'], 403);
+        }
 
-        return [
-            'content' => [
-                ['type' => 'text', 'text' => $text],
-            ],
-        ];
+        $validated = $request->validate([
+            'tool'      => 'required|string',
+            'arguments' => 'sometimes|array',
+        ]);
+
+        $tool = $validated['tool'];
+        $args = $validated['arguments'] ?? [];
+        $this->currentRequest = $request;
+
+        try {
+            $text = $this->executeToolPublic($tool, $args);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'tool'      => $tool,
+                'arguments' => $args,
+                'is_error'  => true,
+                'error'     => $e->getMessage(),
+            ]);
+        }
+
+        $this->logMcpCall($tool, $args);
+
+        $decoded = json_decode($text, true);
+
+        return response()->json([
+            'tool'      => $tool,
+            'arguments' => $args,
+            'result'    => json_last_error() === JSON_ERROR_NONE ? $decoded : $text,
+        ]);
     }
 
     // ── Tool-Implementierungen ────────────────────────────────────────────────
