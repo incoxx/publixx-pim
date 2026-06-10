@@ -72,8 +72,8 @@ docker compose version &>/dev/null || error "'docker compose' (v2) nicht verfüg
 info "Lese Konfiguration aus $APP_DIR/.env ..."
 
 parse_env() {
-    grep -E "^${1}=" "$APP_DIR/.env" | head -1 | cut -d'=' -f2- \
-        | sed -e 's/^["'"'"']//' -e 's/["'"'"']$//' -e 's/[[:space:]]*#.*$//'
+    grep -E "^${1}=" "$APP_DIR/.env" 2>/dev/null | head -1 | cut -d'=' -f2- \
+        | sed -e 's/^["'"'"']//' -e 's/["'"'"']$//' -e 's/[[:space:]]*#.*$//' || true
 }
 
 DB_HOST=$(parse_env DB_HOST);         DB_HOST="${DB_HOST:-127.0.0.1}"
@@ -86,7 +86,7 @@ TYPESENSE_API_KEY=$(parse_env TYPESENSE_API_KEY)
 
 # Typesense-Key als Fallback aus der laufenden Server-Konfig holen
 if [[ -z "$TYPESENSE_API_KEY" && -f /etc/typesense/typesense-server.ini ]]; then
-    TYPESENSE_API_KEY=$(grep '^api-key' /etc/typesense/typesense-server.ini | cut -d'=' -f2- | tr -d ' ')
+    TYPESENSE_API_KEY=$(grep '^api-key' /etc/typesense/typesense-server.ini 2>/dev/null | cut -d'=' -f2- | tr -d ' ' || true)
 fi
 [[ -z "$TYPESENSE_API_KEY" ]] && TYPESENSE_API_KEY="anypim_local_key"
 
