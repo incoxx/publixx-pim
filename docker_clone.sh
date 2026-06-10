@@ -17,9 +17,18 @@
 #    sudo bash /docker_clone.sh \
 #        [--app-dir /var/www/anypim] \
 #        [--output /opt/anypim-docker] \
-#        [--port 8080]
+#        [--port 8080] \
+#        [--pack]
+#
+#  Idempotent: beliebig oft ausführbar — ein vorhandener Klon (Container +
+#  Volumes + Verzeichnis) wird automatisch abgeräumt und neu erstellt.
+#  Eignet sich als Cron-Job oder CI-Step, um immer die neueste Version
+#  des laufenden Systems als Docker-Klon bereitzustellen.
+#
+#  --pack:  erstellt zusätzlich <output>.tar.gz zum Transfer (z.B. nach Windows)
 #
 #  Ergebnis:  <output>/  →  cd <output> && bash start.sh
+#             (Windows: start.ps1 liegt ebenfalls im Ordner)
 # =============================================================================
 
 set -euo pipefail
@@ -35,12 +44,14 @@ error()   { echo -e "${RED}[ERROR]${NC} $*" >&2; exit 1; }
 APP_DIR="/var/www/anypim"
 OUTPUT_DIR="/opt/anypim-docker"
 HTTP_PORT="8080"
+PACK=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
         --app-dir)  APP_DIR="$2";    shift 2 ;;
         --output)   OUTPUT_DIR="$2"; shift 2 ;;
         --port)     HTTP_PORT="$2";  shift 2 ;;
+        --pack)     PACK=true;       shift ;;
         -h|--help)
             grep -E '^#' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) error "Unbekanntes Argument: $1  (--help für Hilfe)" ;;
@@ -82,6 +93,27 @@ fi
 info "  Datenbank : ${DB_DATABASE} @ ${DB_HOST}:${DB_PORT} (User: ${DB_USERNAME})"
 info "  Typesense : API-Key ${TYPESENSE_API_KEY:0:6}…"
 info "  HTTP-Port : ${HTTP_PORT}"
+
+# ─── Vorhandenen Klon abräumen (idempotent: beliebig oft ausführbar) ─────────
+COMPOSE_NAME="$(basename "$OUTPUT_DIR")"   # z.B. "anypim-docker"
+
+if [[ -f "$OUTPUT_DIR/docker-compose.yml" ]]; then
+    info "Vorhandener Klon gefunden — räume Container + Volumes ab ..."
+    (cd "$OUTPUT_DIR" && docker compose down -v --remove-orphans) \
+        || warn "docker compose down meldete Fehler — prüfe ob noch Container laufen"
+    # Sicherstellen dass kein Container des alten Stacks mehr läuft
+    if docker ps --format '{{.Names}}' | grep -q "^${COMPOSE_NAME}-"; then
+        error "Container des alten Klons laufen noch — bitte manuell stoppen:\n  docker ps | grep ${COMPOSE_NAME}"
+    fi
+    success "Alter Stack gestoppt und Volumes gelöscht"
+elif docker volume ls --format '{{.Name}}' | grep -q "^${COMPOSE_NAME}_"; then
+    # Volumes existieren noch ohne docker-compose.yml (z.B. nach manuellem rm -rf)
+    warn "Verwaiste Volumes gefunden — werden gelöscht ..."
+    docker volume ls --format '{{.Name}}' \
+        | grep "^${COMPOSE_NAME}_" \
+        | xargs -r docker volume rm
+    success "Verwaiste Volumes gelöscht"
+fi
 
 # ─── Zielstruktur anlegen ────────────────────────────────────────────────────
 info "Erstelle Ausgabe-Verzeichnis: $OUTPUT_DIR"
@@ -275,9 +307,11 @@ success "Dockerfile geschrieben"
 # ─── 9. docker-compose.yml ───────────────────────────────────────────────────
 info "Schreibe docker-compose.yml ..."
 
-REDIS_CMD='redis-server --appendonly yes'
+# Passwort über environment (REDIS_PASSWORD) übergeben, nicht als CLI-Argument —
+# vermeidet Sonderzeichen/Leerzeichen im YAML-command-Wert.
+REDIS_HAS_PASSWORD=false
 if [[ -n "$REDIS_PASSWORD" && "$REDIS_PASSWORD" != "null" ]]; then
-    REDIS_CMD="redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}"
+    REDIS_HAS_PASSWORD=true
 fi
 
 cat > "$OUTPUT_DIR/docker-compose.yml" << COMPOSE
@@ -323,7 +357,12 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    command: ${REDIS_CMD}
+    # Passwort als Env-Variable, nie im command-String — sicher bei Sonderzeichen
+    command: >-
+      redis-server --appendonly yes
+      ${REDIS_HAS_PASSWORD:+--requirepass \${REDIS_PASSWORD}}
+    environment:
+      REDIS_PASSWORD: \${REDIS_PASSWORD:-}
     volumes:
       - redis_data:/data
     healthcheck:
@@ -372,15 +411,23 @@ docker compose build
 echo "▶ 2/5  Container starten (DB-Import beim ersten Start kann 1-2 Min dauern) ..."
 docker compose up -d
 
-echo "▶ 3/5  Warte auf gesunde App ..."
+echo "▶ 3/5  Warte auf gesunde App (max. 5 Min) ..."
+HEALTHY=false
 for i in $(seq 1 60); do
     state=$(docker compose ps app --format '{{.Health}}' 2>/dev/null || echo "")
-    [[ "$state" == "healthy" ]] && break
+    if [[ "$state" == "healthy" ]]; then HEALTHY=true; break; fi
     printf '.'; sleep 5
 done
-echo " ok."
+echo ""
+if [[ "$HEALTHY" != "true" ]]; then
+    echo "FEHLER: App-Container nicht healthy nach 5 Min."
+    echo "  Logs: docker compose logs app"
+    docker compose logs --tail=30 app
+    exit 1
+fi
 
 CID=$(docker compose ps -q app)
+[[ -z "$CID" ]] && { echo "FEHLER: Container-ID leer — Container läuft nicht"; exit 1; }
 
 echo "▶ 4/5  Storage (Medien) ins Volume kopieren ..."
 if [ -d storage_backup ] && [ -n "$(ls -A storage_backup 2>/dev/null)" ]; then
@@ -405,6 +452,54 @@ echo "   Reset  : docker compose down -v      (löscht ALLE Daten/Volumes)"
 STARTSH
 chmod +x "$OUTPUT_DIR/start.sh"
 
+# ─── 11b. start.ps1 — Windows-Pendant (Docker Desktop / PowerShell) ──────────
+cat > "$OUTPUT_DIR/start.ps1" << 'STARTPS'
+# anyPIM Docker-Klon — Start unter Windows (Docker Desktop + PowerShell)
+$ErrorActionPreference = "Stop"
+Set-Location -Path $PSScriptRoot
+
+Write-Host "==> 1/5  Image bauen ..."
+docker compose build
+
+Write-Host "==> 2/5  Container starten (DB-Import beim ersten Start kann 1-2 Min dauern) ..."
+docker compose up -d
+
+Write-Host "==> 3/5  Warte auf gesunde App (max. 5 Min) ..."
+$healthy = $false
+for ($i = 0; $i -lt 60; $i++) {
+    $state = (docker compose ps app --format '{{.Health}}') 2>$null
+    if ($state -eq "healthy") { $healthy = $true; break }
+    Start-Sleep -Seconds 5
+    Write-Host "." -NoNewline
+}
+Write-Host ""
+if (-not $healthy) {
+    Write-Error "App-Container nicht healthy nach 5 Min. Logs: docker compose logs app"
+    docker compose logs --tail 30 app
+    exit 1
+}
+
+$CID = (docker compose ps -q app)
+if (-not $CID) { Write-Error "Container-ID leer — Container läuft nicht"; exit 1 }
+
+Write-Host "==> 4/5  Storage (Medien) ins Volume kopieren ..."
+if (Test-Path "storage_backup") {
+    docker cp "storage_backup/." "${CID}:/var/www/html/storage/app/"
+    docker compose exec -T app chown -R www-data:www-data storage/app
+}
+docker compose exec -T app php artisan storage:link
+
+Write-Host "==> 5/5  Laravel optimieren + Typesense-Index aufbauen ..."
+docker compose exec -T app php artisan optimize
+try { docker compose exec -T app php artisan typesense:setup }   catch { Write-Host "  (typesense:setup uebersprungen)" }
+try { docker compose exec -T app php artisan typesense:reindex } catch { Write-Host "  (Reindex uebersprungen)" }
+
+Write-Host ""
+Write-Host "OK  anyPIM-Klon laeuft:  http://localhost:8080"
+Write-Host "    Logs   : docker compose logs -f app"
+Write-Host "    Stoppen: docker compose down"
+STARTPS
+
 # ─── 12. Kurz-README ─────────────────────────────────────────────────────────
 cat > "$OUTPUT_DIR/README.md" << README
 # anyPIM — Docker-Klon
@@ -414,9 +509,19 @@ Erstellt aus der laufenden Instanz: \`${APP_DIR}\`
 ## Starten
 \`\`\`bash
 cd ${OUTPUT_DIR}
-bash start.sh
+bash start.sh        # Linux / macOS / Git Bash / WSL
 \`\`\`
+Unter **Windows** (Docker Desktop, PowerShell): \`.\\start.ps1\`
+
 Danach erreichbar unter http://localhost:${HTTP_PORT}
+
+## Auf einen anderen Rechner übertragen
+Dieser Ordner ist eigenständig (Code + DB-Dump + Medien). Übertragen via:
+\`\`\`bash
+# Auf dem Quell-Server packen (oder direkt: docker_clone.sh --pack)
+tar czf anypim-docker.tar.gz -C $(dirname ${OUTPUT_DIR}) $(basename ${OUTPUT_DIR})
+# Auf dem Ziel entpacken und start.sh / start.ps1 ausführen
+\`\`\`
 
 ## Enthaltene Services
 | Service   | Image                  | Port (Host)        |
@@ -438,6 +543,16 @@ docker save \$(docker compose images -q app) | gzip > anypim-app.tar.gz
 \`\`\`
 README
 
+# ─── 13. Optional: Transfer-Archiv packen (--pack) ───────────────────────────
+ARCHIVE=""
+if [[ "$PACK" == true ]]; then
+    ARCHIVE="${OUTPUT_DIR}.tar.gz"
+    info "Packe Transfer-Archiv (für Übertragung z.B. nach Windows) ..."
+    tar -czf "$ARCHIVE" -C "$(dirname "$OUTPUT_DIR")" "$(basename "$OUTPUT_DIR")" \
+        || error "Archivierung fehlgeschlagen"
+    success "Archiv: $(du -sh "$ARCHIVE" | cut -f1) → ${ARCHIVE}"
+fi
+
 # ─── Zusammenfassung ─────────────────────────────────────────────────────────
 echo ""
 echo -e "${GREEN}═══════════════════════════════════════════════════════════════${NC}"
@@ -448,8 +563,15 @@ echo -e "  Ziel    : ${CYAN}${OUTPUT_DIR}${NC}"
 echo -e "  DB-Dump : ${CYAN}$(du -sh "$OUTPUT_DIR/docker/init/01_dump.sql" | cut -f1)${NC}"
 echo -e "  Storage : ${CYAN}$(du -sh "$OUTPUT_DIR/storage_backup" 2>/dev/null | cut -f1 || echo 0)${NC}"
 echo -e "  App     : ${CYAN}$(du -sh "$OUTPUT_DIR/app" | cut -f1)${NC}"
+[[ -n "$ARCHIVE" ]] && echo -e "  Archiv  : ${CYAN}$(du -sh "$ARCHIVE" | cut -f1) → ${ARCHIVE}${NC}"
 echo ""
 echo -e "  ${YELLOW}Nächster Schritt:${NC}"
 echo -e "    cd ${OUTPUT_DIR} && bash start.sh"
 echo -e "    → http://localhost:${HTTP_PORT}"
+if [[ -n "$ARCHIVE" ]]; then
+    echo ""
+    echo -e "  ${YELLOW}Transfer (z.B. nach Windows):${NC}"
+    echo -e "    ${ARCHIVE}  herunterladen, entpacken,"
+    echo -e "    dann:  bash start.sh   (Git Bash/WSL)  oder  .\\start.ps1  (PowerShell)"
+fi
 echo ""
