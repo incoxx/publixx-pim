@@ -453,8 +453,10 @@ STARTSH
 chmod +x "$OUTPUT_DIR/start.sh"
 
 # ─── 11b. start.ps1 — Windows-Pendant (Docker Desktop / PowerShell) ──────────
+# Nur ASCII im Heredoc: PowerShell liest die Datei ggf. als Windows-1252,
+# UTF-8-Sonderzeichen (Umlaute, Em-Dash) fuehren zu Parse-Fehlern.
 cat > "$OUTPUT_DIR/start.ps1" << 'STARTPS'
-# anyPIM Docker-Klon — Start unter Windows (Docker Desktop + PowerShell)
+# anyPIM Docker-Klon - Start unter Windows (Docker Desktop + PowerShell)
 $ErrorActionPreference = "Stop"
 Set-Location -Path $PSScriptRoot
 
@@ -480,7 +482,7 @@ if (-not $healthy) {
 }
 
 $CID = (docker compose ps -q app)
-if (-not $CID) { Write-Error "Container-ID leer — Container läuft nicht"; exit 1 }
+if (-not $CID) { Write-Error "Container-ID leer - Container laeuft nicht"; exit 1 }
 
 Write-Host "==> 4/5  Storage (Medien) ins Volume kopieren ..."
 if (Test-Path "storage_backup") {
