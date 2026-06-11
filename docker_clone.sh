@@ -182,7 +182,38 @@ sed \
 if grep -q '^SANCTUM_STATEFUL_DOMAINS=' "$OUTPUT_DIR/app/.env"; then
     sed -i "s#^SANCTUM_STATEFUL_DOMAINS=.*#SANCTUM_STATEFUL_DOMAINS=localhost:${HTTP_PORT},localhost,127.0.0.1#" "$OUTPUT_DIR/app/.env"
 fi
+
+# Typesense-Einträge sicherstellen — sed ersetzt nur bestehende Zeilen,
+# fehlende Einträge werden hier ergänzt.
+ensure_env() {
+    local key="$1" val="$2" file="$OUTPUT_DIR/app/.env"
+    if grep -q "^${key}=" "$file" 2>/dev/null; then
+        sed -i "s#^${key}=.*#${key}=${val}#" "$file"
+    else
+        echo "${key}=${val}" >> "$file"
+    fi
+}
+ensure_env TYPESENSE_HOST     typesense
+ensure_env TYPESENSE_PORT     8108
+ensure_env TYPESENSE_PROTOCOL http
+ensure_env TYPESENSE_API_KEY  "${TYPESENSE_API_KEY}"
+
+# Redis-Passwort synchronisieren: Original-Wert "null" durch echten Wert ersetzen
+if [[ -n "$REDIS_PASSWORD" && "$REDIS_PASSWORD" != "null" ]]; then
+    ensure_env REDIS_PASSWORD "${REDIS_PASSWORD}"
+fi
+
 success ".env für Container geschrieben (APP_KEY bleibt erhalten)"
+
+# ─── 4b. Entrypoint-Skript (Config-Cache vor Start leeren) ──────────────────
+cat > "$OUTPUT_DIR/docker/entrypoint.sh" << 'ENTRYPOINT'
+#!/bin/sh
+# Config-Cache leeren damit .env-Werte zur Laufzeit gelten (nicht Build-Zeit)
+cd /var/www/html
+php artisan config:clear --quiet 2>/dev/null || true
+php artisan cache:clear  --quiet 2>/dev/null || true
+exec "$@"
+ENTRYPOINT
 
 # ─── 5. Apache-VHost (DocumentRoot=public, AllowOverride All wie im Original) ─
 cat > "$OUTPUT_DIR/docker/apache/000-default.conf" << 'APACHE'
@@ -300,6 +331,12 @@ RUN mkdir -p \
  && chmod -R 775 storage bootstrap/cache
 
 EXPOSE 80
+
+# Config-Cache vor dem Start leeren — verhindert dass gecachte Werte
+# aus der Build-Zeit (z.B. DB_HOST=127.0.0.1) zur Laufzeit gelten.
+COPY docker/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/anypim.conf"]
 DOCKERFILE
 success "Dockerfile geschrieben"
@@ -324,6 +361,7 @@ services:
       - "${HTTP_PORT}:80"
     volumes:
       - storage_data:/var/www/html/storage/app
+      - ./app/.env:/var/www/html/.env:ro   # .env als Volume → Änderungen wirken ohne Rebuild
     depends_on:
       db:        { condition: service_healthy }
       redis:     { condition: service_healthy }
@@ -437,6 +475,7 @@ fi
 docker compose exec -T app php artisan storage:link || true
 
 echo "▶ 5/5  Laravel optimieren + Typesense-Index aufbauen ..."
+docker compose exec -T app php artisan config:clear
 docker compose exec -T app php artisan optimize
 docker compose exec -T app php artisan typesense:setup    || echo "  (typesense:setup übersprungen)"
 docker compose exec -T app php artisan typesense:reindex  || \
@@ -453,8 +492,10 @@ STARTSH
 chmod +x "$OUTPUT_DIR/start.sh"
 
 # ─── 11b. start.ps1 — Windows-Pendant (Docker Desktop / PowerShell) ──────────
+# Nur ASCII im Heredoc: PowerShell liest die Datei ggf. als Windows-1252,
+# UTF-8-Sonderzeichen (Umlaute, Em-Dash) fuehren zu Parse-Fehlern.
 cat > "$OUTPUT_DIR/start.ps1" << 'STARTPS'
-# anyPIM Docker-Klon — Start unter Windows (Docker Desktop + PowerShell)
+# anyPIM Docker-Klon - Start unter Windows (Docker Desktop + PowerShell)
 $ErrorActionPreference = "Stop"
 Set-Location -Path $PSScriptRoot
 
@@ -480,7 +521,7 @@ if (-not $healthy) {
 }
 
 $CID = (docker compose ps -q app)
-if (-not $CID) { Write-Error "Container-ID leer — Container läuft nicht"; exit 1 }
+if (-not $CID) { Write-Error "Container-ID leer - Container laeuft nicht"; exit 1 }
 
 Write-Host "==> 4/5  Storage (Medien) ins Volume kopieren ..."
 if (Test-Path "storage_backup") {
@@ -490,6 +531,7 @@ if (Test-Path "storage_backup") {
 docker compose exec -T app php artisan storage:link
 
 Write-Host "==> 5/5  Laravel optimieren + Typesense-Index aufbauen ..."
+docker compose exec -T app php artisan config:clear
 docker compose exec -T app php artisan optimize
 try { docker compose exec -T app php artisan typesense:setup }   catch { Write-Host "  (typesense:setup uebersprungen)" }
 try { docker compose exec -T app php artisan typesense:reindex } catch { Write-Host "  (Reindex uebersprungen)" }
