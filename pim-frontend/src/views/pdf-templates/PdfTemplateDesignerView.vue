@@ -4,6 +4,7 @@ import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { usePdfTemplateDesignerStore } from '@/stores/pdfTemplateDesigner'
 import {
   ArrowLeft, Save, Eye, Pencil, Grid3x3, Magnet, Users, Search, FileDown, ChevronDown,
+  ZoomIn, ZoomOut,
 } from 'lucide-vue-next'
 import { fontFamilies } from '@/components/pdf-templates/fontList'
 import pdfTemplatesApi from '@/api/pdfTemplates'
@@ -254,6 +255,31 @@ async function exportAs(format) {
           <option :value="5">5mm</option>
           <option :value="10">10mm</option>
         </select>
+      </div>
+
+      <!-- Zoom -->
+      <div class="flex items-center gap-1 border-l border-[var(--color-border)] pl-3">
+        <button
+          class="pim-btn pim-btn-secondary text-xs px-2 py-1"
+          @click="store.zoomOut()"
+          title="Verkleinern"
+          :disabled="store.zoomLevel <= 0.25"
+        >
+          <ZoomOut class="w-3.5 h-3.5" :stroke-width="2" />
+        </button>
+        <button
+          class="pim-input text-[11px] w-14 text-center cursor-pointer select-none"
+          @click="store.resetZoom()"
+          title="Zoom zurücksetzen (klicken)"
+        >{{ Math.round(store.zoomLevel * 100) }}%</button>
+        <button
+          class="pim-btn pim-btn-secondary text-xs px-2 py-1"
+          @click="store.zoomIn()"
+          title="Vergrößern"
+          :disabled="store.zoomLevel >= 3.0"
+        >
+          <ZoomIn class="w-3.5 h-3.5" :stroke-width="2" />
+        </button>
       </div>
 
       <!-- Shared -->

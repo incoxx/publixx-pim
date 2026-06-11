@@ -10,7 +10,7 @@ const props = defineProps({
   multiSelected: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['select', 'move', 'resize'])
+const emit = defineEmits(['select', 'move', 'resize', 'contextmenu'])
 
 const store = usePdfTemplateDesignerStore()
 const dragging = ref(false)
@@ -59,6 +59,7 @@ const displayContent = computed(() => {
   if (type === 'text') return el.content || 'Text hier eingeben'
   if (type === 'field') return el.label || `{${el.field || 'feld'}}`
   if (type === 'attribute') return el.label || '{Attribut}'
+  if (type === 'price') return el.label || '{Preis}'
   if (type === 'shape') return ''
   return ''
 })
@@ -276,12 +277,26 @@ const typeIcon = computed(() => {
   return icons[props.element.type] || Type
 })
 
+function onContextMenu(e) {
+  if (store.previewMode) return
+  e.stopPropagation()
+  e.preventDefault()
+  if (!store.isElementSelected(props.element.id)) {
+    store.selectElement(props.element.id)
+  }
+  emit('contextmenu', { x: e.clientX, y: e.clientY })
+}
+
 function onMouseDown(e) {
   if (resizing.value || store.previewMode) return
   e.stopPropagation()
 
   const addToSelection = e.ctrlKey || e.metaKey || e.shiftKey
-  emit('select', { addToSelection })
+  // When already part of a multi-selection, keep the group — don't clear on plain click
+  const alreadyInGroup = !addToSelection && store.selectedElementIds.size > 1 && store.isElementSelected(props.element.id)
+  if (!alreadyInGroup) {
+    emit('select', { addToSelection })
+  }
 
   dragging.value = true
   const startX = e.clientX
@@ -290,7 +305,7 @@ function onMouseDown(e) {
   const startElY = props.element.y || 0
 
   // Capture start positions of all selected elements for group move
-  const isMulti = store.selectedElementIds.size > 1
+  const isMulti = alreadyInGroup || store.selectedElementIds.size > 1
   const startPositions = isMulti ? new Map() : null
   if (isMulti) {
     for (const id of store.selectedElementIds) {
@@ -384,6 +399,7 @@ function onResizeStart(e, handle) {
     :style="style"
     :class="{ 'z-10': selected || multiSelected, 'cursor-default': store.previewMode }"
     @mousedown="onMouseDown"
+    @contextmenu.stop.prevent="onContextMenu"
   >
     <!-- Content -->
     <div class="w-full h-full overflow-hidden" :class="element.type === 'image' ? 'flex items-center justify-center' : ''">
@@ -597,7 +613,7 @@ function onResizeStart(e, handle) {
       v-if="selected && !store.previewMode"
       class="absolute -top-4 left-0 text-[8px] font-medium px-1 py-0.5 rounded bg-[var(--color-accent)] text-white whitespace-nowrap"
     >
-      {{ { text: 'Text', field: 'Feld', attribute: 'Attribut', image: 'Bild', shape: 'Form', variant_table: 'Varianten', relation_table: 'Beziehungen', attribute_table: 'Attr.-Tabelle', smart_table: 'Smart Table' }[element.type] || element.type }}
+      {{ { text: 'Text', field: 'Feld', attribute: 'Attribut', price: 'Preis', image: 'Bild', shape: 'Form', variant_table: 'Varianten', relation_table: 'Beziehungen', attribute_table: 'Attr.-Tabelle', smart_table: 'Smart Table' }[element.type] || element.type }}
     </div>
 
     <!-- Resize handles (only when single-selected and not in preview mode) -->

@@ -27,6 +27,12 @@ export const usePdfTemplateDesignerStore = defineStore('pdfTemplateDesigner', ()
   const showGrid = ref(true)
   const snapToGrid = ref(true)
 
+  // Zoom
+  const zoomLevel = ref(1.0)
+  function zoomIn() { zoomLevel.value = Math.min(3.0, Math.round((zoomLevel.value + 0.25) * 100) / 100) }
+  function zoomOut() { zoomLevel.value = Math.max(0.25, Math.round((zoomLevel.value - 0.25) * 100) / 100) }
+  function resetZoom() { zoomLevel.value = 1.0 }
+
   // Dirty tracking
   const isDirty = ref(false)
 
@@ -359,6 +365,7 @@ export const usePdfTemplateDesignerStore = defineStore('pdfTemplateDesigner', ()
     snapValue, getDefaultFontFamily,
     setReferenceProduct, loadPreview, togglePreviewMode, getResolvedElement,
     measureElementHeight, autofitAllElements,
+    zoomLevel, zoomIn, zoomOut, resetZoom,
   }
 })
 

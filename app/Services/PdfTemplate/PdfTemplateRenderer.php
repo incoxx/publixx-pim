@@ -39,6 +39,7 @@ class PdfTemplateRenderer
         return match ($type) {
             'field' => $this->resolveFieldElement($element, $product, $language),
             'attribute' => $this->resolveAttributeElement($element, $product, $language),
+            'price' => $this->resolvePriceElement($element, $product),
             'image' => $this->resolveImageElement($element, $product),
             'text' => $this->resolveTextElement($element, $product, $language),
             'variant_table' => $this->resolveVariantTableElement($element, $product, $language),
@@ -87,6 +88,22 @@ class PdfTemplateRenderer
             'rawUnit' => $resolved['unit'],
             'rawValues' => $resolved['values'] ?? [],
         ]);
+    }
+
+    private function resolvePriceElement(array $element, Product $product): array
+    {
+        $priceTypeId = $element['priceTypeId'] ?? '';
+        $resolved = $this->elementRenderer->resolvePriceValue($product, $priceTypeId);
+
+        $displayText = '';
+        if (!empty($element['showLabel']) && !empty($element['label'])) {
+            $displayText = $element['label'] . ': ';
+        }
+        if ($resolved['amount'] !== null) {
+            $displayText .= number_format((float) $resolved['amount'], 2, ',', '.') . ' ' . ($resolved['currency'] ?? 'EUR');
+        }
+
+        return array_merge($element, ['displayValue' => $displayText, 'rawValue' => $resolved['amount'], 'currency' => $resolved['currency']]);
     }
 
     private function resolveImageElement(array $element, Product $product): array
