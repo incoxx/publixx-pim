@@ -184,6 +184,16 @@ if grep -q '^SANCTUM_STATEFUL_DOMAINS=' "$OUTPUT_DIR/app/.env"; then
 fi
 success ".env für Container geschrieben (APP_KEY bleibt erhalten)"
 
+# ─── 4b. Entrypoint-Skript (Config-Cache vor Start leeren) ──────────────────
+cat > "$OUTPUT_DIR/docker/entrypoint.sh" << 'ENTRYPOINT'
+#!/bin/sh
+# Config-Cache leeren damit .env-Werte zur Laufzeit gelten (nicht Build-Zeit)
+cd /var/www/html
+php artisan config:clear --quiet 2>/dev/null || true
+php artisan cache:clear  --quiet 2>/dev/null || true
+exec "$@"
+ENTRYPOINT
+
 # ─── 5. Apache-VHost (DocumentRoot=public, AllowOverride All wie im Original) ─
 cat > "$OUTPUT_DIR/docker/apache/000-default.conf" << 'APACHE'
 <VirtualHost *:80>
@@ -300,6 +310,12 @@ RUN mkdir -p \
  && chmod -R 775 storage bootstrap/cache
 
 EXPOSE 80
+
+# Config-Cache vor dem Start leeren — verhindert dass gecachte Werte
+# aus der Build-Zeit (z.B. DB_HOST=127.0.0.1) zur Laufzeit gelten.
+COPY docker/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/anypim.conf"]
 DOCKERFILE
 success "Dockerfile geschrieben"
@@ -437,6 +453,7 @@ fi
 docker compose exec -T app php artisan storage:link || true
 
 echo "▶ 5/5  Laravel optimieren + Typesense-Index aufbauen ..."
+docker compose exec -T app php artisan config:clear
 docker compose exec -T app php artisan optimize
 docker compose exec -T app php artisan typesense:setup    || echo "  (typesense:setup übersprungen)"
 docker compose exec -T app php artisan typesense:reindex  || \
@@ -492,6 +509,7 @@ if (Test-Path "storage_backup") {
 docker compose exec -T app php artisan storage:link
 
 Write-Host "==> 5/5  Laravel optimieren + Typesense-Index aufbauen ..."
+docker compose exec -T app php artisan config:clear
 docker compose exec -T app php artisan optimize
 try { docker compose exec -T app php artisan typesense:setup }   catch { Write-Host "  (typesense:setup uebersprungen)" }
 try { docker compose exec -T app php artisan typesense:reindex } catch { Write-Host "  (Reindex uebersprungen)" }
