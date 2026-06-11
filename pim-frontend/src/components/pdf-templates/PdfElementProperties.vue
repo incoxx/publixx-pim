@@ -95,6 +95,12 @@ function updateNumber(key, value) {
   updateElement(key, parseFloat(value) || 0)
 }
 
+function updateLabelStyle(key, value) {
+  if (!sel.value) return
+  const labelStyle = { ...(sel.value.labelStyle || {}), [key]: value }
+  store.updateElement(sel.value.id, { labelStyle })
+}
+
 function updateTableStyle(key, value) {
   if (!sel.value) return
   const tableStyle = { ...(sel.value.tableStyle || {}), [key]: value }
@@ -140,7 +146,7 @@ function updateColumnWidth(index, value) {
 // fontFamilies + fetchAllFonts imported from fontList.js
 
 const canAutofit = computed(() => {
-  if (!sel.value || sel.value.type === 'shape' || sel.value.type === 'image' || sel.value.type === 'variant_table' || sel.value.type === 'relation_table' || sel.value.type === 'attribute_table' || sel.value.type === 'smart_table') return false
+  if (!sel.value || ['shape', 'image', 'variant_table', 'relation_table', 'attribute_table', 'smart_table'].includes(sel.value.type)) return false
   return !!store.referenceProductId && store.resolvedElements.length > 0
 })
 
@@ -164,6 +170,7 @@ const typeLabels = {
   text: 'Statischer Text',
   field: 'Datenfeld',
   attribute: 'Attribut',
+  price: 'Preis',
   image: 'Produktbild',
   shape: 'Form / Rahmen',
   variant_table: 'Variantentabelle',
@@ -279,10 +286,37 @@ const typeLabels = {
             @input="updateElement('label', $event.target.value)"
           />
         </div>
-        <label class="flex items-center gap-2 text-[11px] cursor-pointer text-[var(--color-text-secondary)]">
-          <input type="checkbox" :checked="sel.showLabel" class="rounded" @change="updateElement('showLabel', $event.target.checked)" />
-          Label anzeigen
-        </label>
+        <div class="space-y-1.5">
+          <label class="flex items-center gap-2 text-[11px] cursor-pointer text-[var(--color-text-secondary)]">
+            <input type="checkbox" :checked="sel.showLabel" class="rounded" @change="updateElement('showLabel', $event.target.checked)" />
+            Label anzeigen
+          </label>
+          <template v-if="sel.showLabel">
+            <div class="pl-4 space-y-2 border-l-2 border-[var(--color-accent)]/30 ml-1">
+              <div class="flex items-center gap-2">
+                <span class="text-[10px] text-[var(--color-text-tertiary)] w-16 shrink-0">Position</span>
+                <div class="flex gap-1">
+                  <button class="pim-btn text-[10px] px-2 py-0.5" :class="(sel.labelPosition||'left')==='left'?'pim-btn-primary':'pim-btn-secondary'" @click="updateElement('labelPosition','left')">Links</button>
+                  <button class="pim-btn text-[10px] px-2 py-0.5" :class="sel.labelPosition==='top'?'pim-btn-primary':'pim-btn-secondary'" @click="updateElement('labelPosition','top')">Oben</button>
+                </div>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="text-[10px] text-[var(--color-text-tertiary)] w-16 shrink-0">Abstand</span>
+                <input type="number" :value="sel.labelGap??2" class="pim-input text-xs w-16" min="0" max="50" step="0.5" @input="updateElement('labelGap', parseFloat($event.target.value)||0)" />
+                <span class="text-[9px] text-[var(--color-text-tertiary)]">mm</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="text-[10px] text-[var(--color-text-tertiary)] w-16 shrink-0">Schriftgröße</span>
+                <input type="number" :value="sel.labelStyle?.fontSize??sel.style?.fontSize??10" class="pim-input text-xs w-16" min="4" max="72" @input="updateLabelStyle('fontSize', parseInt($event.target.value)||10)" />
+                <span class="text-[9px] text-[var(--color-text-tertiary)]">pt</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="text-[10px] text-[var(--color-text-tertiary)] w-16 shrink-0">Farbe</span>
+                <input type="color" :value="sel.labelStyle?.color||sel.style?.color||'#000000'" class="w-8 h-6 rounded border border-[var(--color-border)] cursor-pointer" @input="updateLabelStyle('color', $event.target.value)" />
+              </div>
+            </div>
+          </template>
+        </div>
       </template>
 
       <!-- ATTRIBUTE -->
@@ -307,11 +341,38 @@ const typeLabels = {
             @input="updateElement('label', $event.target.value)"
           />
         </div>
-        <div class="space-y-1">
-          <label class="flex items-center gap-2 text-[11px] cursor-pointer text-[var(--color-text-secondary)]">
-            <input type="checkbox" :checked="sel.showLabel" class="rounded" @change="updateElement('showLabel', $event.target.checked)" />
-            Label anzeigen
-          </label>
+        <div class="space-y-1.5">
+          <div class="space-y-1.5">
+            <label class="flex items-center gap-2 text-[11px] cursor-pointer text-[var(--color-text-secondary)]">
+              <input type="checkbox" :checked="sel.showLabel" class="rounded" @change="updateElement('showLabel', $event.target.checked)" />
+              Label anzeigen
+            </label>
+            <template v-if="sel.showLabel">
+              <div class="pl-4 space-y-2 border-l-2 border-[var(--color-accent)]/30 ml-1">
+                <div class="flex items-center gap-2">
+                  <span class="text-[10px] text-[var(--color-text-tertiary)] w-16 shrink-0">Position</span>
+                  <div class="flex gap-1">
+                    <button class="pim-btn text-[10px] px-2 py-0.5" :class="(sel.labelPosition||'left')==='left'?'pim-btn-primary':'pim-btn-secondary'" @click="updateElement('labelPosition','left')">Links</button>
+                    <button class="pim-btn text-[10px] px-2 py-0.5" :class="sel.labelPosition==='top'?'pim-btn-primary':'pim-btn-secondary'" @click="updateElement('labelPosition','top')">Oben</button>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="text-[10px] text-[var(--color-text-tertiary)] w-16 shrink-0">Abstand</span>
+                  <input type="number" :value="sel.labelGap??2" class="pim-input text-xs w-16" min="0" max="50" step="0.5" @input="updateElement('labelGap', parseFloat($event.target.value)||0)" />
+                  <span class="text-[9px] text-[var(--color-text-tertiary)]">mm</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="text-[10px] text-[var(--color-text-tertiary)] w-16 shrink-0">Schriftgröße</span>
+                  <input type="number" :value="sel.labelStyle?.fontSize??sel.style?.fontSize??10" class="pim-input text-xs w-16" min="4" max="72" @input="updateLabelStyle('fontSize', parseInt($event.target.value)||10)" />
+                  <span class="text-[9px] text-[var(--color-text-tertiary)]">pt</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="text-[10px] text-[var(--color-text-tertiary)] w-16 shrink-0">Farbe</span>
+                  <input type="color" :value="sel.labelStyle?.color||sel.style?.color||'#000000'" class="w-8 h-6 rounded border border-[var(--color-border)] cursor-pointer" @input="updateLabelStyle('color', $event.target.value)" />
+                </div>
+              </div>
+            </template>
+          </div>
           <label class="flex items-center gap-2 text-[11px] cursor-pointer text-[var(--color-text-secondary)]">
             <input type="checkbox" :checked="sel.showValue !== false" class="rounded" @change="updateElement('showValue', $event.target.checked)" />
             Wert anzeigen
@@ -320,6 +381,61 @@ const typeLabels = {
             <input type="checkbox" :checked="sel.showUnit" class="rounded" @change="updateElement('showUnit', $event.target.checked)" />
             Einheit anzeigen
           </label>
+        </div>
+      </template>
+
+      <!-- PRICE -->
+      <template v-if="sel.type === 'price'">
+        <div>
+          <label class="block text-[10px] font-medium text-[var(--color-text-tertiary)] mb-0.5">Preisart</label>
+          <select
+            :value="sel.priceTypeId"
+            class="pim-input text-xs w-full"
+            @change="updateElement('priceTypeId', $event.target.value)"
+          >
+            <option v-for="pt in (store.availableFields?.price_types || [])" :key="pt.priceTypeId" :value="pt.priceTypeId">
+              {{ pt.label_de }} ({{ pt.technical_name }})
+            </option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-[10px] font-medium text-[var(--color-text-tertiary)] mb-0.5">Label</label>
+          <input
+            :value="sel.label"
+            class="pim-input text-xs w-full"
+            @input="updateElement('label', $event.target.value)"
+          />
+        </div>
+        <div class="space-y-1.5">
+          <label class="flex items-center gap-2 text-[11px] cursor-pointer text-[var(--color-text-secondary)]">
+            <input type="checkbox" :checked="sel.showLabel" class="rounded" @change="updateElement('showLabel', $event.target.checked)" />
+            Label anzeigen
+          </label>
+          <template v-if="sel.showLabel">
+            <div class="pl-4 space-y-2 border-l-2 border-[var(--color-accent)]/30 ml-1">
+              <div class="flex items-center gap-2">
+                <span class="text-[10px] text-[var(--color-text-tertiary)] w-16 shrink-0">Position</span>
+                <div class="flex gap-1">
+                  <button class="pim-btn text-[10px] px-2 py-0.5" :class="(sel.labelPosition||'left')==='left'?'pim-btn-primary':'pim-btn-secondary'" @click="updateElement('labelPosition','left')">Links</button>
+                  <button class="pim-btn text-[10px] px-2 py-0.5" :class="sel.labelPosition==='top'?'pim-btn-primary':'pim-btn-secondary'" @click="updateElement('labelPosition','top')">Oben</button>
+                </div>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="text-[10px] text-[var(--color-text-tertiary)] w-16 shrink-0">Abstand</span>
+                <input type="number" :value="sel.labelGap??2" class="pim-input text-xs w-16" min="0" max="50" step="0.5" @input="updateElement('labelGap', parseFloat($event.target.value)||0)" />
+                <span class="text-[9px] text-[var(--color-text-tertiary)]">mm</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="text-[10px] text-[var(--color-text-tertiary)] w-16 shrink-0">Schriftgröße</span>
+                <input type="number" :value="sel.labelStyle?.fontSize??sel.style?.fontSize??10" class="pim-input text-xs w-16" min="4" max="72" @input="updateLabelStyle('fontSize', parseInt($event.target.value)||10)" />
+                <span class="text-[9px] text-[var(--color-text-tertiary)]">pt</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="text-[10px] text-[var(--color-text-tertiary)] w-16 shrink-0">Farbe</span>
+                <input type="color" :value="sel.labelStyle?.color||sel.style?.color||'#000000'" class="w-8 h-6 rounded border border-[var(--color-border)] cursor-pointer" @input="updateLabelStyle('color', $event.target.value)" />
+              </div>
+            </div>
+          </template>
         </div>
       </template>
 
@@ -621,8 +737,8 @@ const typeLabels = {
         @save="onSaveSmartTablePtl"
       />
 
-      <!-- Typography (for text, field, attribute) -->
-      <template v-if="['text', 'field', 'attribute'].includes(sel.type)">
+      <!-- Typography (for text, field, attribute, price) -->
+      <template v-if="['text', 'field', 'attribute', 'price'].includes(sel.type)">
         <div class="border-t border-[var(--color-border)] pt-3">
           <div class="text-[10px] font-semibold text-[var(--color-text-tertiary)] mb-2">Typografie</div>
 

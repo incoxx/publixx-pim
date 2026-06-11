@@ -261,6 +261,69 @@ function flattenCols(columns, flat) {
   }
 }
 
+// ── Split Label+Value rendering ───────────────────────
+const showSplitLabel = computed(() => {
+  const el = props.element
+  return !!(el.showLabel && ['field', 'attribute', 'price'].includes(el.type))
+})
+
+const labelDisplayText = computed(() => {
+  return props.element.label || 'Label'
+})
+
+const valueDisplayText = computed(() => {
+  const el = props.element
+  const type = el.type
+
+  if (store.previewMode && store.resolvedElements.length > 0) {
+    const resolved = store.getResolvedElement(el.id)
+    if (resolved) {
+      if (type === 'attribute') {
+        return [resolved.rawValue, resolved.rawUnit].filter(v => v !== null && v !== undefined && v !== '').join(' ')
+      }
+      if (type === 'field') return resolved.rawValue ?? ''
+      if (type === 'price') {
+        if (resolved.rawValue != null) {
+          return Number(resolved.rawValue).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ' + (resolved.currency || 'EUR')
+        }
+        return ''
+      }
+    }
+  }
+
+  // Design-Modus Platzhalter
+  if (type === 'field') return `{${el.field || 'Feld'}}`
+  if (type === 'attribute') return '{Wert}'
+  if (type === 'price') return '{0,00 EUR}'
+  return ''
+})
+
+const labelContainerStyle = computed(() => {
+  const el = props.element
+  const pos = el.labelPosition || 'left'
+  const gapMm = el.labelGap ?? 2
+  return {
+    display: 'flex',
+    flexDirection: pos === 'top' ? 'column' : 'row',
+    alignItems: pos === 'top' ? 'flex-start' : 'baseline',
+    gap: (gapMm * props.scale) + 'px',
+    width: '100%',
+  }
+})
+
+const labelSpanStyle = computed(() => {
+  const el = props.element
+  const s = el.style || {}
+  const ls = el.labelStyle || {}
+  const pxPerPt = (25.4 / 72) * props.scale
+  return {
+    fontSize: ((ls.fontSize ?? s.fontSize ?? 10) * pxPerPt) + 'px',
+    color: ls.color || s.color || '#000000',
+    fontWeight: ls.fontWeight || s.fontWeight || 'normal',
+    flexShrink: '0',
+  }
+})
+
 const previewImageUrl = computed(() => {
   if (!store.previewMode || !store.resolvedElements.length) return null
   const el = props.element
@@ -604,7 +667,16 @@ function onResizeStart(e, handle) {
         <!-- Shape: purely visual box, content comes from background/border -->
       </template>
       <template v-else>
-        <span class="block w-full" :class="{ 'opacity-50': !store.previewMode && element.type !== 'text' }">{{ displayContent }}</span>
+        <!-- Split label + value for field/attribute/price with showLabel -->
+        <template v-if="showSplitLabel">
+          <div :style="labelContainerStyle">
+            <span :style="labelSpanStyle">{{ labelDisplayText }}</span>
+            <span :class="{ 'opacity-50': !store.previewMode }">{{ valueDisplayText }}</span>
+          </div>
+        </template>
+        <template v-else>
+          <span class="block w-full" :class="{ 'opacity-50': !store.previewMode && element.type !== 'text' }">{{ displayContent }}</span>
+        </template>
       </template>
     </div>
 

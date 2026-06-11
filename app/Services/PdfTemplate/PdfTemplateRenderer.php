@@ -55,14 +55,15 @@ class PdfTemplateRenderer
     {
         $field = $element['field'] ?? '';
         $value = $this->elementRenderer->resolveFieldValue($product, $field, $language);
+        $label = $element['label'] ?? '';
 
         $displayText = '';
-        if (!empty($element['showLabel']) && !empty($element['label'])) {
-            $displayText = $element['label'] . ': ';
+        if (!empty($element['showLabel']) && $label) {
+            $displayText = $label . ': ';
         }
         $displayText .= $value;
 
-        return array_merge($element, ['displayValue' => $displayText, 'rawValue' => $value]);
+        return array_merge($element, ['displayValue' => $displayText, 'rawValue' => $value, 'rawLabel' => $label]);
     }
 
     private function resolveAttributeElement(array $element, Product $product, string $language): array
@@ -103,7 +104,12 @@ class PdfTemplateRenderer
             $displayText .= number_format((float) $resolved['amount'], 2, ',', '.') . ' ' . ($resolved['currency'] ?? 'EUR');
         }
 
-        return array_merge($element, ['displayValue' => $displayText, 'rawValue' => $resolved['amount'], 'currency' => $resolved['currency']]);
+        return array_merge($element, [
+            'displayValue' => $displayText,
+            'rawValue'     => $resolved['amount'],
+            'rawLabel'     => $element['label'] ?? '',
+            'currency'     => $resolved['currency'],
+        ]);
     }
 
     private function resolveImageElement(array $element, Product $product): array
