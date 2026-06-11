@@ -2,12 +2,12 @@
 import { ref, computed } from 'vue'
 import { usePdfTemplateDesignerStore } from '@/stores/pdfTemplateDesigner'
 import {
-  Type, Hash, Tag, Image, Square, Table2, GripVertical, Search, Network, List, LayoutGrid,
+  Type, Hash, Tag, Image, Square, Table2, GripVertical, Search, Network, List, LayoutGrid, DollarSign,
 } from 'lucide-vue-next'
 
 const store = usePdfTemplateDesignerStore()
 const searchQuery = ref('')
-const expandedGroups = ref({ base: true, layout: true })
+const expandedGroups = ref({ base: true, layout: true, prices: true })
 
 const filteredAttributes = computed(() => {
   if (!store.availableFields?.attributes) return []
@@ -126,6 +126,31 @@ function onDoubleClick(item) {
           <GripVertical class="w-3 h-3 text-[var(--color-text-tertiary)]" :stroke-width="1.5" />
           <component :is="getIcon(el.type)" class="w-3 h-3 text-[var(--color-accent)]" :stroke-width="2" />
           <span>{{ el.label_de }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Price Types -->
+    <div v-if="store.availableFields?.price_types?.length">
+      <button
+        class="text-[11px] font-semibold text-[var(--color-text-secondary)] w-full text-left py-1 hover:text-[var(--color-text-primary)]"
+        @click="toggleGroup('prices')"
+      >
+        {{ expandedGroups.prices ? '▾' : '▸' }} Preise
+      </button>
+      <div v-if="expandedGroups.prices" class="space-y-0.5">
+        <div
+          v-for="pt in store.availableFields.price_types"
+          :key="pt.priceTypeId"
+          class="flex items-center gap-2 px-2 py-1 rounded text-[11px] hover:bg-[var(--color-bg)] text-[var(--color-text-secondary)] cursor-grab"
+          draggable="true"
+          @dragstart="onDragStart($event, { type: 'price', priceTypeId: pt.priceTypeId, label: pt.label_de, showLabel: true })"
+          @dblclick="onDoubleClick({ type: 'price', priceTypeId: pt.priceTypeId, label: pt.label_de, showLabel: true })"
+          :title="pt.technical_name"
+        >
+          <GripVertical class="w-3 h-3 text-[var(--color-text-tertiary)]" :stroke-width="1.5" />
+          <DollarSign class="w-3 h-3 text-amber-500" :stroke-width="2" />
+          <span class="truncate">{{ pt.label_de }}</span>
         </div>
       </div>
     </div>

@@ -142,7 +142,10 @@ class DocxPdfTemplateWriter
         }
         $textBox = $section->addTextBox($textBoxStyle);
 
-        if ($displayValue !== '') {
+        $showSplitLabel = !empty($element['showLabel']) && !empty($element['rawLabel']);
+        if ($showSplitLabel) {
+            $this->renderSplitLabel($textBox, $element, $style);
+        } elseif ($displayValue !== '') {
             $fontStyle = $this->buildFontStyle($style);
             $paragraphStyle = $this->buildParagraphStyle($style);
             $textBox->addText($displayValue, $fontStyle, $paragraphStyle);
@@ -284,24 +287,94 @@ class DocxPdfTemplateWriter
         }
     }
 
-    private function buildFontStyle(array $style): array
+    /**
+     * Build value text for split-label rendering (price/attribute/field).
+     */
+    private function buildValueText(array $element): string
     {
-        $fontStyle = [];
+        $type = $element['type'] ?? 'text';
+        if ($type === 'price') {
+            $amount = $element['rawValue'] ?? null;
+            return $amount !== null
+                ? number_format((float) $amount, 2, ',', '.') . ' ' . ($element['currency'] ?? 'EUR')
+                : '';
+        }
+        if ($type === 'attribute') {
+            $value = (string) ($element['rawValue'] ?? '');
+            if (!empty($element['showUnit']) && !empty($element['rawUnit'])) {
+                $value = trim($value . ' ' . $element['rawUnit']);
+            }
+            return $value;
+        }
+        return (string) ($element['rawValue'] ?? '');
+    }
 
-        if (!empty($style['fontFamily'])) {
-            $fontStyle['name'] = $style['fontFamily'];
+    /**
+     * Render label + value as separate styled runs/paragraphs in a TextBox.
+     */
+    private function renderSplitLabel($textBox, array $element, array $style): void
+    {
+        $labelText    = ($element['rawLabel'] ?? '') . ':';
+        $valueText    = $this->buildValueText($element);
+        $labelStyle   = $element['labelStyle'] ?? [];
+        $labelPos     = $element['labelPosition'] ?? 'left';
+        $labelGapMm   = (float) ($element['labelGap'] ?? 2);
+
+        $mainFont  = $this->buildFontStyle($style);
+        $labelFont = $this->buildFontStyle($style, $labelStyle);
+        $paraStyle = $this->buildParagraphStyle($style);
+
+        if ($labelPos === 'top') {
+            $gapTwip = (int) round($labelGapMm * self::MM_TO_TWIP);
+            $labelParaStyle = array_merge($paraStyle, ['spaceAfter' => $gapTwip]);
+            $textBox->addText(
+                htmlspecialchars($labelText, ENT_XML1, 'UTF-8'),
+                $labelFont,
+                $labelParaStyle
+            );
+            if ($valueText !== '') {
+                $textBox->addText(
+                    htmlspecialchars($valueText, ENT_XML1, 'UTF-8'),
+                    $mainFont,
+                    $paraStyle
+                );
+            }
+        } else {
+            // left: label + gap + value in one paragraph as text runs
+            $run = $textBox->addTextRun($paraStyle);
+            $run->addText(htmlspecialchars($labelText, ENT_XML1, 'UTF-8'), $labelFont);
+            // Approximate gap as em-spaces (1 space ≈ 0.5–1 mm at 10pt)
+            $spaces = max(1, (int) round($labelGapMm * 1.5));
+            $run->addText(str_repeat(' ', $spaces), $mainFont);
+            if ($valueText !== '') {
+                $run->addText(htmlspecialchars($valueText, ENT_XML1, 'UTF-8'), $mainFont);
+            }
         }
-        if (!empty($style['fontSize'])) {
-            $fontStyle['size'] = (int) $style['fontSize'];
+    }
+
+    private function buildFontStyle(array $style, array $overrides = []): array
+    {
+        // Override fontSize and color from labelStyle where set
+        $merged = $style;
+        if (!empty($overrides['fontSize'])) $merged['fontSize'] = $overrides['fontSize'];
+        if (!empty($overrides['color'])) $merged['color'] = $overrides['color'];
+        if (!empty($overrides['fontWeight'])) $merged['fontWeight'] = $overrides['fontWeight'];
+
+        $fontStyle = [];
+        if (!empty($merged['fontFamily'])) {
+            $fontStyle['name'] = $merged['fontFamily'];
         }
-        if (($style['fontWeight'] ?? 'normal') === 'bold') {
+        if (!empty($merged['fontSize'])) {
+            $fontStyle['size'] = (int) $merged['fontSize'];
+        }
+        if (($merged['fontWeight'] ?? 'normal') === 'bold') {
             $fontStyle['bold'] = true;
         }
-        if (($style['fontStyle'] ?? 'normal') === 'italic') {
+        if (($merged['fontStyle'] ?? 'normal') === 'italic') {
             $fontStyle['italic'] = true;
         }
-        if (!empty($style['color'])) {
-            $fontStyle['color'] = ltrim($style['color'], '#');
+        if (!empty($merged['color'])) {
+            $fontStyle['color'] = ltrim($merged['color'], '#');
         }
 
         return $fontStyle;

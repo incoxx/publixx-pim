@@ -59,7 +59,11 @@ class InDesignJsxWriter
                     }
                 }
 
-                // Collect colors
+                // Collect colors (inkl. Label-Farbe)
+                if (!empty($processed['labelParts']['color'])) {
+                    $hex = $processed['labelParts']['color'];
+                    $usedColors[$hex] = ['hex' => $hex, 'name' => 'Publixx_' . ltrim($hex, '#')];
+                }
                 foreach (['color', 'backgroundColor', 'borderColor', 'headerBg', 'headerColor', 'altRowBg'] as $colorProp) {
                     if (!empty($processed[$colorProp]) && $processed[$colorProp] !== 'transparent') {
                         $hex = $processed[$colorProp];
@@ -140,7 +144,7 @@ class InDesignJsxWriter
         $style = $element['style'] ?? [];
 
         return match ($type) {
-            'field', 'attribute', 'text' => $this->convertTextElement($base, $element, $style),
+            'field', 'attribute', 'price', 'text' => $this->convertTextElement($base, $element, $style),
             'image' => $this->convertImageElement($base, $element, $style),
             'variant_table', 'relation_table', 'attribute_table' => $this->convertVariantTableElement($base, $element, $style),
             'smart_table' => $this->convertSmartTableElement($base, $element, $style),
@@ -149,24 +153,75 @@ class InDesignJsxWriter
         };
     }
 
+    /**
+     * Build display value string for price/attribute/field (used for split-label InDesign export).
+     */
+    private function buildValueText(array $element): string
+    {
+        $type = $element['type'] ?? 'text';
+        if ($type === 'price') {
+            $amount = $element['rawValue'] ?? null;
+            return $amount !== null
+                ? number_format((float) $amount, 2, ',', '.') . ' ' . ($element['currency'] ?? 'EUR')
+                : '';
+        }
+        if ($type === 'attribute') {
+            $value = (string) ($element['rawValue'] ?? '');
+            if (!empty($element['showUnit']) && !empty($element['rawUnit'])) {
+                $value = trim($value . ' ' . $element['rawUnit']);
+            }
+            return $value;
+        }
+        return (string) ($element['rawValue'] ?? '');
+    }
+
     private function convertTextElement(array $base, array $element, array $style): array
     {
-        $fontSize = (float) ($style['fontSize'] ?? 10);
+        $fontSize   = (float) ($style['fontSize'] ?? 10);
+        $showLabel  = !empty($element['showLabel']) && !empty($element['rawLabel']);
+        $labelStyle = $element['labelStyle'] ?? [];
+        $labelPos   = $element['labelPosition'] ?? 'left';
+        $labelGapPt = $this->mmToPt((float) ($element['labelGap'] ?? 2));
+
+        // Determine content for InDesign (split or combined)
+        if ($showLabel) {
+            $labelText = ($element['rawLabel'] ?? '') . ':';
+            $valueText = $this->buildValueText($element);
+            // \r = InDesign paragraph separator; \t = tab for left layout
+            $content = $labelPos === 'top'
+                ? $labelText . "\r" . $valueText
+                : $labelText . "\t" . $valueText;
+            $labelParts = [
+                'label'      => $labelText,
+                'value'      => $valueText,
+                'position'   => $labelPos,
+                'gapPt'      => $labelGapPt,
+                'fontSize'   => !empty($labelStyle['fontSize']) ? (float) $labelStyle['fontSize'] : $fontSize,
+                'color'      => $labelStyle['color'] ?? null,
+                'fontWeight' => !empty($labelStyle['fontWeight'])
+                    ? $this->fontWeightToNumber($labelStyle['fontWeight'])
+                    : null,
+            ];
+        } else {
+            $content    = $element['displayValue'] ?? '';
+            $labelParts = null;
+        }
 
         return array_merge($base, [
-            'type' => 'text',
-            'content' => $element['displayValue'] ?? '',
-            'fontSize' => $fontSize,
-            'fontFamily' => $style['fontFamily'] ?? 'Arial',
-            'fontWeight' => $this->fontWeightToNumber($style['fontWeight'] ?? 'normal'),
-            'fontStyle' => $style['fontStyle'] ?? 'normal',
-            'color' => $style['color'] ?? null,
-            'textAlign' => $style['textAlign'] ?? 'left',
-            'lineHeight' => !empty($style['lineHeight'])
+            'type'            => 'text',
+            'content'         => $content,
+            'fontSize'        => $fontSize,
+            'fontFamily'      => $style['fontFamily'] ?? 'Arial',
+            'fontWeight'      => $this->fontWeightToNumber($style['fontWeight'] ?? 'normal'),
+            'fontStyle'       => $style['fontStyle'] ?? 'normal',
+            'color'           => $style['color'] ?? null,
+            'textAlign'       => $style['textAlign'] ?? 'left',
+            'lineHeight'      => !empty($style['lineHeight'])
                 ? round($fontSize * (float) $style['lineHeight'], 2)
                 : null,
             'backgroundColor' => $this->normalizeColor($style['backgroundColor'] ?? null),
-            'padding' => !empty($style['padding']) ? $this->mmToPt((float) $style['padding']) : 0,
+            'padding'         => !empty($style['padding']) ? $this->mmToPt((float) $style['padding']) : 0,
+            'labelParts'      => $labelParts,
         ]);
     }
 
@@ -768,6 +823,35 @@ JSX;
     if (el.padding) {
       var p = typeof el.padding === "number" ? el.padding : 0;
       tf.textFramePreferences.insetSpacing = [p, p, p, p];
+    }
+
+    // Label-spezifisches Styling (Schriftgröße, Farbe) auf Label-Zeichen anwenden
+    if (el.labelParts && tf.parentStory) {
+      var lp = el.labelParts;
+      var story = tf.parentStory;
+      var labelLen = lp.label ? lp.label.length : 0;
+      if (labelLen > 0) {
+        try {
+          var labelRange = story.characters.itemByRange(0, labelLen - 1);
+          if (lp.fontSize) { try { labelRange.pointSize = lp.fontSize; } catch (e) {} }
+          if (lp.color) { try { labelRange.fillColor = getColor(doc, lp.color); } catch (e) {} }
+          if (lp.fontWeight && lp.fontWeight >= 600) {
+            try { labelRange.fontStyle = "Bold"; } catch (e) {}
+          }
+        } catch (e) {}
+        // Zeilenabstand nach dem Label-Absatz (nur bei Oben-Layout)
+        if (lp.position === "top" && lp.gapPt) {
+          try { story.paragraphs.item(0).spaceAfter = lp.gapPt; } catch (e) {}
+        }
+        // Tab-Stop für Links-Layout
+        if (lp.position !== "top" && lp.gapPt) {
+          try {
+            var para = story.paragraphs.item(0);
+            var approxLabelWidthPt = labelLen * (el.fontSize || 10) * 0.5;
+            para.tabStops = [{ alignment: TabStopAlignment.LEFT_ALIGN, position: approxLabelWidthPt + lp.gapPt }];
+          } catch (e) {}
+        }
+      }
     }
 
     return tf;

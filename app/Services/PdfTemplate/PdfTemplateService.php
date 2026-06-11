@@ -260,10 +260,14 @@ class PdfTemplateService
         $hasImages = false;
         $hasVariantTable = false;
         $hasRelationTable = false;
+        $hasPrices = false;
 
         foreach ($templateJson['elements'] ?? [] as $element) {
             if (($element['type'] ?? '') === 'attribute') {
                 $hasAttributes = true;
+            }
+            if (($element['type'] ?? '') === 'price') {
+                $hasPrices = true;
             }
             if (($element['type'] ?? '') === 'image') {
                 $hasImages = true;
@@ -287,6 +291,10 @@ class PdfTemplateService
                     $hasAttributes = true;
                 }
             }
+        }
+
+        if ($hasPrices) {
+            $relations[] = 'prices';
         }
 
         if ($hasAttributes) {

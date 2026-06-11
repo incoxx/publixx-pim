@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { usePdfTemplateDesignerStore } from '@/stores/pdfTemplateDesigner'
 import PdfCanvasElement from './PdfCanvasElement.vue'
+import { Copy, Clipboard, Trash2, Copy as Duplicate } from 'lucide-vue-next'
 
 // Load Google Fonts for canvas preview (Roboto, Open Sans, Lato, Noto Sans/Serif, Source Sans 3)
 const googleFontFamilies = ['Roboto', 'Open+Sans', 'Lato', 'Noto+Sans', 'Noto+Serif', 'Source+Sans+3']
@@ -30,10 +31,11 @@ const pageHeight = computed(() => {
   return t.pageHeight || 297
 })
 
-// Scale to fit container with some padding
+// Scale: auto-fit × user zoom level
 const scale = computed(() => {
   const availableWidth = containerWidth.value - 40
-  return Math.min(1, availableWidth / pageWidth.value) * (96 / 25.4) // mm to px at 96dpi, then scale
+  const fitScale = Math.min(1, availableWidth / pageWidth.value) * (96 / 25.4)
+  return fitScale * store.zoomLevel
 })
 
 const canvasStyle = computed(() => ({
@@ -65,10 +67,18 @@ onMounted(() => {
   updateContainerWidth()
   resizeObserver = new ResizeObserver(updateContainerWidth)
   if (canvasContainer.value) resizeObserver.observe(canvasContainer.value)
+  document.addEventListener('click', closeContextMenu)
+  document.addEventListener('contextmenu', closeContextMenuOnOutside)
 })
 onBeforeUnmount(() => {
   resizeObserver?.disconnect()
+  document.removeEventListener('click', closeContextMenu)
+  document.removeEventListener('contextmenu', closeContextMenuOnOutside)
 })
+
+function closeContextMenuOnOutside() {
+  if (contextMenu.value) closeContextMenu()
+}
 
 function onCanvasClick(e) {
   // Click on empty canvas area → clear selection (unless Ctrl/Shift held)
@@ -199,6 +209,9 @@ function getElementDefaults(item) {
   if (item.type === 'attribute') {
     return { ...base, attributeId: item.attributeId, label: item.label, showLabel: true, showValue: true, showUnit: true }
   }
+  if (item.type === 'price') {
+    return { ...base, priceTypeId: item.priceTypeId, label: item.label, showLabel: true }
+  }
   if (item.type === 'text') {
     return { ...base, content: item.content || 'Text hier eingeben' }
   }
@@ -283,6 +296,52 @@ function getElementDefaults(item) {
   return base
 }
 
+// ── Context Menu ─────────────────────────────────────
+const contextMenu = ref(null) // { x, y, elementId: string|null }
+
+function showContextMenu(x, y, elementId) {
+  contextMenu.value = { x, y, elementId }
+}
+
+function closeContextMenu() {
+  contextMenu.value = null
+}
+
+function onCanvasContextMenu(e) {
+  if (store.previewMode) return
+  e.preventDefault()
+  showContextMenu(e.clientX, e.clientY, null)
+}
+
+function onElementContextMenu(elementId, { x, y }) {
+  if (store.previewMode) return
+  showContextMenu(x, y, elementId)
+}
+
+function ctxCopy() {
+  store.copySelectedElements()
+  closeContextMenu()
+}
+
+function ctxPaste() {
+  store.pasteElements()
+  closeContextMenu()
+}
+
+function ctxDuplicate(elementId) {
+  store.duplicateElement(elementId)
+  closeContextMenu()
+}
+
+function ctxDelete() {
+  if (store.selectedElementIds.size > 1) {
+    store.removeSelectedElements()
+  } else if (store.selectedElementId) {
+    store.removeElement(store.selectedElementId)
+  }
+  closeContextMenu()
+}
+
 function onKeyDown(e) {
   if (store.previewMode) return
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return
@@ -359,6 +418,7 @@ function onKeyDown(e) {
     class="flex-1 flex items-start justify-center overflow-auto p-5 bg-[var(--color-bg)]"
     tabindex="0"
     @keydown="onKeyDown"
+    @click.self="closeContextMenu"
   >
     <div
       class="relative shadow-lg border border-[var(--color-border)] shrink-0 canvas-inner"
@@ -367,6 +427,7 @@ function onKeyDown(e) {
       @mousedown="onCanvasMouseDown"
       @drop="onDrop"
       @dragover="onDragOver"
+      @contextmenu.prevent="onCanvasContextMenu"
     >
       <!-- Empty state -->
       <div
@@ -390,6 +451,7 @@ function onKeyDown(e) {
         @select="(opts) => store.selectElement(el.id, opts?.addToSelection)"
         @move="onElementMove(el.id, $event)"
         @resize="onElementResize(el.id, $event)"
+        @contextmenu="onElementContextMenu(el.id, $event)"
       />
 
       <!-- Rubber-band selection rectangle -->
@@ -404,5 +466,64 @@ function onKeyDown(e) {
         }"
       />
     </div>
+
+    <!-- Context Menu (rendered outside canvas div so it's not clipped) -->
+    <Teleport to="body">
+      <div
+        v-if="contextMenu"
+        class="fixed z-[9999] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg shadow-xl py-1 min-w-[160px] text-[12px]"
+        :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }"
+        @click.stop
+      >
+        <template v-if="contextMenu.elementId">
+          <button
+            class="w-full text-left px-3 py-1.5 hover:bg-[var(--color-bg)] flex items-center gap-2 text-[var(--color-text-primary)]"
+            @click="ctxCopy"
+          >
+            <Copy class="w-3.5 h-3.5 text-[var(--color-text-tertiary)]" :stroke-width="2" />
+            Kopieren
+          </button>
+          <button
+            v-if="store.clipboard.length > 0"
+            class="w-full text-left px-3 py-1.5 hover:bg-[var(--color-bg)] flex items-center gap-2 text-[var(--color-text-primary)]"
+            @click="ctxPaste"
+          >
+            <Clipboard class="w-3.5 h-3.5 text-[var(--color-text-tertiary)]" :stroke-width="2" />
+            Einfügen
+          </button>
+          <button
+            class="w-full text-left px-3 py-1.5 hover:bg-[var(--color-bg)] flex items-center gap-2 text-[var(--color-text-primary)]"
+            @click="ctxDuplicate(contextMenu.elementId)"
+          >
+            <Duplicate class="w-3.5 h-3.5 text-[var(--color-text-tertiary)]" :stroke-width="2" />
+            Duplizieren
+          </button>
+          <div class="border-t border-[var(--color-border)] my-1" />
+          <button
+            class="w-full text-left px-3 py-1.5 hover:bg-[var(--color-bg)] flex items-center gap-2 text-[var(--color-error)]"
+            @click="ctxDelete"
+          >
+            <Trash2 class="w-3.5 h-3.5" :stroke-width="2" />
+            Löschen
+          </button>
+        </template>
+        <template v-else>
+          <button
+            v-if="store.clipboard.length > 0"
+            class="w-full text-left px-3 py-1.5 hover:bg-[var(--color-bg)] flex items-center gap-2 text-[var(--color-text-primary)]"
+            @click="ctxPaste"
+          >
+            <Clipboard class="w-3.5 h-3.5 text-[var(--color-text-tertiary)]" :stroke-width="2" />
+            Einfügen
+          </button>
+          <button
+            class="w-full text-left px-3 py-1.5 hover:bg-[var(--color-bg)] flex items-center gap-2 text-[var(--color-text-primary)]"
+            @click="() => { store.selectAllElements(); closeContextMenu() }"
+          >
+            Alles auswählen
+          </button>
+        </template>
+      </div>
+    </Teleport>
   </div>
 </template>

@@ -39,6 +39,7 @@ class PdfTemplateRenderer
         return match ($type) {
             'field' => $this->resolveFieldElement($element, $product, $language),
             'attribute' => $this->resolveAttributeElement($element, $product, $language),
+            'price' => $this->resolvePriceElement($element, $product),
             'image' => $this->resolveImageElement($element, $product),
             'text' => $this->resolveTextElement($element, $product, $language),
             'variant_table' => $this->resolveVariantTableElement($element, $product, $language),
@@ -54,14 +55,15 @@ class PdfTemplateRenderer
     {
         $field = $element['field'] ?? '';
         $value = $this->elementRenderer->resolveFieldValue($product, $field, $language);
+        $label = $element['label'] ?? '';
 
         $displayText = '';
-        if (!empty($element['showLabel']) && !empty($element['label'])) {
-            $displayText = $element['label'] . ': ';
+        if (!empty($element['showLabel']) && $label) {
+            $displayText = $label . ': ';
         }
         $displayText .= $value;
 
-        return array_merge($element, ['displayValue' => $displayText, 'rawValue' => $value]);
+        return array_merge($element, ['displayValue' => $displayText, 'rawValue' => $value, 'rawLabel' => $label]);
     }
 
     private function resolveAttributeElement(array $element, Product $product, string $language): array
@@ -86,6 +88,27 @@ class PdfTemplateRenderer
             'rawLabel' => $resolved['label'],
             'rawUnit' => $resolved['unit'],
             'rawValues' => $resolved['values'] ?? [],
+        ]);
+    }
+
+    private function resolvePriceElement(array $element, Product $product): array
+    {
+        $priceTypeId = $element['priceTypeId'] ?? '';
+        $resolved = $this->elementRenderer->resolvePriceValue($product, $priceTypeId);
+
+        $displayText = '';
+        if (!empty($element['showLabel']) && !empty($element['label'])) {
+            $displayText = $element['label'] . ': ';
+        }
+        if ($resolved['amount'] !== null) {
+            $displayText .= number_format((float) $resolved['amount'], 2, ',', '.') . ' ' . ($resolved['currency'] ?? 'EUR');
+        }
+
+        return array_merge($element, [
+            'displayValue' => $displayText,
+            'rawValue'     => $resolved['amount'],
+            'rawLabel'     => $element['label'] ?? '',
+            'currency'     => $resolved['currency'],
         ]);
     }
 

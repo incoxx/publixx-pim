@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Models\Attribute;
 use App\Models\PdfTemplate;
+use App\Models\PriceType;
 use App\Models\Product;
 use App\Services\PdfTemplate\PdfTemplateRenderer;
 use App\Services\PdfTemplate\PdfTemplateService;
@@ -127,11 +128,23 @@ class PdfTemplateController extends Controller
             ['type' => 'smart_table', 'label_de' => 'Smart Table', 'label_en' => 'Smart Table', 'category' => 'layout'],
         ];
 
+        $priceTypes = PriceType::query()
+            ->orderBy('name_de')
+            ->get()
+            ->map(fn ($pt) => [
+                'priceTypeId' => $pt->id,
+                'technical_name' => $pt->technical_name,
+                'label_de' => $pt->name_de,
+                'label_en' => $pt->name_en,
+                'category' => 'price',
+            ]);
+
         return response()->json([
             'data' => [
                 'base_fields' => $baseFields,
                 'attributes' => $attributes,
                 'layout_elements' => $layoutElements,
+                'price_types' => $priceTypes,
             ],
         ]);
     }
