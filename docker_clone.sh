@@ -182,6 +182,22 @@ sed \
 if grep -q '^SANCTUM_STATEFUL_DOMAINS=' "$OUTPUT_DIR/app/.env"; then
     sed -i "s#^SANCTUM_STATEFUL_DOMAINS=.*#SANCTUM_STATEFUL_DOMAINS=localhost:${HTTP_PORT},localhost,127.0.0.1#" "$OUTPUT_DIR/app/.env"
 fi
+
+# Typesense-Einträge sicherstellen — sed ersetzt nur bestehende Zeilen,
+# fehlende Einträge werden hier ergänzt.
+ensure_env() {
+    local key="$1" val="$2" file="$OUTPUT_DIR/app/.env"
+    if grep -q "^${key}=" "$file" 2>/dev/null; then
+        sed -i "s#^${key}=.*#${key}=${val}#" "$file"
+    else
+        echo "${key}=${val}" >> "$file"
+    fi
+}
+ensure_env TYPESENSE_HOST     typesense
+ensure_env TYPESENSE_PORT     8108
+ensure_env TYPESENSE_PROTOCOL http
+ensure_env TYPESENSE_API_KEY  "${TYPESENSE_API_KEY}"
+
 success ".env für Container geschrieben (APP_KEY bleibt erhalten)"
 
 # ─── 4b. Entrypoint-Skript (Config-Cache vor Start leeren) ──────────────────
