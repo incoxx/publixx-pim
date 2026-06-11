@@ -198,6 +198,11 @@ ensure_env TYPESENSE_PORT     8108
 ensure_env TYPESENSE_PROTOCOL http
 ensure_env TYPESENSE_API_KEY  "${TYPESENSE_API_KEY}"
 
+# Redis-Passwort synchronisieren: Original-Wert "null" durch echten Wert ersetzen
+if [[ -n "$REDIS_PASSWORD" && "$REDIS_PASSWORD" != "null" ]]; then
+    ensure_env REDIS_PASSWORD "${REDIS_PASSWORD}"
+fi
+
 success ".env für Container geschrieben (APP_KEY bleibt erhalten)"
 
 # ─── 4b. Entrypoint-Skript (Config-Cache vor Start leeren) ──────────────────
