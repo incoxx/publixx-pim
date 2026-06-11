@@ -314,23 +314,30 @@ class DocxPdfTemplateWriter
      */
     private function renderSplitLabel($textBox, array $element, array $style): void
     {
-        $labelText    = ($element['rawLabel'] ?? '') . ':';
-        $valueText    = $this->buildValueText($element);
-        $labelStyle   = $element['labelStyle'] ?? [];
-        $labelPos     = $element['labelPosition'] ?? 'left';
-        $labelGapMm   = (float) ($element['labelGap'] ?? 2);
+        $rawLabel   = $element['rawLabel'] ?? '';
+        $labelSep   = $element['labelSeparator'] ?? ': ';
+        $labelPos   = $element['labelPosition'] ?? 'left';
+        $labelGapMm = (float) ($element['labelGap'] ?? 2);
+        $valueText  = $this->buildValueText($element);
+        $labelStyle = $element['labelStyle'] ?? [];
 
         $mainFont  = $this->buildFontStyle($style);
         $labelFont = $this->buildFontStyle($style, $labelStyle);
         $paraStyle = $this->buildParagraphStyle($style);
 
-        if ($labelPos === 'top') {
+        if ($labelPos === 'concat') {
+            // concat: label + separator + value in one text run
+            $run = $textBox->addTextRun($paraStyle);
+            $run->addText(htmlspecialchars($rawLabel . $labelSep, ENT_XML1, 'UTF-8'), $labelFont);
+            if ($valueText !== '') {
+                $run->addText(htmlspecialchars($valueText, ENT_XML1, 'UTF-8'), $mainFont);
+            }
+        } elseif ($labelPos === 'top') {
             $gapTwip = (int) round($labelGapMm * self::MM_TO_TWIP);
-            $labelParaStyle = array_merge($paraStyle, ['spaceAfter' => $gapTwip]);
             $textBox->addText(
-                htmlspecialchars($labelText, ENT_XML1, 'UTF-8'),
+                htmlspecialchars($rawLabel, ENT_XML1, 'UTF-8'),
                 $labelFont,
-                $labelParaStyle
+                array_merge($paraStyle, ['spaceAfter' => $gapTwip])
             );
             if ($valueText !== '') {
                 $textBox->addText(
@@ -342,8 +349,7 @@ class DocxPdfTemplateWriter
         } else {
             // left: label + gap + value in one paragraph as text runs
             $run = $textBox->addTextRun($paraStyle);
-            $run->addText(htmlspecialchars($labelText, ENT_XML1, 'UTF-8'), $labelFont);
-            // Approximate gap as em-spaces (1 space ≈ 0.5–1 mm at 10pt)
+            $run->addText(htmlspecialchars($rawLabel, ENT_XML1, 'UTF-8'), $labelFont);
             $spaces = max(1, (int) round($labelGapMm * 1.5));
             $run->addText(str_repeat(' ', $spaces), $mainFont);
             if ($valueText !== '') {

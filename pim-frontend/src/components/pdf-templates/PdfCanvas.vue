@@ -69,11 +69,13 @@ onMounted(() => {
   if (canvasContainer.value) resizeObserver.observe(canvasContainer.value)
   document.addEventListener('click', closeContextMenu)
   document.addEventListener('contextmenu', closeContextMenuOnOutside)
+  document.addEventListener('keydown', onKeyDown)
 })
 onBeforeUnmount(() => {
   resizeObserver?.disconnect()
   document.removeEventListener('click', closeContextMenu)
   document.removeEventListener('contextmenu', closeContextMenuOnOutside)
+  document.removeEventListener('keydown', onKeyDown)
 })
 
 function closeContextMenuOnOutside() {

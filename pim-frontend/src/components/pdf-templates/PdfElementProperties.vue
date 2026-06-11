@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, onMounted } from 'vue'
+import { computed, ref, onMounted, nextTick } from 'vue'
 import { usePdfTemplateDesignerStore } from '@/stores/pdfTemplateDesigner'
 import { Settings, Trash2, Copy, ArrowUpToLine, ArrowDownToLine, Type } from 'lucide-vue-next'
 import { fontFamilies, builtInFontFamilies, fetchAllFonts } from './fontList'
@@ -9,6 +9,13 @@ import client from '@/api/client'
 
 const store = usePdfTemplateDesignerStore()
 const fontManagerOpen = ref(false)
+const copyFeedback = ref(false)
+
+function doCopy() {
+  store.copySelectedElements()
+  copyFeedback.value = true
+  setTimeout(() => { copyFeedback.value = false }, 1500)
+}
 
 const relationTypes = ref([])
 const attributeTypes = ref([])
@@ -201,8 +208,15 @@ const typeLabels = {
         Ziehe zum Verschieben, oder nutze Pfeiltasten. Strg+C zum Kopieren, Strg+V zum Einfügen.
       </p>
       <div class="flex flex-wrap gap-1">
-        <button class="pim-btn pim-btn-secondary text-[10px] px-2 py-1" @click="store.copySelectedElements()">
-          <Copy class="w-3 h-3" :stroke-width="2" /> Kopieren
+        <button class="pim-btn pim-btn-secondary text-[10px] px-2 py-1" @click="doCopy()">
+          <Copy class="w-3 h-3" :stroke-width="2" /> {{ copyFeedback ? 'Kopiert ✓' : 'Kopieren' }}
+        </button>
+        <button
+          v-if="store.clipboard.length > 0"
+          class="pim-btn pim-btn-primary text-[10px] px-2 py-1"
+          @click="store.pasteElements()"
+        >
+          Einfügen
         </button>
         <button
           class="pim-btn text-[10px] px-2 py-1 bg-[var(--color-error-light)] text-[var(--color-error)]"
@@ -295,15 +309,20 @@ const typeLabels = {
             <div class="pl-4 space-y-2 border-l-2 border-[var(--color-accent)]/30 ml-1">
               <div class="flex items-center gap-2">
                 <span class="text-[10px] text-[var(--color-text-tertiary)] w-16 shrink-0">Position</span>
-                <div class="flex gap-1">
+                <div class="flex gap-1 flex-wrap">
                   <button class="pim-btn text-[10px] px-2 py-0.5" :class="(sel.labelPosition||'left')==='left'?'pim-btn-primary':'pim-btn-secondary'" @click="updateElement('labelPosition','left')">Links</button>
                   <button class="pim-btn text-[10px] px-2 py-0.5" :class="sel.labelPosition==='top'?'pim-btn-primary':'pim-btn-secondary'" @click="updateElement('labelPosition','top')">Oben</button>
+                  <button class="pim-btn text-[10px] px-2 py-0.5" :class="sel.labelPosition==='concat'?'pim-btn-primary':'pim-btn-secondary'" @click="updateElement('labelPosition','concat')">Verketten</button>
                 </div>
               </div>
-              <div class="flex items-center gap-2">
+              <div v-if="(sel.labelPosition||'left')!=='concat'" class="flex items-center gap-2">
                 <span class="text-[10px] text-[var(--color-text-tertiary)] w-16 shrink-0">Abstand</span>
                 <input type="number" :value="sel.labelGap??2" class="pim-input text-xs w-16" min="0" max="50" step="0.5" @input="updateElement('labelGap', parseFloat($event.target.value)||0)" />
                 <span class="text-[9px] text-[var(--color-text-tertiary)]">mm</span>
+              </div>
+              <div v-if="sel.labelPosition==='concat'" class="flex items-center gap-2">
+                <span class="text-[10px] text-[var(--color-text-tertiary)] w-16 shrink-0">Trennzeichen</span>
+                <input type="text" :value="sel.labelSeparator??': '" class="pim-input text-xs w-24" maxlength="10" @input="updateElement('labelSeparator', $event.target.value)" />
               </div>
               <div class="flex items-center gap-2">
                 <span class="text-[10px] text-[var(--color-text-tertiary)] w-16 shrink-0">Schriftgröße</span>
@@ -415,15 +434,20 @@ const typeLabels = {
             <div class="pl-4 space-y-2 border-l-2 border-[var(--color-accent)]/30 ml-1">
               <div class="flex items-center gap-2">
                 <span class="text-[10px] text-[var(--color-text-tertiary)] w-16 shrink-0">Position</span>
-                <div class="flex gap-1">
+                <div class="flex gap-1 flex-wrap">
                   <button class="pim-btn text-[10px] px-2 py-0.5" :class="(sel.labelPosition||'left')==='left'?'pim-btn-primary':'pim-btn-secondary'" @click="updateElement('labelPosition','left')">Links</button>
                   <button class="pim-btn text-[10px] px-2 py-0.5" :class="sel.labelPosition==='top'?'pim-btn-primary':'pim-btn-secondary'" @click="updateElement('labelPosition','top')">Oben</button>
+                  <button class="pim-btn text-[10px] px-2 py-0.5" :class="sel.labelPosition==='concat'?'pim-btn-primary':'pim-btn-secondary'" @click="updateElement('labelPosition','concat')">Verketten</button>
                 </div>
               </div>
-              <div class="flex items-center gap-2">
+              <div v-if="(sel.labelPosition||'left')!=='concat'" class="flex items-center gap-2">
                 <span class="text-[10px] text-[var(--color-text-tertiary)] w-16 shrink-0">Abstand</span>
                 <input type="number" :value="sel.labelGap??2" class="pim-input text-xs w-16" min="0" max="50" step="0.5" @input="updateElement('labelGap', parseFloat($event.target.value)||0)" />
                 <span class="text-[9px] text-[var(--color-text-tertiary)]">mm</span>
+              </div>
+              <div v-if="sel.labelPosition==='concat'" class="flex items-center gap-2">
+                <span class="text-[10px] text-[var(--color-text-tertiary)] w-16 shrink-0">Trennzeichen</span>
+                <input type="text" :value="sel.labelSeparator??': '" class="pim-input text-xs w-24" maxlength="10" @input="updateElement('labelSeparator', $event.target.value)" />
               </div>
               <div class="flex items-center gap-2">
                 <span class="text-[10px] text-[var(--color-text-tertiary)] w-16 shrink-0">Schriftgröße</span>

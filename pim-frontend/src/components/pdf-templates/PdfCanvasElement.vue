@@ -268,7 +268,12 @@ const showSplitLabel = computed(() => {
 })
 
 const labelDisplayText = computed(() => {
-  return props.element.label || 'Label'
+  const el = props.element
+  const pos = el.labelPosition || 'left'
+  if (pos === 'concat') {
+    return (el.label || 'Label') + (el.labelSeparator ?? ': ')
+  }
+  return el.label || 'Label'
 })
 
 const valueDisplayText = computed(() => {
@@ -301,7 +306,7 @@ const valueDisplayText = computed(() => {
 const labelContainerStyle = computed(() => {
   const el = props.element
   const pos = el.labelPosition || 'left'
-  const gapMm = el.labelGap ?? 2
+  const gapMm = pos === 'concat' ? 0 : (el.labelGap ?? 2)
   return {
     display: 'flex',
     flexDirection: pos === 'top' ? 'column' : 'row',

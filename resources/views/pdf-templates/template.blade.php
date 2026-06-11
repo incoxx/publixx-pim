@@ -145,48 +145,54 @@
                     @endforeach
                 @elseif (($el['type'] ?? '') === 'shape')
                     {{-- Shape element: rendered via background-color and border --}}
-                @elseif (!empty($el['showLabel']) && !empty($el['rawLabel']))
+                @elseif (!empty($el['showLabel']) && ($el['rawLabel'] ?? '') !== '')
                     @php
-                        $labelPos  = $el['labelPosition'] ?? 'left';
-                        $labelGapMm = $el['labelGap'] ?? 2;
-                        $ls = $el['labelStyle'] ?? [];
-                        $labelCss = 'white-space:nowrap;';
+                        $labelPos     = $el['labelPosition'] ?? 'left';
+                        $labelGapMm   = (float) ($el['labelGap'] ?? 2);
+                        $labelSep     = $el['labelSeparator'] ?? ': ';
+                        $ls           = $el['labelStyle'] ?? [];
+                        $labelCss     = 'white-space:nowrap;';
                         if (!empty($ls['fontSize'])) $labelCss .= 'font-size:' . (int)$ls['fontSize'] . 'pt;';
                         if (!empty($ls['color'])) $labelCss .= 'color:' . e($ls['color']) . ';';
                         if (!empty($ls['fontWeight']) && $ls['fontWeight'] !== 'normal') $labelCss .= 'font-weight:' . e($ls['fontWeight']) . ';';
 
                         $isMultiValue = !empty($el['rawValues']) && count($el['rawValues']) > 1;
+                        $elType       = $el['type'] ?? '';
 
-                        $elType = $el['type'] ?? '';
                         if ($elType === 'price') {
                             $singleValue = isset($el['rawValue'])
                                 ? number_format((float) $el['rawValue'], 2, ',', '.') . ' ' . ($el['currency'] ?? 'EUR')
                                 : '';
                         } elseif ($elType === 'attribute') {
-                            $singleValue = ($el['rawValue'] ?? '');
+                            $singleValue = (string) ($el['rawValue'] ?? '');
                             if (!empty($el['showUnit']) && !empty($el['rawUnit'])) $singleValue .= ' ' . $el['rawUnit'];
                             $singleValue = trim($singleValue);
                         } else {
                             $singleValue = (string) ($el['rawValue'] ?? '');
                         }
+                        $rawLabelText = (string) ($el['rawLabel'] ?? '');
                     @endphp
-                    @if ($labelPos === 'top')
-                        <div style="{{ $labelCss }}margin-bottom:{{ $labelGapMm }}mm;">{{ e($el['rawLabel']) }}:</div>
-                        @if ($isMultiValue)
-                            <ul style="margin:0 0 0 4mm;padding:0;list-style-type:disc;">
+                    @if ($labelPos === 'concat')
+                        {{-- concat: label + separator + value inline --}}
+                        <span style="{{ $labelCss }}">{{ e($rawLabelText) }}{{ $labelSep }}</span><span>{{ e($singleValue) }}</span>
+                    @elseif ($labelPos === 'top')
+                        {{-- top: single-column table (DOMPDF block-in-absolute workaround) --}}
+                        <table style="width:100%;border-collapse:collapse;border:none;">
+                            <tr><td style="{{ $labelCss }}padding-bottom:{{ $labelGapMm }}mm;border:none;">{{ e($rawLabelText) }}</td></tr>
+                            @if ($isMultiValue)
                                 @foreach ($el['rawValues'] as $mv)
-                                    <li>{{ e($mv) }}@if (!empty($el['showUnit']) && !empty($el['rawUnit'])) {{ e($el['rawUnit']) }}@endif</li>
+                                    <tr><td style="border:none;">{{ e($mv) }}@if (!empty($el['showUnit']) && !empty($el['rawUnit'])) {{ e($el['rawUnit']) }}@endif</td></tr>
                                 @endforeach
-                            </ul>
-                        @else
-                            <div>{{ e($singleValue) }}</div>
-                        @endif
+                            @else
+                                <tr><td style="border:none;">{{ e($singleValue) }}</td></tr>
+                            @endif
+                        </table>
                     @else
-                        {{-- left: Tabelle für saubere Ausrichtung ohne Flatterränder --}}
+                        {{-- left: two-column table, no separator --}}
                         @if ($isMultiValue)
-                            <table style="width:100%;border-collapse:collapse;"><tr>
-                                <td style="{{ $labelCss }}padding-right:{{ $labelGapMm }}mm;vertical-align:top;">{{ e($el['rawLabel']) }}:</td>
-                                <td style="vertical-align:top;">
+                            <table style="width:100%;border-collapse:collapse;border:none;"><tr>
+                                <td style="{{ $labelCss }}padding-right:{{ $labelGapMm }}mm;vertical-align:top;border:none;">{{ e($rawLabelText) }}</td>
+                                <td style="vertical-align:top;border:none;">
                                     <ul style="margin:0;padding:0;list-style-type:disc;padding-left:4mm;">
                                         @foreach ($el['rawValues'] as $mv)
                                             <li>{{ e($mv) }}@if (!empty($el['showUnit']) && !empty($el['rawUnit'])) {{ e($el['rawUnit']) }}@endif</li>
@@ -195,9 +201,9 @@
                                 </td>
                             </tr></table>
                         @else
-                            <table style="width:100%;border-collapse:collapse;"><tr>
-                                <td style="{{ $labelCss }}padding-right:{{ $labelGapMm }}mm;vertical-align:baseline;">{{ e($el['rawLabel']) }}:</td>
-                                <td style="vertical-align:baseline;">{{ e($singleValue) }}</td>
+                            <table style="width:100%;border-collapse:collapse;border:none;"><tr>
+                                <td style="{{ $labelCss }}padding-right:{{ $labelGapMm }}mm;vertical-align:baseline;border:none;">{{ e($rawLabelText) }}</td>
+                                <td style="vertical-align:baseline;border:none;">{{ e($singleValue) }}</td>
                             </tr></table>
                         @endif
                     @endif
