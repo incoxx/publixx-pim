@@ -361,6 +361,7 @@ services:
       - "${HTTP_PORT}:80"
     volumes:
       - storage_data:/var/www/html/storage/app
+      - ./app/.env:/var/www/html/.env:ro   # .env als Volume → Änderungen wirken ohne Rebuild
     depends_on:
       db:        { condition: service_healthy }
       redis:     { condition: service_healthy }
