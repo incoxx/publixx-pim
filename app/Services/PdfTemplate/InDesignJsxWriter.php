@@ -185,12 +185,22 @@ class InDesignJsxWriter
 
         // Determine content for InDesign (split or combined)
         if ($showLabel) {
-            $labelText = ($element['rawLabel'] ?? '') . ':';
-            $valueText = $this->buildValueText($element);
-            // \r = InDesign paragraph separator; \t = tab for left layout
-            $content = $labelPos === 'top'
-                ? $labelText . "\r" . $valueText
-                : $labelText . "\t" . $valueText;
+            $rawLabel  = $element['rawLabel'] ?? '';
+            $labelSep  = $element['labelSeparator'] ?? ': ';
+            // For concat: label+sep+value on one line; top: paragraph break; left: tab
+            if ($labelPos === 'concat') {
+                $labelText = $rawLabel . $labelSep;
+                $valueText = $this->buildValueText($element);
+                $content   = $labelText . $valueText;
+            } elseif ($labelPos === 'top') {
+                $labelText = $rawLabel;
+                $valueText = $this->buildValueText($element);
+                $content   = $labelText . "\r" . $valueText;
+            } else {
+                $labelText = $rawLabel;
+                $valueText = $this->buildValueText($element);
+                $content   = $labelText . "\t" . $valueText;
+            }
             $labelParts = [
                 'label'      => $labelText,
                 'value'      => $valueText,

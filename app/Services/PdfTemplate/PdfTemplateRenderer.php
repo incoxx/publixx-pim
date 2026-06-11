@@ -57,9 +57,11 @@ class PdfTemplateRenderer
         $value = $this->elementRenderer->resolveFieldValue($product, $field, $language);
         $label = $element['label'] ?? '';
 
+        $labelPos = $element['labelPosition'] ?? 'left';
+        $labelSep = $element['labelSeparator'] ?? ': ';
         $displayText = '';
         if (!empty($element['showLabel']) && $label) {
-            $displayText = $label . ': ';
+            $displayText = $label . ($labelPos === 'concat' ? $labelSep : ' ');
         }
         $displayText .= $value;
 
@@ -72,8 +74,10 @@ class PdfTemplateRenderer
         $resolved = $this->elementRenderer->resolveAttributeValue($product, $attributeId, $language);
 
         $parts = [];
+        $labelPos = $element['labelPosition'] ?? 'left';
+        $labelSep = $element['labelSeparator'] ?? ': ';
         if (!empty($element['showLabel']) && $resolved['label']) {
-            $parts[] = $resolved['label'] . ':';
+            $parts[] = $resolved['label'] . ($labelPos === 'concat' ? $labelSep : ' ');
         }
         if (($element['showValue'] ?? true) && $resolved['value'] !== '') {
             $parts[] = $resolved['value'];
@@ -83,7 +87,7 @@ class PdfTemplateRenderer
         }
 
         return array_merge($element, [
-            'displayValue' => implode(' ', $parts),
+            'displayValue' => implode('', $parts),
             'rawValue' => $resolved['value'],
             'rawLabel' => $resolved['label'],
             'rawUnit' => $resolved['unit'],
@@ -96,9 +100,11 @@ class PdfTemplateRenderer
         $priceTypeId = $element['priceTypeId'] ?? '';
         $resolved = $this->elementRenderer->resolvePriceValue($product, $priceTypeId);
 
+        $labelPos2 = $element['labelPosition'] ?? 'left';
+        $labelSep2 = $element['labelSeparator'] ?? ': ';
         $displayText = '';
         if (!empty($element['showLabel']) && !empty($element['label'])) {
-            $displayText = $element['label'] . ': ';
+            $displayText = $element['label'] . ($labelPos2 === 'concat' ? $labelSep2 : ' ');
         }
         if ($resolved['amount'] !== null) {
             $displayText .= number_format((float) $resolved['amount'], 2, ',', '.') . ' ' . ($resolved['currency'] ?? 'EUR');
