@@ -28,6 +28,10 @@ class UserPreferenceController extends Controller
             return $this->updateQuickLinks($request);
         }
 
+        if ($group === 'footer_presets') {
+            return $this->updateFooterPresets($request);
+        }
+
         $request->validate([
             'preset' => 'sometimes|string|in:light,dark-navy,dark-charcoal,custom',
             'sidebar_bg' => 'sometimes|nullable|string|regex:/^#[0-9A-Fa-f]{6}$/',
@@ -52,6 +56,28 @@ class UserPreferenceController extends Controller
                 'sidebar_colored_icons',
                 'toolbar_bg', 'toolbar_text', 'toolbar_font_size',
             ]),
+        );
+
+        return response()->json(['data' => $pref->payload]);
+    }
+
+    /**
+     * Footer-Preset-Slots speichern (P1–P5, Route-Schnellzugriffe).
+     * Leere Slots werden als null uebertragen — Position bleibt erhalten.
+     */
+    private function updateFooterPresets(Request $request): JsonResponse
+    {
+        $request->validate([
+            'slots' => 'required|array|max:5',
+            'slots.*' => 'nullable|array',
+            'slots.*.path' => 'sometimes|string|max:500',
+            'slots.*.label' => 'sometimes|string|max:100',
+        ]);
+
+        $pref = UserPreference::setPayload(
+            $request->user()->id,
+            'footer_presets',
+            ['slots' => $request->input('slots')],
         );
 
         return response()->json(['data' => $pref->payload]);
