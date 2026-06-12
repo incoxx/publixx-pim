@@ -188,6 +188,23 @@ class QuickSearchControllerTest extends TestCase
         $response->assertOk()->assertJsonCount(2, 'results');
     }
 
+    public function test_erste_seite_liefert_korrekten_count_und_has_more(): void
+    {
+        // Regression: total = 0 der Einzelsuche überschrieb auf Seite 1 den
+        // korrekten Count aus fetchAllCounts, wodurch has_more immer false war
+        $this->login();
+        foreach (range(1, 3) as $i) {
+            $this->createIndexedProduct(['name' => "Akkuschrauber {$i}", 'ean' => "500000000000{$i}"]);
+        }
+
+        $response = $this->getJson('/api/v1/quick-search?q=Akkuschrauber&type=products&limit=2');
+
+        $response->assertOk()
+            ->assertJsonCount(2, 'results')
+            ->assertJsonPath('counts.products', 3)
+            ->assertJsonPath('has_more', true);
+    }
+
     public function test_offset_laedt_weitere_treffer_nach(): void
     {
         $this->login();
