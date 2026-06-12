@@ -250,6 +250,7 @@ class QuickSearchController extends Controller
 
         $builder->select([
             'products.id',
+            'products.name as product_name',
             'products_search_index.sku',
             'products_search_index.name_de',
             'products_search_index.name_en',
@@ -307,10 +308,12 @@ class QuickSearchController extends Controller
         return [
             'total' => $total,
             'items' => $items->map(function ($p) use ($lang, $nodeNames, $snippets, $relations) {
-                // Produktname sprachabhängig
-                $title = $lang === 'en'
-                    ? ($p->name_en ?: $p->name_de ?: $p->sku)
-                    : ($p->name_de ?: $p->name_en ?: $p->sku);
+                // Produktname: products.name (Stammdaten) hat Vorrang,
+                // dann sprachspezifischer Attributname, dann SKU als letzter Fallback
+                $attrName = $lang === 'en'
+                    ? ($p->name_en ?: $p->name_de)
+                    : ($p->name_de ?: $p->name_en);
+                $title = $p->product_name ?: ($attrName ?: $p->sku);
 
                 $badges = [];
                 if ($p->master_hierarchy_node_id && isset($nodeNames[$p->master_hierarchy_node_id])) {

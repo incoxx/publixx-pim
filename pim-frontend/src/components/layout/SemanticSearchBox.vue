@@ -220,10 +220,10 @@ function constraintLabel(c) {
           </div>
           <div class="flex-1 min-w-0">
             <div class="text-xs font-medium text-[var(--color-text-primary)] truncate">
-              {{ hit.name_de || hit.name_en || hit.sku }}
+              {{ hit.product_name || hit.name_de || hit.name_en || hit.sku }}
             </div>
             <div class="text-[10px] text-[var(--color-text-tertiary)] truncate">
-              {{ [hit.sku, hit.hierarchy_path].filter(Boolean).join(' · ') }}
+              {{ hit.sku }}{{ hit.hierarchy_path ? ' · ' + hit.hierarchy_path : '' }}
             </div>
           </div>
           <div class="shrink-0 flex flex-col items-end gap-0.5">
