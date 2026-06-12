@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Services\Export\Writers;
 
 use Symfony\Component\HttpFoundation\StreamedResponse;
-use XMLWriter;
 
 class XmlWriter
 {
