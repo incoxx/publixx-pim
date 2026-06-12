@@ -48,7 +48,7 @@ return [
         // kein neues Embedding (inkrementelle Aktualität).
         'document_template' => env(
             'MEILISEARCH_EMBEDDER_TEMPLATE',
-            '{{ doc.name_de }} {{ doc.hierarchy_path }} {{ doc.description_de | truncatewords: 120 }} {{ doc.searchable_text | truncatewords: 240 }}',
+            '{{ doc.product_name }} {{ doc.name_de }} {{ doc.hierarchy_path }} {{ doc.description_de | truncatewords: 120 }} {{ doc.searchable_text | truncatewords: 240 }}',
         ),
     ],
 
