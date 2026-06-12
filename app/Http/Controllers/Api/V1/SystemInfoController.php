@@ -660,6 +660,98 @@ class SystemInfoController extends Controller
             ];
         }
 
+        // Meilisearch (Semantische Schnellsuche)
+        try {
+            if (!config('meilisearch.enabled')) {
+                $services[] = [
+                    'name' => 'Meilisearch',
+                    'status' => 'not_configured',
+                ];
+            } else {
+                $host = rtrim((string) config('meilisearch.host', 'http://127.0.0.1:7700'), '/');
+                $apiKey = (string) config('meilisearch.api_key', '');
+
+                $health = \Illuminate\Support\Facades\Http::timeout(3)
+                    ->get("{$host}/health");
+
+                if ($health->successful() && ($health->json('status') === 'available')) {
+                    $version = null;
+                    try {
+                        $versionResponse = \Illuminate\Support\Facades\Http::timeout(3)
+                            ->withToken($apiKey)
+                            ->get("{$host}/version");
+                        $version = $versionResponse->json('pkgVersion');
+                    } catch (\Throwable) {
+                        // Version optional — Health zaehlt
+                    }
+                    $services[] = [
+                        'name' => 'Meilisearch',
+                        'status' => 'running',
+                        'version' => $version ?? 'unknown',
+                    ];
+                } else {
+                    $services[] = [
+                        'name' => 'Meilisearch',
+                        'status' => 'error',
+                        'error' => 'Not reachable',
+                    ];
+                }
+            }
+        } catch (\Throwable $e) {
+            $services[] = [
+                'name' => 'Meilisearch',
+                'status' => 'error',
+                'error' => $e->getMessage(),
+            ];
+        }
+
+        // Ollama (lokale Embeddings fuer Meilisearch Hybrid Search)
+        try {
+            $embedderEnabled = (bool) config('meilisearch.embedder.enabled');
+            $embedderSource = (string) config('meilisearch.embedder.source', 'ollama');
+
+            if (!config('meilisearch.enabled') || !$embedderEnabled || $embedderSource !== 'ollama') {
+                $services[] = [
+                    'name' => 'Ollama',
+                    'status' => 'not_configured',
+                ];
+            } else {
+                // Basis-URL aus der Embedder-URL ableiten (.../api/embeddings → Host)
+                $embedderUrl = (string) config('meilisearch.embedder.url', 'http://localhost:11434/api/embeddings');
+                $parts = parse_url($embedderUrl);
+                $base = ($parts['scheme'] ?? 'http') . '://' . ($parts['host'] ?? 'localhost') . ':' . ($parts['port'] ?? 11434);
+
+                $tags = \Illuminate\Support\Facades\Http::timeout(3)->get("{$base}/api/tags");
+
+                if ($tags->successful()) {
+                    $model = (string) config('meilisearch.embedder.model', 'nomic-embed-text');
+                    $models = array_column($tags->json('models', []), 'name');
+                    $modelLoaded = (bool) array_filter(
+                        $models,
+                        fn (string $m): bool => str_starts_with($m, $model),
+                    );
+                    $services[] = [
+                        'name' => 'Ollama',
+                        'status' => $modelLoaded ? 'running' : 'error',
+                        'version' => $modelLoaded ? $model : null,
+                        'error' => $modelLoaded ? null : "Modell '{$model}' nicht geladen (ollama pull {$model})",
+                    ];
+                } else {
+                    $services[] = [
+                        'name' => 'Ollama',
+                        'status' => 'error',
+                        'error' => 'Not reachable',
+                    ];
+                }
+            }
+        } catch (\Throwable $e) {
+            $services[] = [
+                'name' => 'Ollama',
+                'status' => 'error',
+                'error' => $e->getMessage(),
+            ];
+        }
+
         // Laravel Horizon
         try {
             $horizonStatus = 'unknown';
@@ -939,7 +1031,7 @@ class SystemInfoController extends Controller
 
         $sensitive = [
             'APP_KEY', 'DB_PASSWORD', 'REDIS_PASSWORD',
-            'TYPESENSE_API_KEY', 'TMS_API_KEY',
+            'TYPESENSE_API_KEY', 'TMS_API_KEY', 'MEILISEARCH_API_KEY',
             'AZURE_AD_CLIENT_SECRET', 'ANYPIM_LICENSE_KEY',
             'ANYPIM_LICENSE_PUBLIC_KEY',
         ];
@@ -1016,6 +1108,18 @@ class SystemInfoController extends Controller
                 'TYPESENSE_PORT' => 'Typesense-Port',
                 'TYPESENSE_PROTOCOL' => 'Typesense-Protokoll (http/https)',
                 'TYPESENSE_API_KEY' => 'Typesense API-Key',
+            ],
+            'Meilisearch' => [
+                'MEILISEARCH_ENABLED' => 'Semantische Suche aktiviert',
+                'MEILISEARCH_HOST' => 'Meilisearch-Host',
+                'MEILISEARCH_API_KEY' => 'Meilisearch API-Key',
+                'MEILISEARCH_INDEX' => 'Index-Name',
+                'MEILISEARCH_EMBEDDER_ENABLED' => 'Embedder (Vektorsuche) aktiviert',
+                'MEILISEARCH_EMBEDDER_SOURCE' => 'Embedder-Quelle (ollama, openAi, rest)',
+                'MEILISEARCH_EMBEDDER_MODEL' => 'Embedding-Modell',
+                'MEILISEARCH_EMBEDDER_URL' => 'Embedder-Endpunkt',
+                'MEILISEARCH_SEMANTIC_RATIO' => 'Gewichtung Vektor vs. Keyword (0-1)',
+                'MEILISEARCH_NUMERIC_TOLERANCE' => 'Toleranz numerischer Constraints',
             ],
             'TMS' => [
                 'TMS_ENABLED' => 'TMS aktiviert',
