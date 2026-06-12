@@ -107,6 +107,11 @@ class UpdateSearchIndex implements ShouldQueue, ShouldBeUnique
                 'product_id' => $this->productId,
             ]);
 
+            // Meilisearch-Dokument ebenfalls entfernen
+            if (config('meilisearch.enabled')) {
+                SyncProductToMeilisearch::dispatch($this->productId);
+            }
+
             return;
         }
 
@@ -169,6 +174,12 @@ class UpdateSearchIndex implements ShouldQueue, ShouldBeUnique
             'product_id' => $product->id,
             'sku' => $product->sku,
         ]);
+
+        // Meilisearch inkrementell nachziehen (liest den soeben
+        // aktualisierten products_search_index)
+        if (config('meilisearch.enabled')) {
+            SyncProductToMeilisearch::dispatch($product->id);
+        }
     }
 
     /**

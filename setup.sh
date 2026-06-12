@@ -551,6 +551,82 @@ else
     info "Typesense bereits installiert: $(typesense-server --version 2>/dev/null || echo 'vorhanden')"
 fi
 
+# Meilisearch installieren (Semantische Schnellsuche, Hybrid Search)
+# Benoetigt >= 1.10 fuer Embedder/Hybrid Search.
+if ! command -v meilisearch &> /dev/null; then
+    info "Installiere Meilisearch..."
+    MEILI_VERSION="1.15.2"
+    MEILI_ARCH="amd64"
+    curl -sL "https://github.com/meilisearch/meilisearch/releases/download/v${MEILI_VERSION}/meilisearch-linux-${MEILI_ARCH}" \
+        -o /usr/local/bin/meilisearch
+    chmod +x /usr/local/bin/meilisearch
+    info "Meilisearch ${MEILI_VERSION} installiert: $(meilisearch --version 2>/dev/null | head -1 || echo 'vorhanden')"
+else
+    info "Meilisearch bereits installiert: $(meilisearch --version 2>/dev/null | head -1 || echo 'vorhanden')"
+fi
+
+# Meilisearch als systemd-Dienst einrichten
+MEILI_SERVICE="/etc/systemd/system/meilisearch.service"
+MEILI_DATA_DIR="/var/lib/meilisearch"
+MEILI_API_KEY=""
+if [ ! -f "$MEILI_SERVICE" ]; then
+    info "Konfiguriere Meilisearch-Dienst..."
+    mkdir -p "$MEILI_DATA_DIR"
+    chown -R www-data:www-data "$MEILI_DATA_DIR"
+    # API-Key generieren
+    MEILI_API_KEY=$(openssl rand -hex 32 2>/dev/null || cat /proc/sys/kernel/random/uuid | tr -d '-')
+    cat > "$MEILI_SERVICE" <<MEILISERVICE
+[Unit]
+Description=Meilisearch (anyPIM Hybrid Search)
+After=network.target
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=${MEILI_DATA_DIR}
+ExecStart=/usr/local/bin/meilisearch --http-addr 127.0.0.1:7700 --master-key ${MEILI_API_KEY} --db-path ${MEILI_DATA_DIR}/data
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+MEILISERVICE
+    systemctl daemon-reload
+    systemctl enable meilisearch
+    systemctl start meilisearch
+    info "Meilisearch-Dienst gestartet (Port 7700, API-Key generiert)."
+else
+    info "Meilisearch-Dienst bereits konfiguriert."
+    # API-Key aus bestehendem Service auslesen
+    MEILI_API_KEY=$(grep -oP '(?<=--master-key )\S+' "$MEILI_SERVICE" || true)
+fi
+
+# Ollama installieren (lokale Embeddings, Standard-Embedder)
+# Kann nach der Installation uebersprungen werden wenn ein externer
+# Embedding-Dienst (OpenAI o.ae.) verwendet wird.
+INSTALL_OLLAMA=false
+if ! command -v ollama &> /dev/null; then
+    ask "Ollama (lokale Embeddings, nomic-embed-text) installieren? [j/N]: "
+    read -r OLLAMA_ANSWER
+    if [[ "$OLLAMA_ANSWER" =~ ^[jJyY]$ ]]; then
+        INSTALL_OLLAMA=true
+    else
+        warn "Ollama nicht installiert. Embedder-Quelle in .env aendern: MEILISEARCH_EMBEDDER_SOURCE=openAi|rest"
+    fi
+else
+    info "Ollama bereits installiert: $(ollama --version 2>/dev/null || echo 'vorhanden')"
+    INSTALL_OLLAMA=false
+fi
+
+if [ "$INSTALL_OLLAMA" = true ]; then
+    info "Installiere Ollama..."
+    curl -fsSL https://ollama.ai/install.sh | sh 2>&1 | tail -3
+    info "Ollama installiert."
+    info "Lade Embedding-Modell nomic-embed-text (einmalig, ~270 MB)..."
+    ollama pull nomic-embed-text 2>&1 | tail -3 && info "Modell geladen." \
+        || warn "Modell-Download fehlgeschlagen — spaeter nachholen mit: ollama pull nomic-embed-text"
+fi
+
 # Typesense API-Key auslesen (wird vom DEB-Paket generiert)
 TYPESENSE_API_KEY=""
 if [ -f /etc/typesense/typesense-server.ini ]; then
@@ -662,6 +738,20 @@ TYPESENSE_HOST=localhost
 TYPESENSE_PORT=8108
 TYPESENSE_PROTOCOL=http
 TYPESENSE_API_KEY=${TYPESENSE_API_KEY}
+
+# ─── Meilisearch (Semantische Schnellsuche, Hybrid Search) ──────────
+# Setup: php artisan pim:meili-setup
+# Erstbefuellung: php artisan pim:meili-index --all
+MEILISEARCH_ENABLED=$([ -n "${MEILI_API_KEY}" ] && echo true || echo false)
+MEILISEARCH_HOST=http://127.0.0.1:7700
+MEILISEARCH_API_KEY=${MEILI_API_KEY}
+MEILISEARCH_INDEX=products
+MEILISEARCH_EMBEDDER_ENABLED=true
+MEILISEARCH_EMBEDDER_SOURCE=ollama
+MEILISEARCH_EMBEDDER_MODEL=nomic-embed-text
+MEILISEARCH_EMBEDDER_URL=http://localhost:11434/api/embeddings
+MEILISEARCH_SEMANTIC_RATIO=0.5
+MEILISEARCH_NUMERIC_TOLERANCE=0.05
 
 # ─── Frontend (CORS) ────────────────────────────────────────────────
 FRONTEND_URL=${APP_URL}
@@ -790,6 +880,23 @@ if [ -n "$TYPESENSE_API_KEY" ]; then
 else
     warn "Kein Typesense API-Key gefunden — PDF-Suche muss manuell eingerichtet werden."
     warn "Siehe: php artisan typesense:setup"
+fi
+
+# --- Meilisearch-Index konfigurieren und Erstbefuellung ---
+if [ -n "$MEILI_API_KEY" ]; then
+    info "Konfiguriere Meilisearch-Index (Filter, Synonyme, Embedder)..."
+    php artisan pim:meili-setup 2>&1 \
+        && info "Meilisearch-Index konfiguriert." \
+        || warn "Meilisearch-Setup fehlgeschlagen — spaeter nachholen mit: php artisan pim:meili-setup"
+
+    info "Befuelle Meilisearch-Index (Erstbefuellung, laeuft im Hintergrund)..."
+    nohup php artisan pim:meili-index --all \
+        >> "${INSTALL_DIR}/storage/logs/meilisearch-index.log" 2>&1 &
+    info "Meilisearch-Erstbefuellung gestartet (PID: $!, Log: storage/logs/meilisearch-index.log)."
+    info "Embeddings berechnet Meilisearch asynchron — Index wird in Kuerze suchbereit."
+else
+    warn "Meilisearch-API-Key nicht gesetzt — Index-Setup uebersprungen."
+    warn "Nach Einrichtung nachholen mit: php artisan pim:meili-setup && php artisan pim:meili-index --all"
 fi
 
 # --- Storage Link ---
@@ -1355,6 +1462,7 @@ echo -e "  MySQL:         $(systemctl is-active mysql 2>/dev/null || echo 'unbek
 echo -e "  Redis:         $(systemctl is-active redis-server 2>/dev/null || echo 'unbekannt')"
 echo -e "  Supervisor:    $(systemctl is-active supervisor 2>/dev/null || echo 'unbekannt')"
 echo -e "  Typesense:     $(systemctl is-active typesense-server 2>/dev/null || echo 'unbekannt') (Port 8108)"
+echo -e "  Meilisearch:   $(systemctl is-active meilisearch 2>/dev/null || echo 'nicht installiert') (Port 7700)"
 echo ""
 echo -e "${BOLD}Nuetzliche Befehle:${NC}"
 echo -e "  Horizon:       sudo supervisorctl status horizon"

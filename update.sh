@@ -308,6 +308,25 @@ if [ -n "$TYPESENSE_KEY" ]; then
         || warn "Typesense Collection konnte nicht geprueft werden."
 fi
 
+# Meilisearch: Index-Settings aktualisieren (Filter, Synonyme, Embedder)
+# Falls das PIM-Schema (Attribute/Einheiten) geaendert wurde, werden neue
+# filterbare Felder registriert. Dokumente bleiben unveraendert.
+MEILI_ENABLED=$(grep '^MEILISEARCH_ENABLED=' "${INSTALL_DIR}/.env" 2>/dev/null | cut -d'=' -f2- | tr -d '"' | tr -d "'" || true)
+if [ "$MEILI_ENABLED" = "true" ]; then
+    info "Meilisearch-Index-Settings aktualisieren..."
+    php artisan pim:meili-setup --fresh-schema 2>&1 \
+        && info "Meilisearch-Settings aktualisiert." \
+        || warn "Meilisearch-Setup fehlgeschlagen — spaeter nachholen mit: php artisan pim:meili-setup"
+
+    # Inkrementelle Synchronisierung: nur seit dem letzten Lauf geaenderte
+    # Produkte — schnell, kein Full-Reindex. Embeddings berechnet Meilisearch
+    # nur fuer geaenderte Dokumente (documentTemplate).
+    info "Meilisearch inkrementell synchronisieren..."
+    nohup php artisan pim:meili-index \
+        >> "${INSTALL_DIR}/storage/logs/meilisearch-index.log" 2>&1 &
+    info "Meilisearch-Sync gestartet im Hintergrund (PID: $!)."
+fi
+
 # ═════════════════════════════════════════════════════════════════════════════
 #  5. FRONTEND BUILD
 # ═════════════════════════════════════════════════════════════════════════════

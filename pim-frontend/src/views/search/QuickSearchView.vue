@@ -1,11 +1,11 @@
 <script setup>
-import { ref, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useQuickSearchStore } from '@/stores/quickSearch'
 import { useTabStore } from '@/stores/tabs'
 import {
   Search, Package, Image, GitBranch, Sliders, X, ChevronRight,
-  FolderTree, ArrowRight, Sparkles, Link2,
+  FolderTree, ArrowRight, Sparkles, Link2, Zap, Filter, Tag,
 } from 'lucide-vue-next'
 
 const router = useRouter()
@@ -15,12 +15,18 @@ const tabStore = useTabStore()
 const inputRef = ref(null)
 const sentinelRef = ref(null)
 
-const tabs = [
+const staticTabs = [
   { key: 'products', label: 'Produkte', icon: Package },
   { key: 'media', label: 'Medien', icon: Image },
   { key: 'hierarchies', label: 'Hierarchien', icon: GitBranch },
   { key: 'attributes', label: 'Attribute', icon: Sliders },
 ]
+
+const semanticTab = { key: 'semantic', label: 'Semantisch', icon: Sparkles }
+
+const tabs = computed(() =>
+  store.semanticEnabled ? [...staticTabs, semanticTab] : staticTabs
+)
 
 // ─── Infinite Scroll via IntersectionObserver ────────
 let observer = null
@@ -30,6 +36,9 @@ onMounted(() => {
   tabStore.openTab(route, 'Schnellsuche')
 
   nextTick(() => inputRef.value?.focus())
+
+  // Meilisearch-Verfügbarkeit einmalig prüfen
+  store.checkSemanticHealth()
 
   observer = new IntersectionObserver(
     (entries) => {
@@ -57,12 +66,16 @@ onBeforeUnmount(() => {
 
 // ─── Eingabe-Handler ─────────────────────────────────
 function onInput(e) {
-  store.search(e.target.value)
+  if (store.activeTab === 'semantic') {
+    store.semanticSearch(e.target.value)
+  } else {
+    store.search(e.target.value)
+  }
 }
 
 // ─── Keyboard-Navigation ─────────────────────────────
 function onKeyDown(e) {
-  const items = store.results
+  const items = store.activeTab === 'semantic' ? store.semanticResults : store.results
   if (!items || items.length === 0) return
 
   if (e.key === 'ArrowDown') {
@@ -75,7 +88,12 @@ function onKeyDown(e) {
     scrollToSelected()
   } else if (e.key === 'Enter' && store.selectedIndex >= 0) {
     e.preventDefault()
-    openResult(items[store.selectedIndex])
+    const hit = items[store.selectedIndex]
+    if (store.activeTab === 'semantic') {
+      router.push(`/products/${hit.id}`)
+    } else {
+      openResult(hit)
+    }
   }
 }
 
@@ -213,24 +231,33 @@ function typeIcon(type) {
     </div>
 
     <!-- Tabs -->
-    <div class="flex gap-1 mb-4 max-w-2xl w-full">
+    <div class="flex gap-1 mb-4 max-w-2xl w-full flex-wrap">
       <button
         v-for="tab in tabs"
         :key="tab.key"
         class="pim-btn text-xs gap-1.5 px-3 py-1.5"
         :class="store.activeTab === tab.key ? 'pim-btn-primary' : 'pim-btn-ghost'"
-        @click="store.switchTab(tab.key)"
+        @click="store.switchTab(tab.key); tab.key === 'semantic' && store.semanticSearch()"
       >
         <component :is="tab.icon" class="w-3.5 h-3.5" :stroke-width="1.75" />
         {{ tab.label }}
         <span
-          v-if="store.counts[tab.key] > 0"
+          v-if="tab.key !== 'semantic' && store.counts[tab.key] > 0"
           class="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-semibold"
           :class="store.activeTab === tab.key
             ? 'bg-white/20 text-white'
             : 'bg-[var(--color-bg)] text-[var(--color-text-secondary)]'"
         >
           {{ store.counts[tab.key] }}
+        </span>
+        <span
+          v-if="tab.key === 'semantic' && store.semanticTotal > 0"
+          class="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-semibold"
+          :class="store.activeTab === 'semantic'
+            ? 'bg-white/20 text-white'
+            : 'bg-[var(--color-bg)] text-[var(--color-text-secondary)]'"
+        >
+          {{ store.semanticTotal }}
         </span>
       </button>
     </div>
@@ -270,15 +297,15 @@ function typeIcon(type) {
     </div>
 
     <!-- Ladeindikator (nur bei initialer Suche, nicht beim Nachladen) -->
-    <div v-if="store.loading && store.results.length === 0" class="max-w-2xl w-full">
+    <div v-if="store.activeTab !== 'semantic' && store.loading && store.results.length === 0" class="max-w-2xl w-full">
       <div class="flex items-center gap-3 py-8 justify-center text-[var(--color-text-tertiary)]">
         <div class="w-4 h-4 border-2 border-[var(--color-accent)] border-t-transparent rounded-full animate-spin"></div>
         Suche läuft...
       </div>
     </div>
 
-    <!-- Ergebnisse -->
-    <div v-if="store.results.length > 0" class="max-w-2xl w-full space-y-1.5">
+    <!-- Ergebnisse (klassische Tabs) -->
+    <div v-if="store.activeTab !== 'semantic' && store.results.length > 0" class="max-w-2xl w-full space-y-1.5">
       <div
         v-for="(item, idx) in store.results"
         :key="item.id"
@@ -343,8 +370,140 @@ function typeIcon(type) {
       </div>
     </div>
 
+    <!-- ─── Semantische Suche ─────────────────────────────── -->
+    <template v-if="store.activeTab === 'semantic'">
+
+      <!-- Ladeindikator -->
+      <div v-if="store.semanticLoading" class="max-w-2xl w-full">
+        <div class="flex items-center gap-3 py-8 justify-center text-[var(--color-text-tertiary)]">
+          <div class="w-4 h-4 border-2 border-[var(--color-accent)] border-t-transparent rounded-full animate-spin"></div>
+          Semantische Suche läuft...
+        </div>
+      </div>
+
+      <template v-else-if="store.semanticResults.length > 0 || store.semanticConstraints.length > 0">
+
+        <!-- Constraint-Chips -->
+        <div v-if="store.semanticConstraints.length > 0 || store.semanticUnresolved.length > 0" class="max-w-2xl w-full mb-3 flex flex-wrap gap-1.5">
+          <!-- Erkannte Constraints -->
+          <span
+            v-for="(c, i) in store.semanticConstraints"
+            :key="'c' + i"
+            class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-[color-mix(in_srgb,var(--color-success,#22c55e)_15%,transparent)] text-[color-mix(in_srgb,var(--color-success,#16a34a)_90%,black)]"
+            :title="c.source_text"
+          >
+            <Filter class="w-3 h-3" :stroke-width="2" />
+            <span>{{ (c.attributes ?? []).join(', ') }}</span>
+            <span class="opacity-70">
+              {{ c.operator === 'range' ? `${c.min} – ${c.max}` : (c.operator === 'le' ? '≤' : c.operator === 'ge' ? '≥' : '=') + ' ' + c.value }}
+              {{ c.unit ? c.unit : '' }}
+            </span>
+          </span>
+          <!-- Nicht auflösbare Constraints -->
+          <span
+            v-for="(u, i) in store.semanticUnresolved"
+            :key="'u' + i"
+            class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-[color-mix(in_srgb,var(--color-warning,#f59e0b)_15%,transparent)] text-[color-mix(in_srgb,var(--color-warning,#d97706)_90%,black)]"
+            :title="'Nicht aufgelöst: ' + u.unit"
+          >
+            <Tag class="w-3 h-3" :stroke-width="2" />
+            {{ u.text }}
+          </span>
+          <!-- Suchmodus-Badge -->
+          <span
+            v-if="store.semanticMode"
+            class="ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-[var(--color-bg)] text-[var(--color-text-tertiary)]"
+          >
+            <Zap class="w-3 h-3" :stroke-width="2" />
+            {{ store.semanticMode }}
+          </span>
+        </div>
+
+        <!-- Treffer -->
+        <div class="max-w-2xl w-full space-y-1.5">
+          <div
+            v-for="(hit, idx) in store.semanticResults"
+            :key="hit.id"
+            :data-result-index="idx"
+            class="pim-card p-3 cursor-pointer hover:border-[var(--color-accent)] transition-colors"
+            :class="{ 'border-[var(--color-accent)] ring-1 ring-[var(--color-accent)]/30': store.selectedIndex === idx }"
+            @click="router.push(`/products/${hit.id}`)"
+          >
+            <div class="flex items-center gap-3">
+              <!-- Thumbnail -->
+              <div class="shrink-0 w-10 h-10 rounded-lg bg-[var(--color-bg)] flex items-center justify-center overflow-hidden">
+                <img
+                  v-if="hit.primary_image"
+                  :src="`${apiBase}/media/file/${hit.primary_image}`"
+                  class="w-full h-full object-cover"
+                  loading="lazy"
+                  @error="$event.target.classList.add('hidden')"
+                />
+                <Package v-else class="w-5 h-5 text-[var(--color-text-tertiary)]" :stroke-width="1.75" />
+              </div>
+
+              <!-- Text -->
+              <div class="flex-1 min-w-0">
+                <div class="font-medium text-sm text-[var(--color-text-primary)] truncate">
+                  {{ hit.name_de || hit.name_en || hit.sku }}
+                </div>
+                <div class="text-xs text-[var(--color-text-tertiary)] truncate">
+                  {{ [hit.sku, hit.hierarchy_path].filter(Boolean).join(' · ') }}
+                </div>
+              </div>
+
+              <!-- Score + Preis -->
+              <div class="shrink-0 flex flex-col items-end gap-0.5">
+                <span
+                  v-if="hit.list_price != null"
+                  class="text-xs font-semibold text-[var(--color-text-primary)]"
+                >
+                  {{ hit.list_price.toLocaleString('de-DE', { minimumFractionDigits: 2 }) }} €
+                </span>
+                <span
+                  v-if="hit.score != null"
+                  class="text-[10px] text-[var(--color-text-tertiary)] tabular-nums"
+                  :title="'Relevanz-Score: ' + hit.score"
+                >
+                  {{ Math.round(hit.score * 100) }}%
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <!-- Leerer Zustand Semantisch -->
+      <div v-else-if="store.query.trim() && !store.semanticLoading" class="max-w-2xl w-full text-center py-12">
+        <Sparkles class="w-12 h-12 mx-auto mb-3 text-[var(--color-text-tertiary)] opacity-30" :stroke-width="1.5" />
+        <p class="text-[var(--color-text-secondary)]">Keine Treffer gefunden</p>
+        <p class="text-xs text-[var(--color-text-tertiary)] mt-1">Versuche eine freiere Formulierung</p>
+      </div>
+
+      <!-- Hinweis wenn kein Query -->
+      <div v-else-if="!store.query.trim() && !store.semanticLoading" class="max-w-2xl w-full text-center py-16">
+        <Sparkles class="w-16 h-16 mx-auto mb-4 text-[var(--color-accent)] opacity-25" :stroke-width="1.25" />
+        <h2 class="text-xl font-semibold text-[var(--color-text-secondary)] mb-2">Semantische Suche</h2>
+        <p class="text-[var(--color-text-tertiary)] text-sm">
+          Natürlichsprachige Suchanfragen direkt ins Suchfeld eingeben.<br />
+          Quantitative Angaben werden automatisch als Filter erkannt.
+        </p>
+        <div class="mt-5 flex flex-wrap justify-center gap-2">
+          <span
+            v-for="example in ['smartes Telefon 8 Zoll', 'Laptop unter 1000 €', 'zwischen 1 und 2 kg', 'mindestens 500 GB']"
+            :key="example"
+            class="px-3 py-1 rounded-full text-xs bg-[var(--color-bg)] text-[var(--color-text-secondary)] border border-[var(--color-border)] cursor-pointer hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] transition-colors"
+            @click="store.semanticSearch(example); nextTick(() => inputRef?.value && (inputRef.value.value = example))"
+          >
+            {{ example }}
+          </span>
+        </div>
+      </div>
+
+    </template>
+
     <!-- Infinite Scroll: Sentinel (immer gemountet wenn Ergebnisse da) -->
-    <div v-if="store.results.length > 0" ref="sentinelRef" class="max-w-2xl w-full pt-1">
+    <div v-if="store.results.length > 0 && store.activeTab !== 'semantic'" ref="sentinelRef" class="max-w-2xl w-full pt-1">
       <div v-if="store.loadingMore" class="flex items-center justify-center gap-2 py-4 text-[var(--color-text-tertiary)]">
         <div class="w-3.5 h-3.5 border-2 border-[var(--color-accent)] border-t-transparent rounded-full animate-spin"></div>
         <span class="text-sm">Lade weitere Ergebnisse...</span>
@@ -354,15 +513,15 @@ function typeIcon(type) {
       </div>
     </div>
 
-    <!-- Leerer Zustand: Keine Ergebnisse -->
-    <div v-else-if="store.hasQuery && !store.loading && store.results.length === 0" class="max-w-2xl w-full text-center py-12">
+    <!-- Leerer Zustand: Keine Ergebnisse (klassische Tabs) -->
+    <div v-else-if="store.activeTab !== 'semantic' && store.hasQuery && !store.loading && store.results.length === 0" class="max-w-2xl w-full text-center py-12">
       <Search class="w-12 h-12 mx-auto mb-3 text-[var(--color-text-tertiary)] opacity-30" :stroke-width="1.5" />
       <p class="text-[var(--color-text-secondary)]">Keine Ergebnisse gefunden</p>
       <p class="text-xs text-[var(--color-text-tertiary)] mt-1">Versuche einen anderen Begriff oder wechsle den Tab</p>
     </div>
 
-    <!-- Leerer Zustand: Kein Suchbegriff -->
-    <div v-if="!store.hasQuery && !store.loading && store.results.length === 0" class="max-w-2xl w-full text-center py-16">
+    <!-- Leerer Zustand: Kein Suchbegriff (klassische Tabs) -->
+    <div v-if="store.activeTab !== 'semantic' && !store.hasQuery && !store.loading && store.results.length === 0" class="max-w-2xl w-full text-center py-16">
       <Sparkles class="w-16 h-16 mx-auto mb-4 text-[var(--color-accent)] opacity-25" :stroke-width="1.25" />
       <h2 class="text-xl font-semibold text-[var(--color-text-secondary)] mb-2">Schnellsuche</h2>
       <p class="text-[var(--color-text-tertiary)] text-sm">

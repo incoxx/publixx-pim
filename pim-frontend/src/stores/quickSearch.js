@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import quickSearchApi from '@/api/quickSearch'
+import semanticSearchApi from '@/api/semanticSearch'
 import { useLocaleStore } from '@/stores/locale'
 
 export const useQuickSearchStore = defineStore('quickSearch', () => {
@@ -13,6 +14,16 @@ export const useQuickSearchStore = defineStore('quickSearch', () => {
   const loadingMore = ref(false)
   const hasMore = ref(false)
   const selectedIndex = ref(-1)
+
+  // ─── Semantic Search State ─────────────────────────
+  const semanticEnabled = ref(false)   // Meilisearch erreichbar + Embedder aktiv
+  const semanticHealthChecked = ref(false)
+  const semanticResults = ref([])
+  const semanticLoading = ref(false)
+  const semanticConstraints = ref([])  // applied_constraints aus der Antwort
+  const semanticUnresolved = ref([])
+  const semanticTotal = ref(0)
+  const semanticMode = ref('')         // hybrid | keyword | filter
 
   // Drill-Down-Filter
   const filters = ref({ category_id: null, attribute_id: null, media_id: null })
@@ -60,6 +71,8 @@ export const useQuickSearchStore = defineStore('quickSearch', () => {
   let debounceTimer = null
   let abortController = null
   let requestId = 0
+  let semanticAbortController = null
+  let semanticDebounceTimer = null
 
   // ─── Kern-Suche ────────────────────────────────────
 
@@ -296,6 +309,8 @@ export const useQuickSearchStore = defineStore('quickSearch', () => {
   function clear() {
     if (debounceTimer) clearTimeout(debounceTimer)
     if (abortController) abortController.abort()
+    if (semanticDebounceTimer) clearTimeout(semanticDebounceTimer)
+    if (semanticAbortController) semanticAbortController.abort()
     query.value = ''
     activeTab.value = 'products'
     counts.value = { products: 0, media: 0, hierarchies: 0, attributes: 0 }
@@ -307,6 +322,69 @@ export const useQuickSearchStore = defineStore('quickSearch', () => {
     filters.value = { category_id: null, attribute_id: null, media_id: null }
     history.value = []
     resultCache.clear()
+    semanticResults.value = []
+    semanticConstraints.value = []
+    semanticUnresolved.value = []
+    semanticTotal.value = 0
+    semanticMode.value = ''
+    semanticLoading.value = false
+  }
+
+  // ─── Semantic Search ───────────────────────────────
+
+  async function checkSemanticHealth() {
+    if (semanticHealthChecked.value) return
+    try {
+      const { data } = await semanticSearchApi.health()
+      semanticEnabled.value = data.enabled && data.healthy
+    } catch {
+      semanticEnabled.value = false
+    } finally {
+      semanticHealthChecked.value = true
+    }
+  }
+
+  function semanticSearch(newQuery) {
+    if (newQuery !== undefined) query.value = newQuery
+
+    if (semanticDebounceTimer) clearTimeout(semanticDebounceTimer)
+
+    const term = query.value.trim()
+    if (!term) {
+      semanticResults.value = []
+      semanticConstraints.value = []
+      semanticUnresolved.value = []
+      semanticTotal.value = 0
+      semanticMode.value = ''
+      return
+    }
+
+    semanticLoading.value = true
+    semanticDebounceTimer = setTimeout(() => fetchSemantic(term), 200)
+  }
+
+  async function fetchSemantic(term) {
+    if (semanticAbortController) semanticAbortController.abort()
+    semanticAbortController = new AbortController()
+
+    try {
+      const { data } = await semanticSearchApi.search(
+        { q: term, limit: 20 },
+        semanticAbortController.signal,
+      )
+
+      semanticResults.value = data.hits ?? []
+      semanticConstraints.value = data.applied_constraints ?? []
+      semanticUnresolved.value = data.unresolved_constraints ?? []
+      semanticTotal.value = data.total ?? 0
+      semanticMode.value = data.mode ?? ''
+    } catch (err) {
+      if (err.name === 'CanceledError' || err.code === 'ERR_CANCELED') return
+      console.error('Semantische Suche fehlgeschlagen:', err)
+      semanticResults.value = []
+    } finally {
+      semanticLoading.value = false
+    }
   }
 
   function buildParams(base) {
@@ -322,5 +400,8 @@ export const useQuickSearchStore = defineStore('quickSearch', () => {
     query, activeTab, counts, results, loading, loadingMore, hasMore, selectedIndex, filters, history,
     hasQuery, hasActiveFilter, activeFilterLabel,
     search, switchTab, loadMore, drillDown, jumpToHistory, clearFilters, clear,
+    semanticEnabled, semanticHealthChecked, semanticResults, semanticLoading,
+    semanticConstraints, semanticUnresolved, semanticTotal, semanticMode,
+    checkSemanticHealth, semanticSearch,
   }
 })
