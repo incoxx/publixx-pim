@@ -82,6 +82,27 @@ class CsvWriterTest extends TestCase
         $this->assertStringContainsString('Zubehör', $content);
     }
 
+    public function test_formel_injection_wird_neutralisiert(): void
+    {
+        // OWASP CSV Injection: führende =, +, @ dürfen in Excel/Calc
+        // nicht als Formel ausgeführt werden → Apostroph-Prefix
+        $data = ['products' => [
+            ['sku' => '=cmd|/c calc', 'name' => '+SUM(A1:A9)', 'status' => '@active', 'ean' => '-2+3'],
+            ['sku' => 'SKU-OK', 'name' => 'Normal', 'status' => 'active', 'ean' => '-5'],
+        ]];
+
+        $content = $this->captureContent($this->writer->write($data, 'export'));
+
+        $this->assertStringContainsString("'=cmd|/c calc", $content);
+        $this->assertStringContainsString("'+SUM(A1:A9)", $content);
+        $this->assertStringContainsString("'@active", $content);
+        $this->assertStringContainsString("'-2+3", $content);
+        // Echte Zahlen bleiben unverändert (kein Apostroph vor -5)
+        $this->assertStringContainsString(';-5', $content);
+        $this->assertStringNotContainsString("'-5", $content);
+        $this->assertStringNotContainsString("'SKU-OK", $content);
+    }
+
     public function test_leere_produktliste_liefert_nur_header(): void
     {
         $content = $this->captureContent($this->writer->write(['products' => []], 'leer'));

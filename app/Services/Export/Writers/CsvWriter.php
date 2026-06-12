@@ -9,6 +9,29 @@ use ZipArchive;
 
 class CsvWriter
 {
+    /**
+     * Neutralisiert Formel-Injection (OWASP CSV Injection): Zellen, die mit
+     * =, +, -, @, Tab oder CR beginnen, werden mit Apostroph geprefixt,
+     * damit Excel/Calc sie nicht als Formel ausführt. Echte Zahlen
+     * (z.B. -5) bleiben unverändert.
+     */
+    private function sanitizeRow(array $row): array
+    {
+        return array_map(function ($cell) {
+            if (is_string($cell) && $cell !== '' && !is_numeric($cell)
+                && in_array($cell[0], ['=', '+', '-', '@', "\t", "\r"], true)) {
+                return "'" . $cell;
+            }
+
+            return $cell;
+        }, $row);
+    }
+
+    private function putRow($handle, array $row): void
+    {
+        fputcsv($handle, $this->sanitizeRow($row), ';');
+    }
+
     public function write(array $data, string $fileName): StreamedResponse
     {
         $products = $data['products'] ?? [];
@@ -37,13 +60,13 @@ class CsvWriter
 
             fputcsv($handle, ['SKU', 'Name', 'Status', 'EAN', 'Produkttyp'], ';');
             foreach ($products as $product) {
-                fputcsv($handle, [
+                $this->putRow($handle, [
                     $product['sku'] ?? '',
                     $product['name'] ?? '',
                     $product['status'] ?? '',
                     $product['ean'] ?? '',
                     $product['product_type'] ?? '',
-                ], ';');
+                ]);
             }
             fclose($handle);
         }, 200, [
@@ -113,41 +136,41 @@ class CsvWriter
         }
 
         foreach ($products as $p) {
-            fputcsv($handles['products'], [
+            $this->putRow($handles['products'], [
                 $p['sku'] ?? '', $p['name'] ?? '', $p['status'] ?? '',
                 $p['ean'] ?? '', $p['product_type'] ?? '',
-            ], ';');
+            ]);
 
             if (isset($handles['attr'])) {
                 foreach ($p['attributes'] ?? [] as $a) {
-                    fputcsv($handles['attr'], [
+                    $this->putRow($handles['attr'], [
                         $p['sku'], $a['attribute'], $a['attribute_name'], $a['value'], $a['language'],
-                    ], ';');
+                    ]);
                 }
             }
 
             if (isset($handles['prices'])) {
                 foreach ($p['prices'] ?? [] as $pr) {
-                    fputcsv($handles['prices'], [
+                    $this->putRow($handles['prices'], [
                         $p['sku'], $pr['price_type'], $pr['amount'], $pr['currency'],
                         $pr['scale_from'], $pr['valid_from'], $pr['valid_to'],
-                    ], ';');
+                    ]);
                 }
             }
 
             if (isset($handles['relations'])) {
                 foreach ($p['relations'] ?? [] as $r) {
-                    fputcsv($handles['relations'], [
+                    $this->putRow($handles['relations'], [
                         $p['sku'], $r['target_sku'], $r['relation_type'], $r['position'],
-                    ], ';');
+                    ]);
                 }
             }
 
             if (isset($handles['media'])) {
                 foreach ($p['media'] ?? [] as $m) {
-                    fputcsv($handles['media'], [
+                    $this->putRow($handles['media'], [
                         $p['sku'], $m['file_name'], $m['usage_type'], $m['position'],
-                    ], ';');
+                    ]);
                 }
             }
         }
