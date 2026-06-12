@@ -123,12 +123,89 @@ class BulkUpdateControllerTest extends TestCase
 
     // ── PUT /products/bulk-update ────────────────────────────────────
 
-    // Hinweis: Die Execute-Pfade "overwrite"/"fill_empty" (ProductAttributeValue::upsert)
-    // sind hier bewusst nicht getestet: Der Upsert-Konflikt-Target im
-    // BulkUpdateController (product_id, attribute_id, language, multiplied_index)
-    // passt seit Migration 2026_03_11 nicht mehr zum Unique-Index
-    // (… + output_hierarchy_id) und schlägt unter SQLite mit 500 fehl.
-    // Siehe Bug-Report im Abschlussbericht.
+    public function test_execute_overwrite_setzt_attributwert(): void
+    {
+        $attribute = Attribute::factory()->create(['data_type' => 'String']);
+        $leeresProdukt = Product::factory()->create();
+        $gefuelltesProdukt = Product::factory()->create();
+
+        // Bestehender Wert, der überschrieben werden soll
+        ProductAttributeValue::factory()->create([
+            'product_id' => $gefuelltesProdukt->id,
+            'attribute_id' => $attribute->id,
+            'value_string' => 'Alt',
+        ]);
+
+        $response = $this->putJson('/api/v1/products/bulk-update', [
+            'product_ids' => [$leeresProdukt->id, $gefuelltesProdukt->id],
+            'operations' => [
+                'attributes' => [
+                    ['attribute_id' => $attribute->id, 'value' => 'Neu', 'mode' => 'overwrite'],
+                ],
+            ],
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('results.attributes.updated', 2)
+            ->assertJsonPath('results.attributes.skipped', 0);
+
+        // Beide Produkte tragen jetzt den neuen Wert
+        $this->assertDatabaseHas('product_attribute_values', [
+            'product_id' => $leeresProdukt->id,
+            'attribute_id' => $attribute->id,
+            'value_string' => 'Neu',
+        ]);
+        $this->assertDatabaseHas('product_attribute_values', [
+            'product_id' => $gefuelltesProdukt->id,
+            'attribute_id' => $attribute->id,
+            'value_string' => 'Neu',
+        ]);
+    }
+
+    public function test_execute_fill_empty_fuellt_nur_leere_werte(): void
+    {
+        $attribute = Attribute::factory()->create(['data_type' => 'String']);
+        $leeresProdukt = Product::factory()->create();
+        $gefuelltesProdukt = Product::factory()->create();
+
+        ProductAttributeValue::factory()->create([
+            'product_id' => $gefuelltesProdukt->id,
+            'attribute_id' => $attribute->id,
+            'value_string' => 'Bestand',
+        ]);
+
+        $response = $this->putJson('/api/v1/products/bulk-update', [
+            'product_ids' => [$leeresProdukt->id, $gefuelltesProdukt->id],
+            'operations' => [
+                'attributes' => [
+                    ['attribute_id' => $attribute->id, 'value' => 'Neu', 'mode' => 'fill_empty'],
+                ],
+            ],
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('results.attributes.updated', 1)
+            ->assertJsonPath('results.attributes.skipped', 1);
+
+        // Leeres Produkt wurde gefüllt …
+        $this->assertDatabaseHas('product_attribute_values', [
+            'product_id' => $leeresProdukt->id,
+            'attribute_id' => $attribute->id,
+            'value_string' => 'Neu',
+        ]);
+
+        // … bestehender Wert bleibt unangetastet
+        $this->assertDatabaseHas('product_attribute_values', [
+            'product_id' => $gefuelltesProdukt->id,
+            'attribute_id' => $attribute->id,
+            'value_string' => 'Bestand',
+        ]);
+        $this->assertDatabaseMissing('product_attribute_values', [
+            'product_id' => $gefuelltesProdukt->id,
+            'attribute_id' => $attribute->id,
+            'value_string' => 'Neu',
+        ]);
+    }
 
     public function test_execute_clear_loescht_werte(): void
     {
@@ -180,10 +257,40 @@ class BulkUpdateControllerTest extends TestCase
         }
     }
 
+    public function test_execute_legt_relationen_an(): void
+    {
+        $target = Product::factory()->create();
+        $relationType = ProductRelationType::factory()->create();
+        $sources = Product::factory()->count(2)->create();
+
+        $response = $this->putJson('/api/v1/products/bulk-update', [
+            'product_ids' => $sources->pluck('id')->all(),
+            'operations' => [
+                'relations' => [
+                    [
+                        'relation_type_id' => $relationType->id,
+                        'target_product_id' => $target->id,
+                        'action' => 'add',
+                    ],
+                ],
+            ],
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('results.relations.added', 2);
+
+        foreach ($sources as $source) {
+            $this->assertDatabaseHas('product_relations', [
+                'source_product_id' => $source->id,
+                'target_product_id' => $target->id,
+                'relation_type_id' => $relationType->id,
+            ]);
+        }
+        $this->assertDatabaseCount('product_relations', 2);
+    }
+
     public function test_execute_entfernt_relationen(): void
     {
-        // Hinweis: Die "add"-Aktion nutzt ProductRelation::insert() ohne UUID-PK
-        // und schlaegt mit NOT-NULL-Verletzung fehl (Bug, siehe Abschlussbericht).
         $target = Product::factory()->create();
         $relationType = ProductRelationType::factory()->create();
         $sources = Product::factory()->count(2)->create();
@@ -215,10 +322,35 @@ class BulkUpdateControllerTest extends TestCase
         $this->assertDatabaseCount('product_relations', 0);
     }
 
+    public function test_execute_weist_output_hierarchie_zu(): void
+    {
+        $products = Product::factory()->count(2)->create();
+        $hierarchy = Hierarchy::factory()->output()->create();
+        $node = HierarchyNode::factory()->create(['hierarchy_id' => $hierarchy->id]);
+
+        $response = $this->putJson('/api/v1/products/bulk-update', [
+            'product_ids' => $products->pluck('id')->all(),
+            'operations' => [
+                'output_hierarchy' => [
+                    ['hierarchy_node_id' => $node->id, 'action' => 'assign'],
+                ],
+            ],
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('results.output_hierarchy.assigned', 2);
+
+        foreach ($products as $product) {
+            $this->assertDatabaseHas('output_hierarchy_product_assignments', [
+                'hierarchy_node_id' => $node->id,
+                'product_id' => $product->id,
+            ]);
+        }
+        $this->assertDatabaseCount('output_hierarchy_product_assignments', 2);
+    }
+
     public function test_execute_entfernt_output_hierarchie_zuordnung(): void
     {
-        // Hinweis: Die "assign"-Aktion nutzt insert() ohne UUID-PK und schlaegt
-        // mit NOT-NULL-Verletzung fehl (Bug, siehe Abschlussbericht).
         $products = Product::factory()->count(2)->create();
         $hierarchy = Hierarchy::factory()->output()->create();
         $node = HierarchyNode::factory()->create(['hierarchy_id' => $hierarchy->id]);
@@ -267,9 +399,56 @@ class BulkUpdateControllerTest extends TestCase
         }
     }
 
-    // Hinweis: Ein 403-Test fuer Nutzer ohne Berechtigung ist nicht moeglich:
-    // authorize('update', Product::class) trifft ProductPolicy::update(User, Product)
-    // ohne Product-Instanz -> ArgumentCountError (500 statt 403). Bug, siehe Bericht.
+    public function test_execute_weist_medien_zu(): void
+    {
+        $products = Product::factory()->count(2)->create();
+        $media = \App\Models\Media::factory()->create();
+
+        $response = $this->putJson('/api/v1/products/bulk-update', [
+            'product_ids' => $products->pluck('id')->all(),
+            'operations' => [
+                'media' => [
+                    ['media_id' => $media->id, 'action' => 'assign'],
+                ],
+            ],
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('results.media.assigned', 2);
+
+        foreach ($products as $product) {
+            $this->assertDatabaseHas('product_media_assignments', [
+                'product_id' => $product->id,
+                'media_id' => $media->id,
+            ]);
+        }
+        $this->assertDatabaseCount('product_media_assignments', 2);
+    }
+
+    // ── Autorisierung ────────────────────────────────────────────────
+
+    public function test_nicht_admin_ohne_permission_erhaelt_403(): void
+    {
+        // Nutzer ohne Admin-Rolle und ohne products.edit-Permission → 403 (nicht 500)
+        $unberechtigt = User::factory()->create();
+        $this->actingAs($unberechtigt);
+
+        $product = Product::factory()->create();
+
+        $this->putJson('/api/v1/products/bulk-update', [
+            'product_ids' => [$product->id],
+            'operations' => ['status' => 'active'],
+        ])->assertForbidden();
+
+        $this->postJson('/api/v1/products/bulk-update/preview', [
+            'product_ids' => [$product->id],
+            'operations' => ['status' => 'active'],
+        ])->assertForbidden();
+
+        $this->postJson('/api/v1/products/common-attributes', [
+            'product_ids' => [$product->id],
+        ])->assertForbidden();
+    }
 
     public function test_unauthenticated_access_returns_401(): void
     {
