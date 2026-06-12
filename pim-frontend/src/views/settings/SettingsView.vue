@@ -20,6 +20,7 @@ import offlineCatalogApi from '@/api/offlineCatalog'
 import catalogTemplatesApi from '@/api/catalogTemplates'
 import websiteProfilesApi from '@/api/websiteProfiles'
 import searchProfilesApi from '@/api/searchProfiles'
+import semanticSearchApi from '@/api/semanticSearch'
 import ProfileSelector from '@/components/shared/ProfileSelector.vue'
 
 const { t } = useI18n()
@@ -1662,6 +1663,87 @@ const filteredPhpInfoSections = computed(() => {
     .filter(s => s.title.toLowerCase().includes(q) || s.entries.length > 0)
 })
 
+// ── Meilisearch (Semantische Suche) — Wartung & Diagnose ─────────────────────
+const meiliEnabled = ref(false)
+const meiliStatus = ref(null)
+const meiliLoading = ref(false)
+const meiliActionError = ref(null)
+let meiliPollTimer = null
+
+// Die drei Wartungsschritte in empfohlener Reihenfolge
+const meiliActions = [
+  {
+    key: 'pull-model',
+    title: 'Embedding-Modell laden',
+    desc: 'Lädt das Modell über Ollama (~274 MB Download). Nötig, bevor der Embedder konfiguriert werden kann.',
+    cmd: 'ollama pull nomic-embed-text',
+  },
+  {
+    key: 'setup',
+    title: 'Index-Setup',
+    desc: 'Wendet die Index-Einstellungen an (Filter, Synonyme, Embedder). Löst die Embedding-Berechnung für vorhandene Dokumente aus.',
+    cmd: 'php artisan pim:meili-setup',
+  },
+  {
+    key: 'index-all',
+    title: 'Alle Produkte neu indizieren',
+    desc: 'Synchronisiert alle Produkte in den Meilisearch-Index. Embeddings berechnet Meilisearch danach asynchron.',
+    cmd: 'php artisan pim:meili-index --all',
+  },
+]
+
+async function loadMeiliStatus() {
+  meiliLoading.value = true
+  try {
+    const { data } = await adminApi.getMeilisearchStatus()
+    meiliStatus.value = data.data || null
+    meiliEnabled.value = !!meiliStatus.value?.enabled
+    syncMeiliPolling()
+  } catch (e) {
+    console.error('Meilisearch-Status-Fehler:', e)
+  } finally {
+    meiliLoading.value = false
+  }
+}
+
+function meiliActionState(key) {
+  return meiliStatus.value?.actions?.[key] || null
+}
+
+function meiliActionBusy(key) {
+  const s = meiliActionState(key)?.status
+  return s === 'queued' || s === 'running'
+}
+
+const anyMeiliActionBusy = computed(() => meiliActions.some(a => meiliActionBusy(a.key)))
+
+async function runMeiliAction(key) {
+  meiliActionError.value = null
+  try {
+    await adminApi.runMeilisearchAction(key)
+    await loadMeiliStatus()
+  } catch (e) {
+    meiliActionError.value = e?.response?.data?.message ?? e?.message ?? 'Aktion fehlgeschlagen'
+  }
+}
+
+// Solange eine Aktion läuft (und der Tab offen ist), Status alle 4s aktualisieren
+function syncMeiliPolling() {
+  const shouldPoll = activeMainTab.value === 'meilisearch' && anyMeiliActionBusy.value
+  if (shouldPoll && !meiliPollTimer) {
+    meiliPollTimer = setInterval(loadMeiliStatus, 4000)
+  } else if (!shouldPoll && meiliPollTimer) {
+    clearInterval(meiliPollTimer)
+    meiliPollTimer = null
+  }
+}
+
+function meiliCheckDot(status) {
+  if (status === 'ok') return 'bg-[var(--color-success)]'
+  if (status === 'warn') return 'bg-[var(--color-warning)]'
+  return 'bg-[var(--color-error)]'
+}
+
 watch(activeMainTab, (tab) => {
   if (tab === 'appearance') {
     appearanceForm.value = { ...appearanceStore.settings }
@@ -1677,6 +1759,8 @@ watch(activeMainTab, (tab) => {
     loadOfflineCatalogStatus()
   }
   if (tab === 'phpinfo' && phpInfoSections.value.length === 0 && !phpInfoError.value) loadPhpInfo()
+  if (tab === 'meilisearch') loadMeiliStatus()
+  else syncMeiliPolling()
 })
 
 // Reload attributes and hierarchy nodes when hierarchy selection changes
@@ -1708,6 +1792,10 @@ onMounted(async () => {
     loadRelationTypes()
     loadCatalogSearchProfiles()
     loadTestDataStats()
+    // Meilisearch-Tab nur einblenden, wenn die semantische Suche aktiviert ist
+    semanticSearchApi.health()
+      .then(({ data }) => { meiliEnabled.value = !!data?.enabled })
+      .catch(() => {})
   }
   // Global Escape listener for offline catalog cancel
   window.addEventListener('keydown', handleOfflineCatalogKeydown)
@@ -1717,6 +1805,9 @@ onUnmounted(() => {
   window.removeEventListener('keydown', handleOfflineCatalogKeydown)
   if (offlineCatalogPollTimer) {
     clearInterval(offlineCatalogPollTimer)
+  }
+  if (meiliPollTimer) {
+    clearInterval(meiliPollTimer)
   }
 })
 </script>
@@ -1736,6 +1827,7 @@ onUnmounted(() => {
           ...(isAdmin ? [{ key: 'env', label: 'Umgebung', icon: FileCode2 }] : []),
           ...(isAdmin ? [{ key: 'processes', label: 'Prozesse', icon: Zap }] : []),
           ...(isAdmin ? [{ key: 'system', label: 'System', icon: Activity }] : []),
+          ...(isAdmin && meiliEnabled ? [{ key: 'meilisearch', label: 'Meilisearch', icon: Search }] : []),
           ...(isAdmin ? [{ key: 'license', label: 'Lizenz', icon: Key }] : []),
           ...(isAdmin ? [{ key: 'phpinfo', label: 'PHP Info', icon: Cpu }] : []),
           ...(isAdmin ? [{ key: 'cache', label: 'Cache', icon: Database }] : []),
@@ -4171,6 +4263,134 @@ onUnmounted(() => {
     </div>
 
     </template><!-- end TAB: System -->
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- TAB: MEILISEARCH (Semantische Suche)                                -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <template v-if="activeMainTab === 'meilisearch' && isAdmin">
+
+    <!-- Diagnose -->
+    <div class="pim-card p-4 sm:p-6 space-y-4">
+      <div class="flex items-center justify-between mb-2">
+        <div class="flex items-center gap-3">
+          <Search class="w-5 h-5 text-[var(--color-accent)]" :stroke-width="1.75" />
+          <h3 class="text-sm font-semibold">Semantische Suche — Diagnose</h3>
+        </div>
+        <button class="pim-btn pim-btn-secondary text-xs py-1" @click="loadMeiliStatus" :disabled="meiliLoading">
+          <RefreshCw class="w-3.5 h-3.5" :class="{ 'animate-spin': meiliLoading }" :stroke-width="2" />
+        </button>
+      </div>
+
+      <div v-if="meiliLoading && !meiliStatus" class="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">
+        <Loader2 class="w-4 h-4 animate-spin" :stroke-width="2" />
+        Diagnose läuft...
+      </div>
+
+      <template v-else-if="meiliStatus">
+        <!-- Konfiguration -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+          <div>
+            <p class="text-[var(--color-text-tertiary)]">Host</p>
+            <p class="font-mono font-medium text-[var(--color-text-primary)] truncate">{{ meiliStatus.config?.host }}</p>
+          </div>
+          <div>
+            <p class="text-[var(--color-text-tertiary)]">Index</p>
+            <p class="font-mono font-medium text-[var(--color-text-primary)]">{{ meiliStatus.config?.index }}</p>
+          </div>
+          <div>
+            <p class="text-[var(--color-text-tertiary)]">Embedder</p>
+            <p class="font-mono font-medium text-[var(--color-text-primary)]">{{ meiliStatus.config?.embedder_source }}</p>
+          </div>
+          <div>
+            <p class="text-[var(--color-text-tertiary)]">Modell</p>
+            <p class="font-mono font-medium text-[var(--color-text-primary)] truncate">{{ meiliStatus.config?.embedder_model }}</p>
+          </div>
+        </div>
+
+        <!-- Checks -->
+        <div class="space-y-2 pt-3 border-t border-[var(--color-border)]">
+          <div
+            v-for="check in meiliStatus.checks"
+            :key="check.key"
+            class="flex items-start gap-3 px-3 py-2.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)]"
+          >
+            <span class="w-2.5 h-2.5 rounded-full shrink-0 mt-1" :class="meiliCheckDot(check.status)"></span>
+            <div class="min-w-0 flex-1">
+              <p class="text-xs font-semibold text-[var(--color-text-primary)]">{{ check.label }}</p>
+              <p class="text-[11px] text-[var(--color-text-secondary)] break-words">{{ check.detail }}</p>
+              <p v-if="check.hint" class="text-[11px] font-mono text-[var(--color-warning)] mt-1 break-words">→ {{ check.hint }}</p>
+            </div>
+          </div>
+        </div>
+      </template>
+    </div>
+
+    <!-- Wartungsaktionen -->
+    <div class="pim-card p-4 sm:p-6 space-y-4">
+      <div class="flex items-center gap-3 mb-2">
+        <Zap class="w-5 h-5 text-[var(--color-accent)]" :stroke-width="1.75" />
+        <h3 class="text-sm font-semibold">Wartungsaktionen</h3>
+      </div>
+
+      <p class="text-xs text-[var(--color-text-secondary)]">
+        Bei der Ersteinrichtung (oder wenn die semantische Suche nichts findet) die drei Schritte in dieser Reihenfolge ausführen.
+        Alle Aktionen laufen als Hintergrund-Jobs über die Queue <span class="font-mono">indexing</span>.
+      </p>
+
+      <div v-if="meiliActionError" class="px-3 py-2 rounded-lg bg-[var(--color-error)]/10 border border-[var(--color-error)]/30 text-xs text-[var(--color-error)]">
+        {{ meiliActionError }}
+      </div>
+
+      <div class="space-y-3">
+        <div
+          v-for="(action, idx) in meiliActions"
+          :key="action.key"
+          class="px-4 py-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] space-y-2"
+        >
+          <div class="flex items-center gap-3">
+            <span class="w-6 h-6 rounded-full bg-[var(--color-accent)]/10 text-[var(--color-accent)] flex items-center justify-center text-xs font-bold shrink-0">{{ idx + 1 }}</span>
+            <div class="min-w-0 flex-1">
+              <p class="text-xs font-semibold text-[var(--color-text-primary)]">{{ action.title }}</p>
+              <p class="text-[11px] text-[var(--color-text-tertiary)] font-mono">{{ action.cmd }}</p>
+            </div>
+            <button
+              class="pim-btn pim-btn-secondary text-xs py-1.5 shrink-0"
+              :disabled="anyMeiliActionBusy"
+              @click="runMeiliAction(action.key)"
+            >
+              <Loader2 v-if="meiliActionBusy(action.key)" class="w-3.5 h-3.5 animate-spin" :stroke-width="2" />
+              <Play v-else class="w-3.5 h-3.5" :stroke-width="2" />
+              {{ meiliActionBusy(action.key) ? 'Läuft...' : 'Ausführen' }}
+            </button>
+          </div>
+
+          <p class="text-[11px] text-[var(--color-text-secondary)]">{{ action.desc }}</p>
+
+          <!-- Letzter Lauf -->
+          <div v-if="meiliActionState(action.key)" class="pt-2 border-t border-[var(--color-border)] space-y-1">
+            <p class="text-[11px] flex items-center gap-1.5"
+              :class="meiliActionState(action.key).status === 'success' ? 'text-[var(--color-success)]'
+                : meiliActionState(action.key).status === 'failed' ? 'text-[var(--color-error)]'
+                : 'text-[var(--color-text-secondary)]'"
+            >
+              <CheckCircle v-if="meiliActionState(action.key).status === 'success'" class="w-3.5 h-3.5" :stroke-width="2" />
+              <XCircle v-else-if="meiliActionState(action.key).status === 'failed'" class="w-3.5 h-3.5" :stroke-width="2" />
+              <Loader2 v-else class="w-3.5 h-3.5 animate-spin" :stroke-width="2" />
+              {{ meiliActionState(action.key).message }}
+              <span v-if="meiliActionState(action.key).finished_at" class="text-[var(--color-text-quaternary)]">
+                · {{ new Date(meiliActionState(action.key).finished_at).toLocaleString('de-DE') }}
+              </span>
+            </p>
+            <pre
+              v-if="meiliActionState(action.key).output"
+              class="text-[10px] font-mono bg-[var(--color-bg-secondary)] rounded p-2 overflow-x-auto max-h-40 overflow-y-auto whitespace-pre-wrap text-[var(--color-text-secondary)]"
+            >{{ meiliActionState(action.key).output }}</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    </template><!-- end TAB: Meilisearch -->
 
     <!-- ═══════════════════════════════════════════════════════════════════ -->
     <!-- TAB: LIZENZ                                                        -->

@@ -57,9 +57,17 @@ class MeilisearchSetup extends Command
         try {
             $client->waitForTask($taskUid, 120);
         } catch (\Throwable $e) {
-            $this->error('Settings-Task fehlgeschlagen: ' . $e->getMessage());
+            // Timeout ≠ Fehler: Bei vielen Dokumenten dauert die Embedding-
+            // Berechnung länger als die Wartezeit — der Task läuft in
+            // Meilisearch im Hintergrund weiter.
+            if (str_contains($e->getMessage(), 'nicht innerhalb von')) {
+                $this->warn("Settings-Task {$taskUid} läuft noch (Embeddings-Berechnung kann bei vielen Produkten dauern).");
+                $this->warn('Der Task wird in Meilisearch im Hintergrund abgeschlossen — kein erneuter Aufruf nötig.');
+            } else {
+                $this->error('Settings-Task fehlgeschlagen: ' . $e->getMessage());
 
-            return self::FAILURE;
+                return self::FAILURE;
+            }
         }
 
         $this->newLine();

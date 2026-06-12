@@ -62,6 +62,15 @@ export default {
     return client.get('/system/footer-status')
   },
 
+  // ── Meilisearch-Wartung (Semantische Suche) ──
+  getMeilisearchStatus() {
+    return client.get('/admin/meilisearch/status')
+  },
+
+  runMeilisearchAction(action) {
+    return client.post('/admin/meilisearch/run', { action })
+  },
+
   // ── Test Data Generator ──
   generateTestData(params = {}) {
     return client.post('/admin/test-data/generate', params, { timeout: 600000 })
