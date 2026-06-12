@@ -112,6 +112,7 @@ use App\Http\Controllers\Api\V1\AttributeMappingController;
 use App\Http\Controllers\Api\V1\CanvaExportProfileController;
 use App\Http\Controllers\Api\V1\ConnectorController;
 use App\Http\Controllers\Api\V1\QuickSearchController;
+use App\Http\Controllers\Api\V1\SemanticSearchController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -500,6 +501,10 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
 
     // Schnellsuche (Google-artige Suche über alle Entitäten)
     Route::get('quick-search', [QuickSearchController::class, 'search']);
+
+    // Semantische Schnellsuche (Meilisearch Hybrid: Keyword + Vektor + harte Filter)
+    Route::post('semantic-search', [SemanticSearchController::class, 'search']);
+    Route::get('semantic-search/health', [SemanticSearchController::class, 'health']);
 
     // Product Excel Export (configurable columns + filters)
     Route::post('products/export/excel', [ProductExportController::class, 'exportExcel']);
