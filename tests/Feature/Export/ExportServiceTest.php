@@ -7,7 +7,14 @@ namespace Tests\Feature\Export;
 use App\Models\Attribute;
 use App\Models\ExportProfile;
 use App\Models\Product;
+use App\Models\Media;
+use App\Models\MediaUsageType;
+use App\Models\PriceType;
 use App\Models\ProductAttributeValue;
+use App\Models\ProductMediaAssignment;
+use App\Models\ProductPrice;
+use App\Models\ProductRelation;
+use App\Models\ProductRelationType;
 use App\Models\PublixxExportMapping;
 use App\Services\Export\DatasetBuilder;
 use App\Services\Export\ExportProfileService;
@@ -78,6 +85,46 @@ class ExportServiceTest extends TestCase
             'attribute_id' => $attribute->id,
             'value_string' => 'Red',
             'language' => 'en',
+        ]);
+
+        return $product;
+    }
+
+    /**
+     * Produkt mit Preis (inkl. PriceType), Relation (inkl. RelationType)
+     * und Medien-Zuordnung (inkl. UsageType) anlegen.
+     */
+    private function createProductWithPriceRelationAndMedia(): Product
+    {
+        $product = Product::factory()->active()->create(['sku' => 'FULL-001', 'name' => 'Komplettprodukt']);
+        $target  = Product::factory()->active()->create(['sku' => 'ZUBEHOER-001']);
+
+        $priceType = PriceType::where('technical_name', 'list_price')->first()
+            ?? PriceType::factory()->create(['technical_name' => 'list_price']);
+        ProductPrice::factory()->create([
+            'product_id'    => $product->id,
+            'price_type_id' => $priceType->id,
+            'amount'        => 189.99,
+            'currency'      => 'EUR',
+        ]);
+
+        $relationType = ProductRelationType::where('technical_name', 'accessories')->first()
+            ?? ProductRelationType::factory()->create(['technical_name' => 'accessories']);
+        ProductRelation::factory()->create([
+            'source_product_id' => $product->id,
+            'target_product_id' => $target->id,
+            'relation_type_id'  => $relationType->id,
+            'sort_order'        => 3,
+        ]);
+
+        $usageType = MediaUsageType::where('technical_name', 'teaser')->first()
+            ?? MediaUsageType::factory()->create(['technical_name' => 'teaser']);
+        $media     = Media::factory()->create(['file_name' => 'teaser-bild.jpg']);
+        ProductMediaAssignment::factory()->create([
+            'product_id'    => $product->id,
+            'media_id'      => $media->id,
+            'usage_type_id' => $usageType->id,
+            'sort_order'    => 2,
         ]);
 
         return $product;
@@ -169,6 +216,66 @@ class ExportServiceTest extends TestCase
         $this->assertStringContainsString($expected, (string) $response->headers->get('Content-Disposition'));
     }
 
+    public function test_execute_json_befuellt_preistyp_relationstyp_und_verwendungstyp(): void
+    {
+        $this->createProductWithPriceRelationAndMedia();
+
+        $profile = ExportProfile::factory()->create([
+            'format' => 'json',
+            'include_attributes' => false,
+            'include_prices' => true,
+            'include_relations' => true,
+            'include_media' => true,
+        ]);
+
+        $response = $this->profileService->execute($profile);
+        $data = json_decode($this->captureContent($response), true);
+        $this->assertSame(JSON_ERROR_NONE, json_last_error());
+
+        $product = collect($data['products'])->firstWhere('sku', 'FULL-001');
+        $this->assertNotNull($product);
+
+        // Preis: price_type muss den technical_name des PriceType enthalten
+        $this->assertCount(1, $product['prices']);
+        $this->assertSame('list_price', $product['prices'][0]['price_type']);
+        $this->assertSame('EUR', $product['prices'][0]['currency']);
+
+        // Relation: Typ befüllt, position = sort_order
+        $this->assertCount(1, $product['relations']);
+        $this->assertSame('ZUBEHOER-001', $product['relations'][0]['target_sku']);
+        $this->assertSame('accessories', $product['relations'][0]['relation_type']);
+        $this->assertSame(3, $product['relations'][0]['position']);
+
+        // Medien: usage_type befüllt, position = sort_order
+        $this->assertCount(1, $product['media']);
+        $this->assertSame('teaser-bild.jpg', $product['media'][0]['file_name']);
+        $this->assertSame('teaser', $product['media'][0]['usage_type']);
+        $this->assertSame(2, $product['media'][0]['position']);
+    }
+
+    public function test_stream_befuellt_preistyp_relationstyp_und_verwendungstyp(): void
+    {
+        $this->createProductWithPriceRelationAndMedia();
+
+        $profile = ExportProfile::factory()->create([
+            'format' => 'json',
+            'include_attributes' => false,
+            'include_prices' => true,
+            'include_relations' => true,
+            'include_media' => true,
+        ]);
+
+        $data = $this->profileService->stream($profile)->getData(true);
+
+        $product = collect($data['products'])->firstWhere('sku', 'FULL-001');
+        $this->assertNotNull($product);
+        $this->assertSame('list_price', $product['prices'][0]['price_type']);
+        $this->assertSame('accessories', $product['relations'][0]['relation_type']);
+        $this->assertSame(3, $product['relations'][0]['position']);
+        $this->assertSame('teaser', $product['media'][0]['usage_type']);
+        $this->assertSame(2, $product['media'][0]['position']);
+    }
+
     // ─── ExportProfileService: executeToFile ────────────────────
 
     public function test_execute_to_file_json_schreibt_datei(): void
@@ -220,6 +327,84 @@ class ExportServiceTest extends TestCase
         $this->assertNotNull($sheet);
         $this->assertSame('XLSX-FILE-001', $sheet->getCell('A2')->getValue());
         $this->assertSame('Größenmaß äöü', $sheet->getCell('B2')->getValue());
+    }
+
+    public function test_execute_to_file_json_befuellt_preistyp_relationstyp_und_verwendungstyp(): void
+    {
+        $this->createProductWithPriceRelationAndMedia();
+
+        $profile = ExportProfile::factory()->create([
+            'format' => 'json',
+            'include_attributes' => false,
+            'include_prices' => true,
+            'include_relations' => true,
+            'include_media' => true,
+        ]);
+
+        $basePath = tempnam(sys_get_temp_dir(), 'expfull_');
+        $this->tmpFiles[] = $basePath;
+
+        $result = $this->profileService->executeToFile($profile, $basePath);
+        $this->tmpFiles[] = $result['output_path'];
+
+        $data = json_decode((string) file_get_contents($result['output_path']), true);
+        $this->assertSame(JSON_ERROR_NONE, json_last_error());
+
+        $product = collect($data['products'])->firstWhere('sku', 'FULL-001');
+        $this->assertNotNull($product);
+
+        // Preis: price_type muss den technical_name des PriceType enthalten
+        $this->assertSame('list_price', $product['prices'][0]['price_type']);
+
+        // Relation: Typ befüllt, position = sort_order
+        $this->assertSame('ZUBEHOER-001', $product['relations'][0]['target_sku']);
+        $this->assertSame('accessories', $product['relations'][0]['relation_type']);
+        $this->assertSame(3, $product['relations'][0]['position']);
+
+        // Medien: usage_type befüllt, position = sort_order
+        $this->assertSame('teaser-bild.jpg', $product['media'][0]['file_name']);
+        $this->assertSame('teaser', $product['media'][0]['usage_type']);
+        $this->assertSame(2, $product['media'][0]['position']);
+    }
+
+    public function test_execute_to_file_xlsx_befuellt_preistyp_relationstyp_und_verwendungstyp(): void
+    {
+        $this->createProductWithPriceRelationAndMedia();
+
+        $profile = ExportProfile::factory()->create([
+            'format' => 'excel',
+            'include_attributes' => false,
+            'include_prices' => true,
+            'include_relations' => true,
+            'include_media' => true,
+        ]);
+
+        $basePath = tempnam(sys_get_temp_dir(), 'expfullx_');
+        $this->tmpFiles[] = $basePath;
+
+        $result = $this->profileService->executeToFile($profile, $basePath);
+        $this->tmpFiles[] = $result['output_path'];
+
+        $spreadsheet = IOFactory::load($result['output_path']);
+
+        $priceSheet = $spreadsheet->getSheetByName('Preise');
+        $this->assertNotNull($priceSheet);
+        $this->assertSame('FULL-001', $priceSheet->getCell('A2')->getValue());
+        $this->assertSame('list_price', $priceSheet->getCell('B2')->getValue());
+
+        $relSheet = $spreadsheet->getSheetByName('Beziehungen');
+        $this->assertNotNull($relSheet);
+        $this->assertSame('FULL-001', $relSheet->getCell('A2')->getValue());
+        $this->assertSame('ZUBEHOER-001', $relSheet->getCell('B2')->getValue());
+        $this->assertSame('accessories', $relSheet->getCell('C2')->getValue());
+        $this->assertEquals(3, $relSheet->getCell('D2')->getValue());
+
+        $mediaSheet = $spreadsheet->getSheetByName('Medien');
+        $this->assertNotNull($mediaSheet);
+        $this->assertSame('FULL-001', $mediaSheet->getCell('A2')->getValue());
+        $this->assertSame('teaser-bild.jpg', $mediaSheet->getCell('B2')->getValue());
+        $this->assertSame('teaser', $mediaSheet->getCell('C2')->getValue());
+        $this->assertEquals(2, $mediaSheet->getCell('D2')->getValue());
     }
 
     // ─── ExportProfileService: Scope / Count ────────────────────

@@ -15,7 +15,7 @@ class CsvWriter
      * damit Excel/Calc sie nicht als Formel ausführt. Echte Zahlen
      * (z.B. -5) bleiben unverändert.
      */
-    private function sanitizeRow(array $row): array
+    public static function sanitizeRow(array $row): array
     {
         return array_map(function ($cell) {
             if (is_string($cell) && $cell !== '' && !is_numeric($cell)
@@ -29,7 +29,7 @@ class CsvWriter
 
     private function putRow($handle, array $row): void
     {
-        fputcsv($handle, $this->sanitizeRow($row), ';');
+        fputcsv($handle, self::sanitizeRow($row), ';');
     }
 
     public function write(array $data, string $fileName): StreamedResponse
