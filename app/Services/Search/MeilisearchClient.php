@@ -125,6 +125,38 @@ class MeilisearchClient
     }
 
     /**
+     * Aktuelle Index-Settings lesen (u. a. zur Embedder-Diagnose).
+     */
+    public function getSettings(string $uid): array
+    {
+        return $this->throwOnError(
+            $this->http()->get($this->host . '/indexes/' . $uid . '/settings'),
+        )->json() ?? [];
+    }
+
+    /**
+     * Task-Liste abfragen (z. B. fehlgeschlagene oder laufende Tasks).
+     *
+     * @param array $params Query-Parameter wie indexUids, statuses, limit
+     */
+    public function getTasks(array $params = []): array
+    {
+        return $this->throwOnError(
+            $this->http()->get($this->host . '/tasks', $params),
+        )->json() ?? [];
+    }
+
+    /**
+     * Dokumente lesen — mit retrieveVectors=true prüfbar, ob Embeddings existieren.
+     */
+    public function getDocuments(string $uid, array $params = []): array
+    {
+        return $this->throwOnError(
+            $this->http()->get($this->host . '/indexes/' . $uid . '/documents', $params),
+        )->json() ?? [];
+    }
+
+    /**
      * Auf Abschluss eines asynchronen Tasks warten.
      */
     public function waitForTask(int $taskUid, int $timeoutSeconds = 60): array

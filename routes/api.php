@@ -61,6 +61,7 @@ use App\Http\Controllers\Api\V1\ImportController;
 use App\Http\Controllers\Api\V1\MediaAttributeValueController;
 use App\Http\Controllers\Api\V1\ManufacturerController;
 use App\Http\Controllers\Api\V1\MediaController;
+use App\Http\Controllers\Api\V1\MeilisearchAdminController;
 use App\Http\Controllers\Api\V1\MediaUsageTypeController;
 use App\Http\Controllers\Api\V1\NodeAttributeAssignmentController;
 use App\Http\Controllers\Api\V1\PqlController;
@@ -853,6 +854,8 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::get('admin/system-processes', [SystemInfoController::class, 'systemProcesses']);
     Route::get('admin/php-info', [SystemInfoController::class, 'phpInfo']);
     Route::post('admin/cache-flush', [SystemInfoController::class, 'cacheFlush']);
+    Route::get('admin/meilisearch/status', [MeilisearchAdminController::class, 'status']);
+    Route::post('admin/meilisearch/run', [MeilisearchAdminController::class, 'run']);
     Route::post('admin/pdf/batch-process', [PdfController::class, 'batchProcess']);
 
     // =====================================================================
