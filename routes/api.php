@@ -841,6 +841,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::post('admin/search-reindex', [SettingController::class, 'reindexSearch']);
     Route::get('admin/search-reindex/progress', [SettingController::class, 'reindexProgress']);
     Route::post('admin/search-reindex/cancel', [SettingController::class, 'cancelReindex']);
+    Route::get('system/footer-status', [SystemInfoController::class, 'footerStatus']);
     Route::get('admin/env-info', [SystemInfoController::class, 'envInfo']);
     Route::get('admin/system-status', [SystemInfoController::class, 'systemStatus']);
     Route::get('admin/queue-jobs', [SystemInfoController::class, 'queueJobs']);

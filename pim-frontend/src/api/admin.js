@@ -57,6 +57,11 @@ export default {
     return client.get('/admin/system-status')
   },
 
+  // Leichtgewichtiger Status fuer den App-Footer (alle Nutzer, 60s gecacht)
+  getFooterStatus() {
+    return client.get('/system/footer-status')
+  },
+
   // ── Test Data Generator ──
   generateTestData(params = {}) {
     return client.post('/admin/test-data/generate', params, { timeout: 600000 })

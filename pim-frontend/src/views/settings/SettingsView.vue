@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useLocaleStore } from '@/stores/locale'
 import { useAuthStore } from '@/stores/auth'
@@ -22,6 +23,7 @@ import searchProfilesApi from '@/api/searchProfiles'
 import ProfileSelector from '@/components/shared/ProfileSelector.vue'
 
 const { t } = useI18n()
+const route = useRoute()
 const localeStore = useLocaleStore()
 const authStore = useAuthStore()
 
@@ -1686,6 +1688,12 @@ watch(() => themeForm.value.hierarchy_id, (newId, oldId) => {
 })
 
 onMounted(async () => {
+  // Deep-Link: /settings?tab=system (z.B. vom App-Footer)
+  const requestedTab = route.query.tab
+  if (typeof requestedTab === 'string' && requestedTab !== '') {
+    activeMainTab.value = requestedTab
+  }
+
   loadStatus()
   if (isAdmin) {
     await loadThemeSettings()
