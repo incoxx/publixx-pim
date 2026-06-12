@@ -15,6 +15,7 @@
 #   --skip-docs       Dokumentations-Build ueberspringen
 #   --skip-tms        TMS-Setup ueberspringen
 #   --skip-composer   Composer Install ueberspringen
+#   --skip-meilisearch  Meilisearch-Installation/-Sync ueberspringen
 #   --seed            Nach Migrationen auch Seeders ausfuehren
 #   --force           Keine Bestaetigung vor dem Update
 #
@@ -54,6 +55,7 @@ SKIP_FRONTEND=false
 SKIP_DOCS=false
 SKIP_TMS=false
 SKIP_COMPOSER=false
+SKIP_MEILISEARCH=false
 RUN_SEED=false
 FORCE=false
 
@@ -64,10 +66,11 @@ for arg in "$@"; do
         --skip-docs)     SKIP_DOCS=true ;;
         --skip-tms)      SKIP_TMS=true ;;
         --skip-composer) SKIP_COMPOSER=true ;;
+        --skip-meilisearch) SKIP_MEILISEARCH=true ;;
         --seed)          RUN_SEED=true ;;
         --force)         FORCE=true ;;
         --help|-h)
-            echo "Verwendung: sudo bash update.sh [--branch=NAME] [--skip-frontend] [--skip-docs] [--skip-tms] [--skip-composer] [--seed] [--force]"
+            echo "Verwendung: sudo bash update.sh [--branch=NAME] [--skip-frontend] [--skip-docs] [--skip-tms] [--skip-composer] [--skip-meilisearch] [--seed] [--force]"
             exit 0
             ;;
         *)
@@ -306,6 +309,98 @@ TYPESENSE_KEY=$(grep '^TYPESENSE_API_KEY=' "${INSTALL_DIR}/.env" 2>/dev/null | c
 if [ -n "$TYPESENSE_KEY" ]; then
     php artisan typesense:setup && info "Typesense Collection geprueft." \
         || warn "Typesense Collection konnte nicht geprueft werden."
+fi
+
+# ─── Meilisearch: bei Bedarf automatisch installieren ────────────────────────
+# Binary, systemd-Dienst und .env-Eintraege werden per Default eingerichtet,
+# falls sie fehlen (--skip-meilisearch deaktiviert das). Eine vorhandene
+# MEILISEARCH_ENABLED-Zeile in der .env wird respektiert und nie ueberschrieben.
+if [ "$SKIP_MEILISEARCH" = false ]; then
+
+    # 1. Binary installieren falls nicht vorhanden
+    if ! command -v meilisearch &> /dev/null; then
+        info "Meilisearch nicht gefunden — installiere..."
+        MEILI_VERSION="1.15.2"
+        MEILI_ARCH="amd64"
+        curl -sL "https://github.com/meilisearch/meilisearch/releases/download/v${MEILI_VERSION}/meilisearch-linux-${MEILI_ARCH}" \
+            -o /usr/local/bin/meilisearch \
+            && chmod +x /usr/local/bin/meilisearch \
+            && info "Meilisearch ${MEILI_VERSION} installiert." \
+            || warn "Meilisearch-Download fehlgeschlagen — semantische Suche bleibt deaktiviert."
+    fi
+
+    # 2. systemd-Dienst einrichten falls nicht vorhanden
+    MEILI_SERVICE="/etc/systemd/system/meilisearch.service"
+    MEILI_DATA_DIR="/var/lib/meilisearch"
+    MEILI_API_KEY=""
+    if command -v meilisearch &> /dev/null; then
+        if [ ! -f "$MEILI_SERVICE" ]; then
+            info "Konfiguriere Meilisearch-Dienst..."
+            mkdir -p "$MEILI_DATA_DIR"
+            chown -R www-data:www-data "$MEILI_DATA_DIR"
+            MEILI_API_KEY=$(openssl rand -hex 32 2>/dev/null || cat /proc/sys/kernel/random/uuid | tr -d '-')
+            cat > "$MEILI_SERVICE" <<MEILISERVICE
+[Unit]
+Description=Meilisearch (anyPIM Hybrid Search)
+After=network.target
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=${MEILI_DATA_DIR}
+ExecStart=/usr/local/bin/meilisearch --http-addr 127.0.0.1:7700 --master-key ${MEILI_API_KEY} --db-path ${MEILI_DATA_DIR}/data
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+MEILISERVICE
+            systemctl daemon-reload
+            systemctl enable meilisearch
+            systemctl start meilisearch
+            info "Meilisearch-Dienst gestartet (Port 7700, API-Key generiert)."
+        else
+            # Key aus bestehendem Dienst auslesen (fuer .env-Befuellung)
+            MEILI_API_KEY=$(grep -oP '(?<=--master-key )\S+' "$MEILI_SERVICE" || true)
+            systemctl is-active meilisearch > /dev/null 2>&1 || systemctl start meilisearch || true
+        fi
+    fi
+
+    # 3. Ollama (lokale Embeddings) installieren falls nicht vorhanden
+    if [ -n "$MEILI_API_KEY" ] && ! command -v ollama &> /dev/null; then
+        info "Ollama nicht gefunden — installiere (lokale Embeddings)..."
+        curl -fsSL https://ollama.ai/install.sh | sh 2>&1 | tail -3 \
+            && info "Ollama installiert." \
+            || warn "Ollama-Installation fehlgeschlagen — Embedder spaeter einrichten."
+    fi
+    if [ -n "$MEILI_API_KEY" ] && command -v ollama &> /dev/null; then
+        if ! ollama list 2>/dev/null | grep -q nomic-embed-text; then
+            info "Lade Embedding-Modell nomic-embed-text..."
+            ollama pull nomic-embed-text 2>&1 | tail -2 && info "Modell geladen." \
+                || warn "Modell-Download fehlgeschlagen — nachholen mit: ollama pull nomic-embed-text"
+        fi
+    fi
+
+    # 4. .env-Eintraege ergaenzen falls noch keine vorhanden sind
+    if [ -n "$MEILI_API_KEY" ] && ! grep -q '^MEILISEARCH_ENABLED=' "${INSTALL_DIR}/.env" 2>/dev/null; then
+        info "Trage Meilisearch-Konfiguration in .env ein..."
+        cat >> "${INSTALL_DIR}/.env" <<MEILIENV
+
+# ─── Meilisearch (Semantische Schnellsuche, Hybrid Search) ──────────
+MEILISEARCH_ENABLED=true
+MEILISEARCH_HOST=http://127.0.0.1:7700
+MEILISEARCH_API_KEY=${MEILI_API_KEY}
+MEILISEARCH_INDEX=products
+MEILISEARCH_EMBEDDER_ENABLED=true
+MEILISEARCH_EMBEDDER_SOURCE=ollama
+MEILISEARCH_EMBEDDER_MODEL=nomic-embed-text
+MEILISEARCH_EMBEDDER_URL=http://localhost:11434/api/embeddings
+MEILISEARCH_SEMANTIC_RATIO=0.5
+MEILISEARCH_NUMERIC_TOLERANCE=0.05
+MEILIENV
+        info "Meilisearch in .env aktiviert (MEILISEARCH_ENABLED=true)."
+        # Config-Cache leeren, damit pim:meili-setup die neuen Werte sieht
+        php artisan config:clear > /dev/null 2>&1 || true
+    fi
 fi
 
 # Meilisearch: Index-Settings aktualisieren (Filter, Synonyme, Embedder)
