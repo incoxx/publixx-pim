@@ -7,6 +7,7 @@ import { useRoute } from 'vue-router'
 import { computed } from 'vue'
 import { Command, Globe, LogOut, Menu, Pin, PinOff, Sparkles, User } from 'lucide-vue-next'
 import { useCopilotStore } from '@/stores/copilot'
+import SemanticSearchBox from '@/components/layout/SemanticSearchBox.vue'
 
 const authStore = useAuthStore()
 const copilotStore = useCopilotStore()
@@ -54,6 +55,9 @@ function switchLocale(code) {
 
     <!-- Right: Actions -->
     <div class="flex items-center gap-2">
+      <!-- Semantische Schnellsuche (nur wenn Meilisearch aktiv) -->
+      <SemanticSearchBox />
+
       <!-- Copilot toggle -->
       <button
         class="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md border transition-colors hover:bg-white/10"
