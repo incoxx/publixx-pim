@@ -30,7 +30,9 @@ class MeilisearchDocumentBuilder
     public function build(string $productId): ?array
     {
         $row = DB::table('products_search_index')
-            ->where('product_id', $productId)
+            ->join('products', 'products.id', '=', 'products_search_index.product_id')
+            ->where('products_search_index.product_id', $productId)
+            ->select('products_search_index.*', 'products.name as product_name')
             ->first();
 
         if (!$row) {
@@ -56,7 +58,9 @@ class MeilisearchDocumentBuilder
         }
 
         $rows = DB::table('products_search_index')
-            ->whereIn('product_id', $productIds)
+            ->join('products', 'products.id', '=', 'products_search_index.product_id')
+            ->whereIn('products_search_index.product_id', $productIds)
+            ->select('products_search_index.*', 'products.name as product_name')
             ->get()
             ->keyBy('product_id');
 
@@ -81,6 +85,7 @@ class MeilisearchDocumentBuilder
             'ean' => $row->ean,
             'status' => $row->status,
             'product_type' => $row->product_type,
+            'product_name' => $row->product_name ?? null,
             'name_de' => $row->name_de,
             'name_en' => $row->name_en,
             'description_de' => $row->description_de !== null

@@ -445,10 +445,10 @@ function typeIcon(type) {
               <!-- Text -->
               <div class="flex-1 min-w-0">
                 <div class="font-medium text-sm text-[var(--color-text-primary)] truncate">
-                  {{ hit.name_de || hit.name_en || hit.sku }}
+                  {{ hit.product_name || hit.name_de || hit.name_en || hit.sku }}
                 </div>
                 <div class="text-xs text-[var(--color-text-tertiary)] truncate">
-                  {{ [hit.sku, hit.hierarchy_path].filter(Boolean).join(' · ') }}
+                  {{ hit.sku }}{{ hit.hierarchy_path ? ' · ' + hit.hierarchy_path : '' }}
                 </div>
               </div>
 
