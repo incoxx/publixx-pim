@@ -84,6 +84,7 @@ class SearchSchemaService
 
         $settings = [
             'searchableAttributes' => [
+                'product_name',
                 'name_de',
                 'name_en',
                 'sku',
@@ -94,7 +95,7 @@ class SearchSchemaService
                 'media_text',
             ],
             'filterableAttributes' => array_values(array_unique(array_merge(
-                ['status', 'product_type', 'product_type_ref', 'hierarchy_path', 'list_price'],
+                ['status', 'product_type', 'product_type_ref', 'hierarchy_path', 'hierarchy_path_ids', 'list_price'],
                 $attrFields,
             ))),
             'sortableAttributes' => array_values(array_unique(array_merge(

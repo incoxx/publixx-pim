@@ -40,8 +40,9 @@ class MeilisearchDocumentBuilder
         }
 
         $attrValues = $this->filterableAttributeValuesBatch([$productId]);
+        $hierarchyNames = $this->resolveHierarchyNames([$row->hierarchy_path]);
 
-        return $this->toDocument($row, $attrValues[$productId] ?? []);
+        return $this->toDocument($row, $attrValues[$productId] ?? [], $hierarchyNames);
     }
 
     /**
@@ -65,10 +66,13 @@ class MeilisearchDocumentBuilder
             ->keyBy('product_id');
 
         $attrValues = $this->filterableAttributeValuesBatch($productIds);
+        $hierarchyNames = $this->resolveHierarchyNames(
+            $rows->pluck('hierarchy_path')->filter()->unique()->values()->all(),
+        );
 
         $documents = [];
         foreach ($rows as $row) {
-            $documents[] = $this->toDocument($row, $attrValues[$row->product_id] ?? []);
+            $documents[] = $this->toDocument($row, $attrValues[$row->product_id] ?? [], $hierarchyNames);
         }
 
         return $documents;
@@ -76,8 +80,10 @@ class MeilisearchDocumentBuilder
 
     /**
      * stdClass-Zeile → Meilisearch-Dokument-Array.
+     *
+     * @param array<string, string> $hierarchyNames UUID-Pfad → lesbarer Namenspfad
      */
-    private function toDocument(object $row, array $attrValues): array
+    private function toDocument(object $row, array $attrValues, array $hierarchyNames = []): array
     {
         $document = [
             'id' => $row->product_id,
@@ -91,7 +97,13 @@ class MeilisearchDocumentBuilder
             'description_de' => $row->description_de !== null
                 ? mb_substr(strip_tags($row->description_de), 0, 5000)
                 : null,
-            'hierarchy_path' => $row->hierarchy_path,
+            // Lesbarer Namenspfad ("Kryotechnik > Schläuche") statt UUID-Pfad —
+            // wird angezeigt, durchsucht und embedded. Der UUID-Pfad bleibt
+            // unter hierarchy_path_ids für exakte Filter erhalten.
+            'hierarchy_path' => $row->hierarchy_path !== null
+                ? ($hierarchyNames[$row->hierarchy_path] ?? null)
+                : null,
+            'hierarchy_path_ids' => $row->hierarchy_path,
             'searchable_text' => $row->searchable_text,
             'media_text' => $row->media_text,
             'primary_image' => $row->primary_image,
@@ -110,6 +122,47 @@ class MeilisearchDocumentBuilder
         }
 
         return array_merge($document, $attrValues);
+    }
+
+    /**
+     * UUID-Pfade ("/uuid1/uuid2/") in lesbare Namenspfade auflösen
+     * ("Kryotechnik > Schläuche") — batch, ein Query für alle Pfade.
+     *
+     * @param  array<?string> $paths
+     * @return array<string, string> UUID-Pfad → Namenspfad
+     */
+    private function resolveHierarchyNames(array $paths): array
+    {
+        $nodeIds = [];
+        foreach ($paths as $path) {
+            foreach (array_filter(explode('/', (string) $path)) as $id) {
+                $nodeIds[$id] = true;
+            }
+        }
+
+        if ($nodeIds === []) {
+            return [];
+        }
+
+        $names = DB::table('hierarchy_nodes')
+            ->whereIn('id', array_keys($nodeIds))
+            ->pluck('name_de', 'id')
+            ->all();
+
+        $map = [];
+        foreach (array_unique(array_filter($paths)) as $path) {
+            $segments = [];
+            foreach (array_filter(explode('/', $path)) as $id) {
+                if (isset($names[$id]) && $names[$id] !== '') {
+                    $segments[] = $names[$id];
+                }
+            }
+            if ($segments !== []) {
+                $map[$path] = implode(' > ', $segments);
+            }
+        }
+
+        return $map;
     }
 
     /**

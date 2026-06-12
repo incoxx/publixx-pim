@@ -83,7 +83,7 @@ class HybridSearchService
             'offset' => $offset,
             'showRankingScore' => true,
             'attributesToRetrieve' => [
-                'id', 'sku', 'ean', 'status', 'product_type', 'name_de', 'name_en',
+                'id', 'sku', 'ean', 'status', 'product_type', 'product_name', 'name_de', 'name_en',
                 'hierarchy_path', 'primary_image', 'list_price', 'attribute_completeness',
             ],
         ];
