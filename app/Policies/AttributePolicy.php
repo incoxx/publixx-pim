@@ -45,4 +45,9 @@ class AttributePolicy
     {
         return $user->hasPermissionTo('attributes.delete');
     }
+
+    public function bulkDelete(User $user): bool
+    {
+        return $user->checkPermissionTo('attributes.delete');
+    }
 }

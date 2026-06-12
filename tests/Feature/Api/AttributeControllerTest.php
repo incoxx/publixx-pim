@@ -123,11 +123,9 @@ class AttributeControllerTest extends TestCase
             ->assertJsonStructure(['data' => ['has_dependencies', 'total_count', 'dependencies']]);
     }
 
-    public function test_bulk_delete_requires_admin_role_property(): void
+    public function test_bulk_delete_allowed_for_admin(): void
     {
-        // Note: The bulkDelete endpoint checks $user->role === 'Admin' (direct property),
-        // which differs from Spatie role checks. This currently returns 403 for all users
-        // because User model has no 'role' column/accessor.
+        // AttributePolicy::before() erlaubt Admins alle Aktionen
         $attrs = Attribute::factory()->count(3)->create();
         $ids = $attrs->pluck('id')->toArray();
 
@@ -135,6 +133,27 @@ class AttributeControllerTest extends TestCase
             'attribute_ids' => $ids,
         ]);
 
+        $response->assertOk();
+        foreach ($ids as $id) {
+            $this->assertDatabaseMissing('attributes', ['id' => $id]);
+        }
+    }
+
+    public function test_bulk_delete_forbidden_without_delete_permission(): void
+    {
+        $user = User::factory()->create();
+        $this->actingAs($user);
+
+        $attrs = Attribute::factory()->count(2)->create();
+        $ids = $attrs->pluck('id')->toArray();
+
+        $response = $this->postJson('/api/v1/attributes/bulk-delete', [
+            'attribute_ids' => $ids,
+        ]);
+
         $response->assertForbidden();
+        foreach ($ids as $id) {
+            $this->assertDatabaseHas('attributes', ['id' => $id]);
+        }
     }
 }

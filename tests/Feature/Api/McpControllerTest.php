@@ -51,7 +51,7 @@ class McpControllerTest extends TestCase
         ]);
 
         $response->assertOk()
-            ->assertJsonCount(6, 'result.tools');
+            ->assertJsonCount(12, 'result.tools');
     }
 
     public function test_rejects_wrong_token_in_url_path(): void
@@ -88,7 +88,7 @@ class McpControllerTest extends TestCase
             ->assertJsonPath('result.protocolVersion', '2025-06-18');
     }
 
-    public function test_tools_list_returns_six_tools(): void
+    public function test_tools_list_returns_all_tools(): void
     {
         $response = $this->postJson('/api/v1/mcp', [
             'jsonrpc' => '2.0', 'id' => 2, 'method' => 'tools/list',
@@ -96,11 +96,16 @@ class McpControllerTest extends TestCase
 
         $response->assertOk();
         $tools = $response->json('result.tools');
-        $this->assertCount(6, $tools);
+        $this->assertCount(12, $tools);
 
         $names = array_column($tools, 'name');
         $this->assertEqualsCanonicalizing(
-            ['list_templates', 'stream_products', 'search_products', 'graphql_query', 'graphql_mutate', 'get_schema'],
+            [
+                'list_templates', 'stream_products', 'search_products',
+                'graphql_query', 'graphql_mutate', 'get_schema',
+                'list_attributes', 'list_hierarchies', 'list_hierarchy_nodes',
+                'list_node_attributes', 'list_node_products', 'update_product_attribute',
+            ],
             $names,
         );
     }
