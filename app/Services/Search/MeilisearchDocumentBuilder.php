@@ -8,7 +8,8 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Baut das Meilisearch-Dokument eines Produkts.
+ * Baut das Meilisearch-Dokument eines Produkts (Einzelpfad) oder
+ * eines ganzen Batches (buildBatch, für den Bulk-Index-Befehl).
  *
  * Quelle ist der bereits denormalisierte products_search_index (Name,
  * Beschreibung, searchable_text, Hierarchiepfad, Listenpreis) — ergänzt um
@@ -24,7 +25,7 @@ class MeilisearchDocumentBuilder
     }
 
     /**
-     * Dokument bauen; null, wenn das Produkt nicht (mehr) im Index steht.
+     * Einzelnes Dokument bauen; null wenn das Produkt nicht im Index steht.
      */
     public function build(string $productId): ?array
     {
@@ -36,6 +37,44 @@ class MeilisearchDocumentBuilder
             return null;
         }
 
+        $attrValues = $this->filterableAttributeValuesBatch([$productId]);
+
+        return $this->toDocument($row, $attrValues[$productId] ?? []);
+    }
+
+    /**
+     * Batch-Variante: baut Dokumente für alle übergebenen Produkt-IDs in
+     * genau 2 SQL-Queries statt 2×N. Gibt Dokumente ohne null-Einträge zurück.
+     *
+     * @param  string[] $productIds
+     * @return array[]
+     */
+    public function buildBatch(array $productIds): array
+    {
+        if ($productIds === []) {
+            return [];
+        }
+
+        $rows = DB::table('products_search_index')
+            ->whereIn('product_id', $productIds)
+            ->get()
+            ->keyBy('product_id');
+
+        $attrValues = $this->filterableAttributeValuesBatch($productIds);
+
+        $documents = [];
+        foreach ($rows as $row) {
+            $documents[] = $this->toDocument($row, $attrValues[$row->product_id] ?? []);
+        }
+
+        return $documents;
+    }
+
+    /**
+     * stdClass-Zeile → Meilisearch-Dokument-Array.
+     */
+    private function toDocument(object $row, array $attrValues): array
+    {
         $document = [
             'id' => $row->product_id,
             'sku' => $row->sku,
@@ -62,22 +101,24 @@ class MeilisearchDocumentBuilder
 
         if (property_exists($row, 'product_type_ref')) {
             $document['product_type_ref'] = $row->product_type_ref;
-            $document['parent_product_id'] = $row->parent_product_id;
+            $document['parent_product_id'] = $row->parent_product_id ?? null;
         }
 
-        return array_merge($document, $this->filterableAttributeValues($productId));
+        return array_merge($document, $attrValues);
     }
 
     /**
-     * Filterbare attr_*-Felder (Number normalisiert, Selection als
-     * Anzeigewert-Array, Flag als bool).
+     * Filterbare attr_*-Felder für einen Batch von Produkt-IDs in einem Query.
+     *
+     * @param  string[] $productIds
+     * @return array<string, array> product_id → [field => value]
      */
-    private function filterableAttributeValues(string $productId): array
+    private function filterableAttributeValuesBatch(array $productIds): array
     {
         $schema = $this->schemaService->schema();
         $technicalNames = array_keys($schema['attributes']);
 
-        if ($technicalNames === []) {
+        if ($technicalNames === [] || $productIds === []) {
             return [];
         }
 
@@ -85,9 +126,10 @@ class MeilisearchDocumentBuilder
             ->join('attributes as a', 'a.id', '=', 'pav.attribute_id')
             ->leftJoin('units as u', 'u.id', '=', 'pav.unit_id')
             ->leftJoin('value_list_entries as vle', 'vle.id', '=', 'pav.value_selection_id')
-            ->where('pav.product_id', $productId)
+            ->whereIn('pav.product_id', $productIds)
             ->whereIn('a.technical_name', $technicalNames)
             ->select([
+                'pav.product_id',
                 'a.technical_name',
                 'a.data_type',
                 'pav.value_number',
@@ -99,42 +141,42 @@ class MeilisearchDocumentBuilder
             ->orderBy('pav.multiplied_index')
             ->get();
 
-        $values = [];
+        $result = [];
 
         foreach ($rows as $row) {
+            $pid = $row->product_id;
             $attr = $schema['attributes'][$row->technical_name];
             $field = $attr['field'];
 
             switch ($row->data_type) {
                 case 'Number':
-                    if ($row->value_number === null || isset($values[$field])) {
+                    if ($row->value_number === null || isset($result[$pid][$field])) {
                         break;
                     }
-                    // Normalisierung: gespeicherte Einheit, sonst Default-Einheit des Attributs
                     $factor = $row->unit_factor !== null
                         ? (float) $row->unit_factor
                         : (float) ($attr['default_to_base'] ?? 1.0);
-                    $values[$field] = round((float) $row->value_number * $factor, 6);
+                    $result[$pid][$field] = round((float) $row->value_number * $factor, 6);
                     break;
 
                 case 'Flag':
-                    if ($row->value_flag !== null && !isset($values[$field])) {
-                        $values[$field] = (bool) $row->value_flag;
+                    if ($row->value_flag !== null && !isset($result[$pid][$field])) {
+                        $result[$pid][$field] = (bool) $row->value_flag;
                     }
                     break;
 
                 case 'Selection':
                     $display = $row->display_value_de ?? $row->display_value_en;
                     if ($display !== null) {
-                        $values[$field] ??= [];
-                        if (!in_array($display, $values[$field], true)) {
-                            $values[$field][] = $display;
+                        $result[$pid][$field] ??= [];
+                        if (!in_array($display, $result[$pid][$field], true)) {
+                            $result[$pid][$field][] = $display;
                         }
                     }
                     break;
             }
         }
 
-        return $values;
+        return $result;
     }
 }

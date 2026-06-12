@@ -46,7 +46,9 @@ class MeilisearchSetup extends Command
 
         $settings = $schemaService->meilisearchSettings();
         if ($this->option('no-embedder')) {
-            unset($settings['embedders']);
+            // Meilisearch PATCH: fehlender Schlüssel = keine Änderung.
+            // null explizit senden entfernt bestehende Embedder.
+            $settings['embedders'] = null;
         }
 
         $this->info('Index-Settings werden angewendet...');

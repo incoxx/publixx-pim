@@ -314,7 +314,7 @@ fi
 MEILI_ENABLED=$(grep '^MEILISEARCH_ENABLED=' "${INSTALL_DIR}/.env" 2>/dev/null | cut -d'=' -f2- | tr -d '"' | tr -d "'" || true)
 if [ "$MEILI_ENABLED" = "true" ]; then
     info "Meilisearch-Index-Settings aktualisieren..."
-    php artisan pim:meili-setup --force 2>&1 \
+    php artisan pim:meili-setup --fresh-schema 2>&1 \
         && info "Meilisearch-Settings aktualisiert." \
         || warn "Meilisearch-Setup fehlgeschlagen — spaeter nachholen mit: php artisan pim:meili-setup"
 

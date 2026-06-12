@@ -165,7 +165,9 @@ class HybridSearchService
         $value = $explicit['value'] ?? null;
 
         if ($operator === 'between') {
-            $values = (array) $value;
+            // array_values() normalisiert auch assoziative Arrays (['min'=>1,'max'=>2]),
+            // damit $values[0] und $values[1] immer definiert sind.
+            $values = array_values((array) $value);
             if (count($values) !== 2) {
                 throw new InvalidArgumentException("Filter 'between' benötigt [min, max]: {$name}");
             }

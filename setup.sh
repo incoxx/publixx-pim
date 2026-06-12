@@ -885,7 +885,7 @@ fi
 # --- Meilisearch-Index konfigurieren und Erstbefuellung ---
 if [ -n "$MEILI_API_KEY" ]; then
     info "Konfiguriere Meilisearch-Index (Filter, Synonyme, Embedder)..."
-    php artisan pim:meili-setup --force 2>&1 \
+    php artisan pim:meili-setup 2>&1 \
         && info "Meilisearch-Index konfiguriert." \
         || warn "Meilisearch-Setup fehlgeschlagen — spaeter nachholen mit: php artisan pim:meili-setup"
 

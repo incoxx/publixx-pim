@@ -71,14 +71,9 @@ class MeilisearchIndex extends Command
         $bar = $this->output->createProgressBar($total);
 
         $query->chunkById($chunkSize, function ($rows) use ($builder, $client, $index, &$synced, $bar): void {
-            $documents = [];
-
-            foreach ($rows as $row) {
-                $document = $builder->build($row->product_id);
-                if ($document !== null) {
-                    $documents[] = $document;
-                }
-            }
+            // buildBatch: 2 Queries pro Chunk statt 2×N (kein N+1)
+            $productIds = $rows->pluck('product_id')->all();
+            $documents = $builder->buildBatch($productIds);
 
             if ($documents !== []) {
                 $client->addDocuments($index, $documents);

@@ -23,6 +23,8 @@ final class ConstraintExtractor
 {
     private const NUM = '\d+(?:[.,]\d+)?';
 
+    private ?string $cachedUnitPattern = null;
+
     /** Komparator-Wörter → Operator. */
     private const COMPARATORS = [
         'unter' => 'le', 'weniger als' => 'le', 'höchstens' => 'le',
@@ -50,7 +52,7 @@ final class ConstraintExtractor
         $unresolved = [];
         $working = $query;
 
-        $unitPattern = $this->unitPattern();
+        $unitPattern = $this->cachedUnitPattern ??= $this->unitPattern();
         if ($unitPattern === null) {
             return ['filters' => [], 'residual' => trim($query), 'unresolved' => []];
         }
@@ -260,7 +262,9 @@ final class ConstraintExtractor
 
         usort($tokens, fn (string $a, string $b): int => mb_strlen($b) <=> mb_strlen($a));
 
-        return implode('|', array_map(fn (string $t): string => preg_quote($t, '/'), $tokens));
+        // In (?:...) wrappen: sonst bindet die trailing (?!...) Assertion
+        // im aufrufenden Pattern nur an den letzten Alternationsast.
+        return '(?:' . implode('|', array_map(fn (string $t): string => preg_quote($t, '/'), $tokens)) . ')';
     }
 
     private function toFloat(string $value): float
