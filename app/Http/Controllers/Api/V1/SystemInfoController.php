@@ -121,6 +121,68 @@ class SystemInfoController extends Controller
     }
 
     /**
+     * GET /api/v1/system/footer-status
+     *
+     * Leichtgewichtiger Status fuer den App-Footer: Versionsstand (Git) und
+     * Ampel-Status aller Dienste. Fuer alle angemeldeten Nutzer sichtbar —
+     * deshalb nur Name + Status, keine Fehlerdetails. 60s serverseitig
+     * gecacht, damit der Footer-Poll keine Last erzeugt.
+     */
+    public function footerStatus(Request $request): JsonResponse
+    {
+        $data = Cache::remember('system:footer-status', 60, function (): array {
+            $services = array_map(
+                static fn (array $s): array => [
+                    'name' => $s['name'],
+                    'status' => $s['status'],
+                ],
+                $this->getServiceStatuses(),
+            );
+
+            // Ampel: error > warn > ok ('not_configured' zaehlt nicht als Stoerung)
+            $overall = 'ok';
+            foreach ($services as $service) {
+                if (in_array($service['status'], ['error', 'stopped', 'inactive', 'failed'], true)) {
+                    $overall = 'error';
+                    break;
+                }
+                if (in_array($service['status'], ['paused', 'unknown'], true)) {
+                    $overall = 'warn';
+                }
+            }
+
+            return [
+                'version' => $this->getVersionInfo(),
+                'services' => $services,
+                'overall' => $overall,
+            ];
+        });
+
+        return response()->json(['data' => $data]);
+    }
+
+    /**
+     * Versionsstand aus Git ermitteln (Commit, Branch, Datum).
+     */
+    private function getVersionInfo(): array
+    {
+        try {
+            $base = base_path();
+            $commit = trim(Process::timeout(5)->path($base)->run(['git', 'rev-parse', '--short', 'HEAD'])->output());
+            $branch = trim(Process::timeout(5)->path($base)->run(['git', 'rev-parse', '--abbrev-ref', 'HEAD'])->output());
+            $date = trim(Process::timeout(5)->path($base)->run(['git', 'log', '-1', '--pretty=%cs'])->output());
+
+            return [
+                'commit' => $commit ?: null,
+                'branch' => $branch ?: null,
+                'date' => $date ?: null,
+            ];
+        } catch (\Throwable) {
+            return ['commit' => null, 'branch' => null, 'date' => null];
+        }
+    }
+
+    /**
      * GET /api/v1/admin/queue-jobs
      *
      * Returns all pending, running, and failed queue jobs.

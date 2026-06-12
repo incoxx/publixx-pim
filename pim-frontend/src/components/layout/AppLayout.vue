@@ -6,6 +6,7 @@ import { useAppearanceStore } from '@/stores/appearance'
 import AppSidebar from './AppSidebar.vue'
 import AppHeader from './AppHeader.vue'
 import AppTabBar from './AppTabBar.vue'
+import AppFooter from './AppFooter.vue'
 import CopilotPanel from '@/views/copilot/CopilotPanel.vue'
 
 const authStore = useAuthStore()
@@ -50,14 +51,15 @@ const mainStyle = computed(() => ({
     <AppSidebar />
 
     <!-- Main content -->
-    <div :style="mainStyle" class="transition-all duration-200 ease-out">
+    <div :style="mainStyle" class="transition-all duration-200 ease-out flex flex-col min-h-screen">
       <AppHeader />
       <AppTabBar />
-      <main class="p-6">
+      <main class="p-6 flex-1">
         <router-view v-slot="{ Component }">
           <component :is="Component" :key="route.fullPath" />
         </router-view>
       </main>
+      <AppFooter />
     </div>
 
     <!-- Right Panel (on-demand) -->
