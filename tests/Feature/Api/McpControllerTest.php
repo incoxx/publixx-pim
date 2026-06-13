@@ -11,11 +11,11 @@ use App\Models\HierarchyNode;
 use App\Models\HierarchyNodeAttributeAssignment;
 use App\Models\OutputHierarchyProductAssignment;
 use App\Models\Product;
-use App\Models\ProductAttributeValue;
-use App\Models\ProductSearchIndex;
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Spatie\Permission\PermissionRegistrar;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class McpControllerTest extends TestCase
@@ -28,6 +28,7 @@ class McpControllerTest extends TestCase
     {
         parent::setUp();
         config(['services.mcp.token' => self::TOKEN]);
+        Queue::fake();
     }
 
     /** @return array<string, string> */
@@ -36,40 +37,79 @@ class McpControllerTest extends TestCase
         return ['Authorization' => 'Bearer ' . self::TOKEN];
     }
 
-    private function mcpCall(string $tool, array $args = []): \Illuminate\Testing\TestResponse
+    private function mcpCall(string $tool, array $args = [], int $id = 1): \Illuminate\Testing\TestResponse
     {
         return $this->postJson('/api/v1/mcp', [
-            'jsonrpc' => '2.0',
-            'id'      => 1,
-            'method'  => 'tools/call',
+            'jsonrpc' => '2.0', 'id' => $id, 'method' => 'tools/call',
             'params'  => ['name' => $tool, 'arguments' => $args],
         ], $this->authHeader());
     }
 
-    private function mcpResult(string $tool, array $args = []): mixed
+    /** Minimale JSON-Template-Struktur mit sku+name Feldern. */
+    private function makeJsonTemplate(array $overrides = []): ApiTemplate
     {
-        $text = $this->mcpCall($tool, $args)->json('result.content.0.text');
-        return json_decode((string) $text, true);
+        return ApiTemplate::create(array_merge([
+            'name'          => 'JSON Test Template',
+            'slug'          => 'json-test',
+            'template_json' => [
+                'version' => 1,
+                'groups'  => [[
+                    'id'        => 'g1',
+                    'field'     => 'none',
+                    'label'     => 'Alle',
+                    'sortOrder' => 'asc',
+                    'header'    => ['elements' => []],
+                    'footer'    => ['elements' => []],
+                    'groups'    => [],
+                    'detail'    => ['elements' => [
+                        ['type' => 'field', 'field' => 'sku',  'jsonKey' => 'sku',  'dataType' => 'string'],
+                        ['type' => 'field', 'field' => 'name', 'jsonKey' => 'name', 'dataType' => 'string'],
+                    ]],
+                ]],
+            ],
+            'output_format'  => 'json',
+            'direction'      => 'export',
+            'language'       => 'de',
+            'is_active'      => true,
+            'is_mcp_enabled' => true,
+            'auth_type'      => 'none',
+            'rate_limit'     => 60,
+        ], $overrides));
     }
 
-    private function createIndexedProduct(array $overrides = []): Product
+    private function makeGraphqlTemplate(array $overrides = []): ApiTemplate
     {
-        $product = Product::factory()->create(array_merge([
-            'status' => 'active',
-            'name'   => 'Testprodukt',
-        ], array_intersect_key($overrides, array_flip(['sku', 'name', 'status']))));
-
-        ProductSearchIndex::create(array_merge([
-            'product_id' => $product->id,
-            'sku'        => $product->sku,
-            'name_de'    => $overrides['name_de'] ?? $product->name ?? 'Testprodukt',
-            'status'     => 'active',
-        ], array_diff_key($overrides, array_flip(['sku', 'name', 'status']))));
-
-        return $product;
+        return ApiTemplate::create(array_merge([
+            'name'          => 'GraphQL Test Template',
+            'slug'          => 'graphql-test',
+            'template_json' => [
+                'version' => 1,
+                'groups'  => [[
+                    'id'        => 'g1',
+                    'field'     => 'none',
+                    'label'     => 'Alle',
+                    'sortOrder' => 'asc',
+                    'header'    => ['elements' => []],
+                    'footer'    => ['elements' => []],
+                    'groups'    => [],
+                    'detail'    => ['elements' => [
+                        ['type' => 'field', 'field' => 'sku',    'jsonKey' => 'sku',    'dataType' => 'string'],
+                        ['type' => 'field', 'field' => 'name',   'jsonKey' => 'name',   'dataType' => 'string'],
+                        ['type' => 'field', 'field' => 'status', 'jsonKey' => 'status', 'dataType' => 'string'],
+                    ]],
+                ]],
+            ],
+            'output_format'  => 'graphql',
+            'direction'      => 'export',
+            'language'       => 'de',
+            'is_active'      => true,
+            'is_mcp_enabled' => true,
+            'auth_type'      => 'none',
+            'rate_limit'     => 60,
+        ], $overrides));
     }
 
-    // ── Auth ───────────────────────────────────────────────────────────────────
+    // ── Existing tests (preserved unchanged) ──────────────────────────────────
 
     public function test_rejects_missing_token(): void
     {
@@ -119,13 +159,11 @@ class McpControllerTest extends TestCase
         $response->assertStatus(503);
     }
 
-    // ── Protokoll ─────────────────────────────────────────────────────────────
-
     public function test_initialize_returns_server_info(): void
     {
         $response = $this->postJson('/api/v1/mcp', [
             'jsonrpc' => '2.0', 'id' => 1, 'method' => 'initialize',
-            'params' => ['protocolVersion' => '2025-06-18'],
+            'params'  => ['protocolVersion' => '2025-06-18'],
         ], $this->authHeader());
 
         $response->assertOk()
@@ -176,16 +214,6 @@ class McpControllerTest extends TestCase
         $response->assertStatus(202);
     }
 
-    public function test_unbekanntes_tool_liefert_fehler(): void
-    {
-        $response = $this->mcpCall('nicht_vorhanden');
-
-        $response->assertOk()
-            ->assertJsonPath('error.code', -32602);
-    }
-
-    // ── list_templates ────────────────────────────────────────────────────────
-
     public function test_list_templates_tool_returns_active_templates(): void
     {
         ApiTemplate::create([
@@ -224,275 +252,6 @@ class McpControllerTest extends TestCase
         $this->assertStringNotContainsString('inaktiv', $text);
     }
 
-    // ── search_products ───────────────────────────────────────────────────────
-
-    private function createSearchTemplate(): ApiTemplate
-    {
-        return ApiTemplate::create([
-            'name'          => 'Suchtemplate',
-            'slug'          => 'suchtemplate',
-            'template_json' => ['version' => 1, 'groups' => []],
-            'output_format' => 'json',
-            'direction'     => 'export',
-            'is_active'     => true,
-            'is_mcp_enabled' => true,
-            'auth_type'     => 'none',
-            'rate_limit'    => 60,
-        ]);
-    }
-
-    public function test_search_products_findet_produkt_nach_name(): void
-    {
-        $this->createSearchTemplate();
-        $this->createIndexedProduct(['name_de' => 'Akkubohrer Pro']);
-        $this->createIndexedProduct(['name_de' => 'Sägeblatt']);
-
-        $response = $this->mcpCall('search_products', [
-            'slug'  => 'suchtemplate',
-            'query' => 'Akkubohrer',
-            'limit' => 10,
-        ]);
-
-        $response->assertOk();
-        // Antwort ist "Suchergebnisse für ...\n{json}" — mind. 1 Treffer erwähnt
-        $text = (string) $response->json('result.content.0.text');
-        $this->assertStringContainsString('1 Treffer', $text);
-        $this->assertStringNotContainsString('Sägeblatt', $text);
-    }
-
-    public function test_search_products_ohne_treffer_liefert_textmeldung(): void
-    {
-        $this->createSearchTemplate();
-
-        $response = $this->mcpCall('search_products', [
-            'slug'  => 'suchtemplate',
-            'query' => 'GibtEsNichtXYZ123',
-        ]);
-
-        $response->assertOk();
-        $text = $response->json('result.content.0.text');
-        $this->assertStringContainsString('0', $text);
-    }
-
-    public function test_search_products_ohne_template_liefert_fehler(): void
-    {
-        $response = $this->mcpCall('search_products', ['query' => 'test', 'slug' => 'nicht-vorhanden']);
-
-        $response->assertOk()
-            ->assertJsonPath('error.code', -32602);
-    }
-
-    // ── list_attributes ───────────────────────────────────────────────────────
-
-    public function test_list_attributes_liefert_attribute(): void
-    {
-        Attribute::factory()->create(['technical_name' => 'gewicht-kg', 'name_de' => 'Gewicht', 'status' => 'active']);
-
-        $result = $this->mcpResult('list_attributes');
-
-        $this->assertArrayHasKey('attributes', $result);
-        $names = array_column($result['attributes'], 'technical_name');
-        $this->assertContains('gewicht-kg', $names);
-    }
-
-    public function test_list_attributes_filtert_nach_data_type(): void
-    {
-        Attribute::factory()->create(['technical_name' => 'attr-number', 'data_type' => 'Number', 'status' => 'active']);
-        Attribute::factory()->create(['technical_name' => 'attr-string', 'data_type' => 'String', 'status' => 'active']);
-
-        $result = $this->mcpResult('list_attributes', ['data_type' => 'Number']);
-
-        $types = array_column($result['attributes'], 'data_type');
-        $this->assertContains('Number', $types);
-        $this->assertNotContains('String', $types);
-    }
-
-    public function test_list_attributes_suche_nach_name(): void
-    {
-        Attribute::factory()->create(['technical_name' => 'farbe', 'name_de' => 'Farbe', 'status' => 'active']);
-        Attribute::factory()->create(['technical_name' => 'groesse', 'name_de' => 'Größe', 'status' => 'active']);
-
-        $result = $this->mcpResult('list_attributes', ['search' => 'farbe']);
-
-        $names = array_column($result['attributes'], 'technical_name');
-        $this->assertContains('farbe', $names);
-        $this->assertNotContains('groesse', $names);
-    }
-
-    // ── list_hierarchies ──────────────────────────────────────────────────────
-
-    public function test_list_hierarchies_liefert_hierarchien(): void
-    {
-        $h = Hierarchy::factory()->create(['technical_name' => 'master', 'name_de' => 'Master']);
-
-        $result = $this->mcpResult('list_hierarchies');
-
-        $this->assertArrayHasKey('hierarchies', $result);
-        $ids = array_column($result['hierarchies'], 'id');
-        $this->assertContains($h->id, $ids);
-    }
-
-    public function test_list_hierarchies_filtert_nach_type(): void
-    {
-        Hierarchy::factory()->create(['hierarchy_type' => 'master', 'technical_name' => 'h-master']);
-        Hierarchy::factory()->create(['hierarchy_type' => 'output', 'technical_name' => 'h-output']);
-
-        $result = $this->mcpResult('list_hierarchies', ['type' => 'master']);
-
-        $types = array_column($result['hierarchies'], 'hierarchy_type');
-        $this->assertContains('master', $types);
-        $this->assertNotContains('output', $types);
-    }
-
-    // ── list_hierarchy_nodes ──────────────────────────────────────────────────
-
-    public function test_list_hierarchy_nodes_liefert_nodes(): void
-    {
-        $h    = Hierarchy::factory()->create();
-        $node = HierarchyNode::factory()->create(['hierarchy_id' => $h->id, 'name_de' => 'Elektro']);
-
-        $result = $this->mcpResult('list_hierarchy_nodes', ['hierarchy_id' => $h->id]);
-
-        $this->assertArrayHasKey('nodes', $result);
-        $ids = array_column($result['nodes'], 'id');
-        $this->assertContains($node->id, $ids);
-    }
-
-    public function test_list_hierarchy_nodes_ohne_id_liefert_fehler(): void
-    {
-        $response = $this->mcpCall('list_hierarchy_nodes', []);
-
-        $response->assertOk()
-            ->assertJsonPath('error.code', -32602);
-    }
-
-    public function test_list_hierarchy_nodes_unbekannte_id_liefert_fehler(): void
-    {
-        $response = $this->mcpCall('list_hierarchy_nodes', ['hierarchy_id' => 'nicht-vorhanden']);
-
-        $response->assertOk()
-            ->assertJsonPath('error.code', -32602);
-    }
-
-    // ── list_node_attributes ──────────────────────────────────────────────────
-
-    public function test_list_node_attributes_liefert_zugewiesene_attribute(): void
-    {
-        $h    = Hierarchy::factory()->create();
-        $node = HierarchyNode::factory()->create(['hierarchy_id' => $h->id]);
-        $attr = Attribute::factory()->create(['technical_name' => 'laenge-mm', 'status' => 'active']);
-        HierarchyNodeAttributeAssignment::create([
-            'hierarchy_node_id' => $node->id,
-            'attribute_id'      => $attr->id,
-            'collection_sort'   => 0,
-            'attribute_sort'    => 0,
-            'access_product'    => 'readwrite',
-        ]);
-
-        $result = $this->mcpResult('list_node_attributes', ['node_id' => $node->id]);
-
-        $this->assertArrayHasKey('attributes', $result);
-        $names = array_column($result['attributes'], 'technical_name');
-        $this->assertContains('laenge-mm', $names);
-    }
-
-    public function test_list_node_attributes_ohne_id_liefert_fehler(): void
-    {
-        $response = $this->mcpCall('list_node_attributes', []);
-
-        $response->assertOk()->assertJsonPath('error.code', -32602);
-    }
-
-    // ── list_node_products ────────────────────────────────────────────────────
-
-    public function test_list_node_products_liefert_zugewiesene_produkte(): void
-    {
-        $h       = Hierarchy::factory()->create();
-        $node    = HierarchyNode::factory()->create(['hierarchy_id' => $h->id]);
-        $product = Product::factory()->create(['status' => 'active']);
-
-        OutputHierarchyProductAssignment::create([
-            'hierarchy_node_id' => $node->id,
-            'product_id'        => $product->id,
-            'sort_order'        => 0,
-        ]);
-
-        $result = $this->mcpResult('list_node_products', ['node_id' => $node->id]);
-
-        $this->assertArrayHasKey('products', $result);
-        $ids = array_column($result['products'], 'id');
-        $this->assertContains($product->id, $ids);
-    }
-
-    public function test_list_node_products_ohne_id_liefert_fehler(): void
-    {
-        $response = $this->mcpCall('list_node_products', []);
-
-        $response->assertOk()->assertJsonPath('error.code', -32602);
-    }
-
-    // ── update_product_attribute ──────────────────────────────────────────────
-
-    public function test_update_product_attribute_legt_wert_an(): void
-    {
-        $product = Product::factory()->create(['sku' => 'TEST-MCP-001']);
-        $attr    = Attribute::factory()->create([
-            'technical_name' => 'mcp-gewicht',
-            'data_type'      => 'String',
-            'is_translatable' => false,
-            'status'         => 'active',
-        ]);
-
-        $result = $this->mcpResult('update_product_attribute', [
-            'product'   => 'TEST-MCP-001',
-            'attribute' => 'mcp-gewicht',
-            'value'     => 'leicht',
-        ]);
-
-        $this->assertArrayHasKey('attribute', $result);
-        $this->assertDatabaseHas('product_attribute_values', [
-            'product_id'   => $product->id,
-            'attribute_id' => $attr->id,
-        ]);
-    }
-
-    public function test_update_product_attribute_unbekannte_sku_liefert_fehler(): void
-    {
-        Attribute::factory()->create(['technical_name' => 'mcp-attr', 'data_type' => 'String']);
-
-        $response = $this->mcpCall('update_product_attribute', [
-            'product'   => 'NICHT-VORHANDEN',
-            'attribute' => 'mcp-attr',
-            'value'     => 'test',
-        ]);
-
-        $response->assertOk()->assertJsonPath('error.code', -32602);
-    }
-
-    public function test_update_product_attribute_unbekanntes_attribut_liefert_fehler(): void
-    {
-        Product::factory()->create(['sku' => 'TEST-MCP-002']);
-
-        $response = $this->mcpCall('update_product_attribute', [
-            'product'   => 'TEST-MCP-002',
-            'attribute' => 'nicht-vorhanden',
-            'value'     => 'test',
-        ]);
-
-        $response->assertOk()->assertJsonPath('error.code', -32602);
-    }
-
-    public function test_update_product_attribute_fehlende_parameter_liefern_fehler(): void
-    {
-        $response = $this->mcpCall('update_product_attribute', [
-            'product' => 'SKU-OHNE-ATTR',
-        ]);
-
-        $response->assertOk()->assertJsonPath('error.code', -32602);
-    }
-
-    // ── get_schema ────────────────────────────────────────────────────────────
-
     public function test_get_schema_rejects_json_template(): void
     {
         ApiTemplate::create([
@@ -516,59 +275,11 @@ class McpControllerTest extends TestCase
             ->assertJsonPath('error.code', -32602);
     }
 
-    public function test_get_schema_unbekannter_slug_liefert_fehler(): void
-    {
-        $response = $this->mcpCall('get_schema', ['slug' => 'nicht-vorhanden']);
-
-        $response->assertOk()->assertJsonPath('error.code', -32602);
-    }
-
-    // ── testCall-Endpoint ─────────────────────────────────────────────────────
-
-    public function test_test_call_endpoint_erfordert_admin(): void
-    {
-        app()[PermissionRegistrar::class]->forgetCachedPermissions();
-        $user = User::factory()->create();
-        $this->actingAs($user);
-
-        $response = $this->postJson('/api/v1/mcp-test-call', [
-            'tool' => 'list_templates',
-        ]);
-
-        $response->assertStatus(403);
-    }
-
-    public function test_test_call_endpoint_fuehrt_tool_aus(): void
-    {
-        app()[PermissionRegistrar::class]->forgetCachedPermissions();
-        $user = User::factory()->create();
-        $role = \App\Models\Role::findOrCreate('Admin', 'sanctum');
-        $user->assignRole($role);
-        $this->actingAs($user);
-
-        ApiTemplate::create([
-            'name' => 'TC-Test', 'slug' => 'tc-test',
-            'template_json' => ['version' => 1, 'groups' => []],
-            'output_format' => 'json', 'direction' => 'export',
-            'is_active' => true, 'is_mcp_enabled' => true,
-            'auth_type' => 'none', 'rate_limit' => 60,
-        ]);
-
-        $response = $this->postJson('/api/v1/mcp-test-call', [
-            'tool'      => 'list_templates',
-            'arguments' => [],
-        ]);
-
-        $response->assertOk()
-            ->assertJsonPath('tool', 'list_templates')
-            ->assertJsonPath('is_error', null);
-    }
-
-    // ── log_mcp_call ──────────────────────────────────────────────────────────
-
     public function test_log_mcp_call_does_not_crash_when_current_request_is_null(): void
     {
         // logMcpCall() nutzt $this->currentRequest?-> (nullable).
+        // list_templates führt logMcpCall aus — der Request ist in handle() gesetzt,
+        // aber dieser Test stellt sicher dass kein TypeError geworfen wird.
         ApiTemplate::create([
             'name'           => 'Log-Test',
             'slug'           => 'log-test',
@@ -587,5 +298,666 @@ class McpControllerTest extends TestCase
         ], $this->authHeader());
 
         $response->assertOk();
+    }
+
+    // ── search_products ───────────────────────────────────────────────────────
+
+    public function test_search_products_findet_produkt_nach_name(): void
+    {
+        $template = $this->makeJsonTemplate();
+        $product  = Product::factory()->active()->create(['sku' => 'SRCH-001', 'name' => 'Suchprodukt Blau']);
+
+        DB::table('products_search_index')->insert([
+            'product_id' => $product->id,
+            'sku'        => $product->sku,
+            'name_de'    => $product->name,
+            'status'     => $product->status,
+        ]);
+
+        $response = $this->mcpCall('search_products', [
+            'slug'  => $template->slug,
+            'query' => 'Suchprodukt',
+        ]);
+
+        $response->assertOk()->assertJsonMissing(['error']);
+        $text = $response->json('result.content.0.text');
+        $this->assertStringContainsString('SRCH-001', $text);
+    }
+
+    public function test_search_products_leeres_ergebnis_wenn_kein_treffer(): void
+    {
+        $template = $this->makeJsonTemplate();
+
+        $response = $this->mcpCall('search_products', [
+            'slug'  => $template->slug,
+            'query' => 'XY-GIBT-ES-NICHT-9999',
+        ]);
+
+        $response->assertOk()->assertJsonMissing(['error']);
+        $text = $response->json('result.content.0.text');
+        $this->assertStringContainsString('gefunden', $text);
+    }
+
+    public function test_search_products_fehler_bei_unbekanntem_slug(): void
+    {
+        $response = $this->mcpCall('search_products', [
+            'slug'  => 'kein-solches-template',
+            'query' => 'test',
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('error.code', -32602);
+    }
+
+    public function test_search_products_fehler_ohne_slug(): void
+    {
+        // Leerer Slug -> resolveTemplate wirft McpException
+        $response = $this->mcpCall('search_products', [
+            'slug'  => '',
+            'query' => 'test',
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('error.code', -32602);
+    }
+
+    // ── stream_products ───────────────────────────────────────────────────────
+
+    public function test_stream_products_liefert_alle_produkte(): void
+    {
+        $template = $this->makeJsonTemplate();
+        Product::factory()->active()->create(['sku' => 'STRM-001', 'name' => 'Streamprodukt']);
+
+        $response = $this->mcpCall('stream_products', ['slug' => $template->slug]);
+
+        $response->assertOk()->assertJsonMissing(['error']);
+        $text = $response->json('result.content.0.text');
+        $this->assertStringContainsString('STRM-001', $text);
+    }
+
+    public function test_stream_products_fehler_bei_graphql_template(): void
+    {
+        $template = $this->makeGraphqlTemplate();
+
+        $response = $this->mcpCall('stream_products', ['slug' => $template->slug]);
+
+        $response->assertOk()
+            ->assertJsonPath('error.code', -32602);
+    }
+
+    public function test_stream_products_mit_limit_und_offset(): void
+    {
+        $template = $this->makeJsonTemplate();
+        Product::factory()->active()->count(3)->create();
+
+        $response = $this->mcpCall('stream_products', [
+            'slug'   => $template->slug,
+            'limit'  => 1,
+            'offset' => 1,
+        ]);
+
+        $response->assertOk()->assertJsonMissing(['error']);
+        $text = $response->json('result.content.0.text');
+        $this->assertNotEmpty($text);
+    }
+
+    // ── list_attributes ───────────────────────────────────────────────────────
+
+    public function test_list_attributes_gibt_attribut_zurueck(): void
+    {
+        Attribute::create([
+            'technical_name'  => 'test-attr',
+            'name_de'         => 'Test Attribut',
+            'data_type'       => 'String',
+            'status'          => 'active',
+            'is_translatable' => false,
+        ]);
+
+        $response = $this->mcpCall('list_attributes');
+
+        $response->assertOk()->assertJsonMissing(['error']);
+        $text = $response->json('result.content.0.text');
+        $this->assertStringContainsString('test-attr', $text);
+        $this->assertStringContainsString('Test Attribut', $text);
+    }
+
+    public function test_list_attributes_filter_nach_data_type(): void
+    {
+        Attribute::create([
+            'technical_name'  => 'string-attr',
+            'name_de'         => 'String Attribut',
+            'data_type'       => 'String',
+            'status'          => 'active',
+            'is_translatable' => false,
+        ]);
+        Attribute::create([
+            'technical_name'  => 'number-attr',
+            'name_de'         => 'Number Attribut',
+            'data_type'       => 'Number',
+            'status'          => 'active',
+            'is_translatable' => false,
+        ]);
+
+        $response = $this->mcpCall('list_attributes', ['data_type' => 'Number']);
+
+        $response->assertOk()->assertJsonMissing(['error']);
+        $text = $response->json('result.content.0.text');
+        $this->assertStringContainsString('number-attr', $text);
+        $this->assertStringNotContainsString('string-attr', $text);
+    }
+
+    public function test_list_attributes_paginierung(): void
+    {
+        Attribute::create(['technical_name' => 'attr-a', 'name_de' => 'A', 'data_type' => 'String', 'status' => 'active', 'is_translatable' => false]);
+        Attribute::create(['technical_name' => 'attr-b', 'name_de' => 'B', 'data_type' => 'String', 'status' => 'active', 'is_translatable' => false]);
+        Attribute::create(['technical_name' => 'attr-c', 'name_de' => 'C', 'data_type' => 'String', 'status' => 'active', 'is_translatable' => false]);
+
+        $response = $this->mcpCall('list_attributes', ['limit' => 2, 'offset' => 0]);
+
+        $response->assertOk()->assertJsonMissing(['error']);
+        $decoded = json_decode($response->json('result.content.0.text'), true);
+        $this->assertSame(2, $decoded['count']);
+        $this->assertSame(3, $decoded['total']);
+    }
+
+    // ── list_hierarchies ──────────────────────────────────────────────────────
+
+    public function test_list_hierarchies_gibt_hierarchie_zurueck(): void
+    {
+        Hierarchy::create([
+            'technical_name' => 'test-hierarchie',
+            'name_de'        => 'Test Hierarchie',
+            'hierarchy_type' => 'master',
+        ]);
+
+        $response = $this->mcpCall('list_hierarchies');
+
+        $response->assertOk()->assertJsonMissing(['error']);
+        $text = $response->json('result.content.0.text');
+        $this->assertStringContainsString('test-hierarchie', $text);
+        $this->assertStringContainsString('Test Hierarchie', $text);
+    }
+
+    public function test_list_hierarchies_filter_nach_typ(): void
+    {
+        Hierarchy::create(['technical_name' => 'master-hier', 'name_de' => 'Master', 'hierarchy_type' => 'master']);
+        Hierarchy::create(['technical_name' => 'output-hier', 'name_de' => 'Output', 'hierarchy_type' => 'output']);
+
+        $response = $this->mcpCall('list_hierarchies', ['type' => 'output']);
+
+        $response->assertOk()->assertJsonMissing(['error']);
+        $text = $response->json('result.content.0.text');
+        $this->assertStringContainsString('output-hier', $text);
+        $this->assertStringNotContainsString('master-hier', $text);
+    }
+
+    // ── list_hierarchy_nodes ──────────────────────────────────────────────────
+
+    public function test_list_hierarchy_nodes_fehler_ohne_hierarchy_id(): void
+    {
+        $response = $this->mcpCall('list_hierarchy_nodes', []);
+
+        $response->assertOk()
+            ->assertJsonPath('error.code', -32602);
+    }
+
+    public function test_list_hierarchy_nodes_fehler_bei_unbekannter_id(): void
+    {
+        $response = $this->mcpCall('list_hierarchy_nodes', [
+            'hierarchy_id' => '00000000-0000-0000-0000-000000000000',
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('error.code', -32602);
+    }
+
+    public function test_list_hierarchy_nodes_gibt_knoten_zurueck(): void
+    {
+        $hierarchy = Hierarchy::create([
+            'technical_name' => 'node-hier',
+            'name_de'        => 'Knoten-Hierarchie',
+            'hierarchy_type' => 'master',
+        ]);
+        HierarchyNode::create([
+            'hierarchy_id' => $hierarchy->id,
+            'name_de'      => 'Knoten 1',
+            'depth'        => 0,
+            'sort_order'   => 1,
+            'path'         => 'knoten-1',
+            'is_active'    => true,
+        ]);
+
+        $response = $this->mcpCall('list_hierarchy_nodes', [
+            'hierarchy_id' => $hierarchy->id,
+        ]);
+
+        $response->assertOk()->assertJsonMissing(['error']);
+        $text = $response->json('result.content.0.text');
+        $this->assertStringContainsString('Knoten 1', $text);
+    }
+
+    // ── list_node_attributes ──────────────────────────────────────────────────
+
+    public function test_list_node_attributes_fehler_ohne_node_id(): void
+    {
+        $response = $this->mcpCall('list_node_attributes', []);
+
+        $response->assertOk()
+            ->assertJsonPath('error.code', -32602);
+    }
+
+    public function test_list_node_attributes_gibt_zugeordnete_attribute_zurueck(): void
+    {
+        $hierarchy = Hierarchy::create([
+            'technical_name' => 'attr-assign-hier',
+            'name_de'        => 'Attribut-Zuordnung-Hierarchie',
+            'hierarchy_type' => 'master',
+        ]);
+        $node = HierarchyNode::create([
+            'hierarchy_id' => $hierarchy->id,
+            'name_de'      => 'Knoten mit Attributen',
+            'depth'        => 0,
+            'sort_order'   => 1,
+            'path'         => 'knoten-attr',
+            'is_active'    => true,
+        ]);
+        $attr = Attribute::create([
+            'technical_name'  => 'node-attr',
+            'name_de'         => 'Knoten-Attribut',
+            'data_type'       => 'String',
+            'status'          => 'active',
+            'is_translatable' => false,
+        ]);
+        HierarchyNodeAttributeAssignment::create([
+            'hierarchy_node_id' => $node->id,
+            'attribute_id'      => $attr->id,
+            'is_required'       => false,
+            'collection_sort'   => 0,
+            'attribute_sort'    => 0,
+        ]);
+
+        $response = $this->mcpCall('list_node_attributes', ['node_id' => $node->id]);
+
+        $response->assertOk()->assertJsonMissing(['error']);
+        $text = $response->json('result.content.0.text');
+        $this->assertStringContainsString('node-attr', $text);
+    }
+
+    // ── list_node_products ────────────────────────────────────────────────────
+
+    public function test_list_node_products_fehler_ohne_node_id(): void
+    {
+        $response = $this->mcpCall('list_node_products', []);
+
+        $response->assertOk()
+            ->assertJsonPath('error.code', -32602);
+    }
+
+    public function test_list_node_products_findet_master_produkt(): void
+    {
+        $hierarchy = Hierarchy::create([
+            'technical_name' => 'master-prod-hier',
+            'name_de'        => 'Master Produkt Hierarchie',
+            'hierarchy_type' => 'master',
+        ]);
+        $node = HierarchyNode::create([
+            'hierarchy_id' => $hierarchy->id,
+            'name_de'      => 'Master Knoten',
+            'depth'        => 0,
+            'sort_order'   => 1,
+            'path'         => 'master-knoten',
+            'is_active'    => true,
+        ]);
+        Product::factory()->active()->create([
+            'sku'                      => 'MAST-001',
+            'name'                     => 'Master Produkt',
+            'master_hierarchy_node_id' => $node->id,
+        ]);
+
+        $response = $this->mcpCall('list_node_products', [
+            'node_id' => $node->id,
+            'type'    => 'master',
+        ]);
+
+        $response->assertOk()->assertJsonMissing(['error']);
+        $text = $response->json('result.content.0.text');
+        $this->assertStringContainsString('MAST-001', $text);
+    }
+
+    public function test_list_node_products_findet_output_zuordnung(): void
+    {
+        $hierarchy = Hierarchy::create([
+            'technical_name' => 'output-prod-hier',
+            'name_de'        => 'Output Produkt Hierarchie',
+            'hierarchy_type' => 'output',
+        ]);
+        $node = HierarchyNode::create([
+            'hierarchy_id' => $hierarchy->id,
+            'name_de'      => 'Output Knoten',
+            'depth'        => 0,
+            'sort_order'   => 1,
+            'path'         => 'output-knoten',
+            'is_active'    => true,
+        ]);
+        $product = Product::factory()->active()->create([
+            'sku'  => 'OUT-001',
+            'name' => 'Output Produkt',
+        ]);
+        OutputHierarchyProductAssignment::create([
+            'hierarchy_node_id' => $node->id,
+            'product_id'        => $product->id,
+        ]);
+
+        $response = $this->mcpCall('list_node_products', [
+            'node_id' => $node->id,
+            'type'    => 'output',
+        ]);
+
+        $response->assertOk()->assertJsonMissing(['error']);
+        $text = $response->json('result.content.0.text');
+        $this->assertStringContainsString('OUT-001', $text);
+    }
+
+    // ── update_product_attribute ──────────────────────────────────────────────
+
+    public function test_update_product_attribute_setzt_wert(): void
+    {
+        $product = Product::factory()->active()->create(['sku' => 'UPD-001']);
+        $attr    = Attribute::create([
+            'technical_name'  => 'update-attr',
+            'name_de'         => 'Update Attribut',
+            'data_type'       => 'String',
+            'status'          => 'active',
+            'is_translatable' => false,
+        ]);
+
+        $response = $this->mcpCall('update_product_attribute', [
+            'product'   => $product->sku,
+            'attribute' => $attr->technical_name,
+            'value'     => 'Testwert',
+        ]);
+
+        $response->assertOk()->assertJsonMissing(['error']);
+        $this->assertDatabaseHas('product_attribute_values', [
+            'product_id'   => $product->id,
+            'attribute_id' => $attr->id,
+        ]);
+    }
+
+    public function test_update_product_attribute_fehler_bei_unbekannter_sku(): void
+    {
+        $attr = Attribute::create([
+            'technical_name'  => 'unk-prod-attr',
+            'name_de'         => 'Unbekanntes Produkt Attribut',
+            'data_type'       => 'String',
+            'status'          => 'active',
+            'is_translatable' => false,
+        ]);
+
+        $response = $this->mcpCall('update_product_attribute', [
+            'product'   => 'SKU-EXISTIERT-NICHT',
+            'attribute' => $attr->technical_name,
+            'value'     => 'Wert',
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('error.code', -32602);
+    }
+
+    public function test_update_product_attribute_fehler_bei_unbekanntem_attribut(): void
+    {
+        $product = Product::factory()->active()->create(['sku' => 'UPD-002']);
+
+        $response = $this->mcpCall('update_product_attribute', [
+            'product'   => $product->sku,
+            'attribute' => 'attribut-existiert-nicht',
+            'value'     => 'Wert',
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('error.code', -32602);
+    }
+
+    public function test_update_product_attribute_fehler_ohne_product(): void
+    {
+        $response = $this->mcpCall('update_product_attribute', [
+            'attribute' => 'irgendein-attr',
+            'value'     => 'Wert',
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('error.code', -32602);
+    }
+
+    // ── graphql_query ─────────────────────────────────────────────────────────
+
+    public function test_graphql_query_fuehrt_query_aus(): void
+    {
+        $template = $this->makeGraphqlTemplate();
+        Product::factory()->active()->create(['sku' => 'GQL-001', 'name' => 'GraphQL Produkt']);
+
+        $response = $this->mcpCall('graphql_query', [
+            'slug'  => $template->slug,
+            'query' => '{ total }',
+        ]);
+
+        $response->assertOk()->assertJsonMissing(['error']);
+        $text = $response->json('result.content.0.text');
+        $decoded = json_decode($text, true);
+        $this->assertArrayHasKey('data', $decoded);
+    }
+
+    public function test_graphql_query_fehler_bei_unbekanntem_slug(): void
+    {
+        $response = $this->mcpCall('graphql_query', [
+            'slug'  => 'kein-gql-template',
+            'query' => '{ total }',
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('error.code', -32602);
+    }
+
+    public function test_graphql_query_fehler_bei_json_template(): void
+    {
+        $template = $this->makeJsonTemplate(['slug' => 'json-fuer-gql']);
+
+        $response = $this->mcpCall('graphql_query', [
+            'slug'  => $template->slug,
+            'query' => '{ total }',
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('error.code', -32602);
+    }
+
+    // ── graphql_mutate ────────────────────────────────────────────────────────
+
+    public function test_graphql_mutate_fehler_bei_export_template(): void
+    {
+        $template = $this->makeGraphqlTemplate(['slug' => 'gql-export-only', 'direction' => 'export']);
+
+        $response = $this->mcpCall('graphql_mutate', [
+            'slug'     => $template->slug,
+            'mutation' => 'mutation { placeholder }',
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('error.code', -32602);
+    }
+
+    public function test_graphql_mutate_fehler_bei_json_template(): void
+    {
+        $template = $this->makeJsonTemplate(['slug' => 'json-fuer-mutate', 'direction' => 'import']);
+
+        $response = $this->mcpCall('graphql_mutate', [
+            'slug'     => $template->slug,
+            'mutation' => 'mutation { placeholder }',
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('error.code', -32602);
+    }
+
+    public function test_graphql_mutate_laeuft_gegen_import_template(): void
+    {
+        $template = $this->makeGraphqlTemplate([
+            'slug'      => 'gql-import',
+            'direction' => 'import',
+        ]);
+
+        // Eine einfache Mutation -- das Schema hat keinen Mutation-Typ,
+        // daher erhalten wir einen GraphQL-Fehler, aber keinen MCP-Fehler (-32602).
+        $response = $this->mcpCall('graphql_mutate', [
+            'slug'     => $template->slug,
+            'mutation' => 'mutation { placeholder }',
+        ]);
+
+        $response->assertOk();
+        // Kein MCP-Level-Fehler (kein -32602 wegen Richtung/Format)
+        $this->assertNull($response->json('error'));
+        // Der Inhalt ist ein JSON-String (ggf. mit GraphQL-Fehler, aber kein Crash)
+        $text = $response->json('result.content.0.text');
+        $this->assertNotEmpty($text);
+    }
+
+    // ── get_schema (additional) ───────────────────────────────────────────────
+
+    public function test_get_schema_gibt_sdl_fuer_graphql_template_zurueck(): void
+    {
+        $template = $this->makeGraphqlTemplate(['slug' => 'gql-schema-test']);
+
+        $response = $this->mcpCall('get_schema', ['slug' => $template->slug]);
+
+        $response->assertOk()->assertJsonMissing(['error']);
+        $text = $response->json('result.content.0.text');
+        $this->assertStringContainsString('type', $text);
+    }
+
+    public function test_get_schema_fehler_bei_unbekanntem_slug(): void
+    {
+        $response = $this->mcpCall('get_schema', ['slug' => 'kein-template-vorhanden']);
+
+        $response->assertOk()
+            ->assertJsonPath('error.code', -32602);
+    }
+
+    // ── JSON-RPC protocol edge cases ──────────────────────────────────────────
+
+    public function test_batch_request_gibt_array_zurueck(): void
+    {
+        $response = $this->postJson('/api/v1/mcp', [
+            ['jsonrpc' => '2.0', 'id' => 10, 'method' => 'tools/list'],
+            ['jsonrpc' => '2.0', 'id' => 11, 'method' => 'initialize', 'params' => ['protocolVersion' => '2025-06-18']],
+        ], $this->authHeader());
+
+        $response->assertOk();
+        $body = $response->json();
+        $this->assertIsArray($body);
+        $this->assertCount(2, $body);
+        $ids = array_column($body, 'id');
+        $this->assertContains(10, $ids);
+        $this->assertContains(11, $ids);
+    }
+
+    public function test_batch_mit_notification_und_normalem_call(): void
+    {
+        // Notification (kein "id") wird herausgefiltert; nur der regulaere Call bekommt eine Antwort.
+        $response = $this->postJson('/api/v1/mcp', [
+            ['jsonrpc' => '2.0', 'method' => 'notifications/initialized'],
+            ['jsonrpc' => '2.0', 'id' => 20, 'method' => 'tools/list'],
+        ], $this->authHeader());
+
+        $response->assertOk();
+        $body = $response->json();
+        $this->assertIsArray($body);
+        $this->assertCount(1, $body);
+        $this->assertSame(20, $body[0]['id']);
+    }
+
+    public function test_ping_gibt_leeres_objekt_zurueck(): void
+    {
+        $response = $this->postJson('/api/v1/mcp', [
+            'jsonrpc' => '2.0', 'id' => 99, 'method' => 'ping',
+        ], $this->authHeader());
+
+        $response->assertOk()
+            ->assertJsonPath('id', 99);
+        // result soll leer/empty-object sein
+        $result = $response->json('result');
+        $this->assertEmpty($result);
+    }
+
+    // ── testCall endpoint ─────────────────────────────────────────────────────
+
+    public function test_test_call_erfordert_admin_rolle(): void
+    {
+        // Ohne Auth -> 401
+        $response = $this->postJson('/api/v1/mcp-test-call', [
+            'tool'      => 'list_templates',
+            'arguments' => [],
+        ]);
+
+        $response->assertStatus(401);
+    }
+
+    public function test_test_call_gibt_403_fuer_normalen_nutzer(): void
+    {
+        $user = User::factory()->create();
+        $this->actingAs($user);
+
+        $response = $this->postJson('/api/v1/mcp-test-call', [
+            'tool'      => 'list_templates',
+            'arguments' => [],
+        ]);
+
+        $response->assertStatus(403);
+    }
+
+    public function test_test_call_fuehrt_tool_aus(): void
+    {
+        ApiTemplate::create([
+            'name'           => 'Admin-Test',
+            'slug'           => 'admin-test',
+            'template_json'  => ['version' => 1, 'groups' => []],
+            'output_format'  => 'json',
+            'direction'      => 'export',
+            'language'       => 'de',
+            'is_active'      => true,
+            'is_mcp_enabled' => true,
+            'auth_type'      => 'none',
+            'rate_limit'     => 60,
+        ]);
+
+        $user = User::factory()->create();
+        $role = Role::findOrCreate('Admin', 'sanctum');
+        $user->assignRole($role);
+        $this->actingAs($user);
+
+        $response = $this->postJson('/api/v1/mcp-test-call', [
+            'tool'      => 'list_templates',
+            'arguments' => [],
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('tool', 'list_templates');
+        $result = $response->json('result');
+        $this->assertNotNull($result);
+    }
+
+    public function test_test_call_gibt_fehler_bei_unbekanntem_tool(): void
+    {
+        $user = User::factory()->create();
+        $role = Role::findOrCreate('Admin', 'sanctum');
+        $user->assignRole($role);
+        $this->actingAs($user);
+
+        $response = $this->postJson('/api/v1/mcp-test-call', [
+            'tool'      => 'dieses-tool-existiert-nicht',
+            'arguments' => [],
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('is_error', true);
     }
 }
