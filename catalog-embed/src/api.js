@@ -4,7 +4,17 @@
  */
 
 let _baseUrl = '/api/v1'
-let _token = null
+const TOKEN_STORAGE_KEY = 'pxc_token'
+
+function loadStoredToken() {
+  try {
+    return typeof localStorage !== 'undefined' ? localStorage.getItem(TOKEN_STORAGE_KEY) : null
+  } catch {
+    return null
+  }
+}
+
+let _token = loadStoredToken()
 let _timeout = 15000
 
 // In-memory response cache (GET requests only)
@@ -44,6 +54,26 @@ export function configureApi({ baseUrl, token, timeout, cache }) {
   if (token) _token = token
   if (timeout) _timeout = timeout
   if (cache === false) _cacheEnabled = false
+}
+
+/**
+ * Setzt (oder löscht bei null) das Bearer-Token und persistiert es im
+ * localStorage, damit ein Login über Reloads hinweg erhalten bleibt.
+ */
+export function setToken(token) {
+  _token = token || null
+  try {
+    if (typeof localStorage !== 'undefined') {
+      if (token) localStorage.setItem(TOKEN_STORAGE_KEY, token)
+      else localStorage.removeItem(TOKEN_STORAGE_KEY)
+    }
+  } catch {
+    /* localStorage nicht verfügbar — nur In-Memory-Token */
+  }
+}
+
+export function getToken() {
+  return _token
 }
 
 export function getBaseUrl() {
@@ -127,6 +157,19 @@ function buildQuery(options = {}) {
 }
 
 export const catalogApi = {
+  /**
+   * Meldet einen PIM-Benutzer an und gibt das Sanctum-Token zurück.
+   * Genutzt vom Login-Gate, wenn catalog_access_mode = 'login'.
+   */
+  async login(email, password) {
+    const resp = await request('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    })
+    const data = await resp.json()
+    return data.data || data
+  },
+
   async getProducts(options = {}) {
     const path = `/catalog/products${buildQuery(options)}`
     const cached = getCached(path)

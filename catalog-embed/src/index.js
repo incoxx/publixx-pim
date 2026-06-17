@@ -40,6 +40,7 @@ import CompareWidget from './widgets/CompareWidget.vue'
 import LocaleWidget from './widgets/LocaleWidget.vue'
 import ActiveFiltersWidget from './widgets/ActiveFiltersWidget.vue'
 import SidebarToggleWidget from './widgets/SidebarToggleWidget.vue'
+import LoginWidget from './widgets/LoginWidget.vue'
 
 // CSS
 import './styles.css'
@@ -58,9 +59,25 @@ const WIDGET_MAP = {
   'locale': LocaleWidget,
   'active-filters': ActiveFiltersWidget,
   'sidebar-toggle': SidebarToggleWidget,
+  'login': LoginWidget,
 }
 
 const mountedApps = []
+
+/**
+ * Mountet das globale Login-Overlay (sichtbar nur bei state.requiresLogin),
+ * unabhängig davon, welche Widgets der Host platziert hat.
+ */
+function mountLoginOverlay() {
+  if (typeof document === 'undefined' || document.__pxc_login_mounted) return
+  const el = document.createElement('div')
+  el.setAttribute('data-pxc-login-overlay', '')
+  document.body.appendChild(el)
+  const app = createApp({ render() { return h(LoginWidget) } })
+  app.mount(el)
+  document.__pxc_login_mounted = true
+  mountedApps.push({ el, app })
+}
 
 function mountWidgets() {
   const elements = document.querySelectorAll('[data-catalog]')
@@ -99,6 +116,9 @@ function mountWidgets() {
 function destroy() {
   mountedApps.forEach(({ app }) => app.unmount())
   mountedApps.length = 0
+  if (typeof document !== 'undefined') {
+    document.__pxc_login_mounted = false
+  }
 }
 
 /**
@@ -127,6 +147,13 @@ async function init(options = {}) {
   if (options.perPage) {
     state.meta.per_page = options.perPage
   }
+  // Vom Host übergebenes Token gilt als angemeldet (kein Login-Gate nötig).
+  if (options.token) {
+    state.authenticated = true
+  }
+
+  // Globales Login-Overlay bereitstellen (zeigt sich nur bei requiresLogin).
+  mountLoginOverlay()
 
   // Load settings from PIM
   await actions.fetchSettings()

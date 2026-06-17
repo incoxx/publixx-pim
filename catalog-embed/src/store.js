@@ -21,7 +21,7 @@
  * @module store
  */
 import { reactive, computed, watch } from 'vue'
-import { catalogApi as defaultApi, resolveMediaUrl as defaultResolveMedia, clearCache } from './api.js'
+import { catalogApi as defaultApi, resolveMediaUrl as defaultResolveMedia, clearCache, setToken, getToken } from './api.js'
 
 /** @type {Object} Aktiver API-Provider (austauschbar via setApiProvider) */
 let _api = defaultApi
@@ -91,6 +91,12 @@ function createStore() {
     settings: {},
     _settingsLoaded: false,
 
+    // Auth-Gate (catalog_access_mode = 'login')
+    authenticated: !!getToken(),
+    requiresLogin: false,
+    authLoading: false,
+    authError: null,
+
     // Compare
     compareData: null,
     compareLoading: false,
@@ -142,13 +148,78 @@ function createStore() {
           state.locale = data.default_locale
         }
         state._settingsLoaded = true
+        // Login-Gate: Bei 'login'-Modus und fehlender Anmeldung den Katalog
+        // sperren, bevor Datenabrufe unnötige 401er erzeugen.
+        if (state.settings.catalog_access_mode === 'login' && !state.authenticated) {
+          state.requiresLogin = true
+        }
       } catch (e) {
         console.warn('[PublixxCatalog] Failed to load settings:', e.message)
       }
     },
 
+    /**
+     * Erkennt 401-Fehler, verwirft ein ggf. abgelaufenes Token und aktiviert
+     * das Login-Gate. Gibt true zurück, wenn es sich um einen Auth-Fehler handelt.
+     * @param {Error} e
+     * @returns {boolean}
+     */
+    handleAuthError(e) {
+      if (e?.status !== 401) return false
+      setToken(null)
+      state.authenticated = false
+      state.requiresLogin = true
+      return true
+    },
+
+    /**
+     * Meldet einen PIM-Benutzer an, speichert das Token und lädt den Katalog neu.
+     * @param {string} email
+     * @param {string} password
+     * @returns {Promise<boolean>} true bei Erfolg
+     */
+    async login(email, password) {
+      state.authLoading = true
+      state.authError = null
+      try {
+        const result = await defaultApi.login(email, password)
+        if (!result?.token) throw new Error('Kein Token erhalten')
+        setToken(result.token)
+        state.authenticated = true
+        state.requiresLogin = false
+        clearCache()
+        await actions.reloadAll()
+        return true
+      } catch (e) {
+        state.authError = e.data?.detail || e.data?.title || 'Anmeldung fehlgeschlagen. Bitte E-Mail und Passwort prüfen.'
+        return false
+      } finally {
+        state.authLoading = false
+      }
+    },
+
+    /** Meldet ab, verwirft das Token und sperrt den Katalog erneut. */
+    logout() {
+      setToken(null)
+      state.authenticated = false
+      clearCache()
+      if (state.settings.catalog_access_mode === 'login') {
+        state.requiresLogin = true
+      }
+    },
+
+    /** Lädt die Kerndaten (Kategorien, Facetten, Produkte) neu — z. B. nach Login. */
+    async reloadAll() {
+      await Promise.all([
+        actions.fetchCategories(),
+        actions.fetchFacets(),
+        actions.fetchProducts(),
+      ])
+    },
+
     /** Lädt Produkte basierend auf aktuellem State (Suche, Kategorie, Filter, Sortierung, Seite). */
     async fetchProducts() {
+      if (state.requiresLogin) return
       state.loading = true
       state.error = null
       try {
@@ -171,6 +242,10 @@ function createStore() {
         state.meta = result.meta
         state.categoryCounts = result.category_counts || {}
       } catch (e) {
+        if (actions.handleAuthError(e)) {
+          state.products = []
+          return
+        }
         state.error = e.data?.title || 'Fehler beim Laden'
         state.products = []
       } finally {
@@ -192,6 +267,10 @@ function createStore() {
         }
         state.currentProduct = prod
       } catch (e) {
+        if (actions.handleAuthError(e)) {
+          state.currentProduct = null
+          return
+        }
         state.error = e.data?.title || 'Produkt nicht gefunden'
         state.currentProduct = null
       } finally {
@@ -201,6 +280,7 @@ function createStore() {
 
     /** Lädt den Kategorie-Baum und speichert hierarchy-Info. */
     async fetchCategories() {
+      if (state.requiresLogin) return
       state.categoriesLoading = true
       try {
         const data = await _api.getCategories({
@@ -214,6 +294,10 @@ function createStore() {
           type: data.type,
         }
       } catch (e) {
+        if (actions.handleAuthError(e)) {
+          state.categories = []
+          return
+        }
         console.error('[PublixxCatalog] Categories load failed:', e)
         state.categories = []
       } finally {
@@ -223,6 +307,7 @@ function createStore() {
 
     /** Lädt Facetten-Filter (berücksichtigt aktive Filter und Kategorie für Counts). */
     async fetchFacets() {
+      if (state.requiresLogin) return
       try {
         const opts = { lang: state.locale }
         // Pass active filters so facet counts reflect current selection
@@ -236,6 +321,10 @@ function createStore() {
         const data = await _api.getFacets(opts)
         state.facets = data.facets || []
       } catch (e) {
+        if (actions.handleAuthError(e)) {
+          state.facets = []
+          return
+        }
         console.warn('[PublixxCatalog] Facets load failed:', e.message)
         state.facets = []
       }
