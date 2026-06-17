@@ -53,8 +53,9 @@ function rawValueFromRow(row, dataType) {
   }
   if (dataType === 'Flag') return !!row.value_flag
   if (dataType === 'Date' && typeof row.value_date === 'string') return row.value_date.slice(0, 10)
-  if (dataType === 'Selection') return row.value_selection_id ?? null
-  return row.value_string ?? row.value_number ?? row.value_date ?? null
+  // Universelle Auflösung wie im Produkteditor (Selection/Dictionary liegen je nach
+  // Speicherpfad in value_string oder value_selection_id).
+  return row.value_string ?? row.value_number ?? row.value_date ?? row.value_flag ?? row.value_selection_id ?? null
 }
 
 async function loadOptions(attr) {
@@ -126,9 +127,11 @@ async function save() {
   saving.value = true
   error.value = ''
   try {
+    // Wert wie im Produkteditor übergeben: MultiSelection als Array (Backend kodiert
+    // selbst nach JSON), alle anderen Typen als Rohwert.
     let value = editValue.value
     if (attr.data_type === 'MultiSelection') {
-      value = JSON.stringify(Array.isArray(value) ? value : [])
+      value = Array.isArray(value) ? value : []
     }
     const entry = { attribute_id: props.attributeId, value }
     if (attr.is_translatable) entry.language = props.language
