@@ -4,7 +4,7 @@ import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useLocaleStore } from '@/stores/locale'
 import { useAuthStore } from '@/stores/auth'
-import { Globe, Palette, AlertTriangle, Server, RotateCcw, CheckCircle, XCircle, Loader2, GitBranch, Database, Upload, Trash2, Save, Filter, LayoutGrid, Columns3, Image, Settings2, Paintbrush, BookOpen, GripVertical, Plus, X, Shield, Key, Eye, Monitor, RefreshCw, FileCode2, Activity, HardDrive, Cpu, Check, Zap, Play, Clock, Ban, RotateCw, Power, Terminal, WifiOff, ChevronDown, Search } from 'lucide-vue-next'
+import { Globe, Palette, AlertTriangle, Server, RotateCcw, CheckCircle, XCircle, Loader2, GitBranch, Database, Upload, Trash2, Save, Filter, LayoutGrid, Columns3, Image, Settings2, Paintbrush, BookOpen, GripVertical, Plus, X, Pencil, Shield, Key, Eye, Monitor, RefreshCw, FileCode2, Activity, HardDrive, Cpu, Check, Zap, Play, Clock, Ban, RotateCw, Power, Terminal, WifiOff, ChevronDown, Search } from 'lucide-vue-next'
 import { useAppearanceStore, PRESETS, SECTION_ICON_COLORS } from '@/stores/appearance'
 import { useLicenseStore } from '@/stores/license'
 import adminApi from '@/api/admin'
@@ -714,6 +714,9 @@ const TYPOGRAPHY_OPTIONS = [
   { value: '3xl', label: 'Maximal' },
 ]
 
+// Datentypen, die im Vorschaukatalog inline editierbar sind ("Live Edit")
+const LIVE_EDIT_TYPES = ['String', 'Number', 'Float', 'Date', 'Flag', 'Selection', 'MultiSelection', 'Dictionary', 'Textarea']
+
 const descDragIdx = ref(null)
 
 const selectedDescAttributes = computed(() => {
@@ -725,6 +728,10 @@ const selectedDescAttributes = computed(() => {
     .filter(Boolean)
 })
 
+function isLiveEditable(dataType) {
+  return LIVE_EDIT_TYPES.includes(dataType)
+}
+
 const unselectedDescAttributes = computed(() => {
   const selected = new Set((themeForm.value.description_attributes || []).map(da => da.attribute_id))
   return allAttributes.value.filter(a => !selected.has(a.id) && !a.is_internal)
@@ -733,7 +740,7 @@ const unselectedDescAttributes = computed(() => {
 function addDescAttribute(attr) {
   const existing = themeForm.value.description_attributes || []
   if (!existing.some(da => da.attribute_id === attr.id)) {
-    themeForm.value.description_attributes = [...existing, { attribute_id: attr.id, typography: 'base' }]
+    themeForm.value.description_attributes = [...existing, { attribute_id: attr.id, typography: 'base', live_edit: false }]
   }
 }
 
@@ -744,6 +751,12 @@ function removeDescAttribute(attrId) {
 function setDescTypography(attrId, typography) {
   themeForm.value.description_attributes = (themeForm.value.description_attributes || []).map(da =>
     da.attribute_id === attrId ? { ...da, typography } : da
+  )
+}
+
+function setDescLiveEdit(attrId, liveEdit) {
+  themeForm.value.description_attributes = (themeForm.value.description_attributes || []).map(da =>
+    da.attribute_id === attrId ? { ...da, live_edit: liveEdit } : da
   )
 }
 
@@ -2732,6 +2745,19 @@ onUnmounted(() => {
                   <GripVertical class="w-3.5 h-3.5 text-[var(--color-text-tertiary)] shrink-0" :stroke-width="2" />
                   <span class="text-[11px] font-medium text-[var(--color-accent)] w-4 shrink-0">{{ idx + 1 }}</span>
                   <span class="text-xs text-[var(--color-text-primary)] truncate flex-1">{{ da.name }}</span>
+                  <label
+                    v-if="isLiveEditable(da.data_type)"
+                    class="flex items-center gap-1 text-[10px] text-[var(--color-text-secondary)] shrink-0 cursor-pointer select-none"
+                    title="Live Edit: Im Vorschaukatalog direkt editierbar (Stift-Symbol)"
+                  >
+                    <input
+                      type="checkbox"
+                      class="w-3 h-3 cursor-pointer accent-[var(--color-accent)]"
+                      :checked="!!da.live_edit"
+                      @change="setDescLiveEdit(da.attribute_id, $event.target.checked)"
+                    />
+                    <Pencil class="w-3 h-3" :stroke-width="2" />
+                  </label>
                   <select
                     class="text-[10px] px-1 py-0.5 rounded border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text-secondary)] shrink-0 cursor-pointer"
                     :value="da.typography"

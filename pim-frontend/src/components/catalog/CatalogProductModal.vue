@@ -2,9 +2,11 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useCatalogStore } from '@/stores/catalog'
+import { useAuthStore } from '@/stores/auth'
 import { X, Heart, FileDown } from 'lucide-vue-next'
 import CatalogImageGallery from './CatalogImageGallery.vue'
 import CatalogProductDescription from './CatalogProductDescription.vue'
+import AttributeLiveEditPopover from './AttributeLiveEditPopover.vue'
 import PdfPreview from '@/components/shared/PdfPreview.vue'
 import { formatCompositeSummary } from '@/utils/formatting'
 import catalogApi from '@/api/catalog'
@@ -19,6 +21,26 @@ const emit = defineEmits(['close'])
 
 const { t } = useI18n()
 const store = useCatalogStore()
+const authStore = useAuthStore()
+
+// Live-Edit: Inline-Bearbeitung von Beschreibungs-Attributen (nur mit Schreibrecht)
+const canLiveEdit = computed(() => authStore.hasPermission('products.edit'))
+const liveEdit = ref({ open: false, attributeId: null, label: '' })
+
+function openLiveEdit(attr) {
+  liveEdit.value = { open: true, attributeId: attr.attribute_id, label: attr.label }
+}
+
+function closeLiveEdit() {
+  liveEdit.value = { ...liveEdit.value, open: false }
+}
+
+async function onLiveEditSaved() {
+  closeLiveEdit()
+  if (product.value?.id) {
+    await store.fetchProduct(product.value.id)
+  }
+}
 
 watch(
   () => props.productId,
@@ -195,7 +217,7 @@ function formatPrice(price) {
             <!-- Description -->
             <div v-if="product.description_attributes?.length || product.description">
               <h4 class="font-semibold text-base-content mb-1">{{ t('catalog.description') }}</h4>
-              <CatalogProductDescription :description="product.description" :description-attributes="product.description_attributes" />
+              <CatalogProductDescription :description="product.description" :description-attributes="product.description_attributes" :editable="canLiveEdit" @edit="openLiveEdit" />
             </div>
 
             <!-- Attributes -->
@@ -393,7 +415,7 @@ function formatPrice(price) {
             <div class="flex-1 overflow-y-auto min-h-0">
               <!-- Overview tab -->
               <div v-if="activeTab === 'overview'">
-                <CatalogProductDescription :description="product.description" :description-attributes="product.description_attributes" />
+                <CatalogProductDescription :description="product.description" :description-attributes="product.description_attributes" :editable="canLiveEdit" @edit="openLiveEdit" />
               </div>
 
               <!-- Attributes tab -->
@@ -569,7 +591,7 @@ function formatPrice(price) {
             <!-- Description card -->
             <div v-if="product.description_attributes?.length || product.description" class="bg-base-200/30 rounded-xl p-4">
               <h4 v-if="!product.description_attributes?.length" class="font-semibold text-base-content mb-2 text-sm">{{ t('catalog.description') }}</h4>
-              <CatalogProductDescription :description="product.description" :description-attributes="product.description_attributes" />
+              <CatalogProductDescription :description="product.description" :description-attributes="product.description_attributes" :editable="canLiveEdit" @edit="openLiveEdit" />
             </div>
 
             <!-- Attributes & Variants side-by-side on desktop -->
@@ -708,5 +730,17 @@ function formatPrice(price) {
     <form method="dialog" class="modal-backdrop bg-black/40" @click="emit('close')">
       <button>close</button>
     </form>
+
+    <!-- Live-Edit Layer für Beschreibungs-Attribute -->
+    <AttributeLiveEditPopover
+      v-if="canLiveEdit && product"
+      :open="liveEdit.open"
+      :product-id="product.id"
+      :attribute-id="liveEdit.attributeId"
+      :label="liveEdit.label"
+      :language="store.locale"
+      @close="closeLiveEdit"
+      @saved="onLiveEditSaved"
+    />
   </dialog>
 </template>
