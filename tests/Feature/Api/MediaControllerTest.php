@@ -93,4 +93,167 @@ class MediaControllerTest extends TestCase
 
         $response->assertUnauthorized();
     }
+
+    // ── Upload-Validierung ────────────────────────────────────────────
+
+    public function test_store_validiert_pflichtfeld_datei(): void
+    {
+        $response = $this->postJson('/api/v1/media', [
+            'title_de' => 'Ohne Datei',
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['file']);
+    }
+
+    public function test_store_lehnt_zu_grosse_datei_ab(): void
+    {
+        Storage::fake('media');
+
+        // Limit liegt bei 50 MB (max:51200 KB)
+        $response = $this->postJson('/api/v1/media', [
+            'file' => UploadedFile::fake()->create('riesig.jpg', 51201),
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['file']);
+    }
+
+    // ── Lösch-Constraints ─────────────────────────────────────────────
+
+    public function test_destroy_mit_produktzuordnung_liefert_409(): void
+    {
+        Storage::fake('public');
+
+        $media = Media::factory()->create();
+        \App\Models\ProductMediaAssignment::factory()->create(['media_id' => $media->id]);
+
+        $response = $this->deleteJson("/api/v1/media/{$media->id}");
+
+        $response->assertStatus(409)
+            ->assertJsonPath('type', 'deletion_constraint');
+
+        $this->assertDatabaseHas('media', ['id' => $media->id]);
+    }
+
+    public function test_destroy_mit_force_loescht_trotz_zuordnung(): void
+    {
+        Storage::fake('public');
+
+        $media = Media::factory()->create();
+        \App\Models\ProductMediaAssignment::factory()->create(['media_id' => $media->id]);
+
+        $response = $this->deleteJson("/api/v1/media/{$media->id}?force=true");
+
+        $response->assertNoContent();
+        $this->assertDatabaseMissing('media', ['id' => $media->id]);
+    }
+
+    public function test_bulk_delete_ueberspringt_medien_mit_zuordnungen(): void
+    {
+        Storage::fake('public');
+
+        $assigned = Media::factory()->create();
+        \App\Models\ProductMediaAssignment::factory()->create(['media_id' => $assigned->id]);
+        $unassigned = Media::factory()->create();
+
+        $response = $this->postJson('/api/v1/media/bulk-delete', [
+            'media_ids' => [$assigned->id, $unassigned->id],
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('deleted', 1)
+            ->assertJsonPath('skipped', 1);
+
+        $this->assertDatabaseHas('media', ['id' => $assigned->id]);
+        $this->assertDatabaseMissing('media', ['id' => $unassigned->id]);
+    }
+
+    public function test_bulk_delete_mit_force_loescht_zugeordnete_medien(): void
+    {
+        Storage::fake('public');
+
+        $assigned = Media::factory()->create();
+        \App\Models\ProductMediaAssignment::factory()->create(['media_id' => $assigned->id]);
+
+        $response = $this->postJson('/api/v1/media/bulk-delete', [
+            'media_ids' => [$assigned->id],
+            'force' => true,
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('deleted', 1)
+            ->assertJsonPath('skipped', 0);
+
+        $this->assertDatabaseMissing('media', ['id' => $assigned->id]);
+    }
+
+    // ── Zuordnungen / Verschieben ─────────────────────────────────────
+
+    public function test_bulk_move_verschiebt_medien_in_ordner(): void
+    {
+        $folder = \App\Models\HierarchyNode::factory()->create();
+        $media = Media::factory()->count(2)->create(['asset_folder_id' => null]);
+
+        $response = $this->postJson('/api/v1/media/bulk-move', [
+            'media_ids' => $media->pluck('id')->all(),
+            'asset_folder_id' => $folder->id,
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('moved', 2);
+
+        foreach ($media as $m) {
+            $this->assertDatabaseHas('media', ['id' => $m->id, 'asset_folder_id' => $folder->id]);
+        }
+    }
+
+    public function test_bulk_move_validiert_unbekannten_ordner(): void
+    {
+        $media = Media::factory()->create();
+
+        $this->postJson('/api/v1/media/bulk-move', [
+            'media_ids' => [$media->id],
+            'asset_folder_id' => '00000000-0000-0000-0000-000000000000',
+        ])->assertUnprocessable();
+    }
+
+    // ── URL-Import ────────────────────────────────────────────────────
+
+    public function test_import_from_url_lehnt_interne_url_ab(): void
+    {
+        $response = $this->postJson('/api/v1/media/import-url', [
+            'url' => 'http://127.0.0.1/geheim.jpg',
+        ]);
+
+        $response->assertUnprocessable();
+        $this->assertDatabaseCount('media', 0);
+    }
+
+    public function test_import_from_url_importiert_bild(): void
+    {
+        Storage::fake('public');
+
+        // Echte PNG-Bytes erzeugen, damit MIME-Detection und getimagesize greifen
+        $img = imagecreatetruecolor(2, 2);
+        ob_start();
+        imagepng($img);
+        $pngBytes = (string) ob_get_clean();
+        imagedestroy($img);
+
+        \Illuminate\Support\Facades\Http::fake([
+            '*' => \Illuminate\Support\Facades\Http::response($pngBytes, 200, ['Content-Type' => 'image/png']),
+        ]);
+
+        // Öffentliche IP statt Hostname, damit der SSRF-Check keine DNS-Auflösung braucht
+        $response = $this->postJson('/api/v1/media/import-url', [
+            'url' => 'http://93.184.216.34/bilder/test.png',
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.mime_type', 'image/png')
+            ->assertJsonPath('data.media_type', 'image');
+
+        $this->assertDatabaseHas('media', ['original_file_name' => 'test.png']);
+    }
 }

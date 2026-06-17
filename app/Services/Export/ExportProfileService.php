@@ -199,7 +199,7 @@ class ExportProfileService
                 if ($priceSheet !== null && $prices->has($product->id)) {
                     foreach ($prices[$product->id] as $price) {
                         $priceSheet->setCellValue([1, $rows['price']], $product->sku);
-                        $priceSheet->setCellValue([2, $rows['price']], $price->price_type);
+                        $priceSheet->setCellValue([2, $rows['price']], $price->priceType?->technical_name);
                         $priceSheet->setCellValue([3, $rows['price']], $price->amount);
                         $priceSheet->setCellValue([4, $rows['price']], $price->currency);
                         $priceSheet->setCellValue([5, $rows['price']], $price->scale_from);
@@ -213,8 +213,8 @@ class ExportProfileService
                     foreach ($relations[$product->id] as $rel) {
                         $relSheet->setCellValue([1, $rows['rel']], $product->sku);
                         $relSheet->setCellValue([2, $rows['rel']], $rel->targetProduct?->sku);
-                        $relSheet->setCellValue([3, $rows['rel']], $rel->relationType?->name);
-                        $relSheet->setCellValue([4, $rows['rel']], $rel->position);
+                        $relSheet->setCellValue([3, $rows['rel']], $rel->relationType?->technical_name);
+                        $relSheet->setCellValue([4, $rows['rel']], $rel->sort_order);
                         $rows['rel']++;
                     }
                 }
@@ -223,8 +223,8 @@ class ExportProfileService
                     foreach ($media[$product->id] as $m) {
                         $mediaSheet->setCellValue([1, $rows['media']], $product->sku);
                         $mediaSheet->setCellValue([2, $rows['media']], $m->media?->file_name);
-                        $mediaSheet->setCellValue([3, $rows['media']], $m->usage_type);
-                        $mediaSheet->setCellValue([4, $rows['media']], $m->position);
+                        $mediaSheet->setCellValue([3, $rows['media']], $m->usageType?->technical_name);
+                        $mediaSheet->setCellValue([4, $rows['media']], $m->sort_order);
                         $rows['media']++;
                     }
                 }
@@ -268,13 +268,13 @@ class ExportProfileService
 
             $query->with($eagerRelations)->chunk(500, function ($products) use ($handle) {
                 foreach ($products as $p) {
-                    fputcsv($handle, [
+                    fputcsv($handle, CsvWriter::sanitizeRow([
                         $p->sku ?? '',
                         $p->name ?? '',
                         $p->status ?? '',
                         $p->ean ?? '',
                         $p->productType?->name_de ?? '',
-                    ], ';');
+                    ]), ';');
                 }
                 unset($products);
             });
@@ -332,10 +332,10 @@ class ExportProfileService
             $media      = $this->loadChunkMedia($productIds, $profile);
 
             foreach ($products as $p) {
-                fputcsv($handles['products'], [
+                fputcsv($handles['products'], CsvWriter::sanitizeRow([
                     $p->sku ?? '', $p->name ?? '', $p->status ?? '',
                     $p->ean ?? '', $p->productType?->name_de ?? '',
-                ], ';');
+                ]), ';');
 
                 if (isset($handles['attr']) && $attrValues->has($p->id)) {
                     foreach ($attrValues[$p->id] as $av) {
@@ -343,39 +343,39 @@ class ExportProfileService
                             continue;
                         }
                         $def = $attributeDefs[$av->attribute_id] ?? null;
-                        fputcsv($handles['attr'], [
+                        fputcsv($handles['attr'], CsvWriter::sanitizeRow([
                             $p->sku,
                             $def?->technical_name ?? $av->attribute_id,
                             $def?->name_de ?? '',
                             $av->value_string ?? $av->value_number ?? $av->value_date ?? $av->value_flag,
                             $av->language,
-                        ], ';');
+                        ]), ';');
                     }
                 }
 
                 if (isset($handles['prices']) && $prices->has($p->id)) {
                     foreach ($prices[$p->id] as $price) {
-                        fputcsv($handles['prices'], [
-                            $p->sku, $price->price_type, $price->amount, $price->currency,
+                        fputcsv($handles['prices'], CsvWriter::sanitizeRow([
+                            $p->sku, $price->priceType?->technical_name, $price->amount, $price->currency,
                             $price->scale_from, $price->valid_from, $price->valid_to,
-                        ], ';');
+                        ]), ';');
                     }
                 }
 
                 if (isset($handles['relations']) && $relations->has($p->id)) {
                     foreach ($relations[$p->id] as $rel) {
-                        fputcsv($handles['relations'], [
+                        fputcsv($handles['relations'], CsvWriter::sanitizeRow([
                             $p->sku, $rel->targetProduct?->sku,
-                            $rel->relationType?->name, $rel->position,
-                        ], ';');
+                            $rel->relationType?->technical_name, $rel->sort_order,
+                        ]), ';');
                     }
                 }
 
                 if (isset($handles['media']) && $media->has($p->id)) {
                     foreach ($media[$p->id] as $m) {
-                        fputcsv($handles['media'], [
-                            $p->sku, $m->media?->file_name, $m->usage_type, $m->position,
-                        ], ';');
+                        fputcsv($handles['media'], CsvWriter::sanitizeRow([
+                            $p->sku, $m->media?->file_name, $m->usageType?->technical_name, $m->sort_order,
+                        ]), ';');
                     }
                 }
             }
@@ -460,7 +460,7 @@ class ExportProfileService
 
                 if ($profile->include_prices && $prices->has($p->id)) {
                     $productData['prices'] = $prices[$p->id]->map(fn ($pr) => [
-                        'price_type' => $pr->price_type,
+                        'price_type' => $pr->priceType?->technical_name,
                         'amount'     => $pr->amount,
                         'currency'   => $pr->currency,
                         'scale_from' => $pr->scale_from,
@@ -472,16 +472,16 @@ class ExportProfileService
                 if ($profile->include_relations && $relations->has($p->id)) {
                     $productData['relations'] = $relations[$p->id]->map(fn ($r) => [
                         'target_sku'    => $r->targetProduct?->sku,
-                        'relation_type' => $r->relationType?->name,
-                        'position'      => $r->position,
+                        'relation_type' => $r->relationType?->technical_name,
+                        'position'      => $r->sort_order,
                     ])->values()->toArray();
                 }
 
                 if ($profile->include_media && $media->has($p->id)) {
                     $productData['media'] = $media[$p->id]->map(fn ($m) => [
                         'file_name'  => $m->media?->file_name,
-                        'usage_type' => $m->usage_type,
-                        'position'   => $m->position,
+                        'usage_type' => $m->usageType?->technical_name,
+                        'position'   => $m->sort_order,
                     ])->values()->toArray();
                 }
 
@@ -572,7 +572,7 @@ class ExportProfileService
                     $xml->startElement('prices');
                     foreach ($prices[$p->id] as $price) {
                         $xml->startElement('price');
-                        $xml->writeElement('type', $price->price_type ?? '');
+                        $xml->writeElement('type', $price->priceType?->technical_name ?? '');
                         $xml->writeElement('amount', (string) ($price->amount ?? ''));
                         $xml->writeElement('currency', $price->currency ?? '');
                         $xml->writeElement('scale_from', (string) ($price->scale_from ?? ''));
@@ -588,8 +588,8 @@ class ExportProfileService
                     foreach ($relations[$p->id] as $rel) {
                         $xml->startElement('relation');
                         $xml->writeElement('target_sku', $rel->targetProduct?->sku ?? '');
-                        $xml->writeElement('type', $rel->relationType?->name ?? '');
-                        $xml->writeElement('position', (string) ($rel->position ?? ''));
+                        $xml->writeElement('type', $rel->relationType?->technical_name ?? '');
+                        $xml->writeElement('position', (string) ($rel->sort_order ?? ''));
                         $xml->endElement();
                     }
                     $xml->endElement();
@@ -600,8 +600,8 @@ class ExportProfileService
                     foreach ($media[$p->id] as $m) {
                         $xml->startElement('item');
                         $xml->writeElement('file_name', $m->media?->file_name ?? '');
-                        $xml->writeElement('usage_type', $m->usage_type ?? '');
-                        $xml->writeElement('position', (string) ($m->position ?? ''));
+                        $xml->writeElement('usage_type', $m->usageType?->technical_name ?? '');
+                        $xml->writeElement('position', (string) ($m->sort_order ?? ''));
                         $xml->endElement();
                     }
                     $xml->endElement();
@@ -669,7 +669,10 @@ class ExportProfileService
         if (!$profile->include_prices || empty($productIds)) {
             return collect();
         }
-        return ProductPrice::whereIn('product_id', $productIds)->get()->groupBy('product_id');
+        return ProductPrice::whereIn('product_id', $productIds)
+            ->with('priceType')
+            ->get()
+            ->groupBy('product_id');
     }
 
     /** Lädt Beziehungen für einen Produkt-Chunk. */
@@ -691,7 +694,7 @@ class ExportProfileService
             return collect();
         }
         return ProductMediaAssignment::whereIn('product_id', $productIds)
-            ->with('media')
+            ->with(['media', 'usageType'])
             ->get()
             ->groupBy('product_id');
     }
@@ -750,6 +753,7 @@ class ExportProfileService
         $prices = [];
         if ($profile->include_prices) {
             $prices = ProductPrice::whereIn('product_id', $productIds)
+                ->with('priceType')
                 ->get()
                 ->groupBy('product_id');
         }
@@ -758,6 +762,7 @@ class ExportProfileService
         $relations = [];
         if ($profile->include_relations) {
             $relations = ProductRelation::whereIn('source_product_id', $productIds)
+                ->with(['targetProduct', 'relationType'])
                 ->get()
                 ->groupBy('source_product_id');
         }
@@ -766,7 +771,7 @@ class ExportProfileService
         $media = [];
         if ($profile->include_media) {
             $media = ProductMediaAssignment::whereIn('product_id', $productIds)
-                ->with('media')
+                ->with(['media', 'usageType'])
                 ->get()
                 ->groupBy('product_id');
         }
@@ -808,7 +813,7 @@ class ExportProfileService
 
             if ($profile->include_prices && isset($prices[$product->id])) {
                 $productData['prices'] = $prices[$product->id]->map(fn($p) => [
-                    'price_type' => $p->price_type,
+                    'price_type' => $p->priceType?->technical_name,
                     'amount' => $p->amount,
                     'currency' => $p->currency,
                     'scale_from' => $p->scale_from,
@@ -820,16 +825,16 @@ class ExportProfileService
             if ($profile->include_relations && isset($relations[$product->id])) {
                 $productData['relations'] = $relations[$product->id]->map(fn($r) => [
                     'target_sku' => $r->targetProduct?->sku,
-                    'relation_type' => $r->relationType?->name,
-                    'position' => $r->position,
+                    'relation_type' => $r->relationType?->technical_name,
+                    'position' => $r->sort_order,
                 ])->toArray();
             }
 
             if ($profile->include_media && isset($media[$product->id])) {
                 $productData['media'] = $media[$product->id]->map(fn($m) => [
                     'file_name' => $m->media?->file_name,
-                    'usage_type' => $m->usage_type,
-                    'position' => $m->position,
+                    'usage_type' => $m->usageType?->technical_name,
+                    'position' => $m->sort_order,
                 ])->toArray();
             }
 

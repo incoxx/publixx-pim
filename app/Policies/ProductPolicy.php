@@ -56,6 +56,14 @@ class ProductPolicy
         return $this->checkHierarchyRestriction($user, $product);
     }
 
+    /**
+     * Massendatenpflege (Bulk-Update) — Klassen-basierte Ability ohne Produkt-Instanz.
+     */
+    public function bulkUpdate(User $user): bool
+    {
+        return $user->checkPermissionTo('products.edit');
+    }
+
     public function delete(User $user, Product $product): bool
     {
         if (! $user->hasPermissionTo('products.delete')) {

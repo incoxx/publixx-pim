@@ -72,13 +72,21 @@ class QuickSearchController extends Controller
         $counts = $offset === 0
             ? $this->fetchAllCountsFast($query, $categoryId, $attributeId, $mediaId)
             : [];
-        $counts[$type] = $result['total'];
+
+        if ($offset === 0) {
+            // Erste Seite: die Einzelsuchen liefern aus Performance-Gründen
+            // total = 0 — der korrekte Count kommt aus fetchAllCountsFast
+            $total = $counts[$type] ?? count($result['items']);
+        } else {
+            $total = $result['total'];
+            $counts[$type] = $total;
+        }
 
         return response()->json([
             'query' => $query,
             'counts' => $counts,
             'results' => $result['items'],
-            'has_more' => ($offset + $limit) < $result['total'],
+            'has_more' => ($offset + $limit) < $total,
         ]);
     }
 

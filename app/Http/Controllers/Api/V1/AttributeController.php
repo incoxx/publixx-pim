@@ -234,7 +234,7 @@ class AttributeController extends Controller
      */
     public function bulkDelete(Request $request): JsonResponse
     {
-        $this->authorize('delete', Attribute::class);
+        $this->authorize('bulkDelete', Attribute::class);
 
         $request->validate([
             'attribute_ids' => 'required|array|min:1|max:5000',

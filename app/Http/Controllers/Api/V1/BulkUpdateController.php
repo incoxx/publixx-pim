@@ -19,6 +19,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 /**
  * Massendatenpflege — bulk update multiple products at once.
@@ -38,7 +39,7 @@ class BulkUpdateController extends Controller
      */
     public function commonAttributes(Request $request, HierarchyInheritanceService $service): JsonResponse
     {
-        $this->authorize('update', Product::class);
+        $this->authorize('bulkUpdate', Product::class);
 
         $request->validate([
             'product_ids' => 'nullable|array|min:1|max:500',
@@ -115,7 +116,7 @@ class BulkUpdateController extends Controller
 
     public function preview(BulkUpdateRequest $request): JsonResponse
     {
-        $this->authorize('update', Product::class);
+        $this->authorize('bulkUpdate', Product::class);
 
         $productIds = $this->resolveProductIds($request);
         $operations = $request->validated('operations');
@@ -178,7 +179,7 @@ class BulkUpdateController extends Controller
 
     public function execute(BulkUpdateRequest $request): JsonResponse
     {
-        $this->authorize('update', Product::class);
+        $this->authorize('bulkUpdate', Product::class);
 
         $productIds = $this->resolveProductIds($request);
         $operations = $request->validated('operations');
@@ -544,21 +545,26 @@ class BulkUpdateController extends Controller
                     $rows = [];
                     foreach ($toUpdate as $pid) {
                         $rows[] = array_merge([
+                            // upsert() umgeht Model-Events → UUID-PK explizit vergeben
+                            'id' => (string) Str::uuid(),
                             'product_id' => $pid,
                             'attribute_id' => $attribute->id,
                             'language' => $language,
                             'multiplied_index' => 0,
+                            'output_hierarchy_id' => null,
                             'is_inherited' => false,
                             'inherited_from_node_id' => null,
                             'inherited_from_product_id' => null,
                         ], $valueData);
                     }
 
-                    // Upsert in chunks
+                    // Upsert in chunks — Konflikt-Target muss dem Unique-Index
+                    // pav_product_attr_lang_idx_oh_unique entsprechen (inkl. output_hierarchy_id,
+                    // siehe Migration 2026_03_11_000001)
                     foreach (array_chunk($rows, 2000) as $chunk) {
                         ProductAttributeValue::upsert(
                             $chunk,
-                            ['product_id', 'attribute_id', 'language', 'multiplied_index'],
+                            ['product_id', 'attribute_id', 'language', 'multiplied_index', 'output_hierarchy_id'],
                             array_merge(array_keys($valueData), ['is_inherited', 'inherited_from_node_id', 'inherited_from_product_id'])
                         );
                     }
@@ -624,6 +630,8 @@ class BulkUpdateController extends Controller
                     } else {
                         $added++;
                         $toAdd[] = [
+                            // insert() umgeht Model-Events → UUID-PK explizit vergeben
+                            'id' => (string) Str::uuid(),
                             'source_product_id' => $pid,
                             'target_product_id' => $op['target_product_id'],
                             'relation_type_id' => $op['relation_type_id'],
@@ -686,6 +694,8 @@ class BulkUpdateController extends Controller
                     } else {
                         $assigned++;
                         $toAssign[] = [
+                            // insert() umgeht Model-Events → UUID-PK explizit vergeben
+                            'id' => (string) Str::uuid(),
                             'hierarchy_node_id' => $op['hierarchy_node_id'],
                             'product_id' => $pid,
                             'sort_order' => 0,
@@ -861,6 +871,8 @@ class BulkUpdateController extends Controller
                     } else {
                         $assigned++;
                         $toAssign[] = [
+                            // insert() umgeht Model-Events → UUID-PK explizit vergeben
+                            'id' => (string) Str::uuid(),
                             'product_id' => $pid,
                             'media_id' => $op['media_id'],
                             'usage_type_id' => $op['usage_type_id'] ?? null,
