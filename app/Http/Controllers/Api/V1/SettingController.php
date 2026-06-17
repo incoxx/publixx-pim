@@ -223,6 +223,7 @@ class SettingController extends Controller
             'description_attributes' => 'nullable|array',
             'description_attributes.*.attribute_id' => 'required|uuid|exists:attributes,id',
             'description_attributes.*.typography' => 'required|string|in:xs,sm,base,lg,xl,2xl,3xl',
+            'description_attributes.*.live_edit' => 'sometimes|boolean',
             'pdf_display_mode' => 'nullable|string|in:link,embedded',
             'catalog_access_mode' => 'nullable|string|in:public,login',
             'catalog_linked_products_only' => 'nullable|boolean',

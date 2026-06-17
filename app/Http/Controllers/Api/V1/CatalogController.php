@@ -619,8 +619,10 @@ class CatalogController extends BaseController
         if (!empty($descriptionAttributes)) {
             $descAttrIds = array_column($descriptionAttributes, 'attribute_id');
             $typographyMap = [];
+            $liveEditMap = [];
             foreach ($descriptionAttributes as $da) {
                 $typographyMap[$da['attribute_id']] = $da['typography'] ?? 'base';
+                $liveEditMap[$da['attribute_id']] = (bool) ($da['live_edit'] ?? false);
             }
 
             $descValues = ProductAttributeValue::where('product_id', $product->id)
@@ -644,6 +646,7 @@ class CatalogController extends BaseController
                     'label' => $label,
                     'value' => $unit ? $value . ' ' . $unit : $value,
                     'typography' => $typographyMap[$attr->id] ?? 'base',
+                    'live_edit' => $liveEditMap[$attr->id] ?? false,
                 ];
             }
 
@@ -731,8 +734,10 @@ class CatalogController extends BaseController
         if (!empty($descriptionAttributes)) {
             $descAttrIds = array_column($descriptionAttributes, 'attribute_id');
             $typographyMap = [];
+            $liveEditMap = [];
             foreach ($descriptionAttributes as $da) {
                 $typographyMap[$da['attribute_id']] = $da['typography'] ?? 'base';
+                $liveEditMap[$da['attribute_id']] = (bool) ($da['live_edit'] ?? false);
             }
 
             $descValues = ProductAttributeValue::where('product_id', $product->id)
@@ -756,6 +761,7 @@ class CatalogController extends BaseController
                     'label' => $label,
                     'value' => $unit ? $value . ' ' . $unit : $value,
                     'typography' => $typographyMap[$attr->id] ?? 'base',
+                    'live_edit' => $liveEditMap[$attr->id] ?? false,
                 ];
             }
 

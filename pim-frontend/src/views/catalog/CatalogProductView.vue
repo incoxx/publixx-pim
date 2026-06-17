@@ -3,9 +3,11 @@ import { onMounted, computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useCatalogStore } from '@/stores/catalog'
+import { useAuthStore } from '@/stores/auth'
 import { ArrowLeft, Heart, Package, Braces, FileDown } from 'lucide-vue-next'
 import CatalogImageGallery from '@/components/catalog/CatalogImageGallery.vue'
 import CatalogProductDescription from '@/components/catalog/CatalogProductDescription.vue'
+import AttributeLiveEditPopover from '@/components/catalog/AttributeLiveEditPopover.vue'
 import PdfPreview from '@/components/shared/PdfPreview.vue'
 import { formatCompositeSummary } from '@/utils/formatting'
 import catalogApi from '@/api/catalog'
@@ -15,6 +17,26 @@ const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
 const store = useCatalogStore()
+const authStore = useAuthStore()
+
+// Live-Edit: Inline-Bearbeitung von Beschreibungs-Attributen (nur mit Schreibrecht)
+const canLiveEdit = computed(() => authStore.hasPermission('products.edit'))
+const liveEdit = ref({ open: false, attributeId: null, label: '' })
+
+function openLiveEdit(attr) {
+  liveEdit.value = { open: true, attributeId: attr.attribute_id, label: attr.label }
+}
+
+function closeLiveEdit() {
+  liveEdit.value = { ...liveEdit.value, open: false }
+}
+
+async function onLiveEditSaved() {
+  closeLiveEdit()
+  if (product.value?.id) {
+    await store.fetchProduct(product.value.id)
+  }
+}
 
 const product = computed(() => store.currentProduct)
 const inWishlist = computed(() =>
@@ -177,7 +199,7 @@ watch(() => route.params.id, (newId) => {
           </div>
           <div v-if="product.description_attributes?.length || product.description">
             <h3 class="font-semibold text-base-content mb-2">{{ t('catalog.description') }}</h3>
-            <CatalogProductDescription :description="product.description" :description-attributes="product.description_attributes" />
+            <CatalogProductDescription :description="product.description" :description-attributes="product.description_attributes" :editable="canLiveEdit" @edit="openLiveEdit" />
           </div>
           <div v-if="parentAttributes.length" class="text-sm">
             <h3 class="font-semibold text-base-content mb-2">{{ t('catalog.attributes') }}</h3>
@@ -292,7 +314,7 @@ watch(() => route.params.id, (newId) => {
           <!-- Tab content -->
           <div class="flex-1">
             <div v-if="activeTab === 'overview'">
-              <CatalogProductDescription :description="product.description" :description-attributes="product.description_attributes" />
+              <CatalogProductDescription :description="product.description" :description-attributes="product.description_attributes" :editable="canLiveEdit" @edit="openLiveEdit" />
             </div>
             <div v-if="activeTab === 'attributes'" class="text-sm">
               <table class="table table-xs table-zebra w-full">
@@ -421,7 +443,7 @@ watch(() => route.params.id, (newId) => {
         </div>
         <div v-if="product.description_attributes?.length || product.description" class="bg-base-200/30 rounded-xl p-4">
           <h3 v-if="!product.description_attributes?.length" class="font-semibold text-base-content mb-2 text-sm">{{ t('catalog.description') }}</h3>
-          <CatalogProductDescription :description="product.description" :description-attributes="product.description_attributes" />
+          <CatalogProductDescription :description="product.description" :description-attributes="product.description_attributes" :editable="canLiveEdit" @edit="openLiveEdit" />
         </div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div v-if="parentAttributes.length" class="bg-base-200/30 rounded-xl p-4">
@@ -527,5 +549,17 @@ watch(() => route.params.id, (newId) => {
     <div v-else-if="store.error" class="alert alert-error">
       <span>{{ store.error }}</span>
     </div>
+
+    <!-- Live-Edit Layer für Beschreibungs-Attribute -->
+    <AttributeLiveEditPopover
+      v-if="canLiveEdit && product"
+      :open="liveEdit.open"
+      :product-id="product.id"
+      :attribute-id="liveEdit.attributeId"
+      :label="liveEdit.label"
+      :language="store.locale"
+      @close="closeLiveEdit"
+      @saved="onLiveEditSaved"
+    />
   </div>
 </template>
