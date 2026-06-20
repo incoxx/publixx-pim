@@ -291,6 +291,11 @@ Erweiterung der vorhandenen Preset-Infrastruktur.
 
 ## 10. Offene Entscheidungen (für Abstimmung)
 
+> **Entscheidung (2026-06-20):** Umsetzung als **eigenständige Cockpit-View**
+> (eigene Route `/cockpit`, eigenes Zonen-Layout) — nicht als Dashboard-Preset.
+> → Punkt 2 ist damit geklärt. Status weiterhin Konzept; keine Implementierung
+> beauftragt ("Konzept reicht erstmal").
+
 1. **Cockpit als neuer Standard-Login-Ziel?** Soll `/cockpit` die neue Startseite
    sein (für bestimmte Rollen), oder bleibt `/dashboard` Standard und Cockpit ist
    ein zusätzlicher Einstieg?
