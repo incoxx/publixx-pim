@@ -17,6 +17,7 @@ const loading = ref(false)
 const saving = ref(false)
 const errors = ref({})
 const roleName = ref(props.role?.name || '')
+const viewMode = ref(props.role?.default_view_mode || 'gui')
 const selectedPermissions = ref(new Set(
   props.role?.permissions?.map(p => p.name) || []
 ))
@@ -224,6 +225,7 @@ async function handleSubmit() {
 
   const payload = {
     name: roleName.value.trim(),
+    default_view_mode: viewMode.value,
     permissions: [...selectedPermissions.value],
   }
 
@@ -370,6 +372,18 @@ onMounted(async () => {
         placeholder="Rollenname"
       />
       <p v-if="errors.name" class="text-xs text-[var(--color-error)] mt-1">{{ errors.name }}</p>
+    </div>
+
+    <!-- Standard-Ansicht (Cockpit vs. klassisches Menü) -->
+    <div class="mb-4">
+      <label class="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">Standard-Ansicht</label>
+      <select v-model="viewMode" class="pim-input w-full text-sm">
+        <option value="gui">Klassisches Menü</option>
+        <option value="cockpit">Cockpit (Fokus-Modus)</option>
+      </select>
+      <p class="text-[10px] text-[var(--color-text-tertiary)] mt-1">
+        Start-Ansicht für diese Rolle. Die persönliche Wahl der Nutzer hat Vorrang.
+      </p>
     </div>
 
     <!-- Loading state -->

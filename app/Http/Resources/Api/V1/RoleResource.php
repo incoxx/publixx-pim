@@ -17,6 +17,7 @@ class RoleResource extends JsonResource
             'id' => $this->id,
             'name' => $this->name,
             'guard_name' => $this->guard_name,
+            'default_view_mode' => $this->default_view_mode ?? 'gui',
             'permissions' => $this->whenLoaded('permissions', function () {
                 return $this->permissions->map(fn ($permission) => [
                     'id' => $permission->id,

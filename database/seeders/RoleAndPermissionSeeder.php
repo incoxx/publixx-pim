@@ -293,6 +293,58 @@ class RoleAndPermissionSeeder extends Seeder
             'semantic-search.view',
         ]);
 
+        // ─── 8. Marketing (Content, Medien, Übersetzungen, Ausspielung) ─
+        $marketing = Role::firstOrCreate(
+            ['name' => 'Marketing', 'guard_name' => 'sanctum'],
+        );
+        $marketing->syncPermissions([
+            // Medien/Content: Vollzugriff
+            'media.view', 'media.create', 'media.edit', 'media.delete',
+            'media-usage-types.view',
+            // Produkte & Struktur: nur lesend (Kontext)
+            'products.view',
+            'product-types.view',
+            'attributes.view',
+            'attribute-types.view',
+            'hierarchies.view',
+            'hierarchy-nodes.view',
+            'relation-types.view',
+            'value-lists.view',
+            // Übersetzungen
+            'translations.view', 'translations.edit',
+            // Ausspielung
+            'portals.view',
+            'catalog-templates.view',
+            'reports.view',
+            // Arbeitsauswahl / Suche / Export sichten
+            'watchlist.view', 'watchlist.edit',
+            'search.view',
+            'export.view',
+            // Basis
+            'dashboard.view',
+            'copilot.use',
+            'semantic-search.view',
+        ]);
+        // Standard-Ansicht: Cockpit (Fokus-Modus)
+        $marketing->default_view_mode = 'cockpit';
+        $marketing->save();
+        // Tab-Rechte: Medien voll, Rest reduziert
+        $marketingTabs = [
+            'base-data' => 'read',
+            'attributes' => 'read',
+            'variant-attributes' => 'read',
+            'variants' => 'read',
+            'prices' => 'hidden',
+            'relations' => 'read',
+            'output-hierarchies' => 'read',
+        ];
+        foreach ($marketingTabs as $tabKey => $level) {
+            \App\Models\RoleTabPermission::updateOrCreate(
+                ['role_id' => $marketing->id, 'tab_key' => $tabKey],
+                ['access_level' => $level],
+            );
+        }
+
         $this->command->info('Rollen und Permissions erfolgreich geseeded.');
         $this->command->table(
             ['Rolle', 'Permissions'],
@@ -305,6 +357,7 @@ class RoleAndPermissionSeeder extends Seeder
                 ['Export Manager', (string) $exportManager->permissions()->count()],
                 ['API Designer', (string) $apiDesigner->permissions()->count()],
                 ['Project Management', (string) $projectManagement->permissions()->count()],
+                ['Marketing', (string) $marketing->permissions()->count()],
             ]
         );
     }

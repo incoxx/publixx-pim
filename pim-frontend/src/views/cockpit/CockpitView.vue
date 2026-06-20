@@ -1,10 +1,15 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, markRaw } from 'vue'
 import { useRouter } from 'vue-router'
-import { Search, Package, Image, Star, FileBarChart, Upload, Languages, LayoutTemplate, RefreshCw } from 'lucide-vue-next'
+import {
+  Search, Package, Image, Star, FileBarChart, Upload, Languages,
+  LayoutTemplate, Globe, GitBranch, ClipboardList, RefreshCw,
+} from 'lucide-vue-next'
 import { useDashboardStore } from '@/stores/dashboard'
 import { useAuthStore } from '@/stores/auth'
 import { useQuickSearchStore } from '@/stores/quickSearch'
+import userPreferencesApi from '@/api/userPreferences'
+import { resolveCockpitProfile } from '@/config/cockpitProfiles'
 import NotesWidget from '@/components/dashboard/NotesWidget.vue'
 import WatchlistWidget from '@/components/dashboard/WatchlistWidget.vue'
 import RecentlyEditedWidget from '@/components/dashboard/RecentlyEditedWidget.vue'
@@ -16,6 +21,44 @@ const router = useRouter()
 const store = useDashboardStore()
 const authStore = useAuthStore()
 const searchStore = useQuickSearchStore()
+
+// ─── Kataloge: ID → konkrete Kachel/Komponente ─────────────
+// Schnellaktions-Kacheln (permission = optionales Berechtigungs-Gate)
+const TILE_CATALOG = {
+  products:            { label: 'Produkte',      to: '/products',          icon: Package,        permission: 'products.view' },
+  media:               { label: 'Medien',        to: '/media',             icon: Image,          permission: 'media.view' },
+  watchlist:           { label: 'Merkliste',     to: '/watchlist',         icon: Star,           permission: null },
+  reports:             { label: 'Berichte',      to: '/reports',           icon: FileBarChart,   permission: 'reports.view' },
+  imports:             { label: 'Import',        to: '/imports',           icon: Upload,         permission: 'imports.view' },
+  'translation-jobs':  { label: 'Übersetzungen', to: '/translation-jobs',  icon: Languages,      permission: 'translations.view' },
+  'catalog-templates': { label: 'Kataloge',      to: '/catalog-templates', icon: LayoutTemplate, permission: 'catalog-templates.view' },
+  portals:             { label: 'Portale',       to: '/portal-config',     icon: Globe,          permission: 'portals.view' },
+  search:              { label: 'Profisuche',    to: '/search',            icon: Search,         permission: 'search.view' },
+  hierarchies:         { label: 'Hierarchien',   to: '/hierarchies',       icon: GitBranch,      permission: 'hierarchies.view' },
+  workflow:            { label: 'Workflow',      to: '/workflow',          icon: ClipboardList,  permission: 'workflow.view' },
+}
+
+// Arbeitsplatz- und KPI-Widgets: ID → Komponente (+ optionale Props aus dem Store)
+const WIDGET_CATALOG = {
+  watchlist:    { component: markRaw(WatchlistWidget),      props: () => ({}) },
+  notes:        { component: markRaw(NotesWidget),          props: () => ({}) },
+  recent:       { component: markRaw(RecentlyEditedWidget), props: () => ({ products: store.recentlyEdited }) },
+  tasks:        { component: markRaw(MyTasksWidget),        props: () => ({ tasks: store.myTasks }) },
+  completeness: { component: markRaw(CompletenessWidget),   props: () => ({ summary: store.completenessSummary }) },
+  quality:      { component: markRaw(DataQualityWidget),    props: () => ({ quality: store.dataQuality }) },
+}
+
+// ─── Profil-Auflösung: persönlich → Rolle → System ─────────
+const personalProfile = ref(null)
+const profile = computed(() => resolveCockpitProfile(authStore.userRole, personalProfile.value))
+
+const tiles = computed(() =>
+  (profile.value.tiles || [])
+    .map(id => ({ id, ...TILE_CATALOG[id] }))
+    .filter(t => t.label && (!t.permission || authStore.hasPermission(t.permission)))
+)
+const workplaceWidgets = computed(() => (profile.value.workplace || []).filter(id => WIDGET_CATALOG[id]))
+const kpiWidgets = computed(() => (profile.value.kpis || []).filter(id => WIDGET_CATALOG[id]))
 
 // ─── Begrüßung ─────────────────────────────────────────────
 const greeting = computed(() => {
@@ -38,20 +81,6 @@ function runSearch() {
   router.push('/quick-search')
 }
 
-// ─── Zone B: Schnellaktionen (Standard-Set, permission-gefiltert) ──
-const ALL_TILES = [
-  { label: 'Produkte',      to: '/products',         icon: Package,        permission: 'products.view' },
-  { label: 'Medien',        to: '/media',            icon: Image,          permission: 'media.view' },
-  { label: 'Merkliste',     to: '/watchlist',        icon: Star,           permission: null },
-  { label: 'Berichte',      to: '/reports',          icon: FileBarChart,   permission: 'reports.view' },
-  { label: 'Übersetzungen', to: '/translation-jobs', icon: Languages,      permission: 'translations.view' },
-  { label: 'Kataloge',      to: '/catalog-templates', icon: LayoutTemplate, permission: 'catalog-templates.view' },
-  { label: 'Import',        to: '/imports',          icon: Upload,         permission: 'imports.view' },
-]
-const tiles = computed(() =>
-  ALL_TILES.filter(t => !t.permission || authStore.hasPermission(t.permission))
-)
-
 // ─── Daten-Refresh ─────────────────────────────────────────
 const AUTO_REFRESH_INTERVAL = 60000
 let refreshTimer = null
@@ -59,9 +88,15 @@ async function refresh() {
   await store.fetchDashboard()
 }
 
-onMounted(() => {
+onMounted(async () => {
   store.fetchDashboard()
   refreshTimer = setInterval(refresh, AUTO_REFRESH_INTERVAL)
+  // Persönliches Cockpit-Layout (Phase 4) — vorwärtskompatibel auslesen.
+  try {
+    const { data } = await userPreferencesApi.get('cockpit')
+    const payload = data.data || data
+    if (payload && Array.isArray(payload.tiles)) personalProfile.value = payload
+  } catch { /* ignore */ }
 })
 onUnmounted(() => {
   if (refreshTimer) clearInterval(refreshTimer)
@@ -73,9 +108,14 @@ onUnmounted(() => {
     <!-- Zone A: Begrüßung + Hero-Suche -->
     <section class="pt-2">
       <div class="flex items-center justify-between mb-4">
-        <h1 class="text-2xl font-semibold text-[var(--color-text-primary)]">
-          {{ greeting }}, {{ authStore.userName }}
-        </h1>
+        <div>
+          <h1 class="text-2xl font-semibold text-[var(--color-text-primary)]">
+            {{ greeting }}, {{ authStore.userName }}
+          </h1>
+          <p v-if="authStore.userRole" class="text-xs text-[var(--color-text-tertiary)] mt-0.5">
+            Cockpit · {{ authStore.userRole }}
+          </p>
+        </div>
         <button class="pim-btn pim-btn-ghost text-xs" :disabled="store.loading" @click="refresh">
           <RefreshCw class="w-4 h-4" :class="store.loading ? 'animate-spin' : ''" :stroke-width="2" />
         </button>
@@ -95,13 +135,13 @@ onUnmounted(() => {
       </form>
     </section>
 
-    <!-- Zone B: Schnellaktionen -->
-    <section>
+    <!-- Zone B: Schnellaktionen (rollenabhängig) -->
+    <section v-if="tiles.length">
       <h2 class="text-xs font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mb-3">Schnellzugriff</h2>
-      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
+      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
         <router-link
           v-for="tile in tiles"
-          :key="tile.to"
+          :key="tile.id"
           :to="tile.to"
           class="flex flex-col items-center justify-center gap-2 py-5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] hover:border-[var(--color-accent)] hover:shadow-sm transition group"
         >
@@ -112,22 +152,28 @@ onUnmounted(() => {
     </section>
 
     <!-- Zone Arbeitsplatz: Notizen, gepinnte Produkte, zuletzt bearbeitet, Aufgaben -->
-    <section>
+    <section v-if="workplaceWidgets.length">
       <h2 class="text-xs font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mb-3">Mein Arbeitsplatz</h2>
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <WatchlistWidget />
-        <NotesWidget />
-        <RecentlyEditedWidget :products="store.recentlyEdited" />
-        <MyTasksWidget :tasks="store.myTasks" />
+        <component
+          :is="WIDGET_CATALOG[id].component"
+          v-for="id in workplaceWidgets"
+          :key="id"
+          v-bind="WIDGET_CATALOG[id].props()"
+        />
       </div>
     </section>
 
     <!-- Zone KPIs -->
-    <section>
+    <section v-if="kpiWidgets.length">
       <h2 class="text-xs font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mb-3">Überblick</h2>
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <CompletenessWidget :summary="store.completenessSummary" />
-        <DataQualityWidget :quality="store.dataQuality" />
+        <component
+          :is="WIDGET_CATALOG[id].component"
+          v-for="id in kpiWidgets"
+          :key="id"
+          v-bind="WIDGET_CATALOG[id].props()"
+        />
       </div>
     </section>
   </div>

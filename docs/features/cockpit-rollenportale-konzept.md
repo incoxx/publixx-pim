@@ -397,7 +397,7 @@ Erweiterung der vorhandenen Preset-Infrastruktur.
 | Phase | Umfang | Ergebnis |
 |-------|--------|----------|
 | **P1 — MVP** ✅ | `/cockpit`-Seite mit Zonen A–D inkl. Arbeitsplatz (Notizen + gepinnte Produkte), System-Default-Layout, Wiederverwendung vorhandener Widgets, sichtbarer Cockpit/GUI-Umschalter mit Persistenz | **Umgesetzt** (siehe §9.1) |
-| **P2 — Rollen-Profile** | DB-Erweiterung, Auflösung User→Rolle→System, Profile für `Product Manager` + neue Rolle `Marketing` | Rollenabhängige Cockpits |
+| **P2 — Rollen-Profile** ✅ | `roles.default_view_mode`, Auflösung Benutzer→Rolle→System, Cockpit-Layouts für `Product Manager` + neue Rolle `Marketing`, „Standard-Ansicht" in der Rollen-GUI | **Umgesetzt** (siehe §9.2) |
 | **P3 — Marketing-Tiefe** | `MediaSpotlightWidget` (Zone E), marketingspezifische Füllstand-KPIs, Channel-/Übersetzungs-Status | Marketing-Fokus voll ausgebaut |
 | **P4 — Admin-GUI** | Layout-Editor: Admin pflegt Rollen-Cockpits per Drag-&-Drop (nutzt vorhandenen Preset-Editor) | Self-Service ohne Deploy |
 
@@ -420,6 +420,32 @@ Erweiterung der vorhandenen Preset-Infrastruktur.
 **Bewusst noch offen (Phase 2+):** `roles.default_view_mode`-Spalte (aktuell liefert
 das Frontend `'gui'` als Rollen-Fallback; die persönliche Wahl funktioniert bereits
 voll), rollenspezifische Cockpit-Layouts, `MediaSpotlightWidget`, „Marketing"-Rolle.
+
+### 9.2 Phase 2 — umgesetzte Dateien
+**Backend:**
+- `database/migrations/2026_06_20_000002_add_role_default_view_mode_and_marketing_role.php`
+  — Spalte `roles.default_view_mode` + neue Rolle **„Marketing"** (Permissions,
+  Tab-Rechte, `default_view_mode='cockpit'`), additiv/idempotent.
+- `database/seeders/RoleAndPermissionSeeder.php` — Marketing-Rolle für frische Installationen.
+- `app/Http/Resources/Api/V1/UserResource.php` — `default_view_mode` je Rolle (→ `effectiveViewMode`).
+- `app/Http/Resources/Api/V1/RoleResource.php` — `default_view_mode` ausliefern.
+- `app/Http/Requests/Api/V1/{Store,Update}RoleRequest.php` — Validierung `in:cockpit,gui`.
+- `app/Http/Controllers/Api/V1/RoleController.php` — `default_view_mode` persistieren.
+
+**Frontend:**
+- `pim-frontend/src/config/cockpitProfiles.js` — Rollen-Profile + Auflösung
+  (persönlich → Rolle → System).
+- `pim-frontend/src/views/cockpit/CockpitView.vue` — profilgetrieben: Kachel-/
+  Widget-Kataloge, Layout je Primärrolle (Marketing- bzw. Product-Manager-Profil).
+- `pim-frontend/src/components/panels/RoleFormPanel.vue` — Feld **„Standard-Ansicht"**
+  (Cockpit/Menü) in der Rollen-Verwaltung.
+
+**Hinweis Verifikation:** Frontend-Build grün; Backend `php -l` sauber. Feature-Tests
+(MySQL) waren in der Build-Umgebung mangels DB nicht ausführbar.
+
+**Offen für Phase 3/4:** `MediaSpotlightWidget` (Asset-Spotlight, Zone E),
+marketingspezifische Füllstand-KPIs, persönliche Cockpit-Layouts + Admin-Editor
+(persönliches Profil wird bereits vorwärtskompatibel ausgelesen).
 
 ---
 

@@ -19,6 +19,7 @@ class UpdateRoleRequest extends FormRequest
 
         return [
             'name' => ['sometimes', 'string', 'max:255', "unique:roles,name,{$roleId}"],
+            'default_view_mode' => ['sometimes', 'string', 'in:cockpit,gui'],
             'permissions' => ['sometimes', 'array'],
             'permissions.*' => ['string', 'exists:permissions,name'],
         ];

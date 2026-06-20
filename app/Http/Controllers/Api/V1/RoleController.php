@@ -50,6 +50,7 @@ class RoleController extends Controller
             'id' => Str::uuid()->toString(),
             'name' => $validated['name'],
             'guard_name' => $validated['guard_name'] ?? 'sanctum',
+            'default_view_mode' => $validated['default_view_mode'] ?? 'gui',
         ]);
 
         if (! empty($validated['permissions'])) {
@@ -88,6 +89,11 @@ class RoleController extends Controller
 
         if (isset($validated['name'])) {
             $role->update(['name' => $validated['name']]);
+        }
+
+        if (isset($validated['default_view_mode'])) {
+            $role->default_view_mode = $validated['default_view_mode'];
+            $role->save();
         }
 
         if (isset($validated['permissions'])) {
