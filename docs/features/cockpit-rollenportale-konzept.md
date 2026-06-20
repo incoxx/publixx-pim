@@ -398,7 +398,7 @@ Erweiterung der vorhandenen Preset-Infrastruktur.
 |-------|--------|----------|
 | **P1 — MVP** ✅ | `/cockpit`-Seite mit Zonen A–D inkl. Arbeitsplatz (Notizen + gepinnte Produkte), System-Default-Layout, Wiederverwendung vorhandener Widgets, sichtbarer Cockpit/GUI-Umschalter mit Persistenz | **Umgesetzt** (siehe §9.1) |
 | **P2 — Rollen-Profile** ✅ | `roles.default_view_mode`, Auflösung Benutzer→Rolle→System, Cockpit-Layouts für `Product Manager` + neue Rolle `Marketing`, „Standard-Ansicht" in der Rollen-GUI | **Umgesetzt** (siehe §9.2) |
-| **P3 — Marketing-Tiefe** | `MediaSpotlightWidget` (Zone E), marketingspezifische Füllstand-KPIs, Channel-/Übersetzungs-Status | Marketing-Fokus voll ausgebaut |
+| **P3 — Marketing-Tiefe** ✅ | `MediaSpotlightWidget` (Zone E), `TranslationStatusWidget` (Übersetzungs-Status), eigene Cockpit-Zone „Medien & Content" für Marketing | **Umgesetzt** (siehe §9.3) |
 | **P4 — Admin-GUI** | Layout-Editor: Admin pflegt Rollen-Cockpits per Drag-&-Drop (nutzt vorhandenen Preset-Editor) | Self-Service ohne Deploy |
 
 ### 9.1 MVP — umgesetzte Dateien (Phase 1)
@@ -446,6 +446,27 @@ voll), rollenspezifische Cockpit-Layouts, `MediaSpotlightWidget`, „Marketing"-
 **Offen für Phase 3/4:** `MediaSpotlightWidget` (Asset-Spotlight, Zone E),
 marketingspezifische Füllstand-KPIs, persönliche Cockpit-Layouts + Admin-Editor
 (persönliches Profil wird bereits vorwärtskompatibel ausgelesen).
+
+### 9.3 Phase 3 — umgesetzte Dateien (Marketing-Tiefe)
+**Neu (Frontend, reine Wiederverwendung vorhandener APIs):**
+- `pim-frontend/src/components/dashboard/MediaSpotlightWidget.vue` — Zone E:
+  Thumbnail-Raster der neuesten Assets, Gesamtanzahl, **„Alt-Text fehlt"-Hinweis**
+  (SEO/Barrierefreiheit), Sprung in die Mediathek. Nutzt `media`-API (`thumb_url`).
+- `pim-frontend/src/components/dashboard/TranslationStatusWidget.vue` — Status-
+  Überblick der Übersetzungsjobs (Zähler je Status), Sprung zu den Jobs. Nutzt
+  `translation-jobs`-API.
+
+**Geändert:**
+- `pim-frontend/src/config/cockpitProfiles.js` — neues `content`-Array; Marketing-
+  Profil erhält `['media-spotlight','translation-status']`.
+- `pim-frontend/src/views/cockpit/CockpitView.vue` — neue Zone **„Medien & Content"**,
+  Widget-Berechtigungsfilter (`media.view`, `translations.view`).
+
+**Hinweis Verifikation:** Frontend-Build grün. Beide Widgets sind permission- und
+fehler-tolerant (leere/abgelehnte Antworten → leerer Zustand).
+
+**Offen für Phase 4:** marketingspezifische Füllstand-KPIs (eigene Backend-Metrik
+für Beschreibung/Bilder/SEO), persönliche Cockpit-Layouts + Admin-Drag&Drop-Editor.
 
 ---
 

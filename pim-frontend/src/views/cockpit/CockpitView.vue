@@ -16,6 +16,8 @@ import RecentlyEditedWidget from '@/components/dashboard/RecentlyEditedWidget.vu
 import MyTasksWidget from '@/components/dashboard/MyTasksWidget.vue'
 import CompletenessWidget from '@/components/dashboard/CompletenessWidget.vue'
 import DataQualityWidget from '@/components/dashboard/DataQualityWidget.vue'
+import MediaSpotlightWidget from '@/components/dashboard/MediaSpotlightWidget.vue'
+import TranslationStatusWidget from '@/components/dashboard/TranslationStatusWidget.vue'
 
 const router = useRouter()
 const store = useDashboardStore()
@@ -38,14 +40,24 @@ const TILE_CATALOG = {
   workflow:            { label: 'Workflow',      to: '/workflow',          icon: ClipboardList,  permission: 'workflow.view' },
 }
 
-// Arbeitsplatz- und KPI-Widgets: ID → Komponente (+ optionale Props aus dem Store)
+// Arbeitsplatz-, Content- und KPI-Widgets: ID → Komponente (+ optionale Props/Permission)
 const WIDGET_CATALOG = {
-  watchlist:    { component: markRaw(WatchlistWidget),      props: () => ({}) },
-  notes:        { component: markRaw(NotesWidget),          props: () => ({}) },
-  recent:       { component: markRaw(RecentlyEditedWidget), props: () => ({ products: store.recentlyEdited }) },
-  tasks:        { component: markRaw(MyTasksWidget),        props: () => ({ tasks: store.myTasks }) },
-  completeness: { component: markRaw(CompletenessWidget),   props: () => ({ summary: store.completenessSummary }) },
-  quality:      { component: markRaw(DataQualityWidget),    props: () => ({ quality: store.dataQuality }) },
+  watchlist:           { component: markRaw(WatchlistWidget),         props: () => ({}) },
+  notes:               { component: markRaw(NotesWidget),             props: () => ({}) },
+  recent:              { component: markRaw(RecentlyEditedWidget),    props: () => ({ products: store.recentlyEdited }) },
+  tasks:               { component: markRaw(MyTasksWidget),           props: () => ({ tasks: store.myTasks }) },
+  completeness:        { component: markRaw(CompletenessWidget),      props: () => ({ summary: store.completenessSummary }) },
+  quality:             { component: markRaw(DataQualityWidget),       props: () => ({ quality: store.dataQuality }) },
+  'media-spotlight':   { component: markRaw(MediaSpotlightWidget),    props: () => ({}), permission: 'media.view' },
+  'translation-status':{ component: markRaw(TranslationStatusWidget), props: () => ({}), permission: 'translations.view' },
+}
+
+// Widget-IDs nach Existenz + Berechtigung filtern
+function allowedWidgets(ids) {
+  return (ids || []).filter((id) => {
+    const w = WIDGET_CATALOG[id]
+    return w && (!w.permission || authStore.hasPermission(w.permission))
+  })
 }
 
 // ─── Profil-Auflösung: persönlich → Rolle → System ─────────
@@ -57,8 +69,9 @@ const tiles = computed(() =>
     .map(id => ({ id, ...TILE_CATALOG[id] }))
     .filter(t => t.label && (!t.permission || authStore.hasPermission(t.permission)))
 )
-const workplaceWidgets = computed(() => (profile.value.workplace || []).filter(id => WIDGET_CATALOG[id]))
-const kpiWidgets = computed(() => (profile.value.kpis || []).filter(id => WIDGET_CATALOG[id]))
+const workplaceWidgets = computed(() => allowedWidgets(profile.value.workplace))
+const contentWidgets = computed(() => allowedWidgets(profile.value.content))
+const kpiWidgets = computed(() => allowedWidgets(profile.value.kpis))
 
 // ─── Begrüßung ─────────────────────────────────────────────
 const greeting = computed(() => {
@@ -158,6 +171,19 @@ onUnmounted(() => {
         <component
           :is="WIDGET_CATALOG[id].component"
           v-for="id in workplaceWidgets"
+          :key="id"
+          v-bind="WIDGET_CATALOG[id].props()"
+        />
+      </div>
+    </section>
+
+    <!-- Zone Medien & Content (rollenabhängig, z. B. Marketing) -->
+    <section v-if="contentWidgets.length">
+      <h2 class="text-xs font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mb-3">Medien &amp; Content</h2>
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <component
+          :is="WIDGET_CATALOG[id].component"
+          v-for="id in contentWidgets"
           :key="id"
           v-bind="WIDGET_CATALOG[id].props()"
         />

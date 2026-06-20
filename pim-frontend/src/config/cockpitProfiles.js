@@ -15,6 +15,7 @@
 export const SYSTEM_DEFAULT_PROFILE = {
   tiles: ['products', 'media', 'watchlist', 'reports', 'imports'],
   workplace: ['watchlist', 'notes', 'recent', 'tasks'],
+  content: [],
   kpis: ['completeness', 'quality'],
 }
 
@@ -24,12 +25,14 @@ export const ROLE_PROFILES = {
   Marketing: {
     tiles: ['media', 'catalog-templates', 'translation-jobs', 'portals', 'watchlist', 'reports'],
     workplace: ['watchlist', 'notes', 'recent', 'tasks'],
+    content: ['media-spotlight', 'translation-status'],
     kpis: ['completeness', 'quality'],
   },
   // Fokus Produktmanagement: Datenpflege, Struktur, Workflow.
   'Product Manager': {
     tiles: ['products', 'search', 'imports', 'hierarchies', 'workflow', 'reports'],
     workplace: ['tasks', 'recent', 'watchlist', 'notes'],
+    content: [],
     kpis: ['completeness', 'quality'],
   },
 }
