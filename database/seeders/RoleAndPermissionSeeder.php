@@ -115,6 +115,14 @@ class RoleAndPermissionSeeder extends Seeder
             'reference-profiles.view', 'reference-profiles.create', 'reference-profiles.edit', 'reference-profiles.delete',
             // Konformität (Prüfung + KI-Erklärung; ai-explain gesondert wegen Kosten)
             'conformance.view', 'conformance.run', 'conformance.ai-explain',
+            // KI-Assistent (Copilot) — Chat lesend, execute = bestätigte Schreib-Aktion
+            'copilot.use', 'copilot.execute',
+            // Semantische Schnellsuche (Meilisearch Hybrid Search)
+            'semantic-search.view',
+            // Excel-Designer (Sheet Designer für .xlsx-Produktlisten)
+            'excel-templates.view', 'excel-templates.create', 'excel-templates.edit', 'excel-templates.delete',
+            // Meilisearch-Verwaltung (Diagnose + Wartungsaktionen, Administration)
+            'meilisearch-admin.view', 'meilisearch-admin.manage',
         ];
 
         foreach ($permissions as $permissionName) {
@@ -163,6 +171,10 @@ class RoleAndPermissionSeeder extends Seeder
             // Referenz-Profile + Konformität (Strukturverwaltung)
             'reference-profiles.view', 'reference-profiles.create', 'reference-profiles.edit', 'reference-profiles.delete',
             'conformance.view', 'conformance.run', 'conformance.ai-explain',
+            // KI-Assistent, semantische Suche, Excel-Designer (voll)
+            'copilot.use', 'copilot.execute',
+            'semantic-search.view',
+            'excel-templates.view', 'excel-templates.create', 'excel-templates.edit', 'excel-templates.delete',
         ]);
 
         // ─── 3. Product Manager (Datenpflege) ────────────────────────
@@ -193,6 +205,10 @@ class RoleAndPermissionSeeder extends Seeder
             // Konformität: Produkte pflegen & prüfen (inkl. KI), Profile nur lesen
             'reference-profiles.view',
             'conformance.view', 'conformance.run', 'conformance.ai-explain',
+            // KI-Assistent (inkl. bestätigte Schreib-Aktionen), semantische Suche, Excel-Designer (lesen)
+            'copilot.use', 'copilot.execute',
+            'semantic-search.view',
+            'excel-templates.view',
         ]);
 
         // ─── 4. Viewer (Nur Lesen, ohne Benutzerverwaltung) ─────────
@@ -201,9 +217,12 @@ class RoleAndPermissionSeeder extends Seeder
         );
         $viewer->syncPermissions(
             Permission::where('name', 'LIKE', '%.view')
-                ->whereNotIn('name', ['users.view', 'roles.view'])
+                // Benutzer-/Rollen-Verwaltung und Meilisearch-Wartung sind nicht "nur lesen"
+                ->whereNotIn('name', ['users.view', 'roles.view', 'meilisearch-admin.view'])
                 ->get()
         );
+        // KI-Assistent (Chat) zusätzlich erlauben — copilot.use ist keine .view-Permission
+        $viewer->givePermissionTo('copilot.use');
 
         // ─── 5. Export Manager (Export + Publixx) ────────────────────
         $exportManager = Role::firstOrCreate(
@@ -226,6 +245,10 @@ class RoleAndPermissionSeeder extends Seeder
             'units.view',
             'unit-groups.view',
             'value-lists.view',
+            // KI-Assistent, semantische Suche, Excel-Designer (voll — Export-Werkzeug)
+            'copilot.use',
+            'semantic-search.view',
+            'excel-templates.view', 'excel-templates.create', 'excel-templates.edit', 'excel-templates.delete',
         ]);
 
         // ─── 6. API Designer (API-Templates) ──────────────────────────
@@ -248,6 +271,9 @@ class RoleAndPermissionSeeder extends Seeder
             'value-lists.view',
             'media.view',
             'search.view',
+            // KI-Assistent + semantische Suche
+            'copilot.use',
+            'semantic-search.view',
         ]);
 
         // ─── 7. Project Management (Dashboard, Workflows, Teams, Projects) ─
@@ -262,6 +288,9 @@ class RoleAndPermissionSeeder extends Seeder
             'projects.view', 'projects.create', 'projects.edit', 'projects.delete',
             'products.view',
             'calendar.view', 'calendar.create', 'calendar.edit', 'calendar.delete',
+            // KI-Assistent + semantische Suche
+            'copilot.use',
+            'semantic-search.view',
         ]);
 
         $this->command->info('Rollen und Permissions erfolgreich geseeded.');

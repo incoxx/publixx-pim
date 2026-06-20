@@ -56,6 +56,10 @@ class PermissionController extends Controller
         'workflow' => 'Workflow',
         'workflows' => 'Workflows',
         'workflow-statuses' => 'Workflow-Status',
+        'copilot' => 'KI-Assistent (Copilot)',
+        'semantic-search' => 'Semantische Suche',
+        'excel-templates' => 'Excel-Designer',
+        'meilisearch-admin' => 'Meilisearch-Verwaltung',
     ];
 
     /**
@@ -67,7 +71,8 @@ class PermissionController extends Controller
             'entities' => [
                 'dashboard', 'products', 'hierarchies', 'hierarchy-nodes',
                 'media', 'media-usage-types', 'prices', 'price-types',
-                'search', 'watchlist', 'reports', 'pdf-templates', 'calendar',
+                'search', 'semantic-search', 'copilot', 'watchlist',
+                'reports', 'pdf-templates', 'calendar',
             ],
         ],
         [
@@ -82,7 +87,7 @@ class PermissionController extends Controller
             'label' => 'Daten & Export',
             'entities' => [
                 'imports', 'export', 'json-export-import', 'bmecat',
-                'export-jobs', 'publixx-mappings', 'api-templates',
+                'export-jobs', 'publixx-mappings', 'api-templates', 'excel-templates',
             ],
         ],
         [
@@ -95,7 +100,7 @@ class PermissionController extends Controller
         [
             'label' => 'Administration',
             'entities' => [
-                'settings', 'users', 'roles', 'access-links', 'journal',
+                'settings', 'users', 'roles', 'access-links', 'journal', 'meilisearch-admin',
             ],
         ],
     ];

@@ -28,6 +28,8 @@ class CopilotController extends Controller
      */
     public function chat(Request $request): StreamedResponse
     {
+        abort_unless($request->user()?->hasPermissionTo('copilot.use'), 403);
+
         $validated = $request->validate([
             'messages'           => 'required|array|min:1',
             'messages.*.role'    => 'required|string|in:user,assistant',
@@ -68,6 +70,8 @@ class CopilotController extends Controller
      */
     public function executeTool(Request $request): JsonResponse
     {
+        abort_unless($request->user()?->hasPermissionTo('copilot.execute'), 403);
+
         $validated = $request->validate([
             'name'  => 'required|string',
             'input' => 'required|array',
