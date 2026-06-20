@@ -1,55 +1,29 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted, markRaw } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import {
-  Search, Package, Image, Star, FileBarChart, Upload, Languages,
-  LayoutTemplate, Globe, GitBranch, ClipboardList, RefreshCw,
-} from 'lucide-vue-next'
+import { Search, RefreshCw } from 'lucide-vue-next'
 import { useDashboardStore } from '@/stores/dashboard'
 import { useAuthStore } from '@/stores/auth'
 import { useQuickSearchStore } from '@/stores/quickSearch'
 import userPreferencesApi from '@/api/userPreferences'
+import cockpitProfilesApi from '@/api/cockpitProfiles'
 import { resolveCockpitProfile } from '@/config/cockpitProfiles'
-import NotesWidget from '@/components/dashboard/NotesWidget.vue'
-import WatchlistWidget from '@/components/dashboard/WatchlistWidget.vue'
-import RecentlyEditedWidget from '@/components/dashboard/RecentlyEditedWidget.vue'
-import MyTasksWidget from '@/components/dashboard/MyTasksWidget.vue'
-import CompletenessWidget from '@/components/dashboard/CompletenessWidget.vue'
-import DataQualityWidget from '@/components/dashboard/DataQualityWidget.vue'
-import MediaSpotlightWidget from '@/components/dashboard/MediaSpotlightWidget.vue'
-import TranslationStatusWidget from '@/components/dashboard/TranslationStatusWidget.vue'
+import { TILE_CATALOG, WIDGET_CATALOG } from '@/config/cockpitCatalog'
 
 const router = useRouter()
 const store = useDashboardStore()
 const authStore = useAuthStore()
 const searchStore = useQuickSearchStore()
 
-// ─── Kataloge: ID → konkrete Kachel/Komponente ─────────────
-// Schnellaktions-Kacheln (permission = optionales Berechtigungs-Gate)
-const TILE_CATALOG = {
-  products:            { label: 'Produkte',      to: '/products',          icon: Package,        permission: 'products.view' },
-  media:               { label: 'Medien',        to: '/media',             icon: Image,          permission: 'media.view' },
-  watchlist:           { label: 'Merkliste',     to: '/watchlist',         icon: Star,           permission: null },
-  reports:             { label: 'Berichte',      to: '/reports',           icon: FileBarChart,   permission: 'reports.view' },
-  imports:             { label: 'Import',        to: '/imports',           icon: Upload,         permission: 'imports.view' },
-  'translation-jobs':  { label: 'Übersetzungen', to: '/translation-jobs',  icon: Languages,      permission: 'translations.view' },
-  'catalog-templates': { label: 'Kataloge',      to: '/catalog-templates', icon: LayoutTemplate, permission: 'catalog-templates.view' },
-  portals:             { label: 'Portale',       to: '/portal-config',     icon: Globe,          permission: 'portals.view' },
-  search:              { label: 'Profisuche',    to: '/search',            icon: Search,         permission: 'search.view' },
-  hierarchies:         { label: 'Hierarchien',   to: '/hierarchies',       icon: GitBranch,      permission: 'hierarchies.view' },
-  workflow:            { label: 'Workflow',      to: '/workflow',          icon: ClipboardList,  permission: 'workflow.view' },
-}
-
-// Arbeitsplatz-, Content- und KPI-Widgets: ID → Komponente (+ optionale Props/Permission)
-const WIDGET_CATALOG = {
-  watchlist:           { component: markRaw(WatchlistWidget),         props: () => ({}) },
-  notes:               { component: markRaw(NotesWidget),             props: () => ({}) },
-  recent:              { component: markRaw(RecentlyEditedWidget),    props: () => ({ products: store.recentlyEdited }) },
-  tasks:               { component: markRaw(MyTasksWidget),           props: () => ({ tasks: store.myTasks }) },
-  completeness:        { component: markRaw(CompletenessWidget),      props: () => ({ summary: store.completenessSummary }) },
-  quality:             { component: markRaw(DataQualityWidget),       props: () => ({ quality: store.dataQuality }) },
-  'media-spotlight':   { component: markRaw(MediaSpotlightWidget),    props: () => ({}), permission: 'media.view' },
-  'translation-status':{ component: markRaw(TranslationStatusWidget), props: () => ({}), permission: 'translations.view' },
+// Store-gebundene Props je Widget-ID (Komponenten kommen aus dem Katalog)
+function widgetProps(id) {
+  switch (id) {
+    case 'recent':       return { products: store.recentlyEdited }
+    case 'tasks':        return { tasks: store.myTasks }
+    case 'completeness': return { summary: store.completenessSummary }
+    case 'quality':      return { quality: store.dataQuality }
+    default:             return {}
+  }
 }
 
 // Widget-IDs nach Existenz + Berechtigung filtern
@@ -60,9 +34,10 @@ function allowedWidgets(ids) {
   })
 }
 
-// ─── Profil-Auflösung: persönlich → Rolle → System ─────────
+// ─── Profil-Auflösung: persönlich → Rollen-Layout (Admin) → Code-Default ──
 const personalProfile = ref(null)
-const profile = computed(() => resolveCockpitProfile(authStore.userRole, personalProfile.value))
+const savedRoleProfile = ref(null)
+const profile = computed(() => resolveCockpitProfile(authStore.userRole, personalProfile.value, savedRoleProfile.value))
 
 const tiles = computed(() =>
   (profile.value.tiles || [])
@@ -104,7 +79,12 @@ async function refresh() {
 onMounted(async () => {
   store.fetchDashboard()
   refreshTimer = setInterval(refresh, AUTO_REFRESH_INTERVAL)
-  // Persönliches Cockpit-Layout (Phase 4) — vorwärtskompatibel auslesen.
+  // Gespeichertes Rollen-Layout (Admin-Editor) laden.
+  try {
+    const { data } = await cockpitProfilesApi.mine()
+    savedRoleProfile.value = data.data || null
+  } catch { /* ignore */ }
+  // Persönliches Cockpit-Layout — vorwärtskompatibel auslesen.
   try {
     const { data } = await userPreferencesApi.get('cockpit')
     const payload = data.data || data
@@ -172,7 +152,7 @@ onUnmounted(() => {
           :is="WIDGET_CATALOG[id].component"
           v-for="id in workplaceWidgets"
           :key="id"
-          v-bind="WIDGET_CATALOG[id].props()"
+          v-bind="widgetProps(id)"
         />
       </div>
     </section>
@@ -185,7 +165,7 @@ onUnmounted(() => {
           :is="WIDGET_CATALOG[id].component"
           v-for="id in contentWidgets"
           :key="id"
-          v-bind="WIDGET_CATALOG[id].props()"
+          v-bind="widgetProps(id)"
         />
       </div>
     </section>
@@ -198,7 +178,7 @@ onUnmounted(() => {
           :is="WIDGET_CATALOG[id].component"
           v-for="id in kpiWidgets"
           :key="id"
-          v-bind="WIDGET_CATALOG[id].props()"
+          v-bind="widgetProps(id)"
         />
       </div>
     </section>

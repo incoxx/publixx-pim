@@ -832,6 +832,13 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::get('user/preferences/{group}', [\App\Http\Controllers\Api\V1\UserPreferenceController::class, 'show']);
     Route::put('user/preferences/{group}', [\App\Http\Controllers\Api\V1\UserPreferenceController::class, 'update']);
 
+    // Cockpit-Layouts (Phase 4): eigenes Layout lesen + Rollen-Layouts verwalten (roles.edit)
+    Route::get('cockpit-profiles/mine', [\App\Http\Controllers\Api\V1\CockpitProfileController::class, 'mine']);
+    Route::get('cockpit-profiles', [\App\Http\Controllers\Api\V1\CockpitProfileController::class, 'index']);
+    Route::get('cockpit-profiles/{role}', [\App\Http\Controllers\Api\V1\CockpitProfileController::class, 'show']);
+    Route::put('cockpit-profiles/{role}', [\App\Http\Controllers\Api\V1\CockpitProfileController::class, 'update']);
+    Route::delete('cockpit-profiles/{role}', [\App\Http\Controllers\Api\V1\CockpitProfileController::class, 'destroy']);
+
     Route::put('settings/catalog-theme', [SettingController::class, 'updateCatalogTheme']);
     Route::post('catalog/check-config', [\App\Http\Controllers\Api\V1\CatalogController::class, 'checkConfig']);
     Route::get('settings/enforced-appearance', [SettingController::class, 'enforcedAppearance']);

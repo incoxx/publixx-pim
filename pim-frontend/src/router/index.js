@@ -406,6 +406,12 @@ const routes = [
     meta: { title: 'Rollen' },
   },
   {
+    path: '/cockpit-editor',
+    name: 'cockpit-editor',
+    component: () => import('@/views/admin/CockpitEditorView.vue'),
+    meta: { title: 'Cockpit-Layouts' },
+  },
+  {
     path: '/access-links',
     name: 'access-links',
     component: () => import('@/views/accessLinks/AccessLinkView.vue'),

@@ -37,12 +37,21 @@ export const ROLE_PROFILES = {
   },
 }
 
+/** Prüft, ob ein Layout-Objekt mindestens eine Zone als Array enthält. */
+function isLayout(obj) {
+  return !!obj && (Array.isArray(obj.tiles) || Array.isArray(obj.workplace)
+    || Array.isArray(obj.content) || Array.isArray(obj.kpis))
+}
+
 /**
  * Wirksames Cockpit-Profil ermitteln.
- * @param {string} roleName  Name der Primärrolle.
- * @param {object|null} personal  Optionales persönliches Profil (Phase 4).
+ * Auflösung: persönlich → gespeichertes Rollen-Layout (Admin) → Code-Default → System.
+ * @param {string} roleName   Name der Primärrolle.
+ * @param {object|null} personal   Persönliches Layout (user_preferences 'cockpit').
+ * @param {object|null} savedRole  Vom Admin gepflegtes Rollen-Layout (Backend).
  */
-export function resolveCockpitProfile(roleName, personal = null) {
-  if (personal && Array.isArray(personal.tiles)) return personal
+export function resolveCockpitProfile(roleName, personal = null, savedRole = null) {
+  if (isLayout(personal)) return personal
+  if (isLayout(savedRole)) return savedRole
   return ROLE_PROFILES[roleName] || SYSTEM_DEFAULT_PROFILE
 }

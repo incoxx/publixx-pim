@@ -399,7 +399,7 @@ Erweiterung der vorhandenen Preset-Infrastruktur.
 | **P1 — MVP** ✅ | `/cockpit`-Seite mit Zonen A–D inkl. Arbeitsplatz (Notizen + gepinnte Produkte), System-Default-Layout, Wiederverwendung vorhandener Widgets, sichtbarer Cockpit/GUI-Umschalter mit Persistenz | **Umgesetzt** (siehe §9.1) |
 | **P2 — Rollen-Profile** ✅ | `roles.default_view_mode`, Auflösung Benutzer→Rolle→System, Cockpit-Layouts für `Product Manager` + neue Rolle `Marketing`, „Standard-Ansicht" in der Rollen-GUI | **Umgesetzt** (siehe §9.2) |
 | **P3 — Marketing-Tiefe** ✅ | `MediaSpotlightWidget` (Zone E), `TranslationStatusWidget` (Übersetzungs-Status), eigene Cockpit-Zone „Medien & Content" für Marketing | **Umgesetzt** (siehe §9.3) |
-| **P4 — Admin-GUI** | Layout-Editor: Admin pflegt Rollen-Cockpits per Drag-&-Drop (nutzt vorhandenen Preset-Editor) | Self-Service ohne Deploy |
+| **P4 — Admin-GUI** ✅ | Layout-Editor: Admin pflegt Rollen-Cockpits (Zonen/Bausteine + Reihenfolge), DB-persistiert | **Umgesetzt** (siehe §9.4) |
 
 ### 9.1 MVP — umgesetzte Dateien (Phase 1)
 **Neu:**
@@ -467,6 +467,39 @@ fehler-tolerant (leere/abgelehnte Antworten → leerer Zustand).
 
 **Offen für Phase 4:** marketingspezifische Füllstand-KPIs (eigene Backend-Metrik
 für Beschreibung/Bilder/SEO), persönliche Cockpit-Layouts + Admin-Drag&Drop-Editor.
+
+### 9.4 Phase 4 — umgesetzte Dateien (Admin-Editor)
+DB-gestützte, je Rolle pflegbare Cockpit-Layouts. Auflösung im Cockpit jetzt:
+**persönlich → gespeichertes Rollen-Layout (Admin) → Code-Default → System**.
+
+**Backend:**
+- `database/migrations/2026_06_20_000003_create_cockpit_profiles_table.php` — Tabelle
+  `cockpit_profiles` (`role_id` unique, `layout` JSON).
+- `app/Models/CockpitProfile.php` — Model (Layout als Array-Cast).
+- `app/Http/Controllers/Api/V1/CockpitProfileController.php` —
+  `mine` (eigenes Rollen-Layout, jede:r Nutzer:in), `index/show/update/destroy`
+  (Verwaltung, Berechtigung `roles.edit`).
+- `routes/api.php` — Routen `cockpit-profiles[/mine|/{role}]`.
+
+**Frontend:**
+- `pim-frontend/src/config/cockpitCatalog.js` — **gemeinsamer** Baustein-Katalog
+  (Kacheln + Widgets inkl. Labels/Icons/Permission/Zone), genutzt von Cockpit & Editor.
+- `pim-frontend/src/views/admin/CockpitEditorView.vue` — Editor: Rolle wählen,
+  Bausteine je Zone hinzufügen/entfernen/ordnen, Speichern, Zurücksetzen.
+- `pim-frontend/src/api/cockpitProfiles.js` — API-Client.
+- `pim-frontend/src/config/cockpitProfiles.js` — `resolveCockpitProfile` um
+  gespeichertes Rollen-Layout erweitert.
+- `pim-frontend/src/views/cockpit/CockpitView.vue` — nutzt gemeinsamen Katalog +
+  lädt gespeichertes Rollen-Layout (`cockpit-profiles/mine`).
+- `router/index.js` + `AppSidebar.vue` — Route `/cockpit-editor` + Menüeintrag
+  „Cockpit-Layouts" (unter Benutzer & Rollen, Berechtigung `roles.edit`).
+
+**Hinweis Verifikation:** Frontend-Build grün; Backend `php -l` sauber. Feature-Tests
+(MySQL) in der Build-Umgebung mangels DB nicht ausführbar.
+
+**Verbleibend (optional):** persönlicher Layout-Editor für Endnutzer:innen (Speichern
+in `user_preferences 'cockpit'`; Lesen ist bereits implementiert), Drag&Drop statt
+Hoch/Runter, marketingspezifische Füllstand-KPI (eigene Backend-Metrik).
 
 ---
 
