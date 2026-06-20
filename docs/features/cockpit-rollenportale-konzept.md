@@ -136,6 +136,13 @@ entscheidenden Zusatz eines **`role_id` / `scope`-Feldes**.
 Damit gilt dasselbe bewährte Muster wie bei `hasPermission()`/`getTabAccess()`:
 **Rolle gibt den Standard vor, der Nutzer darf personalisieren.**
 
+> **Zwei getrennte Fragen** – wichtig auseinanderzuhalten:
+> - **„Welcher Modus?"** (Cockpit *oder* klassisches Menü-GUI) → siehe §7
+> - **„Welches Layout im Cockpit?"** (welche Zonen/Widgets) → diese §4
+>
+> Beide folgen derselben Regel **Benutzer schlägt Rolle**, werden aber getrennt
+> gespeichert.
+
 ### 4.2 Empfohlene Umsetzungsvariante
 
 | Variante | Beschreibung | Bewertung |
@@ -179,10 +186,26 @@ ALTER TABLE dashboard_presets
 --     { "key": "activity", "widgets": ["activity","dataflows"] }
 --   ]
 -- }
+
+-- (b) Standard-MODUS pro Rolle (Cockpit vs. klassisches Menü-GUI)
+ALTER TABLE roles
+    ADD COLUMN default_view_mode VARCHAR(10) DEFAULT 'gui';  -- 'cockpit' | 'gui'
+
+-- (c) Modus-Wunsch pro Benutzer – schlägt die Rolle (NULL = "Rolle entscheidet")
+ALTER TABLE users
+    ADD COLUMN view_mode VARCHAR(10) NULL;  -- 'cockpit' | 'gui' | NULL
 ```
 
-Persönliche Anpassungen liegen weiterhin in `user_preferences` (Key `'cockpit'`),
-exakt wie heute der Key `'dashboard'` und `'quick_links'`.
+- **Cockpit-Layout** (a, oben) und **Modus** (b/c) sind bewusst getrennt: *Welche
+  Zonen* im Cockpit erscheinen ≠ *ob* der Nutzer überhaupt im Cockpit landet.
+- `users.view_mode = NULL` bedeutet **„Rolle entscheidet"** (Default). Setzt der
+  Nutzer explizit `cockpit`/`gui`, **gewinnt diese Einstellung** über die Rolle.
+- Persönliche Layout-Anpassungen liegen weiterhin in `user_preferences` (Key
+  `'cockpit'`), exakt wie heute `'dashboard'` und `'quick_links'`.
+
+Beide neuen Felder werden im `UserResource` mitgeliefert (`view_mode` direkt am
+User, `default_view_mode` über `roles[]`), sodass das Frontend den Start-Modus ohne
+Zusatz-Request kennt — analog zu `all_permissions`/`tab_permissions`.
 
 ---
 
@@ -236,18 +259,69 @@ definieren: `Export Manager` (Export-Profile, Jobs, Channels), `Project Manageme
 
 ---
 
-## 7. „Fokus-Modus" (der „Idiotenmodus")
+## 7. Modus-Umschalter Cockpit ⇄ GUI (der „Idiotenmodus")
 
-Ein Umschalter im Kopf der Seite (und/oder als globaler Toggle, persistiert in
-User-Preferences):
+Das PIM kennt **zwei Betriebsmodi**:
 
-- **An:** Sidebar eingeklappt/ausgeblendet, große Kacheln, reduzierte Dichte,
-  nur Cockpit sichtbar. Einstieg landet direkt auf `/cockpit`.
-- **Aus:** volle PIM-Oberfläche mit Sidebar (heutiges Verhalten).
+| Modus | Beschreibung |
+|-------|--------------|
+| **`cockpit`** ("Fokus") | Single-Page `/cockpit`, große Kacheln, reduzierte Dichte, Sidebar ausgeblendet/eingeklappt. Einstieg landet direkt im Cockpit. |
+| **`gui`** ("Vollmodus") | Klassische PIM-Oberfläche mit voller Sidebar – heutiges Verhalten. |
 
-Technisch: Flag in `appearanceStore` / `userPreferences` + bedingtes Rendern der
-`AppSidebar` in `AppLayout.vue`. Optional: pro Rolle ein **Default-Modus**
-(Marketing startet z. B. standardmäßig im Fokus-Modus, Admin im Vollmodus).
+### 7.1 Der Umschalter (gut sichtbar)
+Ein **prominenter, immer sichtbarer Umschalter im App-Header** (`AppHeader.vue`),
+direkt neben der globalen Suche — in **beiden** Modi vorhanden, damit man jederzeit
+zurück- bzw. hinwechseln kann:
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│ [Logo]   🔍 Suche …            [ ▢ Cockpit | ☰ Menü ]      [⚙][👤] │
+└──────────────────────────────────────────────────────────────────┘
+                                  └── Segmented-Control-Toggle ──┘
+```
+
+- Umsetzung als **Segmented Control** (zwei Buttons, aktiver Zustand hervorgehoben),
+  nicht als versteckter Menüpunkt → „gut sichtbar" wie gefordert.
+- Icons: `LayoutDashboard` (Cockpit) / `Menu` (GUI), mit Text-Label.
+- Klick schaltet sofort um **und persistiert** die Wahl (siehe §7.3).
+- Optional Tastenkürzel (z. B. `g` + `c` / `g` + `m`).
+
+### 7.2 Wer bekommt welchen Start-Modus? (Auflösung)
+Beim Login/Seitenaufruf wird der wirksame Modus so ermittelt:
+
+```
+1. users.view_mode          (Benutzereinstellung)   → wenn gesetzt: GEWINNT
+2. roles[].default_view_mode (zugeordnete Rolle)     → sonst maßgeblich
+3. 'gui'                     (System-Fallback)
+```
+
+> **Regel (wie gefordert): Benutzereinstellung schlägt Rolle.**
+> Beispiel: Rolle *Marketing* hat `default_view_mode = 'cockpit'`. Ein Marketing-
+> Nutzer startet also im Cockpit – es sei denn, er hat persönlich `gui` gewählt,
+> dann startet er im Vollmodus. Bei mehreren Rollen: Primärrolle (`roles[0]`); ist
+> dort `cockpit` hinterlegt, genügt das (Cockpit „gewinnt" über GUI bei Gleichstand,
+> da bewusst aktiviert).
+
+### 7.3 Persistenz des Umschaltens
+- Klickt der Nutzer den Header-Umschalter, wird **`users.view_mode` gesetzt**
+  (PATCH auf `/api/v1/auth/me` bzw. einen `user-settings`-Endpoint) → seine Wahl
+  überlebt Sessions und schlägt fortan die Rolle.
+- Ein „**Zurücksetzen auf Rollen-Standard**" (setzt `view_mode = NULL`) gehört in
+  die persönlichen Einstellungen.
+
+### 7.4 Pflege der Defaults (Admin)
+- **Pro Rolle:** Feld „Standard-Ansicht (Cockpit/Menü)" in der Rollen-Verwaltung
+  (`Users & Roles → Roles`). Schreibt `roles.default_view_mode`.
+- **Pro Benutzer:** Feld „Ansicht" in der Benutzer-Verwaltung **und** in den eigenen
+  Profileinstellungen. Schreibt `users.view_mode` (mit Option „Rolle entscheidet").
+
+### 7.5 Technische Hinweise
+- Modus-State zentral im `authStore` (abgeleitet aus `user.view_mode` /
+  `userRole.default_view_mode`), Helper `effectiveViewMode`.
+- `AppLayout.vue` rendert die `AppSidebar` nur, wenn `effectiveViewMode === 'gui'`;
+  im Cockpit-Modus wird sie ausgeblendet (bzw. auf Icon-Leiste reduziert).
+- Router-Guard: bei `cockpit` und Aufruf von `/` → Redirect auf `/cockpit`;
+  bei `gui` → bestehendes `/dashboard`.
 
 ---
 
@@ -262,16 +336,21 @@ Technisch: Flag in `appearanceStore` / `userPreferences` + bedingtes Rendern der
 | `components/cockpit/ActionTiles.vue` | **Neu** – Kachel-Variante des `QuickLinksWidget` |
 | `components/dashboard/MediaSpotlightWidget.vue` | **Neu** – Zone E (nutzt `AssetCatalogController`) |
 | `stores/cockpit.js` | **Neu** – lädt Profil (Auflösung User→Rolle→System), Persistenz |
-| `components/layout/AppLayout.vue` | Fokus-Modus-Toggle (Sidebar aus) |
-| `stores/auth.js` | bereits vorhanden (`userRole`, `permissions`) – keine Änderung |
+| `components/layout/AppHeader.vue` | **Modus-Umschalter Cockpit ⇄ GUI** (Segmented Control, §7.1) |
+| `components/layout/AppLayout.vue` | Sidebar nur bei `effectiveViewMode === 'gui'` rendern |
+| `stores/auth.js` | Erweiterung: `effectiveViewMode`, Setter für `view_mode` (§7.2/7.3) |
+| `views/admin/RoleEdit.vue` / `UserEdit.vue` | Feld „Standard-Ansicht (Cockpit/Menü)" bzw. „Ansicht" |
 
 ### Backend
 | Datei | Änderung |
 |-------|----------|
-| `database/migrations/..._cockpit_profiles.php` | Erweiterung Preset-Tabelle (§5) |
+| `database/migrations/..._cockpit_profiles.php` | Erweiterung Preset-Tabelle + `roles.default_view_mode` + `users.view_mode` (§5) |
 | `app/Models/DashboardPreset.php` (o. ä.) | `scope`, `role_id`, `view_type` |
+| `app/Models/Role.php` / `User.php` | `default_view_mode` / `view_mode` (fillable) |
+| `app/Http/Resources/Api/V1/UserResource.php` | `view_mode` + `default_view_mode` (über `roles[]`) ausliefern |
 | `app/Http/Controllers/Api/V1/...PresetController` | Endpoint: Rollen-Default-Cockpit lesen/schreiben (Admin) |
-| `database/seeders/RoleAndPermissionSeeder.php` | Neue Rolle **„Marketing"** + Default-Cockpit-Profile |
+| `app/Http/Controllers/Api/V1/AuthController.php` (o. UserSettings) | PATCH `view_mode` des eigenen Users (§7.3) |
+| `database/seeders/RoleAndPermissionSeeder.php` | Neue Rolle **„Marketing"** (+ `default_view_mode='cockpit'`), Default-Cockpit-Profile |
 
 → **Aufwand-Schwerpunkt liegt im Frontend**; Backend ist im Wesentlichen eine
 Erweiterung der vorhandenen Preset-Infrastruktur.
@@ -296,15 +375,17 @@ Erweiterung der vorhandenen Preset-Infrastruktur.
 > → Punkt 2 ist damit geklärt. Status weiterhin Konzept; keine Implementierung
 > beauftragt ("Konzept reicht erstmal").
 
-1. **Cockpit als neuer Standard-Login-Ziel?** Soll `/cockpit` die neue Startseite
-   sein (für bestimmte Rollen), oder bleibt `/dashboard` Standard und Cockpit ist
-   ein zusätzlicher Einstieg?
-2. **Cockpit vs. Dashboard** – getrennte Views oder soll das Cockpit nur ein
-   weiteres **Dashboard-Preset im „Fokus-Layout"** sein? (Weniger Code, aber
-   weniger gestalterische Freiheit.)
-3. **Rollen-Mehrfachzuordnung:** Bei Nutzern mit mehreren Rollen – welches Cockpit
-   gewinnt? Vorschlag: Primärrolle (`roles[0]`) oder explizite Auswahl im Header.
-4. **Neue Rolle „Marketing"** – Rechte-/Modul-Zuschnitt aus §6.2 so freigeben?
+1. ~~**Cockpit als neuer Standard-Login-Ziel?**~~ **Geklärt (2026-06-20):** Der
+   Start-Modus wird über `users.view_mode` / `roles.default_view_mode` gesteuert
+   (§7.2). Wer `cockpit` hat, landet auf `/cockpit`; wer `gui` hat, auf
+   `/dashboard`. Ein gut sichtbarer Header-Umschalter erlaubt jederzeit den Wechsel
+   (§7.1).
+2. ~~**Cockpit vs. Dashboard**~~ **Geklärt:** eigenständige Cockpit-View (s. o.).
+3. **Rollen-Mehrfachzuordnung:** Bei Nutzern mit mehreren Rollen – welches
+   Cockpit-Layout/welcher Modus gewinnt? Vorschlag: Primärrolle (`roles[0]`);
+   `users.view_mode` schlägt ohnehin alles.
+4. **Neue Rolle „Marketing"** – Rechte-/Modul-Zuschnitt aus §6.2 so freigeben
+   (inkl. `default_view_mode = 'cockpit'`)?
 5. **Namensgebung:** „Cockpit" (Vorschlag) vs. „Arbeitsplatz" / „Workspace" /
    „Mein PIM" – wegen Kollision mit dem bestehenden öffentlichen „Portal".
 
