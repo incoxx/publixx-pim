@@ -32,6 +32,10 @@ class UserPreferenceController extends Controller
             return $this->updateFooterPresets($request);
         }
 
+        if ($group === 'view_mode') {
+            return $this->updateViewMode($request);
+        }
+
         $request->validate([
             'preset' => 'sometimes|string|in:light,dark-navy,dark-charcoal,custom',
             'sidebar_bg' => 'sometimes|nullable|string|regex:/^#[0-9A-Fa-f]{6}$/',
@@ -78,6 +82,25 @@ class UserPreferenceController extends Controller
             $request->user()->id,
             'footer_presets',
             ['slots' => $request->input('slots')],
+        );
+
+        return response()->json(['data' => $pref->payload]);
+    }
+
+    /**
+     * Ansichtsmodus speichern (Cockpit vs. klassisches Menü-GUI).
+     * Diese persönliche Wahl schlägt den Rollen-Standard. mode=null folgt wieder der Rolle.
+     */
+    private function updateViewMode(Request $request): JsonResponse
+    {
+        $request->validate([
+            'mode' => 'present|nullable|string|in:cockpit,gui',
+        ]);
+
+        $pref = UserPreference::setPayload(
+            $request->user()->id,
+            'view_mode',
+            ['mode' => $request->input('mode')],
         );
 
         return response()->json(['data' => $pref->payload]);

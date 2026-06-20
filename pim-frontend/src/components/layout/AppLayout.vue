@@ -39,16 +39,19 @@ onUnmounted(() => {
   window.removeEventListener('resize', checkMobile)
 })
 
+// Im Cockpit-Modus ("Fokus") wird die Sidebar ausgeblendet — kein linker Rand.
 const mainStyle = computed(() => ({
-  marginLeft: isMobile.value ? '0' : (authStore.sidebarCollapsed ? '56px' : authStore.sidebarWidth + 'px'),
+  marginLeft: (isMobile.value || authStore.isCockpitMode)
+    ? '0'
+    : (authStore.sidebarCollapsed ? '56px' : authStore.sidebarWidth + 'px'),
   marginRight: authStore.panelOpen && !isMobile.value ? authStore.panelWidth : '0',
 }))
 </script>
 
 <template>
   <div v-if="authStore.isAuthenticated" class="min-h-screen bg-[var(--color-bg)]">
-    <!-- Sidebar -->
-    <AppSidebar />
+    <!-- Sidebar (im Cockpit-/Fokus-Modus ausgeblendet) -->
+    <AppSidebar v-if="!authStore.isCockpitMode" />
 
     <!-- Main content -->
     <div :style="mainStyle" class="transition-all duration-200 ease-out flex flex-col min-h-screen">

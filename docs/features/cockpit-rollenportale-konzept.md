@@ -108,12 +108,21 @@ Technisch ist jede Zone ein vorhandenes (oder leicht erweitertes) Widget.
 |------|--------|-------------------------------|
 | **A — Hero-Suche** | Prominente globale Suche, semantisch, Tab-Umschaltung | `SemanticSearchBox` + Logik aus `QuickSearchView` |
 | **B — Schnellaktionen** | Große, rollenspezifische Aktionskacheln | Erweiterung `QuickLinksWidget` (Kachel-Variante) |
-| **C — Arbeitsvorrat** | Aufgaben, zuletzt bearbeitet, Merkliste | `MyTasksWidget`, `RecentlyEditedWidget`, `WatchlistWidget` |
+| **C — Mein Arbeitsplatz** | **Notizen**, **gepinnte Produkte (Merkliste)**, zuletzt bearbeitet, Aufgaben | `NotesWidget`, `WatchlistWidget`, `RecentlyEditedWidget`, `MyTasksWidget` |
 | **D — KPIs/Reports** | Füllstand, Datenqualität, Status | `CompletenessWidget`, `DataQualityWidget`, `ProfileStatCard` |
 | **E — Medien/Content** | DAM-Vorschau, fehlende Assets | **Neu** `MediaSpotlightWidget` (nutzt `AssetCatalogController`) |
 | **F — Aktivität** | Aktivitäts-Feed, Datenflüsse | `ActivityFeedWidget`, `DataFlowWidget` |
 
 → Lediglich **Zone E (`MediaSpotlightWidget`)** ist neu. Alles andere existiert.
+
+> **Arbeitsplatz-Charakter (Anforderung):** Das Cockpit ist nicht nur ein
+> Dashboard, sondern ein **persönlicher Arbeitsplatz**. Zone C bündelt deshalb die
+> bereits vorhandenen, nutzerbezogenen Funktionen:
+> - **Notizen** (`NotesWidget`) – freie Notizen direkt im Cockpit.
+> - **Gepinnte Produkte** = **Merkliste** (`WatchlistWidget`) – die Produkte, an
+>   denen man gerade arbeitet, bleiben griffbereit.
+> - **Zuletzt bearbeitet** (`RecentlyEditedWidget`) – nahtloses Weiterarbeiten.
+> - **Meine Aufgaben** (`MyTasksWidget`) – offene Workflow-Aufgaben.
 
 ---
 
@@ -238,19 +247,45 @@ Zusatz-Request kennt — analog zu `all_permissions`/`tab_permissions`.
 | Medien/Content | **Asset-Spotlight** (neue Assets, fehlende Bilder, Usage-Heatmap) |
 | Aktivität | Übersetzungs-Status · Channel-/Export-Feed |
 
-**Neue Rolle „Marketing" — Vorschlag Rechte/Module:**
+**Neue Rolle „Marketing" — ENTSCHEIDUNG (Punkt 4, 2026-06-20):**
+
+Der Zuschnitt ist festgelegt. Marketing arbeitet content- und medienlastig, pflegt
+aber keine Stammdaten/Preise und administriert nichts.
 
 ```
-Permissions:  products.view, media.view, media.edit, media.create,
-              reports.view, watchlist.*, export.view
-Module:       connectors (DeepL/Canva/Cloudinary), translations,
-              portals, catalog_templates, reports, publixx (optional)
-Tab-Rechte:   media = write, base-data = read, prices = hidden,
-              attributes = read   (via RoleTabPermission)
+default_view_mode: cockpit            # Marketing startet im Cockpit
+
+Permissions (Vollzugriff Content/Medien, sonst lesend):
+  media.view, media.edit, media.create, media.delete
+  products.view                       # Produkte sichten, nicht strukturell ändern
+  attributes.view, hierarchies.view   # Kontext lesen
+  reports.view
+  watchlist.view, watchlist.edit      # Kampagnen-/Arbeitsauswahl
+  export.view                         # Exporte sehen/anstoßen, nicht konfigurieren
+
+Module (Lizenz vorausgesetzt):
+  connectors  (DeepL, Canva, Cloudinary)
+  translations
+  portals
+  catalog_templates
+  reports
+  publixx      # optional, falls lizenziert
+
+Tab-Rechte (RoleTabPermission):
+  media = write
+  base-data = read
+  attributes = read
+  prices = hidden
+  variants / variant-attributes = read
 ```
+
+**Begründung:** Marketing braucht volle Hoheit über Assets, Texte/Übersetzungen und
+Ausspielung (Portale/Kataloge/Channels), aber keine Schreibrechte auf
+Produktstruktur, Preise oder Administration. Damit ist die Rolle klar von
+`Product Manager` (Datenpflege) abgegrenzt und überschneidungsfrei.
 
 Diese Rolle wird im `RoleAndPermissionSeeder` ergänzt (gleiche Mechanik wie die
-8 bestehenden Rollen).
+8 bestehenden Rollen) — Teil von **Phase 2/3** (siehe Roadmap).
 
 ### 6.3 Weitere Profile (kostenlos „mitgenommen")
 Da das System rollengetrieben ist, lassen sich später trivial weitere Cockpits
@@ -361,10 +396,30 @@ Erweiterung der vorhandenen Preset-Infrastruktur.
 
 | Phase | Umfang | Ergebnis |
 |-------|--------|----------|
-| **P1 — MVP** | `/cockpit`-Seite mit Zonen A–D, ein **System-Default-Profil**, Wiederverwendung vorhandener Widgets, Fokus-Modus-Toggle | Funktionierende Single-Page, noch nicht rollengetrieben |
+| **P1 — MVP** ✅ | `/cockpit`-Seite mit Zonen A–D inkl. Arbeitsplatz (Notizen + gepinnte Produkte), System-Default-Layout, Wiederverwendung vorhandener Widgets, sichtbarer Cockpit/GUI-Umschalter mit Persistenz | **Umgesetzt** (siehe §9.1) |
 | **P2 — Rollen-Profile** | DB-Erweiterung, Auflösung User→Rolle→System, Profile für `Product Manager` + neue Rolle `Marketing` | Rollenabhängige Cockpits |
 | **P3 — Marketing-Tiefe** | `MediaSpotlightWidget` (Zone E), marketingspezifische Füllstand-KPIs, Channel-/Übersetzungs-Status | Marketing-Fokus voll ausgebaut |
 | **P4 — Admin-GUI** | Layout-Editor: Admin pflegt Rollen-Cockpits per Drag-&-Drop (nutzt vorhandenen Preset-Editor) | Self-Service ohne Deploy |
+
+### 9.1 MVP — umgesetzte Dateien (Phase 1)
+**Neu:**
+- `pim-frontend/src/views/cockpit/CockpitView.vue` — Single-Page: Hero-Suche,
+  Schnellaktions-Kacheln, **Arbeitsplatz** (Notizen, Merkliste/gepinnte Produkte,
+  zuletzt bearbeitet, Aufgaben), KPIs (Füllstand, Datenqualität).
+
+**Geändert:**
+- `router/index.js` — Route `/cockpit`; `/` leitet modusabhängig (Cockpit/GUI) um.
+- `stores/auth.js` — `viewModePref`, `roleDefaultViewMode`, `effectiveViewMode`,
+  `isCockpitMode`, `setViewMode/toggleViewMode/loadViewMode` (Regel: Benutzer schlägt Rolle).
+- `components/layout/AppHeader.vue` — **sichtbarer Segmented-Control-Umschalter**
+  Cockpit ⇄ Menü.
+- `components/layout/AppLayout.vue` — Sidebar im Cockpit-Modus ausgeblendet.
+- `app/Http/Controllers/Api/V1/UserPreferenceController.php` — Persistenz der
+  Modus-Wahl (`view_mode`-Gruppe).
+
+**Bewusst noch offen (Phase 2+):** `roles.default_view_mode`-Spalte (aktuell liefert
+das Frontend `'gui'` als Rollen-Fallback; die persönliche Wahl funktioniert bereits
+voll), rollenspezifische Cockpit-Layouts, `MediaSpotlightWidget`, „Marketing"-Rolle.
 
 ---
 
@@ -384,10 +439,11 @@ Erweiterung der vorhandenen Preset-Infrastruktur.
 3. **Rollen-Mehrfachzuordnung:** Bei Nutzern mit mehreren Rollen – welches
    Cockpit-Layout/welcher Modus gewinnt? Vorschlag: Primärrolle (`roles[0]`);
    `users.view_mode` schlägt ohnehin alles.
-4. **Neue Rolle „Marketing"** – Rechte-/Modul-Zuschnitt aus §6.2 so freigeben
-   (inkl. `default_view_mode = 'cockpit'`)?
-5. **Namensgebung:** „Cockpit" (Vorschlag) vs. „Arbeitsplatz" / „Workspace" /
-   „Mein PIM" – wegen Kollision mit dem bestehenden öffentlichen „Portal".
+4. ~~**Neue Rolle „Marketing"**~~ **Entschieden (2026-06-20):** Rechte-/Modul-/
+   Tab-Zuschnitt festgelegt in §6.2 (inkl. `default_view_mode = 'cockpit'`).
+   Seeding erfolgt in Phase 2/3.
+5. ~~**Namensgebung**~~ **Geklärt (2026-06-20):** Der Name **„Cockpit"** ist
+   bestätigt (klar abgegrenzt vom öffentlichen „Portal").
 
 ---
 
