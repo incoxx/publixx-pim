@@ -27,6 +27,8 @@ class SemanticSearchController extends Controller
      */
     public function search(Request $request, HybridSearchService $searchService): JsonResponse
     {
+        abort_unless($request->user()?->hasPermissionTo('semantic-search.view'), 403);
+
         if (!config('meilisearch.enabled')) {
             return response()->json([
                 'message' => 'Semantische Suche ist nicht aktiviert (MEILISEARCH_ENABLED).',
@@ -81,8 +83,10 @@ class SemanticSearchController extends Controller
     /**
      * GET /api/v1/semantic-search/health — Status von Index und Embedder.
      */
-    public function health(MeilisearchClient $client): JsonResponse
+    public function health(Request $request, MeilisearchClient $client): JsonResponse
     {
+        abort_unless($request->user()?->hasPermissionTo('semantic-search.view'), 403);
+
         if (!config('meilisearch.enabled')) {
             return response()->json(['enabled' => false, 'healthy' => false]);
         }

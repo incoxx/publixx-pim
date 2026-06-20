@@ -74,6 +74,17 @@ class SemanticSearchControllerTest extends TestCase
         $this->getJson('/api/v1/semantic-search/health')->assertStatus(401);
     }
 
+    public function test_suche_verweigert_ohne_permission(): void
+    {
+        // Nutzer ohne 'semantic-search.view' (eigene Rolle ohne Permissions)
+        $user = User::factory()->create();
+        $user->assignRole(Role::findOrCreate('Gast', 'sanctum'));
+        $this->actingAs($user);
+
+        $this->postJson('/api/v1/semantic-search', ['q' => 'test'])->assertStatus(403);
+        $this->getJson('/api/v1/semantic-search/health')->assertStatus(403);
+    }
+
     public function test_suche_liefert_503_wenn_meilisearch_deaktiviert(): void
     {
         $this->login();
