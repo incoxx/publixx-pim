@@ -25,9 +25,7 @@ class MeilisearchAdminController extends Controller
      */
     public function status(Request $request): JsonResponse
     {
-        if (!$request->user()?->hasRole('Admin')) {
-            abort(403, 'Unauthorized.');
-        }
+        abort_unless($request->user()?->hasPermissionTo('meilisearch-admin.view'), 403);
 
         $enabled = (bool) config('meilisearch.enabled');
 
@@ -54,9 +52,7 @@ class MeilisearchAdminController extends Controller
      */
     public function run(Request $request): JsonResponse
     {
-        if (!$request->user()?->hasRole('Admin')) {
-            abort(403, 'Unauthorized.');
-        }
+        abort_unless($request->user()?->hasPermissionTo('meilisearch-admin.manage'), 403);
 
         $validated = $request->validate([
             'action' => 'required|string|in:' . implode(',', RunMeilisearchMaintenance::ACTIONS),

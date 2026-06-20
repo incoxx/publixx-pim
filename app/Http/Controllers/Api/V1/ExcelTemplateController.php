@@ -32,6 +32,8 @@ class ExcelTemplateController extends Controller
 
     public function index(Request $request): JsonResponse
     {
+        abort_unless($request->user()?->hasPermissionTo('excel-templates.view'), 403);
+
         $userId = $request->user()?->id;
 
         $templates = ExcelTemplate::query()
@@ -45,6 +47,8 @@ class ExcelTemplateController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        abort_unless($request->user()?->hasPermissionTo('excel-templates.create'), 403);
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'sometimes|string|nullable',
@@ -66,6 +70,8 @@ class ExcelTemplateController extends Controller
 
     public function show(Request $request, string $id): JsonResponse
     {
+        abort_unless($request->user()?->hasPermissionTo('excel-templates.view'), 403);
+
         $template = ExcelTemplate::findOrFail($id);
         $this->authorizeAccess($request, $template);
 
@@ -76,6 +82,8 @@ class ExcelTemplateController extends Controller
 
     public function update(Request $request, string $id): JsonResponse
     {
+        abort_unless($request->user()?->hasPermissionTo('excel-templates.edit'), 403);
+
         $template = ExcelTemplate::findOrFail($id);
         $this->authorizeAccess($request, $template);
 
@@ -96,6 +104,8 @@ class ExcelTemplateController extends Controller
 
     public function destroy(Request $request, ExcelTemplate $excelTemplate): JsonResponse
     {
+        abort_unless($request->user()?->hasPermissionTo('excel-templates.delete'), 403);
+
         $this->authorizeAccess($request, $excelTemplate);
 
         return $this->destroyWithConstraintCheck($request, $excelTemplate);
@@ -108,6 +118,8 @@ class ExcelTemplateController extends Controller
      */
     public function fields(): JsonResponse
     {
+        abort_unless(auth()->user()?->hasPermissionTo('excel-templates.view'), 403);
+
         // Stammfelder
         $baseFields = [
             ['field' => 'sku', 'label_de' => 'Artikelnummer', 'label_en' => 'SKU', 'category' => 'base'],
@@ -191,6 +203,8 @@ class ExcelTemplateController extends Controller
      */
     public function preview(Request $request, string $id): JsonResponse
     {
+        abort_unless($request->user()?->hasPermissionTo('excel-templates.view'), 403);
+
         $template = ExcelTemplate::findOrFail($id);
         $this->authorizeAccess($request, $template);
 
@@ -217,6 +231,8 @@ class ExcelTemplateController extends Controller
      */
     public function download(Request $request, string $id): StreamedResponse
     {
+        abort_unless($request->user()?->hasPermissionTo('excel-templates.view'), 403);
+
         $template = ExcelTemplate::findOrFail($id);
         $this->authorizeAccess($request, $template);
 
@@ -233,6 +249,8 @@ class ExcelTemplateController extends Controller
      */
     public function import(Request $request): JsonResponse
     {
+        abort_unless($request->user()?->hasPermissionTo('excel-templates.create'), 403);
+
         $request->validate([
             'file' => 'required|file|mimes:xlsx,xls|max:10240',
             'name' => 'sometimes|string|max:255',
@@ -266,6 +284,8 @@ class ExcelTemplateController extends Controller
      */
     public function startExport(Request $request, string $id): JsonResponse
     {
+        abort_unless($request->user()?->hasPermissionTo('excel-templates.view'), 403);
+
         $template = ExcelTemplate::findOrFail($id);
         $this->authorizeAccess($request, $template);
 
@@ -295,6 +315,8 @@ class ExcelTemplateController extends Controller
      */
     public function exportProgress(Request $request, string $exportKey): JsonResponse
     {
+        abort_unless($request->user()?->hasPermissionTo('excel-templates.view'), 403);
+
         $this->authorizeExportAccess($request, $exportKey);
 
         $progress = Cache::get(ExcelExportJob::cacheKey($exportKey));
@@ -313,6 +335,8 @@ class ExcelTemplateController extends Controller
      */
     public function cancelExport(Request $request, string $exportKey): JsonResponse
     {
+        abort_unless($request->user()?->hasPermissionTo('excel-templates.view'), 403);
+
         $this->authorizeExportAccess($request, $exportKey);
 
         ExcelExportJob::cancel($exportKey);
@@ -325,6 +349,8 @@ class ExcelTemplateController extends Controller
      */
     public function downloadExport(Request $request, string $exportKey): BinaryFileResponse|JsonResponse
     {
+        abort_unless($request->user()?->hasPermissionTo('excel-templates.view'), 403);
+
         $this->authorizeExportAccess($request, $exportKey);
 
         $progress = Cache::get(ExcelExportJob::cacheKey($exportKey));
