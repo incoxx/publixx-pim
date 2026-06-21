@@ -95,10 +95,15 @@ class CatalogController extends BaseController
                         [$term . '*']
                     )
                     ->orWhere('products_search_index.searchable_text', 'like', $likeTerm)
-                    ->orWhere('products_search_index.media_text', 'like', $likeTerm)
-                    // Phonetic fallback for typo tolerance
-                    ->orWhere('products_search_index.phonetic_name_de', 'like', '%' . $phoneticTerm . '%')
-                    ->orWhere('products_search_index.phonetic_text', 'like', '%' . $phoneticTerm . '%');
+                    ->orWhere('products_search_index.media_text', 'like', $likeTerm);
+
+                    // Phonetischer Fallback nur bei nicht-leerem Code. Sonst würde
+                    // LIKE '%%' ALLE Zeilen matchen (z. B. bei rein numerischer
+                    // SKU-Suche wie "10002", deren Phonetik-Code leer ist).
+                    if ($phoneticTerm !== '') {
+                        $q->orWhere('products_search_index.phonetic_name_de', 'like', '%' . $phoneticTerm . '%')
+                          ->orWhere('products_search_index.phonetic_text', 'like', '%' . $phoneticTerm . '%');
+                    }
                 });
 
                 // Relevance sorting is applied later via addSelect + orderByDesc
