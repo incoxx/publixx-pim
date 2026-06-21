@@ -93,7 +93,7 @@ Step  2/10  PHP 8.4 + extensions (mysql, redis, mbstring, xml, zip, gd, bcmath, 
 Step  3/10  Apache + modules (rewrite, headers, ssl, alias)
 Step  4/10  MySQL 8 (create database + user)
 Step  5/10  Redis (maxmemory 512mb, allkeys-lru)
-Step  6/10  Node.js 20 LTS
+Step  6/10  Node.js 22 LTS
 Step  7/10  Composer 2
 Step  8/10  Laravel setup (.env, Composer install, migrations, seeder, storage link)
 Step  9/10  Build frontend (npm ci + npm run build → public/)
