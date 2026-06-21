@@ -19,11 +19,13 @@ const searchStore = useQuickSearchStore()
 // Store-gebundene Props je Widget-ID (Komponenten kommen aus dem Katalog)
 function widgetProps(id) {
   switch (id) {
-    case 'recent':       return { products: store.recentlyEdited }
-    case 'tasks':        return { tasks: store.myTasks }
-    case 'completeness': return { summary: store.completenessSummary }
-    case 'quality':      return { quality: store.dataQuality }
-    default:             return {}
+    case 'recent':         return { products: store.recentlyEdited }
+    case 'tasks':          return { tasks: store.myTasks }
+    case 'completeness':   return { summary: store.completenessSummary }
+    case 'quality':        return { quality: store.dataQuality }
+    case 'media-spotlight': return { scope: 'all' }
+    case 'watchlist-media': return { scope: 'watchlist' }
+    default:               return {}
   }
 }
 

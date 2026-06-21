@@ -4,13 +4,25 @@ import { useRouter } from 'vue-router'
 import { Image as ImageIcon, ExternalLink, AlertTriangle } from 'lucide-vue-next'
 import DashboardWidgetWrapper from './DashboardWidgetWrapper.vue'
 import mediaApi from '@/api/media'
+import watchlistApi from '@/api/watchlist'
+
+const props = defineProps({
+  // 'all' = neueste Medien insgesamt, 'watchlist' = Medien der Merklisten-Produkte
+  scope: { type: String, default: 'all' },
+})
 
 const router = useRouter()
 const items = ref([])
 const loading = ref(false)
 const totalCount = ref(0)
 
-// Neueste Assets ohne Alt-Text (innerhalb der geladenen Auswahl) — SEO-/A11y-Hinweis
+const isWatchlist = computed(() => props.scope === 'watchlist')
+const title = computed(() => isWatchlist.value ? 'Medien meiner Merkliste' : 'Medien-Spotlight')
+const emptyText = computed(() => isWatchlist.value
+  ? 'Produkte auf der Merkliste haben noch keine Medien.'
+  : 'Noch keine Medien vorhanden')
+
+// Assets ohne Alt-Text (innerhalb der geladenen Auswahl) — SEO-/A11y-Hinweis
 const missingAltCount = computed(() =>
   items.value.filter(m => m.media_type === 'image' && !m.alt_text_de && !m.alt_text_en).length
 )
@@ -22,17 +34,21 @@ function altMissing(m) {
 onMounted(async () => {
   loading.value = true
   try {
-    const { data } = await mediaApi.list({ per_page: 8 })
-    const payload = data.data || data
-    items.value = Array.isArray(payload) ? payload : (payload.data || [])
-    totalCount.value = payload.total || payload.meta?.total || items.value.length
+    const { data } = isWatchlist.value
+      ? await watchlistApi.media()
+      : await mediaApi.list({ per_page: 8 })
+    const body = data || {}
+    let list = body.data ?? body
+    if (!Array.isArray(list)) list = list.data || []
+    items.value = list
+    totalCount.value = body.meta?.total ?? body.total ?? list.length
   } catch { /* ignore */ }
   loading.value = false
 })
 </script>
 
 <template>
-  <DashboardWidgetWrapper title="Medien-Spotlight" :icon="ImageIcon">
+  <DashboardWidgetWrapper :title="title" :icon="ImageIcon">
     <div class="p-4">
       <!-- Loading -->
       <div v-if="loading" class="flex items-center justify-center py-6">
@@ -41,7 +57,7 @@ onMounted(async () => {
 
       <!-- Leer -->
       <div v-else-if="items.length === 0" class="text-center text-xs text-[var(--color-text-tertiary)] py-6">
-        Noch keine Medien vorhanden
+        {{ emptyText }}
       </div>
 
       <template v-else>

@@ -5,7 +5,12 @@ import DashboardWidgetWrapper from './DashboardWidgetWrapper.vue'
 
 const props = defineProps({
   quality: { type: Object, default: null },
+  title: { type: String, default: 'Datenqualität' },
+  emptyText: { type: String, default: 'Keine Produkte vorhanden' },
 })
+
+// Leer-Zustand (z. B. leere Merkliste): keine Produkte → kein aussagekräftiger Score
+const isEmpty = computed(() => props.quality && (props.quality.total_products === 0 || (props.quality.dimensions || []).length === 0))
 
 function barColor(percentage) {
   if (percentage >= 80) return '#22c55e'
@@ -17,10 +22,13 @@ const overallColor = computed(() => barColor(props.quality?.overall ?? 0))
 </script>
 
 <template>
-  <DashboardWidgetWrapper title="Datenqualität" :icon="ShieldCheck">
+  <DashboardWidgetWrapper :title="title" :icon="ShieldCheck">
     <div class="p-4">
       <div v-if="!quality" class="text-center text-sm text-[var(--color-text-tertiary)] py-4">
         Keine Daten verfügbar
+      </div>
+      <div v-else-if="isEmpty" class="text-center text-xs text-[var(--color-text-tertiary)] py-6">
+        {{ emptyText }}
       </div>
       <template v-else>
         <!-- Gesamt-Score -->

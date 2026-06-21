@@ -12,6 +12,7 @@ import DataQualityWidget from '@/components/dashboard/DataQualityWidget.vue'
 import MediaSpotlightWidget from '@/components/dashboard/MediaSpotlightWidget.vue'
 import TranslationStatusWidget from '@/components/dashboard/TranslationStatusWidget.vue'
 import WatchlistCompletenessWidget from '@/components/dashboard/WatchlistCompletenessWidget.vue'
+import WatchlistDataQualityWidget from '@/components/dashboard/WatchlistDataQualityWidget.vue'
 
 /**
  * Gemeinsamer Katalog für Cockpit-Bausteine.
@@ -41,10 +42,12 @@ export const WIDGET_CATALOG = {
   notes:                { label: 'Notizen',              component: markRaw(NotesWidget),             permission: null,               zone: 'workplace' },
   recent:               { label: 'Zuletzt bearbeitet',   component: markRaw(RecentlyEditedWidget),    permission: null,               zone: 'workplace' },
   tasks:                { label: 'Meine Aufgaben',       component: markRaw(MyTasksWidget),           permission: null,               zone: 'workplace' },
-  'media-spotlight':    { label: 'Medien-Spotlight',     component: markRaw(MediaSpotlightWidget),    permission: 'media.view',       zone: 'content' },
+  'media-spotlight':    { label: 'Medien-Spotlight (alle)', component: markRaw(MediaSpotlightWidget),  permission: 'media.view',       zone: 'content' },
+  'watchlist-media':    { label: 'Medien (Merkliste)',    component: markRaw(MediaSpotlightWidget),    permission: 'watchlist.view',   zone: 'content' },
   'translation-status': { label: 'Übersetzungs-Status',  component: markRaw(TranslationStatusWidget), permission: 'translations.view', zone: 'content' },
   completeness:         { label: 'Produkt-Füllstand',    component: markRaw(CompletenessWidget),      permission: null,               zone: 'kpis' },
   'watchlist-completeness': { label: 'Füllstand (Merkliste)', component: markRaw(WatchlistCompletenessWidget), permission: 'watchlist.view', zone: 'kpis' },
+  'watchlist-quality':  { label: 'Datenqualität (Merkliste)', component: markRaw(WatchlistDataQualityWidget), permission: 'watchlist.view', zone: 'kpis' },
   quality:              { label: 'Datenqualität',        component: markRaw(DataQualityWidget),       permission: null,               zone: 'kpis' },
 }
 
