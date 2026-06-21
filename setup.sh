@@ -495,13 +495,15 @@ systemctl restart redis-server
 info "Redis installiert und konfiguriert."
 
 # ═════════════════════════════════════════════════════════════════════════════
-#  6. NODE.JS 20 LTS INSTALLIEREN
+#  6. NODE.JS 22 LTS INSTALLIEREN
 # ═════════════════════════════════════════════════════════════════════════════
-step "6/10 — Node.js 20 LTS installieren"
+step "6/10 — Node.js 22 LTS installieren"
 
-if ! command -v node &> /dev/null || [[ "$(node -v | cut -d. -f1 | tr -d 'v')" -lt 18 ]]; then
+# Node 22+ erforderlich (vue-i18n v11 / @intlify). Aeltere Versionen (z. B. 20)
+# werden ueber NodeSource auf 22 angehoben.
+if ! command -v node &> /dev/null || [[ "$(node -v | cut -d. -f1 | tr -d 'v')" -lt 22 ]]; then
     # NodeSource Repository hinzufuegen
-    curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+    curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
     apt-get install -y -qq nodejs
 fi
 

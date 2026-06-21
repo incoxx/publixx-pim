@@ -21,8 +21,8 @@ sudo apt install -y php8.4 php8.4-cli php8.4-mysql php8.4-redis \
 sudo apt install -y mysql-server-8.0 redis-server apache2 supervisor \
   certbot python3-certbot-apache git unzip curl
 
-# Node.js 20 LTS
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+# Node.js 22 LTS
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
 sudo apt install -y nodejs
 
 # Composer

@@ -434,6 +434,18 @@ if [ "$SKIP_FRONTEND" = true ]; then
 elif [ -d "$FRONTEND_DIR" ]; then
     cd "$FRONTEND_DIR"
 
+    # Node 22+ erforderlich (vue-i18n v11 / @intlify). Falls nvm vorhanden,
+    # automatisch die in .nvmrc hinterlegte Version aktivieren.
+    if [ -s "$HOME/.nvm/nvm.sh" ]; then
+        # shellcheck disable=SC1091
+        . "$HOME/.nvm/nvm.sh"
+        nvm use >/dev/null 2>&1 || true
+    fi
+    NODE_MAJOR="$(node -v 2>/dev/null | sed 's/^v\([0-9]*\).*/\1/')"
+    if [ -n "$NODE_MAJOR" ] && [ "$NODE_MAJOR" -lt 22 ]; then
+        warn "Node ${NODE_MAJOR} aktiv — benoetigt wird Node 22+ (siehe .nvmrc). Build kann scheitern."
+    fi
+
     info "Installiere Frontend-Abhaengigkeiten..."
     npm ci --fund=false --loglevel=warn 2>&1
 

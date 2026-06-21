@@ -8,7 +8,7 @@
 | PHP | 8.4+ (extensions: mysql, redis, mbstring, xml, zip, gd, bcmath, curl, intl) |
 | MySQL | 8.0+ |
 | Redis | 6+ |
-| Node.js | 20 LTS (with npm) |
+| Node.js | 22 LTS (with npm) |
 | Composer | 2.x |
 | Apache | 2.4 (with mod_rewrite, mod_headers, mod_alias) |
 | Supervisor | For Laravel Horizon (queue worker) |
@@ -48,7 +48,7 @@ The script asks for the following information:
 | 3/10 | Install Apache + enable modules |
 | 4/10 | Install MySQL + create database and user |
 | 5/10 | Install Redis + configure |
-| 6/10 | Install Node.js 20 LTS |
+| 6/10 | Install Node.js 22 LTS |
 | 7/10 | Install Composer |
 | 8/10 | Setup application (Composer install, .env, migrations, seed, admin user) |
 | 9/10 | Build frontend (npm ci + npm run build) |

@@ -182,8 +182,7 @@ class QuickSearchController extends Controller
             . " OR psi.sku LIKE ?"
             . " OR psi.ean LIKE ?"
             . " OR (psi.searchable_text IS NOT NULL AND MATCH(psi.searchable_text, psi.media_text) AGAINST(? IN BOOLEAN MODE))"
-            . " OR (psi.searchable_text IS NOT NULL AND MATCH(psi.searchable_text, psi.media_text) AGAINST(? IN BOOLEAN MODE))"
-            . " OR psi.phonetic_name_de LIKE ?";
+            . " OR (psi.searchable_text IS NOT NULL AND MATCH(psi.searchable_text, psi.media_text) AGAINST(? IN BOOLEAN MODE))";
 
         $bindings[] = $bool;
         $bindings[] = $boolAscii;
@@ -191,7 +190,13 @@ class QuickSearchController extends Controller
         $bindings[] = $likeTerm;
         $bindings[] = $bool;
         $bindings[] = $boolAscii;
-        $bindings[] = '%' . $phoneticTerm . '%';
+
+        // Phonetik nur bei nicht-leerem Code anhaengen — sonst LIKE '%%' = match-all
+        // (z. B. bei rein numerischer SKU-Suche).
+        if ($phoneticTerm !== '') {
+            $sql .= " OR psi.phonetic_name_de LIKE ?";
+            $bindings[] = '%' . $phoneticTerm . '%';
+        }
 
         return $sql;
     }
@@ -495,8 +500,11 @@ class QuickSearchController extends Controller
                     ->orWhere('products_search_index.sku', 'like', $likeTerm)
                     ->orWhere('products_search_index.ean', 'like', $likeTerm)
                     ->orWhereRaw('products_search_index.searchable_text IS NOT NULL AND MATCH(products_search_index.searchable_text, products_search_index.media_text) AGAINST(? IN BOOLEAN MODE)', [$bool])
-                    ->orWhereRaw('products_search_index.searchable_text IS NOT NULL AND MATCH(products_search_index.searchable_text, products_search_index.media_text) AGAINST(? IN BOOLEAN MODE)', [$boolAscii])
-                    ->orWhere('products_search_index.phonetic_name_de', 'like', '%' . $phoneticTerm . '%');
+                    ->orWhereRaw('products_search_index.searchable_text IS NOT NULL AND MATCH(products_search_index.searchable_text, products_search_index.media_text) AGAINST(? IN BOOLEAN MODE)', [$boolAscii]);
+                // Phonetik nur bei nicht-leerem Code (sonst LIKE '%%' = match-all, z. B. numerische SKU)
+                if ($phoneticTerm !== '') {
+                    $q->orWhere('products_search_index.phonetic_name_de', 'like', '%' . $phoneticTerm . '%');
+                }
             });
         } else {
             $builder->where(fn ($q) => $q->where('products_search_index.name_de', 'like', $likeTerm)->orWhere('products_search_index.name_en', 'like', $likeTerm)->orWhere('products_search_index.sku', 'like', $likeTerm)->orWhere('products_search_index.ean', 'like', $likeTerm));
