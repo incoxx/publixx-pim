@@ -31,10 +31,10 @@ function altMissing(m) {
   return m.media_type === 'image' && !m.alt_text_de && !m.alt_text_en
 }
 
-// Klick auf ein Asset öffnet die Datei (Bild/PDF) in neuem Tab.
+// Klick auf ein Asset öffnet die Detail-/Metadaten-Ansicht in der Mediathek
+// (inkl. Verwendungsnachweis: zu welchen Produkten das Bild gehört).
 function openMedia(m) {
-  const url = m.url || m.file_url || m.thumb_url
-  if (url) window.open(url, '_blank', 'noopener')
+  router.push({ name: 'media', query: { medium: m.id } })
 }
 
 onMounted(async () => {

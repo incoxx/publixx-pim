@@ -794,6 +794,17 @@ onMounted(() => {
   fetchFolders()
   fetchUsageTypes()
   document.addEventListener('click', handleDocClick, true)
+
+  // Direktes Öffnen eines Mediums per ?medium=<id> (z. B. aus dem Cockpit-Spotlight)
+  const mediumId = _route.query.medium
+  if (mediumId) {
+    mediaApi.get(mediumId)
+      .then(({ data }) => {
+        const item = data.data || data
+        if (item?.id) openDetail(item)
+      })
+      .catch(() => { /* ignore */ })
+  }
 })
 </script>
 
