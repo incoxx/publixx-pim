@@ -33,6 +33,10 @@ export default {
     return client.get('/watchlist/product-ids')
   },
 
+  completeness() {
+    return client.get('/watchlist/completeness')
+  },
+
   exportExcel(lang = 'de') {
     return client.get('/watchlist/export/excel', { params: { lang }, responseType: 'blob' })
   },

@@ -9,6 +9,8 @@ ChartJS.register(ArcElement, Tooltip)
 
 const props = defineProps({
   summary: { type: Object, default: null },
+  title: { type: String, default: 'Produkt-Füllstand' },
+  emptyText: { type: String, default: 'Keine Produkte vorhanden' },
 })
 
 const chartData = computed(() => {
@@ -50,10 +52,13 @@ const percentageColor = computed(() => {
 </script>
 
 <template>
-  <DashboardWidgetWrapper title="Produkt-Füllstand" :icon="BarChart3">
+  <DashboardWidgetWrapper :title="title" :icon="BarChart3">
     <div class="p-4">
       <div v-if="!summary" class="text-center text-sm text-[var(--color-text-tertiary)] py-4">
         Keine Daten verfügbar
+      </div>
+      <div v-else-if="summary.total === 0" class="text-center text-xs text-[var(--color-text-tertiary)] py-6">
+        {{ emptyText }}
       </div>
       <template v-else>
         <!-- Chart -->

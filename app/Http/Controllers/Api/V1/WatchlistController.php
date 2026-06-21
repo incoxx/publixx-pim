@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Models\PdfTemplate;
 use App\Models\Product;
 use App\Models\ProductAttributeValue;
+use App\Models\ProductSearchIndex;
 use App\Models\WatchlistItem;
 use App\Services\PdfTemplate\PdfTemplateService;
 use App\Services\Preview\ProductPreviewService;
@@ -218,6 +219,40 @@ class WatchlistController extends Controller
             ->pluck('product_id');
 
         return response()->json(['data' => $ids]);
+    }
+
+    /**
+     * GET /api/v1/watchlist/completeness
+     *
+     * Aggregierter Produktfüllstand über die eigene Merkliste (Arbeitsvorrat).
+     * Nutzt die vorab berechnete Spalte products_search_index.attribute_completeness
+     * (per Observer aktuell gehalten) → eine einzige Aggregat-Abfrage.
+     * Liefert dasselbe Schema wie das Dashboard-Feld completeness_summary.
+     */
+    public function completeness(Request $request): JsonResponse
+    {
+        $userId = $request->user()->id;
+
+        // Subquery vermeidet Platzhalter-Limit bei großen Merklisten.
+        $productIdQuery = WatchlistItem::where('user_id', $userId)->select('product_id');
+
+        $total = WatchlistItem::where('user_id', $userId)->count();
+
+        $stats = ProductSearchIndex::whereIn('product_id', $productIdQuery)
+            ->selectRaw('COALESCE(SUM(attribute_completeness), 0) as sum_pct')
+            ->selectRaw('SUM(CASE WHEN attribute_completeness = 100 THEN 1 ELSE 0 END) as fully_complete')
+            ->first();
+
+        $fullyComplete = (int) ($stats->fully_complete ?? 0);
+        // Fehlende Index-Zeilen / NULL zählen als 0 → ehrlicher Gesamtfortschritt.
+        $average = $total > 0 ? (int) round(((float) ($stats->sum_pct ?? 0)) / $total) : 0;
+
+        return response()->json(['data' => [
+            'fully_complete' => $fullyComplete,
+            'incomplete' => max(0, $total - $fullyComplete),
+            'total' => $total,
+            'average_percentage' => $average,
+        ]]);
     }
 
     /**

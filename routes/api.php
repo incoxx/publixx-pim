@@ -701,6 +701,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
         Route::post('/', [WatchlistController::class, 'store']);
         Route::post('bulk', [WatchlistController::class, 'bulkStore']);
         Route::get('product-ids', [WatchlistController::class, 'productIds']);
+        Route::get('completeness', [WatchlistController::class, 'completeness']);
         Route::post('bulk-remove', [WatchlistController::class, 'bulkRemove']);
         Route::delete('all', [WatchlistController::class, 'removeAll']);
         Route::delete('{watchlistItem}', [WatchlistController::class, 'destroy']);
