@@ -18,6 +18,9 @@ import ProfileCardConfigurator from '@/components/dashboard/ProfileCardConfigura
 import QuickLinksWidget from '@/components/dashboard/QuickLinksWidget.vue'
 import WatchlistWidget from '@/components/dashboard/WatchlistWidget.vue'
 import NotesWidget from '@/components/dashboard/NotesWidget.vue'
+import WatchlistCompletenessWidget from '@/components/dashboard/WatchlistCompletenessWidget.vue'
+import WatchlistDataQualityWidget from '@/components/dashboard/WatchlistDataQualityWidget.vue'
+import MediaSpotlightWidget from '@/components/dashboard/MediaSpotlightWidget.vue'
 
 const store = useDashboardStore()
 const authStore = useAuthStore()
@@ -38,15 +41,25 @@ const WIDGET_REGISTRY = {
   workflow:     { label: 'Workflow-Status',    span: 2, component: markRaw(WorkflowStatusWidget) },
   recent:       { label: 'Zuletzt bearbeitet', span: 4, component: markRaw(RecentlyEditedWidget) },
   completeness: { label: 'Produkt-Füllstand', span: 6, component: markRaw(CompletenessWidget) },
+  // ── Merklisten-bezogene Auswertungen (aus dem Cockpit nachgezogen) ──
+  'completeness-watchlist': { label: 'Füllstand (Merkliste)',    span: 2, component: markRaw(WatchlistCompletenessWidget) },
+  'quality-watchlist':      { label: 'Datenqualität (Merkliste)', span: 3, component: markRaw(WatchlistDataQualityWidget) },
+  'media-watchlist':        { label: 'Medien (Merkliste)',        span: 3, component: markRaw(MediaSpotlightWidget) },
+  'media-spotlight':        { label: 'Medien-Spotlight (alle)',   span: 3, component: markRaw(MediaSpotlightWidget) },
 }
 
 const DEFAULT_ORDER = Object.keys(WIDGET_REGISTRY)
+
+// Standardmäßig ausgeblendete Widgets (bestehende Dashboards bleiben unverändert)
+const HIDDEN_BY_DEFAULT = new Set([
+  'completeness', 'completeness-watchlist', 'quality-watchlist', 'media-watchlist', 'media-spotlight',
+])
 
 // Widget-Config (aus Server oder Default)
 const widgets = ref(DEFAULT_ORDER.map(id => ({
   id,
   label: WIDGET_REGISTRY[id].label,
-  visible: id !== 'completeness',
+  visible: !HIDDEN_BY_DEFAULT.has(id),
 })))
 const profileCards = ref([])
 const showConfig = ref(false)
@@ -64,7 +77,7 @@ const activePresetId = ref(null) // null = Standard, sonst Preset-UUID
 const BUILTIN_DEFAULT_PAYLOAD = {
   widgets: DEFAULT_ORDER.map(id => ({
     id,
-    visible: id !== 'completeness',
+    visible: !HIDDEN_BY_DEFAULT.has(id),
   })),
 }
 
@@ -103,6 +116,8 @@ function widgetProps(widgetId) {
     case 'workflow':     return { summary: store.workflowSummary }
     case 'recent':       return { products: store.recentlyEdited }
     case 'completeness': return { summary: store.completenessSummary }
+    case 'media-spotlight': return { scope: 'all' }
+    case 'media-watchlist': return { scope: 'watchlist' }
     default:             return {}
   }
 }
@@ -130,7 +145,7 @@ function applyServerConfig(config) {
       orderedWidgets.push({
         id,
         label: WIDGET_REGISTRY[id].label,
-        visible: id !== 'completeness',
+        visible: !HIDDEN_BY_DEFAULT.has(id),
       })
     }
   }
