@@ -5,7 +5,7 @@ import { useLocaleStore } from '@/stores/locale'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { computed } from 'vue'
-import { Command, Eye, Globe, LogOut, Menu, PanelsTopLeft, Pin, PinOff, Sparkles, User } from 'lucide-vue-next'
+import { Compass, Eye, Globe, LogOut, Menu, PanelsTopLeft, Pin, PinOff, Sparkles, User } from 'lucide-vue-next'
 import { useCopilotStore } from '@/stores/copilot'
 import SemanticSearchBox from '@/components/layout/SemanticSearchBox.vue'
 
@@ -129,14 +129,15 @@ function openCatalogPreview() {
         <span class="hidden sm:inline">Copilot</span>
       </button>
 
-      <!-- Command palette trigger -->
+      <!-- Befehls-/Navigationspalette ("Wo ist was?") -->
       <button
         class="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md border transition-colors hover:bg-white/10"
         :style="{ color: 'inherit', borderColor: 'var(--pim-toolbar-border)' }"
+        title="Wo ist was? — Menüpunkte und Aktionen finden"
         @click="authStore.toggleCommandPalette()"
       >
-        <Command class="w-3.5 h-3.5" :stroke-width="1.75" />
-        <span class="hidden sm:inline">Suche</span>
+        <Compass class="w-3.5 h-3.5" :stroke-width="1.75" />
+        <span class="hidden sm:inline">Wo ist was?</span>
         <span class="pim-kbd text-[10px] hidden sm:inline-flex">⌘K</span>
       </button>
 
