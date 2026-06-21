@@ -191,7 +191,19 @@ function createStore() {
         await actions.reloadAll()
         return true
       } catch (e) {
-        state.authError = e.data?.detail || e.data?.title || 'Anmeldung fehlgeschlagen. Bitte E-Mail und Passwort prüfen.'
+        // Echten Fehler sichtbar machen (hilft bei der Diagnose):
+        // - 401 → Zugangsdaten; 422 → Validierung (z. B. keine echte E-Mail);
+        // - 419 → CSRF/Stateful-Domain; 429 → zu viele Versuche;
+        // - kein Status → Server nicht erreichbar (Netzwerk/CORS/falsche API-URL).
+        if (e.data?.detail || e.data?.title) {
+          state.authError = e.data.detail || e.data.title
+        } else if (e.data?.message) {
+          state.authError = e.data.message
+        } else if (e.status) {
+          state.authError = `Anmeldung fehlgeschlagen (HTTP ${e.status}).`
+        } else {
+          state.authError = 'Server nicht erreichbar (Netzwerk-/CORS-Fehler oder falsche API-URL).'
+        }
         return false
       } finally {
         state.authLoading = false
