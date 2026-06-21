@@ -1,5 +1,6 @@
 <script setup>
 import { onMounted, ref, reactive, computed, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useCatalogStore } from '@/stores/catalog'
 import { resolveMediaUrl } from '@/api/catalog'
@@ -13,6 +14,7 @@ import CatalogSkeleton from '@/components/catalog/CatalogSkeleton.vue'
 import CatalogProductModal from '@/components/catalog/CatalogProductModal.vue'
 
 const { t } = useI18n()
+const route = useRoute()
 const store = useCatalogStore()
 
 // Build human-readable active filter chips
@@ -80,6 +82,22 @@ const brokenAssets = reactive({})
 // Kategorie-Assets laden wenn Kategorie gewechselt wird
 watch(() => store.selectedCategoryId, (id) => {
   store.fetchCategoryAssets(id)
+})
+
+// Suchbegriff aus der URL übernehmen (?search=… bzw. ?q=…) — z. B. um aus dem
+// PIM heraus ein bestimmtes Produkt (per SKU) in der Vorschau zu öffnen.
+const initialSearch = route.query.search ?? route.query.q
+if (typeof initialSearch === 'string' && initialSearch.trim()) {
+  store.setSearch(initialSearch.trim())
+}
+
+// Reagiert auf nachträgliche URL-Änderungen (gleicher Tab, neue Suche).
+watch(() => route.query.search ?? route.query.q, (term) => {
+  const next = typeof term === 'string' ? term.trim() : ''
+  if (next !== (store.search || '')) {
+    store.setSearch(next)
+    store.fetchProducts()
+  }
 })
 
 onMounted(() => {

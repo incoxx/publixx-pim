@@ -5,7 +5,7 @@ import { useLocaleStore } from '@/stores/locale'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { computed } from 'vue'
-import { Command, Globe, LogOut, Menu, PanelsTopLeft, Pin, PinOff, Sparkles, User } from 'lucide-vue-next'
+import { Command, Eye, Globe, LogOut, Menu, PanelsTopLeft, Pin, PinOff, Sparkles, User } from 'lucide-vue-next'
 import { useCopilotStore } from '@/stores/copilot'
 import SemanticSearchBox from '@/components/layout/SemanticSearchBox.vue'
 
@@ -40,6 +40,12 @@ function setMode(mode) {
     // Beim Wechsel ins Menü die Cockpit-Seite verlassen.
     router.push('/dashboard')
   }
+}
+
+// Öffentliche Katalog-Vorschau in neuem Tab öffnen (Berechtigung preview.view).
+function openCatalogPreview() {
+  const url = router.resolve({ name: 'catalog' }).href
+  window.open(url, '_blank')
 }
 </script>
 
@@ -92,6 +98,18 @@ function setMode(mode) {
           <span class="hidden sm:inline">Menü</span>
         </button>
       </div>
+
+      <!-- Katalog-Vorschau (öffnet öffentlichen Katalog in neuem Tab) -->
+      <button
+        v-if="authStore.hasPermission('preview.view')"
+        class="flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-lg border transition-colors hover:bg-white/10"
+        :style="{ borderColor: 'var(--pim-toolbar-border)', color: 'inherit' }"
+        title="Katalog-Vorschau öffnen"
+        @click="openCatalogPreview"
+      >
+        <Eye class="w-3.5 h-3.5" :stroke-width="1.75" />
+        <span class="hidden sm:inline">Preview</span>
+      </button>
     </div>
 
     <!-- Right: Actions -->
