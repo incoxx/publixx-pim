@@ -4,15 +4,17 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Http\Resources\Api\V1\MediaResource;
+use App\Models\Media;
 use App\Models\PdfTemplate;
 use App\Models\Product;
 use App\Models\ProductAttributeValue;
-use App\Models\ProductSearchIndex;
 use App\Models\WatchlistItem;
 use App\Services\PdfTemplate\PdfTemplateService;
 use App\Services\Preview\ProductPreviewService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
@@ -235,17 +237,18 @@ class WatchlistController extends Controller
 
         // Subquery vermeidet Platzhalter-Limit bei großen Merklisten.
         $productIdQuery = WatchlistItem::where('user_id', $userId)->select('product_id');
-
         $total = WatchlistItem::where('user_id', $userId)->count();
 
-        $stats = ProductSearchIndex::whereIn('product_id', $productIdQuery)
-            ->selectRaw('COALESCE(SUM(attribute_completeness), 0) as sum_pct')
-            ->selectRaw('SUM(CASE WHEN attribute_completeness = 100 THEN 1 ELSE 0 END) as fully_complete')
-            ->first();
+        // Gleiche Definition wie das Dashboard (countCompleteProducts), auf die
+        // Merkliste eingegrenzt: aktiv + SKU + Name + mindestens ein Attributwert.
+        $fullyComplete = Product::whereIn('id', $productIdQuery)
+            ->where('status', 'active')
+            ->whereNotNull('sku')->where('sku', '!=', '')
+            ->whereNotNull('name')->where('name', '!=', '')
+            ->whereHas('attributeValues')
+            ->count();
 
-        $fullyComplete = (int) ($stats->fully_complete ?? 0);
-        // Fehlende Index-Zeilen / NULL zählen als 0 → ehrlicher Gesamtfortschritt.
-        $average = $total > 0 ? (int) round(((float) ($stats->sum_pct ?? 0)) / $total) : 0;
+        $average = $total > 0 ? (int) round(($fullyComplete / $total) * 100) : 0;
 
         return response()->json(['data' => [
             'fully_complete' => $fullyComplete,
@@ -253,6 +256,81 @@ class WatchlistController extends Controller
             'total' => $total,
             'average_percentage' => $average,
         ]]);
+    }
+
+    /**
+     * GET /api/v1/watchlist/data-quality
+     *
+     * Mehrdimensionale Datenqualität über die eigene Merkliste (gleiche Logik wie
+     * das Dashboard, auf den Arbeitsvorrat eingegrenzt).
+     */
+    public function dataQuality(Request $request): JsonResponse
+    {
+        $userId = $request->user()->id;
+        $productIdQuery = WatchlistItem::where('user_id', $userId)->select('product_id');
+        $total = WatchlistItem::where('user_id', $userId)->count();
+
+        if ($total === 0) {
+            return response()->json(['data' => ['overall' => 0, 'total_products' => 0, 'dimensions' => []]]);
+        }
+
+        $withMasterData = Product::whereIn('id', $productIdQuery)
+            ->whereNotNull('sku')->where('sku', '!=', '')
+            ->whereNotNull('name')->where('name', '!=', '')
+            ->count();
+        $withAttributes = Product::whereIn('id', $productIdQuery)->whereHas('attributeValues')->count();
+        $withMedia = Product::whereIn('id', $productIdQuery)->whereHas('media')->count();
+        $withPrices = Product::whereIn('id', $productIdQuery)->whereHas('prices')->count();
+        $withTranslations = DB::table('product_attribute_values')
+            ->whereIn('product_id', $productIdQuery)
+            ->whereNotNull('language')
+            ->groupBy('product_id')
+            ->havingRaw('COUNT(DISTINCT language) > 1')
+            ->pluck('product_id')
+            ->count();
+
+        $dimensions = [
+            ['key' => 'master_data', 'label' => 'Stammdaten', 'count' => $withMasterData, 'percentage' => (int) round(($withMasterData / $total) * 100)],
+            ['key' => 'attributes', 'label' => 'Attribute', 'count' => $withAttributes, 'percentage' => (int) round(($withAttributes / $total) * 100)],
+            ['key' => 'media', 'label' => 'Medien', 'count' => $withMedia, 'percentage' => (int) round(($withMedia / $total) * 100)],
+            ['key' => 'prices', 'label' => 'Preise', 'count' => $withPrices, 'percentage' => (int) round(($withPrices / $total) * 100)],
+            ['key' => 'translations', 'label' => 'Übersetzungen', 'count' => $withTranslations, 'percentage' => (int) round(($withTranslations / $total) * 100)],
+        ];
+        $overall = (int) round(array_sum(array_column($dimensions, 'percentage')) / count($dimensions));
+
+        return response()->json(['data' => [
+            'overall' => $overall,
+            'total_products' => $total,
+            'dimensions' => $dimensions,
+        ]]);
+    }
+
+    /**
+     * GET /api/v1/watchlist/media
+     *
+     * Medien der Produkte auf der eigenen Merkliste (für das Medien-Spotlight im
+     * Cockpit) — statt beliebiger Medien über alle Produkte.
+     */
+    public function media(Request $request): JsonResponse
+    {
+        $userId = $request->user()->id;
+        $productIdQuery = WatchlistItem::where('user_id', $userId)->select('product_id');
+
+        // Distinkte Medien-IDs der Merklisten-Produkte (über die Zuordnungstabelle).
+        $mediaIdQuery = DB::table('product_media_assignments')
+            ->whereIn('product_id', $productIdQuery)
+            ->select('media_id');
+
+        $total = Media::whereIn('id', $mediaIdQuery)->count();
+        $items = Media::whereIn('id', $mediaIdQuery)
+            ->orderByDesc('created_at')
+            ->limit(12)
+            ->get();
+
+        return response()->json([
+            'data' => MediaResource::collection($items),
+            'meta' => ['total' => $total],
+        ]);
     }
 
     /**

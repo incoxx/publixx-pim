@@ -37,6 +37,14 @@ export default {
     return client.get('/watchlist/completeness')
   },
 
+  dataQuality() {
+    return client.get('/watchlist/data-quality')
+  },
+
+  media() {
+    return client.get('/watchlist/media')
+  },
+
   exportExcel(lang = 'de') {
     return client.get('/watchlist/export/excel', { params: { lang }, responseType: 'blob' })
   },

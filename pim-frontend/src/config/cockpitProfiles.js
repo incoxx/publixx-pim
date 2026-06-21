@@ -15,8 +15,8 @@
 export const SYSTEM_DEFAULT_PROFILE = {
   tiles: ['products', 'preview', 'media', 'watchlist', 'reports', 'imports'],
   workplace: ['watchlist', 'notes', 'recent', 'tasks'],
-  content: [],
-  kpis: ['completeness', 'watchlist-completeness', 'quality'],
+  content: ['watchlist-media'],
+  kpis: ['watchlist-completeness', 'watchlist-quality', 'completeness', 'quality'],
 }
 
 // Rollenspezifische Cockpit-Layouts (Primärrolle entscheidet).
@@ -25,15 +25,15 @@ export const ROLE_PROFILES = {
   Marketing: {
     tiles: ['media', 'preview', 'catalog-templates', 'translation-jobs', 'portals', 'watchlist', 'reports'],
     workplace: ['watchlist', 'notes', 'recent', 'tasks'],
-    content: ['media-spotlight', 'translation-status'],
-    kpis: ['watchlist-completeness', 'completeness', 'quality'],
+    content: ['watchlist-media', 'translation-status'],
+    kpis: ['watchlist-completeness', 'watchlist-quality', 'completeness', 'quality'],
   },
   // Fokus Produktmanagement: Datenpflege, Struktur, Workflow.
   'Product Manager': {
     tiles: ['products', 'preview', 'search', 'imports', 'hierarchies', 'workflow'],
     workplace: ['tasks', 'recent', 'watchlist', 'notes'],
-    content: [],
-    kpis: ['watchlist-completeness', 'completeness', 'quality'],
+    content: ['watchlist-media'],
+    kpis: ['watchlist-completeness', 'watchlist-quality', 'completeness', 'quality'],
   },
 }
 
