@@ -497,9 +497,14 @@ DB-gestützte, je Rolle pflegbare Cockpit-Layouts. Auflösung im Cockpit jetzt:
 **Hinweis Verifikation:** Frontend-Build grün; Backend `php -l` sauber. Feature-Tests
 (MySQL) in der Build-Umgebung mangels DB nicht ausführbar.
 
-**Verbleibend (optional):** persönlicher Layout-Editor für Endnutzer:innen (Speichern
-in `user_preferences 'cockpit'`; Lesen ist bereits implementiert), Drag&Drop statt
-Hoch/Runter, marketingspezifische Füllstand-KPI (eigene Backend-Metrik).
+**Persönlicher Editor (ergänzt):** Endnutzer:innen passen ihr Cockpit selbst an
+(„Anpassen"-Button → Overlay mit demselben `CockpitLayoutEditor`). Speicherung in
+`user_preferences 'cockpit'` (neue Gruppe in `UserPreferenceController`),
+„Standard wiederherstellen" entfernt die persönliche Anpassung. Admin- und
+persönlicher Editor teilen sich die Komponente `CockpitLayoutEditor.vue`.
+
+**Verbleibend (optional):** Drag&Drop statt Hoch/Runter,
+marketingspezifische Füllstand-KPI (eigene Backend-Metrik).
 
 ---
 

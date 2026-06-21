@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { Search, RefreshCw } from 'lucide-vue-next'
+import { Search, RefreshCw, SlidersHorizontal, X, Save, RotateCcw } from 'lucide-vue-next'
 import { useDashboardStore } from '@/stores/dashboard'
 import { useAuthStore } from '@/stores/auth'
 import { useQuickSearchStore } from '@/stores/quickSearch'
@@ -9,6 +9,7 @@ import userPreferencesApi from '@/api/userPreferences'
 import cockpitProfilesApi from '@/api/cockpitProfiles'
 import { resolveCockpitProfile } from '@/config/cockpitProfiles'
 import { TILE_CATALOG, WIDGET_CATALOG } from '@/config/cockpitCatalog'
+import CockpitLayoutEditor from '@/components/cockpit/CockpitLayoutEditor.vue'
 
 const router = useRouter()
 const store = useDashboardStore()
@@ -69,6 +70,51 @@ function runSearch() {
   router.push('/quick-search')
 }
 
+// ─── Persönlicher Layout-Editor ────────────────────────────
+const showCustomize = ref(false)
+const draftLayout = ref({ tiles: [], workplace: [], content: [], kpis: [] })
+const savingPersonal = ref(false)
+
+function openCustomize() {
+  // Mit dem aktuell wirksamen Layout vorbefüllen
+  const p = profile.value
+  draftLayout.value = {
+    tiles: [...(p.tiles || [])],
+    workplace: [...(p.workplace || [])],
+    content: [...(p.content || [])],
+    kpis: [...(p.kpis || [])],
+  }
+  showCustomize.value = true
+}
+
+async function savePersonal() {
+  savingPersonal.value = true
+  try {
+    await userPreferencesApi.update('cockpit', {
+      tiles: draftLayout.value.tiles || [],
+      workplace: draftLayout.value.workplace || [],
+      content: draftLayout.value.content || [],
+      kpis: draftLayout.value.kpis || [],
+    })
+    personalProfile.value = { ...draftLayout.value }
+    showCustomize.value = false
+  } catch { /* ignore */ } finally {
+    savingPersonal.value = false
+  }
+}
+
+async function resetPersonal() {
+  savingPersonal.value = true
+  try {
+    // Leeres Objekt = persönliche Anpassung entfernen → Rollen-/Standard-Layout greift
+    await userPreferencesApi.update('cockpit', {})
+    personalProfile.value = null
+    showCustomize.value = false
+  } catch { /* ignore */ } finally {
+    savingPersonal.value = false
+  }
+}
+
 // ─── Daten-Refresh ─────────────────────────────────────────
 const AUTO_REFRESH_INTERVAL = 60000
 let refreshTimer = null
@@ -109,9 +155,15 @@ onUnmounted(() => {
             Cockpit · {{ authStore.userRole }}
           </p>
         </div>
-        <button class="pim-btn pim-btn-ghost text-xs" :disabled="store.loading" @click="refresh">
-          <RefreshCw class="w-4 h-4" :class="store.loading ? 'animate-spin' : ''" :stroke-width="2" />
-        </button>
+        <div class="flex items-center gap-2">
+          <button class="pim-btn pim-btn-ghost text-xs" title="Cockpit anpassen" @click="openCustomize">
+            <SlidersHorizontal class="w-4 h-4" :stroke-width="2" />
+            <span class="hidden sm:inline">Anpassen</span>
+          </button>
+          <button class="pim-btn pim-btn-ghost text-xs" :disabled="store.loading" @click="refresh">
+            <RefreshCw class="w-4 h-4" :class="store.loading ? 'animate-spin' : ''" :stroke-width="2" />
+          </button>
+        </div>
       </div>
 
       <form class="relative" @submit.prevent="runSearch">
@@ -182,5 +234,44 @@ onUnmounted(() => {
         />
       </div>
     </section>
+
+    <!-- Persönlicher Layout-Editor (Overlay) -->
+    <div
+      v-if="showCustomize"
+      class="fixed inset-0 z-40 flex items-start justify-center bg-black/40 p-4 overflow-y-auto"
+      @click.self="showCustomize = false"
+    >
+      <div class="bg-[var(--color-surface)] rounded-xl shadow-xl w-full max-w-2xl my-8 flex flex-col max-h-[85vh]">
+        <div class="flex items-center justify-between px-5 py-3 border-b border-[var(--color-border)] shrink-0">
+          <h3 class="text-sm font-semibold text-[var(--color-text-primary)] flex items-center gap-2">
+            <SlidersHorizontal class="w-4 h-4 text-[var(--color-accent)]" :stroke-width="2" />
+            Mein Cockpit anpassen
+          </h3>
+          <button class="p-1 rounded hover:bg-[var(--color-bg)]" @click="showCustomize = false">
+            <X class="w-4 h-4" :stroke-width="2" />
+          </button>
+        </div>
+
+        <div class="p-5 overflow-y-auto">
+          <p class="text-xs text-[var(--color-text-tertiary)] mb-4">
+            Wähle, welche Bausteine dein Cockpit zeigt. Deine Auswahl gilt nur für dich
+            und hat Vorrang vor dem Rollen-Standard.
+          </p>
+          <CockpitLayoutEditor v-model="draftLayout" />
+        </div>
+
+        <div class="flex items-center justify-between gap-2 px-5 py-3 border-t border-[var(--color-border)] shrink-0">
+          <button class="pim-btn pim-btn-ghost text-xs" :disabled="savingPersonal" @click="resetPersonal">
+            <RotateCcw class="w-3.5 h-3.5" :stroke-width="2" /> Standard wiederherstellen
+          </button>
+          <div class="flex items-center gap-2">
+            <button class="pim-btn pim-btn-secondary text-xs" :disabled="savingPersonal" @click="showCustomize = false">Abbrechen</button>
+            <button class="pim-btn pim-btn-primary text-xs" :disabled="savingPersonal" @click="savePersonal">
+              <Save class="w-3.5 h-3.5" :stroke-width="2" /> Speichern
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
