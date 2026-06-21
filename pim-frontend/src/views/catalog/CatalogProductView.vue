@@ -3,8 +3,8 @@ import { onMounted, computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useCatalogStore } from '@/stores/catalog'
-import { useAuthStore } from '@/stores/auth'
-import { ArrowLeft, Heart, Package, Braces, FileDown } from 'lucide-vue-next'
+import { useCatalogEditAccess } from '@/composables/useCatalogEditAccess'
+import { ArrowLeft, Heart, Package, Braces, FileDown, Pencil } from 'lucide-vue-next'
 import CatalogImageGallery from '@/components/catalog/CatalogImageGallery.vue'
 import CatalogProductDescription from '@/components/catalog/CatalogProductDescription.vue'
 import AttributeLiveEditPopover from '@/components/catalog/AttributeLiveEditPopover.vue'
@@ -17,10 +17,15 @@ const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
 const store = useCatalogStore()
-const authStore = useAuthStore()
 
-// Live-Edit: Inline-Bearbeitung von Beschreibungs-Attributen (nur mit Schreibrecht)
-const canLiveEdit = computed(() => authStore.hasPermission('products.edit'))
+// Live-Edit + "Zum Editor": nur in der internen Vorschau (/preview) mit Schreibrecht
+const canLiveEdit = useCatalogEditAccess()
+
+function goToEditor() {
+  if (product.value?.id) {
+    router.push({ name: 'product-detail', params: { id: product.value.id } })
+  }
+}
 const liveEdit = ref({ open: false, attributeId: null, label: '' })
 
 function openLiveEdit(attr) {
@@ -162,11 +167,22 @@ watch(() => route.params.id, (newId) => {
 
 <template>
   <div>
-    <!-- Back link -->
-    <button class="btn btn-ghost btn-sm gap-1 mb-4" @click="goBack">
-      <ArrowLeft class="w-4 h-4" />
-      {{ t('catalog.backToCatalog') }}
-    </button>
+    <!-- Back link + Zum Editor (nur interne Vorschau /preview mit Schreibrecht) -->
+    <div class="flex items-center justify-between mb-4">
+      <button class="btn btn-ghost btn-sm gap-1" @click="goBack">
+        <ArrowLeft class="w-4 h-4" />
+        {{ t('catalog.backToCatalog') }}
+      </button>
+      <button
+        v-if="canLiveEdit"
+        class="btn btn-primary btn-sm gap-1"
+        title="Im Produkteditor öffnen"
+        @click="goToEditor"
+      >
+        <Pencil class="w-3.5 h-3.5" />
+        Zum Editor
+      </button>
+    </div>
 
     <!-- Loading -->
     <div v-if="store.productLoading" class="flex justify-center py-20">

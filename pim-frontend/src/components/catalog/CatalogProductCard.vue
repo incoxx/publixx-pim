@@ -1,8 +1,10 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import { useCatalogStore } from '@/stores/catalog'
-import { Heart, Eye, Package, FileDown } from 'lucide-vue-next'
+import { useCatalogEditAccess } from '@/composables/useCatalogEditAccess'
+import { Heart, Eye, Package, FileDown, Pencil } from 'lucide-vue-next'
 import catalogApi from '@/api/catalog'
 import { triggerDownload } from '@/utils/download'
 
@@ -14,7 +16,16 @@ const props = defineProps({
 const emit = defineEmits(['view-detail'])
 
 const { t } = useI18n()
+const router = useRouter()
 const store = useCatalogStore()
+
+// "Zum Editor" nur in der internen Vorschau (/preview) für angemeldete Bearbeiter
+const canEdit = useCatalogEditAccess()
+
+function goToEditor(e) {
+  e.stopPropagation()
+  router.push({ name: 'product-detail', params: { id: props.product.id } })
+}
 
 const inWishlist = computed(() => store.isInWishlist(props.product.id))
 
@@ -110,6 +121,16 @@ const staggerDelay = computed(() => `${Math.min(props.index * 50, 400)}ms`)
           {{ t('catalog.productDetail') }}
         </span>
       </div>
+
+      <!-- Zum Editor (nur angemeldete Bearbeiter) -->
+      <button
+        v-if="canEdit"
+        class="btn btn-circle btn-sm absolute bottom-2 right-2 bg-base-100/80 backdrop-blur-sm border-0 hover:bg-base-100 shadow-sm"
+        title="Zum Editor"
+        @click="goToEditor($event)"
+      >
+        <Pencil class="w-4 h-4 text-base-content/50" />
+      </button>
     </figure>
 
     <div class="card-body p-4 gap-1">

@@ -104,19 +104,23 @@ export function resolveMediaUrl(path) {
 async function request(path, options = {}) {
   const url = _baseUrl + path
 
+  // skipAuth: kein Bearer-Token senden (z. B. beim Login — ein ggf. abgelaufenes
+  // Token soll den Login nicht stören).
+  const { skipAuth, ...fetchOptions } = options
+
   const headers = {
     Accept: 'application/json',
     'Content-Type': 'application/json',
   }
-  if (_token) headers.Authorization = `Bearer ${_token}`
+  if (_token && !skipAuth) headers.Authorization = `Bearer ${_token}`
 
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), _timeout)
 
   try {
     const resp = await fetch(url, {
-      ...options,
-      headers: { ...headers, ...options.headers },
+      ...fetchOptions,
+      headers: { ...headers, ...fetchOptions.headers },
       signal: controller.signal,
     })
     clearTimeout(timer)
@@ -164,6 +168,7 @@ export const catalogApi = {
   async login(email, password) {
     const resp = await request('/auth/login', {
       method: 'POST',
+      skipAuth: true,
       body: JSON.stringify({ email, password }),
     })
     const data = await resp.json()

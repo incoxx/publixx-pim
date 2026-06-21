@@ -1,8 +1,10 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import { useCatalogStore } from '@/stores/catalog'
-import { Heart, Package } from 'lucide-vue-next'
+import { useCatalogEditAccess } from '@/composables/useCatalogEditAccess'
+import { Heart, Package, Pencil } from 'lucide-vue-next'
 
 const props = defineProps({
   product: { type: Object, required: true },
@@ -12,7 +14,16 @@ const props = defineProps({
 const emit = defineEmits(['view-detail'])
 
 const { t } = useI18n()
+const router = useRouter()
 const store = useCatalogStore()
+
+// "Zum Editor" nur in der internen Vorschau (/preview) mit Schreibrecht
+const canEdit = useCatalogEditAccess()
+
+function goToEditor(e) {
+  e.stopPropagation()
+  router.push({ name: 'product-detail', params: { id: props.product.id } })
+}
 
 const inWishlist = computed(() => store.isInWishlist(props.product.id))
 
@@ -94,6 +105,14 @@ const staggerDelay = computed(() => `${Math.min(props.index * 30, 300)}ms`)
               class="w-4 h-4 transition-all duration-300"
               :class="inWishlist ? 'fill-error text-error' : 'text-base-content/30'"
             />
+          </button>
+          <button
+            v-if="canEdit"
+            class="btn btn-ghost btn-sm btn-circle flex-none"
+            title="Zum Editor"
+            @click="goToEditor($event)"
+          >
+            <Pencil class="w-4 h-4 text-base-content/50" />
           </button>
         </div>
       </div>

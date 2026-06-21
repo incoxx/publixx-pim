@@ -27,12 +27,17 @@ function switchLocale(code) {
 }
 
 // Ansichtsmodus umschalten: Cockpit (Fokus) ⇄ klassisches Menü-GUI.
+// Im Cockpit-Modus ist die Sidebar ausgeblendet; der Cockpit-Button dient daher
+// auch als verlässlicher "Zurück zum Cockpit"-Einstieg von jeder Maske aus.
 function setMode(mode) {
-  if (authStore.effectiveViewMode === mode) return
-  authStore.setViewMode(mode)
+  if (authStore.effectiveViewMode !== mode) {
+    authStore.setViewMode(mode)
+  }
   if (mode === 'cockpit') {
-    router.push('/cockpit')
+    // Immer zum Cockpit navigieren — auch wenn der Modus bereits aktiv ist.
+    if (route.name !== 'cockpit') router.push('/cockpit')
   } else if (route.name === 'cockpit') {
+    // Beim Wechsel ins Menü die Cockpit-Seite verlassen.
     router.push('/dashboard')
   }
 }

@@ -1,7 +1,7 @@
 import { markRaw } from 'vue'
 import {
   Package, Image as ImageIcon, Star, FileBarChart, Upload, Languages,
-  LayoutTemplate, Globe, GitBranch, ClipboardList, Search,
+  LayoutTemplate, Globe, GitBranch, ClipboardList, Search, LayoutGrid,
 } from 'lucide-vue-next'
 import NotesWidget from '@/components/dashboard/NotesWidget.vue'
 import WatchlistWidget from '@/components/dashboard/WatchlistWidget.vue'
@@ -11,6 +11,7 @@ import CompletenessWidget from '@/components/dashboard/CompletenessWidget.vue'
 import DataQualityWidget from '@/components/dashboard/DataQualityWidget.vue'
 import MediaSpotlightWidget from '@/components/dashboard/MediaSpotlightWidget.vue'
 import TranslationStatusWidget from '@/components/dashboard/TranslationStatusWidget.vue'
+import WatchlistCompletenessWidget from '@/components/dashboard/WatchlistCompletenessWidget.vue'
 
 /**
  * Gemeinsamer Katalog für Cockpit-Bausteine.
@@ -20,6 +21,7 @@ import TranslationStatusWidget from '@/components/dashboard/TranslationStatusWid
 // Schnellaktions-Kacheln: id → { label, to, icon, permission }
 export const TILE_CATALOG = {
   products:            { label: 'Produkte',      to: '/products',          icon: markRaw(Package),        permission: 'products.view' },
+  preview:             { label: 'Vorschau-Katalog', to: '/preview',        icon: markRaw(LayoutGrid),     permission: 'products.view' },
   media:               { label: 'Medien',        to: '/media',             icon: markRaw(ImageIcon),      permission: 'media.view' },
   watchlist:           { label: 'Merkliste',     to: '/watchlist',         icon: markRaw(Star),           permission: null },
   reports:             { label: 'Berichte',      to: '/reports',           icon: markRaw(FileBarChart),   permission: 'reports.view' },
@@ -42,6 +44,7 @@ export const WIDGET_CATALOG = {
   'media-spotlight':    { label: 'Medien-Spotlight',     component: markRaw(MediaSpotlightWidget),    permission: 'media.view',       zone: 'content' },
   'translation-status': { label: 'Übersetzungs-Status',  component: markRaw(TranslationStatusWidget), permission: 'translations.view', zone: 'content' },
   completeness:         { label: 'Produkt-Füllstand',    component: markRaw(CompletenessWidget),      permission: null,               zone: 'kpis' },
+  'watchlist-completeness': { label: 'Füllstand (Merkliste)', component: markRaw(WatchlistCompletenessWidget), permission: 'watchlist.view', zone: 'kpis' },
   quality:              { label: 'Datenqualität',        component: markRaw(DataQualityWidget),       permission: null,               zone: 'kpis' },
 }
 
