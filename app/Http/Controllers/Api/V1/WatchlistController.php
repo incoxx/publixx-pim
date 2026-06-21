@@ -274,28 +274,55 @@ class WatchlistController extends Controller
             return response()->json(['data' => ['overall' => 0, 'total_products' => 0, 'dimensions' => []]]);
         }
 
-        $withMasterData = Product::whereIn('id', $productIdQuery)
-            ->whereNotNull('sku')->where('sku', '!=', '')
-            ->whereNotNull('name')->where('name', '!=', '')
-            ->count();
-        $withAttributes = Product::whereIn('id', $productIdQuery)->whereHas('attributeValues')->count();
-        $withMedia = Product::whereIn('id', $productIdQuery)->whereHas('media')->count();
-        $withPrices = Product::whereIn('id', $productIdQuery)->whereHas('prices')->count();
-        $withTranslations = DB::table('product_attribute_values')
+        // Produkte mit Mehrsprachigkeit (≥ 2 Sprachen mit Attributwerten)
+        $multiLangIds = DB::table('product_attribute_values')
             ->whereIn('product_id', $productIdQuery)
             ->whereNotNull('language')
             ->groupBy('product_id')
             ->havingRaw('COUNT(DISTINCT language) > 1')
-            ->pluck('product_id')
-            ->count();
+            ->pluck('product_id');
 
-        $dimensions = [
-            ['key' => 'master_data', 'label' => 'Stammdaten', 'count' => $withMasterData, 'percentage' => (int) round(($withMasterData / $total) * 100)],
-            ['key' => 'attributes', 'label' => 'Attribute', 'count' => $withAttributes, 'percentage' => (int) round(($withAttributes / $total) * 100)],
-            ['key' => 'media', 'label' => 'Medien', 'count' => $withMedia, 'percentage' => (int) round(($withMedia / $total) * 100)],
-            ['key' => 'prices', 'label' => 'Preise', 'count' => $withPrices, 'percentage' => (int) round(($withPrices / $total) * 100)],
-            ['key' => 'translations', 'label' => 'Übersetzungen', 'count' => $withTranslations, 'percentage' => (int) round(($withTranslations / $total) * 100)],
+        // "Erfüllt"-Bedingung je Dimension als Closure auf einer Produkt-Query.
+        $met = [
+            'master_data' => fn ($q) => $q->whereNotNull('sku')->where('sku', '!=', '')->whereNotNull('name')->where('name', '!=', ''),
+            'attributes' => fn ($q) => $q->whereHas('attributeValues'),
+            'media' => fn ($q) => $q->whereHas('media'),
+            'prices' => fn ($q) => $q->whereHas('prices'),
+            'translations' => fn ($q) => $q->whereIn('id', $multiLangIds),
         ];
+        $labels = [
+            'master_data' => ['Stammdaten', 'SKU & Name ergänzen'],
+            'attributes' => ['Attribute', 'Attribute pflegen'],
+            'media' => ['Medien', 'Bilder/Medien hinzufügen'],
+            'prices' => ['Preise', 'Preise pflegen'],
+            'translations' => ['Übersetzungen', 'Übersetzungen ergänzen'],
+        ];
+
+        $missingLimit = 50;
+        $dimensions = [];
+        foreach ($met as $key => $condition) {
+            $count = Product::whereIn('id', $productIdQuery)->where($condition)->count();
+
+            // Betroffene (nicht erfüllte) Produkte — konkret WELCHE.
+            $missing = Product::whereIn('id', $productIdQuery)
+                ->whereNot($condition)
+                ->orderBy('sku')
+                ->limit($missingLimit)
+                ->get(['id', 'sku', 'name'])
+                ->map(fn ($p) => ['id' => $p->id, 'sku' => $p->sku, 'name' => $p->name])
+                ->all();
+
+            $dimensions[] = [
+                'key' => $key,
+                'label' => $labels[$key][0],
+                'action' => $labels[$key][1],
+                'count' => $count,
+                'missing_count' => $total - $count,
+                'percentage' => (int) round(($count / $total) * 100),
+                'missing' => $missing,
+            ];
+        }
+
         $overall = (int) round(array_sum(array_column($dimensions, 'percentage')) / count($dimensions));
 
         return response()->json(['data' => [

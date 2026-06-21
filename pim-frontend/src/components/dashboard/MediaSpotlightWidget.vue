@@ -31,6 +31,12 @@ function altMissing(m) {
   return m.media_type === 'image' && !m.alt_text_de && !m.alt_text_en
 }
 
+// Klick auf ein Asset öffnet die Datei (Bild/PDF) in neuem Tab.
+function openMedia(m) {
+  const url = m.url || m.file_url || m.thumb_url
+  if (url) window.open(url, '_blank', 'noopener')
+}
+
 onMounted(async () => {
   loading.value = true
   try {
@@ -68,7 +74,7 @@ onMounted(async () => {
             :key="m.id"
             class="relative aspect-square rounded-lg overflow-hidden border border-[var(--color-border)] bg-[var(--color-bg)] hover:border-[var(--color-accent)] transition group"
             :title="m.title_de || m.file_name"
-            @click="router.push({ name: 'media' })"
+            @click="openMedia(m)"
           >
             <img
               v-if="m.media_type === 'image'"
