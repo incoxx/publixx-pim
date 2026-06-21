@@ -29,6 +29,16 @@ return Application::configure(basePath: dirname(__DIR__))
             \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
         ]);
 
+        // CSRF-Ausnahmen: Die App authentifiziert per Bearer-Token (Sanctum PAT),
+        // nicht per Session-Cookie. Auf "stateful" Domains (z. B. der eingebettete
+        // Katalog unter derselben Domain) erzwingt Sanctum sonst CSRF für POSTs und
+        // blockiert den token-basierten Login/Embed mit HTTP 419. Diese Endpoints
+        // stellen Token aus bzw. sind der öffentliche, einbettbare Katalog:
+        $middleware->validateCsrfTokens(except: [
+            'api/v1/auth/login',
+            'api/v1/catalog/*',
+        ]);
+
         // Return 401 JSON for unauthenticated API requests instead of redirecting to login
         $middleware->redirectGuestsTo(fn (Request $request) => $request->expectsJson() ? null : null);
     })
