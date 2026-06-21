@@ -1,7 +1,7 @@
 import { markRaw } from 'vue'
 import {
   Package, Image as ImageIcon, Star, FileBarChart, Upload, Languages,
-  LayoutTemplate, Globe, GitBranch, ClipboardList, Search,
+  LayoutTemplate, Globe, GitBranch, ClipboardList, Search, LayoutGrid,
 } from 'lucide-vue-next'
 import NotesWidget from '@/components/dashboard/NotesWidget.vue'
 import WatchlistWidget from '@/components/dashboard/WatchlistWidget.vue'
@@ -21,6 +21,7 @@ import WatchlistCompletenessWidget from '@/components/dashboard/WatchlistComplet
 // Schnellaktions-Kacheln: id → { label, to, icon, permission }
 export const TILE_CATALOG = {
   products:            { label: 'Produkte',      to: '/products',          icon: markRaw(Package),        permission: 'products.view' },
+  preview:             { label: 'Vorschau-Katalog', to: '/preview',        icon: markRaw(LayoutGrid),     permission: 'products.view' },
   media:               { label: 'Medien',        to: '/media',             icon: markRaw(ImageIcon),      permission: 'media.view' },
   watchlist:           { label: 'Merkliste',     to: '/watchlist',         icon: markRaw(Star),           permission: null },
   reports:             { label: 'Berichte',      to: '/reports',           icon: markRaw(FileBarChart),   permission: 'reports.view' },

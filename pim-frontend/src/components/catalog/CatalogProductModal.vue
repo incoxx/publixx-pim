@@ -1,9 +1,10 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import { useCatalogStore } from '@/stores/catalog'
-import { useAuthStore } from '@/stores/auth'
-import { X, Heart, FileDown } from 'lucide-vue-next'
+import { useCatalogEditAccess } from '@/composables/useCatalogEditAccess'
+import { X, Heart, FileDown, Pencil } from 'lucide-vue-next'
 import CatalogImageGallery from './CatalogImageGallery.vue'
 import CatalogProductDescription from './CatalogProductDescription.vue'
 import AttributeLiveEditPopover from './AttributeLiveEditPopover.vue'
@@ -20,11 +21,19 @@ const props = defineProps({
 const emit = defineEmits(['close'])
 
 const { t } = useI18n()
+const router = useRouter()
 const store = useCatalogStore()
-const authStore = useAuthStore()
 
-// Live-Edit: Inline-Bearbeitung von Beschreibungs-Attributen (nur mit Schreibrecht)
-const canLiveEdit = computed(() => authStore.hasPermission('products.edit'))
+// Live-Edit + "Zum Editor": nur in der internen Vorschau (/preview) mit Schreibrecht
+const canLiveEdit = useCatalogEditAccess()
+
+function goToEditor() {
+  const id = props.productId || product.value?.id
+  if (id) {
+    emit('close')
+    router.push({ name: 'product-detail', params: { id } })
+  }
+}
 const liveEdit = ref({ open: false, attributeId: null, label: '' })
 
 function openLiveEdit(attr) {
@@ -163,6 +172,17 @@ function formatPrice(price) {
 <template>
   <dialog class="modal" :class="{ 'modal-open': open }">
     <div :class="['modal-box w-11/12 p-0 overflow-hidden', modalSizeClass]">
+      <!-- Zum Editor (nur interne Vorschau /preview mit Schreibrecht) -->
+      <button
+        v-if="canLiveEdit"
+        class="btn btn-sm btn-primary gap-1 absolute right-14 top-3 z-10"
+        title="Im Produkteditor öffnen"
+        @click="goToEditor"
+      >
+        <Pencil class="w-3.5 h-3.5" />
+        Zum Editor
+      </button>
+
       <!-- Close button -->
       <button
         class="btn btn-sm btn-circle btn-ghost absolute right-3 top-3 z-10"

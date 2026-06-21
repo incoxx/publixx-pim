@@ -13,7 +13,7 @@
 
 // System-Standard für alle Rollen ohne eigenes Profil.
 export const SYSTEM_DEFAULT_PROFILE = {
-  tiles: ['products', 'media', 'watchlist', 'reports', 'imports'],
+  tiles: ['products', 'preview', 'media', 'watchlist', 'reports', 'imports'],
   workplace: ['watchlist', 'notes', 'recent', 'tasks'],
   content: [],
   kpis: ['completeness', 'watchlist-completeness', 'quality'],
@@ -23,14 +23,14 @@ export const SYSTEM_DEFAULT_PROFILE = {
 export const ROLE_PROFILES = {
   // Fokus Marketing: Medien, Content, Übersetzungen, Ausspielung.
   Marketing: {
-    tiles: ['media', 'catalog-templates', 'translation-jobs', 'portals', 'watchlist', 'reports'],
+    tiles: ['media', 'preview', 'catalog-templates', 'translation-jobs', 'portals', 'watchlist', 'reports'],
     workplace: ['watchlist', 'notes', 'recent', 'tasks'],
     content: ['media-spotlight', 'translation-status'],
     kpis: ['watchlist-completeness', 'completeness', 'quality'],
   },
   // Fokus Produktmanagement: Datenpflege, Struktur, Workflow.
   'Product Manager': {
-    tiles: ['products', 'search', 'imports', 'hierarchies', 'workflow', 'reports'],
+    tiles: ['products', 'preview', 'search', 'imports', 'hierarchies', 'workflow'],
     workplace: ['tasks', 'recent', 'watchlist', 'notes'],
     content: [],
     kpis: ['watchlist-completeness', 'completeness', 'quality'],
