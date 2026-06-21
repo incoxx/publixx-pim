@@ -12,13 +12,20 @@ const routes = [
   },
   {
     path: '/',
-    redirect: '/dashboard',
+    // Startseite richtet sich nach dem wirksamen Ansichtsmodus (Benutzer schlägt Rolle).
+    redirect: () => (useAuthStore().isCockpitMode ? '/cockpit' : '/dashboard'),
   },
   {
     path: '/dashboard',
     name: 'dashboard',
     component: () => import('@/views/dashboard/DashboardView.vue'),
     meta: { title: 'Dashboard' },
+  },
+  {
+    path: '/cockpit',
+    name: 'cockpit',
+    component: () => import('@/views/cockpit/CockpitView.vue'),
+    meta: { title: 'Cockpit' },
   },
   {
     path: '/search',
@@ -397,6 +404,12 @@ const routes = [
     name: 'roles',
     component: () => import('@/views/roles/RoleView.vue'),
     meta: { title: 'Rollen' },
+  },
+  {
+    path: '/cockpit-editor',
+    name: 'cockpit-editor',
+    component: () => import('@/views/admin/CockpitEditorView.vue'),
+    meta: { title: 'Cockpit-Layouts' },
   },
   {
     path: '/access-links',

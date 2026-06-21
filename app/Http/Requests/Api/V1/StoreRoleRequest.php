@@ -18,6 +18,7 @@ class StoreRoleRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:255', 'unique:roles,name'],
             'guard_name' => ['sometimes', 'string'],
+            'default_view_mode' => ['sometimes', 'string', 'in:cockpit,gui'],
             'permissions' => ['sometimes', 'array'],
             'permissions.*' => ['string', 'exists:permissions,name'],
         ];

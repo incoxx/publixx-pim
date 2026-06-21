@@ -25,6 +25,7 @@ class UserResource extends JsonResource
                 return $this->roles->map(fn ($role) => [
                     'id' => $role->id,
                     'name' => $role->name,
+                    'default_view_mode' => $role->default_view_mode ?? 'gui',
                     'permissions' => $role->relationLoaded('permissions')
                         ? $role->permissions->pluck('name')->values()
                         : [],

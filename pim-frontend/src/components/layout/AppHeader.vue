@@ -3,9 +3,9 @@ import { useAuthStore } from '@/stores/auth'
 import { useTabStore } from '@/stores/tabs'
 import { useLocaleStore } from '@/stores/locale'
 import { useI18n } from 'vue-i18n'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { computed } from 'vue'
-import { Command, Globe, LogOut, Menu, Pin, PinOff, Sparkles, User } from 'lucide-vue-next'
+import { Command, Globe, LogOut, Menu, PanelsTopLeft, Pin, PinOff, Sparkles, User } from 'lucide-vue-next'
 import { useCopilotStore } from '@/stores/copilot'
 import SemanticSearchBox from '@/components/layout/SemanticSearchBox.vue'
 
@@ -15,6 +15,7 @@ const tabStore = useTabStore()
 const localeStore = useLocaleStore()
 const { t, locale: i18nLocale } = useI18n()
 const route = useRoute()
+const router = useRouter()
 
 const pageTitle = computed(() => route.meta.title || '')
 const isPinned = computed(() => tabStore.isRoutePinned(route))
@@ -23,6 +24,17 @@ const canPin = computed(() => route.name && route.name !== 'login' && route.name
 function switchLocale(code) {
   localeStore.setUiLocale(code)
   i18nLocale.value = code
+}
+
+// Ansichtsmodus umschalten: Cockpit (Fokus) ⇄ klassisches Menü-GUI.
+function setMode(mode) {
+  if (authStore.effectiveViewMode === mode) return
+  authStore.setViewMode(mode)
+  if (mode === 'cockpit') {
+    router.push('/cockpit')
+  } else if (route.name === 'cockpit') {
+    router.push('/dashboard')
+  }
 }
 </script>
 
@@ -51,6 +63,30 @@ function switchLocale(code) {
         <Pin v-if="!isPinned" class="w-3.5 h-3.5" :stroke-width="1.75" />
         <PinOff v-else class="w-3.5 h-3.5" :stroke-width="1.75" />
       </button>
+
+      <!-- Ansichts-Umschalter: Cockpit (Fokus) ⇄ klassisches Menü -->
+      <div class="ml-1 flex items-center rounded-lg border p-0.5" :style="{ borderColor: 'var(--pim-toolbar-border)' }">
+        <button
+          class="flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-md transition-colors"
+          :class="authStore.effectiveViewMode === 'cockpit' ? 'bg-white/15 font-medium' : 'hover:bg-white/10 opacity-70'"
+          style="color: inherit"
+          title="Cockpit / Fokus-Modus"
+          @click="setMode('cockpit')"
+        >
+          <PanelsTopLeft class="w-3.5 h-3.5" :stroke-width="1.75" />
+          <span class="hidden sm:inline">Cockpit</span>
+        </button>
+        <button
+          class="flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-md transition-colors"
+          :class="authStore.effectiveViewMode === 'gui' ? 'bg-white/15 font-medium' : 'hover:bg-white/10 opacity-70'"
+          style="color: inherit"
+          title="Klassisches Menü"
+          @click="setMode('gui')"
+        >
+          <Menu class="w-3.5 h-3.5" :stroke-width="1.75" />
+          <span class="hidden sm:inline">Menü</span>
+        </button>
+      </div>
     </div>
 
     <!-- Right: Actions -->

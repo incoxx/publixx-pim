@@ -32,6 +32,14 @@ class UserPreferenceController extends Controller
             return $this->updateFooterPresets($request);
         }
 
+        if ($group === 'view_mode') {
+            return $this->updateViewMode($request);
+        }
+
+        if ($group === 'cockpit') {
+            return $this->updateCockpit($request);
+        }
+
         $request->validate([
             'preset' => 'sometimes|string|in:light,dark-navy,dark-charcoal,custom',
             'sidebar_bg' => 'sometimes|nullable|string|regex:/^#[0-9A-Fa-f]{6}$/',
@@ -79,6 +87,54 @@ class UserPreferenceController extends Controller
             'footer_presets',
             ['slots' => $request->input('slots')],
         );
+
+        return response()->json(['data' => $pref->payload]);
+    }
+
+    /**
+     * Ansichtsmodus speichern (Cockpit vs. klassisches Menü-GUI).
+     * Diese persönliche Wahl schlägt den Rollen-Standard. mode=null folgt wieder der Rolle.
+     */
+    private function updateViewMode(Request $request): JsonResponse
+    {
+        $request->validate([
+            'mode' => 'present|nullable|string|in:cockpit,gui',
+        ]);
+
+        $pref = UserPreference::setPayload(
+            $request->user()->id,
+            'view_mode',
+            ['mode' => $request->input('mode')],
+        );
+
+        return response()->json(['data' => $pref->payload]);
+    }
+
+    /**
+     * Persönliches Cockpit-Layout speichern (Phase 4, Endnutzer).
+     * Leeres Objekt (keine Zonen) = persönliche Anpassung entfernen → Rollen-Layout greift.
+     */
+    private function updateCockpit(Request $request): JsonResponse
+    {
+        $request->validate([
+            'tiles' => 'sometimes|array',
+            'tiles.*' => 'string|max:100',
+            'workplace' => 'sometimes|array',
+            'workplace.*' => 'string|max:100',
+            'content' => 'sometimes|array',
+            'content.*' => 'string|max:100',
+            'kpis' => 'sometimes|array',
+            'kpis.*' => 'string|max:100',
+        ]);
+
+        $payload = [];
+        foreach (['tiles', 'workplace', 'content', 'kpis'] as $zone) {
+            if ($request->has($zone)) {
+                $payload[$zone] = array_values($request->input($zone, []));
+            }
+        }
+
+        $pref = UserPreference::setPayload($request->user()->id, 'cockpit', $payload);
 
         return response()->json(['data' => $pref->payload]);
     }

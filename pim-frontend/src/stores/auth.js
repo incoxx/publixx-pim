@@ -1,11 +1,15 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import authApi from '@/api/auth'
+import userPreferencesApi from '@/api/userPreferences'
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref(null)
   const token = ref(localStorage.getItem('pim_token') || null)
   const locale = ref(localStorage.getItem('pim_locale') || 'de')
+  // Ansichtsmodus: 'cockpit' | 'gui' | null (null = der Rollen-Standard entscheidet).
+  // Persönliche Wahl wird lokal + serverseitig gespeichert und schlägt die Rolle.
+  const viewModePref = ref(localStorage.getItem('pim_view_mode') || null)
   const commandPaletteOpen = ref(false)
   const sidebarCollapsed = ref(false)
   const sidebarMobileOpen = ref(false)
@@ -23,6 +27,13 @@ export const useAuthStore = defineStore('auth', () => {
   const permissions = computed(() => user.value?.all_permissions || [])
   const entityRestrictions = computed(() => user.value?.entity_restrictions || [])
   const tabPermissions = computed(() => user.value?.tab_permissions || {})
+
+  // Standard-Ansicht der Primärrolle (vom Backend geliefert, sonst 'gui').
+  const roleDefaultViewMode = computed(() => user.value?.roles?.[0]?.default_view_mode || 'gui')
+
+  // Wirksamer Modus: Benutzereinstellung schlägt Rolle, sonst Rollen-Standard, sonst 'gui'.
+  const effectiveViewMode = computed(() => viewModePref.value || roleDefaultViewMode.value || 'gui')
+  const isCockpitMode = computed(() => effectiveViewMode.value === 'cockpit')
 
   /**
    * Get the access level for a product editor tab.
@@ -77,6 +88,7 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const { data } = await authApi.me()
       user.value = data.data || data
+      loadViewMode()
     } catch {
       token.value = null
       localStorage.removeItem('pim_token')
@@ -86,6 +98,44 @@ export const useAuthStore = defineStore('auth', () => {
   function setLocale(loc) {
     locale.value = loc
     localStorage.setItem('pim_locale', loc)
+  }
+
+  /**
+   * Ansichtsmodus setzen (persönliche Wahl, schlägt die Rolle).
+   * mode: 'cockpit' | 'gui' | null (null = wieder dem Rollen-Standard folgen).
+   */
+  function setViewMode(mode) {
+    viewModePref.value = mode
+    if (mode) {
+      localStorage.setItem('pim_view_mode', mode)
+    } else {
+      localStorage.removeItem('pim_view_mode')
+    }
+    // Serverseitig persistieren (überlebt Gerätewechsel), Fehler bewusst ignorieren.
+    userPreferencesApi.update('view_mode', { mode }).catch(() => {})
+  }
+
+  function toggleViewMode() {
+    setViewMode(effectiveViewMode.value === 'cockpit' ? 'gui' : 'cockpit')
+  }
+
+  /** Serverseitig gespeicherte Modus-Wahl laden (überschreibt lokalen Stand). */
+  async function loadViewMode() {
+    try {
+      const { data } = await userPreferencesApi.get('view_mode')
+      const payload = data.data
+      // payload null/[] = nie gesetzt → lokalen Stand belassen
+      if (!payload || Array.isArray(payload)) return
+      const mode = payload.mode
+      if (mode === 'cockpit' || mode === 'gui') {
+        viewModePref.value = mode
+        localStorage.setItem('pim_view_mode', mode)
+      } else if (mode === null) {
+        // Server: "der Rolle folgen" → veralteten lokalen Override entfernen
+        viewModePref.value = null
+        localStorage.removeItem('pim_view_mode')
+      }
+    } catch { /* ignore */ }
   }
 
   function toggleCommandPalette() {
@@ -148,7 +198,9 @@ export const useAuthStore = defineStore('auth', () => {
     commandPaletteOpen, sidebarCollapsed, sidebarMobileOpen, sidebarWidth, sidebarCollapsedSections,
     panelOpen, panelComponent, panelProps, panelWidth,
     isAuthenticated, userName, userRole, isAdmin, permissions, entityRestrictions, tabPermissions,
+    viewModePref, roleDefaultViewMode, effectiveViewMode, isCockpitMode,
     hasPermission, hasInstanceAccess, getTabAccess, login, logout, checkAuth, setLocale,
+    setViewMode, toggleViewMode, loadViewMode,
     toggleCommandPalette, toggleSidebar, toggleMobileSidebar, closeMobileSidebar, setSidebarWidth, toggleSidebarSection, collapseAllSections,
     openPanel, closePanel,
   }
