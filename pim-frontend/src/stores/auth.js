@@ -123,10 +123,17 @@ export const useAuthStore = defineStore('auth', () => {
   async function loadViewMode() {
     try {
       const { data } = await userPreferencesApi.get('view_mode')
-      const mode = (data.data || data)?.mode || null
+      const payload = data.data
+      // payload null/[] = nie gesetzt → lokalen Stand belassen
+      if (!payload || Array.isArray(payload)) return
+      const mode = payload.mode
       if (mode === 'cockpit' || mode === 'gui') {
         viewModePref.value = mode
         localStorage.setItem('pim_view_mode', mode)
+      } else if (mode === null) {
+        // Server: "der Rolle folgen" → veralteten lokalen Override entfernen
+        viewModePref.value = null
+        localStorage.removeItem('pim_view_mode')
       }
     } catch { /* ignore */ }
   }

@@ -40,20 +40,6 @@ class CockpitProfileController extends Controller
     }
 
     /**
-     * GET /cockpit-profiles
-     * Alle gespeicherten Rollen-Layouts (Admin).
-     */
-    public function index(Request $request): JsonResponse
-    {
-        $this->ensureCanManage($request);
-
-        $profiles = CockpitProfile::whereNotNull('role_id')->get()
-            ->mapWithKeys(fn (CockpitProfile $p) => [$p->role_id => $p->layout]);
-
-        return response()->json(['data' => $profiles]);
-    }
-
-    /**
      * GET /cockpit-profiles/{role}
      * Gespeichertes Layout einer Rolle (Admin) — oder null, wenn nicht gepflegt.
      */

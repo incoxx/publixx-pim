@@ -7,7 +7,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useQuickSearchStore } from '@/stores/quickSearch'
 import userPreferencesApi from '@/api/userPreferences'
 import cockpitProfilesApi from '@/api/cockpitProfiles'
-import { resolveCockpitProfile } from '@/config/cockpitProfiles'
+import { resolveCockpitProfile, isLayout } from '@/config/cockpitProfiles'
 import { TILE_CATALOG, WIDGET_CATALOG } from '@/config/cockpitCatalog'
 import CockpitLayoutEditor from '@/components/cockpit/CockpitLayoutEditor.vue'
 
@@ -125,17 +125,19 @@ async function refresh() {
 onMounted(async () => {
   store.fetchDashboard()
   refreshTimer = setInterval(refresh, AUTO_REFRESH_INTERVAL)
-  // Gespeichertes Rollen-Layout (Admin-Editor) laden.
-  try {
-    const { data } = await cockpitProfilesApi.mine()
-    savedRoleProfile.value = data.data || null
-  } catch { /* ignore */ }
-  // Persönliches Cockpit-Layout — vorwärtskompatibel auslesen.
-  try {
-    const { data } = await userPreferencesApi.get('cockpit')
-    const payload = data.data || data
-    if (payload && Array.isArray(payload.tiles)) personalProfile.value = payload
-  } catch { /* ignore */ }
+  // Gespeichertes Rollen-Layout (Admin) und persönliches Layout parallel laden.
+  const [roleRes, persRes] = await Promise.allSettled([
+    cockpitProfilesApi.mine(),
+    userPreferencesApi.get('cockpit'),
+  ])
+  if (roleRes.status === 'fulfilled') {
+    savedRoleProfile.value = roleRes.value.data?.data || null
+  }
+  if (persRes.status === 'fulfilled') {
+    const payload = persRes.value.data?.data || persRes.value.data
+    // Nur als persönlicher Override übernehmen, wenn echtes (nicht-leeres) Layout.
+    personalProfile.value = isLayout(payload) ? payload : null
+  }
 })
 onUnmounted(() => {
   if (refreshTimer) clearInterval(refreshTimer)

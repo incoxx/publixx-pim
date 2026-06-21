@@ -834,7 +834,6 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
 
     // Cockpit-Layouts (Phase 4): eigenes Layout lesen + Rollen-Layouts verwalten (roles.edit)
     Route::get('cockpit-profiles/mine', [\App\Http\Controllers\Api\V1\CockpitProfileController::class, 'mine']);
-    Route::get('cockpit-profiles', [\App\Http\Controllers\Api\V1\CockpitProfileController::class, 'index']);
     Route::get('cockpit-profiles/{role}', [\App\Http\Controllers\Api\V1\CockpitProfileController::class, 'show']);
     Route::put('cockpit-profiles/{role}', [\App\Http\Controllers\Api\V1\CockpitProfileController::class, 'update']);
     Route::delete('cockpit-profiles/{role}', [\App\Http\Controllers\Api\V1\CockpitProfileController::class, 'destroy']);

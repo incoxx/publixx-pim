@@ -37,10 +37,15 @@ export const ROLE_PROFILES = {
   },
 }
 
-/** Prüft, ob ein Layout-Objekt mindestens eine Zone als Array enthält. */
-function isLayout(obj) {
-  return !!obj && (Array.isArray(obj.tiles) || Array.isArray(obj.workplace)
-    || Array.isArray(obj.content) || Array.isArray(obj.kpis))
+/**
+ * Prüft, ob ein Layout-Objekt einen echten Override darstellt, d. h. mindestens
+ * eine Zone mit Inhalt. Ein vollständig leeres Layout (alle Zonen leer) gilt NICHT
+ * als Override → es greift der nächste Fallback (Rolle bzw. System).
+ */
+export function isLayout(obj) {
+  if (!obj) return false
+  return ['tiles', 'workplace', 'content', 'kpis']
+    .some(k => Array.isArray(obj[k]) && obj[k].length > 0)
 }
 
 /**
