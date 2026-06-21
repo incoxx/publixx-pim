@@ -207,7 +207,7 @@ const sections = computed(() => {
             { icon: Users, label: () => t('nav.users'), to: '/users', permission: 'users.view' },
             { icon: ScrollText, label: () => 'Benutzer-Audit', to: '/users/audit', permission: 'users.view' },
             { icon: Shield, label: () => 'Rollen', to: '/roles', permission: 'roles.view' },
-            { icon: LayoutDashboard, label: () => 'Cockpit-Layouts', to: '/cockpit-editor', permission: 'roles.edit' },
+            { icon: LayoutDashboard, label: () => 'Cockpit-Layouts', to: '/cockpit-editor', permission: 'cockpit-layouts.view' },
             { icon: Link2, label: () => 'Zugangslinks', to: '/access-links', permission: 'access-links.manage' },
           ],
         },

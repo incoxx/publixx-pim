@@ -123,6 +123,10 @@ class RoleAndPermissionSeeder extends Seeder
             'excel-templates.view', 'excel-templates.create', 'excel-templates.edit', 'excel-templates.delete',
             // Meilisearch-Verwaltung (Diagnose + Wartungsaktionen, Administration)
             'meilisearch-admin.view', 'meilisearch-admin.manage',
+            // Katalog-Vorschau (Preview-Einstieg im Header → öffentlicher Katalog)
+            'preview.view',
+            // Cockpit-Layouts (rollenbasierte Cockpit-Ansicht verwalten)
+            'cockpit-layouts.view', 'cockpit-layouts.edit',
         ];
 
         foreach ($permissions as $permissionName) {
@@ -165,6 +169,7 @@ class RoleAndPermissionSeeder extends Seeder
             'media-usage-types.view', 'media-usage-types.create', 'media-usage-types.edit', 'media-usage-types.delete',
             'products.view',
             'prices.view',
+            'preview.view',
             'imports.view', 'imports.create', 'imports.execute', 'imports.delete',
             'workflow.view',
             'workflow-statuses.view', 'workflows.view', 'teams.view', 'projects.view',
@@ -183,6 +188,7 @@ class RoleAndPermissionSeeder extends Seeder
         );
         $productManager->syncPermissions([
             'products.view', 'products.create', 'products.edit',
+            'preview.view',
             'product-types.view',
             'media.view', 'media.create', 'media.edit', 'media.delete',
             'prices.view', 'prices.create', 'prices.edit',
@@ -217,8 +223,9 @@ class RoleAndPermissionSeeder extends Seeder
         );
         $viewer->syncPermissions(
             Permission::where('name', 'LIKE', '%.view')
-                // Benutzer-/Rollen-Verwaltung und Meilisearch-Wartung sind nicht "nur lesen"
-                ->whereNotIn('name', ['users.view', 'roles.view', 'meilisearch-admin.view'])
+                // Benutzer-/Rollen-Verwaltung, Meilisearch-Wartung und Cockpit-Layouts
+                // sind Administrationsfunktionen, nicht "nur lesen"
+                ->whereNotIn('name', ['users.view', 'roles.view', 'meilisearch-admin.view', 'cockpit-layouts.view'])
                 ->get()
         );
         // KI-Assistent (Chat) zusätzlich erlauben — copilot.use ist keine .view-Permission
@@ -315,6 +322,7 @@ class RoleAndPermissionSeeder extends Seeder
             // Ausspielung
             'portals.view',
             'catalog-templates.view',
+            'preview.view',
             'reports.view',
             // Arbeitsauswahl / Suche / Export sichten
             'watchlist.view', 'watchlist.edit',

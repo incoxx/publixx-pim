@@ -256,13 +256,13 @@ function openVariantGroup() {
   }
 }
 
-/** Öffnet die öffentliche Katalog-Vorschau des Produkts in neuem Tab. */
+/** Öffnet die öffentliche Katalog-Vorschau des Produkts in neuem Tab.
+ *  Wir öffnen den Katalog mit der SKU als Suchparameter (?search=…), statt den
+ *  Produkt-Deeplink zu nutzen — robuster und an anderer Stelle wiederverwendbar. */
 function openPreview() {
-  // Tatsächlich geladene Produkt-ID verwenden (route.params kann im Tab-System
-  // abweichen); Fallback auf den Route-Parameter.
-  const id = product.value?.id || route.params.id
-  if (!id) return
-  const url = router.resolve({ name: 'catalog-product', params: { id } }).href
+  const term = product.value?.sku || product.value?.name
+  if (!term) return
+  const url = router.resolve({ name: 'catalog', query: { search: term } }).href
   window.open(url, '_blank')
 }
 

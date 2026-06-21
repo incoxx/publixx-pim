@@ -15,7 +15,8 @@ use Symfony\Component\HttpFoundation\Response;
  * Rollenspezifische Cockpit-Layouts (Phase 4, Admin-Editor).
  *
  * Lesen des eigenen Layouts: jede:r authentifizierte Nutzer:in (mine()).
- * Verwalten der Rollen-Layouts: Berechtigung 'roles.edit'.
+ * Lesen der Rollen-Layouts/Rollenliste: Berechtigung 'cockpit-layouts.view'.
+ * Verwalten (anlegen/aktualisieren/löschen): Berechtigung 'cockpit-layouts.edit'.
  */
 class CockpitProfileController extends Controller
 {
@@ -40,12 +41,32 @@ class CockpitProfileController extends Controller
     }
 
     /**
+     * GET /cockpit-profiles/roles
+     * Rollenliste für den Cockpit-Layout-Editor (entkoppelt von 'roles.view').
+     * Liefert je Rolle, ob ein eigenes Layout hinterlegt ist.
+     */
+    public function roles(Request $request): JsonResponse
+    {
+        $this->ensureCanView($request);
+
+        $customRoleIds = CockpitProfile::pluck('role_id')->all();
+
+        $roles = Role::orderBy('name')->get(['id', 'name'])->map(fn (Role $role) => [
+            'id' => $role->id,
+            'name' => $role->name,
+            'has_custom_layout' => in_array($role->id, $customRoleIds, true),
+        ]);
+
+        return response()->json(['data' => $roles]);
+    }
+
+    /**
      * GET /cockpit-profiles/{role}
      * Gespeichertes Layout einer Rolle (Admin) — oder null, wenn nicht gepflegt.
      */
     public function show(Request $request, Role $role): JsonResponse
     {
-        $this->ensureCanManage($request);
+        $this->ensureCanView($request);
 
         $profile = CockpitProfile::where('role_id', $role->id)->first();
 
@@ -97,8 +118,13 @@ class CockpitProfileController extends Controller
         return response()->json(null, Response::HTTP_NO_CONTENT);
     }
 
+    private function ensureCanView(Request $request): void
+    {
+        abort_unless($request->user()?->can('cockpit-layouts.view'), Response::HTTP_FORBIDDEN);
+    }
+
     private function ensureCanManage(Request $request): void
     {
-        abort_unless($request->user()?->can('roles.edit'), Response::HTTP_FORBIDDEN);
+        abort_unless($request->user()?->can('cockpit-layouts.edit'), Response::HTTP_FORBIDDEN);
     }
 }

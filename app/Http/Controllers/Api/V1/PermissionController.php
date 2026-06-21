@@ -60,6 +60,8 @@ class PermissionController extends Controller
         'semantic-search' => 'Semantische Suche',
         'excel-templates' => 'Excel-Designer',
         'meilisearch-admin' => 'Meilisearch-Verwaltung',
+        'preview' => 'Katalog-Vorschau',
+        'cockpit-layouts' => 'Cockpit-Layouts',
     ];
 
     /**
@@ -72,7 +74,7 @@ class PermissionController extends Controller
                 'dashboard', 'products', 'hierarchies', 'hierarchy-nodes',
                 'media', 'media-usage-types', 'prices', 'price-types',
                 'search', 'semantic-search', 'copilot', 'watchlist',
-                'reports', 'pdf-templates', 'calendar',
+                'reports', 'pdf-templates', 'calendar', 'preview',
             ],
         ],
         [
@@ -100,7 +102,7 @@ class PermissionController extends Controller
         [
             'label' => 'Administration',
             'entities' => [
-                'settings', 'users', 'roles', 'access-links', 'journal', 'meilisearch-admin',
+                'settings', 'users', 'roles', 'cockpit-layouts', 'access-links', 'journal', 'meilisearch-admin',
             ],
         ],
     ];
