@@ -192,10 +192,14 @@ onUnmounted(() => {
           v-for="tile in tiles"
           :key="tile.id"
           :to="tile.to"
-          class="flex flex-col items-center justify-center gap-2 py-5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] hover:border-[var(--color-accent)] hover:shadow-sm transition group"
+          class="group relative flex flex-col items-center justify-center gap-2.5 py-5 rounded-2xl border border-[var(--color-border)] bg-gradient-to-b from-[var(--color-surface)] to-[color-mix(in_srgb,var(--color-accent)_5%,var(--color-surface))] shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-[color-mix(in_srgb,var(--color-accent)_40%,var(--color-border))]"
         >
-          <component :is="tile.icon" class="w-6 h-6 text-[var(--color-accent)] group-hover:scale-110 transition-transform" :stroke-width="1.75" />
-          <span class="text-xs font-medium text-[var(--color-text-secondary)]">{{ tile.label }}</span>
+          <span
+            class="flex items-center justify-center w-11 h-11 rounded-xl text-[var(--color-accent)] bg-[color-mix(in_srgb,var(--color-accent)_12%,transparent)] shadow-[inset_0_1px_0_rgba(255,255,255,0.25)] transition-all duration-200 group-hover:scale-105 group-hover:bg-[color-mix(in_srgb,var(--color-accent)_18%,transparent)]"
+          >
+            <component :is="tile.icon" class="w-5 h-5" :stroke-width="1.75" />
+          </span>
+          <span class="text-xs font-medium text-[var(--color-text-secondary)] transition-colors group-hover:text-[var(--color-text-primary)]">{{ tile.label }}</span>
         </router-link>
       </div>
     </section>

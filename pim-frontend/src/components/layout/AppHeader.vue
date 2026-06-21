@@ -131,14 +131,12 @@ function openCatalogPreview() {
 
       <!-- Befehls-/Navigationspalette ("Wo ist was?") -->
       <button
-        class="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md border transition-colors hover:bg-white/10"
+        class="flex items-center px-2 py-1.5 text-xs rounded-md border transition-colors hover:bg-white/10"
         :style="{ color: 'inherit', borderColor: 'var(--pim-toolbar-border)' }"
-        title="Wo ist was? — Menüpunkte und Aktionen finden"
+        title="Wo ist was? — Menüpunkte und Aktionen finden (⌘K)"
         @click="authStore.toggleCommandPalette()"
       >
         <Compass class="w-3.5 h-3.5" :stroke-width="1.75" />
-        <span class="hidden sm:inline">Wo ist was?</span>
-        <span class="pim-kbd text-[10px] hidden sm:inline-flex">⌘K</span>
       </button>
 
       <!-- Locale switcher -->
