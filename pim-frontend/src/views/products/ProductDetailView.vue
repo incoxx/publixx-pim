@@ -68,6 +68,7 @@ const { t } = useI18n()
 
 const activeTab = ref('base-data')
 const activeAttrSubTab = ref('master')  // 'master' oder hierarchy_id
+const moreMenuOpen = ref(false)         // Dropdown "Mehr" geöffnet?
 const saving = ref(false)
 const activeDataLang = ref(localeStore.activeDataLocales[0] || 'de')
 
@@ -131,6 +132,9 @@ async function loadProductTypes() {
   } catch { /* silently fail */ }
 }
 
+// Flache Liste aller verfügbaren Content-Tabs (Quelle für Sichtbarkeit,
+// Reset-Logik und Lazy-Loading). Die GUI rendert daraus gruppierte Reiter
+// (siehe navGroups), die Content-Blöcke schalten weiterhin über activeTab.
 const tabs = computed(() => {
   const pt = product.value?.product_type
   const base = [
@@ -149,10 +153,10 @@ const tabs = computed(() => {
   }
   base.push(
     { key: 'relations', label: t('product.relations') },
+    { key: 'output-hierarchies', label: 'Ausgabehierarchien' },
     { key: 'conformance', label: 'Konformität' },
     { key: 'notes', label: 'Notizen' },
-    { key: 'output-hierarchies', label: 'Ausgabehierarchien' },
-    { key: 'preview', label: t('product.preview') },
+    { key: 'preview', label: 'Export' },
     { key: 'versions', label: t('product.versions') },
     { key: 'scheduled-actions', label: 'Planung' },
   )
@@ -165,6 +169,93 @@ const tabs = computed(() => {
 
 /** Whether the currently active tab is read-only for this user's role. */
 const isTabReadOnly = computed(() => authStore.getTabAccess(activeTab.value) === 'read')
+
+// ─── Gruppierte Tab-Navigation ────────────────────────
+// Content-Keys, die zur Varianten-Gruppe bzw. zum "Mehr"-Dropdown gehören.
+const VARIANT_TAB_KEYS = ['variant-attributes', 'variants']
+const MORE_TAB_KEYS = ['notes', 'preview', 'versions', 'scheduled-actions', 'workflow-history']
+
+/** Liefert das Label eines Content-Tabs aus der flachen Liste. */
+function tabLabel(key) {
+  return tabs.value.find(t => t.key === key)?.label || key
+}
+
+/**
+ * Baut die sichtbare Reiter-Struktur auf:
+ *  - leaf:     einzelner Reiter
+ *  - subtabs:  Gruppe "Varianten" mit zweiter Tab-Zeile
+ *  - dropdown: Gruppe "Mehr" mit Klapp-Menü
+ * Rollen-Sichtbarkeit wird über die flache tabs-Liste bereits gefiltert.
+ */
+const navGroups = computed(() => {
+  const available = new Set(tabs.value.map(t => t.key))
+  const has = (k) => available.has(k)
+  const leaf = (key) => ({ type: 'leaf', key, label: tabLabel(key) })
+  const groups = []
+
+  if (has('base-data')) groups.push(leaf('base-data'))
+  if (has('attributes')) groups.push(leaf('attributes'))
+
+  // Varianten-Attribute + Varianten zu einer Gruppe mit Sub-Tabs zusammenfassen
+  const variantChildren = []
+  if (has('variant-attributes')) variantChildren.push({ key: 'variant-attributes', label: 'Attribute' })
+  if (has('variants')) variantChildren.push({ key: 'variants', label: 'Liste' })
+  if (variantChildren.length) {
+    groups.push({ type: 'subtabs', key: 'variants-group', label: t('product.variants'), children: variantChildren })
+  }
+
+  if (has('media')) groups.push(leaf('media'))
+  if (has('prices')) groups.push(leaf('prices'))
+  if (has('relations')) groups.push(leaf('relations'))
+  if (has('output-hierarchies')) groups.push(leaf('output-hierarchies'))
+  if (has('conformance')) groups.push(leaf('conformance'))
+
+  // Selten genutzte Verwaltungs-Tabs in "Mehr" bündeln
+  const moreChildren = MORE_TAB_KEYS.filter(has).map(k => ({ key: k, label: tabLabel(k) }))
+  if (moreChildren.length) {
+    groups.push({ type: 'dropdown', key: 'more', label: 'Mehr', children: moreChildren })
+  }
+
+  return groups
+})
+
+/** Sub-Tabs der Varianten-Gruppe (für die zweite Tab-Zeile). */
+const variantSubTabs = computed(() =>
+  navGroups.value.find(g => g.key === 'variants-group')?.children || []
+)
+
+const isVariantTabActive = computed(() => VARIANT_TAB_KEYS.includes(activeTab.value))
+const isMoreTabActive = computed(() => MORE_TAB_KEYS.includes(activeTab.value))
+
+/** CSS-Klassen für einen Top-Level-Reiter. */
+function tabBtnClass(active) {
+  return [
+    'group relative px-4 py-2.5 text-[13px] font-medium border-b-2 transition-all duration-150 whitespace-nowrap inline-flex items-center rounded-t-md',
+    active
+      ? 'border-[var(--color-accent)] text-[var(--color-accent)] bg-[color-mix(in_srgb,var(--color-accent)_7%,transparent)]'
+      : 'border-transparent text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg)]',
+  ]
+}
+
+/** Reiter aktivieren und ggf. das "Mehr"-Menü schließen. */
+function selectTab(key) {
+  activeTab.value = key
+  moreMenuOpen.value = false
+}
+
+/** Klick auf die "Varianten"-Gruppe → ersten verfügbaren Sub-Tab öffnen. */
+function openVariantGroup() {
+  if (!isVariantTabActive.value) {
+    const first = variantSubTabs.value[0]?.key
+    if (first) selectTab(first)
+  }
+}
+
+/** Öffnet die öffentliche Katalog-Vorschau des Produkts in neuem Tab. */
+function openPreview() {
+  const url = router.resolve({ name: 'catalog-product', params: { id: route.params.id } }).href
+  window.open(url, '_blank', 'noopener')
+}
 
 // ─── Attribute Filters ──────────────────────────────────
 const attrFilterSearch = ref('')
@@ -2448,7 +2539,7 @@ onUnmounted(() => {
 <template>
   <div class="space-y-4" data-testid="product-detail">
     <!-- Header -->
-    <div class="flex flex-wrap items-center gap-2 sm:gap-3">
+    <div class="pim-card flex flex-wrap items-center gap-2 sm:gap-3 px-3 py-2.5 sm:px-4 sm:py-3 bg-gradient-to-r from-[var(--color-surface)] to-[color-mix(in_srgb,var(--color-accent)_4%,var(--color-surface))]">
       <button class="pim-btn pim-btn-ghost p-1.5" @click="router.push('/products')">
         <ArrowLeft class="w-4 h-4" :stroke-width="1.75" />
       </button>
@@ -2458,9 +2549,9 @@ onUnmounted(() => {
           <div class="pim-skeleton h-3 w-32 rounded" />
         </div>
         <template v-else-if="product">
-          <div class="flex items-center gap-2">
-            <img v-if="primaryMediaThumb" :src="primaryMediaThumb" class="w-8 h-8 rounded object-cover border border-[var(--color-border)] shrink-0" alt="" />
-            <h2 class="text-lg font-semibold text-[var(--color-text-primary)]">
+          <div class="flex items-center gap-2.5">
+            <img v-if="primaryMediaThumb" :src="primaryMediaThumb" class="w-10 h-10 rounded-lg object-cover border border-[var(--color-border)] shadow-sm shrink-0" alt="" />
+            <h2 class="text-lg font-semibold text-[var(--color-text-primary)] tracking-tight">
               {{ product.name || product.sku }}
             </h2>
             <span v-if="product.product_type_ref === 'variant'" class="pim-badge bg-purple-100 text-purple-700 text-[10px] px-1.5 py-0.5 rounded">
@@ -2493,6 +2584,15 @@ onUnmounted(() => {
         @click="toggleWatchlist"
       >
         <Star class="w-4 h-4" :stroke-width="1.75" :class="isOnWatchlist ? 'text-amber-500 fill-amber-500' : 'text-[var(--color-text-tertiary)]'" />
+      </button>
+      <button
+        v-if="product"
+        class="pim-btn pim-btn-secondary text-xs"
+        title="Produkt im Katalog ansehen"
+        @click="openPreview"
+      >
+        <Eye class="w-4 h-4" :stroke-width="1.75" />
+        <span class="hidden sm:inline">Vorschau</span>
       </button>
       <button
         v-if="product"
@@ -2644,23 +2744,82 @@ onUnmounted(() => {
 
     <!-- Tabs -->
     <div class="border-b border-[var(--color-border)]">
-      <nav class="flex gap-0 -mb-px overflow-x-auto scrollbar-none">
-        <button
-          v-for="tab in tabs"
-          :key="tab.key"
-          :data-testid="'tab-' + tab.key"
-          :class="[
-            'px-4 py-2.5 text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap',
-            activeTab === tab.key
-              ? 'border-[var(--color-accent)] text-[var(--color-accent)]'
-              : 'border-transparent text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-border)]',
-          ]"
-          @click="activeTab = tab.key"
-        >
-          {{ tab.label }}
-          <Eye v-if="authStore.getTabAccess(tab.key) === 'read'" class="w-3 h-3 inline-block ml-1 opacity-50" :stroke-width="1.75" />
-        </button>
+      <nav class="flex gap-0.5 -mb-px overflow-x-auto scrollbar-none">
+        <template v-for="group in navGroups" :key="group.key">
+          <!-- Einzelner Reiter -->
+          <button
+            v-if="group.type === 'leaf'"
+            :data-testid="'tab-' + group.key"
+            :class="tabBtnClass(activeTab === group.key)"
+            @click="selectTab(group.key)"
+          >
+            {{ group.label }}
+            <Eye v-if="authStore.getTabAccess(group.key) === 'read'" class="w-3 h-3 inline-block ml-1 opacity-50" :stroke-width="1.75" />
+          </button>
+
+          <!-- Varianten-Gruppe (Sub-Tabs erscheinen in der Zeile darunter) -->
+          <button
+            v-else-if="group.type === 'subtabs'"
+            :data-testid="'tab-' + group.key"
+            :class="tabBtnClass(isVariantTabActive)"
+            @click="openVariantGroup"
+          >
+            <LayoutGrid class="w-3.5 h-3.5 mr-1.5 opacity-70" :stroke-width="1.75" />
+            {{ group.label }}
+          </button>
+
+          <!-- "Mehr"-Dropdown -->
+          <div v-else-if="group.type === 'dropdown'" class="relative">
+            <button
+              :data-testid="'tab-' + group.key"
+              :class="tabBtnClass(isMoreTabActive)"
+              @click="moreMenuOpen = !moreMenuOpen"
+            >
+              {{ group.label }}
+              <ChevronDown class="w-3.5 h-3.5 ml-1 transition-transform duration-150" :class="{ 'rotate-180': moreMenuOpen }" :stroke-width="2" />
+            </button>
+            <!-- Klick-außerhalb-Backdrop -->
+            <div v-if="moreMenuOpen" class="fixed inset-0 z-20" @click="moreMenuOpen = false" />
+            <div
+              v-if="moreMenuOpen"
+              class="absolute right-0 top-full mt-1.5 z-30 min-w-48 py-1.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-lg"
+            >
+              <button
+                v-for="child in group.children"
+                :key="child.key"
+                :data-testid="'tab-' + child.key"
+                class="w-full text-left px-3.5 py-2 text-[13px] flex items-center gap-2 transition-colors"
+                :class="activeTab === child.key
+                  ? 'text-[var(--color-accent)] bg-[color-mix(in_srgb,var(--color-accent)_8%,transparent)] font-medium'
+                  : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg)] hover:text-[var(--color-text-primary)]'"
+                @click="selectTab(child.key)"
+              >
+                {{ child.label }}
+                <Eye v-if="authStore.getTabAccess(child.key) === 'read'" class="w-3 h-3 ml-auto opacity-50" :stroke-width="1.75" />
+              </button>
+            </div>
+          </div>
+        </template>
       </nav>
+    </div>
+
+    <!-- Varianten Sub-Tab-Zeile -->
+    <div
+      v-if="isVariantTabActive && variantSubTabs.length"
+      class="flex items-center gap-1 px-1 py-1.5 rounded-lg bg-[var(--color-bg)] border border-[var(--color-border)] w-fit"
+    >
+      <button
+        v-for="child in variantSubTabs"
+        :key="child.key"
+        :data-testid="'subtab-' + child.key"
+        class="px-3.5 py-1.5 text-[12px] font-medium rounded-md transition-all duration-150"
+        :class="activeTab === child.key
+          ? 'bg-[var(--color-surface)] text-[var(--color-accent)] shadow-sm'
+          : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'"
+        @click="selectTab(child.key)"
+      >
+        {{ child.label }}
+      </button>
     </div>
 
     <!-- Read-only banner -->
@@ -4374,7 +4533,7 @@ onUnmounted(() => {
       <!-- Header with language switcher + export buttons -->
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-3">
-          <h3 class="text-sm font-medium text-[var(--color-text-primary)]">Produktvorschau</h3>
+          <h3 class="text-sm font-medium text-[var(--color-text-primary)]">Export &amp; Vorschau</h3>
           <div v-if="localeStore.activeDataLocales.length > 1" class="flex items-center gap-1">
             <button
               class="px-2 py-0.5 text-[11px] rounded-md font-medium transition-colors"
