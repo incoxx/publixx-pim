@@ -277,8 +277,8 @@ onUnmounted(() => { if (searchTimeout.value) clearTimeout(searchTimeout.value) }
             <span class="text-[9px] shrink-0">{{ timeAgo(note.updated_at) }}</span>
           </div>
 
-          <!-- Hover-Aktionen (nur eigene Notizen) -->
-          <div v-if="isOwnNote(note)" class="absolute top-1 right-1 hidden group-hover:flex items-center gap-0.5" @click.stop>
+          <!-- Aktionen (nur eigene Notizen): auf Touch immer sichtbar, mit Maus beim Hover -->
+          <div v-if="isOwnNote(note)" class="absolute top-1 right-1 flex items-center gap-0.5 transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100" @click.stop>
             <button
               class="p-0.5 rounded hover:bg-black/10 transition-colors"
               :title="note.pinned ? 'Loslösen' : 'Anheften'"
