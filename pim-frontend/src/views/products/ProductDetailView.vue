@@ -224,6 +224,11 @@ const variantSubTabs = computed(() =>
   navGroups.value.find(g => g.key === 'variants-group')?.children || []
 )
 
+// "Mehr"-Dropdown wird außerhalb des scrollenden <nav> gerendert, damit das
+// Klapp-Menü nicht vom overflow-x-auto des Containers abgeschnitten wird.
+const moreGroup = computed(() => navGroups.value.find(g => g.type === 'dropdown') || null)
+const navMainGroups = computed(() => navGroups.value.filter(g => g.type !== 'dropdown'))
+
 const isVariantTabActive = computed(() => VARIANT_TAB_KEYS.includes(activeTab.value))
 const isMoreTabActive = computed(() => MORE_TAB_KEYS.includes(activeTab.value))
 
@@ -253,8 +258,12 @@ function openVariantGroup() {
 
 /** Öffnet die öffentliche Katalog-Vorschau des Produkts in neuem Tab. */
 function openPreview() {
-  const url = router.resolve({ name: 'catalog-product', params: { id: route.params.id } }).href
-  window.open(url, '_blank', 'noopener')
+  // Tatsächlich geladene Produkt-ID verwenden (route.params kann im Tab-System
+  // abweichen); Fallback auf den Route-Parameter.
+  const id = product.value?.id || route.params.id
+  if (!id) return
+  const url = router.resolve({ name: 'catalog-product', params: { id } }).href
+  window.open(url, '_blank')
 }
 
 // ─── Attribute Filters ──────────────────────────────────
@@ -2743,9 +2752,9 @@ onUnmounted(() => {
     </div>
 
     <!-- Tabs -->
-    <div class="border-b border-[var(--color-border)]">
-      <nav class="flex gap-0.5 -mb-px overflow-x-auto scrollbar-none">
-        <template v-for="group in navGroups" :key="group.key">
+    <div class="border-b border-[var(--color-border)] flex items-stretch">
+      <nav class="flex gap-0.5 -mb-px overflow-x-auto scrollbar-none flex-1 min-w-0">
+        <template v-for="group in navMainGroups" :key="group.key">
           <!-- Einzelner Reiter -->
           <button
             v-if="group.type === 'leaf'"
@@ -2767,40 +2776,40 @@ onUnmounted(() => {
             <LayoutGrid class="w-3.5 h-3.5 mr-1.5 opacity-70" :stroke-width="1.75" />
             {{ group.label }}
           </button>
-
-          <!-- "Mehr"-Dropdown -->
-          <div v-else-if="group.type === 'dropdown'" class="relative">
-            <button
-              :data-testid="'tab-' + group.key"
-              :class="tabBtnClass(isMoreTabActive)"
-              @click="moreMenuOpen = !moreMenuOpen"
-            >
-              {{ group.label }}
-              <ChevronDown class="w-3.5 h-3.5 ml-1 transition-transform duration-150" :class="{ 'rotate-180': moreMenuOpen }" :stroke-width="2" />
-            </button>
-            <!-- Klick-außerhalb-Backdrop -->
-            <div v-if="moreMenuOpen" class="fixed inset-0 z-20" @click="moreMenuOpen = false" />
-            <div
-              v-if="moreMenuOpen"
-              class="absolute right-0 top-full mt-1.5 z-30 min-w-48 py-1.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-lg"
-            >
-              <button
-                v-for="child in group.children"
-                :key="child.key"
-                :data-testid="'tab-' + child.key"
-                class="w-full text-left px-3.5 py-2 text-[13px] flex items-center gap-2 transition-colors"
-                :class="activeTab === child.key
-                  ? 'text-[var(--color-accent)] bg-[color-mix(in_srgb,var(--color-accent)_8%,transparent)] font-medium'
-                  : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg)] hover:text-[var(--color-text-primary)]'"
-                @click="selectTab(child.key)"
-              >
-                {{ child.label }}
-                <Eye v-if="authStore.getTabAccess(child.key) === 'read'" class="w-3 h-3 ml-auto opacity-50" :stroke-width="1.75" />
-              </button>
-            </div>
-          </div>
         </template>
       </nav>
+
+      <!-- "Mehr"-Dropdown (außerhalb des scrollenden nav, damit es nicht abgeschnitten wird) -->
+      <div v-if="moreGroup" class="relative shrink-0 -mb-px flex items-stretch">
+        <button
+          :data-testid="'tab-' + moreGroup.key"
+          :class="tabBtnClass(isMoreTabActive)"
+          @click="moreMenuOpen = !moreMenuOpen"
+        >
+          {{ moreGroup.label }}
+          <ChevronDown class="w-3.5 h-3.5 ml-1 transition-transform duration-150" :class="{ 'rotate-180': moreMenuOpen }" :stroke-width="2" />
+        </button>
+        <!-- Klick-außerhalb-Backdrop -->
+        <div v-if="moreMenuOpen" class="fixed inset-0 z-20" @click="moreMenuOpen = false" />
+        <div
+          v-if="moreMenuOpen"
+          class="absolute right-0 top-full mt-1.5 z-30 min-w-48 py-1.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-lg"
+        >
+          <button
+            v-for="child in moreGroup.children"
+            :key="child.key"
+            :data-testid="'tab-' + child.key"
+            class="w-full text-left px-3.5 py-2 text-[13px] flex items-center gap-2 transition-colors"
+            :class="activeTab === child.key
+              ? 'text-[var(--color-accent)] bg-[color-mix(in_srgb,var(--color-accent)_8%,transparent)] font-medium'
+              : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg)] hover:text-[var(--color-text-primary)]'"
+            @click="selectTab(child.key)"
+          >
+            {{ child.label }}
+            <Eye v-if="authStore.getTabAccess(child.key) === 'read'" class="w-3 h-3 ml-auto opacity-50" :stroke-width="1.75" />
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- Varianten Sub-Tab-Zeile -->
