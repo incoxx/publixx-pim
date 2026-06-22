@@ -71,6 +71,27 @@ async function main(): Promise<void> {
     logger,
   });
   const tmpDir = recorder.getTmpDir();
+
+  // 1a. Voiceover VORAB synthetisieren und Szenendauer an die Sprechlänge koppeln,
+  //     damit Bild/Untertitel synchron zum (KI-)Text laufen und nicht zu früh enden.
+  try {
+    const preSynth = new VoiceSynthesizer(logger);
+    const durations = await preSynth.measureSceneDurations(reel.scenes, tmpDir, reel.meta.voice || {});
+    const MIN_MS = 1800;   // Mindestdauer je Szene (Lesbarkeit)
+    const PAD_MS = 700;    // Puffer nach dem Sprechen (Atempause)
+    let coupled = 0;
+    reel.scenes.forEach((scene, i) => {
+      const audioMs = durations[i] || 0;
+      if (audioMs > 0) {
+        scene.duration = Math.max(MIN_MS, audioMs + PAD_MS);
+        coupled++;
+      }
+    });
+    logger.info(`Szenendauer an Sprechlänge gekoppelt: ${coupled}/${reel.scenes.length} Szenen`);
+  } catch (err) {
+    logger.warn('Vorab-Voiceover fehlgeschlagen, nutze Default-Szenendauern: ' + (err as Error).message);
+  }
+
   const scriptPath = path.join(tmpDir, 'reel-script.ts');
   fs.writeFileSync(scriptPath, generateReelScript(reel, baseUrl));
   (recorder as unknown as { opts: { scriptPath: string } }).opts.scriptPath = scriptPath;

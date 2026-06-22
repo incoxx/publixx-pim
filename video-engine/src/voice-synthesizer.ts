@@ -57,6 +57,56 @@ export class VoiceSynthesizer {
     fs.copyFileSync(audioPath, cachedPath);
   }
 
+  /**
+   * Synthetisiert die Sprechertexte der Szenen VORAB und liefert je Szene die
+   * Audio-Dauer in ms (0 = kein Sprechertext / nicht messbar). Dient dazu, die
+   * Szenendauer an die echte Sprechlänge zu koppeln, BEVOR aufgenommen wird.
+   * Befüllt nebenbei den Audio-Cache, sodass die spätere synthesize() nur noch
+   * Cache-Treffer hat (keine doppelten TTS-Aufrufe).
+   */
+  async measureSceneDurations(
+    scenes: { sprecher?: string }[],
+    outputDir: string,
+    voice: Record<string, unknown>,
+  ): Promise<number[]> {
+    const voiceConfig = this.getVoiceConfig({ meta: { voice } } as unknown as Story);
+    const durations: number[] = [];
+    let elevenLabsFailed = false;
+
+    for (let i = 0; i < scenes.length; i++) {
+      const text = (scenes[i].sprecher || '').trim();
+      if (text === '') {
+        durations.push(0);
+        continue;
+      }
+
+      const outPath = path.join(outputDir, `pre-${String(i).padStart(3, '0')}.mp3`);
+      try {
+        const cached = this.getCached(text, voiceConfig);
+        if (cached) {
+          fs.copyFileSync(cached, outPath);
+        } else {
+          if (voiceConfig.provider === 'elevenlabs' && this.apiKey && !elevenLabsFailed) {
+            await this.synthesizeElevenLabs(text, voiceConfig, outPath);
+          } else {
+            await this.synthesizeGtts(text, voiceConfig.lang, outPath);
+          }
+          this.saveToCache(text, voiceConfig, outPath);
+        }
+        durations.push(Math.round(this.getAudioDuration(outPath) * 1000));
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.includes('401') || msg.includes('403') || msg.includes('Unauthorized')) {
+          elevenLabsFailed = true;
+        }
+        log.audio(this.logger, `WARN: Vorab-Dauer für Szene ${i + 1} nicht ermittelbar: ${msg}`);
+        durations.push(0); // → Default-Dauer der Szene bleibt erhalten
+      }
+    }
+
+    return durations;
+  }
+
   /** Erzeugt Audio für alle Sprecher-Texte einer Story, synchronisiert mit Timestamps */
   async synthesize(story: Story, outputDir: string, timestampsFile?: string): Promise<string | null> {
     // Timestamps laden (falls vorhanden)
