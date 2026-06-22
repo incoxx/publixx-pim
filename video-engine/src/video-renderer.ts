@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import winston from 'winston';
 import * as log from './logger';
+import { ffmpegBin, ffprobeBin } from './runtime-deps';
 
 export interface RenderOptions {
   videoPath: string;
@@ -37,7 +38,7 @@ export async function renderVideo(opts: RenderOptions): Promise<void> {
       // Sonic Logo am Anfang (volle Lautstärke), Voiceover ohne Verzögerung
       // volume=2 kompensiert amix-Normalisierung (amix teilt durch Anzahl Inputs)
       execSync(
-        `ffmpeg -y -i "${sonicLogoPath}" -i "${audioPath}" ` +
+        `${ffmpegBin()} -y -i "${sonicLogoPath}" -i "${audioPath}" ` +
         `-filter_complex "[0]volume=3.0[sonic];[1]volume=2.0[voice];[sonic][voice]amix=inputs=2:duration=longest" ` +
         `-b:a 192k "${mergedAudioPath}"`,
         { timeout: 30000, stdio: 'pipe' },
@@ -145,7 +146,7 @@ export async function renderVideo(opts: RenderOptions): Promise<void> {
   log.render(logger, `ffmpeg merge: video + audio + srt`);
 
   try {
-    execSync(`ffmpeg ${args.map(a => `"${a}"`).join(' ')}`, {
+    execSync(`${ffmpegBin()} ${args.map(a => `"${a}"`).join(' ')}`, {
       timeout: 300000, // 5 Minuten Timeout
       stdio: 'pipe',
     });
@@ -165,7 +166,7 @@ export async function renderVideo(opts: RenderOptions): Promise<void> {
     }
     simpleArgs.push(outputPath);
 
-    execSync(`ffmpeg ${simpleArgs.map(a => `"${a}"`).join(' ')}`, {
+    execSync(`${ffmpegBin()} ${simpleArgs.map(a => `"${a}"`).join(' ')}`, {
       timeout: 300000,
       stdio: 'pipe',
     });
@@ -190,7 +191,7 @@ export async function renderVideo(opts: RenderOptions): Promise<void> {
 function getMediaDuration(filePath: string): number {
   try {
     const output = execSync(
-      `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${filePath}"`,
+      `${ffprobeBin()} -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${filePath}"`,
       { encoding: 'utf-8', timeout: 5000 },
     ).trim();
     return parseFloat(output) || 0;

@@ -209,7 +209,13 @@ function pageHtml(s: Scene): string {
 }
 
 export async function run(): Promise<void> {
-  const browser: Browser = await chromium.launch({ headless: false });
+  // Optionaler expliziter Chromium-Pfad (vom reel-cli aufgelöst), damit der
+  // Versions-Versatz zwischen npm-Playwright und bereitgestelltem Browser nicht stört.
+  const chromiumPath = process.env.PLAYWRIGHT_CHROMIUM_PATH;
+  const browser: Browser = await chromium.launch({
+    headless: false,
+    ...(chromiumPath ? { executablePath: chromiumPath } : {}),
+  });
   const context = await browser.newContext({ viewport: VIEWPORT, locale: 'de-DE' });
   const page: Page = await context.newPage();
 

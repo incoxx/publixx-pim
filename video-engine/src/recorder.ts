@@ -95,8 +95,15 @@ export class Recorder {
       this.outputPath,
     ];
 
-    this.ffmpegProcess = spawn('ffmpeg', args, {
+    const ffmpegBin = process.env.FFMPEG_PATH?.trim() || 'ffmpeg';
+    this.ffmpegProcess = spawn(ffmpegBin, args, {
       stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    // 'error' abfangen, sonst beendet eine fehlende Binary den Prozess mit
+    // einer Unhandled-Exception statt einer verwertbaren Fehlermeldung.
+    this.ffmpegProcess.on('error', (err) => {
+      log.record(this.opts.logger, `ffmpeg konnte nicht gestartet werden (${ffmpegBin}): ${err.message}`);
     });
 
     this.ffmpegProcess.stderr?.on('data', (data: Buffer) => {
@@ -122,7 +129,10 @@ export class Recorder {
         DISPLAY: display,
       };
 
-      const child = spawn('npx', ['tsx', this.opts.scriptPath], {
+      // Lokales tsx statt `npx tsx` – vermeidet npm-Notices auf stderr und
+      // einen möglichen Netzwerk-Download in restriktiven Umgebungen.
+      const tsxBin = path.resolve(__dirname, '../node_modules/.bin/tsx');
+      const child = spawn(tsxBin, [this.opts.scriptPath], {
         cwd: path.resolve(__dirname, '..'),
         env,
         stdio: 'inherit',

@@ -136,6 +136,11 @@ class RenderSocialVideoJob implements ShouldQueue
             'VIDEO_QUALITY'       => env('VIDEO_ENGINE_QUALITY', 'high'),
             'ELEVENLABS_API_KEY'  => env('ELEVENLABS_API_KEY'),
             'ELEVENLABS_FALLBACK' => env('ELEVENLABS_FALLBACK', 'gtts'),
+            // Optionale, explizite Binary-Pfade. Leer lassen → die Engine löst
+            // ffmpeg (PATH) und Chromium (bereitgestellter Browser) selbst auf.
+            'FFMPEG_PATH'             => env('VIDEO_ENGINE_FFMPEG_PATH'),
+            'PLAYWRIGHT_CHROMIUM_PATH' => env('VIDEO_ENGINE_CHROMIUM_PATH'),
+            'PLAYWRIGHT_BROWSERS_PATH' => env('PLAYWRIGHT_BROWSERS_PATH'),
             'APP_ENV'             => app()->environment(),
         ]);
     }

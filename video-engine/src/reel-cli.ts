@@ -14,6 +14,7 @@ import { Recorder } from './recorder';
 import { VoiceSynthesizer } from './voice-synthesizer';
 import { renderVideo } from './video-renderer';
 import { createStoryLogger } from './logger';
+import { resolveFfmpeg, resolveChromium } from './runtime-deps';
 
 async function main(): Promise<void> {
   const reelPath = process.argv[2];
@@ -27,6 +28,28 @@ async function main(): Promise<void> {
     console.error('Reel-Definition nicht gefunden: ' + reelPath);
     process.exit(1);
   }
+
+  // Laufzeit-Abhängigkeiten vorab auflösen, damit der Nutzer eine klare,
+  // umsetzbare Fehlermeldung erhält statt eines kryptischen "Code 1".
+  const ffmpegPath = resolveFfmpeg();
+  if (!ffmpegPath) {
+    console.error(
+      'ffmpeg nicht gefunden. Bitte ffmpeg installieren (z.B. `apt-get install ffmpeg`) '
+      + 'oder FFMPEG_PATH auf eine ffmpeg-Binary setzen.',
+    );
+    process.exit(1);
+  }
+  const chromiumPath = resolveChromium();
+  if (!chromiumPath) {
+    console.error(
+      'Chromium für Playwright nicht gefunden. Bitte `npx playwright install chromium` ausführen '
+      + 'oder PLAYWRIGHT_CHROMIUM_PATH auf eine Chrome-/Chromium-Binary setzen.',
+    );
+    process.exit(1);
+  }
+  // An Recorder (ffmpeg) und das generierte Script (chromium) vererben.
+  process.env.FFMPEG_PATH = ffmpegPath;
+  process.env.PLAYWRIGHT_CHROMIUM_PATH = chromiumPath;
 
   const reel: ReelDefinition = JSON.parse(fs.readFileSync(reelPath, 'utf-8'));
   const logger = createStoryLogger(reel.meta.id || 'reel');
