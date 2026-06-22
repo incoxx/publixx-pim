@@ -166,11 +166,11 @@ class SocialVideoBuilder
             }
         }
 
-        // Abschluss-Szene (Call-to-Action)
+        // Abschluss-Szene (Call-to-Action) – Sprechertext optional von der KI.
         $scenes[] = [
             'type'     => 'cta',
             'headline' => SocialVideoElementMap::fieldDefaults()['cta'],
-            'sprecher' => 'Jetzt entdecken auf incoxx.com.',
+            'sprecher' => $this->generateCtaLine($products->first()),
             'duration' => 2500,
         ];
 
@@ -213,16 +213,17 @@ class SocialVideoBuilder
             $hero = $this->firstProductImage($product);
         }
 
-        $hookText = $this->useAi ? $this->generateHook($product, $headline) : ($mapped['subline'] ?? $headline);
-
+        // Szenen-Gerüst mit Default-Sprechertexten (greifen, wenn keine KI aktiv ist
+        // oder der KI-Aufruf fehlschlägt). Parallel dazu Szenen-Deskriptoren für die KI.
         $scenes = [[
             'type'     => 'hero',
             'image'    => $hero,
             'headline' => $headline,
             'subline'  => $mapped['subline'] ?? null,
-            'sprecher' => $hookText,
+            'sprecher' => $mapped['subline'] ?? $headline,
             'duration' => 3000,
         ]];
+        $descriptors = [['role' => 'hook', 'text' => (string) $headline]];
 
         // Bis zu zwei Feature-Szenen aus den gemappten Merkmalen
         $features = array_values(array_filter([
@@ -239,17 +240,30 @@ class SocialVideoBuilder
                 'sprecher' => $feature,
                 'duration' => 2500,
             ];
+            $descriptors[] = ['role' => 'feature', 'text' => (string) $feature];
         }
 
         // Preis-Szene (nur wenn ein Preis gemappt ist)
         if (isset($mapped['price']) && $mapped['price'] !== null) {
+            $priceValue = (float) $mapped['price'];
             $scenes[] = [
                 'type'     => 'price',
-                'value'    => (float) $mapped['price'],
+                'value'    => $priceValue,
                 'currency' => 'EUR',
-                'sprecher' => 'Jetzt für nur ' . number_format((float) $mapped['price'], 0, ',', '.') . ' Euro.',
+                'sprecher' => 'Jetzt für nur ' . number_format($priceValue, 0, ',', '.') . ' Euro.',
                 'duration' => 2500,
             ];
+            $descriptors[] = ['role' => 'price', 'text' => number_format($priceValue, 0, ',', '.') . ' EUR'];
+        }
+
+        // KI: ein zusammenhängendes Sprecher-Skript über alle Szenen dieses Produkts.
+        // Bei Fehler/leerer Zeile bleibt der jeweilige Default-Sprechertext erhalten.
+        if ($this->useAi) {
+            foreach ($this->generateSceneScript($product, $descriptors) as $i => $line) {
+                if (isset($scenes[$i]) && trim((string) $line) !== '') {
+                    $scenes[$i]['sprecher'] = $this->firstLine((string) $line);
+                }
+            }
         }
 
         return $scenes;
@@ -286,19 +300,40 @@ class SocialVideoBuilder
     }
 
     /**
-     * Kurzer, knackiger KI-Hook (ein Satz). Fällt bei Fehlern auf die Headline zurück.
+     * Erzeugt ein zusammenhängendes Sprecher-Skript: genau ein gesprochener Satz
+     * pro Szene, in Reihenfolge der Deskriptoren. Liefert bei Fehlern ein leeres
+     * Array (→ Default-Sprechertexte bleiben erhalten).
+     *
+     * @param  list<array{role:string,text:string}>  $descriptors
+     * @return list<string>
      */
-    private function generateHook(Product $product, string $fallback): string
+    private function generateSceneScript(Product $product, array $descriptors): array
     {
         $apiKey = (string) config('connectors.claude_ai.api_key', '');
-        if ($apiKey === '') {
-            return $fallback;
+        if ($apiKey === '' || $descriptors === []) {
+            return [];
         }
 
-        $prompt = 'Schreibe einen einzigen, knackigen Social-Media-Hook (max. 12 Wörter, '
-            . 'ohne Hashtags, ohne Anführungszeichen) für ein Produktvideo zu diesem Produkt.';
+        $count = count($descriptors);
+        $sceneList = '';
+        foreach ($descriptors as $i => $descriptor) {
+            $role = match ($descriptor['role']) {
+                'hook'    => 'Aufmacher/Hook',
+                'feature' => 'Produktmerkmal',
+                'price'   => 'Preis-Überleitung',
+                default   => 'Szene',
+            };
+            $sceneList .= ($i + 1) . ". {$role}: " . $descriptor['text'] . "\n";
+        }
+
+        $prompt = "Du schreibst das gesprochene Voiceover für ein kurzes Social-Media-Produktvideo.\n"
+            . "Erzeuge für jede der folgenden {$count} Szenen genau einen gesprochenen Satz – flüssig, "
+            . "natürlich und als zusammenhängendes Skript (max. ca. 14 Wörter je Satz, keine Hashtags, "
+            . "keine Anführungszeichen, keine Szenen-Nummern im Text).\n"
+            . "Antworte AUSSCHLIESSLICH mit einem JSON-Array aus genau {$count} Strings in dieser Reihenfolge.\n\n"
+            . "Szenen:\n" . $sceneList;
         if (trim($this->style['brief']) !== '') {
-            $prompt .= "\n\nKreativ-Briefing für das Video: " . trim($this->style['brief']);
+            $prompt .= "\nKreativ-Briefing für das Video: " . trim($this->style['brief']);
         }
         $tonality = trim($this->style['tonality']) !== '' ? trim($this->style['tonality']) : 'jung, energiegeladen, direkt';
 
@@ -306,19 +341,85 @@ class SocialVideoBuilder
             $result = $this->claude->generateProductText($apiKey, $product, $this->languages[0], 'marketing', [
                 'custom_prompt' => $prompt,
                 'tonality'      => $tonality,
-                'max_tokens'    => 80,
+                'max_tokens'    => 60 * $count + 80,
             ]);
-            $text = trim((string) ($result['text'] ?? ''));
 
-            return $text !== '' ? $this->firstLine($text) : $fallback;
+            return $this->parseScriptLines((string) ($result['text'] ?? ''));
         } catch (\Throwable $e) {
-            Log::channel('export')->warning('Social-Video KI-Hook fehlgeschlagen, nutze Fallback', [
+            Log::channel('export')->warning('Social-Video KI-Skript fehlgeschlagen, nutze Default-Sprechertexte', [
                 'product_id' => $product->id,
                 'error'      => $e->getMessage(),
             ]);
 
-            return $fallback;
+            return [];
         }
+    }
+
+    /**
+     * Liefert einen kurzen, gesprochenen Call-to-Action (optional von der KI),
+     * sonst den Standard-Abschluss.
+     */
+    private function generateCtaLine(?Product $product): string
+    {
+        $default = 'Jetzt entdecken auf incoxx.com.';
+        $apiKey = (string) config('connectors.claude_ai.api_key', '');
+        if (! $this->useAi || $apiKey === '' || $product === null) {
+            return $default;
+        }
+
+        $prompt = 'Schreibe einen kurzen, gesprochenen Call-to-Action als Abschluss eines '
+            . 'Produktvideos (max. 10 Wörter, keine Hashtags, keine Anführungszeichen).';
+        if (trim($this->style['brief']) !== '') {
+            $prompt .= "\nKreativ-Briefing für das Video: " . trim($this->style['brief']);
+        }
+        $tonality = trim($this->style['tonality']) !== '' ? trim($this->style['tonality']) : 'jung, energiegeladen, direkt';
+
+        try {
+            $result = $this->claude->generateProductText($apiKey, $product, $this->languages[0], 'marketing', [
+                'custom_prompt' => $prompt,
+                'tonality'      => $tonality,
+                'max_tokens'    => 60,
+            ]);
+            $text = trim((string) ($result['text'] ?? ''));
+
+            return $text !== '' ? $this->firstLine($text) : $default;
+        } catch (\Throwable $e) {
+            return $default;
+        }
+    }
+
+    /**
+     * Extrahiert die Sprechertexte aus der KI-Antwort. Bevorzugt ein JSON-Array,
+     * fällt sonst auf zeilenweises Parsen (inkl. Entfernen von Nummerierung) zurück.
+     *
+     * @return list<string>
+     */
+    private function parseScriptLines(string $text): array
+    {
+        $text = trim($text);
+        if ($text === '') {
+            return [];
+        }
+
+        // JSON-Array bevorzugt (auch wenn von Fließtext umgeben).
+        if (preg_match('/\[.*\]/s', $text, $matches) === 1) {
+            $decoded = json_decode($matches[0], true);
+            if (is_array($decoded)) {
+                return array_values(array_map(fn ($s) => trim((string) $s), $decoded));
+            }
+        }
+
+        // Fallback: zeilenweise, führende Nummerierung/Aufzählung entfernen.
+        $lines = [];
+        foreach (preg_split('/\r?\n/', $text) ?: [] as $line) {
+            $line = preg_replace('/^\s*\d+[.)]\s*/', '', trim($line)) ?? '';
+            $line = trim($line, " \"'-•\t");
+            if ($line !== '') {
+                $lines[] = $line;
+            }
+        }
+
+        return $lines;
     }
 
     private function firstLine(string $text): string
