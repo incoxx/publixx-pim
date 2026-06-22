@@ -954,6 +954,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // =====================================================================
     Route::prefix('social-video')->group(function () {
         Route::get('default-mapping', [SocialVideoController::class, 'defaultMapping']);
+        Route::post('product-images', [SocialVideoController::class, 'productImages']);
         Route::post('/', [SocialVideoController::class, 'store']);
         Route::get('{job}/status', [SocialVideoController::class, 'status'])->where('job', '[a-f0-9\-]{36}');
         Route::get('{job}/download', [SocialVideoController::class, 'download'])->where('job', '[a-f0-9\-]{36}');
