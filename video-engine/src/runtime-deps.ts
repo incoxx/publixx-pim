@@ -1,5 +1,6 @@
 import { execSync } from 'child_process';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 
 /**
@@ -9,9 +10,9 @@ import path from 'path';
  * die Umgebung aber eine ältere Chromium-Revision bereitstellt).
  *
  * Auflösungsreihenfolge:
- *   ffmpeg   : FFMPEG_PATH → `which ffmpeg` → gebündeltes Playwright-ffmpeg
- *   chromium : PLAYWRIGHT_CHROMIUM_PATH → bereitgestelltes Chromium unter
- *              PLAYWRIGHT_BROWSERS_PATH → (null = Playwright-Standardauflösung)
+ *   ffmpeg   : FFMPEG_PATH → `which ffmpeg`
+ *   chromium : PLAYWRIGHT_CHROMIUM_PATH → Playwright-eigene Auflösung
+ *              (Standard-Cache & PLAYWRIGHT_BROWSERS_PATH) → Glob-Fallback
  */
 
 /** Sucht die erste existierende Datei, die zu einem Glob-ähnlichen Muster passt. */
@@ -66,19 +67,42 @@ export function ffprobeBin(): string {
 }
 
 /**
- * Liefert einen expliziten Chromium-Pfad oder null. Bei null nutzt Playwright
- * seine Standardauflösung (passende Revision unter PLAYWRIGHT_BROWSERS_PATH).
+ * Liefert einen Chromium-Pfad zum Starten oder null, wenn nirgends ein Browser
+ * gefunden wird (= wirklich nicht installiert → Aufrufer bricht mit Hinweis ab).
+ *
+ * 1. PLAYWRIGHT_CHROMIUM_PATH (explizit gesetzt)
+ * 2. Playwright-eigene Auflösung – deckt sowohl den Standard-Cache
+ *    (~/.cache/ms-playwright, z.B. nach `npx playwright install`) als auch
+ *    ein gesetztes PLAYWRIGHT_BROWSERS_PATH korrekt ab.
+ * 3. Glob-Fallback über bekannte Browser-Verzeichnisse – fängt den
+ *    Versions-Versatz ab (z.B. installiert chromium-1194, erwartet 1217).
  */
 export function resolveChromium(): string | null {
   const explicit = process.env.PLAYWRIGHT_CHROMIUM_PATH?.trim();
   if (explicit && fs.existsSync(explicit)) return explicit;
 
-  const browsersPath = process.env.PLAYWRIGHT_BROWSERS_PATH?.trim();
-  if (browsersPath) {
+  // Playwright-eigene Auflösung – die zuverlässigste Quelle nach einer
+  // regulären Installation. Existiert die Datei, direkt verwenden.
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { chromium } = require('playwright');
+    const resolved = chromium.executablePath();
+    if (resolved && fs.existsSync(resolved)) return resolved;
+  } catch {
+    // playwright nicht ladbar – Glob-Fallback versuchen
+  }
+
+  // Fallback: bekannte Browser-Verzeichnisse nach beliebiger Chromium-Revision absuchen.
+  const dirs = [
+    process.env.PLAYWRIGHT_BROWSERS_PATH?.trim(),
+    path.join(os.homedir(), '.cache', 'ms-playwright'),
+  ].filter((d): d is string => !!d);
+
+  for (const dir of dirs) {
     // Übliche Layouts: chrome-linux64/chrome (neuer) und chrome-linux/chrome (älter)
     const candidate =
-      firstMatch(browsersPath, (n) => n.startsWith('chromium-'), 'chrome-linux64', 'chrome') ||
-      firstMatch(browsersPath, (n) => n.startsWith('chromium-'), 'chrome-linux', 'chrome');
+      firstMatch(dir, (n) => n.startsWith('chromium-'), 'chrome-linux64', 'chrome') ||
+      firstMatch(dir, (n) => n.startsWith('chromium-'), 'chrome-linux', 'chrome');
     if (candidate) return candidate;
   }
 
