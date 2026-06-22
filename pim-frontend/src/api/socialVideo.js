@@ -28,4 +28,10 @@ export default {
   downloadUrl(jobId) {
     return `/api/v1/social-video/${jobId}/download`
   },
+
+  // Lädt das MP4 als Blob (authentifiziert) – für einen Download-Button,
+  // da ein <a href> keinen Bearer-Token sendet (sonst 401).
+  download(jobId) {
+    return client.get(`/social-video/${jobId}/download`, { responseType: 'blob' })
+  },
 }
