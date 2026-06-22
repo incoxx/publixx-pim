@@ -6,6 +6,7 @@ import winston from 'winston';
 import * as log from './logger';
 import type { Story } from './story-validator';
 import { extractSprecherTexts, type RecordedTimestamp } from './subtitle-extractor';
+import { ffmpegBin, ffprobeBin } from './runtime-deps';
 
 interface VoiceConfig {
   lang: string;
@@ -290,7 +291,7 @@ export class VoiceSynthesizer {
         await this.createSilence(silencePath, segments[0].startMs);
         const listFile = path.join(path.dirname(outputPath), 'concat-ts.txt');
         fs.writeFileSync(listFile, `file '${silencePath}'\nfile '${segments[0].path}'`);
-        execSync(`ffmpeg -y -f concat -safe 0 -i "${listFile}" -c copy "${outputPath}"`, { timeout: 30000 });
+        execSync(`${ffmpegBin()} -y -f concat -safe 0 -i "${listFile}" -c copy "${outputPath}"`, { timeout: 30000 });
       } else {
         fs.copyFileSync(segments[0].path, outputPath);
       }
@@ -321,14 +322,14 @@ export class VoiceSynthesizer {
     }
 
     fs.writeFileSync(listFile, lines.join('\n'));
-    execSync(`ffmpeg -y -f concat -safe 0 -i "${listFile}" -c copy "${outputPath}"`, { timeout: 60000 });
+    execSync(`${ffmpegBin()} -y -f concat -safe 0 -i "${listFile}" -c copy "${outputPath}"`, { timeout: 60000 });
   }
 
   /** Erstellt eine stille MP3-Datei */
   private async createSilence(outputPath: string, durationMs: number): Promise<void> {
     const seconds = Math.max(durationMs / 1000, 0.5);
     execSync(
-      `ffmpeg -y -f lavfi -i anullsrc=r=44100:cl=mono -t ${seconds} -q:a 9 "${outputPath}"`,
+      `${ffmpegBin()} -y -f lavfi -i anullsrc=r=44100:cl=mono -t ${seconds} -q:a 9 "${outputPath}"`,
       { timeout: 10000 },
     );
   }
@@ -357,21 +358,21 @@ export class VoiceSynthesizer {
         const gap = (texts[i + 1].startMs - texts[i].startMs) / 1000 - currentDuration;
         if (gap > 0.1) {
           const silencePath = path.join(path.dirname(outputPath), `silence-${i}.mp3`);
-          execSync(`ffmpeg -y -f lavfi -i anullsrc=r=44100:cl=mono -t ${gap.toFixed(2)} -q:a 9 "${silencePath}"`, { timeout: 5000 });
+          execSync(`${ffmpegBin()} -y -f lavfi -i anullsrc=r=44100:cl=mono -t ${gap.toFixed(2)} -q:a 9 "${silencePath}"`, { timeout: 5000 });
           lines.push(`file '${silencePath}'`);
         }
       }
     }
 
     fs.writeFileSync(listFile, lines.join('\n'));
-    execSync(`ffmpeg -y -f concat -safe 0 -i "${listFile}" -c copy "${outputPath}"`, { timeout: 60000 });
+    execSync(`${ffmpegBin()} -y -f concat -safe 0 -i "${listFile}" -c copy "${outputPath}"`, { timeout: 60000 });
   }
 
   /** Gibt die Dauer einer Audio-Datei in Sekunden zurück */
   private getAudioDuration(filePath: string): number {
     try {
       const output = execSync(
-        `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${filePath}"`,
+        `${ffprobeBin()} -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${filePath}"`,
         { encoding: 'utf-8', timeout: 5000 },
       ).trim();
       return parseFloat(output) || 0;

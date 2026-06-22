@@ -292,6 +292,9 @@ Die Video-Engine läuft eigenständig mit eigener `.env` (`video-engine/.env.exa
 | `VIDEO_ENGINE_DISPLAY` | `:99` | – | Xvfb Virtual-Display-Nummer |
 | `VIDEO_ENGINE_FPS` | `30` | – | Bildrate der Aufnahmen |
 | `VIDEO_ENGINE_QUALITY` | `high` | – | Qualitätsprofil: `low`, `medium`, `high` |
+| `VIDEO_ENGINE_FFMPEG_PATH` | *(leer)* | – | Expliziter ffmpeg-Pfad. Leer → Auflösung über `PATH`. Benötigt ein **vollständiges** ffmpeg (x11grab, lavfi, mp3/mp4); das von Playwright gebündelte ffmpeg reicht **nicht**. |
+| `VIDEO_ENGINE_CHROMIUM_PATH` | *(leer)* | – | Explizite Chrome-/Chromium-Binary für Playwright. Leer → automatische Auflösung des bereitgestellten Browsers unter `PLAYWRIGHT_BROWSERS_PATH` (robust gegen Versions-Versatz). |
+| `PLAYWRIGHT_BROWSERS_PATH` | *(leer)* | – | Verzeichnis der vorinstallierten Playwright-Browser. Wird zur automatischen Chromium-Auflösung genutzt. |
 | `VIDEO_DEMO_USER_EMAIL` | `demo@anypim.local` | – | E-Mail des Demo-Benutzers für Video-Aufnahmen |
 | `VIDEO_DEMO_USER_PASSWORD` | `demo1234` | – ⚠️ | Passwort des Demo-Benutzers |
 
