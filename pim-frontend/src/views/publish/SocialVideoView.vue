@@ -80,9 +80,6 @@ async function loadProductImages() {
     loadingImages.value = false
   }
 }
-// Neu laden, wenn sich Auswahl oder die Bildquelle ändert.
-watch(selected, scheduleLoadImages, { deep: true })
-watch(() => fieldSources.hero_image, scheduleLoadImages)
 
 // ─── Produktauswahl ────────────────────────────────────────
 const searchTerm = ref('')
@@ -255,6 +252,11 @@ const downloadHref = computed(() => (jobId.value ? socialVideoApi.downloadUrl(jo
 function sceneLabel(type) {
   return { hero: 'Aufmacher', feature: 'Highlight', price: 'Preis', cta: 'Call-to-Action' }[type] || type
 }
+
+// Kamerafahrt-Bilder neu laden, wenn sich Auswahl oder Bildquelle ändert.
+// (Watcher am Ende, da sie auf weiter unten deklarierte Refs zugreifen.)
+watch(selected, scheduleLoadImages, { deep: true })
+watch(() => fieldSources.hero_image, scheduleLoadImages)
 </script>
 
 <template>
