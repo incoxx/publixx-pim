@@ -38,6 +38,7 @@ use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\DeploymentController;
 use App\Http\Controllers\Api\V1\ExportController;
 use App\Http\Controllers\Api\V1\ExportFileController;
+use App\Http\Controllers\Api\V1\SocialVideoController;
 use App\Http\Controllers\Api\V1\ExportJobController;
 use App\Http\Controllers\Api\V1\ExportProfileController;
 use App\Http\Controllers\Api\V1\BmecatImportController;
@@ -946,6 +947,16 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
         Route::get('portal-configs/presets', [PortalConfigController::class, 'presets']);
         Route::apiResource('portal-configs', PortalConfigController::class);
         Route::post('portal-configs/{portal_config}/duplicate', [PortalConfigController::class, 'duplicate']);
+    });
+
+    // =====================================================================
+    // Publish: Social-Media-Produktvideos (Reels/Shorts aus PIM-Daten)
+    // =====================================================================
+    Route::prefix('social-video')->group(function () {
+        Route::get('default-mapping', [SocialVideoController::class, 'defaultMapping']);
+        Route::post('/', [SocialVideoController::class, 'store']);
+        Route::get('{job}/status', [SocialVideoController::class, 'status'])->where('job', '[a-f0-9\-]{36}');
+        Route::get('{job}/download', [SocialVideoController::class, 'download'])->where('job', '[a-f0-9\-]{36}');
     });
 
     // =====================================================================

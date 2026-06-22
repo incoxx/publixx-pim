@@ -1,0 +1,68 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "anyPIM Reel Definition",
+  "description": "Schema für Social-Media-Produktvideo-Definitionen (Reels/Shorts), erzeugt vom SocialVideoBuilder und verarbeitet von reel-cli.ts",
+  "type": "object",
+  "required": ["meta", "scenes"],
+  "additionalProperties": false,
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": ["id"],
+      "additionalProperties": true,
+      "properties": {
+        "id": { "type": "string" },
+        "format": { "type": "string", "enum": ["9x16", "1x1", "16x9"] },
+        "viewport": {
+          "type": "object",
+          "properties": {
+            "width": { "type": "integer", "minimum": 1 },
+            "height": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "voice": {
+          "type": "object",
+          "properties": {
+            "lang": { "type": "string" },
+            "gender": { "type": "string", "enum": ["male", "female"] },
+            "provider": { "type": "string", "enum": ["elevenlabs", "gtts"] },
+            "voice_id": { "type": "string" }
+          }
+        },
+        "template": { "type": "string" },
+        "style": {
+          "type": "object",
+          "properties": {
+            "brief": { "type": "string" },
+            "tonality": { "type": "string" },
+            "accent": { "type": "string" },
+            "background": { "type": "string" },
+            "transition": { "type": "string", "enum": ["fade", "slide", "zoom", "cut"] },
+            "media_animation": { "type": "string", "enum": ["kenburns", "zoom-in", "zoom-out", "fade-in", "fade-out", "pan", "none"] }
+          }
+        },
+        "languages": { "type": "array", "items": { "type": "string" } },
+        "product_count": { "type": "integer" }
+      }
+    },
+    "scenes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["type"],
+        "additionalProperties": false,
+        "properties": {
+          "type": { "type": "string", "enum": ["hero", "feature", "price", "cta"] },
+          "image": { "type": ["string", "null"] },
+          "headline": { "type": ["string", "null"] },
+          "subline": { "type": ["string", "null"] },
+          "value": { "type": "number" },
+          "currency": { "type": "string" },
+          "sprecher": { "type": "string" },
+          "duration": { "type": "integer", "minimum": 0 }
+        }
+      }
+    }
+  }
+}

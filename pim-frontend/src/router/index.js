@@ -340,6 +340,12 @@ const routes = [
     meta: { title: 'Portal Editor', tabable: true, tabTitle: 'Portal' },
   },
   {
+    path: '/social-video',
+    name: 'social-video',
+    component: () => import('@/views/publish/SocialVideoView.vue'),
+    meta: { title: 'Social-Video' },
+  },
+  {
     path: '/media',
     name: 'media',
     component: () => import('@/views/media/MediaView.vue'),
