@@ -129,18 +129,21 @@ class RenderSocialVideoJob implements ShouldQueue
 
     private function engineEnv(): array
     {
+        // Werte über config() lesen (NICHT env()): bleibt bei gecachter Config
+        // verfügbar – sonst liefert env() in Produktion null und der Browser-Pfad
+        // erreicht die Engine nicht ("Chromium nicht gefunden").
         return array_filter([
-            'ANYPIM_BASE_URL'     => config('app.url', env('VIDEO_ENGINE_BASE_URL', 'http://localhost:8000')),
-            'VIDEO_DISPLAY'       => env('VIDEO_ENGINE_DISPLAY', ':99'),
-            'VIDEO_FPS'           => env('VIDEO_ENGINE_FPS', '30'),
-            'VIDEO_QUALITY'       => env('VIDEO_ENGINE_QUALITY', 'high'),
-            'ELEVENLABS_API_KEY'  => env('ELEVENLABS_API_KEY'),
-            'ELEVENLABS_FALLBACK' => env('ELEVENLABS_FALLBACK', 'gtts'),
+            'ANYPIM_BASE_URL'     => config('app.url') ?: (config('video.base_url') ?: 'http://localhost:8000'),
+            'VIDEO_DISPLAY'       => config('video.display'),
+            'VIDEO_FPS'           => config('video.fps'),
+            'VIDEO_QUALITY'       => config('video.quality'),
+            'ELEVENLABS_API_KEY'  => config('video.elevenlabs.api_key'),
+            'ELEVENLABS_FALLBACK' => config('video.elevenlabs.fallback'),
             // Optionale, explizite Binary-Pfade. Leer lassen → die Engine löst
             // ffmpeg (PATH) und Chromium (bereitgestellter Browser) selbst auf.
-            'FFMPEG_PATH'             => env('VIDEO_ENGINE_FFMPEG_PATH'),
-            'PLAYWRIGHT_CHROMIUM_PATH' => env('VIDEO_ENGINE_CHROMIUM_PATH'),
-            'PLAYWRIGHT_BROWSERS_PATH' => env('PLAYWRIGHT_BROWSERS_PATH'),
+            'FFMPEG_PATH'             => config('video.ffmpeg_path'),
+            'PLAYWRIGHT_CHROMIUM_PATH' => config('video.chromium_path'),
+            'PLAYWRIGHT_BROWSERS_PATH' => config('video.browsers_path'),
             'APP_ENV'             => app()->environment(),
         ]);
     }
