@@ -97,12 +97,12 @@ function buildSceneCss(style: ReelStyle): string {
   @keyframes reelFade { from { opacity: 0; } to { opacity: 1; } }
   @keyframes reelSlide { from { opacity: 0; transform: translateY(8%); } to { opacity: 1; transform: none; } }
   @keyframes reelZoom { from { opacity: 0; transform: scale(1.12); } to { opacity: 1; transform: none; } }
-  @keyframes reelKenburns { from { transform: scale(1.08); } to { transform: scale(1); } }
-  @keyframes reelMZoomIn  { from { transform: scale(1); }    to { transform: scale(1.14); } }
-  @keyframes reelMZoomOut { from { transform: scale(1.14); } to { transform: scale(1); } }
+  @keyframes reelKenburns { from { transform: scale(1.0) translate(0, 0); } to { transform: scale(1.18) translate(-3%, -2%); } }
+  @keyframes reelMZoomIn  { from { transform: scale(1.0); }  to { transform: scale(1.22); } }
+  @keyframes reelMZoomOut { from { transform: scale(1.22); } to { transform: scale(1.0); } }
   @keyframes reelMFadeIn  { from { opacity: 0; } to { opacity: 1; } }
   @keyframes reelMFadeOut { from { opacity: 1; } to { opacity: 0; } }
-  @keyframes reelMPan { from { transform: scale(1.18) translateX(-4%); } to { transform: scale(1.18) translateX(4%); } }
+  @keyframes reelMPan { from { transform: scale(1.22) translateX(-6%); } to { transform: scale(1.22) translateX(6%); } }
   @keyframes reelTextIn { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
   .bg { position: absolute; inset: 0; z-index: 0; }
   .bg img { width: 100%; height: 100%; object-fit: cover; ${mediaRule} }
