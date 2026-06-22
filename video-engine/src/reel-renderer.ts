@@ -7,6 +7,14 @@
  * VoiceSynthesizer, video-renderer) verarbeitet das Ergebnis unverändert weiter.
  */
 
+export interface ReelStyle {
+  brief?: string;
+  tonality?: string;
+  accent?: string;
+  background?: string;
+  transition?: 'fade' | 'slide' | 'zoom' | 'cut';
+}
+
 export interface ReelScene {
   type: 'hero' | 'feature' | 'price' | 'cta';
   image?: string | null;
@@ -25,19 +33,86 @@ export interface ReelDefinition {
     viewport?: { width: number; height: number };
     voice?: { lang?: string; gender?: string; provider?: string; voice_id?: string };
     template?: string;
+    style?: ReelStyle;
     languages?: string[];
     product_count?: number;
   };
   scenes: ReelScene[];
 }
 
+const STYLE_DEFAULTS: Required<Pick<ReelStyle, 'accent' | 'background' | 'transition'>> = {
+  accent: '#06b6d4',
+  background: '#0f0f23',
+  transition: 'fade',
+};
+
+/** Übersetzt den gewählten Übergang in eine CSS-Animation für die Szene. */
+function transitionAnimation(transition: string): string {
+  switch (transition) {
+    case 'slide': return 'reelSlide 0.6s cubic-bezier(.2,.7,.2,1) both';
+    case 'zoom':  return 'reelZoom 0.7s ease-out both';
+    case 'cut':   return 'none';
+    default:      return 'reelFade 0.6s ease-out both';
+  }
+}
+
 /**
- * Baut das Playwright-Script. Szenen-Daten werden als JSON eingebettet, die
+ * Baut das vollständige Szenen-CSS aus dem Stil-Briefing. Akzent-/Hintergrundfarbe und
+ * Übergang werden zur Generierungszeit eingesetzt (color-mix für die Verläufe).
+ */
+function buildSceneCss(style: ReelStyle): string {
+  const accent = style.accent || STYLE_DEFAULTS.accent;
+  const bg = style.background || STYLE_DEFAULTS.background;
+  const anim = transitionAnimation(style.transition || STYLE_DEFAULTS.transition);
+  const gradient = `linear-gradient(135deg, color-mix(in srgb, ${accent} 65%, #000), ${accent})`;
+
+  return `
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { width: 100vw; height: 100vh; overflow: hidden; background: ${bg};
+    font-family: system-ui, -apple-system, sans-serif; color: #fff; }
+  .stage { position: relative; width: 100vw; height: 100vh; display: flex;
+    flex-direction: column; align-items: center; justify-content: flex-end;
+    animation: ${anim}; }
+  @keyframes reelFade { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes reelSlide { from { opacity: 0; transform: translateY(8%); } to { opacity: 1; transform: none; } }
+  @keyframes reelZoom { from { opacity: 0; transform: scale(1.12); } to { opacity: 1; transform: none; } }
+  @keyframes slowZoom { from { transform: scale(1.08); } to { transform: scale(1); } }
+  .bg { position: absolute; inset: 0; z-index: 0; }
+  .bg img { width: 100%; height: 100%; object-fit: cover; animation: slowZoom 5s ease-out both; }
+  .bg-blur { position: absolute; inset: 0; background-size: cover; background-position: center;
+    filter: blur(40px) brightness(0.5); transform: scale(1.2); z-index: -1; }
+  .scrim { position: absolute; inset: 0; z-index: 1;
+    background: linear-gradient(to top,
+      color-mix(in srgb, ${bg}, transparent 5%) 0%,
+      color-mix(in srgb, ${bg}, transparent 90%) 55%,
+      color-mix(in srgb, ${bg}, transparent 70%) 100%); }
+  .content { position: relative; z-index: 2; width: 100%; padding: 0 64px 140px; text-align: center; }
+  .badge { display: inline-block; font-size: 26px; font-weight: 700; letter-spacing: 4px;
+    text-transform: uppercase; color: ${accent}; margin-bottom: 20px; }
+  .headline { font-size: 76px; font-weight: 800; line-height: 1.05; letter-spacing: -1px;
+    text-shadow: 0 4px 24px rgba(0,0,0,0.5); }
+  .subline { font-size: 36px; font-weight: 400; color: #cbd5e1; margin-top: 24px; line-height: 1.3; }
+  .price { font-size: 120px; font-weight: 900;
+    background: ${gradient}; -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent; }
+  .price-cur { font-size: 48px; font-weight: 700; color: #94a3b8; }
+  .cta-box { display: flex; flex-direction: column; align-items: center; gap: 28px;
+    justify-content: center; height: 100%; padding-bottom: 0; }
+  .cta-btn { font-size: 44px; font-weight: 800; padding: 28px 64px; border-radius: 999px;
+    background: ${gradient}; }
+  .cta-url { font-size: 30px; color: #94a3b8; letter-spacing: 2px; }
+  .center { justify-content: center !important; }
+`;
+}
+
+/**
+ * Baut das Playwright-Script. Szenen-Daten und CSS werden als JSON eingebettet, die
  * HTML-Erzeugung passiert zur Laufzeit – dadurch entfällt fehleranfälliges Escaping.
  */
 export function generateReelScript(reel: ReelDefinition, baseUrl: string): string {
   const viewport = reel.meta.viewport || { width: 1080, height: 1920 };
   const scenesJson = JSON.stringify(reel.scenes);
+  const cssText = buildSceneCss(reel.meta.style || {});
 
   return `// Auto-generiert von anyPIM Reel-Renderer
 // Reel: ${reel.meta.id} (${reel.scenes.length} Szenen, ${viewport.width}x${viewport.height})
@@ -47,6 +122,7 @@ import { writeFileSync } from 'fs';
 const BASE_URL = ${JSON.stringify(baseUrl.replace(/\/+$/, ''))};
 const VIEWPORT = ${JSON.stringify(viewport)};
 const SCENES = ${scenesJson} as Scene[];
+const BASE_CSS = ${JSON.stringify(cssText)};
 const TIMESTAMPS_FILE = process.env.TIMESTAMPS_FILE || 'timestamps.json';
 
 interface Scene {
@@ -73,39 +149,6 @@ function imgUrl(src?: string | null): string {
   if (/^https?:\\/\\//.test(src)) return src;
   return BASE_URL + (src.startsWith('/') ? src : '/' + src);
 }
-
-const BASE_CSS = \`
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { width: 100vw; height: 100vh; overflow: hidden; background: #0f0f23;
-    font-family: system-ui, -apple-system, sans-serif; color: #fff; }
-  .stage { position: relative; width: 100vw; height: 100vh; display: flex;
-    flex-direction: column; align-items: center; justify-content: flex-end;
-    animation: fadeIn 0.6s ease-out both; }
-  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-  @keyframes slowZoom { from { transform: scale(1.08); } to { transform: scale(1); } }
-  .bg { position: absolute; inset: 0; z-index: 0; }
-  .bg img { width: 100%; height: 100%; object-fit: cover; animation: slowZoom 5s ease-out both; }
-  .bg-blur { position: absolute; inset: 0; background-size: cover; background-position: center;
-    filter: blur(40px) brightness(0.5); transform: scale(1.2); z-index: -1; }
-  .scrim { position: absolute; inset: 0; z-index: 1;
-    background: linear-gradient(to top, rgba(10,10,30,0.95) 0%, rgba(10,10,30,0.1) 55%, rgba(10,10,30,0.3) 100%); }
-  .content { position: relative; z-index: 2; width: 100%; padding: 0 64px 140px; text-align: center; }
-  .badge { display: inline-block; font-size: 26px; font-weight: 700; letter-spacing: 4px;
-    text-transform: uppercase; color: #06b6d4; margin-bottom: 20px; }
-  .headline { font-size: 76px; font-weight: 800; line-height: 1.05; letter-spacing: -1px;
-    text-shadow: 0 4px 24px rgba(0,0,0,0.5); }
-  .subline { font-size: 36px; font-weight: 400; color: #cbd5e1; margin-top: 24px; line-height: 1.3; }
-  .price { font-size: 120px; font-weight: 900;
-    background: linear-gradient(135deg, #6366f1, #06b6d4); -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent; }
-  .price-cur { font-size: 48px; font-weight: 700; color: #94a3b8; }
-  .cta-box { display: flex; flex-direction: column; align-items: center; gap: 28px;
-    justify-content: center; height: 100%; padding-bottom: 0; }
-  .cta-btn { font-size: 44px; font-weight: 800; padding: 28px 64px; border-radius: 999px;
-    background: linear-gradient(135deg, #6366f1, #8b5cf6, #06b6d4); }
-  .cta-url { font-size: 30px; color: #94a3b8; letter-spacing: 2px; }
-  .center { justify-content: center !important; }
-\`;
 
 function sceneHtml(s: Scene): string {
   const url = imgUrl(s.image);

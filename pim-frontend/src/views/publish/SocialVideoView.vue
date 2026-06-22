@@ -1,9 +1,10 @@
 <script setup>
-import { ref, computed, onBeforeUnmount } from 'vue'
-import { Clapperboard, Search, X, Plus, Sparkles, Loader2, Download } from 'lucide-vue-next'
+import { ref, reactive, computed, onBeforeUnmount } from 'vue'
+import { Clapperboard, Search, X, Plus, Sparkles, Loader2, Download, Palette } from 'lucide-vue-next'
 import productsApi from '@/api/products'
 import socialVideoApi from '@/api/socialVideo'
 import { useToastStore } from '@/stores/toast'
+import ScenePreview from './ScenePreview.vue'
 
 const toast = useToastStore()
 
@@ -55,6 +56,40 @@ const formats = [
   { value: '16x9', label: '16:9 · YouTube' },
 ]
 
+// ─── Look & Stil ───────────────────────────────────────────
+const style = reactive({
+  brief: '',
+  tonality: '',
+  accent: '#06b6d4',
+  background: '#0f0f23',
+  transition: 'fade',
+})
+
+const transitions = [
+  { value: 'fade', label: 'Weich' },
+  { value: 'slide', label: 'Slide' },
+  { value: 'zoom', label: 'Zoom' },
+  { value: 'cut', label: 'Hart' },
+]
+
+const stylePresets = [
+  { name: 'Tech', accent: '#06b6d4', background: '#0f0f23', tonality: 'technisch, präzise, hochwertig', transition: 'slide' },
+  { name: 'Bold', accent: '#f43f5e', background: '#1c0a14', tonality: 'laut, mutig, energiegeladen', transition: 'zoom' },
+  { name: 'Elegant', accent: '#d4af37', background: '#14110a', tonality: 'edel, ruhig, luxuriös', transition: 'fade' },
+  { name: 'Frisch', accent: '#22c55e', background: '#08160f', tonality: 'natürlich, freundlich, leicht', transition: 'fade' },
+]
+
+function applyPreset(p) {
+  style.accent = p.accent
+  style.background = p.background
+  style.tonality = p.tonality
+  style.transition = p.transition
+}
+
+function transitionLabel(value) {
+  return transitions.find(t => t.value === value)?.label || value
+}
+
 // ─── Generierung & Status ──────────────────────────────────
 const generating = ref(false)
 const jobId = ref(null)
@@ -80,6 +115,7 @@ async function generate() {
       format: format.value,
       languages: [language.value],
       use_ai: useAi.value,
+      style: { ...style },
     })
     jobId.value = data.job_id
     reel.value = data.reel
@@ -213,6 +249,64 @@ function sceneLabel(type) {
           </div>
         </div>
 
+        <!-- Look & Stil -->
+        <div class="card bg-base-100 shadow-sm border border-base-200">
+          <div class="card-body">
+            <h2 class="card-title text-base">
+              <Palette class="w-4 h-4 text-primary" /> 3. Look &amp; Stil
+            </h2>
+
+            <!-- Presets -->
+            <div class="flex flex-wrap gap-2">
+              <button
+                v-for="p in stylePresets"
+                :key="p.name"
+                class="btn btn-xs btn-outline gap-1"
+                @click="applyPreset(p)"
+              >
+                <span class="w-3 h-3 rounded-full inline-block" :style="{ background: p.accent }"></span>
+                {{ p.name }}
+              </button>
+            </div>
+
+            <label class="form-control mt-3">
+              <span class="label-text mb-1">Kreativ-Briefing (optional, fließt in den KI-Text)</span>
+              <textarea
+                v-model="style.brief"
+                class="textarea textarea-bordered h-20"
+                placeholder="z.B. Fokus auf Nachhaltigkeit, Outdoor-Feeling, junge Zielgruppe …"
+              ></textarea>
+            </label>
+
+            <label class="form-control mt-2">
+              <span class="label-text mb-1">Tonalität</span>
+              <input
+                v-model="style.tonality"
+                type="text"
+                class="input input-bordered"
+                placeholder="z.B. jung, energiegeladen, direkt"
+              />
+            </label>
+
+            <div class="flex gap-4 mt-3">
+              <label class="form-control">
+                <span class="label-text mb-1">Akzent</span>
+                <input v-model="style.accent" type="color" class="w-14 h-10 rounded cursor-pointer bg-base-200 border border-base-300" />
+              </label>
+              <label class="form-control">
+                <span class="label-text mb-1">Hintergrund</span>
+                <input v-model="style.background" type="color" class="w-14 h-10 rounded cursor-pointer bg-base-200 border border-base-300" />
+              </label>
+              <label class="form-control flex-1">
+                <span class="label-text mb-1">Übergang</span>
+                <select v-model="style.transition" class="select select-bordered">
+                  <option v-for="t in transitions" :key="t.value" :value="t.value">{{ t.label }}</option>
+                </select>
+              </label>
+            </div>
+          </div>
+        </div>
+
         <button
           class="btn btn-primary btn-block"
           :disabled="!canGenerate"
@@ -253,23 +347,26 @@ function sceneLabel(type) {
             <h2 class="card-title text-base">
               Storyboard
               <span class="badge badge-ghost">{{ reel.scenes.length }} Szenen</span>
+              <span class="badge badge-ghost badge-sm ml-auto font-normal">
+                Übergang: {{ transitionLabel(reel.meta?.style?.transition || style.transition) }}
+              </span>
             </h2>
-            <ol class="space-y-2">
-              <li
-                v-for="(sc, i) in reel.scenes"
-                :key="i"
-                class="flex items-start gap-3 p-2 rounded-lg bg-base-200/50"
-              >
-                <span class="badge badge-sm badge-neutral mt-1">{{ i + 1 }}</span>
-                <div class="min-w-0">
-                  <div class="text-xs uppercase tracking-wide opacity-50">{{ sceneLabel(sc.type) }}</div>
-                  <div class="font-medium truncate">
-                    {{ sc.headline || (sc.value != null ? sc.value + ' ' + (sc.currency || '') : '—') }}
-                  </div>
-                  <div v-if="sc.sprecher" class="text-sm opacity-60 italic">„{{ sc.sprecher }}"</div>
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <div v-for="(sc, i) in reel.scenes" :key="i" class="space-y-1">
+                <div class="relative">
+                  <ScenePreview
+                    :scene="sc"
+                    :format="reel.meta?.format || format"
+                    :theme="reel.meta?.style || style"
+                  />
+                  <span class="absolute top-1 left-1 badge badge-xs badge-neutral">{{ i + 1 }}</span>
                 </div>
-              </li>
-            </ol>
+                <div class="text-[10px] uppercase tracking-wide opacity-50">{{ sceneLabel(sc.type) }}</div>
+                <div v-if="sc.sprecher" class="text-xs opacity-60 italic leading-tight line-clamp-2">
+                  „{{ sc.sprecher }}"
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 

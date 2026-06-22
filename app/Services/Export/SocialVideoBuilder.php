@@ -38,6 +38,18 @@ class SocialVideoBuilder
         'provider' => 'elevenlabs',
     ];
 
+    /**
+     * Look & Stil des Reels. brief/tonality steuern den KI-Text,
+     * accent/background die Farben, transition den Szenen-Übergang.
+     */
+    private array $style = [
+        'brief'      => '',
+        'tonality'   => '',
+        'accent'     => '#06b6d4',
+        'background' => '#0f0f23',
+        'transition' => 'fade', // fade | slide | zoom | cut
+    ];
+
     public function __construct(
         private readonly MappingResolver $mappingResolver,
         private readonly ClaudeAITextService $claude,
@@ -83,6 +95,18 @@ class SocialVideoBuilder
     public function setTemplate(string $template): void { $this->template = $template; }
     public function setUseAi(bool $useAi): void { $this->useAi = $useAi; }
 
+    /**
+     * Setzt das Stil-Briefing (nur bekannte Felder werden übernommen).
+     */
+    public function setStyle(array $style): void
+    {
+        foreach (['brief', 'tonality', 'accent', 'background', 'transition'] as $key) {
+            if (array_key_exists($key, $style) && $style[$key] !== null && $style[$key] !== '') {
+                $this->style[$key] = (string) $style[$key];
+            }
+        }
+    }
+
     // --- Hauptmethode ---
 
     /**
@@ -114,6 +138,7 @@ class SocialVideoBuilder
                 'viewport'  => $this->viewportFor($this->format),
                 'voice'     => $this->voice,
                 'template'  => $this->template,
+                'style'     => $this->style,
                 'languages' => $this->languages,
                 'product_count' => count($products),
             ],
@@ -183,11 +208,17 @@ class SocialVideoBuilder
             return $fallback;
         }
 
+        $prompt = 'Schreibe einen einzigen, knackigen Social-Media-Hook (max. 12 Wörter, '
+            . 'ohne Hashtags, ohne Anführungszeichen) für ein Produktvideo zu diesem Produkt.';
+        if (trim($this->style['brief']) !== '') {
+            $prompt .= "\n\nKreativ-Briefing für das Video: " . trim($this->style['brief']);
+        }
+        $tonality = trim($this->style['tonality']) !== '' ? trim($this->style['tonality']) : 'jung, energiegeladen, direkt';
+
         try {
             $result = $this->claude->generateProductText($apiKey, $product, $this->languages[0], 'marketing', [
-                'custom_prompt' => 'Schreibe einen einzigen, knackigen Social-Media-Hook (max. 12 Wörter, '
-                    . 'ohne Hashtags, ohne Anführungszeichen) für ein Produktvideo zu diesem Produkt.',
-                'tonality'      => 'jung, energiegeladen, direkt',
+                'custom_prompt' => $prompt,
+                'tonality'      => $tonality,
                 'max_tokens'    => 80,
             ]);
             $text = trim((string) ($result['text'] ?? ''));

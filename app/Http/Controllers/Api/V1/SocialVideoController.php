@@ -34,6 +34,12 @@ class SocialVideoController extends Controller
             'format'        => 'sometimes|string|in:9x16,1x1,16x9',
             'template'      => 'sometimes|string',
             'use_ai'        => 'sometimes|boolean',
+            'style'              => 'sometimes|array',
+            'style.brief'        => 'sometimes|nullable|string|max:2000',
+            'style.tonality'     => 'sometimes|nullable|string|max:255',
+            'style.accent'       => 'sometimes|nullable|string|max:32',
+            'style.background'   => 'sometimes|nullable|string|max:32',
+            'style.transition'   => 'sometimes|nullable|string|in:fade,slide,zoom,cut',
         ]);
 
         $builder->setProductIds($validated['product_ids']);
@@ -50,6 +56,9 @@ class SocialVideoController extends Controller
             $builder->setTemplate($validated['template']);
         }
         $builder->setUseAi((bool) ($validated['use_ai'] ?? false));
+        if (! empty($validated['style'])) {
+            $builder->setStyle($validated['style']);
+        }
 
         $reel = $builder->build();
 

@@ -30,6 +30,16 @@
           }
         },
         "template": { "type": "string" },
+        "style": {
+          "type": "object",
+          "properties": {
+            "brief": { "type": "string" },
+            "tonality": { "type": "string" },
+            "accent": { "type": "string" },
+            "background": { "type": "string" },
+            "transition": { "type": "string", "enum": ["fade", "slide", "zoom", "cut"] }
+          }
+        },
         "languages": { "type": "array", "items": { "type": "string" } },
         "product_count": { "type": "integer" }
       }
