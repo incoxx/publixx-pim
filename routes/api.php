@@ -1086,7 +1086,11 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::put('notes/{note}', [NoteController::class, 'update']);
     Route::delete('notes/{note}', [NoteController::class, 'destroy']);
     Route::post('notes/reorder', [NoteController::class, 'reorder']);
+    Route::post('notes/{note}/resolve', [NoteController::class, 'resolve']);
+    Route::post('notes/{note}/reopen', [NoteController::class, 'reopen']);
+    Route::post('notes/{note}/comments', [NoteController::class, 'addComment']);
     Route::get('products/{product}/notes', [NoteController::class, 'forProduct']);
+    Route::get('products/{product}/notes/open-counts', [NoteController::class, 'openCounts']);
 
     // =====================================================================
     // Connectors (Enterprise: connectors)
