@@ -103,6 +103,7 @@ function buildSceneCss(style: ReelStyle): string {
   @keyframes reelMFadeIn  { from { opacity: 0; } to { opacity: 1; } }
   @keyframes reelMFadeOut { from { opacity: 1; } to { opacity: 0; } }
   @keyframes reelMPan { from { transform: scale(1.18) translateX(-4%); } to { transform: scale(1.18) translateX(4%); } }
+  @keyframes reelTextIn { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
   .bg { position: absolute; inset: 0; z-index: 0; }
   .bg img { width: 100%; height: 100%; object-fit: cover; ${mediaRule} }
   .bg-blur { position: absolute; inset: 0; background-size: cover; background-position: center;
@@ -112,7 +113,10 @@ function buildSceneCss(style: ReelStyle): string {
       color-mix(in srgb, ${bg}, transparent 5%) 0%,
       color-mix(in srgb, ${bg}, transparent 90%) 55%,
       color-mix(in srgb, ${bg}, transparent 70%) 100%); }
-  .content { position: relative; z-index: 2; width: 100%; padding: 0 64px 140px; text-align: center; }
+  /* Text-Overlay-Wirt: layout-transparent, damit .stage-Flex direkt den .content ausrichtet. */
+  .content-host { display: contents; }
+  .content { position: relative; z-index: 2; width: 100%; padding: 0 64px 140px; text-align: center;
+    animation: reelTextIn 0.5s ease both; }
   .badge { display: inline-block; font-size: 26px; font-weight: 700; letter-spacing: 4px;
     text-transform: uppercase; color: ${accent}; margin-bottom: 20px; }
   .headline { font-size: 76px; font-weight: 800; line-height: 1.05; letter-spacing: -1px;
@@ -176,36 +180,62 @@ function imgUrl(src?: string | null): string {
   return BASE_URL + (src.startsWith('/') ? src : '/' + src);
 }
 
-function sceneHtml(s: Scene): string {
-  const url = imgUrl(s.image);
-  const dur = s.duration && s.duration > 0 ? s.duration : 2500;
-  const bg = url
-    ? \`<div class="bg-blur" style="background-image:url('\${url}')"></div><div class="bg"><img src="\${url}" alt="" style="animation-duration:\${dur}ms"></div><div class="scrim"></div>\`
-    : '';
+function sceneDur(s: Scene): number {
+  return s.duration && s.duration > 0 ? s.duration : 2500;
+}
 
+// Hintergrund (Bild + Blur + Scrim). animation-duration deckt das GANZE Segment ab,
+// damit der Zoom durchgehend über alle Text-Wechsel läuft (kein Neustart pro Untertitel).
+function bgHtml(url: string, totalMs: number): string {
+  if (!url) return '';
+  return \`<div class="bg-blur" style="background-image:url('\${url}')"></div>\`
+    + \`<div class="bg"><img src="\${url}" alt="" style="animation-duration:\${totalMs}ms"></div>\`
+    + \`<div class="scrim"></div>\`;
+}
+
+// Nur der Text-Overlay einer Szene (ohne Stage/Hintergrund) – wird je Szene in den
+// persistenten .content-host getauscht, ohne das Bild neu zu laden.
+function contentInner(s: Scene): string {
   if (s.type === 'price') {
     const formatted = typeof s.value === 'number'
       ? s.value.toLocaleString('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
       : '';
-    return \`<div class="stage center">\${bg}<div class="content"><div class="badge">Preis</div>
-      <div><span class="price">\${esc(formatted)}</span> <span class="price-cur">\${esc(s.currency || 'EUR')}</span></div></div></div>\`;
+    return \`<div class="content"><div class="badge">Preis</div>
+      <div><span class="price">\${esc(formatted)}</span> <span class="price-cur">\${esc(s.currency || 'EUR')}</span></div></div>\`;
   }
-
   if (s.type === 'cta') {
-    return \`<div class="stage center"><div class="content cta-box">
+    return \`<div class="content cta-box">
       <div class="cta-btn">\${esc(s.headline || 'Jetzt entdecken')}</div>
-      <div class="cta-url">www.incoxx.com</div></div></div>\`;
+      <div class="cta-url">www.incoxx.com</div></div>\`;
   }
-
   const badge = s.type === 'feature' ? '<div class="badge">Highlight</div>' : '';
   const sub = s.subline ? \`<div class="subline">\${esc(s.subline)}</div>\` : '';
-  return \`<div class="stage">\${bg}<div class="content">\${badge}
-    <div class="headline">\${esc(s.headline)}</div>\${sub}</div></div>\`;
+  return \`<div class="content">\${badge}<div class="headline">\${esc(s.headline)}</div>\${sub}</div>\`;
 }
 
-function pageHtml(s: Scene): string {
-  return \`<!DOCTYPE html><html><head><meta charset="utf-8"><style>\${BASE_CSS}</style></head>
-    <body>\${sceneHtml(s)}</body></html>\`;
+// Persistente Segment-Seite: Hintergrund einmal gerendert, Text-Wirt zunächst leer.
+function segmentPage(url: string, totalMs: number, centered: boolean): string {
+  return \`<!DOCTYPE html><html><head><meta charset="utf-8"><style>\${BASE_CSS}</style></head>\`
+    + \`<body><div class="stage\${centered ? ' center' : ''}">\${bgHtml(url, totalMs)}<div class="content-host"></div></div></body></html>\`;
+}
+
+interface Segment { url: string; centered: boolean; scenes: number[]; }
+
+// Aufeinanderfolgende Szenen mit GLEICHEM Bild (und gleicher Zentrierung) zu einem
+// Segment bündeln → Bild lädt nur einmal, der Zoom läuft durchgehend weiter.
+function buildSegments(): Segment[] {
+  const segments: Segment[] = [];
+  for (let i = 0; i < SCENES.length; i++) {
+    const url = imgUrl(SCENES[i].image);
+    const centered = SCENES[i].type === 'price' || SCENES[i].type === 'cta';
+    const last = segments[segments.length - 1];
+    if (last && url !== '' && last.url === url && last.centered === centered) {
+      last.scenes.push(i);
+    } else {
+      segments.push({ url, centered, scenes: [i] });
+    }
+  }
+  return segments;
 }
 
 export async function run(): Promise<void> {
@@ -219,22 +249,35 @@ export async function run(): Promise<void> {
   const context = await browser.newContext({ viewport: VIEWPORT, locale: 'de-DE' });
   const page: Page = await context.newPage();
 
-  for (let i = 0; i < SCENES.length; i++) {
-    const s = SCENES[i];
-    const id = 'scene-' + (i + 1);
-    const duration = s.duration && s.duration > 0 ? s.duration : 2500;
-    console.log('[SCENE ' + (i + 1) + '/' + SCENES.length + '] ' + s.type);
-
-    timestamps.push({ id, sprecher: s.sprecher || '', startMs: elapsed() });
+  for (const seg of buildSegments()) {
+    // Gesamtdauer des Segments = Summe der enthaltenen Szenen → Zoom-Länge.
+    const totalMs = seg.scenes.reduce((sum, idx) => sum + sceneDur(SCENES[idx]), 0);
     try {
-      await page.setContent(pageHtml(s), { waitUntil: 'load' });
-      // Bilder kurz laden lassen
+      // Hintergrund EINMAL pro Segment setzen und das Bild laden lassen.
+      await page.setContent(segmentPage(seg.url, totalMs, seg.centered), { waitUntil: 'load' });
       await page.waitForLoadState('networkidle', { timeout: 4000 }).catch(() => {});
-      await sleep(duration);
     } catch (err) {
-      console.warn('[SCENE ' + (i + 1) + '] WARN:', (err as Error).message);
+      console.warn('[SEGMENT] WARN:', (err as Error).message);
     }
-    timestamps[timestamps.length - 1].endMs = elapsed();
+
+    for (const idx of seg.scenes) {
+      const s = SCENES[idx];
+      const id = 'scene-' + (idx + 1);
+      console.log('[SCENE ' + (idx + 1) + '/' + SCENES.length + '] ' + s.type);
+
+      timestamps.push({ id, sprecher: s.sprecher || '', startMs: elapsed() });
+      try {
+        // Nur den Text-Overlay tauschen – Bild und laufender Zoom bleiben erhalten.
+        await page.evaluate((html) => {
+          const host = document.querySelector('.content-host');
+          if (host) host.innerHTML = html;
+        }, contentInner(s));
+        await sleep(sceneDur(s));
+      } catch (err) {
+        console.warn('[SCENE ' + (idx + 1) + '] WARN:', (err as Error).message);
+      }
+      timestamps[timestamps.length - 1].endMs = elapsed();
+    }
   }
 
   await sleep(500);
