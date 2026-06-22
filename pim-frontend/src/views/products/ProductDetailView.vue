@@ -23,7 +23,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useLocaleStore } from '@/stores/locale'
 import { useToastStore } from '@/stores/toast'
 import { useI18n } from 'vue-i18n'
-import { ArrowLeft, Save, Plus, Trash2, Image, Star, X, Search, Download, Languages, Copy, Sparkles, Tags, LayoutGrid, List, FileText, GitBranch, CheckCircle2, Eye, RotateCcw, ArrowRightLeft, RefreshCw, ChevronDown, ChevronRight, ChevronUp, ExternalLink, Filter, Upload } from 'lucide-vue-next'
+import { ArrowLeft, Save, Plus, Trash2, Image, Star, X, Search, Download, Languages, Copy, Sparkles, Tags, LayoutGrid, List, FileText, GitBranch, CheckCircle2, Eye, RotateCcw, ArrowRightLeft, RefreshCw, ChevronDown, ChevronRight, ChevronUp, ExternalLink, Filter, Upload, ClipboardList, Lightbulb, AlertTriangle, XCircle } from 'lucide-vue-next'
 import productsApi from '@/api/products'
 import projectsApi from '@/api/projects'
 import usersApi from '@/api/users'
@@ -71,6 +71,18 @@ const activeAttrSubTab = ref('master')  // 'master' oder hierarchy_id
 const moreMenuOpen = ref(false)         // Dropdown "Mehr" geöffnet?
 const saving = ref(false)
 const activeDataLang = ref(localeStore.activeDataLocales[0] || 'de')
+
+// Offene Notizen-Zähler für Header-Badges { task: 2, error: 1, ... }
+const noteOpenCounts = ref({})
+const NOTE_BADGE_TYPES = [
+  { key: 'error',   icon: XCircle,       bg: '#fee2e2', border: '#f87171', text: '#7f1d1d' },
+  { key: 'warning', icon: AlertTriangle,  bg: '#ffedd5', border: '#fb923c', text: '#7c2d12' },
+  { key: 'task',    icon: ClipboardList,  bg: '#dbeafe', border: '#60a5fa', text: '#1e3a5f' },
+  { key: 'hint',    icon: Lightbulb,      bg: '#fef9c3', border: '#facc15', text: '#713f12' },
+]
+function onNoteCountsUpdated(counts) {
+  noteOpenCounts.value = counts
+}
 
 // Generation counter — wird bei jedem Produktwechsel erhöht.
 // Async-Funktionen prüfen nach await, ob die Generation noch aktuell ist,
@@ -2594,6 +2606,22 @@ onUnmounted(() => {
       >
         <Star class="w-4 h-4" :stroke-width="1.75" :class="isOnWatchlist ? 'text-amber-500 fill-amber-500' : 'text-[var(--color-text-tertiary)]'" />
       </button>
+
+      <!-- Notizen-Badges (offene Notizen pro Typ) -->
+      <template v-if="product">
+        <button
+          v-for="badge in NOTE_BADGE_TYPES.filter(b => noteOpenCounts[b.key] > 0)"
+          :key="badge.key"
+          class="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold border transition-opacity hover:opacity-80"
+          :style="{ background: badge.bg, borderColor: badge.border, color: badge.text }"
+          title="Zu Notizen"
+          @click="activeTab = 'notes'"
+        >
+          <component :is="badge.icon" class="w-3.5 h-3.5" :stroke-width="2" />
+          {{ noteOpenCounts[badge.key] }}
+        </button>
+      </template>
+
       <button
         v-if="product"
         class="pim-btn pim-btn-secondary text-xs"
@@ -4382,7 +4410,7 @@ onUnmounted(() => {
 
     <!-- ═══ Notes Tab ═══ -->
     <div v-else-if="activeTab === 'notes' && product" class="space-y-4">
-      <ProductNotesTab :product-id="product.id" />
+      <ProductNotesTab :product-id="product.id" @counts-updated="onNoteCountsUpdated" />
     </div>
 
     <!-- ═══ Output Hierarchies Tab ═══ -->
