@@ -247,7 +247,27 @@ function stopPolling() {
 }
 onBeforeUnmount(stopPolling)
 
-const downloadHref = computed(() => (jobId.value ? socialVideoApi.downloadUrl(jobId.value) : '#'))
+// Download über authentifizierten Blob-Request (a-href schickt keinen Token → 401).
+const downloading = ref(false)
+async function downloadVideo() {
+  if (!jobId.value || downloading.value) return
+  downloading.value = true
+  try {
+    const { data } = await socialVideoApi.download(jobId.value)
+    const url = URL.createObjectURL(data)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `reel-${new Date().toISOString().slice(0, 10)}.mp4`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+  } catch (e) {
+    toast.showToast('Download fehlgeschlagen', 'error')
+  } finally {
+    downloading.value = false
+  }
+}
 
 function sceneLabel(type) {
   return { hero: 'Aufmacher', feature: 'Highlight', price: 'Preis', cta: 'Call-to-Action' }[type] || type
@@ -491,9 +511,11 @@ watch(() => fieldSources.hero_image, scheduleLoadImages)
           </div>
           <div v-else-if="isDone" class="space-y-3">
             <video :src="status.download_url" controls class="w-full rounded-lg bg-black max-h-[480px] mx-auto" />
-            <a :href="downloadHref" class="pim-btn pim-btn-secondary text-xs" download>
-              <Download class="w-3.5 h-3.5" :stroke-width="2" /> MP4 herunterladen
-            </a>
+            <button class="pim-btn pim-btn-secondary text-xs" :disabled="downloading" @click="downloadVideo">
+              <Loader2 v-if="downloading" class="w-3.5 h-3.5 animate-spin" />
+              <Download v-else class="w-3.5 h-3.5" :stroke-width="2" />
+              MP4 herunterladen
+            </button>
           </div>
         </div>
 
