@@ -63,6 +63,7 @@ const style = reactive({
   accent: '#06b6d4',
   background: '#0f0f23',
   transition: 'fade',
+  media_animation: 'kenburns',
 })
 
 const transitions = [
@@ -72,11 +73,21 @@ const transitions = [
   { value: 'cut', label: 'Hart' },
 ]
 
+const mediaAnimations = [
+  { value: 'kenburns', label: 'Ken Burns' },
+  { value: 'zoom-in', label: 'Zoom in' },
+  { value: 'zoom-out', label: 'Zoom out' },
+  { value: 'fade-in', label: 'Fade in' },
+  { value: 'fade-out', label: 'Fade out' },
+  { value: 'pan', label: 'Schwenk' },
+  { value: 'none', label: 'Keine' },
+]
+
 const stylePresets = [
-  { name: 'Tech', accent: '#06b6d4', background: '#0f0f23', tonality: 'technisch, präzise, hochwertig', transition: 'slide' },
-  { name: 'Bold', accent: '#f43f5e', background: '#1c0a14', tonality: 'laut, mutig, energiegeladen', transition: 'zoom' },
-  { name: 'Elegant', accent: '#d4af37', background: '#14110a', tonality: 'edel, ruhig, luxuriös', transition: 'fade' },
-  { name: 'Frisch', accent: '#22c55e', background: '#08160f', tonality: 'natürlich, freundlich, leicht', transition: 'fade' },
+  { name: 'Tech', accent: '#06b6d4', background: '#0f0f23', tonality: 'technisch, präzise, hochwertig', transition: 'slide', media_animation: 'zoom-in' },
+  { name: 'Bold', accent: '#f43f5e', background: '#1c0a14', tonality: 'laut, mutig, energiegeladen', transition: 'zoom', media_animation: 'zoom-out' },
+  { name: 'Elegant', accent: '#d4af37', background: '#14110a', tonality: 'edel, ruhig, luxuriös', transition: 'fade', media_animation: 'kenburns' },
+  { name: 'Frisch', accent: '#22c55e', background: '#08160f', tonality: 'natürlich, freundlich, leicht', transition: 'fade', media_animation: 'fade-in' },
 ]
 
 function applyPreset(p) {
@@ -84,6 +95,7 @@ function applyPreset(p) {
   style.background = p.background
   style.tonality = p.tonality
   style.transition = p.transition
+  style.media_animation = p.media_animation
 }
 
 function transitionLabel(value) {
@@ -304,6 +316,13 @@ function sceneLabel(type) {
                 </select>
               </label>
             </div>
+
+            <label class="form-control mt-3">
+              <span class="label-text mb-1">Medien-Animation</span>
+              <select v-model="style.media_animation" class="select select-bordered" data-testid="social-video-media-anim">
+                <option v-for="m in mediaAnimations" :key="m.value" :value="m.value">{{ m.label }}</option>
+              </select>
+            </label>
           </div>
         </div>
 

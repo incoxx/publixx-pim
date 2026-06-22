@@ -40,6 +40,7 @@ class SocialVideoController extends Controller
             'style.accent'       => 'sometimes|nullable|string|max:32',
             'style.background'   => 'sometimes|nullable|string|max:32',
             'style.transition'   => 'sometimes|nullable|string|in:fade,slide,zoom,cut',
+            'style.media_animation' => 'sometimes|nullable|string|in:kenburns,zoom-in,zoom-out,fade-in,fade-out,pan,none',
         ]);
 
         $builder->setProductIds($validated['product_ids']);

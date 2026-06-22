@@ -43,11 +43,12 @@ class SocialVideoBuilder
      * accent/background die Farben, transition den Szenen-Übergang.
      */
     private array $style = [
-        'brief'      => '',
-        'tonality'   => '',
-        'accent'     => '#06b6d4',
-        'background' => '#0f0f23',
-        'transition' => 'fade', // fade | slide | zoom | cut
+        'brief'           => '',
+        'tonality'        => '',
+        'accent'          => '#06b6d4',
+        'background'      => '#0f0f23',
+        'transition'      => 'fade',      // fade | slide | zoom | cut
+        'media_animation' => 'kenburns',  // kenburns | zoom-in | zoom-out | fade-in | fade-out | pan | none
     ];
 
     public function __construct(
@@ -100,7 +101,7 @@ class SocialVideoBuilder
      */
     public function setStyle(array $style): void
     {
-        foreach (['brief', 'tonality', 'accent', 'background', 'transition'] as $key) {
+        foreach (['brief', 'tonality', 'accent', 'background', 'transition', 'media_animation'] as $key) {
             if (array_key_exists($key, $style) && $style[$key] !== null && $style[$key] !== '') {
                 $this->style[$key] = (string) $style[$key];
             }

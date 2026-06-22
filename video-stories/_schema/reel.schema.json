@@ -37,7 +37,8 @@
             "tonality": { "type": "string" },
             "accent": { "type": "string" },
             "background": { "type": "string" },
-            "transition": { "type": "string", "enum": ["fade", "slide", "zoom", "cut"] }
+            "transition": { "type": "string", "enum": ["fade", "slide", "zoom", "cut"] },
+            "media_animation": { "type": "string", "enum": ["kenburns", "zoom-in", "zoom-out", "fade-in", "fade-out", "pan", "none"] }
           }
         },
         "languages": { "type": "array", "items": { "type": "string" } },

@@ -21,6 +21,9 @@ const frameVars = computed(() => ({
   '--bg': props.theme?.background || '#0f0f23',
 }))
 
+// Medien-Animation als sichtbare Endlosschleife in der Vorschau
+const mediaAnimClass = computed(() => 'pv-' + (props.theme?.media_animation || 'kenburns'))
+
 const imageUrl = computed(() => props.scene.image || null)
 
 const priceFormatted = computed(() => {
@@ -39,7 +42,7 @@ const badge = computed(() => (props.scene.type === 'feature' ? 'Highlight' : pro
     <!-- Hintergrundbild + Blur-Backdrop + Scrim (wie reel-renderer) -->
     <template v-if="imageUrl && scene.type !== 'cta'">
       <div class="bg-blur" :style="{ backgroundImage: `url('${imageUrl}')` }"></div>
-      <img :src="imageUrl" class="bg-img" alt="" @error="$event.target.style.display = 'none'" />
+      <img :src="imageUrl" class="bg-img" :class="mediaAnimClass" alt="" @error="$event.target.style.display = 'none'" />
       <div class="scrim"></div>
     </template>
     <div v-else class="bg-fallback">
@@ -192,4 +195,18 @@ const badge = computed(() => (props.scene.type === 'feature' ? 'Highlight' : pro
   color: #94a3b8;
   letter-spacing: 0.2cqw;
 }
+
+/* Medien-Animationen (Vorschau: Endlosschleife zur Veranschaulichung) */
+.pv-kenburns { animation: pvKen 6s ease-in-out infinite alternate; }
+.pv-zoom-in { animation: pvZoomIn 4s ease-in-out infinite alternate; }
+.pv-zoom-out { animation: pvZoomOut 4s ease-in-out infinite alternate; }
+.pv-fade-in { animation: pvFade 3s ease-in-out infinite alternate; }
+.pv-fade-out { animation: pvFade 3s ease-in-out infinite alternate-reverse; }
+.pv-pan { animation: pvPan 5s linear infinite alternate; }
+.pv-none { animation: none; }
+@keyframes pvKen { from { transform: scale(1.08); } to { transform: scale(1); } }
+@keyframes pvZoomIn { from { transform: scale(1); } to { transform: scale(1.14); } }
+@keyframes pvZoomOut { from { transform: scale(1.14); } to { transform: scale(1); } }
+@keyframes pvFade { from { opacity: 0.25; } to { opacity: 1; } }
+@keyframes pvPan { from { transform: scale(1.18) translateX(-4%); } to { transform: scale(1.18) translateX(4%); } }
 </style>

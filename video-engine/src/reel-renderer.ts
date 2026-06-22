@@ -13,6 +13,7 @@ export interface ReelStyle {
   accent?: string;
   background?: string;
   transition?: 'fade' | 'slide' | 'zoom' | 'cut';
+  media_animation?: 'kenburns' | 'zoom-in' | 'zoom-out' | 'fade-in' | 'fade-out' | 'pan' | 'none';
 }
 
 export interface ReelScene {
@@ -40,10 +41,11 @@ export interface ReelDefinition {
   scenes: ReelScene[];
 }
 
-const STYLE_DEFAULTS: Required<Pick<ReelStyle, 'accent' | 'background' | 'transition'>> = {
+const STYLE_DEFAULTS: Required<Pick<ReelStyle, 'accent' | 'background' | 'transition' | 'media_animation'>> = {
   accent: '#06b6d4',
   background: '#0f0f23',
   transition: 'fade',
+  media_animation: 'kenburns',
 };
 
 /** Übersetzt den gewählten Übergang in eine CSS-Animation für die Szene. */
@@ -57,6 +59,24 @@ function transitionAnimation(transition: string): string {
 }
 
 /**
+ * CSS-Deklaration für die Medien-Animation des Hintergrundbildes.
+ * Die Dauer wird pro Szene inline gesetzt (animation-duration), damit die Bewegung
+ * exakt die jeweilige Szenenlänge ausfüllt.
+ */
+function mediaAnimationDeclaration(media: string): string {
+  const base = 'animation-timing-function: ease-out; animation-fill-mode: both;';
+  switch (media) {
+    case 'zoom-in':  return `animation-name: reelMZoomIn; ${base}`;
+    case 'zoom-out': return `animation-name: reelMZoomOut; ${base}`;
+    case 'fade-in':  return `animation-name: reelMFadeIn; ${base}`;
+    case 'fade-out': return `animation-name: reelMFadeOut; ${base}`;
+    case 'pan':      return `animation-name: reelMPan; animation-timing-function: linear; animation-fill-mode: both;`;
+    case 'none':     return 'animation: none;';
+    default:         return `animation-name: reelKenburns; ${base}`; // kenburns
+  }
+}
+
+/**
  * Baut das vollständige Szenen-CSS aus dem Stil-Briefing. Akzent-/Hintergrundfarbe und
  * Übergang werden zur Generierungszeit eingesetzt (color-mix für die Verläufe).
  */
@@ -64,6 +84,7 @@ function buildSceneCss(style: ReelStyle): string {
   const accent = style.accent || STYLE_DEFAULTS.accent;
   const bg = style.background || STYLE_DEFAULTS.background;
   const anim = transitionAnimation(style.transition || STYLE_DEFAULTS.transition);
+  const mediaRule = mediaAnimationDeclaration(style.media_animation || STYLE_DEFAULTS.media_animation);
   const gradient = `linear-gradient(135deg, color-mix(in srgb, ${accent} 65%, #000), ${accent})`;
 
   return `
@@ -76,9 +97,14 @@ function buildSceneCss(style: ReelStyle): string {
   @keyframes reelFade { from { opacity: 0; } to { opacity: 1; } }
   @keyframes reelSlide { from { opacity: 0; transform: translateY(8%); } to { opacity: 1; transform: none; } }
   @keyframes reelZoom { from { opacity: 0; transform: scale(1.12); } to { opacity: 1; transform: none; } }
-  @keyframes slowZoom { from { transform: scale(1.08); } to { transform: scale(1); } }
+  @keyframes reelKenburns { from { transform: scale(1.08); } to { transform: scale(1); } }
+  @keyframes reelMZoomIn  { from { transform: scale(1); }    to { transform: scale(1.14); } }
+  @keyframes reelMZoomOut { from { transform: scale(1.14); } to { transform: scale(1); } }
+  @keyframes reelMFadeIn  { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes reelMFadeOut { from { opacity: 1; } to { opacity: 0; } }
+  @keyframes reelMPan { from { transform: scale(1.18) translateX(-4%); } to { transform: scale(1.18) translateX(4%); } }
   .bg { position: absolute; inset: 0; z-index: 0; }
-  .bg img { width: 100%; height: 100%; object-fit: cover; animation: slowZoom 5s ease-out both; }
+  .bg img { width: 100%; height: 100%; object-fit: cover; ${mediaRule} }
   .bg-blur { position: absolute; inset: 0; background-size: cover; background-position: center;
     filter: blur(40px) brightness(0.5); transform: scale(1.2); z-index: -1; }
   .scrim { position: absolute; inset: 0; z-index: 1;
@@ -152,8 +178,9 @@ function imgUrl(src?: string | null): string {
 
 function sceneHtml(s: Scene): string {
   const url = imgUrl(s.image);
+  const dur = s.duration && s.duration > 0 ? s.duration : 2500;
   const bg = url
-    ? \`<div class="bg-blur" style="background-image:url('\${url}')"></div><div class="bg"><img src="\${url}" alt=""></div><div class="scrim"></div>\`
+    ? \`<div class="bg-blur" style="background-image:url('\${url}')"></div><div class="bg"><img src="\${url}" alt="" style="animation-duration:\${dur}ms"></div><div class="scrim"></div>\`
     : '';
 
   if (s.type === 'price') {
