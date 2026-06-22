@@ -34,6 +34,8 @@ class SocialVideoController extends Controller
             'format'        => 'sometimes|string|in:9x16,1x1,16x9',
             'template'      => 'sometimes|string',
             'use_ai'        => 'sometimes|boolean',
+            'field_sources'   => 'sometimes|array',
+            'field_sources.*' => 'nullable|string|max:255',
             'style'              => 'sometimes|array',
             'style.brief'        => 'sometimes|nullable|string|max:2000',
             'style.tonality'     => 'sometimes|nullable|string|max:255',
@@ -57,6 +59,9 @@ class SocialVideoController extends Controller
             $builder->setTemplate($validated['template']);
         }
         $builder->setUseAi((bool) ($validated['use_ai'] ?? false));
+        if (! empty($validated['field_sources'])) {
+            $builder->setFieldSources($validated['field_sources']);
+        }
         if (! empty($validated['style'])) {
             $builder->setStyle($validated['style']);
         }
@@ -121,6 +126,7 @@ class SocialVideoController extends Controller
     {
         return response()->json([
             'target_fields'  => SocialVideoElementMap::TARGET_FIELDS,
+            'fields'         => SocialVideoElementMap::configurableFields(),
             'mapping_rules'  => SocialVideoElementMap::defaultMappingRules(),
             'field_defaults' => SocialVideoElementMap::fieldDefaults(),
         ]);

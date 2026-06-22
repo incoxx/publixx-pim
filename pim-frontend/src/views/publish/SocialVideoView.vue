@@ -1,12 +1,58 @@
 <script setup>
-import { ref, reactive, computed, onBeforeUnmount } from 'vue'
-import { Clapperboard, Search, X, Plus, Sparkles, Loader2, Download, Palette } from 'lucide-vue-next'
+import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
+import { Clapperboard, Search, X, Plus, Sparkles, Loader2, Download, Palette, SlidersHorizontal } from 'lucide-vue-next'
 import productsApi from '@/api/products'
 import socialVideoApi from '@/api/socialVideo'
+import attributesApi from '@/api/attributes'
+import mediaUsageTypesApi from '@/api/mediaUsageTypes'
+import { priceTypes as priceTypesApi } from '@/api/prices'
 import { useToastStore } from '@/stores/toast'
 import ScenePreview from './ScenePreview.vue'
 
 const toast = useToastStore()
+
+// ─── Inhalts-Quellen (konfigurierbar, nichts hartkodiert) ──
+// Feldliste kommt aus dem Backend (SocialVideoElementMap::configurableFields).
+const contentFields = ref([])        // [{ target, label, kind, type, default }]
+const usageTypeOptions = ref([])     // [{ value, label }]
+const attributeOptions = ref([])
+const priceTypeOptions = ref([])
+const fieldSources = reactive({})    // { [target]: technical_name | '' }
+
+function optionsForKind(kind) {
+  if (kind === 'media') return usageTypeOptions.value
+  if (kind === 'price') return priceTypeOptions.value
+  return attributeOptions.value
+}
+
+async function loadContentConfig() {
+  try {
+    const [meta, usage, attrs, prices] = await Promise.all([
+      socialVideoApi.defaultMapping(),
+      mediaUsageTypesApi.list(),
+      attributesApi.list({ perPage: 1000, sort: 'name_de' }),
+      priceTypesApi.list(),
+    ])
+
+    const toOpts = (res) => (res.data?.data || res.data || [])
+      .map(x => ({ value: x.technical_name, label: x.name_de || x.technical_name }))
+      .filter(o => o.value)
+
+    usageTypeOptions.value = toOpts(usage)
+    attributeOptions.value = toOpts(attrs)
+    priceTypeOptions.value = toOpts(prices)
+
+    contentFields.value = meta.data?.fields || []
+    // Vorbelegung: Standardwert nur übernehmen, wenn er in den Optionen existiert.
+    for (const f of contentFields.value) {
+      const opts = optionsForKind(f.kind)
+      fieldSources[f.target] = opts.some(o => o.value === f.default) ? f.default : ''
+    }
+  } catch (e) {
+    toast.showToast('Inhalts-Konfiguration konnte nicht geladen werden', 'error')
+  }
+}
+onMounted(loadContentConfig)
 
 // ─── Produktauswahl ────────────────────────────────────────
 const searchTerm = ref('')
@@ -127,6 +173,7 @@ async function generate() {
       format: format.value,
       languages: [language.value],
       use_ai: useAi.value,
+      field_sources: { ...fieldSources },
       style: { ...style },
     })
     jobId.value = data.job_id
@@ -267,11 +314,32 @@ function sceneLabel(type) {
           </div>
         </div>
 
-        <!-- 3. Look & Stil -->
+        <!-- 3. Inhalte / Quellen -->
+        <div class="pim-card p-4">
+          <h2 class="text-[13px] font-semibold text-[var(--color-text-primary)] mb-1 flex items-center gap-1.5">
+            <SlidersHorizontal class="w-4 h-4 text-[var(--color-accent)]" :stroke-width="1.75" />
+            3. Inhalte
+          </h2>
+          <p class="text-[11px] text-[var(--color-text-tertiary)] mb-3">
+            Lege fest, welches Bild und welche Texte/Preise das Video verwendet. „(leer)" lässt ein Feld weg.
+          </p>
+          <div v-if="contentFields.length" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div v-for="f in contentFields" :key="f.target">
+              <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">{{ f.label }}</label>
+              <select v-model="fieldSources[f.target]" class="pim-input text-xs w-full" :data-testid="`social-video-source-${f.target}`">
+                <option value="">— (leer) —</option>
+                <option v-for="o in optionsForKind(f.kind)" :key="o.value" :value="o.value">{{ o.label }}</option>
+              </select>
+            </div>
+          </div>
+          <p v-else class="text-[11px] text-[var(--color-text-tertiary)]">Wird geladen …</p>
+        </div>
+
+        <!-- 4. Look & Stil -->
         <div class="pim-card p-4">
           <h2 class="text-[13px] font-semibold text-[var(--color-text-primary)] mb-3 flex items-center gap-1.5">
             <Palette class="w-4 h-4 text-[var(--color-accent)]" :stroke-width="1.75" />
-            3. Look &amp; Stil
+            4. Look &amp; Stil
           </h2>
 
           <!-- Presets -->

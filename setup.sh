@@ -1020,9 +1020,23 @@ if [ -d "$VIDEO_ENGINE_DIR" ] && [ -f "${VIDEO_ENGINE_DIR}/package.json" ]; then
     npm ci --fund=false --loglevel=warn 2>&1
 
     # Playwright Browser installieren (Chromium)
-    info "Installiere Playwright Chromium Browser..."
-    npx playwright install --with-deps chromium 2>&1 | tail -5
-    info "Playwright Browser installiert."
+    # WICHTIG: An einen gemeinsamen, fuer www-data lesbaren Ort installieren.
+    # Ohne PLAYWRIGHT_BROWSERS_PATH landet der Browser in /root/.cache/ms-playwright
+    # und der Webserver/Queue-Worker (www-data) findet ihn nicht ("Chromium nicht gefunden").
+    # Ueberschreibbar via Umgebungsvariable PLAYWRIGHT_BROWSERS_PATH (Option).
+    PW_BROWSERS_PATH="${PLAYWRIGHT_BROWSERS_PATH:-/opt/pw-browsers}"
+    info "Installiere Playwright Chromium Browser nach ${PW_BROWSERS_PATH}..."
+    mkdir -p "$PW_BROWSERS_PATH"
+    PLAYWRIGHT_BROWSERS_PATH="$PW_BROWSERS_PATH" npx playwright install --with-deps chromium 2>&1 | tail -5
+    chmod -R a+rX "$PW_BROWSERS_PATH"
+    info "Playwright Browser installiert (${PW_BROWSERS_PATH})."
+
+    # Pfad in der App-.env hinterlegen, damit der Render-Job den Browser
+    # unabhaengig vom HOME des ausfuehrenden Users findet (Webserver/Queue-Worker).
+    if ! grep -q '^PLAYWRIGHT_BROWSERS_PATH=' "${INSTALL_DIR}/.env"; then
+        echo "PLAYWRIGHT_BROWSERS_PATH=${PW_BROWSERS_PATH}" >> "${INSTALL_DIR}/.env"
+        info "PLAYWRIGHT_BROWSERS_PATH=${PW_BROWSERS_PATH} in .env eingetragen."
+    fi
 
     # Storage-Verzeichnisse sicherstellen
     mkdir -p "${INSTALL_DIR}/storage/video-engine/"{logs,tmp,lock}

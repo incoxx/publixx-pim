@@ -97,6 +97,48 @@ class SocialVideoBuilder
     public function setUseAi(bool $useAi): void { $this->useAi = $useAi; }
 
     /**
+     * Überschreibt die Quell-Felder anhand der GUI-Auswahl (target => technical_name).
+     * Erzeugt daraus Mapping-Regeln; ein leerer Wert entfernt das Feld bewusst.
+     * Unbekannte Zielfelder werden ignoriert.
+     *
+     * @param array<string,string|null> $sources
+     */
+    public function setFieldSources(array $sources): void
+    {
+        $fields = [];
+        foreach (SocialVideoElementMap::configurableFields() as $field) {
+            $fields[$field['target']] = $field;
+        }
+
+        // Bestehende Regeln (Defaults) als Basis nach target indizieren.
+        $byTarget = [];
+        foreach ($this->mappingRules as $rule) {
+            if (isset($rule['target'])) {
+                $byTarget[$rule['target']] = $rule;
+            }
+        }
+
+        foreach ($sources as $target => $value) {
+            if (! isset($fields[$target])) {
+                continue;
+            }
+            $value = is_string($value) ? trim($value) : '';
+            if ($value === '') {
+                unset($byTarget[$target]); // bewusst leer gelassen → Feld weglassen
+                continue;
+            }
+            $field = $fields[$target];
+            $byTarget[$target] = [
+                'source' => SocialVideoElementMap::prefixForKind($field['kind']) . $value,
+                'target' => $target,
+                'type'   => $field['type'],
+            ];
+        }
+
+        $this->mappingRules = array_values($byTarget);
+    }
+
+    /**
      * Setzt das Stil-Briefing (nur bekannte Felder werden übernommen).
      */
     public function setStyle(array $style): void
@@ -155,7 +197,22 @@ class SocialVideoBuilder
         $mapped = $this->mappingResolver->resolve($this->mappingRules, $product, $this->languages);
 
         $headline = $mapped['headline'] ?? $product->name ?? $product->sku;
-        $hero     = $mapped['hero_image'] ?? ($mapped['gallery'][0] ?? null);
+
+        // hero_image/gallery liefern vom MappingResolver einen Storage-Pfad
+        // (z.B. "media/abc.jpg"). Daraus eine öffentlich abrufbare URL machen,
+        // sonst kann die Video-Engine (und die Vorschau) das Bild nicht laden.
+        $galleryImages = array_values(array_filter(array_map(
+            fn ($p) => $this->mediaUrl($p),
+            is_array($mapped['gallery'] ?? null) ? $mapped['gallery'] : [],
+        )));
+        $hero = $this->mediaUrl($mapped['hero_image'] ?? null) ?? ($galleryImages[0] ?? null);
+
+        // Fallback: kein teaser/gallery gemappt → erstes beliebiges Produktbild nutzen,
+        // damit auch ohne passende Usage-Type-Benennung ein Bild erscheint.
+        if ($hero === null) {
+            $hero = $this->firstProductImage($product);
+        }
+
         $hookText = $this->useAi ? $this->generateHook($product, $headline) : ($mapped['subline'] ?? $headline);
 
         $scenes = [[
@@ -173,7 +230,6 @@ class SocialVideoBuilder
             $mapped['feature_2'] ?? null,
             $mapped['feature_3'] ?? null,
         ]));
-        $galleryImages = is_array($mapped['gallery'] ?? null) ? $mapped['gallery'] : [];
 
         foreach (array_slice($features, 0, 2) as $i => $feature) {
             $scenes[] = [
@@ -197,6 +253,36 @@ class SocialVideoBuilder
         }
 
         return $scenes;
+    }
+
+    /**
+     * Wandelt einen Media-Storage-Pfad in eine öffentlich abrufbare URL um.
+     * Bereits absolute URLs (externe Importe) bleiben unverändert. Die Route
+     * media/file/{file_name} liefert die Datei ohne Auth (für <img>/Engine).
+     */
+    private function mediaUrl(?string $filePath): ?string
+    {
+        if ($filePath === null || trim($filePath) === '') {
+            return null;
+        }
+        if (preg_match('#^https?://#i', $filePath) === 1) {
+            return $filePath;
+        }
+
+        return url('/api/v1/media/file/' . rawurlencode(basename($filePath)));
+    }
+
+    /**
+     * Liefert die URL des ersten verfügbaren Produktbildes (beliebiger Usage-Type),
+     * sortiert nach sort_order – als Fallback, wenn kein teaser/gallery gemappt ist.
+     */
+    private function firstProductImage(Product $product): ?string
+    {
+        $assignment = $product->mediaAssignments
+            ->sortBy('sort_order')
+            ->first(fn ($a) => ! empty($a->media?->file_path));
+
+        return $this->mediaUrl($assignment?->media?->file_path);
     }
 
     /**
