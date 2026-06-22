@@ -36,6 +36,7 @@ class SocialVideoController extends Controller
             'use_ai'        => 'sometimes|boolean',
             'field_sources'   => 'sometimes|array',
             'field_sources.*' => 'nullable|string|max:255',
+            'motions'         => 'sometimes|array',
             'style'              => 'sometimes|array',
             'style.brief'        => 'sometimes|nullable|string|max:2000',
             'style.tonality'     => 'sometimes|nullable|string|max:255',
@@ -61,6 +62,9 @@ class SocialVideoController extends Controller
         $builder->setUseAi((bool) ($validated['use_ai'] ?? false));
         if (! empty($validated['field_sources'])) {
             $builder->setFieldSources($validated['field_sources']);
+        }
+        if (! empty($validated['motions'])) {
+            $builder->setMotions($validated['motions']);
         }
         if (! empty($validated['style'])) {
             $builder->setStyle($validated['style']);
@@ -129,6 +133,27 @@ class SocialVideoController extends Controller
             'fields'         => SocialVideoElementMap::configurableFields(),
             'mapping_rules'  => SocialVideoElementMap::defaultMappingRules(),
             'field_defaults' => SocialVideoElementMap::fieldDefaults(),
+        ]);
+    }
+
+    /**
+     * Löst die Aufmacherbilder der gewählten Produkte auf (für den Kamerafahrt-Editor).
+     */
+    public function productImages(Request $request, SocialVideoBuilder $builder): JsonResponse
+    {
+        $validated = $request->validate([
+            'product_ids'     => 'required|array|min:1',
+            'product_ids.*'   => 'string',
+            'field_sources'   => 'sometimes|array',
+            'field_sources.*' => 'nullable|string|max:255',
+        ]);
+
+        if (! empty($validated['field_sources'])) {
+            $builder->setFieldSources($validated['field_sources']);
+        }
+
+        return response()->json([
+            'images' => $builder->resolveProductImages($validated['product_ids']),
         ]);
     }
 }

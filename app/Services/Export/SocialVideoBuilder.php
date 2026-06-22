@@ -23,6 +23,9 @@ class SocialVideoBuilder
 
     private array $mappingRules = [];
 
+    /** @var array<string,array{from:array,to:array}> Kamerafahrt je Produkt-ID. */
+    private array $motions = [];
+
     /** @var string[] */
     private array $languages = ['de'];
 
@@ -136,6 +139,44 @@ class SocialVideoBuilder
         }
 
         $this->mappingRules = array_values($byTarget);
+    }
+
+    /**
+     * Setzt die Kamerafahrten je Produkt-ID. Werte werden defensiv geklemmt
+     * (x/y 0–100 %, zoom 1–3), damit nur valide Fahrten ins Reel gelangen.
+     *
+     * @param array<string,array{from?:array,to?:array}> $motions
+     */
+    public function setMotions(array $motions): void
+    {
+        $clean = [];
+        foreach ($motions as $productId => $motion) {
+            if (! is_array($motion) || ! isset($motion['from'], $motion['to'])) {
+                continue;
+            }
+            $clean[(string) $productId] = [
+                'from' => $this->clampPoint($motion['from']),
+                'to'   => $this->clampPoint($motion['to']),
+            ];
+        }
+        $this->motions = $clean;
+    }
+
+    /**
+     * @param mixed $point
+     * @return array{x:float,y:float,zoom:float}
+     */
+    private function clampPoint($point): array
+    {
+        $x = is_array($point) ? (float) ($point['x'] ?? 50) : 50.0;
+        $y = is_array($point) ? (float) ($point['y'] ?? 50) : 50.0;
+        $zoom = is_array($point) ? (float) ($point['zoom'] ?? 1) : 1.0;
+
+        return [
+            'x'    => max(0.0, min(100.0, $x)),
+            'y'    => max(0.0, min(100.0, $y)),
+            'zoom' => max(1.0, min(3.0, $zoom)),
+        ];
     }
 
     /**
@@ -266,7 +307,50 @@ class SocialVideoBuilder
             }
         }
 
+        // Kamerafahrt (Fokuspunkt-Zoom) auf alle bildtragenden Szenen dieses Produkts legen.
+        $motion = $this->motions[(string) $product->id] ?? null;
+        if ($motion !== null) {
+            foreach ($scenes as &$scene) {
+                if (! empty($scene['image'])) {
+                    $scene['motion'] = $motion;
+                }
+            }
+            unset($scene);
+        }
+
         return $scenes;
+    }
+
+    /**
+     * Löst je Produkt das Aufmacherbild (gemäß aktuellem Mapping) auf – für den
+     * Kamerafahrt-Editor im Frontend, damit dort dasselbe Bild gezeigt wird.
+     *
+     * @param  string[]  $productIds
+     * @return array<int,array{product_id:string,sku:?string,name:?string,image:?string}>
+     */
+    public function resolveProductImages(array $productIds): array
+    {
+        $this->setProductIds($productIds);
+        $out = [];
+        foreach ($this->loadProducts() as $product) {
+            $mapped = $this->mappingResolver->resolve($this->mappingRules, $product, $this->languages);
+            $gallery = array_values(array_filter(array_map(
+                fn ($p) => $this->mediaUrl($p),
+                is_array($mapped['gallery'] ?? null) ? $mapped['gallery'] : [],
+            )));
+            $hero = $this->mediaUrl($mapped['hero_image'] ?? null)
+                ?? ($gallery[0] ?? null)
+                ?? $this->firstProductImage($product);
+
+            $out[] = [
+                'product_id' => (string) $product->id,
+                'sku'        => $product->sku,
+                'name'       => $product->name,
+                'image'      => $hero,
+            ];
+        }
+
+        return $out;
     }
 
     /**

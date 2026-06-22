@@ -9,6 +9,11 @@ export default {
     return client.get('/social-video/default-mapping')
   },
 
+  // Aufmacherbilder der gewählten Produkte (für den Kamerafahrt-Editor)
+  productImages(payload) {
+    return client.post('/social-video/product-images', payload)
+  },
+
   // Render-Job anstoßen → { job_id, reel }
   generate(payload) {
     return client.post('/social-video', payload)

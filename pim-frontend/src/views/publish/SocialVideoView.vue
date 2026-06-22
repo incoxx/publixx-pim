@@ -1,6 +1,6 @@
 <script setup>
-import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
-import { Clapperboard, Search, X, Plus, Sparkles, Loader2, Download, Palette, SlidersHorizontal } from 'lucide-vue-next'
+import { ref, reactive, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import { Clapperboard, Search, X, Plus, Sparkles, Loader2, Download, Palette, SlidersHorizontal, Move } from 'lucide-vue-next'
 import productsApi from '@/api/products'
 import socialVideoApi from '@/api/socialVideo'
 import attributesApi from '@/api/attributes'
@@ -8,6 +8,7 @@ import mediaUsageTypesApi from '@/api/mediaUsageTypes'
 import { priceTypes as priceTypesApi } from '@/api/prices'
 import { useToastStore } from '@/stores/toast'
 import ScenePreview from './ScenePreview.vue'
+import CameraPathEditor from './CameraPathEditor.vue'
 
 const toast = useToastStore()
 
@@ -53,6 +54,35 @@ async function loadContentConfig() {
   }
 }
 onMounted(loadContentConfig)
+
+// ─── Kamerafahrt pro Produkt (Fokuspunkt-Zoom) ─────────────
+const productImages = reactive({}) // productId → { image, sku, name }
+const motions = reactive({})       // productId → { from, to } (nur wenn bearbeitet)
+const loadingImages = ref(false)
+
+let imgTimer = null
+function scheduleLoadImages() {
+  clearTimeout(imgTimer)
+  imgTimer = setTimeout(loadProductImages, 300)
+}
+async function loadProductImages() {
+  const ids = selected.value.map(s => s.id)
+  if (!ids.length) return
+  loadingImages.value = true
+  try {
+    const { data } = await socialVideoApi.productImages({ product_ids: ids, field_sources: { ...fieldSources } })
+    for (const it of (data.images || [])) {
+      productImages[it.product_id] = it
+    }
+  } catch (e) {
+    /* Editor ist optional – ohne Bilder bleibt die globale Animation aktiv */
+  } finally {
+    loadingImages.value = false
+  }
+}
+// Neu laden, wenn sich Auswahl oder die Bildquelle ändert.
+watch(selected, scheduleLoadImages, { deep: true })
+watch(() => fieldSources.hero_image, scheduleLoadImages)
 
 // ─── Produktauswahl ────────────────────────────────────────
 const searchTerm = ref('')
@@ -168,12 +198,19 @@ async function generate() {
   stopPolling()
 
   try {
+    // Nur Kamerafahrten für aktuell gewählte, tatsächlich bearbeitete Produkte senden.
+    const motionsPayload = {}
+    for (const s of selected.value) {
+      if (motions[s.id]) motionsPayload[s.id] = motions[s.id]
+    }
+
     const { data } = await socialVideoApi.generate({
       product_ids: selected.value.map(s => s.id),
       format: format.value,
       languages: [language.value],
       use_ai: useAi.value,
       field_sources: { ...fieldSources },
+      motions: motionsPayload,
       style: { ...style },
     })
     jobId.value = data.job_id
@@ -397,6 +434,30 @@ function sceneLabel(type) {
               <select v-model="style.media_animation" class="pim-input text-xs w-full" data-testid="social-video-media-anim">
                 <option v-for="m in mediaAnimations" :key="m.value" :value="m.value">{{ m.label }}</option>
               </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- 5. Kamerafahrt (optional) -->
+        <div v-if="selected.length" class="pim-card p-4">
+          <h2 class="text-[13px] font-semibold text-[var(--color-text-primary)] mb-1 flex items-center gap-1.5">
+            <Move class="w-4 h-4 text-[var(--color-accent)]" :stroke-width="1.75" />
+            5. Kamerafahrt
+            <Loader2 v-if="loadingImages" class="w-3.5 h-3.5 animate-spin text-[var(--color-text-tertiary)]" />
+          </h2>
+          <p class="text-[11px] text-[var(--color-text-tertiary)] mb-3">
+            Optional: Start- und Ziel-Fokus je Produktbild festlegen (Zoomfahrt). Ohne Bearbeitung greift die globale Medien-Animation.
+          </p>
+          <div class="space-y-4">
+            <div v-for="s in selected" :key="s.id">
+              <div class="text-[11px] font-medium text-[var(--color-text-secondary)] mb-1.5 truncate">
+                {{ s.name || s.sku }}
+              </div>
+              <CameraPathEditor
+                v-model="motions[s.id]"
+                :image="productImages[s.id]?.image || null"
+                :format="format"
+              />
             </div>
           </div>
         </div>

@@ -16,6 +16,11 @@ export interface ReelStyle {
   media_animation?: 'kenburns' | 'zoom-in' | 'zoom-out' | 'fade-in' | 'fade-out' | 'pan' | 'none';
 }
 
+export interface CameraMotion {
+  from: { x: number; y: number; zoom: number };
+  to: { x: number; y: number; zoom: number };
+}
+
 export interface ReelScene {
   type: 'hero' | 'feature' | 'price' | 'cta';
   image?: string | null;
@@ -25,6 +30,7 @@ export interface ReelScene {
   currency?: string;
   sprecher?: string;
   duration?: number;
+  motion?: CameraMotion;
 }
 
 export interface ReelDefinition {
@@ -155,6 +161,7 @@ const SCENES = ${scenesJson} as Scene[];
 const BASE_CSS = ${JSON.stringify(cssText)};
 const TIMESTAMPS_FILE = process.env.TIMESTAMPS_FILE || 'timestamps.json';
 
+interface Motion { from: { x: number; y: number; zoom: number }; to: { x: number; y: number; zoom: number }; }
 interface Scene {
   type: string;
   image?: string | null;
@@ -164,6 +171,7 @@ interface Scene {
   currency?: string;
   sprecher?: string;
   duration?: number;
+  motion?: Motion;
 }
 
 const recordingStart = Date.now();
@@ -184,12 +192,18 @@ function sceneDur(s: Scene): number {
   return s.duration && s.duration > 0 ? s.duration : 2500;
 }
 
-// Hintergrund (Bild + Blur + Scrim). animation-duration deckt das GANZE Segment ab,
-// damit der Zoom durchgehend über alle Text-Wechsel läuft (kein Neustart pro Untertitel).
-function bgHtml(url: string, totalMs: number): string {
+// Transform, das einen Fokuspunkt (x/y in % des Bildes) bei gegebenem Zoom in die
+// Bildmitte rückt (transform-origin: 0 0). So entsteht eine echte Kamerafahrt.
+function motionTransform(p: { x: number; y: number; zoom: number }): string {
+  return 'translate(' + (50 - p.zoom * p.x).toFixed(3) + '%, ' + (50 - p.zoom * p.y).toFixed(3) + '%) scale(' + p.zoom + ')';
+}
+
+// Hintergrund (Bild + Blur + Scrim). imgStyle steuert die Animation (Preset über
+// CSS-Klasse ODER eine pro Segment generierte Fokuspunkt-Fahrt).
+function bgHtml(url: string, imgStyle: string): string {
   if (!url) return '';
   return \`<div class="bg-blur" style="background-image:url('\${url}')"></div>\`
-    + \`<div class="bg"><img src="\${url}" alt="" style="animation-duration:\${totalMs}ms"></div>\`
+    + \`<div class="bg"><img src="\${url}" alt="" style="\${imgStyle}"></div>\`
     + \`<div class="scrim"></div>\`;
 }
 
@@ -214,9 +228,20 @@ function contentInner(s: Scene): string {
 }
 
 // Persistente Segment-Seite: Hintergrund einmal gerendert, Text-Wirt zunächst leer.
-function segmentPage(url: string, totalMs: number, centered: boolean): string {
-  return \`<!DOCTYPE html><html><head><meta charset="utf-8"><style>\${BASE_CSS}</style></head>\`
-    + \`<body><div class="stage\${centered ? ' center' : ''}">\${bgHtml(url, totalMs)}<div class="content-host"></div></div></body></html>\`;
+// Liegt eine Kamerafahrt (motion) vor, wird dafür ein eigenes Keyframe erzeugt,
+// das über die GESAMTE Segmentdauer läuft; sonst greift das Preset (.bg img).
+function segmentPage(seg: Segment, segIdx: number, totalMs: number): string {
+  let headExtra = '';
+  let imgStyle = 'animation-duration:' + totalMs + 'ms';
+  const motion = SCENES[seg.scenes[0]].motion;
+  if (motion) {
+    const name = 'reelMotion' + segIdx;
+    headExtra = '<style>@keyframes ' + name + ' { from { transform: ' + motionTransform(motion.from)
+      + '; } to { transform: ' + motionTransform(motion.to) + '; } }</style>';
+    imgStyle = 'transform-origin:0 0; animation:' + name + ' ' + totalMs + 'ms ease-out both';
+  }
+  return \`<!DOCTYPE html><html><head><meta charset="utf-8"><style>\${BASE_CSS}</style>\${headExtra}</head>\`
+    + \`<body><div class="stage\${seg.centered ? ' center' : ''}">\${bgHtml(seg.url, imgStyle)}<div class="content-host"></div></div></body></html>\`;
 }
 
 interface Segment { url: string; centered: boolean; scenes: number[]; }
@@ -249,12 +274,14 @@ export async function run(): Promise<void> {
   const context = await browser.newContext({ viewport: VIEWPORT, locale: 'de-DE' });
   const page: Page = await context.newPage();
 
-  for (const seg of buildSegments()) {
+  const allSegments = buildSegments();
+  for (let segIdx = 0; segIdx < allSegments.length; segIdx++) {
+    const seg = allSegments[segIdx];
     // Gesamtdauer des Segments = Summe der enthaltenen Szenen → Zoom-Länge.
     const totalMs = seg.scenes.reduce((sum, idx) => sum + sceneDur(SCENES[idx]), 0);
     try {
       // Hintergrund EINMAL pro Segment setzen und das Bild laden lassen.
-      await page.setContent(segmentPage(seg.url, totalMs, seg.centered), { waitUntil: 'load' });
+      await page.setContent(segmentPage(seg, segIdx, totalMs), { waitUntil: 'load' });
       await page.waitForLoadState('networkidle', { timeout: 4000 }).catch(() => {});
     } catch (err) {
       console.warn('[SEGMENT] WARN:', (err as Error).message);
