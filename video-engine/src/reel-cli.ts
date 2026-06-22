@@ -9,12 +9,31 @@
  */
 import fs from 'fs';
 import path from 'path';
+import { spawn } from 'child_process';
 import { generateReelScript, type ReelDefinition } from './reel-renderer';
-import { Recorder } from './recorder';
 import { VoiceSynthesizer } from './voice-synthesizer';
 import { renderVideo } from './video-renderer';
 import { createStoryLogger } from './logger';
 import { resolveFfmpeg, resolveChromium } from './runtime-deps';
+
+/**
+ * Führt das generierte Reel-Script headless aus (Playwright recordVideo).
+ * Kein Xvfb/Screengrab nötig – das Script legt recording.webm in tmpDir ab.
+ */
+function runReelScript(scriptPath: string, tmpDir: string, timestampsFile: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const env = {
+      ...process.env,
+      NODE_PATH: path.resolve(__dirname, '../node_modules'),
+      TIMESTAMPS_FILE: timestampsFile,
+      REEL_VIDEO_DIR: tmpDir,
+    };
+    const tsxBin = path.resolve(__dirname, '../node_modules/.bin/tsx');
+    const child = spawn(tsxBin, [scriptPath], { cwd: path.resolve(__dirname, '..'), env, stdio: 'inherit' });
+    child.on('close', (code) => (code === 0 ? resolve() : reject(new Error('Reel-Script beendet mit Code ' + code))));
+    child.on('error', (e) => reject(new Error('Reel-Script Fehler: ' + e.message)));
+  });
+}
 
 async function main(): Promise<void> {
   const reelPath = process.argv[2];
@@ -55,22 +74,14 @@ async function main(): Promise<void> {
   const logger = createStoryLogger(reel.meta.id || 'reel');
 
   const baseUrl = process.env.ANYPIM_BASE_URL || process.env.VIDEO_ENGINE_BASE_URL || 'http://localhost:8000';
-  const viewport = reel.meta.viewport || { width: 1080, height: 1920 };
-  const display = process.env.VIDEO_DISPLAY || process.env.VIDEO_ENGINE_DISPLAY || ':99';
-  const fps = parseInt(process.env.VIDEO_FPS || process.env.VIDEO_ENGINE_FPS || '30', 10);
   const quality = (process.env.VIDEO_QUALITY || process.env.VIDEO_ENGINE_QUALITY || 'high') as 'high' | 'medium' | 'low';
 
-  // 1. Playwright-Script aus Reel-Definition erzeugen
-  const recorder = new Recorder({
-    storyId: reel.meta.id || 'reel',
-    scriptPath: '', // wird gleich gesetzt
-    display,
-    fps,
-    width: viewport.width,
-    height: viewport.height,
-    logger,
-  });
-  const tmpDir = recorder.getTmpDir();
+  // 1. Arbeitsverzeichnis für diesen Render-Lauf
+  const tmpDir = path.join(
+    path.resolve(__dirname, '../../storage/video-engine/tmp'),
+    (reel.meta.id || 'reel') + '-' + Date.now(),
+  );
+  fs.mkdirSync(tmpDir, { recursive: true });
 
   // 1a. Voiceover VORAB synthetisieren und Szenendauer an die Sprechlänge koppeln,
   //     damit Bild/Untertitel synchron zum (KI-)Text laufen und nicht zu früh enden.
@@ -94,26 +105,15 @@ async function main(): Promise<void> {
 
   const scriptPath = path.join(tmpDir, 'reel-script.ts');
   fs.writeFileSync(scriptPath, generateReelScript(reel, baseUrl));
-  (recorder as unknown as { opts: { scriptPath: string } }).opts.scriptPath = scriptPath;
 
-  // Timestamps-Datei, die das Script schreibt (vom Kindprozess geerbt)
   const timestampsFile = path.join(tmpDir, 'timestamps.json');
-  process.env.TIMESTAMPS_FILE = timestampsFile;
 
-  // Bare-Imports (playwright) im generierten Script über NODE_PATH auflösbar machen
-  // (das generierte Script liegt außerhalb von video-engine/) – analog generate-one.sh.
-  process.env.NODE_PATH = path.resolve(__dirname, '../node_modules');
-
-  // 2. Aufnahme (Xvfb + ffmpeg + Playwright)
-  let recordingPath: string;
-  try {
-    const usedDisplay = await recorder.startXvfb();
-    recorder.startRecording(usedDisplay);
-    await recorder.runScript(usedDisplay);
-    recordingPath = await recorder.stop();
-  } catch (err) {
-    recorder.cleanup();
-    throw err;
+  // 2. Aufnahme: generiertes Script headless ausführen (Playwright recordVideo) →
+  //    sauberer Seiteninhalt ohne Browserleiste, kein Xvfb/Screengrab nötig.
+  await runReelScript(scriptPath, tmpDir, timestampsFile);
+  const recordingPath = path.join(tmpDir, 'recording.webm');
+  if (! fs.existsSync(recordingPath)) {
+    throw new Error('Aufnahme fehlgeschlagen: recording.webm wurde nicht erzeugt.');
   }
 
   // 3. Voiceover an den Aufnahme-Timestamps ausrichten

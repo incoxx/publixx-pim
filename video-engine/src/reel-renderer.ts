@@ -153,13 +153,14 @@ export function generateReelScript(reel: ReelDefinition, baseUrl: string): strin
   return `// Auto-generiert von anyPIM Reel-Renderer
 // Reel: ${reel.meta.id} (${reel.scenes.length} Szenen, ${viewport.width}x${viewport.height})
 import { chromium, type Page, type Browser } from 'playwright';
-import { writeFileSync } from 'fs';
+import { writeFileSync, copyFileSync } from 'fs';
 
 const BASE_URL = ${JSON.stringify(baseUrl.replace(/\/+$/, ''))};
 const VIEWPORT = ${JSON.stringify(viewport)};
 const SCENES = ${scenesJson} as Scene[];
 const BASE_CSS = ${JSON.stringify(cssText)};
 const TIMESTAMPS_FILE = process.env.TIMESTAMPS_FILE || 'timestamps.json';
+const VIDEO_DIR = process.env.REEL_VIDEO_DIR || '.';
 
 interface Motion { from: { x: number; y: number; zoom: number }; to: { x: number; y: number; zoom: number }; }
 interface Scene {
@@ -174,7 +175,7 @@ interface Scene {
   motion?: Motion;
 }
 
-const recordingStart = Date.now();
+let recordingStart = Date.now();
 const timestamps: { id: string; sprecher: string; startMs: number; endMs?: number }[] = [];
 function elapsed(): number { return Date.now() - recordingStart; }
 function sleep(ms: number): Promise<void> { return new Promise(r => setTimeout(r, ms)); }
@@ -267,13 +268,22 @@ export async function run(): Promise<void> {
   // Optionaler expliziter Chromium-Pfad (vom reel-cli aufgelöst), damit der
   // Versions-Versatz zwischen npm-Playwright und bereitgestelltem Browser nicht stört.
   const chromiumPath = process.env.PLAYWRIGHT_CHROMIUM_PATH;
+  // Headless + recordVideo: nimmt NUR den Seiteninhalt in exakter Viewport-Größe
+  // auf – ohne Browserleiste und ohne Xvfb/Screengrab.
   const browser: Browser = await chromium.launch({
-    headless: false,
+    headless: true,
     ...(chromiumPath ? { executablePath: chromiumPath } : {}),
   });
-  const context = await browser.newContext({ viewport: VIEWPORT, locale: 'de-DE' });
+  const context = await browser.newContext({
+    viewport: VIEWPORT,
+    locale: 'de-DE',
+    recordVideo: { dir: VIDEO_DIR, size: VIEWPORT },
+  });
   const page: Page = await context.newPage();
+  const video = page.video();
 
+  // Zeitbasis auf den Aufnahmestart legen (Audio wird daran ausgerichtet).
+  recordingStart = Date.now();
   const allSegments = buildSegments();
   for (let segIdx = 0; segIdx < allSegments.length; segIdx++) {
     const seg = allSegments[segIdx];
@@ -310,6 +320,18 @@ export async function run(): Promise<void> {
   await sleep(500);
   writeFileSync(TIMESTAMPS_FILE, JSON.stringify(timestamps, null, 2));
   console.log('Timestamps: ' + TIMESTAMPS_FILE + ' (' + timestamps.length + ' Eintraege)');
+
+  // Video finalisieren: Kontext schließen, dann den (zufällig benannten) Pfad
+  // auf den festen Namen recording.webm kopieren, den die reel-cli erwartet.
+  await page.close();
+  await context.close();
+  const videoPath = await video?.path();
+  if (videoPath) {
+    copyFileSync(videoPath, VIDEO_DIR + '/recording.webm');
+    console.log('Video: ' + VIDEO_DIR + '/recording.webm');
+  } else {
+    console.error('Kein Video aufgezeichnet.');
+  }
   await browser.close();
 }
 
