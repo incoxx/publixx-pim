@@ -176,223 +176,231 @@ function sceneLabel(type) {
 <template>
   <div class="p-6 max-w-6xl mx-auto">
     <!-- Header -->
-    <div class="flex items-center gap-3 mb-2">
-      <Clapperboard class="w-7 h-7 text-primary" />
-      <h1 class="text-2xl font-bold">Social-Video</h1>
+    <div class="flex items-center gap-3 mb-1">
+      <Clapperboard class="w-6 h-6 text-[var(--color-accent)]" :stroke-width="1.75" />
+      <h1 class="text-xl font-semibold text-[var(--color-text-primary)]">Social-Video</h1>
     </div>
-    <p class="text-base-content/60 mb-6">
+    <p class="text-[13px] text-[var(--color-text-tertiary)] mb-6">
       Produkte auswählen → aus Bildtypen und Texten automatisch ein Social-Media-Video erzeugen.
     </p>
 
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
       <!-- Linke Spalte: Auswahl & Optionen -->
-      <div class="space-y-6">
-        <!-- Produktsuche -->
-        <div class="card bg-base-100 shadow-sm border border-base-200">
-          <div class="card-body">
-            <h2 class="card-title text-base">1. Produkte wählen</h2>
-            <label class="input input-bordered flex items-center gap-2">
-              <Search class="w-4 h-4 opacity-60" />
-              <input
-                v-model="searchTerm"
-                type="text"
-                class="grow"
-                placeholder="Produkt suchen (Name oder SKU) …"
-                data-testid="social-video-search"
-                @input="onSearchInput"
-              />
-              <Loader2 v-if="searching" class="w-4 h-4 animate-spin opacity-60" />
-            </label>
+      <div class="space-y-4">
 
-            <ul v-if="searchResults.length" class="menu bg-base-200 rounded-box mt-2 max-h-64 overflow-y-auto">
-              <li v-for="p in searchResults" :key="p.id">
-                <button class="flex justify-between" @click="addProduct(p)">
-                  <span class="truncate">
-                    <span class="font-medium">{{ p.name || p.sku }}</span>
-                    <span class="text-xs opacity-50 ml-2">{{ p.sku }}</span>
-                  </span>
-                  <Plus class="w-4 h-4 shrink-0" />
-                </button>
-              </li>
-            </ul>
+        <!-- 1. Produktsuche -->
+        <div class="pim-card p-4">
+          <h2 class="text-[13px] font-semibold text-[var(--color-text-primary)] mb-3">1. Produkte wählen</h2>
 
-            <!-- Ausgewählte Produkte -->
-            <div v-if="selected.length" class="flex flex-wrap gap-2 mt-3">
-              <span
-                v-for="s in selected"
-                :key="s.id"
-                class="badge badge-primary badge-lg gap-1"
-              >
-                {{ s.name || s.sku }}
-                <button @click="removeProduct(s.id)"><X class="w-3 h-3" /></button>
-              </span>
-            </div>
-            <p v-else class="text-sm opacity-50 mt-2">Noch keine Produkte ausgewählt.</p>
+          <div class="relative">
+            <Search class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--color-text-tertiary)]" :stroke-width="2" />
+            <input
+              v-model="searchTerm"
+              type="text"
+              class="pim-input text-xs w-full pl-8"
+              placeholder="Produkt suchen (Name oder SKU) …"
+              data-testid="social-video-search"
+              @input="onSearchInput"
+            />
+            <Loader2 v-if="searching" class="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 animate-spin text-[var(--color-text-tertiary)]" />
           </div>
+
+          <ul v-if="searchResults.length" class="mt-2 border border-[var(--color-border)] rounded-lg overflow-hidden max-h-56 overflow-y-auto bg-[var(--color-surface)]">
+            <li v-for="p in searchResults" :key="p.id">
+              <button
+                class="w-full flex items-center justify-between px-3 py-2 text-xs hover:bg-[var(--color-bg)] transition-colors text-left"
+                @click="addProduct(p)"
+              >
+                <span class="truncate">
+                  <span class="font-medium text-[var(--color-text-primary)]">{{ p.name || p.sku }}</span>
+                  <span class="text-[var(--color-text-tertiary)] ml-2">{{ p.sku }}</span>
+                </span>
+                <Plus class="w-3.5 h-3.5 shrink-0 text-[var(--color-accent)]" :stroke-width="2" />
+              </button>
+            </li>
+          </ul>
+
+          <!-- Ausgewählte Produkte -->
+          <div v-if="selected.length" class="flex flex-wrap gap-1.5 mt-3">
+            <span
+              v-for="s in selected"
+              :key="s.id"
+              class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-[color-mix(in_srgb,var(--color-accent)_10%,transparent)] text-[var(--color-accent)] border border-[color-mix(in_srgb,var(--color-accent)_25%,transparent)]"
+            >
+              {{ s.name || s.sku }}
+              <button @click="removeProduct(s.id)" class="hover:text-[var(--color-error)] transition-colors">
+                <X class="w-3 h-3" />
+              </button>
+            </span>
+          </div>
+          <p v-else class="text-[11px] text-[var(--color-text-tertiary)] mt-2">Noch keine Produkte ausgewählt.</p>
         </div>
 
-        <!-- Optionen -->
-        <div class="card bg-base-100 shadow-sm border border-base-200">
-          <div class="card-body">
-            <h2 class="card-title text-base">2. Optionen</h2>
+        <!-- 2. Optionen -->
+        <div class="pim-card p-4">
+          <h2 class="text-[13px] font-semibold text-[var(--color-text-primary)] mb-3">2. Optionen</h2>
 
-            <label class="form-control">
-              <span class="label-text mb-1">Format</span>
-              <select v-model="format" class="select select-bordered" data-testid="social-video-format">
+          <div class="space-y-3">
+            <div>
+              <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Format</label>
+              <select v-model="format" class="pim-input text-xs w-full" data-testid="social-video-format">
                 <option v-for="f in formats" :key="f.value" :value="f.value">{{ f.label }}</option>
               </select>
-            </label>
+            </div>
 
-            <label class="form-control mt-3">
-              <span class="label-text mb-1">Sprache</span>
-              <select v-model="language" class="select select-bordered">
+            <div>
+              <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Sprache</label>
+              <select v-model="language" class="pim-input text-xs w-full">
                 <option value="de">Deutsch</option>
                 <option value="en">Englisch</option>
                 <option value="fr">Französisch</option>
               </select>
-            </label>
+            </div>
 
-            <label class="label cursor-pointer justify-start gap-3 mt-3">
-              <input v-model="useAi" type="checkbox" class="toggle toggle-primary" />
-              <span class="label-text flex items-center gap-1">
-                <Sparkles class="w-4 h-4 text-primary" /> KI-Hook generieren (Claude)
+            <label class="flex items-center gap-2.5 cursor-pointer group">
+              <input v-model="useAi" type="checkbox" class="w-4 h-4 rounded accent-[var(--color-accent)]" />
+              <span class="text-[12px] text-[var(--color-text-secondary)] flex items-center gap-1.5">
+                <Sparkles class="w-3.5 h-3.5 text-[var(--color-accent)]" />
+                KI-Hook generieren (Claude)
               </span>
             </label>
           </div>
         </div>
 
-        <!-- Look & Stil -->
-        <div class="card bg-base-100 shadow-sm border border-base-200">
-          <div class="card-body">
-            <h2 class="card-title text-base">
-              <Palette class="w-4 h-4 text-primary" /> 3. Look &amp; Stil
-            </h2>
+        <!-- 3. Look & Stil -->
+        <div class="pim-card p-4">
+          <h2 class="text-[13px] font-semibold text-[var(--color-text-primary)] mb-3 flex items-center gap-1.5">
+            <Palette class="w-4 h-4 text-[var(--color-accent)]" :stroke-width="1.75" />
+            3. Look &amp; Stil
+          </h2>
 
-            <!-- Presets -->
-            <div class="flex flex-wrap gap-2">
-              <button
-                v-for="p in stylePresets"
-                :key="p.name"
-                class="btn btn-xs btn-outline gap-1"
-                @click="applyPreset(p)"
-              >
-                <span class="w-3 h-3 rounded-full inline-block" :style="{ background: p.accent }"></span>
-                {{ p.name }}
-              </button>
-            </div>
+          <!-- Presets -->
+          <div class="flex flex-wrap gap-1.5 mb-3">
+            <button
+              v-for="p in stylePresets"
+              :key="p.name"
+              class="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] hover:bg-[var(--color-bg)] hover:border-[var(--color-border-strong)] transition-colors text-[var(--color-text-secondary)]"
+              @click="applyPreset(p)"
+            >
+              <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: p.accent }"></span>
+              {{ p.name }}
+            </button>
+          </div>
 
-            <label class="form-control mt-3">
-              <span class="label-text mb-1">Kreativ-Briefing (optional, fließt in den KI-Text)</span>
+          <div class="space-y-3">
+            <div>
+              <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Kreativ-Briefing <span class="font-normal text-[var(--color-text-tertiary)]">(optional)</span></label>
               <textarea
                 v-model="style.brief"
-                class="textarea textarea-bordered h-20"
+                class="pim-input text-xs w-full h-16 resize-none"
                 placeholder="z.B. Fokus auf Nachhaltigkeit, Outdoor-Feeling, junge Zielgruppe …"
               ></textarea>
-            </label>
+            </div>
 
-            <label class="form-control mt-2">
-              <span class="label-text mb-1">Tonalität</span>
+            <div>
+              <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Tonalität</label>
               <input
                 v-model="style.tonality"
                 type="text"
-                class="input input-bordered"
+                class="pim-input text-xs w-full"
                 placeholder="z.B. jung, energiegeladen, direkt"
               />
-            </label>
-
-            <div class="flex gap-4 mt-3">
-              <label class="form-control">
-                <span class="label-text mb-1">Akzent</span>
-                <input v-model="style.accent" type="color" class="w-14 h-10 rounded cursor-pointer bg-base-200 border border-base-300" />
-              </label>
-              <label class="form-control">
-                <span class="label-text mb-1">Hintergrund</span>
-                <input v-model="style.background" type="color" class="w-14 h-10 rounded cursor-pointer bg-base-200 border border-base-300" />
-              </label>
-              <label class="form-control flex-1">
-                <span class="label-text mb-1">Übergang</span>
-                <select v-model="style.transition" class="select select-bordered">
-                  <option v-for="t in transitions" :key="t.value" :value="t.value">{{ t.label }}</option>
-                </select>
-              </label>
             </div>
 
-            <label class="form-control mt-3">
-              <span class="label-text mb-1">Medien-Animation</span>
-              <select v-model="style.media_animation" class="select select-bordered" data-testid="social-video-media-anim">
+            <div class="flex gap-3">
+              <div>
+                <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Akzent</label>
+                <input v-model="style.accent" type="color" class="w-10 h-8 rounded cursor-pointer border border-[var(--color-border)] bg-[var(--color-surface)] p-0.5" />
+              </div>
+              <div>
+                <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Hintergrund</label>
+                <input v-model="style.background" type="color" class="w-10 h-8 rounded cursor-pointer border border-[var(--color-border)] bg-[var(--color-surface)] p-0.5" />
+              </div>
+              <div class="flex-1">
+                <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Übergang</label>
+                <select v-model="style.transition" class="pim-input text-xs w-full">
+                  <option v-for="t in transitions" :key="t.value" :value="t.value">{{ t.label }}</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Medien-Animation</label>
+              <select v-model="style.media_animation" class="pim-input text-xs w-full" data-testid="social-video-media-anim">
                 <option v-for="m in mediaAnimations" :key="m.value" :value="m.value">{{ m.label }}</option>
               </select>
-            </label>
+            </div>
           </div>
         </div>
 
         <button
-          class="btn btn-primary btn-block"
+          class="pim-btn pim-btn-primary w-full"
           :disabled="!canGenerate"
           data-testid="social-video-generate"
           @click="generate"
         >
           <Loader2 v-if="generating" class="w-4 h-4 animate-spin" />
-          <Clapperboard v-else class="w-4 h-4" />
+          <Clapperboard v-else class="w-4 h-4" :stroke-width="1.75" />
           Video erstellen
         </button>
       </div>
 
       <!-- Rechte Spalte: Vorschau & Ergebnis -->
-      <div class="space-y-6">
+      <div class="space-y-4">
+
         <!-- Status -->
-        <div v-if="status" class="card bg-base-100 shadow-sm border border-base-200">
-          <div class="card-body">
-            <h2 class="card-title text-base">Status</h2>
-            <div v-if="isRendering" class="flex items-center gap-2 text-info">
-              <Loader2 class="w-5 h-5 animate-spin" />
-              <span>{{ status.message || 'Wird gerendert …' }}</span>
-            </div>
-            <div v-else-if="isFailed" class="alert alert-error text-sm">
-              {{ status.message || 'Rendering fehlgeschlagen' }}
-            </div>
-            <div v-else-if="isDone" class="space-y-3">
-              <video :src="status.download_url" controls class="w-full rounded-lg bg-black max-h-[480px] mx-auto" />
-              <a :href="downloadHref" class="btn btn-success btn-sm" download>
-                <Download class="w-4 h-4" /> MP4 herunterladen
-              </a>
-            </div>
+        <div v-if="status" class="pim-card p-4">
+          <h2 class="text-[13px] font-semibold text-[var(--color-text-primary)] mb-3">Status</h2>
+          <div v-if="isRendering" class="flex items-center gap-2 text-[13px] text-[var(--color-info)]">
+            <Loader2 class="w-4 h-4 animate-spin" />
+            <span>{{ status.message || 'Wird gerendert …' }}</span>
+          </div>
+          <div v-else-if="isFailed" class="flex items-start gap-2 p-3 rounded-lg bg-[var(--color-error-light)] text-[13px] text-[var(--color-error)]">
+            {{ status.message || 'Rendering fehlgeschlagen' }}
+          </div>
+          <div v-else-if="isDone" class="space-y-3">
+            <video :src="status.download_url" controls class="w-full rounded-lg bg-black max-h-[480px] mx-auto" />
+            <a :href="downloadHref" class="pim-btn pim-btn-secondary text-xs" download>
+              <Download class="w-3.5 h-3.5" :stroke-width="2" /> MP4 herunterladen
+            </a>
           </div>
         </div>
 
         <!-- Szenen-Vorschau (Reel-Definition) -->
-        <div v-if="reel" class="card bg-base-100 shadow-sm border border-base-200">
-          <div class="card-body">
-            <h2 class="card-title text-base">
-              Storyboard
-              <span class="badge badge-ghost">{{ reel.scenes.length }} Szenen</span>
-              <span class="badge badge-ghost badge-sm ml-auto font-normal">
-                Übergang: {{ transitionLabel(reel.meta?.style?.transition || style.transition) }}
+        <div v-if="reel" class="pim-card p-4">
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="text-[13px] font-semibold text-[var(--color-text-primary)]">Storyboard</h2>
+            <div class="flex items-center gap-2">
+              <span class="text-[11px] px-1.5 py-0.5 rounded bg-[var(--color-bg)] text-[var(--color-text-tertiary)]">
+                {{ reel.scenes.length }} Szenen
               </span>
-            </h2>
-            <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              <div v-for="(sc, i) in reel.scenes" :key="i" class="space-y-1">
-                <div class="relative">
-                  <ScenePreview
-                    :scene="sc"
-                    :format="reel.meta?.format || format"
-                    :theme="reel.meta?.style || style"
-                  />
-                  <span class="absolute top-1 left-1 badge badge-xs badge-neutral">{{ i + 1 }}</span>
-                </div>
-                <div class="text-[10px] uppercase tracking-wide opacity-50">{{ sceneLabel(sc.type) }}</div>
-                <div v-if="sc.sprecher" class="text-xs opacity-60 italic leading-tight line-clamp-2">
-                  „{{ sc.sprecher }}"
-                </div>
+              <span class="text-[11px] px-1.5 py-0.5 rounded bg-[var(--color-bg)] text-[var(--color-text-tertiary)]">
+                {{ transitionLabel(reel.meta?.style?.transition || style.transition) }}
+              </span>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <div v-for="(sc, i) in reel.scenes" :key="i" class="space-y-1">
+              <div class="relative">
+                <ScenePreview
+                  :scene="sc"
+                  :format="reel.meta?.format || format"
+                  :theme="reel.meta?.style || style"
+                />
+                <span class="absolute top-1 left-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-black/60 text-white">{{ i + 1 }}</span>
+              </div>
+              <div class="text-[10px] uppercase tracking-wide text-[var(--color-text-tertiary)]">{{ sceneLabel(sc.type) }}</div>
+              <div v-if="sc.sprecher" class="text-[11px] text-[var(--color-text-tertiary)] italic leading-tight line-clamp-2">
+                „{{ sc.sprecher }}"
               </div>
             </div>
           </div>
         </div>
 
         <!-- Leerzustand -->
-        <div v-if="!status && !reel" class="text-center text-base-content/40 py-16">
-          <Clapperboard class="w-12 h-12 mx-auto mb-3 opacity-30" />
-          <p>Wähle Produkte und erstelle dein erstes Social-Video.</p>
+        <div v-if="!status && !reel" class="pim-card p-12 text-center">
+          <Clapperboard class="w-10 h-10 mx-auto mb-3 text-[var(--color-text-tertiary)] opacity-40" :stroke-width="1.5" />
+          <p class="text-[13px] text-[var(--color-text-tertiary)]">Wähle Produkte und erstelle dein erstes Social-Video.</p>
         </div>
       </div>
     </div>

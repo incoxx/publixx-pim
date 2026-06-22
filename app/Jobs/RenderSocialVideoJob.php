@@ -58,7 +58,7 @@ class RenderSocialVideoJob implements ShouldQueue
         }
 
         $cmd = sprintf(
-            'cd %s && npx tsx %s %s %s',
+            'cd %s && node_modules/.bin/tsx %s %s %s',
             escapeshellarg($engineDir),
             escapeshellarg('src/reel-cli.ts'),
             escapeshellarg($reelPath),
