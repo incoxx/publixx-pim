@@ -19,6 +19,7 @@ import {
   Cloud,
   Bug,
   Bot,
+  Clapperboard,
 } from 'lucide-vue-next'
 import AnyPimLogo from '@/components/shared/AnyPimLogo.vue'
 import { useAppearanceStore, SECTION_ICON_COLORS } from '@/stores/appearance'
@@ -78,6 +79,7 @@ const sections = computed(() => {
         { icon: LayoutTemplate, label: () => 'Katalog-Vorlagen', to: '/catalog-templates', module: 'catalog_templates', permission: 'catalog-templates.view' },
         { icon: Globe, label: () => 'Portale', to: '/portal-config', module: 'portals', permission: 'portals.view' },
         { icon: ExternalLink, label: () => 'Katalog-Demo', to: '/catalog-embed', module: 'catalog_templates', permission: 'catalog-templates.view', external: true },
+        { icon: Clapperboard, label: () => 'Social-Video', to: '/social-video', permission: 'products.view', testid: 'nav-social-video' },
       ],
     },
     {

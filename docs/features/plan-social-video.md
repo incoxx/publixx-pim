@@ -183,3 +183,58 @@ HTML-Szenen-Templates ≈ 1–2 Tage; Job + API + Route ≈ 0,5 Tag; Tests + Dok
 - **KI-Kosten/Latenz:** pro Reel ein Claude-Call; Ergebnisse cachen (analog Voice-Cache), Skript als
   Attribut speicherbar (`save_as_attribute`).
 - **Lizenz/Modul:** Feature hinter `module:social-video` (Enterprise) wie übrige Export-Formate.
+
+---
+
+## Umsetzung (MVP, Stand 2026-06-22)
+
+Der MVP ist implementiert. Auswahl mehrerer Produkte → **ein** kombiniertes Video (Hero → bis zu
+2 Features → Preis je Produkt, am Ende eine globale CTA-Szene).
+
+### Tatsächlich erstellte Dateien
+
+| Datei | Zweck |
+|-------|-------|
+| `app/Services/Export/SocialVideoElementMap.php` | Zielfelder + Default-Mapping-Regeln |
+| `app/Services/Export/SocialVideoBuilder.php` | Produkte → Reel-Definition (MappingResolver + optional Claude-Hook) |
+| `app/Jobs/RenderSocialVideoJob.php` | Queue-Job: ruft `reel-cli.ts`, schreibt dateibasierten Status |
+| `app/Http/Controllers/Api/V1/SocialVideoController.php` | `POST /social-video`, `GET {job}/status`, `GET {job}/download`, `GET default-mapping` |
+| `app/Console/Commands/SocialVideoGenerate.php` | CLI `pim:social-video` |
+| `video-engine/src/reel-renderer.ts` | Reel-Definition → Playwright-HTML-Szenen (9:16, `setContent`) |
+| `video-engine/src/reel-cli.ts` | Orchestrator: Recorder → VoiceSynthesizer → video-renderer |
+| `video-stories/_schema/reel.schema.json` | Schema der Reel-Definition |
+| `pim-frontend/src/views/publish/SocialVideoView.vue` | GUI-Maske (Publish-Menü) |
+| `pim-frontend/src/api/socialVideo.js` | Frontend-API-Client |
+
+Geändert: `routes/api.php` (Route-Block), `pim-frontend/src/router/index.js` (`/social-video`),
+`pim-frontend/src/components/layout/AppSidebar.vue` (Menüpunkt **am Ende von „Publish"**).
+
+### Bewusste Abweichungen vom ursprünglichen Plan
+
+- **Kein `module:`-Gating** für den MVP: Die Routen liegen in der normalen Auth-Gruppe und der
+  Menüpunkt ist mit `permission: 'products.view'` sichtbar (ein eigenes Lizenzmodul existiert noch
+  nicht – kann später ergänzt werden, ohne die Logik zu ändern).
+- **Status ohne DB-Migration:** Job-Status liegt als `storage/app/social-video/{job}/status.json`,
+  Output unter `public/videos/social/{job}.mp4`.
+- Die in der `CLAUDE.md` skizzierten `ExportProductHelpers`/GAEB-Referenzen existieren in diesem
+  Branch nicht; der Builder nutzt direkt `MappingResolver` (wie `JsonFormatExporter`).
+
+### Nutzung
+
+```bash
+# Engine-Abhängigkeiten (einmalig, benötigt ffmpeg + Xvfb + Playwright):
+cd video-engine && npm install && npx playwright install chromium
+
+# CLI:
+php artisan pim:social-video --products=UUID1,UUID2 --format=9x16 --ai
+php artisan pim:social-video --products=UUID --reel-only   # nur Storyboard-JSON, kein Rendering
+```
+
+GUI: **Publish → Social-Video** → Produkte suchen/auswählen, Format + Sprache wählen, optional
+„KI-Hook", **Video erstellen**. Das Storyboard erscheint sofort; der Render-Status wird gepollt und
+das MP4 nach Fertigstellung im Browser abspielbar/herunterladbar.
+
+> **Hinweis:** Das eigentliche Rendering läuft über die Queue und benötigt ffmpeg, Xvfb und den
+> Playwright-Chromium (wie die bestehende `video-engine`). Ohne diese Tools liefert der Job einen
+> klaren `failed`-Status; Storyboard-Erzeugung und KI-Hook funktionieren unabhängig davon.
+
