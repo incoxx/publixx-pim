@@ -97,6 +97,48 @@ class SocialVideoBuilder
     public function setUseAi(bool $useAi): void { $this->useAi = $useAi; }
 
     /**
+     * Überschreibt die Quell-Felder anhand der GUI-Auswahl (target => technical_name).
+     * Erzeugt daraus Mapping-Regeln; ein leerer Wert entfernt das Feld bewusst.
+     * Unbekannte Zielfelder werden ignoriert.
+     *
+     * @param array<string,string|null> $sources
+     */
+    public function setFieldSources(array $sources): void
+    {
+        $fields = [];
+        foreach (SocialVideoElementMap::configurableFields() as $field) {
+            $fields[$field['target']] = $field;
+        }
+
+        // Bestehende Regeln (Defaults) als Basis nach target indizieren.
+        $byTarget = [];
+        foreach ($this->mappingRules as $rule) {
+            if (isset($rule['target'])) {
+                $byTarget[$rule['target']] = $rule;
+            }
+        }
+
+        foreach ($sources as $target => $value) {
+            if (! isset($fields[$target])) {
+                continue;
+            }
+            $value = is_string($value) ? trim($value) : '';
+            if ($value === '') {
+                unset($byTarget[$target]); // bewusst leer gelassen → Feld weglassen
+                continue;
+            }
+            $field = $fields[$target];
+            $byTarget[$target] = [
+                'source' => SocialVideoElementMap::prefixForKind($field['kind']) . $value,
+                'target' => $target,
+                'type'   => $field['type'],
+            ];
+        }
+
+        $this->mappingRules = array_values($byTarget);
+    }
+
+    /**
      * Setzt das Stil-Briefing (nur bekannte Felder werden übernommen).
      */
     public function setStyle(array $style): void
