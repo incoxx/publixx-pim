@@ -274,7 +274,7 @@ async function downloadVideo() {
 }
 
 function sceneLabel(type) {
-  return { hero: 'Aufmacher', feature: 'Highlight', price: 'Preis', cta: 'Call-to-Action' }[type] || type
+  return { hero: 'Aufmacher', feature: 'Highlight', image: 'Bild', price: 'Preis', cta: 'Call-to-Action' }[type] || type
 }
 
 // Kamerafahrt-Bilder neu laden, wenn sich Auswahl oder Bildquelle ändert.

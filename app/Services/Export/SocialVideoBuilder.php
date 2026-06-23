@@ -280,7 +280,11 @@ class SocialVideoBuilder
             }
         }
 
-        foreach (array_slice($featureScenes, 0, 2) as $i => $feature) {
+        $maxFeatureScenes = 3;   // Feature-Szenen (mit Text) je Produkt
+        $maxGalleryImages = 6;   // Galerie-Bilder gesamt je Produkt (Feature-BG + Showcase)
+
+        $featureCount = min(count($featureScenes), $maxFeatureScenes);
+        foreach (array_slice($featureScenes, 0, $maxFeatureScenes) as $i => $feature) {
             $scenes[] = [
                 'type'     => 'feature',
                 'image'    => $galleryImages[$i] ?? $hero,
@@ -290,6 +294,20 @@ class SocialVideoBuilder
                 'duration' => 2500,
             ];
             $descriptors[] = ['role' => 'feature', 'text' => $feature['label'] . ': ' . $feature['text']];
+        }
+
+        // Übrige Galerie-Bilder als reine Bild-Szenen (Showcase): zeigen das Bild
+        // mit Kamerafahrt, während das Voiceover weiterläuft – kein eingeblendeter Text.
+        for ($i = $featureCount; $i < count($galleryImages) && $i < $maxGalleryImages; $i++) {
+            if ($galleryImages[$i] === $hero) {
+                continue; // kein Duplikat des Aufmacherbildes
+            }
+            $scenes[] = [
+                'type'     => 'image',
+                'image'    => $galleryImages[$i],
+                'duration' => 2200,
+            ];
+            $descriptors[] = ['role' => 'showcase', 'text' => (string) $headline];
         }
 
         // Preis-Szene (nur wenn ein Preis gemappt ist)
@@ -511,10 +529,11 @@ class SocialVideoBuilder
         $sceneList = '';
         foreach ($descriptors as $i => $descriptor) {
             $role = match ($descriptor['role']) {
-                'hook'    => 'Aufmacher/Hook',
-                'feature' => 'Produktmerkmal',
-                'price'   => 'Preis-Überleitung',
-                default   => 'Szene',
+                'hook'     => 'Aufmacher/Hook',
+                'feature'  => 'Produktmerkmal',
+                'price'    => 'Preis-Überleitung',
+                'showcase' => 'Produktbild (nur Bild, beschreibe/erzähle weiter)',
+                default    => 'Szene',
             };
             $sceneList .= ($i + 1) . ". {$role}: " . $descriptor['text'] . "\n";
         }

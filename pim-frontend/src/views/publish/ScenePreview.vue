@@ -49,8 +49,8 @@ const badge = computed(() => (props.scene.type === 'feature' ? (props.scene.badg
       <ImageOff v-if="scene.type !== 'cta'" class="placeholder-ico" />
     </div>
 
-    <!-- Inhalt -->
-    <div class="content" :class="{ centered: isCentered }">
+    <!-- Inhalt (reine Bild-Szene zeigt nur das Bild) -->
+    <div v-if="scene.type !== 'image'" class="content" :class="{ centered: isCentered }">
       <!-- Preis -->
       <template v-if="scene.type === 'price'">
         <div class="badge">{{ badge }}</div>
