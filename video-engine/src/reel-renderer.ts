@@ -22,7 +22,7 @@ export interface CameraMotion {
 }
 
 export interface ReelScene {
-  type: 'hero' | 'feature' | 'price' | 'cta';
+  type: 'hero' | 'feature' | 'price' | 'cta' | 'image';
   image?: string | null;
   badge?: string | null;
   headline?: string | null;
@@ -222,6 +222,10 @@ function bgHtml(url: string, imgStyle: string): string {
 // Nur der Text-Overlay einer Szene (ohne Stage/Hintergrund) – wird je Szene in den
 // persistenten .content-host getauscht, ohne das Bild neu zu laden.
 function contentInner(s: Scene): string {
+  // Reine Bild-Szene (Showcase): kein eingeblendeter Text, nur das Bild + Fahrt.
+  if (s.type === 'image') {
+    return '';
+  }
   if (s.type === 'price') {
     const formatted = typeof s.value === 'number'
       ? s.value.toLocaleString('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 2 })

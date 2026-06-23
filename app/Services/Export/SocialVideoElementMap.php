@@ -25,6 +25,9 @@ class SocialVideoElementMap
         'feature_3',    // Merkmal 3
         'price',        // Preis (Dezimalwert)
         'cta',          // Call-to-Action
+        'ai_context_1', // Zusatz-Attribut nur für den KI-Text (nicht im Video)
+        'ai_context_2',
+        'ai_context_3',
     ];
 
     /**
@@ -34,9 +37,10 @@ class SocialVideoElementMap
      *
      * - kind:  steuert, welche Quell-Liste die GUI anbietet (media|attribute|price)
      * - type:  MappingResolver-Typ der erzeugten Regel
-     * - default: technischer Name der Standard-Quelle (nur Vorbelegung, überschreibbar)
+     * - default: technischer Name der Standard-Quelle (nur Vorbelegung, überschreibbar; leer = keine)
+     * - ai_only: true → fließt nur in den KI-Sprechertext, erzeugt KEINE Video-Szene
      *
-     * @return list<array{target:string,label:string,kind:string,type:string,default:string}>
+     * @return list<array{target:string,label:string,kind:string,type:string,default:string,ai_only?:bool}>
      */
     public static function configurableFields(): array
     {
@@ -49,6 +53,10 @@ class SocialVideoElementMap
             ['target' => 'feature_2',  'label' => 'Feature 2',      'kind' => 'attribute', 'type' => 'text',        'default' => 'feature-2'],
             ['target' => 'feature_3',  'label' => 'Feature 3',      'kind' => 'attribute', 'type' => 'text',        'default' => 'feature-3'],
             ['target' => 'price',      'label' => 'Preis',          'kind' => 'price',     'type' => 'price',       'default' => 'list_price'],
+            // Nur für den gesprochenen KI-Text – erscheinen NICHT im Video.
+            ['target' => 'ai_context_1', 'label' => 'KI-Kontext 1', 'kind' => 'attribute', 'type' => 'text', 'default' => '', 'ai_only' => true],
+            ['target' => 'ai_context_2', 'label' => 'KI-Kontext 2', 'kind' => 'attribute', 'type' => 'text', 'default' => '', 'ai_only' => true],
+            ['target' => 'ai_context_3', 'label' => 'KI-Kontext 3', 'kind' => 'attribute', 'type' => 'text', 'default' => '', 'ai_only' => true],
         ];
     }
 
@@ -66,12 +74,16 @@ class SocialVideoElementMap
 
     /**
      * Standard-Mapping-Regeln als Vorlage — abgeleitet aus configurableFields(),
-     * damit es keine doppelte Wahrheit gibt.
+     * damit es keine doppelte Wahrheit gibt. Felder ohne Default (z.B. KI-Kontext)
+     * werden übersprungen.
      */
     public static function defaultMappingRules(): array
     {
         $rules = [];
         foreach (self::configurableFields() as $field) {
+            if (($field['default'] ?? '') === '') {
+                continue;
+            }
             $rules[] = [
                 'source' => self::prefixForKind($field['kind']) . $field['default'],
                 'target' => $field['target'],

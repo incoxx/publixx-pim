@@ -53,7 +53,7 @@
         "required": ["type"],
         "additionalProperties": false,
         "properties": {
-          "type": { "type": "string", "enum": ["hero", "feature", "price", "cta"] },
+          "type": { "type": "string", "enum": ["hero", "feature", "price", "cta", "image"] },
           "image": { "type": ["string", "null"] },
           "badge": { "type": ["string", "null"] },
           "headline": { "type": ["string", "null"] },

@@ -26,6 +26,10 @@ function optionsForKind(kind) {
   return attributeOptions.value
 }
 
+// Sichtbare Inhalts-Felder vs. reine KI-Kontext-Felder (nur gesprochen).
+const normalFields = computed(() => contentFields.value.filter(f => !f.ai_only))
+const aiFields = computed(() => contentFields.value.filter(f => f.ai_only))
+
 async function loadContentConfig() {
   try {
     const [meta, usage, attrs, prices] = await Promise.all([
@@ -270,7 +274,7 @@ async function downloadVideo() {
 }
 
 function sceneLabel(type) {
-  return { hero: 'Aufmacher', feature: 'Highlight', price: 'Preis', cta: 'Call-to-Action' }[type] || type
+  return { hero: 'Aufmacher', feature: 'Highlight', image: 'Bild', price: 'Preis', cta: 'Call-to-Action' }[type] || type
 }
 
 // Kamerafahrt-Bilder neu laden, wenn sich Auswahl oder Bildquelle ändert.
@@ -383,7 +387,7 @@ watch(() => fieldSources.hero_image, scheduleLoadImages)
             Lege fest, welches Bild und welche Texte/Preise das Video verwendet. „(leer)" lässt ein Feld weg.
           </p>
           <div v-if="contentFields.length" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div v-for="f in contentFields" :key="f.target">
+            <div v-for="f in normalFields" :key="f.target">
               <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">{{ f.label }}</label>
               <select v-model="fieldSources[f.target]" class="pim-input text-xs w-full" :data-testid="`social-video-source-${f.target}`">
                 <option value="">— (leer) —</option>
@@ -392,6 +396,26 @@ watch(() => fieldSources.hero_image, scheduleLoadImages)
             </div>
           </div>
           <p v-else class="text-[11px] text-[var(--color-text-tertiary)]">Wird geladen …</p>
+
+          <!-- Zusatz-Attribute nur für den KI-Sprechertext (nicht im Video) -->
+          <div v-if="aiFields.length" class="mt-4 pt-3 border-t border-[var(--color-border)]">
+            <div class="flex items-center gap-1.5 mb-0.5">
+              <Sparkles class="w-3.5 h-3.5 text-[var(--color-accent)]" />
+              <span class="text-[12px] font-medium text-[var(--color-text-secondary)]">Zusatz-Infos für den KI-Sprechertext</span>
+            </div>
+            <p class="text-[10px] text-[var(--color-text-tertiary)] mb-2">
+              Fließen in den gesprochenen Text ein, erscheinen aber <strong>nicht</strong> im Video (nur wirksam mit aktivem KI-Hook).
+            </p>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div v-for="f in aiFields" :key="f.target">
+                <label class="block text-[11px] font-medium text-[var(--color-text-tertiary)] mb-1">{{ f.label }}</label>
+                <select v-model="fieldSources[f.target]" class="pim-input text-xs w-full" :data-testid="`social-video-source-${f.target}`">
+                  <option value="">— (leer) —</option>
+                  <option v-for="o in optionsForKind(f.kind)" :key="o.value" :value="o.value">{{ o.label }}</option>
+                </select>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- 4. Look & Stil -->
