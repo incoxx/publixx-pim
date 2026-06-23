@@ -30,7 +30,7 @@ class MediaController extends Controller
 {
     use ChecksDeletionConstraints;
 
-    private const ALLOWED_FILTERS = ['media_type', 'mime_type', 'asset_folder_id', 'usage_purpose'];
+    private const ALLOWED_FILTERS = ['media_type', 'mime_type', 'asset_folder_id', 'usage_purpose', 'file_status'];
     private const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'tiff', 'tif', 'pdf', 'eps', 'ai', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'csv'];
     private const MAX_BULK_IMPORT_ROWS = 500;
 
@@ -375,6 +375,7 @@ class MediaController extends Controller
             // 3. Media-Record updaten (inkl. file_path falls fehlend/falsch)
             $existing->update([
                 'file_path' => $correctPath,
+                'file_status' => 'ok',
                 'mime_type' => $file->getMimeType(),
                 'file_size' => $file->getSize(),
                 'media_type' => $this->detectMediaType($file->getMimeType()),
@@ -820,15 +821,15 @@ class MediaController extends Controller
     }
 
     /**
-     * POST /media/bulk-delete — mehrere Medien löschen.
+     * POST /media/bulk-delete — mehrere Medien löschen (kein Limit, intern in 100er-Chunks).
      */
     public function bulkDelete(Request $request): JsonResponse
     {
         $this->authorize('delete', Media::class);
 
         $validated = $request->validate([
-            'media_ids' => ['required', 'array', 'min:1', 'max:100'],
-            'media_ids.*' => ['required', 'uuid', 'exists:media,id'],
+            'media_ids' => ['required', 'array', 'min:1'],
+            'media_ids.*' => ['required', 'uuid'],
             'force' => ['nullable', 'boolean'],
         ]);
 
@@ -837,53 +838,182 @@ class MediaController extends Controller
         $skipped = 0;
         $errors = [];
 
-        // Alle Medien in 1 Query laden statt N einzelne find()-Aufrufe
-        $mediaItems = Media::whereIn('id', $validated['media_ids'])->get()->keyBy('id');
+        $mediaIds = $validated['media_ids'];
 
-        foreach ($validated['media_ids'] as $mediaId) {
-            $media = $mediaItems->get($mediaId);
-            if (!$media) {
-                $skipped++;
-                continue;
-            }
+        // Constraint-Check in 1 Query statt N einzelne exists()-Calls
+        $blockedIds = [];
+        if (!$force) {
+            $blockedIds = \App\Models\ProductMediaAssignment::whereIn('media_id', $mediaIds)
+                ->pluck('media_id')
+                ->flip()
+                ->toArray();
+        }
 
-            // Constraint-Check (Produkt-Zuordnungen etc.)
-            if (!$force && $media->productAssignments()->exists()) {
-                $skipped++;
-                $errors[] = "{$media->file_name}: Hat Produkt-Zuordnungen";
-                continue;
-            }
+        // Medien in Chunks laden und löschen (verhindert Memory-Exhaustion bei vielen IDs)
+        foreach (array_chunk($mediaIds, 100) as $chunk) {
+            $mediaItems = Media::whereIn('id', $chunk)->get()->keyBy('id');
 
-            try {
-                // Thumbnail-Cache löschen
+            foreach ($chunk as $mediaId) {
+                $media = $mediaItems->get($mediaId);
+                if (!$media) {
+                    $skipped++;
+                    continue;
+                }
+
+                if (isset($blockedIds[$mediaId])) {
+                    $skipped++;
+                    $errors[] = "{$media->file_name}: Hat Produkt-Zuordnungen";
+                    continue;
+                }
+
                 try {
-                    app(ThumbnailService::class)->clearCache($media);
-                } catch (\Throwable) {
-                    // Nicht-kritisch
-                }
+                    try {
+                        app(ThumbnailService::class)->clearCache($media);
+                    } catch (\Throwable) {}
 
-                // Revisions-Dateien löschen
-                $disk = Storage::disk('public');
-                if ($disk->exists('media-revisions/' . $media->id)) {
-                    $disk->deleteDirectory('media-revisions/' . $media->id);
-                }
+                    $disk = Storage::disk('public');
+                    if ($disk->exists('media-revisions/' . $media->id)) {
+                        $disk->deleteDirectory('media-revisions/' . $media->id);
+                    }
+                    if ($disk->exists($media->file_path)) {
+                        $disk->delete($media->file_path);
+                    }
 
-                // Datei auf Disk löschen
-                if ($disk->exists($media->file_path)) {
-                    $disk->delete($media->file_path);
+                    $media->delete();
+                    $deleted++;
+                } catch (\Throwable $e) {
+                    $skipped++;
+                    $errors[] = "{$media->file_name}: {$e->getMessage()}";
                 }
-
-                $media->delete();
-                $deleted++;
-            } catch (\Throwable $e) {
-                $skipped++;
-                $errors[] = "{$media->file_name}: {$e->getMessage()}";
             }
         }
 
         return response()->json([
             'message' => "{$deleted} Medien gelöscht" . ($skipped > 0 ? ", {$skipped} übersprungen." : '.'),
             'deleted' => $deleted,
+            'skipped' => $skipped,
+            'errors' => $errors,
+        ]);
+    }
+
+    /**
+     * POST /media/bulk-recover-url — fehlende Dateien von einem Base-URL-Pfad wiederherstellen.
+     */
+    public function bulkRecoverUrl(Request $request): JsonResponse
+    {
+        $this->authorize('update', Media::class);
+
+        $validated = $request->validate([
+            'media_ids' => ['required', 'array', 'min:1'],
+            'media_ids.*' => ['required', 'uuid'],
+            'base_url' => ['required', 'url', 'max:2000'],
+        ]);
+
+        $baseUrl = rtrim($validated['base_url'], '/');
+
+        if ($this->isInternalUrl($baseUrl)) {
+            return response()->json(['message' => 'Interne oder private URLs sind nicht erlaubt.'], 422);
+        }
+
+        $disk = Storage::disk('public');
+        $recovered = 0;
+        $failed = 0;
+        $skipped = 0;
+        $errors = [];
+
+        foreach (array_chunk($validated['media_ids'], 50) as $chunk) {
+            $mediaItems = Media::whereIn('id', $chunk)->get()->keyBy('id');
+
+            foreach ($chunk as $mediaId) {
+                $media = $mediaItems->get($mediaId);
+                if (!$media) {
+                    $skipped++;
+                    continue;
+                }
+
+                // Dateinamen-Kandidaten: original zuerst, dann sanitized
+                $candidates = array_values(array_unique(array_filter([
+                    $media->original_file_name ? basename($media->original_file_name) : null,
+                    basename($media->file_name),
+                ])));
+
+                $success = false;
+                foreach ($candidates as $candidate) {
+                    $url = $baseUrl . '/' . rawurlencode($candidate);
+
+                    try {
+                        $response = Http::timeout(30)->get($url);
+                        if (!$response->successful()) {
+                            continue;
+                        }
+
+                        $extension = strtolower(pathinfo($candidate, PATHINFO_EXTENSION) ?: 'bin');
+                        if (!$this->validateExtension($extension)) {
+                            if (count($errors) < 100) {
+                                $errors[] = "{$media->file_name}: Dateityp \"{$extension}\" nicht erlaubt.";
+                            }
+                            $skipped++;
+                            $success = true; // verhindert doppelten failed-Zähler
+                            break;
+                        }
+
+                        // Unter gleichem file_path speichern
+                        $disk->put($media->file_path, $response->body());
+                        $storedPath = $disk->path($media->file_path);
+
+                        $actualMime = $this->detectMimeFromFile($storedPath)
+                            ?? explode(';', $response->header('Content-Type', 'application/octet-stream'))[0];
+
+                        if (in_array($actualMime, ['image/jpeg', 'image/jpg']) && function_exists('exif_read_data')) {
+                            $this->fixExifOrientation($storedPath);
+                        }
+
+                        $width = null;
+                        $height = null;
+                        if (str_starts_with($actualMime, 'image/')) {
+                            $dimensions = @getimagesize($storedPath);
+                            if ($dimensions) {
+                                [$width, $height] = $dimensions;
+                            }
+                        }
+
+                        $media->update([
+                            'file_size' => $disk->size($media->file_path),
+                            'mime_type' => $actualMime,
+                            'width' => $width,
+                            'height' => $height,
+                            'file_status' => 'ok',
+                            'last_uploaded_at' => now(),
+                        ]);
+
+                        try {
+                            app(ThumbnailService::class)->clearCache($media);
+                            $this->generateEagerThumbnail($media->fresh());
+                        } catch (\Throwable) {}
+
+                        $recovered++;
+                        $success = true;
+                        break;
+                    } catch (\Illuminate\Http\Client\ConnectionException) {
+                        // Nächsten Kandidaten versuchen
+                    }
+                }
+
+                if (!$success) {
+                    $failed++;
+                    if (count($errors) < 100) {
+                        $errors[] = "{$media->file_name}: Nicht gefunden unter {$baseUrl}/";
+                    }
+                }
+            }
+        }
+
+        return response()->json([
+            'message' => "{$recovered} wiederhergestellt"
+                . ($failed > 0 ? ", {$failed} fehlgeschlagen" : '')
+                . ($skipped > 0 ? ", {$skipped} übersprungen" : '') . '.',
+            'recovered' => $recovered,
+            'failed' => $failed,
             'skipped' => $skipped,
             'errors' => $errors,
         ]);

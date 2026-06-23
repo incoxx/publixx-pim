@@ -99,6 +99,10 @@ export default {
     return client.put(`/media/${mediaId}/attribute-values`, { values })
   },
 
+  bulkRecoverUrl(mediaIds, baseUrl) {
+    return client.post('/media/bulk-recover-url', { media_ids: mediaIds, base_url: baseUrl })
+  },
+
   relink(mediaIds) {
     return client.post('/media/relink', { media_ids: mediaIds })
   },

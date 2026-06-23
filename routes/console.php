@@ -9,3 +9,4 @@ Schedule::command('pim:export-job --run-scheduled')->everyMinute();
 Schedule::command('actions:process-scheduled')->everyMinute();
 Schedule::command('tms:ingest')->daily();
 Schedule::command('tms:sync')->dailyAt('04:00');
+Schedule::command('media:scan-missing --quiet-mode')->weekly();

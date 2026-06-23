@@ -23,6 +23,7 @@ class Media extends Model
         'file_name',
         'original_file_name',
         'file_path',
+        'file_status',
         'mime_type',
         'file_size',
         'media_type',
