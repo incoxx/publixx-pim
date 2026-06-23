@@ -208,10 +208,14 @@ class SocialVideoBuilder
         }
 
         // Abschluss-Szene (Call-to-Action) – Sprechertext optional von der KI.
+        $ctaProduct = $products->first();
+        $ctaContext = $ctaProduct !== null
+            ? $this->collectAiContext($ctaProduct, $this->mappingResolver->resolve($this->mappingRules, $ctaProduct, $this->languages))
+            : [];
         $scenes[] = [
             'type'     => 'cta',
             'headline' => SocialVideoElementMap::fieldDefaults()['cta'],
-            'sprecher' => $this->generateCtaLine($products->first()),
+            'sprecher' => $this->generateCtaLine($ctaProduct, $ctaContext),
             'duration' => 2500,
         ];
 
@@ -304,7 +308,8 @@ class SocialVideoBuilder
         // KI: ein zusammenhängendes Sprecher-Skript über alle Szenen dieses Produkts.
         // Bei Fehler/leerer Zeile bleibt der jeweilige Default-Sprechertext erhalten.
         if ($this->useAi) {
-            foreach ($this->generateSceneScript($product, $descriptors) as $i => $line) {
+            $aiContext = $this->collectAiContext($product, $mapped);
+            foreach ($this->generateSceneScript($product, $descriptors, $aiContext) as $i => $line) {
                 if (isset($scenes[$i]) && trim((string) $line) !== '') {
                     $scenes[$i]['sprecher'] = $this->firstLine((string) $line);
                 }
@@ -453,14 +458,49 @@ class SocialVideoBuilder
     }
 
     /**
+     * Sammelt die ausgewählten KI-Kontext-Attribute (nur für den gesprochenen Text)
+     * als "Label: Wert Einheit"-Zeilen.
+     *
+     * @return list<string>
+     */
+    private function collectAiContext(Product $product, array $mapped): array
+    {
+        $out = [];
+        foreach (['ai_context_1', 'ai_context_2', 'ai_context_3'] as $target) {
+            $entry = $this->buildFeature($product, $target, $mapped[$target] ?? null);
+            if ($entry !== null) {
+                $out[] = $entry['label'] . ': ' . $entry['text'];
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * Hängt zusätzliche KI-Kontext-Infos an einen Prompt an (nur Sprechertext).
+     *
+     * @param list<string> $aiContext
+     */
+    private function appendAiContext(string $prompt, array $aiContext): string
+    {
+        if ($aiContext === []) {
+            return $prompt;
+        }
+
+        return $prompt . "\n\nZusätzliche Produktinfos (nur für den gesprochenen Text nutzen, "
+            . "NICHT als Text einblenden):\n- " . implode("\n- ", $aiContext);
+    }
+
+    /**
      * Erzeugt ein zusammenhängendes Sprecher-Skript: genau ein gesprochener Satz
      * pro Szene, in Reihenfolge der Deskriptoren. Liefert bei Fehlern ein leeres
      * Array (→ Default-Sprechertexte bleiben erhalten).
      *
      * @param  list<array{role:string,text:string}>  $descriptors
+     * @param  list<string>  $aiContext  Zusätzliche Attribute nur für den Text
      * @return list<string>
      */
-    private function generateSceneScript(Product $product, array $descriptors): array
+    private function generateSceneScript(Product $product, array $descriptors, array $aiContext = []): array
     {
         $apiKey = (string) config('connectors.claude_ai.api_key', '');
         if ($apiKey === '' || $descriptors === []) {
@@ -488,6 +528,7 @@ class SocialVideoBuilder
         if (trim($this->style['brief']) !== '') {
             $prompt .= "\nKreativ-Briefing für das Video: " . trim($this->style['brief']);
         }
+        $prompt = $this->appendAiContext($prompt, $aiContext);
         $tonality = trim($this->style['tonality']) !== '' ? trim($this->style['tonality']) : 'jung, energiegeladen, direkt';
 
         try {
@@ -512,7 +553,7 @@ class SocialVideoBuilder
      * Liefert einen kurzen, gesprochenen Call-to-Action (optional von der KI),
      * sonst den Standard-Abschluss.
      */
-    private function generateCtaLine(?Product $product): string
+    private function generateCtaLine(?Product $product, array $aiContext = []): string
     {
         $default = 'Jetzt entdecken auf incoxx.com.';
         $apiKey = (string) config('connectors.claude_ai.api_key', '');
@@ -525,6 +566,7 @@ class SocialVideoBuilder
         if (trim($this->style['brief']) !== '') {
             $prompt .= "\nKreativ-Briefing für das Video: " . trim($this->style['brief']);
         }
+        $prompt = $this->appendAiContext($prompt, $aiContext);
         $tonality = trim($this->style['tonality']) !== '' ? trim($this->style['tonality']) : 'jung, energiegeladen, direkt';
 
         try {
