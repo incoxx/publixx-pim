@@ -144,7 +144,7 @@ const productPages = computed(() => {
 </script>
 
 <template>
-  <Teleport to="body">
+  <Teleport to="#asset-catalog-theme-root">
     <Transition name="modal-fade">
       <div v-if="open" class="fixed inset-0 z-[100] flex items-center justify-center p-4" data-theme="pim-catalog">
         <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="emit('close')"></div>
