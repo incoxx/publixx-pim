@@ -33,6 +33,19 @@ function hexToRgb(hex) {
   }
 }
 
+// Liefert eine kontrastierende Textfarbe (#ffffff oder #1a1a1a) für eine Hintergrundfarbe.
+// Wird für DaisyUI *-content Variablen genutzt, damit Buttons/Badges lesbar bleiben.
+export function contrastContent(hex) {
+  if (!hex || !/^#[0-9A-Fa-f]{6}$/.test(hex)) return null
+  const { r, g, b } = hexToRgb(hex)
+  const lin = (c) => {
+    c /= 255
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)
+  }
+  const L = 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
+  return L > 0.5 ? '#1a1a1a' : '#ffffff'
+}
+
 export function adjustBrightness(hex, factor) {
   if (!hex || !/^#[0-9A-Fa-f]{6}$/.test(hex)) return hex
   const { r, g, b } = hexToRgb(hex)
@@ -88,6 +101,19 @@ export function useThemeApplicator(themeRootRef, themeSettingsRef) {
     }
     for (const [key, cssVar] of Object.entries(colorMap)) {
       const oklch = hexToOklch(t[key])
+      if (oklch) el.style.setProperty(cssVar, oklch)
+    }
+
+    // Kontrastierende *-content Textfarben setzen, sobald die Hintergrundfarbe
+    // überschrieben wird — sonst bleibt der Button-Text auf dem DaisyUI-Default
+    // (schwarz) und wird auf farbigem Hintergrund unlesbar.
+    const contentMap = {
+      color_primary: '--color-primary-content',
+      color_accent: '--color-accent-content',
+      color_button: '--color-secondary-content',
+    }
+    for (const [key, cssVar] of Object.entries(contentMap)) {
+      const oklch = hexToOklch(contrastContent(t[key]))
       if (oklch) el.style.setProperty(cssVar, oklch)
     }
 
