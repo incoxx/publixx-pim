@@ -158,6 +158,7 @@ const filterOptions = computed(() => {
   const filters = {}
   if (selectedFolderId.value) filters.asset_folder_id = selectedFolderId.value
   if (usagePurposeFilter.value) filters.usage_purpose = usagePurposeFilter.value
+  if (missingOnlyFilter.value) filters.file_status = 'missing'
   if (Object.keys(filters).length) opts.filters = filters
   if (searchTerm.value) opts.search = searchTerm.value
   // include_descendants wird von buildParams als ?include_descendants=1/0 gesetzt
@@ -211,6 +212,17 @@ const processingStatusRef = ref(null)
 // Bulk-Delete
 const showBulkDeleteConfirm = ref(false)
 const bulkDeleting = ref(false)
+const bulkDeleteResult = ref(null)
+
+// Missing-Only Filter
+const missingOnlyFilter = ref(false)
+
+// Recover from URL
+const showRecoverDialog = ref(false)
+const recoverBaseUrl = ref('')
+const recovering = ref(false)
+const recoverResult = ref(null)
+const recoverError = ref(null)
 
 // Revisions im Detail-Panel
 const detailRevisions = ref([])
@@ -245,16 +257,48 @@ function onUploadCompleted() {
 async function bulkDeleteSelected() {
   if (selectedIds.value.size === 0) return
   bulkDeleting.value = true
+  bulkDeleteResult.value = null
   try {
-    await mediaApi.bulkDelete([...selectedIds.value])
-    showBulkDeleteConfirm.value = false
+    const { data } = await mediaApi.bulkDelete([...selectedIds.value], { force: missingOnlyFilter.value })
+    bulkDeleteResult.value = data
     clearSelection()
     await fetchMedia()
+    if (!data.skipped) {
+      showBulkDeleteConfirm.value = false
+      bulkDeleteResult.value = null
+    }
   } catch (err) {
     uploadError.value = err.response?.data?.message || err.message || 'Löschen fehlgeschlagen'
+    showBulkDeleteConfirm.value = false
   } finally {
     bulkDeleting.value = false
   }
+}
+
+async function recoverFromUrl() {
+  if (!recoverBaseUrl.value || selectedIds.value.size === 0) return
+  recovering.value = true
+  recoverResult.value = null
+  recoverError.value = null
+  try {
+    const { data } = await mediaApi.bulkRecoverUrl([...selectedIds.value], recoverBaseUrl.value)
+    recoverResult.value = data
+    if (data.recovered > 0) {
+      clearSelection()
+      await fetchMedia()
+    }
+  } catch (err) {
+    recoverError.value = err.response?.data?.message || err.message || 'Wiederherstellung fehlgeschlagen'
+  } finally {
+    recovering.value = false
+  }
+}
+
+function closeRecoverDialog() {
+  showRecoverDialog.value = false
+  recoverBaseUrl.value = ''
+  recoverResult.value = null
+  recoverError.value = null
 }
 
 async function loadRevisions(mediaId) {
@@ -786,6 +830,7 @@ onUnmounted(() => {
   document.removeEventListener('click', handleDocClick, true)
 })
 watch(usagePurposeFilter, () => { clearSelection(); currentPage.value = 1; fetchMedia() })
+watch(missingOnlyFilter, () => { clearSelection(); currentPage.value = 1; fetchMedia() })
 watch(selectedFolderId, () => { clearSelection(); currentPage.value = 1; fetchMedia() })
 watch(includeDescendants, () => { clearSelection(); currentPage.value = 1; fetchMedia() })
 
@@ -919,6 +964,16 @@ onMounted(() => {
             <option value="both">Print & Web</option>
           </select>
 
+          <!-- Nicht vorhanden Filter -->
+          <button
+            :class="['pim-btn pim-btn-ghost p-1.5 flex items-center gap-1 text-xs max-sm:hidden', missingOnlyFilter ? 'bg-[var(--color-error,#ef4444)]/10 text-[var(--color-error,#ef4444)]' : 'text-[var(--color-text-tertiary)]']"
+            @click="missingOnlyFilter = !missingOnlyFilter"
+            :title="missingOnlyFilter ? 'Filter: Nur fehlende Assets (aktiv)' : 'Nur fehlende Assets anzeigen'"
+          >
+            <ImageOff class="w-4 h-4" :stroke-width="1.75" />
+            <span class="max-lg:hidden">Nicht vorhanden</span>
+          </button>
+
           <!-- Unterordner einbeziehen -->
           <button
             v-if="selectedFolderId"
@@ -1022,6 +1077,17 @@ onMounted(() => {
               <Loader2 v-if="relinking" class="w-3.5 h-3.5 animate-spin" :stroke-width="2" />
               <RefreshCw v-else class="w-3.5 h-3.5" :stroke-width="2" />
               <span class="max-sm:hidden">Re-Link</span>
+            </button>
+            <button
+              v-if="authStore.hasPermission('media.edit')"
+              class="pim-btn pim-btn-ghost pim-btn-sm"
+              :disabled="recovering"
+              @click="showRecoverDialog = true"
+              title="Dateien von URL wiederherstellen"
+            >
+              <Loader2 v-if="recovering" class="w-3.5 h-3.5 animate-spin" :stroke-width="2" />
+              <Download v-else class="w-3.5 h-3.5" :stroke-width="2" />
+              <span class="max-sm:hidden">Recover</span>
             </button>
             <button
               v-if="authStore.hasPermission('media.delete')"
@@ -1796,18 +1862,27 @@ onMounted(() => {
     <Teleport to="body">
       <Transition name="fade">
         <div v-if="showBulkDeleteConfirm" class="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div class="absolute inset-0 bg-black/50" @click="showBulkDeleteConfirm = false" />
+          <div class="absolute inset-0 bg-black/50" @click="!bulkDeleting && (showBulkDeleteConfirm = false)" />
           <div class="relative bg-[var(--color-surface)] rounded-xl shadow-2xl p-6 max-w-sm w-full space-y-4">
             <h3 class="text-lg font-semibold text-[var(--color-text-primary)]">Medien löschen</h3>
             <p class="text-sm text-[var(--color-text-secondary)]">
-              {{ selectedIds.size }} {{ selectedIds.size === 1 ? 'Medium' : 'Medien' }} endgültig löschen?
-              Dieser Vorgang kann nicht rückgängig gemacht werden.
+              {{ selectedIds.size > 0 ? selectedIds.size : (bulkDeleteResult?.deleted ?? 0) + (bulkDeleteResult?.skipped ?? 0) }}
+              {{ (selectedIds.size === 1 || (!selectedIds.size && bulkDeleteResult?.deleted + bulkDeleteResult?.skipped === 1)) ? 'Medium' : 'Medien' }}
+              endgültig löschen? Dieser Vorgang kann nicht rückgängig gemacht werden.
             </p>
+            <div v-if="bulkDeleteResult" class="text-xs p-3 rounded-lg space-y-1 bg-[var(--color-bg)] border border-[var(--color-border)]">
+              <p class="font-medium text-[var(--color-text-primary)]">{{ bulkDeleteResult.message }}</p>
+              <ul v-if="bulkDeleteResult.errors?.length" class="mt-1 space-y-0.5 text-[var(--color-text-tertiary)]">
+                <li v-for="(err, i) in bulkDeleteResult.errors.slice(0, 5)" :key="i">{{ err }}</li>
+                <li v-if="bulkDeleteResult.errors.length > 5">… und {{ bulkDeleteResult.errors.length - 5 }} weitere</li>
+              </ul>
+            </div>
             <div class="flex justify-end gap-2">
-              <button class="pim-btn pim-btn-ghost pim-btn-sm" @click="showBulkDeleteConfirm = false" :disabled="bulkDeleting">
-                Abbrechen
+              <button class="pim-btn pim-btn-ghost pim-btn-sm" @click="showBulkDeleteConfirm = false; bulkDeleteResult = null" :disabled="bulkDeleting">
+                {{ bulkDeleteResult ? 'Schließen' : 'Abbrechen' }}
               </button>
               <button
+                v-if="!bulkDeleteResult"
                 class="pim-btn pim-btn-sm text-white bg-[var(--color-error)] hover:bg-[var(--color-error)]/80"
                 @click="bulkDeleteSelected"
                 :disabled="bulkDeleting"
@@ -1815,6 +1890,62 @@ onMounted(() => {
                 <Loader2 v-if="bulkDeleting" class="w-4 h-4 animate-spin" />
                 <Trash2 v-else class="w-4 h-4" />
                 Löschen
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- Recover from URL Dialog -->
+    <Teleport to="body">
+      <Transition name="fade">
+        <div v-if="showRecoverDialog" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div class="absolute inset-0 bg-black/50" @click="!recovering && closeRecoverDialog()" />
+          <div class="relative bg-[var(--color-surface)] rounded-xl shadow-2xl p-6 max-w-md w-full space-y-4">
+            <h3 class="text-lg font-semibold text-[var(--color-text-primary)]">Recover from URL</h3>
+            <p class="text-sm text-[var(--color-text-secondary)]">
+              {{ selectedIds.size }} {{ selectedIds.size === 1 ? 'Asset' : 'Assets' }} wiederherstellen.
+              Die Datei wird als <strong>Base-URL + Dateiname</strong> abgerufen und unter dem bestehenden Pfad gespeichert.
+            </p>
+            <div class="space-y-1.5">
+              <label class="text-xs font-medium text-[var(--color-text-secondary)]">Base URL</label>
+              <input
+                v-model="recoverBaseUrl"
+                class="pim-input text-sm w-full"
+                placeholder="https://cdn.example.com/assets/"
+                type="url"
+                :disabled="recovering || !!recoverResult"
+              />
+              <p class="text-xs text-[var(--color-text-tertiary)]">Beispiel: {{ recoverBaseUrl || 'https://cdn.example.com/assets/' }}/dateiname.jpg</p>
+            </div>
+            <div v-if="recoverError" class="text-xs text-[var(--color-error,#ef4444)] p-2 rounded bg-[var(--color-error,#ef4444)]/10">
+              {{ recoverError }}
+            </div>
+            <div v-if="recoverResult" class="text-xs p-3 rounded-lg space-y-1 border"
+              :class="recoverResult.recovered > 0
+                ? 'bg-[var(--color-success,#22c55e)]/10 border-[var(--color-success,#22c55e)]/20 text-[var(--color-success,#22c55e)]'
+                : 'bg-[var(--color-bg)] border-[var(--color-border)] text-[var(--color-text-secondary)]'"
+            >
+              <p class="font-medium">{{ recoverResult.message }}</p>
+              <ul v-if="recoverResult.errors?.length" class="mt-1 space-y-0.5 text-[var(--color-text-tertiary)]">
+                <li v-for="(err, i) in recoverResult.errors.slice(0, 5)" :key="i">{{ err }}</li>
+                <li v-if="recoverResult.errors.length > 5">… und {{ recoverResult.errors.length - 5 }} weitere</li>
+              </ul>
+            </div>
+            <div class="flex justify-end gap-2">
+              <button class="pim-btn pim-btn-ghost pim-btn-sm" @click="closeRecoverDialog" :disabled="recovering">
+                {{ recoverResult ? 'Schließen' : 'Abbrechen' }}
+              </button>
+              <button
+                v-if="!recoverResult"
+                class="pim-btn pim-btn-sm bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent)]/80"
+                @click="recoverFromUrl"
+                :disabled="recovering || !recoverBaseUrl"
+              >
+                <Loader2 v-if="recovering" class="w-4 h-4 animate-spin" />
+                <Download v-else class="w-4 h-4" />
+                Wiederherstellen
               </button>
             </div>
           </div>

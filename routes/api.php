@@ -594,6 +594,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::get('media/export-excel', [MediaController::class, 'exportExcel']);
     Route::post('media/bulk-move', [MediaController::class, 'bulkMove']);
     Route::post('media/bulk-delete', [MediaController::class, 'bulkDelete']);
+    Route::post('media/bulk-recover-url', [MediaController::class, 'bulkRecoverUrl']);
     Route::get('media/revision/{revision}/download', [MediaController::class, 'downloadRevision']);
     Route::post('media/import-url', [MediaController::class, 'importFromUrl']);
     Route::post('media/bulk-import-urls', [MediaController::class, 'bulkImportFromUrls']);
