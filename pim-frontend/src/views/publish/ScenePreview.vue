@@ -34,7 +34,7 @@ const priceFormatted = computed(() => {
 })
 
 const isCentered = computed(() => ['price', 'cta'].includes(props.scene.type))
-const badge = computed(() => (props.scene.type === 'feature' ? 'Highlight' : props.scene.type === 'price' ? 'Preis' : null))
+const badge = computed(() => (props.scene.type === 'feature' ? (props.scene.badge || 'Highlight') : props.scene.type === 'price' ? 'Preis' : null))
 </script>
 
 <template>
