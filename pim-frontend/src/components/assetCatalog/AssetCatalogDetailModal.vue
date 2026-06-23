@@ -150,7 +150,7 @@ const productPages = computed(() => {
         v-if="open"
         class="fixed inset-0 z-[100] flex items-center justify-center p-4"
         data-theme="pim-catalog"
-        style="--color-base-100:#ffffff;--color-base-200:#f8fafc;--color-base-300:#e5e7eb;--color-base-content:#111827;--color-primary-content:#ffffff;"
+        style="--color-base-100:#ffffff;--color-base-200:#f8fafc;--color-base-300:#e5e7eb;--color-base-content:#111827;--color-primary:#1B3A5C;--color-primary-content:#ffffff;--color-secondary:#2E75B6;--color-secondary-content:#ffffff;--color-accent:#0D9488;--color-accent-content:#ffffff;--color-neutral:#1f2937;--color-neutral-content:#f9fafb;--color-info:#2563EB;--color-info-content:#ffffff;--color-success:#059669;--color-success-content:#ffffff;--color-warning:#D97706;--color-warning-content:#ffffff;--color-error:#DC2626;--color-error-content:#ffffff;"
       >
         <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="emit('close')"></div>
 
