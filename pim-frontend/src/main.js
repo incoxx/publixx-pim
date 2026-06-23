@@ -323,6 +323,10 @@ const messages = {
       usedBy: 'Verwendet von',
       noProducts: 'Dieses Asset wird von keinem Produkt verwendet.',
       productName: 'Produktname',
+      usageProof: 'Verwendungsnachweis',
+      usageProducts: 'Produkte',
+      usageCategories: 'Kategorien',
+      usageNone: 'Dieses Asset wird aktuell nicht verwendet.',
     },
   },
   en: {
@@ -639,6 +643,10 @@ const messages = {
       usedBy: 'Used by',
       noProducts: 'This asset is not used by any product.',
       productName: 'Product name',
+      usageProof: 'Where used',
+      usageProducts: 'Products',
+      usageCategories: 'Categories',
+      usageNone: 'This asset is currently not used.',
     },
   },
 }

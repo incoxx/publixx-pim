@@ -35,6 +35,8 @@ const isPdf = computed(() => {
 watch(() => props.assetId, (id) => {
   if (id) {
     store.fetchAsset(id)
+    // Produkt-Verwendung direkt laden, damit der Zähler im Details-Tab sofort verfügbar ist
+    store.fetchAssetProducts(id)
     activeTab.value = 'details'
     pdfDocumentId.value = null
   }
@@ -244,6 +246,38 @@ const productPages = computed(() => {
 
               <!-- Right: Info + Metadata -->
               <div class="p-6 space-y-4">
+                <!-- Verwendungsnachweis (kompakte Übersicht, springt in die Detail-Tabs) -->
+                <div class="rounded-lg border border-base-300 bg-base-200/40 p-3">
+                  <div class="flex items-center gap-2 mb-2">
+                    <Package class="w-4 h-4 text-base-content/50" />
+                    <span class="text-sm font-semibold">{{ t('assetCatalog.usageProof') }}</span>
+                  </div>
+                  <div class="flex flex-wrap gap-2">
+                    <button
+                      class="btn btn-xs btn-outline gap-1"
+                      :disabled="store.assetProductsMeta.total === 0"
+                      @click="activeTab = 'usedBy'"
+                    >
+                      <Package class="w-3 h-3" />
+                      {{ store.assetProductsMeta.total }} {{ t('assetCatalog.usageProducts') }}
+                    </button>
+                    <button
+                      class="btn btn-xs btn-outline gap-1"
+                      :disabled="!store.currentAsset.hierarchy_nodes?.length"
+                      @click="activeTab = 'categories'"
+                    >
+                      <FolderTree class="w-3 h-3" />
+                      {{ store.currentAsset.hierarchy_nodes?.length || 0 }} {{ t('assetCatalog.usageCategories') }}
+                    </button>
+                  </div>
+                  <p
+                    v-if="store.assetProductsMeta.total === 0 && !store.currentAsset.hierarchy_nodes?.length"
+                    class="text-xs text-base-content/40 mt-2"
+                  >
+                    {{ t('assetCatalog.usageNone') }}
+                  </p>
+                </div>
+
                 <!-- Basic info -->
                 <div class="space-y-3">
                   <div>
