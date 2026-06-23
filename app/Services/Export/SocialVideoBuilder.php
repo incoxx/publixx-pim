@@ -266,22 +266,26 @@ class SocialVideoBuilder
         ]];
         $descriptors = [['role' => 'hook', 'text' => (string) $headline]];
 
-        // Bis zu zwei Feature-Szenen aus den gemappten Merkmalen
-        $features = array_values(array_filter([
-            $mapped['feature_1'] ?? null,
-            $mapped['feature_2'] ?? null,
-            $mapped['feature_3'] ?? null,
-        ]));
+        // Bis zu zwei Feature-Szenen: Attributname (Label) + Wert + Einheit,
+        // statt nur des rohen Werts (z.B. "Bildschirmdiagonale" / "9 Zoll").
+        $featureScenes = [];
+        foreach (['feature_1', 'feature_2', 'feature_3'] as $target) {
+            $feature = $this->buildFeature($product, $target, $mapped[$target] ?? null);
+            if ($feature !== null) {
+                $featureScenes[] = $feature;
+            }
+        }
 
-        foreach (array_slice($features, 0, 2) as $i => $feature) {
+        foreach (array_slice($featureScenes, 0, 2) as $i => $feature) {
             $scenes[] = [
                 'type'     => 'feature',
                 'image'    => $galleryImages[$i] ?? $hero,
-                'headline' => $feature,
-                'sprecher' => $feature,
+                'badge'    => $feature['label'],
+                'headline' => $feature['text'],
+                'sprecher' => $feature['label'] . ': ' . $feature['text'],
                 'duration' => 2500,
             ];
-            $descriptors[] = ['role' => 'feature', 'text' => (string) $feature];
+            $descriptors[] = ['role' => 'feature', 'text' => $feature['label'] . ': ' . $feature['text']];
         }
 
         // Preis-Szene (nur wenn ein Preis gemappt ist)
@@ -381,6 +385,71 @@ class SocialVideoBuilder
             ->first(fn ($a) => ! empty($a->media?->file_path));
 
         return $this->mediaUrl($assignment?->media?->file_path);
+    }
+
+    /**
+     * Baut einen Feature-Eintrag: Attribut-Label + formatierter Wert (+ Einheit).
+     * Beispiel: Bildschirmdiagonale → ['label' => 'Bildschirmdiagonale', 'text' => '9 Zoll'].
+     * Der vom Resolver gelieferte Rohwert wird genutzt (deckt Auswahllisten ab),
+     * nur Zahlen werden schön formatiert und die Einheit angehängt.
+     *
+     * @return array{label:string,text:string}|null
+     */
+    private function buildFeature(Product $product, string $target, mixed $rawValue): ?array
+    {
+        if ($rawValue === null || $rawValue === '' || is_array($rawValue)) {
+            return null;
+        }
+
+        $techName = $this->sourceTechName($target);
+        $attributeValue = $techName !== null
+            ? $product->attributeValues->first(fn ($v) => $v->attribute?->technical_name === $techName)
+            : null;
+
+        $label = $attributeValue?->attribute?->name_de ?? $techName ?? '';
+
+        $value = (string) $rawValue;
+        if (is_numeric($value)) {
+            $value = $this->formatNumber((float) $value);
+        }
+
+        $unit = $attributeValue?->unit?->abbreviation;
+        $text = trim($value . ($unit ? ' ' . $unit : ''));
+
+        if ($text === '') {
+            return null;
+        }
+
+        return ['label' => $label, 'text' => $text];
+    }
+
+    /**
+     * Ermittelt den technischen Quell-Namen (ohne Präfix) für ein Zielfeld aus den Mapping-Regeln.
+     */
+    private function sourceTechName(string $target): ?string
+    {
+        foreach ($this->mappingRules as $rule) {
+            if (($rule['target'] ?? null) === $target) {
+                $source = (string) ($rule['source'] ?? '');
+                $pos = strpos($source, ':');
+
+                return $pos !== false ? substr($source, $pos + 1) : $source;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Formatiert eine Zahl menschenlesbar (9.0000 → "9", 1.8 → "1,8") im DE-Format.
+     */
+    private function formatNumber(float $number): string
+    {
+        if (floor($number) === $number) {
+            return number_format($number, 0, ',', '.');
+        }
+
+        return rtrim(rtrim(number_format($number, 2, ',', '.'), '0'), ',');
     }
 
     /**

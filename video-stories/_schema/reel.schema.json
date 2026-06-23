@@ -55,6 +55,7 @@
         "properties": {
           "type": { "type": "string", "enum": ["hero", "feature", "price", "cta"] },
           "image": { "type": ["string", "null"] },
+          "badge": { "type": ["string", "null"] },
           "headline": { "type": ["string", "null"] },
           "subline": { "type": ["string", "null"] },
           "value": { "type": "number" },

@@ -24,6 +24,7 @@ export interface CameraMotion {
 export interface ReelScene {
   type: 'hero' | 'feature' | 'price' | 'cta';
   image?: string | null;
+  badge?: string | null;
   headline?: string | null;
   subline?: string | null;
   value?: number;
@@ -121,22 +122,31 @@ function buildSceneCss(style: ReelStyle): string {
       color-mix(in srgb, ${bg}, transparent 70%) 100%); }
   /* Text-Overlay-Wirt: layout-transparent, damit .stage-Flex direkt den .content ausrichtet. */
   .content-host { display: contents; }
-  .content { position: relative; z-index: 2; width: 100%; padding: 0 64px 140px; text-align: center;
-    animation: reelTextIn 0.5s ease both; }
+  .content { position: relative; z-index: 2; width: 100%; padding: 0 64px 140px; text-align: center; }
+  /* Gestaffelte Text-Animationen: jedes Element fährt einzeln ein. */
+  @keyframes reelHeadlineIn { from { opacity: 0; transform: translateY(28px); } to { opacity: 1; transform: none; } }
+  @keyframes reelPriceIn { 0% { opacity: 0; transform: scale(0.8); } 60% { transform: scale(1.04); } 100% { opacity: 1; transform: scale(1); } }
+  @keyframes reelPop { 0% { opacity: 0; transform: scale(0.85); } 70% { transform: scale(1.05); } 100% { opacity: 1; transform: scale(1); } }
   .badge { display: inline-block; font-size: 26px; font-weight: 700; letter-spacing: 4px;
-    text-transform: uppercase; color: ${accent}; margin-bottom: 20px; }
+    text-transform: uppercase; color: ${accent}; margin-bottom: 20px;
+    animation: reelTextIn 0.5s ease both; }
   .headline { font-size: 76px; font-weight: 800; line-height: 1.05; letter-spacing: -1px;
-    text-shadow: 0 4px 24px rgba(0,0,0,0.5); }
-  .subline { font-size: 36px; font-weight: 400; color: #cbd5e1; margin-top: 24px; line-height: 1.3; }
-  .price { font-size: 120px; font-weight: 900;
+    text-shadow: 0 4px 24px rgba(0,0,0,0.5);
+    animation: reelHeadlineIn 0.6s cubic-bezier(.2,.7,.2,1) both; animation-delay: 0.08s; }
+  .subline { font-size: 36px; font-weight: 400; color: #cbd5e1; margin-top: 24px; line-height: 1.3;
+    animation: reelTextIn 0.6s ease both; animation-delay: 0.22s; }
+  .price { display: inline-block; font-size: 120px; font-weight: 900;
     background: ${gradient}; -webkit-background-clip: text; background-clip: text;
-    -webkit-text-fill-color: transparent; }
-  .price-cur { font-size: 48px; font-weight: 700; color: #94a3b8; }
+    -webkit-text-fill-color: transparent;
+    animation: reelPriceIn 0.7s cubic-bezier(.2,.7,.2,1) both; }
+  .price-cur { font-size: 48px; font-weight: 700; color: #94a3b8;
+    animation: reelTextIn 0.6s ease both; animation-delay: 0.18s; }
   .cta-box { display: flex; flex-direction: column; align-items: center; gap: 28px;
     justify-content: center; height: 100%; padding-bottom: 0; }
   .cta-btn { font-size: 44px; font-weight: 800; padding: 28px 64px; border-radius: 999px;
-    background: ${gradient}; }
-  .cta-url { font-size: 30px; color: #94a3b8; letter-spacing: 2px; }
+    background: ${gradient}; animation: reelPop 0.55s cubic-bezier(.2,.7,.2,1) both; }
+  .cta-url { font-size: 30px; color: #94a3b8; letter-spacing: 2px;
+    animation: reelTextIn 0.6s ease both; animation-delay: 0.15s; }
   .center { justify-content: center !important; }
 `;
 }
@@ -166,6 +176,7 @@ interface Motion { from: { x: number; y: number; zoom: number }; to: { x: number
 interface Scene {
   type: string;
   image?: string | null;
+  badge?: string | null;
   headline?: string | null;
   subline?: string | null;
   value?: number;
@@ -223,7 +234,7 @@ function contentInner(s: Scene): string {
       <div class="cta-btn">\${esc(s.headline || 'Jetzt entdecken')}</div>
       <div class="cta-url">www.incoxx.com</div></div>\`;
   }
-  const badge = s.type === 'feature' ? '<div class="badge">Highlight</div>' : '';
+  const badge = s.type === 'feature' ? \`<div class="badge">\${esc(s.badge || 'Highlight')}</div>\` : '';
   const sub = s.subline ? \`<div class="subline">\${esc(s.subline)}</div>\` : '';
   return \`<div class="content">\${badge}<div class="headline">\${esc(s.headline)}</div>\${sub}</div>\`;
 }
