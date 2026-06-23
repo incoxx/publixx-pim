@@ -223,6 +223,13 @@ class MediaController extends Controller
         }
 
         $this->applySearch($query, $request, ['file_name', 'title_de', 'title_en']);
+
+        // Filter: Medien ohne Datei (file_size = 0 oder NULL) — "Nicht vorhanden"
+        if (!empty($filters['is_missing'])) {
+            $query->where(function ($q) {
+                $q->whereNull('file_size')->orWhere('file_size', 0);
+            });
+        }
     }
 
     /**
@@ -870,6 +877,13 @@ class MediaController extends Controller
                     try {
                         app(ThumbnailService::class)->clearCache($media);
                     } catch (\Throwable) {}
+
+                    // Bei force=true: Zuordnungen vor dem Löschen explizit aufheben
+                    if ($force) {
+                        $media->productAssignments()->delete();
+                        $media->hierarchyNodeAssignments()->delete();
+                        $media->attributeValues()->delete();
+                    }
 
                     $disk = Storage::disk('public');
                     if ($disk->exists('media-revisions/' . $media->id)) {

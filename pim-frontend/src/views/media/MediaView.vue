@@ -158,7 +158,7 @@ const filterOptions = computed(() => {
   const filters = {}
   if (selectedFolderId.value) filters.asset_folder_id = selectedFolderId.value
   if (usagePurposeFilter.value) filters.usage_purpose = usagePurposeFilter.value
-  if (missingOnlyFilter.value) filters.file_status = 'missing'
+  if (missingOnlyFilter.value) filters.is_missing = '1'
   if (Object.keys(filters).length) opts.filters = filters
   if (searchTerm.value) opts.search = searchTerm.value
   // include_descendants wird von buildParams als ?include_descendants=1/0 gesetzt
@@ -213,6 +213,7 @@ const processingStatusRef = ref(null)
 const showBulkDeleteConfirm = ref(false)
 const bulkDeleting = ref(false)
 const bulkDeleteResult = ref(null)
+const bulkDeleteForce = ref(false)
 
 // Missing-Only Filter
 const missingOnlyFilter = ref(false)
@@ -259,7 +260,7 @@ async function bulkDeleteSelected() {
   bulkDeleting.value = true
   bulkDeleteResult.value = null
   try {
-    const { data } = await mediaApi.bulkDelete([...selectedIds.value], { force: missingOnlyFilter.value })
+    const { data } = await mediaApi.bulkDelete([...selectedIds.value], { force: bulkDeleteForce.value })
     bulkDeleteResult.value = data
     clearSelection()
     await fetchMedia()
@@ -830,7 +831,7 @@ onUnmounted(() => {
   document.removeEventListener('click', handleDocClick, true)
 })
 watch(usagePurposeFilter, () => { clearSelection(); currentPage.value = 1; fetchMedia() })
-watch(missingOnlyFilter, () => { clearSelection(); currentPage.value = 1; fetchMedia() })
+watch(missingOnlyFilter, (val) => { clearSelection(); currentPage.value = 1; fetchMedia(); bulkDeleteForce.value = val })
 watch(selectedFolderId, () => { clearSelection(); currentPage.value = 1; fetchMedia() })
 watch(includeDescendants, () => { clearSelection(); currentPage.value = 1; fetchMedia() })
 
@@ -1092,7 +1093,7 @@ onMounted(() => {
             <button
               v-if="authStore.hasPermission('media.delete')"
               class="pim-btn pim-btn-sm text-[var(--color-error)] hover:bg-[var(--color-error)]/10"
-              @click="showBulkDeleteConfirm = true"
+              @click="bulkDeleteResult = null; showBulkDeleteConfirm = true"
               title="Löschen"
             >
               <Trash2 class="w-3.5 h-3.5" :stroke-width="2" />
@@ -1867,9 +1868,18 @@ onMounted(() => {
             <h3 class="text-lg font-semibold text-[var(--color-text-primary)]">Medien löschen</h3>
             <p class="text-sm text-[var(--color-text-secondary)]">
               {{ selectedIds.size > 0 ? selectedIds.size : (bulkDeleteResult?.deleted ?? 0) + (bulkDeleteResult?.skipped ?? 0) }}
-              {{ (selectedIds.size === 1 || (!selectedIds.size && bulkDeleteResult?.deleted + bulkDeleteResult?.skipped === 1)) ? 'Medium' : 'Medien' }}
+              {{ (selectedIds.size === 1 || (!selectedIds.size && (bulkDeleteResult?.deleted ?? 0) + (bulkDeleteResult?.skipped ?? 0) === 1)) ? 'Medium' : 'Medien' }}
               endgültig löschen? Dieser Vorgang kann nicht rückgängig gemacht werden.
             </p>
+            <!-- Force-Option -->
+            <label v-if="!bulkDeleteResult" class="flex items-start gap-2 cursor-pointer">
+              <input type="checkbox" v-model="bulkDeleteForce" class="mt-0.5 accent-[var(--color-error)]" />
+              <span class="text-xs text-[var(--color-text-secondary)]">
+                Auch Medien mit Produkt-Zuordnungen löschen
+                <span class="text-[var(--color-text-tertiary)]">(Zuordnungen werden aufgehoben)</span>
+              </span>
+            </label>
+            <!-- Ergebnis nach erstem Versuch -->
             <div v-if="bulkDeleteResult" class="text-xs p-3 rounded-lg space-y-1 bg-[var(--color-bg)] border border-[var(--color-border)]">
               <p class="font-medium text-[var(--color-text-primary)]">{{ bulkDeleteResult.message }}</p>
               <ul v-if="bulkDeleteResult.errors?.length" class="mt-1 space-y-0.5 text-[var(--color-text-tertiary)]">
@@ -1880,6 +1890,17 @@ onMounted(() => {
             <div class="flex justify-end gap-2">
               <button class="pim-btn pim-btn-ghost pim-btn-sm" @click="showBulkDeleteConfirm = false; bulkDeleteResult = null" :disabled="bulkDeleting">
                 {{ bulkDeleteResult ? 'Schließen' : 'Abbrechen' }}
+              </button>
+              <!-- Trotzdem löschen: nach erstem Versuch mit übersprungenen Items -->
+              <button
+                v-if="bulkDeleteResult?.skipped > 0"
+                class="pim-btn pim-btn-sm text-white bg-[var(--color-error)] hover:bg-[var(--color-error)]/80"
+                @click="bulkDeleteResult = null; bulkDeleteForce = true; bulkDeleteSelected()"
+                :disabled="bulkDeleting"
+              >
+                <Loader2 v-if="bulkDeleting" class="w-4 h-4 animate-spin" />
+                <Trash2 v-else class="w-4 h-4" />
+                Trotzdem löschen
               </button>
               <button
                 v-if="!bulkDeleteResult"
