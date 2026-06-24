@@ -73,8 +73,8 @@ steps:
   - id: "scroll-attributes-down"
     action: scroll
     direction: down
-    sprecher: "Die Liste zeigt alle Attribute des Systems. Zu welcher Gruppe gehören sie? In welchen Sichten tauchen sie auf? Das sehen wir gleich."
-    pause_after: 2000
+    sprecher: "Ein wichtiges Konzept: Attribute können als 'Vererbbar' markiert werden. Die Vererbung läuft über die Master-Hierarchie – Attribut-Zuordnungen an einem übergeordneten Kategorieknoten werden automatisch an alle untergeordneten Knoten weitergegeben. Einmal zuordnen, alle Unterkategorien erben mit."
+    pause_after: 3000
 
   # ── 2. ATTRIBUTGRUPPEN ───────────────────────────────────────────────────────
   - id: "open-attribute-types"
@@ -127,13 +127,13 @@ steps:
     target: "/product-types"
     wait_for: "table, .space-y-4"
     wait_timeout: 8000
-    sprecher: "Produkttypen bringen alles zusammen. Ein Produkttyp definiert: welche Attribute gehören zu dieser Produktkategorie? Ein Laptop hat andere Felder als ein Kleidungsstück."
+    sprecher: "Produkttypen definieren die grundsätzliche Art eines Produkts. Ist es ein physisches Produkt, eine Schulung oder ein Download? Diese Unterscheidung ist zentral für Shops, Frontends und Exportformate – sie steuert, wie das Produkt behandelt und ausgespielt wird."
     pause_after: 2500
 
   - id: "highlight-product-types-table"
     action: highlight
     selector: "table"
-    sprecher: "Jeder Produkttyp kann Varianten, EAN-Codes, Preise und Medien aktivieren. Das macht das Modell präzise – kein Produkt hat Felder, die es nicht braucht."
+    sprecher: "Je nach Typ lassen sich Varianten, EAN-Codes, Preise und Medien aktivieren. Ein Kurs braucht keine EAN-Nummer, ein physisches Produkt schon. So bleibt das Modell sauber – passend zur Natur des jeweiligen Produkts."
     pause_after: 3500
 
   # ── 6. EINHEITEN ─────────────────────────────────────────────────────────────
@@ -170,4 +170,4 @@ steps:
   - id: "end"
     action: wait
     duration: 2000
-    sprecher: "Das Datenmodell in anyPIM: Attribute beschreiben Eigenschaften, Gruppen strukturieren sie, Sichten fokussieren den Arbeitskontext, Wertelisten kontrollieren die Eingabe, Produkttypen bündeln alles – und Einheiten wie Preistypen runden das System ab. anyPIM – flexibel modelliert, konsequent strukturiert."
+    sprecher: "Das Datenmodell in anyPIM: Attribute beschreiben Eigenschaften und werden über die Master-Hierarchie vererbt. Gruppen strukturieren, Sichten fokussieren, Wertelisten kontrollieren die Eingabe. Produkttypen unterscheiden grundsätzlich verschiedene Produktarten – physische Produkte, Schulungen, Downloads – und steuern damit das Verhalten im Shop und in Exporten. Einheiten und Preistypen runden das System ab. anyPIM – flexibel modelliert, konsequent strukturiert."
