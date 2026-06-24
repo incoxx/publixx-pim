@@ -228,8 +228,23 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# Chromium-Pfad auflösen – nutzt runtime-deps.ts Fallback-Logik um Versions-Versatz
+# zwischen installierten Browsern und PLAYWRIGHT_BROWSERS_PATH abzufangen.
+CHROMIUM_PATH=$(cd "$ENGINE_DIR" && npx tsx -e "
+  import { resolveChromium } from './src/runtime-deps';
+  const p = resolveChromium();
+  if (p) process.stdout.write(p);
+" 2>/dev/null || true)
+if [ -n "$CHROMIUM_PATH" ]; then
+  echo "  Chromium: $CHROMIUM_PATH"
+else
+  echo "  Chromium: Playwright-Standard"
+fi
+
 # Playwright-Script ausführen (wartet jetzt lange genug für Audio)
-cd "$ENGINE_DIR" && DISPLAY="$DISPLAY" NODE_PATH="$ENGINE_DIR/node_modules" TIMESTAMPS_FILE="$TIMESTAMPS_FILE" npx tsx "$SCRIPT_FILE" 2>&1 || {
+cd "$ENGINE_DIR" && DISPLAY="$DISPLAY" NODE_PATH="$ENGINE_DIR/node_modules" \
+  TIMESTAMPS_FILE="$TIMESTAMPS_FILE" PLAYWRIGHT_CHROMIUM_PATH="$CHROMIUM_PATH" \
+  npx tsx "$SCRIPT_FILE" 2>&1 || {
   echo "⚠ Playwright-Script mit Fehlern beendet"
 }
 
