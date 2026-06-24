@@ -201,7 +201,7 @@ APP_NAME="anyPIM"
 APP_ENV=local
 APP_DEBUG=true
 APP_URL=http://localhost:8000
-FRONTEND_URL=http://localhost:5173
+FRONTEND_URL=http://localhost:3000
 
 # Datenbank
 DB_CONNECTION=mysql
@@ -217,7 +217,7 @@ QUEUE_CONNECTION=redis
 SESSION_DRIVER=redis
 
 # Sanctum
-SANCTUM_STATEFUL_DOMAINS=localhost:5173,localhost:8000
+SANCTUM_STATEFUL_DOMAINS=localhost:3000,localhost:8000
 ```
 
 Erstellen Sie die Datenbank:
@@ -262,7 +262,7 @@ npm run dev
 php artisan horizon
 ```
 
-Das PIM ist nun unter `http://localhost:5173` erreichbar.
+Das PIM ist nun unter `http://localhost:3000` erreichbar.
 
 ### 8. Installation ueberpruefen
 

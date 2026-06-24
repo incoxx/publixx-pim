@@ -19,40 +19,26 @@ Access the role management via **Administration > Roles & Permissions** in the s
 | **Created** | Date the role was created |
 
 ::: tip Note
-Only users with the **Admin** role or the `roles.manage` permission can access the role management. This menu item is hidden for all other users.
+Only users with the **Admin** role or the `roles.*` permissions (`roles.view`, `roles.create`, `roles.edit`, `roles.delete`) can access the role management. This menu item is hidden for all other users.
 :::
 
 ## Default Roles
 
-anyPIM ships with three predefined default roles that cannot be deleted:
+anyPIM ships with several predefined roles. **Sysadmin** and **Admin** hold all permissions; the remaining roles are tailored to typical areas of responsibility.
 
-### Admin
+| Role | Area of responsibility |
+|---|---|
+| **Sysadmin** | System superuser with all permissions (immutable) |
+| **Admin** | Full administrative access — all permissions |
+| **Data Steward** | Structure management: attributes, hierarchies, value lists, units, reference profiles |
+| **Product Manager** | Data maintenance: products, media, prices, imports |
+| **Viewer** | Read-only access (excluding user and role management) |
+| **Export Manager** | Exports, Publixx and attribute mappings, Sheet Designer |
+| **API Designer** | API templates (API Designer) |
+| **Project Management** | Dashboard, workflows, teams, projects, planning calendar |
+| **Marketing** | Content, media, translations and publishing |
 
-Unrestricted full access to all system features. The Admin can manage users, define roles, modify system settings, and edit all data. At least one user must always hold the Admin role.
-
-### Editor
-
-Comprehensive editing rights for product data, attributes, media, and prices. The Editor can create new products, edit existing ones, and trigger exports. No access to user management or system configuration.
-
-### Viewer
-
-Read-only access to all product data, hierarchies, and media. The Viewer can browse data and use the search functionality but cannot make any changes. Save and delete buttons are automatically hidden.
-
-### Default Role Comparison
-
-| Permission | Admin | Editor | Viewer |
-|---|---|---|---|
-| Manage users | Yes | -- | -- |
-| Manage roles | Yes | -- | -- |
-| System settings | Yes | -- | -- |
-| Create/edit products | Yes | Yes | -- |
-| View products | Yes | Yes | Yes |
-| Define attributes | Yes | Yes | -- |
-| Manage hierarchies | Yes | Yes | -- |
-| Manage media | Yes | Yes | -- |
-| Edit prices | Yes | Yes | -- |
-| Perform imports | Yes | Yes | -- |
-| Trigger exports | Yes | Yes | -- |
+Sysadmin and Admin cannot be deleted. The exact permissions of each role can be viewed and adjusted in the role editor.
 
 ## Creating Custom Roles
 
@@ -104,9 +90,9 @@ Each permission follows the pattern `{entity}.{action}` and controls access to a
 | `prices.edit` | Edit prices |
 | `exports.create` | Trigger exports |
 | `imports.create` | Perform imports |
-| `users.manage` | Manage users |
-| `roles.manage` | Manage roles |
-| `settings.manage` | Edit system settings |
+| `users.view` / `users.create` / `users.edit` / `users.delete` | View, create, edit, delete users |
+| `roles.view` / `roles.create` / `roles.edit` / `roles.delete` | View, create, edit, delete roles |
+| `settings.view` / `settings.edit` | View / edit system settings |
 
 ### Assigning Permissions to a Role
 

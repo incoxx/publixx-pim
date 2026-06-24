@@ -150,8 +150,8 @@ Die zentrale Designentscheidung von anyPIM ist das **Entity-Attribute-Value-Must
   <text x="240" y="404" fill="#1e293b" font-size="12" font-family="monospace">id            UUID PK</text>
   <text x="240" y="424" fill="#1e293b" font-size="12" font-family="monospace">product_id    UUID FK  ──&gt; products.id</text>
   <text x="240" y="444" fill="#1e293b" font-size="12" font-family="monospace">attribute_id  UUID FK  ──&gt; attributes.id</text>
-  <text x="240" y="464" fill="#1e293b" font-size="12" font-family="monospace">locale        VARCHAR  (z.B. "de", "en")</text>
-  <text x="240" y="484" fill="#1e293b" font-size="12" font-family="monospace">value         JSON     (flexibler Werttyp)</text>
+  <text x="240" y="464" fill="#1e293b" font-size="12" font-family="monospace">language      VARCHAR  (z.B. "de", "en")</text>
+  <text x="240" y="484" fill="#1e293b" font-size="12" font-family="monospace">value_string / value_number / value_flag / ...</text>
 
   <!-- Relationship Lines -->
   <!-- products -> product_attribute_values -->
@@ -183,17 +183,17 @@ Die drei Tabellen arbeiten wie folgt zusammen:
 
 2. **`attributes`** definiert alle moeglichen Produkteigenschaften: ihren Code (Maschinenname), Typ (text, number, select, ...), ob sie uebersetzbar sind und welche Validierungsregeln gelten.
 
-3. **`product_attribute_values`** verbindet beide: Jede Zeile stellt die Zuweisung eines konkreten Werts fuer ein bestimmtes Attribut an ein bestimmtes Produkt dar. Die Spalte `locale` ermoeglicht mehrsprachige Werte, die Spalte `value` speichert den eigentlichen Inhalt als JSON-Typ, was Flexibilitaet hinsichtlich der Datentypen bietet.
+3. **`product_attribute_values`** verbindet beide: Jede Zeile stellt die Zuweisung eines konkreten Werts fuer ein bestimmtes Attribut an ein bestimmtes Produkt dar. Die Spalte `language` ermoeglicht mehrsprachige Werte. Der eigentliche Inhalt wird je nach Datentyp in einer typisierten Spalte abgelegt — `value_string`, `value_number`, `value_date`, `value_flag` oder `value_selection_id` (Verweis auf einen Wertlisteneintrag). Das Feld `multiplied_index` ermoeglicht wiederholbare Werte.
 
 ### Abfragebeispiel
 
 ```sql
 -- Alle deutschsprachigen Werte eines Produkts laden
-SELECT a.code, a.type, pav.value
+SELECT a.code, a.type, pav.value_string, pav.value_number, pav.value_selection_id
 FROM product_attribute_values pav
 JOIN attributes a ON a.id = pav.attribute_id
 WHERE pav.product_id = '550e8400-e29b-41d4-a716-446655440000'
-  AND pav.locale = 'de';
+  AND pav.language = 'de';
 ```
 
 Da diese Art von Query bei vielen Attributen zahlreiche JOINs erfordert, bietet der materialisierte Suchindex eine performante Alternative fuer Lese- und Suchanfragen.
@@ -219,7 +219,6 @@ Mehrere Tabellen nutzen MySQL-JSON-Spalten fuer halbstrukturierte Daten:
 
 | Tabelle | Spalte | Verwendung |
 |---|---|---|
-| `product_attribute_values` | `value` | Flexibler Werttyp: String, Zahl, Array, Objekt |
 | `products` | `metadata` | Produktbezogene Metadaten (Quellsystem, Import-Informationen) |
 | `attributes` | `validation` | Validierungsregeln als JSON-Schema |
 | `export_templates` | `config` | Template-Konfiguration mit Feldmappings |
@@ -255,7 +254,7 @@ CREATE TABLE products_search_index (
 
 Der Index wird **ereignisgesteuert** aktualisiert:
 
-1. Bei jeder Aenderung an `product_attribute_values` wird ein `ProductValueChanged`-Event ausgeloest
+1. Bei jeder Aenderung an `product_attribute_values` wird ein `AttributeValuesChanged`-Event ausgeloest
 2. Ein Listener prueft, ob der betroffene Wert im Suchindex enthalten ist
 3. Falls ja, wird ein Queue-Job zur Neuberechnung des Index-Eintrags erstellt
 4. Der Job aggregiert alle relevanten Werte und aktualisiert die entsprechende Zeile

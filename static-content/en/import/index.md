@@ -99,26 +99,29 @@ The result is a detailed validation report with errors, warnings, and a preview 
 
 Only after successful validation and explicit confirmation by the user are the data written to the database. The execution is **transaction-safe** -- either all records of a tab are successfully processed or the entire tab is rolled back. After completion, the user receives a result report.
 
-## Excel Template: 14 Tabs
+## Excel Template: worksheets
 
-The import file consists of 14 worksheets that are processed in a defined order and dependency structure:
+The import file consists of worksheets that are processed in a defined order and dependency structure. The sheets are named with a numeric prefix:
 
-| No. | Tab | Description |
-|---|---|---|
-| 01 | `Languages` | Available content languages |
-| 02 | `Attribute Groups` | Logical grouping of attributes |
-| 03 | `Unit Groups` | Groups of physical units |
-| 04 | `Units` | Individual units of measurement with conversion factors |
-| 05 | `Attributes` | Attribute definitions (19 columns) |
-| 06 | `Hierarchies` | Master and output hierarchies with up to 6 levels |
-| 07 | `Value Lists` | Predefined selection values for attributes |
-| 08 | `Products` | Product master data (SKU, name, type, status) |
-| 09 | `Product Values` | Attribute values per product, language, and repetition |
-| 10 | `Variants` | Product variants with assignment to parent product |
-| 11 | `Variant Values` | Attribute values of variants |
-| 12 | `Media` | Media assignments to products |
-| 13 | `Prices` | Price information with currency and validity |
-| 14 | `Relations` | Relationships between products |
+| Tab | Description |
+|---|---|
+| `01_Produkttypen` | Product types |
+| `02_Attributgruppen` | Logical grouping of attributes |
+| `03_Einheiten` | Units of measurement |
+| `04_Wertelisten` | Predefined selection values for attributes |
+| `05_Attribute` | Attribute definitions |
+| `06_Hierarchien` | Master and output hierarchies |
+| `07_Hierarchie_Attribute` | Attribute assignments per hierarchy node |
+| `08_Produkte` | Product master data (SKU, name, type, status) |
+| `09_Produktwerte` | Attribute values per product, language, and repetition |
+| `10_Varianten` | Product variants with assignment to parent product |
+| `11_Produkt_Hierarchien` | Assignment of products to hierarchy nodes |
+| `12_Produktbeziehungen` | Relationships between products |
+| `13_Preise` | Price information |
+| `14_Medien` | Media assignments to products |
+| `15_Attribut_Sichten` | Attribute views |
+| `16_Preistypen` | Price types |
+| `17_Beziehungstypen` | Relation types |
 
 ::: tip Note
 Not all tabs need to be filled. You can selectively use only the tabs that are relevant for your import. Dependencies are resolved both within the file and against the existing data inventory.

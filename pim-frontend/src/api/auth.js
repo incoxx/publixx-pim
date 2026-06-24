@@ -20,4 +20,8 @@ export default {
   ssoConfig() {
     return client.get('/auth/sso/config')
   },
+
+  demoVideos() {
+    return client.get('/public/demo-videos')
+  },
 }

@@ -99,26 +99,29 @@ Das Ergebnis ist ein detaillierter Validierungsbericht mit Fehlern, Warnungen un
 
 Erst nach erfolgreicher Validierung und expliziter Bestätigung durch den Benutzer werden die Daten in die Datenbank geschrieben. Die Ausführung erfolgt **transaktionsgesichert** -- entweder werden alle Datensätze eines Tabs erfolgreich verarbeitet oder der gesamte Tab wird zurückgerollt. Nach Abschluss erhält der Benutzer einen Ergebnisbericht.
 
-## Excel-Vorlage: 14 Tabs
+## Excel-Vorlage: Tabellenblätter
 
-Die Importdatei besteht aus 14 Tabellenblättern, die in einer definierten Reihenfolge und Abhängigkeitsstruktur verarbeitet werden:
+Die Importdatei besteht aus Tabellenblättern, die in einer definierten Reihenfolge und Abhängigkeitsstruktur verarbeitet werden. Die Blätter sind nummeriert benannt:
 
-| Nr. | Tab | Beschreibung |
-|---|---|---|
-| 01 | `Sprachen` | Verfügbare Inhaltssprachen |
-| 02 | `Attributgruppen` | Logische Gruppierung von Attributen |
-| 03 | `Einheitengruppen` | Gruppen physikalischer Einheiten |
-| 04 | `Einheiten` | Einzelne Masseinheiten mit Umrechnungsfaktoren |
-| 05 | `Attribute` | Attributdefinitionen (19 Spalten) |
-| 06 | `Hierarchien` | Master- und Ausgabehierarchien mit bis zu 6 Ebenen |
-| 07 | `Wertelisten` | Vordefinierte Auswahlwerte für Attribute |
-| 08 | `Produkte` | Stammdaten der Produkte (SKU, Name, Typ, Status) |
-| 09 | `Produktwerte` | Attributwerte je Produkt, Sprache und Wiederholung |
-| 10 | `Varianten` | Produktvarianten mit Zuordnung zum Elternprodukt |
-| 11 | `Variantenwerte` | Attributwerte der Varianten |
-| 12 | `Medien` | Medienzuordnungen zu Produkten |
-| 13 | `Preise` | Preisinformationen mit Währung und Gültigkeit |
-| 14 | `Relationen` | Beziehungen zwischen Produkten |
+| Tab | Beschreibung |
+|---|---|
+| `01_Produkttypen` | Produkttypen |
+| `02_Attributgruppen` | Logische Gruppierung von Attributen |
+| `03_Einheiten` | Maßeinheiten |
+| `04_Wertelisten` | Vordefinierte Auswahlwerte für Attribute |
+| `05_Attribute` | Attributdefinitionen |
+| `06_Hierarchien` | Master- und Ausgabehierarchien |
+| `07_Hierarchie_Attribute` | Attributzuordnungen je Hierarchieknoten |
+| `08_Produkte` | Stammdaten der Produkte (SKU, Name, Typ, Status) |
+| `09_Produktwerte` | Attributwerte je Produkt, Sprache und Wiederholung |
+| `10_Varianten` | Produktvarianten mit Zuordnung zum Elternprodukt |
+| `11_Produkt_Hierarchien` | Zuordnung von Produkten zu Hierarchieknoten |
+| `12_Produktbeziehungen` | Beziehungen zwischen Produkten |
+| `13_Preise` | Preisinformationen |
+| `14_Medien` | Medienzuordnungen zu Produkten |
+| `15_Attribut_Sichten` | Attribut-Sichten |
+| `16_Preistypen` | Preistypen |
+| `17_Beziehungstypen` | Beziehungstypen |
 
 ::: tip Hinweis
 Nicht alle Tabs müssen befüllt sein. Sie können gezielt nur die Tabs verwenden, die für Ihren Import relevant sind. Abhängigkeiten werden sowohl innerhalb der Datei als auch gegen den bestehenden Datenbestand aufgelöst.

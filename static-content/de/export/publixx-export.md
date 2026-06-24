@@ -10,17 +10,18 @@ Der Publixx-Export transformiert PIM-Produktdaten in das Publixx-spezifische Dat
 
 ### Mapping-Tabelle
 
-Die Zuordnung zwischen PIM-Feldern und Publixx-Datensatzfeldern wird in der Datenbanktabelle `publixx_export_mappings` konfiguriert. Jeder Eintrag beschreibt eine Mapping-Regel.
+Die Zuordnung zwischen PIM-Feldern und Publixx-Datensatzfeldern wird in der Datenbanktabelle `publixx_export_mappings` konfiguriert. Die eigentlichen Mapping-Regeln liegen als JSON in der Spalte `mapping_rules` (je Regel mit `source`, `target` und `type` — siehe unten).
 
 | Feld | Typ | Beschreibung |
 |---|---|---|
 | `id` | UUID | Eindeutige Kennung |
 | `name` | String | Name des Mappings (z. B. "Hauptkatalog 2025") |
-| `source` | String | Quellfeld im PIM (Attribut-Technischer-Name oder Systemfeld) |
-| `target` | String | Zielfeld im Publixx-Datensatz |
-| `type` | Enum | Mapping-Typ (bestimmt die Transformation) |
-| `config` | JSON | Zusätzliche Konfiguration je nach Mapping-Typ |
-| `sort_order` | Integer | Reihenfolge der Felder im Datensatz |
+| `attribute_view_id` | UUID | optionale Attribut-Sicht |
+| `output_hierarchy_id` | UUID | optionale Ausgabehierarchie |
+| `mapping_rules` | JSON | Liste der Mapping-Regeln (je Regel: `source`, `target`, `type`) |
+| `include_media`, `include_prices`, `include_variants`, `include_relations` | Boolean | Steuern, ob Medien/Preise/Varianten/Relationen einbezogen werden |
+| `languages` | JSON | Zu exportierende Sprachen |
+| `flatten_mode` | Enum (`flat`, `nested`, `publixx`) | Ausgabestruktur des Datensatzes |
 
 ### Mapping-Typen
 

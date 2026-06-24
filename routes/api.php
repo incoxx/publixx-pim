@@ -6,7 +6,7 @@ use App\Http\Controllers\Api\McpController;
 use App\Http\Controllers\Api\V1\AssetCatalogController;
 use App\Http\Controllers\Api\V1\CalendarController;
 use App\Http\Controllers\Api\V1\CopilotController;
-use App\Http\Controllers\Api\V1\DocumentPortalController;
+use App\Http\Controllers\Api\V1\DemoVideoController;use App\Http\Controllers\Api\V1\DocumentPortalController;
 use App\Http\Controllers\Api\V1\PortalApiController;
 use App\Http\Controllers\Api\V1\PortalConfigController;
 use App\Http\Controllers\Api\V1\DashboardController;
@@ -141,6 +141,13 @@ Route::prefix('v1/auth/sso')->middleware(['web', 'throttle.pim:auth', 'module:ss
     Route::get('config', [SsoController::class, 'config']);
     Route::get('redirect', [SsoController::class, 'redirect']);
     Route::get('callback', [SsoController::class, 'callback']);
+});
+
+// =========================================================================
+// Demo-/Tutorial-Videos für die Login-Seite (public — no auth required)
+// =========================================================================
+Route::prefix('v1/public')->middleware('throttle.pim')->group(function () {
+    Route::get('demo-videos', [DemoVideoController::class, 'index']);
 });
 
 // =========================================================================

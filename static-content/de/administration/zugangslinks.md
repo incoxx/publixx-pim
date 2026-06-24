@@ -21,7 +21,7 @@ Die Verwaltung der Zugangslinks erreichen Sie über **Administration > Zugangsli
 | **Erstellt von** | Benutzer, der den Link erstellt hat |
 
 ::: tip Hinweis
-Nur Benutzer mit der Rolle **Admin** oder der Berechtigung `access_links.manage` können Zugangslinks erstellen und verwalten.
+Nur Benutzer mit der Rolle **Admin** oder den `access-links.*`-Berechtigungen (`access-links.view`, `access-links.create`, `access-links.delete`) können Zugangslinks erstellen und verwalten.
 :::
 
 ## Zugangslink erstellen
