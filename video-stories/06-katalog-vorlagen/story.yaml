@@ -1,0 +1,138 @@
+# anyPIM Video Story: Katalog-Vorlagen – Öffentliche Produktkataloge
+# Zeigt wie Katalog-Vorlagen erstellt, konfiguriert und öffentlich gemacht werden
+
+meta:
+  id: "06-katalog-vorlagen"
+  title: "Katalog-Vorlagen – Öffentliche Produktkataloge"
+  description: "Wie Katalog-Vorlagen in anyPIM erstellt, per Slug aktiviert und ohne Login öffentlich zugänglich gemacht werden."
+  version: "1.0.0"
+  duration_estimate: 90
+  tags:
+    - katalog
+    - vorlagen
+    - öffentlich
+    - konfiguration
+  voice:
+    lang: "de"
+    gender: "female"
+    provider: "elevenlabs"
+    voice_id: ""
+  viewport:
+    width: 1920
+    height: 1080
+  slow_mo: 350
+  seeder: "DemoVideoSeeder"
+
+steps:
+  # --- Login ---
+  - id: "open-login"
+    action: navigate
+    target: "/login"
+    wait_for: "[data-testid='login-form']"
+    sprecher: "Willkommen bei anyPIM. Heute zeigen wir, wie öffentliche Produktkataloge ohne Login funktionieren – direkt aus anyPIM heraus."
+    pause_after: 1500
+
+  - id: "fill-email"
+    action: fill
+    selector: "[data-testid='input-email']"
+    value: "${VIDEO_DEMO_USER_EMAIL}"
+    type_speed: 60
+    sprecher: ""
+
+  - id: "fill-password"
+    action: fill
+    selector: "[data-testid='input-password']"
+    value: "${VIDEO_DEMO_USER_PASSWORD}"
+    type_speed: 60
+    sprecher: ""
+
+  - id: "submit-login"
+    action: click
+    selector: "[data-testid='btn-login']"
+    wait_for: "[data-testid='product-list']"
+    wait_timeout: 8000
+    sprecher: "Eingeloggt – wir gehen direkt in den Bereich Katalog-Vorlagen."
+    pause_after: 1000
+
+  # ── 1. KATALOG-VORLAGEN LISTE ────────────────────────────────────────────────
+  - id: "open-catalog-templates"
+    action: navigate
+    target: "/catalog-templates"
+    wait_for: ".space-y-4"
+    wait_timeout: 8000
+    sprecher: "Katalog-Vorlagen sind anpassbare HTML-Seiten, die Produktdaten direkt aus anyPIM laden. Jede Vorlage bekommt einen eigenen Slug – und wer sie aktiviert, macht sie öffentlich erreichbar."
+    pause_after: 2500
+
+  - id: "highlight-templates-header"
+    action: highlight
+    selector: "h2"
+    sprecher: "Hier verwalten wir alle öffentlichen Kataloge des Systems. Kein Login, kein Passwort – einfach die URL teilen."
+    pause_after: 2500
+
+  # ── 2. NEUE VORLAGE ANLEGEN ──────────────────────────────────────────────────
+  - id: "click-new-template"
+    action: click
+    selector: "button:has-text('Neue Vorlage')"
+    wait_for: "input[placeholder*='Webshop']"
+    wait_timeout: 5000
+    sprecher: "Wir legen eine neue Vorlage an."
+    pause_after: 1000
+
+  - id: "fill-template-name"
+    action: fill
+    selector: "input[placeholder*='Webshop']"
+    value: "Demo Katalog"
+    type_speed: 40
+    sprecher: "Der Name wird automatisch als URL-Slug verwendet – hier also 'demo-katalog'."
+    pause_after: 1500
+
+  - id: "click-create-template"
+    action: click
+    selector: "button:has-text('Erstellen & Bearbeiten')"
+    wait_for: "#html-editor-textarea"
+    wait_timeout: 12000
+    sprecher: "Vorlage erstellt – der Designer öffnet sich direkt."
+    pause_after: 2000
+
+  # ── 3. DESIGNER – EDITOR ────────────────────────────────────────────────────
+  - id: "highlight-editor"
+    action: highlight
+    selector: "#html-editor-textarea"
+    sprecher: "Der Designer zeigt den HTML-Code der Vorlage. Produktliste, Suche, Kategoriebaum – alle Elemente werden per data-catalog-Attribut eingebunden und dynamisch mit Daten aus anyPIM befüllt."
+    pause_after: 3500
+
+  # ── 4. EINSTELLUNGEN TAB ─────────────────────────────────────────────────────
+  - id: "click-settings-tab"
+    action: click
+    selector: "button:has-text('Einstellungen')"
+    wait_for: ".max-w-xl"
+    wait_timeout: 5000
+    sprecher: "Im Einstellungen-Tab konfigurieren wir die öffentliche URL der Vorlage."
+    pause_after: 1500
+
+  - id: "highlight-settings-panel"
+    action: highlight
+    selector: ".max-w-xl"
+    sprecher: "Der Slug bestimmt die URL: /catalog-embed/demo-katalog. Ein Klick auf 'Aktiv' – und der Katalog ist sofort für alle erreichbar. Keine weitere Konfiguration nötig."
+    pause_after: 4000
+
+  # ── 5. ÖFFENTLICHER KATALOG ──────────────────────────────────────────────────
+  - id: "open-public-catalog"
+    action: navigate
+    target: "/catalog-embed/basic"
+    wait_for: "body"
+    wait_timeout: 10000
+    sprecher: "So sieht ein aktivierter Katalog aus – eine vollständige Produktseite direkt aus anyPIM. Kein Admin-Bereich, kein Login."
+    pause_after: 3000
+
+  - id: "scroll-catalog"
+    action: scroll
+    direction: down
+    sprecher: "Produkte, Suche, Kategorien, Facetten – vollständig konfigurierbar über den Designer. Die Daten kommen live aus anyPIM."
+    pause_after: 2500
+
+  # ── ZUSAMMENFASSUNG ──────────────────────────────────────────────────────────
+  - id: "end"
+    action: wait
+    duration: 2000
+    sprecher: "anyPIM – Daten pflegen, Katalog gestalten, öffentlich teilen. Alles aus einer Plattform."

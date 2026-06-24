@@ -1,0 +1,173 @@
+# anyPIM Video Story: Konfiguration – Datenmodellierung
+# Führt durch den Menüpunkt "Konfiguration": Attribute, Gruppen, Sichten, Wertelisten, Produkttypen, Einheiten, Preise
+
+meta:
+  id: "08-konfiguration"
+  title: "Konfiguration – Datenmodellierung in anyPIM"
+  description: "Vollständige Tour durch den Bereich Konfiguration: Attribute, Attributgruppen, Attributsichten, Wertelisten, Produkttypen, Einheiten und Preistypen."
+  version: "1.0.0"
+  duration_estimate: 150
+  tags:
+    - konfiguration
+    - attribute
+    - datenmodell
+    - produkttypen
+    - wertelisten
+  voice:
+    lang: "de"
+    gender: "female"
+    provider: "elevenlabs"
+    voice_id: ""
+  viewport:
+    width: 1920
+    height: 1080
+  slow_mo: 350
+  seeder: "DemoVideoSeeder"
+
+steps:
+  # --- Login ---
+  - id: "open-login"
+    action: navigate
+    target: "/login"
+    wait_for: "[data-testid='login-form']"
+    sprecher: "anyPIM ist ein flexibles PIM-System – und diese Flexibilität steckt im Bereich Konfiguration. Hier wird das Datenmodell des Systems aufgebaut: welche Felder es gibt, wie sie organisiert sind und welche Produkte welche Attribute haben."
+    pause_after: 2000
+
+  - id: "fill-email"
+    action: fill
+    selector: "[data-testid='input-email']"
+    value: "${VIDEO_DEMO_USER_EMAIL}"
+    type_speed: 60
+    sprecher: ""
+
+  - id: "fill-password"
+    action: fill
+    selector: "[data-testid='input-password']"
+    value: "${VIDEO_DEMO_USER_PASSWORD}"
+    type_speed: 60
+    sprecher: ""
+
+  - id: "submit-login"
+    action: click
+    selector: "[data-testid='btn-login']"
+    wait_for: "[data-testid='product-list']"
+    wait_timeout: 8000
+    sprecher: "Los geht's."
+    pause_after: 1000
+
+  # ── 1. ATTRIBUTE ─────────────────────────────────────────────────────────────
+  - id: "open-attributes"
+    action: navigate
+    target: "/attributes"
+    wait_for: "table, .space-y-4"
+    wait_timeout: 8000
+    sprecher: "Attribute sind die Bausteine des Datenmodells. Jedes Attribut beschreibt eine Eigenschaft eines Produkts – zum Beispiel 'Gewicht', 'Farbe', 'Beschreibung' oder 'EAN-Nummer'."
+    pause_after: 2500
+
+  - id: "highlight-attributes-table"
+    action: highlight
+    selector: "table"
+    sprecher: "Jedes Attribut hat einen technischen Namen, einen Datentyp – Text, Zahl, Datum, Boolean, Auswahl – und Eigenschaften wie übersetzbar, pflichtfeld oder suchbar. Das definiert, was ein Feld kann."
+    pause_after: 3500
+
+  - id: "scroll-attributes-down"
+    action: scroll
+    direction: down
+    sprecher: "Die Liste zeigt alle Attribute des Systems. Zu welcher Gruppe gehören sie? In welchen Sichten tauchen sie auf? Das sehen wir gleich."
+    pause_after: 2000
+
+  # ── 2. ATTRIBUTGRUPPEN ───────────────────────────────────────────────────────
+  - id: "open-attribute-types"
+    action: navigate
+    target: "/attribute-types"
+    wait_for: "table, .space-y-4"
+    wait_timeout: 8000
+    sprecher: "Attributgruppen fassen thematisch zusammengehörige Attribute zusammen – zum Beispiel eine Gruppe 'Technische Daten', eine Gruppe 'Marketingtexte', eine Gruppe 'Logistik'."
+    pause_after: 2500
+
+  - id: "highlight-attribute-types-table"
+    action: highlight
+    selector: "table"
+    sprecher: "Gruppen dienen der Strukturierung. Auf der Produktmaske werden Attribute nach Gruppe gegliedert angezeigt – das macht die Datenpflege übersichtlicher."
+    pause_after: 3000
+
+  # ── 3. ATTRIBUTSICHTEN ───────────────────────────────────────────────────────
+  - id: "open-attribute-views"
+    action: navigate
+    target: "/attribute-views"
+    wait_for: "table, .space-y-4"
+    wait_timeout: 8000
+    sprecher: "Attributsichten sind Perspektiven auf das Datenmodell. Eine Sicht definiert: welche Attribute sollen in einem bestimmten Kontext angezeigt werden?"
+    pause_after: 2500
+
+  - id: "highlight-attribute-views-table"
+    action: highlight
+    selector: "table"
+    sprecher: "Zum Beispiel: eine Sicht 'Export-Felder' zeigt nur die für den Export relevanten Attribute. Eine Sicht 'Übersetzung' zeigt nur übersetzbare Felder. So bleibt jeder Arbeitsschritt fokussiert."
+    pause_after: 3500
+
+  # ── 4. WERTELISTEN ───────────────────────────────────────────────────────────
+  - id: "open-value-lists"
+    action: navigate
+    target: "/value-lists"
+    wait_for: "table, .space-y-4"
+    wait_timeout: 8000
+    sprecher: "Wertelisten definieren die erlaubten Werte für Auswahl-Attribute. Hat ein Produkt das Attribut 'Farbe', kommen die möglichen Werte – Rot, Blau, Grün – aus einer Werteliste."
+    pause_after: 2500
+
+  - id: "highlight-value-lists-table"
+    action: highlight
+    selector: "table"
+    sprecher: "Einmal gepflegt, stehen Wertelisten systemweit zur Verfügung. Neue Einträge ergänzen, alte deaktivieren – und die Änderung gilt sofort für alle Produkte."
+    pause_after: 3000
+
+  # ── 5. PRODUKTTYPEN ──────────────────────────────────────────────────────────
+  - id: "open-product-types"
+    action: navigate
+    target: "/product-types"
+    wait_for: "table, .space-y-4"
+    wait_timeout: 8000
+    sprecher: "Produkttypen bringen alles zusammen. Ein Produkttyp definiert: welche Attribute gehören zu dieser Produktkategorie? Ein Laptop hat andere Felder als ein Kleidungsstück."
+    pause_after: 2500
+
+  - id: "highlight-product-types-table"
+    action: highlight
+    selector: "table"
+    sprecher: "Jeder Produkttyp kann Varianten, EAN-Codes, Preise und Medien aktivieren. Das macht das Modell präzise – kein Produkt hat Felder, die es nicht braucht."
+    pause_after: 3500
+
+  # ── 6. EINHEITEN ─────────────────────────────────────────────────────────────
+  - id: "open-units"
+    action: navigate
+    target: "/units"
+    wait_for: "table, .space-y-4"
+    wait_timeout: 8000
+    sprecher: "Einheiten gelten für numerische Attribute. Gewicht in Kilogramm, Länge in Millimetern, Leistung in Watt – jede Maßeinheit wird hier definiert."
+    pause_after: 2500
+
+  - id: "highlight-units-table"
+    action: highlight
+    selector: "table"
+    sprecher: "Einheiten sind in Gruppen organisiert und können Umrechnungsfaktoren haben. Das System weiß: 1 kg = 1000 g. Im Export wird automatisch in die gewünschte Einheit umgerechnet."
+    pause_after: 3000
+
+  # ── 7. PREISTYPEN ────────────────────────────────────────────────────────────
+  - id: "open-prices"
+    action: navigate
+    target: "/prices"
+    wait_for: "table, .space-y-4"
+    wait_timeout: 8000
+    sprecher: "Preistypen definieren, welche Preise es im System gibt – Listenpreis, Aktionspreis, Händlerpreis. Jedes Produkt kann mehrere Preistypen gleichzeitig führen."
+    pause_after: 2500
+
+  - id: "highlight-prices-table"
+    action: highlight
+    selector: "table"
+    sprecher: "Preistypen können regional unterschiedlich sein – Preisregionen ermöglichen Länder- oder Kundengruppen-spezifische Preise."
+    pause_after: 2500
+
+  # ── ZUSAMMENFASSUNG ──────────────────────────────────────────────────────────
+  - id: "end"
+    action: wait
+    duration: 2000
+    sprecher: "Das Datenmodell in anyPIM: Attribute beschreiben Eigenschaften, Gruppen strukturieren sie, Sichten fokussieren den Arbeitskontext, Wertelisten kontrollieren die Eingabe, Produkttypen bündeln alles – und Einheiten wie Preistypen runden das System ab. anyPIM – flexibel modelliert, konsequent strukturiert."
