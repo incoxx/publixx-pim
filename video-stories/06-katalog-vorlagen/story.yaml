@@ -104,7 +104,7 @@ steps:
   # ── 4. EINSTELLUNGEN TAB ─────────────────────────────────────────────────────
   - id: "click-settings-tab"
     action: click
-    selector: "button:has-text('Einstellungen')"
+    selector: "[data-testid='tab-settings']"
     wait_for: ".max-w-xl"
     wait_timeout: 5000
     sprecher: "Im Einstellungen-Tab konfigurieren wir die öffentliche URL der Vorlage."

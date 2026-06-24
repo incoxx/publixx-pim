@@ -376,6 +376,7 @@ function getCaretPositionFromPoint(textarea, x, y) {
           Editor
         </button>
         <button
+          data-testid="tab-settings"
           :class="['text-[11px] px-3 py-1 rounded transition-colors', activeTab === 'settings' ? 'bg-[var(--color-surface)] text-[var(--color-text-primary)] font-medium shadow-sm' : 'text-[var(--color-text-tertiary)]']"
           @click="activeTab = 'settings'"
         >
