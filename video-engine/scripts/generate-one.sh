@@ -22,6 +22,15 @@ else
   STORAGE_DIR="$_STORAGE_DIR"
 fi
 
+# .env laden damit ELEVENLABS_API_KEY & Co. in der Shell verfügbar sind
+# (analog zu preflight.ts die dotenv lädt – Bash lädt .env nicht automatisch)
+if [ -f "$PROJECT_ROOT/.env" ]; then
+  set -a
+  # shellcheck disable=SC1091
+  source "$PROJECT_ROOT/.env"
+  set +a
+fi
+
 STORY_ID="${1:-}"
 FORCE=false
 PREFLIGHT_ONLY=false
