@@ -41,6 +41,7 @@ function getTypographyClass(typography) {
       <button
         v-if="editable && attr.live_edit && attr.attribute_id"
         type="button"
+        data-testid="btn-inline-edit"
         class="btn btn-ghost btn-xs px-1 opacity-0 group-hover/desc:opacity-100 focus:opacity-100 transition-opacity shrink-0 text-base-content/50 hover:text-primary"
         title="Wert bearbeiten"
         @click="emit('edit', attr)"

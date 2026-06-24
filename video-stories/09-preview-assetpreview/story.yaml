@@ -1,0 +1,159 @@
+# anyPIM Video Story: Preview & Asset-Vorschau für interne Benutzer
+# /preview = interner Produktkatalog mit Inline-Editing
+# /assetpreview = interne Medien-/Bilddatenbank
+
+meta:
+  id: "09-preview-assetpreview"
+  title: "Preview & Asset-Vorschau für interne Benutzer"
+  description: "Interne Benutzer können Produkte in /preview durchstöbern und Daten direkt per Inline-Editing anpassen – ohne den PIM-Editor zu öffnen. /assetpreview ist die interne Bilddatenbank für alle Mitarbeiter."
+  version: "1.0.0"
+  duration_estimate: 110
+  tags:
+    - preview
+    - assetpreview
+    - inline-editing
+    - intern
+  voice:
+    lang: "de"
+    gender: "female"
+    provider: "elevenlabs"
+    voice_id: ""
+  viewport:
+    width: 1920
+    height: 1080
+  slow_mo: 350
+  seeder: "DemoVideoSeeder"
+
+steps:
+  # --- Login ---
+  - id: "open-login"
+    action: navigate
+    target: "/login"
+    wait_for: "[data-testid='login-form']"
+    sprecher: "anyPIM hat zwei spezielle Ansichten, die nicht für das PIM-Backend gedacht sind – sondern für interne Benutzer, die einfach Produkte und Medien durchstöbern oder schnell einen Wert korrigieren wollen."
+    pause_after: 2000
+
+  - id: "fill-email"
+    action: fill
+    selector: "[data-testid='input-email']"
+    value: "${VIDEO_DEMO_USER_EMAIL}"
+    type_speed: 60
+    sprecher: ""
+
+  - id: "fill-password"
+    action: fill
+    selector: "[data-testid='input-password']"
+    value: "${VIDEO_DEMO_USER_PASSWORD}"
+    type_speed: 60
+    sprecher: ""
+
+  - id: "submit-login"
+    action: click
+    selector: "[data-testid='btn-login']"
+    wait_for: "[data-testid='product-list']"
+    wait_timeout: 8000
+    sprecher: "Login – und direkt zur internen Vorschau."
+    pause_after: 1000
+
+  # ── 1. /PREVIEW – INTERNER PRODUKTKATALOG ───────────────────────────────────
+  - id: "open-preview"
+    action: navigate
+    target: "/preview"
+    wait_for: "[data-theme='pim-catalog']"
+    wait_timeout: 10000
+    sprecher: "Die Route /preview ist der interne Produktkatalog. Sie sieht aus wie ein klassischer Webshop – aber sie ist nicht öffentlich. Nur eingeloggte Benutzer sehen sie."
+    pause_after: 2500
+
+  - id: "highlight-catalog"
+    action: highlight
+    selector: "[data-theme='pim-catalog']"
+    sprecher: "Produkte durchsuchen, filtern, in Kategorien navigieren – alles ohne PIM-Oberfläche. Ideal für Vertrieb, Produktmanagement oder Agenturen, die Daten prüfen wollen."
+    pause_after: 3000
+
+  # ── 2. PRODUKT ÖFFNEN ────────────────────────────────────────────────────────
+  - id: "click-product-card"
+    action: click
+    selector: ".card.cursor-pointer"
+    wait_for: "dialog.modal-open"
+    wait_timeout: 8000
+    sprecher: "Ein Klick auf ein Produkt öffnet die Detailansicht."
+    pause_after: 2000
+
+  - id: "highlight-product-modal"
+    action: highlight
+    selector: ".modal-box"
+    sprecher: "Alle Felder, Bilder, Preise, Varianten und Relationen auf einen Blick – so wie der Endkunde ein Produkt sehen würde."
+    pause_after: 3000
+
+  # ── 3. INLINE EDITING ────────────────────────────────────────────────────────
+  - id: "hover-description-attr"
+    action: hover
+    selector: "[class*='group/desc']"
+    sprecher: "Jetzt kommt das Besondere: Benutzer mit Schreibrecht sehen an jedem Textfeld ein Stift-Symbol – das Inline-Editing."
+    pause_after: 1500
+
+  - id: "click-inline-edit"
+    action: click
+    selector: "[data-testid='btn-inline-edit']"
+    wait_for: ".modal-box.max-w-md"
+    wait_timeout: 5000
+    sprecher: "Ein Klick – und ein Bearbeitungsfenster öffnet sich direkt im Kontext des Produkts."
+    pause_after: 2000
+
+  - id: "highlight-edit-popover"
+    action: highlight
+    selector: ".modal-box.max-w-md"
+    sprecher: "Hier kann der Wert direkt geändert und gespeichert werden. anyPIM schreibt den Wert sofort zurück ins System – kein Wechsel in den Editor, kein Suchen des Produkts. Änderung gemacht, fertig."
+    pause_after: 4000
+
+  - id: "close-edit-popover"
+    action: click
+    selector: "button:has-text('Abbrechen')"
+    sprecher: ""
+    pause_after: 800
+
+  # ── 4. ZUM EDITOR ────────────────────────────────────────────────────────────
+  - id: "highlight-zum-editor"
+    action: highlight
+    selector: "button.btn-primary"
+    sprecher: "Für komplexere Änderungen gibt es den 'Zum Editor'-Button – ein direkter Sprung in den vollständigen Produkteditor. So bleiben beide Welten verbunden."
+    pause_after: 3000
+
+  # ── 5. /ASSETPREVIEW – INTERNE MEDIENDATENBANK ───────────────────────────────
+  - id: "open-assetpreview"
+    action: navigate
+    target: "/assetpreview"
+    wait_for: "[data-theme='pim-catalog']"
+    wait_timeout: 10000
+    sprecher: "Die zweite Route: /assetpreview. Das ist die interne Medien- und Bilddatenbank von anyPIM."
+    pause_after: 2000
+
+  - id: "highlight-asset-catalog"
+    action: highlight
+    selector: "[data-theme='pim-catalog']"
+    sprecher: "Alle Bilder, Dokumente und Medien aus anyPIM – durchsuchbar und filterbar. Für jeden Mitarbeiter, der Bildmaterial braucht, ohne ins Backend zu müssen."
+    pause_after: 3000
+
+  - id: "scroll-assets-down"
+    action: scroll
+    direction: down
+    sprecher: "Bilder, PDFs, Videos – in einer übersichtlichen Rasteransicht. Mit Ordnerstruktur, Verwendungszweck-Filtern und Dateitypfiltern."
+    pause_after: 2000
+
+  - id: "scroll-assets-up"
+    action: scroll
+    direction: up
+    sprecher: ""
+    pause_after: 800
+
+  - id: "highlight-search-toggle"
+    action: highlight
+    selector: ".join"
+    sprecher: "Besonders praktisch: die Inhaltssuche für PDFs. Neben der Metadaten-Suche kann direkt im Text von PDF-Dokumenten gesucht werden – mit integriertem PDF-Viewer."
+    pause_after: 3500
+
+  # ── ZUSAMMENFASSUNG ──────────────────────────────────────────────────────────
+  - id: "end"
+    action: wait
+    duration: 2000
+    sprecher: "anyPIM für interne Benutzer: /preview für Produktdaten mit direkter Bearbeitungsmöglichkeit, /assetpreview für die Mediendatenbank. Alles intern, alles sicher, alles in anyPIM."
