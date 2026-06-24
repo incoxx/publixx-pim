@@ -1,0 +1,176 @@
+# anyPIM Video Story: Projektmanagement – Benutzer, Rollen, Workflow & Kalender
+# Erklärt die Zusammenhänge ohne Deep-Dive: Masken öffnen, Konzept erklären.
+
+meta:
+  id: "07-projektmanagement"
+  title: "Projektmanagement in anyPIM"
+  description: "Wie hängen Benutzer, Rollen, Teams, Projekte, Workflow-Aufgaben und Planungskalender zusammen? Ein strukturierter Überblick."
+  version: "1.0.0"
+  duration_estimate: 120
+  tags:
+    - projektmanagement
+    - benutzer
+    - rollen
+    - workflow
+    - kalender
+  voice:
+    lang: "de"
+    gender: "female"
+    provider: "elevenlabs"
+    voice_id: ""
+  viewport:
+    width: 1920
+    height: 1080
+  slow_mo: 350
+  seeder: "DemoVideoSeeder"
+
+steps:
+  # --- Login ---
+  - id: "open-login"
+    action: navigate
+    target: "/login"
+    wait_for: "[data-testid='login-form']"
+    sprecher: "anyPIM ist mehr als ein Daten-Tool – es ist eine vollständige Arbeitsplattform. Heute zeigen wir, wie Benutzer, Rollen, Projekte, Aufgaben und Kalender zusammenspielen."
+    pause_after: 1500
+
+  - id: "fill-email"
+    action: fill
+    selector: "[data-testid='input-email']"
+    value: "${VIDEO_DEMO_USER_EMAIL}"
+    type_speed: 60
+    sprecher: ""
+
+  - id: "fill-password"
+    action: fill
+    selector: "[data-testid='input-password']"
+    value: "${VIDEO_DEMO_USER_PASSWORD}"
+    type_speed: 60
+    sprecher: ""
+
+  - id: "submit-login"
+    action: click
+    selector: "[data-testid='btn-login']"
+    wait_for: "[data-testid='product-list']"
+    wait_timeout: 8000
+    sprecher: "Los geht's."
+    pause_after: 1000
+
+  # ── 1. BENUTZER ──────────────────────────────────────────────────────────────
+  - id: "open-users"
+    action: navigate
+    target: "/users"
+    wait_for: "table, .space-y-4"
+    wait_timeout: 8000
+    sprecher: "Alles beginnt mit den Benutzern. Jede Person, die in anyPIM arbeitet, hat ein eigenes Konto – mit Name, E-Mail und einer oder mehreren Rollen."
+    pause_after: 2500
+
+  - id: "highlight-users"
+    action: highlight
+    selector: "table"
+    sprecher: ""
+    pause_after: 1000
+
+  # ── 2. ROLLEN ────────────────────────────────────────────────────────────────
+  - id: "open-roles"
+    action: navigate
+    target: "/roles"
+    wait_for: "table, .space-y-4"
+    wait_timeout: 8000
+    sprecher: "Rollen definieren, was ein Benutzer sehen und tun darf. Data Steward, Product Manager, Export Manager – jede Rolle trägt genau die Berechtigungen, die zum Job passen."
+    pause_after: 2500
+
+  - id: "highlight-roles"
+    action: highlight
+    selector: "table"
+    sprecher: "Benutzer erben alle Rechte ihrer Rolle. Ändert sich eine Rolle, gelten die neuen Rechte sofort für alle zugeordneten Benutzer."
+    pause_after: 3000
+
+  # ── 3. TEAMS ─────────────────────────────────────────────────────────────────
+  - id: "open-teams"
+    action: navigate
+    target: "/teams"
+    wait_for: "table, .space-y-4"
+    wait_timeout: 8000
+    sprecher: "Teams bündeln Benutzer zu organisatorischen Einheiten – zum Beispiel ein Redaktions-Team, ein Marketing-Team oder ein externes Übersetzungs-Team."
+    pause_after: 2500
+
+  - id: "highlight-teams"
+    action: highlight
+    selector: "table"
+    sprecher: "Ein Benutzer kann in mehreren Teams sein. Teams sind die Verbindung zwischen Personen und Projekten."
+    pause_after: 2500
+
+  # ── 4. PROJEKTE ──────────────────────────────────────────────────────────────
+  - id: "open-projects"
+    action: navigate
+    target: "/projects"
+    wait_for: "table, .space-y-4"
+    wait_timeout: 8000
+    sprecher: "Projekte sind der organisatorische Rahmen. Ein Projekt bündelt Produkte, Teams und einen Zeitraum – zum Beispiel der Launch einer neuen Produktlinie."
+    pause_after: 2500
+
+  - id: "highlight-projects"
+    action: highlight
+    selector: "table"
+    sprecher: "Jedes Projekt hat einen Status: Planung, Aktiv, Abgeschlossen oder On-Hold. Welche Teams und Produkte dazugehören, ist direkt am Projekt gepflegt."
+    pause_after: 3000
+
+  # ── 5. PROJEKT-DASHBOARD ─────────────────────────────────────────────────────
+  - id: "open-project-dashboard"
+    action: navigate
+    target: "/project-dashboard"
+    wait_for: "main, .space-y-4, h1"
+    wait_timeout: 8000
+    sprecher: "Das Projekt-Dashboard gibt einen schnellen Überblick: Wie viele Projekte laufen? Welche Teams sind beteiligt? Wo stehen wir?"
+    pause_after: 3000
+
+  # ── 6. WORKFLOW-DEFINITIONEN ─────────────────────────────────────────────────
+  - id: "open-workflows"
+    action: navigate
+    target: "/workflows"
+    wait_for: "table, .space-y-4"
+    wait_timeout: 8000
+    sprecher: "Workflows definieren die Aufgaben-Typen im System. Zum Beispiel: Produkttext übersetzen, Bild freigeben, Kategorie prüfen. Einmal angelegt, können sie beliebig oft ausgelöst werden."
+    pause_after: 2500
+
+  - id: "highlight-workflows"
+    action: highlight
+    selector: "table"
+    sprecher: ""
+    pause_after: 1000
+
+  # ── 7. WORKFLOW-AUFGABEN ─────────────────────────────────────────────────────
+  - id: "open-workflow-tasks"
+    action: navigate
+    target: "/workflow"
+    wait_for: "[data-testid='workflow-view'], table"
+    wait_timeout: 8000
+    sprecher: "Hier landen die konkreten Aufgaben. Jede Aufgabe ist einem Produkt zugeordnet, hat eine Priorität, einen Status und einen Bearbeiter. Offen – In Bearbeitung – Geschlossen."
+    pause_after: 2500
+
+  - id: "highlight-workflow-view"
+    action: highlight
+    selector: "[data-testid='workflow-view']"
+    sprecher: "Das ist der Arbeitseingang für das Team. Wer ist zuständig? Was ist noch offen? Was wurde heute erledigt?"
+    pause_after: 3000
+
+  # ── 8. PLANUNGSKALENDER ──────────────────────────────────────────────────────
+  - id: "open-calendar"
+    action: navigate
+    target: "/calendar"
+    wait_for: "[data-testid='calendar-view'], .fc, main"
+    wait_timeout: 8000
+    sprecher: "Der Planungskalender bringt alles zusammen: Projekte, Deadlines und Aufgaben in einer Zeitlinie. Wer macht was – und bis wann?"
+    pause_after: 2500
+
+  - id: "highlight-calendar"
+    action: highlight
+    selector: "[data-testid='calendar-view']"
+    sprecher: "Der Kalender ist die Steuerzentrale. Überschneidungen erkennen, Engpässe sehen, Prioritäten anpassen – auf einen Blick."
+    pause_after: 3000
+
+  # ── ZUSAMMENFASSUNG ──────────────────────────────────────────────────────────
+  - id: "end"
+    action: wait
+    duration: 2000
+    sprecher: "Die Kette ist klar: Benutzer bekommen Rollen, werden Teams zugeordnet, arbeiten in Projekten, erledigen Workflow-Aufgaben – und der Kalender hält alles im Blick. anyPIM – Daten und Teams, gemeinsam organisiert."
