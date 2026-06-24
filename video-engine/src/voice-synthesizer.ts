@@ -2,11 +2,16 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { execSync, spawnSync } from 'child_process';
+import { config } from 'dotenv';
 import winston from 'winston';
 import * as log from './logger';
 import type { Story } from './story-validator';
 import { extractSprecherTexts, type RecordedTimestamp } from './subtitle-extractor';
 import { ffmpegBin, ffprobeBin } from './runtime-deps';
+
+// .env laden (analog zu preflight.ts) – wird ignoriert wenn bereits in process.env gesetzt
+config({ path: path.resolve(__dirname, '../.env') });
+config({ path: path.resolve(__dirname, '../../.env') });
 
 interface VoiceConfig {
   lang: string;
