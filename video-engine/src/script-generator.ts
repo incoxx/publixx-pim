@@ -65,9 +65,11 @@ export function generatePlaywrightScript(
   lines.push(`}`);
   lines.push(``);
   lines.push(`export async function run(): Promise<void> {`);
+  lines.push(`  const executablePath = process.env.PLAYWRIGHT_CHROMIUM_PATH?.trim() || undefined;`);
   lines.push(`  const browser: Browser = await chromium.launch({`);
   lines.push(`    headless: false,`);
   lines.push(`    slowMo: SLOW_MO,`);
+  lines.push(`    ...(executablePath ? { executablePath } : {}),`);
   lines.push(`  });`);
   lines.push(``);
   lines.push(`  const context = await browser.newContext({`);

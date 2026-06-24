@@ -113,7 +113,20 @@ export async function runPreflight(storyPath?: string): Promise<{ allOk: boolean
   results.push(checkCommand('ffmpeg installiert', 'which ffmpeg'));
   results.push(checkCommand('Xvfb installiert', 'which Xvfb'));
   results.push(checkCommand('Node.js >= 18', 'node --version'));
-  results.push(checkCommand('Playwright installiert', 'npx playwright --version 2>/dev/null'));
+
+  // Playwright: npm-Paket UND Browser-Binary prüfen
+  const pwVersion = checkCommand('Playwright installiert', 'npx playwright --version 2>/dev/null');
+  if (pwVersion.ok) {
+    const { resolveChromium } = await import('./runtime-deps');
+    const chromiumPath = resolveChromium();
+    if (chromiumPath) {
+      results.push({ name: 'Playwright installiert', ok: true, detail: `${pwVersion.detail} (${chromiumPath.split('/').slice(-3).join('/')})` });
+    } else {
+      results.push({ name: 'Playwright installiert', ok: false, detail: `${pwVersion.detail} – kein Chromium-Browser gefunden (npx playwright install chromium)` });
+    }
+  } else {
+    results.push(pwVersion);
+  }
 
   // anyPIM erreichbar
   const baseUrl = process.env.ANYPIM_BASE_URL || process.env.VIDEO_ENGINE_BASE_URL || 'http://localhost:8000';
