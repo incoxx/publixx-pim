@@ -1,11 +1,11 @@
 # anyPIM Video Story: APIs, API Designer & MCP
-# Zeigt wie anyPIM Daten über REST/GraphQL-Streams und MCP für KI-Agenten bereitstellt
+# Erklärt den API Designer konzeptuell und demonstriert den MCP Playground interaktiv
 
 meta:
   id: "12-api-mcp"
   title: "APIs, API Designer & MCP"
   description: "anyPIM als Datenprovider: JSON- und GraphQL-Streams per API Designer konfigurieren, als REST-Endpunkt bereitstellen – und über das MCP-Protokoll für KI-Agenten wie Claude zugänglich machen."
-  version: "1.0.0"
+  version: "1.1.0"
   duration_estimate: 110
   tags:
     - api
@@ -56,63 +56,60 @@ steps:
     sprecher: "Los geht's."
     pause_after: 1000
 
-  # ── 1. API DESIGNER – ÜBERSICHT ─────────────────────────────────────────────
-  - id: "open-api-designer"
-    action: navigate
-    target: "/api-designer"
-    wait_for: "main, .space-y-4, h1"
-    wait_timeout: 8000
-    sprecher: "Der API Designer ist die Schaltzentrale für externe Datenzugriffe. Hier definieren wir, welche Produktdaten in welcher Struktur nach außen gegeben werden – als JSON-Stream oder als GraphQL-Endpunkt."
-    pause_after: 2500
+  # ── 1. API DESIGNER – KONZEPT (ohne Navigation) ──────────────────────────────
+  - id: "explain-api-designer"
+    action: wait
+    duration: 1500
+    sprecher: "anyPIM bietet zwei Wege, Daten nach außen zu geben. Erstens: der API Designer. Hier werden JSON- oder GraphQL-Datenstrom-Templates konfiguriert. Jedes Template bekommt einen Slug und ist sofort unter einer stabilen URL erreichbar – ohne Deployment, ohne Code."
+    pause_after: 4000
 
-  - id: "highlight-api-list"
-    action: highlight
-    selector: "main, .space-y-4"
-    sprecher: "Jedes API-Template bekommt einen eindeutigen Slug und ist sofort unter /api-streams/{slug} erreichbar. Kein Deployment, kein Code – nur Konfiguration."
-    pause_after: 3000
+  - id: "explain-api-streams"
+    action: wait
+    duration: 1000
+    sprecher: "Shops, Portale, Marktplätze und interne Tools können so jederzeit frische PIM-Daten abrufen. Mit Delta-Sync: externe Systeme holen nur die Änderungen seit dem letzten Abruf. JSON-Templates für flache Strukturen, GraphQL für flexible Abfragen mit typisiertem Schema."
+    pause_after: 4000
 
-  # ── 2. API DESIGNER – KONZEPT ────────────────────────────────────────────────
-  - id: "scroll-api-down"
-    action: scroll
-    direction: down
-    sprecher: "Im Designer legen wir fest: welche Felder, in welcher Sprache, mit welchem Filterkriterium. Das Ergebnis ist ein sauberer, konsistenter Datenstrom – für Shops, Portale, Marktplätze oder interne Tools."
-    pause_after: 2500
-
-  - id: "scroll-api-up"
-    action: scroll
-    direction: up
-    sprecher: "JSON-Templates für flache Datenstrukturen, GraphQL für flexible Abfragen mit Schemas. Beide lassen sich mit Delta-Sync ausstatten – externe Systeme empfangen dann nur die Änderungen seit dem letzten Abruf."
-    pause_after: 3000
-
-  # ── 3. MCP PLAYGROUND ────────────────────────────────────────────────────────
+  # ── 2. MCP PLAYGROUND ────────────────────────────────────────────────────────
   - id: "open-mcp-playground"
     action: navigate
     target: "/mcp-playground"
-    wait_for: "main, .space-y-4, h1"
+    wait_for: ".grid.grid-cols-1.gap-1"
     wait_timeout: 8000
-    sprecher: "Das MCP Playground ist die Testumgebung für das Model Context Protocol. MCP ist ein offener Standard, der es KI-Agenten ermöglicht, direkt mit anyPIM zu sprechen – Daten lesen, suchen, ändern."
-    pause_after: 2500
+    sprecher: "Zweitens: das MCP-Protokoll. MCP ist ein offener Standard, der es KI-Agenten wie Claude ermöglicht, direkt mit anyPIM zu arbeiten – Produkte suchen, Hierarchien abfragen, Attributwerte lesen und ändern – alles über strukturierte Tool-Aufrufe."
+    pause_after: 3000
 
-  - id: "highlight-tool-selector"
+  - id: "highlight-use-cases"
     action: highlight
-    selector: ".grid.grid-cols-1.gap-1"
-    sprecher: "anyPIM stellt zwölf MCP-Tools bereit: Produkte suchen, Hierarchien abfragen, Attribute lesen, Werte aktualisieren, GraphQL-Queries ausführen. KI-Assistenten wie Claude nutzen diese Tools, um autonom mit den PIM-Daten zu arbeiten."
+    selector: ".space-y-4.max-w-5xl > div:nth-child(2)"
+    sprecher: "Der MCP Playground zeigt typische Anwendungsfälle: Datenschema abrufen, Datenqualität prüfen, Produkte analysieren, Hierarchiestruktur erkunden. Vorgefertigte Beispiele machen den Einstieg leicht."
     pause_after: 4000
 
-  - id: "scroll-mcp-down"
+  - id: "highlight-tool-list"
+    action: highlight
+    selector: ".grid.grid-cols-1.gap-1"
+    sprecher: "Zwölf MCP-Tools stehen bereit: Produkte streamen, GraphQL-Queries ausführen, Attribute lesen, Hierarchien abfragen, und Attributwerte direkt setzen. KI-Assistenten wie Claude nutzen exakt diese Tools, wenn sie auf anyPIM-Daten zugreifen."
+    pause_after: 4500
+
+  - id: "highlight-run-button"
+    action: highlight
+    selector: "button.pim-btn.pim-btn-primary.w-full"
+    sprecher: "Tool auswählen, Parameter setzen, ausführen – die Antwort kommt direkt aus dem PIM-System als reines JSON, genau so wie der KI-Agent sie empfangen würde."
+    pause_after: 3500
+
+  - id: "scroll-to-mcp-config"
     action: scroll
     direction: down
-    sprecher: "Die vorgefertigten Beispiel-Abfragen zeigen typische Anwendungsfälle: Datenqualität prüfen, Produkte mit fehlenden Feldern finden, Hierarchiestruktur analysieren. Direkt im Browser testen, bevor der Agent produktiv geht."
-    pause_after: 3000
+    sprecher: "Am Ende der Seite: die fertige MCP-Konfiguration für Claude Code und Claude Desktop. Einmal in die mcp.json eingetragen – und Claude hat direkten Zugriff auf alle PIM-Daten, Hierarchien und Attribute."
+    pause_after: 4000
 
-  - id: "highlight-execute-button"
-    action: highlight
-    selector: ".pim-btn.pim-btn-primary.w-full"
-    sprecher: "Ein Klick auf 'Tool ausführen' – und die Antwort kommt direkt aus dem PIM-System. Die Response ist reines JSON, genau so wie der KI-Agent sie empfangen würde."
-    pause_after: 3000
+  - id: "scroll-back-up"
+    action: scroll
+    direction: up
+    sprecher: ""
+    pause_after: 800
 
   # ── ZUSAMMENFASSUNG ──────────────────────────────────────────────────────────
   - id: "end"
     action: wait
     duration: 2000
-    sprecher: "anyPIM als Datenprovider: JSON- und GraphQL-Streams per API Designer, bereitgestellt unter einer stabilen URL. Und über MCP direkt zugänglich für KI-Agenten – die Zukunft der PIM-Integration. anyPIM – offen, vernetzt, KI-ready."
+    sprecher: "anyPIM als Datenprovider: JSON- und GraphQL-Streams per API Designer konfiguriert, unter stabilen URLs bereitgestellt – für Shops, Portale und alle externen Systeme. Und über MCP direkt zugänglich für KI-Agenten. anyPIM – offen, vernetzt, KI-ready."
