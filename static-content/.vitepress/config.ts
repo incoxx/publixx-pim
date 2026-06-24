@@ -73,6 +73,16 @@ export default defineConfig({
               ],
             },
             {
+              text: 'KI & Automatisierung',
+              collapsed: false,
+              items: [
+                { text: 'Übersicht', link: '/de/ki/' },
+                { text: 'Copilot (KI-Assistent)', link: '/de/ki/copilot' },
+                { text: 'Semantische Suche', link: '/de/ki/semantische-suche' },
+                { text: 'Reel-Generator (Social-Video)', link: '/de/ki/reel-generator' },
+              ],
+            },
+            {
               text: 'Erweitert',
               collapsed: true,
               items: [
@@ -238,6 +248,16 @@ export default defineConfig({
                 { text: 'Units', link: '/en/usage/units' },
                 { text: 'Dictionary', link: '/en/usage/dictionary' },
                 { text: 'User Management', link: '/en/usage/users' },
+              ],
+            },
+            {
+              text: 'AI & Automation',
+              collapsed: false,
+              items: [
+                { text: 'Overview', link: '/en/ai/' },
+                { text: 'Copilot (AI Assistant)', link: '/en/ai/copilot' },
+                { text: 'Semantic Search', link: '/en/ai/semantic-search' },
+                { text: 'Reel Generator (Social Video)', link: '/en/ai/reel-generator' },
               ],
             },
             {
