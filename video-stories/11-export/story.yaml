@@ -1,0 +1,120 @@
+# anyPIM Video Story: Export – Produktdaten aus anyPIM ausgeben
+# Zeigt manuellen Export, Formate, Export-Jobs mit Scheduling und Lieferwege
+
+meta:
+  id: "11-export"
+  title: "Export – Produktdaten aus anyPIM ausgeben"
+  description: "Export-Möglichkeiten in anyPIM: manueller Export nach Excel, CSV, JSON und BMEcat – sowie automatisierte Export-Jobs mit CRON-Zeitplanung und Lieferwegen wie SFTP und HTTP."
+  version: "1.0.0"
+  duration_estimate: 110
+  tags:
+    - export
+    - excel
+    - csv
+    - json
+    - bmecat
+    - export-jobs
+    - scheduling
+  voice:
+    lang: "de"
+    gender: "female"
+    provider: "elevenlabs"
+    voice_id: ""
+  viewport:
+    width: 1920
+    height: 1080
+  slow_mo: 350
+  seeder: "DemoVideoSeeder"
+
+steps:
+  # --- Login ---
+  - id: "open-login"
+    action: navigate
+    target: "/login"
+    wait_for: "[data-testid='login-form']"
+    sprecher: "anyPIM ist die zentrale Datenquelle – und Daten müssen auch raus. Heute zeigen wir alle Export-Möglichkeiten: manuell, automatisiert und in jedem relevanten Format."
+    pause_after: 1500
+
+  - id: "fill-email"
+    action: fill
+    selector: "[data-testid='input-email']"
+    value: "${VIDEO_DEMO_USER_EMAIL}"
+    type_speed: 60
+    sprecher: ""
+
+  - id: "fill-password"
+    action: fill
+    selector: "[data-testid='input-password']"
+    value: "${VIDEO_DEMO_USER_PASSWORD}"
+    type_speed: 60
+    sprecher: ""
+
+  - id: "submit-login"
+    action: click
+    selector: "[data-testid='btn-login']"
+    wait_for: "[data-testid='product-list']"
+    wait_timeout: 8000
+    sprecher: "Los geht's."
+    pause_after: 1000
+
+  # ── 1. MANUELLER EXPORT – FILTER-TAB ────────────────────────────────────────
+  - id: "open-exports"
+    action: navigate
+    target: "/exports"
+    wait_for: "div.flex.border-b"
+    wait_timeout: 8000
+    sprecher: "Der Export-Bereich gliedert sich in drei Tabs: Filter, Datenauswahl und Kanal. Wir bestimmen genau, welche Produkte exportiert werden – nach Hierarchie, Produkttyp, Status oder Attributwert."
+    pause_after: 2500
+
+  - id: "highlight-tabs"
+    action: highlight
+    selector: "div.flex.border-b"
+    sprecher: "Im Filter-Tab stellen wir ein: welche Produkte, welche Sprachen, welche Attributsicht. Das Ergebnis wird in Echtzeit gezählt – kein Export ins Blaue."
+    pause_after: 3000
+
+  # ── 2. DATENAUSWAHL ──────────────────────────────────────────────────────────
+  - id: "scroll-to-formats"
+    action: scroll
+    direction: down
+    sprecher: "Im Datenauswahl-Tab legen wir fest, was exportiert wird: nur Produkte, oder auch Preise, Relationen, Medien und Varianten. Im Kanal-Tab wählen wir das Ausgabeformat."
+    pause_after: 2500
+
+  - id: "scroll-back-up"
+    action: scroll
+    direction: up
+    sprecher: ""
+    pause_after: 800
+
+  # ── 3. FORMATE ───────────────────────────────────────────────────────────────
+  - id: "highlight-format-selector"
+    action: highlight
+    selector: "div.grid.grid-cols-2"
+    sprecher: "Vier Formate stehen zur Wahl: Excel für Tabellenarbeit, CSV für maximale Kompatibilität, JSON für Systemintegration und XML für strukturierten Datenaustausch. Jedes Format lässt sich über Export-Profile fein konfigurieren."
+    pause_after: 3500
+
+  # ── 4. EXPORT-JOBS – AUTOMATISIERT ──────────────────────────────────────────
+  - id: "open-export-jobs"
+    action: navigate
+    target: "/export-jobs"
+    wait_for: "main, .space-y-4, h1"
+    wait_timeout: 8000
+    sprecher: "Für wiederkehrende Exporte gibt es die Export-Jobs. Einmal konfiguriert, laufen sie automatisch – stündlich, täglich, wöchentlich oder nach eigenem CRON-Ausdruck."
+    pause_after: 2500
+
+  - id: "highlight-export-jobs-area"
+    action: highlight
+    selector: "main, .space-y-4"
+    sprecher: "Jeder Job kann Daten in verschiedene Formate ausgeben: JSON, Excel, Katalog, Report oder PDF. Und er liefert sie direkt dorthin, wo sie gebraucht werden."
+    pause_after: 3000
+
+  - id: "scroll-jobs-down"
+    action: scroll
+    direction: down
+    sprecher: "Drei Lieferwege stehen bereit: Dateisystem für lokale Ablage, SFTP für sichere Übertragung zu externen Servern und HTTP POST für die direkte Integration in Fremdsysteme. Vollautomatisch, regelmäßig, zuverlässig."
+    pause_after: 3500
+
+  # ── ZUSAMMENFASSUNG ──────────────────────────────────────────────────────────
+  - id: "end"
+    action: wait
+    duration: 2000
+    sprecher: "Export in anyPIM: manuell für den Tagesbedarf, automatisiert für den Dauerbetrieb. Excel, CSV, JSON, XML, BMEcat – anyPIM liefert Daten in das Format, das der Empfänger braucht."

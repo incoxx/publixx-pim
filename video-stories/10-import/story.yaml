@@ -1,0 +1,112 @@
+# anyPIM Video Story: Import – Daten in anyPIM laden
+# Zeigt den CSV/Excel-Import-Wizard und kurz den BMEcat-Import
+
+meta:
+  id: "10-import"
+  title: "Import – Produktdaten in anyPIM laden"
+  description: "Import-Möglichkeiten in anyPIM: der vierstufige CSV/Excel-Import-Wizard mit Mapping, Vorschau und Ausführung – sowie der BMEcat-Import für Lieferantenkataloge."
+  version: "1.0.0"
+  duration_estimate: 100
+  tags:
+    - import
+    - csv
+    - excel
+    - bmecat
+    - mapping
+  voice:
+    lang: "de"
+    gender: "female"
+    provider: "elevenlabs"
+    voice_id: ""
+  viewport:
+    width: 1920
+    height: 1080
+  slow_mo: 350
+  seeder: "DemoVideoSeeder"
+
+steps:
+  # --- Login ---
+  - id: "open-login"
+    action: navigate
+    target: "/login"
+    wait_for: "[data-testid='login-form']"
+    sprecher: "Daten in anyPIM laden – das geht auf mehreren Wegen. Heute zeigen wir den Import-Bereich: strukturiert, mit Vorschau und ohne Überraschungen."
+    pause_after: 1500
+
+  - id: "fill-email"
+    action: fill
+    selector: "[data-testid='input-email']"
+    value: "${VIDEO_DEMO_USER_EMAIL}"
+    type_speed: 60
+    sprecher: ""
+
+  - id: "fill-password"
+    action: fill
+    selector: "[data-testid='input-password']"
+    value: "${VIDEO_DEMO_USER_PASSWORD}"
+    type_speed: 60
+    sprecher: ""
+
+  - id: "submit-login"
+    action: click
+    selector: "[data-testid='btn-login']"
+    wait_for: "[data-testid='product-list']"
+    wait_timeout: 8000
+    sprecher: "Los geht's."
+    pause_after: 1000
+
+  # ── 1. IMPORT-WIZARD: SCHRITT 1 – UPLOAD ────────────────────────────────────
+  - id: "open-imports"
+    action: navigate
+    target: "/imports"
+    wait_for: ".border-dashed"
+    wait_timeout: 8000
+    sprecher: "Der Import-Assistent startet mit dem Upload. Eine Excel- oder CSV-Datei per Drag-and-Drop oder Klick hochladen – mehr braucht es nicht für den ersten Schritt."
+    pause_after: 2500
+
+  - id: "highlight-dropzone"
+    action: highlight
+    selector: ".border-dashed"
+    sprecher: "anyPIM erkennt automatisch die Spalten der Datei und schlägt Datentypen vor – Text, Zahl, Datum, Boolean. Das spart die manuelle Vorkonfiguration."
+    pause_after: 3000
+
+  # ── 2. SCHRITT 2 – MAPPING ───────────────────────────────────────────────────
+  - id: "scroll-to-steps"
+    action: scroll
+    direction: down
+    sprecher: "Im zweiten Schritt folgt das Mapping: Welche Spalte der Datei entspricht welchem Attribut in anyPIM? Ein Auto-Match-Button ordnet Spalten mit passendem Namen automatisch zu."
+    pause_after: 2500
+
+  - id: "scroll-back-up"
+    action: scroll
+    direction: up
+    sprecher: "Das Mapping unterscheidet drei Bereiche: Produkt-Felder, Preise und Relationen – alles in einem Durchgang konfigurierbar."
+    pause_after: 2000
+
+  # ── 3. SCHRITT 3 & 4 – VORSCHAU & AUSFÜHRUNG ─────────────────────────────────
+  - id: "highlight-import-area"
+    action: highlight
+    selector: ".border-dashed"
+    sprecher: "Vor dem Import gibt es eine Vorschau: Welche Produkte werden angelegt? Welche aktualisiert? Und mit welchem Import-Modus – Update bestehender Daten oder vollständiges Ersetzen? Erst nach der Prüfung wird der Import ausgeführt."
+    pause_after: 4000
+
+  # ── 4. BMECAT-IMPORT ─────────────────────────────────────────────────────────
+  - id: "open-bmecat-import"
+    action: navigate
+    target: "/bmecat-import-export"
+    wait_for: "main, .space-y-4, h1"
+    wait_timeout: 8000
+    sprecher: "Für strukturiertere Lieferantendaten gibt es den BMEcat-Import. BMEcat ist der Standard für den elektronischen Produktdatenaustausch im B2B-Bereich."
+    pause_after: 2500
+
+  - id: "highlight-bmecat-area"
+    action: highlight
+    selector: "main, .space-y-4"
+    sprecher: "BMEcat-Dateien enthalten Produkte mit Klassifikation, Attributen, Preisen und Medienreferenzen – in einem validierten XML-Format. anyPIM importiert sie direkt in die bestehende Datenstruktur."
+    pause_after: 3500
+
+  # ── ZUSAMMENFASSUNG ──────────────────────────────────────────────────────────
+  - id: "end"
+    action: wait
+    duration: 2000
+    sprecher: "Import in anyPIM: strukturiert, mit Vorschau, sicher. CSV und Excel für den Alltag, BMEcat für den B2B-Datenaustausch. Daten rein – Qualität bleibt."
