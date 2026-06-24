@@ -45,6 +45,8 @@ Each widget is activated via the `data-catalog` attribute:
 | **Product Detail** | `product-detail` | Product detail view as modal |
 | **Compare** | `compare` | Product comparison as table |
 | **Locale** | `locale` | Language switcher (DE/EN) |
+| **Sidebar toggle** | `sidebar-toggle` | Button to show/hide the sidebar |
+| **Login** | `login` | Login overlay for access-protected catalogs |
 
 ::: tip
 The `product-detail` and `compare` widgets are displayed as modals and can be placed anywhere in the HTML (e.g., at the end of `<body>`).

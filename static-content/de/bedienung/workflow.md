@@ -51,7 +51,7 @@ Jede Aufgabe durchläuft einen definierten Statusworkflow:
 
 ```
 ┌──────────┐      ┌────────────────┐      ┌──────────┐
-│  Offen   │ ───> │ In Bearbeitung │ ───> │ Erledigt │
+│  Offen   │ ───> │ In Bearbeitung │ ───> │ Geschlossen │
 │          │      │                │      │          │
 └──────────┘      └────────────────┘      └──────────┘
 ```
@@ -60,9 +60,9 @@ Jede Aufgabe durchläuft einen definierten Statusworkflow:
 |---|---|
 | **Offen** | Die Aufgabe wurde erstellt, aber noch nicht begonnen |
 | **In Bearbeitung** | Die Aufgabe wird aktiv bearbeitet |
-| **Erledigt** | Die Aufgabe wurde abgeschlossen |
+| **Geschlossen** | Die Aufgabe wurde abgeschlossen |
 
-Der Status kann jederzeit manuell geändert werden. Ein Wechsel von „Erledigt" zurück zu „Offen" ist möglich, falls eine Aufgabe erneut bearbeitet werden muss.
+Der Status kann jederzeit manuell geändert werden. Ein Wechsel von „Geschlossen" zurück zu „Offen" ist möglich, falls eine Aufgabe erneut bearbeitet werden muss.
 
 ### Fälligkeitsanzeige
 

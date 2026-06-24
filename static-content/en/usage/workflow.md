@@ -14,7 +14,7 @@ Navigate to **Workflow** in the sidebar to access the task overview. The overvie
 |---|---|
 | **Title** | Short description of the task |
 | **Assignee** | The user responsible for completing the task |
-| **Status** | Current status: Open, In Progress, or Done |
+| **Status** | Current status: Open, In Progress, or Closed |
 | **Due Date** | The deadline for task completion |
 | **Products** | Number of products linked to the task |
 | **Created** | Date and time when the task was created |
@@ -23,7 +23,7 @@ Navigate to **Workflow** in the sidebar to access the task overview. The overvie
 
 The filter bar above the task list allows you to narrow down the view:
 
-- **Status filter** -- Show only tasks with a specific status (Open, In Progress, Done).
+- **Status filter** -- Show only tasks with a specific status (Open, In Progress, Closed).
 - **Assignee filter** -- Display tasks assigned to a specific user or to yourself.
 - **Due date range** -- Filter tasks by their due date within a specific period.
 - **Full-text search** -- Search task titles and descriptions for keywords.
@@ -59,7 +59,7 @@ Every task follows a linear status progression:
 |---|---|
 | **Open** | The task has been created but work has not yet begun. This is the initial status for all new tasks. |
 | **In Progress** | The assignee has started working on the task. Transition from Open to In Progress can be done manually or happens automatically when the assignee opens the task. |
-| **Done** | The task has been completed. The assignee or the creator can mark a task as Done. |
+| **Closed** | The task has been completed. The assignee or the creator can mark a task as Closed. |
 
 To change a task's status, open the task detail view and select the new status from the status dropdown, or use the quick-action buttons in the task list.
 

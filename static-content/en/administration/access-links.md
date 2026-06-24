@@ -21,7 +21,7 @@ Access the link management via **Administration > Access Links** in the sidebar.
 | **Created By** | User who created the link |
 
 ::: tip Note
-Only users with the **Admin** role or the `access_links.manage` permission can create and manage access links.
+Only users with the **Admin** role or the `access-links.*` permissions (`access-links.view`, `access-links.create`, `access-links.delete`) can create and manage access links.
 :::
 
 ## Creating an Access Link

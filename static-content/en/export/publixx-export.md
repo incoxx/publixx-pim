@@ -10,17 +10,18 @@ The Publixx export transforms PIM product data into the Publixx-specific record 
 
 ### Mapping Table
 
-The assignment between PIM fields and Publixx record fields is configured in the database table `publixx_export_mappings`. Each entry describes a mapping rule.
+The assignment between PIM fields and Publixx record fields is configured in the database table `publixx_export_mappings`. The actual mapping rules are stored as JSON in the `mapping_rules` column (each rule with `source`, `target` and `type` — see below).
 
 | Field | Type | Description |
 |---|---|---|
 | `id` | UUID | Unique identifier |
 | `name` | String | Name of the mapping (e.g., "Main Catalog 2025") |
-| `source` | String | Source field in the PIM (attribute technical name or system field) |
-| `target` | String | Target field in the Publixx record |
-| `type` | Enum | Mapping type (determines the transformation) |
-| `config` | JSON | Additional configuration depending on the mapping type |
-| `sort_order` | Integer | Order of fields in the record |
+| `attribute_view_id` | UUID | optional attribute view |
+| `output_hierarchy_id` | UUID | optional output hierarchy |
+| `mapping_rules` | JSON | List of mapping rules (each: `source`, `target`, `type`) |
+| `include_media`, `include_prices`, `include_variants`, `include_relations` | Boolean | Control whether media/prices/variants/relations are included |
+| `languages` | JSON | Languages to export |
+| `flatten_mode` | Enum (`flat`, `nested`, `publixx`) | Output structure of the record |
 
 ### Mapping Types
 

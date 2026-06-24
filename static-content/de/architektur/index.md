@@ -89,7 +89,7 @@ anyPIM ist als moderne Webanwendung mit klar getrenntem Backend und Frontend kon
   <!-- Models / Eloquent -->
   <rect x="200" y="410" width="200" height="45" rx="8" fill="url(#laravelGrad)" filter="url(#dropShadow)"/>
   <text x="300" y="432" text-anchor="middle" fill="white" font-size="13" font-weight="bold">Eloquent Models</text>
-  <text x="300" y="447" text-anchor="middle" fill="white" font-size="10">35 Tabellen, UUID PKs</text>
+  <text x="300" y="447" text-anchor="middle" fill="white" font-size="10">Zahlreiche Tabellen, UUID PKs</text>
 
   <!-- MySQL -->
   <rect x="55" y="410" width="120" height="60" rx="8" fill="url(#dbGrad)" filter="url(#dropShadow)"/>
@@ -146,7 +146,7 @@ Controller validieren eingehende Requests ueber Form Requests, delegieren die Ge
 Services kapseln die gesamte Geschaeftslogik. Sie orchestrieren Datenbankoperationen, loesen Events aus und koordinieren agentenuebergreifende Operationen. Detaillierte Beschreibungen finden sich unter [Services und Events](./services).
 
 **4. Model-Schicht**
-Eloquent-Models bilden die 35 Datenbanktabellen ab. Sie definieren Relationen, Scopes, Accessors und Mutators. Alle Models verwenden UUID-Primaerschluessel.
+Eloquent-Models bilden die Datenbanktabellen ab. Sie definieren Relationen, Scopes, Accessors und Mutators. Alle Models verwenden UUID-Primaerschluessel.
 
 ### Agentenbasiertes Moduldesign
 
@@ -219,6 +219,6 @@ Langlebige Operationen werden nicht synchron in der HTTP-Request-Verarbeitung au
 
 | Seite | Inhalt |
 |---|---|
-| [Datenmodell](./datenmodell) | Detaillierte Beschreibung aller 35 Tabellen, des EAV-Musters und des Suchindex |
+| [Datenmodell](./datenmodell) | Detaillierte Beschreibung der Tabellen, des EAV-Musters und des Suchindex |
 | [Services und Events](./services) | Service-Schicht, Event-System, Queue-Jobs und Cache-Invalidierung |
 | [Vererbung](./vererbung) | Hierarchie- und Varianten-Vererbung mit Aufloesungsregeln und Sortierung |

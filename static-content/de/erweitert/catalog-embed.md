@@ -45,6 +45,8 @@ Jedes Widget wird über das `data-catalog`-Attribut aktiviert:
 | **Produktdetail** | `product-detail` | Produkt-Detailansicht als Modal |
 | **Vergleich** | `compare` | Produktvergleich als Tabelle |
 | **Sprache** | `locale` | Sprachwähler (DE/EN) |
+| **Seitenleiste-Umschalter** | `sidebar-toggle` | Schaltfläche zum Ein-/Ausblenden der Seitenleiste |
+| **Login** | `login` | Login-Overlay für zugangsgeschützte Kataloge |
 
 ::: tip Tipp
 Die Widgets `product-detail` und `compare` werden als Modals angezeigt und können an beliebiger Stelle im HTML platziert werden (z.B. am Ende des `<body>`).

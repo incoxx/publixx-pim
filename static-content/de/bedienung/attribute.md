@@ -105,20 +105,20 @@ Das anyPIM unterstützt verschiedene Datentypen, die das Eingabefeld und die Val
   <text class="dt-desc" x="420" y="300">JSON-Struktur. Für flexible</text>
   <text class="dt-desc" x="420" y="314">Zusatzdaten und Mappings.</text>
 
-  <!-- Collection -->
+  <!-- MultiSelection -->
   <rect class="dt-card" x="598" y="198" width="182" height="130" />
   <rect class="dt-icon-bg" x="614" y="214" width="36" height="36" fill="#f43f5e" rx="8" />
-  <text class="dt-icon" x="621" y="238">[..]</text>
-  <text class="dt-title" x="614" y="270">Collection</text>
-  <text class="dt-desc" x="614" y="286">Strukturierte Sammlungen</text>
-  <text class="dt-desc" x="614" y="300">als JSON-Array. Für wieder-</text>
-  <text class="dt-desc" x="614" y="314">holbare Datenblöcke.</text>
+  <text class="dt-icon" x="621" y="238">☑</text>
+  <text class="dt-title" x="614" y="270">MultiSelection</text>
+  <text class="dt-desc" x="614" y="286">Mehrfachauswahl aus einer</text>
+  <text class="dt-desc" x="614" y="300">Werteliste. Für mehrere</text>
+  <text class="dt-desc" x="614" y="314">gleichzeitige Optionen.</text>
 
   <!-- Legend -->
   <rect fill="#f1f5f9" x="16" y="350" width="764" height="76" rx="8" />
   <text class="dt-title" x="32" y="374">Hinweis zur Eingabe</text>
   <text class="dt-desc" x="32" y="392">String, Number, Float und Date werden als native HTML-Eingabefelder dargestellt. Flag als Checkbox.</text>
-  <text class="dt-desc" x="32" y="408">Selection zeigt ein Dropdown mit Werten aus der verknüpften Werteliste. Dictionary und Collection nutzen einen JSON-Editor.</text>
+  <text class="dt-desc" x="32" y="408">Selection und MultiSelection zeigen Werte aus der verknüpften Werteliste. Dictionary nutzt einen JSON-Editor.</text>
 </svg>
 
 ### Detaillierte Typbeschreibung
@@ -144,8 +144,23 @@ Auswahl eines einzelnen Werts aus einer verknüpften **Werteliste**. Das Eingabe
 #### Dictionary
 Strukturierte Schlüssel-Wert-Paare als JSON-Objekt. Das System stellt einen JSON-Editor bereit. Anwendungsbeispiele: Technische Datenblätter mit variablen Feldern, Key-Value-Mappings für externe Systeme.
 
-#### Collection
-JSON-Arrays mit wiederholbaren Strukturen. Ermöglicht das Speichern von Listen gleichartiger Datensätze innerhalb eines einzelnen Attributs. Anwendungsbeispiel: Mehrere Zertifizierungseinträge mit jeweils Name, Nummer und Gültigkeitsdatum.
+#### MultiSelection
+Mehrfachauswahl aus einer verknüpften **Werteliste** — im Gegensatz zu Selection können mehrere Optionen gleichzeitig gewählt werden. Geeignet für Eigenschaften wie Zertifizierungen, Anwendungsbereiche oder Materialien.
+
+### Weitere Datentypen
+
+Zusätzlich stehen folgende spezialisierte Datentypen zur Verfügung:
+
+| Typ | Beschreibung |
+|---|---|
+| **Textarea** | Mehrzeiliger Freitext |
+| **RichText** | Formatierter Text (Rich-Text/HTML) |
+| **DelimitedValue** | Mehrere Werte in einem Feld, durch ein Trennzeichen getrennt |
+| **JsonArtefact** | Strukturierte JSON-Daten |
+
+::: info Hinweis
+Der frühere Datentyp **Collection** wurde entfernt; bestehende Collection-Attribute wurden auf String migriert. Für wiederholbare Werte dient die Eigenschaft **Wiederholbar** (`is_repeatable`).
+:::
 
 ### Link-Datentypen
 
@@ -187,14 +202,14 @@ Beim Anlegen oder Bearbeiten eines Attributs können folgende Eigenschaften konf
 |---|---|
 | **Technischer Name** | Eindeutiger Systembezeichner in snake_case (z.B. `product_name`). Kann nach Anlage nicht geändert werden. |
 | **Anzeigename (DE/EN)** | Menschenlesbarer Name in Deutsch und Englisch |
-| **Datentyp** | Einer der acht unterstützten Typen (siehe oben) |
+| **Datentyp** | Einer der unterstützten Datentypen (siehe oben) |
 | **Übersetzbar** (`is_translatable`) | Wenn aktiviert, kann der Attributwert pro Sprache separat gepflegt werden |
 | **Pflichtfeld** (`is_mandatory`) | Wenn aktiviert, muss das Attribut ausgefüllt sein, bevor ein Produkt auf „Aktiv" gesetzt werden kann |
 | **Eindeutig** (`is_unique`) | Der Wert muss systemweit eindeutig sein (z.B. für EAN-Nummern) |
 | **Durchsuchbar** (`is_searchable`) | Das Attribut wird in der Volltextsuche und der PQL-Abfrage berücksichtigt |
 | **Vererbbar** (`is_inheritable`) | Varianten können den Wert vom Elternprodukt erben |
 | **Variantenattribut** (`is_variant_attribute`) | Markiert das Attribut als variantenspezifisch (unterscheidet Varianten voneinander) |
-| **Wiederholbar** (`is_repeatable`) | Erlaubt mehrere Werte für das gleiche Attribut (Collection Groups) |
+| **Wiederholbar** (`is_repeatable`) | Erlaubt mehrere Werte für das gleiche Attribut |
 | **Werteliste** | Verknüpfung mit einer Werteliste (nur bei Selection-Typ) |
 | **Einheitengruppe** | Verknüpfung mit einer Einheitengruppe (typisch bei Float-Typ) |
 

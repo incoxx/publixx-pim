@@ -19,40 +19,26 @@ Die Rollenverwaltung erreichen Sie über **Administration > Rollen & Berechtigun
 | **Erstellt am** | Zeitpunkt der Erstellung |
 
 ::: tip Hinweis
-Nur Benutzer mit der Rolle **Admin** oder der Berechtigung `roles.manage` haben Zugriff auf die Rollenverwaltung. Für alle anderen Benutzer ist dieser Menüpunkt ausgeblendet.
+Nur Benutzer mit der Rolle **Admin** oder den `roles.*`-Berechtigungen (`roles.view`, `roles.create`, `roles.edit`, `roles.delete`) haben Zugriff auf die Rollenverwaltung. Für alle anderen Benutzer ist dieser Menüpunkt ausgeblendet.
 :::
 
 ## Standardrollen
 
-Das anyPIM liefert drei vordefinierte Standardrollen aus, die nicht gelöscht werden können:
+Das anyPIM liefert mehrere vordefinierte Rollen aus. **Sysadmin** und **Admin** besitzen alle Berechtigungen; die übrigen Rollen sind auf typische Aufgabenbereiche zugeschnitten.
 
-### Admin
+| Rolle | Verantwortungsbereich |
+|---|---|
+| **Sysadmin** | System-Superuser mit allen Berechtigungen (unveränderlich) |
+| **Admin** | Fachliche Vollverwaltung — alle Berechtigungen |
+| **Data Steward** | Strukturverwaltung: Attribute, Hierarchien, Wertelisten, Einheiten, Referenz-Profile |
+| **Product Manager** | Datenpflege: Produkte, Medien, Preise, Importe |
+| **Viewer** | Reiner Lesezugriff (ohne Benutzer- und Rollenverwaltung) |
+| **Export Manager** | Exporte, Publixx- und Attribut-Mappings, Excel-Designer |
+| **API Designer** | API-Templates (API-Designer) |
+| **Project Management** | Dashboard, Workflows, Teams, Projekte, Planungskalender |
+| **Marketing** | Content, Medien, Übersetzungen und Ausspielung |
 
-Uneingeschränkter Vollzugriff auf alle Funktionsbereiche des Systems. Der Admin kann Benutzer verwalten, Rollen definieren, Systemeinstellungen ändern und sämtliche Daten bearbeiten. Mindestens ein Benutzer muss immer die Admin-Rolle besitzen.
-
-### Editor
-
-Umfassende Bearbeitungsrechte für Produktdaten, Attribute, Medien und Preise. Der Editor kann neue Produkte anlegen, bestehende bearbeiten und Exporte anstoßen. Kein Zugriff auf die Benutzerverwaltung oder Systemkonfiguration.
-
-### Viewer
-
-Reiner Lesezugriff auf alle Produktdaten, Hierarchien und Medien. Der Viewer kann Daten einsehen und die Suchfunktion nutzen, jedoch keine Änderungen vornehmen. Schaltflächen zum Speichern und Löschen werden automatisch ausgeblendet.
-
-### Vergleich der Standardrollen
-
-| Berechtigung | Admin | Editor | Viewer |
-|---|---|---|---|
-| Benutzer verwalten | Ja | -- | -- |
-| Rollen verwalten | Ja | -- | -- |
-| Systemeinstellungen | Ja | -- | -- |
-| Produkte anlegen/bearbeiten | Ja | Ja | -- |
-| Produkte einsehen | Ja | Ja | Ja |
-| Attribute definieren | Ja | Ja | -- |
-| Hierarchien verwalten | Ja | Ja | -- |
-| Medien verwalten | Ja | Ja | -- |
-| Preise pflegen | Ja | Ja | -- |
-| Import durchführen | Ja | Ja | -- |
-| Export anstoßen | Ja | Ja | -- |
+Sysadmin und Admin lassen sich nicht löschen. Die exakten Berechtigungen jeder Rolle sind im Rollen-Editor einsehbar und anpassbar.
 
 ## Benutzerdefinierte Rollen erstellen
 
@@ -104,9 +90,9 @@ Jede Berechtigung folgt dem Schema `{entität}.{aktion}` und steuert den Zugriff
 | `prices.edit` | Preise bearbeiten |
 | `exports.create` | Exporte anstoßen |
 | `imports.create` | Importe durchführen |
-| `users.manage` | Benutzer verwalten |
-| `roles.manage` | Rollen verwalten |
-| `settings.manage` | Systemeinstellungen bearbeiten |
+| `users.view` / `users.create` / `users.edit` / `users.delete` | Benutzer einsehen, anlegen, bearbeiten, löschen |
+| `roles.view` / `roles.create` / `roles.edit` / `roles.delete` | Rollen einsehen, anlegen, bearbeiten, löschen |
+| `settings.view` / `settings.edit` | Systemeinstellungen einsehen / bearbeiten |
 
 ### Berechtigungen einer Rolle zuweisen
 

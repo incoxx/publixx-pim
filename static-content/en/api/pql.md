@@ -11,8 +11,9 @@ PQL is a domain-specific query language for anyPIM that allows you to filter and
 | Method | Endpoint | Description |
 |---|---|---|
 | `POST` | `/api/v1/pql/query` | Execute PQL query |
-| `POST` | `/api/v1/pql/validate` | Validate PQL expression |
-| `POST` | `/api/v1/pql/analyze` | Analyze PQL expression |
+| `POST` | `/api/v1/pql/query/count` | Return only the hit count |
+| `POST` | `/api/v1/pql/query/validate` | Validate PQL expression |
+| `POST` | `/api/v1/pql/query/explain` | Return the query plan (AST, SQL) |
 
 ## Execute Query
 
@@ -24,33 +25,41 @@ POST /api/v1/pql/query
 
 ```json
 {
-  "query": "status = 'active' AND kategorie IN ('Werkzeuge', 'Maschinen') AND preis BETWEEN 50 AND 200",
-  "lang": "de",
-  "page": 1,
-  "per_page": 25,
-  "sort": "-updated_at"
+  "pql": "status = 'active' AND kategorie IN ('Werkzeuge', 'Maschinen') AND preis BETWEEN 50 AND 200 ORDER BY updated_at DESC",
+  "lang": ["de"],
+  "limit": 25,
+  "offset": 0
 }
 ```
+
+| Field | Type | Description |
+|---|---|---|
+| `pql` | string (required) | The PQL expression (5–5000 chars). Sorting via `ORDER BY` inside the expression. |
+| `lang` | string array | Language codes (2 chars each), default `["de"]` |
+| `limit` | integer | 1–500, default 50 |
+| `offset` | integer | ≥ 0, default 0 |
+| `mapping_id` | UUID | optional export mapping |
 
 ### Response (200 OK)
 
 ```json
 {
+  "meta": {
+    "total": 42,
+    "returned": 25,
+    "offset": 0,
+    "query_time_ms": 12,
+    "cache_hit": false,
+    "pql_parsed": "status = 'active' AND ..."
+  },
   "data": [
     {
       "id": "uuid-1",
       "sku": "WRK-001",
       "name": "Bohrmaschine Pro",
-      "status": "active",
-      "score": 0.95
+      "status": "active"
     }
-  ],
-  "meta": {
-    "current_page": 1,
-    "per_page": 25,
-    "total": 42,
-    "query_time_ms": 12
-  }
+  ]
 }
 ```
 
@@ -59,14 +68,14 @@ POST /api/v1/pql/query
 Checks a PQL expression for syntactic and semantic correctness without executing it:
 
 ```
-POST /api/v1/pql/validate
+POST /api/v1/pql/query/validate
 ```
 
 **Request Body:**
 
 ```json
 {
-  "query": "status = 'active' AND preis > 100"
+  "pql": "status = 'active' AND preis > 100"
 }
 ```
 
@@ -75,15 +84,11 @@ POST /api/v1/pql/validate
 ```json
 {
   "valid": true,
-  "parsed": {
-    "type": "AND",
-    "conditions": [
-      { "field": "status", "operator": "=", "value": "active" },
-      { "field": "preis", "operator": ">", "value": 100 }
-    ]
-  }
+  "ast": { }
 }
 ```
+
+The `ast` key holds the parsed query tree. For an invalid expression the endpoint responds with `422` and additionally includes an `errors` array; `ast` is then `null`.
 
 ### Error Response (422)
 
@@ -91,27 +96,25 @@ POST /api/v1/pql/validate
 {
   "valid": false,
   "errors": [
-    {
-      "position": 15,
-      "message": "Unknown operator 'LIKE'. Use 'CONTAINS' or 'FUZZY'."
-    }
-  ]
+    { "error": "Unknown operator 'CONTAINS'. Use 'LIKE', 'SOUNDS_LIKE' or 'FUZZY'." }
+  ],
+  "ast": null
 }
 ```
 
-## Analyze PQL Expression
+## Explain Query Plan
 
-Returns information about the referenced attributes and estimated result count:
+Returns the query tree (AST), the generated SQL incl. bindings and a cost estimate, without executing the query:
 
 ```
-POST /api/v1/pql/analyze
+POST /api/v1/pql/query/explain
 ```
 
 **Request Body:**
 
 ```json
 {
-  "query": "kategorie = 'Werkzeuge' AND preis < 500"
+  "pql": "kategorie = 'Werkzeuge' AND preis < 500"
 }
 ```
 
@@ -119,12 +122,11 @@ POST /api/v1/pql/analyze
 
 ```json
 {
-  "valid": true,
-  "referenced_attributes": [
-    { "code": "kategorie", "type": "select", "indexed": true },
-    { "code": "preis", "type": "number", "indexed": true }
-  ],
-  "estimated_results": 127
+  "ast": { },
+  "sql": "SELECT ... FROM products WHERE ...",
+  "bindings": ["Werkzeuge", 500],
+  "validation": { "valid": true },
+  "estimated_cost": 127
 }
 ```
 
@@ -155,10 +157,11 @@ POST /api/v1/pql/analyze
 
 | Operator | Description | Example |
 |---|---|---|
-| `CONTAINS` | Contains text | `name CONTAINS 'Bohr'` |
-| `STARTS WITH` | Starts with | `sku STARTS WITH 'WRK-'` |
-| `ENDS WITH` | Ends with | `sku ENDS WITH '-PRO'` |
-| `FUZZY` | Fuzzy search | `FUZZY(name, 'Bohrmaschine', 0.8)` |
+| `LIKE` | Text pattern (wildcard `%`) | `name LIKE '%Bohr%'` |
+| `SOUNDS_LIKE` | Phonetic similarity | `name SOUNDS_LIKE 'Bohrmaschine'` |
+| `FUZZY` | Fuzzy search (threshold 0–1) | `FUZZY(name, 'Bohrmaschine', 0.8)` |
+
+All text operators can be negated with `NOT` (e.g. `name NOT LIKE '%old%'`). To search across multiple fields at once, `SEARCH_FIELDS` is available.
 
 ### Logical Operators
 

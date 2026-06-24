@@ -47,7 +47,7 @@ The `ExportService` coordinates the entire export process from template evaluati
 - Logging the export process
 
 **Interaction with other services:**
-- Uses the `InheritanceService` to obtain fully resolved attribute values (incl. inherited values)
+- Uses the `AttributeValueResolver` to obtain fully resolved attribute values (incl. inherited values)
 - Uses the `PqlService` for optional filtering of products to be exported
 
 ```php
@@ -88,9 +88,9 @@ The `ImportService` controls the three-phase import process and is one of the mo
 **Error Handling:**
 Errors are not treated as aborts but stored as a structured log in JSON format in the `import_jobs` table. After the import, the user receives a detailed report with row and column references.
 
-### InheritanceService
+### Attribute value resolution (inheritance)
 
-The `InheritanceService` is responsible for resolving attribute values taking into account the two-level inheritance.
+Resolving attribute values with the two-level inheritance is handled by the `AttributeValueResolver`, supported by `HierarchyInheritanceService` (hierarchy inheritance) and `VariantInheritanceService` (variant inheritance).
 
 **Responsibilities:**
 - Resolving hierarchy inheritance (attributes from parent nodes)
@@ -100,18 +100,18 @@ The `InheritanceService` is responsible for resolving attribute values taking in
 - Providing metadata about the origin of each value (own value, inherited from variant, inherited from hierarchy)
 
 ```php
-class InheritanceService
+class AttributeValueResolver
 {
-    public function resolveValue(
+    public function resolve(
         Product $product,
         Attribute $attribute,
-        string $locale
-    ): ResolvedValue {
+        ?string $language = null,
+    ): ?ResolvedValue {
         // 1. Check for own value
         // 2. Check variant inheritance rule (if variant)
         // 3. Load parent value (if inherit rule is active)
         // 4. Check hierarchy default value
-        // 5. Return ResolvedValue with origin information
+        // 5. Return ResolvedValue with origin information (or null)
     }
 }
 ```
@@ -167,10 +167,9 @@ anyPIM makes extensive use of the Laravel event system to enable loosely coupled
 | `ProductCreated` | ProductService | New product was created |
 | `ProductUpdated` | ProductService | Product master data was changed |
 | `ProductDeleted` | ProductService | Product was deleted |
-| `ProductValueChanged` | ProductService | An attribute value was set or changed |
-| `VariantInheritanceChanged` | InheritanceService | Inheritance rule of a variant was changed |
+| `AttributeValuesChanged` | ProductService | An attribute value was set or changed |
 | `HierarchyNodeMoved` | HierarchyService | A node was moved in the hierarchy |
-| `HierarchyAttributeAssigned` | HierarchyService | An attribute was assigned to a node |
+| `HierarchyAttributeChanged` | HierarchyService | A node's attribute assignment was changed |
 | `ImportCompleted` | ImportService | An import process was completed |
 | `ExportCompleted` | ExportService | An export process was completed |
 | `SearchIndexStale` | various | A search index entry needs to be updated |
@@ -178,7 +177,7 @@ anyPIM makes extensive use of the Laravel event system to enable loosely coupled
 ### Event-Listener Mappings
 
 ```
-ProductValueChanged
+AttributeValuesChanged
   ├─> InvalidateProductCacheListener      (sync)
   ├─> UpdateSearchIndexListener           (async, Queue)
   └─> PropagateToVariantsListener         (async, Queue)

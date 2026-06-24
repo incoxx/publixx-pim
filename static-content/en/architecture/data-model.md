@@ -150,8 +150,8 @@ The central design decision of anyPIM is the **Entity-Attribute-Value pattern**.
   <text x="240" y="404" fill="#1e293b" font-size="12" font-family="monospace">id            UUID PK</text>
   <text x="240" y="424" fill="#1e293b" font-size="12" font-family="monospace">product_id    UUID FK  ──&gt; products.id</text>
   <text x="240" y="444" fill="#1e293b" font-size="12" font-family="monospace">attribute_id  UUID FK  ──&gt; attributes.id</text>
-  <text x="240" y="464" fill="#1e293b" font-size="12" font-family="monospace">locale        VARCHAR  (e.g. "de", "en")</text>
-  <text x="240" y="484" fill="#1e293b" font-size="12" font-family="monospace">value         JSON     (flexible value type)</text>
+  <text x="240" y="464" fill="#1e293b" font-size="12" font-family="monospace">language      VARCHAR  (e.g. "de", "en")</text>
+  <text x="240" y="484" fill="#1e293b" font-size="12" font-family="monospace">value_string / value_number / value_flag / ...</text>
 
   <!-- Relationship Lines -->
   <!-- products -> product_attribute_values -->
@@ -183,17 +183,17 @@ The three tables work together as follows:
 
 2. **`attributes`** defines all possible product properties: their code (machine name), type (text, number, select, ...), whether they are translatable, and which validation rules apply.
 
-3. **`product_attribute_values`** connects both: Each row represents the assignment of a specific value for a particular attribute to a particular product. The `locale` column enables multilingual values, and the `value` column stores the actual content as a JSON type, providing flexibility regarding data types.
+3. **`product_attribute_values`** connects both: Each row represents the assignment of a specific value for a particular attribute to a particular product. The `language` column enables multilingual values. The actual content is stored in a typed column depending on the data type — `value_string`, `value_number`, `value_date`, `value_flag` or `value_selection_id` (reference to a value-list entry). The `multiplied_index` field enables repeatable values.
 
 ### Query Example
 
 ```sql
 -- Load all German-language values of a product
-SELECT a.code, a.type, pav.value
+SELECT a.code, a.type, pav.value_string, pav.value_number, pav.value_selection_id
 FROM product_attribute_values pav
 JOIN attributes a ON a.id = pav.attribute_id
 WHERE pav.product_id = '550e8400-e29b-41d4-a716-446655440000'
-  AND pav.locale = 'de';
+  AND pav.language = 'de';
 ```
 
 Since this type of query requires numerous JOINs when dealing with many attributes, the materialized search index provides a performant alternative for read and search operations.
@@ -219,7 +219,6 @@ Several tables use MySQL JSON columns for semi-structured data:
 
 | Table | Column | Usage |
 |---|---|---|
-| `product_attribute_values` | `value` | Flexible value type: String, number, array, object |
 | `products` | `metadata` | Product-related metadata (source system, import information) |
 | `attributes` | `validation` | Validation rules as JSON schema |
 | `export_templates` | `config` | Template configuration with field mappings |
@@ -255,7 +254,7 @@ CREATE TABLE products_search_index (
 
 The index is updated in an **event-driven** manner:
 
-1. Each change to `product_attribute_values` triggers a `ProductValueChanged` event
+1. Each change to `product_attribute_values` triggers an `AttributeValuesChanged` event
 2. A listener checks whether the affected value is included in the search index
 3. If so, a queue job is created to recalculate the index entry
 4. The job aggregates all relevant values and updates the corresponding row

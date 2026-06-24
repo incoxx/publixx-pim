@@ -105,20 +105,20 @@ The anyPIM supports various data types that determine the input field and valida
   <text class="dt-desc" x="420" y="300">JSON structure. For flexible</text>
   <text class="dt-desc" x="420" y="314">additional data and mappings.</text>
 
-  <!-- Collection -->
+  <!-- MultiSelection -->
   <rect class="dt-card" x="598" y="198" width="182" height="130" />
   <rect class="dt-icon-bg" x="614" y="214" width="36" height="36" fill="#f43f5e" rx="8" />
-  <text class="dt-icon" x="621" y="238">[..]</text>
-  <text class="dt-title" x="614" y="270">Collection</text>
-  <text class="dt-desc" x="614" y="286">Structured collections</text>
-  <text class="dt-desc" x="614" y="300">as JSON array. For repeat-</text>
-  <text class="dt-desc" x="614" y="314">able data blocks.</text>
+  <text class="dt-icon" x="621" y="238">☑</text>
+  <text class="dt-title" x="614" y="270">MultiSelection</text>
+  <text class="dt-desc" x="614" y="286">Multiple choice from a</text>
+  <text class="dt-desc" x="614" y="300">value list. For several</text>
+  <text class="dt-desc" x="614" y="314">simultaneous options.</text>
 
   <!-- Legend -->
   <rect fill="#f1f5f9" x="16" y="350" width="764" height="76" rx="8" />
   <text class="dt-title" x="32" y="374">Input Note</text>
   <text class="dt-desc" x="32" y="392">String, Number, Float and Date are rendered as native HTML input fields. Flag as a checkbox.</text>
-  <text class="dt-desc" x="32" y="408">Selection shows a dropdown with values from the linked value list. Dictionary and Collection use a JSON editor.</text>
+  <text class="dt-desc" x="32" y="408">Selection and MultiSelection show values from the linked value list. Dictionary uses a JSON editor.</text>
 </svg>
 
 ### Detailed Type Description
@@ -144,8 +144,23 @@ Selection of a single value from a linked **value list**. The input field shows 
 #### Dictionary
 Structured key-value pairs as a JSON object. The system provides a JSON editor. Application examples: Technical data sheets with variable fields, key-value mappings for external systems.
 
-#### Collection
-JSON arrays with repeatable structures. Enables storing lists of similar records within a single attribute. Application example: Multiple certification entries, each with name, number, and validity date.
+#### MultiSelection
+Multiple choice from a linked **value list** — unlike Selection, several options can be chosen at once. Suitable for properties such as certifications, application areas or materials.
+
+### Additional data types
+
+The following specialized data types are also available:
+
+| Type | Description |
+|---|---|
+| **Textarea** | Multi-line free text |
+| **RichText** | Formatted text (rich text/HTML) |
+| **DelimitedValue** | Multiple values in one field, separated by a delimiter |
+| **JsonArtefact** | Structured JSON data |
+
+::: info Note
+The former **Collection** data type has been removed; existing Collection attributes were migrated to String. For repeatable values, use the **Repeatable** (`is_repeatable`) property.
+:::
 
 ### Link Data Types
 
@@ -187,14 +202,14 @@ When creating or editing an attribute, the following properties can be configure
 |---|---|
 | **Technical Name** | Unique system identifier in snake_case (e.g., `product_name`). Cannot be changed after creation. |
 | **Display Name (DE/EN)** | Human-readable name in German and English |
-| **Data Type** | One of the eight supported types (see above) |
+| **Data Type** | One of the supported data types (see above) |
 | **Translatable** (`is_translatable`) | When enabled, the attribute value can be maintained separately per language |
 | **Required** (`is_mandatory`) | When enabled, the attribute must be filled in before a product can be set to "Active" |
 | **Unique** (`is_unique`) | The value must be system-wide unique (e.g., for EAN numbers) |
 | **Searchable** (`is_searchable`) | The attribute is included in full-text search and PQL queries |
 | **Inheritable** (`is_inheritable`) | Variants can inherit the value from the parent product |
 | **Variant Attribute** (`is_variant_attribute`) | Marks the attribute as variant-specific (differentiates variants from each other) |
-| **Repeatable** (`is_repeatable`) | Allows multiple values for the same attribute (Collection Groups) |
+| **Repeatable** (`is_repeatable`) | Allows multiple values for the same attribute |
 | **Value List** | Link to a value list (only for Selection type) |
 | **Unit Group** | Link to a unit group (typical for Float type) |
 

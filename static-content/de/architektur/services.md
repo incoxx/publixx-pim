@@ -47,7 +47,7 @@ Der `ExportService` koordiniert den gesamten Exportprozess von der Template-Ausw
 - Protokollierung des Export-Vorgangs
 
 **Interaktion mit anderen Services:**
-- Nutzt den `InheritanceService`, um vollstaendig aufgeloeste Attributwerte zu erhalten (inkl. geerbter Werte)
+- Nutzt den `AttributeValueResolver`, um vollstaendig aufgeloeste Attributwerte zu erhalten (inkl. geerbter Werte)
 - Nutzt den `PqlService` fuer die optionale Filterung der zu exportierenden Produkte
 
 ```php
@@ -88,9 +88,9 @@ Der `ImportService` steuert den dreiphasigen Importprozess und ist einer der kom
 **Fehlerbehandlung:**
 Fehler werden nicht als Abbruch behandelt, sondern als strukturiertes Protokoll im JSON-Format in der `import_jobs`-Tabelle gespeichert. Der Benutzer erhaelt nach dem Import einen detaillierten Bericht mit Zeilen- und Spaltenbezug.
 
-### InheritanceService
+### Attributwert-Aufloesung (Vererbung)
 
-Der `InheritanceService` ist fuer die Auflosung von Attributwerten unter Beruecksichtigung der zweistufigen Vererbung verantwortlich.
+Die Aufloesung von Attributwerten unter Beruecksichtigung der zweistufigen Vererbung uebernimmt der `AttributeValueResolver`, unterstuetzt von `HierarchyInheritanceService` (Hierarchie-Vererbung) und `VariantInheritanceService` (Varianten-Vererbung).
 
 **Verantwortlichkeiten:**
 - Aufloesen der Hierarchie-Vererbung (Attribute aus uebergeordneten Knoten)
@@ -100,18 +100,18 @@ Der `InheritanceService` ist fuer die Auflosung von Attributwerten unter Berueck
 - Bereitstellung von Metadaten ueber die Herkunft jedes Werts (eigener Wert, geerbt von Variante, geerbt von Hierarchie)
 
 ```php
-class InheritanceService
+class AttributeValueResolver
 {
-    public function resolveValue(
+    public function resolve(
         Product $product,
         Attribute $attribute,
-        string $locale
-    ): ResolvedValue {
+        ?string $language = null,
+    ): ?ResolvedValue {
         // 1. Eigenen Wert pruefen
         // 2. Varianten-Vererbungsregel pruefen (falls Variante)
         // 3. Elternwert laden (falls inherit-Regel aktiv)
         // 4. Hierarchie-Standardwert pruefen
-        // 5. ResolvedValue mit Herkunftsinformation zurueckgeben
+        // 5. ResolvedValue mit Herkunftsinformation zurueckgeben (oder null)
     }
 }
 ```
@@ -167,10 +167,9 @@ anyPIM nutzt das Laravel-Event-System intensiv, um lose gekoppelte Reaktionen au
 | `ProductCreated` | ProductService | Neues Produkt wurde angelegt |
 | `ProductUpdated` | ProductService | Produktstammdaten wurden geaendert |
 | `ProductDeleted` | ProductService | Produkt wurde geloescht |
-| `ProductValueChanged` | ProductService | Ein Attributwert wurde gesetzt oder geaendert |
-| `VariantInheritanceChanged` | InheritanceService | Vererbungsregel einer Variante wurde geaendert |
+| `AttributeValuesChanged` | ProductService | Ein Attributwert wurde gesetzt oder geaendert |
 | `HierarchyNodeMoved` | HierarchyService | Ein Knoten wurde in der Hierarchie verschoben |
-| `HierarchyAttributeAssigned` | HierarchyService | Einem Knoten wurde ein Attribut zugewiesen |
+| `HierarchyAttributeChanged` | HierarchyService | Die Attributzuordnung eines Knotens wurde geaendert |
 | `ImportCompleted` | ImportService | Ein Importvorgang wurde abgeschlossen |
 | `ExportCompleted` | ExportService | Ein Exportvorgang wurde abgeschlossen |
 | `SearchIndexStale` | diverse | Ein Suchindex-Eintrag muss aktualisiert werden |
@@ -178,7 +177,7 @@ anyPIM nutzt das Laravel-Event-System intensiv, um lose gekoppelte Reaktionen au
 ### Event-Listener-Zuordnungen
 
 ```
-ProductValueChanged
+AttributeValuesChanged
   ├─> InvalidateProductCacheListener      (sync)
   ├─> UpdateSearchIndexListener           (async, Queue)
   └─> PropagateToVariantsListener         (async, Queue)
