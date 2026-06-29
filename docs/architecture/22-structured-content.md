@@ -221,12 +221,15 @@ der Attribute, damit Validierung, i18n und Renderer geteilt werden können:
 | `download` | file (PdfLink), label | media |
 | `link` | label, url, target | layout |
 | `cta-banner` | headline, body, cta, background | layout |
+| `countdown` | headline, target_at, subtext | layout — zeitgesteuerter Aktions-Countdown |
+| `promo-carousel` | headline (nestable: Slides = Kind-Sektionen) | layout — Aktions-Karussell |
 | `columns` | (nestable) | layout |
 | `accordion` | items[] (nestable) | layout |
 | `product-list` | pql, layout, limit | commerce — **regelbasiert** (PQL) |
 | `product-teaser` | product_ref, variant | commerce — **Einzelprodukt (Hero)** |
 | `product-gallery` | products[] (Auswahl), layout, columns, show_price | commerce — **handkuratierte Auswahl (Prospekt-Strecke)** |
 | `category-teaser` | hierarchy_node_ref | commerce — **komplette Kategorie** |
+| `category-grid` | headline, categories[], columns | commerce — **Kategorie-Kachelgrid** (Überblick) |
 | `spacer` / `divider` | size | layout |
 
 ### 3.3 `content_pages` — Seite (analog `products`)
@@ -619,6 +622,18 @@ CLI analog Konvention: `php artisan pim:content-export --navigation= --format=`.
 | **8 — Feinschliff** | Such-Index (Spec 19), Versionierung/Scheduling (Spec 13), KI-Textvorschläge (optional) | Produktionsreife |
 
 ---
+
+## 9. Umsetzungsstand (Kurz)
+
+Phase 1–4 implementiert (Datenmodell, Sektions-/Seiten-CRUD + Editor,
+native Produkt-Sektionen, Navigationsbaum). Phase 5 **Backend** steht:
+`WebsitePreviewService` (Sitemap + gerenderte Seiten mit nativ aufgelösten
+Produkt-/Kategoriedaten), öffentliche Routen `GET /api/v1/site/{nav}/sitemap`,
+`…/sitemap.xml`, `…/page/{slug}` (lizenzgated). Der **`ContentTemplateSeeder`**
+liefert vordefinierte Seiten-Templates (Startseite, MediaMarkt-artige
+Kampagnenseite mit Countdown/Kachelgrid/Produktgalerie/Karussell, Impressum)
+und hängt sie in die `main`-Navigation ein. Offen: Phase-5-**Frontend**
+(`WebsitePreviewView` + Theme-Hülle).
 
 ## 9a. Backlog / explizit vorgemerkt
 

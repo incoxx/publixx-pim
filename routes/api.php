@@ -121,6 +121,7 @@ use App\Http\Controllers\Api\V1\ContentPageController;
 use App\Http\Controllers\Api\V1\ContentSectionController;
 use App\Http\Controllers\Api\V1\NavigationController;
 use App\Http\Controllers\Api\V1\NavigationNodeController;
+use App\Http\Controllers\Api\V1\PublicSiteController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -265,6 +266,15 @@ Route::prefix('v1/debug')->middleware('throttle.pim')->group(function () {
     Route::get('logs/parsed', [DebugController::class, 'parsedLogs']);
     Route::get('logs/clear', [DebugController::class, 'clearLogs']);
     Route::delete('logs', [DebugController::class, 'clearLogs']);
+});
+
+// =========================================================================
+// Website-Vorschau (öffentlich, lizenzgated — analog Public-Catalog)
+// =========================================================================
+Route::prefix('v1/site')->middleware(['throttle.pim', 'module:content'])->group(function () {
+    Route::get('{navigation}/sitemap', [PublicSiteController::class, 'sitemap']);
+    Route::get('{navigation}/sitemap.xml', [PublicSiteController::class, 'sitemapXml']);
+    Route::get('{navigation}/page/{slug}', [PublicSiteController::class, 'page']);
 });
 
 // =========================================================================

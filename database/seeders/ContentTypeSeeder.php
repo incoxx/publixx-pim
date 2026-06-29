@@ -17,9 +17,28 @@ class ContentTypeSeeder extends Seeder
     public function run(): void
     {
         $allText = ['headline', 'subline', 'teaser', 'text', 'image', 'gallery', 'video', 'download', 'link', 'cta-banner', 'columns', 'spacer'];
-        $withCommerce = array_merge($allText, ['product-list', 'product-teaser', 'category-teaser']);
+        $withCommerce = array_merge($allText, ['product-list', 'product-teaser', 'product-gallery', 'category-teaser', 'category-grid']);
+        // Kampagnen-/Landingpage (z. B. WM-Aktionsseite): alles inkl. Countdown & Karussell
+        $campaign = array_merge($withCommerce, ['countdown', 'promo-carousel']);
 
         $types = [
+            [
+                'technical_name' => 'campaign-page',
+                'name_de' => 'Kampagnenseite',
+                'name_en' => 'Campaign Page',
+                'icon' => 'Megaphone',
+                'color' => '#E11D48',
+                'layout_hint' => 'landing',
+                'allowed_section_types' => $campaign,
+                'default_sections' => [
+                    ['section_type' => 'cta-banner'],
+                    ['section_type' => 'countdown'],
+                    ['section_type' => 'category-grid'],
+                    ['section_type' => 'product-gallery'],
+                    ['section_type' => 'promo-carousel'],
+                ],
+                'sort_order' => 5,
+            ],
             [
                 'technical_name' => 'teaser-page',
                 'name_de' => 'Teaserseite',

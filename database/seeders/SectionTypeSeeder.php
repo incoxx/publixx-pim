@@ -145,6 +145,34 @@ class SectionTypeSeeder extends Seeder
                 ]],
             ],
             [
+                'technical_name' => 'countdown',
+                'name_de' => 'Countdown',
+                'name_en' => 'Countdown',
+                'icon' => 'Timer',
+                'category' => 'layout',
+                'preview_component' => 'SectionCountdown',
+                'sort_order' => 105,
+                // Zeitgesteuerter Aktions-Countdown (z. B. „Startet in 11h 36m").
+                'schema' => ['fields' => [
+                    ['key' => 'headline', 'label' => 'Überschrift', 'type' => 'String', 'translatable' => true],
+                    ['key' => 'target_at', 'label' => 'Zieldatum/-zeit', 'type' => 'Date', 'required' => true],
+                    ['key' => 'subtext', 'label' => 'Zusatztext', 'type' => 'String', 'translatable' => true],
+                ]],
+            ],
+            [
+                'technical_name' => 'promo-carousel',
+                'name_de' => 'Aktions-Karussell',
+                'name_en' => 'Promo Carousel',
+                'icon' => 'GalleryHorizontal',
+                'category' => 'layout',
+                'preview_component' => 'SectionPromoCarousel',
+                'is_nestable' => true, // Slides = Kind-Sektionen (z. B. cta-banner/teaser)
+                'sort_order' => 112,
+                'schema' => ['fields' => [
+                    ['key' => 'headline', 'label' => 'Überschrift', 'type' => 'String', 'translatable' => true],
+                ]],
+            ],
+            [
                 'technical_name' => 'cta-banner',
                 'name_de' => 'Call-to-Action-Banner',
                 'name_en' => 'CTA Banner',
@@ -241,6 +269,21 @@ class SectionTypeSeeder extends Seeder
                 'sort_order' => 220,
                 'schema' => ['fields' => [
                     ['key' => 'hierarchy_node', 'label' => 'Kategorie (Hierarchieknoten)', 'type' => 'hierarchy_node_ref', 'required' => true],
+                ]],
+            ],
+            [
+                'technical_name' => 'category-grid',
+                'name_de' => 'Kategorie-Kachelgrid',
+                'name_en' => 'Category Grid',
+                'icon' => 'LayoutGrid',
+                'category' => 'commerce',
+                'preview_component' => 'SectionCategoryGrid',
+                'sort_order' => 230,
+                // Mehrere Kategorie-Kacheln im Überblick (z. B. „Alle WM-Kategorien").
+                'schema' => ['fields' => [
+                    ['key' => 'headline', 'label' => 'Überschrift', 'type' => 'String', 'translatable' => true],
+                    ['key' => 'categories', 'label' => 'Kategorien', 'type' => 'hierarchy_node_ref', 'multiple' => true, 'required' => true],
+                    ['key' => 'columns', 'label' => 'Spalten', 'type' => 'Selection', 'options' => ['2', '3', '4'], 'default' => '2'],
                 ]],
             ],
         ];
