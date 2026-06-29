@@ -64,6 +64,18 @@ const routes = [
     meta: { title: 'Produktdetail', tabable: true, tabTitle: 'Produkt' },
   },
   {
+    path: '/content',
+    name: 'content',
+    component: () => import('@/views/content/ContentListView.vue'),
+    meta: { title: 'Content' },
+  },
+  {
+    path: '/content/:id',
+    name: 'content-detail',
+    component: () => import('@/views/content/ContentDetailView.vue'),
+    meta: { title: 'Content-Seite', tabable: true, tabTitle: 'Seite' },
+  },
+  {
     path: '/hierarchies',
     name: 'hierarchies',
     component: () => import('@/views/hierarchies/HierarchyView.vue'),

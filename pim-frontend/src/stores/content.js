@@ -26,10 +26,10 @@ export const useContentStore = defineStore('content', () => {
     try {
       const params = {
         page: meta.value.current_page,
-        per_page: meta.value.per_page,
+        perPage: meta.value.per_page,
         sort: sort.value.field,
         order: sort.value.order,
-        filter: filters.value,
+        filters: filters.value,
         search: search.value || undefined,
         ...options,
       }
@@ -103,14 +103,14 @@ export const useContentStore = defineStore('content', () => {
   // ─── Referenzdaten ────────────────────────────────────────────
   async function loadContentTypes(force = false) {
     if (contentTypes.value.length && !force) return contentTypes.value
-    const { data } = await contentApi.listTypes({ per_page: 200 })
+    const { data } = await contentApi.listTypes({ perPage: 200 })
     contentTypes.value = data.data ?? data
     return contentTypes.value
   }
 
   async function loadSectionTypes(force = false) {
     if (sectionTypes.value.length && !force) return sectionTypes.value
-    const { data } = await contentApi.listSectionTypes({ per_page: 200 })
+    const { data } = await contentApi.listSectionTypes({ perPage: 200 })
     sectionTypes.value = data.data ?? data
     return sectionTypes.value
   }
