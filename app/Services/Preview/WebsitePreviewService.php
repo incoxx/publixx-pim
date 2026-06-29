@@ -357,6 +357,19 @@ class WebsitePreviewService
         return $out;
     }
 
+    /** Speicherpfad/Dateiname → öffentliche Datei-URL (idempotent). */
+    private function normalizeMediaUrl(?string $path): ?string
+    {
+        if ($path === null || $path === '') {
+            return null;
+        }
+        if (str_starts_with($path, 'http') || str_starts_with($path, '/api/')) {
+            return $path;
+        }
+
+        return '/api/v1/media/file/' . rawurlencode(basename($path));
+    }
+
     private function mediaUrl(mixed $id): ?string
     {
         if (!$id) {
@@ -437,6 +450,14 @@ class WebsitePreviewService
                 $value = $product->{substr($source, 8)} ?? null;
             } else {
                 $value = $this->mappingResolver->resolveRule($source, $type, $product, $lang);
+            }
+
+            // Medien liefert der Resolver als Speicherpfad (für Exporte). Für die
+            // Web-Vorschau in die öffentliche Datei-URL umschreiben.
+            if ($type === 'media_url' && is_string($value)) {
+                $value = $this->normalizeMediaUrl($value);
+            } elseif ($type === 'media_array' && is_array($value)) {
+                $value = array_values(array_filter(array_map(fn ($v) => $this->normalizeMediaUrl((string) $v), $value)));
             }
 
             $fields[] = [

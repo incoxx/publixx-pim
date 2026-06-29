@@ -103,12 +103,33 @@ function onNavClick(node) {
 
 async function loadProductPage(node) {
   const id = node.product_id || (node.href || '').replace(/^\/product\//, '')
+  await loadProductPageById(id)
+}
+
+async function loadProductPageById(id) {
   if (!id) return
   try {
     const { data } = await siteApi.getProductPage(navKey.value, id, lang.value)
     page.value = data.data ?? data
   } catch {
     page.value = null
+  }
+}
+
+// Navigation aus dem gerenderten Inhalt (Produktkarten, Hero-CTA …)
+function onNavigate(payload) {
+  if (!payload) return
+  if (payload.kind === 'product') {
+    loadProductPageById(payload.id || (payload.href || '').replace(/^\/product\//, ''))
+  } else if (payload.kind === 'page') {
+    loadPage(payload.slug)
+  } else if (payload.kind === 'url' && payload.url) {
+    if (/^(https?:|mailto:|tel:)/.test(payload.url)) {
+      window.open(payload.url, '_blank')
+    } else {
+      // interne Pfade wie "/smartone" als Seiten-Slug behandeln
+      loadPage(payload.url.replace(/^\//, ''))
+    }
   }
 }
 
@@ -188,7 +209,7 @@ onMounted(async () => {
             <div v-for="i in 4" :key="i" class="pim-skeleton h-24 rounded-xl" />
           </div>
           <template v-else-if="page">
-            <SitePreviewSection v-for="s in page.sections" :key="s.id" :section="s" />
+            <SitePreviewSection v-for="s in page.sections" :key="s.id" :section="s" @navigate="onNavigate" />
             <p v-if="!page.sections?.length" class="text-sm text-[var(--color-text-tertiary)] text-center py-8">Diese Seite hat noch keine Sektionen.</p>
           </template>
           <p v-else class="text-sm text-[var(--color-text-tertiary)] text-center py-8">Keine Seite ausgewählt.</p>

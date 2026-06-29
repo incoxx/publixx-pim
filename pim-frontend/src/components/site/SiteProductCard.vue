@@ -6,6 +6,12 @@ const props = defineProps({
   compact: { type: Boolean, default: false }, // list-row-Variante
 })
 
+const emit = defineEmits(['navigate'])
+
+function open() {
+  emit('navigate', { kind: 'product', id: props.product.id, href: props.product.href })
+}
+
 // Rollenwert aus der Widget-Auflösung (display.fields), sonst Basis-Summary.
 function role(name) {
   const f = props.product.display?.fields?.find((x) => x.role === name)
@@ -39,9 +45,10 @@ const price = computed(() => {
 
 <template>
   <div
-    class="border overflow-hidden flex"
+    class="border overflow-hidden flex cursor-pointer transition-shadow hover:shadow-md"
     :class="compact ? 'flex-row items-center gap-3 p-2' : 'flex-col'"
     style="background: var(--site-surface, var(--color-surface)); border-color: var(--site-border, var(--color-border)); border-radius: var(--site-radius, 0.75rem)"
+    @click="open"
   >
     <!-- Bild -->
     <div
@@ -62,7 +69,8 @@ const price = computed(() => {
       <div class="flex items-center justify-between pt-1">
         <span v-if="price" class="text-base font-bold text-[var(--color-text-primary)]">{{ price }}</span>
         <button v-if="cta?.enabled" class="text-xs font-medium px-2 py-1 rounded-lg text-white"
-          style="background: var(--site-accent, var(--color-accent))">
+          style="background: var(--site-accent, var(--color-accent))"
+          @click.stop="open">
           {{ cta.label || 'Details' }}
         </button>
       </div>

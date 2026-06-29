@@ -6,6 +6,16 @@ const props = defineProps({
   section: { type: Object, required: true },
 })
 
+const emit = defineEmits(['navigate'])
+
+function onHeroCta() {
+  if (heroProduct.value) {
+    emit('navigate', { kind: 'product', id: heroProduct.value.id, href: heroProduct.value.href })
+  } else if (v.value.cta_url) {
+    emit('navigate', { kind: 'url', url: v.value.cta_url })
+  }
+}
+
 const v = computed(() => props.section.values || {})
 const type = computed(() => props.section.type)
 
@@ -76,9 +86,9 @@ function isHeadingKey(key) {
           <h1 class="text-3xl sm:text-5xl font-black leading-[1.05]">{{ v.headline }}</h1>
           <p v-if="v.subline" class="text-base sm:text-lg opacity-90 max-w-md">{{ v.subline }}</p>
           <div class="flex items-center gap-4 pt-2">
-            <a v-if="v.cta_label" :href="v.cta_url || '#'"
+            <button v-if="v.cta_label" type="button" @click="onHeroCta"
               class="inline-flex items-center font-bold text-sm px-5 py-2.5 rounded-full shadow-lg"
-              style="background: var(--site-surface); color: var(--site-primary)">{{ v.cta_label }}</a>
+              style="background: var(--site-surface); color: var(--site-primary)">{{ v.cta_label }}</button>
             <span v-if="heroPrice" class="text-sm font-semibold opacity-90">ab {{ heroPrice }}</span>
           </div>
         </div>
@@ -148,14 +158,14 @@ function isHeadingKey(key) {
 
     <!-- Einzelprodukt (Hero) -->
     <div v-else-if="type === 'product-teaser' && section.product" class="max-w-sm">
-      <SiteProductCard :product="section.product" />
+      <SiteProductCard :product="section.product" @navigate="emit('navigate', $event)" />
     </div>
 
     <!-- Produkt-Galerie / Auswahl -->
     <div v-else-if="type === 'product-gallery'" class="space-y-3">
       <h3 v-if="v.headline" class="text-xl font-bold">{{ v.headline }}</h3>
       <div v-if="section.products?.length" class="grid gap-3" :class="gridCols">
-        <SiteProductCard v-for="p in section.products" :key="p.id" :product="p" />
+        <SiteProductCard v-for="p in section.products" :key="p.id" :product="p" @navigate="emit('navigate', $event)" />
       </div>
       <p v-else class="text-xs text-[var(--color-text-tertiary)]">Keine Produkte ausgewählt.</p>
     </div>
@@ -215,7 +225,7 @@ function isHeadingKey(key) {
       <template v-for="f in (section.fields || [])" :key="f.key">
         <!-- Produkte -->
         <div v-if="f.type === 'product_ref' && f.products?.length" class="grid gap-3" :class="gridCols">
-          <SiteProductCard v-for="p in f.products" :key="p.id" :product="p" />
+          <SiteProductCard v-for="p in f.products" :key="p.id" :product="p" @navigate="emit('navigate', $event)" />
         </div>
         <!-- Kategorien -->
         <div v-else-if="f.type === 'hierarchy_node_ref' && f.categories?.length" class="grid gap-3" :class="gridCols">
