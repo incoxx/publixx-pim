@@ -4,7 +4,7 @@ import { useTabStore } from '@/stores/tabs'
 import { useLocaleStore } from '@/stores/locale'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
-import { computed } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { Compass, Eye, Globe, LogOut, Menu, PanelsTopLeft, Pin, PinOff, Sparkles, User } from 'lucide-vue-next'
 import { useCopilotStore } from '@/stores/copilot'
 import SemanticSearchBox from '@/components/layout/SemanticSearchBox.vue'
@@ -21,10 +21,25 @@ const pageTitle = computed(() => route.meta.title || '')
 const isPinned = computed(() => tabStore.isRoutePinned(route))
 const canPin = computed(() => route.name && route.name !== 'login' && route.name !== 'dashboard')
 
+const localeOpen = ref(false)
+const userOpen = ref(false)
+
 function switchLocale(code) {
   localeStore.setUiLocale(code)
   i18nLocale.value = code
+  localeOpen.value = false
 }
+
+function closeDropdowns(e) {
+  // Dropdowns schließen wenn außerhalb geklickt/getippt
+  if (!e.target.closest('[data-dropdown]')) {
+    localeOpen.value = false
+    userOpen.value = false
+  }
+}
+
+onMounted(() => document.addEventListener('pointerdown', closeDropdowns))
+onUnmounted(() => document.removeEventListener('pointerdown', closeDropdowns))
 
 // Ansichtsmodus umschalten: Cockpit (Fokus) ⇄ klassisches Menü-GUI.
 // Im Cockpit-Modus ist die Sidebar ausgeblendet; der Cockpit-Button dient daher
@@ -55,18 +70,18 @@ function openCatalogPreview() {
     :style="{ color: 'var(--pim-toolbar-text)' }"
   >
     <!-- Left: Hamburger (mobile) + Title -->
-    <div class="flex items-center gap-3">
+    <div class="flex items-center gap-3 min-w-0">
       <button
-        class="md:hidden p-1.5 -ml-1 rounded-md transition-colors hover:bg-white/10"
-        style="color: inherit"
+        class="md:hidden p-2 -ml-1 rounded-md transition-colors hover:bg-white/10 touch-manipulation"
+        style="color: inherit; min-width: 44px; min-height: 44px; display: flex; align-items: center; justify-content: center;"
         @click="authStore.toggleMobileSidebar()"
       >
         <Menu class="w-5 h-5" :stroke-width="1.75" />
       </button>
-      <h1 class="font-semibold" style="color: inherit" :style="{ fontSize: 'var(--pim-toolbar-font-size)' }">{{ pageTitle }}</h1>
+      <h1 class="font-semibold truncate" style="color: inherit" :style="{ fontSize: 'var(--pim-toolbar-font-size)' }">{{ pageTitle }}</h1>
       <button
         v-if="canPin"
-        class="p-1 rounded transition-colors hover:bg-white/10"
+        class="p-1 rounded transition-colors hover:bg-white/10 shrink-0"
         :style="{ color: isPinned ? 'var(--pim-sidebar-active-text)' : 'inherit', opacity: isPinned ? 1 : 0.5 }"
         :title="isPinned ? 'Tab entfernen' : 'Als Tab anheften'"
         @click="tabStore.pinCurrentRoute(route)"
@@ -76,7 +91,7 @@ function openCatalogPreview() {
       </button>
 
       <!-- Ansichts-Umschalter: Cockpit (Fokus) ⇄ klassisches Menü -->
-      <div class="ml-1 flex items-center rounded-lg border p-0.5" :style="{ borderColor: 'var(--pim-toolbar-border)' }">
+      <div class="hidden sm:flex ml-1 items-center rounded-lg border p-0.5 shrink-0" :style="{ borderColor: 'var(--pim-toolbar-border)' }">
         <button
           class="flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-md transition-colors"
           :class="authStore.effectiveViewMode === 'cockpit' ? 'bg-white/15 font-medium' : 'hover:bg-white/10 opacity-70'"
@@ -102,7 +117,7 @@ function openCatalogPreview() {
       <!-- Katalog-Vorschau (öffnet öffentlichen Katalog in neuem Tab) -->
       <button
         v-if="authStore.hasPermission('preview.view')"
-        class="flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-lg border transition-colors hover:bg-white/10"
+        class="hidden sm:flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-lg border transition-colors hover:bg-white/10 shrink-0"
         :style="{ borderColor: 'var(--pim-toolbar-border)', color: 'inherit' }"
         title="Katalog-Vorschau öffnen"
         @click="openCatalogPreview"
@@ -113,14 +128,16 @@ function openCatalogPreview() {
     </div>
 
     <!-- Right: Actions -->
-    <div class="flex items-center gap-2">
+    <div class="flex items-center gap-1 sm:gap-2 shrink-0">
       <!-- Semantische Schnellsuche (nur wenn Meilisearch aktiv) -->
-      <SemanticSearchBox />
+      <div class="hidden sm:block">
+        <SemanticSearchBox />
+      </div>
 
       <!-- Copilot toggle -->
       <button
-        class="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md border transition-colors hover:bg-white/10"
-        :style="{ color: 'inherit', borderColor: 'var(--pim-toolbar-border)' }"
+        class="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md border transition-colors hover:bg-white/10 touch-manipulation"
+        :style="{ color: 'inherit', borderColor: 'var(--pim-toolbar-border)', minHeight: '44px' }"
         :class="{ 'bg-white/10': copilotStore.open }"
         title="anyPIM Copilot"
         @click="copilotStore.toggle()"
@@ -131,7 +148,7 @@ function openCatalogPreview() {
 
       <!-- Befehls-/Navigationspalette ("Wo ist was?") -->
       <button
-        class="flex items-center px-2 py-1.5 text-xs rounded-md border transition-colors hover:bg-white/10"
+        class="hidden sm:flex items-center px-2 py-1.5 text-xs rounded-md border transition-colors hover:bg-white/10"
         :style="{ color: 'inherit', borderColor: 'var(--pim-toolbar-border)' }"
         title="Wo ist was? — Menüpunkte und Aktionen finden (⌘K)"
         @click="authStore.toggleCommandPalette()"
@@ -140,21 +157,30 @@ function openCatalogPreview() {
       </button>
 
       <!-- Locale switcher -->
-      <div class="relative group">
-        <button class="flex items-center gap-1 px-2 py-1.5 text-xs rounded-md transition-colors hover:bg-white/10" style="color: inherit">
+      <div class="relative" data-dropdown>
+        <button
+          class="flex items-center gap-1 px-2 py-1.5 text-xs rounded-md transition-colors hover:bg-white/10 touch-manipulation"
+          :style="{ color: 'inherit', minHeight: '44px', minWidth: '44px' }"
+          :aria-expanded="localeOpen"
+          @click.stop="localeOpen = !localeOpen; userOpen = false"
+        >
           <Globe class="w-3.5 h-3.5" :stroke-width="1.75" />
           <span class="uppercase">{{ localeStore.currentLocale }}</span>
         </button>
-        <div class="absolute right-0 top-full mt-1 w-32 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg shadow-lg py-1 hidden group-hover:block">
+        <div
+          v-if="localeOpen"
+          class="absolute right-0 top-full mt-1 w-32 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg shadow-lg py-1 z-50"
+        >
           <button
             v-for="loc in localeStore.availableLocales"
             :key="loc.code"
             :class="[
-              'w-full px-3 py-1.5 text-left text-xs transition-colors',
+              'w-full px-3 py-2.5 text-left text-xs transition-colors touch-manipulation',
               localeStore.currentLocale === loc.code
                 ? 'bg-[var(--color-bg)] text-[var(--color-accent)] font-medium'
                 : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg)]'
             ]"
+            style="min-height: 44px"
             @click="switchLocale(loc.code)"
           >
             {{ loc.flag }} {{ loc.label }}
@@ -163,18 +189,27 @@ function openCatalogPreview() {
       </div>
 
       <!-- User menu -->
-      <div class="relative group">
-        <button class="flex items-center gap-1.5 px-2 py-1.5 text-xs rounded-md transition-colors hover:bg-white/10" style="color: inherit">
+      <div class="relative" data-dropdown>
+        <button
+          class="flex items-center gap-1.5 px-2 py-1.5 text-xs rounded-md transition-colors hover:bg-white/10 touch-manipulation"
+          :style="{ color: 'inherit', minHeight: '44px' }"
+          :aria-expanded="userOpen"
+          @click.stop="userOpen = !userOpen; localeOpen = false"
+        >
           <User class="w-3.5 h-3.5" :stroke-width="1.75" />
           <span class="hidden sm:inline">{{ authStore.userName }}</span>
         </button>
-        <div class="absolute right-0 top-full mt-1 w-48 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg shadow-lg py-1 hidden group-hover:block">
+        <div
+          v-if="userOpen"
+          class="absolute right-0 top-full mt-1 w-48 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg shadow-lg py-1 z-50"
+        >
           <div class="px-3 py-2 border-b border-[var(--color-border)]">
             <p class="text-xs font-medium text-[var(--color-text-primary)]">{{ authStore.userName }}</p>
             <p class="text-[11px] text-[var(--color-text-tertiary)]">{{ authStore.userRole }}</p>
           </div>
           <button
-            class="w-full px-3 py-1.5 text-left text-xs text-[var(--color-error)] hover:bg-[var(--color-error-light)] flex items-center gap-2 transition-colors"
+            class="w-full px-3 py-2.5 text-left text-xs text-[var(--color-error)] hover:bg-[var(--color-error-light)] flex items-center gap-2 transition-colors touch-manipulation"
+            style="min-height: 44px"
             @click="authStore.logout()"
           >
             <LogOut class="w-3.5 h-3.5" :stroke-width="1.75" />
