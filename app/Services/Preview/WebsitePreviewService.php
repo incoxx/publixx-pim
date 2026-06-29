@@ -7,6 +7,7 @@ namespace App\Services\Preview;
 use App\Models\ContentPage;
 use App\Models\ContentSection;
 use App\Models\HierarchyNode;
+use App\Models\Media;
 use App\Models\Navigation;
 use App\Models\NavigationNode;
 use App\Models\Product;
@@ -144,6 +145,9 @@ class WebsitePreviewService
             'is_visible' => (bool) $section->is_visible,
             'settings' => $section->settings_json ?? [],
             'values' => $values,
+            // Schema-getriebene, generische Feldauflösung (rendert AUCH eigene
+            // Sektionstypen: Media→URL, product_ref→Produktkarten, etc.)
+            'fields' => $this->resolveFields($section, $values, $lang),
         ];
 
         // Commerce-Sektionen: Produkt-/Kategoriedaten nativ auflösen.
@@ -171,6 +175,71 @@ class WebsitePreviewService
         }
 
         return $resolved;
+    }
+
+    /**
+     * Generische Feldauflösung über das Schema des Sektionstyps — funktioniert
+     * für eingebaute UND eigene Sektionstypen. Liefert pro Feld einen Eintrag
+     * mit aufgelöstem Wert (Text), Media-URL(s), Produktkarten oder Kategorien.
+     */
+    private function resolveFields(ContentSection $section, array $values, string $lang): array
+    {
+        $schemaFields = $section->sectionType?->schema['fields'] ?? [];
+        $widget = $values['widget'] ?? null;
+        $out = [];
+
+        foreach ($schemaFields as $f) {
+            $key = $f['key'] ?? null;
+            if (!$key) {
+                continue;
+            }
+            $ftype = $f['type'] ?? 'String';
+            $raw = $values[$key] ?? null;
+            $entry = ['key' => $key, 'label' => $f['label'] ?? $key, 'type' => $ftype];
+
+            switch ($ftype) {
+                case 'Media':
+                    $entry['media'] = is_array($raw)
+                        ? array_values(array_filter(array_map(fn ($id) => $this->mediaUrl($id), $raw)))
+                        : $this->mediaUrl($raw);
+                    break;
+                case 'product_ref':
+                    $entry['products'] = is_array($raw)
+                        ? $this->productSummaries($raw, $lang, $widget)
+                        : array_values(array_filter([$this->productSummary($raw, $lang, $widget)]));
+                    break;
+                case 'hierarchy_node_ref':
+                    $ids = is_array($raw) ? $raw : ($raw ? [$raw] : []);
+                    $entry['categories'] = collect($ids)
+                        ->map(fn ($id) => $this->categorySummary($id, $lang))
+                        ->filter()->values()->all();
+                    break;
+                case 'product_widget_ref':
+                    continue 2; // reine Konfiguration — nicht anzeigen
+                case 'pql':
+                    $entry['value'] = null; // Live-Auflösung folgt
+                    break;
+                default:
+                    $entry['value'] = $raw; // String/RichText/Textarea/Link/Selection/Number/Flag/Date
+            }
+
+            $out[] = $entry;
+        }
+
+        return $out;
+    }
+
+    private function mediaUrl(mixed $id): ?string
+    {
+        if (!$id) {
+            return null;
+        }
+        if (is_string($id) && (str_starts_with($id, '/') || str_starts_with($id, 'http'))) {
+            return $id;
+        }
+        $media = Media::find($id);
+
+        return $media ? '/api/v1/media/file/' . $media->file_name : null;
     }
 
     private function productSummaries(array $ids, string $lang, ?string $widget = null): array

@@ -39,6 +39,11 @@ function headingTag() {
 function isImageUrl(s) {
   return typeof s === 'string' && (s.startsWith('/') || s.startsWith('http'))
 }
+
+// Heuristik: Feld-Keys, die als Überschrift gerendert werden
+function isHeadingKey(key) {
+  return /headline|title|überschrift|titel|head/i.test(key || '')
+}
 </script>
 
 <template>
@@ -140,9 +145,36 @@ function isImageUrl(s) {
       </div>
     </div>
 
-    <!-- Fallback -->
-    <div v-else class="text-[11px] text-[var(--color-text-tertiary)] border border-dashed border-[var(--color-border)] rounded-lg px-3 py-2">
-      Block: {{ type }}
+    <!-- Generischer Renderer: jeder (auch eigene) Sektionstyp über seine Felder -->
+    <div v-else class="space-y-3">
+      <template v-for="f in (section.fields || [])" :key="f.key">
+        <!-- Produkte -->
+        <div v-if="f.type === 'product_ref' && f.products?.length" class="grid gap-3" :class="gridCols">
+          <SiteProductCard v-for="p in f.products" :key="p.id" :product="p" />
+        </div>
+        <!-- Kategorien -->
+        <div v-else-if="f.type === 'hierarchy_node_ref' && f.categories?.length" class="grid gap-3" :class="gridCols">
+          <div v-for="c in f.categories" :key="c.id" class="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 text-center">
+            <p class="text-sm font-semibold">{{ c.name }}</p>
+            <p class="text-[11px] text-[var(--color-text-tertiary)]">{{ c.product_count }} Produkte</p>
+          </div>
+        </div>
+        <!-- Einzelbild -->
+        <img v-else-if="f.type === 'Media' && typeof f.media === 'string' && f.media" :src="f.media" class="w-full rounded-2xl object-contain max-h-96" />
+        <!-- Bildergalerie -->
+        <div v-else-if="f.type === 'Media' && Array.isArray(f.media) && f.media.length" class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          <img v-for="(m, i) in f.media" :key="i" :src="m" class="w-full rounded-lg object-cover" />
+        </div>
+        <!-- Link -->
+        <a v-else-if="f.type === 'Link' && f.value" :href="f.value" class="text-[var(--color-accent)] underline text-sm">{{ f.value }}</a>
+        <!-- RichText / Textarea -->
+        <p v-else-if="['RichText', 'Textarea'].includes(f.type) && f.value" class="text-sm text-[var(--color-text-secondary)] whitespace-pre-line leading-relaxed">{{ f.value }}</p>
+        <!-- Überschrift-artige Strings -->
+        <h3 v-else-if="isHeadingKey(f.key) && f.value" class="text-xl font-bold text-[var(--color-text-primary)]">{{ f.value }}</h3>
+        <!-- sonstiger Text -->
+        <p v-else-if="f.value !== null && f.value !== undefined && f.value !== ''" class="text-sm text-[var(--color-text-secondary)]">{{ f.value }}</p>
+      </template>
+      <p v-if="!(section.fields || []).length" class="text-[11px] text-[var(--color-text-tertiary)]">Block: {{ type }}</p>
     </div>
   </section>
 </template>
