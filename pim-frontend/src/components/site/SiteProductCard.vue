@@ -39,8 +39,9 @@ const price = computed(() => {
 
 <template>
   <div
-    class="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden flex"
+    class="border overflow-hidden flex"
     :class="compact ? 'flex-row items-center gap-3 p-2' : 'flex-col'"
+    style="background: var(--site-surface, var(--color-surface)); border-color: var(--site-border, var(--color-border)); border-radius: var(--site-radius, 0.75rem)"
   >
     <!-- Bild -->
     <div
@@ -60,7 +61,8 @@ const price = computed(() => {
       <p v-if="showSku && product.sku" class="text-[10px] font-mono text-[var(--color-text-tertiary)]">{{ product.sku }}</p>
       <div class="flex items-center justify-between pt-1">
         <span v-if="price" class="text-base font-bold text-[var(--color-text-primary)]">{{ price }}</span>
-        <button v-if="cta?.enabled" class="text-xs font-medium px-2 py-1 rounded-lg bg-[var(--color-accent)] text-white">
+        <button v-if="cta?.enabled" class="text-xs font-medium px-2 py-1 rounded-lg text-white"
+          style="background: var(--site-accent, var(--color-accent))">
           {{ cta.label || 'Details' }}
         </button>
       </div>

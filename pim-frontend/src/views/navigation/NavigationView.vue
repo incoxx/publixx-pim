@@ -5,7 +5,8 @@ import { useAuthStore } from '@/stores/auth'
 import { useNavigationStore } from '@/stores/navigation'
 import PimTree from '@/components/shared/PimTree.vue'
 import NavigationNodeFormPanel from '@/components/panels/NavigationNodeFormPanel.vue'
-import { Plus, Network, Globe } from 'lucide-vue-next'
+import NavigationThemePanel from '@/components/panels/NavigationThemePanel.vue'
+import { Plus, Network, Globe, Palette } from 'lucide-vue-next'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -17,6 +18,11 @@ const currentNavKey = computed(() => navStore.navigations.find((n) => n.id === n
 
 function openPreview() {
   router.push({ name: 'website-preview', query: currentNavKey.value ? { nav: currentNavKey.value } : {} })
+}
+
+function openTheme() {
+  const nav = navStore.navigations.find((n) => n.id === navStore.currentId)
+  if (nav) authStore.openPanel(NavigationThemePanel, { navigation: nav }, '420px')
 }
 
 // PimTree rendert node.name_de — wir spiegeln label_de dorthin und hängen
@@ -103,6 +109,9 @@ onMounted(async () => {
         </select>
       </div>
       <div class="flex items-center gap-2">
+        <button class="pim-btn pim-btn-secondary text-xs" :disabled="!navStore.currentId" @click="openTheme">
+          <Palette class="w-3.5 h-3.5" :stroke-width="2" /> Design
+        </button>
         <button class="pim-btn pim-btn-secondary text-xs" :disabled="!navStore.currentId" @click="openPreview">
           <Globe class="w-3.5 h-3.5" :stroke-width="2" /> Vorschau
         </button>
