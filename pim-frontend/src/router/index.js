@@ -106,6 +106,12 @@ const routes = [
     meta: { title: 'Content-Konfiguration' },
   },
   {
+    path: '/content-cache',
+    name: 'content-cache',
+    component: () => import('@/views/content/ContentCacheView.vue'),
+    meta: { title: 'Content-Cache' },
+  },
+  {
     path: '/website-preview',
     name: 'website-preview',
     component: () => import('@/views/site/WebsitePreviewView.vue'),

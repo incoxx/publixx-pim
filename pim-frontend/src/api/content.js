@@ -95,4 +95,13 @@ export default {
       ...(sections.length ? { sections: sections.join(',') } : {}),
     })
   },
+
+  // ─── Cache-Status & -Steuerung ──────────────────────────────────
+  cacheStats() {
+    return client.get('/content-cache/stats')
+  },
+
+  clearCache(payload = {}) {
+    return client.post('/content-cache/clear', payload)
+  },
 }
