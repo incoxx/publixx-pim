@@ -29,7 +29,7 @@ class UpdateSectionTypeRequest extends FormRequest
             'icon' => 'nullable|string|max:50',
             'category' => 'nullable|string|max:50',
             'schema' => 'sometimes|array',
-            'schema.fields' => 'required_with:schema|array',
+            'schema.fields' => 'sometimes|array',
             'schema.fields.*.key' => 'required|string',
             'schema.fields.*.type' => 'required|string',
             'is_repeatable' => 'sometimes|boolean',

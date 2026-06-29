@@ -71,8 +71,16 @@ function onDrop(i) {
 }
 
 async function save() {
-  saving.value = true
   errors.value = {}
+  // Unvollständige Feldzeilen (ohne Quelle) verwerfen.
+  const cleanFields = (current.value.config.fields || []).filter((f) => f.source && f.source.trim() && f.source.trim() !== 'attribute:')
+  if (!cleanFields.length) {
+    errors.value._general = 'Mindestens ein Feld mit einer Quelle (z. B. product:name) angeben.'
+    return
+  }
+  current.value.config.fields = cleanFields
+
+  saving.value = true
   const payload = {
     technical_name: current.value.technical_name,
     name_de: current.value.name_de,
@@ -93,6 +101,9 @@ async function save() {
     if (e.response?.status === 422) {
       const se = e.response.data.errors || {}
       for (const [k, v] of Object.entries(se)) errors.value[k] = Array.isArray(v) ? v[0] : v
+      if (Object.keys(se).some((k) => k.startsWith('config.fields'))) {
+        errors.value._general = 'Bitte für jedes Feld Rolle, Quelle und Typ angeben.'
+      }
     } else {
       errors.value._general = e.response?.data?.message || 'Speichern fehlgeschlagen.'
     }
@@ -181,15 +192,16 @@ onMounted(load)
           <div class="space-y-1.5">
             <div
               v-for="(f, idx) in current.config.fields" :key="idx"
-              class="flex items-center gap-1.5"
+              class="grid items-center gap-1.5"
+              style="grid-template-columns: 1.25rem 6.5rem minmax(0,1fr) 7.5rem 1.75rem;"
               draggable="true" @dragstart="onDragStart(idx)" @dragover.prevent @drop="onDrop(idx)"
             >
-              <GripVertical class="w-3.5 h-3.5 text-[var(--color-text-tertiary)] cursor-grab shrink-0" :stroke-width="2" />
-              <select v-model="f.role" class="pim-input text-xs w-28">
+              <GripVertical class="w-3.5 h-3.5 text-[var(--color-text-tertiary)] cursor-grab" :stroke-width="2" />
+              <select v-model="f.role" class="pim-input text-xs min-w-0">
                 <option v-for="r in ROLES" :key="r" :value="r">{{ r }}</option>
               </select>
-              <input v-model="f.source" class="pim-input text-xs flex-1" list="widget-source-prefixes" placeholder="attribute:weight" />
-              <select v-model="f.type" class="pim-input text-xs w-28">
+              <input v-model="f.source" class="pim-input text-xs min-w-0 w-full" list="widget-source-prefixes" placeholder="z. B. product:name / prices:list_price" />
+              <select v-model="f.type" class="pim-input text-xs min-w-0">
                 <option v-for="t in TYPES" :key="t" :value="t">{{ t }}</option>
               </select>
               <button class="p-1 rounded hover:bg-[var(--color-error-light)] text-[var(--color-text-tertiary)] hover:text-[var(--color-error)]" @click="removeField(idx)">
