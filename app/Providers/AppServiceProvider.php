@@ -92,6 +92,8 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->singleton(\App\Services\LicenseService::class);
         $this->app->singleton(\App\Services\TypesenseService::class);
+        // Service + Controller müssen dieselbe Cache-Instanz nutzen (lastHit/X-Cache).
+        $this->app->singleton(\App\Services\Content\ContentCache::class);
     }
 
     public function boot(): void

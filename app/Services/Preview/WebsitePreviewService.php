@@ -12,6 +12,7 @@ use App\Models\Navigation;
 use App\Models\NavigationNode;
 use App\Models\Product;
 use App\Models\ProductWidget;
+use App\Services\Content\ContentCache;
 use App\Services\Export\MappingResolver;
 
 /**
@@ -43,27 +44,41 @@ class WebsitePreviewService
 
     public function __construct(
         private readonly MappingResolver $mappingResolver,
+        private readonly ContentCache $cache,
     ) {}
 
     /**
      * Kompletter Navigationsbaum als verschachtelte Sitemap.
      */
-    public function buildSitemap(Navigation $navigation, string $lang = 'de'): array
+    public function buildSitemap(Navigation $navigation, string $lang = 'de', bool $useCache = true): array
     {
-        $roots = NavigationNode::where('navigation_id', $navigation->id)
-            ->whereNull('parent_node_id')
-            ->orderBy('sort_order')
-            ->get();
+        $build = function () use ($navigation, $lang) {
+            $roots = NavigationNode::where('navigation_id', $navigation->id)
+                ->whereNull('parent_node_id')
+                ->orderBy('sort_order')
+                ->get();
 
-        return [
-            'navigation' => [
-                'id' => $navigation->id,
-                'technical_name' => $navigation->technical_name,
-                'name' => $this->localized($navigation->name_de, $navigation->name_en, $lang),
-            ],
-            'theme' => array_merge(self::DEFAULT_THEME, $navigation->theme_json ?? []),
-            'nodes' => $this->mapNodes($roots, $lang),
-        ];
+            return [
+                'navigation' => [
+                    'id' => $navigation->id,
+                    'technical_name' => $navigation->technical_name,
+                    'name' => $this->localized($navigation->name_de, $navigation->name_en, $lang),
+                ],
+                'theme' => array_merge(self::DEFAULT_THEME, $navigation->theme_json ?? []),
+                'nodes' => $this->mapNodes($roots, $lang),
+            ];
+        };
+
+        if (! $useCache) {
+            return $build();
+        }
+
+        return $this->cache->remember(
+            "content:sitemap:{$navigation->id}:{$lang}",
+            ['content', "content:nav:{$navigation->id}"],
+            null,
+            $build,
+        );
     }
 
     /**
@@ -99,7 +114,21 @@ class WebsitePreviewService
      * Hero (Bild/Preis/Name/CTA), technische Daten, Beschreibung und
      * passendes Zubehör (Produktrelationen). Demonstriert „Produkt = Seite".
      */
-    public function buildProductPage(string $productId, string $lang = 'de'): ?array
+    public function buildProductPage(string $productId, string $lang = 'de', bool $useCache = true): ?array
+    {
+        if (! $useCache) {
+            return $this->buildProductPageUncached($productId, $lang);
+        }
+
+        return $this->cache->remember(
+            "content:product:{$productId}:{$lang}",
+            ['content', "content:product:{$productId}"],
+            null,
+            fn () => $this->buildProductPageUncached($productId, $lang),
+        );
+    }
+
+    private function buildProductPageUncached(string $productId, string $lang = 'de'): ?array
     {
         $product = Product::with([
             'prices.priceType', 'mediaAssignments.media', 'mediaAssignments.usageType',
@@ -191,7 +220,7 @@ class WebsitePreviewService
      * Seite anhand eines Slugs innerhalb einer Navigation finden
      * (über einen Navigationsknoten oder direkt per Seiten-Slug).
      */
-    public function resolvePageBySlug(Navigation $navigation, string $slug, string $lang = 'de'): ?array
+    public function resolvePageBySlug(Navigation $navigation, string $slug, string $lang = 'de', bool $useCache = true): ?array
     {
         $node = NavigationNode::where('navigation_id', $navigation->id)
             ->where('slug', $slug)
@@ -208,7 +237,63 @@ class WebsitePreviewService
             return null;
         }
 
-        return $this->buildPage($page, $lang);
+        if (! $useCache) {
+            return $this->buildPage($page, $lang);
+        }
+
+        $result = $this->cache->remember(
+            "content:page:{$navigation->id}:{$page->id}:{$lang}",
+            ['content', "content:nav:{$navigation->id}", "content:page:{$page->id}"],
+            $this->validityTtl($page),
+            fn () => $this->buildPage($page, $lang),
+        );
+
+        // Reverse-Index: eingebettete Produkte → diese Seite (für Produkt-Flush)
+        $this->cache->indexProductPages($this->embeddedProductIds($result), $page->id);
+
+        return $result;
+    }
+
+    /**
+     * TTL auf die nächste Gültigkeitsgrenze (valid_to) deckeln, damit geplante
+     * Seiten ohne Scheduler korrekt „kippen".
+     */
+    private function validityTtl(ContentPage $page): int
+    {
+        $ttl = $this->cache->ttl();
+        if ($page->valid_to !== null) {
+            $secondsLeft = now()->diffInSeconds($page->valid_to, false);
+            if ($secondsLeft > 0) {
+                $ttl = min($ttl, (int) $secondsLeft);
+            }
+        }
+
+        return max(1, $ttl);
+    }
+
+    /** Alle in einer gerenderten Seite eingebetteten Produkt-IDs einsammeln. */
+    private function embeddedProductIds(array $page): array
+    {
+        $ids = [];
+        foreach ($page['sections'] ?? [] as $section) {
+            if (! empty($section['product']['id'])) {
+                $ids[] = $section['product']['id'];
+            }
+            foreach ($section['products'] ?? [] as $p) {
+                if (! empty($p['id'])) {
+                    $ids[] = $p['id'];
+                }
+            }
+            foreach ($section['fields'] ?? [] as $field) {
+                foreach ($field['products'] ?? [] as $p) {
+                    if (! empty($p['id'])) {
+                        $ids[] = $p['id'];
+                    }
+                }
+            }
+        }
+
+        return array_values(array_unique($ids));
     }
 
     // ─── Navigation ────────────────────────────────────────────────

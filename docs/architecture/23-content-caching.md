@@ -191,7 +191,7 @@ So ist die erste Besucheranfrage nach einer Veröffentlichung bereits ein HIT.
 
 | Phase | Inhalt | Risiko |
 |-------|--------|--------|
-| **1** | `ContentCache`-Service, `remember()` in den drei Service-Methoden, eingebettete `product:{id}`-Tags, Redakteur-Bypass, Content-Observer (page/section/nav/node/widget), `X-Cache`-Header | niedrig |
+| **1 ✅ umgesetzt** | `ContentCache`-Service (Tag- + Versions-Fallback, Reverse-Index), `remember()` in den drei Service-Methoden, Redakteur-Bypass (`Auth`/`?nocache`), Content-Observer (page/section/nav/node/widget) + Produkt-Observer (Product/Price/AttributeValue/MediaAssignment/Relation → PDP + einbettende Seiten), gültigkeits-bewusste TTL, `X-Cache`-Header (HIT/MISS/BYPASS), `config/content.php` | niedrig |
 | **2** | Gültigkeits-bewusste TTL, HTTP `ETag`/`Cache-Control` + `304`, `nocache`-Flag im Backend-Preview-Button | mittel |
 | **3** | Warming-Job + Artisan-Befehle, CDN-Doku, Metriken (Hit-Rate) | optional |
 
