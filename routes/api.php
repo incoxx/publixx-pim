@@ -807,9 +807,11 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
         // Seiten
         Route::apiResource('content-pages', ContentPageController::class)
             ->parameters(['content-pages' => 'content_page']);
+        Route::post('content-pages/{content_page}/duplicate', [ContentPageController::class, 'duplicate']);
 
         // Sektionen (Bausteine) einer Seite
         Route::post('content-pages/{content_page}/sections', [ContentSectionController::class, 'store']);
+        Route::post('content-pages/{content_page}/paste-section', [ContentSectionController::class, 'paste']);
         Route::put('content-sections/{content_section}', [ContentSectionController::class, 'update']);
         Route::put('content-sections/{content_section}/move', [ContentSectionController::class, 'move']);
         Route::delete('content-sections/{content_section}', [ContentSectionController::class, 'destroy']);

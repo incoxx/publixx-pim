@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import { useDebounceFn } from '@vueuse/core'
-import { GripVertical, Trash2, Eye, EyeOff, Plus, X } from 'lucide-vue-next'
+import { GripVertical, Trash2, Eye, EyeOff, Plus, X, Copy, CopyPlus } from 'lucide-vue-next'
 import EntityPickerDialog from '@/components/shared/EntityPickerDialog.vue'
 import MediaPickerDialog from '@/components/shared/MediaPickerDialog.vue'
 import productsApi from '@/api/products'
@@ -14,7 +14,7 @@ const props = defineProps({
   lang: { type: String, default: 'de' },
 })
 
-const emit = defineEmits(['save', 'delete', 'toggle-visible'])
+const emit = defineEmits(['save', 'delete', 'toggle-visible', 'copy', 'duplicate'])
 
 // Reaktivitätssicherer Deep-Clone (structuredClone wirft auf Vue-Proxies).
 function clone(v) { return v == null ? v : JSON.parse(JSON.stringify(v)) }
@@ -167,6 +167,12 @@ onMounted(async () => {
         <span v-if="sectionType?.category" class="text-[10px] text-[var(--color-text-tertiary)] uppercase tracking-wide">{{ sectionType.category }}</span>
       </div>
       <div class="flex items-center gap-1 shrink-0">
+        <button class="p-1 rounded hover:bg-[var(--color-bg)] text-[var(--color-text-tertiary)]" title="Sektion kopieren" @click="$emit('copy')">
+          <Copy class="w-3.5 h-3.5" :stroke-width="2" />
+        </button>
+        <button class="p-1 rounded hover:bg-[var(--color-bg)] text-[var(--color-text-tertiary)]" title="Sektion duplizieren" @click="$emit('duplicate')">
+          <CopyPlus class="w-3.5 h-3.5" :stroke-width="2" />
+        </button>
         <button class="p-1 rounded hover:bg-[var(--color-bg)] text-[var(--color-text-tertiary)]" :title="section.is_visible ? 'Sichtbar' : 'Ausgeblendet'" @click="$emit('toggle-visible')">
           <Eye v-if="section.is_visible" class="w-3.5 h-3.5" :stroke-width="2" />
           <EyeOff v-else class="w-3.5 h-3.5" :stroke-width="2" />

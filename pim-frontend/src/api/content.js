@@ -22,6 +22,14 @@ export default {
     return client.delete(`/content-pages/${id}`)
   },
 
+  duplicate(id) {
+    return client.post(`/content-pages/${id}/duplicate`)
+  },
+
+  pasteSection(pageId, sourceSectionId) {
+    return client.post(`/content-pages/${pageId}/paste-section`, { source_section_id: sourceSectionId })
+  },
+
   // ─── Sektionen (Bausteine) einer Seite ──────────────────────────
   createSection(pageId, data) {
     return client.post(`/content-pages/${pageId}/sections`, data)

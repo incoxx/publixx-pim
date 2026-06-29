@@ -80,6 +80,31 @@ export const useContentStore = defineStore('content', () => {
     items.value = items.value.filter((p) => p.id !== id)
   }
 
+  async function duplicate(id) {
+    const { data } = await contentApi.duplicate(id)
+    return data.data ?? data
+  }
+
+  // ─── Sektions-Zwischenablage (Copy & Paste, seitenübergreifend) ──
+  // In localStorage gespiegelt, damit Kopieren auf Seite A und Einfügen
+  // auf Seite B (nach Navigation/Reload) funktioniert.
+  const clipboardSection = ref(JSON.parse(localStorage.getItem('content_clip') || 'null'))
+
+  function copySection(section, label) {
+    clipboardSection.value = { id: section.id, label: label || 'Sektion' }
+    localStorage.setItem('content_clip', JSON.stringify(clipboardSection.value))
+  }
+
+  function clearClipboard() {
+    clipboardSection.value = null
+    localStorage.removeItem('content_clip')
+  }
+
+  async function pasteSection(pageId, sourceSectionId) {
+    const { data } = await contentApi.pasteSection(pageId, sourceSectionId)
+    return data.data ?? data
+  }
+
   // ─── Sektionen ────────────────────────────────────────────────
   async function addSection(pageId, payload) {
     const { data } = await contentApi.createSection(pageId, payload)
@@ -132,9 +157,10 @@ export const useContentStore = defineStore('content', () => {
 
   return {
     items, current, loading, error, meta, filters, sort, search,
-    contentTypes, sectionTypes,
-    fetchList, fetchOne, create, update, remove,
+    contentTypes, sectionTypes, clipboardSection,
+    fetchList, fetchOne, create, update, remove, duplicate,
     addSection, updateSection, moveSection, removeSection,
+    copySection, clearClipboard, pasteSection,
     loadContentTypes, loadSectionTypes,
     setSort, setSearch, setPage, setFilters,
   }

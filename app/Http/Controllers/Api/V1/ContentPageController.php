@@ -9,6 +9,7 @@ use App\Http\Requests\Api\V1\UpdateContentPageRequest;
 use App\Http\Resources\Api\V1\ContentPageResource;
 use App\Http\Traits\Filterable;
 use App\Models\ContentPage;
+use App\Services\Content\ContentDuplicator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -57,6 +58,21 @@ class ContentPageController extends Controller
         $page = ContentPage::create($data);
 
         return (new ContentPageResource($page->load('contentType')))
+            ->response()
+            ->setStatusCode(201);
+    }
+
+    /**
+     * Seite duplizieren (inkl. aller Sektionen) — als neuen Entwurf.
+     */
+    public function duplicate(ContentPage $contentPage, ContentDuplicator $duplicator): JsonResponse
+    {
+        $this->authorize('view', $contentPage);
+        $this->authorize('create', ContentPage::class);
+
+        $copy = $duplicator->duplicatePage($contentPage);
+
+        return (new ContentPageResource($copy->load('contentType')))
             ->response()
             ->setStatusCode(201);
     }
