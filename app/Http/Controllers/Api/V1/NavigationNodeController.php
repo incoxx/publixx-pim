@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
-use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\MoveNavigationNodeRequest;
 use App\Http\Requests\Api\V1\StoreNavigationNodeRequest;
 use App\Http\Requests\Api\V1\UpdateNavigationNodeRequest;
