@@ -579,6 +579,13 @@ const routes = [
     component: () => import('@/views/HelpView.vue'),
     meta: { title: 'Hilfe' },
   },
+  // --- Public Website (standalone, ohne Backend/Login) ---
+  {
+    path: '/site/:nav?',
+    name: 'public-site',
+    component: () => import('@/views/site/PublicSiteView.vue'),
+    meta: { public: true, title: 'Website' },
+  },
   // --- Public Catalog Preview ---
   {
     path: '/preview',

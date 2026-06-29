@@ -4,7 +4,7 @@ import { useRoute } from 'vue-router'
 import navigationApi from '@/api/navigation'
 import siteApi from '@/api/site'
 import SitePreviewSection from '@/components/site/SitePreviewSection.vue'
-import { Globe, Monitor, Smartphone, RefreshCw } from 'lucide-vue-next'
+import { Globe, Monitor, Smartphone, RefreshCw, ExternalLink } from 'lucide-vue-next'
 
 const route = useRoute()
 const pendingSlug = ref(null)   // initial via ?slug= gezielt zu ladende Seite
@@ -182,6 +182,9 @@ onMounted(async () => {
           </button>
         </div>
         <button class="pim-btn pim-btn-secondary text-xs" @click="loadSitemap"><RefreshCw class="w-3.5 h-3.5" :stroke-width="2" /></button>
+        <a v-if="navKey" class="pim-btn pim-btn-secondary text-xs" :href="`/site/${navKey}`" target="_blank" title="Öffentliche Seite in neuem Tab öffnen">
+          <ExternalLink class="w-3.5 h-3.5" :stroke-width="2" /> Öffentlich
+        </a>
       </div>
     </div>
 
