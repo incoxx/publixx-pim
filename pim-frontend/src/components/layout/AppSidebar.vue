@@ -82,6 +82,7 @@ const sections = computed(() => {
         { icon: Globe, label: () => 'Portale', to: '/portal-config', module: 'portals', permission: 'portals.view' },
         { icon: ExternalLink, label: () => 'Katalog-Demo', to: '/catalog-embed', module: 'catalog_templates', permission: 'catalog-templates.view', external: true },
         { icon: Clapperboard, label: () => 'Social-Video', to: '/social-video', permission: 'products.view', testid: 'nav-social-video' },
+        { icon: Globe, label: () => 'Website-Vorschau', to: '/website-preview', module: 'content', permission: 'content.view', testid: 'nav-website-preview' },
       ],
     },
     {

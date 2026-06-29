@@ -88,6 +88,12 @@ const routes = [
     meta: { title: 'Produkt-Widgets' },
   },
   {
+    path: '/website-preview',
+    name: 'website-preview',
+    component: () => import('@/views/site/WebsitePreviewView.vue'),
+    meta: { title: 'Website-Vorschau' },
+  },
+  {
     path: '/hierarchies',
     name: 'hierarchies',
     component: () => import('@/views/hierarchies/HierarchyView.vue'),

@@ -666,15 +666,20 @@ CLI analog Konvention: `php artisan pim:content-export --navigation= --format=`.
 
 ## 9. Umsetzungsstand (Kurz)
 
-Phase 1–4 implementiert (Datenmodell, Sektions-/Seiten-CRUD + Editor,
-native Produkt-Sektionen, Navigationsbaum). Phase 5 **Backend** steht:
-`WebsitePreviewService` (Sitemap + gerenderte Seiten mit nativ aufgelösten
-Produkt-/Kategoriedaten), öffentliche Routen `GET /api/v1/site/{nav}/sitemap`,
-`…/sitemap.xml`, `…/page/{slug}` (lizenzgated). Der **`ContentTemplateSeeder`**
+Phase 1–5 implementiert: Datenmodell, Sektions-/Seiten-CRUD + Editor, native
+Produkt-Sektionen, Navigationsbaum, Produkt-Widgets sowie die **Website-Vorschau**
+(Backend + Frontend). `WebsitePreviewService` baut Sitemap + gerenderte Seiten
+mit nativ aufgelösten Produkt-/Kategoriedaten (über Produkt-Widgets); öffentliche
+Routen `GET /api/v1/site/{nav}/sitemap`, `…/sitemap.xml`, `…/page/{slug}`
+(lizenzgated). `WebsitePreviewView` rendert die Theme-Hülle (Header-Menü aus der
+Navigation, Sektions-Renderer pro Typ inkl. Live-Countdown/Karussell/
+Produktkarten, Footer, DE/EN + Desktop/Mobil). Der `ContentTemplateSeeder`
 liefert vordefinierte Seiten-Templates (Startseite, MediaMarkt-artige
-Kampagnenseite mit Countdown/Kachelgrid/Produktgalerie/Karussell, Impressum)
-und hängt sie in die `main`-Navigation ein. Offen: Phase-5-**Frontend**
-(`WebsitePreviewView` + Theme-Hülle).
+Kampagnenseite, Impressum) in der `main`-Navigation.
+
+Offen / Backlog: PQL-Live-Auflösung in `product-list`, Picker (Media/Produkt/
+Hierarchieknoten) statt UUID-Eingabe, RichText-Editor-Einbindung, Phase 6
+(Such-Index für Content), Phase 7 (GUI-Sektionstyp-Builder).
 
 ## 9a. Backlog / explizit vorgemerkt
 
