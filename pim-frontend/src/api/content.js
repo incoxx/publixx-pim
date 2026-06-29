@@ -72,4 +72,19 @@ export default {
   deleteSectionType(id) {
     return client.delete(`/section-types/${id}`)
   },
+
+  // ─── Konfigurations-Export/-Import (JSON-Bundle) ─────────────────
+  exportConfig(sections = []) {
+    return client.get('/content-config/export', {
+      params: sections.length ? { sections: sections.join(',') } : {},
+      responseType: 'blob',
+    })
+  },
+
+  importConfig(bundle, sections = []) {
+    return client.post('/content-config/import', {
+      bundle,
+      ...(sections.length ? { sections: sections.join(',') } : {}),
+    })
+  },
 }
