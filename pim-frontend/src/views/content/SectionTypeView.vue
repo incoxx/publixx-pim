@@ -64,8 +64,12 @@ function setOptions(field, str) {
 }
 
 async function save() {
-  saving.value = true
   errors.value = {}
+  // Unvollständige Feldzeilen (ohne key) verwerfen; feldlose Typen sind erlaubt.
+  const cleanFields = (current.value.schema.fields || []).filter((f) => f.key && f.key.trim())
+  current.value.schema.fields = cleanFields
+
+  saving.value = true
   const payload = {
     technical_name: current.value.technical_name,
     name_de: current.value.name_de,
@@ -76,7 +80,7 @@ async function save() {
     is_nestable: current.value.is_nestable,
     preview_component: current.value.preview_component || null,
     is_active: current.value.is_active,
-    schema: { fields: current.value.schema.fields },
+    schema: { fields: cleanFields },
   }
   try {
     if (current.value.id) {
@@ -192,11 +196,11 @@ onMounted(load)
             <div v-for="(f, idx) in current.schema.fields" :key="idx"
               class="rounded-lg border border-[var(--color-border)] p-2 space-y-1.5"
               draggable="true" @dragstart="onDragStart(idx)" @dragover.prevent @drop="onDrop(idx)">
-              <div class="flex items-center gap-1.5">
-                <GripVertical class="w-3.5 h-3.5 text-[var(--color-text-tertiary)] cursor-grab shrink-0" :stroke-width="2" />
-                <input v-model="f.key" class="pim-input text-xs w-32" placeholder="key" />
-                <input v-model="f.label" class="pim-input text-xs flex-1" placeholder="Label" />
-                <select v-model="f.type" class="pim-input text-xs w-36">
+              <div class="grid items-center gap-1.5" style="grid-template-columns: 1.25rem 7.5rem minmax(0,1fr) 8.5rem 1.75rem;">
+                <GripVertical class="w-3.5 h-3.5 text-[var(--color-text-tertiary)] cursor-grab" :stroke-width="2" />
+                <input v-model="f.key" class="pim-input text-xs min-w-0 w-full" placeholder="key" />
+                <input v-model="f.label" class="pim-input text-xs min-w-0 w-full" placeholder="Label" />
+                <select v-model="f.type" class="pim-input text-xs min-w-0">
                   <option v-for="t in FIELD_TYPES" :key="t" :value="t">{{ t }}</option>
                 </select>
                 <button class="p-1 rounded hover:bg-[var(--color-error-light)] text-[var(--color-text-tertiary)] hover:text-[var(--color-error)]" @click="removeField(idx)"><Trash2 class="w-3.5 h-3.5" :stroke-width="2" /></button>

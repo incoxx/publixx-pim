@@ -23,7 +23,8 @@ class StoreSectionTypeRequest extends FormRequest
             'icon' => 'nullable|string|max:50',
             'category' => 'nullable|string|max:50',
             'schema' => 'required|array',
-            'schema.fields' => 'required|array',
+            // Felder dürfen leer sein (z. B. reine Layout-Bausteine wie Divider).
+            'schema.fields' => 'present|array',
             'schema.fields.*.key' => 'required|string',
             'schema.fields.*.type' => 'required|string',
             'is_repeatable' => 'sometimes|boolean',
