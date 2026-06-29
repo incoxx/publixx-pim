@@ -25,6 +25,7 @@ class Navigation extends Model
         'name_json',
         'locale_set',
         'theme_json',
+        'access_mode',
         'is_primary',
     ];
 

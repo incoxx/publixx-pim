@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 import siteApi from '@/api/site'
 import SitePreviewSection from '@/components/site/SitePreviewSection.vue'
 
@@ -11,12 +12,31 @@ import SitePreviewSection from '@/components/site/SitePreviewSection.vue'
  * Aufruf z. B.:  /site/smartone   bzw.  /site/smartone?slug=...
  */
 const route = useRoute()
+const authStore = useAuthStore()
 const navKey = ref(route.params.nav || null)
 const lang = ref(route.query.lang || 'de')
 const sitemap = ref(null)
 const page = ref(null)
 const loading = ref(false)
 const error = ref(null)
+const requiresLogin = ref(false)
+
+// Anonym anfragen; ist die Navigation login-geschützt (401) und liegt ein
+// Token vor, authentifiziert erneut versuchen — sonst Login-Hinweis.
+async function siteFetch(call) {
+  try {
+    return await call(true)
+  } catch (e) {
+    if (e.response?.status === 401) {
+      if (authStore.token) {
+        return await call(false)
+      }
+      requiresLogin.value = true
+      throw e
+    }
+    throw e
+  }
+}
 
 const themeVars = computed(() => {
   const t = sitemap.value?.theme || {}
@@ -65,8 +85,9 @@ async function loadSitemap() {
   }
   loading.value = true
   error.value = null
+  requiresLogin.value = false
   try {
-    const { data } = await siteApi.getSitemap(navKey.value, lang.value, { anonymous: true })
+    const { data } = await siteFetch((anon) => siteApi.getSitemap(navKey.value, lang.value, { anonymous: anon }))
     sitemap.value = data.data ?? data
     const slug = route.query.slug
     if (slug) {
@@ -77,7 +98,12 @@ async function loadSitemap() {
       else page.value = null
     }
   } catch (e) {
-    error.value = e.response?.status === 404 ? 'Navigation nicht gefunden.' : 'Seite konnte nicht geladen werden.'
+    if (e.response?.status === 401) {
+      requiresLogin.value = true
+      error.value = 'Diese Seite ist nicht öffentlich. Bitte melde dich an.'
+    } else {
+      error.value = e.response?.status === 404 ? 'Navigation nicht gefunden.' : 'Seite konnte nicht geladen werden.'
+    }
   } finally {
     loading.value = false
   }
@@ -85,7 +111,7 @@ async function loadSitemap() {
 
 async function loadPage(slug) {
   try {
-    const { data } = await siteApi.getPage(navKey.value, slug, lang.value, { anonymous: true })
+    const { data } = await siteFetch((anon) => siteApi.getPage(navKey.value, slug, lang.value, { anonymous: anon }))
     page.value = data.data ?? data
     window.scrollTo({ top: 0 })
   } catch {
@@ -96,7 +122,7 @@ async function loadPage(slug) {
 async function loadProductPageById(id) {
   if (!id) return
   try {
-    const { data } = await siteApi.getProductPage(navKey.value, id, lang.value, { anonymous: true })
+    const { data } = await siteFetch((anon) => siteApi.getProductPage(navKey.value, id, lang.value, { anonymous: anon }))
     page.value = data.data ?? data
     window.scrollTo({ top: 0 })
   } catch {
@@ -148,10 +174,19 @@ onMounted(loadSitemap)
       </nav>
     </header>
 
-    <p v-if="error" class="max-w-5xl mx-auto mt-6 text-sm text-red-600 bg-red-50 px-4 py-3 rounded-lg">{{ error }}</p>
+    <!-- Login erforderlich (Navigation ist nicht öffentlich) -->
+    <div v-if="requiresLogin" class="max-w-md mx-auto mt-16 text-center space-y-4 px-4">
+      <h2 class="text-xl font-semibold" style="color: var(--site-text)">Anmeldung erforderlich</h2>
+      <p class="text-sm opacity-70">Diese Website ist nicht öffentlich zugänglich.</p>
+      <a class="inline-flex items-center font-semibold text-sm px-5 py-2.5 rounded-full"
+        style="background: var(--site-primary); color: var(--site-on-primary)"
+        :href="`/login?redirect=${encodeURIComponent($route.fullPath)}`">Zum Login</a>
+    </div>
+
+    <p v-else-if="error" class="max-w-5xl mx-auto mt-6 text-sm text-red-600 bg-red-50 px-4 py-3 rounded-lg">{{ error }}</p>
 
     <!-- Inhalt -->
-    <main class="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+    <main v-if="!requiresLogin" class="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
       <div v-if="loading" class="space-y-3">
         <div v-for="i in 4" :key="i" class="animate-pulse h-24 rounded-xl bg-black/5" />
       </div>

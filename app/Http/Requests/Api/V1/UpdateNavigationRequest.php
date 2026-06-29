@@ -29,6 +29,7 @@ class UpdateNavigationRequest extends FormRequest
             'locale_set' => 'nullable|array',
             'locale_set.*' => 'string|max:5',
             'theme_json' => 'nullable|array',
+            'access_mode' => 'sometimes|in:public,login',
             'is_primary' => 'sometimes|boolean',
         ];
     }
