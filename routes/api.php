@@ -115,6 +115,10 @@ use App\Http\Controllers\Api\V1\CanvaExportProfileController;
 use App\Http\Controllers\Api\V1\ConnectorController;
 use App\Http\Controllers\Api\V1\QuickSearchController;
 use App\Http\Controllers\Api\V1\SemanticSearchController;
+use App\Http\Controllers\Api\V1\ContentTypeController;
+use App\Http\Controllers\Api\V1\SectionTypeController;
+use App\Http\Controllers\Api\V1\ContentPageController;
+use App\Http\Controllers\Api\V1\ContentSectionController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -773,6 +777,27 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
             Route::post('upload-complete', [BmecatImportController::class, 'uploadComplete']);
         });
         Route::post('bmecat-export', [BmecatExportController::class, 'export']);
+    });
+
+    // =====================================================================
+    // Enterprise: Strukturierter Content (CMS-Modul)
+    // =====================================================================
+    Route::middleware('module:content')->group(function () {
+        // Struktur: Seitentypen & Sektionstypen
+        Route::apiResource('content-types', ContentTypeController::class)
+            ->parameters(['content-types' => 'content_type']);
+        Route::apiResource('section-types', SectionTypeController::class)
+            ->parameters(['section-types' => 'section_type']);
+
+        // Seiten
+        Route::apiResource('content-pages', ContentPageController::class)
+            ->parameters(['content-pages' => 'content_page']);
+
+        // Sektionen (Bausteine) einer Seite
+        Route::post('content-pages/{content_page}/sections', [ContentSectionController::class, 'store']);
+        Route::put('content-sections/{content_section}', [ContentSectionController::class, 'update']);
+        Route::put('content-sections/{content_section}/move', [ContentSectionController::class, 'move']);
+        Route::delete('content-sections/{content_section}', [ContentSectionController::class, 'destroy']);
     });
 
     // =====================================================================

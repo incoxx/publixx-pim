@@ -43,6 +43,10 @@ return [
             'name' => 'BMEcat Import/Export',
             'description' => 'BMEcat XML 1.2 / 2005 Import und Export',
         ],
+        'content' => [
+            'name' => 'Strukturierter Content (CMS)',
+            'description' => 'Content-Seiten, Sektionstypen, Navigationsbaum/Sitemap und Website-Vorschau',
+        ],
         'advanced_export' => [
             'name' => 'Erweiterte Exports',
             'description' => 'Export-Jobs, Zeitpläne, SFTP/HTTP-Delivery, Export-Mappings',

@@ -127,6 +127,10 @@ class RoleAndPermissionSeeder extends Seeder
             'preview.view',
             // Cockpit-Layouts (rollenbasierte Cockpit-Ansicht verwalten)
             'cockpit-layouts.view', 'cockpit-layouts.edit',
+            // Strukturierter Content (CMS-Modul)
+            'content.view', 'content.create', 'content.edit', 'content.delete',
+            'content-types.view', 'content-types.create', 'content-types.edit', 'content-types.delete',
+            'section-types.view', 'section-types.create', 'section-types.edit', 'section-types.delete',
         ];
 
         foreach ($permissions as $permissionName) {
@@ -156,6 +160,10 @@ class RoleAndPermissionSeeder extends Seeder
             'attributes.view', 'attributes.create', 'attributes.edit', 'attributes.delete',
             'attribute-types.view', 'attribute-types.create', 'attribute-types.edit', 'attribute-types.delete',
             'product-types.view', 'product-types.create', 'product-types.edit', 'product-types.delete',
+            // Content-Struktur (Seitentypen + Sektionstypen) ist Data-Steward-Aufgabe
+            'content-types.view', 'content-types.create', 'content-types.edit', 'content-types.delete',
+            'section-types.view', 'section-types.create', 'section-types.edit', 'section-types.delete',
+            'content.view',
             'hierarchies.view', 'hierarchies.create', 'hierarchies.edit', 'hierarchies.delete',
             'hierarchy-nodes.view', 'hierarchy-nodes.create', 'hierarchy-nodes.edit', 'hierarchy-nodes.delete', 'hierarchy-nodes.move',
             'unit-groups.view', 'unit-groups.create', 'unit-groups.edit', 'unit-groups.delete',
@@ -308,6 +316,10 @@ class RoleAndPermissionSeeder extends Seeder
             // Medien/Content: Vollzugriff
             'media.view', 'media.create', 'media.edit', 'media.delete',
             'media-usage-types.view',
+            // Strukturierter Content: Seiten pflegen (Vollzugriff), Typen lesen
+            'content.view', 'content.create', 'content.edit', 'content.delete',
+            'content-types.view',
+            'section-types.view',
             // Produkte & Struktur: nur lesend (Kontext)
             'products.view',
             'product-types.view',

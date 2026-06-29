@@ -237,6 +237,9 @@ CREATE TABLE content_pages (
     slug                       VARCHAR(255),         -- URL-Segment, eindeutig je Navigation/Sprache
     title                      VARCHAR(500),
     status                     ENUM('draft','active','inactive','archived') DEFAULT 'draft',
+    -- Gültigkeitszeitraum (zeitgesteuerte Sichtbarkeit, Backlog-Punkt)
+    valid_from                 TIMESTAMP NULL,       -- ab wann sichtbar (NULL = sofort)
+    valid_to                   TIMESTAMP NULL,       -- bis wann sichtbar (NULL = unbegrenzt)
     -- KEINE navigation_node_id hier (siehe Platzierungsmodell unten):
     -- eine Seite lebt eigenständig und wird über navigation_nodes platziert (1:n)
     -- SEO
@@ -615,6 +618,14 @@ CLI analog Konvention: `php artisan pim:content-export --navigation= --format=`.
 | **8 — Feinschliff** | Such-Index (Spec 19), Versionierung/Scheduling (Spec 13), KI-Textvorschläge (optional) | Produktionsreife |
 
 ---
+
+## 9a. Backlog / explizit vorgemerkt
+
+| Punkt | Beschreibung | Verortung |
+|-------|--------------|-----------|
+| **Profisuche → Content** | Content-Seiten und ihre Sektionsfelder müssen in der **Profisuche** (`Suche » Profisuche`) durchsuchbar sein — eigener Index/Facetten analog Produkte (Spec 19, Meilisearch). Phase 1 extrahiert dafür bereits Textfelder beim Speichern; die Index-Anbindung ist eigene Phase. | Spec 19 / Such-Index |
+| **Berechtigungen** | Wer darf was: `content.*`, `content-types.*`, `section-types.*` als Permissions + Policies; Rollen-Defaults (Marketing = Vollzugriff Content, Data Steward = Struktur, Viewer = lesen). Tab-Access je Rolle wie bei Produkten. | §8 + `RoleAndPermissionSeeder` |
+| **Gültigkeitszeitraum** | `content_pages.valid_from` / `valid_to` für zeitgesteuerte Sichtbarkeit. Scope `currentlyValid()` filtert in Vorschau/Export. Ergänzt die geplante Publikation aus der Versionierung (Spec 13). | §3.3 |
 
 ## 10. Zusammenfassung
 
