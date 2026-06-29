@@ -35,6 +35,11 @@ class SmartOneShowcaseSeeder extends Seeder
 
     public function run(): void
     {
+        // System-Sektionstypen sicherstellen (headline, product-teaser,
+        // product-gallery, countdown, cta-banner …). Ohne sie würden die
+        // Sektionen mangels section_type_id übersprungen → leere Seite.
+        $this->call(SectionTypeSeeder::class);
+
         $this->seedWidgets();
         $type = $this->seedContentType();
         $skuToId = $this->resolveProducts();
