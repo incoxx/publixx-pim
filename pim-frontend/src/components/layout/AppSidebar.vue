@@ -87,6 +87,7 @@ const sections = computed(() => {
             { icon: LayoutTemplate, label: () => 'Seitentypen', to: '/content-types', module: 'content', permission: 'content-types.view', testid: 'nav-content-types' },
             { icon: Boxes, label: () => 'Sektionstypen', to: '/section-types', module: 'content', permission: 'section-types.view', testid: 'nav-section-types' },
             { icon: LayoutGrid, label: () => 'Produkt-Widgets', to: '/product-widgets', module: 'content', permission: 'product-widgets.view', testid: 'nav-product-widgets' },
+            { icon: ArrowRightLeft, label: () => 'Export / Import', to: '/content-config', module: 'content', permission: 'content-types.view', testid: 'nav-content-config' },
           ],
         },
       ],

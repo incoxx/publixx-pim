@@ -100,6 +100,12 @@ const routes = [
     meta: { title: 'Sektionstypen' },
   },
   {
+    path: '/content-config',
+    name: 'content-config',
+    component: () => import('@/views/content/ContentConfigView.vue'),
+    meta: { title: 'Content-Konfiguration' },
+  },
+  {
     path: '/website-preview',
     name: 'website-preview',
     component: () => import('@/views/site/WebsitePreviewView.vue'),

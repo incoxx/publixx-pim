@@ -505,6 +505,44 @@ neue Sheets/Sektionen `Content-Typen`, `Sektionstypen`, `Seiten`, `Sektionen`,
 erlaubt Roundtrip Export→Import. Validierung über `SheetValidator` +
 `ReferenceResolver` (Auflösung von `content_type`, `section_type`, `slug`).
 
+### 4.4 Konfigurations-Export/-Import (JSON-Bundle, KI-tauglich)
+
+Die **komplette Content-Konfiguration** (Seitentypen, Sektionstypen,
+Produkt-Widgets, Navigation inkl. Theme — inklusive aller Layout-/Style-Felder)
+lässt sich als ein portables JSON-Bundle sichern und zurückspielen. Zweck:
+Layouts per KI/Claude entwerfen lassen und einfach übernehmen.
+
+- **Service:** `app/Services/Content/ContentConfigService.php`
+  (`export(array $sections)` / `import(array $bundle, array $sections)`).
+- **Natürlicher Schlüssel:** `technical_name` → **idempotenter Upsert**
+  (vorhandene Einträge werden aktualisiert, neue angelegt, nichts dupliziert).
+  Instanz-spezifische IDs/Timestamps werden nicht exportiert; Content-Seiten in
+  Navigationsknoten werden **per Slug** referenziert (portabel).
+- **Sicherheit:** Importierte Einträge erhalten nie `is_system = true` (bleiben
+  also löschbar); Produkt-/Kategorie-Mountpoints (PIM-Daten-abhängig) werden
+  beim Import zu `folder` degradiert.
+- **Bundle-Format:**
+
+```json
+{
+  "anypim_content_config": "1.0",
+  "generator": "anyPIM",
+  "content_types":   [ { "technical_name": "...", "layout_hint": "...", ... } ],
+  "section_types":   [ { "technical_name": "...", "schema": { "fields": [...], "style": {...} }, ... } ],
+  "product_widgets": [ { "technical_name": "...", "config": { "layout": "...", "style": {...} }, ... } ],
+  "navigations":     [ { "technical_name": "...", "theme_json": {...}, "nodes": [ { "label_de": "...", "content_page_slug": "...", "children": [...] } ] } ]
+}
+```
+
+- **API:** `GET /api/v1/content-config/export?sections=…` (JSON-Download),
+  `POST /api/v1/content-config/import` (Body-JSON, Feld `bundle` oder Datei-Upload
+  `file`; optional `sections` zur Teilmengen-Auswahl).
+- **CLI:** `php artisan pim:content-config-export [--sections=] [-o datei.json]`,
+  `php artisan pim:content-config-import datei.json [--sections=]`.
+- **GUI:** Content → Konfiguration → **Export / Import** (`/content-config`,
+  `ContentConfigView.vue`): Teilmengen-Auswahl, Download, Datei-Upload oder
+  JSON-Einfügen, Ergebnis-Zusammenfassung (neu/aktualisiert je Entität).
+
 ---
 
 ## 5. Vorschau / Webseiten-Rendering

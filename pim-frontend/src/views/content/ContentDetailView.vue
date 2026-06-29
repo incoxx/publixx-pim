@@ -54,7 +54,8 @@ const allowedSectionTypes = computed(() => {
 async function load() {
   loading.value = true
   try {
-    sectionTypes.value = await contentStore.loadSectionTypes()
+    // force = true: neu angelegte Sektionstypen sollen sofort auswählbar sein (Cache umgehen)
+    sectionTypes.value = await contentStore.loadSectionTypes(true)
     page.value = await contentStore.fetchOne(route.params.id)
     sections.value = page.value.sections || []
   } finally {

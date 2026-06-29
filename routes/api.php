@@ -122,6 +122,7 @@ use App\Http\Controllers\Api\V1\ContentSectionController;
 use App\Http\Controllers\Api\V1\NavigationController;
 use App\Http\Controllers\Api\V1\NavigationNodeController;
 use App\Http\Controllers\Api\V1\ProductWidgetController;
+use App\Http\Controllers\Api\V1\ContentConfigController;
 use App\Http\Controllers\Api\V1\PublicSiteController;
 use Illuminate\Support\Facades\Route;
 
@@ -824,6 +825,10 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
         // Produkt-Widgets (Anzeige-Definitionen für Produktblöcke)
         Route::apiResource('product-widgets', ProductWidgetController::class)
             ->parameters(['product-widgets' => 'product_widget']);
+
+        // Konfigurations-Export/-Import (JSON-Bundle, idempotenter Upsert)
+        Route::get('content-config/export', [ContentConfigController::class, 'export']);
+        Route::post('content-config/import', [ContentConfigController::class, 'import']);
     });
 
     // =====================================================================
