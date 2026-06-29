@@ -20,6 +20,19 @@ const activeTab = ref('sections')
 const lang = ref('de')
 const showAddPicker = ref(false)
 
+// Auto-Speichern-Status (Sektionen speichern automatisch; das wird hier sichtbar)
+const saveState = ref('idle') // idle | saving | saved
+let savedTimer = null
+function flagSaved() {
+  saveState.value = 'saved'
+  if (savedTimer) clearTimeout(savedTimer)
+  savedTimer = setTimeout(() => { saveState.value = 'idle' }, 2000)
+}
+async function withSave(fn) {
+  saveState.value = 'saving'
+  try { await fn(); flagSaved() } catch (e) { saveState.value = 'idle'; throw e }
+}
+
 const statusLabels = {
   draft: 'Entwurf', active: 'Aktiv', inactive: 'Inaktiv', archived: 'Archiviert',
 }
@@ -58,20 +71,21 @@ function editPage() {
 
 async function addSection(st) {
   showAddPicker.value = false
-  const created = await contentStore.addSection(page.value.id, { section_type_id: st.id })
-  // sectionType anreichern für sofortiges Rendern
-  created.section_type = st
-  sections.value.push(created)
+  await withSave(async () => {
+    const created = await contentStore.addSection(page.value.id, { section_type_id: st.id })
+    created.section_type = st // anreichern für sofortiges Rendern
+    sections.value.push(created)
+  })
 }
 
 async function saveSection(section, valuesJson) {
-  await contentStore.updateSection(section.id, { values_json: valuesJson })
+  await withSave(() => contentStore.updateSection(section.id, { values_json: valuesJson }))
 }
 
 async function toggleVisible(section) {
   const next = !section.is_visible
   section.is_visible = next
-  await contentStore.updateSection(section.id, { is_visible: next })
+  await withSave(() => contentStore.updateSection(section.id, { is_visible: next }))
 }
 
 async function deleteSection(section) {
@@ -110,7 +124,7 @@ onMounted(load)
 </script>
 
 <template>
-  <div class="space-y-4" data-testid="content-detail">
+  <div class="space-y-4 pb-24" data-testid="content-detail">
     <div v-if="loading" class="space-y-3">
       <div class="pim-skeleton h-8 w-1/3 rounded" />
       <div class="pim-skeleton h-40 rounded" />
@@ -135,6 +149,13 @@ onMounted(load)
           </span>
         </div>
         <div class="flex items-center gap-2">
+          <!-- Auto-Speichern-Status -->
+          <span class="text-[11px] flex items-center gap-1 px-1"
+            :class="saveState === 'saved' ? 'text-emerald-600' : 'text-[var(--color-text-tertiary)]'">
+            <template v-if="saveState === 'saving'">Speichert…</template>
+            <template v-else-if="saveState === 'saved'">✓ Gespeichert</template>
+            <template v-else>Automatisch gespeichert</template>
+          </span>
           <!-- Sprach-Umschaltung -->
           <div class="flex items-center border border-[var(--color-border)] rounded-md overflow-hidden">
             <button
