@@ -76,6 +76,12 @@ const routes = [
     meta: { title: 'Content-Seite', tabable: true, tabTitle: 'Seite' },
   },
   {
+    path: '/navigation',
+    name: 'navigation',
+    component: () => import('@/views/navigation/NavigationView.vue'),
+    meta: { title: 'Navigation' },
+  },
+  {
     path: '/hierarchies',
     name: 'hierarchies',
     component: () => import('@/views/hierarchies/HierarchyView.vue'),

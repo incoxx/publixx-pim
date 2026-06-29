@@ -223,9 +223,10 @@ der Attribute, damit Validierung, i18n und Renderer geteilt werden können:
 | `cta-banner` | headline, body, cta, background | layout |
 | `columns` | (nestable) | layout |
 | `accordion` | items[] (nestable) | layout |
-| `product-list` | source (PQL/Liste), layout, limit | commerce |
-| `product-teaser` | product_ref, variant | commerce |
-| `category-teaser` | hierarchy_node_ref | commerce |
+| `product-list` | pql, layout, limit | commerce — **regelbasiert** (PQL) |
+| `product-teaser` | product_ref, variant | commerce — **Einzelprodukt (Hero)** |
+| `product-gallery` | products[] (Auswahl), layout, columns, show_price | commerce — **handkuratierte Auswahl (Prospekt-Strecke)** |
+| `category-teaser` | hierarchy_node_ref | commerce — **komplette Kategorie** |
 | `spacer` / `divider` | size | layout |
 
 ### 3.3 `content_pages` — Seite (analog `products`)

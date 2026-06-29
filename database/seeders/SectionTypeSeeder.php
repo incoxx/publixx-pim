@@ -213,6 +213,25 @@ class SectionTypeSeeder extends Seeder
                 ]],
             ],
             [
+                'technical_name' => 'product-gallery',
+                'name_de' => 'Produkt-Galerie (Auswahl)',
+                'name_en' => 'Product Gallery (Selection)',
+                'icon' => 'GalleryHorizontalEnd',
+                'category' => 'commerce',
+                'preview_component' => 'SectionProductGallery',
+                'sort_order' => 215,
+                // Handkuratierte Produkt-Auswahl (Prospekt-Strecke): gezielt
+                // ausgewählte, sortierbare Produkte — im Gegensatz zur
+                // regelbasierten product-list (PQL).
+                'schema' => ['fields' => [
+                    ['key' => 'headline', 'label' => 'Überschrift', 'type' => 'String', 'translatable' => true],
+                    ['key' => 'products', 'label' => 'Produkte (Auswahl)', 'type' => 'product_ref', 'multiple' => true, 'required' => true],
+                    ['key' => 'layout', 'label' => 'Darstellung', 'type' => 'Selection', 'options' => ['grid', 'carousel', 'flyer'], 'default' => 'grid'],
+                    ['key' => 'columns', 'label' => 'Spalten', 'type' => 'Selection', 'options' => ['2', '3', '4'], 'default' => '3'],
+                    ['key' => 'show_price', 'label' => 'Preis anzeigen', 'type' => 'Flag', 'default' => true],
+                ]],
+            ],
+            [
                 'technical_name' => 'category-teaser',
                 'name_de' => 'Kategorie-Teaser',
                 'name_en' => 'Category Teaser',
