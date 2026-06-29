@@ -1,14 +1,23 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useNavigationStore } from '@/stores/navigation'
 import PimTree from '@/components/shared/PimTree.vue'
 import NavigationNodeFormPanel from '@/components/panels/NavigationNodeFormPanel.vue'
-import { Plus, Network } from 'lucide-vue-next'
+import { Plus, Network, Globe } from 'lucide-vue-next'
 
+const router = useRouter()
 const authStore = useAuthStore()
 const navStore = useNavigationStore()
 const emptyset = new Set()
+
+// technical_name der aktuell gewählten Navigation (für die Vorschau-Verlinkung)
+const currentNavKey = computed(() => navStore.navigations.find((n) => n.id === navStore.currentId)?.technical_name)
+
+function openPreview() {
+  router.push({ name: 'website-preview', query: currentNavKey.value ? { nav: currentNavKey.value } : {} })
+}
 
 // PimTree rendert node.name_de — wir spiegeln label_de dorthin und hängen
 // ein Ziel-Kürzel an, ohne die Originalfelder zu verlieren.
@@ -94,6 +103,9 @@ onMounted(async () => {
         </select>
       </div>
       <div class="flex items-center gap-2">
+        <button class="pim-btn pim-btn-secondary text-xs" :disabled="!navStore.currentId" @click="openPreview">
+          <Globe class="w-3.5 h-3.5" :stroke-width="2" /> Vorschau
+        </button>
         <button class="pim-btn pim-btn-secondary text-xs" @click="newNavigation">
           <Plus class="w-3.5 h-3.5" :stroke-width="2" /> Navigation
         </button>

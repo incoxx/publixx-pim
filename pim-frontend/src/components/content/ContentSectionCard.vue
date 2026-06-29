@@ -16,9 +16,12 @@ const props = defineProps({
 
 const emit = defineEmits(['save', 'delete', 'toggle-visible'])
 
-const values = ref(structuredClone(props.section.values_json || {}))
+// Reaktivitätssicherer Deep-Clone (structuredClone wirft auf Vue-Proxies).
+function clone(v) { return v == null ? v : JSON.parse(JSON.stringify(v)) }
+
+const values = ref(clone(props.section.values_json || {}))
 watch(() => props.section.id, () => {
-  values.value = structuredClone(props.section.values_json || {})
+  values.value = clone(props.section.values_json || {})
   resolveAllLabels()
 })
 
@@ -36,7 +39,7 @@ function setValue(field, val) {
   values.value[bk][field.key] = val
   debouncedSave()
 }
-const debouncedSave = useDebounceFn(() => emit('save', structuredClone(values.value)), 500)
+const debouncedSave = useDebounceFn(() => emit('save', clone(values.value)), 500)
 
 // ─── Klassifikation der Feldtypen ───────────────────────────────
 function kindOf(type) {

@@ -3,6 +3,9 @@ import { ref, computed, onMounted } from 'vue'
 import contentApi from '@/api/content'
 import { Plus, Trash2, GripVertical, Save, LayoutTemplate, X } from 'lucide-vue-next'
 
+// Reaktivitätssicherer Deep-Clone (structuredClone wirft auf Vue-Proxies).
+function clone(v) { return v == null ? v : JSON.parse(JSON.stringify(v)) }
+
 const types = ref([])
 const sectionTypes = ref([])
 const current = ref(null)
@@ -29,9 +32,9 @@ async function load() {
 function selectType(t) {
   errors.value = {}
   current.value = {
-    ...structuredClone(t),
+    ...clone(t),
     allowed_section_types: [...(t.allowed_section_types || [])],
-    default_sections: structuredClone(t.default_sections || []),
+    default_sections: clone(t.default_sections || []),
   }
 }
 

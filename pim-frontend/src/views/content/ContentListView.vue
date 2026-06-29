@@ -6,7 +6,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useContentStore } from '@/stores/content'
 import PimTable from '@/components/shared/PimTable.vue'
 import ContentPageFormPanel from '@/components/panels/ContentPageFormPanel.vue'
-import { Plus, Search, ChevronLeft, ChevronRight } from 'lucide-vue-next'
+import { Plus, Search, ChevronLeft, ChevronRight, Globe } from 'lucide-vue-next'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -85,6 +85,9 @@ onMounted(load)
             @input="onSearch"
           />
         </div>
+        <button class="pim-btn pim-btn-secondary text-xs" @click="router.push({ name: 'website-preview' })">
+          <Globe class="w-3.5 h-3.5" :stroke-width="2" /> Website-Vorschau
+        </button>
         <button class="pim-btn pim-btn-primary text-xs" @click="newPage" data-testid="btn-new-page">
           <Plus class="w-3.5 h-3.5" :stroke-width="2" /> Neue Seite
         </button>

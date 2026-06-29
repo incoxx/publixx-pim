@@ -1,10 +1,13 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import navigationApi from '@/api/navigation'
 import siteApi from '@/api/site'
 import SitePreviewSection from '@/components/site/SitePreviewSection.vue'
 import { Globe, Monitor, Smartphone, RefreshCw } from 'lucide-vue-next'
 
+const route = useRoute()
+const pendingSlug = ref(null)   // initial via ?slug= gezielt zu ladende Seite
 const navigations = ref([])
 const navKey = ref(null)        // technical_name der aktiven Navigation
 const sitemap = ref(null)
@@ -37,9 +40,14 @@ async function loadSitemap() {
   try {
     const { data } = await siteApi.getSitemap(navKey.value, lang.value)
     sitemap.value = data.data ?? data
-    const first = findContentPage(sitemap.value.nodes)
-    if (first) await loadPage(first.slug)
-    else page.value = null
+    if (pendingSlug.value) {
+      await loadPage(pendingSlug.value)
+      pendingSlug.value = null
+    } else {
+      const first = findContentPage(sitemap.value.nodes)
+      if (first) await loadPage(first.slug)
+      else page.value = null
+    }
   } catch (e) {
     error.value = e.response?.status === 404 ? 'Navigation nicht gefunden.' : 'Vorschau konnte nicht geladen werden.'
   } finally {
@@ -82,9 +90,16 @@ async function switchNavigation(key) {
 onMounted(async () => {
   const { data } = await navigationApi.list({ perPage: 100 })
   navigations.value = data.data ?? data
-  const primary = navigations.value.find((n) => n.is_primary) || navigations.value[0]
-  if (primary) {
-    navKey.value = primary.technical_name
+  pendingSlug.value = route.query.slug || null
+
+  // Navigation aus ?nav= (technical_name oder ID), sonst primäre/erste.
+  let chosen = null
+  if (route.query.nav) {
+    chosen = navigations.value.find((n) => n.technical_name === route.query.nav || n.id === route.query.nav)
+  }
+  chosen = chosen || navigations.value.find((n) => n.is_primary) || navigations.value[0]
+  if (chosen) {
+    navKey.value = chosen.technical_name
     await loadSitemap()
   }
 })
