@@ -100,6 +100,24 @@ class NavigationControllerTest extends TestCase
         $this->assertStringContainsString($b->id, $a->path);
     }
 
+    public function test_move_verhindert_zyklus_unter_eigenen_nachfahren(): void
+    {
+        $nav = $this->navigation();
+        $a = NavigationNode::create(['navigation_id' => $nav->id, 'label_de' => 'A', 'target_type' => 'folder', 'path' => '/', 'sort_order' => 0]);
+        $a->refreshTreePath();
+        $b = NavigationNode::create(['navigation_id' => $nav->id, 'parent_node_id' => $a->id, 'label_de' => 'B', 'target_type' => 'folder', 'path' => '/', 'sort_order' => 0]);
+        $b->refreshTreePath();
+
+        // A unter seinen eigenen Nachfahren B zu hängen muss abgelehnt werden.
+        $this->putJson("/api/v1/navigation-nodes/{$a->id}/move", [
+            'parent_node_id' => $b->id,
+            'sort_order' => 0,
+        ])->assertStatus(422)->assertJsonValidationErrors(['parent_node_id']);
+
+        $a->refresh();
+        $this->assertNull($a->parent_node_id); // unverändert
+    }
+
     public function test_tree_endpoint_liefert_verschachtelten_baum(): void
     {
         $nav = $this->navigation();

@@ -90,7 +90,13 @@ class WebsitePreviewService
             ? ContentPage::find($node->content_page_id)
             : ContentPage::where('slug', $slug)->first();
 
-        return $page ? $this->buildPage($page, $lang) : null;
+        // Öffentliche Vorschau: nur aktuell gültige Seiten ausliefern
+        // (kein Leak von Entwürfen/abgelaufenen Seiten über die No-Auth-Route).
+        if (!$page || !$page->isCurrentlyValid()) {
+            return null;
+        }
+
+        return $this->buildPage($page, $lang);
     }
 
     // ─── Navigation ────────────────────────────────────────────────

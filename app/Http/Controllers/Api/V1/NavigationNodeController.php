@@ -13,6 +13,7 @@ use App\Models\Navigation;
 use App\Models\NavigationNode;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Knoten des Navigationsbaums. Schreibrechte richten sich nach der
@@ -62,6 +63,19 @@ class NavigationNodeController extends Controller
 
         $data = $request->validated();
         $oldPath = $navigationNode->path;
+
+        // Zyklus verhindern: Knoten darf nicht unter sich selbst oder einen
+        // eigenen Nachfahren gehängt werden (sonst korrupter Baum / Endlos-Rekursion).
+        $newParentId = $data['parent_node_id'] ?? null;
+        if ($newParentId !== null) {
+            if ($newParentId === $navigationNode->id) {
+                throw ValidationException::withMessages(['parent_node_id' => 'Ein Knoten kann nicht sein eigenes Elternelement sein.']);
+            }
+            $parent = NavigationNode::find($newParentId);
+            if ($parent && str_starts_with($parent->path, $navigationNode->path)) {
+                throw ValidationException::withMessages(['parent_node_id' => 'Ein Knoten kann nicht unter einen eigenen Unterknoten verschoben werden.']);
+            }
+        }
 
         DB::transaction(function () use ($data, $navigationNode, $oldPath) {
             $navigationNode->parent_node_id = $data['parent_node_id'] ?? null;

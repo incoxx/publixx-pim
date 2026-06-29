@@ -66,8 +66,9 @@ async function loadPage(slug) {
 }
 
 function onNavClick(node) {
-  if (node.target_type === 'external_url' && node.external_url) {
-    window.open(node.external_url, '_blank')
+  // Backend liefert externe Ziele als node.href (nicht external_url).
+  if (node.target_type === 'external_url' && node.href) {
+    window.open(node.href, '_blank')
   } else if (isLink(node)) {
     loadPage(node.slug)
   }

@@ -82,7 +82,13 @@ const entityFetcher = computed(() => {
 
 function onEntityConfirm(items) {
   const f = activeField.value
-  items.forEach((it) => labelCache.value.set(it.id, it.name_de || it.name || it.label || it.id))
+  items.forEach((it) => {
+    // Vorausgewählte (nicht neu angeklickte) Items kommen als Platzhalter {id}
+    // ohne Name zurück — vorhandenes Label nicht mit der UUID überschreiben.
+    const label = it.name_de || it.name || it.label
+    if (label) labelCache.value.set(it.id, label)
+    else if (!labelCache.value.has(it.id)) labelCache.value.set(it.id, it.id)
+  })
   const ids = items.map((i) => i.id)
   setValue(f, f.multiple ? ids : (ids[0] ?? null))
   pickerKind.value = null
@@ -92,6 +98,16 @@ function onMediaSelect(item) {
   if (!activeField.value) return
   labelCache.value.set(item.id, item.file_name || item.id)
   setValue(activeField.value, activeField.value.multiple ? [...asArray(getValue(activeField.value)), item.id] : item.id)
+  pickerKind.value = null
+}
+
+// Mehrfachauswahl aus dem Media-Dialog (für Galerie-/Media-Felder mit multiple)
+function onMediaSelectMultiple(items) {
+  const f = activeField.value
+  if (!f) return
+  items.forEach((it) => labelCache.value.set(it.id, it.file_name || it.id))
+  const ids = items.map((i) => i.id)
+  setValue(f, f.multiple ? [...asArray(getValue(f)), ...ids] : (ids[0] ?? null))
   pickerKind.value = null
 }
 
@@ -232,6 +248,7 @@ onMounted(async () => {
       :model-value="pickerKind === 'media'"
       @update:model-value="(v) => { if (!v) pickerKind = null }"
       @select="onMediaSelect"
+      @select-multiple="onMediaSelectMultiple"
     />
   </div>
 </template>

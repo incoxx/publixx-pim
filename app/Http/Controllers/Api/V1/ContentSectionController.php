@@ -13,6 +13,7 @@ use App\Models\ContentSection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Sektionen (Bausteine) einer Content-Seite. Schreibrechte richten sich
@@ -62,9 +63,21 @@ class ContentSectionController extends Controller
             'parent_section_id' => 'nullable|string|exists:content_sections,id',
         ]);
 
-        // Verhindere Zyklen: eine Sektion darf nicht ihr eigenes Elter werden.
-        if (($validated['parent_section_id'] ?? null) === $contentSection->id) {
-            return new ContentSectionResource($contentSection);
+        $newParentId = $validated['parent_section_id'] ?? null;
+        if ($newParentId !== null) {
+            $parent = ContentSection::find($newParentId);
+
+            // Neues Elter muss zur selben Seite gehören (kein Cross-Page-Reparenting).
+            if (!$parent || $parent->content_page_id !== $contentSection->content_page_id) {
+                throw ValidationException::withMessages(['parent_section_id' => 'Ungültiges Elternelement.']);
+            }
+
+            // Zyklus verhindern: Elternkette darf die Sektion selbst nicht enthalten.
+            for ($cursor = $parent; $cursor !== null; $cursor = $cursor->parent_section_id ? ContentSection::find($cursor->parent_section_id) : null) {
+                if ($cursor->id === $contentSection->id) {
+                    throw ValidationException::withMessages(['parent_section_id' => 'Eine Sektion kann nicht unter sich selbst verschoben werden.']);
+                }
+            }
         }
 
         $contentSection->update([

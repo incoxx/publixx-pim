@@ -33,6 +33,12 @@ const countdown = computed(() => {
 function headingTag() {
   return { h1: 'h1', h2: 'h2', h3: 'h3' }[v.value.level] || 'h2'
 }
+
+// Section-Media werden als ID gespeichert; nur echte URLs/Pfade als Bild rendern
+// (verhindert eine kaputte <img src="UUID">).
+function isImageUrl(s) {
+  return typeof s === 'string' && (s.startsWith('/') || s.startsWith('http'))
+}
 </script>
 
 <template>
@@ -77,7 +83,7 @@ function headingTag() {
     </div>
 
     <!-- Bild / Video / Link -->
-    <img v-else-if="type === 'image' && v.image" :src="v.image" :alt="v.caption" class="w-full rounded-2xl object-cover" />
+    <img v-else-if="type === 'image' && isImageUrl(v.image)" :src="v.image" :alt="v.caption" class="w-full rounded-2xl object-cover" />
     <a v-else-if="type === 'link'" :href="v.url" class="text-[var(--color-accent)] underline text-sm">{{ v.label || v.url }}</a>
 
     <!-- Spacer -->
