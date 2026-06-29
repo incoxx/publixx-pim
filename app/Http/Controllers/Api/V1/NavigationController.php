@@ -74,6 +74,10 @@ class NavigationController extends Controller
     {
         $this->authorize('view', $navigation);
 
+        // Verwaiste Knoten (Ziel gelöscht → tote Referenz) bereinigen, damit
+        // keine „Artefakte" im Baum hängen bleiben.
+        NavigationNode::pruneOrphans($navigation->id);
+
         $rootNodes = NavigationNode::where('navigation_id', $navigation->id)
             ->whereNull('parent_node_id')
             ->orderBy('sort_order')

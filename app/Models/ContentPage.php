@@ -47,6 +47,26 @@ class ContentPage extends Model
         ];
     }
 
+    protected static function booted(): void
+    {
+        // Beim Löschen einer Seite verweisende Navigationsknoten nachziehen,
+        // damit keine verwaisten „Artefakte" in der Sitemap zurückbleiben.
+        // (Die FK setzt content_page_id nur auf NULL, der Knoten bliebe sonst
+        // als toter content_page-Verweis erhalten.)
+        static::deleting(function (ContentPage $page) {
+            NavigationNode::where('content_page_id', $page->id)
+                ->where('target_type', 'content_page')
+                ->get()
+                ->each(function (NavigationNode $node) {
+                    if ($node->children()->exists()) {
+                        $node->update(['target_type' => 'folder', 'content_page_id' => null]);
+                    } else {
+                        $node->delete();
+                    }
+                });
+        });
+    }
+
     public function contentType(): BelongsTo
     {
         return $this->belongsTo(ContentType::class);

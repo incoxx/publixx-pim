@@ -81,4 +81,43 @@ class NavigationNode extends Model
     {
         return $this->belongsTo(Product::class, 'product_id');
     }
+
+    /**
+     * Verwaiste Knoten bereinigen: Ein Ziel-Knoten, dessen referenziertes
+     * Objekt gelöscht wurde (FK per ON DELETE SET NULL → id ist NULL, aber
+     * target_type zeigt weiter auf content_page/product/product_category),
+     * ist ein „Artefakt". Blatt-Knoten werden gelöscht; Knoten mit Kindern
+     * werden zu Ordnern degradiert (Menüstruktur bleibt erhalten).
+     *
+     * @return int  Anzahl gelöschter Knoten
+     */
+    public static function pruneOrphans(?string $navigationId = null): int
+    {
+        $query = static::query()->where(function ($q) {
+            $q->where(fn ($q) => $q->where('target_type', 'content_page')->whereNull('content_page_id'))
+                ->orWhere(fn ($q) => $q->where('target_type', 'product')->whereNull('product_id'))
+                ->orWhere(fn ($q) => $q->where('target_type', 'product_category')->whereNull('hierarchy_node_id'));
+        });
+
+        if ($navigationId !== null) {
+            $query->where('navigation_id', $navigationId);
+        }
+
+        $deleted = 0;
+        foreach ($query->get() as $node) {
+            if ($node->children()->exists()) {
+                $node->update([
+                    'target_type' => 'folder',
+                    'content_page_id' => null,
+                    'product_id' => null,
+                    'hierarchy_node_id' => null,
+                ]);
+            } else {
+                $node->delete();
+                $deleted++;
+            }
+        }
+
+        return $deleted;
+    }
 }
