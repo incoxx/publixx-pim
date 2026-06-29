@@ -32,6 +32,43 @@ physisches Produkt, sondern eine **Seite** das zentrale Objekt ist. Wir
 erben Versionierung, Workflow, i18n, Media-Anbindung, Such-Indexierung,
 Import/Export und Rechte-/Lizenzlogik aus dem bestehenden System.
 
+### 1.1 Abgrenzung: nicht TYPO3, besser als WordPress
+
+Das Zielbild ist bewusst zwischen zwei bekannten Systemen positioniert. Jede
+Design-Entscheidung wird an dieser Latte gemessen:
+
+| | TYPO3 | WordPress | **anyPIM Content** |
+|---|---|---|---|
+| Inhalt | strukturiert, aber überkonfiguriert (TypoScript/TCA) | **freiform** (Gutenberg = HTML-Suppe) | **strukturiert** über typisierte Sektions-Schemata |
+| Produkte | kein PIM | **nur über Plugins** (WooCommerce/Sync) | **nativ** — Attribute, Varianten, Preise, Media, PQL erstklassig |
+| Lernkurve | steil (Overkill) | flach, aber chaotisch | flach — identisch zum Produkt-Workflow |
+| Erweiterbarkeit | Extension-Schwergewicht | Plugin-Wildwuchs | Baukasten erzeugt **typisierte** Schemata, kein Freiform-Code |
+
+**Merksatz für jede Entscheidung:** *Mehr Freiheit → Drift Richtung
+WordPress-Chaos. Mehr Konfig-Ebene → Drift Richtung TYPO3-Overkill.* Beides ist
+der Feind.
+
+**Wichtig — der „Baukasten" ist kontrolliert:** Ein GUI-Schema-Builder für
+eigene Sektionstypen ist ausdrücklich gewünscht und kein Widerspruch zu „kein
+wilder Baukasten". WordPress-Chaos entsteht nicht durch einen Schema-Builder,
+sondern durch *freiform Content*. Unser Builder erzeugt ausschließlich
+**typisierte Felder** (aus einer festen Palette der `data_type`-Welt) — Content
+bleibt strukturiert, Produkte bleiben nativ. Der Baukasten dient dem
+**Strukturieren**, nicht dem Einfügen von Freiform-HTML.
+
+### 1.2 Das Differenzierungsmerkmal (Killer-Feature)
+
+Der Grund, warum das WordPress schlägt, steht hier ganz vorn — nicht als
+Sektionstyp Nr. 14:
+
+> **Native, PQL-getriebene Produktintegration ohne Plugin.** Eine Sektion sagt
+> „zeige Produkte WHERE `attribute:leistung > 500W`" und rendert live mit vollem
+> Zugriff auf Attribute, Preise, Media und Varianten — in derselben Vorschau.
+> Kategorieseiten entstehen **automatisch** aus der Produkthierarchie
+> (Mount-Points, §3.6), statt von Hand nachgebaut zu werden. Kein WooCommerce,
+> kein Sync, kein „schlechtes Plugin" — Produkte sind erstklassige Bürger der
+> Seite.
+
 ---
 
 ## 2. Die drei Bausteine des Konzepts
@@ -152,6 +189,23 @@ der Attribute, damit Validierung, i18n und Renderer geteilt werden können:
 > `attributes` zu erzeugen. Selection-Felder dürfen auf bestehende
 > `value_lists` verweisen.
 
+> **GUI-Schema-Builder (v1, voller Baukasten):** Admins können eigene
+> Sektionstypen per GUI anlegen — aber **diszipliniert gegen TYPO3-Overkill**:
+> kein TypoScript, keine Konfig-Schichten. Der Builder ist eine
+> **feste Feld-Palette** (`String`, `RichText`, `Media`, `Link`, `Selection`,
+> `Number`, `Flag`, `product_ref`, `pql`) mit Drag&Drop-Anordnung und
+> **Live-Vorschau**. Jedes erzeugte Feld ist typisiert — es gibt **kein**
+> „Custom HTML"-Feld. So bleibt der Baukasten so einfach wie WordPress, aber
+> strukturiert wie ein PIM. Vordefinierte Sektionstypen werden zusätzlich im Code
+> geseedet (wie `ElementMap`s), damit ein sinnvoller Grundstock ohne Pflege
+> existiert.
+
+> **RichText eng halten (Anti-WordPress):** `RichText`-Felder verwenden eine
+> **Tag-Whitelist** (Absatz, Fett/Kursiv, Liste, Link) — keine eingebetteten
+> HTML-Blöcke, keine Shortcodes, kein `<script>`. Freitext darf den strukturellen
+> Charakter nicht unterlaufen. Im Zweifel: lieber ein typisiertes Feld mehr als
+> ein offenes RichText.
+
 **Vordefinierte Sektionstypen (Seed):**
 
 | `technical_name` | Felder (Auszug) | Kategorie |
@@ -183,8 +237,8 @@ CREATE TABLE content_pages (
     slug                       VARCHAR(255),         -- URL-Segment, eindeutig je Navigation/Sprache
     title                      VARCHAR(500),
     status                     ENUM('draft','active','inactive','archived') DEFAULT 'draft',
-    -- Navigation / Sitemap
-    navigation_node_id         UUID NULL REFERENCES navigation_nodes(id),  -- primäre Position im Baum
+    -- KEINE navigation_node_id hier (siehe Platzierungsmodell unten):
+    -- eine Seite lebt eigenständig und wird über navigation_nodes platziert (1:n)
     -- SEO
     seo_title_json             JSON NULL,            -- {de,en}
     seo_description_json       JSON NULL,
@@ -201,7 +255,18 @@ CREATE TABLE content_pages (
 
 `content_page_versions` wird **1:1 wie `product_versions`** angelegt (Snapshot-
 JSON, `status` draft/scheduled/active/archived, `publish_at`/`published_at`) —
-so erbt Content geplante Publikation und Historie.
+so erbt Content geplante Publikation und Historie. Der Snapshot umfasst auch die
+zugehörigen `content_sections` (separate Zeilen), damit eine Version eine Seite
+vollständig rekonstruiert.
+
+> **Platzierungsmodell (entschieden — Output-Muster):** Eine Seite trägt
+> **keine** feste Position im Baum. Platzierung erfolgt ausschließlich über
+> `navigation_nodes` (siehe §3.6) — eine Seite kann damit in **beliebig vielen**
+> Navigationen/Menüs (Haupt, Footer, Sitemap) gleichzeitig hängen. Das spiegelt
+> exakt das bewährte `master_hierarchy_node_id` vs.
+> `OutputHierarchyProductAssignment`-Muster der Produktwelt: das Objekt lebt
+> eigenständig, die Platzierung ist eine n:m-Zuordnung. So vermeiden wir die
+> TYPO3-Starrheit „eine Seite = ein Baumknoten".
 
 ### 3.4 `content_sections` — Block-Instanz (analog `product_attribute_values`)
 
@@ -258,11 +323,15 @@ Sektion und werden zur Render-/Exportzeit aufgelöst.
 
 ### 3.6 Navigationsbaum / Sitemap — `navigations` + `navigation_nodes`
 
-**Das Herzstück.** Wir spiegeln das `hierarchies`/`hierarchy_nodes`-Muster
-(Materialized Path, `sort_order`, Tree), erweitern es aber um einen **Ziel-Typ**,
-sodass ein Knoten auf Content **oder** Produktkategorie **oder** Produkt **oder**
-externen Link zeigen kann. Das ergibt die perfekte Verzahnung von Content und
-Produkten in **einer** Sitemap.
+**Das Herzstück.** Eigene Tabellen (Platzierungs-/Menülogik ist eine andere
+Sorge als Produkt-Taxonomie), aber **die Tree-Engine wird nicht dupliziert.**
+Materialized-Path-Pflege, `move`, `depth`-Berechnung und Sortierung leben in
+einem geteilten `MaterializedTree`-Trait/-Service, den sowohl `hierarchy_nodes`
+als auch `navigation_nodes` nutzen. Der Algorithmus existiert genau einmal —
+das ist der konkreteste Anti-Overkill-Hebel. Erweitert wird das Knotenmodell um
+einen **polymorphen Ziel-Typ**, sodass ein Knoten auf Content **oder**
+Produktkategorie **oder** Produkt **oder** externen Link zeigt. Das ergibt die
+perfekte Verzahnung von Content und Produkten in **einer** Sitemap.
 
 ```sql
 CREATE TABLE navigations (
@@ -288,10 +357,13 @@ CREATE TABLE navigation_nodes (
     is_visible       BOOLEAN DEFAULT TRUE,  -- im Menü sichtbar (vs. nur in Sitemap)
     -- Ziel (Polymorphie)
     target_type      ENUM('folder','content_page','product_category','product','external_url') DEFAULT 'folder',
-    content_page_id  UUID NULL REFERENCES content_pages(id),
-    hierarchy_node_id UUID NULL REFERENCES hierarchy_nodes(id),  -- für 'product_category'
+    content_page_id  UUID NULL REFERENCES content_pages(id),   -- Platzierung einer Seite (1:n, Output-Muster)
+    hierarchy_node_id UUID NULL REFERENCES hierarchy_nodes(id),  -- für 'product_category' (Mount-Point)
     product_id       UUID NULL REFERENCES products(id),
     external_url     VARCHAR(1000) NULL,
+    -- Mount-Point-Verhalten (gegen doppelten Kategorienbaum)
+    auto_expand      BOOLEAN DEFAULT FALSE,  -- Kinder des gemounteten Hierarchieknotens automatisch als Menüpunkte
+    expand_depth     INT NULL,               -- bis zu welcher Tiefe expandieren (NULL = alle)
     created_at TIMESTAMP, updated_at TIMESTAMP,
     INDEX (navigation_id, parent_node_id),
     INDEX (path(255))
@@ -307,6 +379,15 @@ CREATE TABLE navigation_nodes (
 | `product_category` | rendert Produktliste eines Hierarchieknotens (+ optional verknüpfter Intro-Content via `hierarchy_node_content_links`) | `/produkte/werkzeuge` |
 | `product` | Deeplink auf eine Produktdetailseite | `/produkte/werkzeuge/akkubohrer-x1` |
 | `external_url` | externer Link (z. B. Shop, Social) | `https://…` |
+
+> **Mount-Points statt Handarbeit (gegen TYPO3-Schmerz):** Ein
+> `product_category`-Knoten mit `auto_expand = true` **mountet** einen
+> Hierarchie-Teilbaum und expandiert dessen Kinder automatisch als Menüpunkte.
+> Die Produkttaxonomie wird damit **referenziert, nicht dupliziert** — Menü und
+> Sortiment bleiben automatisch synchron. Das vermeidet TYPO3s klassisches
+> Problem aus auseinanderlaufendem Seitenbaum und Kategorie-Struktur. Nur wo die
+> Redaktion bewusst kuratiert (Reihenfolge, Auswahl), werden Kindknoten manuell
+> gesetzt.
 
 So entsteht eine durchgängige Sitemap, in der **Intro-Page, Produkte, Lösungen
 und Impressum** nebeneinander hängen — exakt das Zielbild.
@@ -359,10 +440,14 @@ Analog zu `MappingResolver` lösen Mapping-Regeln Sektionsfelder auf flache
 | **PDF** | `PdfTemplateRenderer` (Spec 14) | Direkt-PDF einer Seite/eines Kapitels |
 | **HTML-Bundle** | `OfflineCatalogExportService` (erweitert) | statische Website als ZIP |
 
-**Print-Ziel:** Da der Navigationsbaum eine geordnete Sitemap liefert und Seiten
-strukturierte Sektionen plus verknüpfte Produkte enthalten, kann der gesamte Baum
-als **lineares Print-Dokument** (Kapitel → Seiten → Produktstrecken) exportiert
-werden — die Brücke zwischen Web und Print.
+**Print-Ziel (mit ehrlicher Abgrenzung):** Da der Navigationsbaum eine geordnete
+Sitemap liefert und Seiten strukturierte Sektionen plus verknüpfte Produkte
+enthalten, kann der gesamte Baum als **strukturierter, linearisierter Datenstrom**
+(Kapitel → Seiten → Produktstrecken) exportiert werden. Wichtig: anyPIM liefert
+den **strukturierten Content**, nicht das Print-*Layout*. Spaltenfluss,
+Umbrüche und Master-Seiten bleiben Sache des Layout-Systems (InDesign über das
+JSON/XML, bzw. `PdfTemplateRenderer` für direkte PDFs). Wir versprechen also
+„saubere Print-Daten für ein Layout-System", kein WYSIWYG-Print.
 
 ### 4.3 Import
 
@@ -459,6 +544,12 @@ Drag&Drop-Sortierung (`sort_order`), „Block hinzufügen" beschränkt auf
 (dieselben Feld-Renderer wie die Attribut-Eingabe). Live-Vorschau-Spalte rendert
 `section_type.preview_component`.
 
+**Sektionstyp-Builder** (`SectionTypeView`, voller Baukasten): GUI zum Anlegen
+eigener Sektionstypen über eine **feste, typisierte Feld-Palette** (Drag&Drop +
+Live-Vorschau), bewusst ohne Konfig-Schichten. Erzeugt das `schema`-JSON aus
+§3.2. Kein „Custom HTML"-Feld — der Builder bleibt einfach (WordPress-Niveau)
+und das Ergebnis strukturiert (PIM-Niveau).
+
 ---
 
 ## 7. API-Endpunkte (`routes/api.php`)
@@ -515,11 +606,13 @@ CLI analog Konvention: `php artisan pim:content-export --navigation= --format=`.
 | Phase | Inhalt | Ergebnis |
 |-------|--------|----------|
 | **1 — Fundament** | Migrationen + Models (`content_types`, `section_types`, `content_pages`, `content_sections`), Seeds für Standard-Sektionstypen, CRUD-API, `stores/content.js` | Seiten mit Sektionen anlegen & bearbeiten |
-| **2 — Sektions-Editor** | `ContentDetailView` Tab „Sektionen", schema-getriebene Feld-Renderer (Reuse Attribut-Inputs), Drag&Drop, i18n | Redaktionelle Pflege wie im CMS |
-| **3 — Navigation/Sitemap** | `navigations`/`navigation_nodes`, `NavigationView` (Reuse `PimTree`), Ziel-Typen, Verknüpfung Content↔Produkt↔Hierarchie | Vollständige Sitemap |
-| **4 — Vorschau** | `WebsitePreviewService`, öffentliche `site`-Routen, `WebsitePreviewView` | Klickbare Webseiten-Vorschau (Intro, Produkte, Lösungen, Impressum) |
-| **5 — Export/Import** | `ContentMappingResolver`/`ContentElementMap`/`ContentFormatExporter`, Sitemap.xml, Print-Export, Import-Sheets | Web- & Print-Publishing, Roundtrip |
-| **6 — Feinschliff** | Such-Index (Spec 19), Versionierung/Scheduling (Spec 13), KI-Textvorschläge (optional) | Produktionsreife |
+| **2 — Sektions-Editor** | `ContentDetailView` Tab „Sektionen", schema-getriebene Feld-Renderer (Reuse Attribut-Inputs), Drag&Drop, eng begrenzte RichText, i18n | Redaktionelle Pflege wie im CMS |
+| **3 — Native Produktintegration (Killer-Feature)** | `product-list`/`product-teaser`/`category-teaser`-Sektionen, PQL-Auflösung (Spec 03), Einbettung via `ProductPreviewService`, Verknüpfungstabellen | „Besser als WordPress": Produkte ohne Plugin live auf Seiten |
+| **4 — Navigation/Sitemap** | `MaterializedTree`-Trait extrahieren, `navigations`/`navigation_nodes`, `NavigationView` (Reuse `PimTree`), polymorphe Ziel-Typen, **Mount-Points** (`auto_expand`) | Vollständige Sitemap, Menü = Sortiment automatisch synchron |
+| **5 — Vorschau** | `WebsitePreviewService`, öffentliche `site`-Routen, `WebsitePreviewView` | Klickbare Webseiten-Vorschau (Intro, Produkte, Lösungen, Impressum) |
+| **6 — Export/Import** | `ContentMappingResolver`/`ContentElementMap`/`ContentFormatExporter`, Sitemap.xml, Print-Datenexport, Import-Sheets | Web- & Print-Publishing, Roundtrip |
+| **7 — Sektionstyp-Builder (voller Baukasten)** | `SectionTypeView` mit typisierter Feld-Palette, Drag&Drop, Live-Vorschau; erzeugt `schema`-JSON | Eigene Sektionstypen per GUI — strukturiert, ohne TYPO3-Overkill |
+| **8 — Feinschliff** | Such-Index (Spec 19), Versionierung/Scheduling (Spec 13), KI-Textvorschläge (optional) | Produktionsreife |
 
 ---
 
