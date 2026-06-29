@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
-use App\Http\Controllers\Controller;
 use App\Models\Navigation;
 use App\Services\Preview\WebsitePreviewService;
 use Illuminate\Http\JsonResponse;
