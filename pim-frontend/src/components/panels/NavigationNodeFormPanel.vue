@@ -76,7 +76,7 @@ async function resolveLabels() {
     try { const { data } = await hierarchiesApi.getNode(form.value.hierarchy_node_id); pickedLabel.value.node = (data.data ?? data).name_de } catch { /* id */ }
   }
   if (form.value.product_id && !pickedLabel.value.product) {
-    try { const { data } = await productsApi.list({ filters: { id: form.value.product_id }, perPage: 1 }); pickedLabel.value.product = (data.data ?? data)[0]?.name } catch { /* id */ }
+    try { const { data } = await productsApi.get(form.value.product_id); pickedLabel.value.product = (data.data ?? data)?.name } catch { /* id */ }
   }
 }
 

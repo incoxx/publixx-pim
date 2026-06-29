@@ -17,7 +17,7 @@ class StoreContentPageRequest extends FormRequest
     {
         return [
             'content_type_id' => 'required|string|exists:content_types,id',
-            'slug' => 'required|string|max:255',
+            'slug' => 'required|string|max:255|unique:content_pages,slug',
             'title' => 'required|string|max:500',
             'status' => 'sometimes|in:draft,active,inactive,archived',
             'valid_from' => 'nullable|date',

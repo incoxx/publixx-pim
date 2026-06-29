@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Requests\Api\V1;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class UpdateContentPageRequest extends FormRequest
 {
@@ -15,9 +16,11 @@ class UpdateContentPageRequest extends FormRequest
 
     public function rules(): array
     {
+        $id = $this->route('content_page')?->id ?? $this->route('content_page');
+
         return [
             'content_type_id' => 'sometimes|string|exists:content_types,id',
-            'slug' => 'sometimes|string|max:255',
+            'slug' => ['sometimes', 'string', 'max:255', Rule::unique('content_pages', 'slug')->ignore($id)],
             'title' => 'sometimes|string|max:500',
             'status' => 'sometimes|in:draft,active,inactive,archived',
             'valid_from' => 'nullable|date',

@@ -70,6 +70,14 @@ class ContentTypeController extends Controller
             return $this->destroyWithConstraintCheck($request, $contentType);
         }
 
+        // content_pages.content_type_id ist FK restrict — auch mit force nicht
+        // kaskadierbar; sonst QueryException → 500. Sauber als 409 abweisen.
+        if ($contentType->pages()->exists()) {
+            return response()->json([
+                'message' => 'Seitentyp wird noch von Content-Seiten verwendet.',
+            ], 409);
+        }
+
         $contentType->delete();
 
         return response()->json(null, 204);

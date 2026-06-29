@@ -130,9 +130,9 @@ async function resolveAllLabels() {
       if (labelCache.value.has(id)) continue
       try {
         if (kind === 'product') {
-          const { data } = await productsApi.list({ filters: { id }, perPage: 1 })
-          const it = (data.data ?? data)[0]
-          if (it) labelCache.value.set(id, it.name)
+          const { data } = await productsApi.get(id)
+          const it = data.data ?? data
+          if (it?.name) labelCache.value.set(id, it.name)
         } else if (kind === 'node') {
           const { data } = await hierarchiesApi.getNode(id)
           const n = data.data ?? data
