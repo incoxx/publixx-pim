@@ -83,7 +83,8 @@ async function handleSubmit(data) {
 }
 
 onMounted(async () => {
-  contentTypes.value = await contentStore.loadContentTypes()
+  // force = true: neu angelegte Seitentypen sollen sofort wählbar sein (Cache umgehen)
+  contentTypes.value = await contentStore.loadContentTypes(true)
 })
 </script>
 
