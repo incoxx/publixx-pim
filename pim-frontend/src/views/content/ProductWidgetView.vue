@@ -128,6 +128,8 @@ async function save() {
       const { data } = await widgetsApi.create(payload)
       current.value = { ...current.value, ...(data.data ?? data) }
     }
+    // Defensive: config immer vollständig halten (kein Render-Crash bei Teil-config)
+    current.value.config = withDefaults(current.value.config)
     await load()
   } catch (e) {
     if (e.response?.status === 422) {

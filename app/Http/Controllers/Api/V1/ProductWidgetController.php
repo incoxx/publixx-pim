@@ -37,7 +37,12 @@ class ProductWidgetController extends Controller
     {
         $this->authorize('create', ProductWidget::class);
 
-        $widget = ProductWidget::create($request->validated());
+        $data = $request->validated();
+        // validated() beschneidet config auf beregelte Pfade (config.fields.*) und
+        // verliert cta/show_sku/image_ratio/layout → volle config aus dem Input nehmen.
+        $data['config'] = $request->input('config', $data['config'] ?? []);
+
+        $widget = ProductWidget::create($data);
 
         return (new ProductWidgetResource($widget))
             ->response()
@@ -55,7 +60,12 @@ class ProductWidgetController extends Controller
     {
         $this->authorize('update', $productWidget);
 
-        $productWidget->update($request->validated());
+        $data = $request->validated();
+        if ($request->has('config')) {
+            $data['config'] = $request->input('config'); // volle config, nicht beschnitten
+        }
+
+        $productWidget->update($data);
 
         return new ProductWidgetResource($productWidget->fresh());
     }

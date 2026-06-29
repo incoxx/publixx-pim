@@ -38,7 +38,14 @@ class SectionTypeController extends Controller
     {
         $this->authorize('create', SectionType::class);
 
-        $type = SectionType::create($request->validated());
+        $data = $request->validated();
+        // validated() beschneidet schema auf beregelte Pfade (schema.fields.*.key/type)
+        // und verliert label/translatable/required/options/multiple → volles schema nehmen.
+        if ($request->has('schema')) {
+            $data['schema'] = $request->input('schema');
+        }
+
+        $type = SectionType::create($data);
 
         return (new SectionTypeResource($type))
             ->response()
@@ -56,7 +63,12 @@ class SectionTypeController extends Controller
     {
         $this->authorize('update', $sectionType);
 
-        $sectionType->update($request->validated());
+        $data = $request->validated();
+        if ($request->has('schema')) {
+            $data['schema'] = $request->input('schema'); // volles schema, nicht beschnitten
+        }
+
+        $sectionType->update($data);
 
         return new SectionTypeResource($sectionType->fresh());
     }
