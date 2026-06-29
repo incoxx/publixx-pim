@@ -3,6 +3,9 @@ import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useNavigationStore } from '@/stores/navigation'
 import contentApi from '@/api/content'
+import productsApi from '@/api/products'
+import hierarchiesApi from '@/api/hierarchies'
+import EntityPickerDialog from '@/components/shared/EntityPickerDialog.vue'
 
 const props = defineProps({
   node: { type: Object, default: null },       // edit-Modus
@@ -38,6 +41,45 @@ const form = ref(
 // Content-Seiten für das Dropdown (target_type = content_page)
 const contentPages = ref([])
 
+// ─── Picker (Hierarchieknoten / Produkt) ────────────────────────
+const pickerKind = ref(null) // 'node' | 'product'
+const pickedLabel = ref({ node: null, product: null })
+
+const fetcher = computed(() => {
+  if (pickerKind.value === 'node') {
+    return async (q, page) => {
+      const { data } = await hierarchiesApi.searchNodes({ search: q || undefined, page, perPage: 20 })
+      return { items: (data.data ?? data).map((n) => ({ ...n, name: n.name_de })), meta: data.meta }
+    }
+  }
+  return async (q, page) => {
+    const { data } = await productsApi.list({ search: q || undefined, page, perPage: 20 })
+    return { items: data.data ?? data, meta: data.meta }
+  }
+})
+
+function onPick(items) {
+  const it = items[0]
+  if (!it) { pickerKind.value = null; return }
+  if (pickerKind.value === 'node') {
+    form.value.hierarchy_node_id = it.id
+    pickedLabel.value.node = it.name_de || it.name || it.id
+  } else {
+    form.value.product_id = it.id
+    pickedLabel.value.product = it.name || it.id
+  }
+  pickerKind.value = null
+}
+
+async function resolveLabels() {
+  if (form.value.hierarchy_node_id && !pickedLabel.value.node) {
+    try { const { data } = await hierarchiesApi.getNode(form.value.hierarchy_node_id); pickedLabel.value.node = (data.data ?? data).name_de } catch { /* id */ }
+  }
+  if (form.value.product_id && !pickedLabel.value.product) {
+    try { const { data } = await productsApi.list({ filters: { id: form.value.product_id }, perPage: 1 }); pickedLabel.value.product = (data.data ?? data)[0]?.name } catch { /* id */ }
+  }
+}
+
 async function save() {
   loading.value = true
   errors.value = {}
@@ -70,6 +112,7 @@ onMounted(async () => {
     const { data } = await contentApi.list({ perPage: 200 })
     contentPages.value = data.data ?? data
   } catch { contentPages.value = [] }
+  resolveLabels()
 })
 </script>
 
@@ -117,8 +160,11 @@ onMounted(async () => {
 
     <template v-else-if="form.target_type === 'product_category'">
       <div>
-        <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Hierarchieknoten-ID <span class="text-[var(--color-error)]">*</span></label>
-        <input v-model="form.hierarchy_node_id" class="pim-input text-xs w-full" placeholder="UUID (Picker folgt)" />
+        <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Kategorie (Hierarchieknoten) <span class="text-[var(--color-error)]">*</span></label>
+        <div class="flex items-center gap-2">
+          <span v-if="form.hierarchy_node_id" class="inline-flex items-center px-2 py-1 rounded-full bg-[var(--color-bg)] text-xs truncate max-w-48">{{ pickedLabel.node || form.hierarchy_node_id }}</span>
+          <button type="button" class="pim-btn pim-btn-secondary text-[11px]" @click="pickerKind = 'node'">{{ form.hierarchy_node_id ? 'Ändern' : 'Auswählen' }}</button>
+        </div>
         <p v-if="errors.hierarchy_node_id" class="mt-1 text-[11px] text-[var(--color-error)]">{{ errors.hierarchy_node_id }}</p>
       </div>
       <label class="flex items-center gap-2 text-[12px] text-[var(--color-text-secondary)]">
@@ -132,8 +178,11 @@ onMounted(async () => {
     </template>
 
     <div v-else-if="form.target_type === 'product'">
-      <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Produkt-ID <span class="text-[var(--color-error)]">*</span></label>
-      <input v-model="form.product_id" class="pim-input text-xs w-full" placeholder="UUID (Picker folgt)" />
+      <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Produkt <span class="text-[var(--color-error)]">*</span></label>
+      <div class="flex items-center gap-2">
+        <span v-if="form.product_id" class="inline-flex items-center px-2 py-1 rounded-full bg-[var(--color-bg)] text-xs truncate max-w-48">{{ pickedLabel.product || form.product_id }}</span>
+        <button type="button" class="pim-btn pim-btn-secondary text-[11px]" @click="pickerKind = 'product'">{{ form.product_id ? 'Ändern' : 'Auswählen' }}</button>
+      </div>
       <p v-if="errors.product_id" class="mt-1 text-[11px] text-[var(--color-error)]">{{ errors.product_id }}</p>
     </div>
 
@@ -154,5 +203,15 @@ onMounted(async () => {
       </button>
       <button class="pim-btn pim-btn-secondary text-xs" @click="authStore.closePanel()">Abbrechen</button>
     </div>
+
+    <EntityPickerDialog
+      :model-value="pickerKind !== null"
+      :title="pickerKind === 'node' ? 'Kategorie / Knoten auswählen' : 'Produkt auswählen'"
+      :fetcher="fetcher"
+      :label-fn="(i) => i.name_de || i.name || i.id"
+      :sublabel-fn="(i) => i.sku || i.path || null"
+      @update:model-value="(v) => { if (!v) pickerKind = null }"
+      @confirm="onPick"
+    />
   </div>
 </template>

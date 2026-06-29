@@ -9,6 +9,10 @@ export default {
     return client.get('/hierarchy-nodes', { params: buildParams(options) })
   },
 
+  getNode(nodeId) {
+    return client.get(`/hierarchy-nodes/${nodeId}`)
+  },
+
   create(data) {
     return client.post('/hierarchies', data)
   },

@@ -677,9 +677,13 @@ Produktkarten, Footer, DE/EN + Desktop/Mobil). Der `ContentTemplateSeeder`
 liefert vordefinierte Seiten-Templates (Startseite, MediaMarkt-artige
 Kampagnenseite, Impressum) in der `main`-Navigation.
 
-Offen / Backlog: PQL-Live-Auflösung in `product-list`, Picker (Media/Produkt/
-Hierarchieknoten) statt UUID-Eingabe, RichText-Editor-Einbindung, Phase 6
-(Such-Index für Content), Phase 7 (GUI-Sektionstyp-Builder).
+Picker für Produkt/Hierarchieknoten/Media sind im Sektions-Editor und im
+Navigations-Knoten-Panel verdrahtet (generischer `EntityPickerDialog` +
+bestehender `MediaPickerDialog`), Produkt-Widget als Dropdown.
+
+Offen / Backlog: PQL-Live-Auflösung in `product-list`, RichText-Editor-Einbindung
+(`PimRichTextEditor` mit Tag-Whitelist), Phase 6 (Such-Index für Content),
+Phase 7 (GUI-Sektionstyp-Builder).
 
 ## 9a. Backlog / explizit vorgemerkt
 
