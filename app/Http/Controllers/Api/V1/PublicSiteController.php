@@ -42,6 +42,20 @@ class PublicSiteController extends Controller
         return response()->json(['data' => $page]);
     }
 
+    public function productPage(Request $request, string $navigation, string $product): JsonResponse
+    {
+        $this->resolveNavigation($navigation); // Navigation muss existieren (Scope)
+        $lang = (string) $request->query('lang', 'de');
+
+        $page = $this->preview->buildProductPage($product, $lang);
+
+        if ($page === null) {
+            return response()->json(['message' => 'Produkt nicht gefunden.'], 404);
+        }
+
+        return response()->json(['data' => $page]);
+    }
+
     /**
      * SEO-Sitemap als XML (Knoten mit eigener URL).
      */
