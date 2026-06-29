@@ -9,6 +9,7 @@ use App\Http\Requests\Api\V1\UpdateContentSectionRequest;
 use App\Http\Resources\Api\V1\ContentSectionResource;
 use App\Models\ContentPage;
 use App\Models\ContentSection;
+use App\Services\Content\ContentDuplicator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -48,6 +49,28 @@ class ContentSectionController extends Controller
         $contentSection->update($request->validated());
 
         return new ContentSectionResource($contentSection->fresh()->load('sectionType'));
+    }
+
+    /**
+     * Sektion (inkl. Kind-Sektionen) in diese Seite einfügen — Copy & Paste,
+     * auch seitenübergreifend. source_section_id = kopierte Quelle.
+     */
+    public function paste(Request $request, ContentPage $contentPage, ContentDuplicator $duplicator): JsonResponse
+    {
+        $this->authorize('update', $contentPage);
+
+        $validated = $request->validate([
+            'source_section_id' => 'required|string|exists:content_sections,id',
+        ]);
+
+        $source = ContentSection::with('page')->findOrFail($validated['source_section_id']);
+        $this->authorize('view', $source->page); // Quelle muss lesbar sein
+
+        $new = $duplicator->pasteSection($source, $contentPage);
+
+        return (new ContentSectionResource($new->load('sectionType', 'childSections.sectionType')))
+            ->response()
+            ->setStatusCode(201);
     }
 
     /**

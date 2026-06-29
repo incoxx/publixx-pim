@@ -5,7 +5,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useContentStore } from '@/stores/content'
 import ContentSectionCard from '@/components/content/ContentSectionCard.vue'
 import ContentPageFormPanel from '@/components/panels/ContentPageFormPanel.vue'
-import { ChevronLeft, Plus, Pencil, Clock, Globe } from 'lucide-vue-next'
+import { ChevronLeft, Plus, Pencil, Clock, Globe, CopyPlus, ClipboardPaste } from 'lucide-vue-next'
 
 const route = useRoute()
 const router = useRouter()
@@ -95,6 +95,42 @@ async function deleteSection(section) {
   sections.value = sections.value.filter((s) => s.id !== section.id)
 }
 
+// ─── Kopieren / Einfügen / Duplizieren ──────────────────────────
+function sectionLabel(section) {
+  const st = sectionTypeById.value[section.section_type_id] || section.section_type
+  return st?.name_de || 'Sektion'
+}
+
+function copySection(section) {
+  contentStore.copySection(section, sectionLabel(section))
+}
+
+async function duplicateSection(section) {
+  await withSave(async () => {
+    await contentStore.pasteSection(page.value.id, section.id)
+    await reloadSections()
+  })
+}
+
+async function pasteFromClipboard() {
+  const clip = contentStore.clipboardSection
+  if (!clip) return
+  await withSave(async () => {
+    await contentStore.pasteSection(page.value.id, clip.id)
+    await reloadSections()
+  })
+}
+
+async function reloadSections() {
+  page.value = await contentStore.fetchOne(route.params.id)
+  sections.value = page.value.sections || []
+}
+
+async function duplicatePage() {
+  const copy = await contentStore.duplicate(page.value.id)
+  router.push(`/content/${copy.id}`)
+}
+
 // ─── Drag & Drop Reihenfolge (nativ) ────────────────────────────
 const dragIndex = ref(null)
 
@@ -169,6 +205,9 @@ onMounted(load)
           <button class="pim-btn pim-btn-secondary text-xs" @click="router.push({ name: 'website-preview', query: { slug: page.slug } })">
             <Globe class="w-3.5 h-3.5" :stroke-width="2" /> Vorschau
           </button>
+          <button class="pim-btn pim-btn-secondary text-xs" @click="duplicatePage" title="Seite inkl. aller Sektionen duplizieren">
+            <CopyPlus class="w-3.5 h-3.5" :stroke-width="2" /> Duplizieren
+          </button>
           <button class="pim-btn pim-btn-secondary text-xs" @click="editPage">
             <Pencil class="w-3.5 h-3.5" :stroke-width="2" /> Seite bearbeiten
           </button>
@@ -205,12 +244,24 @@ onMounted(load)
             @save="(v) => saveSection(section, v)"
             @delete="deleteSection(section)"
             @toggle-visible="toggleVisible(section)"
+            @copy="copySection(section)"
+            @duplicate="duplicateSection(section)"
           />
         </div>
 
         <p v-if="!sections.length" class="text-xs text-[var(--color-text-tertiary)] py-4 text-center">
           Noch keine Sektionen. Füge unten einen Block hinzu.
         </p>
+
+        <!-- Einfügen aus Zwischenablage (Copy & Paste, seitenübergreifend) -->
+        <button
+          v-if="contentStore.clipboardSection"
+          class="pim-btn pim-btn-secondary text-xs w-full justify-center border-dashed"
+          @click="pasteFromClipboard"
+        >
+          <ClipboardPaste class="w-3.5 h-3.5" :stroke-width="2" />
+          „{{ contentStore.clipboardSection.label }}" hier einfügen
+        </button>
 
         <!-- Block hinzufügen -->
         <div class="relative">

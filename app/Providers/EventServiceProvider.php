@@ -18,12 +18,21 @@ use App\Listeners\InvalidateProductCacheListener;
 use App\Listeners\UpdateSearchIndexListener;
 use App\Listeners\WarmupCacheListener;
 use App\Models\Attribute;
+use App\Models\ContentPage;
+use App\Models\ContentSection;
 use App\Models\HierarchyNode;
+use App\Models\Navigation;
+use App\Models\NavigationNode;
 use App\Models\Product;
 use App\Models\ProductAttributeValue;
 use App\Models\ProductMediaAssignment;
+use App\Models\ProductRelation;
+use App\Models\ProductPrice;
+use App\Models\ProductWidget;
 use App\Observers\AttributeObserver;
 use App\Observers\AttributeValueObserver;
+use App\Observers\Content\ContentCacheObserver;
+use App\Observers\Content\ContentProductCacheObserver;
 use App\Observers\HierarchyNodeObserver;
 use App\Observers\ProductObserver;
 use App\Observers\ProductMediaAssignmentObserver;
@@ -103,6 +112,20 @@ class EventServiceProvider extends ServiceProvider
         ProductAttributeValue::observe(AttributeValueObserver::class);
         Attribute::observe(AttributeObserver::class);
         ProductMediaAssignment::observe(ProductMediaAssignmentObserver::class);
+
+        // Content-Cache-Invalidierung (siehe docs/architecture/23-content-caching.md)
+        ContentPage::observe(ContentCacheObserver::class);
+        ContentSection::observe(ContentCacheObserver::class);
+        Navigation::observe(ContentCacheObserver::class);
+        NavigationNode::observe(ContentCacheObserver::class);
+        ProductWidget::observe(ContentCacheObserver::class);
+
+        // Produktbezogener Content-Cache (PDP + einbettende Seiten)
+        Product::observe(ContentProductCacheObserver::class);
+        ProductPrice::observe(ContentProductCacheObserver::class);
+        ProductAttributeValue::observe(ContentProductCacheObserver::class);
+        ProductMediaAssignment::observe(ContentProductCacheObserver::class);
+        ProductRelation::observe(ContentProductCacheObserver::class);
     }
 
     /**

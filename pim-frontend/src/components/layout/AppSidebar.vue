@@ -20,6 +20,7 @@ import {
   Bug,
   Bot,
   Clapperboard,
+  Gauge,
 } from 'lucide-vue-next'
 import AnyPimLogo from '@/components/shared/AnyPimLogo.vue'
 import { useAppearanceStore, SECTION_ICON_COLORS } from '@/stores/appearance'
@@ -88,6 +89,7 @@ const sections = computed(() => {
             { icon: Boxes, label: () => 'Sektionstypen', to: '/section-types', module: 'content', permission: 'section-types.view', testid: 'nav-section-types' },
             { icon: LayoutGrid, label: () => 'Produkt-Widgets', to: '/product-widgets', module: 'content', permission: 'product-widgets.view', testid: 'nav-product-widgets' },
             { icon: ArrowRightLeft, label: () => 'Export / Import', to: '/content-config', module: 'content', permission: 'content-types.view', testid: 'nav-content-config' },
+            { icon: Gauge, label: () => 'Cache', to: '/content-cache', module: 'content', permission: 'content-types.view', testid: 'nav-content-cache' },
           ],
         },
       ],
