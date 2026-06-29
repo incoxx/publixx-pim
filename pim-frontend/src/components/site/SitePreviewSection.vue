@@ -66,10 +66,12 @@ function isHeadingKey(key) {
     </div>
 
     <!-- CTA-Banner -->
-    <div v-else-if="type === 'cta-banner'" class="rounded-2xl bg-red-600 text-white p-6 sm:p-8 space-y-2">
+    <div v-else-if="type === 'cta-banner'" class="rounded-2xl p-6 sm:p-8 space-y-2"
+      style="background: var(--site-primary); color: var(--site-on-primary); border-radius: var(--site-radius)">
       <h3 class="text-2xl font-extrabold italic">{{ v.headline }}</h3>
       <p v-if="v.body" class="text-sm opacity-90 whitespace-pre-line">{{ v.body }}</p>
-      <button v-if="v.cta" class="mt-2 inline-flex items-center gap-1 bg-white text-red-700 font-bold text-sm px-4 py-2 rounded-full">{{ v.cta }}</button>
+      <button v-if="v.cta" class="mt-2 inline-flex items-center gap-1 font-bold text-sm px-4 py-2 rounded-full"
+        style="background: var(--site-surface); color: var(--site-primary)">{{ v.cta }}</button>
     </div>
 
     <!-- Countdown -->
@@ -138,7 +140,8 @@ function isHeadingKey(key) {
       <h3 v-if="v.headline" class="text-xl font-bold">{{ v.headline }}</h3>
       <div class="flex gap-3 overflow-x-auto pb-2 snap-x">
         <div v-for="slide in (section.slides || [])" :key="slide.id"
-          class="snap-start shrink-0 w-72 rounded-2xl bg-red-600 text-white p-5 space-y-1">
+          class="snap-start shrink-0 w-72 rounded-2xl p-5 space-y-1"
+          style="background: var(--site-primary); color: var(--site-on-primary)">
           <h4 class="text-lg font-extrabold italic">{{ slide.values?.headline }}</h4>
           <p class="text-xs opacity-90 whitespace-pre-line">{{ slide.values?.body }}</p>
         </div>

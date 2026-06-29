@@ -24,6 +24,7 @@ class Navigation extends Model
         'name_en',
         'name_json',
         'locale_set',
+        'theme_json',
         'is_primary',
     ];
 
@@ -32,6 +33,7 @@ class Navigation extends Model
         return [
             'name_json' => 'array',
             'locale_set' => 'array',
+            'theme_json' => 'array',
             'is_primary' => 'boolean',
         ];
     }

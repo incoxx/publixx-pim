@@ -63,13 +63,32 @@ const sections = computed(() => {
         { icon: Search, label: () => t('nav.search'), to: '/search', permission: 'search.view', testid: 'nav-search' },
         { icon: Package, label: () => t('nav.products'), to: '/products', permission: 'products.view', testid: 'nav-products' },
         { icon: GitBranch, label: () => t('nav.hierarchies'), to: '/hierarchies', permission: 'hierarchies.view', testid: 'nav-hierarchies' },
-        { icon: FileStack, label: () => 'Content', to: '/content', module: 'content', permission: 'content.view', testid: 'nav-content' },
-        { icon: Network, label: () => 'Navigation', to: '/navigation', module: 'content', permission: 'navigation.view', testid: 'nav-navigation' },
         { icon: Star, label: () => 'Merkliste', to: '/watchlist', permission: 'watchlist.view', testid: 'nav-watchlist' },
         { icon: ClipboardList, label: () => 'Workflow', to: '/workflow', module: 'workflow', permission: 'workflow.view', testid: 'nav-workflow' },
         { icon: CalendarDays, label: () => 'Planungskalender', to: '/calendar', permission: 'calendar.view', testid: 'nav-calendar' },
         { divider: true },
         { icon: Image, label: () => t('nav.media'), to: '/media', permission: 'media.view', testid: 'nav-media' },
+      ],
+    },
+    {
+      // Eigener Bereich; komplett ausgeblendet, wenn das Content-Modul nicht lizenziert ist
+      key: 'content',
+      label: 'Content',
+      items: [
+        { icon: FileStack, label: () => 'Content', to: '/content', module: 'content', permission: 'content.view', testid: 'nav-content' },
+        { icon: Network, label: () => 'Sitemap', to: '/navigation', module: 'content', permission: 'navigation.view', testid: 'nav-navigation' },
+        { icon: Globe, label: () => 'Website-Vorschau', to: '/website-preview', module: 'content', permission: 'content.view', testid: 'nav-website-preview' },
+        {
+          key: 'grp-content-config',
+          icon: Settings,
+          label: () => 'Konfiguration',
+          module: 'content',
+          children: [
+            { icon: LayoutTemplate, label: () => 'Seitentypen', to: '/content-types', module: 'content', permission: 'content-types.view', testid: 'nav-content-types' },
+            { icon: Boxes, label: () => 'Sektionstypen', to: '/section-types', module: 'content', permission: 'section-types.view', testid: 'nav-section-types' },
+            { icon: LayoutGrid, label: () => 'Produkt-Widgets', to: '/product-widgets', module: 'content', permission: 'product-widgets.view', testid: 'nav-product-widgets' },
+          ],
+        },
       ],
     },
     {
@@ -82,7 +101,6 @@ const sections = computed(() => {
         { icon: Globe, label: () => 'Portale', to: '/portal-config', module: 'portals', permission: 'portals.view' },
         { icon: ExternalLink, label: () => 'Katalog-Demo', to: '/catalog-embed', module: 'catalog_templates', permission: 'catalog-templates.view', external: true },
         { icon: Clapperboard, label: () => 'Social-Video', to: '/social-video', permission: 'products.view', testid: 'nav-social-video' },
-        { icon: Globe, label: () => 'Website-Vorschau', to: '/website-preview', module: 'content', permission: 'content.view', testid: 'nav-website-preview' },
       ],
     },
     {
@@ -183,17 +201,6 @@ const sections = computed(() => {
             { icon: Globe, label: () => t('nav.priceRegions'), to: '/price-regions', permission: 'price-regions.view' },
           ],
         },
-        {
-          key: 'grp-content-config',
-          icon: FileStack,
-          label: () => 'Content-Konfiguration',
-          module: 'content',
-          children: [
-            { icon: LayoutTemplate, label: () => 'Seitentypen', to: '/content-types', module: 'content', permission: 'content-types.view', testid: 'nav-content-types' },
-            { icon: Boxes, label: () => 'Sektionstypen', to: '/section-types', module: 'content', permission: 'section-types.view', testid: 'nav-section-types' },
-            { icon: LayoutGrid, label: () => 'Produkt-Widgets', to: '/product-widgets', module: 'content', permission: 'product-widgets.view', testid: 'nav-product-widgets' },
-          ],
-        },
       ],
     },
     {
@@ -274,7 +281,7 @@ const sections = computed(() => {
         return null
       })
       .filter(Boolean),
-  }))
+  })).filter(section => section.items.length > 0)
 })
 
 const hasAnySectionOpen = computed(() => {

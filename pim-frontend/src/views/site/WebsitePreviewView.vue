@@ -17,6 +17,23 @@ const device = ref('full')      // full | mobile
 const loading = ref(false)
 const error = ref(null)
 
+// Website-Theme aus der Sitemap als CSS-Variablen (--site-*) + Schrift
+const themeVars = computed(() => {
+  const t = sitemap.value?.theme || {}
+  return {
+    '--site-primary': t.primary,
+    '--site-on-primary': t.on_primary,
+    '--site-accent': t.accent,
+    '--site-text': t.text,
+    '--site-muted': t.muted,
+    '--site-bg': t.background,
+    '--site-surface': t.surface,
+    '--site-border': t.border,
+    '--site-radius': t.radius,
+    fontFamily: t.font,
+  }
+})
+
 // Flache Menüliste: Top-Level-Knoten + Content-Kinder von Ordnern
 const menu = computed(() => {
   const out = []
@@ -138,9 +155,9 @@ onMounted(async () => {
 
     <!-- Geräte-Rahmen -->
     <div class="mx-auto transition-all" :class="device === 'mobile' ? 'max-w-sm' : 'max-w-5xl'">
-      <div class="rounded-2xl border border-[var(--color-border)] overflow-hidden bg-white dark:bg-zinc-900 shadow-sm">
+      <div class="rounded-2xl border border-[var(--color-border)] overflow-hidden shadow-sm" :style="themeVars">
         <!-- Website-Header (Menü aus Navigation) -->
-        <header class="bg-red-600 text-white px-4 py-3 flex items-center gap-4 overflow-x-auto">
+        <header class="px-4 py-3 flex items-center gap-4 overflow-x-auto" style="background: var(--site-primary); color: var(--site-on-primary)">
           <span class="font-extrabold tracking-tight shrink-0">{{ sitemap?.navigation?.name || 'anyPIM' }}</span>
           <nav class="flex items-center gap-3 text-sm">
             <button v-for="(node, i) in menu" :key="i"
@@ -153,7 +170,7 @@ onMounted(async () => {
         </header>
 
         <!-- Seiteninhalt -->
-        <main class="p-4 sm:p-6 space-y-6 bg-[var(--color-bg)]">
+        <main class="p-4 sm:p-6 space-y-6" style="background: var(--site-bg); color: var(--site-text)">
           <div v-if="loading" class="space-y-3">
             <div v-for="i in 4" :key="i" class="pim-skeleton h-24 rounded-xl" />
           </div>

@@ -21,6 +21,23 @@ use App\Services\Export\MappingResolver;
  */
 class WebsitePreviewService
 {
+    /**
+     * Standard-Website-Theme. Wird mit navigations.theme_json überschrieben.
+     * Die Vorschau setzt diese Werte als CSS-Variablen (--site-*).
+     */
+    public const DEFAULT_THEME = [
+        'primary' => '#e11d48',       // Header / CTA-Hintergrund
+        'on_primary' => '#ffffff',    // Text auf primary
+        'accent' => '#3b82f6',        // Buttons / Links
+        'text' => '#111827',          // Fließtext
+        'muted' => '#6b7280',         // sekundärer Text
+        'background' => '#f8fafc',    // Seitenhintergrund
+        'surface' => '#ffffff',       // Karten / Flächen
+        'border' => '#e5e7eb',        // Rahmen
+        'radius' => '1rem',           // Eckenradius
+        'font' => 'system-ui, sans-serif',
+    ];
+
     /** @var array<string, ProductWidget|null> */
     private array $widgetCache = [];
 
@@ -44,6 +61,7 @@ class WebsitePreviewService
                 'technical_name' => $navigation->technical_name,
                 'name' => $this->localized($navigation->name_de, $navigation->name_en, $lang),
             ],
+            'theme' => array_merge(self::DEFAULT_THEME, $navigation->theme_json ?? []),
             'nodes' => $this->mapNodes($roots, $lang),
         ];
     }
