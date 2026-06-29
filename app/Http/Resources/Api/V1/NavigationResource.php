@@ -19,6 +19,7 @@ class NavigationResource extends JsonResource
             'name_json' => $this->name_json,
             'locale_set' => $this->locale_set,
             'theme_json' => $this->theme_json,
+            'access_mode' => $this->access_mode ?? 'public',
             'is_primary' => $this->is_primary,
             'nodes_count' => $this->whenCounted('nodes'),
             'created_at' => $this->created_at,

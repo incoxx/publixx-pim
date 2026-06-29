@@ -3,18 +3,27 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useNavigationStore } from '@/stores/navigation'
+import navigationApi from '@/api/navigation'
 import PimTree from '@/components/shared/PimTree.vue'
 import NavigationNodeFormPanel from '@/components/panels/NavigationNodeFormPanel.vue'
 import NavigationThemePanel from '@/components/panels/NavigationThemePanel.vue'
-import { Plus, Network, Globe, Palette } from 'lucide-vue-next'
+import { Plus, Network, Globe, Palette, Lock, Globe2 } from 'lucide-vue-next'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const navStore = useNavigationStore()
 const emptyset = new Set()
 
-// technical_name der aktuell gewählten Navigation (für die Vorschau-Verlinkung)
-const currentNavKey = computed(() => navStore.navigations.find((n) => n.id === navStore.currentId)?.technical_name)
+// aktuell gewählte Navigation
+const currentNav = computed(() => navStore.navigations.find((n) => n.id === navStore.currentId))
+const currentNavKey = computed(() => currentNav.value?.technical_name)
+
+// Zugriff: öffentlich vs. nur mit Login
+async function setAccessMode(event) {
+  const mode = event.target.value
+  await navigationApi.update(navStore.currentId, { access_mode: mode })
+  await navStore.fetchNavigations()
+}
 
 function openPreview() {
   router.push({ name: 'website-preview', query: currentNavKey.value ? { nav: currentNavKey.value } : {} })
@@ -109,6 +118,14 @@ onMounted(async () => {
         </select>
       </div>
       <div class="flex items-center gap-2">
+        <!-- Zugriff: öffentlich vs. nur mit Login -->
+        <div v-if="currentNav" class="flex items-center gap-1 rounded-md border border-[var(--color-border)] px-2 py-1" :title="currentNav.access_mode === 'login' ? 'Nur mit Login abrufbar' : 'Öffentlich abrufbar'">
+          <component :is="currentNav.access_mode === 'login' ? Lock : Globe2" class="w-3.5 h-3.5 text-[var(--color-text-tertiary)]" :stroke-width="2" />
+          <select class="bg-transparent text-xs outline-none" :value="currentNav.access_mode || 'public'" @change="setAccessMode">
+            <option value="public">Öffentlich</option>
+            <option value="login">Nur mit Login</option>
+          </select>
+        </div>
         <button class="pim-btn pim-btn-secondary text-xs" :disabled="!navStore.currentId" @click="openTheme">
           <Palette class="w-3.5 h-3.5" :stroke-width="2" /> Design
         </button>

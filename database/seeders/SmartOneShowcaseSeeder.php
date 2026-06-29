@@ -402,6 +402,7 @@ class SmartOneShowcaseSeeder extends Seeder
                 'name_de' => 'SmartOne Shop',
                 'name_en' => 'SmartOne Shop',
                 'locale_set' => ['de', 'en'],
+                'access_mode' => 'public',
                 'is_primary' => false,
                 // Modernes Tech-Theme (Indigo/Cyan)
                 'theme_json' => [

@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Models\Navigation;
 use App\Services\Content\ContentCache;
 use App\Services\Preview\WebsitePreviewService;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -131,8 +132,18 @@ class PublicSiteController extends Controller
 
     private function resolveNavigation(string $navigation): Navigation
     {
-        return Navigation::where('technical_name', $navigation)
+        $nav = Navigation::where('technical_name', $navigation)
             ->orWhere('id', $navigation)
             ->firstOrFail();
+
+        // Zugriffssteuerung: 'login'-Navigationen nur für authentifizierte Nutzer.
+        if (($nav->access_mode ?? 'public') === 'login' && ! Auth::check()) {
+            throw new HttpResponseException(response()->json([
+                'message' => 'Diese Seite erfordert eine Anmeldung.',
+                'requires_login' => true,
+            ], 401));
+        }
+
+        return $nav;
     }
 }
