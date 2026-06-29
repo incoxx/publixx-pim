@@ -122,7 +122,11 @@ class WebsitePreviewService
 
     private function mapNodes($nodes, string $lang): array
     {
-        return $nodes->map(function (NavigationNode $node) use ($lang) {
+        return $nodes
+            // Verwaiste Ziel-Knoten (Seite/Produkt/Kategorie gelöscht) nicht
+            // ausliefern — sie würden ins Leere zeigen.
+            ->reject(fn (NavigationNode $node) => $this->isOrphan($node))
+            ->map(function (NavigationNode $node) use ($lang) {
             $children = $node->children()->orderBy('sort_order')->get();
 
             return [
@@ -137,6 +141,17 @@ class WebsitePreviewService
                 'children' => $this->mapNodes($children, $lang),
             ];
         })->all();
+    }
+
+    /** Knoten zeigt auf ein gelöschtes Ziel (FK auf NULL gesetzt) → Artefakt. */
+    private function isOrphan(NavigationNode $node): bool
+    {
+        return match ($node->target_type) {
+            'content_page' => $node->content_page_id === null,
+            'product' => $node->product_id === null,
+            'product_category' => $node->hierarchy_node_id === null,
+            default => false,
+        };
     }
 
     private function nodeHref(NavigationNode $node): ?string
