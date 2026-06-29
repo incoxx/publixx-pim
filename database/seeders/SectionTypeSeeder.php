@@ -28,6 +28,43 @@ class SectionTypeSeeder extends Seeder
     {
         return [
             [
+                'technical_name' => 'hero',
+                'name_de' => 'Hero-Banner',
+                'name_en' => 'Hero Banner',
+                'icon' => 'Sparkles',
+                'category' => 'layout',
+                'preview_component' => 'SectionHero',
+                'sort_order' => 5,
+                // Großes Aufmacher-Banner (MediaMarkt-Stil): Kicker, Schlagzeile,
+                // Subline, Button. Optional ein Produkt (liefert Bild + Preis).
+                'schema' => ['fields' => [
+                    ['key' => 'eyebrow', 'label' => 'Kicker', 'type' => 'String', 'translatable' => true],
+                    ['key' => 'headline', 'label' => 'Schlagzeile', 'type' => 'String', 'translatable' => true, 'required' => true],
+                    ['key' => 'subline', 'label' => 'Unterzeile', 'type' => 'String', 'translatable' => true],
+                    ['key' => 'cta_label', 'label' => 'Button-Text', 'type' => 'String', 'translatable' => true],
+                    ['key' => 'cta_url', 'label' => 'Button-Ziel', 'type' => 'Link', 'link_kind' => 'Hyperlink'],
+                    ['key' => 'image', 'label' => 'Bild', 'type' => 'Media'],
+                    ['key' => 'product', 'label' => 'Produkt (Bild/Preis)', 'type' => 'product_ref'],
+                    ['key' => 'widget', 'label' => 'Anzeige-Widget', 'type' => 'product_widget_ref'],
+                ]],
+            ],
+            [
+                'technical_name' => 'usp-strip',
+                'name_de' => 'USP-Leiste',
+                'name_en' => 'USP Strip',
+                'icon' => 'BadgeCheck',
+                'category' => 'layout',
+                'preview_component' => 'SectionUspStrip',
+                'sort_order' => 6,
+                // Vertrauensleiste mit bis zu vier Vorteilen (Versand, Garantie …).
+                'schema' => ['fields' => [
+                    ['key' => 'usp1', 'label' => 'Vorteil 1', 'type' => 'String', 'translatable' => true],
+                    ['key' => 'usp2', 'label' => 'Vorteil 2', 'type' => 'String', 'translatable' => true],
+                    ['key' => 'usp3', 'label' => 'Vorteil 3', 'type' => 'String', 'translatable' => true],
+                    ['key' => 'usp4', 'label' => 'Vorteil 4', 'type' => 'String', 'translatable' => true],
+                ]],
+            ],
+            [
                 'technical_name' => 'headline',
                 'name_de' => 'Überschrift',
                 'name_en' => 'Headline',

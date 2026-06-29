@@ -95,6 +95,99 @@ class WebsitePreviewService
     }
 
     /**
+     * Produkt-Detailseite (PDP) — ein Produkt als native Seite gerendert:
+     * Hero (Bild/Preis/Name/CTA), technische Daten, Beschreibung und
+     * passendes Zubehör (Produktrelationen). Demonstriert „Produkt = Seite".
+     */
+    public function buildProductPage(string $productId, string $lang = 'de'): ?array
+    {
+        $product = Product::with([
+            'prices.priceType', 'mediaAssignments.media', 'mediaAssignments.usageType',
+            'attributeValues.attribute', 'attributeValues.unit', 'attributeValues.valueListEntry',
+            'relations',
+        ])->find($productId);
+
+        if (!$product) {
+            return null;
+        }
+
+        $summary = $this->productSummary($product->id, $lang);
+        $short = $this->mappingResolver->resolveRule('attribute:description_short', 'text', $product, $lang)
+            ?? $this->mappingResolver->resolveRule('attribute:product-description-str', 'text', $product, $lang);
+        $long = $this->mappingResolver->resolveRule('attribute:description_long', 'text', $product, $lang);
+
+        // Technische Daten: Attributwerte (ohne reine Textfelder), max. 12.
+        $skip = ['description_short', 'description_long', 'product-description-str', 'product-name-str'];
+        $specs = [];
+        $seen = [];
+        foreach ($product->attributeValues as $av) {
+            $tn = $av->attribute?->technical_name;
+            if (!$tn || isset($seen[$tn]) || in_array($tn, $skip, true)) {
+                continue;
+            }
+            $seen[$tn] = true;
+            $value = $this->mappingResolver->resolveRule('attribute:' . $tn, 'text', $product, $lang);
+            if ($value === null || $value === '' || is_array($value)) {
+                continue;
+            }
+            $specs[] = ['label' => $av->attribute?->name_de ?? $tn, 'value' => (string) $value];
+            if (count($specs) >= 12) {
+                break;
+            }
+        }
+
+        // Zubehör/Cross-Selling aus Produktrelationen.
+        $accessoryIds = $product->relations->pluck('target_product_id')->filter()->unique()->values()->all();
+        $accessories = $this->productSummaries($accessoryIds, $lang, 'card');
+
+        $sections = [];
+        $sections[] = [
+            'id' => 'pdp-hero', 'type' => 'hero', 'is_visible' => true, 'settings' => [],
+            'values' => [
+                'eyebrow' => $product->sku,
+                'headline' => $product->name,
+                'subline' => is_string($short) ? $short : null,
+                'cta_label' => 'In den Warenkorb',
+                'cta_url' => '#',
+            ],
+            'fields' => [[
+                'key' => 'product', 'label' => 'Produkt', 'type' => 'product_ref',
+                'products' => array_values(array_filter([$summary])),
+            ]],
+        ];
+        if ($specs) {
+            $sections[] = [
+                'id' => 'pdp-specs', 'type' => 'product-specs', 'is_visible' => true,
+                'settings' => [], 'values' => ['headline' => 'Technische Daten'], 'fields' => [], 'specs' => $specs,
+            ];
+        }
+        if (is_string($long) && $long !== '') {
+            $sections[] = [
+                'id' => 'pdp-desc', 'type' => 'text', 'is_visible' => true, 'settings' => [],
+                'values' => ['body' => $long],
+                'fields' => [['key' => 'body', 'label' => 'Text', 'type' => 'RichText', 'value' => $long]],
+            ];
+        }
+        if ($accessories) {
+            $sections[] = [
+                'id' => 'pdp-accessories', 'type' => 'product-gallery', 'is_visible' => true, 'settings' => [],
+                'values' => ['headline' => 'Passendes Zubehör', 'columns' => '4'],
+                'fields' => [], 'products' => $accessories,
+            ];
+        }
+
+        return [
+            'id' => $product->id,
+            'title' => $product->name,
+            'slug' => 'product/' . $product->id,
+            'status' => 'active',
+            'is_currently_valid' => true,
+            'seo' => ['title' => $product->name, 'description' => is_string($short) ? $short : null],
+            'sections' => $sections,
+        ];
+    }
+
+    /**
      * Seite anhand eines Slugs innerhalb einer Navigation finden
      * (über einen Navigationsknoten oder direkt per Seiten-Slug).
      */
@@ -136,6 +229,8 @@ class WebsitePreviewService
                 'icon' => $node->icon,
                 'is_visible' => (bool) $node->is_visible,
                 'target_type' => $node->target_type,
+                'product_id' => $node->product_id,
+                'hierarchy_node_id' => $node->hierarchy_node_id,
                 'href' => $this->nodeHref($node),
                 'auto_expand' => (bool) $node->auto_expand,
                 'children' => $this->mapNodes($children, $lang),

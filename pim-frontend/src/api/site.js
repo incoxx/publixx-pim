@@ -12,4 +12,8 @@ export default {
   getPage(navigation, slug, lang = 'de') {
     return client.get(`/site/${navigation}/page/${slug}`, { params: { lang } })
   },
+
+  getProductPage(navigation, productId, lang = 'de') {
+    return client.get(`/site/${navigation}/product/${productId}`, { params: { lang } })
+  },
 }

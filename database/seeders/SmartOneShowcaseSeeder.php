@@ -7,6 +7,8 @@ namespace Database\Seeders;
 use App\Models\ContentPage;
 use App\Models\ContentSection;
 use App\Models\ContentType;
+use App\Models\Hierarchy;
+use App\Models\HierarchyNode;
 use App\Models\Navigation;
 use App\Models\NavigationNode;
 use App\Models\Product;
@@ -35,6 +37,11 @@ class SmartOneShowcaseSeeder extends Seeder
 
     public function run(): void
     {
+        // System-Sektionstypen sicherstellen (headline, product-teaser,
+        // product-gallery, countdown, cta-banner …). Ohne sie würden die
+        // Sektionen mangels section_type_id übersprungen → leere Seite.
+        $this->call(SectionTypeSeeder::class);
+
         $this->seedWidgets();
         $type = $this->seedContentType();
         $skuToId = $this->resolveProducts();
@@ -140,8 +147,9 @@ class SmartOneShowcaseSeeder extends Seeder
     private function seedContentType(): ContentType
     {
         $allowed = [
-            'headline', 'subline', 'teaser', 'text', 'image', 'gallery', 'cta-banner', 'spacer',
-            'product-teaser', 'product-gallery', 'product-list', 'countdown', 'promo-carousel',
+            'hero', 'usp-strip', 'headline', 'subline', 'teaser', 'text', 'image', 'gallery',
+            'cta-banner', 'spacer', 'product-teaser', 'product-gallery', 'product-list',
+            'category-grid', 'category-teaser', 'countdown', 'promo-carousel',
         ];
 
         return ContentType::updateOrCreate(
@@ -200,71 +208,88 @@ class SmartOneShowcaseSeeder extends Seeder
         );
     }
 
-    // ─── 5. Sektionen (kuratiert, an echte Produkte gebunden) ─────────
+    // ─── 5. Sektionen: Content + Kategorie + Marketing + Produkte ─────
+    //
+    // Bewusst NICHT nur Produktlisten: Die Seite zeigt das Zusammenspiel aus
+    // strukturiertem Content (Hero, Editorial-Teaser, Fließtext, USP),
+    // Hierarchie-Integration (Kategorie-Kacheln), Marketing (Countdown,
+    // Promo-Karussell, CTA) und nativer Produktintegration.
 
     private function seedSections(ContentPage $page, array $sku): void
     {
-        // Map sku-Liste → vorhandene Produkt-IDs (fehlende SKUs überspringen)
         $ids = fn (array $list) => array_values(array_filter(array_map(fn ($s) => $sku[$s] ?? null, $list)));
 
         $phones = $ids(['10001', '10002', '10003', '10004', '10005']);
         $cases = $ids(['20001', '20002', '20003', '20004', '20005']);
-        $protectors = $ids(['20011', '20012', '20013', '20014']);
         $power = $ids(['20021', '20022', '20023', '20031', '20032', '20041', '20042']);
         $parts = $ids(['30001', '30002', '30003', '30004', '30005', '30006']);
         $heroId = $sku['10005'] ?? $sku['10002'] ?? ($phones[0] ?? null);
+        $categoryIds = $this->resolveCategoryIds(6);
 
         $blocks = [];
 
-        $blocks[] = $this->block('headline',
-            de: ['text' => 'SmartOne – Dein Smartphone. Neu gedacht.'],
-            neutral: ['level' => 'h1']);
+        // 1. Hero (Content + Produkt: Bild/Preis kommen aus dem Flaggschiff)
+        $blocks[] = $this->block('hero',
+            de: [
+                'eyebrow' => 'Neu · SmartOne Ultra',
+                'headline' => '200 MP. 1 TB. Pure Power.',
+                'subline' => 'Das Flaggschiff für alle, die mehr wollen – jetzt entdecken.',
+                'cta_label' => 'Jetzt entdecken',
+            ],
+            neutral: ['cta_url' => '/smartone'] + ($heroId ? ['product' => $heroId] : []));
 
-        $blocks[] = $this->block('subline',
-            de: ['text' => 'Fünf Modelle, durchdachtes Zubehör und Originalersatzteile – alles aus einer Hand.']);
+        // 2. Vertrauensleiste (reiner Content)
+        $blocks[] = $this->block('usp-strip', de: [
+            'usp1' => 'Gratis Versand ab 49 €',
+            'usp2' => '30 Tage Rückgaberecht',
+            'usp3' => '2 Jahre Herstellergarantie',
+            'usp4' => 'Click & Collect',
+        ]);
 
-        if ($heroId) {
-            $blocks[] = $this->block('product-teaser',
-                neutral: ['product' => $heroId, 'widget' => 'smartone-hero']);
-        }
+        // 3. Editorial-Teaser (Content-Storytelling)
+        $blocks[] = $this->block('teaser', de: [
+            'headline' => 'Warum SmartOne?',
+            'body' => "Ein durchdachtes Ökosystem statt Insellösungen: Vom Einstiegsmodell bis zum "
+                . "Kamera-Flaggschiff, dazu passendes Zubehör und Originalersatzteile für ein langes "
+                . "Geräteleben. Nachhaltig, reparierbar, aufeinander abgestimmt.",
+        ]);
 
-        $blocks[] = $this->block('headline',
-            de: ['text' => 'Die Modellreihe'], neutral: ['level' => 'h2']);
-
+        // 4. Top-Angebote: Überschrift + Countdown + Deal-Grid (Marketing + Produkte)
+        $blocks[] = $this->block('headline', de: ['text' => 'Top-Angebote der Woche'], neutral: ['level' => 'h2']);
+        $blocks[] = $this->block('countdown',
+            de: ['headline' => 'Nur noch kurze Zeit', 'subtext' => 'Aktionspreise enden bald.'],
+            neutral: ['target_at' => Carbon::now()->addDays(5)->startOfHour()->toIso8601String()]);
         if ($phones) {
             $blocks[] = $this->block('product-gallery',
-                de: ['headline' => 'Für jeden das passende SmartOne'],
+                de: ['headline' => 'Die SmartOne-Modellreihe'],
                 neutral: ['products' => $phones, 'widget' => 'smartone-phone-card',
-                    'layout' => 'grid', 'columns' => '3', 'show_price' => true]);
+                    'layout' => 'grid', 'columns' => '4', 'show_price' => true]);
         }
 
-        $blocks[] = $this->block('countdown',
-            de: ['headline' => 'SmartOne Launch-Wochen', 'subtext' => 'Aktionspreise nur für kurze Zeit.'],
-            neutral: ['target_at' => Carbon::now()->addDays(14)->startOfHour()->toIso8601String()]);
+        // 5. Beliebte Kategorien (Hierarchie-Integration) – nur wenn auflösbar
+        if ($categoryIds) {
+            $blocks[] = $this->block('category-grid',
+                de: ['headline' => 'Beliebte Kategorien'],
+                neutral: ['categories' => $categoryIds, 'columns' => '3']);
+        }
 
-        $blocks[] = $this->block('cta-banner',
-            de: ['headline' => 'Wechseln leicht gemacht',
-                'body' => 'Alte Geräte in Zahlung geben und beim Umstieg auf SmartOne sparen.',
-                'cta' => '/smartone'],
-            neutral: ['cta_label' => 'Mehr erfahren']);
+        // 6. Promo-Karussell mit Content-Slides (verschachtelte Kind-Sektionen)
+        $blocks[] = $this->block('promo-carousel',
+            de: ['headline' => 'Services & Aktionen'],
+            children: [
+                $this->block('cta-banner', de: ['headline' => 'Trade-in-Bonus', 'body' => 'Altgerät abgeben & bis zu 200 € sichern.']),
+                $this->block('cta-banner', de: ['headline' => '0 % Finanzierung', 'body' => 'In bequemen Raten zahlen – ohne Aufpreis.']),
+                $this->block('cta-banner', de: ['headline' => 'Newsletter', 'body' => '10 % Willkommensrabatt für Abonnenten.']),
+            ]);
 
-        $blocks[] = $this->block('headline',
-            de: ['text' => 'Passendes Zubehör'], neutral: ['level' => 'h2']);
-
+        // 7. Zubehör (Produkte)
+        $blocks[] = $this->block('headline', de: ['text' => 'Zubehör, das passt'], neutral: ['level' => 'h2']);
         if ($cases) {
             $blocks[] = $this->block('product-gallery',
-                de: ['headline' => 'Hüllen & Cases'],
+                de: ['headline' => 'Hüllen & Schutz'],
                 neutral: ['products' => $cases, 'widget' => 'smartone-accessory-card',
                     'layout' => 'grid', 'columns' => '4', 'show_price' => true]);
         }
-
-        if ($protectors) {
-            $blocks[] = $this->block('product-gallery',
-                de: ['headline' => 'Displayschutz'],
-                neutral: ['products' => $protectors, 'widget' => 'smartone-accessory-card',
-                    'layout' => 'grid', 'columns' => '4', 'show_price' => true]);
-        }
-
         if ($power) {
             $blocks[] = $this->block('product-gallery',
                 de: ['headline' => 'Laden, Audio & Halterungen'],
@@ -272,49 +297,89 @@ class SmartOneShowcaseSeeder extends Seeder
                     'layout' => 'grid', 'columns' => '4', 'show_price' => true]);
         }
 
-        $blocks[] = $this->block('headline',
-            de: ['text' => 'Originalersatzteile & Reparatur'], neutral: ['level' => 'h2']);
-
+        // 8. Editorial: Nachhaltigkeit (reiner Content) + Ersatzteile (Produkte)
+        $blocks[] = $this->block('text', de: [
+            'body' => "Reparieren statt wegwerfen: Mit Originalersatzteilen und passendem Werkzeug "
+                . "verlängerst du die Lebensdauer deines SmartOne – gut für dich und die Umwelt.",
+        ]);
+        $blocks[] = $this->block('headline', de: ['text' => 'Originalersatzteile & Reparatur'], neutral: ['level' => 'h2']);
         if ($parts) {
             $blocks[] = $this->block('product-gallery',
-                de: ['headline' => 'Reparieren statt wegwerfen'],
+                de: ['headline' => 'Ersatzteile im Überblick'],
                 neutral: ['products' => $parts, 'widget' => 'smartone-part-row',
                     'layout' => 'grid', 'columns' => '3', 'show_price' => true]);
         }
 
+        // 9. Abschluss-CTA (Content)
         $blocks[] = $this->block('cta-banner',
             de: ['headline' => 'Fragen zu SmartOne?',
                 'body' => 'Unser Support hilft bei Auswahl, Einrichtung und Reparatur weiter.',
                 'cta' => 'mailto:support@smartone.example'],
             neutral: ['cta_label' => 'Support kontaktieren']);
 
-        // Sektionen sauber neu aufbauen (idempotent)
+        // Sektionen sauber neu aufbauen (idempotent), inkl. Kind-Sektionen
         DB::transaction(function () use ($page, $blocks) {
             $page->sections()->delete();
-
             $typeIdByName = SectionType::pluck('id', 'technical_name');
-            foreach ($blocks as $i => $b) {
+
+            $create = function (array $b, ?string $parentId, int $sort) use (&$create, $page, $typeIdByName) {
                 $stId = $typeIdByName[$b['type']] ?? null;
                 if (!$stId) {
-                    continue; // Sektionstyp nicht vorhanden → überspringen
+                    return;
                 }
-                ContentSection::create([
+                $section = ContentSection::create([
                     'content_page_id' => $page->id,
                     'section_type_id' => $stId,
-                    'parent_section_id' => null,
-                    'sort_order' => $i,
+                    'parent_section_id' => $parentId,
+                    'sort_order' => $sort,
                     'is_visible' => true,
                     'values_json' => $b['values'],
                 ]);
+                foreach ($b['children'] as $j => $child) {
+                    $create($child, $section->id, $j);
+                }
+            };
+
+            foreach ($blocks as $i => $b) {
+                $create($b, null, $i);
             }
         });
     }
 
     /**
-     * Sektions-Wert-Buckets bauen: übersetzbare Felder unter "de",
-     * sprachneutrale (Produkt-Refs, Widget, Layout) unter "_".
+     * Top-Level-Kategorieknoten einer Hierarchie auflösen (Master bevorzugt).
+     * Defensiv: bei fehlenden Hierarchien/Knoten → leeres Array (Sektion entfällt).
+     *
+     * @return array<string>
      */
-    private function block(string $type, array $de = [], array $neutral = []): array
+    private function resolveCategoryIds(int $limit): array
+    {
+        try {
+            $hierarchy = Hierarchy::query()
+                ->orderByRaw("CASE WHEN hierarchy_type = 'master' THEN 0 ELSE 1 END")
+                ->first();
+            if (!$hierarchy) {
+                return [];
+            }
+
+            $nodes = HierarchyNode::where('hierarchy_id', $hierarchy->id)
+                ->whereNull('parent_node_id')->orderBy('sort_order')->limit($limit)->get();
+            if ($nodes->isEmpty()) {
+                $nodes = HierarchyNode::where('hierarchy_id', $hierarchy->id)->limit($limit)->get();
+            }
+
+            return $nodes->pluck('id')->all();
+        } catch (\Throwable $e) {
+            return [];
+        }
+    }
+
+    /**
+     * Sektions-Bauplan: übersetzbare Felder unter "de", sprachneutrale
+     * (Produkt-/Kategorie-Refs, Widget, Layout) unter "_", optional
+     * verschachtelte Kind-Sektionen.
+     */
+    private function block(string $type, array $de = [], array $neutral = [], array $children = []): array
     {
         $values = [];
         if ($neutral) {
@@ -324,7 +389,7 @@ class SmartOneShowcaseSeeder extends Seeder
             $values['de'] = $de;
         }
 
-        return ['type' => $type, 'values' => $values];
+        return ['type' => $type, 'values' => $values, 'children' => $children];
     }
 
     // ─── 6. Navigation + Theme ────────────────────────────────────────

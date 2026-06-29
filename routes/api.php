@@ -277,6 +277,7 @@ Route::prefix('v1/site')->middleware(['throttle.pim', 'module:content'])->group(
     Route::get('{navigation}/sitemap', [PublicSiteController::class, 'sitemap']);
     Route::get('{navigation}/sitemap.xml', [PublicSiteController::class, 'sitemapXml']);
     Route::get('{navigation}/page/{slug}', [PublicSiteController::class, 'page']);
+    Route::get('{navigation}/product/{product}', [PublicSiteController::class, 'productPage']);
 });
 
 // =========================================================================

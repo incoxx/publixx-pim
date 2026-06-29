@@ -34,6 +34,24 @@ function headingTag() {
   return { h1: 'h1', h2: 'h2', h3: 'h3' }[v.value.level] || 'h2'
 }
 
+// ─── Hero / USP (schema-aufgelöste Felder mitnutzen) ──────────────
+function field(key) {
+  return (props.section.fields || []).find((x) => x.key === key)
+}
+const heroProduct = computed(() => field('product')?.products?.[0] || null)
+const heroImage = computed(() => {
+  const img = field('image')?.media
+  return (typeof img === 'string' && img) ? img : (heroProduct.value?.image || null)
+})
+const heroPrice = computed(() => {
+  const raw = heroProduct.value?.price
+  if (raw == null) return null
+  try {
+    return new Intl.NumberFormat('de-DE', { style: 'currency', currency: heroProduct.value.currency || 'EUR' }).format(Number(raw))
+  } catch { return `${raw} €` }
+})
+const uspItems = computed(() => ['usp1', 'usp2', 'usp3', 'usp4'].map((k) => v.value[k]).filter(Boolean))
+
 // Section-Media werden als ID gespeichert; nur echte URLs/Pfade als Bild rendern
 // (verhindert eine kaputte <img src="UUID">).
 function isImageUrl(s) {
@@ -48,8 +66,40 @@ function isHeadingKey(key) {
 
 <template>
   <section class="w-full">
+    <!-- Hero-Banner (full-bleed, MediaMarkt-Stil) -->
+    <div v-if="type === 'hero'"
+      class="-mx-4 sm:-mx-6 -mt-4 sm:-mt-6 px-6 sm:px-10 py-10 sm:py-14"
+      style="background-color: var(--site-primary); background-image: linear-gradient(135deg, rgba(255,255,255,0.14), rgba(0,0,0,0.28)); color: var(--site-on-primary)">
+      <div class="flex flex-col sm:flex-row items-center gap-6 sm:gap-10 max-w-5xl mx-auto">
+        <div class="flex-1 space-y-3">
+          <p v-if="v.eyebrow" class="text-xs font-bold uppercase tracking-[0.2em] opacity-80">{{ v.eyebrow }}</p>
+          <h1 class="text-3xl sm:text-5xl font-black leading-[1.05]">{{ v.headline }}</h1>
+          <p v-if="v.subline" class="text-base sm:text-lg opacity-90 max-w-md">{{ v.subline }}</p>
+          <div class="flex items-center gap-4 pt-2">
+            <a v-if="v.cta_label" :href="v.cta_url || '#'"
+              class="inline-flex items-center font-bold text-sm px-5 py-2.5 rounded-full shadow-lg"
+              style="background: var(--site-surface); color: var(--site-primary)">{{ v.cta_label }}</a>
+            <span v-if="heroPrice" class="text-sm font-semibold opacity-90">ab {{ heroPrice }}</span>
+          </div>
+        </div>
+        <div v-if="heroImage" class="flex-1 flex justify-center">
+          <img :src="heroImage" :alt="v.headline" class="max-h-72 object-contain drop-shadow-2xl" />
+        </div>
+      </div>
+    </div>
+
+    <!-- USP-/Vertrauensleiste -->
+    <div v-else-if="type === 'usp-strip'" class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div v-for="(u, i) in uspItems" :key="i"
+        class="flex items-center gap-2 rounded-xl px-3 py-2.5 border"
+        style="background: var(--site-surface); border-color: var(--site-border)">
+        <span class="flex items-center justify-center w-6 h-6 rounded-full text-white text-xs shrink-0" style="background: var(--site-accent)">✓</span>
+        <span class="text-xs font-semibold text-[var(--color-text-primary)] leading-tight">{{ u }}</span>
+      </div>
+    </div>
+
     <!-- Überschrift -->
-    <component :is="headingTag()" v-if="type === 'headline'"
+    <component :is="headingTag()" v-else-if="type === 'headline'"
       class="font-extrabold text-[var(--color-text-primary)]"
       :class="v.level === 'h1' ? 'text-3xl' : v.level === 'h3' ? 'text-lg' : 'text-2xl'">
       {{ v.text }}
@@ -133,6 +183,18 @@ function isHeadingKey(key) {
       class="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
       <p class="text-sm font-semibold">{{ section.category.name }}</p>
       <p class="text-[11px] text-[var(--color-text-tertiary)]">{{ section.category.product_count }} Produkte</p>
+    </div>
+
+    <!-- Technische Daten (Produkt-Detailseite) -->
+    <div v-else-if="type === 'product-specs'" class="space-y-3">
+      <h3 v-if="v.headline" class="text-xl font-bold">{{ v.headline }}</h3>
+      <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-0 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+        <div v-for="(s, i) in (section.specs || [])" :key="i"
+          class="flex items-baseline justify-between gap-3 py-2 border-b border-[var(--color-border)] last:border-0">
+          <dt class="text-xs text-[var(--color-text-tertiary)]">{{ s.label }}</dt>
+          <dd class="text-sm font-medium text-[var(--color-text-primary)] text-right">{{ s.value }}</dd>
+        </div>
+      </dl>
     </div>
 
     <!-- Promo-Karussell -->

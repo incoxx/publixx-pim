@@ -94,8 +94,21 @@ function onNavClick(node) {
   // Backend liefert externe Ziele als node.href (nicht external_url).
   if (node.target_type === 'external_url' && node.href) {
     window.open(node.href, '_blank')
+  } else if (node.target_type === 'product') {
+    loadProductPage(node)
   } else if (isLink(node)) {
     loadPage(node.slug)
+  }
+}
+
+async function loadProductPage(node) {
+  const id = node.product_id || (node.href || '').replace(/^\/product\//, '')
+  if (!id) return
+  try {
+    const { data } = await siteApi.getProductPage(navKey.value, id, lang.value)
+    page.value = data.data ?? data
+  } catch {
+    page.value = null
   }
 }
 
