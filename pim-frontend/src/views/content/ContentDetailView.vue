@@ -5,7 +5,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useContentStore } from '@/stores/content'
 import ContentSectionCard from '@/components/content/ContentSectionCard.vue'
 import ContentPageFormPanel from '@/components/panels/ContentPageFormPanel.vue'
-import { ChevronLeft, Plus, Pencil, Clock } from 'lucide-vue-next'
+import { ChevronLeft, Plus, Pencil, Clock, Globe } from 'lucide-vue-next'
 
 const route = useRoute()
 const router = useRouter()
@@ -144,6 +144,9 @@ onMounted(load)
               @click="lang = l"
             >{{ l }}</button>
           </div>
+          <button class="pim-btn pim-btn-secondary text-xs" @click="router.push({ name: 'website-preview', query: { slug: page.slug } })">
+            <Globe class="w-3.5 h-3.5" :stroke-width="2" /> Vorschau
+          </button>
           <button class="pim-btn pim-btn-secondary text-xs" @click="editPage">
             <Pencil class="w-3.5 h-3.5" :stroke-width="2" /> Seite bearbeiten
           </button>

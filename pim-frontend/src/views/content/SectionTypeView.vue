@@ -3,6 +3,9 @@ import { ref, onMounted } from 'vue'
 import contentApi from '@/api/content'
 import { Plus, Trash2, GripVertical, Save, Boxes } from 'lucide-vue-next'
 
+// Reaktivitätssicherer Deep-Clone (structuredClone wirft auf Vue-Proxies).
+function clone(v) { return v == null ? v : JSON.parse(JSON.stringify(v)) }
+
 const items = ref([])
 const current = ref(null)
 const loading = ref(false)
@@ -29,8 +32,8 @@ async function load() {
 function selectItem(s) {
   errors.value = {}
   current.value = {
-    ...structuredClone(s),
-    schema: { fields: structuredClone(s.schema?.fields || []) },
+    ...clone(s),
+    schema: { fields: clone(s.schema?.fields || []) },
   }
 }
 

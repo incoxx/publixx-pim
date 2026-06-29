@@ -3,6 +3,9 @@ import { ref, computed, onMounted } from 'vue'
 import widgetsApi from '@/api/productWidgets'
 import { Plus, Trash2, GripVertical, Save, LayoutGrid } from 'lucide-vue-next'
 
+// Reaktivitätssicherer Deep-Clone (structuredClone wirft auf Vue-Proxies).
+function clone(v) { return v == null ? v : JSON.parse(JSON.stringify(v)) }
+
 const widgets = ref([])
 const current = ref(null) // bearbeitetes Widget (Kopie)
 const loading = ref(false)
@@ -27,13 +30,13 @@ async function load() {
 function selectWidget(w) {
   errors.value = {}
   current.value = {
-    ...structuredClone(w),
+    ...clone(w),
     config: {
       fields: [],
       show_sku: false,
       image_ratio: '4/3',
       cta: { enabled: false, label: '' },
-      ...structuredClone(w.config || {}),
+      ...clone(w.config || {}),
     },
   }
 }
