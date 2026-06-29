@@ -17,7 +17,9 @@ const client = axios.create({
 client.interceptors.request.use((config) => {
   const authStore = useAuthStore()
 
-  if (authStore.token) {
+  // config.anonymous = true → ohne Auth-Header senden (echte öffentliche
+  // Anfrage, z. B. die Public-Site-Seite → nutzt den anonymen Cache).
+  if (authStore.token && !config.anonymous) {
     config.headers.Authorization = `Bearer ${authStore.token}`
   }
 

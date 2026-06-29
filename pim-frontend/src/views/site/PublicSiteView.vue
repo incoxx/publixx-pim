@@ -66,7 +66,7 @@ async function loadSitemap() {
   loading.value = true
   error.value = null
   try {
-    const { data } = await siteApi.getSitemap(navKey.value, lang.value)
+    const { data } = await siteApi.getSitemap(navKey.value, lang.value, { anonymous: true })
     sitemap.value = data.data ?? data
     const slug = route.query.slug
     if (slug) {
@@ -85,7 +85,7 @@ async function loadSitemap() {
 
 async function loadPage(slug) {
   try {
-    const { data } = await siteApi.getPage(navKey.value, slug, lang.value)
+    const { data } = await siteApi.getPage(navKey.value, slug, lang.value, { anonymous: true })
     page.value = data.data ?? data
     window.scrollTo({ top: 0 })
   } catch {
@@ -96,7 +96,7 @@ async function loadPage(slug) {
 async function loadProductPageById(id) {
   if (!id) return
   try {
-    const { data } = await siteApi.getProductPage(navKey.value, id, lang.value)
+    const { data } = await siteApi.getProductPage(navKey.value, id, lang.value, { anonymous: true })
     page.value = data.data ?? data
     window.scrollTo({ top: 0 })
   } catch {

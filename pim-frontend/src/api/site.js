@@ -5,15 +5,17 @@ import client from './client'
  * navigation = technical_name (z. B. 'main') oder UUID.
  */
 export default {
-  getSitemap(navigation, lang = 'de') {
-    return client.get(`/site/${navigation}/sitemap`, { params: { lang } })
+  // opts.anonymous = true → ohne Login-Token anfragen (echter öffentlicher
+  // Besucher → trifft den anonymen Cache). Admin-Vorschau lässt es weg → live.
+  getSitemap(navigation, lang = 'de', { anonymous = false } = {}) {
+    return client.get(`/site/${navigation}/sitemap`, { params: { lang }, anonymous })
   },
 
-  getPage(navigation, slug, lang = 'de') {
-    return client.get(`/site/${navigation}/page/${slug}`, { params: { lang } })
+  getPage(navigation, slug, lang = 'de', { anonymous = false } = {}) {
+    return client.get(`/site/${navigation}/page/${slug}`, { params: { lang }, anonymous })
   },
 
-  getProductPage(navigation, productId, lang = 'de') {
-    return client.get(`/site/${navigation}/product/${productId}`, { params: { lang } })
+  getProductPage(navigation, productId, lang = 'de', { anonymous = false } = {}) {
+    return client.get(`/site/${navigation}/product/${productId}`, { params: { lang }, anonymous })
   },
 }
