@@ -182,6 +182,10 @@ const sections = computed(() => {
             { icon: Globe, label: () => t('nav.priceRegions'), to: '/price-regions', permission: 'price-regions.view' },
           ],
         },
+        {
+          icon: LayoutGrid, label: () => 'Produkt-Widgets', to: '/product-widgets',
+          module: 'content', permission: 'product-widgets.view', testid: 'nav-product-widgets',
+        },
       ],
     },
     {

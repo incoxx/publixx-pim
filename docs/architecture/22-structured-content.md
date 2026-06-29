@@ -416,6 +416,47 @@ Navigation "main"
 
 ---
 
+## 3.7 Produkt-Widgets — Anzeige-Definitionen für Produktblöcke
+
+Ein **Produkt-Widget** ist eine benannte, wiederverwendbare Definition, **welche**
+Produktdaten ein eingebetteter Produktblock anzeigt und in welcher **Rolle**
+(Bild, Titel, Preis, Attribut, Badge, CTA). Tabelle `product_widgets`.
+
+> **Bewusst getrennt vom Katalog:** Die Katalog-Vorschau konfiguriert „was vom
+> Produkt gezeigt wird" über `website_profiles.payload` (`card_attribute_ids`,
+> `description_attributes`, …). Produkt-Widgets sind **ein anderes Thema** für das
+> Content-Modul: eigene Tabelle, eigenes Recht (`product-widgets.*`), eigene GUI.
+> Gleiche **Datenbasis**, getrennte **Konfiguration** — keine Katalog-Datei wird
+> berührt.
+
+**Config-Form** (`product_widgets.config`):
+
+```json
+{
+  "fields": [
+    {"role": "image", "source": "media:teaser",       "type": "media_url"},
+    {"role": "title", "source": "product:name",        "type": "text"},
+    {"role": "price", "source": "prices:list_price",   "type": "price"},
+    {"role": "badge", "source": "attribute:energy-label", "type": "text"}
+  ],
+  "show_sku": false, "image_ratio": "4/3", "cta": {"enabled": true, "label": "Details"}
+}
+```
+
+- `source` nutzt die kanonischen **MappingResolver-Namespaces** (`attribute:`,
+  `prices:`, `media:`, `relations:`, `collection:`) plus `product:` für
+  Basisfelder (`product:name`, `product:sku`). Die Wertauflösung läuft über
+  **dieselbe Engine** wie der Export (`MappingResolver::resolveRule`).
+- `role` ∈ image|title|subtitle|price|badge|attribute|rating|cta — das Theme
+  rendert nach Rolle.
+- **Default-Bibliothek** (geseedet, `is_system`): `card`, `hero`, `list-row`,
+  `spec-tile`.
+
+**Verdrahtung:** Die Commerce-Sektionen (`product-teaser`, `product-gallery`,
+`product-list`) tragen ein Feld `widget` (technical_name). Der
+`WebsitePreviewService` löst jedes Produkt über das gewählte Widget auf und
+liefert pro Produkt `display.fields` (rollenbasiert) zusätzlich zur Basis-Summary.
+
 ## 4. Export & Import (Web + Print)
 
 Content nutzt **dieselbe Export-Pipeline** wie Produkte und folgt der

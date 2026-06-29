@@ -121,6 +121,7 @@ use App\Http\Controllers\Api\V1\ContentPageController;
 use App\Http\Controllers\Api\V1\ContentSectionController;
 use App\Http\Controllers\Api\V1\NavigationController;
 use App\Http\Controllers\Api\V1\NavigationNodeController;
+use App\Http\Controllers\Api\V1\ProductWidgetController;
 use App\Http\Controllers\Api\V1\PublicSiteController;
 use Illuminate\Support\Facades\Route;
 
@@ -819,6 +820,10 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
         Route::put('navigation-nodes/{navigation_node}', [NavigationNodeController::class, 'update']);
         Route::put('navigation-nodes/{navigation_node}/move', [NavigationNodeController::class, 'move']);
         Route::delete('navigation-nodes/{navigation_node}', [NavigationNodeController::class, 'destroy']);
+
+        // Produkt-Widgets (Anzeige-Definitionen für Produktblöcke)
+        Route::apiResource('product-widgets', ProductWidgetController::class)
+            ->parameters(['product-widgets' => 'product_widget']);
     });
 
     // =====================================================================

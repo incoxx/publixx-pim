@@ -226,6 +226,7 @@ class SectionTypeSeeder extends Seeder
                     ['key' => 'pql', 'label' => 'PQL-Filter', 'type' => 'pql'],
                     ['key' => 'layout', 'label' => 'Darstellung', 'type' => 'Selection', 'options' => ['grid', 'list'], 'default' => 'grid'],
                     ['key' => 'limit', 'label' => 'Maximale Anzahl', 'type' => 'Number', 'default' => 12],
+                    ['key' => 'widget', 'label' => 'Anzeige-Widget', 'type' => 'product_widget_ref'],
                 ]],
             ],
             [
@@ -238,6 +239,7 @@ class SectionTypeSeeder extends Seeder
                 'sort_order' => 210,
                 'schema' => ['fields' => [
                     ['key' => 'product', 'label' => 'Produkt', 'type' => 'product_ref', 'required' => true],
+                    ['key' => 'widget', 'label' => 'Anzeige-Widget', 'type' => 'product_widget_ref', 'default' => 'hero'],
                 ]],
             ],
             [
@@ -257,6 +259,7 @@ class SectionTypeSeeder extends Seeder
                     ['key' => 'layout', 'label' => 'Darstellung', 'type' => 'Selection', 'options' => ['grid', 'carousel', 'flyer'], 'default' => 'grid'],
                     ['key' => 'columns', 'label' => 'Spalten', 'type' => 'Selection', 'options' => ['2', '3', '4'], 'default' => '3'],
                     ['key' => 'show_price', 'label' => 'Preis anzeigen', 'type' => 'Flag', 'default' => true],
+                    ['key' => 'widget', 'label' => 'Anzeige-Widget', 'type' => 'product_widget_ref', 'default' => 'card'],
                 ]],
             ],
             [

@@ -10,6 +10,8 @@ use App\Models\HierarchyNode;
 use App\Models\Navigation;
 use App\Models\NavigationNode;
 use App\Models\Product;
+use App\Models\ProductWidget;
+use App\Services\Export\MappingResolver;
 
 /**
  * Baut die gerenderte Website-Struktur (Sitemap + Seiten) als JSON.
@@ -18,6 +20,13 @@ use App\Models\Product;
  */
 class WebsitePreviewService
 {
+    /** @var array<string, ProductWidget|null> */
+    private array $widgetCache = [];
+
+    public function __construct(
+        private readonly MappingResolver $mappingResolver,
+    ) {}
+
     /**
      * Kompletter Navigationsbaum als verschachtelte Sitemap.
      */
@@ -132,12 +141,14 @@ class WebsitePreviewService
         ];
 
         // Commerce-Sektionen: Produkt-/Kategoriedaten nativ auflösen.
+        $widget = $values['widget'] ?? null;
+
         switch ($type) {
             case 'product-teaser':
-                $resolved['product'] = $this->productSummary($values['product'] ?? null, $lang);
+                $resolved['product'] = $this->productSummary($values['product'] ?? null, $lang, $widget);
                 break;
             case 'product-gallery':
-                $resolved['products'] = $this->productSummaries($values['products'] ?? [], $lang);
+                $resolved['products'] = $this->productSummaries($values['products'] ?? [], $lang, $widget);
                 break;
             case 'category-teaser':
                 $resolved['category'] = $this->categorySummary($values['hierarchy_node'] ?? null, $lang);
@@ -156,20 +167,28 @@ class WebsitePreviewService
         return $resolved;
     }
 
-    private function productSummaries(array $ids, string $lang): array
+    private function productSummaries(array $ids, string $lang, ?string $widget = null): array
     {
         return collect($ids)
-            ->map(fn ($id) => $this->productSummary($id, $lang))
+            ->map(fn ($id) => $this->productSummary($id, $lang, $widget))
             ->filter()->values()->all();
     }
 
-    private function productSummary(?string $id, string $lang): ?array
+    private function productSummary(?string $id, string $lang, ?string $widget = null): ?array
     {
         if (!$id) {
             return null;
         }
 
-        $product = Product::with(['prices', 'mediaAssignments.media'])->find($id);
+        $product = Product::with([
+            'prices.priceType',
+            'mediaAssignments.media',
+            'mediaAssignments.usageType',
+            'attributeValues.attribute',
+            'attributeValues.unit',
+            'attributeValues.valueListEntry',
+        ])->find($id);
+
         if (!$product) {
             return null;
         }
@@ -178,7 +197,8 @@ class WebsitePreviewService
             ?? $product->mediaAssignments->first();
         $price = $product->prices->sortBy('amount')->first();
 
-        return [
+        // Basis-Zusammenfassung (immer vorhanden)
+        $summary = [
             'id' => $product->id,
             'sku' => $product->sku,
             'name' => $product->name,
@@ -187,6 +207,59 @@ class WebsitePreviewService
             'image' => $primary?->media ? '/api/v1/media/file/' . $primary->media->file_name : null,
             'href' => '/product/' . $product->id,
         ];
+
+        // Widget-Anzeigedefinition anwenden (rollenbasierte Felder)
+        $def = $this->resolveWidget($widget);
+        if ($def) {
+            $summary['widget'] = $widget;
+            $summary['display'] = $this->applyWidget($product, $def->config ?? [], $lang);
+        }
+
+        return $summary;
+    }
+
+    /**
+     * Felder eines Produkts gemäß Widget-Definition rollenbasiert auflösen.
+     * Quellen nutzen die MappingResolver-Namespaces; product:* sind Basisfelder.
+     */
+    private function applyWidget(Product $product, array $config, string $lang): array
+    {
+        $fields = [];
+
+        foreach ($config['fields'] ?? [] as $f) {
+            $source = $f['source'] ?? '';
+            $type = $f['type'] ?? 'text';
+
+            if (str_starts_with($source, 'product:')) {
+                $value = $product->{substr($source, 8)} ?? null;
+            } else {
+                $value = $this->mappingResolver->resolveRule($source, $type, $product, $lang);
+            }
+
+            $fields[] = [
+                'role' => $f['role'] ?? 'attribute',
+                'source' => $source,
+                'value' => $value,
+            ];
+        }
+
+        return [
+            'fields' => $fields,
+            'show_sku' => (bool) ($config['show_sku'] ?? false),
+            'image_ratio' => $config['image_ratio'] ?? null,
+            'cta' => $config['cta'] ?? null,
+        ];
+    }
+
+    private function resolveWidget(?string $technicalName): ?ProductWidget
+    {
+        if (!$technicalName) {
+            return null;
+        }
+
+        return $this->widgetCache[$technicalName] ??= ProductWidget::where('technical_name', $technicalName)
+            ->where('is_active', true)
+            ->first();
     }
 
     private function categorySummary(?string $nodeId, string $lang): ?array

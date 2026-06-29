@@ -82,6 +82,12 @@ const routes = [
     meta: { title: 'Navigation' },
   },
   {
+    path: '/product-widgets',
+    name: 'product-widgets',
+    component: () => import('@/views/content/ProductWidgetView.vue'),
+    meta: { title: 'Produkt-Widgets' },
+  },
+  {
     path: '/hierarchies',
     name: 'hierarchies',
     component: () => import('@/views/hierarchies/HierarchyView.vue'),

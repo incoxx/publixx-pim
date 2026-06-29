@@ -147,6 +147,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(\App\Models\ContentType::class, \App\Policies\ContentTypePolicy::class);
         Gate::policy(\App\Models\SectionType::class, \App\Policies\SectionTypePolicy::class);
         Gate::policy(\App\Models\Navigation::class, \App\Policies\NavigationPolicy::class);
+        Gate::policy(\App\Models\ProductWidget::class, \App\Policies\ProductWidgetPolicy::class);
 
         // ─── Conformance Gates (kein eigenes Model) ──────────────────
         // KI-Erklärung ist gesondert (Kosten!) von Ansicht/Prüfung getrennt.

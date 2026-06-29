@@ -58,7 +58,7 @@ class ContentTemplateSeeder extends Seeder
         $this->section($page, 'teaser', ['de' => ['headline' => 'Alles aus einer Quelle', 'body' => 'Produkte, Inhalte und Navigation – strukturiert in einem System.']], $o++);
         $this->section($page, 'product-gallery', [
             'de' => ['headline' => 'Unsere Empfehlungen'],
-            '_' => ['products' => $this->productIds, 'layout' => 'grid', 'columns' => '3', 'show_price' => true],
+            '_' => ['products' => $this->productIds, 'layout' => 'grid', 'columns' => '3', 'show_price' => true, 'widget' => 'card'],
         ], $o++);
         $this->section($page, 'category-grid', [
             'de' => ['headline' => 'Kategorien im Überblick'],
@@ -88,7 +88,7 @@ class ContentTemplateSeeder extends Seeder
         ], $o++);
         $this->section($page, 'product-gallery', [
             'de' => ['headline' => 'Unsere WM-Highlights'],
-            '_' => ['products' => $this->productIds, 'layout' => 'flyer', 'columns' => '3', 'show_price' => true],
+            '_' => ['products' => $this->productIds, 'layout' => 'flyer', 'columns' => '3', 'show_price' => true, 'widget' => 'card'],
         ], $o++);
 
         // Aktions-Karussell mit zwei Slides (Kind-Sektionen).

@@ -132,6 +132,7 @@ class RoleAndPermissionSeeder extends Seeder
             'content-types.view', 'content-types.create', 'content-types.edit', 'content-types.delete',
             'section-types.view', 'section-types.create', 'section-types.edit', 'section-types.delete',
             'navigation.view', 'navigation.create', 'navigation.edit', 'navigation.delete',
+            'product-widgets.view', 'product-widgets.create', 'product-widgets.edit', 'product-widgets.delete',
         ];
 
         foreach ($permissions as $permissionName) {
@@ -166,6 +167,7 @@ class RoleAndPermissionSeeder extends Seeder
             'section-types.view', 'section-types.create', 'section-types.edit', 'section-types.delete',
             'content.view',
             'navigation.view', 'navigation.create', 'navigation.edit', 'navigation.delete',
+            'product-widgets.view', 'product-widgets.create', 'product-widgets.edit', 'product-widgets.delete',
             'hierarchies.view', 'hierarchies.create', 'hierarchies.edit', 'hierarchies.delete',
             'hierarchy-nodes.view', 'hierarchy-nodes.create', 'hierarchy-nodes.edit', 'hierarchy-nodes.delete', 'hierarchy-nodes.move',
             'unit-groups.view', 'unit-groups.create', 'unit-groups.edit', 'unit-groups.delete',
@@ -324,6 +326,8 @@ class RoleAndPermissionSeeder extends Seeder
             'section-types.view',
             // Navigationsbaum / Sitemap (Vollzugriff — Marketing baut die Website-Struktur)
             'navigation.view', 'navigation.create', 'navigation.edit', 'navigation.delete',
+            // Produkt-Widgets (Anzeige-Definitionen für Produktblöcke)
+            'product-widgets.view', 'product-widgets.create', 'product-widgets.edit', 'product-widgets.delete',
             // Produkte & Struktur: nur lesend (Kontext)
             'products.view',
             'product-types.view',
