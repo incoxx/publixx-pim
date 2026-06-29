@@ -43,7 +43,15 @@ client.interceptors.response.use(
       authStore.token = null
       authStore.user = null
       localStorage.removeItem('pim_token')
-      router.push({ name: 'login' })
+
+      // Auf öffentlichen Routen (z. B. /site/...) und bei bewusst anonymen
+      // Anfragen NICHT zur Login-Seite umleiten — sonst kapert ein 401 einer
+      // Hintergrund-/optionalen Anfrage die öffentliche Seite. Die jeweilige
+      // View entscheidet selbst (z. B. „Anmeldung erforderlich").
+      const isPublicRoute = router.currentRoute.value?.meta?.public
+      if (!isPublicRoute && !error.config?.anonymous) {
+        router.push({ name: 'login' })
+      }
     }
 
     if (status === 403) {
