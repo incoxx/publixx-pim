@@ -192,8 +192,8 @@ So ist die erste Besucheranfrage nach einer Veröffentlichung bereits ein HIT.
 | Phase | Inhalt | Risiko |
 |-------|--------|--------|
 | **1 ✅ umgesetzt** | `ContentCache`-Service (Tag- + Versions-Fallback, Reverse-Index), `remember()` in den drei Service-Methoden, Redakteur-Bypass (`Auth`/`?nocache`), Content-Observer (page/section/nav/node/widget) + Produkt-Observer (Product/Price/AttributeValue/MediaAssignment/Relation → PDP + einbettende Seiten), gültigkeits-bewusste TTL, `X-Cache`-Header (HIT/MISS/BYPASS), `config/content.php` | niedrig |
-| **2** | Gültigkeits-bewusste TTL, HTTP `ETag`/`Cache-Control` + `304`, `nocache`-Flag im Backend-Preview-Button | mittel |
-| **3** | Warming-Job + Artisan-Befehle, CDN-Doku, Metriken (Hit-Rate) | optional |
+| **2 ✅ umgesetzt** | HTTP `ETag` + `Cache-Control: public, max-age, stale-while-revalidate` + `304 Not Modified` (If-None-Match) für anonyme Anfragen; `private, no-store` bei Auth/`nocache` (CDN-fähig) | mittel |
+| **3 ✅ umgesetzt** | `ContentCacheWarmer` + `WarmContentCache`-Job + `pim:content-cache-warm`/`-clear` (gezielt: `--nav`/`--page`/`--product`, `--stats`), Hit-Rate-Metriken, optionales `warm_on_publish` | optional |
 
 ---
 

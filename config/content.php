@@ -13,5 +13,9 @@ return [
     'cache' => [
         'enabled' => env('CONTENT_CACHE_ENABLED', true),
         'ttl' => (int) env('CONTENT_CACHE_TTL', 3600),
+        // Phase 2: HTTP-Caching (Browser/CDN) für anonyme Anfragen.
+        'http_max_age' => (int) env('CONTENT_CACHE_HTTP_MAX_AGE', 300),
+        // Phase 3: nach „Veröffentlichen" einer Seite die Navigation(en) vorrendern.
+        'warm_on_publish' => env('CONTENT_CACHE_WARM', false),
     ],
 ];

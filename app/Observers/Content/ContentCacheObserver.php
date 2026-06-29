@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Observers\Content;
 
+use App\Jobs\WarmContentCache;
 use App\Models\ContentPage;
 use App\Models\ContentSection;
 use App\Models\Navigation;
@@ -44,5 +45,14 @@ class ContentCacheObserver
             $model instanceof ProductWidget => $this->cache->flushTags(['content']),
             default => null,
         };
+
+        // Optional: nach Invalidierung die betroffene(n) Navigation(en) neu wärmen.
+        if ($model instanceof ContentPage && $model->status === 'active'
+            && config('content.cache.warm_on_publish')) {
+            NavigationNode::where('content_page_id', $model->id)
+                ->where('target_type', 'content_page')
+                ->pluck('navigation_id')->unique()
+                ->each(fn ($navId) => WarmContentCache::dispatch($navId));
+        }
     }
 }

@@ -54,6 +54,7 @@ class ContentCache
 
         if ($this->taggable()) {
             $this->lastHit = Cache::tags($tags)->has($key);
+            $this->recordMetric();
 
             return Cache::tags($tags)->remember($key, $ttl, $callback);
         }
@@ -61,6 +62,7 @@ class ContentCache
         // Fallback ohne Tag-Support: Versions-Key
         $vKey = $key . ':v' . $this->version();
         $this->lastHit = Cache::has($vKey);
+        $this->recordMetric();
 
         return Cache::remember($vKey, $ttl, $callback);
     }
@@ -127,6 +129,37 @@ class ContentCache
             Cache::tags(["content:page:{$pageId}"])->flush();
         }
         Cache::forget($key);
+    }
+
+    // ─── Metriken (Hit-Rate) ──────────────────────────────────────────
+
+    private function recordMetric(): void
+    {
+        $key = $this->lastHit ? 'content:metrics:hits' : 'content:metrics:misses';
+        if (Cache::increment($key) === false) {
+            Cache::forever($key, 1);
+        }
+    }
+
+    /** @return array{hits:int, misses:int, total:int, hit_rate:float} */
+    public function metrics(): array
+    {
+        $hits = (int) Cache::get('content:metrics:hits', 0);
+        $misses = (int) Cache::get('content:metrics:misses', 0);
+        $total = $hits + $misses;
+
+        return [
+            'hits' => $hits,
+            'misses' => $misses,
+            'total' => $total,
+            'hit_rate' => $total > 0 ? round($hits / $total, 4) : 0.0,
+        ];
+    }
+
+    public function resetMetrics(): void
+    {
+        Cache::forget('content:metrics:hits');
+        Cache::forget('content:metrics:misses');
     }
 
     // ─── Versions-Fallback ────────────────────────────────────────────

@@ -32,26 +32,47 @@ class PublicSiteController extends Controller
         return ! (Auth::check() || $request->boolean('nocache'));
     }
 
-    private function cacheHeader(Request $request): array
+    /**
+     * Antwort mit HTTP-Caching (Phase 2): ETag + Cache-Control für anonyme
+     * Besucher, `304 Not Modified` bei passendem If-None-Match. Eingeloggte/
+     * nocache-Anfragen: private, no-store. X-Cache spiegelt Server-Cache.
+     */
+    private function cachedJson(Request $request, array $data): Response
     {
-        if (! $this->useCache($request)) {
-            return ['X-Cache' => 'BYPASS'];
+        $useCache = $this->useCache($request);
+        $headers = [
+            'X-Cache' => $useCache ? ($this->cache->lastHit ? 'HIT' : 'MISS') : 'BYPASS',
+        ];
+
+        if (! $useCache) {
+            $headers['Cache-Control'] = 'private, no-store';
+
+            return response()->json(['data' => $data], 200, $headers);
         }
 
-        return ['X-Cache' => $this->cache->lastHit ? 'HIT' : 'MISS'];
+        $etag = '"' . md5(json_encode(['data' => $data])) . '"';
+        $maxAge = (int) config('content.cache.http_max_age', 300);
+        $headers['Cache-Control'] = "public, max-age={$maxAge}, stale-while-revalidate=" . ($maxAge * 2);
+        $headers['ETag'] = $etag;
+
+        if (trim((string) $request->headers->get('If-None-Match')) === $etag) {
+            return response('', 304, $headers);
+        }
+
+        return response()->json(['data' => $data], 200, $headers);
     }
 
-    public function sitemap(Request $request, string $navigation): JsonResponse
+    public function sitemap(Request $request, string $navigation): Response
     {
         $nav = $this->resolveNavigation($navigation);
         $lang = (string) $request->query('lang', 'de');
 
         $data = $this->preview->buildSitemap($nav, $lang, $this->useCache($request));
 
-        return response()->json(['data' => $data])->withHeaders($this->cacheHeader($request));
+        return $this->cachedJson($request, $data);
     }
 
-    public function page(Request $request, string $navigation, string $slug): JsonResponse
+    public function page(Request $request, string $navigation, string $slug): Response
     {
         $nav = $this->resolveNavigation($navigation);
         $lang = (string) $request->query('lang', 'de');
@@ -62,10 +83,10 @@ class PublicSiteController extends Controller
             return response()->json(['message' => 'Seite nicht gefunden.'], 404);
         }
 
-        return response()->json(['data' => $page])->withHeaders($this->cacheHeader($request));
+        return $this->cachedJson($request, $page);
     }
 
-    public function productPage(Request $request, string $navigation, string $product): JsonResponse
+    public function productPage(Request $request, string $navigation, string $product): Response
     {
         $this->resolveNavigation($navigation); // Navigation muss existieren (Scope)
         $lang = (string) $request->query('lang', 'de');
@@ -76,7 +97,7 @@ class PublicSiteController extends Controller
             return response()->json(['message' => 'Produkt nicht gefunden.'], 404);
         }
 
-        return response()->json(['data' => $page])->withHeaders($this->cacheHeader($request));
+        return $this->cachedJson($request, $page);
     }
 
     /**
