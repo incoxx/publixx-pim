@@ -142,6 +142,13 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(AttributeMapping::class, AttributeMappingPolicy::class);
         Gate::policy(\App\Models\ProductReferenceProfile::class, \App\Policies\ProductReferenceProfilePolicy::class);
 
+        // ─── Strukturierter Content (CMS-Modul) ──────────────────────
+        Gate::policy(\App\Models\ContentPage::class, \App\Policies\ContentPagePolicy::class);
+        Gate::policy(\App\Models\ContentType::class, \App\Policies\ContentTypePolicy::class);
+        Gate::policy(\App\Models\SectionType::class, \App\Policies\SectionTypePolicy::class);
+        Gate::policy(\App\Models\Navigation::class, \App\Policies\NavigationPolicy::class);
+        Gate::policy(\App\Models\ProductWidget::class, \App\Policies\ProductWidgetPolicy::class);
+
         // ─── Conformance Gates (kein eigenes Model) ──────────────────
         // KI-Erklärung ist gesondert (Kosten!) von Ansicht/Prüfung getrennt.
         $conformanceAbility = function (User $user, string $permission): bool {

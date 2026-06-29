@@ -15,11 +15,18 @@ class DatabaseSeeder extends Seeder
             AdminUserSeeder::class,
             ProductTypeSeeder::class,
             ProductRelationTypeSeeder::class,
+            SectionTypeSeeder::class,
+            ContentTypeSeeder::class,
+            ProductWidgetSeeder::class,
+            NavigationSeeder::class,
             DemoAttributeSeeder::class,
             DemoHierarchySeeder::class,
             DemoProductSeeder::class,
             DemoMediaSeeder::class,
             EtimDemoSeeder::class,
+            // Nach den Demo-Daten: vordefinierte Seiten-Templates (referenzieren
+            // Demo-Produkte/-Kategorien für die Commerce-Sektionen).
+            ContentTemplateSeeder::class,
         ]);
     }
 }

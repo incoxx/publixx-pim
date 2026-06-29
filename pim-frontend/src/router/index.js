@@ -64,6 +64,36 @@ const routes = [
     meta: { title: 'Produktdetail', tabable: true, tabTitle: 'Produkt' },
   },
   {
+    path: '/content',
+    name: 'content',
+    component: () => import('@/views/content/ContentListView.vue'),
+    meta: { title: 'Content' },
+  },
+  {
+    path: '/content/:id',
+    name: 'content-detail',
+    component: () => import('@/views/content/ContentDetailView.vue'),
+    meta: { title: 'Content-Seite', tabable: true, tabTitle: 'Seite' },
+  },
+  {
+    path: '/navigation',
+    name: 'navigation',
+    component: () => import('@/views/navigation/NavigationView.vue'),
+    meta: { title: 'Navigation' },
+  },
+  {
+    path: '/product-widgets',
+    name: 'product-widgets',
+    component: () => import('@/views/content/ProductWidgetView.vue'),
+    meta: { title: 'Produkt-Widgets' },
+  },
+  {
+    path: '/website-preview',
+    name: 'website-preview',
+    component: () => import('@/views/site/WebsitePreviewView.vue'),
+    meta: { title: 'Website-Vorschau' },
+  },
+  {
     path: '/hierarchies',
     name: 'hierarchies',
     component: () => import('@/views/hierarchies/HierarchyView.vue'),

@@ -115,6 +115,14 @@ use App\Http\Controllers\Api\V1\CanvaExportProfileController;
 use App\Http\Controllers\Api\V1\ConnectorController;
 use App\Http\Controllers\Api\V1\QuickSearchController;
 use App\Http\Controllers\Api\V1\SemanticSearchController;
+use App\Http\Controllers\Api\V1\ContentTypeController;
+use App\Http\Controllers\Api\V1\SectionTypeController;
+use App\Http\Controllers\Api\V1\ContentPageController;
+use App\Http\Controllers\Api\V1\ContentSectionController;
+use App\Http\Controllers\Api\V1\NavigationController;
+use App\Http\Controllers\Api\V1\NavigationNodeController;
+use App\Http\Controllers\Api\V1\ProductWidgetController;
+use App\Http\Controllers\Api\V1\PublicSiteController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -259,6 +267,15 @@ Route::prefix('v1/debug')->middleware('throttle.pim')->group(function () {
     Route::get('logs/parsed', [DebugController::class, 'parsedLogs']);
     Route::get('logs/clear', [DebugController::class, 'clearLogs']);
     Route::delete('logs', [DebugController::class, 'clearLogs']);
+});
+
+// =========================================================================
+// Website-Vorschau (öffentlich, lizenzgated — analog Public-Catalog)
+// =========================================================================
+Route::prefix('v1/site')->middleware(['throttle.pim', 'module:content'])->group(function () {
+    Route::get('{navigation}/sitemap', [PublicSiteController::class, 'sitemap']);
+    Route::get('{navigation}/sitemap.xml', [PublicSiteController::class, 'sitemapXml']);
+    Route::get('{navigation}/page/{slug}', [PublicSiteController::class, 'page']);
 });
 
 // =========================================================================
@@ -773,6 +790,40 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
             Route::post('upload-complete', [BmecatImportController::class, 'uploadComplete']);
         });
         Route::post('bmecat-export', [BmecatExportController::class, 'export']);
+    });
+
+    // =====================================================================
+    // Enterprise: Strukturierter Content (CMS-Modul)
+    // =====================================================================
+    Route::middleware('module:content')->group(function () {
+        // Struktur: Seitentypen & Sektionstypen
+        Route::apiResource('content-types', ContentTypeController::class)
+            ->parameters(['content-types' => 'content_type']);
+        Route::apiResource('section-types', SectionTypeController::class)
+            ->parameters(['section-types' => 'section_type']);
+
+        // Seiten
+        Route::apiResource('content-pages', ContentPageController::class)
+            ->parameters(['content-pages' => 'content_page']);
+
+        // Sektionen (Bausteine) einer Seite
+        Route::post('content-pages/{content_page}/sections', [ContentSectionController::class, 'store']);
+        Route::put('content-sections/{content_section}', [ContentSectionController::class, 'update']);
+        Route::put('content-sections/{content_section}/move', [ContentSectionController::class, 'move']);
+        Route::delete('content-sections/{content_section}', [ContentSectionController::class, 'destroy']);
+
+        // Navigationsbaum / Sitemap
+        Route::apiResource('navigations', NavigationController::class)
+            ->parameters(['navigations' => 'navigation']);
+        Route::get('navigations/{navigation}/tree', [NavigationController::class, 'tree']);
+        Route::post('navigations/{navigation}/nodes', [NavigationNodeController::class, 'store']);
+        Route::put('navigation-nodes/{navigation_node}', [NavigationNodeController::class, 'update']);
+        Route::put('navigation-nodes/{navigation_node}/move', [NavigationNodeController::class, 'move']);
+        Route::delete('navigation-nodes/{navigation_node}', [NavigationNodeController::class, 'destroy']);
+
+        // Produkt-Widgets (Anzeige-Definitionen für Produktblöcke)
+        Route::apiResource('product-widgets', ProductWidgetController::class)
+            ->parameters(['product-widgets' => 'product_widget']);
     });
 
     // =====================================================================
