@@ -88,6 +88,18 @@ const routes = [
     meta: { title: 'Produkt-Widgets' },
   },
   {
+    path: '/content-types',
+    name: 'content-types',
+    component: () => import('@/views/content/ContentTypeView.vue'),
+    meta: { title: 'Seitentypen' },
+  },
+  {
+    path: '/section-types',
+    name: 'section-types',
+    component: () => import('@/views/content/SectionTypeView.vue'),
+    meta: { title: 'Sektionstypen' },
+  },
+  {
     path: '/website-preview',
     name: 'website-preview',
     component: () => import('@/views/site/WebsitePreviewView.vue'),
