@@ -12,6 +12,9 @@ export const useCartStore = defineStore('cart', () => {
   // Aktiver Warenkorbtyp (technical_name)
   const activeCartType = ref(null)
 
+  // Globaler Drawer-State (ersetzt provide/inject)
+  const drawerOpen = ref(false)
+
   const isEmpty = computed(() => !cartData.value || cartData.value.item_count === 0)
   const itemCount = computed(() => cartData.value?.item_count ?? 0)
   const totalAmount = computed(() => cartData.value?.total_amount ?? null)
@@ -117,6 +120,7 @@ export const useCartStore = defineStore('cart', () => {
     submitting,
     error,
     activeCartType,
+    drawerOpen,
     isEmpty,
     itemCount,
     totalAmount,

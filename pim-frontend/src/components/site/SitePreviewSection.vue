@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import SiteProductCard from './SiteProductCard.vue'
+import SectionEcommerceCart from './SectionEcommerceCart.vue'
 
 const props = defineProps({
   section: { type: Object, required: true },
@@ -219,6 +220,9 @@ function isHeadingKey(key) {
         </div>
       </div>
     </div>
+
+    <!-- e-Commerce Warenkorb-Widget (System-Widget) -->
+    <SectionEcommerceCart v-else-if="type === 'ecommerce_cart'" :section="section" />
 
     <!-- Generischer Renderer: jeder (auch eigene) Sektionstyp über seine Felder -->
     <div v-else class="space-y-3">

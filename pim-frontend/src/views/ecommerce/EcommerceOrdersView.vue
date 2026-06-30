@@ -180,7 +180,7 @@ onMounted(load)
               <RefreshCw class="w-4 h-4" :class="{ 'animate-spin': retrying }" />
               Erneut senden
             </button>
-            <button class="btn btn-sm btn-primary" :disabled="saving" @click="saveStatus">
+            <button class="btn btn-sm btn-primary text-white" :disabled="saving" @click="saveStatus">
               {{ saving ? 'Speichert…' : 'Speichern' }}
             </button>
             <button class="btn btn-sm btn-ghost btn-circle" @click="close"><X class="w-4 h-4" /></button>
