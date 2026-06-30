@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import siteApi from '@/api/site'
 import SitePreviewSection from '@/components/site/SitePreviewSection.vue'
+import CatalogCartDrawer from '@/components/catalog/CatalogCartDrawer.vue'
 
 /**
  * Öffentliche, standalone Website-Seite (ohne Admin/Backend).
@@ -196,6 +197,9 @@ onMounted(loadSitemap)
       </template>
       <p v-else-if="!error" class="text-sm opacity-60 text-center py-8">Keine Seite ausgewählt.</p>
     </main>
+
+    <!-- Globaler Cart-Drawer: einmalig pro Seite, wird von SectionEcommerceCart gesteuert -->
+    <CatalogCartDrawer />
 
     <!-- Footer -->
     <footer class="mt-10 px-4 sm:px-8 py-6 text-xs flex flex-wrap gap-4"
