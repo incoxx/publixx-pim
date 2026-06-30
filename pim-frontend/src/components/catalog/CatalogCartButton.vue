@@ -1,5 +1,5 @@
 <script setup>
-import { computed, inject } from 'vue'
+import { computed } from 'vue'
 import { ShoppingCart, Check, Loader } from 'lucide-vue-next'
 import { useCartStore } from '@/stores/cart'
 
@@ -13,7 +13,6 @@ const props = defineProps({
 const emit = defineEmits(['added'])
 
 const cartStore = useCartStore()
-const cartDrawerOpen = inject('cartDrawerOpen', null)
 
 const activeCartType = computed(() => props.cartTypeName ?? cartStore.activeCartType)
 const inCart = computed(() => cartStore.isInCart(props.productId))
@@ -28,13 +27,13 @@ async function handleClick(e) {
   }
 
   if (inCart.value) {
-    if (cartDrawerOpen) cartDrawerOpen.value = true
+    cartStore.drawerOpen = true
     return
   }
 
   await cartStore.addItem(props.productId, props.quantity)
   emit('added', props.productId)
-  if (cartDrawerOpen) cartDrawerOpen.value = true
+  cartStore.drawerOpen = true
 }
 </script>
 

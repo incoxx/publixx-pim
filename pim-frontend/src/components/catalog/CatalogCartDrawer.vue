@@ -1,10 +1,15 @@
 <script setup>
-import { ref, computed, inject, watch } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { ShoppingCart, Trash2, X, Package, Plus, Minus, ChevronRight } from 'lucide-vue-next'
 import { useCartStore } from '@/stores/cart'
 
-const cartDrawerOpen = inject('cartDrawerOpen', ref(false))
 const cartStore = useCartStore()
+
+// Writable computed auf den globalen Store-State (ersetzt provide/inject)
+const cartDrawerOpen = computed({
+  get: () => cartStore.drawerOpen,
+  set: (val) => { cartStore.drawerOpen = val },
+})
 
 const STEPS = ['cart', 'address', 'payment', 'confirm']
 const step = ref('cart')

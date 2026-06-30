@@ -1,5 +1,10 @@
 <script setup>
 import { computed } from 'vue'
+import CatalogCartButton from '@/components/catalog/CatalogCartButton.vue'
+import { useCartStore } from '@/stores/cart'
+
+const cartStore = useCartStore()
+const hasCart = computed(() => !!cartStore.activeCartType)
 
 const props = defineProps({
   product: { type: Object, required: true },
@@ -68,11 +73,14 @@ const price = computed(() => {
       <p v-if="showSku && product.sku" class="text-[10px] font-mono text-[var(--color-text-tertiary)]">{{ product.sku }}</p>
       <div class="flex items-center justify-between pt-1">
         <span v-if="price" class="text-base font-bold text-[var(--color-text-primary)]">{{ price }}</span>
-        <button v-if="cta?.enabled" class="text-xs font-medium px-2 py-1 rounded-lg text-white"
-          style="background: var(--site-accent, var(--color-accent))"
-          @click.stop="open">
-          {{ cta.label || 'Details' }}
-        </button>
+        <div class="flex items-center gap-1.5">
+          <button v-if="cta?.enabled" class="text-xs font-medium px-2 py-1 rounded-lg text-white"
+            style="background: var(--site-accent, var(--color-accent))"
+            @click.stop="open">
+            {{ cta.label || 'Details' }}
+          </button>
+          <CatalogCartButton v-if="hasCart" :product-id="product.id" size="xs" />
+        </div>
       </div>
     </div>
   </div>
