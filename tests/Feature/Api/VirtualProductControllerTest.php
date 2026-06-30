@@ -182,6 +182,38 @@ class VirtualProductControllerTest extends TestCase
         $this->assertSame(1, VirtualProductDefinition::where('product_id', $virtual->id)->count());
     }
 
+    public function test_kann_virtuelles_produkt_ueber_api_anlegen(): void
+    {
+        $type = \App\Models\ProductType::factory()->create();
+
+        $this->postJson('/api/v1/products', [
+            'product_type_id' => $type->id,
+            'product_type_ref' => 'virtual',
+            'sku' => 'SMARTONE-V',
+            'name' => 'Virtuelles Smartone Produkt',
+        ])->assertCreated()
+            ->assertJsonPath('data.product_type_ref', 'virtual');
+
+        $this->assertDatabaseHas('products', [
+            'sku' => 'SMARTONE-V',
+            'product_type_ref' => 'virtual',
+        ]);
+    }
+
+    public function test_virtuelle_produkte_erscheinen_in_produktliste(): void
+    {
+        $virtual = Product::factory()->create(['product_type_ref' => 'virtual']);
+        $normal = Product::factory()->create(['product_type_ref' => 'product']);
+        $variant = Product::factory()->create(['product_type_ref' => 'variant']);
+
+        $ids = collect($this->getJson('/api/v1/products')->assertOk()->json('data'))
+            ->pluck('id')->all();
+
+        $this->assertContains($virtual->id, $ids);
+        $this->assertContains($normal->id, $ids);
+        $this->assertNotContains($variant->id, $ids);
+    }
+
     public function test_delete_entfernt_definition(): void
     {
         $virtual = $this->virtualProduct();
