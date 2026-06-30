@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import { useDebounceFn } from '@vueuse/core'
-import { GripVertical, Trash2, Eye, EyeOff, Plus, X, Copy, CopyPlus } from 'lucide-vue-next'
+import { GripVertical, Trash2, Eye, EyeOff, Plus, X, Copy, CopyPlus, ChevronDown, ChevronRight } from 'lucide-vue-next'
 import EntityPickerDialog from '@/components/shared/EntityPickerDialog.vue'
 import MediaPickerDialog from '@/components/shared/MediaPickerDialog.vue'
 import productsApi from '@/api/products'
@@ -12,9 +12,10 @@ const props = defineProps({
   section: { type: Object, required: true },
   sectionType: { type: Object, default: null },
   lang: { type: String, default: 'de' },
+  collapsed: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['save', 'delete', 'toggle-visible', 'copy', 'duplicate'])
+const emit = defineEmits(['save', 'delete', 'toggle-visible', 'copy', 'duplicate', 'toggle-collapse'])
 
 // Reaktivitätssicherer Deep-Clone (structuredClone wirft auf Vue-Proxies).
 function clone(v) { return v == null ? v : JSON.parse(JSON.stringify(v)) }
@@ -29,6 +30,18 @@ const fields = computed(() => props.sectionType?.schema?.fields || [])
 const typeName = computed(() =>
   props.sectionType?.name_de || props.section.section_type?.name_de || props.section.section_type_id
 )
+
+// Kurzvorschau (erster nicht-leerer Textwert) für den eingeklappten Zustand
+const summary = computed(() => {
+  for (const bucket of [values.value[props.lang], values.value['_']]) {
+    if (!bucket) continue
+    for (const key of Object.keys(bucket)) {
+      const v = bucket[key]
+      if (typeof v === 'string' && v.trim()) return v.trim()
+    }
+  }
+  return ''
+})
 
 // ─── Werte lesen/schreiben (Buckets: Sprache vs. "_") ────────────
 function bucketKey(field) { return field.translatable ? props.lang : '_' }
@@ -160,11 +173,17 @@ onMounted(async () => {
 <template>
   <div class="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]">
     <!-- Kopf -->
-    <div class="flex items-center justify-between px-3 py-2 border-b border-[var(--color-border)]">
-      <div class="flex items-center gap-2 min-w-0">
-        <GripVertical class="w-4 h-4 text-[var(--color-text-tertiary)] cursor-grab shrink-0 drag-handle" :stroke-width="2" />
-        <span class="text-xs font-semibold truncate">{{ typeName }}</span>
-        <span v-if="sectionType?.category" class="text-[10px] text-[var(--color-text-tertiary)] uppercase tracking-wide">{{ sectionType.category }}</span>
+    <div class="flex items-center justify-between px-3 py-2" :class="{ 'border-b border-[var(--color-border)]': !collapsed }">
+      <div class="flex items-center gap-2 min-w-0 flex-1 cursor-pointer" @click="$emit('toggle-collapse')">
+        <button class="p-0.5 rounded hover:bg-[var(--color-bg)] text-[var(--color-text-tertiary)] shrink-0" :title="collapsed ? 'Aufklappen' : 'Einklappen'" @click.stop="$emit('toggle-collapse')">
+          <ChevronRight v-if="collapsed" class="w-3.5 h-3.5" :stroke-width="2" />
+          <ChevronDown v-else class="w-3.5 h-3.5" :stroke-width="2" />
+        </button>
+        <GripVertical class="w-4 h-4 text-[var(--color-text-tertiary)] cursor-grab shrink-0 drag-handle" :stroke-width="2" @click.stop />
+        <span class="text-xs font-semibold truncate shrink-0">{{ typeName }}</span>
+        <span v-if="sectionType?.category" class="text-[10px] text-[var(--color-text-tertiary)] uppercase tracking-wide shrink-0">{{ sectionType.category }}</span>
+        <span v-if="collapsed && summary" class="text-[11px] text-[var(--color-text-tertiary)] truncate italic">— {{ summary }}</span>
+        <span v-if="!section.is_visible" class="text-[10px] text-[var(--color-text-tertiary)] shrink-0">(ausgeblendet)</span>
       </div>
       <div class="flex items-center gap-1 shrink-0">
         <button class="p-1 rounded hover:bg-[var(--color-bg)] text-[var(--color-text-tertiary)]" title="Sektion kopieren" @click="$emit('copy')">
@@ -184,7 +203,7 @@ onMounted(async () => {
     </div>
 
     <!-- Felder -->
-    <div class="p-3 space-y-3">
+    <div v-show="!collapsed" class="p-3 space-y-3">
       <div v-for="field in fields" :key="field.key">
         <label class="flex items-center gap-1.5 text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">
           {{ field.label || field.key }}
