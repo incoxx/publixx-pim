@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Http\Traits\Filterable;
 use App\Models\EcommerceOrder;
 use App\Services\Ecommerce\OrderService;
 use Illuminate\Http\JsonResponse;
@@ -11,6 +12,8 @@ use Illuminate\Http\Request;
 
 class EcommerceOrderController extends Controller
 {
+    use Filterable;
+
     public function __construct(private readonly OrderService $orderService) {}
 
     public function index(Request $request): JsonResponse
@@ -37,7 +40,16 @@ class EcommerceOrderController extends Controller
 
         $orders = $query->paginate($this->getPerPage($request));
 
-        return response()->json($orders);
+        // Strukturierte Antwort: Frontend liest res.data.data und res.data.meta
+        return response()->json([
+            'data' => $orders->items(),
+            'meta' => [
+                'current_page' => $orders->currentPage(),
+                'last_page'    => $orders->lastPage(),
+                'per_page'     => $orders->perPage(),
+                'total'        => $orders->total(),
+            ],
+        ]);
     }
 
     public function show(EcommerceOrder $order): JsonResponse
