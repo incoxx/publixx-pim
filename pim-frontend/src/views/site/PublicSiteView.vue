@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/auth'
 import siteApi from '@/api/site'
 import SitePreviewSection from '@/components/site/SitePreviewSection.vue'
 import CatalogCartDrawer from '@/components/catalog/CatalogCartDrawer.vue'
+import { useCartStore } from '@/stores/cart'
 
 /**
  * Öffentliche, standalone Website-Seite (ohne Admin/Backend).
@@ -14,6 +15,7 @@ import CatalogCartDrawer from '@/components/catalog/CatalogCartDrawer.vue'
  */
 const route = useRoute()
 const authStore = useAuthStore()
+const cartStore = useCartStore()
 const navKey = ref(route.params.nav || null)
 const lang = ref(route.query.lang || 'de')
 const sitemap = ref(null)
@@ -110,10 +112,24 @@ async function loadSitemap() {
   }
 }
 
+// Primären Warenkorb-Typ aus den Sektionen der Seite ermitteln und vorab laden,
+// damit die "In den Warenkorb"-Buttons an den Produktkacheln sofort sichtbar sind
+// (CatalogCartButton blendet sich nur ein, wenn activeCartType gesetzt ist).
+// Es wird nur EIN Cart geladen (die erste ecommerce_cart-Sektion = primärer Warenkorb).
+function initPrimaryCart() {
+  const cartSection = (page.value?.sections || []).find(
+    (s) => s.type === 'ecommerce_cart' && s.values?.cart_type,
+  )
+  if (cartSection && cartStore.activeCartType !== cartSection.values.cart_type) {
+    cartStore.fetchCart(cartSection.values.cart_type)
+  }
+}
+
 async function loadPage(slug) {
   try {
     const { data } = await siteFetch((anon) => siteApi.getPage(navKey.value, slug, lang.value, { anonymous: anon }))
     page.value = data.data ?? data
+    initPrimaryCart()
     window.scrollTo({ top: 0 })
   } catch {
     page.value = null
@@ -125,6 +141,7 @@ async function loadProductPageById(id) {
   try {
     const { data } = await siteFetch((anon) => siteApi.getProductPage(navKey.value, id, lang.value, { anonymous: anon }))
     page.value = data.data ?? data
+    initPrimaryCart()
     window.scrollTo({ top: 0 })
   } catch {
     page.value = null
