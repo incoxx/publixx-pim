@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import SiteProductCard from './SiteProductCard.vue'
 import SectionEcommerceCart from './SectionEcommerceCart.vue'
+import { useCartStore } from '@/stores/cart'
 
 const props = defineProps({
   section: { type: Object, required: true },
@@ -9,7 +10,15 @@ const props = defineProps({
 
 const emit = defineEmits(['navigate'])
 
-function onHeroCta() {
+const cartStore = useCartStore()
+
+async function onHeroCta() {
+  // Warenkorb aktiv + Produkt vorhanden → in den Warenkorb legen
+  if (cartStore.activeCartType && heroProduct.value?.id) {
+    await cartStore.addItem(heroProduct.value.id, 1)
+    cartStore.drawerOpen = true
+    return
+  }
   if (heroProduct.value) {
     emit('navigate', { kind: 'product', id: heroProduct.value.id, href: heroProduct.value.href })
   } else if (v.value.cta_url) {
