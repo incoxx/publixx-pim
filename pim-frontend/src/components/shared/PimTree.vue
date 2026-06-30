@@ -39,19 +39,39 @@ function handleDragStart(e, node) {
   e.dataTransfer.effectAllowed = 'move'
 }
 
+// Aktives Drop-Ziel + Position (before/after = gleiche Ebene umsortieren,
+// inside = zum Kind machen). Steuert die visuelle Markierung.
+const dropTarget = ref({ id: null, position: null })
+
+function dropPosition(e) {
+  const rect = e.currentTarget.getBoundingClientRect()
+  const offset = e.clientY - rect.top
+  if (offset < rect.height * 0.3) return 'before'
+  if (offset > rect.height * 0.7) return 'after'
+  return 'inside'
+}
+
+function handleDragOver(e, node) {
+  if (!props.draggable) return
+  e.preventDefault()
+  e.dataTransfer.dropEffect = 'move'
+  dropTarget.value = { id: node.id, position: dropPosition(e) }
+}
+
+function clearDrop() {
+  dropTarget.value = { id: null, position: null }
+}
+
 function handleDrop(e, targetNode) {
   e.preventDefault()
+  const position = dropTarget.value.id === targetNode.id ? dropTarget.value.position : 'inside'
+  clearDrop()
   try {
     const data = JSON.parse(e.dataTransfer.getData('text/plain'))
     if (data.nodeId !== targetNode.id) {
-      emit('move', data.nodeId, targetNode.id)
+      emit('move', data.nodeId, targetNode.id, position)
     }
   } catch { /* ignore */ }
-}
-
-function handleDragOver(e) {
-  e.preventDefault()
-  e.dataTransfer.dropEffect = 'move'
 }
 </script>
 
@@ -61,21 +81,27 @@ function handleDragOver(e) {
       v-for="node in nodes"
       :key="node.id"
     >
+      <!-- Einfüge-Linie oberhalb (gleiche Ebene, davor) -->
+      <div v-if="dropTarget.id === node.id && dropTarget.position === 'before'"
+        class="h-0.5 bg-[var(--color-accent)] rounded-full -mb-0.5" :style="{ marginLeft: (level * 20 + 12) + 'px' }" />
       <div
         :class="[
           'group flex items-center gap-1 px-2 py-[5px] rounded-md cursor-pointer transition-colors text-[13px]',
-          selectedId === node.id
-            ? 'bg-[color-mix(in_srgb,var(--color-accent)_10%,transparent)] text-[var(--color-accent)]'
-            : isHighlighted(node)
-              ? 'bg-[color-mix(in_srgb,var(--color-warning)_12%,transparent)] text-[var(--color-text-primary)] ring-1 ring-inset ring-[var(--color-warning)]/30'
-              : 'text-[var(--color-text-primary)] hover:bg-[var(--color-bg)]',
+          dropTarget.id === node.id && dropTarget.position === 'inside'
+            ? 'ring-2 ring-inset ring-[var(--color-accent)] bg-[color-mix(in_srgb,var(--color-accent)_8%,transparent)]'
+            : selectedId === node.id
+              ? 'bg-[color-mix(in_srgb,var(--color-accent)_10%,transparent)] text-[var(--color-accent)]'
+              : isHighlighted(node)
+                ? 'bg-[color-mix(in_srgb,var(--color-warning)_12%,transparent)] text-[var(--color-text-primary)] ring-1 ring-inset ring-[var(--color-warning)]/30'
+                : 'text-[var(--color-text-primary)] hover:bg-[var(--color-bg)]',
         ]"
         :style="{ paddingLeft: (level * 20 + 8) + 'px' }"
         :draggable="draggable"
         @click="handleSelect(node)"
         @dragstart="handleDragStart($event, node)"
         @drop="handleDrop($event, node)"
-        @dragover="handleDragOver"
+        @dragover="handleDragOver($event, node)"
+        @dragend="clearDrop"
       >
         <!-- Expand/collapse -->
         <button
@@ -120,6 +146,10 @@ function handleDragOver(e) {
         </button>
       </div>
 
+      <!-- Einfüge-Linie unterhalb (gleiche Ebene, danach) -->
+      <div v-if="dropTarget.id === node.id && dropTarget.position === 'after'"
+        class="h-0.5 bg-[var(--color-accent)] rounded-full -mt-0.5" :style="{ marginLeft: (level * 20 + 12) + 'px' }" />
+
       <!-- Children (recursive) -->
       <transition name="fade">
         <PimTree
@@ -134,7 +164,7 @@ function handleDragOver(e) {
           @toggle="$emit('toggle', $event)"
           @create="$emit('create', $event)"
           @delete="$emit('delete', $event)"
-          @move="(s, t) => $emit('move', s, t)"
+          @move="(s, t, p) => $emit('move', s, t, p)"
           @context-menu="(e, n) => $emit('context-menu', e, n)"
         />
       </transition>
