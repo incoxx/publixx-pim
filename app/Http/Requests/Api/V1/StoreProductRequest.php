@@ -17,6 +17,7 @@ class StoreProductRequest extends FormRequest
     {
         return [
             'product_type_id' => 'required|uuid|exists:product_types,id',
+            'product_type_ref' => 'nullable|in:product,variant,virtual',
             'sku' => 'required|string|max:100|unique:products,sku',
             'ean' => 'nullable|string|max:20',
             'name' => 'required|string|max:500',

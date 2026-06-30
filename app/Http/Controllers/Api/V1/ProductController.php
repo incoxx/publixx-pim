@@ -70,9 +70,11 @@ class ProductController extends Controller
             array_flip(self::ALLOWED_FILTERS)
         );
 
-        // By default, exclude variants from the main product listing
+        // By default, exclude variants from the main product listing.
+        // Virtuelle Produkte ("Klammer") sind eigenständige Katalogprodukte
+        // und bleiben daher in der Hauptliste sichtbar.
         if (!isset($filters['product_type_ref'])) {
-            $query->where('products.product_type_ref', 'product');
+            $query->whereIn('products.product_type_ref', ['product', 'virtual']);
         }
 
         // Handle project_id filter via pivot table
