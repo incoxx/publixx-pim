@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace Database\Seeders;
 
+use App\Models\ContentPage;
+use App\Models\ContentSection;
+use App\Models\ContentType;
 use App\Models\EcommerceAddressType;
-use App\Models\EcommerceCart;
-use App\Models\EcommerceCartItem;
 use App\Models\EcommerceCartType;
 use App\Models\EcommerceOrder;
 use App\Models\EcommercePaymentType;
@@ -15,7 +16,6 @@ use App\Models\Product;
 use App\Models\SectionType;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 
 /**
  * e-Commerce-Showcase für das SmartOne-Portfolio.
@@ -25,6 +25,7 @@ use Illuminate\Support\Str;
  * - 2 Adressarten (Rechnungs- und Lieferadresse)
  * - 4 Zahlungsarten (Vorkasse, Rechnung, Kreditkarte, PayPal)
  * - SectionType "ecommerce_cart" (falls noch nicht vorhanden)
+ * - Content-Integration: ecommerce_cart in ContentType + SmartOne-Seite
  * - 6 realistische Demo-Bestellungen auf SmartOne-Produkten
  *
  * Idempotent: verwendet technical_name als Upsert-Schlüssel.
@@ -41,9 +42,10 @@ class EcommerceSmartOneSeeder extends Seeder
         $this->seedAddressTypes();
         $this->seedPaymentTypes();
         $this->seedSectionType();
+        $this->seedContentIntegration();
         $this->seedDemoOrders();
 
-        $this->command?->info('e-Commerce-Showcase: Warenkorbarten, Adressarten, Zahlungsarten und Demo-Bestellungen angelegt.');
+        $this->command?->info('e-Commerce-Showcase: Warenkorbarten, Adressarten, Zahlungsarten, Content-Integration und Demo-Bestellungen angelegt.');
     }
 
     // ─── 1. Warenkorbarten ────────────────────────────────────────────────────
@@ -228,7 +230,87 @@ class EcommerceSmartOneSeeder extends Seeder
         );
     }
 
-    // ─── 5. Demo-Bestellungen ─────────────────────────────────────────────────
+    // ─── 5. Content-Integration ──────────────────────────────────────────────
+    //
+    // a) ContentType "smartone-landing" bekommt ecommerce_cart als erlaubten
+    //    Sektionstyp, damit Redakteure den Warenkorb-Widget auf der Seite platzieren
+    //    können.
+    //
+    // b) Auf der SmartOne-Landingpage werden drei ecommerce_cart-Sektionen
+    //    eingefügt (Merkliste, PDF-Anfrage, Warenkorb), falls sie noch nicht
+    //    vorhanden sind. So ist der Warenkorb sofort sichtbar ohne manuellen
+    //    Eingriff im CMS.
+
+    private function seedContentIntegration(): void
+    {
+        // a) ContentType erlaubt ecommerce_cart
+        $ct = ContentType::where('technical_name', 'smartone-landing')->first();
+        if ($ct) {
+            $allowed = $ct->allowed_section_types ?? [];
+            if (!in_array('ecommerce_cart', $allowed, true)) {
+                $ct->update(['allowed_section_types' => array_merge($allowed, ['ecommerce_cart'])]);
+            }
+        }
+
+        // b) Sektionen auf der SmartOne-Seite
+        $page = ContentPage::where('slug', 'smartone')->first();
+        $stId = SectionType::where('technical_name', 'ecommerce_cart')->value('id');
+
+        if (!$page || !$stId) {
+            $this->command?->warn(
+                'SmartOne-Seite oder SectionType "ecommerce_cart" nicht gefunden – Content-Integration übersprungen.'
+            );
+            return;
+        }
+
+        $cartSections = [
+            [
+                'cart_type'   => 'warenkorb',
+                'header_text' => 'Warenkorb',
+                'sort_offset' => 0,
+            ],
+            [
+                'cart_type'   => 'merkliste',
+                'header_text' => 'Meine Merkliste',
+                'sort_offset' => 1,
+            ],
+            [
+                'cart_type'   => 'pdf_anfrage',
+                'header_text' => 'Anfrage als PDF',
+                'sort_offset' => 2,
+            ],
+        ];
+
+        // Höchsten bestehenden sort_order ermitteln und dahinter einfügen
+        $maxSort = $page->sections()->max('sort_order') ?? 0;
+
+        foreach ($cartSections as $def) {
+            $alreadyExists = ContentSection::where('content_page_id', $page->id)
+                ->where('section_type_id', $stId)
+                ->whereJsonContains('values_json->_->cart_type', $def['cart_type'])
+                ->exists();
+
+            if ($alreadyExists) {
+                continue;
+            }
+
+            ContentSection::create([
+                'content_page_id' => $page->id,
+                'section_type_id' => $stId,
+                'parent_section_id' => null,
+                'sort_order' => $maxSort + 10 + $def['sort_offset'],
+                'is_visible' => true,
+                'values_json' => [
+                    '_'  => ['cart_type' => $def['cart_type'], 'show_header' => true],
+                    'de' => ['header_text' => $def['header_text']],
+                ],
+            ]);
+        }
+
+        $this->command?->info('Content-Integration: ecommerce_cart-Sektionen auf SmartOne-Seite angelegt.');
+    }
+
+    // ─── 6. Demo-Bestellungen ─────────────────────────────────────────────────
 
     private function seedDemoOrders(): void
     {
