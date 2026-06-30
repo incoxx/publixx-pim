@@ -126,6 +126,11 @@ use App\Http\Controllers\Api\V1\ProductWidgetController;
 use App\Http\Controllers\Api\V1\ContentConfigController;
 use App\Http\Controllers\Api\V1\ContentCacheController;
 use App\Http\Controllers\Api\V1\PublicSiteController;
+use App\Http\Controllers\Api\V1\CartController;
+use App\Http\Controllers\Api\V1\EcommerceCartTypeController;
+use App\Http\Controllers\Api\V1\EcommerceAddressTypeController;
+use App\Http\Controllers\Api\V1\EcommercePaymentTypeController;
+use App\Http\Controllers\Api\V1\EcommerceOrderController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -236,6 +241,18 @@ Route::prefix('v1/catalog')->middleware('throttle.pim')->group(function () {
         Route::post('wishlist/pdf', [CatalogController::class, 'wishlistPdf']);
         Route::post('wishlist/excel', [CatalogController::class, 'wishlistExcel']);
         Route::post('products/compare', [CatalogController::class, 'compareProducts']);
+
+        // =====================================================================
+        // E-Commerce Warenkorb (session-basiert, kein Auth erforderlich)
+        // =====================================================================
+        Route::get('cart/{cartTypeName}', [CartController::class, 'show']);
+        Route::post('cart/{cartTypeName}/items', [CartController::class, 'addItem']);
+        Route::put('cart/{cartTypeName}/items/{productId}', [CartController::class, 'updateItem']);
+        Route::delete('cart/{cartTypeName}/items/{productId}', [CartController::class, 'removeItem']);
+        Route::delete('cart/{cartTypeName}', [CartController::class, 'clear']);
+        Route::post('cart/{cartTypeName}/submit', [CartController::class, 'submit']);
+        // Gast-Cart nach Login mit Benutzer-Account mergen (optionale Auth)
+        Route::post('cart/merge', [CartController::class, 'merge']);
     });
 });
 
@@ -845,6 +862,22 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
         // Cache-Status & -Steuerung (Backend-Widget)
         Route::get('content-cache/stats', [ContentCacheController::class, 'stats']);
         Route::post('content-cache/clear', [ContentCacheController::class, 'clear']);
+    });
+
+    // =====================================================================
+    // Enterprise: E-Commerce (Warenkorbarten, Adressen, Zahlungen, Bestellungen)
+    // =====================================================================
+    Route::middleware('module:ecommerce')->group(function () {
+        Route::apiResource('ecommerce/cart-types', EcommerceCartTypeController::class)
+            ->parameters(['cart-types' => 'cartType']);
+        Route::apiResource('ecommerce/address-types', EcommerceAddressTypeController::class)
+            ->parameters(['address-types' => 'addressType']);
+        Route::apiResource('ecommerce/payment-types', EcommercePaymentTypeController::class)
+            ->parameters(['payment-types' => 'paymentType']);
+        Route::get('ecommerce/orders', [EcommerceOrderController::class, 'index']);
+        Route::get('ecommerce/orders/{order}', [EcommerceOrderController::class, 'show']);
+        Route::patch('ecommerce/orders/{order}', [EcommerceOrderController::class, 'update']);
+        Route::post('ecommerce/orders/{order}/retry', [EcommerceOrderController::class, 'retry']);
     });
 
     // =====================================================================

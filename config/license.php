@@ -91,6 +91,10 @@ return [
             'name' => 'Portale',
             'description' => 'Konfigurierbare Vorschaltseiten mit Filter-Widgets und Katalogvorlage-Verknüpfung',
         ],
+        'ecommerce' => [
+            'name' => 'E-Commerce',
+            'description' => 'Warenkorbarten, Adress- & Zahlungsverwaltung, Bestellabwicklung für KMUs',
+        ],
     ],
 
 ];
