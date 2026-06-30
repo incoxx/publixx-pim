@@ -69,6 +69,11 @@ function handleKeydown(e) {
 
 onMounted(async () => {
   document.addEventListener('keydown', handleKeydown)
+
+  // Öffentliche Routen (z.B. /site/...) sind standalone — keine Backend-Calls
+  // (Auth/Lizenz/Connectors) auslösen, damit das Backend nicht "mitlädt".
+  if (isCatalogRoute.value) return
+
   await authStore.checkAuth()
   if (authStore.isAuthenticated) {
     licenseStore.fetchLicense()

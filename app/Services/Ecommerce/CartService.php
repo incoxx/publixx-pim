@@ -7,6 +7,7 @@ namespace App\Services\Ecommerce;
 use App\Models\EcommerceCart;
 use App\Models\EcommerceCartItem;
 use App\Models\EcommerceCartType;
+use App\Models\EcommercePaymentType;
 use App\Models\Product;
 use App\Models\ProductPrice;
 use App\Models\User;
@@ -170,6 +171,18 @@ class CartService
                 'show_quantity'  => $cart->cartType->show_quantity,
                 'show_total'     => $cart->cartType->show_total,
                 'allow_checkout' => $cart->cartType->allow_checkout,
+                // Zahlungsarten nur laden, wenn Checkout möglich ist (Payment-Step im Drawer)
+                'payment_types'  => $cart->cartType->allow_checkout
+                    ? EcommercePaymentType::where('is_active', true)
+                        ->orderBy('sort_order')
+                        ->get(['id', 'technical_name', 'name_de', 'description_de'])
+                        ->map(fn ($pt) => [
+                            'id'             => $pt->id,
+                            'name_de'        => $pt->name_de,
+                            'description_de' => $pt->description_de,
+                        ])
+                        ->all()
+                    : [],
             ],
             'items'        => $items->values(),
             'item_count'   => $items->count(),

@@ -120,11 +120,12 @@ async function submitOrder() {
         <!-- Backdrop -->
         <div class="absolute inset-0 bg-black/30 backdrop-blur-sm" @click="close" />
 
-        <!-- Drawer -->
-        <div class="relative bg-base-100 w-[85vw] max-w-md min-h-full border-l border-base-300 flex flex-col shadow-2xl z-10">
+        <!-- Drawer: explizit weiß (bg-base-100 löst im public-site-Kontext nicht zuverlässig auf) -->
+        <div class="relative w-[85vw] max-w-md min-h-full border-l flex flex-col shadow-2xl z-10"
+          style="background: white; border-color: #e5e7eb">
 
           <!-- Header -->
-          <div class="p-4 border-b border-base-300 flex items-center justify-between shrink-0">
+          <div class="p-4 flex items-center justify-between shrink-0" style="border-bottom: 1px solid #e5e7eb">
             <h2 class="font-semibold text-sm flex items-center gap-2">
               <ShoppingCart class="w-4 h-4 text-primary" />
               {{ cartType?.name_de ?? 'Warenkorb' }}
