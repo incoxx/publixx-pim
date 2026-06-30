@@ -198,7 +198,7 @@ async function submitOrder() {
 
               <button
                 v-if="allowCheckout"
-                class="btn btn-primary btn-sm w-full gap-1"
+                class="btn btn-primary btn-sm w-full gap-1 text-white"
                 @click="goToAddress"
               >
                 Zur Bestellung
@@ -295,7 +295,7 @@ async function submitOrder() {
 
             <div class="p-3 border-t border-base-300 flex gap-2 shrink-0">
               <button class="btn btn-sm btn-ghost" @click="step = 'cart'">Zurück</button>
-              <button class="btn btn-sm btn-primary flex-1" @click="goToPayment">
+              <button class="btn btn-sm btn-primary text-white flex-1" @click="goToPayment">
                 Weiter
                 <ChevronRight class="w-4 h-4" />
               </button>
@@ -328,7 +328,7 @@ async function submitOrder() {
             <div class="p-3 border-t border-base-300 flex gap-2 shrink-0">
               <button class="btn btn-sm btn-ghost" @click="step = 'address'">Zurück</button>
               <button
-                class="btn btn-sm btn-primary flex-1"
+                class="btn btn-sm btn-primary text-white flex-1"
                 :disabled="submitting"
                 @click="submitOrder"
               >
@@ -354,7 +354,7 @@ async function submitOrder() {
               <p class="text-xs opacity-50">Sie erhalten in Kürze eine Bestätigung.</p>
             </div>
             <div class="p-4 border-t border-base-300 shrink-0">
-              <button class="btn btn-primary btn-sm w-full" @click="() => { reset(); close() }">Schließen</button>
+              <button class="btn btn-primary btn-sm w-full text-white" @click="() => { reset(); close() }">Schließen</button>
             </div>
           </template>
 

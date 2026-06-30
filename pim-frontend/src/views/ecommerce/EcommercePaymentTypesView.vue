@@ -70,7 +70,7 @@ onMounted(load)
     <aside class="w-64 shrink-0 border-r border-base-300 flex flex-col bg-base-100">
       <div class="flex items-center justify-between px-4 py-3 border-b border-base-300">
         <span class="font-semibold text-sm">Zahlungsarten</span>
-        <button class="btn btn-xs btn-primary" @click="createNew"><Plus class="w-3.5 h-3.5" /> Neu</button>
+        <button class="btn btn-xs btn-primary text-white" @click="createNew"><Plus class="w-3.5 h-3.5" /> Neu</button>
       </div>
       <div v-if="loading" class="p-4 text-sm text-center opacity-50">Lädt…</div>
       <ul class="flex-1 overflow-y-auto">
@@ -95,7 +95,7 @@ onMounted(load)
           <div class="flex gap-2">
             <button class="btn btn-sm btn-ghost" @click="discard"><X class="w-4 h-4" /></button>
             <button v-if="current.id" class="btn btn-sm btn-error btn-outline" @click="remove"><Trash2 class="w-4 h-4" /></button>
-            <button class="btn btn-sm btn-primary" :disabled="saving" @click="save">
+            <button class="btn btn-sm btn-primary text-white" :disabled="saving" @click="save">
               <Save class="w-4 h-4" /> {{ saving ? 'Speichert…' : 'Speichern' }}
             </button>
           </div>

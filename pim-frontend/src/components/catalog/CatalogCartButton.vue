@@ -40,7 +40,7 @@ async function handleClick(e) {
 
 <template>
   <button
-    class="btn btn-circle"
+    class="btn btn-circle text-white"
     :class="{
       'btn-xs': size === 'xs',
       'btn-sm': size === 'sm',
