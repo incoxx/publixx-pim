@@ -82,14 +82,46 @@ function findNode(nodes, id) {
   return null
 }
 
+// Eltern-ID eines Knotens finden (null = Wurzel)
+function findParentId(nodes, id, parentId = null) {
+  for (const n of nodes || []) {
+    if (n.id === id) return parentId
+    const hit = findParentId(n.children, id, n.id)
+    if (hit !== undefined) return hit
+  }
+  return undefined
+}
+
 async function removeNode(node) {
   if (!confirm(`Knoten "${node.label_de}" und alle Unterknoten löschen?`)) return
   await navStore.deleteNode(node.id)
 }
 
-// PimTree move: (draggedId, targetId) → dragged wird Kind von target
-async function onMove(draggedId, targetId) {
-  await navStore.moveNode(draggedId, { parent_node_id: targetId, sort_order: 0 })
+// PimTree move: position 'inside' → Kind von target; 'before'/'after' →
+// auf der Ebene von target ein-/umsortieren.
+async function onMove(draggedId, targetId, position = 'inside') {
+  const tree = navStore.tree
+  let parentId, siblings
+
+  if (position === 'inside') {
+    parentId = targetId
+    siblings = findNode(tree, targetId)?.children || []
+  } else {
+    parentId = findParentId(tree, targetId) ?? null
+    siblings = parentId ? (findNode(tree, parentId)?.children || []) : tree
+  }
+
+  // Ziel-Index unter den Geschwistern OHNE den gezogenen Knoten bestimmen
+  const ordered = siblings.filter((n) => n.id !== draggedId)
+  let index
+  if (position === 'inside') {
+    index = ordered.length // ans Ende der Kinder
+  } else {
+    const ti = ordered.findIndex((n) => n.id === targetId)
+    index = position === 'before' ? ti : ti + 1
+  }
+
+  await navStore.moveNode(draggedId, { parent_node_id: parentId, sort_order: Math.max(0, index) })
 }
 
 onMounted(async () => {

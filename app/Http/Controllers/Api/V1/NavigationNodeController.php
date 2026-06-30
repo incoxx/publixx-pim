@@ -76,13 +76,35 @@ class NavigationNodeController extends Controller
             }
         }
 
-        DB::transaction(function () use ($data, $navigationNode, $oldPath) {
-            $navigationNode->parent_node_id = $data['parent_node_id'] ?? null;
-            $navigationNode->sort_order = $data['sort_order'];
+        DB::transaction(function () use ($data, $navigationNode, $oldPath, $newParentId) {
+            $navigationNode->parent_node_id = $newParentId;
             $navigationNode->save();
 
             $navigationNode->refreshTreePath();
             $navigationNode->reattachSubtree($oldPath);
+
+            // Geschwister unter dem neuen Elternknoten lückenlos neu nummerieren
+            // und den verschobenen Knoten an der Zielposition einfügen. Damit ist
+            // auch das Umsortieren auf gleicher Ebene konsistent.
+            $siblings = NavigationNode::query()
+                ->where('navigation_id', $navigationNode->navigation_id)
+                ->where('id', '!=', $navigationNode->id)
+                ->when($newParentId === null,
+                    fn ($q) => $q->whereNull('parent_node_id'),
+                    fn ($q) => $q->where('parent_node_id', $newParentId))
+                ->orderBy('sort_order')
+                ->get()
+                ->all();
+
+            $index = max(0, min((int) ($data['sort_order'] ?? count($siblings)), count($siblings)));
+            array_splice($siblings, $index, 0, [$navigationNode]);
+
+            foreach ($siblings as $position => $sibling) {
+                if ((int) $sibling->sort_order !== $position) {
+                    $sibling->sort_order = $position;
+                    $sibling->save();
+                }
+            }
         });
 
         return new NavigationNodeResource($navigationNode->fresh());
