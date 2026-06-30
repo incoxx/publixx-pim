@@ -82,6 +82,7 @@ use App\Http\Controllers\Api\V1\ProductPriceController;
 use App\Http\Controllers\Api\V1\ProductRelationAttributeValueController;
 use App\Http\Controllers\Api\V1\ProductRelationController;
 use App\Http\Controllers\Api\V1\ProductVariantController;
+use App\Http\Controllers\Api\V1\VirtualProductController;
 use App\Http\Controllers\Api\V1\RoleRestrictionController;
 use App\Http\Controllers\Api\V1\ProductVersionController;
 use App\Http\Controllers\Api\V1\PublixxDatasetController;
@@ -670,6 +671,13 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::get('product-relations/{product_relation}/attribute-values', [ProductRelationAttributeValueController::class, 'index']);
     Route::put('product-relations/{product_relation}/attribute-values', [ProductRelationAttributeValueController::class, 'bulkUpdate']);
     Route::delete('product-relation-attribute-values/{product_relation_attribute_value}', [ProductRelationAttributeValueController::class, 'destroy']);
+
+    // Virtuelle Produkte (dynamische Cluster aus Suchprofil / PQL / Merkliste)
+    Route::get('products/{product}/virtual-members', [VirtualProductController::class, 'members']);
+    Route::get('products/{product}/virtual-definition', [VirtualProductController::class, 'show']);
+    Route::put('products/{product}/virtual-definition', [VirtualProductController::class, 'upsert']);
+    Route::delete('products/{product}/virtual-definition', [VirtualProductController::class, 'destroy']);
+    Route::post('products/{product}/virtual-definition/from-watchlist', [VirtualProductController::class, 'fromWatchlist']);
 
     // =====================================================================
     // Agent 3 + 6: Import

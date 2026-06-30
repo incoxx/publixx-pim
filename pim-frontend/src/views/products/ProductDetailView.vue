@@ -36,6 +36,7 @@ import dictionaryApi from '@/api/dictionary'
 import hierarchiesApi from '@/api/hierarchies'
 import attributeMappingsApi from '@/api/attributeMappings'
 import watchlistApi from '@/api/watchlist'
+import searchProfilesApi from '@/api/searchProfiles'
 import manufacturersApi from '@/api/manufacturers'
 import PimCollectionGroup from '@/components/shared/PimCollectionGroup.vue'
 import ProductNotesTab from '@/components/products/ProductNotesTab.vue'
@@ -165,6 +166,12 @@ const tabs = computed(() => {
   }
   base.push(
     { key: 'relations', label: t('product.relations') },
+  )
+  // Virtuelle Produkte ("Klammer"): dynamischer Cluster statt statischer Beziehungen
+  if (product.value?.product_type_ref === 'virtual') {
+    base.push({ key: 'virtual-cluster', label: 'Dynamischer Cluster' })
+  }
+  base.push(
     { key: 'output-hierarchies', label: 'Ausgabehierarchien' },
     { key: 'conformance', label: 'Konformität' },
     { key: 'notes', label: 'Notizen' },
@@ -219,6 +226,7 @@ const navGroups = computed(() => {
   if (has('media')) groups.push(leaf('media'))
   if (has('prices')) groups.push(leaf('prices'))
   if (has('relations')) groups.push(leaf('relations'))
+  if (has('virtual-cluster')) groups.push(leaf('virtual-cluster'))
   if (has('output-hierarchies')) groups.push(leaf('output-hierarchies'))
   if (has('conformance')) groups.push(leaf('conformance'))
 
@@ -1701,6 +1709,169 @@ async function loadRelationThumbnails() {
   relationTargetThumbs.value = updated
 }
 
+// ─── Virtuelle Produkte (dynamischer Cluster) ─────────
+const virtualLoading = ref(false)
+const virtualSaving = ref(false)
+const virtualMembers = ref([])
+const virtualMembersLoading = ref(false)
+const virtualSearchProfiles = ref([])
+const virtualMemberThumbs = ref({}) // { productId: thumbUrl }
+const virtualForm = ref({
+  source_type: 'manual',
+  search_profile_id: '',
+  pql_query: '',
+  manual_product_ids: [],
+  relation_type_id: '',
+  max_members: null,
+})
+// Manuelle Auswahl: Produktsuche
+const virtualProductSearch = ref('')
+const virtualProductSearchResults = ref([])
+const virtualManualProducts = ref([]) // [{ id, sku, name }] für Anzeige
+
+async function loadVirtualCluster() {
+  if (!product.value) return
+  virtualLoading.value = true
+  try {
+    const [defResp, profilesResp, typesResp] = await Promise.all([
+      productsApi.getVirtualDefinition(product.value.id),
+      virtualSearchProfiles.value.length ? Promise.resolve(null) : searchProfilesApi.list(),
+      relationTypesList.value.length ? Promise.resolve(null) : relationTypes.list(),
+    ])
+    if (profilesResp) {
+      virtualSearchProfiles.value = profilesResp.data.data || profilesResp.data || []
+    }
+    if (typesResp) {
+      relationTypesList.value = typesResp.data.data || typesResp.data || []
+    }
+    const def = defResp.data?.data ?? null
+    if (def) {
+      virtualForm.value = {
+        source_type: def.source_type || 'manual',
+        search_profile_id: def.search_profile_id || '',
+        pql_query: def.pql_query || '',
+        manual_product_ids: def.manual_product_ids || [],
+        relation_type_id: def.relation_type_id || '',
+        max_members: def.max_members ?? null,
+      }
+      await hydrateVirtualManualProducts(def.manual_product_ids || [])
+    }
+    await loadVirtualMembers()
+  } catch (e) { console.error('Failed to load virtual cluster:', e.message) }
+  finally { virtualLoading.value = false }
+}
+
+async function loadVirtualMembers() {
+  if (!product.value) return
+  virtualMembersLoading.value = true
+  try {
+    const { data } = await productsApi.getVirtualMembers(product.value.id, { perPage: 100 })
+    virtualMembers.value = data.data || data || []
+    loadVirtualMemberThumbnails()
+  } catch (e) { console.error('Failed to load virtual members:', e.message); virtualMembers.value = [] }
+  finally { virtualMembersLoading.value = false }
+}
+
+async function loadVirtualMemberThumbnails() {
+  const ids = virtualMembers.value.map(p => p.id).filter(id => id && !virtualMemberThumbs.value[id])
+  if (!ids.length) return
+  const results = await Promise.allSettled(ids.map(async (pid) => {
+    const { data } = await productsApi.getMedia(pid)
+    const items = data.data || data
+    const primary = items.find(m => m.is_primary)
+      || items.find(m => m.usage_type?.technical_name === 'teaser')
+      || items.find(m => (m.mime_type || m.media?.mime_type || '').startsWith('image/'))
+    if (primary) {
+      const mid = primary.media_id || primary.media?.id || primary.id
+      return { pid, url: mid ? mediaApi.thumbUrl(mid, 300, 300) : null }
+    }
+    return { pid, url: null }
+  }))
+  const updated = { ...virtualMemberThumbs.value }
+  for (const r of results) {
+    if (r.status === 'fulfilled' && r.value.url) updated[r.value.pid] = r.value.url
+  }
+  virtualMemberThumbs.value = updated
+}
+
+async function hydrateVirtualManualProducts(ids) {
+  if (!ids?.length) { virtualManualProducts.value = []; return }
+  try {
+    const results = await Promise.allSettled(ids.map(id => productsApi.get(id)))
+    const byId = {}
+    results.forEach((r, i) => {
+      if (r.status === 'fulfilled') {
+        const p = r.value.data?.data || r.value.data
+        if (p) byId[ids[i]] = { id: p.id, sku: p.sku, name: p.name }
+      }
+    })
+    // Reihenfolge gemäß ids beibehalten
+    virtualManualProducts.value = ids.map(id => byId[id]).filter(Boolean)
+  } catch (e) { console.warn('Hydrate manual products failed:', e.message) }
+}
+
+let virtualSearchTimeout = null
+function searchVirtualProducts() {
+  clearTimeout(virtualSearchTimeout)
+  virtualSearchTimeout = setTimeout(async () => {
+    if (!virtualProductSearch.value.trim()) { virtualProductSearchResults.value = []; return }
+    try {
+      const { data } = await productsApi.list({ search: virtualProductSearch.value, perPage: 10 })
+      const selected = new Set(virtualForm.value.manual_product_ids)
+      virtualProductSearchResults.value = (data.data || data)
+        .filter(p => p.id !== product.value.id && p.product_type_ref !== 'virtual' && !selected.has(p.id))
+    } catch (e) { console.warn('Product search failed:', e.message); virtualProductSearchResults.value = [] }
+  }, 300)
+}
+
+function addVirtualManualProduct(p) {
+  virtualForm.value.manual_product_ids = [...virtualForm.value.manual_product_ids, p.id]
+  virtualManualProducts.value = [...virtualManualProducts.value, p]
+  virtualProductSearch.value = ''
+  virtualProductSearchResults.value = []
+}
+
+function removeVirtualManualProduct(id) {
+  virtualForm.value.manual_product_ids = virtualForm.value.manual_product_ids.filter(x => x !== id)
+  virtualManualProducts.value = virtualManualProducts.value.filter(p => p.id !== id)
+}
+
+async function saveVirtualDefinition() {
+  if (!product.value) return
+  virtualSaving.value = true
+  try {
+    const payload = {
+      source_type: virtualForm.value.source_type,
+      relation_type_id: virtualForm.value.relation_type_id || null,
+      max_members: virtualForm.value.max_members || null,
+    }
+    if (virtualForm.value.source_type === 'search_profile') payload.search_profile_id = virtualForm.value.search_profile_id
+    if (virtualForm.value.source_type === 'pql') payload.pql_query = virtualForm.value.pql_query
+    if (virtualForm.value.source_type === 'manual') payload.manual_product_ids = virtualForm.value.manual_product_ids
+    await productsApi.saveVirtualDefinition(product.value.id, payload)
+    toastStore.showToast('Cluster-Definition gespeichert', 'success')
+    await loadVirtualMembers()
+  } catch (e) {
+    toastStore.showToast(e.response?.data?.message || 'Speichern fehlgeschlagen', 'error')
+  } finally { virtualSaving.value = false }
+}
+
+async function virtualFromWatchlist() {
+  if (!product.value) return
+  virtualSaving.value = true
+  try {
+    const { data } = await productsApi.virtualDefinitionFromWatchlist(product.value.id)
+    const def = data.data || data
+    virtualForm.value.source_type = 'manual'
+    virtualForm.value.manual_product_ids = def.manual_product_ids || []
+    await hydrateVirtualManualProducts(virtualForm.value.manual_product_ids)
+    toastStore.showToast('Merkliste übernommen', 'success')
+    await loadVirtualMembers()
+  } catch (e) {
+    toastStore.showToast(e.response?.data?.message || 'Übernahme fehlgeschlagen', 'error')
+  } finally { virtualSaving.value = false }
+}
+
 let searchTimeout = null
 function searchProducts() {
   clearTimeout(searchTimeout)
@@ -2433,6 +2604,7 @@ watch(activeTab, (tab) => {
   if (tab === 'media') loadMedia()
   if (tab === 'prices') loadPrices()
   if (tab === 'relations') loadRelations()
+  if (tab === 'virtual-cluster') loadVirtualCluster()
   if (tab === 'output-hierarchies') loadOutputHierarchyAssignments()
   if (tab === 'preview') loadPreview()
   if (tab === 'workflow-history') loadWorkflowHistory()
@@ -4411,6 +4583,156 @@ onUnmounted(() => {
     <!-- ═══ Notes Tab ═══ -->
     <div v-else-if="activeTab === 'notes' && product" class="space-y-4">
       <ProductNotesTab :product-id="product.id" @counts-updated="onNoteCountsUpdated" />
+    </div>
+
+    <!-- ═══ Virtueller Cluster Tab ═══ -->
+    <div v-else-if="activeTab === 'virtual-cluster' && product" class="space-y-4" :class="{ 'pointer-events-none opacity-75': isTabReadOnly }">
+      <div class="flex items-start gap-2">
+        <Sparkles class="w-4 h-4 text-[var(--color-accent)] mt-0.5 shrink-0" :stroke-width="2" />
+        <div>
+          <h3 class="text-sm font-medium text-[var(--color-text-primary)]">Dynamischer Cluster</h3>
+          <p class="text-[11px] text-[var(--color-text-tertiary)]">Die Mitglieder dieses virtuellen Produkts werden live aus der gewählten Quelle aufgelöst.</p>
+        </div>
+      </div>
+
+      <div v-if="virtualLoading" class="text-center py-8">
+        <p class="text-sm text-[var(--color-text-tertiary)]">Laden…</p>
+      </div>
+
+      <template v-else>
+        <!-- Definitions-Editor -->
+        <div class="pim-card p-4 space-y-3">
+          <!-- Quelle wählen -->
+          <div>
+            <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Quelle</label>
+            <div class="flex gap-2">
+              <button
+                v-for="opt in [{ v: 'search_profile', l: 'Suchprofil' }, { v: 'pql', l: 'PQL-Abfrage' }, { v: 'manual', l: 'Merkliste / manuell' }]"
+                :key="opt.v"
+                class="pim-btn text-xs"
+                :class="virtualForm.source_type === opt.v ? 'pim-btn-primary' : 'pim-btn-secondary'"
+                @click="virtualForm.source_type = opt.v"
+              >{{ opt.l }}</button>
+            </div>
+          </div>
+
+          <!-- Suchprofil -->
+          <div v-if="virtualForm.source_type === 'search_profile'">
+            <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Suchprofil</label>
+            <PimAttributeInput
+              type="select"
+              v-model="virtualForm.search_profile_id"
+              :options="virtualSearchProfiles.map(p => ({ value: p.id, label: p.name }))"
+            />
+          </div>
+
+          <!-- PQL -->
+          <div v-else-if="virtualForm.source_type === 'pql'">
+            <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">PQL-Abfrage</label>
+            <textarea
+              v-model="virtualForm.pql_query"
+              rows="3"
+              class="pim-input font-mono text-xs"
+              placeholder="SELECT * FROM products WHERE status = 'active'"
+            />
+          </div>
+
+          <!-- Manuelle Auswahl -->
+          <div v-else>
+            <div class="flex items-center justify-between mb-1">
+              <label class="block text-[12px] font-medium text-[var(--color-text-secondary)]">Produkte ({{ virtualForm.manual_product_ids.length }})</label>
+              <button class="pim-btn pim-btn-secondary text-[11px]" :disabled="virtualSaving" @click="virtualFromWatchlist">
+                <ClipboardList class="w-3 h-3" :stroke-width="2" /> Aus Merkliste übernehmen
+              </button>
+            </div>
+            <div class="relative">
+              <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--color-text-tertiary)] z-10 pointer-events-none" :stroke-width="1.75" />
+              <input class="pim-input pim-input-icon" v-model="virtualProductSearch" placeholder="Produkt suchen (SKU oder Name)…" @input="searchVirtualProducts" />
+              <div v-if="virtualProductSearchResults.length > 0" class="absolute z-10 w-full mt-1 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                <div
+                  v-for="p in virtualProductSearchResults"
+                  :key="p.id"
+                  class="px-3 py-2 hover:bg-[var(--color-bg)] cursor-pointer flex items-center gap-2"
+                  @click="addVirtualManualProduct(p)"
+                >
+                  <span class="text-xs font-mono text-[var(--color-text-secondary)]">{{ p.sku }}</span>
+                  <span class="text-xs">{{ p.name }}</span>
+                </div>
+              </div>
+            </div>
+            <div v-if="virtualManualProducts.length" class="mt-2 flex flex-wrap gap-1.5">
+              <span v-for="p in virtualManualProducts" :key="p.id" class="inline-flex items-center gap-1 text-[11px] bg-[var(--color-bg)] border border-[var(--color-border)] rounded px-2 py-1">
+                <span class="font-mono text-[var(--color-text-secondary)]">{{ p.sku }}</span>
+                <button class="text-[var(--color-text-tertiary)] hover:text-[var(--color-error)]" @click="removeVirtualManualProduct(p.id)">
+                  <X class="w-3 h-3" :stroke-width="2" />
+                </button>
+              </span>
+            </div>
+          </div>
+
+          <!-- Gemeinsame Optionen -->
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Beziehungstyp (optional)</label>
+              <PimAttributeInput
+                type="select"
+                v-model="virtualForm.relation_type_id"
+                :options="relationTypesList.map(t => ({ value: t.id, label: t.name_de || t.technical_name }))"
+              />
+            </div>
+            <div>
+              <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">Max. Mitglieder (optional)</label>
+              <input class="pim-input" type="number" min="1" v-model.number="virtualForm.max_members" placeholder="500" />
+            </div>
+          </div>
+
+          <div class="flex gap-2">
+            <button class="pim-btn pim-btn-primary text-xs" :disabled="virtualSaving" @click="saveVirtualDefinition">
+              <Save class="w-3.5 h-3.5" :stroke-width="2" /> {{ virtualSaving ? 'Speichern…' : 'Speichern & Aktualisieren' }}
+            </button>
+          </div>
+        </div>
+
+        <!-- Live-Vorschau der Mitglieder -->
+        <div>
+          <div class="flex items-center gap-2 mb-2">
+            <h4 class="text-sm font-medium text-[var(--color-text-primary)]">Mitglieder (Live-Vorschau)</h4>
+            <span class="text-[11px] text-[var(--color-text-tertiary)]">{{ virtualMembers.length }}</span>
+            <button class="ml-auto pim-btn pim-btn-secondary text-[11px]" :disabled="virtualMembersLoading" @click="loadVirtualMembers">
+              <RefreshCw class="w-3 h-3" :stroke-width="2" :class="{ 'animate-spin': virtualMembersLoading }" /> Aktualisieren
+            </button>
+          </div>
+
+          <div v-if="virtualMembersLoading" class="text-center py-8">
+            <p class="text-sm text-[var(--color-text-tertiary)]">Laden…</p>
+          </div>
+          <div v-else-if="virtualMembers.length === 0" class="text-center py-8">
+            <p class="text-sm text-[var(--color-text-tertiary)]">Keine Mitglieder — Quelle wählen und speichern.</p>
+          </div>
+          <div v-else class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            <div v-for="m in virtualMembers" :key="m.id" class="pim-card overflow-hidden group relative">
+              <div class="aspect-[4/3] bg-[var(--color-bg)] flex items-center justify-center overflow-hidden p-2">
+                <img v-if="virtualMemberThumbs[m.id]" :src="virtualMemberThumbs[m.id]" class="w-full h-full object-contain" loading="lazy" alt="" />
+                <Image v-else class="w-8 h-8 text-[var(--color-text-tertiary)]" :stroke-width="1.5" />
+              </div>
+              <div class="p-2 space-y-0.5">
+                <span class="text-[11px] font-mono text-[var(--color-text-secondary)] block">{{ m.sku || '—' }}</span>
+                <span class="text-xs text-[var(--color-text-primary)] truncate block">{{ m.name || '—' }}</span>
+              </div>
+              <div class="flex items-center gap-1 px-2 pb-2">
+                <router-link
+                  :to="`/products/${m.id}`"
+                  class="p-1 rounded hover:bg-[var(--color-bg)] text-[var(--color-text-tertiary)] hover:text-[var(--color-accent)] transition-colors"
+                  title="Produkt öffnen"
+                  @click.stop
+                >
+                  <ExternalLink class="w-3.5 h-3.5" :stroke-width="1.75" />
+                </router-link>
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
     </div>
 
     <!-- ═══ Output Hierarchies Tab ═══ -->
