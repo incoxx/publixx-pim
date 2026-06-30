@@ -189,6 +189,20 @@ class Product extends Model
         return $this->hasMany(OutputHierarchyProductAssignment::class);
     }
 
+    public function virtualDefinition(): HasOne
+    {
+        return $this->hasOne(VirtualProductDefinition::class);
+    }
+
+    /**
+     * Virtuelles Produkt ("Klammer"): Mitglieder werden dynamisch aus
+     * einem Suchprofil, einer PQL-Abfrage oder einer Merkliste aufgelöst.
+     */
+    public function isVirtual(): bool
+    {
+        return $this->product_type_ref === 'virtual';
+    }
+
     public function searchIndex(): HasOne
     {
         return $this->hasOne(ProductSearchIndex::class, 'product_id');

@@ -125,6 +125,27 @@ export default {
     return client.put(`/product-relations/${relationId}/attribute-values`, { values })
   },
 
+  // Virtuelle Produkte (dynamische Cluster)
+  getVirtualMembers(id, options = {}) {
+    return client.get(`/products/${id}/virtual-members`, { params: buildParams(options) })
+  },
+
+  getVirtualDefinition(id) {
+    return client.get(`/products/${id}/virtual-definition`)
+  },
+
+  saveVirtualDefinition(id, data) {
+    return client.put(`/products/${id}/virtual-definition`, data)
+  },
+
+  deleteVirtualDefinition(id) {
+    return client.delete(`/products/${id}/virtual-definition`)
+  },
+
+  virtualDefinitionFromWatchlist(id) {
+    return client.post(`/products/${id}/virtual-definition/from-watchlist`)
+  },
+
   // Output Hierarchy Assignments
   getOutputHierarchyAssignments(id) {
     return client.get(`/products/${id}/output-hierarchy-assignments`)
