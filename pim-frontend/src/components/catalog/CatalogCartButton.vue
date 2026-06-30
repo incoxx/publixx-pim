@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { ShoppingCart, Check, Loader } from 'lucide-vue-next'
 import { useCartStore } from '@/stores/cart'
 
@@ -14,31 +14,43 @@ const emit = defineEmits(['added'])
 
 const cartStore = useCartStore()
 
+// Lokaler Busy-State: NICHT an den globalen cartStore.loading koppeln, sonst
+// deaktiviert jede andere Cart-Operation (z.B. das Vorab-Laden des Warenkorbs)
+// sämtliche Buttons gleichzeitig.
+const busy = ref(false)
+
 const activeCartType = computed(() => props.cartTypeName ?? cartStore.activeCartType)
 const inCart = computed(() => cartStore.isInCart(props.productId))
-const loading = computed(() => cartStore.loading)
 
 async function handleClick(e) {
   e.stopPropagation()
-  if (!activeCartType.value || loading.value) return
+  e.preventDefault()
+  if (!activeCartType.value || busy.value) return
 
-  if (!cartStore.activeCartType) {
-    await cartStore.fetchCart(activeCartType.value)
-  }
+  busy.value = true
+  try {
+    // Sicherstellen, dass der richtige Warenkorbtyp aktiv ist
+    if (cartStore.activeCartType !== activeCartType.value) {
+      await cartStore.fetchCart(activeCartType.value)
+    }
 
-  if (inCart.value) {
+    if (inCart.value) {
+      cartStore.drawerOpen = true
+      return
+    }
+
+    await cartStore.addItem(props.productId, props.quantity)
+    emit('added', props.productId)
     cartStore.drawerOpen = true
-    return
+  } finally {
+    busy.value = false
   }
-
-  await cartStore.addItem(props.productId, props.quantity)
-  emit('added', props.productId)
-  cartStore.drawerOpen = true
 }
 </script>
 
 <template>
   <button
+    type="button"
     class="btn btn-circle text-white"
     :class="{
       'btn-xs': size === 'xs',
@@ -47,11 +59,11 @@ async function handleClick(e) {
       'btn-success': inCart,
       'btn-primary': !inCart,
     }"
-    :disabled="loading || !activeCartType"
+    :disabled="busy || !activeCartType"
     :title="inCart ? 'Im Warenkorb' : 'In den Warenkorb'"
     @click="handleClick"
   >
-    <Loader v-if="loading" class="w-4 h-4 animate-spin" />
+    <Loader v-if="busy" class="w-4 h-4 animate-spin" />
     <Check v-else-if="inCart" class="w-4 h-4" />
     <ShoppingCart v-else class="w-4 h-4" />
   </button>
