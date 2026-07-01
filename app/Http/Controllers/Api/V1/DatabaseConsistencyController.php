@@ -49,6 +49,7 @@ class DatabaseConsistencyController extends Controller
             'orphaned_import_job_errors' => $this->fixOrphanedImportJobErrors(),
             'orphaned_translation_job_items' => $this->fixOrphanedTranslationJobItems(),
             'orphaned_scheduled_actions' => $this->fixOrphanedScheduledActions(),
+            'stale_translatable_null_values' => $this->fixStaleTranslatableNullValues(),
             default => null,
         };
 
@@ -98,6 +99,8 @@ class DatabaseConsistencyController extends Controller
             'product_id',
             'products',
         );
+
+        $checks[] = $this->checkStaleTranslatableNullValues();
 
         $checks[] = $this->checkOrphanedRelations();
 
@@ -218,6 +221,28 @@ class DatabaseConsistencyController extends Controller
             'key' => $key,
             'label' => $label,
             'description' => $description,
+            'count' => $count,
+            'status' => $count > 0 ? 'issue' : 'ok',
+        ];
+    }
+
+    /**
+     * Attributwerte mit language=NULL bei Attributen, die nachträglich auf "sprachabhängig"
+     * umgestellt wurden. Der Unique-Index behandelt NULL als eigenständigen Wert und verhindert
+     * nicht, dass eine solche Altlast neben einer neu angelegten sprachspezifischen Zeile bestehen bleibt.
+     */
+    private function checkStaleTranslatableNullValues(): array
+    {
+        $count = DB::table('product_attribute_values')
+            ->join('attributes', 'product_attribute_values.attribute_id', '=', 'attributes.id')
+            ->where('attributes.is_translatable', true)
+            ->whereNull('product_attribute_values.language')
+            ->count();
+
+        return [
+            'key' => 'stale_translatable_null_values',
+            'label' => 'Verwaiste sprachneutrale Attributwerte',
+            'description' => 'Attributwerte mit language=NULL bei Attributen, die nachträglich auf "sprachabhängig" umgestellt wurden.',
             'count' => $count,
             'status' => $count > 0 ? 'issue' : 'ok',
         ];
@@ -347,5 +372,44 @@ class DatabaseConsistencyController extends Controller
     private function fixOrphanedScheduledActions(): int
     {
         return $this->deleteOrphans('scheduled_actions', 'product_id', 'products');
+    }
+
+    /**
+     * Existiert bereits eine sprachspezifische Zeile für dieselbe Kombination, wird die
+     * language=NULL-Zeile (Duplikat) gelöscht. Andernfalls wird sie auf die Standardsprache
+     * migriert, damit der Wert erhalten bleibt.
+     */
+    private function fixStaleTranslatableNullValues(): int
+    {
+        $defaultLanguage = 'de';
+
+        $rows = DB::table('product_attribute_values')
+            ->join('attributes', 'product_attribute_values.attribute_id', '=', 'attributes.id')
+            ->where('attributes.is_translatable', true)
+            ->whereNull('product_attribute_values.language')
+            ->select('product_attribute_values.*')
+            ->get();
+
+        $affected = 0;
+
+        foreach ($rows as $row) {
+            $hasLanguageSibling = DB::table('product_attribute_values')
+                ->where('product_id', $row->product_id)
+                ->where('attribute_id', $row->attribute_id)
+                ->where('multiplied_index', $row->multiplied_index)
+                ->where('output_hierarchy_id', $row->output_hierarchy_id)
+                ->whereNotNull('language')
+                ->exists();
+
+            if ($hasLanguageSibling) {
+                DB::table('product_attribute_values')->where('id', $row->id)->delete();
+            } else {
+                DB::table('product_attribute_values')->where('id', $row->id)->update(['language' => $defaultLanguage]);
+            }
+
+            $affected++;
+        }
+
+        return $affected;
     }
 }
