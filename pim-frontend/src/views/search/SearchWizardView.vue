@@ -18,6 +18,7 @@ import productsApi from '@/api/products'
 import hierarchiesApi from '@/api/hierarchies'
 import mediaApi from '@/api/media'
 import attributesApiDefault from '@/api/attributes'
+import contentApi from '@/api/content'
 import manufacturersApi from '@/api/manufacturers'
 import PimTable from '@/components/shared/PimTable.vue'
 import ProfileSelector from '@/components/shared/ProfileSelector.vue'
@@ -180,12 +181,19 @@ const searchCategory = ref('products')
 const sortField = ref('updated_at')
 const sortOrder = ref('desc')
 
-const searchCategoryDefs = [
-  { key: 'products', label: 'Produkte', icon: Package },
-  { key: 'attributes', label: 'Attribute', icon: Sliders },
-  { key: 'nodes', label: 'Kategorieknoten', icon: FolderTree },
-  { key: 'media', label: 'Medien', icon: Image },
-]
+const searchCategoryDefs = computed(() => {
+  const defs = [
+    { key: 'products', label: 'Produkte', icon: Package },
+    { key: 'attributes', label: 'Attribute', icon: Sliders },
+    { key: 'nodes', label: 'Kategorieknoten', icon: FolderTree },
+    { key: 'media', label: 'Medien', icon: Image },
+  ]
+  // Content-Tab nur anzeigen, wenn das Content-Lizenzmodul aktiv ist
+  if (licenseStore.isModuleActive('content')) {
+    defs.push({ key: 'content', label: 'Content', icon: FileText })
+  }
+  return defs
+})
 
 // Column config for products search tab
 const defaultSearchColumns = [
@@ -269,6 +277,13 @@ const categoryColumns = {
     { key: 'title_de', label: 'Titel', sortable: true },
     { key: 'mime_type', label: 'Typ' },
     { key: 'media_type', label: 'Medientyp' },
+  ],
+  content: [
+    { key: 'title', label: 'Titel', sortable: true },
+    { key: 'content_type', label: 'Seitentyp' },
+    { key: 'status', label: 'Status' },
+    { key: 'snippet', label: 'Fundstelle' },
+    { key: 'updated_at', label: 'Geändert', sortable: true },
   ],
 }
 
@@ -727,6 +742,9 @@ async function doEntitySearch(page) {
     case 'media':
       response = await mediaApi.list(options)
       break
+    case 'content':
+      response = await contentApi.search(options)
+      break
     default:
       return
   }
@@ -753,7 +771,24 @@ function openResult(row) {
     case 'media':
       router.push(`/media`)
       break
+    case 'content':
+      router.push(`/content/${row.id}`)
+      break
   }
+}
+
+function escapeHtml(str) {
+  return str.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
+}
+
+// Suchbegriff im Textausschnitt hervorheben (Text wird vorher escaped, daher XSS-sicher)
+function highlightSnippet(text, term) {
+  if (!text) return ''
+  const escaped = escapeHtml(text)
+  const t = (term || '').trim()
+  if (!t) return escaped
+  const escapedTerm = t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return escaped.replace(new RegExp(`(${escapedTerm})`, 'ig'), '<mark class="bg-[var(--color-accent-light)] text-[var(--color-accent)] rounded px-0.5">$1</mark>')
 }
 
 function getFilterInputType(dataType) {
@@ -1047,6 +1082,7 @@ const apiCallDisplay = computed(() => {
             ? (searchMode === 'regex' ? 'Regulärer Ausdruck eingeben...' : searchMode === 'soundex' ? 'Ähnlich klingend suchen...' : 'Produkte, Attribute, SKUs durchsuchen...')
             : searchCategory === 'attributes' ? 'Attribute durchsuchen...'
             : searchCategory === 'nodes' ? 'Kategorieknoten durchsuchen (inkl. Unterkategorien)...'
+            : searchCategory === 'content' ? 'Content-Seiten durchsuchen (Titel & Seiteninhalt)...'
             : 'Medien durchsuchen...'"
           class="pim-input pl-4 pr-4 py-2.5 sm:py-3 text-sm sm:text-base w-full"
           @keydown.enter="doSearch(1)"
@@ -1637,7 +1673,7 @@ const apiCallDisplay = computed(() => {
             'bg-[var(--color-error-light)] text-[var(--color-error)]'
           ]"
         >
-          {{ value === 'active' ? 'Aktiv' : value === 'draft' ? 'Entwurf' : value === 'inactive' ? 'Inaktiv' : 'Auslaufend' }}
+          {{ value === 'active' ? 'Aktiv' : value === 'draft' ? 'Entwurf' : value === 'inactive' ? 'Inaktiv' : value === 'archived' ? 'Archiviert' : 'Auslaufend' }}
         </span>
       </template>
 
@@ -1686,6 +1722,29 @@ const apiCallDisplay = computed(() => {
         <span class="text-xs text-[var(--color-text-secondary)]">{{ value || '—' }}</span>
       </template>
 
+      <!-- Content-specific cells -->
+      <template v-if="searchCategory === 'content'" #cell-title="{ row, value }">
+        <div>
+          <span class="text-sm">{{ value }}</span>
+          <span class="ml-1.5 text-[10px] font-mono text-[var(--color-text-tertiary)]">/{{ row.slug }}</span>
+        </div>
+      </template>
+      <template v-if="searchCategory === 'content'" #cell-content_type="{ value }">
+        <span class="pim-badge bg-[var(--color-bg)] text-[var(--color-text-tertiary)] text-[10px]">
+          {{ value || '—' }}
+        </span>
+      </template>
+      <template v-if="searchCategory === 'content'" #cell-snippet="{ row }">
+        <div v-if="row.snippet" class="max-w-[360px]">
+          <span class="text-xs text-[var(--color-text-secondary)]" v-html="highlightSnippet(row.snippet, searchInput)" />
+          <span v-if="row.matched_section_type" class="block text-[10px] text-[var(--color-text-tertiary)] mt-0.5">
+            in „{{ row.matched_section_type }}“
+          </span>
+        </div>
+        <span v-else-if="row.match_in === 'title'" class="text-[11px] text-[var(--color-text-tertiary)]">Treffer im Titel</span>
+        <span v-else class="text-[11px] text-[var(--color-text-tertiary)]">—</span>
+      </template>
+
       <!-- Pagination -->
       <template #pagination v-if="resultMeta.last_page > 1">
         <div class="flex flex-col sm:flex-row items-center justify-between px-4 py-3 border-t border-[var(--color-border)] gap-2">
@@ -1731,6 +1790,7 @@ const apiCallDisplay = computed(() => {
         {{ searchCategory === 'products' ? 'Filter konfigurieren und Suche starten' :
            searchCategory === 'attributes' ? 'Durchsuchbare Attribute finden' :
            searchCategory === 'nodes' ? 'Kategorieknoten durchsuchen (inkl. Unterkategorien)' :
+           searchCategory === 'content' ? 'Content-Seiten nach Titel oder Seiteninhalt durchsuchen' :
            'Medien durchsuchen' }}
       </p>
       <p v-if="searchCategory === 'products'" class="text-xs text-[var(--color-text-tertiary)] mt-1">
