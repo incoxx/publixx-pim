@@ -65,6 +65,25 @@ class SheetValidator
                 continue;
             }
 
+            // Kopfzeile prüfen, bevor Zeilen validiert werden: bei verschobenen/vertauschten
+            // Spalten würden sonst Werte falschen Feldern zugeordnet und die Folgefehler
+            // (z.B. "Betrag muss eine Zahl sein: 'EUR'") wären für den Nutzer nicht nachvollziehbar.
+            $headerIssues = $this->validateHeaders($sheetKey, $parseResult->getHeaders($sheetKey), $definition['columns']);
+
+            if (!empty($headerIssues)) {
+                $errors[] = $this->buildHeaderMismatchError($sheetKey, $headerIssues);
+
+                $summary[$sheetKey] = [
+                    'total' => count($rows),
+                    'valid' => 0,
+                    'errors' => count($rows),
+                    'creates' => 0,
+                    'updates' => 0,
+                ];
+
+                continue;
+            }
+
             $sheetErrors = $this->validateSheet($sheetKey, $rows, $definition);
             $errors = array_merge($errors, $sheetErrors);
 
@@ -143,6 +162,115 @@ class SheetValidator
         }
 
         return $errors;
+    }
+
+    // ──────────────────────────────────────────────
+    //  Kopfzeilen-Prüfung (Spaltenreihenfolge)
+    // ──────────────────────────────────────────────
+
+    /**
+     * Vergleicht die tatsächliche Kopfzeile mit der erwarteten Spaltenreihenfolge
+     * aus TemplateGenerator::SHEET_HEADERS.
+     *
+     * Ein Kunde formuliert Spaltenköpfe oft anders als die Vorlage (z.B. "Werteliste"
+     * statt "Liste Techn. Name"), obwohl die Daten an der richtigen Position stehen –
+     * das darf keinen Fehler auslösen. Deshalb wird nur gemeldet, wenn der gefundene
+     * Text erkennbar zu einer ANDEREN Spalte derselben Definition gehört: das ist ein
+     * starkes Indiz für eine echte Spaltenverschiebung (z.B. eine fehlende Spalte in
+     * der Mitte, die alle folgenden Spalten verrutschen lässt).
+     *
+     * @param array<string, string> $actualHeaders Spalte → Kopfzeilentext aus der Datei
+     * @param array<string, string> $columns       Spalte → interner Feldname (Definition)
+     * @return array<int, array{column:string, found:string, expected:string, belongsTo:string}>
+     */
+    private function validateHeaders(string $sheetKey, array $actualHeaders, array $columns): array
+    {
+        $canonicalHeaders = TemplateGenerator::SHEET_HEADERS[$sheetKey] ?? null;
+        if ($canonicalHeaders === null) {
+            return [];
+        }
+
+        $issues = [];
+
+        foreach (array_keys($columns) as $col) {
+            $found = $actualHeaders[$col] ?? null;
+            $expected = $canonicalHeaders[$col] ?? null;
+
+            if ($found === null || trim($found) === '' || $expected === null) {
+                continue;
+            }
+
+            if ($this->headersMatch($found, $expected)) {
+                continue;
+            }
+
+            // Gehört der gefundene Text erkennbar zu einer anderen Spalte? Nur dann
+            // ist von einer echten Verschiebung auszugehen statt einer bloßen Umformulierung.
+            foreach ($canonicalHeaders as $otherCol => $otherExpected) {
+                if ($otherCol === $col) {
+                    continue;
+                }
+                if ($this->headersMatch($found, $otherExpected)) {
+                    $issues[] = ['column' => $col, 'found' => trim($found), 'expected' => $expected, 'belongsTo' => $otherCol];
+                    break;
+                }
+            }
+        }
+
+        return $issues;
+    }
+
+    /**
+     * Vergleicht zwei Kopfzeilentexte tolerant: Groß-/Kleinschreibung, Pflicht-Sternchen
+     * und Klammer-Hinweise (z.B. "(Ja/Nein)") werden ignoriert, Tippfehler über den
+     * Fuzzy-Matcher toleriert. Inhaltlich unterschiedliche Spalten (z.B. "Übersetzbar"
+     * vs. "Max. Vermehrungen") werden dadurch zuverlässig erkannt.
+     */
+    private function headersMatch(string $found, string $expected): bool
+    {
+        $normalize = static function (string $value): string {
+            $value = mb_strtolower($value);
+            $value = (string) preg_replace('/\(.*?\)/u', '', $value);
+            $value = str_replace('*', '', $value);
+            $value = (string) preg_replace('/[^\p{L}\p{N}]+/u', ' ', $value);
+            return trim((string) preg_replace('/\s+/', ' ', $value));
+        };
+
+        $normalizedFound = $normalize($found);
+        $normalizedExpected = $normalize($expected);
+
+        if ($normalizedFound === $normalizedExpected) {
+            return true;
+        }
+
+        return $this->fuzzyMatcher->findMatch($normalizedFound, [$normalizedExpected]) !== null;
+    }
+
+    /**
+     * Baut eine einzelne, verständliche Fehlermeldung für ein Sheet mit abweichender
+     * Spaltenreihenfolge – statt vieler verwirrender Folgefehler auf falsch zugeordneten Werten.
+     *
+     * @param array<int, array{column:string, found:string, expected:string, belongsTo:string}> $issues
+     * @return array{sheet:string,row:int,column:string,field:string,value:mixed,error:string,suggestion:?string}
+     */
+    private function buildHeaderMismatchError(string $sheetKey, array $issues): array
+    {
+        $details = implode('; ', array_map(
+            static fn(array $issue): string => "Spalte {$issue['column']}: gefunden \"{$issue['found']}\" (gehört zu Spalte {$issue['belongsTo']}), erwartet \"{$issue['expected']}\"",
+            $issues,
+        ));
+
+        return [
+            'sheet' => $sheetKey,
+            'row' => 1,
+            'column' => $issues[0]['column'],
+            'field' => 'Spaltenkopf',
+            'value' => $issues[0]['found'],
+            'error' => "Die Spaltenreihenfolge in diesem Reiter weicht von der aktuellen Vorlage ab – dadurch würden Werte "
+                . "falschen Feldern zugeordnet. {$details}. Bitte die aktuelle Vorlage neu herunterladen und die Daten "
+                . "dort einfügen (keine Spalten einfügen, löschen oder verschieben).",
+            'suggestion' => null,
+        ];
     }
 
     // ──────────────────────────────────────────────
@@ -570,6 +698,38 @@ class SheetValidator
             'value' => 'Wert',
             'hierarchy' => 'Hierarchie',
             'type' => 'Typ',
+            'attribute_group' => 'Attributgruppe',
+            'value_list' => 'Werteliste',
+            'unit_group' => 'Einheitengruppe',
+            'default_unit' => 'Standard-Einheit',
+            'is_multipliable' => 'Vermehrbar',
+            'max_multiplied' => 'Max. Vermehrungen',
+            'is_translatable' => 'Übersetzbar',
+            'is_mandatory' => 'Pflicht',
+            'is_unique' => 'Eindeutig',
+            'is_searchable' => 'Suchbar',
+            'is_inheritable' => 'Vererbbar',
+            'parent_attribute' => 'Übergeordnetes Attribut',
+            'source_system' => 'Quellsystem',
+            'unit' => 'Einheit',
+            'language' => 'Sprache',
+            'index' => 'Index',
+            'price_type' => 'Preisart',
+            'amount' => 'Betrag',
+            'currency' => 'Währung',
+            'valid_from' => 'Gültig ab',
+            'valid_to' => 'Gültig bis',
+            'country' => 'Land',
+            'source_sku' => 'Quell-SKU',
+            'target_sku' => 'Ziel-SKU',
+            'relation_type' => 'Beziehungstyp',
+            'sort_order' => 'Sortierung',
+            'status' => 'Status',
+            'ean' => 'EAN',
+            'level_1' => 'Ebene 1',
+            'group_technical_name' => 'Gruppe Techn. Name',
+            'group_name_de' => 'Gruppe Name (Deutsch)',
+            'abbreviation' => 'Kürzel',
         ];
 
         return $headerMap[$field] ?? $field;

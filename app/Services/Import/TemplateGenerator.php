@@ -21,8 +21,11 @@ class TemplateGenerator
     /**
      * Header-Definitionen pro Sheet.
      * Pflichtfelder sind mit * markiert.
+     *
+     * Auch von SheetValidator::validateHeaders() als Referenz für die erwartete
+     * Spaltenreihenfolge genutzt (Erkennung von verschobenen/fehlenden Spalten).
      */
-    private const array SHEET_HEADERS = [
+    public const array SHEET_HEADERS = [
         '01_Produkttypen' => [
             'A' => 'Technischer Name*',
             'B' => 'Name (Deutsch)*',
