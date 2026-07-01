@@ -97,7 +97,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div ref="themeRoot" data-theme="pim-catalog" class="min-h-screen bg-base-200 flex flex-col" :style="{ fontSize: store.themeSettings.font_body_size || '0.875rem' }">
+  <div ref="themeRoot" data-theme="pim-catalog" class="min-h-screen catalog-grid-bg flex flex-col" :style="{ fontSize: store.themeSettings.font_body_size || '0.875rem' }">
     <!-- Header -->
     <CatalogHeader />
 

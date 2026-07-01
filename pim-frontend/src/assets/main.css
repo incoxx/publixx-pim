@@ -347,10 +347,26 @@ body {
   error-content: #ffffff;
 }
 
-/* Catalog sidebar active item — uses custom --catalog-sidebar-color from theme settings */
+/* Catalog sidebar active item — explizite --catalog-sidebar-active-* Farben,
+   sonst Fallback auf abgeleiteten 10%-Tint von --catalog-sidebar-color */
 [data-theme="pim-catalog"] .catalog-sidebar-active {
-  color: var(--catalog-sidebar-color, #1B3A5C);
-  background-color: color-mix(in srgb, var(--catalog-sidebar-color, #1B3A5C) 10%, transparent);
+  color: var(--catalog-sidebar-active-text, var(--catalog-sidebar-color, #1B3A5C));
+  background-color: var(--catalog-sidebar-active-bg, color-mix(in srgb, var(--catalog-sidebar-color, #1B3A5C) 10%, transparent));
+}
+
+/* Katalog: Kachel-Hintergründe (oben = Bildbereich, unten = Inhaltsbereich)
+   und Hintergrund hinter den Kacheln — Fallback auf DaisyUI base-Farben */
+[data-theme="pim-catalog"] .catalog-card-top-bg {
+  background-color: var(--catalog-card-top-bg, var(--color-base-200));
+}
+[data-theme="pim-catalog"] .catalog-card-bottom-bg {
+  background-color: var(--catalog-card-bottom-bg, var(--color-base-100));
+}
+[data-theme="pim-catalog"] .catalog-grid-bg {
+  background-color: var(--catalog-grid-bg, var(--color-base-200));
+}
+[data-theme="pim-catalog"] .catalog-popup-bg {
+  background-color: var(--catalog-popup-bg, var(--color-base-100));
 }
 
 /* Catalog table stripe rows — override DaisyUI zebra and add custom stripe class */

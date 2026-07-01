@@ -799,6 +799,12 @@ const themeForm = ref({
   color_header_text: '',
   color_mobile_menu_bg: '',
   color_mobile_menu_text: '',
+  color_sidebar_active_bg: '',
+  color_sidebar_active_text: '',
+  color_card_top_bg: '',
+  color_card_bottom_bg: '',
+  color_grid_bg: '',
+  color_popup_bg: '',
   logo_media_id: null,
   catalog_title: 'Produktkatalog',
   seo_title: '',
@@ -911,6 +917,12 @@ async function loadThemeSettings() {
         color_header_text: d.color_header_text || '',
         color_mobile_menu_bg: d.color_mobile_menu_bg || '',
         color_mobile_menu_text: d.color_mobile_menu_text || '',
+        color_sidebar_active_bg: d.color_sidebar_active_bg || '',
+        color_sidebar_active_text: d.color_sidebar_active_text || '',
+        color_card_top_bg: d.color_card_top_bg || '',
+        color_card_bottom_bg: d.color_card_bottom_bg || '',
+        color_grid_bg: d.color_grid_bg || '',
+        color_popup_bg: d.color_popup_bg || '',
         popup_max_width: d.popup_max_width || '4xl',
         facet_attribute_ids: d.facet_attribute_ids || [],
         detail_layout: d.detail_layout || 'classic',
@@ -950,7 +962,7 @@ async function saveThemeSettings() {
   try {
     const payload = { ...themeForm.value }
     // Convert empty strings to null for optional text fields
-    for (const key of ['impressum_url', 'kontakt_url', 'impressum_text', 'kontakt_text', 'footer_text', 'catalog_title', 'seo_title', 'seo_description', 'color_header_bg', 'color_header_text', 'color_mobile_menu_bg', 'color_mobile_menu_text']) {
+    for (const key of ['impressum_url', 'kontakt_url', 'impressum_text', 'kontakt_text', 'footer_text', 'catalog_title', 'seo_title', 'seo_description', 'color_header_bg', 'color_header_text', 'color_mobile_menu_bg', 'color_mobile_menu_text', 'color_sidebar_active_bg', 'color_sidebar_active_text', 'color_card_top_bg', 'color_card_bottom_bg', 'color_grid_bg', 'color_popup_bg']) {
       if (!payload[key]) payload[key] = null
     }
     if (!payload.hierarchy_id) payload.hierarchy_id = null
@@ -2434,6 +2446,50 @@ onUnmounted(() => {
                   maxlength="7"
                   placeholder="#000000"
                 />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Farben: Feinsteuerung (Menüpunkte aktiv, Kacheln, Popup) -->
+        <div class="space-y-3">
+          <h4 class="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">Farben: Feinsteuerung</h4>
+          <p class="text-[11px] text-[var(--color-text-tertiary)]">
+            Optionale Feinsteuerung. Bleibt ein Feld leer, wird die Farbe automatisch aus den obigen
+            Grundfarben abgeleitet (z. B. aktiver Menüpunkt = 10&nbsp;% Einfärbung der Sidebar-Farbe).
+          </p>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div v-for="c in [
+              { key: 'color_sidebar_active_bg', label: 'Menüpunkt aktiv: Hintergrund' },
+              { key: 'color_sidebar_active_text', label: 'Menüpunkt aktiv: Text' },
+              { key: 'color_card_top_bg', label: 'Kachel oben (Bildbereich)' },
+              { key: 'color_card_bottom_bg', label: 'Kachel unten (Inhaltsbereich)' },
+              { key: 'color_grid_bg', label: 'Hintergrund hinter den Kacheln' },
+              { key: 'color_popup_bg', label: 'Produktpopup: Hintergrund' },
+            ]" :key="c.key">
+              <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">{{ c.label }}</label>
+              <div class="flex items-center gap-2">
+                <input
+                  type="color"
+                  :value="themeForm[c.key] || '#000000'"
+                  @input="themeForm[c.key] = $event.target.value"
+                  class="w-9 h-9 rounded border border-[var(--color-border)] cursor-pointer p-0.5"
+                />
+                <input
+                  type="text"
+                  :value="themeForm[c.key]"
+                  @input="themeForm[c.key] = $event.target.value"
+                  class="pim-input font-mono text-xs flex-1"
+                  maxlength="7"
+                  placeholder="automatisch"
+                />
+                <button
+                  v-if="themeForm[c.key]"
+                  type="button"
+                  class="pim-btn pim-btn-ghost text-xs text-[var(--color-text-tertiary)] !px-2"
+                  title="Zurücksetzen (automatisch ableiten)"
+                  @click="themeForm[c.key] = ''"
+                >✕</button>
               </div>
             </div>
           </div>
