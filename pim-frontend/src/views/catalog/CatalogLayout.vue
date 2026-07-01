@@ -97,7 +97,15 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div ref="themeRoot" data-theme="pim-catalog" class="min-h-screen catalog-grid-bg flex flex-col" :style="{ fontSize: store.themeSettings.font_body_size || '0.875rem' }">
+  <div
+    ref="themeRoot"
+    data-theme="pim-catalog"
+    class="min-h-screen bg-base-200 flex flex-col"
+    :style="{
+      fontSize: store.themeSettings.font_body_size || '0.875rem',
+      backgroundColor: store.themeSettings.color_grid_bg || undefined,
+    }"
+  >
     <!-- Header -->
     <CatalogHeader />
 
@@ -143,7 +151,11 @@ onMounted(async () => {
       <aside
         v-if="facetPanelOpen && !store.searchActive"
         class="hidden lg:flex flex-col flex-none bg-base-100 border-l border-base-300 relative"
-        :style="{ width: facetPanelWidth + 'px' }"
+        :style="{
+          width: facetPanelWidth + 'px',
+          backgroundColor: store.themeSettings.color_facets_bg || undefined,
+          color: store.themeSettings.color_facets_text || undefined,
+        }"
       >
         <!-- Resize handle (left edge) -->
         <div

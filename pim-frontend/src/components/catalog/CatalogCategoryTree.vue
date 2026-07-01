@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import { useCatalogStore } from '@/stores/catalog'
 import { ChevronRight, ChevronDown } from 'lucide-vue-next'
 
@@ -10,6 +10,15 @@ const props = defineProps({
 
 const store = useCatalogStore()
 const expandedIds = ref(new Set())
+
+// Aktiver Menüpunkt: explizite Farben, sonst 10%-Tint der Sidebar-Farbe als Fallback
+const activeBg = computed(() =>
+  store.themeSettings.color_sidebar_active_bg
+  || `color-mix(in srgb, ${store.themeSettings.color_sidebar || '#1B3A5C'} 10%, transparent)`,
+)
+const activeText = computed(() =>
+  store.themeSettings.color_sidebar_active_text || store.themeSettings.color_sidebar || '#1B3A5C',
+)
 
 // Auto-expand nodes up to the configured depth
 function collectExpandIds(nodes, currentDepth, maxDepth) {
@@ -58,11 +67,8 @@ function selectCategory(node) {
     <li v-for="node in nodes" :key="node.id" class="my-0.5">
       <div
         class="flex items-center gap-1 py-1.5 px-2 rounded-lg cursor-pointer transition-all duration-200 text-sm group"
-        :class="
-          store.selectedCategoryId === node.id
-            ? 'catalog-sidebar-active font-medium'
-            : 'hover:bg-base-200 text-base-content'
-        "
+        :class="store.selectedCategoryId === node.id ? 'font-medium' : 'hover:bg-base-200 text-base-content'"
+        :style="store.selectedCategoryId === node.id ? { backgroundColor: activeBg, color: activeText } : {}"
         @click="selectCategory(node)"
       >
         <!-- Expand/collapse -->
