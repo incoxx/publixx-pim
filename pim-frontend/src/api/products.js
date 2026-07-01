@@ -146,6 +146,18 @@ export default {
     return client.post(`/products/${id}/virtual-definition/from-watchlist`)
   },
 
+  syncVirtualDefinition(id) {
+    return client.post(`/products/${id}/virtual-definition/sync`)
+  },
+
+  getVirtualInheritanceRules(id) {
+    return client.get(`/products/${id}/virtual-inheritance-rules`)
+  },
+
+  saveVirtualInheritanceRules(id, rules) {
+    return client.put(`/products/${id}/virtual-inheritance-rules`, { rules })
+  },
+
   // Output Hierarchy Assignments
   getOutputHierarchyAssignments(id) {
     return client.get(`/products/${id}/output-hierarchy-assignments`)

@@ -1757,6 +1757,7 @@ async function loadVirtualCluster() {
       await hydrateVirtualManualProducts(def.manual_product_ids || [])
     }
     await loadVirtualMembers()
+    await loadVirtualInheritanceData()
   } catch (e) { console.error('Failed to load virtual cluster:', e.message) }
   finally { virtualLoading.value = false }
 }
@@ -1870,6 +1871,77 @@ async function virtualFromWatchlist() {
   } catch (e) {
     toastStore.showToast(e.response?.data?.message || 'Übernahme fehlgeschlagen', 'error')
   } finally { virtualSaving.value = false }
+}
+
+// ─── Vererbungsregeln (Phase 1: Attribute) ────────────
+// Eigene Attribute der Klammer, aus denen Regeln ausgewählt werden können.
+const virtualOwnAttributes = ref([]) // [{ attribute_id, name }]
+// { [attribute_id]: { enabled: bool, conflict_mode: 'keep_local'|'force_override' } }
+const virtualRules = ref({})
+const virtualRulesLoading = ref(false)
+const virtualRulesSaving = ref(false)
+const virtualSyncing = ref(false)
+const virtualSyncReport = ref(null)
+
+async function loadVirtualInheritanceData() {
+  if (!product.value) return
+  virtualRulesLoading.value = true
+  try {
+    const [ownValuesResp, rulesResp] = await Promise.all([
+      productsApi.getAttributeValues(product.value.id),
+      productsApi.getVirtualInheritanceRules(product.value.id),
+    ])
+    const ownRows = ownValuesResp.data.data || ownValuesResp.data || []
+    const byId = new Map()
+    for (const row of ownRows) {
+      if (!row.attribute_id || byId.has(row.attribute_id)) continue
+      byId.set(row.attribute_id, {
+        attribute_id: row.attribute_id,
+        name: row.attribute?.name_de || row.attribute?.technical_name || row.attribute_id,
+      })
+    }
+    virtualOwnAttributes.value = [...byId.values()].sort((a, b) => a.name.localeCompare(b.name, 'de'))
+
+    const existingRules = rulesResp.data.data || rulesResp.data || []
+    const rulesMap = {}
+    for (const attr of virtualOwnAttributes.value) {
+      const existing = existingRules.find(r => r.attribute_id === attr.attribute_id)
+      rulesMap[attr.attribute_id] = {
+        enabled: !!existing,
+        conflict_mode: existing?.conflict_mode || 'keep_local',
+      }
+    }
+    virtualRules.value = rulesMap
+  } catch (e) { console.error('Failed to load inheritance rules:', e.message) }
+  finally { virtualRulesLoading.value = false }
+}
+
+async function saveVirtualInheritanceRules() {
+  if (!product.value) return
+  virtualRulesSaving.value = true
+  try {
+    const rules = Object.entries(virtualRules.value)
+      .filter(([, r]) => r.enabled)
+      .map(([attribute_id, r]) => ({ attribute_id, conflict_mode: r.conflict_mode }))
+    await productsApi.saveVirtualInheritanceRules(product.value.id, rules)
+    toastStore.showToast('Vererbungsregeln gespeichert', 'success')
+  } catch (e) {
+    toastStore.showToast(e.response?.data?.message || 'Speichern fehlgeschlagen', 'error')
+  } finally { virtualRulesSaving.value = false }
+}
+
+async function syncVirtualCluster() {
+  if (!product.value) return
+  virtualSyncing.value = true
+  virtualSyncReport.value = null
+  try {
+    const { data } = await productsApi.syncVirtualDefinition(product.value.id)
+    virtualSyncReport.value = data.data || data
+    toastStore.showToast('Synchronisierung abgeschlossen', 'success')
+    await loadVirtualMembers()
+  } catch (e) {
+    toastStore.showToast(e.response?.data?.message || 'Synchronisierung fehlgeschlagen', 'error')
+  } finally { virtualSyncing.value = false }
 }
 
 let searchTimeout = null
@@ -4690,6 +4762,84 @@ onUnmounted(() => {
             <button class="pim-btn pim-btn-primary text-xs" :disabled="virtualSaving" @click="saveVirtualDefinition">
               <Save class="w-3.5 h-3.5" :stroke-width="2" /> {{ virtualSaving ? 'Speichern…' : 'Speichern & Aktualisieren' }}
             </button>
+          </div>
+        </div>
+
+        <!-- Vererbungsregeln (Phase 1: Attribute) -->
+        <div class="pim-card p-4 space-y-3">
+          <div>
+            <h4 class="text-sm font-medium text-[var(--color-text-primary)]">Vererbungsregeln</h4>
+            <p class="text-[11px] text-[var(--color-text-tertiary)]">
+              Attribute, die per Sync an die Mitglieder vererbt werden. Die Werte selbst pflegst du im Reiter „Attribute“ dieses Produkts.
+              Ein Mitglied gehört immer zu höchstens einem Cluster — bereits einem anderen Cluster zugeordnete Mitglieder werden beim Sync übersprungen.
+            </p>
+          </div>
+
+          <div v-if="virtualRulesLoading" class="text-center py-4">
+            <p class="text-sm text-[var(--color-text-tertiary)]">Laden…</p>
+          </div>
+          <div v-else-if="virtualOwnAttributes.length === 0" class="text-center py-4">
+            <p class="text-sm text-[var(--color-text-tertiary)]">Dieses Produkt hat noch keine eigenen Attributwerte. Im Reiter „Attribute“ pflegen, um sie hier vererben zu können.</p>
+          </div>
+          <div v-else class="pim-card overflow-hidden">
+            <table class="w-full text-xs">
+              <thead>
+                <tr class="border-b border-[var(--color-border)] bg-[var(--color-bg)]">
+                  <th class="px-3 py-2 text-left text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)] font-medium" style="width:32px"></th>
+                  <th class="px-3 py-2 text-left text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)] font-medium">Attribut</th>
+                  <th class="px-3 py-2 text-left text-[10px] uppercase tracking-wider text-[var(--color-text-tertiary)] font-medium">Bei Konflikt mit lokalem Wert</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="attr in virtualOwnAttributes" :key="attr.attribute_id" class="border-b border-[var(--color-border)] last:border-0">
+                  <td class="px-3 py-2">
+                    <input type="checkbox" v-model="virtualRules[attr.attribute_id].enabled" />
+                  </td>
+                  <td class="px-3 py-2 text-[var(--color-text-primary)]">{{ attr.name }}</td>
+                  <td class="px-3 py-2">
+                    <select
+                      class="pim-input text-xs py-1"
+                      v-model="virtualRules[attr.attribute_id].conflict_mode"
+                      :disabled="!virtualRules[attr.attribute_id].enabled"
+                    >
+                      <option value="keep_local">Lokalen Wert belassen</option>
+                      <option value="force_override">Überschreiben</option>
+                    </select>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="flex gap-2">
+            <button class="pim-btn pim-btn-secondary text-xs" :disabled="virtualRulesSaving" @click="saveVirtualInheritanceRules">
+              {{ virtualRulesSaving ? 'Speichern…' : 'Regeln speichern' }}
+            </button>
+            <button class="pim-btn pim-btn-primary text-xs" :disabled="virtualSyncing" @click="syncVirtualCluster">
+              <RefreshCw class="w-3.5 h-3.5" :stroke-width="2" :class="{ 'animate-spin': virtualSyncing }" /> {{ virtualSyncing ? 'Synchronisiere…' : 'Jetzt synchronisieren' }}
+            </button>
+          </div>
+
+          <!-- Sync-Report -->
+          <div v-if="virtualSyncReport" class="text-[11px] bg-[var(--color-bg)] border border-[var(--color-border)] rounded-md p-3 space-y-1">
+            <p class="text-[var(--color-text-primary)] font-medium">Ergebnis der letzten Synchronisierung</p>
+            <p class="text-[var(--color-text-secondary)]">
+              {{ virtualSyncReport.member_count }} Mitglieder verarbeitet ·
+              {{ virtualSyncReport.values_created }} neu ·
+              {{ virtualSyncReport.values_updated }} aktualisiert ·
+              {{ virtualSyncReport.values_overridden }} überschrieben ·
+              {{ virtualSyncReport.values_kept_local }} lokal belassen ·
+              {{ virtualSyncReport.values_removed }} entfernt
+            </p>
+            <p v-if="Object.keys(virtualSyncReport.released_members || {}).length" class="text-[var(--color-text-tertiary)]">
+              Cluster verlassen (Werte entfernt): {{ Object.values(virtualSyncReport.released_members).join(', ') }}
+            </p>
+            <div v-if="virtualSyncReport.skipped_members?.length" class="text-amber-600">
+              <p class="font-medium">Übersprungen ({{ virtualSyncReport.skipped_members.length }}):</p>
+              <ul class="list-disc list-inside">
+                <li v-for="s in virtualSyncReport.skipped_members" :key="s.id">{{ s.sku }} — {{ s.reason }}</li>
+              </ul>
+            </div>
           </div>
         </div>
 
