@@ -28,6 +28,7 @@ class ProductAttributeValue extends Model
         'is_inherited',
         'inherited_from_node_id',
         'inherited_from_product_id',
+        'inherited_from_virtual_product_id',
         'output_hierarchy_id',
     ];
 
@@ -80,6 +81,11 @@ class ProductAttributeValue extends Model
     public function inheritedFromProduct(): BelongsTo
     {
         return $this->belongsTo(Product::class, 'inherited_from_product_id');
+    }
+
+    public function inheritedFromVirtualProduct(): BelongsTo
+    {
+        return $this->belongsTo(Product::class, 'inherited_from_virtual_product_id');
     }
 
     public function outputHierarchy(): BelongsTo

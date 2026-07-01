@@ -695,6 +695,11 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::put('products/{product}/virtual-definition', [VirtualProductController::class, 'upsert']);
     Route::delete('products/{product}/virtual-definition', [VirtualProductController::class, 'destroy']);
     Route::post('products/{product}/virtual-definition/from-watchlist', [VirtualProductController::class, 'fromWatchlist']);
+    Route::post('products/{product}/virtual-definition/sync', [VirtualProductController::class, 'sync']);
+
+    // Virtuelle Produkte — Vererbungsregeln (Phase 1: Attribute)
+    Route::get('products/{product}/virtual-inheritance-rules', [VirtualProductController::class, 'inheritanceRules']);
+    Route::put('products/{product}/virtual-inheritance-rules', [VirtualProductController::class, 'saveInheritanceRules']);
 
     // =====================================================================
     // Agent 3 + 6: Import

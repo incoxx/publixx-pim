@@ -195,6 +195,14 @@ class Product extends Model
     }
 
     /**
+     * Vererbungsregeln, wenn dieses Produkt virtuell ist (die "Klammer").
+     */
+    public function inheritanceRules(): HasMany
+    {
+        return $this->hasMany(VirtualProductInheritanceRule::class, 'virtual_product_id');
+    }
+
+    /**
      * Virtuelles Produkt ("Klammer"): Mitglieder werden dynamisch aus
      * einem Suchprofil, einer PQL-Abfrage oder einer Merkliste aufgelöst.
      */
