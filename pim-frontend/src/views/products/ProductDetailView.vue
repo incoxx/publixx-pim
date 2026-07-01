@@ -291,6 +291,7 @@ const attrFilterSearch = ref('')
 const attrFilterView = ref(null)
 const attrFilterGroup = ref(null)
 const attrFilterMandatory = ref(false)
+const attrFilterFilledOnly = ref(false)
 const availableAttrViews = ref([])
 const availableAttrGroups = ref([])
 const filterOptionsLoaded = ref(false)
@@ -812,6 +813,64 @@ const variantAttributeGroups = computed(() => {
   return Object.entries(groups).map(([name, attributes]) => ({ name, attributes }))
 })
 
+// ─── Attribut-Werte für Suche & "Nur gefüllt"-Filter ─────
+// Liefert {attr, value}-Paare für ein Attribut. Bei Composite-/Cluster-
+// Attributen werden rekursiv die Werte der Kind-Attribute berücksichtigt,
+// da der Wert eines Composites nicht am Composite selbst, sondern an
+// dessen Kindern hängt.
+function getAttributeValueEntries(attr) {
+  if (attr.data_type === 'Composite') {
+    if (attr.is_multipliable) {
+      const instances = multipliableCompositeValues.value[attr.id] || []
+      return instances.flatMap(inst =>
+        (attr._children || []).map(child => ({ attr: child, value: inst.children?.[child.id] })),
+      )
+    }
+    return (attr._children || []).flatMap(child => getAttributeValueEntries(child))
+  }
+  if (attr.is_multipliable) {
+    return (multipliableValues.value[attr.id] || []).map(v => ({ attr, value: v.value }))
+  }
+  if (attr.is_translatable) {
+    return localeStore.activeDataLocales.map(loc => ({ attr, value: translatedValues.value[`${attr.id}_${loc}`] }))
+  }
+  return [{ attr, value: attributeValues.value[attr.id] }]
+}
+
+function isValueFilled(v) {
+  if (v === null || v === undefined) return false
+  if (typeof v === 'string') return v.trim() !== ''
+  if (Array.isArray(v)) return v.length > 0
+  return true
+}
+
+function isAttributeFilled(attr) {
+  return getAttributeValueEntries(attr).some(e => isValueFilled(e.value))
+}
+
+function attributeValueToSearchText(attr, value) {
+  if (value === null || value === undefined || value === '') return ''
+  if (['Selection', 'MultiSelection'].includes(attr.data_type)) {
+    const options = getSelectionOptions(attr)
+    const ids = Array.isArray(value) ? value : [value]
+    return ids.map(id => options.find(o => o.value === id)?.label || String(id)).join(' ')
+  }
+  if (attr.data_type === 'Dictionary') {
+    const entry = dictionaryEntries.value.find(d => d.id === value)
+    return entry?.value_de || entry?.label_de || String(value)
+  }
+  if (typeof value === 'boolean') return value ? 'ja' : 'nein'
+  return String(value)
+}
+
+function getAttributeValueSearchText(attr) {
+  return getAttributeValueEntries(attr)
+    .map(e => attributeValueToSearchText(e.attr, e.value))
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+}
+
 // ─── Filtered Attributes (flat list for Attribute tab) ──
 const filteredAttributes = computed(() => {
   const allAttrs = schemaAttributes.value.filter(a => !a.is_variant_attribute)
@@ -853,19 +912,27 @@ const filteredAttributes = computed(() => {
     attrs = attrs.filter(a => a.attribute_type_id === attrFilterGroup.value || a.attribute_type?.id === attrFilterGroup.value)
   }
 
-  // Filter: Freitext-Suche
+  // Filter: Freitext-Suche (Name, Attribut-ID, Wert — inkl. Cluster-Attribute)
   if (attrFilterSearch.value.trim()) {
     const q = attrFilterSearch.value.toLowerCase()
     attrs = attrs.filter(a => {
       const name = (a.name_de || '').toLowerCase()
       const tech = (a.technical_name || '').toLowerCase()
-      return name.includes(q) || tech.includes(q)
+      const id = (a.id || '').toLowerCase()
+      if (name.includes(q) || tech.includes(q) || id.includes(q)) return true
+      return getAttributeValueSearchText(a).includes(q)
     })
   }
 
   // Filter: Nur Pflichtfelder
   if (attrFilterMandatory.value) {
     attrs = attrs.filter(a => a.is_mandatory)
+  }
+
+  // Filter: Nur gefüllte Attribute (Cluster-/Composite-Attribute gelten als
+  // gefüllt, sobald mindestens eines ihrer Kind-Attribute einen Wert hat)
+  if (attrFilterFilledOnly.value) {
+    attrs = attrs.filter(a => isAttributeFilled(a))
   }
 
   return attrs
@@ -3366,7 +3433,7 @@ onUnmounted(() => {
         <div class="flex flex-wrap items-center gap-3">
           <div class="relative flex-1 min-w-[200px] max-w-sm">
             <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--color-text-tertiary)] z-10 pointer-events-none" :stroke-width="1.75" />
-            <input v-model="attrFilterSearch" class="pim-input text-xs pim-input-icon w-full" placeholder="Attribut suchen (Name)…" />
+            <input v-model="attrFilterSearch" class="pim-input text-xs pim-input-icon w-full" placeholder="Attribut suchen (Name, ID oder Wert)…" />
           </div>
           <select v-model="attrFilterView" class="pim-select text-xs">
             <option :value="null">Alle Sichten</option>
@@ -3384,10 +3451,14 @@ onUnmounted(() => {
             <input type="checkbox" v-model="attrFilterMandatory" class="w-3.5 h-3.5 rounded border-[var(--color-border)] accent-[var(--color-error)]" />
             <span class="text-xs text-[var(--color-text-secondary)]">Nur Pflichtfelder</span>
           </label>
+          <label class="flex items-center gap-1.5 cursor-pointer select-none">
+            <input type="checkbox" v-model="attrFilterFilledOnly" class="w-3.5 h-3.5 rounded border-[var(--color-border)] accent-[var(--color-accent)]" />
+            <span class="text-xs text-[var(--color-text-secondary)]">Nur gefüllte Attribute</span>
+          </label>
         </div>
-        <div v-if="attrFilterSearch || attrFilterView || attrFilterGroup || attrFilterMandatory" class="flex items-center gap-2 mt-2">
+        <div v-if="attrFilterSearch || attrFilterView || attrFilterGroup || attrFilterMandatory || attrFilterFilledOnly" class="flex items-center gap-2 mt-2">
           <span class="text-[11px] text-[var(--color-text-tertiary)]">{{ filteredAttributes.length }} Attribute</span>
-          <button class="text-[11px] text-[var(--color-accent)] hover:underline" @click="attrFilterSearch = ''; attrFilterView = null; attrFilterGroup = null; attrFilterMandatory = false">
+          <button class="text-[11px] text-[var(--color-accent)] hover:underline" @click="attrFilterSearch = ''; attrFilterView = null; attrFilterGroup = null; attrFilterMandatory = false; attrFilterFilledOnly = false">
             Filter zurücksetzen
           </button>
         </div>
