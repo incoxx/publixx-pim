@@ -930,6 +930,7 @@ class BmecatFormatImporter
         $product = [
             'sku' => $sku,
             'details' => [],
+            'order_details' => [],
             'features' => [],
             'udx_fields' => [],
             'prices' => [],
@@ -951,19 +952,43 @@ class BmecatFormatImporter
             // Erste Sprache oder Default für den Produktnamen
             $descShort = reset($shortTexts) ?: '';
 
+            // SPECIAL_TREATMENT_CLASS trägt den Wert als Text und die Klasse im type-Attribut
+            // (z.B. <SPECIAL_TREATMENT_CLASS type="SIDAB">true</SPECIAL_TREATMENT_CLASS>)
+            $specialTreatmentClassEl = $this->child($details, 'SPECIAL_TREATMENT_CLASS', $ns);
+
             $product['details'] = [
                 'description_short' => $descShort,
                 'description_short_i18n' => $shortTexts,
                 'description_long' => reset($longTexts) ?: null,
                 'description_long_i18n' => $longTexts,
-                'ean' => $this->text($details, 'EAN', $ns),
+                // BMEcat 2005.1+ nutzt INTERNATIONAL_PID (type="gtin"/"ean") statt EAN
+                'ean' => $this->resolveInternationalPid($details, $ns) ?? $this->text($details, 'EAN', $ns),
                 'manufacturer_name' => $this->text($details, 'MANUFACTURER_NAME', $ns),
                 'manufacturer_pid' => $this->text($details, 'MANUFACTURER_PID', $ns)
                     ?? $this->text($details, 'MANUFACTURER_AID', $ns),
+                'manufacturer_type_descr' => $this->text($details, 'MANUFACTURER_TYPE_DESCR', $ns),
+                'buyer_pid' => $this->text($details, $elementMap['buyer_pid'], $ns)
+                    ?? $this->text($details, $altElementMap['buyer_pid'], $ns),
+                'special_treatment_class' => $specialTreatmentClassEl !== null ? trim((string) $specialTreatmentClassEl) : null,
+                'special_treatment_class_type' => $specialTreatmentClassEl !== null ? $this->attr($specialTreatmentClassEl, 'type') : null,
                 'delivery_time' => $this->text($details, 'DELIVERY_TIME', $ns),
                 'keywords' => $this->texts($details, 'KEYWORD', $ns),
                 'keywords_i18n' => $keywordTexts,
             ];
+        }
+
+        // Order Details — tolerant (z.B. ORDER_UNIT, CONTENT_UNIT, QUANTITY_MIN)
+        $orderDetailsEl = $this->child($el, $elementMap['product_order_details'], $ns)
+            ?? $this->child($el, $altElementMap['product_order_details'], $ns);
+        if ($orderDetailsEl !== null) {
+            $product['order_details'] = array_filter([
+                'order_unit' => $this->text($orderDetailsEl, $elementMap['order_unit'], $ns),
+                'content_unit' => $this->text($orderDetailsEl, $elementMap['content_unit'], $ns),
+                'no_cu_per_ou' => $this->text($orderDetailsEl, $elementMap['no_cu_per_ou'], $ns),
+                'price_quantity' => $this->text($orderDetailsEl, $elementMap['price_quantity'], $ns),
+                'quantity_min' => $this->text($orderDetailsEl, $elementMap['quantity_min'], $ns),
+                'quantity_interval' => $this->text($orderDetailsEl, $elementMap['quantity_interval'], $ns),
+            ], fn ($v) => $v !== null);
         }
 
         // Features (kann mehrere PRODUCT_FEATURES-Blöcke haben) — tolerant
@@ -1101,6 +1126,8 @@ class BmecatFormatImporter
                     $product['references'][] = [
                         'type' => $refType,
                         'target_id' => $targetId,
+                        // z.B. Stückzahl einer Komponente in einem Bundle/Set (consists_of)
+                        'quantity' => $this->attr($ref, 'quantity'),
                     ];
                 }
             }
@@ -1134,6 +1161,13 @@ class BmecatFormatImporter
         $udxBlock = $this->child($el, 'USER_DEFINED_EXTENSIONS', $ns);
         if ($udxBlock !== null) {
             $product['udx_fields'] = $this->parseUdxFields($udxBlock, $ns);
+
+            // UDX-MIME-Container (z.B. UDX.EDXF.MIME_INFO > UDX.EDXF.MIME) als echte
+            // Medien-Einträge extrahieren, statt sie generisch als Custom-Attribut zu importieren.
+            $udxMedia = $this->extractUdxMimeMedia($product['udx_fields']);
+            if (!empty($udxMedia)) {
+                $product['media'] = array_merge($product['media'], $udxMedia);
+            }
         }
 
         // Inline PRODUCT_TO_CATALOGGROUP_MAP — tolerant
@@ -1491,6 +1525,22 @@ class BmecatFormatImporter
                 }
             }
 
+            // --- Zusätzliche PRODUCT_DETAILS-Felder ---
+            $details = $product['details'] ?? [];
+            $this->addSingleValueAttribute($attributeMap, $productValues, $sku, 'buyer_pid', 'Käufer-Artikelnummer', 'Buyer PID', $details['buyer_pid'] ?? null);
+            $this->addSingleValueAttribute($attributeMap, $productValues, $sku, 'manufacturer_type_descr', 'Hersteller-Typenbezeichnung', 'Manufacturer Type Description', $details['manufacturer_type_descr'] ?? null);
+            $this->addSingleValueAttribute($attributeMap, $productValues, $sku, 'special_treatment_class', 'Besondere Behandlungsklasse', 'Special Treatment Class', $details['special_treatment_class'] ?? null, 'Flag');
+            $this->addSingleValueAttribute($attributeMap, $productValues, $sku, 'special_treatment_class_type', 'Behandlungsklasse-Typ', 'Special Treatment Class Type', $details['special_treatment_class_type'] ?? null);
+
+            // --- PRODUCT_ORDER_DETAILS ---
+            $orderDetails = $product['order_details'] ?? [];
+            $this->addSingleValueAttribute($attributeMap, $productValues, $sku, 'order_unit', 'Bestelleinheit', 'Order Unit', $orderDetails['order_unit'] ?? null);
+            $this->addSingleValueAttribute($attributeMap, $productValues, $sku, 'content_unit', 'Inhaltseinheit', 'Content Unit', $orderDetails['content_unit'] ?? null);
+            $this->addSingleValueAttribute($attributeMap, $productValues, $sku, 'no_cu_per_ou', 'Inhaltseinheiten je Bestelleinheit', 'Content Units per Order Unit', $orderDetails['no_cu_per_ou'] ?? null, 'Number');
+            $this->addSingleValueAttribute($attributeMap, $productValues, $sku, 'price_quantity', 'Preismenge', 'Price Quantity', $orderDetails['price_quantity'] ?? null, 'Number');
+            $this->addSingleValueAttribute($attributeMap, $productValues, $sku, 'quantity_min', 'Mindestbestellmenge', 'Minimum Order Quantity', $orderDetails['quantity_min'] ?? null, 'Number');
+            $this->addSingleValueAttribute($attributeMap, $productValues, $sku, 'quantity_interval', 'Bestellmengenintervall', 'Quantity Interval', $orderDetails['quantity_interval'] ?? null, 'Number');
+
             // --- UDX-Felder ---
             // Maximalen Index pro Attribut und pro Composite-Container tracken
             $udxMaxIndex = [];
@@ -1698,11 +1748,45 @@ class BmecatFormatImporter
                         'is_bidirectional' => in_array($refType, ['similar']),
                     ];
                 }
+                // Stückzahl der Komponente (z.B. PRODUCT_REFERENCE quantity="2" bei Bundles/Sets)
+                // als Attributwert auf der Beziehung selbst ablegen — kein Schema-Change nötig.
+                $relationAttributeValues = [];
+                if (!empty($ref['quantity']) && is_numeric($ref['quantity'])) {
+                    if (!isset($attributeMap['reference_quantity'])) {
+                        $attributeMap['reference_quantity'] = [
+                            'technical_name' => 'reference_quantity',
+                            'name_de' => 'Menge',
+                            'name_en' => 'Quantity',
+                            'description' => 'Menge der Komponente in einer Produktbeziehung (z.B. Bundle/Set)',
+                            'data_type' => 'Number',
+                            'attribute_group' => null,
+                            'value_list' => null,
+                            'unit_group' => null,
+                            'default_unit' => null,
+                            'is_multipliable' => false,
+                            'max_multiplied' => null,
+                            'is_translatable' => false,
+                            'is_mandatory' => false,
+                            'is_unique' => false,
+                            'is_searchable' => false,
+                            'is_inheritable' => false,
+                            'parent_attribute' => null,
+                            'source_system' => 'bmecat',
+                            'views' => null,
+                        ];
+                    }
+                    $relationAttributeValues[] = [
+                        'attribute' => 'reference_quantity',
+                        'value_number' => (float) $ref['quantity'],
+                    ];
+                }
+
                 $relations[] = [
                     'source_sku' => $sku,
                     'target_sku' => $ref['target_id'],
                     'relation_type' => $ref['type'],
                     'sort_order' => $sortOrderRelations++,
+                    'attribute_values' => $relationAttributeValues,
                 ];
             }
 
@@ -2390,6 +2474,59 @@ class BmecatFormatImporter
     }
 
     /**
+     * Registriert bei Bedarf ein einwertiges, einsprachiges Attribut und legt dessen
+     * Produktwert an. Nutzt für unbekannte Attribute dasselbe Feldschema wie die
+     * übrigen BMEcat-Attribute (source_system 'bmecat'). Ignoriert leere Werte.
+     */
+    private function addSingleValueAttribute(
+        array &$attributeMap,
+        array &$productValues,
+        string $sku,
+        string $techName,
+        string $nameDe,
+        string $nameEn,
+        ?string $value,
+        string $dataType = 'String',
+    ): void {
+        if ($value === null || $value === '') {
+            return;
+        }
+
+        if (!isset($attributeMap[$techName])) {
+            $attributeMap[$techName] = [
+                'technical_name' => $techName,
+                'name_de' => $nameDe,
+                'name_en' => $nameEn,
+                'description' => null,
+                'data_type' => $dataType,
+                'attribute_group' => null,
+                'value_list' => null,
+                'unit_group' => null,
+                'default_unit' => null,
+                'is_multipliable' => false,
+                'max_multiplied' => null,
+                'is_translatable' => false,
+                'is_mandatory' => false,
+                'is_unique' => false,
+                'is_searchable' => true,
+                'is_inheritable' => true,
+                'parent_attribute' => null,
+                'source_system' => 'bmecat',
+                'views' => null,
+            ];
+        }
+
+        $productValues[] = [
+            'sku' => $sku,
+            'attribute' => $techName,
+            'value' => $value,
+            'unit' => null,
+            'language' => null,
+            'index' => 0,
+        ];
+    }
+
+    /**
      * Mappt MIME_TYPE auf den PIM media_type.
      */
     private function mapMimeTypeToMediaType(?string $mimeType): string
@@ -2489,6 +2626,80 @@ class BmecatFormatImporter
             }
         }
         unset($m);
+
+        return $media;
+    }
+
+    /**
+     * Extrahiert UDX-MIME-Container (z.B. UDX.EDXF.MIME_INFO > UDX.EDXF.MIME) als
+     * echte Medien-Einträge, statt sie generisch als Custom-Attribut zu importieren.
+     *
+     * Erkannt werden Container mit MIME_CODE nach BME-Konvention:
+     * MD01 = Produktbild, MD02 = weitere Abbildung, MD03 = Dokument (z.B. Sicherheitsdatenblatt).
+     * Nicht erkannte Codes (z.B. MD04 = Deeplink) bleiben unangetastet und landen
+     * weiterhin als generisches UDX-Composite-Attribut — keine Datenverluste.
+     *
+     * @param array &$udxFields Wird um die konsumierten Felder bereinigt
+     * @return array Neue Medien-Einträge im Format von $product['media']
+     */
+    private function extractUdxMimeMedia(array &$udxFields): array
+    {
+        $groups = [];
+        foreach ($udxFields as $i => $field) {
+            $container = $field['parent_container'] ?? null;
+            if ($container === null || !preg_match('/\.MIME$/i', $container)) {
+                continue;
+            }
+            $groupKey = $container . '|' . $field['index'];
+            $groups[$groupKey]['fields'][strtoupper($field['fieldname'])] = $field['value'];
+            $groups[$groupKey]['indices'][] = $i;
+        }
+
+        $media = [];
+        $consumedIndices = [];
+
+        foreach ($groups as $group) {
+            $fields = $group['fields'];
+            $code = $fields['MIME_CODE'] ?? null;
+            if ($code === null) {
+                continue;
+            }
+
+            $purpose = match (strtoupper($code)) {
+                'MD01' => 'thumbnail',
+                'MD02' => 'normal',
+                'MD03' => 'data_sheet',
+                default => null,
+            };
+            if ($purpose === null) {
+                continue; // z.B. MD04 (Deeplink) — bleibt generisches UDX-Attribut
+            }
+
+            $source = $fields['MIME_FILENAME'] ?? $fields['MIME_SOURCE'] ?? null;
+            if (empty($source)) {
+                continue;
+            }
+
+            $media[] = [
+                'mime_type' => strtoupper($code) === 'MD03' ? 'application/pdf' : null,
+                'source' => $source,
+                'description' => $fields['MIME_DESIGNATION'] ?? null,
+                'alt' => null,
+                'purpose' => $purpose,
+                'order' => (int) ($fields['MIME_ORDER'] ?? 0),
+            ];
+
+            array_push($consumedIndices, ...$group['indices']);
+        }
+
+        if (!empty($consumedIndices)) {
+            $consumedIndices = array_flip($consumedIndices);
+            $udxFields = array_values(array_filter(
+                $udxFields,
+                fn ($i) => !isset($consumedIndices[$i]),
+                ARRAY_FILTER_USE_KEY
+            ));
+        }
 
         return $media;
     }
@@ -2609,9 +2820,29 @@ class BmecatFormatImporter
             // → MIME_SOURCE bekommt idx 0 bzw. 1 vom MIME-Container
             $effectiveIndex = $index;
 
-            // Rekursiv: Kinder verarbeiten — dieser Container wird zum parentContainer
+            // Kommt ein Blatt-Elementname mehrfach INNERHALB EINES Container-Vorkommens vor
+            // (z.B. HAZARD_STATEMENT × 2 in einem einzigen SPECIAL_TREATMENT_CLASS_DETAILS),
+            // bekäme es sonst denselben ererbten Index und würde sich selbst überschreiben.
+            // Solche Geschwister erhalten stattdessen einen eigenen lokalen Index und werden
+            // NICHT als Composite-Kind markiert (parentContainer = null), da sie kein
+            // wiederholtes Container-Vorkommen sind, sondern ein eigenständiges Listenfeld.
+            $childNameCounts = [];
+            foreach ($child->children() as $sub) {
+                $childNameCounts[$sub->getName()] = ($childNameCounts[$sub->getName()] ?? 0) + 1;
+            }
+
+            $localSeen = [];
             foreach ($child->children() as $subChild) {
-                $this->parseUdxElement($subChild, $fields, $seenKeys, $effectiveIndex, $elementName);
+                $subName = $subChild->getName();
+                $isRepeatedLeaf = ($childNameCounts[$subName] ?? 0) > 1 && $subChild->children()->count() === 0;
+
+                if ($isRepeatedLeaf) {
+                    $localIndex = $localSeen[$subName] ?? 0;
+                    $localSeen[$subName] = $localIndex + 1;
+                    $this->parseUdxElement($subChild, $fields, $seenKeys, $localIndex, null);
+                } else {
+                    $this->parseUdxElement($subChild, $fields, $seenKeys, $effectiveIndex, $elementName);
+                }
             }
         } else {
             // Flaches Element (einfacher Textwert)
@@ -2707,6 +2938,35 @@ class BmecatFormatImporter
         $value = trim((string) $child);
 
         return $value !== '' ? $value : null;
+    }
+
+    /**
+     * Löst die GTIN/EAN aus INTERNATIONAL_PID auf (BMEcat 2005.1+ löst damit das
+     * einfache EAN-Element ab). Es können mehrere INTERNATIONAL_PID-Elemente mit
+     * unterschiedlichem type-Attribut vorkommen — bevorzugt wird "gtin", dann "ean",
+     * sonst der erste vorhandene Eintrag.
+     */
+    private function resolveInternationalPid(\SimpleXMLElement $details, ?string $ns): ?string
+    {
+        $pids = $ns ? $details->children($ns)->INTERNATIONAL_PID : $details->INTERNATIONAL_PID;
+        if ($pids === null || count($pids) === 0) {
+            return null;
+        }
+
+        $fallback = null;
+        foreach ($pids as $pid) {
+            $type = strtolower($this->attr($pid, 'type') ?? '');
+            $value = trim((string) $pid);
+            if ($value === '') {
+                continue;
+            }
+            if ($type === 'gtin' || $type === 'ean') {
+                return $value;
+            }
+            $fallback ??= $value;
+        }
+
+        return $fallback;
     }
 
     /**

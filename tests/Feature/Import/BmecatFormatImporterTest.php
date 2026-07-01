@@ -8,11 +8,14 @@ use App\Models\Attribute;
 use App\Models\AttributeType;
 use App\Models\Hierarchy;
 use App\Models\HierarchyNode;
+use App\Models\Media;
 use App\Models\PriceType;
 use App\Models\Product;
 use App\Models\ProductAttributeValue;
+use App\Models\ProductMediaAssignment;
 use App\Models\ProductPrice;
 use App\Models\ProductRelation;
+use App\Models\ProductRelationAttributeValue;
 use App\Models\ProductRelationType;
 use App\Models\ProductType;
 use App\Services\Import\BmecatElementMap;
@@ -20,6 +23,7 @@ use App\Services\Import\BmecatFormatImporter;
 use App\Services\Import\ImportExecutor;
 use App\Services\Import\ReferenceResolver;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class BmecatFormatImporterTest extends TestCase
@@ -1057,5 +1061,208 @@ class BmecatFormatImporterTest extends TestCase
 
         // Categories with $ prefix in GROUP_ID should be imported by GROUP_NAME
         $this->assertDatabaseHas('hierarchy_nodes', ['name_de' => 'Trennschleifen']);
+    }
+
+    // =========================================================================
+    // Vaillant-Format: INTERNATIONAL_PID (GTIN), PRODUCT_ORDER_DETAILS,
+    // PRODUCT_REFERENCE quantity, UDX.EDXF (MIME, REACH, GHS)
+    // =========================================================================
+
+    public function test_gtin_imported_from_international_pid(): void
+    {
+        Queue::fake();
+        $xml = file_get_contents(__DIR__ . '/../../fixtures/bmecat_2005_vaillant_udx_edxf_sample.xml');
+        $this->importer->importFromString($xml);
+
+        $product = Product::where('sku', '8000017323')->first();
+        $this->assertNotNull($product);
+        $this->assertEquals('4024074956656', $product->ean);
+    }
+
+    public function test_product_details_extra_fields_imported(): void
+    {
+        Queue::fake();
+        $xml = file_get_contents(__DIR__ . '/../../fixtures/bmecat_2005_vaillant_udx_edxf_sample.xml');
+        $this->importer->importFromString($xml);
+
+        $product = Product::where('sku', '8000017323')->first();
+        $this->assertNotNull($product);
+
+        $buyerPid = Attribute::where('technical_name', 'buyer_pid')->first();
+        $this->assertNotNull($buyerPid);
+        $this->assertDatabaseHas('product_attribute_values', [
+            'product_id' => $product->id,
+            'attribute_id' => $buyerPid->id,
+            'value_string' => '8000017323',
+        ]);
+
+        $typeDescr = Attribute::where('technical_name', 'manufacturer_type_descr')->first();
+        $this->assertNotNull($typeDescr);
+
+        $stc = Attribute::where('technical_name', 'special_treatment_class')->first();
+        $this->assertNotNull($stc);
+        $this->assertEquals('Flag', $stc->data_type);
+
+        $stcType = Attribute::where('technical_name', 'special_treatment_class_type')->first();
+        $this->assertNotNull($stcType);
+        $this->assertDatabaseHas('product_attribute_values', [
+            'product_id' => $product->id,
+            'attribute_id' => $stcType->id,
+            'value_string' => 'SIDAB',
+        ]);
+    }
+
+    public function test_product_order_details_imported(): void
+    {
+        Queue::fake();
+        $xml = file_get_contents(__DIR__ . '/../../fixtures/bmecat_2005_vaillant_udx_edxf_sample.xml');
+        $this->importer->importFromString($xml);
+
+        $product = Product::where('sku', '8000017323')->first();
+        $this->assertNotNull($product);
+
+        $orderUnit = Attribute::where('technical_name', 'order_unit')->first();
+        $this->assertNotNull($orderUnit);
+        $this->assertDatabaseHas('product_attribute_values', [
+            'product_id' => $product->id,
+            'attribute_id' => $orderUnit->id,
+            'value_string' => 'C62',
+        ]);
+
+        $quantityMin = Attribute::where('technical_name', 'quantity_min')->first();
+        $this->assertNotNull($quantityMin);
+        $this->assertEquals('Number', $quantityMin->data_type);
+    }
+
+    public function test_product_reference_quantity_stored_on_relation(): void
+    {
+        Queue::fake();
+        $xml = file_get_contents(__DIR__ . '/../../fixtures/bmecat_2005_vaillant_udx_edxf_sample.xml');
+        $this->importer->importFromString($xml);
+
+        $bundle = Product::where('sku', '8000017323')->first();
+        $pump = Product::where('sku', '0010030751')->first();
+        $this->assertNotNull($bundle);
+        $this->assertNotNull($pump);
+
+        $consistsOf = ProductRelationType::where('technical_name', 'consists_of')->first();
+        $this->assertNotNull($consistsOf);
+
+        $relation = ProductRelation::where('source_product_id', $bundle->id)
+            ->where('target_product_id', $pump->id)
+            ->where('relation_type_id', $consistsOf->id)
+            ->first();
+        $this->assertNotNull($relation);
+
+        $quantityAttr = Attribute::where('technical_name', 'reference_quantity')->first();
+        $this->assertNotNull($quantityAttr);
+
+        $quantityValue = ProductRelationAttributeValue::where('product_relation_id', $relation->id)
+            ->where('attribute_id', $quantityAttr->id)
+            ->first();
+        $this->assertNotNull($quantityValue);
+        $this->assertEquals(3.0, (float) $quantityValue->value_number);
+    }
+
+    public function test_udx_edxf_mime_imported_as_structured_media(): void
+    {
+        Queue::fake();
+        $xml = file_get_contents(__DIR__ . '/../../fixtures/bmecat_2005_vaillant_udx_edxf_sample.xml');
+        $this->importer->importFromString($xml);
+
+        $product = Product::where('sku', '8000017323')->first();
+        $this->assertNotNull($product);
+
+        // MD01 → Hauptbild (teaser)
+        $productImage = Media::where('file_name', 'VAB_Paket_Druck.jpg')->first();
+        $this->assertNotNull($productImage);
+        $this->assertEquals('image', $productImage->media_type);
+        $assignment = ProductMediaAssignment::where('product_id', $product->id)
+            ->where('media_id', $productImage->id)
+            ->first();
+        $this->assertNotNull($assignment);
+
+        // MD03 → Dokument (Sicherheitsdatenblatt)
+        $sds = Media::where('file_name', 'VAGG_SDB_0020147182_DE.pdf')->first();
+        $this->assertNotNull($sds);
+        $this->assertEquals('document', $sds->media_type);
+
+        // MD04 (Deeplink) ist kein Medium, sondern bleibt generisches UDX-Attribut
+        $this->assertNull(Media::where('file_name', 'http://vai.vg/flexotherm-flexocompact')->first());
+        $mimeCodeAttr = Attribute::where('technical_name', 'udx_edxf_mime_code')->first();
+        $this->assertNotNull($mimeCodeAttr);
+        $this->assertDatabaseHas('product_attribute_values', [
+            'product_id' => $product->id,
+            'attribute_id' => $mimeCodeAttr->id,
+            'value_string' => 'MD04',
+        ]);
+    }
+
+    public function test_udx_edxf_generic_fields_imported_as_attributes(): void
+    {
+        Queue::fake();
+        $xml = file_get_contents(__DIR__ . '/../../fixtures/bmecat_2005_vaillant_udx_edxf_sample.xml');
+        $this->importer->importFromString($xml);
+
+        $product = Product::where('sku', '8000017323')->first();
+        $this->assertNotNull($product);
+
+        // PREDECESSOR_PID/DISCOUNT_GROUP sind rein numerische Strings ("0010030788", "0511")
+        // und werden daher (wie jedes andere rein numerische UDX-Feld) als Number-Attribut
+        // erkannt und in value_number statt value_string abgelegt.
+        $predecessor = Attribute::where('technical_name', 'udx_edxf_predecessor_pid')->first();
+        $this->assertNotNull($predecessor);
+        $predecessorValue = ProductAttributeValue::where('product_id', $product->id)
+            ->where('attribute_id', $predecessor->id)
+            ->first();
+        $this->assertNotNull($predecessorValue);
+        $this->assertEquals(10030788.0, (float) $predecessorValue->value_number);
+
+        $discountGroup = Attribute::where('technical_name', 'udx_edxf_discount_group')->first();
+        $this->assertNotNull($discountGroup);
+        $discountGroupValue = ProductAttributeValue::where('product_id', $product->id)
+            ->where('attribute_id', $discountGroup->id)
+            ->first();
+        $this->assertNotNull($discountGroupValue);
+        $this->assertEquals(511.0, (float) $discountGroupValue->value_number);
+
+        $battery = Attribute::where('technical_name', 'udx_edxf_battery_contained')->first();
+        $this->assertNotNull($battery);
+        $this->assertEquals('Flag', $battery->data_type);
+
+        $reachInfo = Attribute::where('technical_name', 'udx_edxf_reach_info')->first();
+        $this->assertNotNull($reachInfo);
+    }
+
+    public function test_udx_edxf_repeated_hazard_statements_not_lost(): void
+    {
+        Queue::fake();
+        $xml = file_get_contents(__DIR__ . '/../../fixtures/bmecat_2005_vaillant_udx_edxf_sample.xml');
+        $this->importer->importFromString($xml);
+
+        $product = Product::where('sku', '8000017323')->first();
+        $this->assertNotNull($product);
+
+        $hazardAttr = Attribute::where('technical_name', 'udx_edxf_hazard_statement')->first();
+        $this->assertNotNull($hazardAttr);
+        $this->assertTrue((bool) $hazardAttr->is_multipliable, 'HAZARD_STATEMENT sollte vermehrbar sein');
+
+        $values = ProductAttributeValue::where('product_id', $product->id)
+            ->where('attribute_id', $hazardAttr->id)
+            ->orderBy('multiplied_index')
+            ->pluck('value_string')
+            ->toArray();
+
+        // Beide Werte müssen erhalten bleiben (vorher: zweiter Wert überschrieb den ersten)
+        $this->assertEquals(['H373', 'H302'], $values);
+
+        $precautionaryAttr = Attribute::where('technical_name', 'udx_edxf_precautionary_statement')->first();
+        $this->assertNotNull($precautionaryAttr);
+        $precautionaryValues = ProductAttributeValue::where('product_id', $product->id)
+            ->where('attribute_id', $precautionaryAttr->id)
+            ->orderBy('multiplied_index')
+            ->pluck('value_string')
+            ->toArray();
+        $this->assertEquals(['P260', 'P264', 'P270'], $precautionaryValues);
     }
 }
