@@ -88,7 +88,17 @@ class ProductController extends Controller
 
         $this->applyFilters($query, $filters);
         $this->applySearch($query, $request, ['products.name', 'products.sku', 'products.ean']);
-        $this->applySorting($query, $request, 'created_at', 'desc');
+
+        // Sorting durch Relationsspalten (z.B. Hierarchie-Knoten) erfordert einen Join,
+        // da applySorting() nur direkte Spalten der products-Tabelle sortieren kann.
+        if ($request->query('sort') === 'master_hierarchy_node.name_de') {
+            $order = strtolower($request->query('order', 'asc')) === 'desc' ? 'desc' : 'asc';
+            $query->leftJoin('hierarchy_nodes', 'products.master_hierarchy_node_id', '=', 'hierarchy_nodes.id')
+                ->orderBy('hierarchy_nodes.name_de', $order)
+                ->addSelect('products.*');
+        } else {
+            $this->applySorting($query, $request, 'created_at', 'desc');
+        }
 
         $paginated = $query->paginate($this->getPerPage($request));
 

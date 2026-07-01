@@ -360,6 +360,7 @@ onMounted(async () => {
           @toggle="toggleColumn"
           @move="moveColumn"
           @reset="resetColumns"
+          @reorder="visibleKeys = $event"
         />
         <ProfileSelector
           v-if="items.length > 0"

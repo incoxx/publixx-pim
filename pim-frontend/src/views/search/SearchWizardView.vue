@@ -241,7 +241,7 @@ async function exportSearchExcel() {
       columns: exportColumns,
       search: searchInput.value.trim() || undefined,
       search_mode: searchMode.value,
-      language: 'de',
+      language: localeStore.currentLocale,
     }
     if (selectedCategories.value.length > 0) {
       params.category_ids = selectedCategories.value
@@ -833,6 +833,7 @@ function buildSearchParams() {
   const params = {
     search: searchInput.value.trim() || undefined,
     search_mode: searchMode.value,
+    language: localeStore.currentLocale,
   }
   if (selectedCategories.value.length > 0) {
     params.category_ids = selectedCategories.value
@@ -1133,6 +1134,7 @@ const apiCallDisplay = computed(() => {
         @toggle="searchToggleColumn"
         @move="searchMoveColumn"
         @reset="searchResetColumns"
+        @reorder="searchVisibleKeys = $event"
       />
       <label
         v-if="searchCategory === 'products'"

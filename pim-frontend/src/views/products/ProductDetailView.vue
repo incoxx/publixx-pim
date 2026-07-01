@@ -4143,6 +4143,7 @@ onUnmounted(() => {
           @toggle="toggleMediaColumn"
           @move="moveMediaColumn"
           @reset="resetMediaColumns"
+          @reorder="visibleMediaKeys = $event"
         />
         <!-- View toggle -->
         <div class="flex items-center border border-[var(--color-border)] rounded-md overflow-hidden">
