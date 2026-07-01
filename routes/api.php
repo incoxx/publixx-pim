@@ -836,6 +836,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
             ->parameters(['section-types' => 'section_type']);
 
         // Seiten
+        Route::get('content-pages-search', [ContentPageController::class, 'search']);
         Route::apiResource('content-pages', ContentPageController::class)
             ->parameters(['content-pages' => 'content_page']);
         Route::post('content-pages/{content_page}/duplicate', [ContentPageController::class, 'duplicate']);

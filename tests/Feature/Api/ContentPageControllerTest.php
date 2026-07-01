@@ -97,6 +97,48 @@ class ContentPageControllerTest extends TestCase
         $this->assertDatabaseHas('content_sections', ['content_page_id' => $page->id]);
     }
 
+    public function test_search_findet_treffer_im_titel(): void
+    {
+        $type = $this->contentType();
+        ContentPage::create(['content_type_id' => $type->id, 'slug' => 'impressum', 'title' => 'Impressum']);
+        ContentPage::create(['content_type_id' => $type->id, 'slug' => 'kontakt', 'title' => 'Kontakt']);
+
+        $response = $this->getJson('/api/v1/content-pages-search?search=Impressum');
+
+        $response->assertOk()->assertJsonCount(1, 'data');
+        $this->assertSame('title', $response->json('data.0.match_in'));
+    }
+
+    public function test_search_findet_treffer_im_sektionsinhalt_mit_snippet(): void
+    {
+        $type = $this->contentType();
+        $st = $this->sectionType();
+        $page = ContentPage::create(['content_type_id' => $type->id, 'slug' => 'ueber-uns', 'title' => 'Über uns']);
+        $page->sections()->create([
+            'section_type_id' => $st->id,
+            'sort_order' => 0,
+            'values_json' => ['de' => ['text' => 'Wir bieten nachhaltige Lösungen für die Industrie.']],
+        ]);
+
+        $response = $this->getJson('/api/v1/content-pages-search?search=nachhaltige');
+
+        $response->assertOk()->assertJsonCount(1, 'data');
+        $response->assertJsonPath('data.0.id', $page->id);
+        $response->assertJsonPath('data.0.match_in', 'section');
+        $this->assertStringContainsString('nachhaltige', $response->json('data.0.snippet'));
+    }
+
+    public function test_search_ohne_suchbegriff_listet_alle_seiten(): void
+    {
+        $type = $this->contentType();
+        ContentPage::create(['content_type_id' => $type->id, 'slug' => 'a', 'title' => 'A']);
+        ContentPage::create(['content_type_id' => $type->id, 'slug' => 'b', 'title' => 'B']);
+
+        $this->getJson('/api/v1/content-pages-search')
+            ->assertOk()
+            ->assertJsonCount(2, 'data');
+    }
+
     public function test_gueltigkeitszeitraum_scope_filtert(): void
     {
         $type = $this->contentType();

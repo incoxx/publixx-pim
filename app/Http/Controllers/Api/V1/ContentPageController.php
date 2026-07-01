@@ -9,6 +9,7 @@ use App\Http\Requests\Api\V1\UpdateContentPageRequest;
 use App\Http\Resources\Api\V1\ContentPageResource;
 use App\Http\Traits\Filterable;
 use App\Models\ContentPage;
+use App\Models\ContentSection;
 use App\Services\Content\ContentDuplicator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -45,6 +46,122 @@ class ContentPageController extends Controller
         return ContentPageResource::collection(
             $query->paginate($this->getPerPage($request))
         );
+    }
+
+    /**
+     * GET /content-pages-search — Profisuche: durchsucht Titel/Slug sowie den
+     * Sektionsinhalt (values_json) aller Seiten und liefert je Treffer einen
+     * Textausschnitt mit Fundstelle (analog HierarchyNodeController::searchAll).
+     */
+    public function search(Request $request): JsonResponse
+    {
+        $this->authorize('viewAny', ContentPage::class);
+
+        $search = trim((string) $request->query('search', ''));
+        $like = '%' . $search . '%';
+
+        $query = ContentPage::query()->with('contentType');
+
+        if ($search !== '') {
+            $query->where(function ($q) use ($like) {
+                $q->where('title', 'like', $like)
+                    ->orWhere('slug', 'like', $like)
+                    ->orWhereHas('sections', function ($sq) use ($like) {
+                        $sq->whereRaw('JSON_SEARCH(values_json, "one", ?) IS NOT NULL', [$like]);
+                    });
+            });
+        }
+
+        $this->applySorting($query, $request, 'updated_at', 'desc');
+
+        $pages = $query->paginate($this->getPerPage($request));
+
+        // Treffer-Sektionen für die aktuelle Ergebnisseite in einem Rutsch nachladen (kein N+1).
+        $sectionsByPage = $search === '' ? collect() : ContentSection::query()
+            ->whereIn('content_page_id', $pages->getCollection()->pluck('id'))
+            ->whereRaw('JSON_SEARCH(values_json, "one", ?) IS NOT NULL', [$like])
+            ->with('sectionType')
+            ->orderBy('sort_order')
+            ->get()
+            ->groupBy('content_page_id');
+
+        $data = $pages->getCollection()->map(function (ContentPage $page) use ($sectionsByPage, $search) {
+            $snippet = null;
+            foreach ($sectionsByPage->get($page->id, collect()) as $section) {
+                $snippet = $this->extractSectionSnippet($section, $search);
+                if ($snippet !== null) {
+                    break;
+                }
+            }
+
+            $titleMatch = $search !== '' && (stripos($page->title, $search) !== false || stripos($page->slug, $search) !== false);
+
+            return [
+                'id' => $page->id,
+                'title' => $page->title,
+                'slug' => $page->slug,
+                'status' => $page->status,
+                'content_type' => $page->contentType?->name_de,
+                'updated_at' => $page->updated_at,
+                'match_in' => $snippet !== null ? 'section' : ($titleMatch ? 'title' : null),
+                'matched_section_type' => $snippet['section_type'] ?? null,
+                'snippet' => $snippet['snippet'] ?? null,
+            ];
+        });
+
+        return response()->json([
+            'data' => $data->values(),
+            'meta' => [
+                'total' => $pages->total(),
+                'current_page' => $pages->currentPage(),
+                'last_page' => $pages->lastPage(),
+            ],
+        ]);
+    }
+
+    /**
+     * Sucht rekursiv im values_json einer Sektion nach dem Suchbegriff und
+     * liefert einen Textausschnitt mit Kontext um die Fundstelle.
+     */
+    private function extractSectionSnippet(ContentSection $section, string $search): ?array
+    {
+        $match = $this->findMatchingText($section->values_json ?? [], $search);
+
+        if ($match === null) {
+            return null;
+        }
+
+        $pos = mb_stripos($match, $search);
+        $start = max(0, $pos - 60);
+        $excerpt = mb_substr($match, $start, mb_strlen($search) + 120);
+        $excerpt = ($start > 0 ? '…' : '') . $excerpt . (($start + mb_strlen($excerpt)) < mb_strlen($match) ? '…' : '');
+
+        return [
+            'section_type' => $section->sectionType?->name_de ?? $section->sectionType?->technical_name,
+            'snippet' => $excerpt,
+        ];
+    }
+
+    private function findMatchingText(mixed $value, string $search): ?string
+    {
+        if (is_array($value)) {
+            foreach ($value as $item) {
+                $found = $this->findMatchingText($item, $search);
+                if ($found !== null) {
+                    return $found;
+                }
+            }
+
+            return null;
+        }
+
+        if (!is_string($value) || $value === '') {
+            return null;
+        }
+
+        $plain = trim(strip_tags($value));
+
+        return $plain !== '' && str_contains(mb_strtolower($plain), mb_strtolower($search)) ? $plain : null;
     }
 
     public function store(StoreContentPageRequest $request): JsonResponse

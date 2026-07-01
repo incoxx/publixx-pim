@@ -10,6 +10,10 @@ export default {
     return client.get(`/content-pages/${id}`, { params: buildParams(options) })
   },
 
+  search(options = {}) {
+    return client.get('/content-pages-search', { params: buildParams(options) })
+  },
+
   create(data) {
     return client.post('/content-pages', data)
   },
