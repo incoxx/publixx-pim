@@ -29,6 +29,7 @@ onMounted(() => {
   if (!store.allItems.length) store.fetchAllAttributes()
   if (!store.types.length) store.fetchTypes()
   if (!store.lists.length) store.fetchValueLists()
+  if (!store.formattingRulesList.length) store.fetchFormattingRules()
   if (!store.unitGroupsList.length) store.fetchUnitGroups()
   if (!store.compOpGroupsList.length) store.fetchComparisonOperatorGroups()
 })
@@ -72,6 +73,7 @@ const formData = ref(
         data_type: '',
         attribute_type_id: '',
         value_list_id: '',
+        formatting_rule_id: '',
         unit_group_id: '',
         default_unit_id: '',
         comparison_operator_group_id: '',
@@ -125,6 +127,17 @@ watch(() => formData.value.data_type, (newType) => {
   }
 })
 
+// Formatierungsregel zurücksetzen, wenn sie zum neuen Datentyp nicht mehr passt
+watch(() => formData.value.data_type, (newType) => {
+  const selectedRule = store.formattingRulesList.find(r => r.id === formData.value.formatting_rule_id)
+  if (!selectedRule) return
+  const isNumberRule = selectedRule.rule_type === 'number_format'
+  const isValid = isNumberRule ? ['Number', 'Float'].includes(newType) : newType === 'String'
+  if (!isValid) {
+    formData.value.formatting_rule_id = ''
+  }
+})
+
 const fields = computed(() => {
   const base = [
     { key: 'technical_name', label: 'Technischer Name', type: 'text', required: true, disabled: isEdit.value },
@@ -164,6 +177,15 @@ const fields = computed(() => {
     base.push({
       key: 'value_list_id', label: 'Werteliste', type: 'select',
       options: store.valueListOptions, required: true,
+    })
+  }
+
+  if (['String', 'Number', 'Float'].includes(formData.value.data_type)) {
+    const isNumberType = ['Number', 'Float'].includes(formData.value.data_type)
+    base.push({
+      key: 'formatting_rule_id', label: 'Formatierungsregel', type: 'select',
+      options: store.formattingRuleOptions.filter(r => (r.rule_type === 'number_format') === isNumberType),
+      hint: 'Wird bei Export und Vorschau auf den Wert angewendet (Rohwert bleibt unverändert)',
     })
   }
 
@@ -323,6 +345,7 @@ async function doSave(data) {
     // Convert empty strings to null for nullable FK fields
     if (!attrData.unit_group_id) attrData.unit_group_id = null
     if (!attrData.default_unit_id) attrData.default_unit_id = null
+    if (!attrData.formatting_rule_id) attrData.formatting_rule_id = null
     let savedId
 
     if (isEdit.value) {

@@ -26,6 +26,7 @@ class Attribute extends Model
         'data_type',
         'attribute_type_id',
         'value_list_id',
+        'formatting_rule_id',
         'unit_group_id',
         'default_unit_id',
         'comparison_operator_group_id',
@@ -98,6 +99,11 @@ class Attribute extends Model
     public function valueList(): BelongsTo
     {
         return $this->belongsTo(ValueList::class);
+    }
+
+    public function formattingRule(): BelongsTo
+    {
+        return $this->belongsTo(AttributeFormattingRule::class, 'formatting_rule_id');
     }
 
     public function unitGroup(): BelongsTo

@@ -21,6 +21,7 @@ import {
   Bot,
   Clapperboard,
   Gauge,
+  Wand2,
 } from 'lucide-vue-next'
 import AnyPimLogo from '@/components/shared/AnyPimLogo.vue'
 import { useAppearanceStore, SECTION_ICON_COLORS } from '@/stores/appearance'
@@ -201,6 +202,7 @@ const sections = computed(() => {
             { icon: FolderTree, label: () => t('nav.attributeTypes'), to: '/attribute-types', permission: 'attribute-types.view' },
             { icon: Sliders, label: () => t('nav.attributes'), to: '/attributes', permission: 'attributes.view' },
             { icon: Database, label: () => t('nav.valueLists'), to: '/value-lists', permission: 'value-lists.view' },
+            { icon: Wand2, label: () => t('nav.formattingRules'), to: '/formatting-rules', permission: 'attribute-formatting-rules.view' },
             { icon: BookOpen, label: () => t('nav.dictionary'), to: '/dictionary', permission: 'dictionary.view' },
           ],
         },

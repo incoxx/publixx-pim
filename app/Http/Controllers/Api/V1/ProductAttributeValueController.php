@@ -15,6 +15,7 @@ use App\Models\ProductAttributeValue;
 use App\Models\UnitGroup;
 use App\Models\AttributeMapping;
 use App\Services\Export\AttributeMappingSyncService;
+use App\Services\Formatting\AttributeFormattingService;
 use App\Services\Inheritance\AttributeValueResolver;
 use App\Services\Inheritance\HierarchyInheritanceService;
 use Illuminate\Http\JsonResponse;
@@ -37,7 +38,7 @@ class ProductAttributeValueController extends Controller
         $viewFilter = $request->query('view');
 
         $query = $product->attributeValues()
-            ->with(['attribute', 'attribute.unitGroup', 'unit', 'valueListEntry'])
+            ->with(['attribute', 'attribute.unitGroup', 'attribute.formattingRule', 'unit', 'valueListEntry'])
             ->whereNull('output_hierarchy_id')
             ->where(function ($q) use ($languages) {
                 $q->whereNull('language')
@@ -253,7 +254,17 @@ class ProductAttributeValueController extends Controller
             ? ComparisonOperatorGroup::with('operators')->whereIn('id', $compOpGroupIds)->get()->keyBy('id')
             : collect();
 
-        $result = $effectiveAttributes->map(function ($assignment) use ($existingValues, $multipliedValues, $unitGroups, $compOpGroups, $effectiveAttributes) {
+        // Formatierungsregeln für String-/Number-/Float-Attribute vorladen (Produkteditor-Vorschau)
+        $formattingAttrIds = $effectiveAttributes
+            ->filter(fn ($a) => in_array($a->data_type, ['String', 'Number', 'Float'], true))
+            ->pluck('attribute_id')
+            ->unique()
+            ->all();
+        $formattingAttributes = !empty($formattingAttrIds)
+            ? Attribute::whereIn('id', $formattingAttrIds)->whereNotNull('formatting_rule_id')->with('formattingRule')->get()->keyBy('id')
+            : collect();
+
+        $result = $effectiveAttributes->map(function ($assignment) use ($existingValues, $multipliedValues, $unitGroups, $compOpGroups, $effectiveAttributes, $formattingAttributes) {
             $pav = $existingValues->get($assignment->attribute_id);
             $value = null;
             $source = 'none';
@@ -328,6 +339,17 @@ class ProductAttributeValueController extends Controller
                 'source' => $source,
                 'is_inherited' => $source !== 'own' && $source !== 'none',
             ];
+
+            // Formatierter Wert (read-only Vorschau im Produkteditor) — nur wenn er vom Rohwert abweicht
+            if ($value !== null) {
+                $formattingAttribute = $formattingAttributes->get($assignment->attribute_id);
+                if ($formattingAttribute?->formattingRule) {
+                    $formattedValue = AttributeFormattingService::apply($value, $formattingAttribute->formattingRule);
+                    if ($formattedValue !== (string) $value) {
+                        $result['formatted_value'] = $formattedValue;
+                    }
+                }
+            }
 
             // Include all multiplied values for multipliable attributes
             if ($assignment->is_multipliable ?? false) {

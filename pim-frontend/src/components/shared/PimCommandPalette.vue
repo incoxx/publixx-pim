@@ -12,7 +12,7 @@ import {
   FileJson, FileCode, PlayCircle, FileBarChart, FileText, BookOpen, Link2, Zap, Languages, LayoutTemplate,
   Factory, CalendarDays, ScrollText, Globe, ExternalLink,
   LayoutDashboard, ClipboardList, Code, ArrowRight, ArrowRightLeft,
-  FlaskConical, FileSpreadsheet, Send, Plug,
+  FlaskConical, FileSpreadsheet, Send, Plug, Wand2,
 } from 'lucide-vue-next'
 
 const router = useRouter()
@@ -328,6 +328,14 @@ const allItems = computed(() => {
       keywords: ['werteliste', 'value list', 'auswahl', 'dropdown', 'select', 'option', 'liste', 'list', 'enum'],
       section: 'config', action: () => router.push('/value-lists'),
       permission: 'value-lists.view',
+    },
+    {
+      id: 'cfg-formatting-rules', icon: Wand2,
+      label: t('nav.formattingRules'),
+      description: t('cmd.desc.formattingRules'),
+      keywords: ['formatierung', 'formatting', 'uppercase', 'regex', 'zahlenformat', 'number format', 'großbuchstaben'],
+      section: 'config', action: () => router.push('/formatting-rules'),
+      permission: 'attribute-formatting-rules.view',
     },
     {
       id: 'cfg-dictionary', icon: BookOpen,

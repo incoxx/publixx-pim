@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Resources\Api\V1;
 
+use App\Services\Formatting\AttributeFormattingService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -21,6 +22,17 @@ class ProductAttributeValueResource extends JsonResource
             'value_date' => $this->value_date,
             'value_flag' => $this->value_flag,
             'value_selection_id' => $this->value_selection_id,
+            'formatted_value' => $this->when(
+                $this->relationLoaded('attribute') && $this->attribute?->formattingRule,
+                function () {
+                    $raw = $this->value_string ?? $this->value_number;
+                    if ($raw === null) {
+                        return null;
+                    }
+                    $formatted = AttributeFormattingService::apply($raw, $this->attribute->formattingRule);
+                    return $formatted !== (string) $raw ? $formatted : null;
+                }
+            ),
             'value_list_entry' => new ValueListEntryResource($this->whenLoaded('valueListEntry')),
             'unit_id' => $this->unit_id,
             'unit' => new UnitResource($this->whenLoaded('unit')),

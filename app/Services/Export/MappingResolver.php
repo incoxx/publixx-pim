@@ -9,6 +9,7 @@ use App\Models\Product;
 use App\Models\ProductAttributeValue;
 use App\Models\PublixxExportMapping;
 use App\Services\CompositeFormatResolver;
+use App\Services\Formatting\AttributeFormattingService;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -92,6 +93,26 @@ class MappingResolver
             return null;
         }
 
+        $value = $this->resolveTextValue($attrValue, $language);
+
+        if ($value === null) {
+            return null;
+        }
+
+        $attribute = $this->lookupAttributeByTechName($this->extractSourceParam($source));
+
+        if ($attribute?->formattingRule) {
+            return AttributeFormattingService::apply($value, $attribute->formattingRule);
+        }
+
+        return $value;
+    }
+
+    /**
+     * Rohen String-/Zahlen-/Flag-/Datumswert aus einem ProductAttributeValue (oder resolved_value-Array) lesen.
+     */
+    protected function resolveTextValue(mixed $attrValue, string $language): ?string
+    {
         // Prefer resolved value from AttributeValueResolver if available
         if (isset($attrValue['resolved_value'])) {
             return (string) $attrValue['resolved_value'];
@@ -110,6 +131,20 @@ class MappingResolver
             ?? ($attrValue->value_number !== null ? (string) $attrValue->value_number : null)
             ?? ($attrValue->value_flag !== null ? ($attrValue->value_flag ? 'true' : 'false') : null)
             ?? ($attrValue->value_date !== null ? (string) $attrValue->value_date : null);
+    }
+
+    /** Memoized Lookup einer Attribute inkl. formattingRule nach technical_name, um N+1-Queries zu vermeiden. */
+    private array $attributeByTechNameCache = [];
+
+    protected function lookupAttributeByTechName(string $techName): ?Attribute
+    {
+        if (!array_key_exists($techName, $this->attributeByTechNameCache)) {
+            $this->attributeByTechNameCache[$techName] = Attribute::with('formattingRule')
+                ->where('technical_name', $techName)
+                ->first();
+        }
+
+        return $this->attributeByTechNameCache[$techName];
     }
 
     /**

@@ -6,6 +6,7 @@ namespace App\Providers;
 
 use App\Models\AccessLink;
 use App\Models\Attribute;
+use App\Models\AttributeFormattingRule;
 use App\Models\AttributeMapping;
 use App\Models\AttributeType;
 use App\Models\AttributeView;
@@ -38,6 +39,7 @@ use App\Models\Team;
 use App\Models\Workflow;
 use App\Models\WorkflowStatus;
 use App\Policies\AccessLinkPolicy;
+use App\Policies\AttributeFormattingRulePolicy;
 use App\Policies\AttributeMappingPolicy;
 use App\Policies\AttributePolicy;
 use App\Policies\AttributeTypePolicy;
@@ -128,6 +130,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(User::class, UserPolicy::class);
         Gate::policy(DictionaryEntry::class, DictionaryEntryPolicy::class);
         Gate::policy(ValueList::class, ValueListPolicy::class);
+        Gate::policy(AttributeFormattingRule::class, AttributeFormattingRulePolicy::class);
         Gate::policy(ValueListEntry::class, ValueListEntryPolicy::class);
         Gate::policy(SearchProfile::class, SearchProfilePolicy::class);
         Gate::policy(ColumnProfile::class, ColumnProfilePolicy::class);

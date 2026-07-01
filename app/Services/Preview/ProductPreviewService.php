@@ -9,6 +9,7 @@ use App\Models\HierarchyNode;
 use App\Models\Product;
 use App\Models\ProductAttributeValue;
 use App\Services\CompositeFormatResolver;
+use App\Services\Formatting\AttributeFormattingService;
 use App\Services\Inheritance\HierarchyInheritanceService;
 use Illuminate\Support\Collection;
 
@@ -597,10 +598,53 @@ class ProductPreviewService
             }
         }
 
+        $this->applyFormattingRules($sections);
+
         // Sort sections by section_sort
         usort($sections, fn ($a, $b) => $a['section_sort'] <=> $b['section_sort']);
 
         return $sections;
+    }
+
+    /**
+     * Berechnet 'formatted_value' für Attribute mit zugeordneter Formatierungsregel
+     * (Uppercase/Lowercase/Capitalize/Regex/Zahlenformat). Nur für String-/Number-/Float-Attribute relevant.
+     */
+    private function applyFormattingRules(array &$sections): void
+    {
+        $attributeIds = [];
+        foreach ($sections as $section) {
+            foreach ($section['attributes'] as $attr) {
+                if (in_array($attr['data_type'], ['String', 'Number', 'Float'], true) && $attr['value'] !== null) {
+                    $attributeIds[] = $attr['attribute_id'];
+                }
+            }
+        }
+
+        if (empty($attributeIds)) {
+            return;
+        }
+
+        $attributesById = Attribute::whereIn('id', array_unique($attributeIds))
+            ->whereNotNull('formatting_rule_id')
+            ->with('formattingRule')
+            ->get()
+            ->keyBy('id');
+
+        if ($attributesById->isEmpty()) {
+            return;
+        }
+
+        foreach ($sections as &$section) {
+            foreach ($section['attributes'] as &$attr) {
+                $attribute = $attributesById->get($attr['attribute_id']);
+                if ($attribute?->formattingRule && $attr['value'] !== null) {
+                    $attr['formatted_value'] = AttributeFormattingService::apply($attr['value'], $attribute->formattingRule);
+                }
+            }
+            unset($attr);
+        }
+        unset($section);
     }
 
     private function buildRelations(Product $product, string $lang): array

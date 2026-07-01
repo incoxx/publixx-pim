@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Api\V1;
 
+use App\Models\AttributeFormattingRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -32,6 +33,7 @@ class UpdateAttributeRequest extends FormRequest
             'textarea_cols' => 'nullable|integer|min:10|max:200',
             'attribute_type_id' => 'nullable|uuid|exists:attribute_types,id',
             'value_list_id' => 'nullable|uuid|exists:value_lists,id',
+            'formatting_rule_id' => 'nullable|uuid|exists:attribute_formatting_rules,id',
             'unit_group_id' => 'nullable|uuid|exists:unit_groups,id',
             'default_unit_id' => 'nullable|uuid|exists:units,id',
             'comparison_operator_group_id' => 'nullable|uuid|exists:comparison_operator_groups,id',
@@ -63,5 +65,34 @@ class UpdateAttributeRequest extends FormRequest
             'source_attribute_key' => 'nullable|string|max:255',
             'status' => 'in:active,inactive',
         ];
+    }
+
+    /**
+     * Formatierungsregeln für Case/Regex sind nur für String-Attribute sinnvoll,
+     * Zahlenformatierung nur für Number/Float.
+     */
+    public function withValidator($validator): void
+    {
+        $validator->after(function ($validator) {
+            if (!$this->has('formatting_rule_id') || empty($this->input('formatting_rule_id'))) {
+                return;
+            }
+
+            $rule = AttributeFormattingRule::find($this->input('formatting_rule_id'));
+            if (!$rule) {
+                return;
+            }
+
+            $attribute = $this->route('attribute');
+            $dataType = $this->input('data_type', $attribute?->data_type);
+            $isNumberRule = $rule->rule_type === 'number_format';
+            $isNumberAttribute = in_array($dataType, ['Number', 'Float'], true);
+
+            if ($isNumberRule && !$isNumberAttribute) {
+                $validator->errors()->add('formatting_rule_id', 'Zahlenformatierungs-Regeln können nur Number/Float-Attributen zugeordnet werden.');
+            } elseif (!$isNumberRule && $dataType !== 'String') {
+                $validator->errors()->add('formatting_rule_id', 'Diese Formatierungsregel kann nur String-Attributen zugeordnet werden.');
+            }
+        });
     }
 }

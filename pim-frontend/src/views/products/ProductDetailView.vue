@@ -23,7 +23,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useLocaleStore } from '@/stores/locale'
 import { useToastStore } from '@/stores/toast'
 import { useI18n } from 'vue-i18n'
-import { ArrowLeft, Save, Plus, Trash2, Image, Star, X, Search, Download, Languages, Copy, Sparkles, Tags, LayoutGrid, List, FileText, GitBranch, CheckCircle2, Eye, RotateCcw, ArrowRightLeft, RefreshCw, ChevronDown, ChevronRight, ChevronUp, ExternalLink, Filter, Upload, ClipboardList, Lightbulb, AlertTriangle, XCircle } from 'lucide-vue-next'
+import { ArrowLeft, Save, Plus, Trash2, Image, Star, X, Search, Download, Languages, Copy, Sparkles, Tags, LayoutGrid, List, FileText, GitBranch, CheckCircle2, Eye, RotateCcw, ArrowRightLeft, RefreshCw, ChevronDown, ChevronRight, ChevronUp, ExternalLink, Filter, Upload, ClipboardList, Lightbulb, AlertTriangle, XCircle, Wand2 } from 'lucide-vue-next'
 import productsApi from '@/api/products'
 import projectsApi from '@/api/projects'
 import usersApi from '@/api/users'
@@ -477,6 +477,7 @@ const translatedValues = ref({})      // translatable: { `${attrId}_${lang}`: va
 const multipliableValues = ref({})    // multipliable: { attrId: [{ value, multiplied_index }, ...] }
 const multipliableCompositeValues = ref({})  // multipliable composites: { attrId: [{ multiplied_index, children: { childId: value } }] }
 const unitValues = ref({})            // unit per attribute: { attrId: unitId }
+const formattedValues = ref({})       // read-only Formatierungsregel-Vorschau (Fallback-Pfad ohne Hierarchie): { attrId: formattedValue }
 const comparisonOperatorValues = ref({})  // comparison operator per attribute: { attrId: operatorId }
 const attrLoaded = ref(false)
 const valueListMap = ref({})
@@ -577,6 +578,7 @@ async function loadAttributeData(overrideNodeId = null, generation = null) {
         composite_format: ra.composite_format || null,
         unit_group: ra.unit_group || null,
         comparison_operators: ra.comparison_operators || null,
+        formatted_value: ra.formatted_value ?? null,
         group: ra.collection_name || 'Vererbte Attribute',
         _source: ra.source,
         _is_inherited: ra.is_inherited,
@@ -640,6 +642,9 @@ async function loadAttributeData(overrideNodeId = null, generation = null) {
             translatedValues.value[`${attrId}_${val.language}`] = rawValue
           } else {
             attributeValues.value[attrId] = rawValue
+          }
+          if (val.formatted_value) {
+            formattedValues.value[attrId] = val.formatted_value
           }
         }
       }
@@ -2776,6 +2781,7 @@ watch(() => product.value?.master_hierarchy_node_id, async (newNodeId, oldNodeId
   attributeValues.value = {}
   translatedValues.value = {}
   unitValues.value = {}
+  formattedValues.value = {}
   comparisonOperatorValues.value = {}
   valueListMap.value = {}
   await loadAttributeData(newNodeId || null)
@@ -2860,6 +2866,7 @@ async function switchToProduct(newId) {
   attributeValues.value = {}
   translatedValues.value = {}
   unitValues.value = {}
+  formattedValues.value = {}
   comparisonOperatorValues.value = {}
   outputHierarchyAttributes.value = []
   outputHierarchyAttrValues.value = {}
@@ -3345,6 +3352,10 @@ onUnmounted(() => {
                   <option v-for="u in attr.unit_group.units" :key="u.id" :value="u.id">{{ u.abbreviation }}</option>
                 </select>
               </div>
+              <p v-if="attr.formatted_value ?? formattedValues[attr.id]" class="flex items-center gap-1 text-[11px] text-[var(--color-text-tertiary)] mt-1" :title="'Formatierte Vorschau (nur bei Export/Ansicht angewendet)'">
+                <Wand2 class="w-3 h-3 shrink-0" :stroke-width="1.75" />
+                {{ attr.formatted_value ?? formattedValues[attr.id] }}
+              </p>
             </div>
           </div>
         </div>
@@ -3573,7 +3584,8 @@ onUnmounted(() => {
             @update:modelValue="multipliableValues[attr.id] = $event"
           />
           <!-- Translatable attribute: bind to translatedValues -->
-          <div v-else-if="attr.is_translatable" class="flex gap-1.5 items-start">
+          <div v-else-if="attr.is_translatable">
+          <div class="flex gap-1.5 items-start">
             <select
               v-if="['Number', 'Float'].includes(attr.data_type) && attr.comparison_operators?.length"
               class="pim-input text-[12px] !w-12 !min-w-0 shrink-0 text-center !px-1"
@@ -3608,8 +3620,14 @@ onUnmounted(() => {
               <option v-for="u in attr.unit_group.units" :key="u.id" :value="u.id">{{ u.abbreviation }}</option>
             </select>
           </div>
+          <p v-if="attr.formatted_value ?? formattedValues[attr.id]" class="flex items-center gap-1 text-[11px] text-[var(--color-text-tertiary)] mt-1" title="Formatierte Vorschau (nur bei Export/Ansicht angewendet)">
+            <Wand2 class="w-3 h-3 shrink-0" :stroke-width="1.75" />
+            {{ attr.formatted_value ?? formattedValues[attr.id] }}
+          </p>
+          </div>
           <!-- Normal (non-translatable) attribute -->
-          <div v-else class="flex gap-1.5 items-start">
+          <div v-else>
+          <div class="flex gap-1.5 items-start">
             <select
               v-if="['Number', 'Float'].includes(attr.data_type) && attr.comparison_operators?.length"
               class="pim-input text-[12px] !w-12 !min-w-0 shrink-0 text-center !px-1"
@@ -3643,6 +3661,11 @@ onUnmounted(() => {
               <option value="">—</option>
               <option v-for="u in attr.unit_group.units" :key="u.id" :value="u.id">{{ u.abbreviation }}</option>
             </select>
+          </div>
+          <p v-if="attr.formatted_value ?? formattedValues[attr.id]" class="flex items-center gap-1 text-[11px] text-[var(--color-text-tertiary)] mt-1" title="Formatierte Vorschau (nur bei Export/Ansicht angewendet)">
+            <Wand2 class="w-3 h-3 shrink-0" :stroke-width="1.75" />
+            {{ attr.formatted_value ?? formattedValues[attr.id] }}
+          </p>
           </div>
           </div>
         </div>
@@ -5375,7 +5398,7 @@ onUnmounted(() => {
                           :class="['grid grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_24px] gap-x-3 px-2 py-1 items-center', !gc.display_value ? 'bg-red-50/60' : '']"
                         >
                           <span class="text-[11px] text-[var(--color-text-tertiary)] pl-8">{{ gc.label }}</span>
-                          <span class="text-[11px] text-[var(--color-text-secondary)]">{{ gc.display_value || '—' }}</span>
+                          <span class="text-[11px] text-[var(--color-text-secondary)]">{{ gc.formatted_value ?? gc.display_value ?? '—' }}</span>
                           <span :class="['inline-block w-1.5 h-1.5 rounded-full mx-auto', gc.display_value ? 'bg-[var(--color-success)]' : 'border border-[var(--color-text-tertiary)]']" />
                         </div>
                       </div>
@@ -5385,7 +5408,7 @@ onUnmounted(() => {
                       >
                         <span class="text-[11px] text-[var(--color-text-tertiary)] pl-4">{{ child.label }}</span>
                         <span class="text-[11px] text-[var(--color-text-secondary)]">
-                          {{ child.display_value || '—' }}
+                          {{ child.formatted_value ?? child.display_value ?? '—' }}
                           <span v-if="child.unit" class="text-[var(--color-text-tertiary)]"> {{ child.unit }}</span>
                         </span>
                         <span :class="['inline-block w-1.5 h-1.5 rounded-full mx-auto', child.display_value ? 'bg-[var(--color-success)]' : 'border border-[var(--color-text-tertiary)]']" />
@@ -5449,7 +5472,7 @@ onUnmounted(() => {
                     </template>
                     <!-- Normal value -->
                     <template v-else>
-                      {{ attr.display_value || '—' }}
+                      {{ attr.formatted_value ?? attr.display_value ?? '—' }}
                       <span v-if="attr.unit" class="text-[var(--color-text-tertiary)]"> {{ attr.unit }}</span>
                     </template>
                   </div>
