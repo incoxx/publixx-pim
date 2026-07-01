@@ -210,7 +210,7 @@ async function exportExcel() {
     const params = {
       columns: visibleKeys.value,
       search: search.value || undefined,
-      language: 'de',
+      language: localeStore.currentLocale,
     }
     const resp = await productsApi.exportExcel(params)
     triggerDownload(resp.data, `produkte-${new Date().toISOString().slice(0, 10)}.xlsx`)
