@@ -347,27 +347,11 @@ body {
   error-content: #ffffff;
 }
 
-/* Catalog sidebar active item — explizite --catalog-sidebar-active-* Farben,
-   sonst Fallback auf abgeleiteten 10%-Tint von --catalog-sidebar-color */
-[data-theme="pim-catalog"] .catalog-sidebar-active {
-  color: var(--catalog-sidebar-active-text, var(--catalog-sidebar-color, #1B3A5C));
-  background-color: var(--catalog-sidebar-active-bg, color-mix(in srgb, var(--catalog-sidebar-color, #1B3A5C) 10%, transparent));
-}
-
-/* Katalog: Kachel-Hintergründe (oben = Bildbereich, unten = Inhaltsbereich)
-   und Hintergrund hinter den Kacheln — Fallback auf DaisyUI base-Farben */
-[data-theme="pim-catalog"] .catalog-card-top-bg {
-  background-color: var(--catalog-card-top-bg, var(--color-base-200));
-}
-[data-theme="pim-catalog"] .catalog-card-bottom-bg {
-  background-color: var(--catalog-card-bottom-bg, var(--color-base-100));
-}
-[data-theme="pim-catalog"] .catalog-grid-bg {
-  background-color: var(--catalog-grid-bg, var(--color-base-200));
-}
-[data-theme="pim-catalog"] .catalog-popup-bg {
-  background-color: var(--catalog-popup-bg, var(--color-base-100));
-}
+/* Hinweis: Farben für aktiven Menüpunkt, Kachel oben/unten, Grid- und
+   Popup-Hintergrund werden direkt per :style-Binding aus store.themeSettings
+   gesetzt (siehe CatalogSidebar/CatalogCategoryTree/CatalogProductCard/
+   CatalogProductModal/CatalogLayout) — nicht über CSS-Variablen, damit sie
+   unabhängig vom Ladezeitpunkt des Theme-Applicators zuverlässig greifen. */
 
 /* Catalog table stripe rows — override DaisyUI zebra and add custom stripe class */
 [data-theme="pim-catalog"] .table-zebra tbody tr:nth-child(even) {

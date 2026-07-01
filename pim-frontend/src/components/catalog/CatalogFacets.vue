@@ -195,7 +195,14 @@ function facetFilterCount(attributeId) {
 </script>
 
 <template>
-  <div v-if="store.facets.length" class="py-2">
+  <div
+    v-if="store.facets.length"
+    class="py-2"
+    :style="{
+      backgroundColor: store.themeSettings.color_facets_bg || undefined,
+      color: store.themeSettings.color_facets_text || undefined,
+    }"
+  >
     <!-- Header with reset -->
     <div class="px-4 pb-2 flex items-center justify-between">
       <h3 class="font-semibold text-sm text-base-content/80">

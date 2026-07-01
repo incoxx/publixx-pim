@@ -805,6 +805,10 @@ const themeForm = ref({
   color_card_bottom_bg: '',
   color_grid_bg: '',
   color_popup_bg: '',
+  color_facets_bg: '',
+  color_facets_text: '',
+  color_search_bg: '',
+  color_search_text: '',
   logo_media_id: null,
   catalog_title: 'Produktkatalog',
   seo_title: '',
@@ -923,6 +927,10 @@ async function loadThemeSettings() {
         color_card_bottom_bg: d.color_card_bottom_bg || '',
         color_grid_bg: d.color_grid_bg || '',
         color_popup_bg: d.color_popup_bg || '',
+        color_facets_bg: d.color_facets_bg || '',
+        color_facets_text: d.color_facets_text || '',
+        color_search_bg: d.color_search_bg || '',
+        color_search_text: d.color_search_text || '',
         popup_max_width: d.popup_max_width || '4xl',
         facet_attribute_ids: d.facet_attribute_ids || [],
         detail_layout: d.detail_layout || 'classic',
@@ -962,7 +970,7 @@ async function saveThemeSettings() {
   try {
     const payload = { ...themeForm.value }
     // Convert empty strings to null for optional text fields
-    for (const key of ['impressum_url', 'kontakt_url', 'impressum_text', 'kontakt_text', 'footer_text', 'catalog_title', 'seo_title', 'seo_description', 'color_header_bg', 'color_header_text', 'color_mobile_menu_bg', 'color_mobile_menu_text', 'color_sidebar_active_bg', 'color_sidebar_active_text', 'color_card_top_bg', 'color_card_bottom_bg', 'color_grid_bg', 'color_popup_bg']) {
+    for (const key of ['impressum_url', 'kontakt_url', 'impressum_text', 'kontakt_text', 'footer_text', 'catalog_title', 'seo_title', 'seo_description', 'color_header_bg', 'color_header_text', 'color_mobile_menu_bg', 'color_mobile_menu_text', 'color_sidebar_active_bg', 'color_sidebar_active_text', 'color_card_top_bg', 'color_card_bottom_bg', 'color_grid_bg', 'color_popup_bg', 'color_facets_bg', 'color_facets_text', 'color_search_bg', 'color_search_text']) {
       if (!payload[key]) payload[key] = null
     }
     if (!payload.hierarchy_id) payload.hierarchy_id = null
@@ -2466,6 +2474,10 @@ onUnmounted(() => {
               { key: 'color_card_bottom_bg', label: 'Kachel unten (Inhaltsbereich)' },
               { key: 'color_grid_bg', label: 'Hintergrund hinter den Kacheln' },
               { key: 'color_popup_bg', label: 'Produktpopup: Hintergrund' },
+              { key: 'color_facets_bg', label: 'Filter-Panel: Hintergrund' },
+              { key: 'color_facets_text', label: 'Filter-Panel: Text' },
+              { key: 'color_search_bg', label: 'Suchfeld: Hintergrund' },
+              { key: 'color_search_text', label: 'Suchfeld: Text' },
             ]" :key="c.key">
               <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">{{ c.label }}</label>
               <div class="flex items-center gap-2">

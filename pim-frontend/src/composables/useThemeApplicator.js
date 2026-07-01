@@ -141,18 +141,6 @@ export function useThemeApplicator(themeRootRef, themeSettingsRef) {
     if (t.color_mobile_menu_bg) el.style.setProperty('--catalog-mobile-menu-bg', t.color_mobile_menu_bg)
     if (t.color_mobile_menu_text) el.style.setProperty('--catalog-mobile-menu-text', t.color_mobile_menu_text)
 
-    // Aktiver Menüpunkt (Sidebar) — explizit, sonst abgeleiteter 10%-Tint von color_sidebar
-    if (t.color_sidebar_active_bg) el.style.setProperty('--catalog-sidebar-active-bg', t.color_sidebar_active_bg)
-    if (t.color_sidebar_active_text) el.style.setProperty('--catalog-sidebar-active-text', t.color_sidebar_active_text)
-
-    // Kachel-Hintergründe (oben = Bildbereich, unten = Inhaltsbereich) und Grid-Hintergrund
-    if (t.color_card_top_bg) el.style.setProperty('--catalog-card-top-bg', t.color_card_top_bg)
-    if (t.color_card_bottom_bg) el.style.setProperty('--catalog-card-bottom-bg', t.color_card_bottom_bg)
-    if (t.color_grid_bg) el.style.setProperty('--catalog-grid-bg', t.color_grid_bg)
-
-    // Produktpopup-Hintergrund
-    if (t.color_popup_bg) el.style.setProperty('--catalog-popup-bg', t.color_popup_bg)
-
     // Custom CSS: dynamisch injizieren
     if (t.custom_css) {
       let customStyleEl = document.getElementById('pim-custom-css')

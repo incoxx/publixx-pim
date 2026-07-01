@@ -70,11 +70,18 @@ function onSearchClear() {
 
     <!-- Search -->
     <div class="flex-1 px-2 lg:px-8">
-      <label class="input input-bordered input-sm w-full max-w-xl mx-auto flex items-center gap-2">
+      <label
+        class="input input-bordered input-sm w-full max-w-xl mx-auto flex items-center gap-2"
+        :style="{
+          backgroundColor: themeSettings.color_search_bg || undefined,
+          color: themeSettings.color_search_text || undefined,
+        }"
+      >
         <Search class="w-4 h-4 opacity-40" />
         <input
           type="text"
           class="grow bg-transparent text-sm"
+          :style="{ color: themeSettings.color_search_text || undefined }"
           :placeholder="searchPlaceholder || t('catalog.search')"
           :value="searchInput"
           @input="onSearchInput($event.target.value)"

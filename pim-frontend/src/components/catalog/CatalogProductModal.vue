@@ -171,7 +171,10 @@ function formatPrice(price) {
 
 <template>
   <dialog class="modal" :class="{ 'modal-open': open }">
-    <div :class="['modal-box catalog-popup-bg w-11/12 p-0 overflow-hidden', modalSizeClass]">
+    <div
+      :class="['modal-box w-11/12 p-0 overflow-hidden', modalSizeClass]"
+      :style="{ backgroundColor: store.themeSettings.color_popup_bg || undefined }"
+    >
       <!-- Zum Editor (nur interne Vorschau /preview mit Schreibrecht) -->
       <button
         v-if="canLiveEdit"

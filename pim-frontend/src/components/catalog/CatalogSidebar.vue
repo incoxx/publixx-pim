@@ -1,4 +1,5 @@
 <script setup>
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useCatalogStore } from '@/stores/catalog'
 import CatalogCategoryTree from './CatalogCategoryTree.vue'
@@ -6,6 +7,15 @@ import { FolderTree } from 'lucide-vue-next'
 
 const { t } = useI18n()
 const store = useCatalogStore()
+
+// Aktiver Menüpunkt: explizite Farben, sonst 10%-Tint der Sidebar-Farbe als Fallback
+const activeBg = computed(() =>
+  store.themeSettings.color_sidebar_active_bg
+  || `color-mix(in srgb, ${store.themeSettings.color_sidebar || '#1B3A5C'} 10%, transparent)`,
+)
+const activeText = computed(() =>
+  store.themeSettings.color_sidebar_active_text || store.themeSettings.color_sidebar || '#1B3A5C',
+)
 
 function selectAll() {
   store.clearCategory()
@@ -33,11 +43,8 @@ function selectAll() {
     <div class="px-2 pt-2">
       <button
         class="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors"
-        :class="
-          !store.selectedCategoryId
-            ? 'catalog-sidebar-active font-medium'
-            : 'hover:bg-base-200 text-base-content'
-        "
+        :class="!store.selectedCategoryId ? 'font-medium' : 'hover:bg-base-200 text-base-content'"
+        :style="!store.selectedCategoryId ? { backgroundColor: activeBg, color: activeText } : {}"
         @click="selectAll"
       >
         {{ t('catalog.allCategories') }}
