@@ -13,7 +13,7 @@ import {
   ChevronDown, ChevronRight, ChevronsDownUp, GripVertical, Factory, CalendarDays, ScrollText, Globe, Send,
   LayoutDashboard, ClipboardList, Code, ExternalLink, Plug, FlaskConical, ArrowRightLeft,
   FileSpreadsheet, FileStack, Network, Boxes,
-  ShoppingBag,
+  ShoppingBag, ShoppingCart, MapPin, CreditCard,
   ArrowDownUp,
   Key,
   Cloud,
@@ -92,6 +92,17 @@ const sections = computed(() => {
             { icon: Gauge, label: () => 'Cache', to: '/content-cache', module: 'content', permission: 'content-types.view', testid: 'nav-content-cache' },
           ],
         },
+      ],
+    },
+    {
+      // Eigener Bereich; komplett ausgeblendet, wenn das E-Commerce-Modul nicht lizenziert ist
+      key: 'ecommerce',
+      label: 'E-Commerce',
+      items: [
+        { icon: ShoppingCart, label: () => 'Warenkörbe', to: '/ecommerce/cart-types', module: 'ecommerce', permission: 'ecommerce-cart-types.view', testid: 'nav-ecommerce-cart-types' },
+        { icon: MapPin, label: () => 'Adressarten', to: '/ecommerce/address-types', module: 'ecommerce', permission: 'ecommerce-address-types.view', testid: 'nav-ecommerce-address-types' },
+        { icon: CreditCard, label: () => 'Zahlungsarten', to: '/ecommerce/payment-types', module: 'ecommerce', permission: 'ecommerce-payment-types.view', testid: 'nav-ecommerce-payment-types' },
+        { icon: ClipboardList, label: () => 'Bestellungen', to: '/ecommerce/orders', module: 'ecommerce', permission: 'ecommerce-orders.view', testid: 'nav-ecommerce-orders' },
       ],
     },
     {

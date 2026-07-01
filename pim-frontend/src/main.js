@@ -664,4 +664,10 @@ const pinia = createPinia()
 app.use(pinia)
 app.use(router)
 app.use(i18n)
-app.mount('#app')
+
+// Erst mounten, wenn der Router die Initial-Route aufgelöst hat — sonst ist
+// route.matched beim ersten Render leer und die Admin-Shell (AppLayout) blitzt
+// kurz auf, bevor auf eine öffentliche Route (z.B. /site/...) umgeschaltet wird.
+router.isReady().then(() => {
+  app.mount('#app')
+})

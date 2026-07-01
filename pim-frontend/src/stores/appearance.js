@@ -55,6 +55,7 @@ const SECTION_ICON_COLORS = {
   config: '#FBBF24',    // gelb
   admin: '#F87171',      // rot
   help: '#94A3B8',       // grau
+  ecommerce: '#F59E0B',  // amber
 }
 
 const CSS_VAR_MAP = {

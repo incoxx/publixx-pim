@@ -117,6 +117,31 @@ const routes = [
     component: () => import('@/views/site/WebsitePreviewView.vue'),
     meta: { title: 'Website-Vorschau' },
   },
+  // ── E-Commerce ─────────────────────────────────────────────────────────
+  {
+    path: '/ecommerce/cart-types',
+    name: 'ecommerce-cart-types',
+    component: () => import('@/views/ecommerce/EcommerceCartTypesView.vue'),
+    meta: { title: 'Warenkorbarten' },
+  },
+  {
+    path: '/ecommerce/address-types',
+    name: 'ecommerce-address-types',
+    component: () => import('@/views/ecommerce/EcommerceAddressTypesView.vue'),
+    meta: { title: 'Adressarten' },
+  },
+  {
+    path: '/ecommerce/payment-types',
+    name: 'ecommerce-payment-types',
+    component: () => import('@/views/ecommerce/EcommercePaymentTypesView.vue'),
+    meta: { title: 'Zahlungsarten' },
+  },
+  {
+    path: '/ecommerce/orders',
+    name: 'ecommerce-orders',
+    component: () => import('@/views/ecommerce/EcommerceOrdersView.vue'),
+    meta: { title: 'Bestellungen' },
+  },
   {
     path: '/hierarchies',
     name: 'hierarchies',

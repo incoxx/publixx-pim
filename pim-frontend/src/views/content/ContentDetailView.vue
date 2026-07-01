@@ -5,7 +5,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useContentStore } from '@/stores/content'
 import ContentSectionCard from '@/components/content/ContentSectionCard.vue'
 import ContentPageFormPanel from '@/components/panels/ContentPageFormPanel.vue'
-import { ChevronLeft, Plus, Pencil, Clock, Globe, CopyPlus, ClipboardPaste } from 'lucide-vue-next'
+import { ChevronLeft, Plus, Pencil, Clock, Globe, CopyPlus, ClipboardPaste, ChevronsDownUp, ChevronsUpDown } from 'lucide-vue-next'
 
 const route = useRoute()
 const router = useRouter()
@@ -19,6 +19,20 @@ const loading = ref(true)
 const activeTab = ref('sections')
 const lang = ref('de')
 const showAddPicker = ref(false)
+
+// Eingeklappte Sektionen (IDs). Erleichtert die Übersicht & das Verschieben.
+const collapsedIds = ref(new Set())
+function toggleCollapse(section) {
+  const next = new Set(collapsedIds.value)
+  next.has(section.id) ? next.delete(section.id) : next.add(section.id)
+  collapsedIds.value = next
+}
+const allCollapsed = computed(() =>
+  sections.value.length > 0 && sections.value.every((s) => collapsedIds.value.has(s.id))
+)
+function toggleCollapseAll() {
+  collapsedIds.value = allCollapsed.value ? new Set() : new Set(sections.value.map((s) => s.id))
+}
 
 // Auto-Speichern-Status (Sektionen speichern automatisch; das wird hier sichtbar)
 const saveState = ref('idle') // idle | saving | saved
@@ -229,6 +243,14 @@ onMounted(load)
 
       <!-- Tab: Sektionen -->
       <div v-if="activeTab === 'sections'" class="space-y-3">
+        <!-- Sektions-Werkzeugleiste -->
+        <div v-if="sections.length" class="flex items-center justify-end">
+          <button class="pim-btn pim-btn-ghost text-xs" @click="toggleCollapseAll"
+            :title="allCollapsed ? 'Alle Sektionen aufklappen' : 'Alle Sektionen einklappen'">
+            <component :is="allCollapsed ? ChevronsUpDown : ChevronsDownUp" class="w-3.5 h-3.5" :stroke-width="2" />
+            {{ allCollapsed ? 'Alle ausklappen' : 'Alle einklappen' }}
+          </button>
+        </div>
         <div
           v-for="(section, index) in sections"
           :key="section.id"
@@ -241,11 +263,13 @@ onMounted(load)
             :section="section"
             :section-type="sectionTypeById[section.section_type_id] || section.section_type"
             :lang="lang"
+            :collapsed="collapsedIds.has(section.id)"
             @save="(v) => saveSection(section, v)"
             @delete="deleteSection(section)"
             @toggle-visible="toggleVisible(section)"
             @copy="copySection(section)"
             @duplicate="duplicateSection(section)"
+            @toggle-collapse="toggleCollapse(section)"
           />
         </div>
 
