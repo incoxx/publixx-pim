@@ -71,12 +71,12 @@ const staggerDelay = computed(() => `${Math.min(props.index * 50, 400)}ms`)
 
 <template>
   <div
-    class="card bg-base-100 shadow-sm border border-base-300 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer group catalog-card-enter"
+    class="card catalog-card-bottom-bg shadow-sm border border-base-300 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer group catalog-card-enter"
     :style="{ animationDelay: staggerDelay }"
     @click="emit('view-detail', product)"
   >
     <!-- Image -->
-    <figure class="relative overflow-hidden bg-base-200" :style="{ aspectRatio: imageRatio }">
+    <figure class="relative overflow-hidden catalog-card-top-bg" :style="{ aspectRatio: imageRatio }">
       <img
         v-if="product.image_url && !imgBroken"
         :src="product.image_url"
