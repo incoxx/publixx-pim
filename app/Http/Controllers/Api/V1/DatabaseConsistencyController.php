@@ -49,7 +49,14 @@ class DatabaseConsistencyController extends Controller
             'orphaned_import_job_errors' => $this->fixOrphanedImportJobErrors(),
             'orphaned_translation_job_items' => $this->fixOrphanedTranslationJobItems(),
             'orphaned_scheduled_actions' => $this->fixOrphanedScheduledActions(),
-            'stale_translatable_null_values' => $this->fixStaleTranslatableNullValues(),
+            'orphaned_media_attribute_values' => $this->fixOrphanedMediaAttributeValues(),
+            'orphaned_cart_items' => $this->fixOrphanedCartItems(),
+            'orphaned_conformance_results' => $this->fixOrphanedConformanceResults(),
+            'stale_translatable_null_values' => $this->fixStaleTranslatableNull('product_attribute_values', ['product_id', 'output_hierarchy_id']),
+            'stale_translatable_null_media_values' => $this->fixStaleTranslatableNull('media_attribute_values', ['media_id']),
+            'stale_translatable_null_hierarchy_node_values' => $this->fixStaleTranslatableNull('hierarchy_node_attribute_values', ['hierarchy_node_id']),
+            'stale_translatable_null_relation_values' => $this->fixStaleTranslatableNull('product_relation_attribute_values', ['product_relation_id']),
+            'stale_translatable_null_output_hierarchy_values' => $this->fixStaleTranslatableNull('output_hierarchy_product_attribute_values', ['assignment_id']),
             default => null,
         };
 
@@ -100,7 +107,81 @@ class DatabaseConsistencyController extends Controller
             'products',
         );
 
-        $checks[] = $this->checkStaleTranslatableNullValues();
+        $checks[] = $this->checkStaleTranslatableNull(
+            'stale_translatable_null_values',
+            'Verwaiste sprachneutrale Attributwerte',
+            'Attributwerte mit language=NULL bei Attributen, die nachträglich auf "sprachabhängig" umgestellt wurden.',
+            'product_attribute_values',
+        );
+
+        if (Schema::hasTable('media_attribute_values')) {
+            $checks[] = $this->checkStaleTranslatableNull(
+                'stale_translatable_null_media_values',
+                'Verwaiste sprachneutrale Medien-Attributwerte',
+                'Medien-Attributwerte mit language=NULL bei Attributen, die nachträglich auf "sprachabhängig" umgestellt wurden.',
+                'media_attribute_values',
+            );
+        }
+
+        if (Schema::hasTable('hierarchy_node_attribute_values')) {
+            $checks[] = $this->checkStaleTranslatableNull(
+                'stale_translatable_null_hierarchy_node_values',
+                'Verwaiste sprachneutrale Hierarchie-Knoten-Attributwerte',
+                'Hierarchie-Knoten-Attributwerte mit language=NULL bei Attributen, die nachträglich auf "sprachabhängig" umgestellt wurden.',
+                'hierarchy_node_attribute_values',
+            );
+        }
+
+        if (Schema::hasTable('product_relation_attribute_values')) {
+            $checks[] = $this->checkStaleTranslatableNull(
+                'stale_translatable_null_relation_values',
+                'Verwaiste sprachneutrale Relationsattribut-Werte',
+                'Relationsattribut-Werte mit language=NULL bei Attributen, die nachträglich auf "sprachabhängig" umgestellt wurden.',
+                'product_relation_attribute_values',
+            );
+        }
+
+        if (Schema::hasTable('output_hierarchy_product_attribute_values')) {
+            $checks[] = $this->checkStaleTranslatableNull(
+                'stale_translatable_null_output_hierarchy_values',
+                'Verwaiste sprachneutrale Output-Hierarchie-Attributwerte',
+                'Output-Hierarchie-Attributwerte mit language=NULL bei Attributen, die nachträglich auf "sprachabhängig" umgestellt wurden.',
+                'output_hierarchy_product_attribute_values',
+            );
+        }
+
+        if (Schema::hasTable('media_attribute_values')) {
+            $checks[] = $this->checkOrphans(
+                'orphaned_media_attribute_values',
+                'Verwaiste Medien-Attributwerte',
+                'Medien-Attributwerte, deren Medium nicht mehr existiert.',
+                'media_attribute_values',
+                'media_id',
+                'media',
+            );
+        }
+
+        if (Schema::hasTable('ecommerce_cart_items') && Schema::hasTable('ecommerce_carts')) {
+            $checks[] = $this->checkOrphans(
+                'orphaned_cart_items',
+                'Verwaiste Warenkorb-Positionen',
+                'Warenkorb-Positionen, deren Warenkorb nicht mehr existiert.',
+                'ecommerce_cart_items',
+                'cart_id',
+                'ecommerce_carts',
+            );
+        }
+
+        if (Schema::hasTable('product_conformance_results')) {
+            $checks[] = $this->checkOrphans(
+                'orphaned_conformance_results',
+                'Verwaiste Konformitätsprüfungs-Ergebnisse',
+                'Konformitätsprüfungs-Ergebnisse, deren Produkt nicht mehr existiert.',
+                'product_conformance_results',
+                'product_id',
+                'products',
+            );
+        }
 
         $checks[] = $this->checkOrphanedRelations();
 
@@ -227,22 +308,23 @@ class DatabaseConsistencyController extends Controller
     }
 
     /**
-     * Attributwerte mit language=NULL bei Attributen, die nachträglich auf "sprachabhängig"
-     * umgestellt wurden. Der Unique-Index behandelt NULL als eigenständigen Wert und verhindert
-     * nicht, dass eine solche Altlast neben einer neu angelegten sprachspezifischen Zeile bestehen bleibt.
+     * Prüft eine EAV-Werte-Tabelle (product_attribute_values, media_attribute_values, ...) auf
+     * language=NULL-Zeilen bei Attributen, die nachträglich auf "sprachabhängig" umgestellt wurden.
+     * Der Unique-Index behandelt NULL als eigenständigen Wert und verhindert nicht, dass eine solche
+     * Altlast neben einer neu angelegten sprachspezifischen Zeile bestehen bleibt.
      */
-    private function checkStaleTranslatableNullValues(): array
+    private function checkStaleTranslatableNull(string $key, string $label, string $description, string $table): array
     {
-        $count = DB::table('product_attribute_values')
-            ->join('attributes', 'product_attribute_values.attribute_id', '=', 'attributes.id')
+        $count = DB::table($table)
+            ->join('attributes', "{$table}.attribute_id", '=', 'attributes.id')
             ->where('attributes.is_translatable', true)
-            ->whereNull('product_attribute_values.language')
+            ->whereNull("{$table}.language")
             ->count();
 
         return [
-            'key' => 'stale_translatable_null_values',
-            'label' => 'Verwaiste sprachneutrale Attributwerte',
-            'description' => 'Attributwerte mit language=NULL bei Attributen, die nachträglich auf "sprachabhängig" umgestellt wurden.',
+            'key' => $key,
+            'label' => $label,
+            'description' => $description,
             'count' => $count,
             'status' => $count > 0 ? 'issue' : 'ok',
         ];
@@ -374,37 +456,56 @@ class DatabaseConsistencyController extends Controller
         return $this->deleteOrphans('scheduled_actions', 'product_id', 'products');
     }
 
+    private function fixOrphanedMediaAttributeValues(): int
+    {
+        return $this->deleteOrphans('media_attribute_values', 'media_id', 'media');
+    }
+
+    private function fixOrphanedCartItems(): int
+    {
+        return $this->deleteOrphans('ecommerce_cart_items', 'cart_id', 'ecommerce_carts');
+    }
+
+    private function fixOrphanedConformanceResults(): int
+    {
+        return $this->deleteOrphans('product_conformance_results', 'product_id', 'products');
+    }
+
     /**
-     * Existiert bereits eine sprachspezifische Zeile für dieselbe Kombination, wird die
+     * Existiert bereits eine sprachspezifische Zeile für dieselbe Werte-Instanz, wird die
      * language=NULL-Zeile (Duplikat) gelöscht. Andernfalls wird sie auf die Standardsprache
      * migriert, damit der Wert erhalten bleibt.
+     *
+     * @param array<int, string> $scopeColumns Spalten, die zusammen mit attribute_id + multiplied_index
+     *                                         eine Werte-Instanz identifizieren (z.B. ['product_id', 'output_hierarchy_id']).
      */
-    private function fixStaleTranslatableNullValues(): int
+    private function fixStaleTranslatableNull(string $table, array $scopeColumns): int
     {
         $defaultLanguage = 'de';
 
-        $rows = DB::table('product_attribute_values')
-            ->join('attributes', 'product_attribute_values.attribute_id', '=', 'attributes.id')
+        $rows = DB::table($table)
+            ->join('attributes', "{$table}.attribute_id", '=', 'attributes.id')
             ->where('attributes.is_translatable', true)
-            ->whereNull('product_attribute_values.language')
-            ->select('product_attribute_values.*')
+            ->whereNull("{$table}.language")
+            ->select("{$table}.*")
             ->get();
 
         $affected = 0;
 
         foreach ($rows as $row) {
-            $hasLanguageSibling = DB::table('product_attribute_values')
-                ->where('product_id', $row->product_id)
+            $query = DB::table($table)
                 ->where('attribute_id', $row->attribute_id)
                 ->where('multiplied_index', $row->multiplied_index)
-                ->where('output_hierarchy_id', $row->output_hierarchy_id)
-                ->whereNotNull('language')
-                ->exists();
+                ->whereNotNull('language');
 
-            if ($hasLanguageSibling) {
-                DB::table('product_attribute_values')->where('id', $row->id)->delete();
+            foreach ($scopeColumns as $column) {
+                $query->where($column, $row->{$column});
+            }
+
+            if ($query->exists()) {
+                DB::table($table)->where('id', $row->id)->delete();
             } else {
-                DB::table('product_attribute_values')->where('id', $row->id)->update(['language' => $defaultLanguage]);
+                DB::table($table)->where('id', $row->id)->update(['language' => $defaultLanguage]);
             }
 
             $affected++;
