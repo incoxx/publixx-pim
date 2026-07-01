@@ -109,6 +109,7 @@ use App\Http\Controllers\Api\V1\AuditLogController;
 use App\Http\Controllers\Api\V1\ErrorClassificationController;
 use App\Http\Controllers\Api\V1\UserAuditController;
 use App\Http\Controllers\Api\V1\UserController;
+use App\Http\Controllers\Api\V1\AttributeFormattingRuleController;
 use App\Http\Controllers\Api\V1\ValueListController;
 use App\Http\Controllers\Api\V1\ValueListEntryController;
 use App\Http\Controllers\Api\V1\AttributeMappingController;
@@ -447,6 +448,12 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     Route::get('value-lists/{value_list}/dependencies', [ValueListController::class, 'dependencies']);
     Route::apiResource('value-lists.entries', ValueListEntryController::class)->shallow();
     Route::get('entries/{entry}/dependencies', [ValueListEntryController::class, 'dependencies']);
+
+    // =====================================================================
+    // Attribut-Formatierungsregeln
+    // =====================================================================
+    Route::apiResource('attribute-formatting-rules', AttributeFormattingRuleController::class);
+    Route::get('attribute-formatting-rules/{attribute_formatting_rule}/dependencies', [AttributeFormattingRuleController::class, 'dependencies']);
 
     // =====================================================================
     // Dictionary Entries

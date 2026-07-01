@@ -203,6 +203,12 @@ const routes = [
     meta: { title: 'Wertelisten' },
   },
   {
+    path: '/formatting-rules',
+    name: 'formatting-rules',
+    component: () => import('@/views/formattingRules/FormattingRuleView.vue'),
+    meta: { title: 'Formatierungsregeln' },
+  },
+  {
     path: '/dictionary',
     name: 'dictionary',
     component: () => import('@/views/dictionary/DictionaryAdminView.vue'),

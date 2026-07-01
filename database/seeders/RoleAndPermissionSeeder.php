@@ -34,6 +34,8 @@ class RoleAndPermissionSeeder extends Seeder
             'units.view', 'units.create', 'units.edit', 'units.delete',
             // Wertelisten
             'value-lists.view', 'value-lists.create', 'value-lists.edit', 'value-lists.delete',
+            // Attribut-Formatierungsregeln
+            'attribute-formatting-rules.view', 'attribute-formatting-rules.create', 'attribute-formatting-rules.edit', 'attribute-formatting-rules.delete',
             // Attributsichten
             'attribute-views.view', 'attribute-views.create', 'attribute-views.edit', 'attribute-views.delete',
             // Medien
@@ -173,6 +175,7 @@ class RoleAndPermissionSeeder extends Seeder
             'unit-groups.view', 'unit-groups.create', 'unit-groups.edit', 'unit-groups.delete',
             'units.view', 'units.create', 'units.edit', 'units.delete',
             'value-lists.view', 'value-lists.create', 'value-lists.edit', 'value-lists.delete',
+            'attribute-formatting-rules.view', 'attribute-formatting-rules.create', 'attribute-formatting-rules.edit', 'attribute-formatting-rules.delete',
             'attribute-views.view', 'attribute-views.create', 'attribute-views.edit', 'attribute-views.delete',
             'relation-types.view', 'relation-types.create', 'relation-types.edit', 'relation-types.delete',
             'manufacturers.view', 'manufacturers.create', 'manufacturers.edit', 'manufacturers.delete',
@@ -213,6 +216,7 @@ class RoleAndPermissionSeeder extends Seeder
             'unit-groups.view',
             'units.view',
             'value-lists.view',
+            'attribute-formatting-rules.view',
             'attribute-views.view',
             'relation-types.view',
             'manufacturers.view',
@@ -264,6 +268,7 @@ class RoleAndPermissionSeeder extends Seeder
             'units.view',
             'unit-groups.view',
             'value-lists.view',
+            'attribute-formatting-rules.view',
             // KI-Assistent, semantische Suche, Excel-Designer (voll — Export-Werkzeug)
             'copilot.use',
             'semantic-search.view',
@@ -288,6 +293,7 @@ class RoleAndPermissionSeeder extends Seeder
             'units.view',
             'unit-groups.view',
             'value-lists.view',
+            'attribute-formatting-rules.view',
             'media.view',
             'search.view',
             // KI-Assistent + semantische Suche
@@ -337,6 +343,7 @@ class RoleAndPermissionSeeder extends Seeder
             'hierarchy-nodes.view',
             'relation-types.view',
             'value-lists.view',
+            'attribute-formatting-rules.view',
             // Übersetzungen
             'translations.view', 'translations.edit',
             // Ausspielung

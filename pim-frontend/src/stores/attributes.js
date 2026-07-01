@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import attributesApi, { attributeTypes, valueLists, productTypes } from '@/api/attributes'
+import attributesApi, { attributeTypes, valueLists, formattingRules, productTypes } from '@/api/attributes'
 import { unitGroups as unitGroupsApi } from '@/api/units'
 import { comparisonOperatorGroups as compOpGroupsApi } from '@/api/comparisonOperators'
 
@@ -9,6 +9,7 @@ export const useAttributeStore = defineStore('attributes', () => {
   const allItems = ref([])
   const types = ref([])
   const lists = ref([])
+  const formattingRulesList = ref([])
   const prodTypes = ref([])
   const unitGroupsList = ref([])
   const compOpGroupsList = ref([])
@@ -23,6 +24,10 @@ export const useAttributeStore = defineStore('attributes', () => {
 
   const valueListOptions = computed(() =>
     lists.value.map(l => ({ value: l.id, label: l.name_de || l.technical_name }))
+  )
+
+  const formattingRuleOptions = computed(() =>
+    formattingRulesList.value.map(r => ({ value: r.id, label: r.name, rule_type: r.rule_type }))
   )
 
   const unitGroupOptions = computed(() =>
@@ -77,6 +82,16 @@ export const useAttributeStore = defineStore('attributes', () => {
     } catch (e) {
       console.error('Failed to fetch value lists', e)
       error.value = e.response?.data?.title || 'Fehler beim Laden der Wertelisten'
+    }
+  }
+
+  async function fetchFormattingRules() {
+    try {
+      const { data } = await formattingRules.list({ perPage: 200 })
+      formattingRulesList.value = data.data || data
+    } catch (e) {
+      console.error('Failed to fetch formatting rules', e)
+      error.value = e.response?.data?.title || 'Fehler beim Laden der Formatierungsregeln'
     }
   }
 
@@ -149,9 +164,9 @@ export const useAttributeStore = defineStore('attributes', () => {
   }
 
   return {
-    items, allItems, types, lists, prodTypes, unitGroupsList, compOpGroupsList, loading, error, meta,
-    attributeTypeOptions, valueListOptions, unitGroupOptions, comparisonOperatorGroupOptions,
-    fetchAttributes, fetchAllAttributes, fetchTypes, fetchValueLists, fetchProductTypes, fetchUnitGroups, fetchComparisonOperatorGroups,
+    items, allItems, types, lists, formattingRulesList, prodTypes, unitGroupsList, compOpGroupsList, loading, error, meta,
+    attributeTypeOptions, valueListOptions, formattingRuleOptions, unitGroupOptions, comparisonOperatorGroupOptions,
+    fetchAttributes, fetchAllAttributes, fetchTypes, fetchValueLists, fetchFormattingRules, fetchProductTypes, fetchUnitGroups, fetchComparisonOperatorGroups,
     createAttribute, updateAttribute, copyAttribute, deleteAttribute, setPage, bulkUpdate, bulkDelete, bulkAssignViews,
   }
 })

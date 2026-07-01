@@ -22,7 +22,7 @@ class AttributeController extends Controller
 {
     use ChecksDeletionConstraints;
     private const ALLOWED_INCLUDES = [
-        'attributeType', 'unitGroup', 'defaultUnit', 'valueList',
+        'attributeType', 'unitGroup', 'defaultUnit', 'valueList', 'formattingRule',
         'children', 'parent', 'comparisonOperatorGroup', 'attributeViews',
         'dictionaryEntries',
     ];

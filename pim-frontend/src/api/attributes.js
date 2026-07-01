@@ -186,6 +186,32 @@ export const valueLists = {
   },
 }
 
+export const formattingRules = {
+  list(options = {}) {
+    return client.get('/attribute-formatting-rules', { params: buildParams(options) })
+  },
+
+  get(id, options = {}) {
+    return client.get(`/attribute-formatting-rules/${id}`, { params: buildParams(options) })
+  },
+
+  create(data) {
+    return client.post('/attribute-formatting-rules', data)
+  },
+
+  update(id, data) {
+    return client.put(`/attribute-formatting-rules/${id}`, data)
+  },
+
+  dependencies(id) {
+    return client.get(`/attribute-formatting-rules/${id}/dependencies`)
+  },
+
+  delete(id, { force = false } = {}) {
+    return client.delete(`/attribute-formatting-rules/${id}`, { params: force ? { force: true } : {} })
+  },
+}
+
 export const attributeViews = {
   list(params = {}) {
     return client.get('/attribute-views', { params })
