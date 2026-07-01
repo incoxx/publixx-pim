@@ -18,8 +18,34 @@ use Illuminate\Support\Facades\Schema;
  */
 return new class extends Migration
 {
+    /**
+     * Name des Unique-Index. MySQL erlaubt max. 64 Zeichen für Identifier —
+     * der von Laravel automatisch generierte Name
+     * ("virtual_product_inheritance_rules_virtual_product_id_attribute_id_unique",
+     * 72 Zeichen) überschreitet das Limit, daher ein expliziter, kurzer Name.
+     */
+    private const UNIQUE_INDEX = 'vpir_virtual_product_attribute_unique';
+
     public function up(): void
     {
+        // Falls ein früherer Migrationsversuch bereits an obigem zu langem
+        // Indexnamen scheiterte, existiert die Tabelle unter Umständen schon
+        // (CREATE TABLE lief durch, der nachfolgende ADD UNIQUE schlug fehl).
+        // In dem Fall nur den fehlenden Index nachtragen statt neu anzulegen.
+        if (Schema::hasTable('virtual_product_inheritance_rules')) {
+            $hasIndex = collect(Schema::getIndexes('virtual_product_inheritance_rules'))
+                ->pluck('name')
+                ->contains(self::UNIQUE_INDEX);
+
+            if (!$hasIndex) {
+                Schema::table('virtual_product_inheritance_rules', function (Blueprint $table) {
+                    $table->unique(['virtual_product_id', 'attribute_id'], self::UNIQUE_INDEX);
+                });
+            }
+
+            return;
+        }
+
         Schema::create('virtual_product_inheritance_rules', function (Blueprint $table) {
             $table->char('id', 36)->primary();
             $table->char('virtual_product_id', 36);
@@ -29,7 +55,7 @@ return new class extends Migration
 
             $table->foreign('virtual_product_id')->references('id')->on('products')->onDelete('cascade');
             $table->foreign('attribute_id')->references('id')->on('attributes')->onDelete('cascade');
-            $table->unique(['virtual_product_id', 'attribute_id']);
+            $table->unique(['virtual_product_id', 'attribute_id'], self::UNIQUE_INDEX);
         });
     }
 
