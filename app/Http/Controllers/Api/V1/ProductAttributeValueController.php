@@ -439,6 +439,17 @@ class ProductAttributeValueController extends Controller
                     ])
                 );
 
+                // Attribut nachträglich auf "sprachabhängig" umgestellt: eine verwaiste
+                // language=NULL-Zeile darf danach nicht mehr neben der Sprachzeile bestehen bleiben.
+                if ($attribute->is_translatable) {
+                    ProductAttributeValue::where('product_id', $product->id)
+                        ->where('attribute_id', $attribute->id)
+                        ->where('multiplied_index', $multipliedIndex)
+                        ->whereNull('output_hierarchy_id')
+                        ->whereNull('language')
+                        ->delete();
+                }
+
                 $changedAttributeIds[] = $attribute->id;
             }
 
@@ -691,6 +702,17 @@ class ProductAttributeValueController extends Controller
                         'inherited_from_product_id' => null,
                     ])
                 );
+
+                // Attribut nachträglich auf "sprachabhängig" umgestellt: eine verwaiste
+                // language=NULL-Zeile darf danach nicht mehr neben der Sprachzeile bestehen bleiben.
+                if ($attribute->is_translatable) {
+                    ProductAttributeValue::where('product_id', $product->id)
+                        ->where('attribute_id', $attribute->id)
+                        ->where('multiplied_index', $multipliedIndex)
+                        ->where('output_hierarchy_id', $outputHierarchyId)
+                        ->whereNull('language')
+                        ->delete();
+                }
 
                 $changedAttributeIds[] = $attribute->id;
             }
