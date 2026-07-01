@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Import;
 
 use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\RichText\RichText;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
@@ -251,6 +252,7 @@ class SheetParser
         $spreadsheet = IOFactory::load($filePath);
         $sheetsFound = [];
         $data = [];
+        $headers = [];
 
         foreach ($spreadsheet->getSheetNames() as $sheetName) {
             $definition = $this->matchSheetDefinition($sheetName);
@@ -266,9 +268,10 @@ class SheetParser
             $sheetKey = $definition['key'];
             $sheetsFound[] = $sheetKey;
             $data[$sheetKey] = $this->parseSheet($worksheet, $definition['definition']);
+            $headers[$sheetKey] = $this->parseHeaderRow($worksheet, $definition['definition']['columns']);
         }
 
-        return new ParseResult($sheetsFound, $data);
+        return new ParseResult($sheetsFound, $data, $headers);
     }
 
     /**
@@ -331,7 +334,7 @@ class SheetParser
             $isEmpty = true;
 
             foreach ($columns as $col => $fieldName) {
-                $cellValue = $worksheet->getCell($col . $rowNum)->getValue();
+                $cellValue = $this->extractCellValue($worksheet->getCell($col . $rowNum)->getValue());
 
                 // Bereinigung
                 if (is_string($cellValue)) {
@@ -359,5 +362,47 @@ class SheetParser
         }
 
         return $rows;
+    }
+
+    /**
+     * Liest die Kopfzeile (Zeile 1) für die definierten Spalten aus.
+     * Dient der Erkennung abweichender Spaltenreihenfolgen (siehe SheetValidator::validateHeaders()).
+     *
+     * @return array<string, string> Spalte → getrimmter Kopfzeilentext
+     */
+    private function parseHeaderRow(Worksheet $worksheet, array $columns): array
+    {
+        $headers = [];
+
+        foreach (array_keys($columns) as $col) {
+            $value = $this->extractCellValue($worksheet->getCell($col . '1')->getValue());
+            if (is_string($value)) {
+                $value = trim($value);
+            }
+
+            if ($value !== null && $value !== '') {
+                $headers[$col] = (string) $value;
+            }
+        }
+
+        return $headers;
+    }
+
+    /**
+     * Wandelt einen PhpSpreadsheet-Zellwert in einen einfachen Skalar um.
+     *
+     * Enthält die Datei keine Shared-String-Tabelle (z.B. Inline-Strings aus
+     * Fremdsystem-Exporten wie SAP/ERP), liefert getValue() für Textzellen ein
+     * RichText-Objekt statt eines Strings zurück. Ohne diese Umwandlung würden
+     * is_string()/is_numeric()/empty()-Prüfungen fehlschlagen und Werte beim
+     * Schreiben in die Datenbank zu kryptischen Fehlern führen.
+     */
+    private function extractCellValue(mixed $value): mixed
+    {
+        if ($value instanceof RichText) {
+            return $value->getPlainText();
+        }
+
+        return $value;
     }
 }

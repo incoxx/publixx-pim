@@ -274,4 +274,183 @@ class SheetValidatorTest extends TestCase
         $this->assertNotNull($priceError);
         $this->assertStringContainsString('Zahl', $priceError['error']);
     }
+
+    public function test_detects_shifted_columns_and_reports_single_clear_error(): void
+    {
+        // Reproduziert einen realen Kundenfall: In der Datei fehlt die Spalte "Max.
+        // Vermehrungen" (K), wodurch "Übersetzbar" nach K rutscht, "Pflicht" nach L
+        // und "Quellsystem" nach M. Ohne Kopfzeilen-Prüfung würde z.B. der Wert aus
+        // "Pflicht" als is_translatable gelesen und einen verwirrenden Ja/Nein-Fehler
+        // auslösen – erwartet wird stattdessen EIN klarer Hinweis auf die Spaltenverschiebung.
+        $parseResult = new ParseResult(
+            sheetsFound: ['05_Attribute'],
+            data: [
+                '05_Attribute' => [
+                    2 => [
+                        'technical_name' => 'marke',
+                        'name_de' => 'Marke',
+                        'name_en' => null,
+                        'description' => null,
+                        'data_type' => 'String',
+                        'attribute_group' => null,
+                        'value_list' => null,
+                        'unit_group' => null,
+                        'default_unit' => null,
+                        'is_multipliable' => null,
+                        'max_multiplied' => 'Ja', // eigentlich "Übersetzbar"-Wert
+                        'is_translatable' => 'Pflicht', // eigentlich "Pflicht"-Wert
+                        'is_mandatory' => 'SAP ERP', // eigentlich "Quellsystem"-Wert
+                        'is_unique' => null,
+                        'is_searchable' => null,
+                        'is_inheritable' => null,
+                        'parent_attribute' => null,
+                        'source_system' => null,
+                        'views' => null,
+                        '_row' => 2,
+                    ],
+                ],
+            ],
+            headers: [
+                '05_Attribute' => [
+                    'A' => 'Technischer Name*',
+                    'B' => 'Name (Deutsch)*',
+                    'C' => 'Name (Englisch)',
+                    'D' => 'Beschreibung',
+                    'E' => 'Datentyp*',
+                    'F' => 'Attributgruppe',
+                    'G' => 'Werteliste',
+                    'H' => 'Einheitengruppe',
+                    'I' => 'Standard-Einheit',
+                    'J' => 'Vermehrbar',
+                    'K' => 'Übersetzbar', // erwartet: "Max. Vermehrungen"
+                    'L' => 'Pflicht',     // erwartet: "Übersetzbar (Ja/Nein)"
+                    'M' => 'Quellsystem', // erwartet: "Pflicht (Optional/Pflicht)"
+                ],
+            ],
+        );
+
+        $result = $this->validator->validate($parseResult);
+
+        $this->assertTrue($result->hasErrors);
+
+        $headerErrors = collect($result->errors)->where('field', 'Spaltenkopf');
+        $this->assertCount(1, $headerErrors, 'Es sollte genau ein zusammengefasster Kopfzeilen-Fehler entstehen, keine Flut von Folgefehlern.');
+
+        $headerError = $headerErrors->first();
+        $this->assertStringContainsString('Spaltenreihenfolge', $headerError['error']);
+        $this->assertStringContainsString('Spalte K', $headerError['error']);
+
+        // Keine verwirrenden Ja/Nein-Folgefehler auf den falsch zugeordneten Werten
+        $this->assertCount(0, collect($result->errors)->where('field', 'is_translatable'));
+
+        $this->assertEquals(0, $result->summary['05_Attribute']['valid']);
+        $this->assertEquals(1, $result->summary['05_Attribute']['errors']);
+    }
+
+    public function test_tolerates_missing_trailing_columns(): void
+    {
+        // Eine Datei, die nur die ersten 5 Spalten der Vorlage befüllt (Rest weggelassen),
+        // ist gültig und darf keinen Kopfzeilen-Fehler auslösen.
+        $parseResult = new ParseResult(
+            sheetsFound: ['05_Attribute'],
+            data: [
+                '05_Attribute' => [
+                    2 => [
+                        'technical_name' => 'weight',
+                        'name_de' => 'Gewicht',
+                        'name_en' => null,
+                        'description' => null,
+                        'data_type' => 'Number',
+                        '_row' => 2,
+                    ],
+                ],
+            ],
+            headers: [
+                '05_Attribute' => [
+                    'A' => 'Technischer Name*',
+                    'B' => 'Name (Deutsch)*',
+                    'C' => 'Name (Englisch)',
+                    'D' => 'Beschreibung',
+                    'E' => 'Datentyp*',
+                ],
+            ],
+        );
+
+        $result = $this->validator->validate($parseResult);
+
+        $this->assertCount(0, collect($result->errors)->where('field', 'Spaltenkopf'));
+    }
+
+    public function test_tolerates_differently_worded_but_correctly_placed_headers(): void
+    {
+        // Reale Kundendatei: Spalten sind inhaltlich korrekt befüllt, nur anders benannt
+        // als die Vorlage ("Werteliste" statt "Liste Techn. Name", "Wert-Code" statt
+        // "Eintrag Techn. Name" usw.). Das darf NICHT als Spaltenverschiebung gemeldet
+        // werden, weil die gefundenen Texte zu keiner anderen Spalte der Vorlage passen.
+        $parseResult = new ParseResult(
+            sheetsFound: ['04_Wertelisten'],
+            data: [
+                '04_Wertelisten' => [
+                    2 => [
+                        'list_technical_name' => 'farben',
+                        'list_name_de' => 'Farben',
+                        'entry_technical_name' => 'rot',
+                        'display_value_de' => 'Rot',
+                        'display_value_en' => 'Red',
+                        'sort_order' => null,
+                        '_row' => 2,
+                    ],
+                ],
+            ],
+            headers: [
+                '04_Wertelisten' => [
+                    'A' => 'Werteliste*',
+                    'B' => 'Listenname (Deutsch)*',
+                    'C' => 'Wert-Code*',
+                    'D' => 'Wert (Deutsch)*',
+                    'E' => 'Wert (Englisch)',
+                ],
+            ],
+        );
+
+        $result = $this->validator->validate($parseResult);
+
+        $this->assertCount(0, collect($result->errors)->where('field', 'Spaltenkopf'));
+    }
+
+    public function test_tolerates_minor_header_variations(): void
+    {
+        // Fehlendes Pflicht-Sternchen, Klammer-Hinweis und andere Groß-/Kleinschreibung
+        // dürfen keinen Kopfzeilen-Fehler auslösen (nur echte inhaltliche Abweichungen).
+        $parseResult = new ParseResult(
+            sheetsFound: ['08_Produkte'],
+            data: [
+                '08_Produkte' => [
+                    2 => [
+                        'sku' => 'SKU-001',
+                        'name' => 'Test',
+                        'name_en' => null,
+                        'product_type' => 'physical_product',
+                        'ean' => null,
+                        'status' => 'active',
+                        '_row' => 2,
+                    ],
+                ],
+            ],
+            headers: [
+                '08_Produkte' => [
+                    'A' => 'sku', // ohne Sternchen, klein geschrieben
+                    'B' => 'Produktname',
+                    'C' => 'Produktname (EN)',
+                    'D' => 'Produkttyp',
+                    'E' => 'EAN',
+                    'F' => 'STATUS (draft/active/inactive)', // Klammer-Hinweis + Großschreibung
+                ],
+            ],
+        );
+
+        $result = $this->validator->validate($parseResult);
+
+        $this->assertCount(0, collect($result->errors)->where('field', 'Spaltenkopf'));
+    }
 }
