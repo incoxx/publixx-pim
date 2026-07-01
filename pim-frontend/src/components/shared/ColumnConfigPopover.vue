@@ -1,13 +1,18 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
-import { Columns3, ArrowUp, ArrowDown, RotateCcw, X } from 'lucide-vue-next'
+import { ref, computed, watch, defineAsyncComponent, onMounted, onUnmounted, nextTick } from 'vue'
+import { Columns3, ArrowUp, ArrowDown, RotateCcw, X, GripVertical } from 'lucide-vue-next'
+
+// vue-draggable-plus lazy laden um zirkuläre Initialisierung zu vermeiden
+const VueDraggable = defineAsyncComponent(() =>
+  import('vue-draggable-plus').then(m => m.VueDraggable)
+)
 
 const props = defineProps({
   allColumns: { type: Array, required: true },
   visibleKeys: { type: Array, required: true },
 })
 
-const emit = defineEmits(['toggle', 'move', 'reset'])
+const emit = defineEmits(['toggle', 'move', 'reset', 'reorder'])
 
 const open = ref(false)
 const isMobile = ref(false)
@@ -38,11 +43,28 @@ function doOpen() {
   if (open.value) nextTick(calcPosition)
 }
 
-const baseColumns = computed(() => props.allColumns.filter(c => !c.group))
+// Sichtbare Spalten in ihrer aktuellen Reihenfolge (per Drag&Drop sortierbar)
+const sortableVisible = ref([])
+
+watch(
+  () => [props.visibleKeys, props.allColumns],
+  () => {
+    sortableVisible.value = props.visibleKeys
+      .map(key => props.allColumns.find(c => c.key === key))
+      .filter(Boolean)
+  },
+  { immediate: true, deep: true }
+)
+
+function onDragEnd() {
+  emit('reorder', sortableVisible.value.map(c => c.key))
+}
+
+const baseColumns = computed(() => props.allColumns.filter(c => !c.group && !isVisible(c.key)))
 const groupedColumns = computed(() => {
   const groups = {}
   for (const col of props.allColumns) {
-    if (col.group) {
+    if (col.group && !isVisible(col.key)) {
       if (!groups[col.group]) groups[col.group] = []
       groups[col.group].push(col)
     }
@@ -130,63 +152,34 @@ onUnmounted(() => window.removeEventListener('keydown', onEscape))
 
           <!-- Column list -->
           <div class="overflow-y-auto p-1" :class="isMobile ? 'flex-1' : 'max-h-80'">
-            <!-- Base columns -->
-            <div
-              v-for="col in baseColumns"
-              :key="col.key"
-              class="flex items-center gap-2 px-2 rounded hover:bg-[var(--color-bg)] group"
-              :class="isMobile ? 'py-2.5' : 'py-1.5'"
+            <!-- Sichtbare Spalten: per Drag&Drop sortierbar -->
+            <VueDraggable
+              v-model="sortableVisible"
+              handle=".col-drag-handle"
+              ghost-class="opacity-30"
+              class="space-y-0"
+              @end="onDragEnd"
             >
-              <input
-                type="checkbox"
-                :checked="isVisible(col.key)"
-                @change="toggle(col.key)"
-                class="rounded border-[var(--color-border)] text-[var(--color-accent)] shrink-0"
-                :class="isMobile ? 'w-5 h-5' : ''"
-              />
-              <span class="text-[var(--color-text-primary)] flex-1" :class="isMobile ? 'text-sm' : 'text-xs'">{{ col.label }}</span>
-              <div v-if="isVisible(col.key)" class="flex items-center gap-0.5"
-                   :class="isMobile ? '' : 'opacity-0 group-hover:opacity-100 transition-opacity'"
-              >
-                <button
-                  class="p-0.5 rounded hover:bg-[var(--color-border)] text-[var(--color-text-tertiary)]"
-                  @click.stop="move(col.key, 'up')"
-                  title="Nach oben"
-                >
-                  <ArrowUp class="w-3 h-3" :stroke-width="2" :class="isMobile ? 'w-4 h-4' : ''" />
-                </button>
-                <button
-                  class="p-0.5 rounded hover:bg-[var(--color-border)] text-[var(--color-text-tertiary)]"
-                  @click.stop="move(col.key, 'down')"
-                  title="Nach unten"
-                >
-                  <ArrowDown class="w-3 h-3" :stroke-width="2" :class="isMobile ? 'w-4 h-4' : ''" />
-                </button>
-              </div>
-            </div>
-
-            <!-- Grouped columns (e.g. Attribute) -->
-            <template v-for="(cols, groupName) in groupedColumns" :key="groupName">
-              <div class="flex items-center gap-2 px-2 pt-2 pb-1 mt-1 border-t border-[var(--color-border)]">
-                <span class="text-[10px] font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wider"
-                      :class="isMobile ? 'text-xs' : ''"
-                >{{ groupName }}</span>
-              </div>
               <div
-                v-for="col in cols"
+                v-for="col in sortableVisible"
                 :key="col.key"
                 class="flex items-center gap-2 px-2 rounded hover:bg-[var(--color-bg)] group"
-                :class="isMobile ? 'py-2.5' : 'py-1'"
+                :class="isMobile ? 'py-2.5' : 'py-1.5'"
               >
+                <GripVertical
+                  class="col-drag-handle w-3.5 h-3.5 text-[var(--color-text-tertiary)] opacity-40 cursor-grab active:cursor-grabbing shrink-0"
+                  :stroke-width="2"
+                />
                 <input
                   type="checkbox"
-                  :checked="isVisible(col.key)"
+                  :checked="true"
                   @change="toggle(col.key)"
                   class="rounded border-[var(--color-border)] text-[var(--color-accent)] shrink-0"
                   :class="isMobile ? 'w-5 h-5' : ''"
                 />
-                <span class="text-[var(--color-text-secondary)] flex-1 truncate" :class="isMobile ? 'text-sm' : 'text-[11px]'">{{ col.label }}</span>
-                <div v-if="isVisible(col.key)" class="flex items-center gap-0.5"
+                <span class="text-[var(--color-text-primary)] flex-1 truncate" :class="isMobile ? 'text-sm' : 'text-xs'">{{ col.label }}</span>
+                <span v-if="col.group" class="text-[9px] text-[var(--color-text-tertiary)] shrink-0">{{ col.group }}</span>
+                <div class="flex items-center gap-0.5"
                      :class="isMobile ? '' : 'opacity-0 group-hover:opacity-100 transition-opacity'"
                 >
                   <button
@@ -205,6 +198,54 @@ onUnmounted(() => window.removeEventListener('keydown', onEscape))
                   </button>
                 </div>
               </div>
+            </VueDraggable>
+
+            <!-- Weitere Spalten (ausgeblendet) -->
+            <template v-if="baseColumns.length > 0 || Object.keys(groupedColumns).length > 0">
+              <div class="flex items-center gap-2 px-2 pt-2 pb-1 mt-1 border-t border-[var(--color-border)]">
+                <span class="text-[10px] font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wider"
+                      :class="isMobile ? 'text-xs' : ''"
+                >Weitere Spalten</span>
+              </div>
+              <div
+                v-for="col in baseColumns"
+                :key="col.key"
+                class="flex items-center gap-2 px-2 rounded hover:bg-[var(--color-bg)] group"
+                :class="isMobile ? 'py-2.5' : 'py-1.5'"
+              >
+                <input
+                  type="checkbox"
+                  :checked="false"
+                  @change="toggle(col.key)"
+                  class="rounded border-[var(--color-border)] text-[var(--color-accent)] shrink-0"
+                  :class="isMobile ? 'w-5 h-5' : ''"
+                />
+                <span class="text-[var(--color-text-primary)] flex-1" :class="isMobile ? 'text-sm' : 'text-xs'">{{ col.label }}</span>
+              </div>
+
+              <!-- Grouped columns (e.g. Attribute) -->
+              <template v-for="(cols, groupName) in groupedColumns" :key="groupName">
+                <div class="flex items-center gap-2 px-2 pt-2 pb-1 mt-1 border-t border-[var(--color-border)]">
+                  <span class="text-[10px] font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wider"
+                        :class="isMobile ? 'text-xs' : ''"
+                  >{{ groupName }}</span>
+                </div>
+                <div
+                  v-for="col in cols"
+                  :key="col.key"
+                  class="flex items-center gap-2 px-2 rounded hover:bg-[var(--color-bg)] group"
+                  :class="isMobile ? 'py-2.5' : 'py-1'"
+                >
+                  <input
+                    type="checkbox"
+                    :checked="false"
+                    @change="toggle(col.key)"
+                    class="rounded border-[var(--color-border)] text-[var(--color-accent)] shrink-0"
+                    :class="isMobile ? 'w-5 h-5' : ''"
+                  />
+                  <span class="text-[var(--color-text-secondary)] flex-1 truncate" :class="isMobile ? 'text-sm' : 'text-[11px]'">{{ col.label }}</span>
+                </div>
+              </template>
             </template>
           </div>
         </div>

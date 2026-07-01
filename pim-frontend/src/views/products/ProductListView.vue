@@ -22,6 +22,7 @@ import productsApi from '@/api/products'
 import watchlistApi from '@/api/watchlist'
 import searchApi from '@/api/search'
 import manufacturersApi from '@/api/manufacturers'
+import hierarchiesApi from '@/api/hierarchies'
 import { useLicenseStore } from '@/stores/license'
 import BulkAssignProjectDialog from '@/components/dialogs/BulkAssignProjectDialog.vue'
 import BulkAssignHierarchyNodeDialog from '@/components/dialogs/BulkAssignHierarchyNodeDialog.vue'
@@ -92,7 +93,7 @@ const extraColumns = [
   { key: 'ean', label: 'EAN', mono: true },
   { key: 'workflow_status', label: 'Workflow' },
   { key: 'manufacturer.name', label: 'Hersteller' },
-  { key: 'master_hierarchy_node.name_de', label: 'Hierarchie-Knoten' },
+  { key: 'master_hierarchy_node.name_de', label: 'Hierarchie-Knoten', sortable: true },
   { key: 'created_at', label: 'Erstellt', sortable: true },
 ]
 
@@ -138,11 +139,28 @@ async function loadManufacturers() {
   } catch { /* silently fail */ }
 }
 
+const hierarchyNodeList = ref([])
+const hierarchyNodeOptions = computed(() =>
+  hierarchyNodeList.value.map(n => ({ value: n.name_de, label: n.name_de }))
+)
+
+async function loadMasterHierarchyNodes() {
+  try {
+    const { data: hData } = await hierarchiesApi.list({ perPage: 100 })
+    const hierarchies = hData.data || hData
+    const masterHierarchy = hierarchies.find(h => h.hierarchy_type === 'master')
+    if (!masterHierarchy) return
+    const { data: nData } = await hierarchiesApi.searchNodes({ filters: { hierarchy_id: masterHierarchy.id }, perPage: 500 })
+    hierarchyNodeList.value = nData.data || nData
+  } catch { /* silently fail */ }
+}
+
 const quickLookupConfig = computed(() => ({
   sku: { type: 'text', placeholder: 'SKU...' },
   name: { type: 'text', placeholder: 'Name...' },
   'product_type.name_de': { type: 'select', options: productTypeOptions.value },
   'manufacturer.name': { type: 'select', options: manufacturerOptions.value },
+  'master_hierarchy_node.name_de': { type: 'select', options: hierarchyNodeOptions.value },
   status: { type: 'select', options: statusOptions },
   workflow_status: { type: 'select', options: [
     { value: 'editing', label: 'In Bearbeitung' },
@@ -433,7 +451,7 @@ function fetchWithAttributes() {
   const attrColumnIds = visibleKeys.value
     .filter(k => k.startsWith('attributes.'))
     .map(k => k.replace('attributes.', ''))
-  const options = attrColumnIds.length > 0 ? { attribute_columns: attrColumnIds, language: 'de' } : {}
+  const options = attrColumnIds.length > 0 ? { attribute_columns: attrColumnIds, language: localeStore.currentLocale } : {}
   options.include = 'productType,masterHierarchyNode,manufacturer'
   if (visibleKeys.value.includes('thumbnail') || viewMode.value === 'grid') {
     options.include_thumbnail = true
@@ -455,6 +473,7 @@ onMounted(async () => {
   fetchWithAttributes()
   attrStore.fetchProductTypes()
   loadManufacturers()
+  loadMasterHierarchyNodes()
   loadWatchlistIds()
   loadColumnProfiles()
 })
@@ -491,6 +510,7 @@ onMounted(async () => {
           @toggle="toggleColumn"
           @move="moveColumn"
           @reset="resetColumns"
+          @reorder="visibleKeys = $event"
         />
         <ProfileSelector
           :profiles="columnProfiles"

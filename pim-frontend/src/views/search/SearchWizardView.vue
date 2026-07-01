@@ -1133,6 +1133,7 @@ const apiCallDisplay = computed(() => {
         @toggle="searchToggleColumn"
         @move="searchMoveColumn"
         @reset="searchResetColumns"
+        @reorder="searchVisibleKeys = $event"
       />
       <label
         v-if="searchCategory === 'products'"
