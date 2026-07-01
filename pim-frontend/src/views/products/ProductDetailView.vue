@@ -539,9 +539,15 @@ async function loadAttributeData(overrideNodeId = null, generation = null) {
   if (attrLoaded.value || !product.value) return
   const gen = generation ?? _loadGeneration
   try {
+    // Virtuelle Produkte ("Klammer") gehören konzeptionell zu keinem
+    // einzelnen Kategorieknoten — Hierarchie-Attributzuweisung ergibt hier
+    // keinen Sinn. Sie erhalten stattdessen ein freies Attribut-Schema
+    // (siehe Fallback-Zweig unten + Attribut-Picker im Template).
+    const isVirtualProduct = product.value.product_type_ref === 'virtual'
+
     // Try resolved attributes from hierarchy first (includes inheritance info)
     let resolvedAttrs = null
-    const nodeId = overrideNodeId || product.value.master_hierarchy_node_id
+    const nodeId = !isVirtualProduct && (overrideNodeId || product.value.master_hierarchy_node_id)
     if (nodeId) {
       try {
         const { data: resolvedData } = await productsApi.getResolvedAttributes(product.value.id, nodeId)
@@ -613,10 +619,14 @@ async function loadAttributeData(overrideNodeId = null, generation = null) {
       const { data: valData } = await productsApi.getAttributeValues(product.value.id, { lang: langs })
       if (gen !== _loadGeneration) return
       const vals = valData.data || valData
+      const ownAttributesById = new Map()
       if (Array.isArray(vals)) {
         for (const val of vals) {
           const attrId = val.attribute_id || val.attribute?.id
           if (!attrId) continue
+          if (val.attribute && !ownAttributesById.has(attrId)) {
+            ownAttributesById.set(attrId, val.attribute)
+          }
           const rawValue = val.value_string ?? val.value_number ?? val.value_date ?? val.value_flag ?? val.value_selection_id ?? ''
           const mIdx = val.multiplied_index ?? 0
           if (mIdx > 0 || (val.attribute && val.attribute.is_multipliable)) {
@@ -632,7 +642,11 @@ async function loadAttributeData(overrideNodeId = null, generation = null) {
           }
         }
       }
-      if (product.value.product_type_id) {
+      if (isVirtualProduct) {
+        // Freies Schema: nur die Attribute, die bereits einen Wert haben
+        // (weitere können über den Attribut-Picker im Template ergänzt werden).
+        schema.value = [...ownAttributesById.values()]
+      } else if (product.value.product_type_id) {
         try {
           const { data: schemaData } = await productTypes.getSchema(product.value.product_type_id)
           if (gen !== _loadGeneration) return
@@ -692,6 +706,39 @@ async function loadAttributeData(overrideNodeId = null, generation = null) {
       } catch (e) { console.error('Failed to load dictionary entries:', e.message) }
     }
   } catch (e) { console.error('Failed to load attribute data:', e.message) }
+}
+
+// ─── Freier Attribut-Picker für virtuelle Produkte ────
+// Virtuelle Produkte haben keinen Hierarchieknoten-Schema — hier kann
+// jedes beliebige Attribut aus dem Katalog hinzugefügt werden (analog
+// zum Attribut-Picker der Produktbeziehungen, siehe relationAttrList).
+const virtualAttributeCatalog = ref([])
+const virtualAttributeCatalogLoaded = ref(false)
+const virtualAttributePicker = ref({ attribute_id: '' })
+
+async function loadVirtualAttributeCatalog() {
+  if (virtualAttributeCatalogLoaded.value) return
+  try {
+    const { data } = await attributesApiDefault.list({ perPage: 9999 })
+    virtualAttributeCatalog.value = data.data || data
+    virtualAttributeCatalogLoaded.value = true
+  } catch (e) { console.error('Failed to load attribute catalog:', e.message) }
+}
+
+const virtualAttributeCatalogOptions = computed(() => {
+  const usedIds = new Set(schemaAttributes.value.map(a => a.id))
+  return virtualAttributeCatalog.value
+    .filter(a => !usedIds.has(a.id))
+    .map(a => ({ value: a.id, label: a.name_de || a.technical_name }))
+})
+
+function addVirtualAttribute() {
+  const attrId = virtualAttributePicker.value.attribute_id
+  if (!attrId) return
+  const attr = virtualAttributeCatalog.value.find(a => a.id === attrId)
+  if (!attr || schema.value?.some?.(a => a.id === attrId)) return
+  schema.value = [...(Array.isArray(schema.value) ? schema.value : []), attr]
+  virtualAttributePicker.value.attribute_id = ''
 }
 
 const schemaAttributes = computed(() => {
@@ -2670,7 +2717,10 @@ watch(() => product.value?.master_hierarchy_node_id, async (newNodeId, oldNodeId
 // ─── Tab lazy loading ─────────────────────────────────
 watch(activeTab, (tab) => {
   if (tab === 'base-data') loadAttributeData()
-  if (tab === 'attributes') { loadAttributeData(); loadFilterOptions(); loadOutputHierarchyAttributes() }
+  if (tab === 'attributes') {
+    loadAttributeData(); loadFilterOptions(); loadOutputHierarchyAttributes()
+    if (product.value?.product_type_ref === 'virtual') loadVirtualAttributeCatalog()
+  }
   if (tab === 'variant-attributes') loadAttributeData()
   if (tab === 'variants') { loadVariants(); loadAttributeData() }
   if (tab === 'media') loadMedia()
@@ -3341,6 +3391,25 @@ onUnmounted(() => {
             Filter zurücksetzen
           </button>
         </div>
+      </div>
+
+      <!-- Freier Attribut-Picker (nur virtuelle Produkte: kein Hierarchieknoten-Schema) -->
+      <div v-if="product.product_type_ref === 'virtual'" class="pim-card p-3">
+        <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">Attribut hinzufügen</label>
+        <div class="flex items-end gap-2">
+          <div class="flex-1 max-w-sm">
+            <PimAttributeInput
+              type="select"
+              v-model="virtualAttributePicker.attribute_id"
+              :options="virtualAttributeCatalogOptions"
+              placeholder="Attribut wählen…"
+            />
+          </div>
+          <button class="pim-btn pim-btn-secondary text-xs px-3 py-1.5" :disabled="!virtualAttributePicker.attribute_id" @click="addVirtualAttribute">
+            <Plus class="w-3.5 h-3.5" :stroke-width="2" /> Hinzufügen
+          </button>
+        </div>
+        <p class="text-[11px] text-[var(--color-text-tertiary)] mt-1">Virtuelle Produkte sind keinem Kategorieknoten zugeordnet — hier kann jedes Attribut aus dem Katalog frei ergänzt werden.</p>
       </div>
 
       <!-- Language switcher for translatable attributes -->
