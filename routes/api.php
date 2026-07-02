@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\V1\ProductConformanceController;
 use App\Http\Controllers\Api\V1\ProjectController;
 use App\Http\Controllers\Api\V1\TeamController;
 use App\Http\Controllers\Api\V1\TestRunnerController;
+use App\Http\Controllers\Api\V1\ArtisanCockpitController;
 use App\Http\Controllers\Api\V1\WorkflowController;
 use App\Http\Controllers\Api\V1\WorkflowStatusController;
 use App\Http\Controllers\Api\V1\WorkflowTaskController;
@@ -1149,6 +1150,12 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
     // =====================================================================
     Route::get('admin/db-consistency/check', [DatabaseConsistencyController::class, 'check']);
     Route::post('admin/db-consistency/fix/{issueType}', [DatabaseConsistencyController::class, 'fix']);
+
+    // =====================================================================
+    // Admin: Artisan-Cockpit
+    // =====================================================================
+    Route::get('admin/artisan-cockpit/commands', [ArtisanCockpitController::class, 'index']);
+    Route::post('admin/artisan-cockpit/run', [ArtisanCockpitController::class, 'run']);
 
     // =====================================================================
     // Scheduled Actions & Calendar
