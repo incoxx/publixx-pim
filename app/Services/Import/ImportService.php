@@ -341,6 +341,15 @@ class ImportService
             'total_rows' => $parseResult->totalRows(),
         ]);
 
+        // Ohne diesen Eintrag zeigt das Import-Protokoll nach "Validierung abgeschlossen" nichts
+        // mehr an, bis der Queue-Worker den Job abgeholt hat – das wirkt wie ein hängender Import,
+        // obwohl der Job korrekt in der Warteschlange "import" liegt und auf Verarbeitung wartet.
+        $this->logger->info(
+            $importJob,
+            'execution',
+            "Import zu groß für sofortige Verarbeitung ({$parseResult->totalRows()} Zeilen) — läuft im Hintergrund über die Warteschlange 'import'.",
+        );
+
         return $importJob->fresh();
     }
 

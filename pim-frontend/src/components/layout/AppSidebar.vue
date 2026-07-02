@@ -22,6 +22,7 @@ import {
   Clapperboard,
   Gauge,
   Wand2,
+  Terminal,
 } from 'lucide-vue-next'
 import AnyPimLogo from '@/components/shared/AnyPimLogo.vue'
 import { useAppearanceStore, SECTION_ICON_COLORS } from '@/stores/appearance'
@@ -262,6 +263,7 @@ const sections = computed(() => {
             { icon: Database, label: () => 'Datenbank', to: '/db', permission: 'users.view' },
             { icon: Shield, label: () => 'Datenkonsistenz', to: '/db-consistency', permission: 'users.view' },
             { icon: FileText, label: () => 'Log Viewer', to: '/logs', permission: 'users.view' },
+            { icon: Terminal, label: () => 'Artisan-Cockpit', to: '/artisan-cockpit', permission: 'users.view' },
             { icon: Bug, label: () => 'Fehler', to: '/errors', permission: 'users.view' },
             { icon: ScrollText, label: () => 'Journal', to: '/journal', permission: 'journal.view' },
           ],

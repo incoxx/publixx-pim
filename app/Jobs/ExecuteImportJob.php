@@ -40,7 +40,7 @@ class ExecuteImportJob implements ShouldQueue
         private readonly string $importJobId,
         private readonly ParseResult $parseResult,
     ) {
-        $this->onQueue('imports');
+        $this->onQueue('import');
     }
 
     public function handle(ImportExecutor $executor): void

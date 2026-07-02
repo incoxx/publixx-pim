@@ -68,6 +68,10 @@ const executing = ref(false)
 const executionResult = ref(null)
 const logs = ref([])
 const logPolling = ref(null)
+// true, wenn das Polling aufgegeben hat, der Import laut Status aber noch läuft
+// (z.B. große Datei in der Warteschlange, Ausführung dauert länger als 2 Minuten)
+const pollTimedOut = ref(false)
+const checkingStatus = ref(false)
 
 onMounted(async () => {
   try {
@@ -415,6 +419,7 @@ async function pollLogs() {
 
 async function pollStatus() {
   if (!importJob.value) return
+  pollTimedOut.value = false
   for (let i = 0; i < 60; i++) {
     await new Promise(r => setTimeout(r, 2000))
     try {
@@ -427,6 +432,27 @@ async function pollStatus() {
       }
     } catch (e) { break }
   }
+  // Nach 2 Minuten Polling ohne Endstatus: Import läuft vermutlich als Hintergrund-Job in der
+  // Queue weiter (große Datei, > 100 Zeilen). Kein Fehlerzustand — nur nicht mehr aktiv anzeigen.
+  if (!['completed', 'failed'].includes(importJob.value?.status)) {
+    pollTimedOut.value = true
+  }
+}
+
+/** Manuell erneut prüfen, ob der Hintergrund-Import inzwischen fertig ist. */
+async function checkStatusAgain() {
+  if (!importJob.value) return
+  checkingStatus.value = true
+  try {
+    const { data } = await importsApi.getStatus(importJob.value.id)
+    importJob.value = data.data || data
+    if (['completed', 'failed'].includes(importJob.value.status)) {
+      pollTimedOut.value = false
+      const { data: resultData } = await importsApi.getResult(importJob.value.id)
+      executionResult.value = resultData.data || resultData
+    }
+    await pollLogs()
+  } catch (e) { /* ignore */ } finally { checkingStatus.value = false }
 }
 
 async function downloadTemplate(type) {
@@ -452,6 +478,7 @@ function resetWizard() {
   executionResult.value = null
   logs.value = []
   error.value = ''
+  pollTimedOut.value = false
 }
 
 const errorCount = computed(() => preview.value?.errors?.length ?? 0)
@@ -594,23 +621,45 @@ const logLevelIcon = { info: CheckCircle, warning: AlertTriangle, error: XCircle
         Achtung: Alle Produkte aus der Datei (anhand SKU) werden unwiderruflich gelöscht inkl. aller zugehörigen Daten.
       </div>
 
-      <div class="flex border-b border-[var(--color-border)]">
-        <button
-          v-for="tab in [{ key: 'products', label: 'Produkte' }, { key: 'prices', label: 'Preise' }, { key: 'relations', label: 'Beziehungen' }]"
-          :key="tab.key"
-          :class="[
-            'px-4 py-2.5 text-xs font-medium border-b-2 -mb-px',
-            mappingTab === tab.key
-              ? 'border-[var(--color-accent)] text-[var(--color-accent)]'
-              : 'border-transparent text-[var(--color-text-tertiary)]',
-          ]"
-          @click="mappingTab = tab.key"
-        >
-          {{ tab.label }}
-        </button>
+      <!-- Vorlage erkannt: kein manuelles Mapping nötig, da das Backend die Vorlagen-Reiter direkt verarbeitet -->
+      <div v-if="!isFlatImport" class="pim-card p-5 space-y-3">
+        <div class="flex items-center gap-2 text-sm font-semibold text-[var(--color-success)]">
+          <CheckCircle class="w-4 h-4" :stroke-width="2" />
+          anyPIM-Vorlage erkannt — kein manuelles Spalten-Mapping nötig
+        </div>
+        <p class="text-xs text-[var(--color-text-tertiary)]">
+          Diese Datei folgt der Standard-Vorlage. Die folgenden Reiter wurden automatisch erkannt und werden anhand ihrer
+          Spaltenposition importiert:
+        </p>
+        <div class="flex flex-wrap gap-1.5">
+          <span
+            v-for="s in (importJob?.sheets_found || [])"
+            :key="s"
+            class="text-[11px] px-2 py-1 rounded-full bg-[var(--color-bg)] text-[var(--color-text-secondary)]"
+          >
+            {{ s }}
+          </span>
+        </div>
       </div>
 
-      <div v-if="mappingTab === 'products'" class="pim-card p-5 space-y-4">
+      <template v-else>
+        <div class="flex border-b border-[var(--color-border)]">
+          <button
+            v-for="tab in [{ key: 'products', label: 'Produkte' }, { key: 'prices', label: 'Preise' }, { key: 'relations', label: 'Beziehungen' }]"
+            :key="tab.key"
+            :class="[
+              'px-4 py-2.5 text-xs font-medium border-b-2 -mb-px',
+              mappingTab === tab.key
+                ? 'border-[var(--color-accent)] text-[var(--color-accent)]'
+                : 'border-transparent text-[var(--color-text-tertiary)]',
+            ]"
+            @click="mappingTab = tab.key"
+          >
+            {{ tab.label }}
+          </button>
+        </div>
+
+        <div v-if="mappingTab === 'products'" class="pim-card p-5 space-y-4">
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <div>
             <label class="block text-[11px] font-medium text-[var(--color-text-secondary)] mb-1">SKU-Spalte *</label>
@@ -810,6 +859,7 @@ const logLevelIcon = { info: CheckCircle, warning: AlertTriangle, error: XCircle
           Beziehungen werden aus dem Sheet "Beziehungen" importiert, sofern vorhanden. Standard-Format: Quell-SKU, Ziel-SKU, Beziehungstyp, Position.
         </p>
       </div>
+      </template>
 
       <div class="flex gap-3">
         <button class="pim-btn pim-btn-secondary text-xs" @click="step = 1">
@@ -934,6 +984,18 @@ const logLevelIcon = { info: CheckCircle, warning: AlertTriangle, error: XCircle
           <XCircle class="w-10 h-10 mx-auto text-[var(--color-error)]" :stroke-width="1.5" />
           <p class="text-sm font-semibold text-[var(--color-error)]">Import fehlgeschlagen</p>
           <p class="text-xs text-[var(--color-error)]">{{ executionResult?.result?.error }}</p>
+        </div>
+        <div v-else-if="pollTimedOut" class="space-y-3">
+          <RefreshCw class="w-8 h-8 mx-auto text-[var(--color-text-tertiary)]" :stroke-width="1.5" />
+          <p class="text-sm font-medium text-[var(--color-text-primary)]">Import läuft im Hintergrund weiter</p>
+          <p class="text-xs text-[var(--color-text-tertiary)] max-w-md mx-auto">
+            Diese Datei hat mehr als 100 Zeilen und wird deshalb über eine Warteschlange im Hintergrund verarbeitet.
+            Das kann bei vielen Reitern etwas dauern — du kannst die Seite verlassen und später wiederkommen.
+          </p>
+          <button class="pim-btn pim-btn-secondary text-xs" :disabled="checkingStatus" @click="checkStatusAgain">
+            <RefreshCw class="w-3.5 h-3.5" :class="{ 'animate-spin': checkingStatus }" :stroke-width="1.75" />
+            Status jetzt prüfen
+          </button>
         </div>
       </div>
 

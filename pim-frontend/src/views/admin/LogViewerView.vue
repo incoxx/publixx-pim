@@ -6,7 +6,7 @@ import {
   AlertTriangle, AlertCircle, Info, Bug, Filter, X
 } from 'lucide-vue-next'
 
-const channels = ['laravel', 'import', 'export']
+const channels = ['laravel', 'import', 'export', 'artisan-cockpit']
 const activeChannel = ref('laravel')
 const entries = ref([])
 const meta = ref({ channel: '', total_entries: 0, file_size: 0, file_size_human: '0 B' })

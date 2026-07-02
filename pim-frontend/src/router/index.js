@@ -557,6 +557,12 @@ const routes = [
     meta: { title: 'Log Viewer' },
   },
   {
+    path: '/artisan-cockpit',
+    name: 'artisan-cockpit',
+    component: () => import('@/views/admin/ArtisanCockpitView.vue'),
+    meta: { title: 'Artisan-Cockpit' },
+  },
+  {
     path: '/errors',
     name: 'error-classifications',
     component: () => import('@/views/admin/ErrorClassificationsView.vue'),

@@ -46,6 +46,13 @@ return [
             'days' => 30,
             'replace_placeholders' => true,
         ],
+        'artisan-cockpit' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/artisan-cockpit.log'),
+            'level' => 'debug',
+            'days' => 30,
+            'replace_placeholders' => true,
+        ],
         'null' => [
             'driver' => 'monolog',
             'handler' => Monolog\Handler\NullHandler::class,
