@@ -10,7 +10,7 @@ use Illuminate\Http\Response;
 
 class DebugController extends Controller
 {
-    private const ALLOWED_CHANNELS = ['laravel', 'import', 'export'];
+    private const ALLOWED_CHANNELS = ['laravel', 'import', 'export', 'artisan-cockpit'];
 
     public function logs(Request $request): Response
     {
@@ -22,9 +22,9 @@ class DebugController extends Controller
                 ->header('Content-Type', 'text/plain');
         }
 
-        $path = storage_path("logs/{$channel}.log");
+        $path = $this->resolveLogPath($channel);
 
-        if (! file_exists($path)) {
+        if ($path === null) {
             return response("(empty — no log entries yet)\n", 200)
                 ->header('Content-Type', 'text/plain');
         }
@@ -46,9 +46,9 @@ class DebugController extends Controller
             return response()->json(['error' => 'Unknown channel: ' . $channel], 400);
         }
 
-        $path = storage_path("logs/{$channel}.log");
+        $path = $this->resolveLogPath($channel);
 
-        if (! file_exists($path)) {
+        if ($path === null) {
             return response()->json([
                 'entries' => [],
                 'meta' => [
@@ -128,17 +128,45 @@ class DebugController extends Controller
                 ->header('Content-Type', 'text/plain');
         }
 
-        $path = storage_path("logs/{$channel}.log");
+        $path = $this->resolveLogPath($channel);
 
-        if (! file_exists($path)) {
+        if ($path === null) {
             return response("Nothing to clear — no log file yet.\n", 200)
                 ->header('Content-Type', 'text/plain');
         }
 
         file_put_contents($path, '');
 
-        return response("Cleared: {$channel}.log")
+        return response('Cleared: ' . basename($path))
             ->header('Content-Type', 'text/plain');
+    }
+
+    /**
+     * Ermittelt die aktuell aktive Log-Datei für einen Channel.
+     *
+     * Channels mit `driver => 'single'` (z.B. "laravel") schreiben in eine feste
+     * Datei ("laravel.log"). Channels mit `driver => 'daily'` (z.B. "import",
+     * "export", "artisan-cockpit") schreiben stattdessen tagesaktuell in
+     * "{channel}-YYYY-MM-DD.log" – ohne diese Auflösung würde immer die falsche,
+     * nie existierende Datei "{channel}.log" gesucht und der Log wirkte leer.
+     */
+    private function resolveLogPath(string $channel): ?string
+    {
+        $exactPath = storage_path("logs/{$channel}.log");
+        if (file_exists($exactPath)) {
+            return $exactPath;
+        }
+
+        $dailyFiles = glob(storage_path("logs/{$channel}-*.log")) ?: [];
+        if (empty($dailyFiles)) {
+            return null;
+        }
+
+        // Dateinamen enthalten das Datum (YYYY-MM-DD), alphabetische Sortierung
+        // entspricht damit der chronologischen Reihenfolge.
+        sort($dailyFiles);
+
+        return end($dailyFiles);
     }
 
     /**
