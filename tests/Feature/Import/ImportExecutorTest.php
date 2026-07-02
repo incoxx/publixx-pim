@@ -6,6 +6,9 @@ namespace Tests\Feature\Import;
 
 use App\Events\ImportCompleted;
 use App\Models\Attribute;
+use App\Models\Hierarchy;
+use App\Models\HierarchyNode;
+use App\Models\HierarchyNodeAttributeAssignment;
 use App\Models\Product;
 use App\Models\ProductAttributeValue;
 use App\Models\ProductType;
@@ -368,5 +371,128 @@ class ImportExecutorTest extends TestCase
             'attribute_id' => 'attr-flag',
             'value_flag' => true,
         ]);
+    }
+
+    public function test_auto_assigns_missing_attribute_to_hierarchy_node_of_imported_product(): void
+    {
+        // Attribut existiert bereits, ist aber am Zielknoten noch NICHT zugeordnet
+        // (07_Hierarchie_Attribute wurde vom Nutzer nicht gepflegt).
+        Attribute::forceCreate([
+            'id' => 'attr-farbe',
+            'technical_name' => 'farbe',
+            'name_de' => 'Farbe',
+            'data_type' => 'String',
+        ]);
+
+        $hierarchy = Hierarchy::forceCreate([
+            'id' => 'hier-master',
+            'technical_name' => 'sortiment',
+            'name_de' => 'Sortiment',
+            'hierarchy_type' => 'master',
+        ]);
+
+        $node = HierarchyNode::forceCreate([
+            'id' => 'node-heizung',
+            'hierarchy_id' => $hierarchy->id,
+            'name_de' => 'Heizung',
+            'path' => '/Heizung',
+            'depth' => 0,
+        ]);
+
+        // 08_Produkte + 09_Produktwerte + 11_Produkt_Hierarchien in einem Lauf,
+        // wie bei einem echten Vorlagen-Import.
+        $parseResult = new ParseResult(
+            sheetsFound: ['08_Produkte', '09_Produktwerte', '11_Produkt_Hierarchien'],
+            data: [
+                '08_Produkte' => [
+                    2 => [
+                        'sku' => 'HZ-001', 'name' => 'Heizkessel', 'name_en' => null,
+                        'product_type' => 'physical_product', 'ean' => null, 'status' => 'active', '_row' => 2,
+                    ],
+                ],
+                '09_Produktwerte' => [
+                    2 => [
+                        'sku' => 'HZ-001', 'attribute' => 'farbe', 'value' => 'Weiß',
+                        'unit' => null, 'language' => null, 'index' => null, '_row' => 2,
+                    ],
+                ],
+                '11_Produkt_Hierarchien' => [
+                    2 => ['sku' => 'HZ-001', 'hierarchy' => 'sortiment', 'node_path' => 'Heizung', '_row' => 2],
+                ],
+            ],
+        );
+
+        $this->assertDatabaseMissing('hierarchy_node_attribute_assignments', [
+            'hierarchy_node_id' => $node->id,
+            'attribute_id' => 'attr-farbe',
+        ]);
+
+        $result = $this->executor->execute($parseResult);
+
+        $this->assertDatabaseHas('hierarchy_node_attribute_assignments', [
+            'hierarchy_node_id' => $node->id,
+            'attribute_id' => 'attr-farbe',
+        ]);
+        $this->assertEquals(1, $result->stats['_hierarchy_attribute_assignments']['created']);
+    }
+
+    public function test_does_not_duplicate_existing_hierarchy_node_attribute_assignment(): void
+    {
+        Attribute::forceCreate([
+            'id' => 'attr-groesse',
+            'technical_name' => 'groesse',
+            'name_de' => 'Größe',
+            'data_type' => 'String',
+        ]);
+
+        $hierarchy = Hierarchy::forceCreate([
+            'id' => 'hier-master-2',
+            'technical_name' => 'sortiment2',
+            'name_de' => 'Sortiment 2',
+            'hierarchy_type' => 'master',
+        ]);
+
+        $node = HierarchyNode::forceCreate([
+            'id' => 'node-klima',
+            'hierarchy_id' => $hierarchy->id,
+            'name_de' => 'Klima',
+            'path' => '/Klima',
+            'depth' => 0,
+        ]);
+
+        // Zuordnung existiert bereits (z.B. manuell in der GUI angelegt)
+        HierarchyNodeAttributeAssignment::forceCreate([
+            'id' => 'hnaa-existing',
+            'hierarchy_node_id' => $node->id,
+            'attribute_id' => 'attr-groesse',
+            'attribute_sort' => 5,
+        ]);
+
+        $parseResult = new ParseResult(
+            sheetsFound: ['08_Produkte', '09_Produktwerte', '11_Produkt_Hierarchien'],
+            data: [
+                '08_Produkte' => [
+                    2 => [
+                        'sku' => 'KL-001', 'name' => 'Klimagerät', 'name_en' => null,
+                        'product_type' => 'physical_product', 'ean' => null, 'status' => 'active', '_row' => 2,
+                    ],
+                ],
+                '09_Produktwerte' => [
+                    2 => [
+                        'sku' => 'KL-001', 'attribute' => 'groesse', 'value' => 'L',
+                        'unit' => null, 'language' => null, 'index' => null, '_row' => 2,
+                    ],
+                ],
+                '11_Produkt_Hierarchien' => [
+                    2 => ['sku' => 'KL-001', 'hierarchy' => 'sortiment2', 'node_path' => 'Klima', '_row' => 2],
+                ],
+            ],
+        );
+
+        $result = $this->executor->execute($parseResult);
+
+        $this->assertEquals(1, HierarchyNodeAttributeAssignment::where('hierarchy_node_id', $node->id)
+            ->where('attribute_id', 'attr-groesse')->count());
+        $this->assertArrayNotHasKey('_hierarchy_attribute_assignments', $result->stats);
     }
 }

@@ -72,8 +72,14 @@ class ArtisanCommandRegistry
                 'commands' => [
                     self::runnable('horizon:status', 'Horizon-Status prüfen', 'Zeigt, ob der Horizon-Master-Supervisor aktuell läuft oder pausiert ist.'),
                     self::runnable('horizon:supervisors', 'Supervisoren auflisten', 'Listet alle aktiven Horizon-Supervisoren mit ihren Queues auf.'),
-                    self::runnable('queue:monitor', 'Queue-Auslastung prüfen', 'Zeigt die aktuelle Länge der angegebenen Queues.', options: [
-                        self::option('queues', 'Queues', 'string', default: 'default,import,export,indexing,cache,warmup,pdf', help: 'kommasepariert'),
+                    self::runnable('queue:monitor', 'Queue-Auslastung prüfen', 'Zeigt die aktuelle Länge der angegebenen Queues.', argument: [
+                        'name' => 'queues',
+                        'label' => 'Queues',
+                        'default' => 'default,import,export,indexing,cache,warmup,pdf',
+                        'required' => true,
+                        'help' => 'kommasepariert',
+                    ], options: [
+                        self::option('max', 'Schwellenwert für Warnung', 'number', default: '1000'),
                     ]),
                     self::runnable('queue:failed', 'Fehlgeschlagene Jobs auflisten', 'Zeigt alle fehlgeschlagenen Queue-Jobs.'),
                     self::runnable('queue:retry', 'Fehlgeschlagene Jobs erneut versuchen', 'Stößt fehlgeschlagene Jobs erneut an.', danger: 'confirm', argument: ['name' => 'id', 'label' => 'Job-ID', 'default' => 'all', 'help' => '"all" für alle fehlgeschlagenen Jobs'], options: [
@@ -82,7 +88,7 @@ class ArtisanCommandRegistry
                     self::runnable('queue:restart', 'Queue-Worker neu starten', 'Signalisiert allen Workern, sich nach dem aktuellen Job neu zu starten (z.B. nach Deployment).', danger: 'confirm'),
                     self::runnable('queue:clear', 'Queue leeren', 'Löscht alle wartenden Jobs einer Queue unwiderruflich.', danger: 'confirm', options: [
                         self::option('queue', 'Queue-Name', 'string', required: true, help: 'z.B. import, export, indexing'),
-                    ]),
+                    ], appendsForce: true),
                     self::console('queue:work', 'Queue-Worker starten', 'Startet einen dauerhaften Worker-Prozess – läuft als Daemon, nicht für einmalige GUI-Ausführung geeignet.', 'php artisan queue:work --queue=import,export,default'),
                     self::console('horizon:pause', 'Horizon pausieren', 'Pausiert die Job-Verarbeitung, ohne den Master-Prozess zu beenden.', 'php artisan horizon:pause'),
                     self::console('horizon:continue', 'Horizon fortsetzen', 'Setzt die Job-Verarbeitung nach einer Pause fort.', 'php artisan horizon:continue'),
@@ -182,6 +188,7 @@ class ArtisanCommandRegistry
         int $timeout = 60,
         ?array $argument = null,
         array $options = [],
+        bool $appendsForce = false,
     ): array {
         return [
             'command' => $command,
@@ -192,6 +199,11 @@ class ArtisanCommandRegistry
             'timeout' => $timeout,
             'argument' => $argument,
             'options' => $options,
+            // Für Befehle mit Laravels ConfirmableTrait (z.B. queue:clear): ohne --force
+            // fragen sie interaktiv nach Bestätigung, was bei Process::run() (kein TTY)
+            // im Produktions-Environment kommentarlos nichts tut, statt zu laufen. Die
+            // GUI-Bestätigung (danger=confirm) ersetzt hier die interaktive Rückfrage.
+            'appends_force' => $appendsForce,
         ];
     }
 

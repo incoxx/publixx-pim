@@ -480,11 +480,146 @@ class ImportExecutor
             }
         }
 
+        $this->syncHierarchyNodeAttributeAssignments();
+
         return new ImportExecutionResult(
             stats: $this->stats,
             affectedProductIds: array_keys($this->affectedProductIds),
             skippedDetails: $this->skippedDetails,
         );
+    }
+
+    /**
+     * Ergänzt fehlende Knoten-Attribut-Zuordnungen für alle im Import betroffenen Produkte.
+     *
+     * "11_Produkt_Hierarchien" (Produkt → Knoten) und "07_Hierarchie_Attribute"
+     * (Attribut → Knoten) sind zwei unabhängige Reiter. Pflegt der Nutzer nur den
+     * Ersten, hat das Produkt zwar Werte für ein Attribut (aus 09_Produktwerte),
+     * aber der Kategorieknoten weiß nichts davon — das Attribut bleibt am Produkt
+     * unsichtbar, obwohl der Wert korrekt importiert wurde. Diese Methode gleicht
+     * das ab: jedes Attribut, für das ein betroffenes Produkt einen Wert hat, wird
+     * automatisch am zugeordneten Knoten sichtbar gemacht, falls noch nicht vorhanden.
+     */
+    private function syncHierarchyNodeAttributeAssignments(): void
+    {
+        if (empty($this->affectedProductIds)) {
+            return;
+        }
+
+        $productIds = array_keys($this->affectedProductIds);
+
+        // Produkt → Knoten (nur Produkte mit gesetztem master_hierarchy_node_id)
+        $nodeByProduct = [];
+        foreach (array_chunk($productIds, 5000) as $chunk) {
+            $rows = DB::table('products')
+                ->whereIn('id', $chunk)
+                ->whereNotNull('master_hierarchy_node_id')
+                ->pluck('master_hierarchy_node_id', 'id');
+            foreach ($rows as $productId => $nodeId) {
+                $nodeByProduct[$productId] = $nodeId;
+            }
+        }
+
+        if (empty($nodeByProduct)) {
+            return;
+        }
+
+        // Knoten → Set<Attribut-IDs>, für die betroffene Produkte tatsächlich einen Wert haben
+        $attributesByNode = [];
+        foreach (array_chunk(array_keys($nodeByProduct), 5000) as $chunk) {
+            $pairs = DB::table('product_attribute_values')
+                ->whereIn('product_id', $chunk)
+                ->select('product_id', 'attribute_id')
+                ->distinct()
+                ->get();
+            foreach ($pairs as $pair) {
+                $nodeId = $nodeByProduct[$pair->product_id] ?? null;
+                if ($nodeId === null) {
+                    continue;
+                }
+                $attributesByNode[$nodeId][$pair->attribute_id] = true;
+            }
+        }
+
+        if (empty($attributesByNode)) {
+            return;
+        }
+
+        $nodeIds = array_keys($attributesByNode);
+
+        // Bereits vorhandene Zuordnungen laden, um nur fehlende zu ergänzen
+        $existing = [];
+        foreach (array_chunk($nodeIds, 5000) as $chunk) {
+            $rows = DB::table('hierarchy_node_attribute_assignments')
+                ->whereIn('hierarchy_node_id', $chunk)
+                ->select('hierarchy_node_id', 'attribute_id')
+                ->get();
+            foreach ($rows as $row) {
+                $existing[$row->hierarchy_node_id][$row->attribute_id] = true;
+            }
+        }
+
+        // Aktuellen Max-Sortierwert pro Knoten laden, damit neue Zuordnungen ans Ende gehängt werden
+        $maxSortByNode = DB::table('hierarchy_node_attribute_assignments')
+            ->whereIn('hierarchy_node_id', $nodeIds)
+            ->selectRaw('hierarchy_node_id, MAX(attribute_sort) as max_sort')
+            ->groupBy('hierarchy_node_id')
+            ->pluck('max_sort', 'hierarchy_node_id');
+
+        $now = now();
+        $inserts = [];
+        $touchedNodeIds = [];
+
+        foreach ($attributesByNode as $nodeId => $attributeIds) {
+            $sort = (int) ($maxSortByNode[$nodeId] ?? 0);
+            foreach (array_keys($attributeIds) as $attributeId) {
+                if (isset($existing[$nodeId][$attributeId])) {
+                    continue;
+                }
+                $sort++;
+                $inserts[] = [
+                    'id' => Str::uuid()->toString(),
+                    'hierarchy_node_id' => $nodeId,
+                    'attribute_id' => $attributeId,
+                    'collection_name' => null,
+                    'collection_sort' => 0,
+                    'attribute_sort' => $sort,
+                    'dont_inherit' => false,
+                    'is_required' => false,
+                    'access_hierarchy' => 'visible',
+                    'access_product' => 'editable',
+                    'access_variant' => 'editable',
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+                $touchedNodeIds[$nodeId] = true;
+            }
+        }
+
+        if (empty($inserts)) {
+            return;
+        }
+
+        foreach (array_chunk($inserts, 2000) as $chunk) {
+            DB::table('hierarchy_node_attribute_assignments')->insert($chunk);
+        }
+
+        $this->stats['_hierarchy_attribute_assignments'] = [
+            'created' => count($inserts),
+            'nodes' => count($touchedNodeIds),
+        ];
+
+        Log::channel('import')->info('Fehlende Knoten-Attribut-Zuordnungen automatisch ergänzt', [
+            'zuordnungen' => count($inserts),
+            'knoten' => count($touchedNodeIds),
+        ]);
+
+        // Knoten "berühren", damit HierarchyNodeObserver::updated() den Baum- und
+        // Attribut-Cache invalidiert — sonst zeigt die UI die neuen Zuordnungen
+        // erst nach Ablauf der Cache-TTL an.
+        foreach (array_chunk(array_keys($touchedNodeIds), 500) as $idChunk) {
+            HierarchyNode::whereIn('id', $idChunk)->get()->each->touch();
+        }
     }
 
     /**

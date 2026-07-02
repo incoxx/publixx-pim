@@ -146,6 +146,10 @@ class ArtisanCockpitController extends Controller
             }
         }
 
+        if (!empty($definition['appends_force'])) {
+            $parts[] = '--force';
+        }
+
         return [$parts, null];
     }
 }

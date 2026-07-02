@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Tests\Feature\Import;
 
 use App\Services\Import\SheetParser;
+use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Style\NumberFormat;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Tests\TestCase;
 
@@ -180,6 +182,41 @@ class SheetParserTest extends TestCase
         $this->assertArrayHasKey('15_Attribut_Sichten', $definitions);
         $this->assertArrayHasKey('16_Preistypen', $definitions);
         $this->assertArrayHasKey('17_Beziehungstypen', $definitions);
+    }
+
+    public function test_parses_excel_date_formatted_cell_as_iso_date_string(): void
+    {
+        // Regression: eine als Datum formatierte Zelle (Excel-Seriennummer + Datumsformat,
+        // z.B. "Gültig bis" in 13_Preise) darf nicht als rohe Zahl (z.B. 45852) durchgereicht
+        // werden — das landet als "Invalid Date" in der Datenbank.
+        $spreadsheet = new Spreadsheet();
+        $spreadsheet->removeSheetByIndex(0);
+        $worksheet = $spreadsheet->createSheet(0);
+        $worksheet->setTitle('13_Preise');
+
+        $headers = ['SKU*', 'Preisart*', 'Betrag*', 'Währung* (EUR/USD/...)', 'Gültig ab', 'Gültig bis'];
+        foreach ($headers as $i => $header) {
+            $worksheet->setCellValue([$i + 1, 1], $header);
+        }
+
+        $worksheet->setCellValue('A2', 'SKU-001');
+        $worksheet->setCellValue('B2', 'list_price');
+        $worksheet->setCellValue('C2', 99.9);
+        $worksheet->setCellValue('D2', 'EUR');
+
+        $validTo = new \DateTime('2027-12-31');
+        $worksheet->setCellValue('F2', ExcelDate::PHPToExcel($validTo));
+        $worksheet->getStyle('F2')->getNumberFormat()->setFormatCode(NumberFormat::FORMAT_DATE_YYYYMMDD);
+
+        $path = $this->tempDir . '/test_date_' . uniqid() . '.xlsx';
+        (new Xlsx($spreadsheet))->save($path);
+
+        $result = $this->parser->parse($path);
+
+        $row = $result->getSheetData('13_Preise')[2];
+        $this->assertSame('2027-12-31', $row['valid_to']);
+
+        unlink($path);
     }
 
     // ──────────────────────────────────────────────
