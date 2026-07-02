@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Services\Import;
 
+use PhpOffice\PhpSpreadsheet\Cell\Cell;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\RichText\RichText;
+use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
@@ -334,7 +336,7 @@ class SheetParser
             $isEmpty = true;
 
             foreach ($columns as $col => $fieldName) {
-                $cellValue = $this->extractCellValue($worksheet->getCell($col . $rowNum)->getValue());
+                $cellValue = $this->extractCellValue($worksheet->getCell($col . $rowNum));
 
                 // Bereinigung
                 if (is_string($cellValue)) {
@@ -375,7 +377,7 @@ class SheetParser
         $headers = [];
 
         foreach (array_keys($columns) as $col) {
-            $value = $this->extractCellValue($worksheet->getCell($col . '1')->getValue());
+            $value = $this->extractCellValue($worksheet->getCell($col . '1'));
             if (is_string($value)) {
                 $value = trim($value);
             }
@@ -396,11 +398,26 @@ class SheetParser
      * RichText-Objekt statt eines Strings zurück. Ohne diese Umwandlung würden
      * is_string()/is_numeric()/empty()-Prüfungen fehlschlagen und Werte beim
      * Schreiben in die Datenbank zu kryptischen Fehlern führen.
+     *
+     * Ist die Zelle zusätzlich als Datum formatiert (z.B. "Gültig bis" in
+     * 13_Preise), liefert getValue() stattdessen die rohe Excel-Seriennummer
+     * (z.B. 45852) statt eines Datums. Ohne Umwandlung landet diese Zahl 1:1
+     * in einer DATE-Spalte und erscheint im PIM als "Invalid Date".
      */
-    private function extractCellValue(mixed $value): mixed
+    private function extractCellValue(Cell $cell): mixed
     {
+        $value = $cell->getValue();
+
         if ($value instanceof RichText) {
             return $value->getPlainText();
+        }
+
+        if (is_numeric($value) && ExcelDate::isDateTime($cell)) {
+            try {
+                return ExcelDate::excelToDateTimeObject($value)->format('Y-m-d');
+            } catch (\Throwable) {
+                return $value;
+            }
         }
 
         return $value;
