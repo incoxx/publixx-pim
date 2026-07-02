@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Import;
 
+use App\Events\HierarchyAttributeChanged;
 use App\Models\Attribute;
 use App\Models\AttributeType;
 use App\Models\AttributeView;
@@ -614,11 +615,16 @@ class ImportExecutor
             'knoten' => count($touchedNodeIds),
         ]);
 
-        // Knoten "berühren", damit HierarchyNodeObserver::updated() den Baum- und
-        // Attribut-Cache invalidiert — sonst zeigt die UI die neuen Zuordnungen
-        // erst nach Ablauf der Cache-TTL an.
-        foreach (array_chunk(array_keys($touchedNodeIds), 500) as $idChunk) {
-            HierarchyNode::whereIn('id', $idChunk)->get()->each->touch();
+        // HierarchyAttributeChanged feuern — genau das Event, das auch beim manuellen
+        // Zuordnen einer Attribut-Zuweisung über die GUI ausgelöst wird
+        // (NodeAttributeAssignmentController::store()). Der einzige Listener dafür
+        // (InheritanceServiceProvider) invalidiert den Effektiv-Attribute-Cache des
+        // Knotens UND aller betroffenen Produkte. Ohne dieses Event blieben neu
+        // importierte Zuordnungen im Produkteditor unsichtbar, bis irgendeine andere
+        // Aktion (z.B. eine manuelle Zuordnung am selben Knoten) den Cache zufällig
+        // mit-invalidiert.
+        foreach ($inserts as $insert) {
+            event(new HierarchyAttributeChanged($insert['hierarchy_node_id'], $insert['attribute_id'], 'added'));
         }
     }
 

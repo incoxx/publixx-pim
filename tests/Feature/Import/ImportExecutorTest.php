@@ -11,6 +11,8 @@ use App\Models\HierarchyNode;
 use App\Models\HierarchyNodeAttributeAssignment;
 use App\Models\Product;
 use App\Models\ProductAttributeValue;
+use App\Models\ProductRelation;
+use App\Models\ProductRelationType;
 use App\Models\ProductType;
 use App\Services\Import\ImportExecutor;
 use App\Services\Import\ParseResult;
@@ -375,6 +377,12 @@ class ImportExecutorTest extends TestCase
 
     public function test_auto_assigns_missing_attribute_to_hierarchy_node_of_imported_product(): void
     {
+        // Regression: das Anlegen der Zuordnung allein reicht nicht — ohne das
+        // HierarchyAttributeChanged-Event bleibt der Effektiv-Attribute-Cache des
+        // Knotens/Produkts stehen und das Attribut ist im Produkteditor trotzdem
+        // unsichtbar (genau der beobachtete Kundenfall).
+        Event::fake([\App\Events\HierarchyAttributeChanged::class]);
+
         // Attribut existiert bereits, ist aber am Zielknoten noch NICHT zugeordnet
         // (07_Hierarchie_Attribute wurde vom Nutzer nicht gepflegt).
         Attribute::forceCreate([
@@ -434,6 +442,12 @@ class ImportExecutorTest extends TestCase
             'attribute_id' => 'attr-farbe',
         ]);
         $this->assertEquals(1, $result->stats['_hierarchy_attribute_assignments']['created']);
+
+        Event::assertDispatched(\App\Events\HierarchyAttributeChanged::class, function ($event) use ($node) {
+            return $event->nodeId === $node->id
+                && $event->attributeId === 'attr-farbe'
+                && $event->changeType === 'added';
+        });
     }
 
     public function test_does_not_duplicate_existing_hierarchy_node_attribute_assignment(): void
@@ -494,5 +508,193 @@ class ImportExecutorTest extends TestCase
         $this->assertEquals(1, HierarchyNodeAttributeAssignment::where('hierarchy_node_id', $node->id)
             ->where('attribute_id', 'attr-groesse')->count());
         $this->assertArrayNotHasKey('_hierarchy_attribute_assignments', $result->stats);
+    }
+
+    // ──────────────────────────────────────────────
+    //  12_Produktbeziehungen
+    // ──────────────────────────────────────────────
+
+    public function test_creates_new_product_relation_and_auto_creates_missing_relation_type(): void
+    {
+        $this->createProduct('SRC-001');
+        $this->createProduct('TGT-001');
+
+        $this->assertDatabaseMissing('product_relation_types', ['technical_name' => 'zubehoer']);
+
+        $parseResult = new ParseResult(
+            sheetsFound: ['12_Produktbeziehungen'],
+            data: [
+                '12_Produktbeziehungen' => [
+                    2 => [
+                        'source_sku' => 'SRC-001', 'target_sku' => 'TGT-001',
+                        'relation_type' => 'zubehoer', 'sort_order' => 1, '_row' => 2,
+                    ],
+                ],
+            ],
+        );
+
+        $result = $this->executor->execute($parseResult);
+
+        $this->assertEquals(1, $result->stats['12_Produktbeziehungen']['created']);
+        $this->assertEquals(0, $result->stats['12_Produktbeziehungen']['skipped']);
+        $this->assertEquals(0, $result->stats['12_Produktbeziehungen']['errors']);
+
+        $relationType = ProductRelationType::where('technical_name', 'zubehoer')->first();
+        $this->assertNotNull($relationType, 'Beziehungstyp wurde nicht automatisch angelegt');
+
+        $this->assertDatabaseHas('product_relations', [
+            'source_product_id' => 'SRC-001',
+            'target_product_id' => 'TGT-001',
+            'relation_type_id' => $relationType->id,
+            'sort_order' => 1,
+        ]);
+    }
+
+    public function test_reimporting_same_relation_updates_sort_order_without_duplicating(): void
+    {
+        $this->createProduct('SRC-002');
+        $this->createProduct('TGT-002');
+
+        $relationType = ProductRelationType::forceCreate([
+            'id' => 'rt-zubehoer',
+            'technical_name' => 'zubehoer',
+            'name_de' => 'Zubehör',
+        ]);
+
+        $baseRow = [
+            'source_sku' => 'SRC-002', 'target_sku' => 'TGT-002',
+            'relation_type' => 'zubehoer', 'sort_order' => 1, '_row' => 2,
+        ];
+
+        $this->executor->execute(new ParseResult(
+            sheetsFound: ['12_Produktbeziehungen'],
+            data: ['12_Produktbeziehungen' => [2 => $baseRow]],
+        ));
+
+        // Erneuter Import derselben Beziehung mit geänderter Sortierung
+        $result = $this->executor->execute(new ParseResult(
+            sheetsFound: ['12_Produktbeziehungen'],
+            data: ['12_Produktbeziehungen' => [2 => array_merge($baseRow, ['sort_order' => 5])]],
+        ));
+
+        $this->assertEquals(0, $result->stats['12_Produktbeziehungen']['created']);
+        $this->assertEquals(1, $result->stats['12_Produktbeziehungen']['updated']);
+
+        $this->assertEquals(1, ProductRelation::where('source_product_id', 'SRC-002')
+            ->where('target_product_id', 'TGT-002')
+            ->where('relation_type_id', $relationType->id)
+            ->count());
+        $this->assertDatabaseHas('product_relations', [
+            'source_product_id' => 'SRC-002',
+            'target_product_id' => 'TGT-002',
+            'relation_type_id' => $relationType->id,
+            'sort_order' => 5,
+        ]);
+    }
+
+    public function test_uses_existing_relation_type_without_creating_duplicate(): void
+    {
+        $this->createProduct('SRC-003');
+        $this->createProduct('TGT-003');
+
+        ProductRelationType::forceCreate([
+            'id' => 'rt-existing',
+            'technical_name' => 'ersatzteil',
+            'name_de' => 'Ersatzteil',
+        ]);
+
+        $this->executor->execute(new ParseResult(
+            sheetsFound: ['12_Produktbeziehungen'],
+            data: [
+                '12_Produktbeziehungen' => [
+                    2 => [
+                        'source_sku' => 'SRC-003', 'target_sku' => 'TGT-003',
+                        'relation_type' => 'ersatzteil', 'sort_order' => 0, '_row' => 2,
+                    ],
+                ],
+            ],
+        ));
+
+        $this->assertEquals(1, ProductRelationType::where('technical_name', 'ersatzteil')->count());
+    }
+
+    public function test_skips_relation_with_unresolvable_sku(): void
+    {
+        $this->createProduct('SRC-004');
+        // TGT-004 existiert absichtlich nicht
+
+        $result = $this->executor->execute(new ParseResult(
+            sheetsFound: ['12_Produktbeziehungen'],
+            data: [
+                '12_Produktbeziehungen' => [
+                    2 => [
+                        'source_sku' => 'SRC-004', 'target_sku' => 'TGT-004',
+                        'relation_type' => 'zubehoer', 'sort_order' => 0, '_row' => 2,
+                    ],
+                ],
+            ],
+        ));
+
+        $this->assertEquals(0, $result->stats['12_Produktbeziehungen']['created']);
+        $this->assertEquals(1, $result->stats['12_Produktbeziehungen']['skipped']);
+        $this->assertDatabaseMissing('product_relations', ['source_product_id' => 'SRC-004']);
+        // Der Beziehungstyp wird trotzdem nicht sinnlos angelegt, wenn die Zeile ohnehin übersprungen wird
+        $this->assertCount(1, $result->skippedDetails);
+        $this->assertStringContainsString("Ziel-SKU 'TGT-004'", $result->skippedDetails[0]['reason']);
+    }
+
+    public function test_bulk_import_creates_many_relations_and_auto_creates_relation_types(): void
+    {
+        // Der Bulk-Pfad schaltet MySQL-Session-Optimierungen (SET SESSION unique_checks=0)
+        // ein, die SQLite (lokale Testkonfiguration) nicht kennt — nur unter MySQL testbar.
+        if (\Illuminate\Support\Facades\DB::getDriverName() !== 'mysql') {
+            $this->markTestSkipped('Bulk-Import-Pfad benötigt MySQL (SET SESSION unique_checks/foreign_key_checks).');
+        }
+
+        // BULK_THRESHOLD liegt bei 500 Gesamtzeilen — mit genug Zeilen läuft
+        // importProductRelationsBulk() statt der Einzelzeilen-Methode.
+        $rowCount = 520;
+        for ($i = 1; $i <= $rowCount; $i++) {
+            $this->createProduct("BULK-SRC-{$i}");
+        }
+        $this->createProduct('BULK-TARGET');
+
+        $rows = [];
+        for ($i = 1; $i <= $rowCount; $i++) {
+            $rows[$i + 1] = [
+                'source_sku' => "BULK-SRC-{$i}",
+                'target_sku' => 'BULK-TARGET',
+                'relation_type' => 'zubehoer-bulk',
+                'sort_order' => $i,
+                '_row' => $i + 1,
+            ];
+        }
+
+        $result = $this->executor->execute(new ParseResult(
+            sheetsFound: ['12_Produktbeziehungen'],
+            data: ['12_Produktbeziehungen' => $rows],
+        ));
+
+        $this->assertEquals($rowCount, $result->stats['12_Produktbeziehungen']['created']);
+        $this->assertEquals(0, $result->stats['12_Produktbeziehungen']['errors']);
+        $this->assertEquals(1, ProductRelationType::where('technical_name', 'zubehoer-bulk')->count());
+        $this->assertEquals($rowCount, ProductRelation::whereHas(
+            'relationType',
+            fn ($q) => $q->where('technical_name', 'zubehoer-bulk')
+        )->count());
+    }
+
+    private function createProduct(string $sku): string
+    {
+        $product = Product::forceCreate([
+            'id' => $sku,
+            'sku' => $sku,
+            'name' => $sku,
+            'product_type_id' => $this->productTypeId,
+            'status' => 'active',
+            'product_type_ref' => 'product',
+        ]);
+
+        return $product->id;
     }
 }
