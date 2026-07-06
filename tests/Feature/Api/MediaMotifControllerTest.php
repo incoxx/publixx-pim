@@ -157,4 +157,59 @@ class MediaMotifControllerTest extends TestCase
         $this->assertDatabaseHas('media', ['id' => $media->id, 'motif_id' => null, 'is_master_rendition' => false]);
         $this->assertDatabaseMissing('media', ['motif_id' => $motifId]);
     }
+
+    public function test_index_supports_search_and_is_used_filter(): void
+    {
+        Storage::fake('public');
+
+        $used = $this->createMediaWithRealFile();
+        $usedMotifId = $this->postJson('/api/v1/media-motifs', [
+            'media_id' => $used->id,
+            'title_de' => 'Akkuschrauber MiniDrive',
+        ])->json('data.id');
+
+        \App\Models\ProductMediaAssignment::factory()->create([
+            'media_id' => $used->id,
+        ]);
+
+        $unused = $this->createMediaWithRealFile();
+        $unused->update(['file_name' => 'anderes-bild.jpg', 'file_path' => 'media/anderes-bild.jpg']);
+        $this->postJson('/api/v1/media-motifs', [
+            'media_id' => $unused->id,
+            'title_de' => 'Schleifgerät Pro',
+        ])->assertCreated();
+
+        // Suche nach Titel
+        $searchResponse = $this->getJson('/api/v1/media-motifs?search=Akkuschrauber');
+        $searchResponse->assertOk()->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.title_de', 'Akkuschrauber MiniDrive');
+
+        // Filter: nur verwendete Motive
+        $usedResponse = $this->getJson('/api/v1/media-motifs?filter[is_used]=true');
+        $usedResponse->assertOk()->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $usedMotifId)
+            ->assertJsonPath('data.0.is_used', true);
+
+        // Filter: nur nicht verwendete Motive
+        $unusedResponse = $this->getJson('/api/v1/media-motifs?filter[is_used]=false');
+        $unusedResponse->assertOk()->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.is_used', false);
+    }
+
+    public function test_show_reports_is_used_for_single_motif(): void
+    {
+        Storage::fake('public');
+        $media = $this->createMediaWithRealFile();
+        $motifId = $this->postJson('/api/v1/media-motifs', ['media_id' => $media->id])->json('data.id');
+
+        $this->getJson("/api/v1/media-motifs/{$motifId}")
+            ->assertOk()
+            ->assertJsonPath('data.is_used', false);
+
+        \App\Models\ProductMediaAssignment::factory()->create(['media_id' => $media->id]);
+
+        $this->getJson("/api/v1/media-motifs/{$motifId}")
+            ->assertOk()
+            ->assertJsonPath('data.is_used', true);
+    }
 }

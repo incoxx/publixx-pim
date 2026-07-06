@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue'
 import {
   Plus, X, Save, Search, AlertCircle, Check,
-  Trash2, ImageOff, Wand2, Settings,
+  Trash2, ImageOff, Wand2, Settings, Link2,
 } from 'lucide-vue-next'
 import { mediaMotifs } from '@/api/mediaMotifs'
 import mediaApi from '@/api/media'
@@ -13,22 +13,44 @@ import RenditionPresetsDialog from '@/components/mediaMotifs/RenditionPresetsDia
 const authStore = useAuthStore()
 const showPresetsDialog = ref(false)
 
-// ─── Liste ───────────────────────────────────────
+// ─── Liste: Suche & Filter ────────────────────────
 const items = ref([])
 const meta = ref(null)
 const loading = ref(false)
 const page = ref(1)
+const searchTerm = ref('')
+const usedFilter = ref('all') // all | used | unused
+const licenseExpiredOnly = ref(false)
+let listSearchDebounce = null
 
 async function fetchItems(targetPage = 1) {
   loading.value = true
   try {
-    const { data } = await mediaMotifs.list({ page: targetPage, perPage: 25 })
+    const filters = {}
+    if (usedFilter.value !== 'all') filters.is_used = usedFilter.value === 'used'
+    if (licenseExpiredOnly.value) filters.license_expired = true
+
+    const { data } = await mediaMotifs.list({
+      page: targetPage,
+      perPage: 25,
+      search: searchTerm.value || undefined,
+      filters: Object.keys(filters).length ? filters : undefined,
+    })
     items.value = data.data || []
     meta.value = data.meta || null
     page.value = targetPage
   } finally {
     loading.value = false
   }
+}
+
+function onSearchInput() {
+  clearTimeout(listSearchDebounce)
+  listSearchDebounce = setTimeout(() => fetchItems(1), 300)
+}
+
+function onFilterChange() {
+  fetchItems(1)
 }
 
 function formatDate(value) {
@@ -277,6 +299,28 @@ onMounted(() => fetchItems())
 
     <RenditionPresetsDialog :open="showPresetsDialog" @close="showPresetsDialog = false" />
 
+    <!-- ─── Suche & Filter ───────────────────────── -->
+    <div class="flex flex-wrap items-center gap-2">
+      <div class="relative flex-1 min-w-[220px]">
+        <Search class="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)]" :stroke-width="2" />
+        <input
+          v-model="searchTerm"
+          @input="onSearchInput"
+          class="pim-input pl-8 text-xs"
+          placeholder="Motive nach Titel durchsuchen…"
+        />
+      </div>
+      <select v-model="usedFilter" @change="onFilterChange" class="pim-select text-xs">
+        <option value="all">Alle Motive</option>
+        <option value="used">Nur verwendete</option>
+        <option value="unused">Nur unverwendete</option>
+      </select>
+      <label class="inline-flex items-center gap-1.5 cursor-pointer text-xs text-[var(--color-text-secondary)] px-2">
+        <input type="checkbox" v-model="licenseExpiredOnly" @change="onFilterChange" class="w-3.5 h-3.5 accent-[var(--color-primary)]" />
+        Nur abgelaufene Lizenzen
+      </label>
+    </div>
+
     <!-- ─── Asset-Picker ─────────────────────────── -->
     <div v-if="showPicker" class="pim-card p-4 space-y-3">
       <div class="flex items-center justify-between">
@@ -415,16 +459,17 @@ onMounted(() => fetchItems())
             <th class="w-14 px-3 py-2.5"></th>
             <th class="px-3 py-2.5 text-left font-medium text-[11px] uppercase tracking-wider text-[var(--color-text-tertiary)]">Titel</th>
             <th class="px-3 py-2.5 text-center font-medium text-[11px] uppercase tracking-wider text-[var(--color-text-tertiary)]">Renditions</th>
+            <th class="px-3 py-2.5 text-center font-medium text-[11px] uppercase tracking-wider text-[var(--color-text-tertiary)]">Verwendet</th>
             <th class="px-3 py-2.5 text-left font-medium text-[11px] uppercase tracking-wider text-[var(--color-text-tertiary)]">Lizenz</th>
             <th class="px-3 py-2.5 text-left font-medium text-[11px] uppercase tracking-wider text-[var(--color-text-tertiary)]">Gültigkeit</th>
           </tr>
         </thead>
         <tbody>
           <tr v-if="loading">
-            <td colspan="5" class="py-16 text-center text-xs text-[var(--color-text-tertiary)]">Lädt…</td>
+            <td colspan="6" class="py-16 text-center text-xs text-[var(--color-text-tertiary)]">Lädt…</td>
           </tr>
           <tr v-else-if="items.length === 0">
-            <td colspan="5" class="py-16 text-center text-sm text-[var(--color-text-tertiary)]">Noch keine Motive angelegt</td>
+            <td colspan="6" class="py-16 text-center text-sm text-[var(--color-text-tertiary)]">Noch keine Motive angelegt</td>
           </tr>
           <tr
             v-else
@@ -442,6 +487,10 @@ onMounted(() => fetchItems())
             <td class="px-3 py-2 text-[var(--color-text-primary)]">{{ row.title_de || '(ohne Titel)' }}</td>
             <td class="px-3 py-2 text-center">
               <span class="pim-badge bg-[var(--color-surface)] text-[var(--color-text-secondary)]">{{ row.rendition_count ?? 0 }}</span>
+            </td>
+            <td class="px-3 py-2 text-center" :title="row.is_used ? 'Motiv ist einem Produkt/Knoten zugeordnet' : 'Noch keine Zuordnung'">
+              <Link2 v-if="row.is_used" class="w-4 h-4 inline text-[var(--color-success)]" :stroke-width="2" />
+              <span v-else class="text-[var(--color-text-tertiary)]">—</span>
             </td>
             <td class="px-3 py-2">
               <span v-if="row.license_expired" class="pim-badge bg-[var(--color-error)]/10 text-[var(--color-error)]">Lizenz abgelaufen</span>

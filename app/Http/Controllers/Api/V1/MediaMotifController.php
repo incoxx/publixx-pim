@@ -17,11 +17,51 @@ use Illuminate\Support\Facades\Storage;
 
 class MediaMotifController extends Controller
 {
+    /**
+     * Bedingung "Motiv wird verwendet": mindestens eine Rendition (inkl. Master)
+     * hat eine aktive Produkt- oder Knoten-Zuordnung.
+     */
+    private function usedScope(): \Closure
+    {
+        return function ($q) {
+            $q->whereHas('productAssignments')->orWhereHas('hierarchyNodeAssignments');
+        };
+    }
+
     public function index(Request $request): AnonymousResourceCollection
     {
         $this->authorize('viewAny', MediaMotif::class);
 
-        $query = MediaMotif::with('masterRendition')->withCount('renditions');
+        $query = MediaMotif::with('masterRendition')
+            ->withCount('renditions')
+            ->withExists(['renditions as is_used' => $this->usedScope()]);
+
+        $this->applySearch($query, $request, ['title_de', 'title_en']);
+
+        $filters = $request->query('filter', []);
+
+        if (isset($filters['is_used'])) {
+            $isUsed = filter_var($filters['is_used'], FILTER_VALIDATE_BOOLEAN);
+            $isUsed
+                ? $query->whereHas('renditions', $this->usedScope())
+                : $query->whereDoesntHave('renditions', $this->usedScope());
+        }
+
+        if (isset($filters['license_expired'])) {
+            $expired = filter_var($filters['license_expired'], FILTER_VALIDATE_BOOLEAN);
+            if ($expired) {
+                $query->whereNotNull('license_valid_until')->where('license_valid_until', '<', now());
+            } else {
+                $query->where(function ($q) {
+                    $q->whereNull('license_valid_until')->orWhere('license_valid_until', '>=', now());
+                });
+            }
+        }
+
+        if (! empty($filters['asset_folder_id'])) {
+            $query->where('asset_folder_id', $filters['asset_folder_id']);
+        }
+
         $this->applySorting($query, $request, 'created_at', 'desc');
 
         return MediaMotifResource::collection(
@@ -60,9 +100,10 @@ class MediaMotifController extends Controller
     {
         $this->authorize('view', $mediaMotif);
 
-        return new MediaMotifResource(
-            $mediaMotif->load(['masterRendition', 'renditions' => fn ($q) => $q->orderBy('rendition_channel')])
-        );
+        $mediaMotif->load(['masterRendition', 'renditions' => fn ($q) => $q->orderBy('rendition_channel')]);
+        $mediaMotif->loadExists(['renditions as is_used' => $this->usedScope()]);
+
+        return new MediaMotifResource($mediaMotif);
     }
 
     public function update(UpdateMediaMotifRequest $request, MediaMotif $mediaMotif): MediaMotifResource
@@ -71,7 +112,10 @@ class MediaMotifController extends Controller
 
         $mediaMotif->update($request->validated());
 
-        return new MediaMotifResource($mediaMotif->fresh(['masterRendition', 'renditions']));
+        $fresh = $mediaMotif->fresh(['masterRendition', 'renditions']);
+        $fresh->loadExists(['renditions as is_used' => $this->usedScope()]);
+
+        return new MediaMotifResource($fresh);
     }
 
     /**
