@@ -120,6 +120,44 @@ class Media extends Model
             ->withPivot(['usage_type_id', 'sort_order', 'is_primary']);
     }
 
+    /**
+     * Schließt Medien aus, auf deren UsageType (über Produkt- oder Hierarchie-Zuordnung)
+     * der übergebene Nutzer keinen Zugriff hat. Ohne Nutzer (z.B. anonymer Zugriff auf
+     * den öffentlichen Asset-Katalog) werden alle irgendwo per RoleEntityRestriction
+     * eingeschränkten Typen pauschal ausgeschlossen, da hier keine differenzierte
+     * Zugriffsprüfung möglich ist. Mit Admin-Nutzer wird nichts ausgeschlossen.
+     */
+    public function scopeExcludingRestrictionSensitive($query, ?User $user = null)
+    {
+        if ($user && $user->hasRole('Admin')) {
+            return $query;
+        }
+
+        if ($user) {
+            $roleIds = $user->roles->pluck('id');
+            $ownRestrictions = RoleEntityRestriction::whereIn('role_id', $roleIds)
+                ->where('restrictable_type', MediaUsageType::class)
+                ->get();
+
+            if ($ownRestrictions->isEmpty()) {
+                return $query;
+            }
+
+            $allowedIds = $ownRestrictions->pluck('restrictable_id');
+            $excludedIds = MediaUsageType::whereNotIn('id', $allowedIds)->pluck('id');
+        } else {
+            $excludedIds = MediaUsageType::restrictionSensitiveIds();
+        }
+
+        if ($excludedIds->isEmpty()) {
+            return $query;
+        }
+
+        return $query
+            ->whereDoesntHave('productAssignments', fn ($q) => $q->whereIn('usage_type_id', $excludedIds))
+            ->whereDoesntHave('hierarchyNodeAssignments', fn ($q) => $q->whereIn('usage_type_id', $excludedIds));
+    }
+
     public function deletionConstraints(): array
     {
         return [

@@ -10,6 +10,7 @@ use App\Models\HierarchyNode;
 use App\Models\HierarchyNodeMediaAssignment;
 use App\Models\Media;
 use App\Models\MediaAttributeValue;
+use App\Models\MediaUsageType;
 use App\Models\ProductMediaAssignment;
 use App\Support\KoelnerPhonetik;
 use Illuminate\Http\JsonResponse;
@@ -48,6 +49,12 @@ class AssetCatalogController extends BaseController
             'pdfDocument',
             'hierarchyNodeAssignments.hierarchyNode.hierarchy',
         ]);
+
+        // Anonyme Katalog-Zugriffe: Medientypen mit aktiver RoleEntityRestriction werden
+        // pauschal ausgeschlossen. Bei angemeldeten PIM-Nutzern (z.B. interner Bulk-Download
+        // aus der Medienverwaltung, der denselben Endpunkt nutzt) greift die individuelle
+        // Rechteprüfung der jeweiligen Rolle.
+        $query->excludingRestrictionSensitive($request->user());
 
         $isSearchActive = $search && trim($search) !== '';
 
@@ -395,6 +402,8 @@ class AssetCatalogController extends BaseController
      */
     public function asset(Request $request, Media $medium): JsonResponse
     {
+        $this->assertNotRestrictionSensitive($request, $medium);
+
         $lang = $request->query('lang', 'de');
 
         $medium->load([
@@ -470,6 +479,8 @@ class AssetCatalogController extends BaseController
      */
     public function assetProducts(Request $request, Media $medium): JsonResponse
     {
+        $this->assertNotRestrictionSensitive($request, $medium);
+
         $lang = $request->query('lang', 'de');
         $perPage = min(max(1, (int) $request->query('per_page', '10')), 50);
 
@@ -532,6 +543,8 @@ class AssetCatalogController extends BaseController
      */
     public function assetNodes(Request $request, Media $medium): JsonResponse
     {
+        $this->assertNotRestrictionSensitive($request, $medium);
+
         $lang = $request->query('lang', 'de');
 
         $assignments = $medium->hierarchyNodeAssignments()
@@ -659,12 +672,15 @@ class AssetCatalogController extends BaseController
             'media_ids.*' => 'uuid|exists:media,id',
         ]);
 
-        $mediaItems = Media::whereIn('id', $request->input('media_ids'))->get();
+        $mediaItems = Media::whereIn('id', $request->input('media_ids'))
+            ->excludingRestrictionSensitive($request->user())
+            ->get();
 
         if ($mediaItems->isEmpty()) {
             return response()->json(['message' => 'Keine Assets gefunden.'], 404);
         }
 
+        $skippedCount = count($request->input('media_ids')) - $mediaItems->count();
         $disk = Storage::disk('public');
 
         return response()->streamDownload(function () use ($mediaItems, $disk) {
@@ -695,7 +711,23 @@ class AssetCatalogController extends BaseController
             @unlink($tmpFile);
         }, 'pim-assets-' . date('Y-m-d-His') . '.zip', [
             'Content-Type' => 'application/zip',
+            'X-Skipped-Count' => (string) $skippedCount,
         ]);
+    }
+
+    /**
+     * Ein Detail-/Sub-Endpunkt darf ein Medium nicht per direkter ID preisgeben, wenn es
+     * über die Listen-Query (excludingRestrictionSensitive) gar nicht erreichbar wäre.
+     */
+    private function assertNotRestrictionSensitive(Request $request, Media $media): void
+    {
+        $accessible = Media::whereKey($media->id)
+            ->excludingRestrictionSensitive($request->user())
+            ->exists();
+
+        if (! $accessible) {
+            abort(404);
+        }
     }
 
     /**

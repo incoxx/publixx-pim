@@ -47,11 +47,42 @@ class MediaController extends Controller
 
         $query = Media::query()->with('pdfDocument:id,media_id,status')->withCount('revisions');
         $this->applyMediaFilters($query, $request);
+        $this->hideRestrictedMedia($query, $request->user());
         $this->applySorting($query, $request, 'created_at', 'desc');
 
         return MediaResource::collection(
             $query->paginate($this->getPerPage($request))
         );
+    }
+
+    /**
+     * Blendet Medien aus, deren UsageType `restricted_display_mode = hidden` ist und
+     * auf die der Nutzer laut RoleEntityRestriction keinen Zugriff hat (analog zu
+     * ProductMediaController::hideRestrictedUsageTypes, hier ohne Zuordnungskontext).
+     */
+    private function hideRestrictedMedia($query, ?User $user): void
+    {
+        if (! $user || $user->hasRole('Admin')) {
+            return;
+        }
+
+        $restrictions = $this->getRestrictionsForUser($user, MediaUsageType::class);
+        if ($restrictions->isEmpty()) {
+            return;
+        }
+
+        $allowedIds = $restrictions->pluck('restrictable_id');
+        $hiddenIds = MediaUsageType::where('restricted_display_mode', 'hidden')
+            ->whereNotIn('id', $allowedIds)
+            ->pluck('id');
+
+        if ($hiddenIds->isEmpty()) {
+            return;
+        }
+
+        $query
+            ->whereDoesntHave('productAssignments', fn ($q) => $q->whereIn('usage_type_id', $hiddenIds))
+            ->whereDoesntHave('hierarchyNodeAssignments', fn ($q) => $q->whereIn('usage_type_id', $hiddenIds));
     }
 
     /**
@@ -63,6 +94,7 @@ class MediaController extends Controller
 
         $query = Media::query();
         $this->applyMediaFilters($query, $request);
+        $this->hideRestrictedMedia($query, $request->user());
 
         $ids = $query->pluck('id');
 
@@ -81,6 +113,7 @@ class MediaController extends Controller
 
         $query = Media::query();
         $this->applyMediaFilters($query, $request);
+        $this->hideRestrictedMedia($query, $request->user());
         $this->applySorting($query, $request, 'created_at', 'desc');
 
         $columns = $request->query('columns', 'file_name,title_de,mime_type,media_type,usage_purpose,file_size');
