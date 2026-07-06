@@ -22,6 +22,7 @@ class MediaUsageType extends Model
         'name_json',
         'sort_order',
         'allowed_extensions',
+        'restricted_display_mode',
     ];
 
     protected function casts(): array

@@ -16,7 +16,7 @@ const deleteTarget = ref(null)
 const deleting = ref(false)
 const showForm = ref(false)
 const editId = ref(null)
-const formData = ref({ technical_name: '', name_de: '', name_en: '', sort_order: 0, allowed_extensions: null })
+const formData = ref({ technical_name: '', name_de: '', name_en: '', sort_order: 0, allowed_extensions: null, restricted_display_mode: 'locked' })
 const formErrors = ref({})
 const formSaving = ref(false)
 const allExtensionsAllowed = ref(true)
@@ -63,11 +63,12 @@ function openForm(item = null) {
       name_en: item.name_en || '',
       sort_order: item.sort_order ?? 0,
       allowed_extensions: item.allowed_extensions ? [...item.allowed_extensions] : null,
+      restricted_display_mode: item.restricted_display_mode || 'locked',
     }
     allExtensionsAllowed.value = item.allowed_extensions === null
   } else {
     editId.value = null
-    formData.value = { technical_name: '', name_de: '', name_en: '', sort_order: 0, allowed_extensions: null }
+    formData.value = { technical_name: '', name_de: '', name_en: '', sort_order: 0, allowed_extensions: null, restricted_display_mode: 'locked' }
     allExtensionsAllowed.value = true
   }
   formErrors.value = {}
@@ -272,6 +273,21 @@ onMounted(() => {
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- Rechteverwaltung: Verhalten bei fehlendem Rollen-Zugriff -->
+      <div>
+        <label class="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1">
+          Verhalten bei fehlendem Zugriff (Rollen-Einschränkung)
+        </label>
+        <select v-model="formData.restricted_display_mode" class="pim-select text-xs w-64">
+          <option value="locked">Sichtbar, Download gesperrt</option>
+          <option value="hidden">Vollständig ausblenden</option>
+        </select>
+        <p class="text-[11px] text-[var(--color-text-tertiary)] mt-1">
+          Greift nur, wenn eine Rolle über die Rollenverwaltung auf diesen Bildtyp eingeschränkt wurde.
+          Ohne Einschränkung haben alle Rollen Zugriff.
+        </p>
       </div>
 
       <div class="flex gap-2">

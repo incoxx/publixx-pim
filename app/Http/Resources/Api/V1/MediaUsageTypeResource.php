@@ -19,6 +19,7 @@ class MediaUsageTypeResource extends JsonResource
             'name_json' => $this->name_json,
             'sort_order' => $this->sort_order,
             'allowed_extensions' => $this->allowed_extensions,
+            'restricted_display_mode' => $this->restricted_display_mode,
             'default_attributes' => $this->whenLoaded('defaultAttributes', function () {
                 return $this->defaultAttributes->map(fn ($attr) => [
                     'id' => $attr->id,

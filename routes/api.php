@@ -677,6 +677,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle.pim'])->group(functio
 
     Route::get('products/{product}/media', [ProductMediaController::class, 'index']);
     Route::post('products/{product}/media', [ProductMediaController::class, 'store']);
+    Route::post('products/{product}/media/download-zip', [ProductMediaController::class, 'downloadZip']);
     Route::delete('product-media/{product_medium}', [ProductMediaController::class, 'destroy']);
 
     // =====================================================================
