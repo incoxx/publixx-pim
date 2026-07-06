@@ -34,7 +34,8 @@ class MediaMotifResource extends JsonResource
             'asset_folder_id' => $this->asset_folder_id,
             'master_rendition' => new MediaResource($this->whenLoaded('masterRendition')),
             'renditions' => MediaResource::collection($this->whenLoaded('renditions')),
-            'rendition_count' => $this->renditions_count ?? null,
+            'rendition_count' => $this->renditions_count
+                ?? ($this->relationLoaded('renditions') ? $this->renditions->count() : null),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

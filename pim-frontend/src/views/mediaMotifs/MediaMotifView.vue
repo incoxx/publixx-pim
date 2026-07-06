@@ -2,14 +2,16 @@
 import { ref, onMounted } from 'vue'
 import {
   Plus, X, Save, Search, AlertCircle, Check,
-  Trash2, ImageOff, Wand2,
+  Trash2, ImageOff, Wand2, Settings,
 } from 'lucide-vue-next'
 import { mediaMotifs } from '@/api/mediaMotifs'
 import mediaApi from '@/api/media'
 import { useAuthStore } from '@/stores/auth'
 import MotifMetadataFields from '@/components/mediaMotifs/MotifMetadataFields.vue'
+import RenditionPresetsDialog from '@/components/mediaMotifs/RenditionPresetsDialog.vue'
 
 const authStore = useAuthStore()
+const showPresetsDialog = ref(false)
 
 // ─── Liste ───────────────────────────────────────
 const items = ref([])
@@ -147,6 +149,23 @@ const generating = ref(false)
 const generateResult = ref(null)
 const deleteTarget = ref(null)
 const deleting = ref(false)
+const selectedRendition = ref(null)
+
+function openRendition(rendition) {
+  selectedRendition.value = rendition
+}
+
+function formatBytes(bytes) {
+  if (!bytes) return '—'
+  const units = ['B', 'KB', 'MB', 'GB']
+  let value = bytes
+  let unitIndex = 0
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024
+    unitIndex++
+  }
+  return `${value.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`
+}
 
 async function openDetail(row) {
   detailLoading.value = true
@@ -178,6 +197,7 @@ function closeDetail() {
   detail.value = null
   editErrors.value = {}
   generateResult.value = null
+  selectedRendition.value = null
 }
 
 async function saveDetail() {
@@ -245,10 +265,17 @@ onMounted(() => fetchItems())
           Ein Motiv bündelt mehrere Ausgabeformate desselben Bildinhalts (Print, Web, Mobile, Social).
         </p>
       </div>
-      <button v-if="authStore.hasPermission('media.create')" class="pim-btn pim-btn-primary" @click="openPicker">
-        <Plus class="w-4 h-4" :stroke-width="2" /> Neues Motiv
-      </button>
+      <div class="flex items-center gap-2">
+        <button v-if="authStore.hasPermission('media.edit')" class="pim-btn pim-btn-secondary" @click="showPresetsDialog = true">
+          <Settings class="w-4 h-4" :stroke-width="2" /> Presets verwalten
+        </button>
+        <button v-if="authStore.hasPermission('media.create')" class="pim-btn pim-btn-primary" @click="openPicker">
+          <Plus class="w-4 h-4" :stroke-width="2" /> Neues Motiv
+        </button>
+      </div>
     </div>
+
+    <RenditionPresetsDialog :open="showPresetsDialog" @close="showPresetsDialog = false" />
 
     <!-- ─── Asset-Picker ─────────────────────────── -->
     <div v-if="showPicker" class="pim-card p-4 space-y-3">
@@ -358,11 +385,13 @@ onMounted(() => fetchItems())
           </div>
 
           <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
-            <div
+            <button
               v-for="rendition in detail.renditions || []"
               :key="rendition.id"
-              class="rounded-lg border border-[var(--color-border)] overflow-hidden"
+              type="button"
+              class="text-left rounded-lg border border-[var(--color-border)] overflow-hidden hover:border-[var(--color-accent)] transition-colors"
               :class="rendition.is_master_rendition ? 'ring-2 ring-[var(--color-accent)]' : ''"
+              @click="openRendition(rendition)"
             >
               <img :src="rendition.thumb_url" class="w-full aspect-square object-cover" />
               <div class="p-1.5 text-[10px] text-[var(--color-text-tertiary)] space-y-0.5">
@@ -372,7 +401,7 @@ onMounted(() => fetchItems())
                 <p>{{ rendition.width }}×{{ rendition.height }}px</p>
                 <p v-if="rendition.colorspace">{{ rendition.colorspace.toUpperCase() }} · {{ rendition.dpi }}dpi</p>
               </div>
-            </div>
+            </button>
           </div>
         </div>
       </template>
@@ -436,6 +465,56 @@ onMounted(() => fetchItems())
         </div>
       </div>
     </div>
+
+    <!-- ─── Rendition-Lightbox ───────────────────── -->
+    <Teleport to="body">
+      <div v-if="selectedRendition" class="fixed inset-0 z-50 flex items-center justify-center">
+        <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="selectedRendition = null" />
+        <div class="relative z-10 w-full max-w-[720px] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl overflow-hidden shadow-xl mx-4 max-h-[90vh] flex flex-col">
+          <div class="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)]">
+            <h3 class="text-sm font-semibold text-[var(--color-text-primary)]">
+              {{ selectedRendition.is_master_rendition ? 'Master' : (selectedRendition.rendition_channel || 'Rendition') }}
+            </h3>
+            <button class="p-1 rounded hover:bg-[var(--color-bg)] text-[var(--color-text-tertiary)]" @click="selectedRendition = null">
+              <X class="w-4 h-4" :stroke-width="2" />
+            </button>
+          </div>
+          <div class="overflow-auto p-4 space-y-4">
+            <img :src="selectedRendition.thumb_url?.replace(/w=\d+&h=\d+/, 'w=1200&h=1200')" :alt="selectedRendition.file_name" class="w-full max-h-[50vh] object-contain rounded-lg bg-[var(--color-bg)]" />
+            <dl class="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+              <div>
+                <dt class="text-[var(--color-text-tertiary)]">Dateiname</dt>
+                <dd class="text-[var(--color-text-primary)] font-mono truncate">{{ selectedRendition.file_name }}</dd>
+              </div>
+              <div>
+                <dt class="text-[var(--color-text-tertiary)]">Abmessungen</dt>
+                <dd class="text-[var(--color-text-primary)]">{{ selectedRendition.width }}×{{ selectedRendition.height }}px</dd>
+              </div>
+              <div>
+                <dt class="text-[var(--color-text-tertiary)]">Format</dt>
+                <dd class="text-[var(--color-text-primary)]">{{ selectedRendition.mime_type }}</dd>
+              </div>
+              <div v-if="selectedRendition.colorspace">
+                <dt class="text-[var(--color-text-tertiary)]">Farbraum</dt>
+                <dd class="text-[var(--color-text-primary)]">{{ selectedRendition.colorspace.toUpperCase() }}</dd>
+              </div>
+              <div v-if="selectedRendition.dpi">
+                <dt class="text-[var(--color-text-tertiary)]">Auflösung</dt>
+                <dd class="text-[var(--color-text-primary)]">{{ selectedRendition.dpi }} dpi</dd>
+              </div>
+              <div>
+                <dt class="text-[var(--color-text-tertiary)]">Dateigröße</dt>
+                <dd class="text-[var(--color-text-primary)]">{{ formatBytes(selectedRendition.file_size) }}</dd>
+              </div>
+            </dl>
+          </div>
+          <div class="flex justify-end gap-2 px-4 py-3 border-t border-[var(--color-border)]">
+            <a :href="selectedRendition.file_url" target="_blank" rel="noopener" class="pim-btn pim-btn-secondary text-xs">Original öffnen</a>
+            <a :href="selectedRendition.file_url" :download="selectedRendition.file_name" class="pim-btn pim-btn-primary text-xs">Herunterladen</a>
+          </div>
+        </div>
+      </div>
+    </Teleport>
 
     <!-- ─── Lösch-Bestätigung ────────────────────── -->
     <Teleport to="body">
