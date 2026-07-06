@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { Upload, Image, ImageOff, Grid, List, Trash2, FolderOpen, FolderPlus, Search, X, Plus, MoveRight, CheckSquare, Link, FileSpreadsheet, FileText, Wand2, Loader2, ChevronLeft, ChevronRight, Download, Copy, History, RefreshCw, ExternalLink, Package, FolderTree, Eye, Filter, Archive, ToggleLeft, ToggleRight, Table } from 'lucide-vue-next'
+import { Upload, Image, ImageOff, Grid, List, Trash2, FolderOpen, FolderPlus, Search, X, Plus, MoveRight, CheckSquare, Link, FileSpreadsheet, FileText, Wand2, Loader2, ChevronLeft, ChevronRight, Download, Copy, History, RefreshCw, ExternalLink, Package, FolderTree, Eye, Filter, Archive, ToggleLeft, ToggleRight, Table, Layers, Images } from 'lucide-vue-next'
 import mediaApi from '@/api/media'
 import { mediaUsageTypes as mediaUsageTypesApi } from '@/api/mediaUsageTypes'
 import hierarchiesApi from '@/api/hierarchies'
@@ -27,6 +27,7 @@ const searchTerm = ref(_route.query.search || '')
 const selectedFolderId = ref(null)
 const includeDescendants = ref(true)
 const usagePurposeFilter = ref('')
+const showRenditions = ref(false)
 const detailItem = ref(null)
 const detailOpen = ref(false)
 
@@ -163,6 +164,7 @@ const filterOptions = computed(() => {
   if (searchTerm.value) opts.search = searchTerm.value
   // include_descendants wird von buildParams als ?include_descendants=1/0 gesetzt
   if (selectedFolderId.value) opts.include_descendants = includeDescendants.value
+  opts.include_renditions = showRenditions.value
   return opts
 })
 
@@ -834,6 +836,7 @@ watch(usagePurposeFilter, () => { clearSelection(); currentPage.value = 1; fetch
 watch(missingOnlyFilter, (val) => { clearSelection(); currentPage.value = 1; fetchMedia(); bulkDeleteForce.value = val })
 watch(selectedFolderId, () => { clearSelection(); currentPage.value = 1; fetchMedia() })
 watch(includeDescendants, () => { clearSelection(); currentPage.value = 1; fetchMedia() })
+watch(showRenditions, () => { clearSelection(); currentPage.value = 1; fetchMedia() })
 
 onMounted(() => {
   fetchMedia()
@@ -973,6 +976,16 @@ onMounted(() => {
           >
             <ImageOff class="w-4 h-4" :stroke-width="1.75" />
             <span class="max-lg:hidden">Nicht vorhanden</span>
+          </button>
+
+          <!-- Generierte Renditions anzeigen (standardmäßig ausgeblendet) -->
+          <button
+            :class="['pim-btn pim-btn-ghost p-1.5 flex items-center gap-1 text-xs max-sm:hidden', showRenditions ? 'bg-[var(--color-accent)]/10 text-[var(--color-accent)]' : 'text-[var(--color-text-tertiary)]']"
+            @click="showRenditions = !showRenditions"
+            :title="showRenditions ? 'Generierte Motiv-Renditions werden angezeigt' : 'Generierte Motiv-Renditions sind ausgeblendet'"
+          >
+            <Layers class="w-4 h-4" :stroke-width="1.75" />
+            <span class="max-lg:hidden">Renditions</span>
           </button>
 
           <!-- Unterordner einbeziehen -->
@@ -1389,6 +1402,17 @@ onMounted(() => {
           <PdfPreview v-else-if="isItemPdf(detailItem)" :url="getFileUrl(detailItem)" :media-id="detailItem.id" :title="detailItem.file_name || 'PDF'" max-height="100%" />
           <Image v-else class="w-12 h-12 text-[var(--color-text-tertiary)]" />
         </div>
+
+        <!-- Motiv-Hinweis: dieses Bild ist Master einer Motiv-Gruppe mit Renditions -->
+        <router-link
+          v-if="detailItem.motif_id && detailItem.is_master_rendition"
+          :to="{ path: '/media-motifs', query: { open: detailItem.motif_id } }"
+          class="flex items-center gap-2 px-3 py-2 rounded-lg bg-[var(--color-accent)]/10 text-[var(--color-accent)] text-xs hover:bg-[var(--color-accent)]/15 transition-colors"
+        >
+          <Images class="w-4 h-4 shrink-0" :stroke-width="2" />
+          <span class="flex-1">Master eines Motivs mit weiteren Renditions (Print/Web/Mobile/Social)</span>
+          <ExternalLink class="w-3.5 h-3.5 shrink-0" :stroke-width="2" />
+        </router-link>
 
         <!-- Download / Copy URL -->
         <div class="flex gap-2">

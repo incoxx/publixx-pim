@@ -1,5 +1,6 @@
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import {
   Plus, X, Save, Search, AlertCircle, Check,
   Trash2, ImageOff, Wand2, Settings, Link2,
@@ -11,6 +12,7 @@ import MotifMetadataFields from '@/components/mediaMotifs/MotifMetadataFields.vu
 import RenditionPresetsDialog from '@/components/mediaMotifs/RenditionPresetsDialog.vue'
 
 const authStore = useAuthStore()
+const route = useRoute()
 const showPresetsDialog = ref(false)
 
 // ─── Liste: Suche & Filter ────────────────────────
@@ -275,7 +277,12 @@ async function confirmDeleteMotif() {
   }
 }
 
-onMounted(() => fetchItems())
+onMounted(() => {
+  fetchItems()
+  if (route.query.open) {
+    openDetail({ id: route.query.open })
+  }
+})
 </script>
 
 <template>
