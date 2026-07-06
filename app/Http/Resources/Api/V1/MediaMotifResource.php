@@ -36,7 +36,7 @@ class MediaMotifResource extends JsonResource
             'renditions' => MediaResource::collection($this->whenLoaded('renditions')),
             'rendition_count' => $this->renditions_count
                 ?? ($this->relationLoaded('renditions') ? $this->renditions->count() : null),
-            'is_used' => (bool) ($this->is_used ?? false),
+            'is_used' => (bool) ($this->has_direct_assignment ?? false) || (bool) ($this->has_rendition_assignment ?? false),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

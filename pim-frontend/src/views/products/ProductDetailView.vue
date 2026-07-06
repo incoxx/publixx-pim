@@ -23,7 +23,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useLocaleStore } from '@/stores/locale'
 import { useToastStore } from '@/stores/toast'
 import { useI18n } from 'vue-i18n'
-import { ArrowLeft, Save, Plus, Trash2, Image, Star, X, Search, Download, Languages, Copy, Sparkles, Tags, LayoutGrid, List, FileText, GitBranch, CheckCircle2, Eye, RotateCcw, ArrowRightLeft, RefreshCw, ChevronDown, ChevronRight, ChevronUp, ExternalLink, Filter, Upload, ClipboardList, Lightbulb, AlertTriangle, XCircle, Wand2 } from 'lucide-vue-next'
+import { ArrowLeft, Save, Plus, Trash2, Image, Star, X, Search, Download, Languages, Copy, Sparkles, Tags, LayoutGrid, List, FileText, GitBranch, CheckCircle2, Eye, RotateCcw, ArrowRightLeft, RefreshCw, ChevronDown, ChevronRight, ChevronUp, ExternalLink, Filter, Upload, ClipboardList, Lightbulb, AlertTriangle, XCircle, Wand2, Images } from 'lucide-vue-next'
 import productsApi from '@/api/products'
 import projectsApi from '@/api/projects'
 import usersApi from '@/api/users'
@@ -52,6 +52,7 @@ import PimMultipliableComposite from '@/components/shared/PimMultipliableComposi
 import ProductVersionsTab from '@/components/products/ProductVersionsTab.vue'
 import ProductScheduledActionsTab from '@/components/products/ProductScheduledActionsTab.vue'
 import MediaPickerDialog from '@/components/shared/MediaPickerDialog.vue'
+import MotifPickerDialog from '@/components/shared/MotifPickerDialog.vue'
 import ColumnConfigPopover from '@/components/shared/ColumnConfigPopover.vue'
 import MediaUploadQueue from '@/components/media/MediaUploadQueue.vue'
 import { useColumnConfig } from '@/composables/useColumnConfig'
@@ -1333,7 +1334,7 @@ const filteredMediaItems = computed(() => {
   if (!mediaFilter.value.trim()) return mediaItems.value
   const q = mediaFilter.value.toLowerCase()
   return mediaItems.value.filter(m => {
-    const fname = (m.file_name || m.media?.file_name || '').toLowerCase()
+    const fname = (m.file_name || m.media?.file_name || m.motif?.title_de || '').toLowerCase()
     const usageType = (m.usage_type?.name_de || m.usage_type?.technical_name || '').toLowerCase()
     const mime = (m.mime_type || m.media?.mime_type || '').toLowerCase()
     return fname.includes(q) || usageType.includes(q) || mime.includes(q)
@@ -1466,6 +1467,41 @@ async function attachMedia(mediaItem) {
   }
 }
 
+const showMotifPicker = ref(false)
+
+async function openMotifPicker() {
+  if (usageTypesList.value.length === 0) {
+    try {
+      const { data } = await mediaUsageTypes.list()
+      usageTypesList.value = data.data || data
+    } catch (e) { console.error('Failed to load usage types:', e.message) }
+  }
+  if (!selectedUsageTypeId.value && usageTypesList.value.length > 0) {
+    selectedUsageTypeId.value = usageTypesList.value[0].id
+  }
+  showMotifPicker.value = true
+}
+
+async function attachMotif(motif) {
+  if (!selectedUsageTypeId.value) {
+    toastStore.showToast('Bitte zuerst einen Bildtyp auswählen', 'error')
+    return
+  }
+  try {
+    await productsApi.attachMedia(product.value.id, {
+      motif_id: motif.id,
+      usage_type_id: selectedUsageTypeId.value,
+      sort_order: mediaItems.value.length,
+    })
+    mediaLoaded.value = false
+    await loadMedia()
+    toastStore.showToast(`Motiv "${motif.title_de || motif.id}" zugeordnet`, 'success')
+  } catch (e) {
+    console.error('Failed to attach motif:', e.message)
+    toastStore.showToast('Motiv konnte nicht zugeordnet werden: ' + (e.response?.data?.message || e.message), 'error')
+  }
+}
+
 async function attachMediaBulk(mediaItemsList) {
   if (!selectedUsageTypeId.value) {
     toastStore.showToast('Bitte zuerst einen Bildtyp auswählen', 'error')
@@ -1501,6 +1537,7 @@ async function detachMedia(item) {
 }
 
 function getMediaUrl(item) {
+  if (item.preview_thumb_url) return item.preview_thumb_url
   const media = item.media || item
   const id = media.id || item.media_id
   if (id && (media.media_type === 'image' || !media.media_type)) {
@@ -1509,6 +1546,10 @@ function getMediaUrl(item) {
   const fname = media.file_name || item.file_name
   if (fname) return mediaApi.fileUrl(fname)
   return ''
+}
+
+function assignmentLabel(item) {
+  return item.motif_id ? (item.motif?.title_de || '(Motiv ohne Titel)') : (item.file_name || item.media?.file_name || '—')
 }
 
 function isMediaPdf(item) {
@@ -4190,10 +4231,15 @@ onUnmounted(() => {
         <button class="pim-btn pim-btn-outline text-xs" @click="openMediaUpload">
           <Upload class="w-3.5 h-3.5" :stroke-width="2" /> Hochladen
         </button>
+        <button class="pim-btn pim-btn-outline text-xs" @click="openMotifPicker">
+          <Images class="w-3.5 h-3.5" :stroke-width="2" /> Motiv zuordnen
+        </button>
         <button class="pim-btn pim-btn-primary text-xs" @click="openMediaPicker">
           <Plus class="w-3.5 h-3.5" :stroke-width="2" /> Zuordnen
         </button>
       </div>
+
+      <MotifPickerDialog v-model="showMotifPicker" @select="attachMotif" />
 
       <!-- Upload-Bereich -->
       <div v-if="showMediaUpload" class="pim-card p-4 space-y-3">
@@ -4237,14 +4283,19 @@ onUnmounted(() => {
       <!-- Grid view -->
       <div v-else-if="displayMediaItems.length > 0 && mediaViewMode === 'grid'" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
         <div v-for="m in displayMediaItems" :key="m.id" class="pim-card overflow-hidden group relative">
-          <div class="aspect-square bg-[var(--color-bg)] flex items-center justify-center overflow-hidden p-2">
-            <PdfPreview v-if="isMediaPdf(m)" :url="getMediaUrl(m)" :media-id="m.media_id || m.media?.id || m.id" :title="m.file_name || ''" max-height="100%" />
+          <div class="aspect-square bg-[var(--color-bg)] flex items-center justify-center overflow-hidden p-2 relative">
+            <span v-if="m.motif_id" class="pim-badge absolute top-1 left-1 z-10 bg-[var(--color-accent)] text-white text-[9px]">Motiv</span>
+            <PdfPreview v-if="isMediaPdf(m)" :url="getMediaUrl(m)" :media-id="m.media_id || m.media?.id || m.id" :title="assignmentLabel(m)" max-height="100%" />
             <img v-else :src="getMediaUrl(m)" class="w-full h-full object-contain" loading="lazy" alt="" />
           </div>
           <div class="p-2">
             <div class="flex items-center justify-between">
-              <span class="text-[11px] text-[var(--color-text-primary)] truncate flex-1">{{ m.file_name || m.media?.file_name || '—' }}</span>
-              <button class="p-0.5 rounded hover:bg-[var(--color-bg)] text-[var(--color-text-tertiary)] hover:text-[var(--color-accent)] transition-colors" title="In Medienverwaltung öffnen" @click.stop="router.push({ path: '/media', query: { search: m.file_name || m.media?.file_name } })">
+              <span class="text-[11px] text-[var(--color-text-primary)] truncate flex-1">{{ assignmentLabel(m) }}</span>
+              <button
+                class="p-0.5 rounded hover:bg-[var(--color-bg)] text-[var(--color-text-tertiary)] hover:text-[var(--color-accent)] transition-colors"
+                title="In Medienverwaltung öffnen"
+                @click.stop="m.motif_id ? router.push({ path: '/media-motifs', query: { search: m.motif?.title_de } }) : router.push({ path: '/media', query: { search: m.file_name || m.media?.file_name } })"
+              >
                 <ExternalLink class="w-3.5 h-3.5" :stroke-width="2" />
               </button>
               <button class="p-0.5 rounded hover:bg-[var(--color-error-light)] text-[var(--color-text-tertiary)] hover:text-[var(--color-error)] transition-colors" @click="detachMedia(m)">
@@ -4323,7 +4374,8 @@ onUnmounted(() => {
                 </template>
                 <!-- Dateiname -->
                 <template v-else-if="col.key === 'file_name'">
-                  <span class="text-[var(--color-text-primary)] font-mono text-[11px]">{{ m.file_name || m.media?.file_name || '—' }}</span>
+                  <span v-if="m.motif_id" class="pim-badge bg-[var(--color-accent)] text-white text-[9px] mr-1">Motiv</span>
+                  <span class="text-[var(--color-text-primary)] font-mono text-[11px]">{{ assignmentLabel(m) }}</span>
                 </template>
                 <!-- Bildtyp (Usage Type) -->
                 <template v-else-if="col.key === 'usage_type'">

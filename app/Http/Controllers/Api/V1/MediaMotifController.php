@@ -18,13 +18,17 @@ use Illuminate\Support\Facades\Storage;
 class MediaMotifController extends Controller
 {
     /**
-     * Bedingung "Motiv wird verwendet": mindestens eine Rendition (inkl. Master)
-     * hat eine aktive Produkt- oder Knoten-Zuordnung.
+     * Bedingung "Motiv wird verwendet": entweder zeigt eine Produktzuordnung
+     * direkt auf das Motiv, oder mindestens eine Rendition (inkl. Master) hat
+     * eine aktive Produkt- oder Knoten-Zuordnung.
      */
-    private function usedScope(): \Closure
+    private function usedCondition(): \Closure
     {
         return function ($q) {
-            $q->whereHas('productAssignments')->orWhereHas('hierarchyNodeAssignments');
+            $q->whereHas('productAssignments')
+                ->orWhereHas('renditions', function ($q2) {
+                    $q2->whereHas('productAssignments')->orWhereHas('hierarchyNodeAssignments');
+                });
         };
     }
 
@@ -34,7 +38,10 @@ class MediaMotifController extends Controller
 
         $query = MediaMotif::with('masterRendition')
             ->withCount('renditions')
-            ->withExists(['renditions as is_used' => $this->usedScope()]);
+            ->withExists(['productAssignments as has_direct_assignment'])
+            ->withExists(['renditions as has_rendition_assignment' => function ($q) {
+                $q->whereHas('productAssignments')->orWhereHas('hierarchyNodeAssignments');
+            }]);
 
         $this->applySearch($query, $request, ['title_de', 'title_en']);
 
@@ -43,8 +50,8 @@ class MediaMotifController extends Controller
         if (isset($filters['is_used'])) {
             $isUsed = filter_var($filters['is_used'], FILTER_VALIDATE_BOOLEAN);
             $isUsed
-                ? $query->whereHas('renditions', $this->usedScope())
-                : $query->whereDoesntHave('renditions', $this->usedScope());
+                ? $query->where($this->usedCondition())
+                : $query->whereNot($this->usedCondition());
         }
 
         if (isset($filters['license_expired'])) {
@@ -101,7 +108,7 @@ class MediaMotifController extends Controller
         $this->authorize('view', $mediaMotif);
 
         $mediaMotif->load(['masterRendition', 'renditions' => fn ($q) => $q->orderBy('rendition_channel')]);
-        $mediaMotif->loadExists(['renditions as is_used' => $this->usedScope()]);
+        $this->loadUsedFlags($mediaMotif);
 
         return new MediaMotifResource($mediaMotif);
     }
@@ -113,9 +120,17 @@ class MediaMotifController extends Controller
         $mediaMotif->update($request->validated());
 
         $fresh = $mediaMotif->fresh(['masterRendition', 'renditions']);
-        $fresh->loadExists(['renditions as is_used' => $this->usedScope()]);
+        $this->loadUsedFlags($fresh);
 
         return new MediaMotifResource($fresh);
+    }
+
+    private function loadUsedFlags(MediaMotif $mediaMotif): void
+    {
+        $mediaMotif->loadExists(['productAssignments as has_direct_assignment']);
+        $mediaMotif->loadExists(['renditions as has_rendition_assignment' => function ($q) {
+            $q->whereHas('productAssignments')->orWhereHas('hierarchyNodeAssignments');
+        }]);
     }
 
     /**
@@ -127,6 +142,12 @@ class MediaMotifController extends Controller
     public function destroy(MediaMotif $mediaMotif): JsonResponse
     {
         $this->authorize('delete', $mediaMotif);
+
+        if ($mediaMotif->productAssignments()->exists()) {
+            return response()->json([
+                'message' => 'Dieses Motiv ist direkt mindestens einem Produkt zugeordnet und kann nicht aufgelöst werden.',
+            ], 422);
+        }
 
         $disk = Storage::disk('public');
 

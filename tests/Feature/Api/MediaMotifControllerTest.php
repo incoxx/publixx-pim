@@ -158,6 +158,34 @@ class MediaMotifControllerTest extends TestCase
         $this->assertDatabaseMissing('media', ['motif_id' => $motifId]);
     }
 
+    public function test_destroy_blocked_when_motif_directly_assigned_to_product(): void
+    {
+        Storage::fake('public');
+        $media = $this->createMediaWithRealFile();
+        $motifId = $this->postJson('/api/v1/media-motifs', ['media_id' => $media->id])->json('data.id');
+
+        \App\Models\ProductMediaAssignment::factory()->create(['motif_id' => $motifId, 'media_id' => null]);
+
+        $response = $this->deleteJson("/api/v1/media-motifs/{$motifId}");
+
+        $response->assertStatus(422);
+        $this->assertDatabaseHas('media_motifs', ['id' => $motifId]);
+    }
+
+    public function test_direct_motif_assignment_marks_motif_as_used(): void
+    {
+        Storage::fake('public');
+        $media = $this->createMediaWithRealFile();
+        $motifId = $this->postJson('/api/v1/media-motifs', ['media_id' => $media->id])->json('data.id');
+
+        $this->getJson("/api/v1/media-motifs/{$motifId}")->assertJsonPath('data.is_used', false);
+
+        \App\Models\ProductMediaAssignment::factory()->create(['motif_id' => $motifId, 'media_id' => null]);
+
+        $this->getJson("/api/v1/media-motifs/{$motifId}")->assertJsonPath('data.is_used', true);
+        $this->getJson('/api/v1/media-motifs?filter[is_used]=true')->assertJsonCount(1, 'data');
+    }
+
     public function test_index_supports_search_and_is_used_filter(): void
     {
         Storage::fake('public');

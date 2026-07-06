@@ -69,6 +69,15 @@ class MediaMotif extends Model
         return $this->hasOne(Media::class, 'motif_id')->where('is_master_rendition', true);
     }
 
+    /**
+     * Direkte Produktzuordnungen auf Motiv-Ebene (Alternative zur Zuordnung
+     * einer einzelnen Rendition über product_media_assignments.media_id).
+     */
+    public function productAssignments(): HasMany
+    {
+        return $this->hasMany(ProductMediaAssignment::class, 'motif_id');
+    }
+
     public function isLicenseExpired(): bool
     {
         return $this->license_valid_until !== null && $this->license_valid_until->isPast();
@@ -97,6 +106,7 @@ class MediaMotif extends Model
     public function deletionConstraints(): array
     {
         return [
+            'productAssignments' => 'Produkt-Zuordnungen (Motiv-Ebene)',
             'renditions' => 'Renditions (Bildvarianten)',
         ];
     }

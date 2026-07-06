@@ -16,6 +16,7 @@ class ProductMediaAssignment extends Model
     protected $fillable = [
         'product_id',
         'media_id',
+        'motif_id',
         'usage_type_id',
         'sort_order',
         'is_primary',
@@ -37,6 +38,17 @@ class ProductMediaAssignment extends Model
     public function media(): BelongsTo
     {
         return $this->belongsTo(Media::class);
+    }
+
+    /**
+     * Alternative zu media_id: das gesamte Motiv ist zugeordnet, nicht eine
+     * einzelne Rendition. Welche Rendition ausgeliefert wird, entscheidet
+     * (aktuell noch) die Anwendung, die die Zuordnung konsumiert — die
+     * Export-Pipeline-Anbindung folgt in einem späteren Schritt.
+     */
+    public function motif(): BelongsTo
+    {
+        return $this->belongsTo(MediaMotif::class, 'motif_id');
     }
 
     public function usageType(): BelongsTo
