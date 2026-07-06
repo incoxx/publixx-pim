@@ -7,7 +7,7 @@ import { useLicenseStore } from '@/stores/license'
 import { useConnectorsStore } from '@/stores/connectors'
 import {
   Search, Package, GitBranch, Sliders, Database, Layers, FolderTree,
-  Upload, Download, Image, Tags, DollarSign, Users, Settings, Shield,
+  Upload, Download, Image, Images, Tags, DollarSign, Users, Settings, Shield,
   HelpCircle, PanelLeftClose, PanelLeft, Star, LayoutGrid, Ruler,
   FileJson, FileCode, PlayCircle, FileBarChart, FileText, BookOpen, Link2, Zap, Languages, LayoutTemplate,
   ChevronDown, ChevronRight, ChevronsDownUp, GripVertical, Factory, CalendarDays, ScrollText, Globe, Send,
@@ -71,6 +71,7 @@ const sections = computed(() => {
         { icon: CalendarDays, label: () => 'Planungskalender', to: '/calendar', permission: 'calendar.view', testid: 'nav-calendar' },
         { divider: true },
         { icon: Image, label: () => t('nav.media'), to: '/media', permission: 'media.view', testid: 'nav-media' },
+        { icon: Images, label: () => 'Motive', to: '/media-motifs', permission: 'media.view', testid: 'nav-media-motifs' },
       ],
     },
     {

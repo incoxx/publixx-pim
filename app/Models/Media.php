@@ -40,6 +40,14 @@ class Media extends Model
         'language',
         'document_type',
         'last_uploaded_at',
+        'motif_id',
+        'is_master_rendition',
+        'rendition_channel',
+        'rendition_preset_id',
+        'colorspace',
+        'dpi',
+        'crop_data',
+        'generated_at',
     ];
 
     protected function casts(): array
@@ -49,12 +57,30 @@ class Media extends Model
             'width' => 'integer',
             'height' => 'integer',
             'last_uploaded_at' => 'datetime',
+            'is_master_rendition' => 'boolean',
+            'dpi' => 'integer',
+            'crop_data' => 'array',
+            'generated_at' => 'datetime',
         ];
     }
 
     public function assetFolder(): BelongsTo
     {
         return $this->belongsTo(HierarchyNode::class, 'asset_folder_id');
+    }
+
+    /**
+     * Motiv, zu dem diese Rendition gehört (NULL = eigenständiges Medium,
+     * "einfache Lösung" ohne Motiv-Gruppierung).
+     */
+    public function motif(): BelongsTo
+    {
+        return $this->belongsTo(MediaMotif::class, 'motif_id');
+    }
+
+    public function renditionPreset(): BelongsTo
+    {
+        return $this->belongsTo(MediaRenditionPreset::class, 'rendition_preset_id');
     }
 
     public function attributeValues(): HasMany
