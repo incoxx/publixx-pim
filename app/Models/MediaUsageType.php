@@ -39,6 +39,19 @@ class MediaUsageType extends Model
         return $this->hasMany(ProductMediaAssignment::class, 'usage_type_id');
     }
 
+    /**
+     * IDs aller UsageTypes, für die irgendeine Rolle eine RoleEntityRestriction hat
+     * (unabhängig von hidden/locked). Genutzt, um Kontexte ohne Nutzer-/Rollenbezug
+     * (z.B. den öffentlichen Asset-Katalog) pauschal von restriktionssensiblen
+     * Medientypen freizuhalten.
+     */
+    public static function restrictionSensitiveIds(): \Illuminate\Support\Collection
+    {
+        return RoleEntityRestriction::where('restrictable_type', self::class)
+            ->pluck('restrictable_id')
+            ->unique();
+    }
+
     public function defaultAttributes(): BelongsToMany
     {
         return $this->belongsToMany(Attribute::class, 'usage_type_default_attributes', 'usage_type_id', 'attribute_id')

@@ -200,6 +200,10 @@ export const useAssetCatalogStore = defineStore('assetCatalog', () => {
       link.click()
       link.remove()
       window.URL.revokeObjectURL(url)
+      const skippedCount = parseInt(response.headers?.['x-skipped-count'] || '0', 10)
+      if (skippedCount > 0) {
+        console.warn(`${skippedCount} Asset(s) wurden nicht in die ZIP-Datei aufgenommen (kein Zugriff)`)
+      }
     } catch (e) {
       error.value = 'Download fehlgeschlagen'
       console.error('ZIP download failed:', e)
