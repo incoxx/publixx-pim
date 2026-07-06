@@ -11,15 +11,14 @@ use App\Http\Traits\ChecksDeletionConstraints;
 use App\Models\Media;
 use App\Models\MediaAssignmentHistory;
 use App\Models\MediaRevision;
-use Illuminate\Support\Facades\DB;
 use App\Models\Product;
 use App\Models\ProductMediaAssignment;
-use App\Models\MediaUsageType;
 use App\Services\ThumbnailService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -31,7 +30,9 @@ class MediaController extends Controller
     use ChecksDeletionConstraints;
 
     private const ALLOWED_FILTERS = ['media_type', 'mime_type', 'asset_folder_id', 'usage_purpose', 'file_status'];
+
     private const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'tiff', 'tif', 'pdf', 'eps', 'ai', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'csv'];
+
     private const MAX_BULK_IMPORT_ROWS = 500;
 
     public function index(Request $request): AnonymousResourceCollection
@@ -104,7 +105,7 @@ class MediaController extends Controller
         // Broken-Image-Prüfung immer als letzte Spalte
         $checkBroken = filter_var($request->query('check_broken', 'true'), FILTER_VALIDATE_BOOLEAN);
 
-        $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+        $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet;
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('Medien');
 
@@ -148,11 +149,11 @@ class MediaController extends Controller
             )->setAutoSize(true);
         }
 
-        $tmpFile = tempnam(sys_get_temp_dir(), 'media_export_') . '.xlsx';
+        $tmpFile = tempnam(sys_get_temp_dir(), 'media_export_').'.xlsx';
         $writer = IOFactory::createWriter($spreadsheet, 'Xlsx');
         $writer->save($tmpFile);
 
-        return response()->download($tmpFile, 'medien-export-' . date('Y-m-d') . '.xlsx', [
+        return response()->download($tmpFile, 'medien-export-'.date('Y-m-d').'.xlsx', [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         ])->deleteFileAfterSend(true);
     }
@@ -162,12 +163,12 @@ class MediaController extends Controller
      */
     private function isMediaFileBroken(Media $media): bool
     {
-        if (!$media->file_name) {
+        if (! $media->file_name) {
             return true;
         }
         $disk = Storage::disk(config('media-library.disk_name', 'public'));
 
-        return !$disk->exists('media/' . $media->file_name);
+        return ! $disk->exists('media/'.$media->file_name);
     }
 
     /**
@@ -177,10 +178,18 @@ class MediaController extends Controller
     {
         $filters = $request->query('filter', []);
 
+        // include_renditions: automatisch generierte Motiv-Renditions sind standardmäßig
+        // ausgeblendet (Pipeline-Artefakte, werden über die Motiv-Verwaltung gepflegt) —
+        // opt-in über ?include_renditions=true
+        $includeRenditions = filter_var($request->query('include_renditions', 'false'), FILTER_VALIDATE_BOOLEAN);
+        if (! $includeRenditions) {
+            $query->whereNull('generated_at');
+        }
+
         // include_descendants: Ordner + alle Unterordner
         $includeDescendants = filter_var($request->query('include_descendants', 'true'), FILTER_VALIDATE_BOOLEAN);
 
-        if (!empty($filters['asset_folder_id']) && $includeDescendants) {
+        if (! empty($filters['asset_folder_id']) && $includeDescendants) {
             $folderId = $filters['asset_folder_id'];
             $node = \App\Models\HierarchyNode::find($folderId);
             if ($node) {
@@ -188,7 +197,7 @@ class MediaController extends Controller
                     ? "/{$node->id}/"
                     : "{$node->path}{$node->id}/";
 
-                $descendantIds = \App\Models\HierarchyNode::where('path', 'like', $descendantPath . '%')
+                $descendantIds = \App\Models\HierarchyNode::where('path', 'like', $descendantPath.'%')
                     ->pluck('id')
                     ->toArray();
                 $descendantIds[] = $node->id;
@@ -207,16 +216,16 @@ class MediaController extends Controller
         ));
 
         // Filter by file extensions (e.g. ?filter[extensions]=jpg,png,pdf)
-        if (!empty($filters['extensions'])) {
+        if (! empty($filters['extensions'])) {
             $extList = array_map(
                 fn ($e) => preg_replace('/[^a-z0-9]/', '', strtolower(trim($e))),
                 explode(',', $filters['extensions'])
             );
             $extList = array_filter($extList);
-            if (!empty($extList)) {
+            if (! empty($extList)) {
                 $query->where(function ($q) use ($extList) {
                     foreach ($extList as $ext) {
-                        $q->orWhere('file_name', 'LIKE', '%.' . $ext);
+                        $q->orWhere('file_name', 'LIKE', '%.'.$ext);
                     }
                 });
             }
@@ -225,7 +234,7 @@ class MediaController extends Controller
         $this->applySearch($query, $request, ['file_name', 'title_de', 'title_en']);
 
         // Filter: Medien ohne Datei (file_size = 0 oder NULL) — "Nicht vorhanden"
-        if (!empty($filters['is_missing'])) {
+        if (! empty($filters['is_missing'])) {
             $query->where(function ($q) {
                 $q->whereNull('file_size')->orWhere('file_size', 0);
             });
@@ -248,7 +257,7 @@ class MediaController extends Controller
         $existing = Media::where('asset_folder_id', $folderId)
             ->where(function ($q) use ($originalFileName) {
                 $q->where('original_file_name', $originalFileName)
-                  ->orWhere('file_name', $originalFileName);
+                    ->orWhere('file_name', $originalFileName);
             })
             ->first();
 
@@ -272,7 +281,7 @@ class MediaController extends Controller
         $safeFilename = $this->generateSafeFilename($file);
 
         $disk = Storage::disk('public');
-        if (!$disk->exists('media')) {
+        if (! $disk->exists('media')) {
             $disk->makeDirectory('media');
         }
 
@@ -336,7 +345,7 @@ class MediaController extends Controller
         $disk = Storage::disk('public');
 
         // DB-Transaktion mit Row-Lock gegen Race Conditions bei parallelen Uploads
-        $oldFileExisted = !empty($existing->file_path) && $disk->exists($existing->file_path);
+        $oldFileExisted = ! empty($existing->file_path) && $disk->exists($existing->file_path);
 
         $nextRevision = DB::transaction(function () use ($existing, $request, $file, $disk, $oldFileExisted) {
             // Row-Lock: verhindert gleichzeitiges Replace desselben Assets
@@ -344,8 +353,8 @@ class MediaController extends Controller
 
             // 1. Alte Datei als Revision archivieren
             $nextRevision = ($existing->revisions()->max('revision_number') ?? 0) + 1;
-            $archiveDir = 'media-revisions/' . $existing->id;
-            $archivePath = $archiveDir . '/rev-' . $nextRevision . '-' . $existing->file_name;
+            $archiveDir = 'media-revisions/'.$existing->id;
+            $archivePath = $archiveDir.'/rev-'.$nextRevision.'-'.$existing->file_name;
 
             if ($oldFileExisted) {
                 $disk->copy($existing->file_path, $archivePath);
@@ -371,7 +380,7 @@ class MediaController extends Controller
             }
 
             // Korrekten Pfad sicherstellen (Broken Assets haben ggf. leeren file_path)
-            $correctPath = 'media/' . $existing->file_name;
+            $correctPath = 'media/'.$existing->file_name;
             $file->storeAs('media', $existing->file_name, 'public');
 
             $storedPath = $disk->path($correctPath);
@@ -401,7 +410,7 @@ class MediaController extends Controller
         return (new MediaResource($existing->fresh()))
             ->additional([
                 'replaced' => true,
-                'replaced_broken' => !$oldFileExisted,
+                'replaced_broken' => ! $oldFileExisted,
                 'revision_number' => $nextRevision,
             ])
             ->response();
@@ -431,6 +440,7 @@ class MediaController extends Controller
                 $height = $height ?? $dimensions[1];
             }
         }
+
         return [$width, $height];
     }
 
@@ -439,7 +449,7 @@ class MediaController extends Controller
      */
     private function generateEagerThumbnail(Media $media): void
     {
-        if (!str_starts_with($media->mime_type ?? '', 'image/') || !extension_loaded('gd')) {
+        if (! str_starts_with($media->mime_type ?? '', 'image/') || ! extension_loaded('gd')) {
             return;
         }
         try {
@@ -462,7 +472,7 @@ class MediaController extends Controller
             ->where('asset_folder_id', $folderId)
             ->first();
 
-        if (!$media) {
+        if (! $media) {
             return 0;
         }
 
@@ -479,13 +489,13 @@ class MediaController extends Controller
 
         // History-Einträge finden die zum Dateinamen passen
         $historyEntries = MediaAssignmentHistory::where(function ($q) use ($fileName) {
-                $q->where('original_file_name', $fileName)
-                  ->orWhere('file_name', $fileName);
-            })
+            $q->where('original_file_name', $fileName)
+                ->orWhere('file_name', $fileName);
+        })
             ->where(function ($q) use ($media) {
                 // Gleicher Ordner oder kein Ordner-Filter
                 $q->where('asset_folder_id', $media->asset_folder_id)
-                  ->orWhereNull('asset_folder_id');
+                    ->orWhereNull('asset_folder_id');
             })
             ->get();
 
@@ -507,7 +517,7 @@ class MediaController extends Controller
             }
 
             // Prüfen ob Produkt noch existiert
-            if (!\App\Models\Product::where('id', $entry->product_id)->exists()) {
+            if (! \App\Models\Product::where('id', $entry->product_id)->exists()) {
                 continue;
             }
 
@@ -585,12 +595,12 @@ class MediaController extends Controller
         $fileName = $medium->original_file_name ?? $medium->file_name;
 
         $historyEntries = MediaAssignmentHistory::where(function ($q) use ($fileName) {
-                $q->where('original_file_name', $fileName)
-                  ->orWhere('file_name', $fileName);
-            })
+            $q->where('original_file_name', $fileName)
+                ->orWhere('file_name', $fileName);
+        })
             ->where(function ($q) use ($medium) {
                 $q->where('asset_folder_id', $medium->asset_folder_id)
-                  ->orWhereNull('asset_folder_id');
+                    ->orWhereNull('asset_folder_id');
             })
             ->with('product:id,sku')
             ->get()
@@ -656,7 +666,7 @@ class MediaController extends Controller
         $products = collect($paginated->items())->map(function ($product) use ($hasSearchIndex) {
             $imageUrl = null;
             if ($hasSearchIndex && $product->primary_image) {
-                $imageUrl = url('api/v1/media/thumb/' . $product->primary_image . '?w=80&h=80');
+                $imageUrl = url('api/v1/media/thumb/'.$product->primary_image.'?w=80&h=80');
             }
 
             return [
@@ -675,7 +685,7 @@ class MediaController extends Controller
 
         $nodes = $nodeAssignments->map(function ($assignment) {
             $node = $assignment->hierarchyNode;
-            if (!$node) {
+            if (! $node) {
                 return null;
             }
 
@@ -717,9 +727,9 @@ class MediaController extends Controller
         $disk = Storage::disk('public');
         $path = $disk->path($media->file_path);
 
-        if (!file_exists($path)) {
+        if (! file_exists($path)) {
             // Fallback: Datei könnte unter media/{filename} liegen (Import-Pfad-Korrektur)
-            $correctedPath = 'media/' . $media->file_name;
+            $correctedPath = 'media/'.$media->file_name;
             if ($media->file_path !== $correctedPath && $disk->exists($correctedPath)) {
                 $media->update(['file_path' => $correctedPath]);
                 $path = $disk->path($correctedPath);
@@ -745,9 +755,9 @@ class MediaController extends Controller
         // Check if source file exists first
         $disk = Storage::disk('public');
         $originalPath = $disk->path($medium->file_path);
-        if (!file_exists($originalPath)) {
+        if (! file_exists($originalPath)) {
             // Fallback: Datei könnte unter media/{filename} liegen (Import-Pfad-Korrektur)
-            $correctedPath = 'media/' . $medium->file_name;
+            $correctedPath = 'media/'.$medium->file_name;
             if ($medium->file_path !== $correctedPath && $disk->exists($correctedPath)) {
                 // DB-Record korrigieren
                 $medium->update(['file_path' => $correctedPath]);
@@ -758,6 +768,7 @@ class MediaController extends Controller
                     'file_path' => $medium->file_path,
                     'expected_path' => $originalPath,
                 ]);
+
                 return response()->json([
                     'message' => 'Datei nicht auf dem Server gefunden.',
                     'media_id' => $medium->id,
@@ -779,7 +790,7 @@ class MediaController extends Controller
                     'trace' => $e->getTraceAsString(),
                 ]);
             }
-        } elseif (!extension_loaded('gd')) {
+        } elseif (! extension_loaded('gd')) {
             \Log::warning('GD extension not loaded — thumbnails disabled.');
         }
 
@@ -849,7 +860,7 @@ class MediaController extends Controller
 
         // Constraint-Check in 1 Query statt N einzelne exists()-Calls
         $blockedIds = [];
-        if (!$force) {
+        if (! $force) {
             $blockedIds = \App\Models\ProductMediaAssignment::whereIn('media_id', $mediaIds)
                 ->pluck('media_id')
                 ->flip()
@@ -862,21 +873,24 @@ class MediaController extends Controller
 
             foreach ($chunk as $mediaId) {
                 $media = $mediaItems->get($mediaId);
-                if (!$media) {
+                if (! $media) {
                     $skipped++;
+
                     continue;
                 }
 
                 if (isset($blockedIds[$mediaId])) {
                     $skipped++;
                     $errors[] = "{$media->file_name}: Hat Produkt-Zuordnungen";
+
                     continue;
                 }
 
                 try {
                     try {
                         app(ThumbnailService::class)->clearCache($media);
-                    } catch (\Throwable) {}
+                    } catch (\Throwable) {
+                    }
 
                     // Bei force=true: Zuordnungen vor dem Löschen explizit aufheben
                     if ($force) {
@@ -886,8 +900,8 @@ class MediaController extends Controller
                     }
 
                     $disk = Storage::disk('public');
-                    if ($disk->exists('media-revisions/' . $media->id)) {
-                        $disk->deleteDirectory('media-revisions/' . $media->id);
+                    if ($disk->exists('media-revisions/'.$media->id)) {
+                        $disk->deleteDirectory('media-revisions/'.$media->id);
                     }
                     if ($disk->exists($media->file_path)) {
                         $disk->delete($media->file_path);
@@ -903,7 +917,7 @@ class MediaController extends Controller
         }
 
         return response()->json([
-            'message' => "{$deleted} Medien gelöscht" . ($skipped > 0 ? ", {$skipped} übersprungen." : '.'),
+            'message' => "{$deleted} Medien gelöscht".($skipped > 0 ? ", {$skipped} übersprungen." : '.'),
             'deleted' => $deleted,
             'skipped' => $skipped,
             'errors' => $errors,
@@ -940,8 +954,9 @@ class MediaController extends Controller
 
             foreach ($chunk as $mediaId) {
                 $media = $mediaItems->get($mediaId);
-                if (!$media) {
+                if (! $media) {
                     $skipped++;
+
                     continue;
                 }
 
@@ -953,16 +968,16 @@ class MediaController extends Controller
 
                 $success = false;
                 foreach ($candidates as $candidate) {
-                    $url = $baseUrl . '/' . rawurlencode($candidate);
+                    $url = $baseUrl.'/'.rawurlencode($candidate);
 
                     try {
                         $response = Http::timeout(30)->get($url);
-                        if (!$response->successful()) {
+                        if (! $response->successful()) {
                             continue;
                         }
 
                         $extension = strtolower(pathinfo($candidate, PATHINFO_EXTENSION) ?: 'bin');
-                        if (!$this->validateExtension($extension)) {
+                        if (! $this->validateExtension($extension)) {
                             if (count($errors) < 100) {
                                 $errors[] = "{$media->file_name}: Dateityp \"{$extension}\" nicht erlaubt.";
                             }
@@ -1003,7 +1018,8 @@ class MediaController extends Controller
                         try {
                             app(ThumbnailService::class)->clearCache($media);
                             $this->generateEagerThumbnail($media->fresh());
-                        } catch (\Throwable) {}
+                        } catch (\Throwable) {
+                        }
 
                         $recovered++;
                         $success = true;
@@ -1013,7 +1029,7 @@ class MediaController extends Controller
                     }
                 }
 
-                if (!$success) {
+                if (! $success) {
                     $failed++;
                     if (count($errors) < 100) {
                         $errors[] = "{$media->file_name}: Nicht gefunden unter {$baseUrl}/";
@@ -1024,8 +1040,8 @@ class MediaController extends Controller
 
         return response()->json([
             'message' => "{$recovered} wiederhergestellt"
-                . ($failed > 0 ? ", {$failed} fehlgeschlagen" : '')
-                . ($skipped > 0 ? ", {$skipped} übersprungen" : '') . '.',
+                .($failed > 0 ? ", {$failed} fehlgeschlagen" : '')
+                .($skipped > 0 ? ", {$skipped} übersprungen" : '').'.',
             'recovered' => $recovered,
             'failed' => $failed,
             'skipped' => $skipped,
@@ -1055,7 +1071,7 @@ class MediaController extends Controller
                 'replaced_by' => $rev->replacedByUser?->name,
                 'replaced_at' => $rev->replaced_at,
                 'reason' => $rev->reason,
-                'download_url' => url('api/v1/media/revision/' . $rev->id . '/download'),
+                'download_url' => url('api/v1/media/revision/'.$rev->id.'/download'),
             ]);
 
         return response()->json(['data' => $revisions]);
@@ -1070,13 +1086,13 @@ class MediaController extends Controller
 
         $path = Storage::disk('public')->path($revision->file_path);
 
-        if (!file_exists($path)) {
+        if (! file_exists($path)) {
             abort(404, 'Revisions-Datei nicht gefunden.');
         }
 
         return response()->file($path, [
             'Content-Type' => $revision->mime_type ?? 'application/octet-stream',
-            'Content-Disposition' => 'attachment; filename="' . $revision->file_name . '"',
+            'Content-Disposition' => 'attachment; filename="'.$revision->file_name.'"',
         ]);
     }
 
@@ -1090,15 +1106,15 @@ class MediaController extends Controller
 
         // PDF-Status in 1 Query statt 4 separate COUNT-Queries
         $statusCounts = \App\Models\PdfDocument::query()
-            ->selectRaw("status, COUNT(*) as cnt")
+            ->selectRaw('status, COUNT(*) as cnt')
             ->where(function ($q) {
                 $q->whereIn('status', ['pending', 'processing'])
-                  ->orWhere(function ($q2) {
-                      $q2->where('status', 'ready')->where('updated_at', '>=', now()->subMinutes(5));
-                  })
-                  ->orWhere(function ($q2) {
-                      $q2->where('status', 'error')->where('updated_at', '>=', now()->subHour());
-                  });
+                    ->orWhere(function ($q2) {
+                        $q2->where('status', 'ready')->where('updated_at', '>=', now()->subMinutes(5));
+                    })
+                    ->orWhere(function ($q2) {
+                        $q2->where('status', 'error')->where('updated_at', '>=', now()->subHour());
+                    });
             })
             ->groupBy('status')
             ->pluck('cnt', 'status');
@@ -1164,14 +1180,14 @@ class MediaController extends Controller
         // Count physical files
         $physicalFiles = 0;
         if (is_dir($storagePath)) {
-            $physicalFiles = count(array_filter(scandir($storagePath), fn ($f) => !in_array($f, ['.', '..'])));
+            $physicalFiles = count(array_filter(scandir($storagePath), fn ($f) => ! in_array($f, ['.', '..'])));
         }
 
         // Find orphaned DB records (file_path in DB but file missing on disk)
         $missingFiles = [];
         Media::select('id', 'file_name', 'file_path')->chunk(100, function ($records) use ($disk, &$missingFiles) {
             foreach ($records as $record) {
-                if (!$disk->exists($record->file_path)) {
+                if (! $disk->exists($record->file_path)) {
                     $missingFiles[] = [
                         'id' => $record->id,
                         'file_name' => $record->file_name,
@@ -1231,8 +1247,8 @@ class MediaController extends Controller
 
         try {
             $response = Http::timeout(30)->get($validated['url']);
-            if (!$response->successful()) {
-                return response()->json(['message' => 'URL konnte nicht geladen werden (HTTP ' . $response->status() . ').'], 422);
+            if (! $response->successful()) {
+                return response()->json(['message' => 'URL konnte nicht geladen werden (HTTP '.$response->status().').'], 422);
             }
 
             $contentType = $response->header('Content-Type', 'application/octet-stream');
@@ -1241,7 +1257,7 @@ class MediaController extends Controller
             // Extract filename from URL
             $urlPath = parse_url($validated['url'], PHP_URL_PATH);
             $originalName = $urlPath ? basename($urlPath) : 'download';
-            if (!pathinfo($originalName, PATHINFO_EXTENSION)) {
+            if (! pathinfo($originalName, PATHINFO_EXTENSION)) {
                 $ext = match (true) {
                     str_contains($contentType, 'jpeg'), str_contains($contentType, 'jpg') => 'jpg',
                     str_contains($contentType, 'png') => 'png',
@@ -1251,18 +1267,18 @@ class MediaController extends Controller
                     str_contains($contentType, 'pdf') => 'pdf',
                     default => 'bin',
                 };
-                $originalName .= '.' . $ext;
+                $originalName .= '.'.$ext;
             }
 
             // Validate extension
             $extension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION) ?: 'bin');
-            if (!$this->validateExtension($extension)) {
-                return response()->json(['message' => 'Dateityp "' . $extension . '" ist nicht erlaubt.'], 422);
+            if (! $this->validateExtension($extension)) {
+                return response()->json(['message' => 'Dateityp "'.$extension.'" ist nicht erlaubt.'], 422);
             }
 
             $safeFilename = $this->generateSafeFilenameFromString($originalName);
-            $storedPath = Storage::disk('public')->path('media/' . $safeFilename);
-            Storage::disk('public')->put('media/' . $safeFilename, $response->body());
+            $storedPath = Storage::disk('public')->path('media/'.$safeFilename);
+            Storage::disk('public')->put('media/'.$safeFilename, $response->body());
 
             // Detect actual MIME type from file content (don't trust remote server)
             $actualMime = $this->detectMimeFromFile($storedPath) ?? $contentType;
@@ -1286,9 +1302,9 @@ class MediaController extends Controller
             $media = Media::create([
                 'file_name' => $safeFilename,
                 'original_file_name' => $originalName,
-                'file_path' => 'media/' . $safeFilename,
+                'file_path' => 'media/'.$safeFilename,
                 'mime_type' => $actualMime,
-                'file_size' => Storage::disk('public')->size('media/' . $safeFilename),
+                'file_size' => Storage::disk('public')->size('media/'.$safeFilename),
                 'media_type' => $this->detectMediaType($actualMime),
                 'title_de' => pathinfo($originalName, PATHINFO_FILENAME),
                 'width' => $width,
@@ -1303,6 +1319,7 @@ class MediaController extends Controller
                 ->setStatusCode(201);
         } catch (\Illuminate\Http\Client\ConnectionException $e) {
             \Log::error('Media URL import connection failed', ['url' => $validated['url'], 'error' => $e->getMessage()]);
+
             return response()->json(['message' => 'Verbindung zur URL fehlgeschlagen.'], 422);
         }
     }
@@ -1328,7 +1345,7 @@ class MediaController extends Controller
 
         // Find header row
         $headerRow = array_shift($rows);
-        if (!$headerRow) {
+        if (! $headerRow) {
             return response()->json(['message' => 'Excel-Datei ist leer.'], 422);
         }
 
@@ -1355,7 +1372,7 @@ class MediaController extends Controller
         // Enforce row limit to prevent DoS
         if (count($rows) > self::MAX_BULK_IMPORT_ROWS) {
             return response()->json([
-                'message' => 'Maximal ' . self::MAX_BULK_IMPORT_ROWS . ' Zeilen erlaubt. Die Datei enthält ' . count($rows) . ' Zeilen.',
+                'message' => 'Maximal '.self::MAX_BULK_IMPORT_ROWS.' Zeilen erlaubt. Die Datei enthält '.count($rows).' Zeilen.',
             ], 422);
         }
 
@@ -1363,7 +1380,7 @@ class MediaController extends Controller
 
         foreach ($rows as $rowIdx => $row) {
             $url = trim((string) ($row[$urlCol] ?? ''));
-            if (empty($url) || !filter_var($url, FILTER_VALIDATE_URL)) {
+            if (empty($url) || ! filter_var($url, FILTER_VALIDATE_URL)) {
                 continue;
             }
 
@@ -1373,23 +1390,25 @@ class MediaController extends Controller
                 if (count($results['errors']) < 50) {
                     $results['errors'][] = "Zeile {$rowIdx}: Interne URL übersprungen.";
                 }
+
                 continue;
             }
 
             try {
                 $response = Http::timeout(30)->get($url);
-                if (!$response->successful()) {
+                if (! $response->successful()) {
                     $results['failed']++;
                     if (count($results['errors']) < 50) {
                         $results['errors'][] = "Zeile {$rowIdx}: HTTP {$response->status()}";
                     }
+
                     continue;
                 }
 
                 $contentType = explode(';', $response->header('Content-Type', 'application/octet-stream'))[0];
                 $urlPath = parse_url($url, PHP_URL_PATH);
                 $originalName = $urlPath ? basename($urlPath) : 'download';
-                if (!pathinfo($originalName, PATHINFO_EXTENSION)) {
+                if (! pathinfo($originalName, PATHINFO_EXTENSION)) {
                     $ext = match (true) {
                         str_contains($contentType, 'jpeg'), str_contains($contentType, 'jpg') => 'jpg',
                         str_contains($contentType, 'png') => 'png',
@@ -1397,22 +1416,23 @@ class MediaController extends Controller
                         str_contains($contentType, 'webp') => 'webp',
                         default => 'bin',
                     };
-                    $originalName .= '.' . $ext;
+                    $originalName .= '.'.$ext;
                 }
 
                 // Validate extension
                 $extension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION) ?: 'bin');
-                if (!$this->validateExtension($extension)) {
+                if (! $this->validateExtension($extension)) {
                     $results['skipped']++;
                     if (count($results['errors']) < 50) {
                         $results['errors'][] = "Zeile {$rowIdx}: Dateityp \"{$extension}\" nicht erlaubt.";
                     }
+
                     continue;
                 }
 
                 $safeFilename = $this->generateSafeFilenameFromString($originalName);
-                Storage::disk('public')->put('media/' . $safeFilename, $response->body());
-                $storedPath = Storage::disk('public')->path('media/' . $safeFilename);
+                Storage::disk('public')->put('media/'.$safeFilename, $response->body());
+                $storedPath = Storage::disk('public')->path('media/'.$safeFilename);
 
                 // Detect actual MIME type from file content
                 $actualMime = $this->detectMimeFromFile($storedPath) ?? $contentType;
@@ -1433,7 +1453,7 @@ class MediaController extends Controller
 
                 Media::create([
                     'file_name' => $safeFilename,
-                    'file_path' => 'media/' . $safeFilename,
+                    'file_path' => 'media/'.$safeFilename,
                     'mime_type' => $actualMime,
                     'file_size' => strlen($response->body()),
                     'media_type' => $this->detectMediaType($actualMime),
@@ -1474,7 +1494,7 @@ class MediaController extends Controller
         // Validate regex
         $pattern = $validated['pattern'];
         if (@preg_match($pattern, '') === false) {
-            return response()->json(['message' => 'Ungültiger regulärer Ausdruck: ' . preg_last_error_msg()], 422);
+            return response()->json(['message' => 'Ungültiger regulärer Ausdruck: '.preg_last_error_msg()], 422);
         }
 
         $dryRun = $validated['dry_run'] ?? true;
@@ -1494,7 +1514,9 @@ class MediaController extends Controller
         ini_set('pcre.backtrack_limit', '10000');
 
         // Process media in chunks to avoid memory exhaustion
-        Media::select('id', 'file_name')->chunk(500, function ($mediaChunk) use ($pattern, $products, $usageTypeId, $dryRun, &$matches, &$noMatch, &$totalMedia) {
+        // Generierte Motiv-Renditions (Pipeline-Artefakte, z.B. "{motiv-uuid}-web-jpeg-rgb.jpg")
+        // dürfen nie gegen SKU-Muster gematcht werden.
+        Media::select('id', 'file_name')->whereNull('generated_at')->chunk(500, function ($mediaChunk) use ($pattern, $products, $usageTypeId, $dryRun, &$matches, &$noMatch, &$totalMedia) {
             foreach ($mediaChunk as $media) {
                 $totalMedia++;
                 $filename = pathinfo($media->file_name, PATHINFO_FILENAME);
@@ -1517,7 +1539,7 @@ class MediaController extends Controller
                         ->where('media_id', $media->id)
                         ->exists();
 
-                    if (!$exists) {
+                    if (! $exists) {
                         $matches[] = [
                             'media_id' => $media->id,
                             'file_name' => $media->file_name,
@@ -1525,7 +1547,7 @@ class MediaController extends Controller
                             'product_id' => $productId,
                         ];
 
-                        if (!$dryRun) {
+                        if (! $dryRun) {
                             $existingCount = ProductMediaAssignment::where('product_id', $productId)->count();
                             $maxSort = ProductMediaAssignment::where('product_id', $productId)->max('sort_order') ?? 0;
                             ProductMediaAssignment::create([
@@ -1584,7 +1606,7 @@ class MediaController extends Controller
 
         while ($disk->exists("media/{$candidate}")) {
             if ($counter >= $maxAttempts) {
-                $candidate = "{$safe}_" . Str::random(8) . ".{$extension}";
+                $candidate = "{$safe}_".Str::random(8).".{$extension}";
                 break;
             }
             $candidate = "{$safe}_{$counter}.{$extension}";
@@ -1601,7 +1623,7 @@ class MediaController extends Controller
     {
         try {
             $exif = @exif_read_data($filePath);
-            if (!$exif || !isset($exif['Orientation'])) {
+            if (! $exif || ! isset($exif['Orientation'])) {
                 return;
             }
 
@@ -1611,7 +1633,7 @@ class MediaController extends Controller
             }
 
             $image = @imagecreatefromjpeg($filePath);
-            if (!$image) {
+            if (! $image) {
                 return;
             }
 
@@ -1654,7 +1676,7 @@ class MediaController extends Controller
 
         while ($disk->exists("media/{$candidate}")) {
             if ($counter >= $maxAttempts) {
-                $candidate = "{$safe}_" . Str::random(8) . ".{$extension}";
+                $candidate = "{$safe}_".Str::random(8).".{$extension}";
                 break;
             }
             $candidate = "{$safe}_{$counter}.{$extension}";
@@ -1689,18 +1711,18 @@ class MediaController extends Controller
     private function isInternalUrl(string $url): bool
     {
         $parsed = parse_url($url);
-        if (!$parsed || !isset($parsed['host'])) {
+        if (! $parsed || ! isset($parsed['host'])) {
             return true;
         }
 
         $host = $parsed['host'];
         $scheme = strtolower($parsed['scheme'] ?? '');
-        if (!in_array($scheme, ['http', 'https'])) {
+        if (! in_array($scheme, ['http', 'https'])) {
             return true;
         }
 
         $ip = gethostbyname($host);
-        if ($ip === $host && !filter_var($host, FILTER_VALIDATE_IP)) {
+        if ($ip === $host && ! filter_var($host, FILTER_VALIDATE_IP)) {
             return true; // DNS resolution failed
         }
 
@@ -1720,10 +1742,11 @@ class MediaController extends Controller
      */
     private function detectMimeFromFile(string $filePath): ?string
     {
-        if (!file_exists($filePath)) {
+        if (! file_exists($filePath)) {
             return null;
         }
         $finfo = new \finfo(FILEINFO_MIME_TYPE);
+
         return $finfo->file($filePath) ?: null;
     }
 }

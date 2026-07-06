@@ -5,12 +5,11 @@ declare(strict_types=1);
 namespace Tests\Feature\Api;
 
 use App\Models\Media;
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
-
-use App\Models\Role;
 use Tests\TestCase;
 
 class MediaControllerTest extends TestCase
@@ -38,6 +37,20 @@ class MediaControllerTest extends TestCase
         $response = $this->getJson('/api/v1/media');
 
         $response->assertOk()
+            ->assertJsonCount(3, 'data');
+    }
+
+    public function test_index_hides_generated_renditions_by_default(): void
+    {
+        Media::factory()->count(2)->create(); // normale, manuell hochgeladene Medien
+        Media::factory()->create(['generated_at' => now()]); // Pipeline-generierte Rendition
+
+        $this->getJson('/api/v1/media')
+            ->assertOk()
+            ->assertJsonCount(2, 'data');
+
+        $this->getJson('/api/v1/media?include_renditions=true')
+            ->assertOk()
             ->assertJsonCount(3, 'data');
     }
 
@@ -255,5 +268,21 @@ class MediaControllerTest extends TestCase
             ->assertJsonPath('data.media_type', 'image');
 
         $this->assertDatabaseHas('media', ['original_file_name' => 'test.png']);
+    }
+
+    public function test_auto_match_ignoriert_generierte_renditions(): void
+    {
+        $product = \App\Models\Product::factory()->create(['sku' => 'ABC-123']);
+        Media::factory()->create(['file_name' => 'ABC-123.jpg']);
+        Media::factory()->create(['file_name' => 'ABC-123.jpg', 'generated_at' => now()]);
+
+        $response = $this->postJson('/api/v1/media/auto-match', [
+            'pattern' => '/^([A-Z]{3}-\d{3})/',
+            'dry_run' => true,
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('matched', 1)
+            ->assertJsonPath('total_media', 1);
     }
 }

@@ -123,6 +123,7 @@ export function buildParams(options = {}) {
   if (options.language) params.language = options.language
   if (options.include_thumbnail) params.include_thumbnail = '1'
   if (options.include_descendants !== undefined) params.include_descendants = options.include_descendants ? '1' : '0'
+  if (options.include_renditions !== undefined) params.include_renditions = options.include_renditions ? '1' : '0'
 
   return params
 }
