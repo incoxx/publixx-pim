@@ -87,6 +87,10 @@ export default {
     return client.delete(`/product-media/${productMediaId}`)
   },
 
+  downloadMediaZip(id, assignmentIds) {
+    return client.post(`/products/${id}/media/download-zip`, { assignment_ids: assignmentIds }, { responseType: 'blob' })
+  },
+
   // Prices
   getPrices(id) {
     return client.get(`/products/${id}/prices`)

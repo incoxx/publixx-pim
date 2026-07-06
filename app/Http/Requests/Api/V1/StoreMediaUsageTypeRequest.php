@@ -23,6 +23,7 @@ class StoreMediaUsageTypeRequest extends FormRequest
             'sort_order' => 'integer',
             'allowed_extensions' => 'nullable|array',
             'allowed_extensions.*' => 'string|max:10',
+            'restricted_display_mode' => 'sometimes|in:hidden,locked',
         ];
     }
 }

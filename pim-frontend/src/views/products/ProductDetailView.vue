@@ -23,7 +23,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useLocaleStore } from '@/stores/locale'
 import { useToastStore } from '@/stores/toast'
 import { useI18n } from 'vue-i18n'
-import { ArrowLeft, Save, Plus, Trash2, Image, Star, X, Search, Download, Languages, Copy, Sparkles, Tags, LayoutGrid, List, FileText, GitBranch, CheckCircle2, Eye, RotateCcw, ArrowRightLeft, RefreshCw, ChevronDown, ChevronRight, ChevronUp, ExternalLink, Filter, Upload, ClipboardList, Lightbulb, AlertTriangle, XCircle, Wand2, Images } from 'lucide-vue-next'
+import { ArrowLeft, Save, Plus, Trash2, Image, Star, X, Search, Download, Languages, Copy, Sparkles, Tags, LayoutGrid, List, FileText, GitBranch, CheckCircle2, Eye, RotateCcw, ArrowRightLeft, RefreshCw, ChevronDown, ChevronRight, ChevronUp, ExternalLink, Filter, Upload, ClipboardList, Lightbulb, AlertTriangle, XCircle, Wand2, Images, Lock } from 'lucide-vue-next'
 import productsApi from '@/api/products'
 import projectsApi from '@/api/projects'
 import usersApi from '@/api/users'
@@ -38,6 +38,7 @@ import attributeMappingsApi from '@/api/attributeMappings'
 import watchlistApi from '@/api/watchlist'
 import searchProfilesApi from '@/api/searchProfiles'
 import manufacturersApi from '@/api/manufacturers'
+import { triggerDownload } from '@/utils/download'
 import PimCollectionGroup from '@/components/shared/PimCollectionGroup.vue'
 import ProductNotesTab from '@/components/products/ProductNotesTab.vue'
 import ProductConformanceTab from '@/components/products/ProductConformanceTab.vue'
@@ -1253,6 +1254,8 @@ const usageTypesList = ref([])
 const selectedUsageTypeId = ref(null)
 const mediaViewMode = ref('grid') // 'grid' | 'list'
 const mediaFilter = ref('')
+const selectedMediaIds = ref(new Set())
+const downloadingMediaZip = ref(false)
 
 // Spalten-Konfiguration
 const defaultMediaColumns = [
@@ -1307,8 +1310,57 @@ async function loadMedia() {
     const { data } = await productsApi.getMedia(product.value.id)
     mediaItems.value = data.data || data
     mediaLoaded.value = true
+    selectedMediaIds.value = new Set()
   } catch (e) { console.error('Failed to load media:', e.message) }
   finally { mediaLoading.value = false }
+}
+
+function isMediaSelectable(item) {
+  return item.can_download !== false
+}
+
+function isMediaSelected(item) {
+  return selectedMediaIds.value.has(item.id)
+}
+
+function toggleMediaSelection(item) {
+  if (!isMediaSelectable(item)) return
+  const next = new Set(selectedMediaIds.value)
+  if (next.has(item.id)) {
+    next.delete(item.id)
+  } else {
+    next.add(item.id)
+  }
+  selectedMediaIds.value = next
+}
+
+const selectableDisplayMediaItems = computed(() => displayMediaItems.value.filter(isMediaSelectable))
+
+const allDisplayedMediaSelected = computed(() => {
+  return selectableDisplayMediaItems.value.length > 0
+    && selectableDisplayMediaItems.value.every(m => selectedMediaIds.value.has(m.id))
+})
+
+function toggleSelectAllMedia() {
+  if (allDisplayedMediaSelected.value) {
+    selectedMediaIds.value = new Set()
+    return
+  }
+  selectedMediaIds.value = new Set(selectableDisplayMediaItems.value.map(m => m.id))
+}
+
+async function downloadSelectedMediaZip() {
+  if (selectedMediaIds.value.size === 0 || !product.value) return
+  downloadingMediaZip.value = true
+  try {
+    const resp = await productsApi.downloadMediaZip(product.value.id, [...selectedMediaIds.value])
+    triggerDownload(resp.data, `${product.value.sku || product.value.id}-medien-${new Date().toISOString().slice(0, 10)}.zip`)
+  } catch (e) {
+    console.error('Media ZIP download failed:', e.message)
+    toastStore.showToast('ZIP-Download fehlgeschlagen: ' + (e.response?.data?.message || e.message), 'error')
+  } finally {
+    downloadingMediaZip.value = false
+  }
 }
 
 async function openMediaPicker() {
@@ -4228,6 +4280,23 @@ onUnmounted(() => {
             <List class="w-3.5 h-3.5" :stroke-width="2" />
           </button>
         </div>
+        <label v-if="selectableDisplayMediaItems.length > 0" class="inline-flex items-center gap-1.5 shrink-0 cursor-pointer text-[11px] text-[var(--color-text-tertiary)]">
+          <input
+            type="checkbox"
+            class="w-3.5 h-3.5 accent-[var(--color-accent)]"
+            :checked="allDisplayedMediaSelected"
+            @change="toggleSelectAllMedia"
+          />
+          Alle auswählen
+        </label>
+        <button
+          class="pim-btn pim-btn-outline text-xs"
+          :disabled="selectedMediaIds.size === 0 || downloadingMediaZip"
+          @click="downloadSelectedMediaZip"
+        >
+          <Download class="w-3.5 h-3.5" :stroke-width="2" />
+          {{ downloadingMediaZip ? 'Wird gepackt…' : `Als ZIP herunterladen (${selectedMediaIds.size})` }}
+        </button>
         <button class="pim-btn pim-btn-outline text-xs" @click="openMediaUpload">
           <Upload class="w-3.5 h-3.5" :stroke-width="2" /> Hochladen
         </button>
@@ -4285,6 +4354,16 @@ onUnmounted(() => {
         <div v-for="m in displayMediaItems" :key="m.id" class="pim-card overflow-hidden group relative">
           <div class="aspect-square bg-[var(--color-bg)] flex items-center justify-center overflow-hidden p-2 relative">
             <span v-if="m.motif_id" class="pim-badge absolute top-1 left-1 z-10 bg-[var(--color-accent)] text-white text-[9px]">Motiv</span>
+            <input
+              v-if="isMediaSelectable(m)"
+              type="checkbox"
+              class="absolute top-1 right-1 z-10 w-3.5 h-3.5 accent-[var(--color-accent)]"
+              :checked="isMediaSelected(m)"
+              @click.stop="toggleMediaSelection(m)"
+            />
+            <span v-else class="absolute top-1 right-1 z-10 p-1 rounded bg-[var(--color-bg)]/90" title="Kein Zugriff auf diesen Medientyp — Download gesperrt">
+              <Lock class="w-3 h-3 text-[var(--color-text-tertiary)]" :stroke-width="2" />
+            </span>
             <PdfPreview v-if="isMediaPdf(m)" :url="getMediaUrl(m)" :media-id="m.media_id || m.media?.id || m.id" :title="assignmentLabel(m)" max-height="100%" />
             <img v-else :src="getMediaUrl(m)" class="w-full h-full object-contain" loading="lazy" alt="" />
           </div>
@@ -4312,6 +4391,15 @@ onUnmounted(() => {
         <table class="w-full text-xs">
           <thead>
             <tr class="border-b border-[var(--color-border)] bg-[var(--color-bg)]">
+              <th class="px-3 py-2 text-left" style="width:32px">
+                <input
+                  v-if="selectableDisplayMediaItems.length > 0"
+                  type="checkbox"
+                  class="w-3.5 h-3.5 accent-[var(--color-accent)]"
+                  :checked="allDisplayedMediaSelected"
+                  @change="toggleSelectAllMedia"
+                />
+              </th>
               <th
                 v-for="col in visibleMediaColumns"
                 :key="col.key"
@@ -4324,6 +4412,7 @@ onUnmounted(() => {
             </tr>
             <!-- Quick Lookup Filterzeile -->
             <tr v-if="showMediaQuickLookup" class="border-b border-[var(--color-border)] bg-[var(--color-bg)]/50">
+              <td></td>
               <td v-for="col in visibleMediaColumns" :key="col.key" class="px-2 py-1">
                 <template v-if="col.key === 'thumb' || col.key === 'dimensions' || col.key === 'sort_order' || col.key === 'is_primary' || col.key === 'file_size'" />
                 <select
@@ -4364,6 +4453,16 @@ onUnmounted(() => {
               :key="m.id"
               class="border-b border-[var(--color-border)] last:border-0 hover:bg-[var(--color-bg)] transition-colors"
             >
+              <td class="px-3 py-1.5">
+                <input
+                  v-if="isMediaSelectable(m)"
+                  type="checkbox"
+                  class="w-3.5 h-3.5 accent-[var(--color-accent)]"
+                  :checked="isMediaSelected(m)"
+                  @change="toggleMediaSelection(m)"
+                />
+                <Lock v-else class="w-3.5 h-3.5 text-[var(--color-text-tertiary)]" :stroke-width="2" title="Kein Zugriff auf diesen Medientyp — Download gesperrt" />
+              </td>
               <td v-for="col in visibleMediaColumns" :key="col.key" class="px-3 py-1.5">
                 <!-- Thumbnail -->
                 <template v-if="col.key === 'thumb'">

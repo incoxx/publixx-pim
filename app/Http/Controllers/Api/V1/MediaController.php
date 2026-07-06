@@ -8,11 +8,15 @@ use App\Http\Requests\Api\V1\StoreMediaRequest;
 use App\Http\Requests\Api\V1\UpdateMediaRequest;
 use App\Http\Resources\Api\V1\MediaResource;
 use App\Http\Traits\ChecksDeletionConstraints;
+use App\Http\Traits\ChecksInstanceRestrictions;
+use App\Models\HierarchyNodeMediaAssignment;
 use App\Models\Media;
 use App\Models\MediaAssignmentHistory;
 use App\Models\MediaRevision;
+use App\Models\MediaUsageType;
 use App\Models\Product;
 use App\Models\ProductMediaAssignment;
+use App\Models\User;
 use App\Services\ThumbnailService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -28,6 +32,7 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 class MediaController extends Controller
 {
     use ChecksDeletionConstraints;
+    use ChecksInstanceRestrictions;
 
     private const ALLOWED_FILTERS = ['media_type', 'mime_type', 'asset_folder_id', 'usage_purpose', 'file_status'];
 
@@ -1080,9 +1085,10 @@ class MediaController extends Controller
     /**
      * GET /media/revision/{revision}/download — Revisions-Datei herunterladen.
      */
-    public function downloadRevision(MediaRevision $revision): BinaryFileResponse
+    public function downloadRevision(Request $request, MediaRevision $revision): BinaryFileResponse
     {
         $this->authorize('view', $revision->media);
+        $this->assertUsageTypeAccess($request->user(), $revision->media);
 
         $path = Storage::disk('public')->path($revision->file_path);
 
@@ -1094,6 +1100,33 @@ class MediaController extends Controller
             'Content-Type' => $revision->mime_type ?? 'application/octet-stream',
             'Content-Disposition' => 'attachment; filename="'.$revision->file_name.'"',
         ]);
+    }
+
+    /**
+     * Prüft, ob der Nutzer Zugriff auf alle UsageTypes hat, mit denen dieses Medium
+     * irgendwo (Produkt- oder Hierarchie-Zuordnung) verwendet wird.
+     */
+    private function assertUsageTypeAccess(?User $user, Media $media): void
+    {
+        if (! $user || $user->hasRole('Admin')) {
+            return;
+        }
+
+        $usageTypeIds = ProductMediaAssignment::where('media_id', $media->id)->pluck('usage_type_id')
+            ->merge(HierarchyNodeMediaAssignment::where('media_id', $media->id)->pluck('usage_type_id'))
+            ->filter()
+            ->unique();
+
+        if ($usageTypeIds->isEmpty()) {
+            return;
+        }
+
+        $usageTypes = MediaUsageType::whereIn('id', $usageTypeIds)->get();
+        foreach ($usageTypes as $usageType) {
+            if (! $this->checkInstanceAccess($user, $usageType, 'read')) {
+                abort(403, 'Kein Zugriff auf diesen Medientyp.');
+            }
+        }
     }
 
     /**

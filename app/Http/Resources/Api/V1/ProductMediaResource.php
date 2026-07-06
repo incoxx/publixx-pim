@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace App\Http\Resources\Api\V1;
 
+use App\Http\Traits\ChecksInstanceRestrictions;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 class ProductMediaResource extends JsonResource
 {
+    use ChecksInstanceRestrictions;
+
     public function toArray(Request $request): array
     {
         return [
@@ -23,9 +26,26 @@ class ProductMediaResource extends JsonResource
             'usage_type' => new MediaUsageTypeResource($this->whenLoaded('usageType')),
             'sort_order' => $this->sort_order,
             'is_primary' => $this->is_primary,
+            'can_download' => $this->canDownload($request),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];
+    }
+
+    /**
+     * Ob der aktuelle Nutzer dieses Medium herunterladen darf (Rechteverwaltung pro Medientyp).
+     */
+    private function canDownload(Request $request): bool
+    {
+        $user = $request->user();
+        if (! $user || ! $this->relationLoaded('usageType') || ! $this->usageType) {
+            return true;
+        }
+        if ($user->hasRole('Admin')) {
+            return true;
+        }
+
+        return $this->checkInstanceAccess($user, $this->usageType, 'read');
     }
 
     /**
