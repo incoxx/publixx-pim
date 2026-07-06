@@ -307,7 +307,7 @@ onMounted(() => fetchItems())
           v-model="searchTerm"
           @input="onSearchInput"
           class="pim-input pim-input-icon text-xs"
-          placeholder="Motive nach Titel durchsuchen…"
+          placeholder="Motive durchsuchen (Titel, Rechteinhaber, Urheber, Schlagworte, …)"
         />
       </div>
       <select v-model="usedFilter" @change="onFilterChange" class="pim-select text-xs">

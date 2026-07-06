@@ -224,6 +224,40 @@ class MediaMotifControllerTest extends TestCase
             ->assertJsonPath('data.0.is_used', false);
     }
 
+    public function test_index_search_covers_metadata_fields(): void
+    {
+        Storage::fake('public');
+
+        $other = $this->createMediaWithRealFile();
+        $other->update(['file_name' => 'anderes-bild.jpg', 'file_path' => 'media/anderes-bild.jpg']);
+        $this->postJson('/api/v1/media-motifs', [
+            'media_id' => $other->id,
+            'title_de' => 'Schleifgerät Pro',
+        ])->assertCreated();
+
+        $withMetadata = $this->createMediaWithRealFile();
+        $withMetadata->update(['file_name' => 'metadaten-bild.jpg', 'file_path' => 'media/metadaten-bild.jpg']);
+        $this->postJson('/api/v1/media-motifs', [
+            'media_id' => $withMetadata->id,
+            'title_de' => 'Bohrmaschine XL',
+            'rights_holder' => 'Fotostudio Sonnenschein GmbH',
+            'creator' => 'Erika Musterfrau',
+            'keywords' => ['bohrmaschine', 'baustelle'],
+        ])->assertCreated();
+
+        $this->getJson('/api/v1/media-motifs?search=Sonnenschein')
+            ->assertOk()->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.title_de', 'Bohrmaschine XL');
+
+        $this->getJson('/api/v1/media-motifs?search=Musterfrau')
+            ->assertOk()->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.title_de', 'Bohrmaschine XL');
+
+        $this->getJson('/api/v1/media-motifs?search=baustelle')
+            ->assertOk()->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.title_de', 'Bohrmaschine XL');
+    }
+
     public function test_show_reports_is_used_for_single_motif(): void
     {
         Storage::fake('public');

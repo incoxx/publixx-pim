@@ -43,7 +43,13 @@ class MediaMotifController extends Controller
                 $q->whereHas('productAssignments')->orWhereHas('hierarchyNodeAssignments');
             }]);
 
-        $this->applySearch($query, $request, ['title_de', 'title_en']);
+        $this->applySearch($query, $request, [
+            'title_de', 'title_en',
+            'description_de', 'description_en',
+            'rights_holder', 'creator', 'credit_line',
+            'license_type', 'copyright_notice', 'usage_restrictions',
+            'keywords',
+        ]);
 
         $filters = $request->query('filter', []);
 
