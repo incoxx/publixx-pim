@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, watch } from 'vue'
 import { X, Plus, Save, Trash2, AlertCircle } from 'lucide-vue-next'
 import mediaRenditionPresets from '@/api/mediaRenditionPresets'
 import PimDeleteConfirmDialog from '@/components/shared/PimDeleteConfirmDialog.vue'
@@ -108,15 +108,12 @@ async function confirmDelete({ force }) {
   }
 }
 
-onMounted(() => {
-  if (props.open) fetchItems()
+watch(() => props.open, (isOpen) => {
+  if (isOpen) {
+    showForm.value = false
+    fetchItems()
+  }
 })
-
-function onOpenChange(isOpen) {
-  if (isOpen) fetchItems()
-}
-
-defineExpose({ onOpenChange })
 </script>
 
 <template>
