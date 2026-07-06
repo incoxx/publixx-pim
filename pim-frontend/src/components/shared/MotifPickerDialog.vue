@@ -60,7 +60,7 @@ function select(motif) {
         <div class="px-4 py-2 border-b border-[var(--color-border)]">
           <div class="relative">
             <Search class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--color-text-tertiary)]" :stroke-width="2" />
-            <input v-model="searchQuery" type="text" class="pim-input text-xs pl-8 w-full" placeholder="Motive nach Titel durchsuchen…" />
+            <input v-model="searchQuery" type="text" class="pim-input pim-input-icon text-xs w-full" placeholder="Motive nach Titel durchsuchen…" />
           </div>
         </div>
         <div class="flex-1 overflow-y-auto p-4">
